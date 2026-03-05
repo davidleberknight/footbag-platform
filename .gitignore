@@ -1,0 +1,116 @@
+#=========================
+# Legacy migration data (keep code, ignore generated/mirrored data)
+# =========================
+legacy_data/mirror_footbag_org/
+legacy_data/create_mirror.sh
+legacy_data/mirror_progress.json
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# =========================
+# Python (legacy_data scripts / migration tooling)
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+.python-version
+footbag_venv/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# =========================
+# Environment / secrets (never commit)
+# =========================
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+
+# =========================
+# Databases (local/dev/generated)
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# SQLite sidecar/journal files
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+
+# =========================
+# Dependencies / package managers
+# =========================
+node_modules/
+
+# =========================
+# Build output
+# =========================
+dist/
+build/
+*.tsbuildinfo
+
+# =========================
+# OS / editor / local tooling
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# =========================
+# Test coverage
+# =========================
+coverage/
+
+# =========================
+# Terraform
+# =========================
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+*.tfvars.json
+!.tfvars.example
+!.tfvars.sample
+
+# =========================
+# Local personal overrides (machine-specific, never commit)
+# =========================
+CLAUDE.local.md
+
+# =========================
+# Windows / WSL NTFS alternate data stream markers
+# =========================
+*:Zone.Identifier
+
+# Local audit reports (never commit)
+prepublish_audit_*.txt
+
+# Generated cache files (never commit)
+legacy_data/robots_cache.json
