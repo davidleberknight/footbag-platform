@@ -8,6 +8,11 @@ This document captures technical decisions and rationale so that volunteers can 
 
 Scoping note: Numeric values in this document may represent fixed technical constants, deployment/infrastructure resource allocations and thresholds, or implementation notes. For Administrator-configurable operational, security, reminder, pricing, and retention values, normative defaults are defined in the User Stories document and loaded via configuration seeds. DD may describe parameterization, ranges, and ownership, but if a value is Administrator-configurable, DD does not define the normative default. Any numeric value in this document that conflicts with the User Stories normative defaults section is an error; User Stories wins.
 
+Current implementation note (MVFP V0.1): this document is the long-term architecture reference. For the current public Events + Results MVFP implementation, preserve these narrower rules where they differ from broader design discussion later in this document:
+- `/health/ready` is only the minimal SQLite readiness path;
+- initial database bootstrap comes directly from `schema_v0_1.sql`, with numbered migrations deferred until after the first stable baseline;
+- the initial runtime requires `nginx`, `web`, and `worker`; the `image` container is a later-phase artifact.
+
 **Table of Contents**
 
 1. Architectural Foundations
@@ -56,10 +61,11 @@ Scoping note: Numeric values in this document may represent fixed technical cons
   6.9 Voting
 7. DevOps
   7.1 Dev/Prod Parity
-  7.2 Docker
-  7.3 GitHub
-  7.4 Local Development
-  7.5 Health Endpoints
+  7.2 AWS Lightsail and Credentials
+  7.3 Docker
+  7.4 GitHub
+  7.5 Local Development
+  7.6 Health Endpoints
 8. Logging, Monitoring & Abuse Prevention
   8.1 Structured Logging
   8.2 Monitoring and Alerting
@@ -103,13 +109,15 @@ Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds
 
 **Transaction Model:**
 
-ACID transactions replace optimistic locking for write safety, but do not eliminate the need for application-level retry. SQLite serializes conflicting writers via busy_timeout, yet under concurrency the application can still receive SQLITE_BUSY / SQLITE_BUSY_TIMEOUT and must handle it explicitly. The platform uses BEGIN IMMEDIATE to acquire the write lock early, keeps write transactions short, and implements bounded retries for idempotent operations when SQLITE_BUSY occurs. The application enforces a 30-second transaction timeout. Transactions cannot span async operations: all database work completes before commit, then async operations (email, S3) occur after.
+ACID transactions provide the platform’s core write-safety guarantees, but the application still needs explicit handling for temporary contention. SQLite serializes conflicting writers through the configured busy_timeout, yet under load the app can still receive SQLITE_BUSY or SQLITE_BUSY_TIMEOUT. The platform therefore uses BEGIN IMMEDIATE to acquire the write lock early, keeps write transactions short, and applies bounded retries only for idempotent operations when a busy condition occurs. The application also enforces a 30-second transaction timeout. Transactions must remain fully synchronous: all database work finishes before commit, and any async follow-up work such as email or S3 runs only after the transaction completes.
 
-The version column on mutable tables is an optimistic lost-update prevention pattern for human-facing edit forms: a form submission that includes a stale version value can be rejected, prompting the user to reload and review concurrent changes. This is a UX safeguard, not a write-safety mechanism. The version column is intentionally omitted from append-only, ledger, junction, and reference tables because those tables are never updated.
+In this project, better-sqlite3 together with SQLite’s configured busy timeout is the primary contention-management mechanism. Application code should not add a second general-purpose retry loop by default. Instead, service-layer database helpers should translate busy or locked database failures into a clear temporary-unavailable service error so controllers can render the standard safe failure path.
+
+The version column on mutable tables supports optimistic lost-update detection for human-facing edit flows. When a submitted form includes a stale version, the update can be rejected so the user reloads and reviews intervening changes. This is a user-experience safeguard, not the platform’s primary write-safety mechanism. The version column is intentionally not used on append-only, ledger, junction, or reference tables because those tables are not updated.
 
 **Development Parity:**
 
-Same SQLite file on local filesystem. Same schema (run same migration SQL files). Same prepared statements. S3 backup disabled (ENABLE_S3_BACKUP=false). Perfect parity except backup mechanism. Default local development uses stubs and does not require AWS credentials; an optional hybrid mode can use real AWS services for integration testing.
+Local development and deployed environments use the same application code, the same fixed SQLite runtime filename (`footbag.db`), the same prepared statements, and the same Dockerized process boundaries. The host-side SQLite path may differ by environment, but Docker/Compose mounts it into the application working directory as `./footbag.db`. Backup jobs may be disabled locally, but backup behavior is validated in staging and production.
 
 **Rationale:**
 
@@ -149,35 +157,33 @@ Database Module: Single db.ts exports connection with PRAGMAs, prepared statemen
 
 Service Layer: Import db module, call queries.memberByEmail.get(email), wrap multi-step operations in transaction(() =\> {...}). Catch specific error codes, throw meaningful business errors. Never call db.prepare() or write inline SQL.
 
-Schema Design: Base tables (\_base suffix), public views (auto-filter deleted), admin views (\_all suffix for recovery). Foreign keys with ON DELETE NO ACTION prevent accidental hard deletes of entities that use the grace-period deletion lifecycle (members).
+Schema Design: refer to Data_Model md file.
 
 Minimum Indexes (added when query \>500ms): members(login_email_normalized), members(display_name), events(start_date), events(hashtag), audit_logs(timestamp), media(member_id), registrations(event_id, member_id).
 
 Monitoring: Query latency P95, slow query log (\>500ms), transaction duration (alert if P95 \>10s), backup success rate and age (alert if \>15 min), database size (alert at 80%), WAL size (alert if \>1GB), checkpoint latency (alert if \>5s), SQLITE_BUSY frequency (alert if \>5%).
 
-Health Endpoints: /health/live (process check), /health/ready (database + last backup timestamp).
+Health Endpoints: `/health/live` is a process check. `/health/ready` follows the current implementation note at the top of this document: for the current public release it is the minimal SQLite readiness path, while broader readiness coverage remains later-phase operational design.
 
-Recovery: Download latest S3 version, run PRAGMA integrity_check, replace file, restart, verify health. Target RTO: ~5 minutes.
+Recovery: Download the selected S3 snapshot, run `PRAGMA integrity_check`, replace the live file, restart services, and verify health plus smoke checks. Target RTO remains approximately five minutes for the common restore case.
 
-Migrations: Sequential numbered SQL files (e.g., 001_create_members.sql) are applied during a maintenance window (stop requests, drain, run SQL files in order, restart). A specific migration tracking table or tool is not prescribed in this document.
+Initial schema bootstrap for first public launch comes directly from `schema_v0_1.sql`. A numbered migration chain is deferred until after the first stable deployed baseline (no migrations in scope).
 
 **Follow-on Decisions:**
 
-Schema Design: Complete table definitions, indexes, foreign keys (Data Model document)
+Schema Design: Data Model document for design standards, and the schema sql code for exact detail.
 
-Complete Statement Catalog: All prepared statements with SQL, parameters, return types (Data Model document)
+Complete Statement Catalog: All prepared statements with SQL, parameters, return types (src/db/db.ts)
 
-S3 Backup Configuration: Retry policy, alert thresholds, recovery drill schedule (Server Specification document)
+S3 Backup Configuration: Retry policy, alert thresholds, recovery drill schedule (DevOps document)
 
 Migration Procedures: SQL conventions, maintenance mode, rollback strategies (DevOps document)
 
-Transaction Boundaries: Which operations require transactions, timeout policies, SQLITE_BUSY retry logic (Server Specification document)
+Transaction Boundaries: Which operations require transactions, timeout policies, and temporary-unavailable / busy-handling boundaries (Service Catalog document)
 
-Query Performance: Index selection criteria, profiling procedures, optimization triggers (Server Specification document)
+Query Performance: Index selection criteria, profiling procedures, optimization triggers (Data Model and DevOps documents)
 
 Testing Patterns: Test database setup, state isolation, mock strategies (Developer Onboarding document)
-
-Monitoring Dashboards: CloudWatch metrics, alert thresholds, escalation (DevOps document)
 
 **Alternatives Considered:**
 
@@ -770,79 +776,73 @@ Impact:
 
 Decision:
 
-JWTs are signed using an AWS KMS asymmetric key (RSA-2048 or ECDSA). Login flow calls KMS Sign to produce the token signature. Token verification uses the exported public key (KMS GetPublicKey) cached in memory; verification does not call KMS on every request. Token header includes kid referencing the active KMS key identifier used for signing to support rotation.
+JWTs are signed using an AWS KMS asymmetric key (RSA-2048). Login flow calls KMS Sign to produce the token signature. Token verification uses the exported public key (KMS GetPublicKey) cached in memory; verification does not call KMS on every request. Token header includes kid referencing the active KMS key identifier used for signing to support rotation.
 
 Rationale:
 
-Private key material never leaves KMS/HSM. A container compromise cannot exfiltrate a reusable signing key. Public-key verification is fast and can be done in-process without KMS round trips.
+- We could use a slightly different model if we were hosted on EC2, but with Lightsail, this is the way to go.
+- Private key material never leaves KMS/HSM. A container compromise cannot exfiltrate a reusable signing key. Public-key verification is fast and can be done in-process without KMS round trips.
 
 Trade-offs:
 
-- Container compromise can still sign tokens while the instance role is active (attacker can call KMS Sign). KMS prevents offline forging after incident response because the private key is non-exportable.
+- Container compromise can still sign tokens while the runtime AWS credentials for the assumed runtime role remain usable (an attacker can still call KMS Sign through that role). KMS prevents offline forging after incident response because the private key is non-exportable.
 
 - Requires KMS key provisioning and rotation procedures (public key refresh and kid changes).
 
 Impact:
 
-AuthService signs tokens via KMSAdapter (kms:Sign). Auth middleware verifies using cached public key (kms:GetPublicKey during startup/rotation only).
+AuthService signs tokens via KMSAdapter (kms:Sign) using the runtime assumed role defined by the AWS Lightsail and Credentials decision. Auth middleware verifies using cached public key (kms:GetPublicKey during startup/rotation only).
 
 ## 3.6 Secrets Management via AWS Parameter Store
 
 Decision:
 
-Sensitive credentials (e.g., Stripe API keys, Stripe webhook secret, administrative bootstrap tokens) are stored in AWS SSM Parameter Store as SecureString parameters and retrieved at container startup via SecretsAdapter. Cryptographic operations that must not allow key exfiltration use AWS KMS (JWT signing and ballot encryption). No secrets are stored in source code, Dockerfiles, environment variables, or version control.
+Sensitive credentials (e.g., Stripe API keys, Stripe webhook secret, administrative bootstrap tokens) are stored in AWS SSM Parameter Store as SecureString parameters and retrieved at container startup via SecretsAdapter. Cryptographic operations that must not allow key exfiltration use AWS KMS (JWT signing and ballot encryption). No secrets are stored in source code, Dockerfiles, committed environment files, or version control.
+
+In production, the workload reads Parameter Store by using the runtime assumed role. The host-level source credential/config material used to assume that role is root-owned and is not the authoritative runtime principal.
 
 Rationale:
 
+- We could use a slightly different model if we were hosted on EC2, but with Lightsail, this is the way to go.
 - Encryption at rest via AWS-managed KMS keys (transparent to application).
-
-- IAM access control with least-privilege instance role.
-
+- IAM access control with a least-privilege runtime assumed role.
 - Parameter versioning enables rollback and controlled rotation.
-
 - Simple API (GetParameter) with values cached in memory after retrieval.
-
 - AWS-native service (no additional infrastructure to maintain).
 
-Threat Model Clarification: Parameter Store does not protect against an attacker who gains shell access inside the production container. EC2/Lightsail IAM permissions apply at the instance level; an attacker in the container can call SSM GetParameter and read SecureString values permitted to the instance role. For secrets that must remain non-exportable even under container compromise, the system uses KMS/HSM-backed keys (non-exportable asymmetric signing keys) and IAM separation (web runtime cannot decrypt ballots).
+Threat Model Clarification: Parameter Store does not protect against an attacker who gains shell access inside the production container while usable runtime AWS credentials are available to that container. An attacker in the container can call SSM GetParameter for any SecureString values allowed to the runtime assumed role. For secrets that must remain non-exportable even under container compromise, the system uses KMS/HSM-backed keys (non-exportable asymmetric signing keys) and IAM separation (normal web runtime cannot decrypt ballots).
 
-Implementation: Parameter paths organized by environment (/footbag/prod/, /footbag/staging/, /footbag/dev/).
+Implementation: Parameter paths are organized by environment (`/footbag/prod/`, `/footbag/staging/`, `/footbag/dev/`).
 
-In development, Parameter Store is replaced with /config/secrets.local.json containing test credentials in JSON format with nested objects matching the Parameter Store hierarchy. Template file /config/secrets.template.json is committed to repository with placeholder values and documentation.
+In development, Parameter Store is replaced with `/config/secrets.local.json` containing test credentials in JSON format with nested objects matching the Parameter Store hierarchy. Template file `/config/secrets.template.json` is committed to repository with placeholder values and documentation.
 
-Secrets fetched once at container startup via SecretsAdapter (SSM GetParameter in production, local JSON file in development).
+Secrets are fetched once at container startup via SecretsAdapter (SSM GetParameter in production, local JSON file in development).
 
 Parameter Store contains:
 
 - Stripe API keys (test/live by environment).
-
 - Stripe webhook secret (HMAC verification).
-
-- Email delivery configuration (if any), admin bootstrap tokens, and other non-exportable credentials.
+- Email delivery configuration (if any), admin bootstrap tokens, and other exportable credentials and configuration that must not be committed to source control.
 
 KMS is used for:
 
-- JWT signing (kms:Sign, kms:GetPublicKey) – no JWT signing secret stored in Parameter Store.
-
-- Ballot envelope encryption (kms:GenerateDataKey, kms:Decrypt in tally role only) – no ballot master key stored in Parameter Store.
+- JWT signing (`kms:Sign`, `kms:GetPublicKey`) – no JWT signing secret is stored in Parameter Store.
+- Ballot envelope encryption (`kms:GenerateDataKey`, `kms:Decrypt` in tally role only) – no ballot master key is stored in Parameter Store.
 
 Trade-offs:
 
-- Manual rotation vs automatic (acceptable for small number of secrets).
-
+- Manual rotation vs automatic (acceptable for a small number of secrets).
 - AWS lock-in for secrets (acceptable given AWS infrastructure commitment).
+- Runtime secret access now depends on explicit host bootstrap and runtime credential wiring on Lightsail.
 
 Impact:
 
 - SecretsAdapter abstracts Parameter Store in production and local JSON file in development.
-
 - Cryptographic signing/encryption paths depend on KMSAdapter, not Parameter Store.
+- CloudTrail/CloudWatch monitoring should watch for unusual Parameter Store access patterns and KMS error rates.
+- Parameter Store secrets rotate through new parameter version + controlled container restart / redeploy.
+- KMS keys rotate through an explicit key-rotation procedure (update kid/public key cache; deploy archive verifier update if applicable).
 
-- CloudTrail/CloudWatch monitoring for unusual Parameter Store access patterns and KMS error rates.
-
-- Parameter Store secrets: manual annual rotation via new parameter version + rolling container restart.
-
-- KMS keys: rotation handled via explicit key-rotation procedure (update kid/public key cache; deploy archive verifier update if applicable).
 
 ## 3.7 Ballot Encryption with AWS KMS
 
@@ -852,7 +852,7 @@ Ballots are submitted as plaintext over HTTPS and then encrypted on the server b
 
 Ballots at rest consist only of: ciphertext, nonce (IV), authentication tag, encrypted data key, KMS key ID, and minimal metadata (election ID, member ID reference, timestamps). No plaintext ballot contents are persisted.
 
-Decryption is performed only during controlled tally operations, using a separate privileged role that has kms:Decrypt permission. The web application runtime role does not have kms:Decrypt and therefore cannot decrypt stored ballots, even if the container is compromised. Every ballot decryption is audit logged per the audit logging decisions.
+Decryption is performed only during controlled tally operations, using a separate privileged role that has kms:Decrypt permission. The normal web application runtime assumed role does not have `kms:Decrypt` and therefore cannot decrypt stored ballots, even if the container is compromised. Every ballot decryption is audit logged per the audit logging decisions.
 
 Rationale:
 
@@ -1632,33 +1632,94 @@ Alternative Considered: Third-Party Vendor (ElectionBuddy): Evaluated to reduce 
 
 Decision:
 
-Development, staging, and production environments use the same container images and architecture. Differences are limited to configuration (S3 buckets, secrets, CloudFront distributions, Stripe/SES mode), and the adapter pattern, not code paths or features.
+Development, staging, and production use the same application architecture, the same major service boundaries, and the same containerized deployment shape where practical. Differences are limited to environment-specific configuration, infrastructure sizing, live-vs-stub adapter wiring, and the documented runtime credential mechanism, not to divergent business logic or route behavior.
 
 Rationale:
 
 - Developers should be able to reproduce production behavior locally or in staging with minimal surprises.
-
 - Reduces "works in dev, fails in prod" issues caused by diverging stacks.
+- Preserves the adapter model: the code should behave the same whether it is wired to local stubs or to production AWS services.
 
 Trade-offs:
 
-- Configuration complexity managed via Parameter Store hierarchies: ENVIRONMENT (dev, stage, or prod), S3 buckets (DATA_BUCKET, ARCHIVE_BUCKET, STATIC_BUCKET per environment), external services (STRIPE_MODE being test or live, SES_SENDER_EMAIL), CloudFront (DISTRIBUTION_ID per environment), secrets (JWT_SECRET, STRIPE_API_KEY via Parameter Store), feature flags (VOTING_ENABLED, REGISTRATION_OPEN, etc.). All environment-specific values stored in Parameter Store under /environment/\* hierarchy.
-
-- Resource usage in staging controlled (smaller instance, test-mode Stripe) while maintaining architectural parity.
+- Configuration complexity is managed through explicit environment-scoped settings, including environment name, bucket names, sender identities, CloudFront distribution identifiers, feature flags, and Parameter Store paths under the `/footbag/{env}/...` hierarchy.
+- Production Lightsail runtime access to AWS differs from local development: local development may use stubs by default and may optionally use a local AWS profile for hybrid testing, while production uses the explicit runtime assumed-role model defined by the AWS Lightsail and Credentials decision.
+- Resource usage in staging may be smaller than production while still preserving architectural parity.
 
 Impact:
 
-- CI builds a single set of images used across environments.
+- CI builds one primary set of application images used across environments.
+- Environment selection is done via configuration and adapter wiring, not via conditional feature implementation or alternate business logic.
+- Test plans should validate that staging uses the same routes, adapters, and behavioral expectations as production.
+- JWT signing remains KMS-based in production; no `JWT_SECRET` production design is introduced by this decision.
 
-- Environment selection is done via configuration (env vars, Parameter Store), not via preprocessor flags or conditional code.
 
-- Test plans validate that staging uses the same routes, adapters, and behaviors as production. Explicit storage parity tests are required.
+## 7.2 AWS Lightsail and Credentials
 
-## 7.2 Docker
+Decision:
+
+Production runs on AWS Lightsail, but operator shell access and workload AWS API access use two distinct mechanisms. For operator shell access, the Lightsail host uses hardened per-operator SSH, not Session Manager. SSH access exists only for documented operational tasks such as deployment, restore, patching, and incident diagnostics; it is not the general administration model for the system.
+
+Routine host administration uses named non-root Linux operator accounts with `sudo`. Shared shell accounts are not allowed. Shared private SSH keys are not allowed. Each approved System Administrator gets a separate SSH key pair and a separately attributable host-access path. Password authentication must be disabled, direct root login must not be the normal operator path, and port 22 must be restricted to approved operator source IPs or CIDR ranges.
+
+If the cloud image or Lightsail default login account is used during first bootstrap, that account is bootstrap-only and must not remain the long-term shared administration path once the named operator account model is established.
+
+For workload AWS API access, the deployed application does not rely on an implicit EC2-style instance role attached to the Lightsail host. Instead, production uses one or more explicit runtime IAM roles assumed through the AWS shared config/shared credentials chain. A root-owned host AWS config/credentials setup provides the source profile needed to assume the runtime role, and the deployed services use the assumed role as the runtime principal via standard AWS SDK / CLI credential resolution (`role_arn`, `source_profile`, `AWS_PROFILE`, or equivalent SDK configuration).
+
+The authoritative production runtime principal is therefore the assumed runtime role, not the source profile, not the human operator identity, and not a host-attached instance role. Runtime permissions remain narrowly scoped to only the AWS APIs the application actually needs, such as S3, SES, Parameter Store, CloudWatch, and KMS, depending on the environment and service path.
+
+Terraform remains the authority for the steady-state IAM roles, policies, Lightsail firewall posture, logging resources, and related infrastructure configuration. The exact host-user creation and public-key installation path may begin as documented bootstrap work, but it must be reproducible, reviewable, and reflected in the runbooks.
+
+Rationale:
+
+- The platform intentionally uses Lightsail for cost and operational simplicity, but still needs a documented host shell-access path and controlled runtime use of AWS APIs.
+- For this project’s scale, hardened per-operator SSH is proportionate and simpler than treating the Lightsail host as a non-EC2 managed node for Session Manager.
+- Separating human operator access from workload runtime access keeps the design easier to reason about and audit.
+- A documented AssumeRole-based runtime model preserves temporary credentials and least privilege without removing the existing AWS integrations from the design.
+- Even if there is only one operator initially, the named-account / per-key model avoids future shared-access cleanup when additional System Administrators are onboarded.
+
+Trade-offs:
+
+- SSH requires opening port 22 to approved operator source IPs and maintaining that allowlist deliberately.
+- The project must document host-account and SSH-key lifecycle procedures clearly: how a public key is approved and installed, how ownership and key fingerprints are recorded, and how access is removed immediately during offboarding.
+- Private keys remain in the custody of the individual operator and must never be committed to the repository, stored in Parameter Store, copied into application containers, or placed in shared team storage.
+- If operator source IPs change often, firewall maintenance is more manual than a no-inbound-port model.
+- If the host or a privileged container is compromised while runtime credentials remain usable, the attacker can still call the AWS APIs allowed to the assumed runtime role until those temporary credentials expire or are cut off. This is still a better posture than storing exportable private keys in the app, but it is not a magic isolation boundary.
+- Least-privilege claims are strongest if the web and worker services use separate runtime roles. Sharing one runtime role across both is an acceptable minimal-fix simplification, but increases blast radius.
+
+Impact:
+
+- Session Manager, hybrid activation, managed-node, and SSM-agent baseline wording elsewhere in the document suite must be removed or replaced with the SSH-based operator access model.
+- DevOps and onboarding documentation must define the canonical SSH operating rules: named non-root operator accounts, `sudo` usage, public-key installation flow, private-key custody rules, firewall source-IP restriction, host-access inventory, onboarding steps, offboarding steps, and break-glass expectations.
+- Docker and deployment configuration must mount only the required AWS config/credentials material into the containers that need AWS access, read-only, and must select the intended runtime profile explicitly.
+- Parameter Store, KMS, SES, S3, and CloudWatch decisions elsewhere in this document remain valid, but their wording must refer to the runtime assumed role and not confuse it with the host operator path.
+- Terraform-managed infrastructure must include the IAM roles/policies, Lightsail firewall restrictions, and any documented bootstrap inputs required by the SSH access model; it no longer depends on Systems Manager managed-node registration or Session Manager logging as a baseline requirement.
+
+Alternatives Considered:
+
+- Session Manager on the Lightsail host through the non-EC2 managed-node / hybrid activation path: Rejected for this stage because it adds hybrid-registration complexity and a recurring paid dependency for interactive shell access on a single-instance volunteer deployment without enough compensating value for the expected operator workflow.
+- EC2 instead of Lightsail to preserve a no-inbound-port Session Manager shell path: Rejected for this stage because it increases platform complexity and moves the project away from the intentionally proportionate Lightsail-first deployment posture.
+- Shared SSH private key or shared shell account: Rejected because it weakens accountability, complicates offboarding, and conflicts with the project rule against shared privileged identities.
+
+## 7.3 Docker
 
 Decision:
 
 Local development uses Docker and docker compose to start the stack (web app, worker, test stubs) with a single command.
+
+The minimum required Docker artifact for the MVFP V1.0 delivery set is:
+- `docker/web/Dockerfile`
+- `docker/worker/Dockerfile`
+- `docker/nginx/nginx.conf`
+- root `docker-compose.yml` for local development
+- root `docker-compose.prod.yml` for Lightsail deployment overrides
+- a documented service wrapper (for example `ops/systemd/footbag.service`) for the production compose stack
+
+The minimum required MVFP runtime containers are:
+- `nginx`
+- `web`
+- `worker`
+(The `image` container remains a later-phase artifact and is not required to launch the MVFP public events slice.)
 
 Rationale:
 
@@ -1674,7 +1735,7 @@ Environment differences limited to:
 
 - SES_MODE=stub (dev) vs live (prod).
 
-- AWS credentials: local profile (dev) vs IAM instance role (prod).
+- AWS credentials: local stubbed adapters in development, versus the documented runtime assumed-role model in production. 
 
 - Feature flags: May differ for testing unreleased features.
 
@@ -1696,7 +1757,7 @@ Health Checks and Restart Policies:
 
 All containers configured with health checks (30-60s intervals, 3 retries) and restart policies. Web/worker/nginx use restart: unless-stopped for continuous availability. Image container uses restart: on-failure with max 5 attempts to prevent restart loops. CloudWatch monitors container health status and alerts on persistent failures.
 
-## 7.3 GitHub
+## 7.4 GitHub
 
 Decision:
 
@@ -1722,7 +1783,7 @@ Impact:
 
 - Deployment runbooks describe pulling correct tagged images from GHCR into staging/production.
 
-## 7.4 Local Development
+## 7.5 Local Development
 
 Decision:
 
@@ -1776,7 +1837,7 @@ Impact:
 
 - Stub implementations must match real AWS service behavior.
 
-## 7.5 Health Endpoints
+## 7.6 Health Endpoints
 
 Decision:  
 The application exposes HTTP health endpoints for use by AWS health checks and deployment automation:  
@@ -1787,9 +1848,10 @@ Rationale:
 AWS best practice is to build health checks into every service to support safe deployments and automated recovery.
 
 Constraints:  
-- /health/live is cheap and does not call external dependencies.  
-- /health/ready validates only essential dependencies required to serve traffic (e.g., ability to read required configuration and perform minimal S3 read access).  
-- Health endpoints must avoid calling Stripe or SES.
+- `/health/live` is cheap and does not call external dependencies.  
+- `/health/ready` Validates essential dependencies required to serve traffic, only (e.g., ability to read required configuration and perform minimal S3 read access).  MVFP V0.1 NOTE: validates only the minimum SQLite readiness path, for now, required to serve the MVFP v0.1 slice.  
+- Health endpoints must avoid calling Stripe, SES, S3, and any expensive dependency fan-out.  
+- Backup freshness, restore posture, and memory-pressure alarms remain operational concerns rather than MVFP v0.1 readiness gates.
 
 Impact:  
 - Deployment runbooks and any load balancer, target health checks use these endpoints.  
@@ -2137,53 +2199,46 @@ Monitoring and alerts: Alert if memory usage remains above 80 percent for five c
 
 Decision:
 
-All AWS infrastructure defined in Terraform configuration files, version-controlled in repository under /terraform directory. Manual AWS console changes prohibited except for emergency incident response, which must be immediately followed by Terraform configuration updates to restore code-infrastructure parity.
+All steady-state AWS infrastructure is defined in Terraform configuration files version-controlled in the repository under `/terraform`. A one-time manual bootstrap identity is allowed only to establish Terraform Cloud access, account-baseline controls, and Terraform-managed IAM. After that handoff, manual console changes are prohibited except for emergency incident response, and any emergency change must be reconciled back into Terraform immediately.
 
 Rationale:
 
 - Reproducible environments: Dev, staging, production created identically from code (eliminates "works in staging but not production" issues).
-
 - Infrastructure changes reviewed via pull requests with visual diff of planned changes (terraform plan output).
-
 - Disaster recovery through code: Complete environment rebuild possible from Terraform state and configuration.
-
 - Eliminates tribal knowledge; infrastructure documented as executable code with comments explaining rationale.
-
 - Supports long-term volunteer maintainability (new admins can understand infrastructure by reading .tf files).
-
 - Enables infrastructure testing in isolated environments before production deployment.
 
 Infrastructure Managed by Terraform:
 
 - Lightsail instance configuration (size, region, OS, firewall rules, static IP allocation).
-
 - S3 buckets with complete configuration (including backup bucket for SQLite snapshots with versioning and Object Lock enabled).
-
 - CloudFront distributions.
-
-- IAM roles and policies.
-
+- IAM roles and policies, including the runtime assumed role model and any distinct privileged roles.
+- Lightsail firewall rules and any approved infrastructure-side inputs needed for the documented SSH operator-access posture.
 - Parameter Store structure.
-
-- CloudWatch resources.
-
+- KMS keys and key policies.
+- CloudWatch resources, including log groups and alerting resources used by operations and application/platform monitoring.
 - Route53 DNS records.
-
 - Budget alerts and SNS topics.
 
 Secrets Management:
 
-Terraform creates Parameter Store parameters (paths and metadata) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set manually via AWS CLI or secure deployment pipeline after Terraform creates parameter structure. Terraform references secrets via parameter names; actual values never appear in .tf files or state files. JWT signing keys and ballot encryption keys use AWS KMS (non-exportable key material) and are provisioned via Terraform KMS resources; they are never stored in Parameter Store. 
+Terraform creates Parameter Store parameters (paths and metadata) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set manually via AWS CLI or secure deployment pipeline after Terraform creates parameter structure. Terraform references secrets via parameter names; actual values never appear in `.tf` files or state files. JWT signing keys and ballot encryption keys use AWS KMS (non-exportable key material) and are provisioned via Terraform KMS resources; they are never stored in Parameter Store.
 
 Trade-offs:
 
 - Initial setup cost: must define all infrastructure as code.
-
 - Learning curve: Contributors must understand basic Terraform syntax and workflow.
-
-- State file management requires coordination: Terraform Cloud free tier (5 users, state management included)
-
+- State file management requires coordination: Terraform Cloud free tier (5 users, state management included).
 - Requires discipline: Manual console changes create drift requiring reconciliation. Manual AWS console changes are prohibited except for emergency troubleshooting. Any permanent changes must be made via Terraform.
+
+Impact:
+
+- Terraform must remain the authority for the IAM roles, policies, Parameter Store structure, KMS resources, CloudWatch resources, and Systems Manager support required by the Lightsail Systems Manager and Runtime AWS Credentials decision.
+- Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
+
 
 ## 9.7 High Availability and Recovery
 

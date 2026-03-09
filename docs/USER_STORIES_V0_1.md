@@ -216,30 +216,40 @@ Success Criteria:
 - The system provides a clubs landing view with geographic drill-down navigation (Country, State/Province, City) with club names and member counts.
 - Only members can view club member rosters and contact details.
 
-**V_Browse_Upcoming_Events**
+**V_Browse_Upcoming_Events** 
 
-Access: Any visitor can browse upcoming events. Only authenticated members can register or see member-only event details.
+Access: Any visitor can browse upcoming events and open public event detail pages for publicly visible event statuses. Only authenticated members can register or see member-only organizer contact details. 
 
-Story: As a visitor, I want to browse upcoming events so that I can plan participation.
+Story: As a visitor, I want to browse upcoming events and open their public detail pages so that I can plan participation. 
 
-Success Criteria:
+Success Criteria: 
 
-- Main events landing page with list of upcoming events sorted by start date.
-- Each upcoming event shows title, date, location, description, and registration status.
-- Only members can register or see event organizer contact details.
+- Main events landing page shows upcoming public events sorted by start date.
+- Each upcoming event card shows the fields needed for public browsing: title, date range, location, host club, description when present, and registration status.
+- Each publicly visible upcoming event links to the canonical public event page at `GET /events/:eventKey`.
+- Public canonical event pages are available only for events with status `published`, `registration_full`, `closed`, or `completed`.
+- Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
+- Organizer contact details, registration actions, payment actions, and member-only state are excluded from this public slice.
 
-**V_Browse_Past_Events**
+**V_Browse_Past_Events** 
 
-Access: Any visitor can browse past events. Only authenticated members can see detailed results and participant histories.
+Access: Any visitor can browse past events, view whole-year public results pages, and drill down to canonical public event pages. 
 
-Story: As a visitor, I want to browse past events.
+Story: As a visitor, I want to browse past events and their results by year, and then click through to a specific event when I want the event-focused page. 
 
-Success Criteria:
+Success Criteria: 
 
-- Archive list of completed events shows title, date, location, description.
-- The system provides an events landing view showing completed events grouped by year, with navigation between current and previous years; each year's list is paginated and sorted by start date.
-- Only authenticated members can view results.
-- The new site will contain a comprehensive data set for all past events, and as such, there will be no need to visit the legacy archive to fetch this data. This data is being collected as a side project.
+- The public events landing page shows archive-year links derived from completed public events, showing all years with events in a side list for easy access to a given year. The default year for the landing page is the current year (for example: 2026). Every year page has navigation between that year and previous or next years when those adjacent years contain completed public events.
+- All historic events are viewed grouped by year (one page per year), with events sorted by start date. The year page shows the full completed public event list for the selected year even when some events do not have results.
+- The year page at `GET /events/year/:year` is a whole-year archive/results page. It is not paginated. The list of events for any given year is short enough that it does not need UI pagination.
+- Each year-page event block shows the public summary fields required for browsing historic events: title, date, location, host club when known, description when present, and the standardized event hashtag / canonical key when available.
+- When result rows exist for a completed public event, the year page shows grouped public results for that event inline.
+- When no result rows exist for a completed public event, the year page still shows the event and explicitly indicates that no results are available yet.
+- Each completed public event also has a canonical public page at `GET /events/:eventKey` for event-focused viewing and direct linking.
+- If a historical event page is opened and no result rows exist for that event, the page still shows the event and explicitly notes that no results are available yet.
+- Public canonical event pages are available only for events with status `published`, `registration_full`, `closed`, or `completed`.
+- Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
+- Legacy archive content at `archive.footbag.org` is a separate repository and the historical event and results data hosted there must not be conflated with the public event browsing pages described here. Everything on `archive.footbag.org` is irrelevant to the canonical event/results route contract.
 
 **V_View_News_Feed**
 
@@ -1183,7 +1193,7 @@ Story: As an event organizer, I can upload event results so that participants an
 
 Success Criteria:
 
-- Results upload accepts CSV with: category, placement, participant1, participant2 (optional), participant3 (optional), score/time (optional). Team/doubles results are represented by filling multiple participant columns for the same placement.
+- Results upload accepts CSV with enough information to create `event_results_uploads`, `event_result_entries`, and `event_result_entry_participants` database rows for singles and multi-participant placements (if that data is available for the event).
 - Results visible on event detail page after upload.
 - Results displayed as sortable table.
 - Results also added to participant profiles (if participant linked to member account).
@@ -1453,7 +1463,7 @@ Success Criteria:
 - Admins can make limited corrections to official event results and metadata (for example fixing a misspelled competitor name, wrong placement, or swapped divisions) without editing free-form content such as news posts or arbitrary descriptions.
 - Every correction requires a mandatory “reason for correction” note entered by the admin.
 - Each correction is recorded in an audit log that includes before/after values, admin identity, timestamp, and the reason for correction.
-- Participants and organizers see the corrected results in all normal views; where appropriate, a small indicator can signal that the results were corrected by an admin (design details handled in UI spec).
+- Participants and organizers see the corrected results in all normal views; where appropriate.
 - Corrections do not bypass normal publishing or sanctioning rules: only events that are otherwise valid (for example sanctioned where required) can have their official results corrected.
 
 **A_Mark_Member_Deceased**
@@ -1951,7 +1961,9 @@ Success Criteria:
 - Photo Cleanup (zero grace period): no job concern required for this. No referential integrity concerns because photos are leaf nodes in data model. When member deletes account, member's photos are deleted immediately.
 - Payment Record Cleanup (7-year retention for compliance). This period satisfies financial compliance requirements while enabling GDPR data deletion.
 - Vote Ballot Preservation (7-year retention).
-- Event and Club Preservation (permanent retention): Events with published results are NEVER hard deleted (historical record preservation). Clubs are NEVER hard deleted (historical record preservation). The job explicitly skips these entity types. Events and clubs can be marked archived or inactive via admin actions but database records remain indefinitely. When an event organizer or club leader deletes an account, leadership foreign keys continue to point to the retained/anonymized member record to preserve historical leadership. For non-HoF/BAP members, the display name may be anonymized to "Deleted Member" where required by schema/app policy; for HoF/BAP members, preserve displayName and bio per the deletion policy. Historical event results, participant lists, and club rosters remain intact for community record.
+- Clubs are NEVER hard deleted (historical record preservation); instead they are archived. 
+- Events with result rows are never hard-deleted once official event-result rows exist for that event (historical record preservation).
+- Events and clubs can be marked archived or inactive via admin actions but database records remain indefinitely. When an event organizer or club leader deletes an account, leadership foreign keys continue to point to the retained/anonymized member record to preserve historical leadership. For non-HoF/BAP members, the display name may be anonymized to "Deleted Member" where required by schema/app policy; for HoF/BAP members, preserve displayName and bio per the deletion policy. Historical event results, participant lists, and club rosters remain intact for community record.
 - Each run writes a comprehensive summary entry to application logs and audit trail including: job start/end timestamps, entity types processed (members, payments, ballots), counts per entity type (records eligible for cleanup, records anonymized, records preserved due to special rules, records skipped due to errors), errors encountered with entity IDs and error messages.
 
 **SYS_Rebuild_Hashtag_Stats**

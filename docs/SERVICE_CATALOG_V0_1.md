@@ -71,6 +71,8 @@
 
 Use this section to identify the correct service before reading its full entry. Each entry states what the service owns, what it explicitly does not own (the most common source of misplacement), and its primary tables.
 
+Source-of-truth note: This document defines service ownership, method contracts, business-rule boundaries, and service-level error semantics. It does not define route URLs or page layouts. Routing note: These are HTML page routes, not REST API endpoints. Public route handlers should stay thin and delegate route interpretation to services.
+
 ---
 
 ### Identity & Account
@@ -298,14 +300,23 @@ Use this section to identify the correct service before reading its full entry. 
 
 ### 4.2 `EventService`
 
-**Purpose/Boundary:** Owns event lifecycle (create through completion/cancellation), discipline management, co-organizer management, sanction requests, and results upload. Does NOT own registration payments (PaymentService) or competition participation records (CompetitionParticipationService).
+**Purpose/Boundary:** Owns event lifecycle (create through completion/cancellation), discipline management, co-organizer management, sanction requests, results upload, and the service-layer read use cases that power the public event browse/detail pages. 
 
-**Consumers:** Member and organizer controllers, AdminGovernanceService, CompetitionParticipationService
+**Consumers:** Public event page controllers, member and organizer controllers, AdminGovernanceService, CompetitionParticipationService
+
+#### MVFP public-route boundary rules
+
+For the MVFP V0.1 public routes, `EventService` is responsible for:
+- validating `year` as a four-digit archive-year input;
+- validating `eventKey` against `event_{year}_{event_slug}`;
+- lowercasing and normalizing the valid public key to stored standard-tag form `#event_{year}_{event_slug}` before DB lookup;
+- treating invalid keys, unknown public keys, and non-public event lookups as not-found at the public-route boundary;
+- translating SQLite busy/locked read failures into temporary-unavailable service failures for controller-level safe failure handling.
 
 **Key Methods:**
 - `createEvent(organizerId, input) -> {eventId}` — Tier 1+; free events → `published` immediately; sanctioned/paid events → `pending_approval`; generates standard hashtag `#event_{year}_{slug}` via HashtagDiscoveryService; if paid/sanctioned: inserts work-queue item + enqueues admin notification; emits `event_published` news item via NewsService on publish; audit-logs
 - `editEvent(actorId, eventId, input) -> {ok}` — organizer or co-organizer; all fields editable except free/sanctioned status; audit-logs old/new values
-- `deleteEvent(actorId, eventId, reason) -> {ok}` — HD; `[APP]` guard: draft and canceled → HD immediately; events with published results → **must never be deleted**; cannot delete if confirmed registrations exist; notifies all participants; audit-logs
+- `deleteEvent(actorId, eventId, reason) -> {ok}` — HD; `[APP]` guard: draft and canceled → HD immediately; events with public result rows → **must never be deleted**; cannot delete if confirmed registrations exist; notifies all participants; audit-logs
 - `closeRegistration(actorId, eventId) -> {ok}` — organizer; transition `published/registration_full → closed`; audit-logs
 - `cancelEvent(actorId, eventId, reason) -> {ok}` — organizer or admin; terminal state; notifies all registrants; audit-logs
 - `completeEvent(actorId, eventId) -> {ok}` — transition `closed → completed`; terminal state
@@ -318,12 +329,17 @@ Use this section to identify the correct service before reading its full entry. 
 - `correctResults(adminId, eventId, corrections, reason) -> {ok}` — admin only; mandatory reason; audit-logs before/after values
 - `reassignOrganizer(adminId, eventId, newOrganizerId, reason) -> {ok}` — admin only; resolves "Needs Organizer" work-queue item; audit-logs
 
+- `getPublicEventsLandingPage(nowIso) -> {upcomingEvents, archiveYears}` — page-oriented read method for `GET /events`; may internally reuse lower-level list methods
+- `getPublicEventsYearPage(year) -> {year, previousYear, nextYear, archiveYears, events}` — page-oriented read method for `GET /events/year/:year`; validates year input, returns the full non-paginated year-page view model, and includes grouped inline result sections for events that have public results
+- `getPublicEventPage(eventKey) -> {event, disciplines, hasResults, primarySection, resultSections}` — page-oriented read method for `GET /events/:eventKey`; validates and normalizes the public key, enforces public-visible status rules, and returns a grouped page model for the canonical event page
+- Lower-level helper reads such as `listPublicUpcomingEvents`, `listPublicArchiveYears`, `listPublicCompletedEventsByYear`, `getPublicEventDetail`, and result-row readers may still exist internally, but controllers should consume page-oriented read methods for the MVFP V0.1 slice
+
 **Authz:** Create: Tier 1+. Edit/manage: event organizer or co-organizer scope. Sanction approval, result correction, reassign: admin only.
 
 **Persistence Touchpoints:** `events`, `event_disciplines`, `event_organizers`, `roster_access_grants`, `event_results_uploads`, `event_result_entries`, `event_result_entry_participants`, `tags`, `news_items`, `audit_entries`, `outbox_emails`, `work_queue_items`
 
 **Key Rules:**
-- `[APP]` Hard-delete guard: events with published results are preserved permanently; draft/canceled → HD immediately
+- `[APP]` Hard-delete guard: events with public result rows are preserved permanently; draft/canceled → HD immediately
 - `[APP]` Cannot delete event with confirmed registrations
 - `[APP]` Status transitions: `draft → pending_approval → published → registration_full | closed → completed | canceled`; `completed` and `canceled` are terminal
 - `[APP]` Sanction approval requires organizer active Tier 2 at approval time
@@ -333,6 +349,19 @@ Use this section to identify the correct service before reading its full entry. 
 - `[APP]` Standard hashtag reserved via `HashtagDiscoveryService.reserveStandardTag()` at creation; permanent (APP-024)
 - `[APP]` Roster access window reset via `CompetitionParticipationService.grantRosterAccess()` on every results upload; window length from `vouch_window_days` (read from `system_config_current`)
 - `[APP]` News items emitted via `NewsService.emitNewsItem()` — EventService does not write to `news_items` directly
+
+- `[APP]` Public event detail visibility is limited to statuses `published`, `registration_full`, `closed`, and `completed`
+- `[APP]` Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility
+- `[APP]` Public archive year is derived from `events.start_date`
+- `[APP]` Public `eventKey` parsing and validation belongs in `EventService`; normalize `event_{year}_{event_slug}` to stored standard-tag form `#event_{year}_{event_slug}` before calling `db.ts`
+- `[APP]` Public event browse/detail reads use prepared statements exported by `db.ts` directly; no repository layer and no ORM
+- `[APP]` `db.ts` may return flat ordered result rows; grouping and page/view shaping belong above `db.ts`
+- `[APP]` `hostClub` is route-facing display data sourced from `events.host_club_id -> clubs.name` when present and must not be inferred from `event_organizers`
+- `[APP]` Public year archives include the full completed public event list for the selected year and are not paginated in MVFP v0.1
+- `[APP]` The year page includes grouped inline public results for events where result rows exist
+- `[APP]` A year-page event has `hasResults = true` only when the event is publicly visible and at least one result row exists for that event
+- `[APP]` If a historical event has no result rows yet, both the year page and the canonical event page still render the event and include an explicit no-results state
+- `[APP]` The canonical public event page is one route and one template; render emphasis is expressed through page-model fields such as `primarySection`, not through alternate public URLs
 
 **Transaction + Idempotency:** Results upload is idempotent per upload; re-upload resets roster access window.
 
@@ -728,7 +757,7 @@ Use this section to identify the correct service before reading its full entry. 
 
 ### 9.2 `OperationsPlatformService`
 
-**Purpose/Boundary:** Owns all background job orchestration, system job run logging, alarm raise/ack, backup jobs, and static asset cleanup. Does NOT own domain business logic — delegates all of it to named domain service methods. Does NOT own row-level PII purge logic (MemberProfileLifecycleService).
+**Purpose/Boundary:** Owns background job orchestration, system job run logging, alarm raise/ack, backup jobs, static asset cleanup, and application-level readiness composition for operational health checks. Does NOT own domain business logic, delegates all of it to named domain service methods. Does NOT own row-level PII purge logic (MemberProfileLifecycleService).
 
 **Consumers:** Job scheduler, system role processes
 
@@ -743,12 +772,13 @@ Use this section to identify the correct service before reading its full entry. 
 - `runPIIPurgeJob() -> {ok}` — SYS_Cleanup_Soft_Deleted_Records; daily; executes **separate** member PII cleanup branches: (1) soft-deleted accounts after `member_cleanup_grace_days`; (2) deceased-member records after `deceased_cleanup_grace_days`; deceased and deleted are distinct lifecycle states — do not collapse into one grace rule; also applies payment record cleanup after `payment_retention_days` and ballot retention cleanup after `ballot_retention_days`; events with published results and clubs never deleted; delegates member-row PII work to `MemberProfileLifecycleService.purgeAccountPII()`; writes comprehensive audit log entry with counts per entity type/branch
 - `runTokenCleanup() -> {ok}` — SYS_Cleanup_Expired_Tokens; daily; deletes expired or consumed tokens older than `token_cleanup_threshold_days`; idempotent; logs counts by token type
 - `runTagStatsRebuild() -> {ok}` — SYS_Rebuild_Hashtag_Stats; daily; delegates to `HashtagDiscoveryService.rebuildTagStats()`; failure leaves existing stats; logs metrics
-- `runContinuousBackup() -> {ok}` — SYS_Continuous_Database_Backup; every `continuous_backup_interval_minutes` minutes (default: 5); WAL checkpoint; SQLite backup API; upload to primary S3 with retry (3 attempts, exponential backoff); update health timestamp; after 3 consecutive failures: calls `raiseAlarm()`; container shutdown waits for in-flight backup
 - `runNightlyBackupSync() -> {ok}` — SYS_Nightly_Backup_Sync; incremental S3 → cross-region DR bucket sync; integrity verification; S3 Object Lock (WORM) on DR bucket; logs run metadata; calls `raiseAlarm()` on failure
 - `cleanupStaticAssets() -> {ok}` — SYS_Cleanup_Static_Asset_Versions; daily off-peak; deletes content-hash asset versions older than configured retention window (default 90 days); logs deletions; calls `raiseAlarm()` on failure
 - `recordJobRun(jobName, status, metadata) -> {ok}` — writes `system_job_runs`; surfaced in `AdminGovernanceService.getSystemHealth()`
 - `raiseAlarm(type, details) -> {ok}` — writes `system_alarm_events`; acknowledged via `AdminGovernanceService.acknowledgeAlarm()`
 - `getJobHistory(adminId, jobName, filters) -> {runs}` — admin; reads `system_job_runs`
+- `runContinuousBackup() -> {ok}` — SYS_Continuous_Database_Backup; every `continuous_backup_interval_minutes` minutes (default: 5); WAL checkpoint; SQLite backup API; upload to primary S3 with retry (3 attempts, exponential backoff); record operational success/failure metadata; raise alarms after repeated failure. Backup health is an operational concern, not an MVFP v0.1 readiness gate.
+- `checkReadiness() -> {isReady, checks}` — read-only; composes the MVFP readiness signal for `/health/ready`; for MVFP v0.1 this means the minimal SQLite readiness probe only
 
 **Authz:** All job methods: system role only. `getJobHistory`: admin.
 
@@ -757,11 +787,11 @@ Use this section to identify the correct service before reading its full entry. 
 **Key Rules:**
 - `[APP]` All background jobs read configuration from `system_config_current` at runtime — no hardcoded thresholds
 - `[APP]` All webhook handlers idempotent
+- `[APP]` Continuous backup success/failure is surfaced through logs, job-run history, and alarms; it does not change `/health/ready` in MVFP v0.1
+- `[APP]` All SYS jobs write `system_job_runs` via `recordJobRun()` on every run for admin visibility
 - `[APP]` Tier expiry: Tier 2 Annual fallback to Tier 1 Lifetime must be atomic (no gap between tier states); atomicity enforced inside `MembershipTieringService.processExpiry()`
 - `[APP]` PII purge job has distinct member branches: soft-deleted accounts use `member_cleanup_grace_days`; deceased members use `deceased_cleanup_grace_days`; these are separate grace rules and must not be collapsed
 - `[APP]` PII purge: events with published results preserved permanently; clubs preserved permanently; payment records: `payment_retention_days`; ballots: `ballot_retention_days`
-- `[APP]` Continuous backup: container shutdown must wait for in-flight backup completion
-- `[APP]` All SYS jobs write `system_job_runs` via `recordJobRun()` on every run for admin visibility
 - `[APP]` Resolved reconciliation issue rows deleted by `runNightlyReconciliation()` after `expires_at` (set at INSERT per APP-018)
 - `[APP]` This service owns job orchestration only — it contains no domain logic; all substantive work is delegated to named domain service methods
 

@@ -104,6 +104,16 @@ crash.log
 # =========================
 CLAUDE.local.md
 
+# Claude Code local-only files
+.claude/settings.local.json
+.claude/settings.local.*.json
+.claude/projects/
+.claude/settings.private.json
+.claude.json
+
+# Local MCP overrides if you introduce them
+.mcp.local.json
+
 # =========================
 # Windows / WSL NTFS alternate data stream markers
 # =========================

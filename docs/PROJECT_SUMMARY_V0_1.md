@@ -55,15 +55,11 @@ This Footbag Website Modernization Project will upgrade footbag.org as the new g
 
 The project documentation suite consists of the following documents:
 
-**View Catalog:** Defines all user-facing views and end-to-end flows the platform must provide. This documents what screens exist, how they're grouped into flows, which actor uses each flow, and authorization rules, all derived from the User Stories.
+**View Catalog:** Defines the authoritative page/UI/view/route/view-model specification for the cataloged views. It documents which pages exist, which route renders each page, what the page is for, what the page-level boundaries are, and what data shape the rendered view requires. 
 
 **User Stories:** Defines complete feature scope, and describes what users must be able to achieve, and acceptance criteria (system side effects). Source of Truth for Functional Requirements.
 
-**UI Specification:** Defines how the UI layer is built and how developers implement views, controllers, and templates consistently as defined in the Solution Architecture (this document, below) and the Design Decisions. This documents the UI technology details, controller implementation guidance, and view-model flow. The goal of this document is to guide the detailed UX design, and also drive the AI implementation of the corresponding TypeScript code and Handlebars templates.
-
 **Service Catalog:** This defines the back-end services that meet all Functional Requirements as defined by User Stories and Design Decisions. It defines the boundaries and method contracts used by Controllers and background jobs to invoke these business services. This document is the source of Truth for business logic, Controller to Service conventions and behaviors, persistence adapter expectations, and error semantics at the boundary between the front and back end systems. The level of detail is such that it can drive the AI implementation of the user-facing functionality in a way that is separate from UI layouts and from Server technology specifics.
-
-**Server Specification:** Defines how the back-end systems are built and how developers implement them. It is the Source of Truth for controller route behaviour, response negotiation (HTML or JSON returned), HTTP status codes, error formats, input validation rules, background jobs, and data access patterns. The Data Model and Service Catalog documents provide the remaining details required to specify code.
 
 **Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, these three documents define the high-level requirements from which all other documents must be consistent. 
 
@@ -73,7 +69,7 @@ The project documentation suite consists of the following documents:
 
 **DevOps:** Covers develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod). Includes operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures.
 
-**Developer Onboarding:** Guidance for software developers joining the project. Covers technology-specific tutorials, architecture walkthroughs, contribution workflows, troubleshooting, and tips to get started.
+**Developer Onboarding:** Guidance for software developers joining the project, specifically targetting the Minimum Viable First Page of functionality, to stand up the full tech stack for the first time. Covers technology-specific tutorials, architecture walkthroughs, contribution workflows, troubleshooting, and tips.
 
 **Design Decisions:** Captures technology and design decisions and their rationale. It explains why major choices were made, and which constraints are intentional, with implementation details where known or applicable. It is the Source of Truth for design commitments and non-functional requirements from which the Solution Architecture follows.
 
@@ -229,7 +225,7 @@ Controllers handle HTTP requests, calling services and returning HTML or JSON ba
 
 The following key solution architecture decisions define how the new Footbag.org is built. This subsection is a summary only, as later sections of this document and the Design Decisions document provide the full rationale.
 
-- Data storage: All application data (except photos) is stored in a single SQLite database file (footbag.db) on AWS Lightsail local storage (production) or local filesystem (development). Photo data is stored in a separate AWS S3 bucket to control data costs. Queries are expressed as prepared SQL statements in a single db.ts module (plus transaction helpers) that services call directly by query name. Background process uploads database snapshots to S3 every 5 minutes.
+- Data storage: All application data (except photos) is stored in a single SQLite database file named `footbag.db`. The application runtime opens that filename directly. Local and production host paths may differ, but Docker/Compose must mount the chosen host file into the application working directory as `./footbag.db`. Photo data is stored in a separate AWS S3 bucket. Queries are expressed as prepared SQL statements in a single `db.ts` module (plus transaction helpers) that services call directly by query name. 
 - Server-rendered web application: The site is a traditional multi-page web application. HTML pages are rendered on the server using Handlebars templates. Client-side TypeScript/JavaScript is used for validation, autocomplete (optional), media previews, and similar conveniences.
 - Four-layer software architecture: The code is organized into Presentation Views, HTTP Controllers, Business Logic Services, and Infrastructure Adapters.
 - JWT-based sessions with per-request validation: Members authenticate via short-lived JSON Web Tokens stored in secure cookies, including a passwordVersion field so password changes immediately invalidate old tokens, like this: per-request validation compares JWT passwordVersion claim with the current passwordVersion datum; a password change increments passwordVersion, immediately invalidating all sessions across all devices. Authorization decisions (tier/role) are evaluated against the current database state on each request, not only JWT claims.
@@ -369,10 +365,10 @@ The platform could run on any cloud provider (Azure, Google Cloud, DigitalOcean)
 
 All AWS services accessed with least-privilege IAM (Identity and Access Management) policies:
 
-- Lightsail instance role limited to: S3 operations on primary/backup buckets only, SES send operations on verified domain only, Parameter Store read-only on /footbag/ namespace, CloudWatch put metrics and logs.
+- Deployed workload runtime assumed role(s) limited to: S3 operations on primary/backup buckets only, SES send operations on verified domain only, Parameter Store read-only on /footbag/ namespace, and CloudWatch put metrics/logs as required. The Lightsail host does not rely on an EC2-style instance role attachment; runtime AWS access uses explicit runtime role assumption.
 - Parameter Store uses AWS SecureString encryption.
 - KMS keys have minimal access per security rules.
-- S3 bucket policies deny access except from the application instance role and administrator IAM users (different from the admin user role).
+- S3 bucket policies deny access except from the application runtime assumed role(s) and approved administrator IAM principals (different from the application-administrator role).
 - MFA delete enabled on backup bucket.
 
 **System Administrator vs Application Administrator Roles:**
@@ -460,7 +456,7 @@ The Solution: Each entity follows one of three deletion lifecycles depending on 
 
 - **Grace-period deletion with restore** (members): sets a deleted_at timestamp. The account is immediately inaccessible but can be restored by the member within the configurable grace period. After the grace period, PII is purged and the row is anonymized but retained for referential integrity. Foreign keys use ON DELETE NO ACTION to prevent accidental hard deletes during the grace period.
 - **Status-based archival** (clubs): sets status = 'archived'. Records are never removed from the database.
-- **Hard delete** (events without results, news items, media): records are immediately and permanently removed. Events with published results are always preserved permanently.
+- **Hard delete** (events without results, news items, media): records are immediately and permanently removed. Events with results are always preserved permanently.
 
 Trade-offs: Database table views filter member deleted_at for transparent query safety. Hard-deleting events and news items eliminates cleanup job complexity and configurable grace periods for those entities; confirmation dialogs are the undo safeguard.
 
@@ -550,7 +546,7 @@ External Service Stubs implement identical interfaces for dev or production serv
 
 **Contract Testing Validates Parity:** Contract tests verify development stubs correctly implement production behavior. CI pipeline runs contract tests against stubs on every commit (fast feedback under 30 seconds).
 
-**Hybrid Development Mode:** Developers can optionally integrate with real AWS services during local development by setting AWS_PROFILE environment variable. Default mode uses local stubs (fast, no AWS credentials needed). Optional hybrid mode connects to actual S3, SES, Parameter Store for integration testing. This flexibility lets developers choose appropriate testing level: stubs for rapid iteration, real AWS for pre-deployment verification.
+**Hybrid Development Mode:** Developers can optionally integrate with real AWS services during local development by setting a non-production `AWS_PROFILE`. Default mode uses local stubs (fast, no AWS credentials needed). Optional hybrid mode connects to actual S3, SES, Parameter Store, or KMS for integration testing. This local developer-profile path is distinct from the production Lightsail runtime model, where deployed services use root-owned host AWS config/credential material to assume the documented runtime role.
 
 ---
 
@@ -665,7 +661,7 @@ Customer-managed keys via AWS KMS were considered but rejected. Benefits (more c
 
 **Secrets Management:**
 
-Sensitive credentials (Stripe API keys, webhook secrets) are stored in AWS Parameter Store SecureString. Cryptographic operations requiring non-exportable key custody use AWS KMS instead (JWT signing, ballot encryption). Parameter Store does not protect against attacker shell access inside production containers (EC2 permissions apply to entire instance), so operations requiring non-exportable keys use KMS/HSM-backed asymmetric signing keys with IAM separation.
+Sensitive credentials (Stripe API keys, webhook secrets) are stored in AWS Parameter Store SecureString. Cryptographic operations requiring non-exportable key custody use AWS KMS instead (JWT signing, ballot encryption). Parameter Store does not protect against attacker shell access inside production containers or host paths that expose runtime credential/config material, so operations requiring non-exportable keys use KMS/HSM-backed asymmetric signing keys with IAM separation.
 
 ---
 
@@ -733,7 +729,7 @@ Refer to the DevOps document for more details. This will serve as the authoritat
 
 All AWS infrastructure for the platform is defined as code using Terraform configuration files, version-controlled in the repository under /terraform directory. This approach provides several critical benefits:
 
-**Reproducible environments:** Any environment (development, staging, production) can be recreated from scratch by running terraform apply. No tribal knowledge or manual AWS console clicking required.
+**Reproducible AWS environments:** The staging and production AWS environments can be recreated from reviewed Terraform configuration after the one-time bootstrap handoff. Local developer environments are reproduced through the repository’s Docker/SQLite/bootstrap scripts rather than through Terraform.
 
 **Infrastructure review in pull requests:** Changes to infrastructure go through code review process. Team members can see exactly what will change before applying updates.
 
@@ -748,7 +744,7 @@ All AWS infrastructure for the platform is defined as code using Terraform confi
 - Lightsail instance configuration (size, OS image, networking, static IP).
 - S3 buckets with complete configuration (versioning, lifecycle policies, CORS rules, public access blocks, backup bucket for SQLite snapshots).
 - CloudFront distributions (origins, cache behaviors, TLS certificates, custom domain).
-- IAM roles and policies (instance profiles, service permissions).
+- IAM roles and policies for human operators, Systems Manager managed-node registration/service-role resources, and application runtime assumed roles, plus the documented runtime credential mechanism for deployed hosts and operators.
 - Parameter Store structure (paths, types, encryption configuration).
 - CloudWatch log groups and metric alarms.
 - Route53 DNS records.
@@ -834,7 +830,7 @@ Legacy data contains private member information not suitable for public viewing.
 
 **Volunteer-Driven Schedule:** Development proceeds on volunteer availability (estimated hundreds of hours). Project structured for parallel work by multiple contributors through clear module boundaries and comprehensive documentation.
 
-**Standard Technology Stack:** Docker, Node.js, TypeScript, Express, Handlebars, AWS, Stripe; widely adopted technologies familiar to millions of developers. Extensive documentation and community support available. No exotic frameworks or custom tools. The platform code and documentation will be open source and version controlled, hosted on Git at footbag/footbag-platform.
+**Standard Technology Stack:** Docker, Node.js, TypeScript, Express, Handlebars, AWS, Stripe; widely adopted technologies familiar to millions of developers. Extensive documentation and community support available. No exotic frameworks or custom tools. The platform code and documentation will be open source and version controlled, hosted on Git at https://github.com/davidleberknight/footbag-platform
 
 **Clear Solution Architecture:** Uses standard design patterns with obvious separation of concerns. Presentation layer handles front-end layout and user interactivity in the browser, controllers handle HTTP communications with the back end code, services contain business logic and authorization rules, all data operations use prepared SQL statements in a thin database-access layer, all external services accessed through suitable abstract interfaces that allow local development and testing mock services.
 

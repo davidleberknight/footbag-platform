@@ -14,7 +14,7 @@
 
 **AES-256-GCM**: Authenticated encryption algorithm providing both confidentiality and integrity through authentication tags. Used for voting ballot encryption with server-side envelope encryption: member submits vote over HTTPS, server requests a fresh data key from AWS KMS (GenerateDataKey), encrypts the ballot payload using AES-256-GCM, and stores only the ciphertext alongside the encrypted data key. The plaintext data key is never persisted. Admin tallying decrypts ballots using a separate privileged role after polls close.
 
-**API (Application Programming Interface)**: A standardized way for different software systems to communicate with each other. Footbag.org uses a RESTful API that acts like a menu of available operations: the frontend orders from this menu, and the backend delivers the results.
+**API (Application Programming Interface)**: A standardized way for different software systems to communicate with each other. Footbag.org uses APIs for internal module boundaries and selected integrations; the project does not have a public REST API.
 
 **Argon2id**: Password hashing algorithm (preferred over bcrypt) that is memory-hard, requiring 64 MB memory with 3 iterations and parallelism factor of 4. Makes brute-force attacks computationally expensive while maintaining acceptable login performance (100-250ms).
 
@@ -44,7 +44,7 @@
 
 **Cross-Site Scripting (XSS)**: Security vulnerability where malicious scripts are injected into web pages and executed in users' browsers, potentially stealing credentials or performing unauthorized actions. Footbag.org prevents XSS through input sanitization, output encoding, and Handlebars automatic HTML escaping.
 
-**CRUD (Create, Read, Update, Delete)**: Four basic operations for persistent storage. Footbag.org REST API maps CRUD to HTTP verbs: POST (create), GET (read), PATCH (update), DELETE (delete). Services implement CRUD operations against JSON files in S3.
+**CRUD (Create, Read, Update, Delete)**: Four basic operations for persistent storage. In Footbag.org, these operations are implemented primarily in service-layer business logic over the SQLite data model, with HTTP route shape determined by the documented UI and workflow contracts rather than by a blanket REST mapping rule.
 
 **CSRF (Cross-Site Request Forgery)**: Security attack where unauthorized commands are transmitted from a user the web application trusts. Footbag.org prevents CSRF through SameSite=Lax cookie attribute combined with proper HTTP verb semantics: GET requests are strictly read-only, all state-changing operations use POST, and JSON-only endpoints validate Content-Type: application/json. No synchronizer tokens are required. State-changing requests also enforce an Origin/Referer allowlist against the canonical origin.
 
@@ -78,7 +78,7 @@
 
 **EXIF (Exchangeable Image File Format)**: Metadata embedded in photos including camera settings, GPS coordinates, timestamps, and camera model. Footbag.org strips all EXIF data during image processing to protect member privacy and reduce file sizes.
 
-**Express**: Minimal Node.js web framework providing straightforward HTTP routing, middleware support, and request/response handling. Footbag.org uses Express for controllers exposing REST API endpoints.
+**Express**: Minimal Node.js web framework providing straightforward HTTP routing, middleware support, and request/response handling. Footbag.org uses Express for thin controllers and server-rendered page routes, along with selected machine-readable operational endpoints where explicitly documented.
 
 **Freeform Hashtag**: User-chosen hashtag without enforced format or validation beyond security checks. Members create organic vocabulary for content discovery, complementing standardized event/club hashtags. Clicking any hashtag shows all content with that tag.
 
@@ -106,7 +106,7 @@
 
 **HTML (HyperText Markup Language)**: Standard language for creating web pages, defining structure and content using tags like headers, paragraphs, links, and forms. Footbag.org generates HTML server-side using Handlebars templates.
 
-**HTTP (HyperText Transfer Protocol)**: Protocol defining how web browsers and servers communicate and exchange data. Footbag.org uses HTTP methods (GET, POST, PUT, DELETE) for RESTful API operations.
+**HTTP (HyperText Transfer Protocol)**: Protocol defining how web browsers and servers communicate and exchange data. Footbag.org uses HTTP for server-rendered page requests, form submissions, and selected machine-readable endpoints, with route semantics defined by the project’s documented contracts.
 
 **HttpOnly Cookie**: Browser cookie attribute preventing JavaScript from accessing the cookie value, protecting it from XSS attacks. Footbag.org JWT session cookies are always set HttpOnly so client-side scripts cannot read or exfiltrate the token; the browser sends the cookie automatically on requests but the application's JavaScript never touches it.
 
@@ -184,7 +184,9 @@
 
 **SES (Simple Email Service)**: AWS managed email service handling sending, receiving, and reputation management. Footbag.org uses SES for transactional emails (password reset, event notifications, payment receipts) with DKIM/SPF/DMARC authentication. SES sandbox mode for development, production mode for live system.
 
-**Session Manager**: AWS service providing secure shell access to Lightsail instances without exposing SSH ports or managing SSH keys. System administrators use Session Manager for emergency troubleshooting, log inspection, and manual recovery operations.
+**Session Manager**: AWS service providing secure shell access to Lightsail instances without exposing SSH ports or managing SSH keys. The project could use this but this was designed for AWS EC2 not Lightsail, and this causes complexity.
+
+**SSH (Secure Shell)**: Standard secure remote shell protocol for host administration. Footbag.org uses hardened per-operator SSH access to named host accounts on Lightsail for exceptional operational tasks such as troubleshooting, deployment verification, restore work, patching, and manual recovery. Private keys are never shared between operators; shell access is controlled through individual accounts, key lifecycle management, and source-IP-restricted port-22 rules.
 
 **Sharp**: High-performance Node.js image processing library using libvips. Footbag.org uses Sharp to resize uploaded photos to two variants (thumbnail 300×300 pixels, display 800px width), re-encode at 85% JPEG quality, and strip all EXIF metadata. Re-encoding through Sharp also destroys any malware embedded in uploaded files by converting to raw pixels and back. Processing is synchronous; users wait 2—5 seconds and receive immediate success or failure feedback.
 
@@ -200,7 +202,9 @@
 
 **SSE-S3 (Server-Side Encryption with S3-Managed Keys)**: S3's default encryption mode that transparently encrypts all stored objects using AES-256 with keys managed entirely by Amazon. Footbag.org enables SSE-S3 on all S3 buckets; encryption and decryption are automatic and transparent to the application, meeting security requirements for non-regulated data at zero additional cost or configuration.
 
-**Standardized Hashtag**: Enforced-format hashtag with uniqueness validation for events (#event-2025-portland) and clubs (#club-seattle). Members uploading media can tag with these hashtags for automatic gallery linking; system validates uniqueness at event/club creation.
+**Standardized Hashtag**: Enforced-format hashtag with uniqueness validation for events (for example `#event_2025_beaver_open`) and clubs (for example `#club_wellington_hack_crew`). Members uploading media can tag with these hashtags for automatic gallery linking; the system validates uniqueness at event or club creation.
+
+Rationale
 
 **Stateless JWT**: Authentication approach using self-contained tokens that carry claims (member ID, roles, passwordVersion) without requiring server-side session storage. Note that Footbag.org's implementation is not purely stateless: every authenticated request verifies the JWT signature cryptographically and then reads the member record from the database to confirm passwordVersion matches, enabling immediate cross-device invalidation on password change. JWT claims serve as routing hints; the database read is authoritative for access control.
 

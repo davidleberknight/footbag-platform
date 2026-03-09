@@ -1,9 +1,12 @@
 # Footbag Website Modernization Project — Data Model
 **Version:** 0.1 / March 5, 2026
 **Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
-
 **Schema file:** `database/schema_v0_1.sql`  
 **Schema counts:** 48 tables · 9 views · 106 named indexes · 18 triggers
+
+**Quick routing:**
+- Use this document for: persisted entities, relationships, schema conventions, retained triggers, and DB-vs-app enforcement boundaries.
+- Next docs: `database/schema_v0_1.sql` for exact SQL definitions, `docs/SERVICE_CATALOG_V0_1.md` for service-layer usage, `docs/DESIGN_DECISIONS_V0_1.md` for rationale, `src/db/db.ts` for sql queries.
 
 ---
 
@@ -183,7 +186,9 @@ Each club has a unique `hashtag_tag_id` (enforced by `UNIQUE INDEX ux_clubs_hash
 
 **Tables:** `events`, `event_disciplines`
 
-Events use hard-delete (US `EO_Delete_Event`; DD §2.3). Events with published results are preserved permanently by workflow constraints; all other events are removed immediately and permanently on deletion. `event_disciplines` uses hard-delete (disciplines removed from draft events are gone immediately).
+Events use hard-delete (US `EO_Delete_Event`; DD §2.3). Events with result rows are preserved permanently by workflow constraints; all other events are removed immediately and permanently on deletion. `event_disciplines` uses hard-delete (disciplines removed from draft events are gone immediately).
+
+`events.host_club_id REFERENCES clubs(id)` is the canonical optional relationship for the MVFP `hostClub` display field. It represents the club publicly associated with hosting the event. It is nullable because some imported historical events may not have a confidently known host club. Public MVFP pages must derive `hostClub` from this relationship only when present. They must not infer a host club from organizer membership, tags, or other heuristics.
 
 `discipline_category` is an application-enforced taxonomy field (the DB requires only `TEXT NOT NULL`). Canonical top-level families are `net`, `freestyle`, `golf`, and `sideline` (legacy `other` values should be normalized to `sideline`). Variant/sub-discipline structure is managed in application logic, e.g., sideline-family formats such as 2-square, 4-square, consecutives, and one-pass, plus multiple freestyle and net variants.
 
@@ -579,6 +584,12 @@ Before a competitor registration reaches `status = 'confirmed'`, the application
 
 #### Results
 `event_result_entries.discipline_id` is nullable (NULL = discipline-agnostic / general ranking). `UNIQUE(event_id, discipline_id, placement)` prevents duplicate placements for discipline-specific rows. For general-ranking rows (`discipline_id IS NULL`), the partial unique index `ux_result_entries_general_placement` on `(event_id, placement) WHERE discipline_id IS NULL` prevents duplicates — required because SQLite treats `NULL` values as distinct in `UNIQUE` constraints.
+
+#### MVFP public-results clarification
+Version 0.1 of the schema does not define a separate publish/unpublish state for event results. For the MVFP public events/results slice, **public results exist** in application logic only when both of the following are true:
+1. the event itself is publicly visible under the public event-status rule, and
+2. at least one `event_result_entries` row exists for that event.
+If a future version introduces a distinct result-publication workflow, that behavior must be added explicitly to the schema and to the service/view contracts rather than inferred retroactively.
 
 ### 4.17 Media & Galleries
 

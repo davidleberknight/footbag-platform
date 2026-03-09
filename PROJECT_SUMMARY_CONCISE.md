@@ -1,4 +1,24 @@
-# Footbag Website Modernization - Project Summary for AI (Context Refresh)
+# Footbag Website Modernization - Project Summary for AI 
+
+## Fast routing
+- Use this file for contextual refresh and document routing only.
+- For page/UI/view/route/view-model details, load `docs/VIEW_CATALOG_V0_1.md`.
+- For service-layer ownership and method contracts, load `docs/SERVICE_CATALOG_V0_1.md`.
+- For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES_V0_1.md`.
+- For non-functional requirements and technical/design detail, load `docs/DESIGN_DECISIONS_V0_1.md`.
+- For database schema explanation, load `docs/DATA_MODEL_V0_1.md` or database/schema_V0_1.sql for detail.
+
+### Current implementation - stay focused (the MVFP)
+- The current design focus is the MVFP public Events + Results browsing slice.
+- The public route contract is: `GET /events`, `GET /events/year/:year`, `GET /events/:eventKey`, `GET /health/live`, and `GET /health/ready`.
+- `GET /events/year/:year` is a non-paginated whole-year completed-events/results page.
+- `GET /events/:eventKey` remains the canonical single-event drill-down route.
+- For exact page routes, canonical `eventKey` behavior, and page/view-model expectations, read **View Catalog**.
+- For exact service ownership and page-oriented method contracts for that slice, read **Service Catalog**.
+- Preserve the existing server-rendered Express + Handlebars approach for this slice: HTML page routes, thin controllers, service-owned use-case logic, one prepared-statement `db.ts` module, logic-light templates, no repository layer, no ORM, and no REST API for this slice.
+- The MVFP does not require member login.
+- The relevant MVFP user stories are: `V_Browse_Upcoming_Events` and `V_Browse_Past_Events`.
+
 
 ## Project identity
 
@@ -65,6 +85,7 @@ Major areas include:
 ### Operational invariants
 - Dev/prod parity matters for infrastructure adapters and workflows.
 - Simplicity is intentional: do not introduce distributed components or operational complexity without explicit approval.
+- For Lightsail environments, operator shell access uses hardened per-operator SSH to named host accounts; runtime AWS API access remains separate and uses assumed IAM roles.
 
 ## Conceptual code map (paths may vary)
 
@@ -89,11 +110,9 @@ This project uses a documentation suite. The AI should treat it as a modular kno
 - **Design Decisions** - rationale and non-negotiable design commitments / trade-offs.
 - **Data Model** - canonical persisted entities, relationships, schema conventions, storage structure.
 
-### Implementation specification documents
-- **View Catalog** - user-facing views, flows, actors, and authorization at flow level.
-- **UI Specification** - UI layer implementation (views/controllers/templates/view-model flow).
-- **Service Catalog** - service boundaries, contracts, business logic expectations, error semantics.
-- **Server Specification** - route behavior, validation, HTTP semantics, jobs, data access patterns.
+### Catalog and contract documents
+- **View Catalog** - authoritative page/UI/view/route/view-model specification for the cataloged views; use this instead of looking for a separate UI or Server specification document.
+- **Service Catalog** - authoritative service-layer specification and contract document: service ownership, controller-to-service expectations, method contracts, business logic expectations, persistence touchpoints, and service-level error semantics.
 - **DevOps guide** - build, test, release, operate, recover, CI/CD, infrastructure procedures.
 
 ## When to load more detail (recommended wording / agent rule)
@@ -106,45 +125,12 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 
 ## Document routing heuristics (what to read next)
 
-- Need exact feature behavior or acceptance criteria -> **User Stories** (+ View Catalog when flow/UI context matters)
-- Need route/controller behavior, validation, HTTP status semantics, jobs/webhooks -> **Server Specification**
-- Need business rules, service boundaries, contracts, error semantics -> **Service Catalog**
-- Need entity relationships, persisted state conventions, schema invariants -> **Data Model** and , **Schema SQL** (for exact detail)
+- Need exact feature behavior or acceptance criteria -> **User Stories** (+ **View Catalog** when flow/UI context matters)
+- Need page routes, rendered page behavior, page/view-model composition, or UI-facing implementation conventions for cataloged views -> **View Catalog**
+- Need business rules, service boundaries, controller-to-service expectations, method contracts, or service-level error semantics -> **Service Catalog**
+- Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + **Schema SQL**
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
-- Need UI implementation conventions or page composition details -> **UI Specification** (+ View Catalog)
-- Need deployment, backups, recovery, infrastructure changes, CI/CD -> **DevOps guide** (+ diagrams if topology matters)
+- Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DevOps guide**. Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
 - Need terminology clarification -> **Glossary**
 - Need big-picture human context or document relationships -> **Project Summary** (full version)
-
-## Agent operating rules for this project (human-in-the-loop)
-
-### 1) Keep the human in the loop on uncertainty
-If there is **any uncertainty, ambiguity, or doubt** about what to do, what was intended, or which interpretation is correct, the agent should **ask the human before proceeding**.
-
-### 2) Require approval for non-trivial changes
-For anything other than a clearly trivial change, the agent should:
-- explain the proposed approach briefly
-- identify any assumptions
-- ask for human approval before applying the change
-
-Examples of **non-trivial** changes include (not exhaustive):
-- behavior changes affecting users/admins
-- schema/migration changes
-- auth/security/session changes
-- payments/voting/email workflow changes
-- refactors crossing module boundaries
-- infrastructure / deployment / CI changes
-
-### 3) Prefer smallest safe change
-Make the smallest change that solves the task while preserving documented invariants, unless a human approves otherwise.
-
-### 4) Verify before claiming done
-Use the project’s preferred tests/checks (as appropriate to the change) and report what was verified vs not verified.
-
-### 5) Keep docs in sync (suggest updates proactively)
-When a human decision or code change alters behavior, architecture, contracts, terminology, or operational procedures, the agent should:
-- check whether relevant project docs still match reality
-- **suggest updates to the affected documents** so documentation stays in sync, if drift is detected
-- If a requested design change departs from current docs, the agent must stop and call that out explicitly.
-
 

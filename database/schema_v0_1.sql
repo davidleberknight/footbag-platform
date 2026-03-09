@@ -117,6 +117,7 @@ CREATE TABLE events (
   city        TEXT NOT NULL,
   region      TEXT,
   country     TEXT NOT NULL,
+  host_club_id TEXT REFERENCES clubs(id),
 
   external_url              TEXT,
   external_url_validated_at TEXT,
@@ -156,6 +157,7 @@ CREATE INDEX        idx_events_geo             ON events(country, region, city);
 CREATE INDEX        idx_events_status          ON events(status);
 CREATE UNIQUE INDEX ux_events_hashtag          ON events(hashtag_tag_id);
 CREATE INDEX        idx_events_sanction_status ON events(sanction_status);
+CREATE INDEX        idx_events_host_club       ON events(host_club_id);
 
 -- Disciplines offered at a specific event (e.g., freestyle singles, net doubles).
 -- Each discipline defines the participation format (singles/doubles/mixed_doubles)

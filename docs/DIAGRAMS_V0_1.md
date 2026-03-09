@@ -72,11 +72,10 @@ Visual aids for understanding the system design. Eight diagrams cover production
 │  AWS KMS         JWT signing (asymmetric) · ballot encryption       │
 │  Parameter Store Stripe API keys · webhook secrets (not JWT)        │
 │  CloudWatch      Logs · metrics · backup-age alarm (>15 min)        │
-│  Session Manager Admin shell access  (no SSH, no port 22)           │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** A single AWS CloudFront distribution serves all traffic with different cache behaviors per path: dynamic HTML routes to Lightsail, static assets to S3, and the legacy archive to a separate S3 bucket protected by Lambda@Edge JWT validation. The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. All AWS services are accessed via IAM role — no secrets are hardcoded.
+**Caption:** A single AWS CloudFront distribution serves all traffic with different cache behaviors per path: dynamic HTML routes to Lightsail, static assets to S3, and the legacy archive to a separate S3 bucket protected by Lambda@Edge JWT validation. The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Operator shell access to the host uses hardened per-operator SSH to named host accounts.
 
 ---
 
