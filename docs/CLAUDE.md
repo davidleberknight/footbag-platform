@@ -12,7 +12,7 @@ Local rules for editing project documentation.
 
 ## Documentation rules
 - Avoid broadening MVFP slice docs into whole-platform docs unless the human asks.
-- Refer to the doc-sync skill before suggesting any doc edits.
+- Always invoke the doc-sync skill before making any doc edits, without exception.
 - DO NOT EDIT PROJECT DOCUMENTS unless the human explicitly gives consent; use the doc-sync skill.
 
 ## MVFP scope note

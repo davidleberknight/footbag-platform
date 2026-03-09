@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{#if pageTitle}}{{pageTitle}} — {{/if}}IFPA Footbag</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="wrapper">
+      <a href="/" class="site-logo">IFPA <span>Footbag</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="/events">Events</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    {{{body}}}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrapper">
+      <div>
+        <div class="footer-brand">IFPA Footbag</div>
+        <div class="footer-tagline">International Footbag Players Association</div>
+      </div>
+      <div class="footer-links">
+        <a href="/events">Events</a>
+      </div>
+    </div>
+    <div class="wrapper">
+      <div class="footer-copy">
+        &copy; International Footbag Players Association. All rights reserved.
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

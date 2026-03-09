@@ -1,7 +1,9 @@
 # DEV_ONBOARDING_V0_1.md
 
 # Footbag Website Modernization Project
+
 ## Developer Onboarding Guide for MVFP v0.1
+
 ### Public Events + Results Slice
 
 ---
@@ -48,32 +50,6 @@ Where the repository is blank, this guide says which files to create and why.
 
 ---
 
-## Quick start — codebase already exists
-
-If you are cloning a repository that already has a working implementation, skip Parts C–E and use this five-step path instead:
-
-```bash
-# 1. Install dependencies
-npm install
-
-# 2. Create your local env file
-cp .env.example .env
-# Edit .env — at minimum confirm FOOTBAG_DB_PATH=./database/footbag.db
-
-# 3. Bootstrap the local database (requires sqlite3 CLI — see §13.3)
-./scripts/reset-local-db.sh
-
-# 4. Start the dev server
-npm run dev
-# → http://localhost:3000/events
-
-# 5. Run the integration test suite
-npm test
-```
-
-All five routes should respond correctly. Continue to Part F for AWS/Terraform bootstrap.
-
----
 
 # Part A — Orientation and project understanding
 
@@ -95,15 +71,19 @@ That philosophy drives nearly every technical choice in this guide.
 ## 2. Project philosophy in practical terms
 
 ### Maintainability over sophistication
+
 The project prefers a conventional stack, clear boundaries, and readable SQL over layered abstractions that only pay off at much larger team size.
 
 ### Transparency over hidden machinery
+
 Most application state lives in a single SQLite database file. The schema is visible. Queries are visible. The runtime shape is visible.
 
 ### Proportion over overengineering
+
 The first public deployment target is a single-origin Lightsail deployment behind CloudFront. That is deliberate. It is not trying to be a distributed platform on day one.
 
 ### Explicit human responsibility
+
 AWS account bootstrap, IAM setup, Terraform use, final review, deployment decisions, and verification remain human responsibilities. AI helps generate files; it does not replace operational judgment.
 
 ---
@@ -127,28 +107,25 @@ At a high level, the system is a **server-rendered TypeScript web application**:
 You should think about the code in four layers:
 
 1. **Views**
-   - Handlebars templates that render HTML
-   - should stay logic-light
-
+  - Handlebars templates that render HTML
+  - should stay logic-light
 2. **Controllers**
-   - Express route handlers
-   - parse request inputs
-   - call services
-   - choose status codes / render templates / return JSON for health endpoints
-
+  - Express route handlers
+  - parse request inputs
+  - call services
+  - choose status codes / render templates / return JSON for health endpoints
 3. **Services**
-   - own the slice’s business rules
-   - validate route keys and year inputs
-   - shape page-oriented data
-   - decide visibility rules
-   - translate temporary database contention into safe service failures
-
+  - own the slice’s business rules
+  - validate route keys and year inputs
+  - shape page-oriented data
+  - decide visibility rules
+  - translate temporary database contention into safe service failures
 4. **DB / infrastructure layer**
-   - one SQLite module
-   - prepared statements prepared once at startup
-   - transaction helper
-   - no ORM
-   - no repository layer
+  - one SQLite module
+  - prepared statements prepared once at startup
+  - transaction helper
+  - no ORM
+  - no repository layer
 
 That layered mental model matters. Most implementation mistakes on this project are really boundary mistakes.
 
@@ -183,6 +160,7 @@ Docker is part of the required workflow for this project, not an optional extra.
 You will use two local development modes:
 
 ### Mode 1 — fast host-run development
+
 Use this when you want the fastest edit-run-debug loop in WSL Ubuntu.
 
 Typical shape:
@@ -193,6 +171,7 @@ Typical shape:
 - debug controllers, services, templates, and SQL without rebuilding containers every minute
 
 ### Mode 2 — Docker parity mode
+
 Use this before you advance to AWS work.
 
 Typical shape:
@@ -239,11 +218,13 @@ This is not the architecture for a huge platform. It is the right architecture f
 ## 8. Where Parameter Store and SSH fit
 
 ### Parameter Store
+
 Used for **staging and production configuration** and **secrets**.
 
 You should think of it as the source for environment values that must not live in the repository and should not be hand-edited in random places on the server.
 
 ### SSH
+
 Used for **exceptional operator shell access** on the Lightsail host.
 
 The project standard is:
@@ -351,6 +332,7 @@ That narrowness is a strength. It makes the first implementation and onboarding 
 When you implement the slice, preserve these rules:
 
 ### Public visibility
+
 Only events in these statuses are publicly visible:
 
 - `published`
@@ -365,6 +347,7 @@ Events in these statuses are **not** public:
 - `canceled`
 
 ### Event key
+
 Public event identity uses:
 
 - `eventKey` shape: `event_{year}_{event_slug}`
@@ -383,6 +366,7 @@ Do **not** invent:
 - a second public results route
 
 ### Year archive behavior
+
 `GET /events/year/:year`:
 
 - shows the full selected year
@@ -393,6 +377,7 @@ Do **not** invent:
 - explicitly says when results are not yet available
 
 ### Canonical event page behavior
+
 `GET /events/:eventKey`:
 
 - is always the canonical event page
@@ -402,8 +387,108 @@ Do **not** invent:
 - returns not found for invalid keys, unknown keys, and non-public events
 
 ### Health behavior
+
 - `/health/live` is a cheap process liveness check
 - `/health/ready` is a minimal SQLite-readiness check for this stage only
+
+---
+
+## Quick start — codebase already exists
+
+You have the orientation from Parts A and B. If you are joining a project with a working implementation, this section is self-contained — follow the steps below to install prerequisites, clone, test, and run the dev server.
+
+### Prerequisites (one-time, per machine)
+
+These are system-level installs. Do them once on a new machine; they persist across sessions.
+
+There is no Python-style virtual environment for this project. Node's equivalent is `node_modules/` — a local directory managed by npm, installed once per clone, and reused across all sessions. You only need to re-run `npm install` when `package.json` changes.
+
+**1. Node.js 22 LTS via nvm (recommended for WSL)**
+
+nvm lets you install and switch Node versions without touching system Node. See §13.2 for full detail.
+
+```bash
+# Install nvm v0.40.3 (verified working)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+
+# Restart your terminal, then install and activate Node 22 LTS (v22.22.1 verified, npm 10.9.4)
+nvm install 22
+nvm use 22
+nvm alias default 22
+
+# Verify
+node -v   # v22.x.x
+npm -v    # 10.x.x
+```
+
+> **WSL2 PATH note:** If Node is also installed on Windows, `which node` inside WSL may resolve to the Windows binary. After installing via nvm, verify `which node` returns a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
+
+**2. System packages**
+
+`build-essential` is required to compile the `better-sqlite3` native addon during `npm install`. `sqlite3` is the CLI used by the database reset script.
+
+```bash
+sudo apt update
+sudo apt install -y build-essential sqlite3
+
+# Verify
+sqlite3 --version
+```
+
+---
+
+### First test from a new terminal
+
+npm reads `package.json` to install dependencies (`npm install`) and delegates named scripts — `test`, `dev`, `build` — to the underlying tools (Vitest for tests, ts-node-dev for the dev server, tsc for compilation).
+
+```bash
+# Clone the repository and enter the project directory
+git clone git@github.com:davidleberknight/footbag-platform.git
+cd footbag-platform
+
+# Install all declared Node.js dependencies into node_modules/
+# (only needed once per clone, or after package.json changes)
+npm install
+
+# Create your local env file
+cp .env.example .env
+# Edit .env — at minimum confirm FOOTBAG_DB_PATH=./database/footbag.db
+
+# Bootstrap the local database
+bash scripts/reset-local-db.sh
+
+# Run the integration test suite
+npm test
+```
+
+All 15 tests should pass.
+
+### Start the dev server and verify in a browser
+
+```bash
+# Start the dev server — leave this terminal running
+npm run dev
+```
+
+WSL2 automatically forwards the port to Windows. Open your Windows browser and navigate to:
+
+```
+http://localhost:3000/events
+```
+
+You should see the events listing page. Verify these routes manually:
+
+| URL | Expected |
+| --- | --- |
+| `http://localhost:3000/events` | Upcoming events listing |
+| `http://localhost:3000/events/year/2025` | 2025 completed events with results |
+| `http://localhost:3000/events/event_2025_beaver_open` | Single event detail with results |
+| `http://localhost:3000/health/live` | `{"ok":true,"check":"live"}` |
+| `http://localhost:3000/health/ready` | `{"ok":true,"check":"ready"}` |
+
+Server logs appear in the terminal. Press `Ctrl+C` to stop the server.
+
+> **If you switch Node versions:** run `npm rebuild` after switching. `better-sqlite3` is a native addon — it breaks at runtime with `ERR_DLOPEN_FAILED` if not recompiled for the new version.
 
 ---
 
@@ -460,6 +545,7 @@ cd footbag-modernization
 If the repository does not exist yet, create it in GitHub first and then clone it.
 
 ### Small-team Git workflow
+
 Use short-lived branches. Keep changes reviewable. For this project, a good branch shape is:
 
 - `chore/bootstrap-repo`
@@ -635,6 +721,7 @@ The exact file mechanism can vary. The important thing is that the rules live in
 Use this workflow every time:
 
 ### Step 1 — read authority docs first
+
 Before generating code, read:
 
 - `USER_STORIES_V0_1.md`
@@ -646,6 +733,7 @@ Before generating code, read:
 Optionally also read `DATA_MODEL_V0_1.md` when working on SQLite runtime behavior.
 
 ### Step 2 — ask for one small batch at a time
+
 Good batch prompts:
 
 - “Create the repository skeleton, package.json, tsconfig, and baseline scripts only.”
@@ -658,6 +746,7 @@ Bad batch prompt:
 - “Build the entire app, Docker, Terraform, and AWS deployment in one go.”
 
 ### Step 3 — review the diff yourself
+
 Check for forbidden inventions:
 
 - ORM
@@ -669,6 +758,7 @@ Check for forbidden inventions:
 - async work inside SQLite transactions
 
 ### Step 4 — run tests and smoke checks
+
 After each batch:
 
 - run the tests that exist
@@ -676,6 +766,7 @@ After each batch:
 - verify the rendered behavior manually
 
 ### Step 5 — keep ownership boundaries clear
+
 Claude Code may generate files. The human still must:
 
 - approve the design
@@ -821,6 +912,7 @@ The important point is not the exact JSON. The important point is that the initi
 ## 17. Create baseline config files
 
 ## 17.1 `.gitignore`
+
 At minimum ignore:
 
 - `node_modules/`
@@ -832,6 +924,7 @@ At minimum ignore:
 - `terraform.tfstate*`
 
 ## 17.2 `.env.example`
+
 Start with a minimal local environment file:
 
 ```dotenv
@@ -846,6 +939,7 @@ PUBLIC_BASE_URL=http://localhost:3000
 For MVFP v0.1 local development, keep `.env` intentionally small. Do not drag production-only complexity into the first local boot.
 
 ### What belongs in local `.env`
+
 Use `.env` for:
 
 - local-only development values
@@ -853,6 +947,7 @@ Use `.env` for:
 - temporary local secrets needed only for development
 
 ### What belongs in Parameter Store instead
+
 Use Parameter Store for staging and production:
 
 - secret values
@@ -875,6 +970,7 @@ sqlite3 database/footbag.db < database/schema_v0_1.sql
 ```
 
 ### Required SQLite runtime behavior
+
 Your DB module must enforce these rules on every connection:
 
 - `PRAGMA foreign_keys = ON`
@@ -884,6 +980,7 @@ Your DB module must enforce these rules on every connection:
 - use a transaction helper based on `BEGIN IMMEDIATE`
 
 ### A good `db.ts` shape
+
 `src/db/db.ts` should be the one place that:
 
 - opens the SQLite database
@@ -893,6 +990,7 @@ Your DB module must enforce these rules on every connection:
 - imports and exposes the prepared statements catalog
 
 ### A good `statements.ts` shape
+
 `src/db/statements.ts` should define and prepare the queries used by this slice.
 
 For MVFP v0.1, that means at least:
@@ -919,22 +1017,19 @@ Seed only the tables needed to exercise this slice. The seed set should include:
 ### Required scenarios
 
 1. **An upcoming public event**
-   - visible on `/events`
-
+  - visible on `/events`
 2. **A completed public event with results**
-   - visible on `/events/year/:year`
-   - has grouped results
-   - opens on the canonical event page with `hasResults = true`
-
+  - visible on `/events/year/:year`
+  - has grouped results
+  - opens on the canonical event page with `hasResults = true`
 3. **A completed public event without results**
-   - visible on `/events/year/:year`
-   - explicitly shows “no results yet”
-   - opens on the canonical event page and still renders
-
+  - visible on `/events/year/:year`
+  - explicitly shows “no results yet”
+  - opens on the canonical event page and still renders
 4. **A non-public event**
-   - `draft` or `canceled`
-   - should not be publicly visible
-   - canonical route should resolve to not found
+  - `draft` or `canceled`
+  - should not be publicly visible
+  - canonical route should resolve to not found
 
 ### Seed contents you will likely need
 
@@ -951,6 +1046,7 @@ Seed only the tables needed to exercise this slice. The seed set should include:
 Keep the seed narrow. You do not need the whole platform to prove the public slice.
 
 ### Helpful reset script
+
 Create `scripts/reset-local-db.sh`:
 
 ```bash
@@ -991,6 +1087,7 @@ Create these first:
 A good split is:
 
 ### `src/config/env.ts`
+
 Owns:
 
 - loading environment variables
@@ -998,12 +1095,14 @@ Owns:
 - exporting a small typed config object
 
 ### `src/config/logger.ts`
+
 Owns:
 
 - structured logging setup
 - safe logging helpers
 
 ### `src/app.ts`
+
 Owns:
 
 - creating the Express app
@@ -1013,6 +1112,7 @@ Owns:
 - safe 404 and safe unavailable handlers
 
 ### `src/server.ts`
+
 Owns:
 
 - reading config
@@ -1042,6 +1142,7 @@ Create:
 - `src/services/EventService.ts`
 
 ### Controller responsibilities
+
 Controllers should:
 
 - read the request path parameter
@@ -1060,6 +1161,7 @@ Controllers should **not**:
 - write inline SQL
 
 ### EventService responsibilities for this slice
+
 EventService should own:
 
 - validating `year` as a four-digit archive-year input
@@ -1089,6 +1191,7 @@ Create:
 - `src/views/errors/unavailable.hbs`
 
 ### Template philosophy
+
 Templates should receive already-resolved display data and simple booleans.
 
 Templates should **not**:
@@ -1109,6 +1212,7 @@ Keep templates readable and close to the final HTML.
 Create the health controller at the same time as the public routes, not at the end.
 
 ### `/health/live`
+
 Should be a cheap process signal only.
 
 Example response shape:
@@ -1118,6 +1222,7 @@ Example response shape:
 ```
 
 ### `/health/ready`
+
 For MVFP v0.1, keep it minimal.
 
 It should do only what is needed to confirm the app can serve this slice:
@@ -1143,6 +1248,7 @@ Do **not** expand readiness into backup freshness, S3 reachability, SES, Stripe,
 This order is deliberate. Follow it.
 
 ## Batch 1 — repository skeleton and toolchain
+
 Create:
 
 - package metadata
@@ -1153,15 +1259,18 @@ Create:
 - baseline npm scripts
 
 **Test after batch 1**
+
 - `npm install` succeeds
 - `npm run build` works even if source is still minimal
 
 ### Good Claude Code prompt for batch 1
+
 “Create only the repository skeleton, package.json, tsconfig.json, .gitignore, and .env.example for a TypeScript Express + Handlebars project. Do not add ORM, repository, Docker, or Terraform yet.”
 
 ---
 
 ## Batch 2 — app bootstrap
+
 Create:
 
 - `src/config/env.ts`
@@ -1170,16 +1279,19 @@ Create:
 - `src/server.ts`
 
 **Test after batch 2**
+
 - app starts
 - root process logs startup cleanly
 - missing envs fail clearly
 
 ### Good Claude Code prompt for batch 2
+
 “Create only env loading, logger, Express app bootstrap, and server startup for this project. Keep the app server-rendered, use Handlebars, and do not implement route business logic yet.”
 
 ---
 
 ## Batch 3 — database bootstrap and seed path
+
 Create:
 
 - `database/schema_v0_1.sql` copy-in
@@ -1189,6 +1301,7 @@ Create:
 - `src/db/statements.ts`
 
 **Responsibilities**
+
 - DB module opens the database
 - enables foreign keys
 - configures WAL where appropriate
@@ -1196,22 +1309,26 @@ Create:
 - exposes transaction helper using `BEGIN IMMEDIATE`
 
 **Test after batch 3**
+
 - local DB resets cleanly
 - readiness query works
 - FK enforcement is active
 - a deliberate FK violation fails
 
 ### Good Claude Code prompt for batch 3
+
 “Create only the SQLite bootstrap path for this project: db.ts, statements.ts, reset-local-db.sh, and a deterministic MVFP seed file. Use one DB module, prepared statements, and a BEGIN IMMEDIATE transaction helper. No ORM and no repository layer.”
 
 ---
 
 ## Batch 4 — EventService public read models
+
 Create:
 
 - `src/services/EventService.ts`
 
 **Responsibilities**
+
 - page-oriented read methods for:
   - landing page
   - year page
@@ -1223,17 +1340,20 @@ Create:
 - `primarySection` derivation
 
 **Test after batch 4**
+
 - unit tests pass
 - upcoming event list excludes non-public statuses
 - year page returns historical event with no-results state
 - canonical page returns not found for invalid/non-public keys
 
 ### Good Claude Code prompt for batch 4
+
 “Create only the EventService public read methods for the MVFP slice. Use page-oriented return types. Keep route interpretation and page shaping in the service. Do not add controller logic or templates.”
 
 ---
 
 ## Batch 5 — controllers, routes, and templates
+
 Create:
 
 - `src/routes/publicRoutes.ts`
@@ -1242,23 +1362,27 @@ Create:
 - public Handlebars templates
 
 **Responsibilities**
+
 - wire service to route
 - render HTML views
 - return health JSON
 - not-found and safe unavailable handling
 
 **Test after batch 5**
+
 - `/events` renders
 - `/events/year/<seeded-year>` renders
 - `/events/<eventKey>` renders
 - invalid routes and invalid event keys behave safely
 
 ### Good Claude Code prompt for batch 5
+
 “Create only the public route wiring, controllers, and Handlebars templates for the MVFP routes. Keep controllers thin and templates logic-light.”
 
 ---
 
 ## Batch 6 — integration tests and smoke scripts
+
 Create:
 
 - `tests/integration/events.routes.test.ts`
@@ -1266,6 +1390,7 @@ Create:
 - `scripts/smoke-local.sh`
 
 **Smoke script should check**
+
 - `/health/live`
 - `/health/ready`
 - `/events`
@@ -1275,6 +1400,7 @@ Create:
 - one non-public event returning not found
 
 **Test after batch 6**
+
 - integration tests pass
 - smoke script passes
 - manual browser verification also passes
@@ -1282,6 +1408,7 @@ Create:
 ---
 
 ## Batch 7 — Docker parity artifacts
+
 Create:
 
 - `docker/web/Dockerfile`
@@ -1291,6 +1418,7 @@ Create:
 - `docker/docker-compose.prod.yml`
 
 ### Why the worker exists now
+
 The worker may be minimal for the first public slice, but the project’s runtime shape includes it. For MVFP v0.1, it can start with:
 
 - structured startup/shutdown
@@ -1301,17 +1429,20 @@ The worker may be minimal for the first public slice, but the project’s runtim
 That keeps runtime shape aligned with the design without forcing the entire background-job platform into the first public slice.
 
 **Test after batch 7**
+
 - `docker compose up --build` works
 - nginx fronts the web container
 - public routes and health routes work in containers
 - local database mount behaves as expected
 
 ### Good Claude Code prompt for batch 7
+
 “Create only the Docker and nginx artifacts for this project’s required runtime shape: nginx, web, worker, and local compose. Keep the worker minimal and aligned with the existing architecture rules.”
 
 ---
 
 ## Batch 8 — Terraform and ops artifacts
+
 Create:
 
 - `terraform/shared/`
@@ -1323,6 +1454,7 @@ Create:
 Keep these small and explicit. Do not create a giant infrastructure tree before the app actually runs locally and in Docker.
 
 **Test after batch 8**
+
 - `terraform fmt` and `terraform validate` pass
 - environment directories are clear
 - service wrapper is readable
@@ -1332,29 +1464,31 @@ Keep these small and explicit. Do not create a giant infrastructure tree before 
 
 ## 25. File responsibility map
 
-| File | Purpose |
-|---|---|
-| `src/app.ts` | Express app construction, view engine, middleware, route registration |
-| `src/server.ts` | process startup and shutdown |
-| `src/config/env.ts` | environment loading and validation |
-| `src/config/logger.ts` | structured logging |
-| `src/db/db.ts` | one SQLite connection module, PRAGMAs, transaction helper |
-| `src/db/statements.ts` | prepared statement catalog |
-| `src/services/EventService.ts` | public events browse/detail business rules and page shaping |
-| `src/controllers/eventsController.ts` | route-to-service rendering bridge |
-| `src/controllers/healthController.ts` | liveness/readiness JSON handlers |
-| `src/routes/publicRoutes.ts` | public route wiring |
-| `src/views/events/*.hbs` | server-rendered public HTML templates |
-| `database/seeds/seed_mvfp_v0_1.sql` | deterministic local seed scenarios |
-| `scripts/reset-local-db.sh` | local DB rebuild |
-| `scripts/smoke-local.sh` | local smoke checks |
-| `docker/web/Dockerfile` | web runtime image |
-| `docker/worker/Dockerfile` | worker runtime image |
-| `docker/nginx/nginx.conf` | reverse proxy config |
-| `docker/docker-compose.yml` | local parity stack |
-| `docker/docker-compose.prod.yml` | deployment overrides |
-| `ops/systemd/footbag.service` | production compose wrapper |
-| `terraform/*` | environment infrastructure definitions |
+
+| File                                  | Purpose                                                               |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| `src/app.ts`                          | Express app construction, view engine, middleware, route registration |
+| `src/server.ts`                       | process startup and shutdown                                          |
+| `src/config/env.ts`                   | environment loading and validation                                    |
+| `src/config/logger.ts`                | structured logging                                                    |
+| `src/db/db.ts`                        | one SQLite connection module, PRAGMAs, transaction helper             |
+| `src/db/statements.ts`                | prepared statement catalog                                            |
+| `src/services/EventService.ts`        | public events browse/detail business rules and page shaping           |
+| `src/controllers/eventsController.ts` | route-to-service rendering bridge                                     |
+| `src/controllers/healthController.ts` | liveness/readiness JSON handlers                                      |
+| `src/routes/publicRoutes.ts`          | public route wiring                                                   |
+| `src/views/events/*.hbs`              | server-rendered public HTML templates                                 |
+| `database/seeds/seed_mvfp_v0_1.sql`   | deterministic local seed scenarios                                    |
+| `scripts/reset-local-db.sh`           | local DB rebuild                                                      |
+| `scripts/smoke-local.sh`              | local smoke checks                                                    |
+| `docker/web/Dockerfile`               | web runtime image                                                     |
+| `docker/worker/Dockerfile`            | worker runtime image                                                  |
+| `docker/nginx/nginx.conf`             | reverse proxy config                                                  |
+| `docker/docker-compose.yml`           | local parity stack                                                    |
+| `docker/docker-compose.prod.yml`      | deployment overrides                                                  |
+| `ops/systemd/footbag.service`         | production compose wrapper                                            |
+| `terraform/`*                         | environment infrastructure definitions                                |
+
 
 ---
 
@@ -1365,6 +1499,7 @@ Keep these small and explicit. Do not create a giant infrastructure tree before 
 A blank AWS account cannot be fully “Terraformed from nothing” without a little initial setup. This guide therefore uses a two-phase model:
 
 ### Phase 1 — one-time human bootstrap
+
 Do the minimum manual work needed to:
 
 - secure the account
@@ -1374,6 +1509,7 @@ Do the minimum manual work needed to:
 - prepare Terraform authority handoff
 
 ### Phase 2 — Terraform-owned steady state
+
 Once the secure baseline exists, Terraform becomes the normal authority for:
 
 - IAM roles and policies used by the project
@@ -1409,9 +1545,11 @@ That is the project’s baseline posture.
 You need a human identity for normal administrative work.
 
 ### Preferred model
+
 If you already have AWS Organizations / IAM Identity Center available, use it and configure the AWS CLI with `aws configure sso`.
 
 ### Acceptable single-account bootstrap fallback
+
 If you are starting from a plain single account with no organizational identity layer yet, create a **named bootstrap administrator identity** for yourself only:
 
 - not shared
@@ -1422,6 +1560,7 @@ If you are starting from a plain single account with no organizational identity 
 This guide supports both patterns because blank-account reality varies. What the project forbids is **shared** AWS user identities and shared shell access.
 
 ### Verify local CLI identity
+
 After configuring a profile, run:
 
 ```bash
@@ -1452,6 +1591,7 @@ A good starting convention is:
 You may begin with one app runtime role if necessary, but separate web and worker roles are the stronger end state.
 
 ### Human profile
+
 Used for:
 
 - Terraform
@@ -1460,6 +1600,7 @@ Used for:
 - AWS-side tasks that support the documented SSH host-access posture
 
 ### Runtime profiles
+
 Used by the deployed services inside containers for AWS API access.
 
 Do **not** mount or use your human profile inside application containers.
@@ -1508,6 +1649,7 @@ aws s3api put-bucket-encryption \
 ```
 
 ### Why this remains manual at first
+
 This bucket must exist before the rest of the Terraform configuration can safely use it as a backend.
 
 ---
@@ -1568,6 +1710,7 @@ After the remote-state foundation and operator identity exist, Terraform should 
 - environment scaffolding such as Parameter Store path creation where practical
 
 ### What remains human-owned
+
 Some things remain human responsibilities even after handoff:
 
 - root credential custody
@@ -1594,12 +1737,14 @@ Instead, the project design is:
 - the source credentials material on the host is root-owned and mounted only where needed
 
 ### Why this matters
+
 If you blur these identities, two bad things happen:
 
 1. operators start troubleshooting with the wrong identity
 2. containers inherit broader permissions than they need
 
 ### Practical host-side shape
+
 On the host, you may end up with root-owned AWS config that looks conceptually like:
 
 ```ini
@@ -1649,6 +1794,7 @@ A simple, readable convention is:
 ```
 
 ### Which parameter type to use
+
 - use `String` for ordinary non-secret config
 - use `SecureString` for secrets
 
@@ -1680,6 +1826,7 @@ aws ssm get-parameter \
 ```
 
 ### Local `.env` versus Parameter Store
+
 Use local `.env` in development. Use Parameter Store in staging and production. Do not turn production configuration into handwritten `.env` files copied between hosts.
 
 ---
@@ -1697,6 +1844,7 @@ For MVFP v0.1, keep Lightsail simple:
 The first production-like goal is not auto-scaling. It is a clean, understandable, repeatable single-origin deployment.
 
 ### What should live on the host
+
 - Docker / Docker Compose runtime
 - mounted SQLite file location
 - root-owned AWS runtime config material
@@ -1705,6 +1853,7 @@ The first production-like goal is not auto-scaling. It is a clean, understandabl
 - minimal deployment scripts
 
 ### What should not live on the host as ad hoc sprawl
+
 - random copies of secrets
 - unversioned deployment commands
 - unexplained manual edits to container config
@@ -1716,6 +1865,7 @@ The first production-like goal is not auto-scaling. It is a clean, understandabl
 This project’s design requires you to think about Lightsail host access in **named operator account + per-operator SSH key** terms, not managed-node / hybrid-activation terms.
 
 ### Why this matters
+
 The project still separates the human operator path from the application runtime AWS principal, but does not require Session Manager on the Lightsail host.
 
 ### Practical setup flow
@@ -1730,12 +1880,15 @@ The project still separates the human operator path from the application runtime
 8. use SSH only for documented operational tasks
 
 ### Verify access
+
 From your operator machine: ssh operator-user at host-or-static-ip
 
 ### Project rule
+
 Use named-account SSH for documented host-admin work. Do not share private keys, do not use shared shell accounts, and do not leave SSH broadly exposed.
 
 ### Rationale
+
 This removes the managed-node tutorial path and replaces it with the actual host-access model.
 
 ---
@@ -1754,6 +1907,7 @@ At minimum, the distribution should:
 - provide a clean place to define custom error responses
 
 ### Maintenance and safe-failure posture
+
 For early phases, keep this simple:
 
 - return friendly maintenance/error pages for origin 502/503/504 conditions
@@ -1769,6 +1923,7 @@ You do not need an elaborate “maintenance platform” to stand up the first sl
 When the stack is deployed, verify both layers.
 
 ### Origin validation
+
 Confirm the application is healthy on the origin host:
 
 - service is running
@@ -1778,6 +1933,7 @@ Confirm the application is healthy on the origin host:
 - `/health/ready` returns success
 
 ### Public validation
+
 Then confirm the public path through CloudFront:
 
 - `/events` loads
@@ -1866,6 +2022,7 @@ For the first deployment, do not skip the human pass.
 ## 42. Common implementation mistakes
 
 ### Architecture mistakes
+
 - adding Prisma or another ORM
 - adding a repository layer
 - pushing business rules into controllers
@@ -1874,29 +2031,34 @@ For the first deployment, do not skip the human pass.
 - inventing an `event_slug` column
 
 ### SQLite mistakes
+
 - forgetting `PRAGMA foreign_keys = ON` on every connection
 - using `datetime('now')` instead of the required UTC ISO format
 - doing async work inside a transaction
 - creating a generic retry loop instead of surfacing temporary-unavailable behavior cleanly
 
 ### Public-slice contract mistakes
+
 - exposing `draft` or `canceled` events publicly
 - paginating the year archive
 - hiding historical events that lack result rows
 - treating no-results historical pages as a different route
 
 ### WSL / Docker mistakes
+
 - storing the repo under `/mnt/c/...`
 - assuming Docker parity is optional
 - debugging only in host-run mode and never validating the container shape
 
 ### Node.js / dependency mistakes
+
 - using `better-sqlite3` v9 on Node 24 — it does not compile; the native binding changed; pin to `^12.6.2` or later
 - placing any `import` before `import 'dotenv/config'` in `server.ts` — any module imported first that reads `process.env` will see an empty environment because dotenv has not run yet
 - using lazy `require()` inside `app.ts` to import route modules — breaks Vitest's ESM transform; use static `import` at the top of the file
 - forgetting that `db.ts` opens the SQLite connection at module-load time — `FOOTBAG_DB_PATH` must be in `process.env` before the first transitive import of `db.ts` occurs
 
 ### AI-workflow mistakes
+
 - asking Claude Code to build the entire project in one shot
 - accepting code without reading the diff
 - letting AI invent infrastructure you did not ask for
@@ -1924,6 +2086,7 @@ For the first deployment, do not skip the human pass.
 You have reached first success when all of the following are true:
 
 ### Local host-run success
+
 - `npm run dev` starts the app
 - local DB bootstrap works
 - `/events`, `/events/year/:year`, `/events/:eventKey`, `/health/live`, and `/health/ready` all behave correctly
@@ -1934,11 +2097,13 @@ You have reached first success when all of the following are true:
   - non-public event not found
 
 ### Docker parity success
+
 - `docker compose up --build` works
 - nginx, web, and worker all start
 - the same smoke paths work through the container stack
 
 ### AWS/bootstrap success
+
 - root is hardened
 - a named human operator identity exists
 - AWS CLI and SSH are working
@@ -1946,6 +2111,7 @@ You have reached first success when all of the following are true:
 - Terraform configuration validates
 
 ### First public deployment success
+
 - Lightsail origin is up
 - CloudFront fronts it
 - public routes work through the public URL
@@ -1979,6 +2145,7 @@ Deferring these is not cutting corners. It is keeping the first slice proportion
 ## 46. Human / engineer / AI handoff boundaries
 
 ## Human engineer
+
 Owns:
 
 - reading and understanding the authority docs
@@ -1992,6 +2159,7 @@ Owns:
 - making deployment decisions
 
 ## System administrator / operator role
+
 In a small project this may be the same human, but the responsibilities are distinct:
 
 - account hardening
@@ -2003,6 +2171,7 @@ In a small project this may be the same human, but the responsibilities are dist
 - recovery execution if needed
 
 ## AI assistant
+
 May help with:
 
 - drafting files
@@ -2024,26 +2193,31 @@ Must not be treated as the owner of:
 ## 47. A practical first-week plan for a new contributor
 
 ### Day 1
+
 - install tools in Windows + WSL
 - read the five authority docs
 - create the repository skeleton
 - create project AI rule files
 
 ### Day 2
+
 - add app bootstrap, DB bootstrap, and seeds
 - prove the local database reset flow
 - prove health endpoints
 
 ### Day 3
+
 - implement EventService public read models
 - add route wiring and templates
 - prove local smoke checks
 
 ### Day 4
+
 - add tests and Docker parity artifacts
 - prove container smoke checks
 
 ### Day 5
+
 - prepare AWS account baseline
 - create remote state
 - scaffold Terraform
@@ -2056,53 +2230,58 @@ This plan is intentionally realistic for a volunteer project. It is not a hackat
 # Appendix A — Current official references used to verify this guide
 
 ## AWS
-- AWS CLI install: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
-- AWS CLI quickstart: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html
-- IAM Identity Center with AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html
-- `aws configure sso`: https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html
-- Root user best practices: https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html
-- IAM best practices: https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html
-- Lightsail SSH keys and connection overview: https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html
-- Set up SSH keys for Lightsail: https://docs.aws.amazon.com/lightsail/latest/userguide/lightsail-how-to-set-up-ssh.html
-- Lightsail firewall and port rules: https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-firewall-and-port-mappings-in-amazon-lightsail.
-- Parameter Store: https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html
-- SecureString and KMS: https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html
-- Parameter Store IAM access: https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-access.html
-- Lightsail instance creation: https://docs.aws.amazon.com/lightsail/latest/userguide/how-to-create-amazon-lightsail-instance-virtual-private-server-vps.html
-- CloudFront custom error responses: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/GeneratingCustomErrorResponses.html
-- CloudFront error-page procedure: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/custom-error-pages-procedure.html
+
+- AWS CLI install: [https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- AWS CLI quickstart: [https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html)
+- IAM Identity Center with AWS CLI: [https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)
+- `aws configure sso`: [https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html](https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html)
+- Root user best practices: [https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html](https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html)
+- IAM best practices: [https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
+- Lightsail SSH keys and connection overview: [https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html)
+- Set up SSH keys for Lightsail: [https://docs.aws.amazon.com/lightsail/latest/userguide/lightsail-how-to-set-up-ssh.html](https://docs.aws.amazon.com/lightsail/latest/userguide/lightsail-how-to-set-up-ssh.html)
+- Lightsail firewall and port rules: [https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-firewall-and-port-mappings-in-amazon-lightsail](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-firewall-and-port-mappings-in-amazon-lightsail).
+- Parameter Store: [https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
+- SecureString and KMS: [https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html](https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html)
+- Parameter Store IAM access: [https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-access.html](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-access.html)
+- Lightsail instance creation: [https://docs.aws.amazon.com/lightsail/latest/userguide/how-to-create-amazon-lightsail-instance-virtual-private-server-vps.html](https://docs.aws.amazon.com/lightsail/latest/userguide/how-to-create-amazon-lightsail-instance-virtual-private-server-vps.html)
+- CloudFront custom error responses: [https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/GeneratingCustomErrorResponses.html](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/GeneratingCustomErrorResponses.html)
+- CloudFront error-page procedure: [https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/custom-error-pages-procedure.html](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/custom-error-pages-procedure.html)
 
 ## Terraform
-- Install Terraform: https://developer.hashicorp.com/terraform/install
-- Install tutorial: https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
-- S3 backend: https://developer.hashicorp.com/terraform/language/backend/s3
-- State workspaces: https://developer.hashicorp.com/terraform/language/state/workspaces
-- CLI workspace overview: https://developer.hashicorp.com/terraform/cli/workspaces
+
+- Install Terraform: [https://developer.hashicorp.com/terraform/install](https://developer.hashicorp.com/terraform/install)
+- Install tutorial: [https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+- S3 backend: [https://developer.hashicorp.com/terraform/language/backend/s3](https://developer.hashicorp.com/terraform/language/backend/s3)
+- State workspaces: [https://developer.hashicorp.com/terraform/language/state/workspaces](https://developer.hashicorp.com/terraform/language/state/workspaces)
+- CLI workspace overview: [https://developer.hashicorp.com/terraform/cli/workspaces](https://developer.hashicorp.com/terraform/cli/workspaces)
 
 ## Docker
-- Docker Desktop on WSL 2: https://docs.docker.com/desktop/features/wsl/
-- Docker WSL best practices: https://docs.docker.com/desktop/features/wsl/best-practices/
-- Docker “Use WSL”: https://docs.docker.com/desktop/features/wsl/use-wsl/
-- Docker Compose install on Linux: https://docs.docker.com/compose/install/linux/
-- Docker build best practices: https://docs.docker.com/build/building/best-practices/
-- Docker multi-stage builds: https://docs.docker.com/build/building/multi-stage/
+
+- Docker Desktop on WSL 2: [https://docs.docker.com/desktop/features/wsl/](https://docs.docker.com/desktop/features/wsl/)
+- Docker WSL best practices: [https://docs.docker.com/desktop/features/wsl/best-practices/](https://docs.docker.com/desktop/features/wsl/best-practices/)
+- Docker “Use WSL”: [https://docs.docker.com/desktop/features/wsl/use-wsl/](https://docs.docker.com/desktop/features/wsl/use-wsl/)
+- Docker Compose install on Linux: [https://docs.docker.com/compose/install/linux/](https://docs.docker.com/compose/install/linux/)
+- Docker build best practices: [https://docs.docker.com/build/building/best-practices/](https://docs.docker.com/build/building/best-practices/)
+- Docker multi-stage builds: [https://docs.docker.com/build/building/multi-stage/](https://docs.docker.com/build/building/multi-stage/)
 
 ## Node / npm
-- Node downloads: https://nodejs.org/en/download
-- Node release status: https://nodejs.org/en/about/previous-releases
-- npm install guidance: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/
+
+- Node downloads: [https://nodejs.org/en/download](https://nodejs.org/en/download)
+- Node release status: [https://nodejs.org/en/about/previous-releases](https://nodejs.org/en/about/previous-releases)
+- npm install guidance: [https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/)
 
 ## Cursor and Claude Code
-- Cursor downloads: https://cursor.com/docs/downloads
-- Cursor docs home: https://cursor.com/docs
-- Cursor quickstart: https://cursor.com/docs/get-started/quickstart
-- Cursor rules: https://cursor.com/docs/context/rules
-- Claude Code quickstart: https://docs.anthropic.com/en/docs/claude-code/quickstart
-- Claude Code setup: https://docs.anthropic.com/en/docs/claude-code/setup
-- Claude Code overview: https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview
-- Claude Code common workflows: https://docs.anthropic.com/en/docs/claude-code/common-workflows
-- Claude Code settings: https://docs.anthropic.com/en/docs/claude-code/settings
-- Claude Code memory: https://docs.anthropic.com/en/docs/claude-code/memory
+
+- Cursor downloads: [https://cursor.com/docs/downloads](https://cursor.com/docs/downloads)
+- Cursor docs home: [https://cursor.com/docs](https://cursor.com/docs)
+- Cursor quickstart: [https://cursor.com/docs/get-started/quickstart](https://cursor.com/docs/get-started/quickstart)
+- Cursor rules: [https://cursor.com/docs/context/rules](https://cursor.com/docs/context/rules)
+- Claude Code quickstart: [https://docs.anthropic.com/en/docs/claude-code/quickstart](https://docs.anthropic.com/en/docs/claude-code/quickstart)
+- Claude Code setup: [https://docs.anthropic.com/en/docs/claude-code/setup](https://docs.anthropic.com/en/docs/claude-code/setup)
+- Claude Code overview: [https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
+- Claude Code common workflows: [https://docs.anthropic.com/en/docs/claude-code/common-workflows](https://docs.anthropic.com/en/docs/claude-code/common-workflows)
+- Claude Code settings: [https://docs.anthropic.com/en/docs/claude-code/settings](https://docs.anthropic.com/en/docs/claude-code/settings)
+- Claude Code memory: [https://docs.anthropic.com/en/docs/claude-code/memory](https://docs.anthropic.com/en/docs/claude-code/memory)
 
 ---
 
@@ -2125,3 +2304,4 @@ This guide preserves the project constraints defined in the authority docs, incl
 - Parameter Store for non-local config
 - hardened per-operator SSH for operator shell access
 - manual bootstrap only until Terraform authority is established
+

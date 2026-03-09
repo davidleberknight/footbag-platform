@@ -1,0 +1,61 @@
+{{! Year archive page — all completed events for a given year, with inline results }}
+
+<div class="wrapper">
+  <section>
+
+    {{! ── Year navigation ─────────────────────────────────────── }}
+    <div class="year-nav">
+      {{#if previousYear}}
+        <a href="/events/year/{{previousYear}}" class="year-nav-arrow">&#8592; {{previousYear}}</a>
+      {{else}}
+        <span class="year-nav-arrow" style="opacity:0.3;cursor:default">&#8592;</span>
+      {{/if}}
+
+      <h1>{{year}} Events</h1>
+
+      {{#if nextYear}}
+        <a href="/events/year/{{nextYear}}" class="year-nav-arrow">{{nextYear}} &#8594;</a>
+      {{else}}
+        <span class="year-nav-arrow" style="opacity:0.3;cursor:default">&#8594;</span>
+      {{/if}}
+    </div>
+
+    {{! ── Event list ──────────────────────────────────────────── }}
+    {{#if events.length}}
+      {{#each events}}
+        <div class="card mb-8" style="margin-bottom:32px">
+
+          {{! Event header }}
+          <div class="card-title" style="margin-bottom:8px">
+            <a href="/events/{{eventKey}}" style="font-size:1.2rem">{{title}}</a>
+          </div>
+          <div class="card-meta">
+            <span>{{startDate}}{{#if endDate}} – {{endDate}}{{/if}}</span>
+            <span>{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</span>
+            {{#if hostClub}}<span>Hosted by {{hostClub}}</span>{{/if}}
+          </div>
+
+          {{! Results or no-results notice }}
+          {{#if hasResults}}
+            <div style="margin-top:20px">
+              {{#each resultSections}}
+                {{> result-section}}
+              {{/each}}
+            </div>
+          {{else}}
+            <div class="no-results-notice" style="margin-top:16px">
+              {{noResultsMessage}}
+            </div>
+          {{/if}}
+
+        </div>
+      {{/each}}
+    {{else}}
+      <div class="empty-state">
+        <p>No completed events found for {{year}}.</p>
+        <a href="/events" class="btn btn-outline" style="margin-top:16px">Back to Events</a>
+      </div>
+    {{/if}}
+
+  </section>
+</div>

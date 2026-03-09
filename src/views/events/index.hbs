@@ -1,0 +1,67 @@
+{{! Events landing page — upcoming events + archive year links }}
+
+<div class="hero">
+  <div>
+    <h1>Footbag Events</h1>
+    <p>Tournaments, competitions, and gatherings from around the world.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Upcoming events ─────────────────────────────────────────── }}
+  <section>
+    <div class="section-heading">
+      <h2>Upcoming Events</h2>
+      {{#if upcomingEvents.length}}
+        <span class="section-count">{{upcomingEvents.length}}</span>
+      {{/if}}
+    </div>
+
+    {{#if upcomingEvents.length}}
+      <div class="card-grid">
+        {{#each upcomingEvents}}
+          <div class="card">
+            <div class="card-title">
+              <a href="/events/{{eventKey}}">{{title}}</a>
+            </div>
+            <div class="card-meta">
+              <span>{{startDate}}{{#if endDate}} – {{endDate}}{{/if}}</span>
+              <span>{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</span>
+              {{#if hostClub}}<span>{{hostClub}}</span>{{/if}}
+            </div>
+            <span class="badge badge-{{status}}">{{status}}</span>
+            {{#if description}}
+              <p class="card-description">{{description}}</p>
+            {{/if}}
+          </div>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="empty-state">
+        <p>No upcoming events are currently listed. Check back soon.</p>
+      </div>
+    {{/if}}
+  </section>
+
+  {{! ── Past events by year ─────────────────────────────────────── }}
+  <section>
+    <div class="section-heading">
+      <h2>Past Events</h2>
+    </div>
+
+    {{#if archiveYears.length}}
+      <p class="text-muted mb-4">Browse completed events and results by year.</p>
+      <div class="year-grid">
+        {{#each archiveYears}}
+          <a href="/events/year/{{this}}" class="year-pill">{{this}}</a>
+        {{/each}}
+      </div>
+    {{else}}
+      <div class="empty-state">
+        <p>No past events are available yet.</p>
+      </div>
+    {{/if}}
+  </section>
+
+</div>

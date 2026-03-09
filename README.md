@@ -17,11 +17,11 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 ## Current project state
 
-This is a **work in progress**.
+**MVFP v0.1 — Public Events + Results browsing — is complete and running locally.**
 
-- Project documentation and database/schema design are present
-- Legacy migration tooling (including mirror/results processing scripts) may be present
-- Core live platform application code is **in progress**
+- Code, tests, Docker, Terraform, seed data, and documentation are all present
+- AWS deployment is the next step — see `docs/DEV_ONBOARDING_V0_1.md` Part F
+- Legacy migration tooling (including mirror/results processing scripts) is present
 - Some rule/policy simplification proposals are **Pending IFPA Board Decision**
 
 ## Governance
@@ -47,9 +47,11 @@ Please read:
 See `docs/` for project documentation and design materials.
 See `database/` for the database schema sql.
 
-## Technology stack (planned / in progress)
+## Technology stack
 
-TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Stripe · Docker
+TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Docker
+
+Stripe and additional platform integrations are planned for future slices.
 
 ## License and trademarks
 

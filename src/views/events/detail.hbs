@@ -1,0 +1,62 @@
+{{! Canonical single event page — details and/or results }}
+
+<div class="wrapper">
+  <section>
+    <div class="event-detail">
+
+      {{! ── Event header ──────────────────────────────────────── }}
+      <div class="event-header">
+        <h1>{{event.title}}</h1>
+
+        <div class="event-meta-row">
+          <span>&#128197; {{event.startDate}}{{#if event.endDate}} – {{event.endDate}}{{/if}}</span>
+          <span>&#128205; {{event.city}}{{#if event.region}}, {{event.region}}{{/if}}, {{event.country}}</span>
+          {{#if event.hostClub}}
+            <span>&#127968; {{event.hostClub}}</span>
+          {{/if}}
+          <span class="badge badge-{{event.status}}">{{event.status}}</span>
+        </div>
+
+        {{#if event.externalUrl}}
+          <a href="{{event.externalUrl}}" class="btn btn-outline event-external-link" target="_blank" rel="noopener noreferrer">
+            Event Website &#8599;
+          </a>
+        {{/if}}
+      </div>
+
+      {{! ── Description ───────────────────────────────────────── }}
+      {{#if event.description}}
+        <p>{{event.description}}</p>
+      {{/if}}
+
+      {{! ── Disciplines ───────────────────────────────────────── }}
+      {{#if disciplines.length}}
+        <div style="margin-bottom:32px">
+          <h2>Disciplines</h2>
+          <ul class="disciplines-list" style="margin-top:12px">
+            {{#each disciplines}}
+              <li class="discipline-tag">{{name}}</li>
+            {{/each}}
+          </ul>
+        </div>
+      {{/if}}
+
+      {{! ── Results ───────────────────────────────────────────── }}
+      <div>
+        <h2>Results</h2>
+        {{#if hasResults}}
+          <div style="margin-top:20px">
+            {{#each resultSections}}
+              {{> result-section}}
+            {{/each}}
+          </div>
+        {{else}}
+          <div class="no-results-notice" style="margin-top:16px">
+            Results are not yet available.
+          </div>
+        {{/if}}
+      </div>
+
+    </div>
+  </section>
+</div>

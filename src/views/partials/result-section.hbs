@@ -1,0 +1,42 @@
+{{! Partial: result-section
+    Context: a single PublicResultSection object passed as `this` in an {{#each}} loop.
+    Fields: disciplineName, disciplineCategory, teamType, placements[]
+    Each placement: placement (number), scoreText, participants[] with participantDisplayName }}
+
+<div class="results-section">
+  <div class="results-section-header">
+    <h3>{{#if disciplineName}}{{disciplineName}}{{else}}General Results{{/if}}</h3>
+    {{#if teamType}}
+      <span class="discipline-meta">{{teamType}}</span>
+    {{/if}}
+  </div>
+
+  {{#if placements.length}}
+    <table class="results-table" aria-label="{{#if disciplineName}}{{disciplineName}}{{else}}Results{{/if}}">
+      <thead>
+        <tr>
+          <th style="width:48px">#</th>
+          <th>Athlete / Team</th>
+          <th style="width:80px">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each placements}}
+          <tr>
+            <td class="placement-num">{{placement}}</td>
+            <td>
+              {{#if participants.length}}
+                <ul class="participants-list">
+                  {{#each participants}}
+                    <li>{{participantDisplayName}}</li>
+                  {{/each}}
+                </ul>
+              {{/if}}
+            </td>
+            <td class="score-text">{{#if scoreText}}{{scoreText}}{{/if}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{/if}}
+</div>

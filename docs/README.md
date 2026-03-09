@@ -20,6 +20,9 @@ Design and specification documents for the footbag-platform modernization projec
 | `[DIAGRAMS_V0_1.md](DIAGRAMS_V0_1.md)`                 | Architecture and data flow diagrams for humans.                             |
 | `[GLOSSARY_V0_1.md](GLOSSARY_V0_1.md)`                 | Terminology and definitions used across all project documents for humans.   |
 | `[SERVICE_CATALOG_V0_1.md](SERVICE_CATALOG_V0_1.md)`   | Service contracts, business logic expectations, error semantics.            |
+| `[VIEW_CATALOG_V0_1.md](VIEW_CATALOG_V0_1.md)`         | User-facing views, flows, actors, and authorization at the flow level.      |
+| `[DEVOPS_GUIDE_V0_1.md](DEVOPS_GUIDE_V0_1.md)`         | Build, test, release, operate, recover, CI/CD, infrastructure procedures.   |
+| `[DEV_ONBOARDING_V0_1.md](DEV_ONBOARDING_V0_1.md)`     | Step-by-step guide for setting up and running the project from scratch.     |
 
 
 ### Planned (not yet committed)
@@ -27,10 +30,8 @@ Design and specification documents for the footbag-platform modernization projec
 
 | Document             | Purpose                                                                     |
 | -------------------- | --------------------------------------------------------------------------- |
-| View Catalog         | User-facing views, flows, actors, and authorization at the flow level.      |
 | UI Specification     | UI layer implementation: views, controllers, templates, view-model flow     |
 | Server Specification | Route behavior, validation, HTTP semantics, jobs, data access patterns      |
-| DevOps Guide         | Build, test, release, operate, recover, CI/CD, infrastructure procedures    |
 
 
 ---
