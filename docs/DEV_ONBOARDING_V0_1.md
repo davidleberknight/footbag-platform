@@ -50,6 +50,108 @@ Where the repository is blank, this guide says which files to create and why.
 
 ---
 
+# Quick Start
+
+## Run local tests and view a web page 
+
+If you just want to clone the github repo and run the code, follow the steps below to install prerequisites, clone, test, and run the dev server.
+
+### Prerequisites (one-time, per machine)
+
+Assumes that you have WSL on Windows set up for Ununtu Linux.
+
+These are system-level installs. Do them once on a new machine; they persist across sessions.
+
+There is no Python-style virtual environment for this project. Node's equivalent is `node_modules/` — a local directory managed by npm, installed once per clone, and reused across all sessions. You only need to re-run `npm install` when `package.json` changes.
+
+**1. Node.js 22 LTS via nvm (recommended for WSL)**
+
+nvm lets you install and switch Node versions without touching system Node. See §13.2 for full detail.
+
+```bash
+# Install nvm v0.40.3 (verified working)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+
+# Restart your terminal, then install and activate Node 22 LTS (v22.22.1 verified, npm 10.9.4)
+nvm install 22
+nvm use 22
+nvm alias default 22
+
+# Verify
+node -v   # v22.x.x
+npm -v    # 10.x.x
+```
+
+> **WSL2 PATH note:** If Node is also installed on Windows, `which node` inside WSL may resolve to the Windows binary. After installing via nvm, verify `which node` returns a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
+
+**2. System packages**
+
+`build-essential` is required to compile the `better-sqlite3` native addon during `npm install`. `sqlite3` is the CLI used by the database reset script.
+
+```bash
+sudo apt update
+sudo apt install -y build-essential sqlite3
+
+# Verify
+sqlite3 --version
+```
+
+---
+
+### First test from a new terminal
+
+npm reads `package.json` to install dependencies (`npm install`) and delegates named scripts — `test`, `dev`, `build` — to the underlying tools (Vitest for tests, ts-node-dev for the dev server, tsc for compilation).
+
+```bash
+# Clone the repository and enter the project directory
+git clone git@github.com:davidleberknight/footbag-platform.git
+cd footbag-platform
+
+# Install all declared Node.js dependencies into node_modules/
+# (only needed once per clone, or after package.json changes)
+npm install
+
+# Create your local env file
+cp .env.example .env
+# Edit .env — at minimum confirm FOOTBAG_DB_PATH=./database/footbag.db
+
+# Bootstrap the local database
+bash scripts/reset-local-db.sh
+
+# Run the integration test suite
+npm test
+```
+
+All 15 tests should pass.
+
+### Start the dev server and verify in a browser
+
+```bash
+# Start the dev server — leave this terminal running
+npm run dev
+```
+
+WSL2 automatically forwards the port to Windows. Open your Windows browser and navigate to:
+
+```
+http://localhost:3000/events
+```
+
+You should see the events listing page. Verify these routes manually:
+
+| URL | Expected |
+| --- | --- |
+| `http://localhost:3000/events` | Upcoming events listing |
+| `http://localhost:3000/events/year/2025` | 2025 completed events with results |
+| `http://localhost:3000/events/event_2025_beaver_open` | Single event detail with results |
+| `http://localhost:3000/health/live` | `{"ok":true,"check":"live"}` |
+| `http://localhost:3000/health/ready` | `{"ok":true,"check":"ready"}` |
+
+Server logs appear in the terminal. Press `Ctrl+C` to stop the server.
+
+> **If you switch Node versions:** run `npm rebuild` after switching. `better-sqlite3` is a native addon — it breaks at runtime with `ERR_DLOPEN_FAILED` if not recompiled for the new version.
+
+---
 
 # Part A — Orientation and project understanding
 
@@ -390,107 +492,6 @@ Do **not** invent:
 
 - `/health/live` is a cheap process liveness check
 - `/health/ready` is a minimal SQLite-readiness check for this stage only
-
----
-
-## Quick start — codebase already exists
-
-You have the orientation from Parts A and B. If you are joining a project with a working implementation, this section is self-contained — follow the steps below to install prerequisites, clone, test, and run the dev server.
-
-### Prerequisites (one-time, per machine)
-
-These are system-level installs. Do them once on a new machine; they persist across sessions.
-
-There is no Python-style virtual environment for this project. Node's equivalent is `node_modules/` — a local directory managed by npm, installed once per clone, and reused across all sessions. You only need to re-run `npm install` when `package.json` changes.
-
-**1. Node.js 22 LTS via nvm (recommended for WSL)**
-
-nvm lets you install and switch Node versions without touching system Node. See §13.2 for full detail.
-
-```bash
-# Install nvm v0.40.3 (verified working)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-
-# Restart your terminal, then install and activate Node 22 LTS (v22.22.1 verified, npm 10.9.4)
-nvm install 22
-nvm use 22
-nvm alias default 22
-
-# Verify
-node -v   # v22.x.x
-npm -v    # 10.x.x
-```
-
-> **WSL2 PATH note:** If Node is also installed on Windows, `which node` inside WSL may resolve to the Windows binary. After installing via nvm, verify `which node` returns a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
-
-**2. System packages**
-
-`build-essential` is required to compile the `better-sqlite3` native addon during `npm install`. `sqlite3` is the CLI used by the database reset script.
-
-```bash
-sudo apt update
-sudo apt install -y build-essential sqlite3
-
-# Verify
-sqlite3 --version
-```
-
----
-
-### First test from a new terminal
-
-npm reads `package.json` to install dependencies (`npm install`) and delegates named scripts — `test`, `dev`, `build` — to the underlying tools (Vitest for tests, ts-node-dev for the dev server, tsc for compilation).
-
-```bash
-# Clone the repository and enter the project directory
-git clone git@github.com:davidleberknight/footbag-platform.git
-cd footbag-platform
-
-# Install all declared Node.js dependencies into node_modules/
-# (only needed once per clone, or after package.json changes)
-npm install
-
-# Create your local env file
-cp .env.example .env
-# Edit .env — at minimum confirm FOOTBAG_DB_PATH=./database/footbag.db
-
-# Bootstrap the local database
-bash scripts/reset-local-db.sh
-
-# Run the integration test suite
-npm test
-```
-
-All 15 tests should pass.
-
-### Start the dev server and verify in a browser
-
-```bash
-# Start the dev server — leave this terminal running
-npm run dev
-```
-
-WSL2 automatically forwards the port to Windows. Open your Windows browser and navigate to:
-
-```
-http://localhost:3000/events
-```
-
-You should see the events listing page. Verify these routes manually:
-
-| URL | Expected |
-| --- | --- |
-| `http://localhost:3000/events` | Upcoming events listing |
-| `http://localhost:3000/events/year/2025` | 2025 completed events with results |
-| `http://localhost:3000/events/event_2025_beaver_open` | Single event detail with results |
-| `http://localhost:3000/health/live` | `{"ok":true,"check":"live"}` |
-| `http://localhost:3000/health/ready` | `{"ok":true,"check":"ready"}` |
-
-Server logs appear in the terminal. Press `Ctrl+C` to stop the server.
-
-> **If you switch Node versions:** run `npm rebuild` after switching. `better-sqlite3` is a native addon — it breaks at runtime with `ERR_DLOPEN_FAILED` if not recompiled for the new version.
-
----
 
 # Part C — Developer environment and tools
 
@@ -1559,6 +1560,10 @@ If you are starting from a plain single account with no organizational identity 
 
 This guide supports both patterns because blank-account reality varies. What the project forbids is **shared** AWS user identities and shared shell access.
 
+### Minimum permissions for bootstrap
+
+The `footbag-admin` identity needs **AdministratorAccess** for the bootstrap phase. Terraform creates IAM roles, IAM policies, IAM instance profiles, KMS keys, CloudFront distributions, Route 53 records, and Lightsail resources. A narrower policy requires enumerating permissions across every one of those services. Start with `AdministratorAccess`; scope it down after first successful apply if your organisation requires it.
+
 ### Verify local CLI identity
 
 After configuring a profile, run:
@@ -1607,50 +1612,93 @@ Do **not** mount or use your human profile inside application containers.
 
 ---
 
+## 29.5 Domain and DNS — deferred for initial test deployment
+
+For the initial test deployment, no custom domain, no Route 53 hosted zone, and no ACM certificate are required. CloudFront automatically assigns a working HTTPS URL on its own domain:
+
+```
+https://d1a2b3c4d5e6f7.cloudfront.net
+```
+
+This URL works immediately after `terraform apply` completes and is sufficient to verify the full stack end-to-end.
+
+The following are **commented out** in the Terraform code for this reason:
+
+- `terraform/staging/acm.tf` — custom TLS certificate (deferred)
+- `terraform/staging/route53.tf` — DNS A/AAAA records (deferred)
+- the `aliases` block in `cloudfront.tf` — custom domain binding (deferred)
+- `cloudfront.tf` uses `cloudfront_default_certificate = true` instead of an ACM cert
+
+To get the CloudFront URL after apply:
+
+```bash
+terraform output cloudfront_domain
+# e.g. d1a2b3c4d5e6f7.cloudfront.net
+```
+
+Then update the `public_base_url` SSM parameter with the real value:
+
+```bash
+aws ssm put-parameter \
+  --name /footbag/staging/app/public_base_url \
+  --value "https://$(terraform output -raw cloudfront_domain)" \
+  --overwrite \
+  --profile footbag-admin
+```
+
+> **Future work — custom domain:** When the project is ready to attach a real domain (e.g. `staging.footbag.org`), the activation checklist is in `terraform/staging/acm.tf`. At that point, `docs/DESIGN_DECISIONS_V0_1.md` and `docs/DEVOPS_GUIDE_V0_1.md` will also need a pass to align with the real domain deployment model.
+
+---
+
 ## 30. Create the Terraform remote-state foundation
 
-Before the main Terraform stack can own steady-state resources, create the remote-state bucket.
+Before the main Terraform stack can own steady-state resources, create the remote-state bucket. The repository includes `terraform/shared/` for exactly this purpose. It uses **local state** (no backend) because it is the thing that creates the backend.
 
-You can do this in the console or with the CLI. CLI example:
+### Create `terraform/shared/terraform.tfvars`
+
+```bash
+cd terraform/shared
+```
+
+Create `terraform/shared/terraform.tfvars` (do **not** commit this file):
+
+```hcl
+aws_region          = "us-east-1"
+state_bucket_suffix = "<unique-8-char-suffix>"   # e.g. last 8 digits of your AWS account ID
+aws_account_id      = "<your-12-digit-account-id>"
+```
+
+### Apply
 
 ```bash
 export AWS_PROFILE=footbag-admin
-export AWS_REGION=us-east-1
-export STATE_BUCKET=footbag-terraform-state-<unique-suffix>
+terraform init
+terraform plan
+terraform apply
 ```
 
-For most regions:
+### Note the output bucket name
 
 ```bash
-aws s3api create-bucket \
-  --bucket "$STATE_BUCKET" \
-  --region "$AWS_REGION" \
-  --create-bucket-configuration LocationConstraint="$AWS_REGION"
+terraform output
+# Example: terraform_state_bucket_name = "footbag-terraform-state-a1b2c3d4"
 ```
 
-For `us-east-1`, omit the `--create-bucket-configuration` flag.
+You will paste this bucket name into `backend.tf` in `terraform/staging/` and `terraform/production/`.
 
-Then enable versioning:
+### Back up the local state file
+
+`terraform/shared/` leaves a `terraform.tfstate` file on disk. It is not committed to git. It contains your account ID and bucket name. Keep it somewhere safe — a password manager, private notes, or a private backup:
 
 ```bash
-aws s3api put-bucket-versioning \
-  --bucket "$STATE_BUCKET" \
-  --versioning-configuration Status=Enabled
+cp terraform.tfstate ~/footbag-shared-tfstate-backup.json
 ```
 
-Then enable default encryption:
+Losing this file is recoverable (the S3 bucket still exists), but keeping it avoids manual reconciliation.
 
-```bash
-aws s3api put-bucket-encryption \
-  --bucket "$STATE_BUCKET" \
-  --server-side-encryption-configuration '{
-    "Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]
-  }'
-```
+### Why this uses local state
 
-### Why this remains manual at first
-
-This bucket must exist before the rest of the Terraform configuration can safely use it as a backend.
+This bucket must exist before the rest of the Terraform configuration can safely use it as a backend. It is intentionally outside the remote-state loop.
 
 ---
 
@@ -1690,7 +1738,7 @@ terraform {
 ### Important current Terraform notes
 
 - Use the S3 backend with S3 locking (`use_lockfile = true`). Do not start a new project on the older DynamoDB lock-table pattern.
-- `use_lockfile` is stable in Terraform ≥ 1.11 (experimental in 1.10). Add `required_version = ">= 1.11"` to your root module.
+- `use_lockfile` is stable in Terraform ≥ 1.11 (experimental in 1.10). Both `terraform/staging/providers.tf` and `terraform/shared/providers.tf` are pinned to `>= 1.11` for this reason.
 - **Pin the AWS provider version.** AWS provider v6.0 was released June 2025 with breaking changes. Without a pin, `terraform init` pulls the latest major version. Add `version = "~> 5.0"` in `required_providers` unless you have explicitly reviewed the v6 migration guide.
 - The S3 backend writes a `.tflock` object alongside the state file when `use_lockfile = true`. Your Terraform operator IAM policy must include `s3:PutObject` and `s3:DeleteObject` on `<bucket>/<key-prefix>*.tflock` or `terraform apply` will fail with `AccessDenied` at lock acquisition.
 
@@ -1766,6 +1814,28 @@ Containers then receive only the read-only config they need and set `AWS_PROFILE
 
 That is the core human/runtime separation to preserve.
 
+### Lightsail does not support EC2 instance profiles
+
+`terraform/staging/iam.tf` creates `aws_iam_role.app_runtime` and `aws_iam_instance_profile.app_runtime`. These are valid AWS resources, but the instance profile **cannot be attached to a Lightsail instance**. Lightsail traditional instances (Linux VPS) do not support the EC2 instance metadata service credential mechanism. The Terraform code creates these resources as structural placeholders; they are not referenced in `lightsail.tf` and have no effect on the running host.
+
+### v0.1 credential mechanism: IAM user with access keys
+
+For MVFP v0.1, a dedicated IAM user (`footbag-staging-runtime`) holds scoped access keys that are injected directly into the container environment. This is simpler than the long-term AssumeRole pattern (§7.2 of DESIGN_DECISIONS) and appropriate for v0.1's narrow needs (SSM reads only). The setup is:
+
+1. Create IAM user `footbag-staging-runtime` and attach a policy granting read-only SSM access scoped to `/footbag/staging/*`.
+2. Create access keys for that user.
+3. Add the keys to the root-owned host env file (`/srv/footbag/env`, mode 600):
+
+```bash
+AWS_ACCESS_KEY_ID=<AccessKeyId>
+AWS_SECRET_ACCESS_KEY=<SecretAccessKey>
+AWS_REGION=us-east-1
+```
+
+The `footbag.service` systemd unit loads this file via `EnvironmentFile`. Docker Compose propagates the variables into containers. The AWS SDK resolves them automatically — no credentials file or profile config required.
+
+The long-term target (DESIGN_DECISIONS §7.2) is a source-profile + AssumeRole chain with a separate runtime role; that provides temporary credentials and a cleaner audit trail. It is deferred until post-MVFP.
+
 ---
 
 # Part G — Parameter Store, Lightsail, CloudFront
@@ -1829,6 +1899,8 @@ aws ssm get-parameter \
 
 Use local `.env` in development. Use Parameter Store in staging and production. Do not turn production configuration into handwritten `.env` files copied between hosts.
 
+> **v0.1 injection mechanism.** The MVFP v0.1 application reads `process.env` only — there is no SSM SDK call at startup. Terraform creates the parameters in SSM for secure storage and auditable reference. Injection into containers is via the host env file `/srv/footbag/env`, loaded by the `EnvironmentFile` directive in `footbag.service`, which Docker Compose then propagates as environment variables. The operator populates `/srv/footbag/env` manually using the values stored in SSM. This is intentional for v0.1 simplicity; automatic SSM pull at startup is deferred.
+
 ---
 
 ## 35. Lightsail provisioning assumptions for this project
@@ -1858,9 +1930,56 @@ The first production-like goal is not auto-scaling. It is a clean, understandabl
 - unversioned deployment commands
 - unexplained manual edits to container config
 
+### Installing Docker on Amazon Linux 2023
+
+Docker CE is **not** in the Amazon Linux 2023 default DNF repositories. Install from the official Docker repo:
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo usermod -aG docker ec2-user   # repeat for each operator account
+# Log out and back in for group membership to take effect
+```
+
+> **Note:** `sudo dnf install -y docker-compose-plugin` without adding the Docker CE repo first will fail — the package is not in AL2023 default repos.
+
+### First-time database bootstrap
+
+On first deploy the SQLite database file must be created from schema before the app starts:
+
+```bash
+# On the Lightsail host, after deploying the app files:
+sudo mkdir -p /srv/footbag
+sudo sqlite3 /srv/footbag/footbag.db < /srv/footbag/database/schema_v0_1.sql
+# Optional: load seed data for smoke testing
+# sudo sqlite3 /srv/footbag/footbag.db < /srv/footbag/database/seeds/seed_mvfp_v0_1.sql
+sudo chown -R root:root /srv/footbag/footbag.db
+```
+
+### v0.1 deployment pattern
+
+The v0.1 pattern is: rsync code to host → build image on host → restart service.
+
+```bash
+# From local machine — sync app files to host
+rsync -av --exclude=node_modules --exclude=.git \
+  ./ ec2-user@<LIGHTSAIL_IP>:/srv/footbag/
+
+# On the host — build and restart
+cd /srv/footbag
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+sudo systemctl restart footbag
+```
+
+Do not run `docker compose pull` for a locally-built image — there is no registry to pull from in v0.1.
+
 ---
 
 ## 36. SSH setup and normal usage
+
+> **Default SSH username for Amazon Linux 2023 on Lightsail:** `ec2-user`. Despite the name, this is the correct default for Lightsail instances using the `amazon_linux_2023` blueprint — it is not EC2-specific. Named operator accounts are added on top of this.
 
 This project’s design requires you to think about Lightsail host access in **named operator account + per-operator SSH key** terms, not managed-node / hybrid-activation terms.
 
@@ -1908,6 +2027,8 @@ At minimum, the distribution should:
 
 ### Maintenance and safe-failure posture
 
+> **v0.1 deferred — maintenance page is not functional.** The CloudFront distribution has no `ordered_cache_behavior` routing `/maintenance.html` to the S3 origin. The custom error response block exists in `cloudfront.tf`, but when the Lightsail origin is down the error response will itself fail to load. The full fix requires an S3 cache behavior, an Origin Access Control (OAC), and an X-Origin-Verify header to restrict direct-to-origin access. This is tracked as a reliability TODO. Do not rely on the maintenance page in v0.1.
+
 For early phases, keep this simple:
 
 - return friendly maintenance/error pages for origin 502/503/504 conditions
@@ -1946,7 +2067,257 @@ Then confirm the public path through CloudFront:
 
 ---
 
-# Part H — Verification, troubleshooting, deferred work
+# Part H — AWS deployment runbook (v0.1 test deployment)
+
+This runbook covers a complete first-time deployment to AWS from scratch. It assumes:
+- AWS account exists and root MFA is enabled
+- Terraform >= 1.11 and AWS CLI v2 are installed locally
+- You have the repo checked out locally and all code works locally
+
+> **Scope:** CloudFront default `*.cloudfront.net` URL only. Custom domain (Route 53, ACM certificate) is deferred — see §29.5.
+
+---
+
+### Phase 1 — AWS root account hardening
+
+1. Sign in as root. Enable MFA on the root account.
+2. Do not create access keys for root.
+3. Proceed to Phase 2 to create an IAM operator user.
+
+---
+
+### Phase 2 — Create IAM operator user
+
+Use the **AWS Console** to create this user — you have no CLI credentials yet.
+
+1. Sign in to the AWS Console as root.
+2. Go to IAM → Users → Create user. Name: `footbag-operator`.
+3. Attach policy: `AdministratorAccess` (scope down post-launch if required).
+4. Create access keys: IAM → Users → footbag-operator → Security credentials → Create access key. Choose "CLI". Save `AccessKeyId` and `SecretAccessKey` — shown once only.
+
+Configure your local AWS CLI profile:
+
+```bash
+aws configure --profile footbag-operator
+# Enter: AccessKeyId, SecretAccessKey, region (e.g. us-east-1), output format (json)
+export AWS_PROFILE=footbag-operator
+
+# Verify
+aws sts get-caller-identity
+```
+
+---
+
+### Phase 3 — Bootstrap the Terraform state bucket
+
+The state bucket is created once and shared by all environments. It uses local state.
+
+```bash
+cd terraform/shared
+# Create terraform.tfvars — fill in your values (variables.tf has TODO defaults as hints)
+cat > terraform.tfvars <<EOF
+aws_account_id      = "123456789012"
+state_bucket_suffix = "a1b2c3d4"
+EOF
+terraform init
+terraform validate
+terraform apply
+# Note the output: state_bucket_name (e.g. footbag-tfstate-a1b2c3d4)
+```
+
+---
+
+### Phase 4 — Configure staging backend and variables
+
+```bash
+cd terraform/staging
+```
+
+Edit `backend.tf` — replace the two TODO placeholders with:
+- the bucket name from Phase 3
+- the same region you used
+
+Edit `terraform.tfvars` (copy from `terraform.tfvars.example`):
+
+```hcl
+aws_account_id     = "123456789012"
+state_bucket_suffix = "<same suffix as shared>"
+ssh_public_key     = "<contents of your ~/.ssh/id_ed25519.pub>"
+alarm_email        = "you@example.com"
+# domain_name and route53_zone_id — leave as "" for test deployment
+```
+
+---
+
+### Phase 5 — Terraform init, validate, plan
+
+```bash
+terraform init
+terraform validate
+terraform plan -out=tfplan
+# Review the plan — expected: ~25 resources to create
+```
+
+---
+
+### Phase 6 — Terraform apply
+
+```bash
+terraform apply tfplan
+```
+
+Note these outputs after apply completes:
+
+```bash
+terraform output lightsail_static_ip
+terraform output cloudfront_domain       # e.g. d1abc123.cloudfront.net
+```
+
+---
+
+### Phase 7 — Update SSM with CloudFront URL
+
+```bash
+CF_DOMAIN=$(terraform output -raw cloudfront_domain)
+aws ssm put-parameter \
+  --name "/footbag/staging/app/public_base_url" \
+  --value "https://$CF_DOMAIN" \
+  --type String \
+  --overwrite
+```
+
+---
+
+### Phase 8 — Create IAM runtime user
+
+> **v0.1 note:** the app does not call SSM at runtime — it reads env vars directly. This user is infrastructure groundwork for when SSM runtime reads are implemented. You can skip this phase for a minimal first deployment and add it later.
+
+Create a dedicated IAM user (`footbag-staging-runtime`) with scoped SSM read permissions:
+
+```bash
+aws iam create-user --user-name footbag-staging-runtime
+
+aws iam attach-user-policy \
+  --user-name footbag-staging-runtime \
+  --policy-arn arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+
+aws iam create-access-key --user-name footbag-staging-runtime
+# Save AccessKeyId and SecretAccessKey for future use
+```
+
+---
+
+### Phase 9 — SSH into the Lightsail instance
+
+```bash
+LIGHTSAIL_IP=$(terraform output -raw lightsail_static_ip)
+ssh ec2-user@$LIGHTSAIL_IP
+# Default username for amazon_linux_2023 blueprint is ec2-user
+```
+
+---
+
+### Phase 10 — Install Docker on the host
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo usermod -aG docker ec2-user
+# Log out and back in for group membership to take effect
+```
+
+---
+
+### Phase 11 — Create the host env file
+
+```bash
+sudo mkdir -p /srv/footbag
+sudo tee /srv/footbag/env > /dev/null <<EOF
+NODE_ENV=production
+FOOTBAG_DB_PATH=/srv/footbag/footbag.db
+PUBLIC_BASE_URL=https://<cloudfront_domain from Phase 6>
+EOF
+sudo chmod 600 /srv/footbag/env
+```
+
+`docker-compose.prod.yml` reads `PUBLIC_BASE_URL` and `FOOTBAG_DB_PATH` from this file via systemd `EnvironmentFile`. AWS credentials are not needed in containers for v0.1 — the app reads env vars directly and does not call SSM at runtime.
+
+---
+
+### Phase 12 — Deploy app files to host
+
+From your local machine:
+
+```bash
+LIGHTSAIL_IP=<ip from terraform output>
+rsync -av --exclude=node_modules --exclude=.git \
+  ./ ec2-user@$LIGHTSAIL_IP:/srv/footbag/
+```
+
+---
+
+### Phase 13 — Bootstrap the database
+
+On the host:
+
+```bash
+cd /srv/footbag
+sudo sqlite3 /srv/footbag/footbag.db < database/schema_v0_1.sql
+# Optional smoke-test seed:
+# sudo sqlite3 /srv/footbag/footbag.db < database/seeds/seed_mvfp_v0_1.sql
+```
+
+---
+
+### Phase 14 — Build and start the app
+
+On the host:
+
+```bash
+cd /srv/footbag
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+sudo cp ops/systemd/footbag.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now footbag
+sudo systemctl status footbag
+```
+
+---
+
+### Phase 15 — Smoke test the origin directly
+
+Test through nginx on port 80 (the web container exposes port 3000 only within the Docker network; nginx is the host-facing entry point):
+
+```bash
+curl -s http://localhost/health/live
+curl -s http://localhost/health/ready
+curl -s http://localhost/events
+```
+
+All three should return 200.
+
+---
+
+### Phase 16 — Verify through CloudFront
+
+In a browser or with curl:
+
+```
+https://<cloudfront_domain>/events
+https://<cloudfront_domain>/health/live
+```
+
+Confirm:
+- `/events` loads with correct HTML and styling
+- Year archive and event detail pages load
+- No-results state renders correctly
+- No stack traces or internal details visible in responses
+
+---
+
+# Part I — Verification, troubleshooting, deferred work
 
 ## 39. Local smoke checks
 
@@ -2078,6 +2449,8 @@ For the first deployment, do not skip the human pass.
 - mixing staging and production state in the same Terraform path
 - creating Terraform state storage without versioning or encryption
 - relying on old Terraform DynamoDB locking patterns in a new setup
+- running `sudo dnf install -y docker-compose-plugin` without first adding the Docker CE repo — the package is not in AL2023 default repos and the install will silently fail or error
+- running `docker compose pull` instead of `docker compose build` when using a locally-built image — there is no registry to pull from in v0.1
 
 ---
 

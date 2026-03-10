@@ -110,6 +110,7 @@ The previous DevOps draft had a useful set of System Administrator stories. Thos
 | `SA_Configure_Budgets_And_SNS_Alerting` | configure budgets, notifications, and cost alarms | §12.5 |
 | `SA_Configure_Email_Delivery_Infrastructure` | SES domain verification, SPF, DKIM, DMARC, bounce handling | §4.5, §13.5 |
 | `SA_Configure_Job_Schedules` | define and maintain the scheduler for system jobs | §11 |
+| `SA_Bootstrap_New_Environment` | provision a new environment from scratch: root account hardening, IAM operator user, Terraform state bucket, environment apply, Lightsail host setup, Docker, first deployment, and CloudFront verification | DEV_ONBOARDING_V0_1.md Part H |
 
 ---
 
@@ -166,6 +167,8 @@ The AWS side of this project must be operated as a zero-trust environment:
 ### 3.4 Workload IAM model
 
 The workload AWS principal must be a narrow and explicit runtime assumed role. Do not describe it as an EC2-style role attached to the Lightsail host. Operator SSH access to the host is a separate mechanism and must not be confused with the runtime principal.
+
+> **v0.1 credential mechanism — IAM user with direct env vars.** The full source-profile + AssumeRole chain described above is the long-term target but is deferred for v0.1. Instead, a dedicated IAM user (`footbag-staging-runtime`) with scoped SSM read access has its access keys set directly as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in the root-owned host env file (`/srv/footbag/env`). systemd `EnvironmentFile` injects them into the service; Docker Compose propagates them into containers. The AssumeRole model should be adopted when the platform matures beyond MVFP.
 
 | AWS service | Runtime access | Notes |
 |---|---|---|
@@ -272,6 +275,8 @@ Important limitation: browsing traffic gets the maintenance page during origin f
 - custom domains and certificates must be managed as infrastructure
 - origin exposure should be minimized; direct origin access is not the user-facing path
 - use WAF at CloudFront for basic managed-rule protection and IP-based emergency blocking when required
+
+> **v0.1 test deployment — custom domain deferred.** The initial staging deployment uses the CloudFront default `*.cloudfront.net` URL. Route 53, ACM certificate provisioning, and custom domain aliases are commented out in Terraform (`acm.tf`, `route53.tf`, `cloudfront.tf`). The full custom-domain path described here applies when a real domain is attached. See `terraform/staging/acm.tf` for the activation checklist.
 
 ### 4.3 S3 layout expectations
 
@@ -490,6 +495,8 @@ For the initial blank-account bootstrap, apply in this sequence:
 8. CloudFront distribution
 9. public DNS records
 
+> **v0.1 test deployment — steps 3, 4, and 9 deferred.** Route 53 zone, ACM certificate, and public DNS records are not required when using the CloudFront default URL. The `terraform/shared/` module must be applied first to create the state bucket before applying `terraform/staging/`. See Part G.5 of `DEV_ONBOARDING_V0_1.md` for the full v0.1 bootstrap sequence.
+
 ### 6.4 Environment separation
 
 Use clearly separated Terraform workspaces, stacks, or state backends for dev, staging, and production.
@@ -654,6 +661,8 @@ Primary mechanism:
 - short error cache TTL so recovery becomes visible quickly
 
 This is the authoritative maintenance/outage experience for browsing traffic.
+
+> **v0.1 deferred — maintenance page is not functional.** The CloudFront distribution has no `ordered_cache_behavior` routing `/maintenance.html` to the S3 origin. The custom error response block exists in `cloudfront.tf`, but when the origin is down the error response will itself fail to load. The full fix requires an S3 cache behavior, an Origin Access Control (OAC), and an X-Origin-Verify header. This is a known reliability gap in v0.1.
 
 ### 8.4 Planned maintenance
 

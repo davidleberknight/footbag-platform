@@ -26,14 +26,21 @@ variable "aws_account_id" {
 variable "domain_name" {
   description = <<-EOT
     Primary domain name for this environment.
-    # TODO: e.g. "staging.footbag.org" for staging, "footbag.org" for production.
+    DEFERRED: not used in test deployment mode (CloudFront default URL).
+    Set to e.g. "staging.footbag.org" when attaching a real domain.
   EOT
-  type = string
+  type    = string
+  default = ""
 }
 
 variable "route53_zone_id" {
-  description = "Route 53 hosted zone ID for var.domain_name. # TODO: fill in after zone is created."
-  type        = string
+  description = <<-EOT
+    Route 53 hosted zone ID for var.domain_name.
+    DEFERRED: not used in test deployment mode (CloudFront default URL).
+    Set when attaching a real domain (see acm.tf activation checklist).
+  EOT
+  type    = string
+  default = ""
 }
 
 # ── Lightsail ─────────────────────────────────────────────────────────────────

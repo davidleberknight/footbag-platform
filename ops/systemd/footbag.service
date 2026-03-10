@@ -21,15 +21,15 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 
-# Working directory is the project root; compose files are in docker/
-WorkingDirectory=/srv/footbag/app
+# Working directory is the project root on the host
+WorkingDirectory=/srv/footbag
 
-# Environment file provides FOOTBAG_DB_PATH, PUBLIC_BASE_URL, etc.
-# Copy from ops/env.example and fill in values on the host.
-# EnvironmentFile=/srv/footbag/env
+# Environment file provides PUBLIC_BASE_URL, FOOTBAG_DB_PATH, etc.
+# Created manually on the host — see Part G.5 Phase 11 in DEV_ONBOARDING_V0_1.md.
+EnvironmentFile=/srv/footbag/env
 
-# Pull latest images (no-op if images haven't changed)
-ExecStartPre=/usr/bin/docker compose pull --quiet
+# v0.1: no registry — build images at deploy time with `docker compose build`.
+# No ExecStartPre pull step.
 
 # Start the stack; --remove-orphans cleans up containers from old service defs
 ExecStart=/usr/bin/docker compose \

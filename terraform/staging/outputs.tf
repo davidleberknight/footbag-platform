@@ -17,10 +17,12 @@ output "cloudfront_distribution_id" {
   value       = aws_cloudfront_distribution.main.id
 }
 
-output "acm_certificate_arn" {
-  description = "ARN of the ACM certificate attached to CloudFront"
-  value       = aws_acm_certificate_validation.main.certificate_arn
-}
+# DEFERRED: ACM certificate resources are commented out for initial test deployment.
+# Uncomment when attaching a real domain (see acm.tf activation checklist).
+# output "acm_certificate_arn" {
+#   description = "ARN of the ACM certificate attached to CloudFront"
+#   value       = aws_acm_certificate_validation.main.certificate_arn
+# }
 
 output "snapshots_bucket_name" {
   description = "S3 bucket for SQLite DB snapshots"

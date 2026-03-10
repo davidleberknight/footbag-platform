@@ -12,7 +12,10 @@ resource "aws_cloudfront_distribution" "main" {
   default_root_object = ""
   price_class         = "PriceClass_100" # US + Europe — adjust for global reach
 
-  aliases = [var.domain_name, "www.${var.domain_name}"]
+  # DEFERRED: custom domain aliases commented out for initial test deployment.
+  # Uncomment and set domain_name + route53_zone_id in terraform.tfvars when
+  # ready to attach a real domain. Also re-enable acm.tf and route53.tf.
+  # aliases = [var.domain_name, "www.${var.domain_name}"]
 
   # ── Origin: Lightsail nginx ───────────────────────────────────────────────
   origin {
@@ -116,10 +119,10 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   # ── TLS ──────────────────────────────────────────────────────────────────
+  # DEFERRED: switch to ACM certificate when real domain is attached.
+  # See acm.tf and route53.tf (currently commented out).
   viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.main.certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+    cloudfront_default_certificate = true
   }
 
   restrictions {

@@ -11,7 +11,10 @@ Scoping note: Numeric values in this document may represent fixed technical cons
 Current implementation note (MVFP V0.1): this document is the long-term architecture reference. For the current public Events + Results MVFP implementation, preserve these narrower rules where they differ from broader design discussion later in this document:
 - `/health/ready` is only the minimal SQLite readiness path;
 - initial database bootstrap comes directly from `schema_v0_1.sql`, with numbered migrations deferred until after the first stable baseline;
-- the initial runtime requires `nginx`, `web`, and `worker`; the `image` container is a later-phase artifact.
+- the initial runtime requires `nginx`, `web`, and `worker`; the `image` container is a later-phase artifact;
+- the initial staging deployment uses the CloudFront default `*.cloudfront.net` URL; Route 53, ACM certificate, and custom domain aliases are deferred and commented out in Terraform (see `acm.tf` activation checklist);
+- the v0.1 runtime credential mechanism uses a dedicated IAM user (`footbag-staging-runtime`) with access keys injected directly as environment variables — the source-profile + AssumeRole pattern from §7.2 is the long-term target and is deferred until post-MVFP;
+- the maintenance page (§6.3) is not functional in v0.1 — no `ordered_cache_behavior` routes to the S3 origin; this is a known reliability gap to be addressed post-MVFP.
 
 **Table of Contents**
 
@@ -1667,6 +1670,8 @@ If the cloud image or Lightsail default login account is used during first boots
 For workload AWS API access, the deployed application does not rely on an implicit EC2-style instance role attached to the Lightsail host. Instead, production uses one or more explicit runtime IAM roles assumed through the AWS shared config/shared credentials chain. A root-owned host AWS config/credentials setup provides the source profile needed to assume the runtime role, and the deployed services use the assumed role as the runtime principal via standard AWS SDK / CLI credential resolution (`role_arn`, `source_profile`, `AWS_PROFILE`, or equivalent SDK configuration).
 
 The authoritative production runtime principal is therefore the assumed runtime role, not the source profile, not the human operator identity, and not a host-attached instance role. Runtime permissions remain narrowly scoped to only the AWS APIs the application actually needs, such as S3, SES, Parameter Store, CloudWatch, and KMS, depending on the environment and service path.
+
+> **v0.1 simplification — AssumeRole step deferred.** MVFP v0.1 uses a dedicated IAM user (`footbag-staging-runtime`) with scoped SSM read permissions and its access keys set directly as `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` environment variables in the root-owned host env file. The source-profile + role-assumption step is not yet implemented. The IAM user's keys are the runtime credential directly. The full AssumeRole pattern described above remains the design target and should be adopted post-MVFP.
 
 Terraform remains the authority for the steady-state IAM roles, policies, Lightsail firewall posture, logging resources, and related infrastructure configuration. The exact host-user creation and public-key installation path may begin as documented bootstrap work, but it must be reproducible, reviewable, and reflected in the runbooks.
 

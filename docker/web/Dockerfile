@@ -5,7 +5,7 @@
 
 # ── Stage 1: Builder ─────────────────────────────────────────────────────────
 # Full dev deps needed to compile TypeScript and build better-sqlite3 native.
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ RUN npm run build
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 # Lean image with only production dependencies.
-FROM node:18-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
