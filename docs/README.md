@@ -25,30 +25,21 @@ Design and specification documents for the footbag-platform modernization projec
 | `[DEV_ONBOARDING_V0_1.md](DEV_ONBOARDING_V0_1.md)`     | Step-by-step guide for setting up and running the project from scratch.     |
 
 
-### Planned (not yet committed)
-
-
-| Document             | Purpose                                                                     |
-| -------------------- | --------------------------------------------------------------------------- |
-| UI Specification     | UI layer implementation: views, controllers, templates, view-model flow     |
-| Server Specification | Route behavior, validation, HTTP semantics, jobs, data access patterns      |
-
-
 ---
 
 ## Where to look
 
 
 | Question                                                   | Read                              |
-| ---------------------------------------------------------- | -------------------------------   |
+| ---------------------------------------------------------- | --------------------------------- |
 | What must the system do?                                   | User Stories                      |
 | Why was it designed this way?                              | Design Decisions                  |
 | What entities exist and how are they related?              | Data Model + /database/schema SQL |
-| What does a page/flow look like?                           | View Catalog → UI Specification   |
+| What does a page/flow look like?                           | View Catalog                      |
 | What does a service do and what errors can it return?      | Service Catalog                   |
-| How does a route behave / what HTTP status does it return? | Server Specification              |
+| How does a route behave / what HTTP status does it return? | Service Catalog                   |
 | How do I build, deploy, or recover?                        | DevOps Guide                      |
-| What does a term mean?                                     | Glossary                          |
 | Big picture / architecture overview?                       | Project Summary                   |
+| How do I build the system from scratch as a dev?           | Dev Onboarding                    |
 
 
