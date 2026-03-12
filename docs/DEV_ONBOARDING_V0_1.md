@@ -4,27 +4,25 @@
 
 ## Local Quickstart, Architecture Orientation, and AWS Staging Deployment
 
-This guide helps contributors do different things: understand how the current Minimal Viable functionality slice is structured and how it was originally assembled, get that slice to run locally (view a working page in your browser), deploy the slice to AWS in a bootstrap scenario, and then close the bootstrap shortcuts.
+This guide helps contributors do different things: understand how the initial v0.1 Minimal Viable functionality slice is structured and how it was originally assembled, get that slice to run locally (view a working page in your browser), deploy the slice to AWS in a bootstrap scenario, and then close the bootstrap shortcuts.
 
 > **Choose your path**
 >
 > - **Path A** — I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public Events + Results pages locally.
 > - **Path B** — I need the architecture mental model, scope boundaries, and workflow rules.
-> - **Path C** — I need the original blank-slate build order, detailed historical implementation logic, or repo archaeology.
-> - **Path D** — I already have the app working locally and Docker parity green, and I am continuing the AWS bootstrap deployment from the repo’s current Docker/Terraform state.
-> - **Path E** — The first deployment works. I need to move from "it works once" to "it is durable enough to operate."
+> - **Path C** — I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
+> - **Path D** — I already have the app working locally, and I am continuing the AWS bootstrap deployment.
+> - **Path E** — The first deployment works. I need to clean up all the shortcuts taken during the bootstrap phase.
 
-The repository already contains code, tests, Docker, Terraform, deterministic seed data, and docs. The local public Events + Results slice already works. The current operational frontier is staging deployment.
+The repository already contains code, tests, Docker, Terraform, deterministic seed data, and docs. The initial Minimum Viable First Page (MVFP) v0.1 slice (Events + Results) works from a local dev server. 
 
 This guide is therefore **not primarily a blank-repository build plan**, even though that historical context still matters and is preserved below.
 
 This guide **is**:
 
-- an orientation guide
-- a tutorial
-- an implementation runbook
-- a deployment bootstrap guide
-- an AI-assisted development workflow guide
+- an orientation guide and tutorial.
+- an implementation runbook.
+- a deployment bootstrap guide.
 - a DEV ONBOARDING guide :-)
 
 ---
@@ -44,8 +42,6 @@ This guide **is**:
   - [1.10 Browser verification](#110-browser-verification)
   - [1.11 Optional deterministic checks](#111-optional-deterministic-checks)
   - [1.12 Docker parity check](#112-docker-parity-check)
-  - [1.13 Local troubleshooting](#113-local-troubleshooting)
-  - [1.14 Local definition of done](#114-local-definition-of-done)
 - [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
   - [2.1 Project purpose and philosophy](#21-project-purpose-and-philosophy)
   - [2.2 Document relationships](#22-document-relationships)
@@ -57,13 +53,11 @@ This guide **is**:
   - [3.1 Why this section exists](#31-why-this-section-exists)
   - [3.2 Original blank-slate assumptions](#32-original-blank-slate-assumptions)
   - [3.3 Original implementation order](#33-original-implementation-order)
-  - [3.4 File responsibility map](#34-file-responsibility-map)
-  - [3.5 When to use this section](#35-when-to-use-this-section)
 - [4. Path D — AWS staging deployment runbook](#4-path-d--aws-staging-deployment-runbook)
   - [4.1 Purpose](#41-purpose)
   - [4.2 Preconditions](#42-preconditions)
   - [4.3 Read this before first apply](#43-read-this-before-first-apply)
-  - [4.4 Pre-apply corrections](#44-pre-apply-corrections)
+  - [4.4 Lightsail SSH security, set your operator CIDRs](#44-lightsail-ssh-security)
   - [4.5 AWS account/bootstrap setup](#45-aws-accountbootstrap-setup)
   - [4.6 Terraform staging apply](#46-terraform-staging-apply)
   - [4.7 Host bootstrap](#47-host-bootstrap)
@@ -94,9 +88,9 @@ This guide **is**:
 Success for this path means you can:
 
 - install the prerequisites
-- clone the repo
+- clone the GitHub repo
 - install dependencies
-- create `.env`
+- create `.env` - local environment variables file
 - reset the local DB
 - run tests
 - launch the dev server
@@ -105,7 +99,7 @@ Success for this path means you can:
 
 ### 1.2 Supported machine setup
 
-This guide is written **WSL-first** for the newcomer path.
+This guide is written **WSL-first** for the newcomer path (Windows Subsystem for Linux).
 
 For Windows contributors, use this working model:
 
@@ -113,18 +107,17 @@ For Windows contributors, use this working model:
   ```powershell
    wsl --install
   ```
-2. Restart Windows if prompted.
+2. Restart Windows when prompted.
 3. Open **Ubuntu** from the Start menu and complete the first-time Linux username/password setup.
 4. From that point on, do the rest of this guide from the **Ubuntu shell**, not from `cmd.exe` or PowerShell.
 5. Keep the repo **inside the Linux filesystem** (for example `~/GIT/footbag-platform`), not under `/mnt/c/...`.
-6. Use your normal Windows browser to open forwarded `localhost` ports.
+6. Use your normal Windows browser to open forwarded `localhost` ports, and the Cursor IDE.
 
 Recommended Windows + WSL working model:
 
-- install Cursor on Windows
-- install Docker Desktop on Windows
-- enable the WSL 2 backend and WSL integration for your Ubuntu distro
-- run Node, npm, sqlite3, Git, AWS CLI, Terraform, SSH, and Claude Code from the WSL Ubuntu shell
+- install Cursor on Windows (for working with code).
+- enable the WSL 2 backend and WSL integration for your Ubuntu distro (essential).
+- run Node, npm, sqlite3, Git, AWS CLI, Terraform, SSH, and Claude Code from the WSL Ubuntu shell.
 
 macOS/Linux contributors can adapt the same command flow in their normal terminal, but the primary onboarding path in this guide assumes Windows + WSL Ubuntu.
 
@@ -184,7 +177,7 @@ wsl.exe -l -v
 
 #### 2. Update Ubuntu and install baseline packages
 
-In the Ubuntu shell:
+In the Ubuntu Linux terminal shell (Run all the following commands one at a time):
 
 ```bash
 sudo apt update
@@ -231,12 +224,7 @@ which node
 
 `which node` should resolve to a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
 
-> [!WARNING]
-> **WSL PATH contamination**
->
-> WSL can see Windows-installed binaries. If Node is also installed on Windows, WSL can silently resolve to the Windows binary. Verify `which node` before continuing.
-
-#### 4. Configure Git
+#### 4. Configure Git (optional for now, you can clone the repo without doing this)
 
 ```bash
 git config --global user.name "Your Name"
@@ -244,20 +232,7 @@ git config --global user.email "you@example.com"
 git config --global init.defaultBranch main
 ```
 
-Recommended team workflow:
-
-- use short-lived branches
-- keep changes reviewable
-- do not combine app bootstrap, Docker, Terraform, and template work in one giant branch
-
-Examples:
-
-- `chore/bootstrap-repo`
-- `feat/public-events-read-path`
-- `feat/docker-parity`
-- `feat/aws-bootstrap-docs`
-
-#### 5. Verify Docker from WSL if you will use Docker parity or any AWS path
+#### 5. Verify Docker from WSL if you will use Docker parity or any AWS path (you can skip this just to run a local server)
 
 Install Docker Desktop on Windows, enable the **WSL 2 based engine**, and enable WSL integration for your Ubuntu distro.
 
@@ -268,10 +243,7 @@ docker --version
 docker compose version
 ```
 
-> [!IMPORTANT]
-> Do **not** install the old standalone `docker-compose` v1 tool. Use Docker Desktop on Windows or the Docker Compose plugin. The correct command throughout this guide is `docker compose` (with a space).
-
-#### 6. Install AWS CLI v2 in WSL if you will use Path D or Path E
+#### 6. Install AWS CLI v2 in WSL if you will use Path D or Path E (AWS setup steps) 
 
 On most x86_64 Windows + WSL setups:
 
@@ -284,7 +256,7 @@ aws --version
 
 If `uname -m` reports `aarch64`, use the ARM64 AWS CLI package instead.
 
-#### 7. Install Terraform in WSL if you will use Path D or Path E
+#### 7. Install Terraform in WSL if you will use Path D or Path E (AWS setup steps) 
 
 ```bash
 curl -fsSL https://apt.releases.hashicorp.com/gpg | \
@@ -301,16 +273,21 @@ terraform version
 
 Verify the version is >= 1.11 (required by this project's `providers.tf`).
 
-#### 8. Install Claude Code in WSL
+#### 8. Install Claude Code in WSL (before you get into development work)
+
+Note that for this you will need a Pro plan from Anthropic, purchased through the web page.
+To get Claude Code to do any real work, you must complete the /login steps and authenticate.
+Ask your Claude AI about this in the chats to get precise steps.
 
 ```bash
 npm install -g @anthropic-ai/claude-code
 claude --version
 ```
 
-Cursor is expected on Windows. Claude Code is expected inside WSL.
+The Cursor IDE runs in Windows, and connects to Linux.
+Claude Code runs inside WSL Linux.
 
-#### 9. Line-ending sanity check
+#### 9. Line-ending sanity check (Windows versus Linux incompatability)
 
 This repo includes `.gitattributes` rules so shell scripts stay LF-terminated in normal use.
 
@@ -320,9 +297,9 @@ If you ever see `bash: ...^M` errors:
 - make sure the repo is not under `/mnt/c/...`
 - prefer re-cloning in WSL over trying to repair a broken checkout by hand
 
-### 1.5 Clone and install
+### 1.5 Clone and Install the Project GitHub Repository
 
-Clone via HTTPS — no SSH key required:
+Clone via HTTPS — no SSH key required (again, run commands one at a time):
 
 ```bash
 mkdir -p ~/GIT
@@ -369,7 +346,7 @@ Use local `.env` for:
 - non-secret defaults
 - temporary local secrets needed only for development
 
-Do not commit `.env`.
+Do not commit `.env` (make sure it is in your .gitignore)
 
 ### 1.7 Reset the local database
 
@@ -413,7 +390,6 @@ This is the primary local success path.
 
 Open these in a browser:
 
-
 | URL                                                                                                        | Expected outcome                                 |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | [http://localhost:3000/events](http://localhost:3000/events)                                               | events landing page renders                      |
@@ -421,7 +397,6 @@ Open these in a browser:
 | [http://localhost:3000/events/event_2025_beaver_open](http://localhost:3000/events/event_2025_beaver_open) | canonical event detail page renders with results |
 | [http://localhost:3000/health/live](http://localhost:3000/health/live)                                     | `{"ok":true,"check":"live"}`                     |
 | [http://localhost:3000/health/ready](http://localhost:3000/health/ready)                                   | `{"ok":true,"check":"ready"}`                    |
-
 
 What matters here:
 
@@ -488,111 +463,6 @@ docker compose \
   down
 ```
 
-### 1.13 Local troubleshooting
-
-#### Node resolves to the wrong binary in WSL
-
-Symptom:
-
-- `which node` points to `/mnt/c/...`
-
-Fix:
-
-- reinstall/use Node through nvm inside WSL
-- make sure you are not accidentally using the Windows Node binary
-
-#### Native addon build failures
-
-Symptom:
-
-- `npm install` fails on `better-sqlite3`
-
-Check:
-
-- Node 22 is active
-- `build-essential` is installed
-- WSL is using a Linux Node binary
-
-#### sqlite3 is missing
-
-Symptom:
-
-- DB reset script fails immediately
-
-Fix:
-
-```bash
-sudo apt install -y sqlite3
-```
-
-#### .env is wrong
-
-Symptoms:
-
-- server starts but routes fail
-- readiness fails
-- DB opens the wrong file
-- generated URLs are wrong
-
-Confirm:
-
-- `FOOTBAG_DB_PATH=./database/footbag.db`
-- `PUBLIC_BASE_URL=http://localhost:3000`
-
-#### dotenv loads too late
-
-Symptoms:
-
-- modules read `process.env` before env vars are loaded
-- DB boot opens before `FOOTBAG_DB_PATH` exists
-
-Avoid:
-
-- placing any import before `import 'dotenv/config'` in `server.ts`
-- importing a module that transitively loads `db.ts` before env setup runs
-
-#### Route ordering confusion
-
-If `/events/year/2025` behaves like an event-key route instead of a year archive, fix the route registration order so the explicit year route is registered before the generic `:eventKey` route.
-
-#### Docker stack is up but browser routes fail
-
-Check:
-
-- nginx is actually fronting the web container
-- the DB mount path is correct
-- the worker is not stuck in a restart loop
-- `BASE_URL=http://localhost ./scripts/smoke-local.sh` reproduces the problem
-- container logs show the app listening cleanly
-
-#### Shell scripts fail with ^M
-
-That is almost always a CRLF issue, not an app issue.
-
-### 1.14 Local definition of done
-
-Use **two definitions of done** for Path A.
-
-#### Minimum newcomer success
-
-You are done with the newcomer local path when all of these are true:
-
-- `npm test` passes
-- local DB reset succeeds
-- `/events` loads
-- `/events/year/2025` loads
-- `/events/event_2025_beaver_open` loads with results
-- `/health/live` succeeds
-- `/health/ready` succeeds
-
-#### Deploy-ready local success
-
-You are ready to move on to Path D when all of the above are true **and**:
-
-- `docker --version` works in WSL
-- `docker compose version` works in WSL
-- Docker parity smoke check passes (`BASE_URL=http://localhost ./scripts/smoke-local.sh`)
-
 ## 2. Path B — Orientation: what this project is and how to think about it
 
 ### 2.1 Project purpose and philosophy
@@ -622,7 +492,7 @@ How they relate:
 - design decisions define what architectural shortcuts are intentional and what is forbidden
 - The data mode / schema sql is the executable truth for the current data baseline
 
-### 2.3 Current MVFP v0.1 scope
+### 2.3 Initial MVFP v0.1 scope
 
 This guide is about the first public, useful slice of the platform: public Events + Results browsing.
 
@@ -815,14 +685,14 @@ Important file-level responsibilities:
 | src/server.ts                       | process startup and shutdown                             |
 | src/config/env.ts                   | environment loading and validation                       |
 | src/config/logger.ts                | structured logging                                       |
-| src/db/db.ts                        | one SQLite connection module, transaction helper         |
+| src/db/db.ts                        | Database queries & SQLite connections / transaction      |
 | src/db/openDatabase.ts              | SQLite connection bootstrap and PRAGMAs                  |
-| src/services/EventService.ts        | public event business rules and page shaping             |
+| src/services/EventService.ts        | Event and Results business rules and page shaping        |
 | src/controllers/eventsController.ts | route-to-service render bridge                           |
 | src/controllers/healthController.ts | liveness/readiness handlers                              |
 | src/routes/publicRoutes.ts          | public route wiring                                      |
-| src/views/events/*.hbs              | server-rendered public templates                         |
-| database/seeds/seed_mvfp_v0_1.sql   | deterministic seed scenarios                             |
+| src/views/events/*.hbs              | server-rendered public Handlebars templates              |
+| database/seeds/seed_mvfp_v0_1.sql   | Initial data seeds (event / result data)                 |
 | scripts/reset-local-db.sh           | local DB rebuild                                         |
 | scripts/smoke-local.sh              | local/container/origin smoke checks                      |
 | docker/docker-compose.yml           | base runtime stack                                       |
@@ -838,8 +708,8 @@ This section is historical and architectural context.
 
 It explains:
 
-- how the current slice was originally built
-- what order the parts were intended to come together in
+- how the initial functionality slice was originally built
+- what order the parts were intended to come together 
 - why particular files exist
 - how to reason about repo archaeology
 
@@ -972,46 +842,6 @@ Good historical checkpoints were:
 - Docker parity works
 - Terraform fmt and validate pass
 
-### 3.4 File responsibility map
-
-The original guide’s file responsibility map remains useful for archaeology:
-
-
-| File                                | Purpose                                                       |
-| ----------------------------------- | ------------------------------------------------------------- |
-| src/app.ts                          | app construction, view engine, middleware, route registration |
-| src/server.ts                       | process startup/shutdown                                      |
-| src/config/env.ts                   | env loading and validation                                    |
-| src/config/logger.ts                | structured logging                                            |
-| src/db/db.ts                        | SQLite connection module, transaction helper                  |
-| src/db/openDatabase.ts              | connection bootstrap and PRAGMAs                              |
-| src/services/EventService.ts        | public event page shaping and business rules                  |
-| src/controllers/eventsController.ts | route-to-service rendering bridge                             |
-| src/controllers/healthController.ts | health JSON handlers                                          |
-| src/routes/publicRoutes.ts          | public route wiring                                           |
-| src/views/events/*.hbs              | server-rendered HTML                                          |
-| database/seeds/seed_mvfp_v0_1.sql   | deterministic seed scenarios                                  |
-| scripts/reset-local-db.sh           | local DB rebuild                                              |
-| scripts/smoke-local.sh              | local smoke checks                                            |
-| docker/web/Dockerfile               | web runtime image                                             |
-| docker/worker/Dockerfile            | worker runtime image                                          |
-| docker/nginx/nginx.conf             | reverse proxy config                                          |
-| docker/docker-compose.yml           | local parity stack                                            |
-| docker/docker-compose.prod.yml      | deployment overrides                                          |
-| ops/systemd/footbag.service         | production Compose wrapper                                    |
-| terraform/*                         | environment infrastructure definitions                        |
-
-
-### 3.5 When to use this section
-
-Use Path C when you need:
-
-- repo archaeology
-- the original implementation order
-- a rebuild-from-scratch mental model
-- explanation for why certain files exist
-- a way to compare future docs against the original intended assembly sequence
-
 ## 4. Path D — AWS staging deployment runbook
 
 ### 4.1 Purpose
@@ -1098,19 +928,9 @@ The fragile parts are:
 - manual host bootstrap is still real in v0.1
 - CloudFront maintenance-page behavior is not truly functional yet
 
-### 4.4 Pre-apply corrections
+### 4.4 Lightsail SSH security, set your operator CIDRs
 
-Complete these in order.
-
-#### 1. MVFP stub worker restart behavior
-
-The worker is an intentional no-op stub in MVFP v0.1. Both `docker/docker-compose.yml` and `docker/docker-compose.prod.yml` set `restart: "no"` for the worker. This prevents the noisy restart loop that would occur if prod Compose said `restart: always`.
-
-Confirm locally before AWS work: run the combined stack and verify the worker container exits cleanly without looping.
-
-#### 2. Lightsail SSH ingress — set your operator CIDRs
-
-`lightsail.tf` restricts port 22 to `var.operator_cidrs`. You must supply real values in `terraform.tfvars` before first apply — never leave this as a placeholder.
+`lightsail.tf` restricts port 22 to `var.operator_cidrs`. You must supply real values in `terraform.tfvars` before first apply, never leave this as a placeholder.
 
 Find your current public IP from WSL:
 
