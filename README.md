@@ -4,11 +4,11 @@
 
 This repository contains the open-source modernization project for the global footbag community website.
 
-- **Maintainer:** [David Leberknight](https://github.com/davidleberknight) (initially hosted on a personal GitHub account)
+- **Maintainer:** [David Leberknight](https://github.com/davidleberknight) (initially hosted on David's personal GitHub account)
 - **Institutional context:** Developed under IFPA auspices
 - **Goal:** A simple, low-cost, volunteer-maintainable platform for long-term community use
 
-Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
+Legacy site (HTTP only): <http://www.footbag.org/>
 
 ## Start here
 
@@ -17,12 +17,14 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 ## Current project state
 
-**MVFP v0.1 — Public Events + Results browsing — is complete and running locally.**
+**Minimum Viable First Page (MVFP v0.1) is complete and running locally.**
 
-- Code, tests, Docker, Terraform, seed data, and documentation are all present
-- AWS deployment is the next step — see `docs/DEV_ONBOARDING_V0_1.md` Part F
-- Legacy migration tooling (including mirror/results processing scripts) is present
-- Some rule/policy simplification proposals are **Pending IFPA Board Decision**
+- For this initial slice, we have code, tests, seed data, and complete documentation.
+- AWS deployment is the next step. 
+- Some legacy migration tooling is done, including a full mirror of the current live footbag.org.
+- Scripts to process and clean historic event-results data are nearly complete.
+- This is why the MVFP scope is viewing events and results. 
+- Some official rule/policy simplification proposals were recently **Approved by IFPA Board Decision** and will be incorporated in v0.2
 
 ## Governance
 
@@ -42,6 +44,15 @@ Please read:
 - `CONTRIBUTING.md`
 - `SECURITY.md` (for vulnerability reporting — **do not use public issues**)
 
+## Using AI tools (Claude Code)
+
+See `CLAUDE.md` for the full rules Claude operates under.
+These are the project conventions enforced with Claude Code skills and hooks:
+
+- **Secrets are hard-blocked.** Some key files cannot be edited by Claude under any circumstances.
+- **Git commits and pushes are hard-blocked.** Claude can never commit or push to GitHub. 
+- **Editing Project Docs requires explicit approval.** Claude must propose exact before and after text for human approval.
+
 ## Project docs
 
 See `docs/` for project documentation and design materials.
@@ -49,9 +60,9 @@ See `database/` for the database schema sql.
 
 ## Technology stack
 
-TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Docker
+TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Docker · Terraform
 
-Stripe and additional platform integrations are planned for future slices.
+Stripe and additional platform integrations are planned for future delivery slices.
 
 ## License and trademarks
 
