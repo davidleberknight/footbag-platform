@@ -1,511 +1,632 @@
-# DEV_ONBOARDING_V0_1.md
+# Footbag Website Modernization Project —  Developer Onboarding Guide
 
-# Footbag Website Modernization Project
+**Version:** 0.1 / March 12, 2026
 
-## Developer Onboarding Guide for MVFP v0.1
+## Local Quickstart, Architecture Orientation, and AWS Staging Deployment
 
-### Public Events + Results Slice
+This guide helps contributors do different things: understand how the current Minimal Viable functionality slice is structured and how it was originally assembled, get that slice to run locally (view a working page in your browser), deploy the slice to AWS in a bootstrap scenario, and then close the bootstrap shortcuts.
 
----
+> **Choose your path**
+>
+> - **Path A** — I am a brand-new contributor on Windows + WSL. I need to install the tools, clone the repo with HTTPS, run the tests, start the dev server, and load the public Events + Results pages locally.
+> - **Path B** — I need the architecture mental model, scope boundaries, and workflow rules.
+> - **Path C** — I need the original blank-slate build order, detailed historical implementation logic, or repo archaeology.
+> - **Path D** — I already have the app working locally and Docker parity green, and I am continuing the AWS bootstrap deployment from the repo’s current Docker/Terraform state.
+> - **Path E** — The first deployment works. I need to move from "it works once" to "it is durable enough to operate."
 
-## Who this guide is for
+The repository already contains code, tests, Docker, Terraform, deterministic seed data, and docs. The local public Events + Results slice already works. The current operational frontier is staging deployment.
 
-This guide is for a technically capable engineer joining the project with:
-
-- a **blank Windows machine**
-- **WSL running Ubuntu**
-- a **blank or newly prepared GitHub repository**
-- a **blank AWS account** or an account that has not yet been prepared for this project
-
-It assumes you are comfortable with the terminal, Git, and basic web development concepts, but it does **not** assume that this codebase already exists.
-
-It also assumes that your main tools will be:
-
-- **Cursor** as your editor / IDE
-- **Anthropic Claude Code** as your primary AI coding assistant
-
-The guide is written so you can follow it literally, but it is also designed to teach the architecture as you go so the system stays understandable and maintainable after the first deployment.
-
----
-
-## What this guide is and is not
+This guide is therefore **not primarily a blank-repository build plan**, even though that historical context still matters and is preserved below.
 
 This guide **is**:
 
 - an orientation guide
 - a tutorial
 - an implementation runbook
-- a blank-slate repository plan
 - a deployment bootstrap guide
 - an AI-assisted development workflow guide
-
-This guide is **not**:
-
-- a bug report
-- a giant architecture thesis
-- a narrow checklist with no context
-- a promise that missing scripts or files already exist
-
-Where the repository is blank, this guide says which files to create and why.
+- a DEV ONBOARDING guide :-)
 
 ---
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
-- [Part A: Orientation and project understanding](#part-a-orientation-and-project-understanding)
-  - [1. What this project is](#1-what-this-project-is)
-  - [2. Project philosophy in practical terms](#2-project-philosophy-in-practical-terms)
-  - [3. High-level architecture](#3-high-level-architecture)
-  - [4. Where SQLite fits](#4-where-sqlite-fits)
-  - [5. Where Docker fits](#5-where-docker-fits)
-  - [6. Where Terraform fits](#6-where-terraform-fits)
-  - [7. Where Lightsail and CloudFront fit](#7-where-lightsail-and-cloudfront-fit)
-  - [8. Where Parameter Store and SSH fit](#8-where-parameter-store-and-ssh-fit)
-  - [9. Where AI-assisted development fits](#9-where-ai-assisted-development-fits)
-- [Part B: MVFP v0.1 slice explanation](#part-b-mvfp-v01-slice-explanation)
-  - [10. What MVFP v0.1 is](#10-what-mvfp-v01-is)
-  - [11. The exact public contract you must preserve](#11-the-exact-public-contract-you-must-preserve)
-- [Part C: Developer environment and tools](#part-c-developer-environment-and-tools)
-  - [12. Recommended development environment model](#12-recommended-development-environment-model)
-  - [13. Install the required tools](#13-install-the-required-tools)
-  - [14. AI-assisted development workflow rules](#14-ai-assisted-development-workflow-rules)
-- [Part D: Local project bootstrap](#part-d-local-project-bootstrap)
-  - [15. Start with a professional but small repository shape](#15-start-with-a-professional-but-small-repository-shape)
-  - [16. Initialize package and TypeScript tooling](#16-initialize-package-and-typescript-tooling)
-  - [17. Create baseline config files](#17-create-baseline-config-files)
-  - [18. Create the SQLite bootstrap path](#18-create-the-sqlite-bootstrap-path)
-  - [19. Seed deterministic MVFP data](#19-seed-deterministic-mvfp-data)
-  - [20. Run locally outside Docker first](#20-run-locally-outside-docker-first)
-  - [21. Implement the public route read path](#21-implement-the-public-route-read-path)
-  - [22. Build the Handlebars templates](#22-build-the-handlebars-templates)
-  - [23. Add health endpoints early](#23-add-health-endpoints-early)
-- [Part E: Implementation order and artifact plan](#part-e-implementation-order-and-artifact-plan)
-  - [24. Build in this order](#24-build-in-this-order)
-    - [Batch 1: repository skeleton and toolchain](#batch-1-repository-skeleton-and-toolchain)
-    - [Batch 2: app bootstrap](#batch-2-app-bootstrap)
-    - [Batch 3: database bootstrap and seed path](#batch-3-database-bootstrap-and-seed-path)
-    - [Batch 4: EventService public read models](#batch-4-eventservice-public-read-models)
-    - [Batch 5: controllers, routes, and templates](#batch-5-controllers-routes-and-templates)
-    - [Batch 6: integration tests and smoke scripts](#batch-6-integration-tests-and-smoke-scripts)
-    - [Batch 7: Docker parity artifacts](#batch-7-docker-parity-artifacts)
-    - [Batch 8: Terraform and ops artifacts](#batch-8-terraform-and-ops-artifacts)
-  - [25. File responsibility map](#25-file-responsibility-map)
-- [Part F: AWS bootstrap and Terraform handoff](#part-f-aws-bootstrap-and-terraform-handoff)
-  - [26. The bootstrap principle](#26-the-bootstrap-principle)
-  - [27. Secure the AWS account first](#27-secure-the-aws-account-first)
-  - [28. Create the first named human operator identity](#28-create-the-first-named-human-operator-identity)
-  - [29. Configure AWS CLI profiles deliberately](#29-configure-aws-cli-profiles-deliberately)
-  - [29.5 Domain and DNS: deferred for initial test deployment](#295-domain-and-dns-deferred-for-initial-test-deployment)
-  - [30. Create the Terraform remote-state foundation](#30-create-the-terraform-remote-state-foundation)
-  - [31. Use explicit environment directories for Terraform](#31-use-explicit-environment-directories-for-terraform)
-  - [32. What becomes Terraform-managed after handoff](#32-what-becomes-terraform-managed-after-handoff)
-  - [33. The Lightsail runtime identity model](#33-the-lightsail-runtime-identity-model)
-- [Part G: Parameter Store, Lightsail, CloudFront](#part-g-parameter-store-lightsail-cloudfront)
-  - [34. Parameter Store path structure](#34-parameter-store-path-structure)
-  - [35. Lightsail provisioning assumptions for this project](#35-lightsail-provisioning-assumptions-for-this-project)
-  - [36. SSH setup and normal usage](#36-ssh-setup-and-normal-usage)
-  - [37. CloudFront in front of the Lightsail origin](#37-cloudfront-in-front-of-the-lightsail-origin)
-  - [38. Origin validation and public validation](#38-origin-validation-and-public-validation)
-- [Part H: AWS deployment runbook](#part-h-aws-deployment-runbook-v01-test-deployment)
-  - [Phase 1: AWS root account hardening](#phase-1-aws-root-account-hardening)
-  - [Phase 2: Create IAM operator user](#phase-2-create-iam-operator-user)
-  - [Phase 3: Bootstrap the Terraform state bucket](#phase-3-bootstrap-the-terraform-state-bucket)
-  - [Phase 4: Configure staging backend and variables](#phase-4-configure-staging-backend-and-variables)
-  - [Phase 5: Terraform init, validate, plan](#phase-5-terraform-init-validate-plan)
-  - [Phase 6: Terraform apply](#phase-6-terraform-apply)
-  - [Phase 7: Record the CloudFront URL](#phase-7-record-the-cloudfront-url)
-  - [Phase 8: SSH into the Lightsail instance and create your named operator account](#phase-8-ssh-into-the-lightsail-instance-and-create-your-named-operator-account)
-  - [Phase 9: Install Docker on the host](#phase-9-install-docker-on-the-host)
-  - [Phase 10: Create the host env file](#phase-10-create-the-host-env-file)
-  - [Phase 11: Deploy app files to host](#phase-11-deploy-app-files-to-host)
-  - [Phase 12: Bootstrap the database](#phase-12-bootstrap-the-database)
-  - [Phase 13: Build and start the app](#phase-13-build-and-start-the-app)
-  - [Phase 14: Smoke test the origin directly](#phase-14-smoke-test-the-origin-directly)
-  - [Phase 15: Verify through CloudFront](#phase-15-verify-through-cloudfront)
-- [Part I: Verification, troubleshooting, deferred work](#part-i-verification-troubleshooting-deferred-work)
-  - [39. Local smoke checks](#39-local-smoke-checks)
-  - [40. Container smoke checks](#40-container-smoke-checks)
-  - [41. Public deployment smoke checks](#41-public-deployment-smoke-checks)
-  - [42. Common implementation mistakes](#42-common-implementation-mistakes)
-  - [43. Common AWS/bootstrap mistakes](#43-common-awsbootstrap-mistakes)
-  - [44. First-success criteria](#44-first-success-criteria)
-  - [45. Deferred work](#45-deferred-work)
-  - [46. Human, engineer, and AI handoff boundaries](#46-human-engineer-and-ai-handoff-boundaries)
-  - [47. A practical first-week plan for a new contributor](#47-a-practical-first-week-plan-for-a-new-contributor)
-- [Appendix A: Current official references](#appendix-a-current-official-references-used-to-verify-this-guide)
-- [Next Steps: Closing the Bootstrap Shortcuts](#next-steps-closing-the-bootstrap-shortcuts)
-  - [NS-1: Scope down footbag-operator IAM permissions](#ns-1-scope-down-footbag-operator-iam-permissions)
-  - [NS-2: Remove footbag-operator long-lived access keys](#ns-2-remove-footbag-operator-long-lived-access-keys-after-first-deployment)
-  - [NS-3: Attach a custom domain and ACM certificate](#ns-3-attach-a-custom-domain-and-acm-certificate)
-  - [NS-4: Fix the CloudFront maintenance page](#ns-4-fix-the-cloudfront-maintenance-page)
-  - [NS-5: Establish a SQLite backup plan](#ns-5-establish-a-sqlite-backup-plan)
-  - [NS-6: Harden the Lightsail host further](#ns-6-harden-the-lightsail-host-further)
-  - [NS-7: Move to a container registry for image distribution](#ns-7-move-to-a-container-registry-for-image-distribution)
-  - [NS-8: Wire up runtime AWS credentials when the app needs them](#ns-8-wire-up-runtime-aws-credentials-when-the-app-needs-them)
-  - [NS-9: Activate Parameter Store for runtime config management](#ns-9-activate-parameter-store-for-runtime-config-management)
-  - [NS-10: Review and activate CloudWatch monitoring](#ns-10-review-and-activate-cloudwatch-monitoring)
-- [Appendix B: Authoritative project facts](#appendix-b-authoritative-project-facts-this-guide-preserves)
+- [1. Path A — Local quickstart for a new contributor](#1-path-a--local-quickstart-for-a-new-contributor)
+  - [1.1 Goal of this path](#11-goal-of-this-path)
+  - [1.2 Supported machine setup](#12-supported-machine-setup)
+  - [1.3 Required tools](#13-required-tools)
+  - [1.4 First-time machine install steps](#14-first-time-machine-install-steps)
+  - [1.5 Clone and install](#15-clone-and-install)
+  - [1.6 Local env file](#16-local-env-file)
+  - [1.7 Reset the local database](#17-reset-the-local-database)
+  - [1.8 Run the test suite](#18-run-the-test-suite)
+  - [1.9 Run the dev server](#19-run-the-dev-server)
+  - [1.10 Browser verification](#110-browser-verification)
+  - [1.11 Optional deterministic checks](#111-optional-deterministic-checks)
+  - [1.12 Docker parity check](#112-docker-parity-check)
+  - [1.13 Local troubleshooting](#113-local-troubleshooting)
+  - [1.14 Local definition of done](#114-local-definition-of-done)
+- [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
+  - [2.1 Project purpose and philosophy](#21-project-purpose-and-philosophy)
+  - [2.2 Document relationships](#22-document-relationships)
+  - [2.3 Current MVFP v0.1 scope](#23-current-mvfp-v01-scope)
+  - [2.4 Route contract and UI contract](#24-route-contract-and-ui-contract)
+  - [2.5 Architecture mental model](#25-architecture-mental-model)
+  - [2.6 Repo map](#26-repo-map)
+- [3. Path C — Historical bootstrap: how this slice was originally assembled](#3-path-c--historical-bootstrap-how-this-slice-was-originally-assembled)
+  - [3.1 Why this section exists](#31-why-this-section-exists)
+  - [3.2 Original blank-slate assumptions](#32-original-blank-slate-assumptions)
+  - [3.3 Original implementation order](#33-original-implementation-order)
+  - [3.4 File responsibility map](#34-file-responsibility-map)
+  - [3.5 When to use this section](#35-when-to-use-this-section)
+- [4. Path D — AWS staging deployment runbook](#4-path-d--aws-staging-deployment-runbook)
+  - [4.1 Purpose](#41-purpose)
+  - [4.2 Preconditions](#42-preconditions)
+  - [4.3 Read this before first apply](#43-read-this-before-first-apply)
+  - [4.4 Pre-apply corrections](#44-pre-apply-corrections)
+  - [4.5 AWS account/bootstrap setup](#45-aws-accountbootstrap-setup)
+  - [4.6 Terraform staging apply](#46-terraform-staging-apply)
+  - [4.7 Host bootstrap](#47-host-bootstrap)
+  - [4.8 Deploy and start application](#48-deploy-and-start-application)
+  - [4.9 Verification](#49-verification)
+  - [4.10 Known temporary assumptions](#410-known-temporary-assumptions)
+- [5. Path E — From first success to durable staging](#5-path-e--from-first-success-to-durable-staging)
+  - [5.1 Why this section exists](#51-why-this-section-exists)
+  - [5.2 Security hardening](#52-security-hardening)
+  - [5.3 Edge and public-delivery hardening](#53-edge-and-public-delivery-hardening)
+  - [5.4 Reliability and recovery](#54-reliability-and-recovery)
+  - [5.5 Delivery maturity](#55-delivery-maturity)
+  - [5.6 Runtime configuration maturity](#56-runtime-configuration-maturity)
+  - [5.7 Monitoring maturity](#57-monitoring-maturity)
+- [6. Appendices](#6-appendices)
+  - [6.1 Troubleshooting reference](#61-troubleshooting-reference)
+  - [6.2 Deterministic seed-data reference](#62-deterministic-seed-data-reference)
+  - [6.3 Smoke-check contract](#63-smoke-check-contract)
+  - [6.4 Authoritative project facts preserved by this guide](#64-authoritative-project-facts-preserved-by-this-guide)
+  - [6.5 Official references](#65-official-references)
 
 ---
 
-# Quick Start
+## 1. Path A — Local quickstart for a new contributor
 
+### 1.1 Goal of this path
 
-## Minimum AWS stand-up this guide targets
+Success for this path means you can:
 
-For MVFP v0.1, this guide targets the smallest project-acceptable deployment that works:
+- install the prerequisites
+- clone the repo
+- install dependencies
+- create `.env`
+- reset the local DB
+- run tests
+- launch the dev server
+- verify `/events`, `/events/year/2025`, `/events/event_2025_beaver_open`, `/health/live`, and `/health/ready` in a browser
+- optionally run the Docker parity stack and local smoke script
 
-- one Lightsail instance as the origin
-- one CloudFront distribution using the default `*.cloudfront.net` URL
-- one SQLite database file at `/srv/footbag/footbag.db`
-- one root-owned host env file at `/srv/footbag/env`
-- one systemd unit that starts the Docker Compose stack from `/srv/footbag`
+### 1.2 Supported machine setup
 
-For this minimum stand-up, the guide does **not** require:
+This guide is written **WSL-first** for the newcomer path.
 
-- a custom domain
-- Route 53
-- ACM certificates
-- runtime SSM fetch at container startup
-- a runtime IAM user for the current public Events + Results slice
+For Windows contributors, use this working model:
 
-If the public pages work through the CloudFront URL, the health endpoints work, and the origin can be restarted cleanly, that counts as first AWS success for this guide.
+1. If WSL is not already installed, open **PowerShell as Administrator** and run:
+  ```powershell
+   wsl --install
+  ```
+2. Restart Windows if prompted.
+3. Open **Ubuntu** from the Start menu and complete the first-time Linux username/password setup.
+4. From that point on, do the rest of this guide from the **Ubuntu shell**, not from `cmd.exe` or PowerShell.
+5. Keep the repo **inside the Linux filesystem** (for example `~/GIT/footbag-platform`), not under `/mnt/c/...`.
+6. Use your normal Windows browser to open forwarded `localhost` ports.
 
----
+Recommended Windows + WSL working model:
 
-## Run local tests and view a web page 
+- install Cursor on Windows
+- install Docker Desktop on Windows
+- enable the WSL 2 backend and WSL integration for your Ubuntu distro
+- run Node, npm, sqlite3, Git, AWS CLI, Terraform, SSH, and Claude Code from the WSL Ubuntu shell
 
-If you just want to clone the github repo and run the code, follow the steps below to install prerequisites, clone, test, and run the dev server.
+macOS/Linux contributors can adapt the same command flow in their normal terminal, but the primary onboarding path in this guide assumes Windows + WSL Ubuntu.
 
-### Prerequisites (one-time, per machine)
+### 1.3 Required tools
 
-Assumes that you have WSL on Windows set up for Ununtu Linux.
+For the **minimum newcomer local path**, install these first:
 
-These are system-level installs. Do them once on a new machine; they persist across sessions.
+- `git`
+- Node.js via `nvm`
+- `npm`
+- `build-essential`
+- `sqlite3`
+- `curl`
+- `unzip`
+- `ca-certificates`
+- `openssh-client`
+- `rsync`
 
-There is no Python-style virtual environment for this project. Node's equivalent is `node_modules/` — a local directory managed by npm, installed once per clone, and reused across all sessions. You only need to re-run `npm install` when `package.json` changes.
+If you know you will continue into **Path D** or **Path E**, also install or verify these:
 
-**1. Node.js 22 LTS via nvm (recommended for WSL)**
+- Docker Desktop with WSL integration
+- `docker compose` support
+- AWS CLI v2
+- Terraform CLI
+- Claude Code
+- Cursor on Windows
 
-nvm lets you install and switch Node versions without touching system Node. See §13.2 for full detail.
+**Use Node 22 as the project baseline.**
+
+Notes:
+
+- this repo's Dockerfiles use `FROM node:22-alpine` in both the web and worker images, so Node 22 is the documented baseline to keep local and container behavior aligned
+- `package.json` declares `"engines": {"node": ">=18.0.0"}` but Node 22 is what this guide teaches
+- Node 24 became Active LTS in October 2025 and can work since `better-sqlite3` is already at `^12.6.2`, but it is not the documented baseline for this guide
+- this project uses `better-sqlite3`, which compiles a native addon during install
+- there is no Python-style virtual environment here; `node_modules/` is the per-clone dependency boundary
+- if you ever switch Node versions, run `npm rebuild`; `better-sqlite3` must be recompiled for the active Node version
+- `npm` is the intended package-manager baseline because it keeps blank-machine setup small and boring
+
+### 1.4 First-time machine install steps
+
+#### 1. If WSL is not installed yet
+
+From **PowerShell as Administrator**:
+
+```powershell
+wsl --install
+```
+
+Restart Windows if prompted, then open **Ubuntu** from the Start menu and complete first-time Linux setup.
+
+To confirm your distro is running WSL 2, from PowerShell run:
+
+```powershell
+wsl.exe -l -v
+```
+
+#### 2. Update Ubuntu and install baseline packages
+
+In the Ubuntu shell:
 
 ```bash
-# Install nvm v0.40.3 (verified working)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  sqlite3 \
+  git \
+  unzip \
+  zip \
+  jq \
+  ca-certificates \
+  curl \
+  openssh-client \
+  rsync \
+  gpg
+```
 
-# Restart your terminal, then install and activate Node 22 LTS (v22.22.1 verified, npm 10.9.4)
+Verify the basics:
+
+```bash
+sqlite3 --version
+git --version
+ssh -V
+rsync --version
+```
+
+#### 3. Install `nvm` and Node 22
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+```
+
+**Close and reopen your terminal** (or run `source ~/.bashrc`) so that `nvm` is available. Then:
+
+```bash
 nvm install 22
 nvm use 22
 nvm alias default 22
 
-# Verify
-node -v   # v22.x.x
-npm -v    # 10.x.x
+node -v
+npm -v
+which node
 ```
 
-> **WSL2 PATH note:** If Node is also installed on Windows, `which node` inside WSL may resolve to the Windows binary. After installing via nvm, verify `which node` returns a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
+`which node` should resolve to a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
 
-**2. System packages**
+> [!WARNING]
+> **WSL PATH contamination**
+>
+> WSL can see Windows-installed binaries. If Node is also installed on Windows, WSL can silently resolve to the Windows binary. Verify `which node` before continuing.
 
-`build-essential` is required to compile the `better-sqlite3` native addon during `npm install`. `sqlite3` is the CLI used by the database reset script.
+#### 4. Configure Git
 
 ```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+git config --global init.defaultBranch main
+```
+
+Recommended team workflow:
+
+- use short-lived branches
+- keep changes reviewable
+- do not combine app bootstrap, Docker, Terraform, and template work in one giant branch
+
+Examples:
+
+- `chore/bootstrap-repo`
+- `feat/public-events-read-path`
+- `feat/docker-parity`
+- `feat/aws-bootstrap-docs`
+
+#### 5. Verify Docker from WSL if you will use Docker parity or any AWS path
+
+Install Docker Desktop on Windows, enable the **WSL 2 based engine**, and enable WSL integration for your Ubuntu distro.
+
+Then verify from the Ubuntu shell:
+
+```bash
+docker --version
+docker compose version
+```
+
+> [!IMPORTANT]
+> Do **not** install the old standalone `docker-compose` v1 tool. Use Docker Desktop on Windows or the Docker Compose plugin. The correct command throughout this guide is `docker compose` (with a space).
+
+#### 6. Install AWS CLI v2 in WSL if you will use Path D or Path E
+
+On most x86_64 Windows + WSL setups:
+
+```bash
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip -u awscliv2.zip
+sudo ./aws/install
+aws --version
+```
+
+If `uname -m` reports `aarch64`, use the ARM64 AWS CLI package instead.
+
+#### 7. Install Terraform in WSL if you will use Path D or Path E
+
+```bash
+curl -fsSL https://apt.releases.hashicorp.com/gpg | \
+  gpg --dearmor | \
+  sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" | \
+  sudo tee /etc/apt/sources.list.d/hashicorp.list
+
 sudo apt update
-sudo apt install -y build-essential sqlite3
-
-# Verify
-sqlite3 --version
+sudo apt install -y terraform
+terraform version
 ```
 
----
+Verify the version is >= 1.11 (required by this project's `providers.tf`).
 
-### First test from a new terminal
-
-npm reads `package.json` to install dependencies (`npm install`) and delegates named scripts — `test`, `dev`, `build` — to the underlying tools (Vitest for tests, ts-node-dev for the dev server, tsc for compilation).
+#### 8. Install Claude Code in WSL
 
 ```bash
-# Clone the repository and enter the project directory
-git clone git@github.com:davidleberknight/footbag-platform.git
+npm install -g @anthropic-ai/claude-code
+claude --version
+```
+
+Cursor is expected on Windows. Claude Code is expected inside WSL.
+
+#### 9. Line-ending sanity check
+
+This repo includes `.gitattributes` rules so shell scripts stay LF-terminated in normal use.
+
+If you ever see `bash: ...^M` errors:
+
+- make sure the repo was cloned from **inside WSL**
+- make sure the repo is not under `/mnt/c/...`
+- prefer re-cloning in WSL over trying to repair a broken checkout by hand
+
+### 1.5 Clone and install
+
+Clone via HTTPS — no SSH key required:
+
+```bash
+mkdir -p ~/GIT
+cd ~/GIT
+git clone https://github.com/davidleberknight/footbag-platform.git
 cd footbag-platform
+```
 
-# Install all declared Node.js dependencies into node_modules/
-# (only needed once per clone, or after package.json changes)
+```bash
 npm install
+```
 
-# Create your local env file
+If `npm install` fails while compiling `better-sqlite3`:
+
+- confirm you are on Node 22
+- confirm `build-essential` is installed
+- confirm `which node` points to the WSL/Linux binary
+- then rerun `npm install`
+
+### 1.6 Local env file
+
+Create the local environment file from the example:
+
+```bash
 cp .env.example .env
-# Edit .env — at minimum confirm FOOTBAG_DB_PATH=./database/footbag.db
+```
 
-# Bootstrap the local database
+The minimum local `.env` shape is:
+
+```
+COMPOSE_FILE=docker/docker-compose.yml
+PORT=3000
+NODE_ENV=development
+LOG_LEVEL=info
+FOOTBAG_DB_PATH=./database/footbag.db
+PUBLIC_BASE_URL=http://localhost:3000
+```
+
+For local development, keep `.env` intentionally small.
+
+Use local `.env` for:
+
+- local-only development values
+- non-secret defaults
+- temporary local secrets needed only for development
+
+Do not commit `.env`.
+
+### 1.7 Reset the local database
+
+Bootstrap the local database from schema plus seed data:
+
+```bash
 bash scripts/reset-local-db.sh
+```
 
-# Run the integration test suite
+This step requires the `sqlite3` CLI.
+
+Expected result:
+
+- the script completes without error
+- the local DB file is rebuilt
+- the app has deterministic baseline data for local testing and optional smoke checks
+
+### 1.8 Run the test suite
+
+```bash
 npm test
 ```
 
-All 15 tests should pass.
+This is the first proof that your local environment is healthy.
 
-### Start the dev server and verify in a browser
+Tests should pass before you spend time debugging browser behavior.
+
+### 1.9 Run the dev server
 
 ```bash
-# Start the dev server — leave this terminal running
 npm run dev
 ```
 
-WSL2 automatically forwards the port to Windows. Open your Windows browser and navigate to:
+Leave that terminal running.
 
+On WSL2, the port is forwarded automatically, so you can use your normal browser on Windows.
+
+### 1.10 Browser verification
+
+This is the primary local success path.
+
+Open these in a browser:
+
+
+| URL                                                                                                        | Expected outcome                                 |
+| ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| [http://localhost:3000/events](http://localhost:3000/events)                                               | events landing page renders                      |
+| [http://localhost:3000/events/year/2025](http://localhost:3000/events/year/2025)                           | 2025 archive renders                             |
+| [http://localhost:3000/events/event_2025_beaver_open](http://localhost:3000/events/event_2025_beaver_open) | canonical event detail page renders with results |
+| [http://localhost:3000/health/live](http://localhost:3000/health/live)                                     | `{"ok":true,"check":"live"}`                     |
+| [http://localhost:3000/health/ready](http://localhost:3000/health/ready)                                   | `{"ok":true,"check":"ready"}`                    |
+
+
+What matters here:
+
+- the Events landing page renders cleanly
+- the year archive page renders cleanly
+- the canonical event detail/results page renders cleanly
+- the health endpoints return clean liveness/readiness responses
+- you can click around the public slice locally without stack traces or route confusion
+
+### 1.11 Optional deterministic checks
+
+The primary local proof already includes `/events/event_2025_beaver_open`, because that is the canonical event detail/results page. It is not optional.
+
+The routes below are **optional additional deterministic checks**:
+
+- `/events/event_2026_draft_event` — should not be public; expected 404
+- `/events/event_9999_does_not_exist` — expected 404
+- `/events/year/1899` — empty year page should still render cleanly (confirmed in `smoke-local.sh`)
+
+Use these when:
+
+- troubleshooting
+- verifying the deterministic seed contract
+- comparing behavior to the smoke scripts
+- debugging route and visibility edge cases
+
+### 1.12 Docker parity check
+
+Docker is part of the required workflow because the deployed origin is containerized.
+
+Do this before anyone touches AWS.
+
+> **Note on `COMPOSE_FILE`:** The `.env` file sets `COMPOSE_FILE=docker/docker-compose.yml`. This only applies when running bare `docker compose` without `-f` flags. The parity commands below use explicit `-f` flags that override `COMPOSE_FILE`. Always use the explicit `-f` form shown here.
+
+> **Note on TypeScript compilation:** The `docker/web/Dockerfile` is a multi-stage build that runs `npm run build` inside the builder stage. You do not need to run `npm run build` before `docker compose build` — the Dockerfile handles compilation internally.
+
+Run the base parity stack locally (no prod override):
+
+```bash
+docker compose \
+  -f docker/docker-compose.yml \
+  up --build
 ```
-http://localhost:3000/events
+
+Then run the smoke checks against the containerized local app:
+
+```bash
+chmod +x scripts/smoke-local.sh
+BASE_URL=http://localhost ./scripts/smoke-local.sh
 ```
 
-You should see the events listing page. Verify these routes manually:
+What you are proving here:
 
-| URL | Expected |
-| --- | --- |
-| `http://localhost:3000/events` | Upcoming events listing |
-| `http://localhost:3000/events/year/2025` | 2025 completed events with results |
-| `http://localhost:3000/events/event_2025_beaver_open` | Single event detail with results |
-| `http://localhost:3000/health/live` | `{"ok":true,"check":"live"}` |
-| `http://localhost:3000/health/ready` | `{"ok":true,"check":"ready"}` |
+- nginx fronts the web container correctly
+- the runtime container shape behaves like deployment shape
+- the DB mount path is correct
+- web and nginx stay healthy under Compose
 
-Server logs appear in the terminal. Press `Ctrl+C` to stop the server.
+Bring the stack down when done:
 
-> **If you switch Node versions:** run `npm rebuild` after switching. `better-sqlite3` is a native addon — it breaks at runtime with `ERR_DLOPEN_FAILED` if not recompiled for the new version.
+```bash
+docker compose \
+  -f docker/docker-compose.yml \
+  down
+```
 
----
+### 1.13 Local troubleshooting
 
-# Part A: Orientation and project understanding
+#### Node resolves to the wrong binary in WSL
 
-## 1. What this project is
+Symptom:
 
-The Footbag Website Modernization Project is a volunteer-maintained community platform intended to become the modern public hub for footbag. The project intentionally chooses a small-team architecture:
+- `which node` points to `/mnt/c/...`
 
-- simple enough for future volunteers to understand
-- explicit enough to inspect and debug
-- cheap enough to operate
-- standard enough that new contributors are not forced to learn bespoke infrastructure before they can help
+Fix:
 
-The key design philosophy is not “build the fanciest platform.” It is “build the platform that volunteers can keep alive for years.”
+- reinstall/use Node through nvm inside WSL
+- make sure you are not accidentally using the Windows Node binary
 
-That philosophy drives nearly every technical choice in this guide.
+#### Native addon build failures
 
----
+Symptom:
 
-## 2. Project philosophy in practical terms
+- `npm install` fails on `better-sqlite3`
 
-### Maintainability over sophistication
+Check:
 
-The project prefers a conventional stack, clear boundaries, and readable SQL over layered abstractions that only pay off at much larger team size.
+- Node 22 is active
+- `build-essential` is installed
+- WSL is using a Linux Node binary
 
-### Transparency over hidden machinery
+#### sqlite3 is missing
 
-Most application state lives in a single SQLite database file. The schema is visible. Queries are visible. The runtime shape is visible.
+Symptom:
 
-### Proportion over overengineering
+- DB reset script fails immediately
 
-The first public deployment target is a single-origin Lightsail deployment behind CloudFront. That is deliberate. It is not trying to be a distributed platform on day one.
+Fix:
 
-### Explicit human responsibility
+```bash
+sudo apt install -y sqlite3
+```
 
-AWS account bootstrap, IAM setup, Terraform use, final review, deployment decisions, and verification remain human responsibilities. AI helps generate files; it does not replace operational judgment.
+#### .env is wrong
 
----
+Symptoms:
 
-## 3. High-level architecture
+- server starts but routes fail
+- readiness fails
+- DB opens the wrong file
+- generated URLs are wrong
 
-At a high level, the system is a **server-rendered TypeScript web application**:
+Confirm:
 
-- **Node.js** runtime
-- **Express** for HTTP routing and controllers
-- **Handlebars** for server-rendered HTML views
-- **SQLite** for application data
-- **Docker** for consistent runtime shape
-- **Terraform** for steady-state infrastructure after bootstrap
-- **Lightsail** for the single application origin
-- **CloudFront** in front of that origin
-- **AWS Systems Manager Parameter Store** as optional AWS-side reference storage for non-local config values; the current MVFP v0.1 deployment reads `/srv/footbag/env` at runtime — the app does not fetch SSM at startup
-- **Hardened per-operator SSH** for exceptional operator shell access on the Lightsail host
-- **S3** for broader-project concerns such as media and backups, but not as the center of this first onboarding slice
+- `FOOTBAG_DB_PATH=./database/footbag.db`
+- `PUBLIC_BASE_URL=http://localhost:3000`
 
-You should think about the code in four layers:
+#### dotenv loads too late
 
-1. **Views**
-  - Handlebars templates that render HTML
-  - should stay logic-light
-2. **Controllers**
-  - Express route handlers
-  - parse request inputs
-  - call services
-  - choose status codes / render templates / return JSON for health endpoints
-3. **Services**
-  - own the slice’s business rules
-  - validate route keys and year inputs
-  - shape page-oriented data
-  - decide visibility rules
-  - translate temporary database contention into safe service failures
-4. **DB / infrastructure layer**
-  - one SQLite module
-  - prepared statements prepared once at startup
-  - transaction helper
-  - no ORM
-  - no repository layer
+Symptoms:
 
-That layered mental model matters. Most implementation mistakes on this project are really boundary mistakes.
+- modules read `process.env` before env vars are loaded
+- DB boot opens before `FOOTBAG_DB_PATH` exists
 
----
+Avoid:
 
-## 4. Where SQLite fits
+- placing any import before `import 'dotenv/config'` in `server.ts`
+- importing a module that transitively loads `db.ts` before env setup runs
 
-SQLite is the project’s application-data store for this stage. The project deliberately uses a single database file and a single database access module because that keeps the system inspectable and easy to reason about.
+#### Route ordering confusion
 
-For this project, SQLite is not an embarrassing stopgap. It is the intended early architecture.
+If `/events/year/2025` behaves like an event-key route instead of a year archive, fix the route registration order so the explicit year route is registered before the generic `:eventKey` route.
 
-What that means for contributors:
+#### Docker stack is up but browser routes fail
 
-- use the provided schema directly for the initial baseline
-- do **not** introduce an ORM
-- do **not** add a repository layer
-- do **not** scatter ad hoc SQL through controllers and services
-- do keep prepared statements in one clear statement catalog
-- do keep write transactions short and synchronous
-- do enable foreign keys on every connection
-- do use WAL mode where appropriate
-- do write timestamps in canonical UTC ISO format
+Check:
 
-For MVFP v0.1 there is **no migration framework prerequisite**. The database bootstrap source is `schema_v0_1.sql`. A numbered migration chain is deferred until after the first stable deployed baseline.
+- nginx is actually fronting the web container
+- the DB mount path is correct
+- the worker is not stuck in a restart loop
+- `BASE_URL=http://localhost ./scripts/smoke-local.sh` reproduces the problem
+- container logs show the app listening cleanly
 
----
+#### Shell scripts fail with ^M
 
-## 5. Where Docker fits
+That is almost always a CRLF issue, not an app issue.
 
-Docker is part of the required workflow for this project, not an optional extra.
+### 1.14 Local definition of done
 
-You will use two local development modes:
+Use **two definitions of done** for Path A.
 
-### Mode 1: fast host-run development
+#### Minimum newcomer success
 
-Use this when you want the fastest edit-run-debug loop in WSL Ubuntu.
+You are done with the newcomer local path when all of these are true:
 
-Typical shape:
+- `npm test` passes
+- local DB reset succeeds
+- `/events` loads
+- `/events/year/2025` loads
+- `/events/event_2025_beaver_open` loads with results
+- `/health/live` succeeds
+- `/health/ready` succeeds
 
-- run Node directly in WSL
-- use the local SQLite file
-- render the public slice quickly
-- debug controllers, services, templates, and SQL without rebuilding containers every minute
+#### Deploy-ready local success
 
-### Mode 2: Docker parity mode
+You are ready to move on to Path D when all of the above are true **and**:
 
-Use this before you advance to AWS work.
+- `docker --version` works in WSL
+- `docker compose version` works in WSL
+- Docker parity smoke check passes (`BASE_URL=http://localhost ./scripts/smoke-local.sh`)
 
-Typical shape:
+## 2. Path B — Orientation: what this project is and how to think about it
 
-- run the application through Docker Compose
-- include the runtime container layout expected by the project
-- verify the stack under container boundaries close to deployment shape
+### 2.1 Project purpose and philosophy
 
-For this project level, Docker parity matters because the deployed origin is containerized. Skipping container verification would save minutes locally and cost hours later.
+The Footbag Website Modernization Project is a volunteer-maintained community platform intended to become the modern public hub for footbag.
 
----
+Read the PROJECT_SUMMARY doc first.
 
-## 6. Where Terraform fits
+### 2.2 Document relationships
 
-Terraform is the tool that should own **steady-state infrastructure** once the initial secure baseline exists.
+Treat this guide as one document in a wider authority-doc set.
 
-That means:
+Read these first when working on code:
 
-- a small amount of one-time manual bootstrap is allowed
-- after the handoff, infrastructure changes should happen through Terraform
-- the onboarding guide must explain the handoff clearly rather than hand-waving it away
+- `PROJECT_SUMMARY_V0_1.md`
+- `USER_STORIES_V0_1.md`
+- `VIEW_CATALOG_V0_1.md`
+- `SERVICE_CATALOG_V0_1.md`
+- `DESIGN_DECISIONS_V0_1.md`
+- `DATA_MODEL_V0_1.md`
 
-For this project, Terraform is not there to look modern. It is there so future volunteers can see what exists and change it repeatably.
+How they relate:
 
----
+- user stories define what the website must do
+- view catalog defines what pages must exist and what they must communicate
+- service catalog defines service responsibilities and contracts
+- design decisions define what architectural shortcuts are intentional and what is forbidden
+- The data mode / schema sql is the executable truth for the current data baseline
 
-## 7. Where Lightsail and CloudFront fit
+### 2.3 Current MVFP v0.1 scope
 
-The early deployment posture is intentionally simple:
+This guide is about the first public, useful slice of the platform: public Events + Results browsing.
 
-- **Lightsail** hosts the single application origin
-- **CloudFront** sits in front of it
-
-Why this shape exists:
-
-- Lightsail keeps the origin simple and inexpensive
-- CloudFront improves public delivery, caching posture, and edge behavior
-- the combination is proportionate to the project’s scale
-
-This is not the architecture for a huge platform. It is the right architecture for a community site that wants to stay maintainable.
-
----
-
-## 8. Where Parameter Store and SSH fit
-
-### Parameter Store
-
-For the minimum MVFP v0.1 stand-up, Parameter Store is optional reference storage, not a runtime bootstrap dependency.
-
-The current application does not call SSM at startup. It reads `process.env` only. That means:
-
-- the live runtime values used by the app come from `/srv/footbag/env`
-- Parameter Store may be used to record reference values in AWS
-- updating SSM alone does not change the running app until the matching value is placed into `/srv/footbag/env`
-
-### SSH
-
-Used for bootstrap and operator shell access on the Lightsail host.
-
-The project standard is:
-
-- do use named non-root operator accounts with `sudo`
-- do use separate SSH key pairs per operator
-- do restrict port 22 to approved operator source IPs or CIDR ranges
-- do not share private keys
-- do not use shared shell accounts
-
-One important project rule: the identity used for SSH host access is **not** the same thing as the application’s runtime AWS principal.
-
----
-
-## 9. Where AI-assisted development fits
-
-AI is part of the development workflow, but it does not own the project.
-
-You should use Claude Code and Cursor to help with:
-
-- generating file skeletons
-- drafting controllers, services, and templates
-- writing prepared statement scaffolds
-- generating test cases
-- proposing refactors
-- producing repeated boilerplate in small batches
-
-You should **not** let AI quietly decide project architecture.
-
-The human still owns:
-
-- reading the authority docs
-- choosing what batch to build next
-- reviewing every diff
-- running tests and smoke checks
-- operating AWS
-- applying Terraform
-- verifying that behavior matches the authoritative documents
-- rejecting invented abstractions
-
-A good rule for this project: **AI can draft; the human decides.**
-
----
-
-# Part B: MVFP v0.1 slice explanation
-
-## 10. What MVFP v0.1 is
-
-MVFP v0.1 is the project’s first public, useful slice of functionality: **public Events + Results browsing**.
-
-The slice is intentionally narrow. It proves the stack, the public routing model, the page-shaping service pattern, the SQLite read path, the Docker runtime shape, and the first AWS deployment path without dragging in the full platform.
-
-### Routes in scope
+Routes in scope:
 
 - `GET /events`
 - `GET /events/year/:year`
@@ -513,7 +634,7 @@ The slice is intentionally narrow. It proves the stack, the public routing model
 - `GET /health/live`
 - `GET /health/ready`
 
-### What the slice accomplishes
+What the slice accomplishes:
 
 A visitor can:
 
@@ -523,75 +644,31 @@ A visitor can:
 - read public results where result rows exist
 - still see historical events even when result rows do not exist yet
 
-### What is deliberately excluded
+What the slice proves:
 
-This first slice does **not** require:
+- the stack works
+- public routing works
+- page shaping belongs in the service layer
+- SQLite read paths work
+- Docker parity is real
+- the first AWS deployment path is tractable
 
-- member login flows
-- registration workflows
-- payment flows
-- admin UI
-- organizer tools
-- event editing
-- result upload UI
-- Stripe
-- SES
-- S3-heavy media flows
-- a public JSON API
-- alternate detail/results public routes
-- archive search or filters
+### 2.4 Route contract and UI contract
 
-### What is simplified on purpose
-
-- `GET /events/year/:year` is a whole-year page with **no pagination**
-- `GET /events/:eventKey` is the single canonical public event route
-- `/health/ready` is deliberately minimal for this stage
-- the repository starts blank except for docs and schema
-- first deployment uses a single-origin Lightsail stack behind CloudFront
-
-That narrowness is a strength. It makes the first implementation and onboarding path teachable.
-
----
-
-## 11. The exact public contract you must preserve
-
-When you implement the slice, preserve these rules:
-
-### Public visibility
-
-Only events in these statuses are publicly visible:
-
-- `published`
-- `registration_full`
-- `closed`
-- `completed`
-
-Events in these statuses are **not** public:
-
-- `draft`
-- `pending_approval`
-- `canceled`
-
-### Event key
+#### Event identity
 
 Public event identity uses:
 
-- `eventKey` shape: `event_{year}_{event_slug}`
+`eventKey` shape: `event_{year}_{event_slug}`
 
 The stored standardized tag includes the leading `#`, but the public route key does not.
 
 Example:
 
 - stored tag: `#event_2025_beaver_open`
-- public route key: `event_2025_beaver_open`
+- route key: `event_2025_beaver_open`
 
-Do **not** invent:
-
-- a separate `event_slug` column
-- a bare slug route like `/events/beaver-open`
-- a second public results route
-
-### Year archive behavior
+#### Year archive behavior
 
 `GET /events/year/:year`:
 
@@ -602,316 +679,64 @@ Do **not** invent:
 - still shows the event when rows do not exist
 - explicitly says when results are not yet available
 
-### Canonical event page behavior
+#### Canonical event page behavior
 
 `GET /events/:eventKey`:
 
-- is always the canonical event page
-- is one route and one template
+- is the one canonical public event page
+- uses one route and one template
 - can emphasize details or results through page-model fields
-- still renders when the event is historical and has no result rows
-- returns not found for invalid keys, unknown keys, and non-public events
+- still renders for historical events with no result rows
+- returns 404 for invalid keys, unknown keys, and non-public events
 
-### Health behavior
+#### Health behavior
 
 - `/health/live` is a cheap process liveness check
-- `/health/ready` is a minimal SQLite-readiness check for this stage only
-
-# Part C: Developer environment and tools
-
-## 12. Recommended development environment model
-
-Because your machine is **Windows + WSL Ubuntu**, the cleanest setup is:
-
-- install **Cursor on Windows**
-- install **Docker Desktop on Windows**
-- enable the **WSL 2 backend**
-- keep the repository **inside the Linux filesystem in WSL**, not on a mounted Windows drive
-- run Node, npm, SQLite CLI, Terraform, AWS CLI, and Claude Code from the **WSL Ubuntu shell**
-
-That gives you:
-
-- Linux-native runtime behavior
-- a clean terminal workflow
-- better filesystem performance than keeping the repo under `/mnt/c/...`
-- good Docker integration through WSL
-
----
-
-## 13. Install the required tools
-
-## 13.1 Git and GitHub
-
-Install Git in WSL Ubuntu and confirm it works.
-
-```bash
-sudo apt update
-sudo apt install -y git
-git --version
-```
-
-Set your identity:
-
-```bash
-git config --global user.name "Your Name"
-git config --global user.email "you@example.com"
-git config --global init.defaultBranch main
-```
-
-Create the repository in your WSL home directory, for example:
-
-```bash
-mkdir -p ~/src
-cd ~/src
-git clone <your-repo-url> footbag-modernization
-cd footbag-modernization
-```
-
-If the repository does not exist yet, create it in GitHub first and then clone it.
-
-### Small-team Git workflow
-
-Use short-lived branches. Keep changes reviewable. For this project, a good branch shape is:
-
-- `chore/bootstrap-repo`
-- `feat/public-events-read-path`
-- `feat/docker-parity`
-- `feat/aws-bootstrap-docs`
-
-Do not combine app bootstrap, Docker, Terraform, and template work in one giant branch.
-
----
-
-## 13.2 Node.js LTS and npm
-
-Use the current **Node.js LTS** release line and use **npm** as the package manager default.
-
-Why npm here:
-
-- it ships with Node
-- it reduces blank-machine setup steps
-- it is perfectly adequate for a project of this size
-- it avoids introducing another tool before the codebase exists
-
-Install a Node version manager if you prefer, or install Node LTS directly. In WSL Ubuntu, a version manager is usually the cleanest option for long-term maintainability.
-
-After install, verify:
-
-```bash
-node -v
-npm -v
-```
-
-> **Note:** This project uses `better-sqlite3` which compiles a native Node.js addon. Node 22 LTS is the recommended version. If you use Node 24 or later, ensure `better-sqlite3` is at least `^12.6.2` in `package.json` or the native build will fail during `npm install`.
-
-> **WSL2 PATH contamination.** WSL2 appends the Windows `PATH` by default. If Node.js is also installed on Windows, `which node` inside WSL may resolve to the Windows binary — wrong architecture, wrong version, subtle failures. After installing Node inside WSL, verify `which node` returns a path under `/home/...` or `/usr/...`, not `/mnt/c/...`.
-
-> **CRLF line endings.** If git on Windows is configured with `core.autocrlf=true`, shell scripts cloned in WSL can gain `\r` characters and fail with `bash: bad interpreter: /usr/bin/env bash^M`. The repo should include a `.gitattributes` file with `*.sh text eol=lf` to enforce Unix line endings on shell scripts regardless of the cloning platform.
-
----
-
-## 13.3 Base Linux packages
-
-Install the utilities you will use repeatedly:
-
-```bash
-sudo apt update
-sudo apt install -y \
-  build-essential \
-  sqlite3 \
-  unzip \
-  zip \
-  jq \
-  ca-certificates \
-  curl
-```
-
-Verify SQLite:
-
-```bash
-sqlite3 --version
-```
-
----
-
-## 13.4 Docker Desktop + Docker Compose
-
-On Windows:
-
-1. install Docker Desktop
-2. enable the WSL 2 backend
-3. enable WSL integration for your Ubuntu distro
-
-In WSL, verify:
-
-```bash
-docker --version
-docker compose version
-```
-
-If you choose to install Docker Engine directly inside Ubuntu instead of using Docker Desktop, do that intentionally and document it for yourself. For most contributors on Windows + WSL, Docker Desktop with WSL integration is the simplest path.
-
-> **Do not run `sudo apt install docker-compose`.** That package installs the old v1 standalone binary (`docker-compose` with a hyphen), which is deprecated and behaves differently from the v2 plugin (`docker compose` with a space) used throughout this project. Docker Desktop provides the v2 plugin automatically. If installing Docker Engine directly, use the official Docker APT repository and install `docker-compose-plugin`.
-
----
-
-## 13.5 AWS CLI v2
-
-Install AWS CLI v2 in WSL Ubuntu and verify:
-
-```bash
-aws --version
-```
-
----
-
-## 13.6 SSH client and key tools
-
-Verify that the OpenSSH client is available in WSL Ubuntu: use ssh -v. You also need a secure way to generate and keep your own operator SSH key pair. The private key stays with you; only the public key is distributed for host access.
-
----
-
-## 13.7 Terraform CLI
-
-Install Terraform in WSL Ubuntu and verify:
-
-```bash
-terraform version
-```
-
-For this project, use a current stable Terraform CLI version and pin the required version in the repository once the Terraform code exists.
-
----
-
-## 13.8 Cursor
-
-Install Cursor on Windows.
-
-Recommended setup choices for this project:
-
-- open the repository through the WSL filesystem
-- keep the integrated terminal pointed at WSL Ubuntu
-- enable any Git and Markdown extensions you already trust
-- keep Cursor rules or project instructions in the repo so the AI editor sees the same architecture constraints every time
-
-Optional but useful: install the Cursor CLI if you want it available in the terminal.
-
----
-
-## 13.9 Claude Code
-
-Install Claude Code in WSL Ubuntu and verify:
-
-```bash
-claude --version
-```
-
-Then sign in and confirm it can run.
-
-Because this project is WSL-first, prefer using Claude Code **inside WSL** where the repository, Node runtime, and shell tools already live.
-
----
-
-## 13.10 Recommended editor / AI settings for this project
-
-Create a small project rule file before generating code.
-
-A good starting rule set for this project is:
-
-- server-rendered Express + Handlebars only
+- `/health/ready` is a minimal SQLite-readiness check for this stage
+
+### 2.5 Architecture mental model
+
+This is a server-rendered TypeScript application built with:
+
+- Node.js
+- Express
+- Handlebars
+- SQLite
+- Docker
+- Terraform
+- Lightsail
+- CloudFront
+
+Think about the code in four layers:
+
+Views
+- Handlebars templates
+- logic-light
+
+Controllers
+- parse request inputs
+- call services
+- choose status codes
+- render templates or return JSON
+
+Services
+- own business rules
+- validate route keys and year inputs
+- shape page-oriented data
+- decide visibility rules
+- translate temporary DB contention into safe service failures
+
+DB / infrastructure layer
+- one SQLite module
+- prepared statements prepared once at startup
+- transaction helper
 - no ORM
 - no repository layer
-- one SQLite DB module
-- thin controllers
-- page shaping in services
-- logic-light templates
-- no alternate public results route
-- preserve `GET /events/:eventKey` as the canonical event page
-- preserve non-paginated year archive behavior
-- no migration framework as a prerequisite
-- prefer small verified batches
 
-You can store those rules in a file such as:
+### 2.6 Repo map
 
-- `AGENTS.md`
-- `.claude/CLAUDE.md`
-- project-level Cursor rules
+The repository shape remains the right mental map:
 
-The exact file mechanism can vary. The important thing is that the rules live in the repository, not only in your memory.
-
----
-
-## 14. AI-assisted development workflow rules
-
-Use this workflow every time:
-
-### Step 1: read authority docs first
-
-Before generating code, read:
-
-- `USER_STORIES_V0_1.md`
-- `VIEW_CATALOG_V0_1.md`
-- `SERVICE_CATALOG_V0_1.md`
-- `DESIGN_DECISIONS_V0_1.md`
-- `schema_v0_1.sql`
-
-Optionally also read `DATA_MODEL_V0_1.md` when working on SQLite runtime behavior.
-
-### Step 2: ask for one small batch at a time
-
-Good batch prompts:
-
-- “Create the repository skeleton, package.json, tsconfig, and baseline scripts only.”
-- “Create only the db module and prepared statement catalog for public event read paths.”
-- “Create only the EventService public read methods and tests.”
-- “Create only the Handlebars templates and minimal controllers for the three public routes.”
-
-Bad batch prompt:
-
-- “Build the entire app, Docker, Terraform, and AWS deployment in one go.”
-
-### Step 3: review the diff yourself
-
-Check for forbidden inventions:
-
-- ORM
-- repository layer
-- alternate event routes
-- `event_slug` column
-- template business logic
-- controller-owned visibility rules
-- async work inside SQLite transactions
-
-### Step 4: run tests and smoke checks
-
-After each batch:
-
-- run the tests that exist
-- run or repeat the local smoke checks
-- verify the rendered behavior manually
-
-### Step 5: keep ownership boundaries clear
-
-Claude Code may generate files. The human still must:
-
-- approve the design
-- review the diff
-- run the commands
-- inspect SQL
-- operate AWS
-- manage Terraform
-- verify outputs
-- make the final call
-
----
-
-# Part D: Local project bootstrap
-
-## 15. Start with a professional but small repository shape
-
-Create this repository structure first:
-
-```text
 .
 ├─ src/
 │  ├─ config/
@@ -927,7 +752,10 @@ Create this repository structure first:
 │  │  ├─ publicRoutes.ts
 │  │  └─ healthRoutes.ts
 │  ├─ services/
-│  │  └─ EventService.ts
+│  │  ├─ EventService.ts
+│  │  ├─ OperationsPlatformService.ts
+│  │  ├─ serviceErrors.ts
+│  │  └─ sqliteRetry.ts
 │  ├─ views/
 │  │  ├─ layouts/
 │  │  │  └─ main.hbs
@@ -935,6 +763,8 @@ Create this repository structure first:
 │  │  │  ├─ index.hbs
 │  │  │  ├─ year.hbs
 │  │  │  └─ detail.hbs
+│  │  ├─ partials/
+│  │  │  └─ result-section.hbs
 │  │  └─ errors/
 │  │     ├─ not-found.hbs
 │  │     └─ unavailable.hbs
@@ -948,14 +778,11 @@ Create this repository structure first:
 │  └─ seeds/
 │     └─ seed_mvfp_v0_1.sql
 ├─ tests/
-│  ├─ integration/
-│  │  └─ events.routes.test.ts
-│  └─ unit/
-│     └─ eventService.test.ts
+│  └─ integration/
+│     └─ events.routes.test.ts
 ├─ scripts/
 │  ├─ reset-local-db.sh
-│  ├─ smoke-local.sh
-│  └─ smoke-public.sh
+│  └─ smoke-local.sh
 ├─ docker/
 │  ├─ web/
 │  │  └─ Dockerfile
@@ -978,1212 +805,663 @@ Create this repository structure first:
 ├─ .gitignore
 ├─ package.json
 └─ tsconfig.json
-```
 
-### Why this shape works
+Important file-level responsibilities:
 
-- `src/` holds the application
-- `database/` keeps schema and seed files obvious
-- `tests/` keeps route and service tests separate
-- `docker/` keeps runtime artifacts together
-- `ops/` holds host-level operational wrappers
-- `terraform/` separates infrastructure by environment
-- root-level config stays discoverable for volunteers
 
-It is conventional, small-team-friendly, and aligned with the project architecture.
+| File or path                        | Responsibility                                           |
+| ----------------------------------- | -------------------------------------------------------- |
+| src/app.ts                          | Express app construction, middleware, route registration |
+| src/server.ts                       | process startup and shutdown                             |
+| src/config/env.ts                   | environment loading and validation                       |
+| src/config/logger.ts                | structured logging                                       |
+| src/db/db.ts                        | one SQLite connection module, transaction helper         |
+| src/db/openDatabase.ts              | SQLite connection bootstrap and PRAGMAs                  |
+| src/services/EventService.ts        | public event business rules and page shaping             |
+| src/controllers/eventsController.ts | route-to-service render bridge                           |
+| src/controllers/healthController.ts | liveness/readiness handlers                              |
+| src/routes/publicRoutes.ts          | public route wiring                                      |
+| src/views/events/*.hbs              | server-rendered public templates                         |
+| database/seeds/seed_mvfp_v0_1.sql   | deterministic seed scenarios                             |
+| scripts/reset-local-db.sh           | local DB rebuild                                         |
+| scripts/smoke-local.sh              | local/container/origin smoke checks                      |
+| docker/docker-compose.yml           | base runtime stack                                       |
+| docker/docker-compose.prod.yml      | deployment overrides                                     |
+| ops/systemd/footbag.service         | production Compose wrapper                               |
+| terraform/                          | environment infrastructure definitions                   |
 
----
+## 3. Path C — Historical bootstrap: how this slice was originally assembled
 
-## 16. Initialize package and TypeScript tooling
+### 3.1 Why this section exists
 
-Use npm to create the project metadata and baseline scripts.
+This section is historical and architectural context.
 
-Suggested baseline runtime dependencies:
+It explains:
 
-- `express`
-- `express-handlebars`
-- `better-sqlite3`
-- `dotenv` or equivalent minimal env loader
+- how the current slice was originally built
+- what order the parts were intended to come together in
+- why particular files exist
+- how to reason about repo archaeology
 
-Suggested development dependencies:
+It is not the first thing a new contributor should follow today.
 
-- `typescript`
-- `tsx`
-- `@types/node`
-- `@types/express`
-- `vitest`
-- `supertest`
-- `@types/supertest`
+### 3.2 Original blank-slate assumptions
 
-You may also add a lint/format stack later, but do not let linting block the first public slice.
+The original onboarding guide assumed a technically capable engineer joining the project with:
 
-A reasonable first script set is:
+- a blank Windows machine
+- WSL running Ubuntu
+- a blank or newly prepared GitHub repository
+- a blank AWS account or an account not yet prepared for this project
 
-```json
-{
-  "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  }
-}
-```
+That framing made sense for the original build-out. It no longer describes the main present-day onboarding entry point, which is why it lives here.
 
-The important point is not the exact JSON. The important point is that the initial toolchain is small and boring.
+### 3.3 Original implementation order
 
----
+The original build order was deliberate. In cleaned-up form, it was:
 
-## 17. Create baseline config files
-
-## 17.1 `.gitignore`
-
-At minimum ignore:
-
-- `node_modules/`
-- `dist/`
-- `.env`
-- `database/footbag.db`
-- `*.log`
-- `.terraform/`
-- `terraform.tfstate*`
-
-## 17.2 `.env.example`
-
-Start with a minimal local environment file:
-
-```dotenv
-COMPOSE_FILE=docker/docker-compose.yml
-PORT=3000
-NODE_ENV=development
-LOG_LEVEL=info
-FOOTBAG_DB_PATH=./database/footbag.db
-PUBLIC_BASE_URL=http://localhost:3000
-```
-
-For MVFP v0.1 local development, keep `.env` intentionally small. Do not drag production-only complexity into the first local boot.
-
-### What belongs in local `.env`
-
-Use `.env` for:
-
-- local-only development values
-- non-secret defaults
-- temporary local secrets needed only for development
-
-### What belongs in Parameter Store instead
-
-For this MVFP v0.1 guide, Parameter Store is optional in staging and production.
-
-Use it if you want AWS-side reference storage for:
-
-- secret values you do not want documented only on the host
-- environment-specific public base URLs
-- future operational config you expect to manage centrally later
-
-But remember: the running app reads `/srv/footbag/env`, not SSM. Mirroring a value into SSM does nothing for the running deployment until the same value is present in `/srv/footbag/env`.
-
-Do not commit `.env`.
-
----
-
-## 18. Create the SQLite bootstrap path
-
-Copy the authoritative schema into `database/schema_v0_1.sql`.
-
-Then create the local database:
-
-```bash
-sqlite3 database/footbag.db < database/schema_v0_1.sql
-```
-
-### Required SQLite runtime behavior
-
-Your DB module must enforce these rules on every connection:
-
-- `PRAGMA foreign_keys = ON`
-- enable or confirm WAL mode
-- use canonical UTC ISO timestamps
-- keep write transactions short
-- use a transaction helper based on `BEGIN IMMEDIATE`
-
-### A good `db.ts` shape
-
-`src/db/db.ts` should be the one place that:
-
-- opens the SQLite database
-- applies connection PRAGMAs
-- exports the connection
-- exports the transaction helper
-- imports and exposes the prepared statements catalog
-
-### A good `statements.ts` shape
-
-`src/db/statements.ts` should define and prepare the queries used by this slice.
-
-For MVFP v0.1, that means at least:
-
-- public upcoming event listing
-- archive year listing
-- completed public event listing by year
-- canonical public event detail lookup by normalized tag
-- result-row queries needed to build `resultSections[]`
-- minimal readiness query such as `SELECT 1`
-
-Keep page shaping out of `statements.ts`. Let SQL return flat rows. Let the service layer group them.
-
----
-
-## 19. Seed deterministic MVFP data
-
-Before writing the full application, create a deterministic seed file:
-
-`database/seeds/seed_mvfp_v0_1.sql`
-
-Seed only the tables needed to exercise this slice. The seed set should include:
-
-### Required scenarios
-
-1. **An upcoming public event**
-  - visible on `/events`
-2. **A completed public event with results**
-  - visible on `/events/year/:year`
-  - has grouped results
-  - opens on the canonical event page with `hasResults = true`
-3. **A completed public event without results**
-  - visible on `/events/year/:year`
-  - explicitly shows “no results yet”
-  - opens on the canonical event page and still renders
-4. **A non-public event**
-  - `draft` or `canceled`
-  - should not be publicly visible
-  - canonical route should resolve to not found
-
-### Seed contents you will likely need
-
-- standardized event tags in `tags`
-- at least one host club in `clubs` if you want to test `hostClub`
-- events in `events`
-- at least one discipline in `event_disciplines`
-- result rows in:
-  - `event_results_uploads`
-  - `event_result_entries`
-  - `event_result_entry_participants`
-- a minimal member row only if needed to satisfy result-upload foreign keys
-
-Keep the seed narrow. You do not need the whole platform to prove the public slice.
-
-### Helpful reset script
-
-Create `scripts/reset-local-db.sh`:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-rm -f database/footbag.db
-sqlite3 database/footbag.db < database/schema_v0_1.sql
-sqlite3 database/footbag.db < database/seeds/seed_mvfp_v0_1.sql
-echo "Local database reset complete."
-```
-
-Make it executable:
-
-```bash
-chmod +x scripts/reset-local-db.sh
-```
-
-Run it:
-
-```bash
-./scripts/reset-local-db.sh
-```
-
----
-
-## 20. Run locally outside Docker first
-
-### App bootstrap responsibilities
-
-Create these first:
-
-- `src/app.ts`
-- `src/server.ts`
-- `src/config/env.ts`
-- `src/config/logger.ts`
-
-A good split is:
-
-### `src/config/env.ts`
-
-Owns:
-
-- loading environment variables
-- validating required ones
-- exporting a small typed config object
-
-### `src/config/logger.ts`
-
-Owns:
-
-- structured logging setup
-- safe logging helpers
-
-### `src/app.ts`
-
-Owns:
-
-- creating the Express app
-- view engine setup
-- static asset setup
-- route registration
-- safe 404 and safe unavailable handlers
-
-### `src/server.ts`
-
-Owns:
-
-- reading config
-- starting the HTTP server
-- structured startup logs
-- graceful shutdown hooks
-
-Once those exist, run:
-
-```bash
-npm install
-npm run dev
-```
-
-Verify the server is listening.
-
----
-
-## 21. Implement the public route read path
-
-Create:
-
-- `src/routes/publicRoutes.ts`
-- `src/routes/healthRoutes.ts`
-- `src/controllers/eventsController.ts`
-- `src/controllers/healthController.ts`
-- `src/services/EventService.ts`
-
-### Controller responsibilities
-
-Controllers should:
-
-- read the request path parameter
-- call the service
-- choose the template
-- return JSON for health endpoints
-- translate service “not found” into HTTP 404
-- translate temporary-unavailable into the safe failure path
-
-Controllers should **not**:
-
-- invent page-model rules
-- decide result visibility
-- parse `eventKey` business rules beyond basic pass-through
-- group result rows
-- write inline SQL
-
-### EventService responsibilities for this slice
-
-EventService should own:
-
-- validating `year` as a four-digit archive-year input
-- validating `eventKey`
-- normalizing `eventKey` to stored standardized tag form
-- looking up public events only
-- deriving archive years from `events.start_date`
-- deriving `hostClub` from `events.host_club_id -> clubs.name`
-- deciding `hasResults`
-- deciding `primarySection`
-- grouping flat result rows into `resultSections[]`
-- returning page-oriented models
-
-That service-owned page-shaping rule is one of the most important design constraints in the slice.
-
----
-
-## 22. Build the Handlebars templates
-
-Create:
-
-- `src/views/layouts/main.hbs`
-- `src/views/events/index.hbs`
-- `src/views/events/year.hbs`
-- `src/views/events/detail.hbs`
-- `src/views/errors/not-found.hbs`
-- `src/views/errors/unavailable.hbs`
-
-### Template philosophy
-
-Templates should receive already-resolved display data and simple booleans.
-
-Templates should **not**:
-
-- parse or normalize `eventKey`
-- decide if an event is public
-- infer `hostClub`
-- group result rows
-- invent adjacent year navigation
-- re-derive no-results logic
-
-Keep templates readable and close to the final HTML.
-
----
-
-## 23. Add health endpoints early
-
-Create the health controller at the same time as the public routes, not at the end.
-
-### `/health/live`
-
-Should be a cheap process signal only.
-
-Example response shape:
-
-```json
-{"ok":true,"check":"live"}
-```
-
-### `/health/ready`
-
-For MVFP v0.1, keep it minimal.
-
-It should do only what is needed to confirm the app can serve this slice:
-
-- open or reuse the SQLite connection
-- perform a trivial read
-- return readiness JSON
-
-Example response shape:
-
-```json
-{"ok":true,"check":"ready"}
-```
-
-Do **not** expand readiness into backup freshness, S3 reachability, SES, Stripe, or CloudWatch checks just to stand up the first slice.
-
----
-
-# Part E: Implementation order and artifact plan
-
-## 24. Build in this order
-
-This order is deliberate. Follow it.
-
-## Batch 1: repository skeleton and toolchain
-
-Create:
+#### Repository skeleton and initial files
 
 - package metadata
 - TypeScript config
-- `.gitignore`
-- `.env.example`
-- folder structure
-- baseline npm scripts
+- .gitignore
+- .env.example
+- conventional directory layout
 
-**Test after batch 1**
+#### Package and TypeScript tooling
 
-- `npm install` succeeds
-- `npm run build` works even if source is still minimal
+- Express
+- Handlebars
+- better-sqlite3
+- dotenv
+- TypeScript
+- tsx
+- Vitest
+- Supertest
 
-### Good Claude Code prompt for batch 1
+#### Baseline config
 
-“Create only the repository skeleton, package.json, tsconfig.json, .gitignore, and .env.example for a TypeScript Express + Handlebars project. Do not add ORM, repository, Docker, or Terraform yet.”
+- env loading/validation
+- logger
+- simple script set: dev, build, start, test
 
----
+#### SQLite bootstrap path
 
-## Batch 2: app bootstrap
+- one DB module
+- PRAGMAs
+- statement catalog
+- transaction helper
+- no migration framework prerequisite yet
 
-Create:
+#### Deterministic seed data
 
-- `src/config/env.ts`
-- `src/config/logger.ts`
+- upcoming public event
+- completed public event with results
+- completed public event without results
+- non-public event that must not leak
+
+#### Host-run local app first
+
 - `src/app.ts`
 - `src/server.ts`
+- prove the app outside Docker before adding deployment complexity
 
-**Test after batch 2**
+#### Public read routes
 
-- app starts
-- root process logs startup cleanly
-- missing envs fail clearly
+- `GET /events`
+- `GET /events/year/:year`
+- `GET /events/:eventKey`
 
-### Good Claude Code prompt for batch 2
+#### Handlebars views
 
-“Create only env loading, logger, Express app bootstrap, and server startup for this project. Keep the app server-rendered, use Handlebars, and do not implement route business logic yet.”
+- list page
+- year page
+- canonical event detail page
+- no-results handling
+- error pages
 
----
-
-## Batch 3: database bootstrap and seed path
-
-Create:
-
-- `database/schema_v0_1.sql` copy-in
-- `database/seeds/seed_mvfp_v0_1.sql`
-- `scripts/reset-local-db.sh`
-- `src/db/db.ts`
-- `src/db/openDatabase.ts`
-
-**Responsibilities**
-
-- DB module opens the database
-- enables foreign keys
-- configures WAL where appropriate
-- exposes prepared statements
-- exposes transaction helper using `BEGIN IMMEDIATE`
-
-**Test after batch 3**
-
-- local DB resets cleanly
-- readiness query works
-- FK enforcement is active
-- a deliberate FK violation fails
-
-### Good Claude Code prompt for batch 3
-
-“Create only the SQLite bootstrap path for this project: db.ts, statements.ts, reset-local-db.sh, and a deterministic MVFP seed file. Use one DB module, prepared statements, and a BEGIN IMMEDIATE transaction helper. No ORM and no repository layer.”
-
----
-
-## Batch 4: EventService public read models
-
-Create:
-
-- `src/services/EventService.ts`
-
-**Responsibilities**
-
-- page-oriented read methods for:
-  - landing page
-  - year page
-  - canonical event page
-- year validation
-- event key validation and normalization
-- visibility enforcement
-- result grouping
-- `primarySection` derivation
-
-**Test after batch 4**
-
-- unit tests pass
-- upcoming event list excludes non-public statuses
-- year page returns historical event with no-results state
-- canonical page returns not found for invalid/non-public keys
-
-### Good Claude Code prompt for batch 4
-
-“Create only the EventService public read methods for the MVFP slice. Use page-oriented return types. Keep route interpretation and page shaping in the service. Do not add controller logic or templates.”
-
----
-
-## Batch 5: controllers, routes, and templates
-
-Create:
-
-- `src/routes/publicRoutes.ts`
-- `src/controllers/eventsController.ts`
-- `src/controllers/healthController.ts`
-- public Handlebars templates
-
-**Responsibilities**
-
-- wire service to route
-- render HTML views
-- return health JSON
-- not-found and safe unavailable handling
-
-**Test after batch 5**
-
-- `/events` renders
-- `/events/year/<seeded-year>` renders
-- `/events/<eventKey>` renders
-- invalid routes and invalid event keys behave safely
-
-### Good Claude Code prompt for batch 5
-
-“Create only the public route wiring, controllers, and Handlebars templates for the MVFP routes. Keep controllers thin and templates logic-light.”
-
----
-
-## Batch 6: integration tests and smoke scripts
-
-Create:
-
-- `tests/integration/events.routes.test.ts`
-- `tests/unit/eventService.test.ts`
-- `scripts/smoke-local.sh`
-
-**Smoke script should check**
+#### Health endpoints
 
 - `/health/live`
 - `/health/ready`
-- `/events`
-- one year page
-- one event with results
-- one event without results
-- one non-public event returning not found
 
-**Test after batch 6**
+#### Tests and smoke scripts
 
-- integration tests pass
-- smoke script passes
-- manual browser verification also passes
+- integration tests
+- local smoke script
+- a smoke-public script has not yet been created for this slice
 
----
+#### Docker parity artifacts
 
-## Batch 7: Docker parity artifacts
+- web image
+- worker image
+- nginx
+- Compose stack
+- production overrides
 
-Create:
+#### Terraform and ops artifacts
 
-- `docker/web/Dockerfile`
-- `docker/worker/Dockerfile`
-- `docker/nginx/nginx.conf`
-- `docker/docker-compose.yml`
-- `docker/docker-compose.prod.yml`
+- terraform/shared
+- terraform/staging
+- terraform/production
+- ops/systemd/footbag.service
 
-### Why the worker exists now
+The original guide strongly emphasized the order: do not build giant infrastructure before the app runs locally and in Docker.
 
-The worker may be minimal for the first public slice, but the project’s runtime shape includes it. For MVFP v0.1, it can start with:
+#### Historical implementation batches
 
-- structured startup/shutdown
-- env validation
-- a placeholder loop or disabled-job posture
-- future hook points for backups, outbox processing, and scheduled jobs
+The original batch plan is still useful as a mental model:
 
-That keeps runtime shape aligned with the design without forcing the entire background-job platform into the first public slice.
+- Batch 1: repository skeleton and toolchain
+- Batch 2: app bootstrap
+- Batch 3: database bootstrap and seed path
+- Batch 4: EventService public read models
+- Batch 5: controllers, routes, and templates
+- Batch 6: integration tests and smoke scripts
+- Batch 7: Docker parity artifacts
+- Batch 8: Terraform and ops artifacts
 
-**Test after batch 7**
+Good historical checkpoints were:
 
-- `docker compose up --build` works
-- nginx fronts the web container
-- public routes and health routes work in containers
-- local database mount behaves as expected
+- `npm install` succeeds
+- `npm run build` works, even if source is still minimal
+- app starts cleanly
+- DB resets cleanly
+- readiness query works
+- route smoke checks pass
+- Docker parity works
+- Terraform fmt and validate pass
 
-### Good Claude Code prompt for batch 7
+### 3.4 File responsibility map
 
-“Create only the Docker and nginx artifacts for this project’s required runtime shape: nginx, web, worker, and local compose. Keep the worker minimal and aligned with the existing architecture rules.”
+The original guide’s file responsibility map remains useful for archaeology:
 
----
 
-## Batch 8: Terraform and ops artifacts
+| File                                | Purpose                                                       |
+| ----------------------------------- | ------------------------------------------------------------- |
+| src/app.ts                          | app construction, view engine, middleware, route registration |
+| src/server.ts                       | process startup/shutdown                                      |
+| src/config/env.ts                   | env loading and validation                                    |
+| src/config/logger.ts                | structured logging                                            |
+| src/db/db.ts                        | SQLite connection module, transaction helper                  |
+| src/db/openDatabase.ts              | connection bootstrap and PRAGMAs                              |
+| src/services/EventService.ts        | public event page shaping and business rules                  |
+| src/controllers/eventsController.ts | route-to-service rendering bridge                             |
+| src/controllers/healthController.ts | health JSON handlers                                          |
+| src/routes/publicRoutes.ts          | public route wiring                                           |
+| src/views/events/*.hbs              | server-rendered HTML                                          |
+| database/seeds/seed_mvfp_v0_1.sql   | deterministic seed scenarios                                  |
+| scripts/reset-local-db.sh           | local DB rebuild                                              |
+| scripts/smoke-local.sh              | local smoke checks                                            |
+| docker/web/Dockerfile               | web runtime image                                             |
+| docker/worker/Dockerfile            | worker runtime image                                          |
+| docker/nginx/nginx.conf             | reverse proxy config                                          |
+| docker/docker-compose.yml           | local parity stack                                            |
+| docker/docker-compose.prod.yml      | deployment overrides                                          |
+| ops/systemd/footbag.service         | production Compose wrapper                                    |
+| terraform/*                         | environment infrastructure definitions                        |
 
-Create:
 
-- `terraform/shared/`
-- `terraform/staging/`
-- `terraform/production/`
-- `ops/systemd/footbag.service`
-- any first-pass deploy helper script you genuinely need
+### 3.5 When to use this section
 
-Keep these small and explicit. Do not create a giant infrastructure tree before the app actually runs locally and in Docker.
+Use Path C when you need:
 
-**Test after batch 8**
+- repo archaeology
+- the original implementation order
+- a rebuild-from-scratch mental model
+- explanation for why certain files exist
+- a way to compare future docs against the original intended assembly sequence
 
-- `terraform fmt` and `terraform validate` pass
-- environment directories are clear
-- service wrapper is readable
-- deployment assumptions match actual runtime containers
+## 4. Path D — AWS staging deployment runbook
 
----
+### 4.1 Purpose
 
-## 25. File responsibility map
+This path takes a developer who already has the app working locally and gets the current slice deployed to staging safely.
 
+It is deliberately operational, ordered, and explicit.
 
-| File                                  | Purpose                                                               |
-| ------------------------------------- | --------------------------------------------------------------------- |
-| `src/app.ts`                          | Express app construction, view engine, middleware, route registration |
-| `src/server.ts`                       | process startup and shutdown                                          |
-| `src/config/env.ts`                   | environment loading and validation                                    |
-| `src/config/logger.ts`                | structured logging                                                    |
-| `src/db/db.ts`                        | one SQLite connection module, PRAGMAs, transaction helper             |
-| `src/db/openDatabase.ts`              | SQLite connection bootstrap, startup PRAGMAs                          |
-| `src/services/EventService.ts`        | public events browse/detail business rules and page shaping           |
-| `src/controllers/eventsController.ts` | route-to-service rendering bridge                                     |
-| `src/controllers/healthController.ts` | liveness/readiness JSON handlers                                      |
-| `src/routes/publicRoutes.ts`          | public route wiring                                                   |
-| `src/views/events/*.hbs`              | server-rendered public HTML templates                                 |
-| `database/seeds/seed_mvfp_v0_1.sql`   | deterministic local seed scenarios                                    |
-| `scripts/reset-local-db.sh`           | local DB rebuild                                                      |
-| `scripts/smoke-local.sh`              | local smoke checks                                                    |
-| `docker/web/Dockerfile`               | web runtime image                                                     |
-| `docker/worker/Dockerfile`            | worker runtime image                                                  |
-| `docker/nginx/nginx.conf`             | reverse proxy config                                                  |
-| `docker/docker-compose.yml`           | local parity stack                                                    |
-| `docker/docker-compose.prod.yml`      | deployment overrides                                                  |
-| `ops/systemd/footbag.service`         | production compose wrapper                                            |
-| `terraform/`*                         | environment infrastructure definitions                                |
+### 4.2 Preconditions
 
+Do not begin AWS work until every item below is green in the same WSL environment you plan to use for deployment work.
 
----
+#### Local application gate
 
-# Part F: AWS bootstrap and Terraform handoff
-
-## 26. The bootstrap principle
-
-A blank AWS account cannot be fully “Terraformed from nothing” without a little initial setup. This guide therefore uses a two-phase model:
-
-### Phase 1: one-time human bootstrap
-
-Do the minimum manual work needed to:
-
-- secure the account
-- establish a named human operator identity
-- install and verify local AWS tooling
-- create the Terraform remote-state foundation
-- prepare Terraform authority handoff
-
-### Phase 2: Terraform-owned steady state
-
-Once the secure baseline exists, Terraform becomes the normal authority for:
-
-- IAM roles and policies used by the project
-- Lightsail instance resources
-- CloudFront distribution resources
-- S3 buckets that belong to the project
-- Parameter Store path scaffolding
-- logging resources
-- other repeatable infrastructure
-
-This order matters because Terraform itself needs a place to store state and credentials to operate safely.
-
----
-
-## 27. Secure the AWS account first
-
-Immediately after creating the AWS account, secure the root user: set a strong password, enable MFA, do not create root access keys, and stop using root for routine work. See Part H Phase 1 for the concrete steps.
-
-That is the project’s baseline posture.
-
----
-
-## 28. Create the first named human operator identity
-
-For the minimum MVFP v0.1 stand-up, use one clear human AWS identity path:
-
-- create one named IAM user for yourself only
-- protect it with MFA
-- use it for Terraform and AWS-side bootstrap
-- do not use it inside the application runtime
-
-Use the name `footbag-operator` consistently throughout this guide.
-
-### Minimum permissions for bootstrap
-
-`footbag-operator` needs **AdministratorAccess** for the bootstrap phase. Terraform creates resources across multiple AWS services. Start with `AdministratorAccess`; scope it down after first successful apply if your organisation requires it.
-
-See Part H Phase 2 for the exact console and CLI steps to create this user and configure the local profile.
-
-Optional later improvement: if you operate under AWS Organizations / IAM Identity Center, you may adapt this guide to SSO-backed human access. That is not required for the minimum stand-up described here.
-
----
-
-## 29. Configure AWS CLI profiles deliberately
-
-For the minimum MVFP v0.1 stand-up, use one explicit local AWS CLI profile:
-
-- `footbag-operator` — the human operator profile used for Terraform and AWS bootstrap work
-
-Use it for:
-
-- Terraform
-- one-time bootstrap actions
-- AWS-side troubleshooting
-- optional Parameter Store reference updates
-
-Do not create host-side runtime profiles for this minimum deployment. The current public Events + Results slice does not need `AWS_PROFILE` inside containers or a source-profile + AssumeRole chain. Those are later-stage concerns, not requirements for getting the current code running on AWS.
-
-Do **not** mount your human profile inside application containers.
-
----
-
-## 29.5 Domain and DNS: deferred for initial test deployment
-
-For the initial test deployment, no custom domain, no Route 53 hosted zone, and no ACM certificate are required. CloudFront automatically assigns a working HTTPS URL on its own domain:
-
-```
-https://d1a2b3c4d5e6f7.cloudfront.net
-```
-
-This URL works immediately after `terraform apply` completes and is sufficient to verify the full stack end-to-end.
-
-The following are **commented out** in the Terraform code for this reason:
-
-- `terraform/staging/acm.tf` — custom TLS certificate (deferred)
-- `terraform/staging/route53.tf` — DNS A/AAAA records (deferred)
-- the `aliases` block in `cloudfront.tf` — custom domain binding (deferred)
-- `cloudfront.tf` uses `cloudfront_default_certificate = true` instead of an ACM cert
-
-The CloudFront URL assigned after `terraform apply` is sufficient to verify the full stack end-to-end. Record it — you will place it into `/srv/footbag/env` as `PUBLIC_BASE_URL`. See Part H Phase 6 to capture it.
-
-If you also want AWS-side reference storage for that value, mirroring it into Parameter Store is optional:
+These must already work:
 
 ```bash
-aws ssm put-parameter \
-  --name /footbag/staging/app/public_base_url \
-  --type String \
-  --value "https://$(terraform output -raw cloudfront_domain)" \
-  --overwrite \
-  --profile footbag-operator
+npm test
+bash scripts/reset-local-db.sh
+npm run dev
 ```
 
-> **Future work — custom domain:** When the project is ready to attach a real domain (e.g. `staging.footbag.org`), the activation checklist is in `terraform/staging/acm.tf`. At that point, `docs/DESIGN_DECISIONS_V0_1.md` and `docs/DEVOPS_GUIDE_V0_1.md` will also need a pass to align with the real domain deployment model.
+And you must already have verified in a browser:
 
----
+- `/events`
+- `/events/year/2025`
+- `/events/event_2025_beaver_open`
+- `/health/live`
+- `/health/ready`
 
-## 30. Create the Terraform remote-state foundation
+If local host-run is not green, AWS will only hide application problems behind more moving parts.
 
-Before the main Terraform stack can own steady-state resources, create the remote-state bucket. The repository includes `terraform/shared/` for exactly this purpose. It uses **local state** (no backend) because it is the thing that creates the backend.
+#### Docker gate
 
-The bucket name produced by this step must be pasted into `backend.tf` in `terraform/staging/` and `terraform/production/` before those directories can be initialized.
+The deployed origin is containerized. Prove that shape locally first.
 
-Back up the resulting `terraform/shared/terraform.tfstate` file somewhere safe (password manager, private notes). It is not committed to git. Losing it is recoverable, but keeping it avoids manual reconciliation.
+These must already work:
 
-### Why this uses local state
+```bash
+docker --version
+docker compose version
+docker compose -f docker/docker-compose.yml up --build
+BASE_URL=http://localhost ./scripts/smoke-local.sh
+docker compose -f docker/docker-compose.yml down
+```
 
-This bucket must exist before the rest of the Terraform configuration can safely use it as a backend. It is intentionally outside the remote-state loop.
+#### Operator tooling gate
 
-See Part H Phases 3 and 4 for the exact commands.
+These must already work before you start Terraform or SSH bootstrap:
 
----
+```bash
+aws --version
+terraform version
+ssh -V
+rsync --version
+```
 
-## 31. Use explicit environment directories for Terraform
+If any of those commands fail, stop and install the missing tool first (see section 1.4).
 
-For this project, prefer:
+#### Credential/profile gate
 
-- `terraform/shared`
-- `terraform/staging`
-- `terraform/production`
+Before running Terraform or AWS CLI commands, confirm the operator profile works:
 
-over a single giant directory plus heavy workspace-driven environment switching.
+```bash
+export AWS_PROFILE=footbag-operator
+aws sts get-caller-identity
+```
 
-Why:
+If profile setup is not working yet, complete section 4.5 first.
 
-- clearer to volunteers
-- clearer review diffs
-- clearer backend keys
-- lower risk of acting on the wrong environment
+### 4.3 Read this before first apply
 
-You can still understand Terraform workspaces, but do not rely on them as the main readability mechanism for long-lived environments here.
+This is a first-deploy path, not a mature production platform.
 
-### Example backend block
+Some defaults are intentionally temporary.
+
+Do not blindly run terraform apply until the pre-apply corrections below are complete.
+
+The fragile parts are:
+
+- first-apply inputs must be honest
+- unsupported CloudFront origin assumptions must be removed
+- monitoring must be gated to signals that actually exist
+- manual host bootstrap is still real in v0.1
+- CloudFront maintenance-page behavior is not truly functional yet
+
+### 4.4 Pre-apply corrections
+
+Complete these in order.
+
+#### 1. MVFP stub worker restart behavior
+
+The worker is an intentional no-op stub in MVFP v0.1. Both `docker/docker-compose.yml` and `docker/docker-compose.prod.yml` set `restart: "no"` for the worker. This prevents the noisy restart loop that would occur if prod Compose said `restart: always`.
+
+Confirm locally before AWS work: run the combined stack and verify the worker container exits cleanly without looping.
+
+#### 2. Lightsail SSH ingress — set your operator CIDRs
+
+`lightsail.tf` restricts port 22 to `var.operator_cidrs`. You must supply real values in `terraform.tfvars` before first apply — never leave this as a placeholder.
+
+Find your current public IP from WSL:
+
+```bash
+curl -s https://checkip.amazonaws.com
+```
+
+Set the value in `terraform.tfvars` — one `/32` entry per authorized operator:
 
 ```hcl
-terraform {
-  backend "s3" {
-    bucket       = "footbag-terraform-state-<unique-suffix>"
-    key          = "staging/global.tfstate"
-    region       = "us-east-1"
-    use_lockfile = true
-    encrypt      = true
-  }
-}
+# Single operator
+operator_cidrs = ["203.0.113.10/32"]
+
+# Multiple operators
+operator_cidrs = [
+  "203.0.113.10/32",   # Alice — home
+  "198.51.100.42/32",  # Bob — office
+]
 ```
 
-### Important current Terraform notes
+Notes on `operator_cidrs`:
 
-- Use the S3 backend with S3 locking (`use_lockfile = true`). Do not start a new project on the older DynamoDB lock-table pattern.
-- `use_lockfile` is stable in Terraform ≥ 1.11 (experimental in 1.10). Both `terraform/staging/providers.tf` and `terraform/shared/providers.tf` are pinned to `>= 1.11` for this reason.
-- **Pin the AWS provider version.** AWS provider v6.0 was released June 2025 with breaking changes. Without a pin, `terraform init` pulls the latest major version. Add `version = "~> 5.0"` in `required_providers` unless you have explicitly reviewed the v6 migration guide.
-- The S3 backend writes a `.tflock` object alongside the state file when `use_lockfile = true`. Your Terraform operator IAM policy must include `s3:PutObject` and `s3:DeleteObject` on `<bucket>/<key-prefix>*.tflock` or `terraform apply` will fail with `AccessDenied` at lock acquisition.
+- `/32` means exactly that one IP address. Do not use broader ranges like `/24` unless you control a stable office block.
+- Operators on a dynamic home IP must update their entry and re-run `terraform apply` when their IP changes.
+- To add or remove an operator: update the list and run `terraform apply` — Terraform replaces only the firewall rule.
+- For temporary access from a different location (travel, etc.): add a second entry for that session, apply, then remove it and re-apply when done.
 
----
+> [!IMPORTANT]
+> The Lightsail firewall is Terraform-managed. Do not change firewall rules in the Lightsail console — console changes are silently overwritten on the next `terraform apply`. To modify SSH access at any point, update `operator_cidrs` in `terraform.tfvars` and run `terraform apply`.
 
-## 32. What becomes Terraform-managed after handoff
-
-After the remote-state foundation and operator identity exist, Terraform should own:
-
-- Lightsail instance resources
-- Lightsail static IP resources if used
-- CloudFront distribution resources
-- project S3 buckets
-- runtime IAM roles and policies
-- Lightsail firewall / SSH allowlist posture where represented in infrastructure
-- logging resources
-- environment scaffolding such as Parameter Store path creation where practical
-
-### What remains human-owned
-
-Some things remain human responsibilities even after handoff:
-
-- root credential custody
-- MFA device management
-- initial secret value entry
-- deployment approvals
-- SSH key custody and host-access use
-- Terraform execution and review
-- final smoke verification
-
-Terraform should own the infrastructure shape. It should not replace human accountability.
-
----
-
-## 33. The Lightsail runtime identity model
-
-For this guide's minimum MVFP v0.1 deployment, the runtime identity story is simple:
-
-- the human AWS CLI identity is `footbag-operator`
-- the running application serves the current public Events + Results slice from local process environment and SQLite
-- the current public slice does **not** require runtime AWS API calls to boot or serve pages
-
-The minimum stand-up does not require:
-
-- a host-side runtime AWS profile
-- `AWS_PROFILE` inside containers
-- a source-profile + AssumeRole chain
-- a runtime IAM user
-- runtime SSM reads
-
-### The one identity separation that matters for this guide
-
-- **human operator identity** (`footbag-operator`) — for Terraform and AWS-side bootstrap
-- **application runtime process** — for serving the site
-
-Do not mount your human AWS CLI profile into containers. But do not invent runtime AWS credential plumbing that the current public slice does not use.
-
-### Lightsail does not support EC2 instance profiles
-
-`terraform/staging/iam.tf` may define IAM roles or instance-profile-shaped resources, but a Lightsail instance does not gain EC2 instance-metadata credentials from them. Treat any such resources as deferred groundwork, not as part of the minimum runtime bootstrap.
-
-### Optional future note
-
-If a later version of the app begins calling AWS APIs at runtime, the first simple step would be direct environment-variable credentials in `/srv/footbag/env`. The fuller source-profile + AssumeRole model is a post-MVFP improvement. Neither is required to stand up the current working public slice.
-
----
-
-# Part G: Parameter Store, Lightsail, CloudFront
-
-## 34. Parameter Store path structure
-
-For this guide's minimum deployment, Parameter Store is optional. Use it only if you want AWS-side reference storage for values that you are also willing to place into `/srv/footbag/env`. The current app does not fetch SSM at startup.
-
-If you choose to use SSM, use a path structure that makes environment and sensitivity obvious.
-
-A simple, readable convention is:
-
-```text
-/footbag/staging/app/...
-/footbag/staging/secrets/...
-/footbag/production/app/...
-/footbag/production/secrets/...
-```
-
-### Examples
-
-```text
-/footbag/staging/app/NODE_ENV
-/footbag/staging/app/PUBLIC_BASE_URL
-/footbag/staging/app/LOG_LEVEL
-/footbag/staging/secrets/SESSION_SIGNING_KEY_ARN
-/footbag/staging/secrets/SMTP_FROM
-```
-
-### Which parameter type to use
-
-- use `String` for ordinary non-secret config
-- use `SecureString` for secrets
-
-### CLI examples
+`**terraform.tfvars` must never be committed to git.** The root `.gitignore` already excludes `*.tfvars` while keeping `*.tfvars.example` tracked. Verify this protection is in place before your first apply:
 
 ```bash
-aws ssm put-parameter \
-  --name /footbag/staging/app/PUBLIC_BASE_URL \
-  --type String \
-  --value https://staging.example.com \
-  --overwrite \
-  --profile footbag-operator
+git check-ignore -v terraform/staging/terraform.tfvars
 ```
 
-```bash
-aws ssm put-parameter \
-  --name /footbag/staging/secrets/SESSION_SIGNING_KEY_ARN \
-  --type SecureString \
-  --value arn:aws:kms:... \
-  --overwrite \
-  --profile footbag-operator
-```
+Expected output: `.gitignore:97:*.tfvars  terraform/staging/terraform.tfvars`. If that command produces no output, the file is not ignored — stop and fix `.gitignore` before proceeding.
 
-```bash
-aws ssm get-parameter \
-  --name /footbag/staging/secrets/SESSION_SIGNING_KEY_ARN \
-  --with-decryption \
-  --profile footbag-operator
-```
+#### 3. CloudFront origin — use DNS, not raw IP, and use the two-pass apply
 
-### Local `.env` versus `/srv/footbag/env` versus Parameter Store
+CloudFront custom origins require a publicly resolvable DNS hostname, not a raw IP address. `cloudfront.tf` uses `var.lightsail_origin_dns` for the origin domain. This creates a chicken-and-egg problem on first deploy because the instance must exist before you can retrieve its DNS name.
 
-- use local `.env` in development
-- use `/srv/footbag/env` as the live runtime config file on the Lightsail host
-- use Parameter Store as optional AWS-side reference storage only
+The two-pass apply pattern:
 
-The rule to remember: for this deployment, `/srv/footbag/env` is what the app actually runs with.
+- pass 1: set `enable_cloudfront = false` in `terraform.tfvars`, apply — creates Lightsail resources only
+- retrieve the instance public DNS name (see section 4.6 step 4)
+- set `lightsail_origin_dns` to that value and `enable_cloudfront = true` in `terraform.tfvars`
+- pass 2: apply the full stack including CloudFront
 
----
+If you skip the two-pass approach and set `enable_cloudfront = true` before the DNS name exists, you will get an unsupported edge-to-origin configuration that may appear to apply successfully but will not work.
 
-## 35. Lightsail provisioning assumptions for this project
+#### 4. Bootstrap shared Terraform state and fill real backend values
 
-For MVFP v0.1, keep Lightsail simple:
+Change: apply `terraform/shared`, create the remote state bucket, and replace the TODO bucket values in `terraform/staging/backend.tf`.
 
-- one Linux instance
-- one Docker Compose runtime stack
-- one static IP if you need a stable origin endpoint
-- minimal persistent storage setup appropriate to the SQLite file and deployment wrapper
-- restricted per-operator SSH access for documented host-admin work
+Why it matters: `terraform/staging` cannot initialize cleanly until the bucket exists and the backend references are real.
 
-The first production-like goal is not auto-scaling. It is a clean, understandable, repeatable single-origin deployment.
+If skipped: `terraform init` fails before you even reach plan/apply.
 
-### What should live on the host
+Done looks like:
 
-For the minimum MVFP v0.1 deployment:
+- `terraform/shared` has been applied successfully
+- the state bucket exists with versioning and encryption
+- `staging/backend.tf` contains the real bucket name and region
+- shared local state has been backed up outside the repo
 
-- Docker Engine and the Docker Compose plugin
-- the application checkout at `/srv/footbag`
-- the live runtime env file at `/srv/footbag/env` (root-owned, mode 600)
-- the SQLite database file at `/srv/footbag/footbag.db` (root-owned, mode 600)
-- the systemd unit that starts Docker Compose from `/srv/footbag`
-- named operator SSH accounts for host access
+#### 5. Monitoring gates
 
-Minimum host layout:
+Keep `enable_cwagent_alarms = false` and `enable_backup_alarm = false` in `terraform.tfvars` for the first deployment. The `cloudfront_5xx` alarm is not gated and will be created. The CWAgent and backup-age alarms are gated because the signals they monitor do not exist yet.
 
-```
-/srv/footbag/            # application checkout
-/srv/footbag/env         # root-owned runtime env file
-/srv/footbag/footbag.db  # SQLite database
-/etc/systemd/system/footbag.service
-```
+Alarms for signals that do not exist are worse than no alarms — they train the team to ignore monitoring. The backup-age alarm will enter ALARM immediately if enabled before the backup job exists and emits metrics.
 
-### What should not live on the host as ad hoc sprawl
+#### 6. Confirm current Terraform operational assumptions
 
-- random copies of secrets
-- unversioned deployment commands
-- unexplained manual edits to container config
+Before first apply, also verify these notes still hold in your staging setup:
 
-### Required footbag.service contract
+- use explicit environment directories: `terraform/shared`, `terraform/staging`, `terraform/production`
+- S3 backend with `use_lockfile = true` requires Terraform >= 1.11 — verify with `terraform version`
+- the AWS provider is pinned to `~> 5.0` in `providers.tf`; AWS provider v6.0 was released June 2025 with breaking changes — do not change this pin unless you have explicitly reviewed the v6 migration guide
+- `**.tflock` IAM requirement:** when `use_lockfile = true` is active, Terraform writes a `.tflock` object alongside the state file; the operator IAM policy must include `s3:PutObject` and `s3:DeleteObject` on `<bucket>/<key-prefix>*.tflock` or `terraform apply` will fail with `AccessDenied` at lock acquisition
 
-The systemd unit must at minimum:
+### 4.5 AWS account/bootstrap setup
 
-- depend on Docker being available (`After=docker.service`, `Requires=docker.service`)
-- use `WorkingDirectory=/srv/footbag`
-- load `EnvironmentFile=/srv/footbag/env`
-- start the stack with `docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d`
-- stop the stack with the matching `docker compose ... down`
+#### Root account hardening
 
-This is how `systemctl restart footbag` turns the code in `/srv/footbag` plus the values in `/srv/footbag/env` into a running stack.
+1. Sign in as the AWS account root user once.
+2. Enable MFA on the root account.
+3. Do **not** create access keys for the root user.
+4. Record root-account recovery ownership and MFA custody according to your team's security practice.
+5. Stop using root after this bootstrap step and continue with a named operator identity.
 
-See Part H Phases 8–13 for the concrete bootstrap and deployment commands.
+#### Create the first named operator identity
 
----
-
-## 36. SSH setup and normal usage
-
-> **Default SSH username for Amazon Linux 2023 on Lightsail:** `ec2-user`. Use this for the first bootstrap login only. Create your named operator account immediately after and use that for all subsequent host work. See Part H Phase 8 for the concrete steps.
-
-### Project SSH standard
-
-- do use named non-root operator accounts with `sudo`
-- do use separate SSH key pairs per operator
-- do restrict port 22 to approved source IPs or CIDR ranges
-- do not share private keys
-- do not use shared shell accounts
-
-One important project rule: the identity used for SSH host access is **not** the same thing as the application’s runtime AWS principal. SSH gets you onto the box; it is not the application’s AWS identity model.
-
----
-
-## 37. CloudFront in front of the Lightsail origin
-
-CloudFront’s job in this project is to front the single origin cleanly.
-
-> For this guide's minimum deployment, ACM is not needed. The CloudFront default `*.cloudfront.net` domain is sufficient to verify the working public slice. ACM becomes relevant only when a custom domain is introduced later.
-
-At minimum, the distribution should:
-
-- point at the Lightsail origin
-- forward the headers/cookies/query behavior the app actually needs
-- support public delivery of the site
-- provide a clean place to define custom error responses
-
-### Maintenance and safe-failure posture
-
-> **v0.1 deferred — maintenance page is not functional.** The CloudFront distribution has no `ordered_cache_behavior` routing `/maintenance.html` to the S3 origin. The custom error response block exists in `cloudfront.tf`, but when the Lightsail origin is down the error response will itself fail to load. The full fix requires an S3 cache behavior, an Origin Access Control (OAC), and an X-Origin-Verify header to restrict direct-to-origin access. This is tracked as a reliability TODO. Do not rely on the maintenance page in v0.1.
-
-For early phases, keep this simple:
-
-- return friendly maintenance/error pages for origin 502/503/504 conditions
-- use short error caching TTLs so recovery is not hidden behind long cache retention
-- keep the maintenance behavior obvious and documented
-
-You do not need an elaborate “maintenance platform” to stand up the first slice.
-
----
-
-## 38. Origin validation and public validation
-
-See Part H Phases 14 and 15 for the concrete validation steps and expected outcomes for both the Lightsail origin and the public CloudFront path.
-
----
-
-# Part H: AWS deployment runbook (v0.1 test deployment)
-
-This runbook covers a complete first-time deployment to AWS from scratch. It assumes:
-- AWS account exists and root MFA is enabled
-- Terraform >= 1.11 and AWS CLI v2 are installed locally
-- You have the repo checked out locally and all code works locally
-
-> **Scope:** CloudFront default `*.cloudfront.net` URL only. No custom domain, no ACM certificate, no runtime SSM fetch, and no runtime IAM user are required for this minimum deployment.
-
----
-
-### Phase 1: AWS root account hardening
-
-1. Sign in as root. Enable MFA on the root account.
-2. Do not create access keys for root.
-3. Proceed to Phase 2 to create an IAM operator user.
-
----
-
-### Phase 2: Create IAM operator user
-
-Use the **AWS Console** to create this user — you have no CLI credentials yet.
+Use the **AWS Console** to create `footbag-operator` — you have no working CLI credentials yet.
 
 1. Sign in to the AWS Console as root.
-2. Go to IAM → Users → Create user. Name: `footbag-operator`.
-3. Attach policy: `AdministratorAccess` (scope down post-launch if required).
-4. Create access keys: IAM → Users → footbag-operator → Security credentials → Create access key. Choose "CLI". Save `AccessKeyId` and `SecretAccessKey` — shown once only.
+2. Go to **IAM → Users → Create user**.
+3. Create the user: `footbag-operator`.
+4. Enable MFA for that user.
+5. Attach `AdministratorAccess` for the bootstrap phase.
+6. Create CLI access keys: IAM → Users → footbag-operator → Security credentials → Create access key → choose "CLI" use case.
+7. Save the access key ID and secret access key immediately — AWS only shows the secret once.
 
-Configure your local AWS CLI profile:
+Configure the local AWS CLI profile:
 
 ```bash
 aws configure --profile footbag-operator
 # Enter: AccessKeyId, SecretAccessKey, region (e.g. us-east-1), output format (json)
-export AWS_PROFILE=footbag-operator
 
-# Verify
+export AWS_PROFILE=footbag-operator
 aws sts get-caller-identity
 ```
 
-> **Bootstrap shortcut — NS-1 (broad IAM permissions):** `AdministratorAccess` is used here because Terraform touches many AWS services during bootstrap and scoping permissions in advance is impractical. After the first successful `terraform apply`, replace `AdministratorAccess` with a policy scoped to the services Terraform actually manages (Lightsail, CloudFront, S3, IAM, KMS, SSM, CloudWatch, SNS). See NS-1.
+> [!WARNING]
+> This is an intentional bootstrap shortcut, not the desired durable state.
+>
+> - Scope down `AdministratorAccess` after first successful apply (see Path E, section 5.2).
+> - Remove long-lived access keys after first deployment (see Path E, section 5.2).
 
-> **Bootstrap shortcut — NS-2 (long-lived access keys):** IAM access keys are long-lived static credentials. Once the stack is stable, rotate to short-lived credentials: either `aws sts get-session-token` with MFA enforcement, or AWS IAM Identity Center (SSO), which issues temporary tokens automatically. See NS-2.
+> [!NOTE]
+> `export AWS_PROFILE=footbag-operator` applies only to the current shell session. If you open a new terminal for any later phase, re-run the export before any Terraform or AWS CLI commands. This is a common source of mid-bootstrap failures.
 
-> **Session note:** `export AWS_PROFILE=footbag-operator` applies only to the current shell session. If you open a new terminal for any later phase, re-run this export before running Terraform or AWS CLI commands.
+#### Domain and DNS for first deployment
 
----
+For this runbook, a custom domain is deferred.
 
-### Phase 3: Bootstrap the Terraform state bucket
+The minimum successful deployment uses the default CloudFront `*.cloudfront.net` URL. ACM and Route 53 come later.
 
-The state bucket is created once and shared by all environments. It uses local state.
+#### Bootstrap remote Terraform state
 
-> **Session check:** Confirm `AWS_PROFILE=footbag-operator` is set before running any Terraform command. If you are in a new terminal session since Phase 2, re-run `export AWS_PROFILE=footbag-operator` first.
+Bootstrap the remote-state bucket before initializing `terraform/staging`. This directory intentionally uses local state because it is the thing that creates the remote backend.
+
+From the repo root:
 
 ```bash
 cd terraform/shared
-# Create terraform.tfvars — fill in your values (variables.tf has TODO defaults as hints)
+
 cat > terraform.tfvars <<EOF
 aws_account_id      = "123456789012"
 state_bucket_suffix = "a1b2c3d4"
 EOF
+
 terraform init
 terraform validate
 terraform apply
-# Note the output: terraform_state_bucket_name (e.g. footbag-terraform-state-a1b2c3d4)
 ```
 
----
+After the shared apply:
 
-### Phase 4: Configure staging backend and variables
+- terraform output -raw terraform_state_bucket_name
+- record the real state-bucket name from the Terraform output (format: `footbag-terraform-state-<suffix>`)
+- paste that bucket name into `terraform/staging/backend.tf`, replacing the `TODO-set-unique-suffix` placeholder
+- back up `terraform/shared/terraform.tfstate` immediately: cp terraform.tfstate ~/footbag-shared-tfstate-backup.json
+
+#### What becomes Terraform-managed after handoff
+
+After bootstrap, Terraform should own:
+
+- Lightsail resources
+- static IP resources
+- CloudFront resources
+- project S3 buckets
+- runtime IAM scaffolding
+- firewall posture where represented in infra
+- logging/alarm resources
+- Parameter Store path scaffolding where practical
+
+Human-owned responsibilities remain:
+
+- root credential custody
+- MFA device management
+- initial secret-value entry
+- Terraform execution/review
+- SSH key custody
+- deployment approvals
+- final smoke verification
+
+#### Parameter Store path structure
+
+Parameter Store is optional in this minimum deployment, but if you use it as AWS-side reference storage, use a readable convention:
+
+/footbag/staging/app/...
+/footbag/staging/secrets/...
+/footbag/production/app/...
+/footbag/production/secrets/...
+
+Examples:
+
+/footbag/staging/app/NODE_ENV
+/footbag/staging/app/PUBLIC_BASE_URL
+/footbag/staging/app/LOG_LEVEL
+/footbag/staging/secrets/ORIGIN_VERIFY_SECRET
+
+Remember: the running app reads /srv/footbag/env, not SSM.
+
+#### Lightsail runtime identity model
+
+For the current public slice:
+
+- `footbag-operator` is the human AWS/Terraform identity
+- the running app serves pages from process env plus SQLite
+- the slice does not require runtime AWS API calls
+
+Do not mount your human AWS CLI profile into containers.
+Do not invent runtime IAM plumbing the current slice does not use.
+
+Also note: Lightsail does not support EC2 instance profiles. Any instance-profile-shaped resources in Terraform are deferred groundwork, not minimum runtime bootstrap.
+
+### 4.6 Terraform staging apply
+
+> **Terraform version:** Terraform >= 1.11 is required. Verify before proceeding:
+>
+> ```bash
+> terraform version
+> ```
+
+Use this sequence.
+
+#### 1. Prepare shared state first
+
+```bash
+cd terraform/shared
+cat > terraform.tfvars <<EOF
+aws_account_id      = "123456789012"
+state_bucket_suffix = "a1b2c3d4"
+EOF
+
+terraform init
+terraform validate
+terraform apply
+```
+
+Record the state bucket output.
+
+#### 2. Prepare staging values
+
+In `terraform/staging/backend.tf`, replace the placeholder bucket and region values.
+
+In `terraform/staging/terraform.tfvars`, fill at least:
+
+cat ~/.ssh/id_ed25519.pub and then save the result for ssh_public_key below
+
+```hcl
+aws_account_id         = "123456789012"
+state_bucket_suffix    = "<same suffix as shared>"
+ssh_public_key         = "<contents of ~/.ssh/id_ed25519.pub>"
+alarm_email            = "you@example.com"
+operator_cidrs         = ["<your-ip>/32"]  # see §4.4 correction 2 for multi-operator format
+# domain_name and route53_zone_id remain empty for test deployment
+
+# Two-pass CloudFront bootstrap — critical for first apply pass:
+enable_cloudfront    = false
+lightsail_origin_dns = ""
+
+# Monitoring gates — leave false until signals exist:
+enable_cwagent_alarms = false
+enable_backup_alarm   = false
+```
+
+`terraform.tfvars` is excluded from git by `*.tfvars` in `.gitignore`. Never commit this file — it will contain real IP addresses.
+
+#### 3. Initialize and validate
 
 ```bash
 cd terraform/staging
-```
-
-Edit `backend.tf` — replace the two TODO placeholders with:
-- the bucket name from Phase 3
-- the same region you used
-
-Edit `terraform.tfvars` (copy from `terraform.tfvars.example`):
-
-```hcl
-aws_account_id     = "123456789012"
-state_bucket_suffix = "<same suffix as shared>"
-ssh_public_key     = "<contents of your ~/.ssh/id_ed25519.pub>"
-alarm_email        = "you@example.com"
-# domain_name and route53_zone_id — leave as "" for test deployment
-```
-
----
-
-### Phase 5: Terraform init, validate, plan
-
-```bash
 terraform init
 terraform validate
-terraform plan -out=tfplan
-# Review the plan — expected: ~40 resources to create
 ```
 
----
+#### 4. First apply pass for Lightsail, if needed
 
-### Phase 6: Terraform apply
+With `enable_cloudfront = false` set in `terraform.tfvars`, the first apply creates Lightsail resources only. After it completes, retrieve the instance public DNS name:
+
+```bash
+INSTANCE_NAME=$(terraform output -raw lightsail_instance_name)
+aws lightsail get-instance \
+  --instance-name "$INSTANCE_NAME" \
+  --query 'instance.publicDnsName' \
+  --output text \
+  --profile footbag-operator
+```
+
+Set that DNS name as `lightsail_origin_dns` and set `enable_cloudfront = true` in `terraform.tfvars`, then proceed to step 5.
+
+#### 5. Full plan and review
+
+```bash
+terraform plan -out=tfplan
+```
+
+Review the plan carefully. Confirm:
+
+- Lightsail and static IP are being created
+- port 22 uses `operator_cidrs`, not `0.0.0.0/0`
+- CloudFront is using DNS, not raw IP
+- gated alarms are not being created
+- the CloudFront 5xx alarm is being created
+- no fake `user_data` bootstrap exists
+
+#### 6. Apply
 
 ```bash
 terraform apply tfplan
 ```
 
-Note these outputs after apply completes:
+#### 7. Record outputs immediately
+
+Capture and keep these in operator notes:
 
 ```bash
 terraform output lightsail_static_ip
-terraform output cloudfront_domain       # e.g. d1abc123.cloudfront.net
+terraform output lightsail_instance_name
+terraform output cloudfront_domain
+terraform output cloudfront_distribution_id
+terraform output snapshots_bucket_name
+terraform output dr_bucket_name
+terraform output maintenance_bucket_name
+terraform output kms_key_arn
+terraform output alarm_topic_arn
 ```
 
----
+`lightsail_instance_name` is needed for the `aws lightsail get-instance` command used to retrieve the public DNS hostname for the two-pass CloudFront setup.
 
-### Phase 7: Record the CloudFront URL
+#### 8. Confirm the alarm subscription and CloudFront status
 
-Capture the CloudFront URL now. You will place it into `/srv/footbag/env` later as `PUBLIC_BASE_URL`.
-
-```bash
-CF_DOMAIN=$(terraform output -raw cloudfront_domain)
-echo "$CF_DOMAIN"
-```
-
-If you also want AWS-side reference storage for that value, mirroring it into Parameter Store is optional:
+- confirm the SNS email subscription
+- wait for the CloudFront distribution status to show `Deployed` before you test through the edge — CloudFront takes **15–30 minutes** to propagate globally after apply; the `*.cloudfront.net` URL is assigned immediately but returns errors during propagation
 
 ```bash
-aws ssm put-parameter \
-  --name "/footbag/staging/app/public_base_url" \
-  --value "https://$CF_DOMAIN" \
-  --type String \
-  --overwrite \
+CF_ID=$(terraform output -raw cloudfront_distribution_id)
+aws cloudfront get-distribution \
+  --id "$CF_ID" \
+  --query 'Distribution.Status' \
+  --output text \
   --profile footbag-operator
 ```
 
-> **CloudFront propagation delay:** After `terraform apply`, CloudFront takes **15–30 minutes** to deploy globally. The `*.cloudfront.net` URL is assigned immediately but returns errors during propagation. Do **not** attempt Phase 15 until the distribution status shows **Deployed**. Check in the AWS Console → CloudFront → Distributions → Status column, or poll with:
-> ```bash
-> aws cloudfront get-distribution --id $(terraform output -raw cloudfront_distribution_id) \
->   --query 'Distribution.Status' --output text --profile footbag-operator
-> ```
-> Wait for `Deployed` before proceeding to Phase 15.
+### 4.7 Host bootstrap
 
----
+Once infra exists, bootstrap the host in this order.
 
-### Phase 8: SSH into the Lightsail instance and create your named operator account
+#### 1. First SSH login and real operator account
+
+First login:
 
 ```bash
 LIGHTSAIL_IP=$(terraform output -raw lightsail_static_ip)
 ssh -i ~/.ssh/id_ed25519 ec2-user@$LIGHTSAIL_IP
 ```
 
-> Replace `~/.ssh/id_ed25519` with the path to the private key whose public half you placed in `ssh_public_key` in `terraform.tfvars`. SSH will only attempt the correct key automatically if it is at a default location. If login fails with `Permission denied (publickey)`, specify the key path explicitly with `-i`.
-
-> **Bootstrap shortcut — NS-6 (ec2-user initial access):** `ec2-user` is the Lightsail default account. It is used here only for first-time bootstrap. Create your named operator account immediately (next step) and stop using `ec2-user` after that. The long-term plan is to disable `ec2-user` login entirely once your named account is confirmed working. See NS-6.
-
-**Immediately after first login**, create your named operator account before doing anything else. Replace `yourname` with your actual operator username:
+Immediately create your named operator account:
 
 ```bash
 sudo useradd -m -G wheel yourname
@@ -2194,110 +1472,138 @@ sudo chmod 700 /home/yourname/.ssh
 sudo chmod 600 /home/yourname/.ssh/authorized_keys
 ```
 
-In the Lightsail console, restrict port 22 to your source IP or CIDR now.
-
-Verify your named account works before closing the `ec2-user` session:
+Then verify in a new terminal:
 
 ```bash
-# In a new terminal
 ssh -i ~/.ssh/id_ed25519 yourname@$LIGHTSAIL_IP
-sudo whoami   # should return: root
+sudo whoami
 ```
 
-From this point, use your named account for all remaining phases.
+`sudo whoami` must return `root` before you stop using `ec2-user`.
 
----
+> [!IMPORTANT]
+> The Lightsail firewall is Terraform-managed via `operator_cidrs`. Do not use the Lightsail console to modify firewall rules — console changes are silently overwritten on the next `terraform apply`. To update SSH access at any point, modify `operator_cidrs` in `terraform.tfvars` and run `terraform apply`.
 
-### Phase 9: Install Docker on the host
+#### 2. Install Docker and required packages
+
+On the host:
 
 ```bash
 sudo dnf install -y dnf-plugins-core
 sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin sqlite
+sudo dnf install -y \
+  docker-ce \
+  docker-ce-cli \
+  containerd.io \
+  docker-buildx-plugin \
+  docker-compose-plugin \
+  sqlite \
+  rsync
 sudo systemctl enable --now docker
 sudo usermod -aG docker yourname
-# Log out and back in for group membership to take effect
 ```
 
-> **Bootstrap shortcut — manual Docker install:** Docker is installed here manually via SSH because `lightsail.tf` has a placeholder `user_data` script (`echo "bootstrap placeholder"`). The long-term plan is to replace that placeholder with a real bootstrap script that installs Docker, creates the `/srv/footbag` directory layout, and sets up the systemd service at instance launch time — eliminating the need for manual SSH in Phases 9–12. See `terraform/staging/lightsail.tf` TODO comment.
+Log out and back in so group membership takes effect.
+Verify:
+  docker --version
+  docker compose version
+  sqlite3 --version
+  All three must return version strings.
 
----
+> [!IMPORTANT]
+> Do not assume Amazon Linux 2023 default repos provide the right Docker packages. Add the Docker CE repo first.
 
-### Phase 10: Create the host env file
-
-Create the live runtime config file the app will actually run with:
+#### 3. Prepare /srv/footbag and the live env file
 
 ```bash
 sudo mkdir -p /srv/footbag
 sudo tee /srv/footbag/env > /dev/null <<EOF
 NODE_ENV=production
+LOG_LEVEL=info
 FOOTBAG_DB_PATH=/srv/footbag/footbag.db
-PUBLIC_BASE_URL=https://<cloudfront_domain from Phase 6>
+PUBLIC_BASE_URL=https://<cloudfront_domain from terraform output>
 EOF
 sudo chown root:root /srv/footbag/env
 sudo chmod 600 /srv/footbag/env
 ```
 
-These are the required values for this guide's minimum deployment:
+Required values in this minimum deployment:
 
-| Variable | Required | Purpose |
-|---|---|---|
-| `NODE_ENV` | yes | run the app in production mode |
-| `FOOTBAG_DB_PATH` | yes | point the app at the host SQLite file |
-| `PUBLIC_BASE_URL` | yes | generate correct public URLs |
+- `NODE_ENV`
+- `LOG_LEVEL`
+- `FOOTBAG_DB_PATH`
+- `PUBLIC_BASE_URL`
 
-Do not add runtime AWS credentials here. They are not needed for the current public slice.
+Do not add runtime AWS credentials for the current public slice. They are not needed.
 
-> **Bootstrap shortcut — NS-9 (manual env file):** `/srv/footbag/env` is created and edited by hand on the host. This is the simplest working approach for v0.1. The long-term plan is a startup script (wired into the `footbag.service` `ExecStartPre` directive) that pulls values from AWS Systems Manager Parameter Store and writes `/srv/footbag/env` automatically before the Compose stack starts. That removes the need to SSH in just to update a config value. See NS-9.
+If you mirror values into Parameter Store for reference, keep the same values under the `/footbag/staging/app/...` path structure, but remember `/srv/footbag/env` is the live runtime source of truth.
 
----
+#### 4. Copy application files
 
-### Phase 11: Deploy app files to host
-
-From your local machine, copy the repo to a staging path in your named operator's home directory:
+From your local machine:
 
 ```bash
-LIGHTSAIL_IP=<ip from terraform output>
 rsync -av --delete \
-  --exclude=node_modules --exclude=.git \
-  --exclude='*.db' --exclude='*.db-shm' --exclude='*.db-wal' \
+  --exclude=node_modules \
+  --exclude=.git \
+  --exclude='*.db' \
+  --exclude='*.db-shm' \
+  --exclude='*.db-wal' \
   ./ yourname@$LIGHTSAIL_IP:~/footbag-release/
 ```
 
-> **Bootstrap shortcut — NS-7 (build on host, deploy via rsync):** Files are transferred directly from your local machine and images are built on the host. This requires no container registry or CI pipeline. The long-term plan is to build images in CI (e.g. GitHub Actions), push to a registry (AWS ECR), and have the host do `docker compose pull` instead of `docker compose build`. That separates build from deploy, enables versioned rollbacks, and removes the need for build tools on the host. See NS-7.
-
-Then on the host, promote the staged copy into the root-owned runtime path:
+Then on the host:
 
 ```bash
-sudo mkdir -p /srv/footbag
 sudo rsync -a --delete ~/footbag-release/ /srv/footbag/
 sudo chown -R root:root /srv/footbag
+sudo chown root:root /srv/footbag/env
+sudo chmod 600 /srv/footbag/env
 ```
 
----
+> [!IMPORTANT]
+> Promote from a user-owned staging path into `/srv/footbag`. Do not copy directly into the root-owned runtime path from your laptop.
 
-### Phase 12: Bootstrap the database
+#### 5. Initialize the database
 
-Do this **only on the first deploy**.
+On first deploy only:
 
 ```bash
-cd /srv/footbag
-sudo sqlite3 /srv/footbag/footbag.db < database/schema_v0_1.sql
-# Optional smoke-test seed:
-# sudo sqlite3 /srv/footbag/footbag.db < database/seeds/seed_mvfp_v0_1.sql
+sudo sqlite3 /srv/footbag/footbag.db < /srv/footbag/database/schema_v0_1.sql
+```
+
+Optional but strongly recommended for first staging smoke verification:
+
+```bash
+sudo sqlite3 /srv/footbag/footbag.db < /srv/footbag/database/seeds/seed_mvfp_v0_1.sql
+```
+
+Then lock down the DB file:
+
+```bash
 sudo chown root:root /srv/footbag/footbag.db
 sudo chmod 600 /srv/footbag/footbag.db
 ```
 
-> **Runtime user note:** The web container runs as root (no `USER` directive in the Dockerfile) and the systemd unit runs as root (no `User=` directive). This means the bind-mounted root-owned SQLite file and any WAL/SHM sidecar files it creates are writable as deployed. If you later add a non-root `USER` to the Dockerfile, update the host ownership and mode on `/srv/footbag/footbag.db` and `/srv/footbag/` to match that UID.
+On later deploys, reuse the existing DB file.
 
-On later deploys, reuse the existing database file.
+> [!NOTE]
+> **Runtime user note:**
+>
+> If the web container runs as root and systemd runs as root, the bind-mounted root-owned SQLite file and any WAL/SHM sidecar files are writable as deployed. If you later add a non-root `USER` to the Dockerfile, update host ownership and modes on `/srv/footbag/` and `/srv/footbag/footbag.db` to match.
 
-> **Bootstrap shortcut — NS-5 (no automated DB backup):** The database file at `/srv/footbag/footbag.db` has no automated backup at this point. A host failure or accidental deletion is unrecoverable. After confirming the stack is stable, add a cron job or systemd timer to copy the file to the S3 snapshots bucket on a scheduled interval (use `sqlite3 .backup` for a safe online copy). See NS-5.
+#### 6. Install and verify footbag.service
 
----
+Required `footbag.service` contract:
 
-### Phase 13: Build and start the app
+- `After=docker.service`
+- `Requires=docker.service`
+- `WorkingDirectory=/srv/footbag`
+- `EnvironmentFile=/srv/footbag/env`
+- starts with `docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --detach --remove-orphans`
+- stops with the matching `docker compose ... down`
+
+### 4.8 Deploy and start application
 
 On the host:
 
@@ -2310,13 +1616,31 @@ sudo systemctl enable --now footbag
 sudo systemctl status footbag
 ```
 
-> **Expected warning during build:** Docker Compose reads `docker-compose.prod.yml` while building and will print `WARN: The "PUBLIC_BASE_URL" variable is not set. Defaulting to a blank string.` This is normal — `PUBLIC_BASE_URL` is only needed at container start time, which systemd handles via `EnvironmentFile=/srv/footbag/env`. The build succeeds regardless.
+The systemd service starts the stack with `up --detach --remove-orphans` (matching the actual `footbag.service` file).
 
-> **Bootstrap shortcut — NS-7 (images built on host):** Images are built directly on the Lightsail host from source. This is the simplest first-deployment approach but requires build tools on the host and is slow. The long-term plan is to build in CI and distribute via a container registry (AWS ECR), so the host only needs to pull pre-built images. See NS-7.
+Expected behavior:
 
-At this point, the `footbag` systemd unit turns the code in `/srv/footbag` plus the values in `/srv/footbag/env` into the running Compose stack.
+- `footbag.service` may show `active (exited)` if it is a `Type=oneshot` unit with `RemainAfterExit=yes`
+- nginx and web containers should be running
+- the worker should exist but be in `Exited (0)` state for MVFP v0.1 (after completing pre-apply correction 1)
+- the worker should not be restart-looping
 
-On later deploys:
+Useful checks:
+
+```bash
+docker ps
+docker compose \
+  -f /srv/footbag/docker/docker-compose.yml \
+  -f /srv/footbag/docker/docker-compose.prod.yml \
+  logs web --tail=20
+sudo systemctl restart footbag
+sudo systemctl status footbag
+```
+
+> [!NOTE]
+> During build, Compose may warn that PUBLIC_BASE_URL is unset. That is expected. The variable is needed at container start time, and systemd supplies it from /srv/footbag/env.
+
+On later deploys (after the first):
 
 ```bash
 cd /srv/footbag
@@ -2324,575 +1648,416 @@ docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml bu
 sudo systemctl restart footbag
 ```
 
----
+### 4.9 Verification
 
-### Phase 14: Smoke test the origin directly
+Keep verification ordered.
 
-Test through nginx on port 80 (the web container exposes port 3000 only within the Docker network; nginx is the host-facing entry point):
+#### 1. Verify the origin directly
 
-```bash
-curl -i http://localhost/health/live
-curl -i http://localhost/health/ready
-curl -i http://localhost/events
-curl -i http://localhost/events/year/2025
-curl -i http://localhost/events/event_2025_beaver_open
-curl -i http://localhost/events/event_2026_spring_classic
-curl -i http://localhost/events/does_not_exist
-```
-
-Expected: health and event routes return 200; the spring classic returns 200 with the no-results state; the invalid key returns 404.
-
----
-
-### Phase 15: Verify through CloudFront
-
-> **Wait for CloudFront deployment before testing.** CloudFront takes 15–30 minutes to propagate after `terraform apply`. Confirm the distribution status is **Deployed** (AWS Console → CloudFront → Distributions, or the `aws cloudfront get-distribution` poll command from Phase 7) before proceeding. Requests to the `*.cloudfront.net` URL return errors until propagation is complete.
-
-> **Bootstrap shortcut — NS-4 (maintenance page not functional):** The CloudFront custom error responses for 502/503 reference `/maintenance.html` from an S3 origin, but that S3 origin has no Origin Access Control (OAC) configured. If the Lightsail origin is down, the error response itself will also fail. This is a known v0.1 gap. Do not rely on the maintenance page. The full fix requires an OAC, an S3 cache behavior routing `/maintenance.html` to the S3 origin, and an `X-Origin-Verify` secret to prevent direct-to-origin bypass. See NS-4.
-
-In a browser or with curl:
-
-```
-https://<cloudfront_domain>/health/live
-https://<cloudfront_domain>/health/ready
-https://<cloudfront_domain>/events
-https://<cloudfront_domain>/events/year/2025
-https://<cloudfront_domain>/events/event_2025_beaver_open
-https://<cloudfront_domain>/events/event_2026_spring_classic
-https://<cloudfront_domain>/events/does_not_exist
-```
-
-Confirm:
-
-- health endpoints return success
-- `/events` loads with correct HTML and styling
-- the year archive page loads
-- the event detail page with results loads
-- the event detail page without results renders the no-results state correctly
-- the invalid event key returns 404
-- no stack traces or internal details appear in responses
-
----
-
-# Part I: Verification, troubleshooting, deferred work
-
-## 39. Local smoke checks
-
-Create `scripts/smoke-local.sh` and make it executable.
-
-A good local smoke script should verify:
+Use the local smoke script against the Lightsail host on port 80:
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-BASE_URL="${BASE_URL:-http://localhost:3000}"
-
-curl -fsS "$BASE_URL/health/live" >/dev/null
-curl -fsS "$BASE_URL/health/ready" >/dev/null
-curl -fsS "$BASE_URL/events" >/dev/null
-curl -fsS "$BASE_URL/events/year/2025" >/dev/null
-curl -fsS "$BASE_URL/events/event_2025_beaver_open" >/dev/null
-curl -fsS "$BASE_URL/events/event_2026_spring_classic" >/dev/null
-
-echo "Local smoke checks passed."
+BASE_URL=http://$LIGHTSAIL_IP ./scripts/smoke-local.sh
 ```
 
-Also verify manually in the browser:
+All documented checks must pass.
 
-- the landing page shows upcoming events
-- archive years exist
-- the year page shows the full selected year
-- events with no result rows render clearly
-- non-public events do not leak into the public slice
-
----
-
-## 40. Container smoke checks
-
-After Docker parity artifacts exist:
-
-```bash
-docker compose up --build
-```
-
-Then repeat the same smoke script against the container-exposed port.
-
-Also verify:
-
-- nginx serves the app correctly
-- DB mount path is correct
-- container restarts are clean
-- the worker container starts cleanly even if it is minimal
-
----
-
-## 41. Public deployment smoke checks
-
-Create `scripts/smoke-public.sh` and run it against the public URL after deployment.
-
-Check:
+Also confirm manually:
 
 - `/health/live`
 - `/health/ready`
 - `/events`
-- a known year page
-- a known canonical event page with results
-- a known canonical event page without results
-- one invalid event key returning not found
+- `/events/year/2025`
 
-Then do a human browser pass.
+#### 2. Verify through CloudFront
 
-For the first deployment, do not skip the human pass.
-
----
-
-## 42. Common implementation mistakes
-
-### Architecture mistakes
-
-- adding Prisma or another ORM
-- adding a repository layer
-- pushing business rules into controllers
-- pushing business rules into templates
-- creating separate public detail and results routes
-- inventing an `event_slug` column
-
-### SQLite mistakes
-
-- forgetting `PRAGMA foreign_keys = ON` on every connection
-- using `datetime('now')` instead of the required UTC ISO format
-- doing async work inside a transaction
-- creating a generic retry loop instead of surfacing temporary-unavailable behavior cleanly
-
-### Public-slice contract mistakes
-
-- exposing `draft` or `canceled` events publicly
-- paginating the year archive
-- hiding historical events that lack result rows
-- treating no-results historical pages as a different route
-
-### WSL / Docker mistakes
-
-- storing the repo under `/mnt/c/...`
-- assuming Docker parity is optional
-- debugging only in host-run mode and never validating the container shape
-
-### Node.js / dependency mistakes
-
-- using `better-sqlite3` v9 on Node 24 — it does not compile; the native binding changed; pin to `^12.6.2` or later
-- placing any `import` before `import 'dotenv/config'` in `server.ts` — any module imported first that reads `process.env` will see an empty environment because dotenv has not run yet
-- using lazy `require()` inside `app.ts` to import route modules — breaks Vitest's ESM transform; use static `import` at the top of the file
-- forgetting that `db.ts` opens the SQLite connection at module-load time — `FOOTBAG_DB_PATH` must be in `process.env` before the first transitive import of `db.ts` occurs
-
-### AI-workflow mistakes
-
-- asking Claude Code to build the entire project in one shot
-- accepting code without reading the diff
-- letting AI invent infrastructure you did not ask for
-- letting AI choose abstractions that violate the documented architecture
-
----
-
-## 43. Common AWS/bootstrap mistakes
-
-- continuing to use the root user after bootstrap
-- creating or keeping root access keys
-- using shared AWS users
-- assuming the current public slice needs runtime AWS credentials when it does not
-- assuming Lightsail gives you an EC2 instance-profile story identical to EC2
-- leaving SSH broadly exposed instead of restricting it to approved source IPs or CIDRs
-- updating Parameter Store and expecting the running app to change without also updating `/srv/footbag/env`
-- copying files directly into a root-owned `/srv/footbag` without using a staging path and sudo promotion
-- mixing staging and production state in the same Terraform path
-- creating Terraform state storage without versioning or encryption
-- relying on old Terraform DynamoDB locking patterns in a new setup
-- running `sudo dnf install -y docker-compose-plugin` without first adding the Docker CE repo — the package is not in AL2023 default repos and the install will silently fail or error
-- running `docker compose pull` instead of `docker compose build` when using a locally-built image — there is no registry to pull from in v0.1
-
----
-
-## 44. First-success criteria
-
-You have reached first success when all of the following are true:
-
-### Local host-run success
-
-- `npm run dev` starts the app
-- local DB bootstrap works
-- `/events`, `/events/year/:year`, `/events/:eventKey`, `/health/live`, and `/health/ready` all behave correctly
-- seeded scenarios prove:
-  - upcoming event
-  - completed event with results
-  - completed event without results
-  - non-public event not found
-
-### Docker parity success
-
-- `docker compose up --build` works
-- nginx, web, and worker all start
-- the same smoke paths work through the container stack
-
-### AWS/bootstrap success
-
-- root is hardened
-- the `footbag-operator` AWS CLI profile works
-- SSH to the Lightsail host works with a named operator account
-- Terraform remote state exists
-- Terraform configuration validates and applies
-- the CloudFront domain is known
-- `/srv/footbag/env` exists on the host with the required values
-- `/srv/footbag/footbag.db` exists on the host
-
-### First public deployment success
-
-- the Lightsail origin is up
-- CloudFront fronts it on the default `*.cloudfront.net` URL
-- `/health/live` and `/health/ready` work through both the origin and CloudFront
-- `/events`, the year page, the event detail page with results, and the event detail page without results all work
-- one invalid event key returns 404
-- the host can rebuild the images and restart the stack cleanly
-- public smoke checks pass
-
-That is enough to count as a successful onboarding and first-slice implementation baseline.
-
----
-
-## 45. Deferred work
-
-The following are intentionally deferred and must not block first public success for this slice:
-
-- member login and session flows
-- Stripe
-- SES-driven full email system
-- admin UI
-- richer readiness composition
-- backup-age readiness gates
-- disaster-recovery drills
-- broader media and gallery implementation
-- broader club/member/admin features
-- post-launch operational polish not required to stand up the first public slice
-
-Deferring these is not cutting corners. It is keeping the first slice proportionate.
-
----
-
-## 46. Human, engineer, and AI handoff boundaries
-
-## Human engineer
-
-Owns:
-
-- reading and understanding the authority docs
-- deciding the implementation batch sequence
-- reviewing diffs
-- running the commands
-- inspecting SQL and templates
-- operating AWS
-- applying Terraform
-- validating smoke paths
-- making deployment decisions
-
-## System administrator / operator role
-
-In a small project this may be the same human, but the responsibilities are distinct:
-
-- account hardening
-- MFA posture
-- AWS identity management
-- SSH posture
-- host-side credential custody for future runtime API needs
-- production rollout approval
-- recovery execution if needed
-
-## AI assistant
-
-May help with:
-
-- drafting files
-- proposing implementations
-- generating tests
-- producing repeated boilerplate
-- summarizing architecture rules
-
-Must not be treated as the owner of:
-
-- security posture
-- AWS account operations
-- Terraform authority
-- correctness judgment
-- final architectural decisions
-
----
-
-## 47. A practical first-week plan for a new contributor
-
-### Day 1
-
-- install tools in Windows + WSL
-- read the five authority docs
-- create the repository skeleton
-- create project AI rule files
-
-### Day 2
-
-- add app bootstrap, DB bootstrap, and seeds
-- prove the local database reset flow
-- prove health endpoints
-
-### Day 3
-
-- implement EventService public read models
-- add route wiring and templates
-- prove local smoke checks
-
-### Day 4
-
-- add tests and Docker parity artifacts
-- prove container smoke checks
-
-### Day 5
-
-- prepare AWS account baseline
-- create remote state
-- scaffold Terraform
-- stand up the first deployment path
-
-This plan is intentionally realistic for a volunteer project. It is not a hackathon sprint and not a six-week architecture study.
-
----
-
-# Appendix A: Current official references used to verify this guide
-
-## AWS
-
-- AWS CLI install: [https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
-- AWS CLI quickstart: [https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html)
-- IAM Identity Center with AWS CLI: [https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)
-- `aws configure sso`: [https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html](https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html)
-- Root user best practices: [https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html](https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html)
-- IAM best practices: [https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
-- Lightsail SSH keys and connection overview: [https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html)
-- Set up SSH keys for Lightsail: [https://docs.aws.amazon.com/lightsail/latest/userguide/lightsail-how-to-set-up-ssh.html](https://docs.aws.amazon.com/lightsail/latest/userguide/lightsail-how-to-set-up-ssh.html)
-- Lightsail firewall and port rules: [https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-firewall-and-port-mappings-in-amazon-lightsail](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-firewall-and-port-mappings-in-amazon-lightsail).
-- Parameter Store: [https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
-- SecureString and KMS: [https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html](https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html)
-- Parameter Store IAM access: [https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-access.html](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-access.html)
-- Lightsail instance creation: [https://docs.aws.amazon.com/lightsail/latest/userguide/how-to-create-amazon-lightsail-instance-virtual-private-server-vps.html](https://docs.aws.amazon.com/lightsail/latest/userguide/how-to-create-amazon-lightsail-instance-virtual-private-server-vps.html)
-- CloudFront custom error responses: [https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/GeneratingCustomErrorResponses.html](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/GeneratingCustomErrorResponses.html)
-- CloudFront error-page procedure: [https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/custom-error-pages-procedure.html](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/custom-error-pages-procedure.html)
-
-## Terraform
-
-- Install Terraform: [https://developer.hashicorp.com/terraform/install](https://developer.hashicorp.com/terraform/install)
-- Install tutorial: [https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
-- S3 backend: [https://developer.hashicorp.com/terraform/language/backend/s3](https://developer.hashicorp.com/terraform/language/backend/s3)
-- State workspaces: [https://developer.hashicorp.com/terraform/language/state/workspaces](https://developer.hashicorp.com/terraform/language/state/workspaces)
-- CLI workspace overview: [https://developer.hashicorp.com/terraform/cli/workspaces](https://developer.hashicorp.com/terraform/cli/workspaces)
-
-## Docker
-
-- Docker Desktop on WSL 2: [https://docs.docker.com/desktop/features/wsl/](https://docs.docker.com/desktop/features/wsl/)
-- Docker WSL best practices: [https://docs.docker.com/desktop/features/wsl/best-practices/](https://docs.docker.com/desktop/features/wsl/best-practices/)
-- Docker “Use WSL”: [https://docs.docker.com/desktop/features/wsl/use-wsl/](https://docs.docker.com/desktop/features/wsl/use-wsl/)
-- Docker Compose install on Linux: [https://docs.docker.com/compose/install/linux/](https://docs.docker.com/compose/install/linux/)
-- Docker build best practices: [https://docs.docker.com/build/building/best-practices/](https://docs.docker.com/build/building/best-practices/)
-- Docker multi-stage builds: [https://docs.docker.com/build/building/multi-stage/](https://docs.docker.com/build/building/multi-stage/)
-
-## Node / npm
-
-- Node downloads: [https://nodejs.org/en/download](https://nodejs.org/en/download)
-- Node release status: [https://nodejs.org/en/about/previous-releases](https://nodejs.org/en/about/previous-releases)
-- npm install guidance: [https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/)
-
-## Cursor and Claude Code
-
-- Cursor downloads: [https://cursor.com/docs/downloads](https://cursor.com/docs/downloads)
-- Cursor docs home: [https://cursor.com/docs](https://cursor.com/docs)
-- Cursor quickstart: [https://cursor.com/docs/get-started/quickstart](https://cursor.com/docs/get-started/quickstart)
-- Cursor rules: [https://cursor.com/docs/context/rules](https://cursor.com/docs/context/rules)
-- Claude Code quickstart: [https://docs.anthropic.com/en/docs/claude-code/quickstart](https://docs.anthropic.com/en/docs/claude-code/quickstart)
-- Claude Code setup: [https://docs.anthropic.com/en/docs/claude-code/setup](https://docs.anthropic.com/en/docs/claude-code/setup)
-- Claude Code overview: [https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
-- Claude Code common workflows: [https://docs.anthropic.com/en/docs/claude-code/common-workflows](https://docs.anthropic.com/en/docs/claude-code/common-workflows)
-- Claude Code settings: [https://docs.anthropic.com/en/docs/claude-code/settings](https://docs.anthropic.com/en/docs/claude-code/settings)
-- Claude Code memory: [https://docs.anthropic.com/en/docs/claude-code/memory](https://docs.anthropic.com/en/docs/claude-code/memory)
-
----
-
-# Next Steps: Closing the Bootstrap Shortcuts
-
-The initial deployment described in this guide uses several deliberate shortcuts to keep the first stand-up simple and achievable. Each one is safe enough for a first working deployment but should be addressed before the environment is treated as durable production.
-
-This section names every shortcut and the action needed to close it.
-
----
-
-## NS-1: Scope down `footbag-operator` IAM permissions
-
-**Shortcut:** `footbag-operator` holds `AdministratorAccess`, which is intentionally broad for the bootstrap phase.
-
-**Action:** After the first successful `terraform apply`, review the AWS services Terraform actually touches (IAM, Lightsail, CloudFront, S3, SSM, CloudWatch) and replace `AdministratorAccess` with an inline or managed policy scoped to those services only. Keep a record of the policy you replace it with.
-
-**Why it matters:** An operator credential with `AdministratorAccess` can do anything in the account. Scoping it down limits the blast radius of a compromised or accidentally misused key.
-
----
-
-## NS-2: Remove `footbag-operator` long-lived access keys after first deployment
-
-**Shortcut:** `footbag-operator` uses long-lived IAM access keys (created in Phase 2).
-
-**Action:** Once you have completed the first deployment and verified the stack, consider switching `footbag-operator` to short-lived credentials. The cleanest path for a single-account setup is to enable MFA for API calls and use `aws sts get-session-token` before running Terraform. For a more mature setup, migrate to AWS IAM Identity Center (SSO), which issues short-lived tokens automatically.
-
-**Why it matters:** Long-lived access keys are a persistent credential that can be compromised if they leak. Short-lived tokens expire and are much safer for ongoing operator use.
-
----
-
-## NS-3: Attach a custom domain and ACM certificate
-
-**Shortcut:** The initial deployment uses the default `*.cloudfront.net` URL with no custom domain.
-
-**Action:**
-1. Register or transfer the domain to Route 53 (or configure an existing registrar to point at Route 53).
-2. Uncomment and apply `terraform/staging/acm.tf` to provision the ACM certificate in `us-east-1`.
-3. Uncomment the `aliases` block in `cloudfront.tf` and the Route 53 A/AAAA records.
-4. Re-run `terraform apply`.
-5. Update `PUBLIC_BASE_URL` in `/srv/footbag/env` and restart the service.
-
-**Note:** The ACM certificate must be provisioned in `us-east-1` regardless of where other resources live. The Terraform code already includes a `aws.us_east_1` provider alias for this.
-
----
-
-## NS-4: Fix the CloudFront maintenance page
-
-**Shortcut:** The CloudFront custom error response block exists in `cloudfront.tf` but the maintenance page itself will fail to load when the Lightsail origin is down, because the S3 origin behavior is not configured.
-
-**Action:** The full fix requires:
-1. An S3 bucket holding the maintenance page HTML.
-2. An Origin Access Control (OAC) allowing CloudFront to read from that bucket.
-3. An `ordered_cache_behavior` in `cloudfront.tf` routing `/maintenance.html` to the S3 origin.
-4. An `X-Origin-Verify` header mechanism to prevent direct-to-origin access bypassing CloudFront.
-
-Until this is complete, do not rely on the maintenance page for graceful downtime behavior.
-
----
-
-## NS-5: Establish a SQLite backup plan
-
-**Shortcut:** The initial deployment has no automated backup of `/srv/footbag/footbag.db`.
-
-**Action:** Add a cron job or systemd timer on the Lightsail host to copy the database file to S3 on a scheduled interval. A safe approach for SQLite:
+Only after distribution status is `Deployed`:
 
 ```bash
-# Safe online backup using SQLite's built-in backup mechanism
+CF_DOMAIN=$(terraform output -raw cloudfront_domain)
+BASE_URL=https://$CF_DOMAIN ./scripts/smoke-local.sh
+```
+
+Then do a manual browser pass:
+
+- `https://<cloudfront_domain>/events`
+- `https://<cloudfront_domain>/events/year/2025`
+- `https://<cloudfront_domain>/events/event_2025_beaver_open`
+- `https://<cloudfront_domain>/events/event_2026_spring_classic`
+- `https://<cloudfront_domain>/events/event_9999_does_not_exist`
+
+Also expect the smoke script to cover these seeded routes:
+
+- `GET /health/live` → 200
+- `GET /health/ready` → 200
+- `GET /events` → 200
+- `GET /events/year/2025` → 200
+- `GET /events/year/1899` → 200
+- `GET /events/event_2025_beaver_open` → 200
+- `GET /events/event_2025_quiet_open` → 200
+- `GET /events/event_2026_spring_classic` → 200
+- `GET /events/event_2026_draft_event` → 404
+- `GET /events/event_9999_does_not_exist` → 404
+- `GET /events/not-a-valid-key` → 404
+
+Expected outcomes:
+
+- health endpoints succeed
+- `/events` renders normally
+- `/events/year/2025` renders normally
+- browser styling looks normal
+- no stack traces or internal details leak
+
+If CloudFront returns 403 or 502:
+
+- the distribution may still be propagating
+- the origin domain may not be resolving correctly
+- wait a few minutes and retry
+- if the problem persists, inspect the CloudFront origin settings and confirm the configured DNS name resolves to the Lightsail IP
+
+### 4.10 Known temporary assumptions
+
+After first success, these simplifications are still in place:
+
+- no final custom domain or ACM certificate yet
+- the default CloudFront `*.cloudfront.net` URL is still in use
+- `/srv/footbag/env` is still managed manually
+- runtime AWS credentials are still absent because the slice does not need them
+- some monitoring is intentionally deferred
+- automated DB backup/restore is not yet closed
+- images are still built on-host rather than pulled from a registry
+- maintenance-page behavior is not truly production-grade yet
+- CloudFront maintenance is not reliable in v0.1 until OAC, ordered cache behavior, and origin-bypass protection are added
+
+## 5. Path E — From first success to durable staging
+
+### 5.1 Why this section exists
+
+The first deployment intentionally uses shortcuts so the team can prove the slice end to end without building a full operations platform first.
+
+This section turns those shortcuts into a grouped hardening roadmap.
+
+### 5.2 Security hardening
+
+- scope down footbag-operator from AdministratorAccess to the actual Terraform-managed service set
+- remove long-lived access keys after first deployment; prefer MFA-backed short-lived credentials or IAM Identity Center
+- disable or retire ec2-user once named operator accounts are confirmed
+- consider disabling Lightsail browser SSH after your own keys are in place
+- keep SSH restricted to approved operator CIDRs
+- do not share shell accounts or private keys
+- when maintenance/origin protection is implemented, store ORIGIN_VERIFY_SECRET in SSM as a SecureString
+- if the application later needs runtime AWS access, add scoped runtime credentials deliberately rather than leaking the human operator profile into containers
+
+### 5.3 Edge and public-delivery hardening
+
+- attach a custom domain and ACM certificate
+- add Route 53 records
+- update PUBLIC_BASE_URL to the final public URL
+- fix maintenance mode properly:
+  - S3-hosted maintenance page
+  - CloudFront Origin Access Control
+  - ordered_cache_behavior for /maintenance.html
+  - X-Origin-Verify secret between CloudFront and nginx
+  - direct-origin bypass blocked unless the secret header is present
+
+A concrete maintenance-mode implementation includes:
+
+- generate a shared secret with openssl rand -hex 32
+- store it in SSM at /footbag/staging/secrets/ORIGIN_VERIFY_SECRET
+- reference it in cloudfront.tf via var.origin_verify_secret
+- create a CloudFront OAC for the S3 maintenance bucket
+- add an S3 bucket policy allowing CloudFront to read
+- add ordered_cache_behavior for /maintenance.html
+- upload maintenance.html to the maintenance bucket
+- enforce X-Origin-Verify in nginx
+- verify direct-origin requests without the header return 403
+- verify CloudFront serves the maintenance page when the origin is unavailable
+
+Until this is complete, do not rely on the maintenance page as a graceful-downtime path.
+
+### 5.4 Reliability and recovery
+
+add host-side SQLite backups to the snapshots bucket using SQLite’s online backup mechanism, not a raw file copy
+
+create dedicated backup credentials scoped only to the snapshots bucket; do not reuse footbag-operator
+
+schedule backups with cron or a systemd timer
+
+keep the backup script in the repo, e.g. ops/scripts/backup-db.sh
+
+rehearse a full restore in staging
+
+document the restore commands and timing in a restore runbook
+
+treat restore proof as part of the system baseline, not a future aspiration
+
+A safe backup pattern is:
+
+```bash
 sqlite3 /srv/footbag/footbag.db ".backup /tmp/footbag-backup.db"
 aws s3 cp /tmp/footbag-backup.db s3://<backup-bucket>/footbag/$(date +%Y-%m-%d-%H%M%S).db
 rm /tmp/footbag-backup.db
 ```
 
-The worker container is the natural place to own this job once it is no longer a stub. Until then, a host-level cron job is acceptable.
+A minimal restore drill should include:
 
-**Why it matters:** SQLite on a single Lightsail host with no backup is a data-loss risk. A single host failure or accidental file deletion is unrecoverable without a backup.
+- stop footbag
+- list backups in S3
+- download a recent backup
+- preserve the current live DB as `.pre-restore`
+- replace `/srv/footbag/footbag.db`
+- restart footbag
+- rerun smoke checks
+- record timing and exact commands in `docs/RESTORE_RUNBOOK_V0_1.md`
 
----
+### 5.5 Delivery maturity
 
-## NS-6: Harden the Lightsail host further
+- add minimal GitHub Actions CI for:
+  - app tests
+  - Terraform fmt/validate
+- keep the CI path secret-free by using terraform init -backend=false
+- add a canonical seed-contract regression test so the documented seeded routes cannot drift silently away from the seed file
+- move image builds out of the Lightsail host and into CI
+- publish images to a registry such as ECR
+- switch host deploys from docker compose build to docker compose pull
 
-**Shortcut:** The initial bootstrap uses `ec2-user` for first login and the Lightsail-managed SSH key pair. Named operator accounts are created immediately, but several host-hardening steps are deferred.
+Suggested CI workflow set:
 
-**Actions:**
-- Disable or remove `ec2-user` password login once your named account is confirmed working.
-- Consider disabling the Lightsail-managed browser SSH entirely (Lightsail console → Networking → SSH key pairs) once your own key is in place.
-- Review and apply `unattended-upgrades` or equivalent automatic security patching for the host OS.
-- Set up basic host-level logging so you can audit who did what via SSH.
+- .github/workflows/ci.yml
+- .github/workflows/terraform.yml
 
----
+Suggested seed-contract regression test:
 
-## NS-7: Move to a container registry for image distribution
+- tests/integration/seed-contract.test.ts
 
-**Shortcut:** Docker images are built directly on the Lightsail host from source during each deployment. This works for v0.1 but requires build tools on the production host and is slow.
+That test should:
 
-**Action:** When deployment frequency or team size increases, the right next step is:
-1. Build images in CI (GitHub Actions or equivalent).
-2. Push to a container registry (AWS ECR is the natural fit).
-3. Change the deployment pattern to `docker compose pull` on the host instead of `docker compose build`.
-4. Remove build tools (`docker-buildx-plugin`, build deps) from the host if desired.
+- build a fresh DB from schema_v0_1.sql + seed_mvfp_v0_1.sql
+- assert the documented public routes return expected status codes
+- fail CI if the seed file drifts from the documented contract
 
-This also enables image verification, versioned rollbacks, and separation of build from deploy.
+### 5.6 Runtime configuration maturity
 
----
+- keep `/srv/footbag/env` as the current live runtime source of truth
+- when manual host edits become too fragile, add an ExecStartPre helper that pulls values from Parameter Store and writes /srv/footbag/env
+- keep Parameter Store paths environment- and sensitivity-aware
+- only add runtime AWS credentials when the app actually begins using AWS APIs at runtime
+- keep the distinction between:
+  - local .env
+  - host runtime /srv/footbag/env
+  - optional AWS-side reference storage in Parameter Store
 
-## NS-8: Wire up runtime AWS credentials when the app needs them
+If runtime AWS API use is later added, the first simple step is explicit env-var credentials in /srv/footbag/env. A more mature source-profile + AssumeRole design is a post-MVFP improvement.
 
-**Shortcut:** The current public slice serves pages entirely from local process environment and SQLite. No runtime AWS API calls are made, so no runtime credentials are needed.
+### 5.7 Monitoring maturity
 
-**Action required when:** the worker begins using S3 (media), SES (email outbox), or any other AWS service; or when SSM runtime reads are added to the app startup.
+- leave the CloudFront 5xx alarm active from first deployment
+- only enable CWAgent CPU/memory alarms after CWAgent actually exists on the host
+- only enable backup-age alarms after the backup job exists and emits a real metric
+- after the backup job is in place, emit `BackupAgeMinutes` into CloudWatch
+- confirm that at least one SNS alert path actually reaches the operator
 
-**When that point arrives:**
-1. Create a scoped IAM user or role for runtime use.
-2. Add the credentials to `/srv/footbag/env` under `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION`.
-3. The `footbag.service` `EnvironmentFile` directive already propagates these into containers.
-4. The longer-term improvement is a source-profile + AssumeRole chain per service (web vs worker), which provides temporary credentials and a cleaner audit trail.
+document the minimal operator dashboard:
 
----
+- host runtime health
+- CloudFront health
+- backup freshness
+- alarm destinations
 
-## NS-9: Activate Parameter Store for runtime config management
+A minimal real monitoring loop includes:
 
-**Shortcut:** Parameter Store is optional reference storage in this guide. The app reads `/srv/footbag/env` only.
+- emit `BackupAgeMinutes = 0` after each successful backup
+- set `NODE_ENV=staging` in `/srv/footbag/env` (the app reads `NODE_ENV`, not `ENVIRONMENT`)
+- enable `enable_backup_alarm = true`
+- verify the metric appears in CloudWatch
+- force a temporary alarm state to confirm SNS email delivery
+- document operator health-check locations in `docs/DEVOPS_GUIDE_V0_1.md`
 
-**Action:** Once the app or team grows to the point where hand-editing `/srv/footbag/env` on the host feels fragile, the next step is a small startup script that pulls values from SSM and writes `/srv/footbag/env` before the Compose stack starts. That script slots into the `footbag.service` `ExecStartPre` directive. Until then, the manual env file approach is acceptable.
+## 6. Appendices
 
----
+### 6.1 Troubleshooting reference
 
-## NS-10: Review and activate CloudWatch monitoring
+#### Local newcomer setup mistakes
 
-**Shortcut:** The Terraform configuration includes CloudWatch alarm scaffolding but monitoring is minimal for the first deployment.
+- WSL not installed, or the distro is not actually running in WSL 2 mode (`wsl.exe -l -v` to check)
+- repo cloned under `/mnt/c/...` instead of the Linux filesystem
+- `which node` resolves to the Windows binary under `/mnt/c/...`
+- running `source ~/.nvm/nvm.sh` before restarting the terminal after nvm install — `nvm` will not be found; close and reopen the terminal first
+- Node version drift breaks native addon builds (`better-sqlite3` requires Node 22 for the documented baseline)
+- `sqlite3` CLI missing — `sudo apt install -y sqlite3`
+- `.env` missing or `FOOTBAG_DB_PATH` wrong
+- Docker Desktop installed on Windows but WSL integration not enabled for the Ubuntu distro
+- `docker` command works in Windows but not in the Ubuntu shell
+- the old standalone `docker-compose` v1 tool confused with the `docker compose` v2 plugin
+- AWS CLI, Terraform, SSH, or `rsync` never installed in WSL — run the tooling gate from §4.2 to confirm
+- shell scripts fail with `^M` because repo was cloned or edited outside WSL (CRLF issue)
 
-**Action:** After the stack is stable, review `terraform/staging/cloudwatch.tf` (or equivalent) and activate alarms for:
-- Lightsail instance CPU and status checks
-- CloudFront 5xx error rate
-- CloudFront 4xx error rate (elevated 4xx can indicate routing or caching problems)
+#### Route and runtime mistakes
 
-Connect alarms to the SNS topic already created by Terraform (the `alarm_email` variable in `terraform.tfvars`).
+- public statuses leak non-public events
+- `/events/year/:year` gets shadowed by `/events/:eventKey` — register the year route first
+- historical no-results events hidden instead of rendered clearly
+- controllers own business rules that belong in services
+- templates own business logic that belongs in services
+- `dotenv` loads too late and `FOOTBAG_DB_PATH` is empty when `db.ts` initializes — `import 'dotenv/config'` must be the first import in `server.ts`
 
----
+#### Docker parity mistakes
 
-## Bootstrap shortcut summary
+- Docker parity skipped entirely before AWS work
+- nginx not fronting the web container correctly
+- DB mount path wrong
+- `docker compose pull` used instead of `docker compose build` — there is no registry in v0.1; images are built locally
 
-| Item | Shortcut used | Action |
-|---|---|---|
-| NS-1 | `AdministratorAccess` on footbag-operator | Scope down after first apply |
-| NS-2 | Long-lived access keys | Switch to short-lived credentials or SSO |
-| NS-3 | `*.cloudfront.net` URL | Add custom domain, ACM cert, Route 53 |
-| NS-4 | Maintenance page broken | Wire up S3 origin + OAC in CloudFront |
-| NS-5 | No DB backup | Add SQLite backup job to S3 |
-| NS-6 | Host not fully hardened | Disable ec2-user, add OS auto-patching |
-| NS-7 | Images built on host | Move to CI + container registry |
-| NS-8 | No runtime AWS credentials | Add when app begins calling AWS APIs |
-| NS-9 | Manual `/srv/footbag/env` | Add SSM pull script when team/scale warrants it |
-| NS-10 | Minimal monitoring | Activate CloudWatch alarms |
+#### AWS/bootstrap mistakes
 
-None of these are required to reach first-deployment success as defined in §44. They are the path from "working first deployment" to "durable production posture."
+- continuing to use root after bootstrap
+- creating or keeping root access keys
+- leaving `footbag-operator` without MFA
+- `export AWS_PROFILE=footbag-operator` not re-run after opening a new terminal — all Terraform and AWS CLI commands will use wrong credentials
+- assuming the current public slice needs runtime AWS credentials when it does not (the app reads `process.env` and SQLite only)
+- assuming Lightsail gives you an EC2 instance-profile story identical to EC2 — it does not
+- leaving SSH broadly exposed — verify `operator_cidrs` is set to real CIDRs before first apply (see §4.4 correction 2)
+- forgetting to install `rsync` on the Lightsail host before running the rsync deployment step in §4.7
+- updating Parameter Store and expecting the running app to change without also updating `/srv/footbag/env`
+- copying files directly into the root-owned `/srv/footbag` without using a staging path and sudo promotion
+- mixing staging and production state in the same Terraform path
+- creating Terraform state storage without versioning or encryption
+- relying on old Terraform DynamoDB locking patterns — this project uses `use_lockfile = true` (S3 native locking, requires `>= 1.11`)
+- assuming `user_data` bootstraps the instance — it is intentionally omitted in v0.1; all Docker install is manual via SSH (see §4.7)
+- using raw IP as the CloudFront origin — CloudFront custom origins require a resolvable DNS hostname, not a raw IP
+- skipping or mis-sequencing the two-pass CloudFront bootstrap
+- running `sudo dnf install -y docker-compose-plugin` without first adding the Docker CE repo — the package is not in Amazon Linux 2023 default repos
+- running `docker compose pull` instead of `docker compose build` when using locally built images
 
----
+### 6.2 Deterministic seed-data reference
 
-## Appendix B: Authoritative project facts this guide preserves
+These seeded routes are useful because smoke checks and regression tests may rely on them.
 
-This guide preserves the project constraints defined in the authority docs, including:
 
-- Express + Handlebars + TypeScript server-rendered application
+| Route                             | What it proves                               |
+| --------------------------------- | -------------------------------------------- |
+| /events/event_2025_beaver_open    | completed public event with results          |
+| /events/event_2025_quiet_open     | completed public event with no results yet   |
+| /events/event_2026_spring_classic | upcoming public event                        |
+| /events/event_2026_draft_event    | draft event remains non-public; expected 404 |
+| /events/event_9999_does_not_exist | unknown key returns 404                      |
+| /events/year/1899                 | empty year still renders cleanly             |
+
+
+These are reference checks, not the main onboarding story.
+
+### 6.3 Smoke-check contract
+
+`scripts/smoke-local.sh` is the canonical smoke-check baseline. It should verify at least:
+
+- `/health/live`
+- `/health/ready`
+- `/events`
+- `/events/year/2025`
+- one empty or sparse year page
+- one canonical event page with results
+- one canonical event page without results
+- one upcoming event
+- one non-public event returning 404
+- one missing key returning 404
+- one badly formatted key returning 404
+
+Why this matters:
+
+- it checks the documented public contract, not just “server responds”
+- it keeps deterministic seeded scenarios from drifting silently
+- it can be reused locally, in Docker parity mode, against the origin, and through CloudFront by changing `BASE_URL`
+
+A `smoke-public.sh` script has not yet been created for this slice.
+
+### 6.4 Authoritative project facts preserved by this guide
+
+This guide preserves these project constraints:
+
+- Express + Handlebars + TypeScript, server-rendered
 - one SQLite DB module
 - prepared statements prepared once
 - thin controllers
 - services own page shaping
 - no ORM
 - no repository layer
-- canonical `GET /events/:eventKey` public route
+- canonical GET /events/:eventKey public route
 - non-paginated whole-year archive page
 - explicit no-results rendering for historical events with no result rows
-- minimal MVFP readiness semantics
+- minimal readiness semantics for MVFP v0.1
 - Lightsail origin behind CloudFront
-- `/srv/footbag/env` as the live runtime config source for non-local deployments; Parameter Store is optional AWS-side reference storage
-- hardened per-operator SSH for operator shell access
+- /srv/footbag/env as the live runtime config source in non-local deployments
+- Parameter Store as optional AWS-side reference storage, not the runtime source of truth
+- hardened per-operator SSH for host access
 - manual bootstrap only until Terraform authority is established
+
+### 6.5 Official references
+
+#### Windows / WSL
+
+- [Microsoft Learn — Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
+
+#### Git / GitHub
+
+- [GitHub Docs — Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
+- [Git — `git clone` documentation](https://git-scm.com/docs/git-clone)
+
+#### AWS
+
+- [AWS CLI install](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- [AWS CLI quickstart](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html)
+- [IAM Identity Center with AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html)
+- [aws configure sso](https://docs.aws.amazon.com/cli/latest/reference/configure/sso.html)
+- [Root user best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html)
+- [IAM best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
+- [Lightsail SSH keys and connection overview](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-ssh-in-amazon-lightsail.html)
+- [Set up SSH keys for Lightsail](https://docs.aws.amazon.com/lightsail/latest/userguide/lightsail-how-to-set-up-ssh.html)
+- [Lightsail firewall and port rules](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-firewall-and-port-mappings-in-amazon-lightsail)
+- [Lightsail IAM / security overview](https://docs.aws.amazon.com/lightsail/latest/userguide/security_iam.html)
+- [Lightsail instance creation](https://docs.aws.amazon.com/lightsail/latest/userguide/how-to-create-amazon-lightsail-instance-virtual-private-server-vps.html)
+- [Parameter Store](https://docs.aws.amazon.com/systems-manager/latest/userguide/systems-manager-parameter-store.html)
+- [SecureString and KMS](https://docs.aws.amazon.com/systems-manager/latest/userguide/secure-string-parameter-kms-encryption.html)
+- [Parameter Store IAM access](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-access.html)
+- [CloudFront origin settings](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistValuesOrigin.html)
+- [CloudFront custom origins](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistS3AndCustomOrigins.html)
+- [CloudFront custom origin headers](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/add-origin-custom-headers.html)
+- [CloudFront custom error responses](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/GeneratingCustomErrorResponses.html)
+- [CloudFront error-page procedure](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/custom-error-pages-procedure.html)
+
+#### Terraform
+
+- [Install Terraform](https://developer.hashicorp.com/terraform/install)
+- [Install tutorial](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)
+- [S3 backend](https://developer.hashicorp.com/terraform/language/backend/s3)
+- [State workspaces](https://developer.hashicorp.com/terraform/language/state/workspaces)
+- [CLI workspace overview](https://developer.hashicorp.com/terraform/cli/workspaces)
+- [Resource targeting warning / guidance](https://developer.hashicorp.com/terraform/tutorials/state/resource-targeting)
+
+#### Docker
+
+- [Docker Desktop on WSL 2](https://docs.docker.com/desktop/features/wsl/)
+- [Docker WSL best practices](https://docs.docker.com/desktop/features/wsl/best-practices/)
+- [Docker Compose install overview](https://docs.docker.com/compose/install/)
+- [Docker Compose plugin install on Linux](https://docs.docker.com/compose/install/linux/)
+- [Docker build best practices](https://docs.docker.com/build/building/best-practices/)
+- [Docker multi-stage builds](https://docs.docker.com/build/building/multi-stage/)
+
+#### Node / npm
+
+- [Node downloads](https://nodejs.org/en/download)
+- [Node release status](https://nodejs.org/en/about/previous-releases)
+- [npm install guidance](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm/)
+
+#### Cursor and Claude Code
+
+- [Cursor downloads](https://cursor.com/docs/downloads)
+- [Cursor docs home](https://cursor.com/docs)
+- [Cursor quickstart](https://cursor.com/docs/get-started/quickstart)
+- [Cursor rules](https://cursor.com/docs/context/rules)
+- [Claude Code quickstart](https://docs.anthropic.com/en/docs/claude-code/quickstart)
+- [Claude Code setup](https://docs.anthropic.com/en/docs/claude-code/setup)
+- [Claude Code overview](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview)
+- [Claude Code common workflows](https://docs.anthropic.com/en/docs/claude-code/common-workflows)
+- [Claude Code settings](https://docs.anthropic.com/en/docs/claude-code/settings)
+- [Claude Code memory](https://docs.anthropic.com/en/docs/claude-code/memory)
 

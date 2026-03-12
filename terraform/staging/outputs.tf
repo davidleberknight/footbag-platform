@@ -9,12 +9,12 @@ output "lightsail_static_ip" {
 
 output "cloudfront_domain" {
   description = "CloudFront distribution domain name"
-  value       = aws_cloudfront_distribution.main.domain_name
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].domain_name : null
 }
 
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID (used for cache invalidations)"
-  value       = aws_cloudfront_distribution.main.id
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : null
 }
 
 # DEFERRED: ACM certificate resources are commented out for initial test deployment.
@@ -47,4 +47,9 @@ output "kms_key_arn" {
 output "alarm_topic_arn" {
   description = "ARN of the SNS alarm notification topic"
   value       = aws_sns_topic.alarms.arn
+}
+
+output "lightsail_instance_name" {
+  description = "Name of the Lightsail web instance. Used to retrieve the public DNS hostname after first apply."
+  value       = aws_lightsail_instance.web.name
 }

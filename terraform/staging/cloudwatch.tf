@@ -26,6 +26,7 @@ resource "aws_cloudwatch_log_group" "worker" {
 # Reference: docs/DEVOPS_GUIDE_V0_1.md §4.4
 
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
+  count               = var.enable_cwagent_alarms ? 1 : 0
   alarm_name          = "${local.prefix}-high-cpu"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
@@ -45,6 +46,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "high_memory" {
+  count               = var.enable_cwagent_alarms ? 1 : 0
   alarm_name          = "${local.prefix}-high-memory"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
@@ -63,6 +65,7 @@ resource "aws_cloudwatch_metric_alarm" "high_memory" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "db_backup_age" {
+  count               = var.enable_backup_alarm ? 1 : 0
   alarm_name          = "${local.prefix}-db-backup-stale"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
@@ -78,6 +81,7 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_age" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
+  count               = var.enable_cloudfront ? 1 : 0
   alarm_name          = "${local.prefix}-cloudfront-5xx"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
@@ -90,7 +94,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
   alarm_actions       = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    DistributionId = aws_cloudfront_distribution.main.id
+    DistributionId = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : ""
     Region         = "Global"
   }
 }
@@ -110,8 +114,8 @@ resource "aws_cloudwatch_dashboard" "main" {
           title  = "CloudFront Error Rates"
           region = "us-east-1"
           metrics = [
-            ["AWS/CloudFront", "4xxErrorRate", "DistributionId", aws_cloudfront_distribution.main.id, "Region", "Global"],
-            ["AWS/CloudFront", "5xxErrorRate", "DistributionId", aws_cloudfront_distribution.main.id, "Region", "Global"]
+            ["AWS/CloudFront", "4xxErrorRate", "DistributionId", var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : "CLOUDFRONT-NOT-YET-ENABLED", "Region", "Global"],
+            ["AWS/CloudFront", "5xxErrorRate", "DistributionId", var.enable_cloudfront ? aws_cloudfront_distribution.main[0].id : "CLOUDFRONT-NOT-YET-ENABLED", "Region", "Global"]
           ]
           period = 60
           view   = "timeSeries"

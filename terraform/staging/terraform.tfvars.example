@@ -23,3 +23,26 @@ alarm_email = "TODO-ops@example.com"
 
 # State bucket (must match backend.tf)
 state_bucket_suffix = "TODO-set-unique-suffix"
+
+# ── Operator SSH access ───────────────────────────────────────────────────────
+# Restrict SSH to your operator IP(s) only. Do not use 0.0.0.0/0.
+# To find your current public IP: curl -s https://checkip.amazonaws.com
+operator_cidrs = ["TODO-your-public-ip/32"]
+
+# ── CloudFront two-pass bootstrap ─────────────────────────────────────────────
+# First apply: set enable_cloudfront = false (creates Lightsail only).
+# After first apply, retrieve the instance public DNS name:
+#   aws lightsail get-instance \
+#     --instance-name footbag-staging-web \
+#     --query 'instance.publicDnsName' \
+#     --output text \
+#     --profile footbag-operator
+# Then set lightsail_origin_dns to that value and enable_cloudfront = true.
+# Second apply: creates the full stack including CloudFront.
+enable_cloudfront    = false
+lightsail_origin_dns = ""
+
+# ── Monitoring gates ──────────────────────────────────────────────────────────
+# Both default to false. See variables.tf descriptions before enabling.
+enable_cwagent_alarms = false
+enable_backup_alarm   = false

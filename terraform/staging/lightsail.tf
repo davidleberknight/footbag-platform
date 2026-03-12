@@ -16,14 +16,10 @@ resource "aws_lightsail_instance" "web" {
   bundle_id         = var.lightsail_bundle_id
   key_pair_name     = aws_lightsail_key_pair.operator.name
 
-  # User data bootstraps Docker, Docker Compose, and pulls the app image.
-  # TODO: Replace with actual bootstrap script or reference a file:
-  #   user_data = file("${path.module}/scripts/bootstrap.sh")
-  user_data = <<-BOOTSTRAP
-    #!/bin/bash
-    # TODO: add Docker install, docker compose plugin, app directory setup
-    echo "bootstrap placeholder"
-  BOOTSTRAP
+  # user_data is intentionally omitted.
+  # All host bootstrap (Docker CE install, /srv/footbag directory setup,
+  # systemd service install) is performed manually via SSH after first apply.
+  # See section 4.7 of docs/DEV_ONBOARDING_V0_1_REWRITE.md.
 }
 
 resource "aws_lightsail_static_ip" "web" {
@@ -38,14 +34,14 @@ resource "aws_lightsail_static_ip_attachment" "web" {
 resource "aws_lightsail_instance_public_ports" "web" {
   instance_name = aws_lightsail_instance.web.name
 
-  # SSH — restrict to operator IPs in production
+  # SSH — restricted to declared operator IP ranges.
+  # Set operator_cidrs in terraform.tfvars before first apply.
+  # Example: operator_cidrs = ["1.2.3.4/32"]
   port_info {
     protocol  = "tcp"
     from_port = 22
     to_port   = 22
-    # TODO: Restrict cidrs to operator IP ranges in production:
-    # cidrs = ["<operator-ip>/32"]
-    cidrs = ["0.0.0.0/0"]
+    cidrs     = var.operator_cidrs
   }
 
   # HTTP — CloudFront connects on 80; nginx proxies to app container

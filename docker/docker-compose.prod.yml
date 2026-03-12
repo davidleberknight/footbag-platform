@@ -5,7 +5,7 @@
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
 #
 # Key differences from local dev:
-#   - restart: always on all services
+#   - restart: always on nginx and web; worker intentionally restart: "no" (stub in v0.1)
 #   - Explicit memory limits to prevent OOM runaway
 #   - DB volume path from env (not a hardcoded local path)
 #   - No host port binding for web — traffic flows through nginx only
@@ -36,7 +36,11 @@ services:
           memory: 256M
 
   worker:
-    restart: always
+    # MVFP v0.1: the worker is a stub that exits immediately (no jobs configured).
+    # restart: always is intentionally NOT set here. The base docker-compose.yml
+    # sets restart: "no" and this override must not change that.
+    # When real background jobs are added, change this to: restart: unless-stopped
+    restart: "no"
     volumes:
       - ${FOOTBAG_DB_PATH:-/srv/footbag/footbag.db}:/app/footbag.db:rw
     deploy:

@@ -6,6 +6,8 @@
 # =============================================================================
 
 resource "aws_cloudfront_distribution" "main" {
+  count = var.enable_cloudfront ? 1 : 0
+
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "${local.prefix} distribution"
@@ -18,9 +20,13 @@ resource "aws_cloudfront_distribution" "main" {
   # aliases = [var.domain_name, "www.${var.domain_name}"]
 
   # ── Origin: Lightsail nginx ───────────────────────────────────────────────
+  # Use the instance public DNS name, not the raw static IP.
+  # CloudFront custom_origin_config requires a resolvable DNS hostname.
+  # Retrieve the DNS name after the first apply (Lightsail only) and set
+  # lightsail_origin_dns in terraform.tfvars before the second apply.
   origin {
     origin_id   = "lightsail-origin"
-    domain_name = aws_lightsail_static_ip.web.ip_address
+    domain_name = var.lightsail_origin_dns
 
     custom_origin_config {
       http_port              = 80

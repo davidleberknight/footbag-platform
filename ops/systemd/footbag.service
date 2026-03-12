@@ -12,7 +12,7 @@
 
 [Unit]
 Description=Footbag Platform (Docker Compose)
-Documentation=https://github.com/your-org/footbag-platform
+Documentation=https://github.com/davidleberknight/footbag-platform
 After=docker.service network-online.target
 Requires=docker.service
 Wants=network-online.target
@@ -25,7 +25,7 @@ RemainAfterExit=yes
 WorkingDirectory=/srv/footbag
 
 # Environment file provides PUBLIC_BASE_URL, FOOTBAG_DB_PATH, etc.
-# Created manually on the host — see Part H Phase 10 in DEV_ONBOARDING_V0_1.md.
+# Created manually on the host — see section 4.7 step 3 in docs/DEV_ONBOARDING_V0_1_REWRITE.md.
 EnvironmentFile=/srv/footbag/env
 
 # v0.1: no registry — build images at deploy time with `docker compose build`.
