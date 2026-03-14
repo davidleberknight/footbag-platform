@@ -1861,10 +1861,6 @@ Use the same local quality gate before every AWS redeploy.
 
 ### 6.3 Deploy the new code to staging
 
-#### Path truth
-
-There should never be a host-side `~/footbag-platform/` checkout as part of the normal staging deploy flow.
-
 The deploy path is:
 
 - local source repo: `~/GIT/footbag-platform` or `~/GITHUB/footbag-platform`
@@ -1873,9 +1869,9 @@ The deploy path is:
 
 `footbag-platform` is the repo you work in locally. `footbag-release` is the temporary user-owned upload directory on the host. `/srv/footbag` is the root-owned live runtime tree used by `footbag.service`.
 
-#### One-time cleanup before the first allowlist-based deploy on an older host
+#### Cleanup before deploy (if necessary)
 
-If this is the first allowlist-based deploy on a host that may contain residue from earlier broad deploys, clean the remote staging upload path before rsync:
+Clean the staging upload directory before rsync after any significant refactor to ensure no garbage is there.
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 -p 2222 footbag@34.192.250.246
@@ -1886,11 +1882,9 @@ exit
 
 Do **not** delete `/srv/footbag` during a routine Step F deploy. That is the live runtime path.
 
-If a stray host-side `~/footbag-platform/` directory exists from a past mistake, treat that as cleanup of a broken old state, not as part of this workflow.
+#### From your local machine, rsync the deployable app files to the host
 
-#### From your local machine — rsync only the deployable app files to the host
-
-Use an allowlist. Do **not** rsync the whole repository with a growing exclude list.
+Use an allowlist. 
 
 ```bash
 cd ~/GITHUB/footbag-platform
@@ -1908,8 +1902,6 @@ rsync -av --delete -e "ssh -i ~/.ssh/id_ed25519 -p 2222" \
 ```
 
 This keeps non-deploy repo files such as contributor docs, notes, and root-level metadata out of staging.
-
-Use this same allowlist approach for the initial bootstrap path as well. Do not teach one broad exclude-list rsync for bootstrap and a different allowlist rsync for later deploys.
 
 #### On the host — promote, preserve runtime env, rebuild, restart
 
@@ -1972,7 +1964,9 @@ Then run the smoke script from your local machine:
 BASE_URL=http://34.192.250.246 ./scripts/smoke-local.sh
 ```
 
-Only run CloudFront smoke verification after a distribution actually exists and its status is `Deployed`:
+View the website: http://34.192.250.246/
+
+Only run CloudFront smoke verification after a Cloudfront distribution actually exists and its status is `Deployed`:
 
 ```bash
 CF_DOMAIN=$(terraform output -raw cloudfront_domain)
