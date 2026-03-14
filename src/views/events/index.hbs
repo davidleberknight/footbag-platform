@@ -21,20 +21,7 @@
     {{#if upcomingEvents.length}}
       <div class="card-grid">
         {{#each upcomingEvents}}
-          <div class="card">
-            <div class="card-title">
-              <a href="/events/{{eventKey}}">{{title}}</a>
-            </div>
-            <div class="card-meta">
-              <span>{{startDate}}{{#if endDate}} – {{endDate}}{{/if}}</span>
-              <span>{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</span>
-              {{#if hostClub}}<span>{{hostClub}}</span>{{/if}}
-            </div>
-            <span class="badge badge-{{status}}">{{status}}</span>
-            {{#if description}}
-              <p class="card-description">{{description}}</p>
-            {{/if}}
-          </div>
+          {{> event-card}}
         {{/each}}
       </div>
     {{else}}

@@ -1,13 +1,18 @@
 {{! Canonical single event page — details and/or results }}
 
+<div class="hero hero-sm">
+  <div>
+    <h1>{{event.title}}</h1>
+    <p>{{event.city}}{{#if event.region}}, {{event.region}}{{/if}}, {{event.country}} &middot; {{event.startDate}}{{#if event.endDate}} – {{event.endDate}}{{/if}}</p>
+  </div>
+</div>
+
 <div class="wrapper">
   <section>
     <div class="event-detail">
 
       {{! ── Event header ──────────────────────────────────────── }}
       <div class="event-header">
-        <h1>{{event.title}}</h1>
-
         <div class="event-meta-row">
           <span>&#128197; {{event.startDate}}{{#if event.endDate}} – {{event.endDate}}{{/if}}</span>
           <span>&#128205; {{event.city}}{{#if event.region}}, {{event.region}}{{/if}}, {{event.country}}</span>
@@ -35,7 +40,7 @@
           <h2>Disciplines</h2>
           <ul class="disciplines-list" style="margin-top:12px">
             {{#each disciplines}}
-              <li class="discipline-tag">{{name}}</li>
+              <li class="discipline-tag">{{name}}{{#if teamTypeLabel}} ({{teamTypeLabel}}){{/if}}</li>
             {{/each}}
           </ul>
         </div>

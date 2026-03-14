@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { eventsController } from '../controllers/eventsController';
+import { publicController } from '../controllers/publicController';
 
 export const publicRouter = Router();
+
+publicRouter.get('/',      publicController.home);
+publicRouter.get('/clubs', publicController.clubs);
 
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.
 // Express matches routes in registration order. Without this ordering,

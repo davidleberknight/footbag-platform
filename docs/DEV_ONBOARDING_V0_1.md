@@ -13,6 +13,7 @@ This guide helps contributors do different things: understand how the initial v0
 > - **Path C** — I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
 > - **Path D** — I already have the app working locally, and I am continuing the AWS bootstrap deployment.
 > - **Path E** — The first deployment works. I need to clean up all the shortcuts taken during the bootstrap phase.
+> - **Path F** — The initial deployment is working. I made a code change and want to test it locally, then deploy it to staging.
 
 The repository already contains code, tests, Docker, Terraform, deterministic seed data, and docs. The initial Minimum Viable First Page (MVFP) v0.1 slice (Events + Results) works from a local dev server. 
 
@@ -72,12 +73,17 @@ This guide **is**:
   - [5.5 Delivery maturity](#55-delivery-maturity)
   - [5.6 Runtime configuration maturity](#56-runtime-configuration-maturity)
   - [5.7 Monitoring maturity](#57-monitoring-maturity)
-- [6. Appendices](#6-appendices)
-  - [6.1 Troubleshooting reference](#61-troubleshooting-reference)
-  - [6.2 Deterministic seed-data reference](#62-deterministic-seed-data-reference)
-  - [6.3 Smoke-check contract](#63-smoke-check-contract)
-  - [6.4 Authoritative project facts preserved by this guide](#64-authoritative-project-facts-preserved-by-this-guide)
-  - [6.5 Official references](#65-official-references)
+- [6. Path F — Iterative deploy: test locally, push to staging](#6-path-f--iterative-deploy-test-locally-push-to-staging)
+  - [6.1 Who this path is for](#61-who-this-path-is-for)
+  - [6.2 Local: test the change](#62-local-test-the-change)
+  - [6.3 Deploy to staging](#63-deploy-to-staging)
+  - [6.4 If something goes wrong on staging](#64-if-something-goes-wrong-on-staging)
+- [7. Appendices](#7-appendices)
+  - [7.1 Troubleshooting reference](#71-troubleshooting-reference)
+  - [7.2 Deterministic seed-data reference](#72-deterministic-seed-data-reference)
+  - [7.3 Smoke-check contract](#73-smoke-check-contract)
+  - [7.4 Authoritative project facts preserved by this guide](#74-authoritative-project-facts-preserved-by-this-guide)
+  - [7.5 Official references](#75-official-references)
 
 ---
 
@@ -1797,9 +1803,217 @@ A minimal real monitoring loop includes:
 - force a temporary alarm state to confirm SNS email delivery
 - document operator health-check locations in `docs/DEVOPS_GUIDE_V0_1.md`
 
-## 6. Appendices
+## 6. Path F — Iterative deploy: test locally, push to staging
 
-### 6.1 Troubleshooting reference
+Use this path only for routine code deploys **after the initial AWS bootstrap has already succeeded**.
+
+This step must follow the same host runtime contract established by the working bootstrap:
+
+- local source repo: `~/GIT/footbag-platform` or `~/GITHUB/footbag-platform`
+- host staging upload path: `~/footbag-release/`
+- host live runtime path: `/srv/footbag`
+- persistent host runtime env file: `/srv/footbag/env`
+- installed service unit: `/etc/systemd/system/footbag.service`
+
+Routine Step F deploys reuse the existing DB and preserve `/srv/footbag/env`. If the host runtime state is broken, partially deleted, or missing those artifacts, do **not** use this path. Recover the host first, then return to Step F.
+
+### 6.1 Who this path is for
+
+Use this path when:
+
+- the initial AWS deployment already worked
+- the local development environment already works
+- you have a code change ready to test locally and push to staging
+- `/srv/footbag/env`, `/etc/systemd/system/footbag.service`, and the expected `/srv/footbag` layout already exist and are healthy
+
+Do **not** use this path to repair a broken host bootstrap or recreate the live runtime tree from scratch.
+
+### 6.2 Local: test the change first
+
+Run tests:
+
+```bash
+npm test
+```
+
+Run the local dev server:
+
+```bash
+npm run dev
+```
+
+Verify the affected pages locally at `http://localhost:3000`.
+
+If needed, run the optional Docker parity check:
+
+```bash
+bash scripts/reset-local-db.sh
+docker compose -f docker/docker-compose.yml up --build --detach
+```
+
+Verify at `http://localhost`, then stop it:
+
+```bash
+docker compose -f docker/docker-compose.yml down
+```
+
+Use the same local quality gate before every AWS redeploy.
+
+### 6.3 Deploy the new code to staging
+
+#### Path truth
+
+There should never be a host-side `~/footbag-platform/` checkout as part of the normal staging deploy flow.
+
+The deploy path is:
+
+- local source repo: `~/GIT/footbag-platform` or `~/GITHUB/footbag-platform`
+- host staging upload path: `~/footbag-release/`
+- host live runtime path: `/srv/footbag`
+
+`footbag-platform` is the repo you work in locally. `footbag-release` is the temporary user-owned upload directory on the host. `/srv/footbag` is the root-owned live runtime tree used by `footbag.service`.
+
+#### One-time cleanup before the first allowlist-based deploy on an older host
+
+If this is the first allowlist-based deploy on a host that may contain residue from earlier broad deploys, clean the remote staging upload path before rsync:
+
+```bash
+ssh -i ~/.ssh/id_ed25519 -p 2222 footbag@34.192.250.246
+rm -rf ~/footbag-release
+mkdir -p ~/footbag-release
+exit
+```
+
+Do **not** delete `/srv/footbag` during a routine Step F deploy. That is the live runtime path.
+
+If a stray host-side `~/footbag-platform/` directory exists from a past mistake, treat that as cleanup of a broken old state, not as part of this workflow.
+
+#### From your local machine — rsync only the deployable app files to the host
+
+Use an allowlist. Do **not** rsync the whole repository with a growing exclude list.
+
+```bash
+cd ~/GITHUB/footbag-platform
+rsync -av --delete -e "ssh -i ~/.ssh/id_ed25519 -p 2222" \
+  --include='/.dockerignore' \
+  --include='/docker/***' \
+  --include='/src/***' \
+  --include='/database/***' \
+  --include='/ops/***' \
+  --include='/package.json' \
+  --include='/package-lock.json' \
+  --include='/tsconfig.json' \
+  --exclude='*' \
+  ./ footbag@34.192.250.246:~/footbag-release/
+```
+
+This keeps non-deploy repo files such as contributor docs, notes, and root-level metadata out of staging.
+
+Use this same allowlist approach for the initial bootstrap path as well. Do not teach one broad exclude-list rsync for bootstrap and a different allowlist rsync for later deploys.
+
+#### On the host — promote, preserve runtime env, rebuild, restart
+
+SSH to the host:
+
+```bash
+ssh -i ~/.ssh/id_ed25519 -p 2222 footbag@34.192.250.246
+```
+
+Promote from the user-owned staging path into the live runtime path.
+
+Preserve `/srv/footbag/env`. It is a host runtime file created during the original bootstrap and should not be deleted by routine code deploys.
+
+```bash
+sudo rsync -a --delete --exclude env ~/footbag-release/ /srv/footbag/
+sudo chown -R root:root /srv/footbag
+cd /srv/footbag
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+```
+
+If `ops/systemd/footbag.service` changed in your deploy, reinstall it before restart:
+
+```bash
+sudo cp ops/systemd/footbag.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Restart the service:
+
+```bash
+sudo systemctl restart footbag
+sudo systemctl status footbag --no-pager -l
+```
+
+If restart fails, inspect the service immediately before continuing:
+
+```bash
+sudo systemctl status footbag.service --no-pager -l
+sudo journalctl -xeu footbag.service --no-pager | tail -100
+```
+
+Routine Step F deploys do **not** touch the existing DB. They rebuild the images and restart the service using the already-established runtime layout.
+
+#### Verify staging
+
+Verify the origin directly:
+
+```bash
+curl http://34.192.250.246/health/live
+curl http://34.192.250.246/health/ready
+curl -s -o /dev/null -w "%{http_code}\n" http://34.192.250.246/events
+curl -s -o /dev/null -w "%{http_code}\n" http://34.192.250.246/events/year/2025
+```
+
+The health endpoints should succeed, and the route checks should return `200`.
+
+Then run the smoke script from your local machine:
+
+```bash
+BASE_URL=http://34.192.250.246 ./scripts/smoke-local.sh
+```
+
+Only run CloudFront smoke verification after a distribution actually exists and its status is `Deployed`:
+
+```bash
+CF_DOMAIN=$(terraform output -raw cloudfront_domain)
+BASE_URL=https://$CF_DOMAIN ./scripts/smoke-local.sh
+```
+
+Direct-origin verification comes first. CloudFront verification is a later step and is only valid once CloudFront actually exists.
+
+### 6.4 If something goes wrong on staging
+
+The database is never touched by a routine code deploy. Only application code and images change. The running database is safe to leave in place.
+
+#### Check logs
+
+```bash
+sudo journalctl -u footbag -n 50
+docker ps
+docker compose \
+  -f /srv/footbag/docker/docker-compose.yml \
+  -f /srv/footbag/docker/docker-compose.prod.yml \
+  logs web --tail=30
+```
+
+#### Roll back
+
+Re-rsync from the last known-good state and repeat the deploy steps from §6.3:
+
+```bash
+# On your local machine — check out the last known-good commit
+git checkout <known-good-ref>
+
+# Then re-run the rsync and host steps from §6.3
+```
+
+Do not attempt schema migrations during a routine code deploy. Schema changes require a separate migration procedure.
+
+---
+
+## 7. Appendices
+
+### 7.1 Troubleshooting reference
 
 #### Local newcomer setup mistakes
 
@@ -1865,7 +2079,7 @@ A minimal real monitoring loop includes:
 - SSH to the Lightsail instance timing out despite correct `operator_cidrs` and a running instance — some ISPs block outbound port 22 to AWS EC2 IP ranges; use `-p 2222` and the Lightsail browser SSH console to configure sshd if needed (see §4.4 note and §4.7 step 1)
 - Claude Code hooks failing with a PreToolUse hook error on every Bash call — `jq` is required by the hook scripts; install with `sudo apt-get install -y jq`
 
-### 6.2 Deterministic seed-data reference
+### 7.2 Deterministic seed-data reference
 
 These seeded routes are useful because smoke checks and regression tests may rely on them.
 
@@ -1882,7 +2096,7 @@ These seeded routes are useful because smoke checks and regression tests may rel
 
 These are reference checks, not the main onboarding story.
 
-### 6.3 Smoke-check contract
+### 7.3 Smoke-check contract
 
 `scripts/smoke-local.sh` is the canonical smoke-check baseline. It should verify at least:
 
@@ -1906,7 +2120,7 @@ Why this matters:
 
 A `smoke-public.sh` script has not yet been created for this slice.
 
-### 6.4 Authoritative project facts preserved by this guide
+### 7.4 Authoritative project facts preserved by this guide
 
 This guide preserves these project constraints:
 
@@ -1927,7 +2141,7 @@ This guide preserves these project constraints:
 - hardened per-operator SSH for host access
 - manual bootstrap only until Terraform authority is established
 
-### 6.5 Official references
+### 7.5 Official references
 
 #### Windows / WSL
 

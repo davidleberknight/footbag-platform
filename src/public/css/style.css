@@ -109,6 +109,8 @@ section + section { border-top: 1px solid var(--border); }
 
 .hero h1 { color: #fff; margin-bottom: 0.75rem; }
 .hero p  { font-size: 1.15rem; opacity: 0.9; margin-bottom: 0; }
+.hero.hero-sm { padding: 36px 24px; }
+.hero.hero-sm h1 { margin-bottom: 0; }
 
 /* ── Section headings ───────────────────────────────────────── */
 .section-heading {
@@ -236,16 +238,17 @@ section + section { border-top: 1px solid var(--border); }
 .year-nav {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 40px;
+  gap: 12px;
+  margin-bottom: 24px;
 }
 .year-nav-arrow {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  gap: 4px;
+  padding: 4px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--text);
   background: var(--bg);
@@ -256,7 +259,10 @@ section + section { border-top: 1px solid var(--border); }
   color: var(--primary);
   text-decoration: none;
 }
-.year-nav h1 { margin-bottom: 0; flex: 1; text-align: center; }
+.year-nav-arrow--disabled {
+  opacity: 0.35;
+  cursor: default;
+}
 
 /* ── Event detail layout ─────────────────────────────────────── */
 .event-detail { max-width: 860px; }
@@ -431,7 +437,6 @@ section + section { border-top: 1px solid var(--border); }
   .hero { padding: 48px 20px; }
   .card-grid { grid-template-columns: 1fr; }
   .year-nav { flex-wrap: wrap; }
-  .year-nav h1 { width: 100%; text-align: left; order: -1; }
   .site-footer .wrapper { flex-direction: column; }
   .main-nav a { padding: 6px 10px; font-size: 0.875rem; }
 }

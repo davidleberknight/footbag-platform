@@ -1,0 +1,18 @@
+{{! Partial: event-card
+    Context: a PublicEventSummary object.
+    Used on: home (featured events), events/index (upcoming events). }}
+
+<div class="card">
+  <div class="card-title">
+    <a href="/events/{{eventKey}}">{{title}}</a>
+  </div>
+  <div class="card-meta">
+    <span>{{startDate}}{{#if endDate}} – {{endDate}}{{/if}}</span>
+    <span>{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</span>
+    {{#if hostClub}}<span>{{hostClub}}</span>{{/if}}
+  </div>
+  <span class="badge badge-{{status}}">{{status}}</span>
+  {{#if description}}
+    <p class="card-description">{{description}}</p>
+  {{/if}}
+</div>

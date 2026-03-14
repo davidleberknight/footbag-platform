@@ -1,5 +1,11 @@
 {{! Year archive page — all completed events for a given year, with inline results }}
 
+<div class="hero hero-sm">
+  <div>
+    <h1>{{year}} Events</h1>
+  </div>
+</div>
+
 <div class="wrapper">
   <section>
 
@@ -8,15 +14,13 @@
       {{#if previousYear}}
         <a href="/events/year/{{previousYear}}" class="year-nav-arrow">&#8592; {{previousYear}}</a>
       {{else}}
-        <span class="year-nav-arrow" style="opacity:0.3;cursor:default">&#8592;</span>
+        <span class="year-nav-arrow year-nav-arrow--disabled">&#8592; Previous</span>
       {{/if}}
-
-      <h1>{{year}} Events</h1>
 
       {{#if nextYear}}
         <a href="/events/year/{{nextYear}}" class="year-nav-arrow">{{nextYear}} &#8594;</a>
       {{else}}
-        <span class="year-nav-arrow" style="opacity:0.3;cursor:default">&#8594;</span>
+        <span class="year-nav-arrow year-nav-arrow--disabled">Next &#8594;</span>
       {{/if}}
     </div>
 

@@ -44,6 +44,7 @@ export interface PublicEventDiscipline {
   name: string;
   disciplineCategory: string;
   teamType: string;
+  teamTypeLabel: string | null;
   sortOrder: number;
 }
 
@@ -153,6 +154,12 @@ function toPublicCompletedEventSummary(row: PublicCompletedEventSummaryRow): Pub
   };
 }
 
+function toTeamTypeLabel(teamType: string): string | null {
+  if (teamType === 'doubles') return 'Doubles';
+  if (teamType === 'mixed_doubles') return 'Mixed Doubles';
+  return null;
+}
+
 function toPublicEventDiscipline(row: PublicEventDisciplineRow): PublicEventDiscipline {
   return {
     disciplineId: row.discipline_id,
@@ -160,6 +167,7 @@ function toPublicEventDiscipline(row: PublicEventDisciplineRow): PublicEventDisc
     name: row.name,
     disciplineCategory: row.discipline_category,
     teamType: row.team_type,
+    teamTypeLabel: toTeamTypeLabel(row.team_type),
     sortOrder: row.sort_order,
   };
 }

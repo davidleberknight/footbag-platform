@@ -312,3 +312,55 @@ describe('GET /events/:eventKey', () => {
     expect(res.text).toContain('2025');
   });
 });
+
+// ── Home page ──────────────────────────────────────────────────────────────────
+
+describe('GET /', () => {
+  it('returns 200', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.status).toBe(200);
+  });
+
+  it('includes a featured upcoming event', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).toContain('2026 Spring Classic');
+  });
+
+  it('does not reveal draft events', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).not.toContain('2026 Draft Event');
+  });
+
+  it('includes navigation links to events and clubs', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).toContain('href="/events"');
+    expect(res.text).toContain('href="/clubs"');
+  });
+});
+
+// ── Clubs placeholder ──────────────────────────────────────────────────────────
+
+describe('GET /clubs', () => {
+  it('returns 200', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs');
+    expect(res.status).toBe(200);
+  });
+
+  it('includes coming soon content', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs');
+    expect(res.text).toContain('coming soon');
+  });
+
+  it('includes navigation links to home and events', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs');
+    expect(res.text).toContain('href="/"');
+    expect(res.text).toContain('href="/events"');
+  });
+});

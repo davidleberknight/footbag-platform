@@ -1,212 +1,370 @@
-# Footbag Website Modernization Project — View Catalog
-
-## Version 0.1 — MVFP Public Events + Results Slice (Provisional)
-
-### 1. Document purpose and scope
-
-This document is the authoritative page/UI/view/route/view-model specification for the cataloged views.
-
-For version 0.1, the cataloged views are intentionally limited to the **Minimum Viable First Page (MVFP)** public **Events + Results** slice.
-
-It is intentionally **provisional**, **narrow**, and **implementation-guiding**.
-
-It documents only the public server-rendered HTML views and route/view-model expectations for:
-
-- public events landing
-- public year archive browsing
-- public canonical event page rendering
-- public results display on the canonical event page
-- The V0.1 MVFP user stories are: V_Browse_Upcoming_Events, V_Browse_Past_Events.
-
-It does **not** attempt to catalog the whole site.
-
-It does **not** define member dashboards, organizer workflows, admin pages, JSON APIs, or broader UI design patterns outside this slice.
-
-### 2. Non-API routing note
-
-This slice has **no REST API**.
-
-The routes documented here are **GET HTML page routes** in a **server-rendered Express + Handlebars** application.
-
-Guiding rules for this slice:
-
-- Routes stay simple and stable.
-- Controllers stay thin.
-- Services own use-case logic and route-key interpretation.
-- `db.ts` is the single prepared-statement database module.
-- Templates remain logic-light.
-- No repository layer is introduced for this slice.
-- Validation belongs in controller/service code, not in fancy Express route syntax.
-
-### 3. Public/member boundary note
-
-All cataloged views in this document are **public visitor views**.
-
-That means:
-
-- no login is required to browse these views
-- no member-only roster or participant-history data is exposed
-- no organizer-only or admin-only controls appear
-- organizer contact details remain excluded from the public surface unless separately specified elsewhere
-- member actions such as registration, payment, uploading results, editing events, or attendance confirmation are out of scope for this document
-
-This document covers the modern public `/events`* browsing experience only. It does not catalog legacy archive access behavior.
-
-### 4. Canonical route summary
-
-
-| Route                    | Kind                  | Canonical purpose                                              | Notes                                                                  |
-| ------------------------ | --------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `GET /events`            | Public HTML page      | Events landing page                                            | Primary entry point for public events browsing                         |
-| `GET /events/year/:year` | Public HTML page      | Whole-year completed-events archive and results page           | No pagination; the page shows the full selected year                   |
-| `GET /events/:eventKey`  | Public HTML page      | Stable canonical route for both event detail and event results | Render mode is chosen in service/application logic, not by route shape |
-| `GET /health/live`       | Operational GET route | Liveness check                                                 | Included here for slice completeness; not a cataloged user view        |
-| `GET /health/ready`      | Operational GET route | Readiness check                                                | Included here for slice completeness; not a cataloged user view        |
-
-
-For MVFP v0.1 operational semantics:
-
-- `/health/live` is a cheap process-liveness signal and must not depend on SQLite, S3, SES, or other external integrations.
-- `/health/ready` is a minimal SQLite-readiness signal only.
-- For MVFP v0.1, `/health/ready` does not include backup freshness, S3 reachability, or CloudWatch reachability.
-
-Route design constraints:
-
-- Do **not** add alternate public detail routes for this slice.
-- Do **not** add bare-slug routes such as `/events/beaver-open`.
-- Do **not** split detail/results into separate public URLs.
-- Keep `GET /events/:eventKey` as the stable canonical public event route.
-
-### 4.1 MVFP route response and failure rules
-
-For MVFP v0.1:
-
-- All three `/events`* routes return server-rendered HTML.
-- `/health/live` and `/health/ready` return machine-readable JSON.
-- There is no public REST/JSON events API in this slice.
-- Invalid `eventKey` inputs use the standard not-found behavior.
-- Unknown canonical public event keys use the standard not-found behavior.
-- Non-public event lookups use the standard not-found behavior.
-- Temporary SQLite busy/locked read failures use the site’s standard safe failure / maintenance behavior.
-
-### 5. Event-key note
-
-Public event identity for this slice uses:
-
-- `eventKey` pattern: `event_{year}_{event_slug}`
-
-This public key is derived from the event’s standardized hashtag relationship:
-
-- `events.hashtag_tag_id` -> `tags.id`
-- stored standardized hashtag includes a leading `#`
-- public `eventKey` does not include the `#`
-
-Examples:
-
-- stored standardized tag: `#event_2025_beaver_open`
-- public route key: `event_2025_beaver_open`
-
-Important rules:
-
-- Do **not** invent an `event_slug` column.
-- Do **not** allow bare slugs such as `beaver-open`.
-- Parse and validate public `eventKey` in controller/service code.
-- Normalize to stored standard-tag form before `db.ts` lookup.
-
-### 6. Lifecycle / rendering note
-
-Public page rendering for this slice follows this general lifecycle:
-
-1. Browser requests a stable GET URL.
-2. Express controller parses route/query inputs.
-3. Controller delegates to a service method.
-4. Service validates inputs, performs read logic, and returns a page-oriented data structure.
-5. Controller maps that service result to a logic-light Handlebars view model.
-6. Template renders HTML.
-
-For MVFP v0.1, grouped public results appear in two places:
-
-- the whole-year archive/results page at `GET /events/year/:year`, where grouped results may be shown inline for each completed public event in that year;
-- the canonical single-event page at `GET /events/:eventKey`, which remains the stable drill-down route for one event.
-
-For `GET /events/:eventKey`, the public contract is still a single canonical page and a single template.
-
-The service/controller layer may change the page emphasis, but it must do so through page-model fields rather than alternate routes or alternate public templates.
-
-Required page-model facts for the canonical event page:
-
-- `hasResults` — true when the event is publicly visible and at least one result row exists for the event
-- `primarySection` — `details` or `results`
-- `resultSections[]` — grouped render data prepared above `db.ts`
-
-Important MVFP clarification:
-
-- A historical event without results does **not** use a different route.
-- The canonical event page still renders the event.
-- The year page still renders the event in the selected year.
-- When no result rows exist, both pages explicitly show that no results are available yet.
-
-### 7. View-model philosophy note
-
-For this slice:
-
-- view models should be page-specific and minimal
-- templates should not receive raw database concerns that they do not need
-- `db.ts` should return simple prepared-statement row sets
-- grouping and page shaping may happen in service/controller code above `db.ts`
-- templates should receive already-safe, already-resolved display data and simple booleans
-- templates should not parse `eventKey`, infer authorization, or re-derive business rules
-
-Internal identifiers may exist in service DTOs for orchestration, but only fields needed for rendering should reach the template.
+# Footbag Website Modernization Project -- View Catalog
+**Version:** 0.1 / March 15, 2026
+**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
 
 ---
 
-## 8. MVFP views
+## 1. Purpose
 
-### 8.1 Events Landing View
+This document is the authoritative catalog for the current public website pages and the authoritative standard those pages must follow.
 
-**Purpose**  
-Provide the primary public Events entry page for the MVFP by showing upcoming public events and clear entry points into the completed-events archive.
+It has two jobs:
 
-**Canonical route**  
+1. define the **generic look-and-feel standard** that applies to every cataloged page.
+2. define the **catalog of public pages** that consume that standard.
+
+The standard is cross-site and generic. Every public page must conform to it.
+
+---
+
+## 2. Scope
+
+This document covers:
+
+- the public visual and structural standard for server-rendered visitor pages
+- the current public route catalog
+- the required page contract for public rendering
+- the current public pages (Project scope for V0.1 only as of today):
+  - Home  (main landing page for site)
+  - Events index (main landing page for events)
+  - Events year archive
+  - Event detail
+  - Clubs landing placeholder
+- the rules future pages must follow to join the catalog
+
+This document does not cover (yet):
+
+- member-only pages
+- organizer workflows
+- admin pages
+- APIs
+- authentication flows
+- internal tools
+- implementation details that belong in code patches rather than catalog definition
+
+---
+
+## 3. Governing Principles
+
+### 3.1 One standard, many pages
+
+The public site must have one reusable look-and-feel standard. Pages consume the standard. Pages do not define their own standards.
+
+### 3.2 Reuse must be enforceable
+
+The standard must be enforceable through reusable code, not through convention alone.
+
+That means:
+
+- thin controllers
+- shaped page view models
+- one public layout contract
+- reusable Handlebars partials/components
+- shared CSS tokens and component styles
+- logic-light templates
+
+### 3.3 Events are consumers, not the authority
+
+The existing Events pages are part of the catalog, but they do not define the site-wide visual or structural rules. They must refer to the generic standard exactly as Home, Clubs, and future sections do.
+
+### 3.4 Future pages must fit the standard
+
+A new public page may join the catalog only if it can be expressed through the same generic standard. If a genuinely reusable new primitive is needed, that primitive must be added to the standard itself and then reused.
+
+---
+
+## 4. Public Rendering Standard
+
+## 4.1 Standard purpose
+
+The public rendering standard defines the shared structure, page contract, and reusable UI primitives that every cataloged public page must use.
+
+## 4.2 Required page contract
+
+Every public page must render from the same top-level contract.
+
+### Required top-level shape
+
+- `seo`
+  - `title`
+  - optional `description`
+- `page`
+  - `sectionKey`
+  - `pageKey`
+  - `title`
+  - optional `eyebrow`
+  - optional `intro`
+  - optional `notice`
+- `navigation`
+  - current public nav items: Home (`/`), Events (`/events`), Clubs (`/clubs`)
+  - active section/page state
+- `content`
+  - page-specific regions already shaped for rendering
+
+Templates must consume this contract rather than derive it.
+
+## 4.3 Required reusable primitives
+
+Every public page must be composed from the same small set of reusable primitives.
+
+### Site frame
+
+- header/navigation region
+- main content container
+- footer region
+
+### Page hero
+
+- optional eyebrow
+- page title
+- optional intro
+- optional notice
+
+### Content section
+
+- section heading
+- optional supporting text
+- content body
+
+### Event card
+
+Used in the events index upcoming list and the home featured events region.
+
+Each card renders: title (linked to the canonical event route), date range, location (city / region / country), host club when present, status badge, short description when present.
+
+### Discipline tag
+
+Used in event detail. Each tag renders the discipline name. Non-singles disciplines (`doubles`, `mixed_doubles`) include a parenthetical team-type indicator. Tags are ordered by `sortOrder`.
+
+`discipline_category` is an application-enforced taxonomy. Canonical families are `freestyle`, `net`, `golf`, and `sideline`. The schema stores this as free text; no CHECK constraint exists.
+
+### Result section
+
+Used in event detail and in year archive inline results. One section per discipline grouping.
+
+- Section header: `disciplineName` when present; otherwise "General Results"
+- Optional meta line when `teamType` is present (renders raw `teamType` value)
+- One row per placement: `placement` number, participant `participantDisplayName` values ordered by `participantOrder` (stacked for `doubles` and `mixed_doubles`), `scoreText` when present (cell is empty when absent — no placeholder text)
+- Placements rendered in ascending `placement` order
+- Template comments, loop prose, and debugging text must never appear in rendered HTML output
+
+### Year navigation
+
+Used in year archive. Renders previous-year and next-year links when adjacent years with completed public events exist. When no adjacent year exists, a disabled placeholder labeled "← Previous" or "Next →" renders instead. Uses `.year-nav`, `.year-nav-arrow`, and `.year-nav-arrow--disabled`.
+
+### Metadata list / summary rows
+
+Used for date, location, host, status, and equivalent facts.
+
+### Empty state
+
+Used when a page is valid but has no content to show.
+
+### Notice / coming-soon block
+
+Used for temporary incompleteness or intentionally stubbed sections.
+
+### CSS class vocabulary
+
+The CSS vocabulary is split into two tiers.
+
+**Shared — required across all public pages:**
+
+- Site frame: `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`
+- Hero: `.hero`, `.hero-sm` (compact variant for secondary pages: year archive and event detail)
+- Sections: `.section-heading`, `.section-count`
+- Cards: `.card-grid`, `.card`, `.card-title`, `.card-meta`, `.card-description`
+- Badges: `.badge`, `.badge-published`, `.badge-registration_full`, `.badge-closed`, `.badge-completed`
+- Buttons: `.btn`, `.btn-primary`, `.btn-outline`
+- States: `.empty-state`
+
+**Events section — required within events pages only:**
+
+- Archive years: `.year-grid`, `.year-pill`, `.year-nav`, `.year-nav-arrow`, `.year-nav-arrow--disabled`
+- Event detail layout: `.event-detail`, `.event-header`, `.event-meta-row`, `.event-external-link`
+- Disciplines: `.disciplines-list`, `.discipline-tag`
+- Results: `.results-section`, `.results-section-header`, `.discipline-meta`, `.results-table`, `.placement-num`, `.participants-list`, `.score-text`, `.no-results-notice`
+
+## 4.4 Implementation rules
+
+The standard must be implemented through reusable code.
+
+### Express / controller rules
+
+- routes return HTML pages
+- controllers stay thin
+- page shaping belongs in services or page-model builders
+- shared site-wide data may be injected through `app.locals` and `res.locals`
+
+### Handlebars rules
+
+- shared structure must live in reusable partials/components
+- templates remain logic-light
+- helpers, if used, remain presentation-oriented
+- templates must not own business rules or infer domain behavior from raw data
+
+### CSS rules
+
+The visual system must be organized as reusable layers rather than one growing page-specific stylesheet.
+
+Preferred structure:
+
+- design tokens
+- base/global styles
+- layout styles
+- reusable component styles
+- minimal page-specific exceptions only when unavoidable
+
+## 4.5 Visual rules
+
+All public pages must present a consistent public experience.
+
+Required characteristics:
+
+- clean, readable, content-first layout
+- consistent spacing and max width
+- consistent typography hierarchy
+- consistent card treatment across sections
+- consistent metadata styling
+- consistent empty-state styling
+- consistent notice / coming-soon styling
+- consistent header/footer behavior
+- no section-specific chrome systems
+
+Visual token baseline (from `src/public/css/style.css`):
+
+- font stack: Inter, Helvetica Neue, Arial, sans-serif
+- primary accent: green (`#1bb36b`)
+- secondary accent: teal (`#0b5e6b`)
+- page background: white
+- borders: soft gray
+- cards: rounded corners, light drop shadow
+- layout: generous whitespace, clean editorial, not dense app chrome
+
+---
+
+## 5. Public Route Catalog
+
+| Route | Page | Purpose | Status |
+| --- | --- | --- | --- |
+| `GET /` | Home | Public landing page | Current |
+| `GET /events` | Events index | Browse upcoming events and archive entry points | Current |
+| `GET /events/year/:year` | Events year archive | Browse completed events for one year | Current |
+| `GET /events/:eventKey` | Event detail | Canonical public event page | Current |
+| `GET /clubs` | Clubs landing | Placeholder public clubs entry page | Current stub |
+| `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
+| `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
+
+### Route rules
+
+- `GET /` is the canonical public home route.
+- `GET /events` is the canonical events section entry route.
+- `GET /events/:eventKey` is the canonical public event detail route.
+- `GET /clubs` is the canonical clubs section entry route for the current slice.
+- health routes are operational and are outside the cataloged page system.
+
+---
+
+## 6. Page Specifications
+
+## 6.1 Home
+
+### Purpose
+
+Provide the primary public entry point for the modernized site.
+
+### Route
+
+`GET /`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard.
+
+### Page intent
+
+- welcome visitors to IFPA Footbag
+- state clearly that public event data is live now
+- signal that additional sections are coming
+- provide direct navigation into Events
+- establish Clubs as an expected section even while still lightweight
+
+### Required content
+
+- hero with site title and short welcome text
+- clear statement about current platform scope
+- direct links to Home, Events, and Clubs
+- featured upcoming events teaser region
+- link to browse all events
+- clubs teaser / placeholder region
+- optional coming-soon region for other future sections
+
+### Required view-model fields
+
+- `page.sectionKey = home`
+- `page.pageKey = home_index`
+- `page.title`
+- optional `page.eyebrow`
+- `page.intro`
+- optional `page.notice`
+- `featuredUpcomingEvents[]`
+- `primaryLinks[]`
+- optional `comingSoonSections[]`
+
+### Navigation outputs
+
+- `GET /events`
+- `GET /events/:eventKey`
+- `GET /clubs`
+
+### Empty state
+
+If there are no featured upcoming events, the page still renders normally with a standard empty state and retains the Events entry point.
+
+---
+
+## 6.2 Events index
+
+### Purpose
+
+Provide the primary public Events entry page by showing upcoming public events and links into completed-event archives.
+
+### Route
+
 `GET /events`
 
-**Audience / authorization level**  
-Public visitor view. No authentication required.
+### Audience
 
-**Visibility and privacy notes**  
-Visible to any visitor. Must not expose organizer contact details, member-only controls, participant histories, or registration-management controls.
+Public visitor.
 
-**Revised user story references**  
+### Standard relationship
 
-- `V_Browse_Upcoming_Events` (revised MVFP slice story)
-- `V_Browse_Past_Events` (revised MVFP slice story, archive entry-point aspect)
+This page consumes the generic public rendering standard.
 
-**Repository references**  
+### Page intent
 
-- `docs/PROJECT_SUMMARY_V0_1.md`
-- `docs/USER_STORIES_V0_1.md`
-- `docs/SERVICE_CATALOG_V0_1.md`
-- `docs/DATA_MODEL_V0_1.md`
-- `docs/DESIGN_DECISIONS_V0_1.md`
-- `database/schema_v0_1.sql`
+- show upcoming public events
+- provide clear event drill-down links
+- provide archive-year entry points for completed events
 
-**Source tables**  
+### Required content
 
-- `events`
-- `tags`
+- hero for the Events section
+- upcoming events region — event cards use the standard event card primitive (§4.3)
+- archive years region
 
-**Derived data requirements**  
+### Required view-model fields
 
-- Public event cards require `eventKey` derived from the standardized event tag without the leading `#`.
-- Upcoming list ordering should be service-owned, not template-owned.
-- Archive entry links should be derived from completed-event archive years, with archive year based on `events.start_date`.
-- The page returns HTML only.
-- The page shows upcoming public events ordered by start date ascending.
-- The page shows archive-year links derived from completed public events.
-
-**View model fields**  
-
+- `page.sectionKey = events`
+- `page.pageKey = events_index`
+- `page.title`
+- optional `page.eyebrow`
+- `page.intro`
+- optional `page.notice`
 - `upcomingEvents[]`
   - `eventKey`
   - `title`
@@ -221,347 +379,294 @@ Visible to any visitor. Must not expose organizer contact details, member-only c
   - `status`
 - `archiveYears[]`
 
-**Regions and widgets**  
+### Navigation outputs
 
-- Upcoming Events list region
-- Archive Years navigation region
+- `GET /events/:eventKey`
+- `GET /events/year/:year`
 
-**Buttons / links / entry points**  
+### Empty state
 
-- Site navigation link to `GET /events`
-- Event-card link to `GET /events/:eventKey`
-- Archive-year links to `GET /events/year/:year`
-
-**Outbound navigation**  
-
-- to canonical event page via `GET /events/:eventKey`
-- to a year archive via `GET /events/year/:year`
-
-**Empty states**  
-
-- If there are no upcoming public events: show a simple “No upcoming events available” message.
-- If there are no archive years yet: omit or simplify the archive navigation region rather than rendering broken year links.
-
-**Error states**  
-
-- If the read path temporarily fails, route through the site’s standard safe error/maintenance behavior.
-- The landing page should not expose stack traces, SQL errors, or internal state.
-
-**Pagination behavior**  
-None for MVFP landing.
-
-**What is intentionally excluded from MVFP**  
-
-- event search
-- geographic filters
-- advanced sort options
-- organizer contact display
-- registration CTA/button behavior
-- member-aware personalization
-- legacy archive deep linking logic
-- JSON data endpoints
-
-**Future extension notes only if directly justified**  
-If later user stories require filtering or richer landing-page discovery, add them without changing the canonical route set.
+If no upcoming events exist, render a standard empty state. Archive-year links may still appear if completed-event years exist.
 
 ---
 
-### 8.2 Events Year View
+## 6.3 Events year archive
 
-**Purpose**  
-Show one archive year of completed public events as a whole-year public archive/results page. The page is not paginated. It exists so visitors can browse a whole year of events, see which events have results, read grouped results inline when present, and then click through to a specific event page when needed.
+### Purpose
 
-**Canonical route**  
+Provide a complete public archive page for completed events in one calendar year.
+
+### Route
+
 `GET /events/year/:year`
 
-**Audience / authorization level**  
-Public visitor view. No authentication required.
+### Audience
 
-**Visibility and privacy notes**  
-Visible to any visitor. The page lists completed public events for the archive year. It must not expose member-only controls, private participant data, organizer contact details, or edit/upload controls.
+Public visitor.
 
-**Revised user story references**  
+### Standard relationship
 
-- `V_Browse_Past_Events`
+This page consumes the generic public rendering standard.
 
-**Repository references**  
+### Page intent
 
-- `docs/USER_STORIES_V0_1.md`
-- `docs/DATA_MODEL_V0_1.md`
-- `docs/SERVICE_CATALOG_V0_1.md`
-- `docs/DESIGN_DECISIONS_V0_1.md`
-- `database/schema_v0_1.sql`
+- show completed public events for one year
+- provide drill-down links to canonical event pages
+- preserve year-level browseability without pagination
 
-**Input contract**
+### Required content
 
-- `year` is a required four-digit path parameter.
-- No pagination query parameter is part of the public contract for this route.
+- hero showing the selected archive year
+- year navigation using the standard year navigation primitive (§4.3)
+- completed events list for that year — result sections per event use the standard result section primitive (§4.3)
 
-**Source tables**  
+### Required view-model fields
 
-- `events`
-- `tags`
-- `clubs`
-- `event_disciplines`
-- `event_results_uploads`
-- `event_result_entries`
-- `event_result_entry_participants`
-
-**Derived data requirements**  
-
-- Archive year is derived from `events.start_date`.
-- Year validation belongs in controller/service logic.
-- Ordering is service-owned, not template-owned.
-- The archive shows the full completed public event list for the selected year.
-- Events are sorted by `startDate ASC`, then `endDate ASC`, then title, then stable ID.
-- `hostClub` is display data derived from `events.host_club_id -> clubs.name` when present.
-- `hasResults` is true only when the event is publicly visible and at least one result row exists for that event.
-- Inline `resultSections[]` are grouped above `db.ts`.
-- If no result rows exist for an event, the page still renders the event and an explicit no-results state.
-
-**View model fields**  
-
+- `page.sectionKey = events`
+- `page.pageKey = events_year_archive`
+- `page.title`
+- optional `page.eyebrow`
+- `page.intro`
+- optional `page.notice`
 - `year`
-- `previousYear`
-- `nextYear`
+- `previousYear` (nullable)
+- `nextYear` (nullable)
 - `archiveYears[]`
 - `events[]`
   - `eventKey`
   - `title`
-  - `description`
+  - optional `description`
   - `startDate`
   - `endDate`
   - `city`
-  - `region`
+  - optional `region`
   - `country`
-  - `hostClub`
+  - optional `hostClub`
   - `status`
-  - `standardTagDisplay`
   - `hasResults`
-  - `resultSections[]`
-    - `disciplineId`
-    - `disciplineName`
-    - `disciplineCategory`
-    - `teamType`
-    - `placements[]`
-      - `placement`
-      - `scoreText`
-      - `participants[]`
-        - `participantDisplayName`
-        - `participantOrder`
-  - `noResultsMessage`
+  - `resultSections[]` (same shape as §6.4; empty array when `hasResults` is false)
+  - `noResultsMessage` (rendered when `hasResults` is false)
 
-Implementation note: the year page should be produced by a page-oriented service method that returns the final page-shaped data. Controllers may pass the page model into the template, but they must not invent business rules such as result visibility, host-club derivation, or sibling-year logic.
+### Navigation outputs
 
-**Regions and widgets**  
+- `GET /events`
+- `GET /events/:eventKey`
 
-- Year header region
-- Previous/next year navigation region
-- Archive-years navigation region
-- Whole-year event/results region
+### Empty state
 
-**Buttons / links / entry points**  
-
-- Year links from `GET /events`
-- Previous-year / next-year links when those adjacent years exist
-- Event title or card link to canonical event page `GET /events/:eventKey`
-- Direct bookmarked entry to the selected year URL
-
-**Outbound navigation**  
-
-- to `GET /events`
-- to another `GET /events/year/:year`
-- to canonical event page `GET /events/:eventKey`
-
-**Empty states**  
-
-- If the year is a valid input but has no completed public events, show a clear empty archive state.
-- Do not fabricate archive items.
-- Do not fabricate result sections.
-
-**Error states**  
-
-- Invalid year input is handled by controller/service validation.
-- Temporary service/database unavailability routes through the site’s safe error/maintenance behavior.
-- The page must not expose internal validation or database details.
-
-**Pagination behavior**  
-None for MVFP v0.1.
-
-**What is intentionally excluded from MVFP**  
-
-- free-text archive search
-- country/discipline filters
-- participant-history links
-- alternate archive route shapes
-- JSON archive endpoints
-
-**Future extension notes only if directly justified**  
-A future UI may add filters or collapse/expand interactions, but the canonical year route must remain stable and non-paginated unless the authoritative user stories change.
+If the requested year is valid but contains no public completed events, render a standard empty state.
 
 ---
 
-### 8.3 Canonical Public Event Page View
+## 6.4 Event detail
 
-**Purpose**  
-Show the single canonical public page for one event. The page always uses the route `GET /events/:eventKey`. It is the stable drill-down destination from the landing page and the year page. It may emphasize event details or results depending on the returned page model, but it does not change route shape and it does not require multiple public templates.
+### Purpose
 
-**Canonical route**  
+Provide the canonical public detail page for one event.
+
+### Route
+
 `GET /events/:eventKey`
 
-**Audience / authorization level**  
-Public visitor view. No authentication required.
+### Audience
 
-**Visibility and privacy notes**  
-This page is public only for events with allowed public visibility under the MVFP slice rule. It must not expose organizer contact details, private participant information beyond public result display names, organizer controls, upload tools, or member-only registration-management details.
+Public visitor.
 
-**Revised user story references**  
+### Standard relationship
 
-- `V_Browse_Upcoming_Events`
-- `V_Browse_Past_Events`
+This page consumes the generic public rendering standard.
 
-**Repository references**  
+### Page intent
 
-- `docs/USER_STORIES_V0_1.md`
-- `docs/SERVICE_CATALOG_V0_1.md`
-- `docs/DATA_MODEL_V0_1.md`
-- `docs/DESIGN_DECISIONS_V0_1.md`
-- `database/schema_v0_1.sql`
+- present the event identity, timing, location, and status clearly
+- present the public event description and available public results sections
+- act as the canonical drill-down destination from all public event browse pages
 
-**Source tables**  
+### Event visibility
 
-- `events`
-- `tags`
-- `event_disciplines`
-- `event_results_uploads`
-- `event_result_entries`
-- `event_result_entry_participants`
+Public canonical event pages exist only for events whose `status` is one of:
+`published`, `registration_full`, `closed`, `completed`
 
-**Derived data requirements**  
+Events with status `draft`, `pending_approval`, or `canceled` resolve through standard not-found behavior. No distinct error state is exposed for non-public events.
 
-- Validate and normalize `eventKey` to stored standard-tag form before lookup.
-- Enforce public-detail visibility by event status.
-- Read flat ordered result rows below the view layer.
-- Group result rows into `resultSections[]` above `db.ts`.
-- Derive `hasResults` from result-row existence for the event.
-- Derive `primarySection` as `details` when `hasResults = false`, otherwise `results`.
+### Required content
 
-**View model fields**  
+- hero: event title; location and date range as subtitle
+- meta row below hero: date range, location, host club when present, status badge; external URL button when present
+- optional description region
+- disciplines region: discipline tags ordered by `sortOrder` using the standard discipline tag primitive (§4.3); omitted cleanly when no disciplines exist
+- results region: when `hasResults`, render one result section per entry in `resultSections[]` using the standard result section primitive (§4.3); when not, render a styled no-results notice
 
+### Required view-model fields
+
+- `page.sectionKey = events`
+- `page.pageKey = event_detail`
+- `page.title`
+- optional `page.eyebrow`
+- optional `page.intro`
+- optional `page.notice`
 - `event`
   - `eventKey`
   - `title`
-  - `description`
+  - optional `description`
   - `startDate`
   - `endDate`
   - `city`
-  - `region`
+  - optional `region`
   - `country`
-  - `hostClub`
-  - `externalUrl`
-  - `registrationDeadline`
-  - `capacityLimit`
+  - optional `hostClub`
   - `status`
-  - `registrationStatus`
-  - `publishedAt`
-  - `isAttendeeRegistrationOpen`
-  - `isTshirtSizeCollected`
-  - `sanctionStatus`
-  - `paymentEnabled`
-  - `currency`
-  - `competitorFeeCents`
-  - `attendeeFeeCents`
+  - optional `registrationStatus`
+  - optional `registrationDeadline`
+  - optional `capacityLimit`
+  - optional `externalUrl`
 - `disciplines[]`
   - `disciplineId`
   - `name`
   - `disciplineCategory`
-  - `teamType`
+  - `teamType` (`singles` | `doubles` | `mixed_doubles`)
+  - `teamTypeLabel` (`null` for singles; `"Doubles"` or `"Mixed Doubles"` for non-singles — computed by service; templates use this for display)
   - `sortOrder`
 - `hasResults`
-- `primarySection`
+- `primarySection` (`details` when no results exist; `results` when results exist — affects emphasis only, not route shape)
 - `resultSections[]`
-  - `disciplineId`
-  - `disciplineName`
-  - `disciplineCategory`
-  - `teamType`
+  - optional `disciplineId`
+  - optional `disciplineName`
+  - optional `disciplineCategory`
+  - optional `teamType`
   - `placements[]`
     - `placement`
-    - `scoreText`
+    - optional `scoreText`
     - `participants[]`
       - `participantDisplayName`
       - `participantOrder`
 
-**Regions and widgets**  
+### Canonical event identity rule
 
-- Event header / identity region
-- Event description region
-- Event metadata region
-- Disciplines region
-- Results summary region when `hasResults = true`
-- Optional no-results notice region when `hasResults = false`
-- Optional external-link region
+For the current slice, the public route key is `eventKey`.
 
-**Buttons / links / entry points**  
+Rules:
 
-- Direct route entry via `GET /events/:eventKey`
-- Event-card links from landing and year pages
-- Optional external event website link if `externalUrl` exists
+- `GET /events/:eventKey` is the canonical public detail route
+- the public key format remains `event_{year}_{event_slug}` for the current slice
+- validation and normalization happen in controller/service code, not templates
+- the catalog does not authorize alternate public detail URL patterns
 
-**Outbound navigation**  
+### Navigation outputs
 
-- to `GET /events`
-- to `GET /events/year/:year` for the event archive year
-- to external event website if present
+- `GET /events`
+- related public links already shaped into the page model
 
-**Empty states**  
+### Empty state
 
-- If no disciplines exist yet, show event information without fabricating a disciplines list.
-- If no result rows exist for the event, show the event page with an explicit no-results notice.
-
-**Success contract**
-
-- This is the one canonical public route for both event detail and event results.
-- The page renders event details for any public-visible event.
-- When result rows exist, the page renders grouped results sections.
-- When no result rows exist, the page still renders the event and includes an explicit “no results available yet” note.
-
-**Error states**  
-
-- Invalid `eventKey` format: handled via controller/service validation path
-- Unknown `eventKey`: standard not-found behavior
-- Non-public event: standard not-found behavior
-- Temporary service/database failure: standard safe error/maintenance behavior
-
-**Pagination behavior**  
-None.
-
-**What is intentionally excluded from MVFP**  
-
-- registration form
-- payment CTA flow
-- organizer contact details
-- attendee or competitor roster views
-- participant-history links
-- member profile drill-down from results
-- upload or correction controls
-- downloadable results files
-- JSON results endpoints
+There is no empty state for a missing event. A valid missing-record path should resolve through the site’s standard not-found behavior.
 
 ---
 
-## 9. MVFP exclusions
+## 6.5 Clubs landing placeholder
 
-This initial View Catalog intentionally does **not** cover:
+### Purpose
 
-- member login and registration flows
-- event registration and payment flows
-- organizer event-management pages
-- results upload and correction workflows
-- admin or governance pages
-- club, news, media, or member directory catalogs
-- participant-history browsing
-- alternate event route shapes
-- REST or JSON API design
-- a whole-site View Catalog
+Establish Clubs as a first-class public section in the site structure even before the club directory is implemented.
 
-This document is intentionally limited so the MVFP public Events + Results slice can be implemented clearly without guessing about unrelated areas.
+### Route
+
+`GET /clubs`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard.
+
+### Page intent
+
+- establish Clubs as a durable public navigation destination
+- communicate that richer club browsing is coming later
+- provide a reusable placeholder pattern for future sections in early rollout states
+
+### Required content
+
+- hero for the Clubs section
+- concise explanation that the club directory is coming soon
+- optional placeholder cards or notice blocks for expected future browse paths
+
+### Required view-model fields
+
+- `page.sectionKey = clubs`
+- `page.pageKey = clubs_index`
+- `page.title`
+- optional `page.eyebrow`
+- `page.intro`
+- optional `page.notice`
+- optional `placeholderLinks[]`
+- optional `comingSoonSections[]`
+
+### Navigation outputs
+
+- `GET /`
+- `GET /events`
+
+### Empty state
+
+This page is itself a controlled placeholder state and should use the standard notice / coming-soon treatment rather than a generic empty state.
+
+---
+
+## 7. Shared Public Behavior Rules
+
+### 7.1 Authorization boundary
+
+All pages in this catalog are public visitor pages.
+
+They must not expose:
+
+- member-only data
+- organizer-only controls
+- admin controls
+- internal diagnostics
+- private participant history
+- workflow actions outside the public browsing scope
+
+### 7.2 Error behavior
+
+Public pages must fail safely.
+
+They must not expose:
+
+- stack traces
+- SQL errors
+- internal implementation details
+
+### 7.3 Template behavior
+
+Templates may branch only on already-shaped display data such as booleans, empty lists, or presentation-ready sections. They must not parse route semantics, authorization rules, or domain logic.
+
+---
+
+## 8. Future Admission Rules
+
+A future public page may join this catalog only if:
+
+- it uses the same top-level page contract
+- it uses the same reusable primitives
+- it does not introduce a section-specific chrome system
+- it can be rendered through the same reusable Handlebars and CSS approach
+
+If a future page requires a new reusable primitive, add that primitive to the standard first, then apply it across all relevant pages.
+
+---
+
+## 9. Summary
+
+This catalog establishes a single generic public look-and-feel standard and then catalogs the current pages that consume it.
+
+The hierarchy is intentional:
+
+1. define the standard
+2. define the route catalog
+3. define each page as a consumer of the standard
+
+That is the governing structure for the public site going forward.

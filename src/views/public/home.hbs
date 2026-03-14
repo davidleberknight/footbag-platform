@@ -1,0 +1,47 @@
+{{! Public home landing page }}
+
+<div class="hero">
+  <div>
+    <h1>IFPA Footbag</h1>
+    <p>The home of competitive footbag. Browse events, results, and clubs from around the world.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Featured upcoming events ─────────────────────────────────── }}
+  <section>
+    <div class="section-heading">
+      <h2>Upcoming Events</h2>
+    </div>
+
+    {{#if featuredUpcomingEvents.length}}
+      <div class="card-grid">
+        {{#each featuredUpcomingEvents}}
+          {{> event-card}}
+        {{/each}}
+      </div>
+      <div style="margin-top:24px">
+        <a href="/events" class="btn btn-primary">Browse all events</a>
+      </div>
+    {{else}}
+      <div class="empty-state">
+        <p>No upcoming events are currently listed.</p>
+        <a href="/events" class="btn btn-outline" style="margin-top:16px">Browse all events</a>
+      </div>
+    {{/if}}
+  </section>
+
+  {{! ── Clubs teaser ─────────────────────────────────────────────── }}
+  <section>
+    <div class="section-heading">
+      <h2>Clubs</h2>
+    </div>
+    <div class="card">
+      <div class="card-title">Find a club near you</div>
+      <p class="card-description">The club directory is coming soon. It will let you browse clubs by country, region, and city.</p>
+      <a href="/clubs" class="btn btn-outline" style="margin-top:12px">Learn more</a>
+    </div>
+  </section>
+
+</div>
