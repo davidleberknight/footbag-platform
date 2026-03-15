@@ -43,7 +43,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT  = ROOT / "out"
-CANONICAL = Path("~/projects/footbag-platform/legacy_data/event_results/canonical_input").expanduser()
+CANONICAL = ROOT.parents[1] / "legacy_data" / "event_results" / "canonical_input"
 
 csv.field_size_limit(10_000_000)
 
