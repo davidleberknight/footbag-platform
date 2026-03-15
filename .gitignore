@@ -135,3 +135,28 @@ tfplan
 
 # Generated cache files (never commit)
 legacy_data/robots_cache.json
+
+# =========================
+# Data pipeline (data-pipeline/)
+# =========================
+# Generated outputs from running the pipeline
+data-pipeline/out/
+
+# HTML mirror archive (large; user provides separately)
+data-pipeline/mirror/
+data-pipeline/*.tar*
+data-pipeline/*.zip
+
+# Generated Excel workbooks
+data-pipeline/**/*.xlsx
+
+# Identity lock sentinel (generated after pipeline run)
+data-pipeline/**/persons_truth.lock
+
+# Virtual environments inside data-pipeline/
+data-pipeline/.venv/
+data-pipeline/venv/
+data-pipeline/footbag_venv/
+
+# DB backup created by 08_load script
+database/*.db.bak
