@@ -60,9 +60,65 @@ These are the project conventions enforced with Claude Code skills and hooks:
 See `docs/` for project documentation and design materials.
 See `database/` for the database schema sql.
 
+## Soup-to-nuts data pipeline
+
+This repository includes the full historical data pipeline. Starting from raw source inputs,
+a developer can produce a running website with complete historical event results and player profiles.
+
+### Pipeline overview
+
+```
+raw legacy source inputs
+    ↓ data-pipeline/run_pipeline.sh all
+canonical_input CSVs  (legacy_data/event_results/canonical_input/)
+    ↓ 07_build_mvfp_seed_full.py
+seed CSVs  (legacy_data/event_results/seed/mvfp_full/)
+    ↓ reset-local-db.sh + 08_load_mvfp_seed_full_to_sqlite.py
+SQLite database  (database/footbag.db)
+    ↓ npm start
+website
+```
+
+### One-time setup
+
+```bash
+npm install
+cd data-pipeline && ./run_pipeline.sh setup && cd ..
+```
+
+### Full run (requires HTML mirror archive)
+
+```bash
+# Unpack the mirror (obtain mirror.tar.gz separately — not committed)
+tar -xzf /path/to/mirror.tar.gz -C data-pipeline/mirror/
+
+# Run the complete pipeline
+./scripts/run-full-pipeline.sh
+
+# Launch the site
+npm start   # → http://localhost:3000
+```
+
+### Partial run (if canonical CSVs already exist)
+
+```bash
+./scripts/run-full-pipeline.sh --skip-pipeline
+npm start
+```
+
+### Verification
+
+```bash
+sqlite3 database/footbag.db \
+  "SELECT COUNT(*) FROM historical_persons;
+   SELECT COUNT(*) FROM events;
+   SELECT COUNT(historical_person_id) FROM event_result_entry_participants;"
+# Expected: ~5932 / ~774 / ~35861
+```
+
 ## Technology stack
 
-TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Docker · Terraform
+TypeScript · Node.js · Express · Handlebars · SQLite · Python · AWS (Lightsail, S3, SES, CloudFront) · Docker · Terraform
 
 Stripe and additional platform integrations are planned for future delivery slices.
 
