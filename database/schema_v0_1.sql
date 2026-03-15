@@ -1725,9 +1725,39 @@ CREATE UNIQUE INDEX ux_result_entries_general_placement
   ON event_result_entries(event_id, placement)
   WHERE discipline_id IS NULL;
 
+-- Registry of historical competitive players imported from the legacy dataset.
+-- Populated by the data pipeline (08_load_mvfp_seed_full_to_sqlite.py).
+-- event_count IS NULL indicates a minimal stub record auto-assigned by the pipeline.
+CREATE TABLE historical_persons (
+  person_id            TEXT PRIMARY KEY,
+  person_name          TEXT NOT NULL,
+  aliases              TEXT,
+  legacy_member_id     TEXT,
+  country              TEXT,
+  first_year           INTEGER,
+  last_year            INTEGER,
+  event_count          INTEGER,
+  placement_count      INTEGER,
+  bap_member           INTEGER NOT NULL DEFAULT 0,
+  bap_nickname         TEXT,
+  bap_induction_year   INTEGER,
+  fbhof_member         INTEGER NOT NULL DEFAULT 0,
+  fbhof_induction_year INTEGER,
+  freestyle_sequences      INTEGER,
+  freestyle_max_add        REAL,
+  freestyle_unique_tricks  INTEGER,
+  freestyle_diversity_ratio REAL,
+  signature_trick_1    TEXT,
+  signature_trick_2    TEXT,
+  signature_trick_3    TEXT,
+  notes                TEXT,
+  source               TEXT
+);
+
 -- Participants (members or named non-members) for a single result entry.
 -- Supports singles (1 row) and team formats (2 rows). member_id is nullable
 -- for non-platform participants; display_name is always required.
+-- historical_person_id links to the legacy player registry when known.
 CREATE TABLE event_result_entry_participants (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -1736,15 +1766,17 @@ CREATE TABLE event_result_entry_participants (
   updated_by TEXT NOT NULL,
   version    INTEGER NOT NULL DEFAULT 1,
 
-  result_entry_id   TEXT NOT NULL REFERENCES event_result_entries(id),
-  participant_order INTEGER NOT NULL,
-  member_id         TEXT REFERENCES members(id),
-  display_name      TEXT NOT NULL,
+  result_entry_id      TEXT NOT NULL REFERENCES event_result_entries(id),
+  participant_order    INTEGER NOT NULL,
+  member_id            TEXT REFERENCES members(id),
+  display_name         TEXT NOT NULL,
+  historical_person_id TEXT REFERENCES historical_persons(person_id),
   UNIQUE(result_entry_id, participant_order)
 );
 
 CREATE INDEX idx_result_participants_entry  ON event_result_entry_participants(result_entry_id);
 CREATE INDEX idx_result_participants_member ON event_result_entry_participants(member_id);
+CREATE INDEX idx_result_participants_person ON event_result_entry_participants(historical_person_id);
 
 -- =============================================================================
 -- SECTION 17: MEDIA & GALLERIES
