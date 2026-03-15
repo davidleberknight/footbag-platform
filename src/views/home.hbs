@@ -1,0 +1,37 @@
+{{! Home page }}
+
+<div class="hero">
+  <div>
+    <h1>IFPA Footbag</h1>
+    <p>The historical archive for competitive footbag — events, results, and players from 1980 to today.</p>
+    {{#if stats}}
+      <div class="hero-stats">
+        <span>{{stats.event_count}} events</span>
+        <span>{{stats.player_count}} players</span>
+        <span>{{stats.year_count}} years of history</span>
+      </div>
+    {{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="card-grid home-sections">
+
+      <a href="/events" class="card home-section-card">
+        <div class="home-section-icon">&#127942;</div>
+        <h2>Events</h2>
+        <p>Browse tournaments and competitions by year. View disciplines, results, and placements from events around the world.</p>
+        <span class="btn btn-primary" style="margin-top:8px">Browse Events</span>
+      </a>
+
+      <a href="/players" class="card home-section-card">
+        <div class="home-section-icon">&#127936;</div>
+        <h2>Players</h2>
+        <p>Explore the history of competitive footbag through its players — search by name or country and see career statistics.</p>
+        <span class="btn btn-primary" style="margin-top:8px">Browse Players</span>
+      </a>
+
+    </div>
+  </section>
+</div>

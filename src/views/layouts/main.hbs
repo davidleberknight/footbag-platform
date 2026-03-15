@@ -16,7 +16,8 @@
       <a href="/" class="site-logo">IFPA <span>Footbag</span></a>
       <nav class="main-nav" aria-label="Main navigation">
         <a href="/">Home</a>
-        <a href="/events">Events</a>
+        <a href="/events" {{#if (eq currentSection 'events')}}class="active"{{/if}}>Events</a>
+        <a href="/players" {{#if (eq currentSection 'players')}}class="active"{{/if}}>Players</a>
         <a href="/clubs">Clubs</a>
       </nav>
     </div>
@@ -35,6 +36,7 @@
       <div class="footer-links">
         <a href="/">Home</a>
         <a href="/events">Events</a>
+        <a href="/players">Players</a>
         <a href="/clubs">Clubs</a>
       </div>
     </div>

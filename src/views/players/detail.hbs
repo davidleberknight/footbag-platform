@@ -1,0 +1,76 @@
+{{! Player detail page }}
+
+<div class="hero">
+  <div>
+    <h1>{{player.personName}}{{#if player.bapNickname}} <span class="player-nickname">"{{player.bapNickname}}"</span>{{/if}}</h1>
+    {{#if player.country}}
+      <p>{{countryFlag player.country}} {{player.country}}</p>
+    {{/if}}
+    <div class="hero-stats">
+      {{#if player.eventCount}}
+        <span>{{player.eventCount}} events</span>
+      {{/if}}
+      {{#if player.placementCount}}
+        <span>{{player.placementCount}} placements</span>
+      {{/if}}
+      {{#if player.bapMember}}
+        <span>BAP Member{{#if player.bapInductionYear}} · {{player.bapInductionYear}}{{/if}}</span>
+      {{/if}}
+      {{#if player.fbhofMember}}
+        <span>Footbag HOF{{#if player.fbhofInductionYear}} · {{player.fbhofInductionYear}}{{/if}}</span>
+      {{/if}}
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <a href="/players" class="back-link">&#8592; All Players</a>
+
+    {{#if player.eventGroups.length}}
+      <div class="section-heading" style="margin-top: 28px;">
+        <h2>Results</h2>
+        <span class="section-count">{{player.eventGroups.length}} events</span>
+      </div>
+
+      {{#each player.eventGroups}}
+        <div class="player-event-block">
+          <div class="player-event-header">
+            <a href="/events/{{eventId}}" class="player-event-title">{{eventTitle}}</a>
+            <span class="player-event-meta">{{startDate}} &middot; {{city}}, {{eventCountry}}</span>
+          </div>
+          <table class="results-table player-results-table">
+            <thead>
+              <tr>
+                <th>Discipline</th>
+                <th>Place</th>
+                <th>With</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each results}}
+                <tr>
+                  <td>{{#if disciplineName}}{{disciplineName}}{{else}}<span class="text-muted">—</span>{{/if}}</td>
+                  <td class="placement-num {{#if (eq placement 1)}}gold{{else if (eq placement 2)}}silver{{else if (eq placement 3)}}bronze{{/if}}">
+                    {{placement}}
+                  </td>
+                  <td>
+                    {{#if (gt teammates.length 1)}}
+                      {{#each teammates}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}
+                    {{/if}}
+                  </td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{/each}}
+
+    {{else}}
+      <div class="empty-state" style="margin-top: 40px;">
+        <p>No results on record for this player.</p>
+      </div>
+    {{/if}}
+
+  </section>
+</div>
