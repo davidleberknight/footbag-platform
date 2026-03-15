@@ -1,0 +1,30 @@
+<h1>Players</h1>
+
+<table border="1" cellpadding="6">
+  <thead>
+    <tr>
+      <th>Player</th>
+      <th>Country</th>
+      <th>Career</th>
+      <th>Events</th>
+      <th>Placements</th>
+      <th>BAP</th>
+      <th>HOF</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% players.forEach(p => { %>
+      <tr>
+        <td><%= p.person_name %></td>
+        <td><%= p.country || "" %></td>
+        <td>
+          <%= p.first_year || "" %><% if (p.first_year || p.last_year) { %>–<% } %><%= p.last_year || "" %>
+        </td>
+        <td><%= p.event_count || 0 %></td>
+        <td><%= p.placement_count || 0 %></td>
+        <td><%= Number(p.bap_member) ? "★" : "" %></td>
+        <td><%= Number(p.fbhof_member) ? "🏆" : "" %></td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>

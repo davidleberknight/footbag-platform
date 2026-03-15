@@ -1,0 +1,120 @@
+{{! Players list page }}
+
+<div class="hero">
+  <div>
+    <h1>Players</h1>
+    <p>Historical competitive footbag players from around the world.</p>
+    <div class="hero-stats">
+      <span>{{playerCount}} players</span>
+      <span>{{countryCount}} countries</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="section-heading">
+      <h2>All Players</h2>
+      <span class="section-count">{{playerCount}}</span>
+    </div>
+
+    <div class="player-search-bar">
+      <input
+        type="text"
+        id="player-search"
+        placeholder="Search by name or country…"
+        autocomplete="off"
+      />
+    </div>
+
+    <table class="results-table" id="players-table">
+      <thead>
+        <tr>
+          <th class="sortable sort-asc" data-col="0" data-type="text">Player</th>
+          <th class="sortable" data-col="1" data-type="text">Country</th>
+          <th class="sortable" data-col="2" data-type="num">Events</th>
+          <th class="sortable" data-col="3" data-type="num">Placements</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each players}}
+          <tr>
+            <td><a href="/players/{{person_id}}">{{person_name}}</a></td>
+            <td>{{countryFlag country}} {{country}}</td>
+            <td>{{event_count}}</td>
+            <td>{{placement_count}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    <p class="player-search-empty" id="player-search-empty" style="display:none">
+      No players match your search.
+    </p>
+
+  </section>
+</div>
+
+<script>
+  (function () {
+    const table  = document.getElementById('players-table');
+    const tbody  = table.querySelector('tbody');
+    const input  = document.getElementById('player-search');
+    const empty  = document.getElementById('player-search-empty');
+    const headers = table.querySelectorAll('th[data-col]');
+
+    let sortCol = 0, sortAsc = true;
+
+    // ── Search ──────────────────────────────────────────────────
+    function applySearch() {
+      const q = input.value.trim().toLowerCase();
+      let visible = 0;
+      Array.from(tbody.rows).forEach(function (row) {
+        const match = !q || row.textContent.toLowerCase().includes(q);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+      });
+      empty.style.display = visible === 0 ? '' : 'none';
+    }
+    input.addEventListener('input', applySearch);
+
+    // ── Sort ────────────────────────────────────────────────────
+    function sortTable(col, asc, type) {
+      const rows = Array.from(tbody.rows);
+      rows.sort(function (a, b) {
+        const aText = a.cells[col].textContent.trim();
+        const bText = b.cells[col].textContent.trim();
+        const cmp = type === 'num'
+          ? (parseInt(aText) || 0) - (parseInt(bText) || 0)
+          : aText.localeCompare(bText);
+        return asc ? cmp : -cmp;
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    }
+
+    function updateSortClasses(active, asc) {
+      headers.forEach(function (h) {
+        h.classList.remove('sort-asc', 'sort-desc');
+      });
+      active.classList.add(asc ? 'sort-asc' : 'sort-desc');
+    }
+
+    headers.forEach(function (th) {
+      th.addEventListener('click', function () {
+        const col  = parseInt(th.dataset.col);
+        const type = th.dataset.type;
+        if (sortCol === col) {
+          sortAsc = !sortAsc;
+        } else {
+          sortCol = col;
+          sortAsc = type === 'text';
+        }
+        sortTable(col, sortAsc, type);
+        updateSortClasses(th, sortAsc);
+        applySearch();
+      });
+    });
+
+    // Initial sort state indicator
+    updateSortClasses(headers[0], true);
+  })();
+</script>

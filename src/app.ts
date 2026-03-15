@@ -19,6 +19,34 @@ export function createApp(): express.Application {
   app.use(express.static(path.join(process.cwd(), 'src', 'public')));
 
   // ── View engine ──────────────────────────────────────────────────────────
+  const COUNTRY_FLAGS: Record<string, string> = {
+    'Australia':        '🇦🇺',
+    'Austria':          '🇦🇹',
+    'Belgium':          '🇧🇪',
+    'Bulgaria':         '🇧🇬',
+    'Canada':           '🇨🇦',
+    'Chile':            '🇨🇱',
+    'Colombia':         '🇨🇴',
+    'Czech Republic':   '🇨🇿',
+    'Denmark':          '🇩🇰',
+    'Estonia':          '🇪🇪',
+    'Finland':          '🇫🇮',
+    'France':           '🇫🇷',
+    'Germany':          '🇩🇪',
+    'Hungary':          '🇭🇺',
+    'New Zealand':      '🇳🇿',
+    'Poland':           '🇵🇱',
+    'Russia':           '🇷🇺',
+    'Slovakia':         '🇸🇰',
+    'Slovenia':         '🇸🇮',
+    'Spain':            '🇪🇸',
+    'Sweden':           '🇸🇪',
+    'Switzerland':      '🇨🇭',
+    'USA':              '🇺🇸',
+    'United States':    '🇺🇸',
+    'Venezuela':        '🇻🇪',
+  };
+
   app.engine(
     'hbs',
     engine({
@@ -26,6 +54,11 @@ export function createApp(): express.Application {
       defaultLayout: 'main',
       layoutsDir:   path.join(process.cwd(), 'src', 'views', 'layouts'),
       partialsDir:  path.join(process.cwd(), 'src', 'views', 'partials'),
+      helpers: {
+        countryFlag: (country: string) => COUNTRY_FLAGS[country] ?? '',
+        eq:  (a: unknown, b: unknown) => a === b,
+        gt:  (a: unknown, b: unknown) => (a as number) > (b as number),
+      },
     }),
   );
   app.set('view engine', 'hbs');
@@ -33,6 +66,14 @@ export function createApp(): express.Application {
 
   // ── Body parsing ─────────────────────────────────────────────────────────
   app.use(express.json());
+
+  // ── Active nav section ───────────────────────────────────────────────────
+  app.use((req, res, next) => {
+    res.locals.currentSection = req.path.startsWith('/events') ? 'events'
+      : req.path.startsWith('/players') ? 'players'
+      : '';
+    next();
+  });
 
   // ── Request logging ──────────────────────────────────────────────────────
   app.use((req, _res, next) => {

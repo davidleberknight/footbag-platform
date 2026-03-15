@@ -108,7 +108,25 @@ export interface PublicArchiveYearRow {
 export interface PublicCompletedEventCountRow {
   completed_event_count: number;
 }
+export function listHistoricalPersons() {
+  const stmt = db.prepare(`
+    SELECT
+      person_id,
+      person_name,
+      country,
+      first_year,
+      last_year,
+      event_count,
+      placement_count,
+      bap_member,
+      fbhof_member
+    FROM historical_persons
+    WHERE event_count IS NOT NULL
+    ORDER BY person_name COLLATE NOCASE
+  `);
 
+  return stmt.all();
+}
 export interface PublicEventDetailRow extends PublicEventSummaryRow {
   is_attendee_registration_open: number;
   is_tshirt_size_collected: number;
@@ -143,6 +161,37 @@ export interface PublicEventResultRow {
   participant_order: number;
   member_id: string | null;
   participant_display_name: string;
+  participant_historical_person_id: string | null;
+}
+
+export interface PublicPlayerRow {
+  person_id: string;
+  person_name: string;
+  country: string | null;
+  event_count: number | null;
+  placement_count: number | null;
+  bap_member: number;
+  bap_nickname: string | null;
+  bap_induction_year: number | null;
+  fbhof_member: number;
+  fbhof_induction_year: number | null;
+}
+
+export interface PublicPlayerResultRow {
+  event_id: string;
+  event_title: string;
+  start_date: string;
+  city: string;
+  event_country: string;
+  discipline_name: string | null;
+  discipline_category: string | null;
+  team_type: string | null;
+  discipline_sort_order: number | null;
+  placement: number;
+  score_text: string | null;
+  participant_order: number;
+  participant_display_name: string;
+  participant_person_id: string | null;
 }
 
 export interface HealthReadyRow {
@@ -334,7 +383,8 @@ export const publicEvents = {
       erp.id AS participant_row_id,
       erp.participant_order,
       erp.member_id,
-      erp.display_name AS participant_display_name
+      erp.display_name AS participant_display_name,
+      erp.historical_person_id AS participant_historical_person_id
     FROM events AS e
     INNER JOIN event_result_entries AS ere
       ON ere.event_id = e.id
@@ -353,6 +403,73 @@ export const publicEvents = {
       ere.id ASC,
       erp.participant_order ASC,
       erp.id ASC
+  `),
+} as const;
+
+export const publicPlayers = {
+  getById: db.prepare(`
+    SELECT
+      person_id,
+      person_name,
+      country,
+      event_count,
+      placement_count,
+      bap_member,
+      bap_nickname,
+      bap_induction_year,
+      fbhof_member,
+      fbhof_induction_year
+    FROM historical_persons
+    WHERE person_id = ?
+  `),
+
+  listResultsByPersonId: db.prepare(`
+    SELECT
+      e.id                        AS event_id,
+      e.title                     AS event_title,
+      e.start_date,
+      e.city,
+      e.country                   AS event_country,
+      ed.name                     AS discipline_name,
+      ed.discipline_category,
+      ed.team_type,
+      ed.sort_order               AS discipline_sort_order,
+      ere.placement,
+      ere.score_text,
+      erp_co.participant_order,
+      erp_co.display_name         AS participant_display_name,
+      erp_co.historical_person_id AS participant_person_id
+    FROM event_result_entry_participants AS erp_me
+    JOIN event_result_entries AS ere
+      ON ere.id = erp_me.result_entry_id
+    JOIN events AS e
+      ON e.id = ere.event_id
+    LEFT JOIN event_disciplines AS ed
+      ON ed.id = ere.discipline_id
+    JOIN event_result_entry_participants AS erp_co
+      ON erp_co.result_entry_id = ere.id
+    WHERE erp_me.historical_person_id = ?
+    ORDER BY
+      e.start_date DESC,
+      COALESCE(ed.sort_order, 0) ASC,
+      COALESCE(ed.name, '') COLLATE NOCASE ASC,
+      ere.placement ASC,
+      erp_co.participant_order ASC
+  `),
+} as const;
+
+export const publicStats = {
+  counts: db.prepare(`
+    SELECT
+      (SELECT COUNT(*)
+         FROM events
+        WHERE status = 'completed') AS event_count,
+      (SELECT COUNT(*)
+         FROM historical_persons
+        WHERE event_count IS NOT NULL) AS player_count,
+      (SELECT COUNT(DISTINCT CAST(substr(start_date, 1, 4) AS INTEGER))
+         FROM events
+        WHERE status = 'completed') AS year_count
   `),
 } as const;
 
