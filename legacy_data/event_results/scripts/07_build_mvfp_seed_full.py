@@ -11,7 +11,7 @@ Unlike 06_build_mvfp_seed.py, this script does NOT:
 
 It simply validates and exports the full canonical dataset in MVFP seed format.
 
-Inputs (default: ../FOOTBAG_DATA/out/canonical or as provided by --input-dir):
+Inputs (default: ~/projects/footbag-platform/legacy_data/event_results/canonical_input or as provided by --input-dir):
   events.csv
   event_disciplines.csv
   event_results.csv
@@ -73,7 +73,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--input-dir",
-        default="out/canonical",
+        default="~/projects/footbag-platform/legacy_data/event_results/canonical_input",
         help="Directory containing canonical CSVs",
     )
     ap.add_argument(
@@ -88,7 +88,7 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    in_dir = Path(args.input_dir)
+    in_dir = Path(args.input_dir).expanduser()
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
