@@ -18,7 +18,8 @@ database/     Schema and SQLite files
 docker/       Build tooling
 docs/         Project documentation
 ifpa/         Governance and official rules
-legacy_data/  Mirror code and migration scripts
+data-pipeline/ Historical data pipeline (raw inputs → canonical CSVs)
+legacy_data/  Migration scripts and canonical input CSVs
 ops/systemd/  Production service units
 scripts/      Operational scripts
 src/          Application code (TypeScript/Express)
