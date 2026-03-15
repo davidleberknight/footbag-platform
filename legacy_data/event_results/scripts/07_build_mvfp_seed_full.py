@@ -73,7 +73,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--input-dir",
-        default="out/canonical",
+        default="legacy_data/event_results/canonical_input",
         help="Directory containing canonical CSVs",
     )
     ap.add_argument(
