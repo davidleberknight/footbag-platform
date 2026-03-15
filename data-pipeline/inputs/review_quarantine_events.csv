@@ -1,0 +1,21 @@
+event_id,year,event_name,reason,review_stage,notes
+981560223,2001,Swiss Footbag Championships (FootJam),COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Division results merged: Mens Open Freestyle (6 dup pairs). Seeding/finals round notation in source HTML creates spurious divisions.
+1179679872,2007,German Footbag Championships 2007,COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Division results merged: Footbag Net Doubles / Footbag Net Single (8 dup pairs). Also missing Intermediate Freestyle Routine in PBP.
+1269111845,2010,The King of the Hill 2010 (presented by Aki Québec),COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Open/Intermediate results merged under unlabelled divisions (Open Singles Net). Override present.
+857880054,1997,Bedford (Australia) Indoor Footbag Championships,SOURCE_PARTIAL,HIGH_QUARANTINED,3 duplicate places in Open Singles Net. 1997 historical event with limited source fidelity.
+910551956,1999,1999 Western Regional Footbag Championships,COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Open/Intermediate results merged under unlabelled divisions (Intermediate Singles Net / Novice Doubles). Stage2 also parsed noise header as division.
+947026077,2000,The 2nd Annual Philly Open Footbag Championships,COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Division results merged: Doubles Net / Freestyle / Singles Net (9 dup pairs).
+1265745512,2010,31st IFPA WORLD FOOTBAG CHAMPIONSHIPS,SOURCE_PARTIAL,HIGH_QUARANTINED,1 duplicate place in Intermediate Singles Net. Worlds 2010 minor source data defect.
+1568692191,2019,MedeJam de Footbag 2019,SOURCE_PARTIAL,HIGH_QUARANTINED,2 duplicate places in Open Doubles Net. South American event with partial source coverage.
+1114277529,2005,Czech Footbag Championships,COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Open/Intermediate results merged under unlabelled divisions (Intermediate Freestyle / Open Freestyle). PBP has more divisions than stage2.
+1127155729,2005,Zocha Jam 2005,SOURCE_PARTIAL,HIGH_QUARANTINED,3 duplicate places in Open Double Freestyle. PBP has more divisions than stage2 (older source captured more).
+1158263300,2006,Zocha Jam 2006,COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Division results merged: Open Freestyle / Women Freestyle (5 dup pairs). PBP has more divisions than stage2.
+1200725314,2008,SoCali Jam 08,OVERRIDE_CONFLICT,HIGH_QUARANTINED,Override present but stage2 division count diverges from PBP. No known_issue documented — needs investigation before resolving.
+1294262550,2011,12e Open de France de Footbag,COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Division results merged: Open Routines (3 dup pairs). Known encoding corruption (Women?S Doubles Net).
+1301837216,2011,The King of the Hill 2011 (presented by Aki Québec),COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Division results merged: Open Singles Net (2 dup pairs).
+1331667371,2012,Paris Net Battle 2,COMPLEX_COMPETITION_FORMAT,HIGH_QUARANTINED,Division results merged: Open Singles Net (8 dup pairs).
+1537994275,2018,2o Torneo Nacional de Footbag,SOURCE_PARTIAL,HIGH_QUARANTINED,3 duplicate places in Open Doubles. South American event with partial source coverage.
+1160579826,2006,CommALaMaison Contest 3,SOURCE_PARTIAL,HIGH_QUARANTINED,1 duplicate place in Mini Net. Contest-format event with non-standard placement structure.
+959353403,2000,2000 Southeast Idaho Footbag Championships,SOURCE_PARTIAL,HIGH_QUARANTINED,Unknown division contains noise; trailing-colon division name mismatch; source coverage limited. Added to known_issues after MEDIUM review.
+984694623,2001,1st Montreal Summer Freestyle Challenge,SOURCE_PARTIAL,HIGH_QUARANTINED,Old parse with city-as-teammate artifacts; PBP has 8/20 stage2 rows; identity incomplete. Historical event with limited source fidelity.
+1366240051,2013,4ta. Copa Ciencias,SOURCE_PARTIAL,HIGH_QUARANTINED,9/12 doubles teams unresolved; South American identity gap; partial coverage expected. Added to known_issues after MEDIUM review.
