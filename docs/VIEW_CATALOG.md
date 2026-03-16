@@ -38,7 +38,7 @@ This document covers:
 
 This document does not cover (yet):
 
-- member-only pages
+- authenticated member-only pages beyond the current-slice public Members landing page and minimal historical member detail page
 - organizer workflows
 - admin pages
 - APIs
@@ -107,7 +107,7 @@ Every public page must render from the same top-level contract.
   - optional `intro`
   - optional `notice`
 - `navigation`
-  - current public nav items: Home (`/`), Events (`/events`), Clubs (`/clubs`)
+  - current public nav items: Home (`/`), Events (`/events`), Members (`/members`), Clubs (`/clubs`)
   - active section/page state
 - `content`
   - page-specific regions already shaped for rendering
@@ -155,7 +155,7 @@ Used in event detail and in year archive inline results. One section per discipl
 
 - Section header: `disciplineName` when present; otherwise "General Results"
 - Optional meta line when `teamType` is present (renders raw `teamType` value)
-- One row per placement: `placement` number, participant `participantDisplayName` values ordered by `participantOrder` (stacked for `doubles` and `mixed_doubles`), `scoreText` when present (cell is empty when absent — no placeholder text)
+- One row per placement: `placement` number, participant entries ordered by `participantOrder` (stacked for `doubles` and `mixed_doubles`); each participant renders `participantDisplayName` and may optionally render `participantHref` when a linked historical member detail page exists; `scoreText` when present (cell is empty when absent — no placeholder text)
 - Placements rendered in ascending `placement` order
 - Template comments, loop prose, and debugging text must never appear in rendered HTML output
 
@@ -262,6 +262,8 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /events` | Events index | Browse upcoming events and archive entry points | Current |
 | `GET /events/year/:year` | Events year archive | Browse completed events for one year | Current |
 | `GET /events/:eventKey` | Event detail | Canonical public event page | Current |
+| `GET /members` | Members landing | Public Members section entry page; current-slice placeholder / login-oriented landing | Current minimal |
+| `GET /members/:personId` | Historical member detail | Minimal read-only historical member page backed by imported historical person data | Current minimal |
 | `GET /clubs` | Clubs landing | Placeholder public clubs entry page | Current stub |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
 | `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
@@ -271,6 +273,8 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /` is the canonical public home route.
 - `GET /events` is the canonical events section entry route.
 - `GET /events/:eventKey` is the canonical public event detail route.
+- `GET /members` is the canonical Members section entry route for the current slice.
+- `GET /members/:personId` is the canonical current-slice historical member detail route.
 - `GET /clubs` is the canonical clubs section entry route for the current slice.
 - health routes are operational and are outside the cataloged page system.
 
@@ -310,7 +314,7 @@ It is also the one intentional Home-page exception: a landing-page composition v
 
 - hero with site title and short welcome text
 - clear statement about current platform scope
-- direct links to Home, Events, and Clubs
+- direct links to Home, Events, Members, and Clubs
 - featured upcoming events teaser region
 - link to browse all events
 - clubs teaser / placeholder region
@@ -332,6 +336,7 @@ It is also the one intentional Home-page exception: a landing-page composition v
 
 - `GET /events`
 - `GET /events/:eventKey`
+- `GET /members`
 - `GET /clubs`
 
 ### Empty state
@@ -340,7 +345,116 @@ If there are no featured upcoming events, the page still renders normally with a
 
 ---
 
-## 6.2 Events index
+## 6.2 Members landing
+
+### Purpose
+
+Provide the current-slice public entry page for the Members section.
+
+### Route
+
+`GET /members`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard. It is not a full authenticated-member area; it is the current-slice public entry/placeholder for that future section.
+
+### Page intent
+
+- identify Members as a first-class site section
+- direct current Members toward login/auth flows when available
+- avoid implying that full member account/profile features are implemented in this slice
+- optionally explain that historical imported people may appear through linked public results and historical member detail pages
+
+### Required content
+
+- hero for the Members section
+- short explanatory notice about current-slice scope
+- login-oriented call to action / placeholder message
+- optional link target(s) for future auth entry points
+- optional explanatory text about historical imported people versus current Members
+
+### Required view-model fields
+
+- `page.sectionKey = members`
+- `page.pageKey = members_index`
+- `page.title`
+- optional `page.eyebrow`
+- `page.intro`
+- optional `page.notice`
+- optional `primaryLinks[]`
+
+### Navigation outputs
+
+- `GET /members/:personId` (only when linking to a known historical member detail target)
+
+### Empty state
+
+This page does not require data-backed list content and should still render normally when no additional member functionality is available yet.
+
+---
+
+## 6.3 Historical member detail
+
+### Purpose
+
+Provide the current-slice minimal read-only public page for one imported historical person under the Members section.
+
+### Route
+
+`GET /members/:personId`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard. It is a minimal historical read page only, not an authenticated member profile.
+
+### Page intent
+
+- present the imported historical identity clearly
+- support result-participant linking from public event pages when a historical person is known
+- preserve historical accuracy without implying current-member capabilities
+
+### Required content
+
+- hero with the historical person's display name
+- minimal identity/facts region using only data available from imported historical records
+- optional historical-results or related-links region when present
+- optional notice clarifying that historical imported people may not be current Members
+
+### Required view-model fields
+
+- `page.sectionKey = members`
+- `page.pageKey = member_history_detail`
+- `page.title`
+- optional `page.eyebrow`
+- optional `page.intro`
+- optional `page.notice`
+- `personId`
+- `displayName`
+- optional `summaryFacts[]`
+- optional `relatedResultLinks[]`
+
+### Navigation outputs
+
+- `GET /events/:eventKey`
+- `GET /events/year/:year`
+- `GET /members`
+
+### Empty state
+
+Unknown or non-public historical identities resolve through standard not-found behavior rather than a custom empty state.
+
+---
+
+## 6.4 Events index
 
 ### Purpose
 
@@ -403,7 +517,7 @@ If no upcoming events exist, render a standard empty state. Archive-year links m
 
 ---
 
-## 6.3 Events year archive
+## 6.5 Events year archive
 
 ### Purpose
 
@@ -471,7 +585,7 @@ If the requested year is valid but contains no public completed events, render a
 
 ---
 
-## 6.4 Event detail
+## 6.6 Event detail
 
 ### Purpose
 
@@ -578,7 +692,7 @@ There is no empty state for a missing event. A valid missing-record path should 
 
 ---
 
-## 6.5 Clubs landing placeholder
+## 6.7 Clubs landing placeholder
 
 ### Purpose
 

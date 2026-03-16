@@ -11,6 +11,7 @@
 3. Identity & Account
    3.1 IdentityAccessService
    3.2 MemberProfileLifecycleService
+   3.3 MemberPublicReadService
 4. Clubs & Events
    4.1 ClubService
    4.2 EventService
@@ -90,6 +91,11 @@ Source-of-truth note: This document defines service ownership, method contracts,
 - **Owns:** Member profile CRUD, account soft-delete and PII purge workflow, deceased handling, GDPR data export, member search
 - **Does NOT own:** Tier grants, payments
 - **Primary tables:** `members`, `member_links`, `media_items`, `member_galleries`, `account_tokens`
+
+**`MemberPublicReadService`**
+- **Owns:** Current-slice public Members read models for `GET /members` and `GET /members/:personId`; minimal historical imported-person detail shaping
+- **Does NOT own:** Auth/account lifecycle, profile CRUD, member search, club-roster visibility, account-claim flow, or any broader platform-wide persons subsystem
+- **Primary tables:** `historical_persons`, `event_result_entry_participants` (read), plus supporting public result/event reads as needed
 
 ---
 
@@ -266,6 +272,24 @@ Source-of-truth note: This document defines service ownership, method contracts,
 
 ---
 
+### 3.3 `MemberPublicReadService`
+
+**Purpose/Boundary:** Owns the current-slice public Members read models for `GET /members` and `GET /members/:personId`. This includes the Members landing placeholder/entry page and the minimal read-only historical member detail page backed by imported historical person data. It does NOT own authenticated account lifecycle, profile CRUD, member search, account-claim flow, or any broader platform-wide persons subsystem.
+
+**Consumers:** Public Members controller
+
+**Key Methods:**
+- `getPublicMembersLandingPage() -> pageModel` — shapes the current-slice Members entry/placeholder page; may include login-oriented CTA/notice text but does not implement auth flows
+- `getHistoricalMemberPage(personId) -> pageModel` — resolves one imported historical person into the minimal public historical detail page model; unknown/non-public IDs resolve as not-found
+
+**Key Rules:**
+- `/members` in the current slice is a public section entry/placeholder, not a full authenticated member area
+- `/members/:personId` is a minimal historical read surface only; it must not imply current-member capabilities, profile ownership, member-search inclusion, or club-roster visibility
+- route handlers stay thin; page shaping belongs here
+- any distinction between imported historical people and current Members is enforced here and/or in the data/query layer, not in templates
+
+---
+
 ## 4. Clubs & Events
 
 ---
@@ -387,6 +411,7 @@ For the MVFP V0.1 public routes, `EventService` is responsible for:
 - `[APP]` Public event browse/detail reads use prepared statements exported by `db.ts` directly; no repository layer and no ORM
 - `[APP]` `db.ts` may return flat ordered result rows; grouping and page/view shaping belong above `db.ts`
 - `[APP]` `hostClub` is route-facing display data sourced from `events.host_club_id -> clubs.name` when present and must not be inferred from `event_organizers`
+- `[APP]` when shaping public result rows, emit a participant link to `GET /members/:personId` only when a linked `historical_person_id` is present and public; otherwise emit plain participant display text with no placeholder link
 - `[APP]` Public year archives include the full completed public event list for the selected year and are not paginated in MVFP v0.1
 - `[APP]` The year page includes grouped inline public results for events where result rows exist
 - `[APP]` A year-page event has `hasResults = true` only when the event is publicly visible and at least one result row exists for that event
