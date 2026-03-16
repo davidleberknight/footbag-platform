@@ -234,6 +234,24 @@ section + section { border-top: 1px solid var(--border); }
   text-decoration: none;
 }
 
+/* ── Year page event jump list ──────────────────────────────── */
+.event-jump-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 32px;
+  padding: 16px;
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.event-jump-link {
+  font-size: 0.85rem;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.event-jump-link:hover { text-decoration: underline; }
+
 /* ── Year page nav ──────────────────────────────────────────── */
 .year-nav {
   display: flex;

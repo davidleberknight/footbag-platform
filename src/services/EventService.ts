@@ -226,21 +226,42 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
       sections.push(section);
     }
 
-    let placement = section.placementsByResultEntryId.get(row.result_entry_id);
-    if (!placement) {
-      placement = {
-        placement: row.placement,
-        scoreText: row.score_text,
-        participants: [],
-      };
-      section.placementsByResultEntryId.set(row.result_entry_id, placement);
-      section.placements.push(placement);
+    if (row.participant_display_name.startsWith('__')) {
+      // Sentinel placeholder — ensure the result_entry slot exists but skip this participant
+      if (!section.placementsByResultEntryId.has(row.result_entry_id)) {
+        const sentinel: MutablePlacement = { placement: row.placement, scoreText: row.score_text, participants: [] };
+        section.placementsByResultEntryId.set(row.result_entry_id, sentinel);
+        section.placements.push(sentinel);
+      }
+      continue;
     }
 
-    placement.participants.push({
-      participantDisplayName: row.participant_display_name,
-      participantOrder: row.participant_order,
-    });
+    const isSingles = row.team_type === 'singles';
+
+    if (isSingles && row.participant_order > 1) {
+      // Singles co-placement: each participant gets its own placement row
+      const soloKey = `${row.result_entry_id}__${row.participant_order}`;
+      if (!section.placementsByResultEntryId.has(soloKey)) {
+        const solo: MutablePlacement = {
+          placement: row.placement,
+          scoreText: row.score_text,
+          participants: [{ participantDisplayName: row.participant_display_name, participantOrder: 1 }],
+        };
+        section.placementsByResultEntryId.set(soloKey, solo);
+        section.placements.push(solo);
+      }
+    } else {
+      let placement = section.placementsByResultEntryId.get(row.result_entry_id);
+      if (!placement) {
+        placement = { placement: row.placement, scoreText: row.score_text, participants: [] };
+        section.placementsByResultEntryId.set(row.result_entry_id, placement);
+        section.placements.push(placement);
+      }
+      placement.participants.push({
+        participantDisplayName: row.participant_display_name,
+        participantOrder: row.participant_order,
+      });
+    }
   }
 
   return sections.map((section) => ({

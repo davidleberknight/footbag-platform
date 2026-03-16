@@ -1,0 +1,99 @@
+{{! Player detail page }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>
+      {{player.name}}
+      {{#if player.bapNickname}}
+        <span style="font-weight:400; font-size:0.75em; opacity:0.85">"{{player.bapNickname}}"</span>
+      {{/if}}
+    </h1>
+    {{#if player.country}}<p>{{player.country}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Profile ────────────────────────────────────────────── }}
+  <section>
+    <div class="section-heading"><h2>Profile</h2></div>
+    <div class="card">
+
+      <dl style="display:grid; grid-template-columns: max-content 1fr; gap:6px 24px; margin:0">
+
+        {{#if player.eventCount}}
+          <dt class="text-muted">Events</dt>
+          <dd style="margin:0">{{player.eventCount}}</dd>
+        {{/if}}
+
+        {{#if player.placementCount}}
+          <dt class="text-muted">Placements</dt>
+          <dd style="margin:0">{{player.placementCount}}</dd>
+        {{/if}}
+
+        {{#if player.isBapMember}}
+          <dt class="text-muted">BAP</dt>
+          <dd style="margin:0">
+            Best All-Around Player
+            {{#if player.bapInductionYear}}({{player.bapInductionYear}}){{/if}}
+          </dd>
+        {{/if}}
+
+        {{#if player.isFbhofMember}}
+          <dt class="text-muted">FBHOF</dt>
+          <dd style="margin:0">
+            Footbag Hall of Fame
+            {{#if player.fbhofInductionYear}}({{player.fbhofInductionYear}}){{/if}}
+          </dd>
+        {{/if}}
+
+
+      </dl>
+
+      {{#if player.notes}}
+        <p style="margin-top:16px; color:var(--text-muted); font-size:0.9rem">{{player.notes}}</p>
+      {{/if}}
+
+    </div>
+  </section>
+
+  {{! ── Results ─────────────────────────────────────────────── }}
+  <section>
+    <div class="section-heading">
+      <h2>Competition Results</h2>
+      {{#if player.results.length}}
+        <span class="section-count">{{player.results.length}}</span>
+      {{/if}}
+    </div>
+
+    {{#if player.results.length}}
+      <table class="results-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Discipline</th>
+            <th>Place</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each player.results}}
+            <tr>
+              <td>{{eventTitle}}</td>
+              <td>{{#if disciplineName}}{{disciplineName}}{{else}}<span class="text-muted">—</span>{{/if}}</td>
+              <td>{{placement}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <div class="empty-state">
+        <p>No competition results on record.</p>
+      </div>
+    {{/if}}
+  </section>
+
+  <div style="margin-top:32px">
+    <a href="/players" class="btn btn-outline">&#8592; All Players</a>
+  </div>
+
+</div>

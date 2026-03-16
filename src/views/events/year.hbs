@@ -24,10 +24,19 @@
       {{/if}}
     </div>
 
+    {{! ── Quick-jump list ─────────────────────────────────────── }}
+    {{#if events.length}}
+      <div class="event-jump-list">
+        {{#each events}}
+          <a href="#{{eventKey}}" class="event-jump-link">{{title}}</a>
+        {{/each}}
+      </div>
+    {{/if}}
+
     {{! ── Event list ──────────────────────────────────────────── }}
     {{#if events.length}}
       {{#each events}}
-        <div class="card mb-8" style="margin-bottom:32px">
+        <div id="{{eventKey}}" class="card mb-8" style="margin-bottom:32px">
 
           {{! Event header }}
           <div class="card-title" style="margin-bottom:8px">

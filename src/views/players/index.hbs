@@ -1,0 +1,62 @@
+{{! Players listing page }}
+
+<div class="hero">
+  <div>
+    <h1>Players</h1>
+    <p>Historical competitive footbag players from around the world.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <section>
+    <div class="section-heading">
+      <h2>All Players</h2>
+      {{#if players.length}}
+        <span class="section-count">{{players.length}}</span>
+      {{/if}}
+    </div>
+
+    {{#if players.length}}
+      <table class="results-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Country</th>
+            <th>Active</th>
+            <th>Events</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each players}}
+            <tr>
+              <td>
+                <a href="/players/{{personId}}">{{name}}</a>
+                {{#if isBapMember}}
+                  {{#if bapNickname}}
+                    <span class="text-muted" style="font-size:0.85rem"> "{{bapNickname}}"</span>
+                  {{/if}}
+                  <span class="discipline-meta" style="margin-left:4px">BAP</span>
+                {{/if}}
+              </td>
+              <td>{{#if country}}{{country}}{{else}}<span class="text-muted">—</span>{{/if}}</td>
+              <td>
+                {{#if firstYear}}
+                  {{firstYear}}{{#if lastYear}}–{{lastYear}}{{/if}}
+                {{else}}
+                  <span class="text-muted">—</span>
+                {{/if}}
+              </td>
+              <td>{{#if eventCount}}{{eventCount}}{{else}}<span class="text-muted">—</span>{{/if}}</td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{else}}
+      <div class="empty-state">
+        <p>No player records are currently available.</p>
+      </div>
+    {{/if}}
+  </section>
+
+</div>

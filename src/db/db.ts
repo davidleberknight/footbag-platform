@@ -356,6 +356,113 @@ export const publicEvents = {
   `),
 } as const;
 
+export interface HistoricalPersonRow {
+  person_id: string;
+  person_name: string;
+  country: string | null;
+  first_year: number | null;
+  last_year: number | null;
+  event_count: number | null;
+  bap_member: number;
+  bap_nickname: string | null;
+}
+
+export interface HistoricalPersonDetailRow extends HistoricalPersonRow {
+  aliases: string | null;
+  placement_count: number | null;
+  bap_member: number;
+  bap_nickname: string | null;
+  bap_induction_year: number | null;
+  fbhof_member: number;
+  fbhof_induction_year: number | null;
+  freestyle_sequences: number | null;
+  freestyle_max_add: number | null;
+  freestyle_unique_tricks: number | null;
+  freestyle_diversity_ratio: number | null;
+  signature_trick_1: string | null;
+  signature_trick_2: string | null;
+  signature_trick_3: string | null;
+  notes: string | null;
+}
+
+export interface PlayerResultRow {
+  event_title: string;
+  start_date: string;
+  discipline_name: string | null;
+  placement: number;
+  score_text: string | null;
+  display_name: string;
+}
+
+export const historicalPersons = {
+  listPlayers: db.prepare(`
+    SELECT
+      person_id,
+      person_name,
+      country,
+      first_year,
+      last_year,
+      event_count,
+      bap_member,
+      bap_nickname
+    FROM historical_persons
+    WHERE event_count IS NOT NULL AND event_count > 0
+    ORDER BY
+      person_name COLLATE NOCASE ASC,
+      person_id ASC
+  `),
+
+  getById: db.prepare(`
+    SELECT
+      person_id,
+      person_name,
+      aliases,
+      country,
+      first_year,
+      last_year,
+      event_count,
+      placement_count,
+      bap_member,
+      bap_nickname,
+      bap_induction_year,
+      fbhof_member,
+      fbhof_induction_year,
+      freestyle_sequences,
+      freestyle_max_add,
+      freestyle_unique_tricks,
+      freestyle_diversity_ratio,
+      signature_trick_1,
+      signature_trick_2,
+      signature_trick_3,
+      notes
+    FROM historical_persons
+    WHERE person_id = ?
+  `),
+
+  listResultsByPersonId: db.prepare(`
+    SELECT
+      e.title AS event_title,
+      e.start_date,
+      ed.name AS discipline_name,
+      ere.placement,
+      ere.score_text,
+      erp.display_name
+    FROM event_result_entry_participants AS erp
+    INNER JOIN event_result_entries AS ere
+      ON ere.id = erp.result_entry_id
+    INNER JOIN events AS e
+      ON e.id = ere.event_id
+    LEFT JOIN event_disciplines AS ed
+      ON ed.id = ere.discipline_id
+    WHERE erp.historical_person_id = ?
+    ORDER BY
+      e.start_date ASC,
+      COALESCE(ed.sort_order, 0) ASC,
+      COALESCE(ed.name, '') COLLATE NOCASE ASC,
+      ere.placement ASC
+  `),
+} as const;
+
 export const health = {
   checkReady: db.prepare(`
     SELECT 1 AS is_ready

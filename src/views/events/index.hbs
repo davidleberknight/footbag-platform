@@ -19,11 +19,26 @@
     </div>
 
     {{#if upcomingEvents.length}}
-      <div class="card-grid">
-        {{#each upcomingEvents}}
-          {{> event-card}}
-        {{/each}}
-      </div>
+      <table class="results-table" style="width:100%">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Date</th>
+            <th>Location</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each upcomingEvents}}
+            <tr>
+              <td><a href="/events/{{eventKey}}">{{title}}</a></td>
+              <td style="white-space:nowrap">{{startDate}}{{#if endDate}} – {{endDate}}{{/if}}</td>
+              <td>{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</td>
+              <td><span class="badge badge-{{status}}">{{status}}</span></td>
+            </tr>
+          {{/each}}
+        </tbody>
+      </table>
     {{else}}
       <div class="empty-state">
         <p>No upcoming events are currently listed. Check back soon.</p>

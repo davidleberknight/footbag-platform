@@ -135,3 +135,7 @@ tfplan
 
 # Generated cache files (never commit)
 legacy_data/robots_cache.json
+###########################
+database/*.db
+database/*.bak
+legacy_data/event_results/CLAUDE.md
