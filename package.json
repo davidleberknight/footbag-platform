@@ -14,6 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@playwright/test": "^1.58.2",
     "better-sqlite3": "^12.6.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",

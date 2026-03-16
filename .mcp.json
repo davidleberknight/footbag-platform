@@ -3,7 +3,12 @@
     "playwright": {
       "command": "npx",
       "args": [
+        "-y",
         "@playwright/mcp@latest",
+        "--headless",
+        "--no-sandbox",
+        "--browser",
+        "chromium",
         "--config",
         ".claude/playwright/config.json"
       ]
