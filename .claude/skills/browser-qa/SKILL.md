@@ -1,47 +1,60 @@
 ---
 name: browser-qa
-description: Run browser-level verification for the public site when a human explicitly requests browser testing or rendered-page verification.
+description: Browser automation for visual layout review or QA verification. Use only when the human explicitly names a page or check to run. Never run unsolicited or assume a broad test suite is wanted.
 ---
 
-# Browser QA
+# Browser QA / Visual Layout
 
-Use this skill only when a human explicitly asks for browser testing or rendered-page verification.
+Use this skill only when the human explicitly asks to look at a page, check a layout, or verify rendered output. Do not run it speculatively, do not expand scope beyond what was named, and do not take screenshots unless specifically useful for the stated goal.
+
+## Two modes
+
+**Visual layout review** — human wants to see how a page looks and give feedback.
+- Navigate to the named page, take one screenshot, report what is rendered.
+- Do not run assertions or check the full VIEW_CATALOG contract unless asked.
+
+**QA verification** — human wants to confirm specific behavior is correct.
+- State exactly what will be checked before running anything.
+- Only check the URLs and interactions the human named.
+- Do not expand to adjacent pages or full test suites.
+
+## Token discipline
+
+- Use `mcp__playwright__browser_snapshot` (accessibility tree) for content/structure checks — cheaper than screenshots.
+- Use `mcp__playwright__browser_take_screenshot` only when visual appearance is the explicit goal.
+- Do not take multiple screenshots per page unless the human asks for it.
+- Close the browser when done (`mcp__playwright__browser_close`).
 
 ## MCP tooling
 
 Browser automation uses the **Playwright MCP server** via the `mcp__playwright__*` tools.
 The configured browser is **Chromium** (isolated mode — `.claude/playwright/config.json`).
 
-Typical call sequence:
-1. `mcp__playwright__browser_navigate` — load the target URL
-2. `mcp__playwright__browser_snapshot` — capture accessibility tree for assertions
-3. `mcp__playwright__browser_take_screenshot` — visual record when useful
-4. `mcp__playwright__browser_click` / `mcp__playwright__browser_fill_form` — interact as needed
-5. `mcp__playwright__browser_console_messages` — check for JS errors
+Minimal call sequence for layout review:
+1. `mcp__playwright__browser_navigate` — load the named URL
+2. `mcp__playwright__browser_take_screenshot` — one screenshot for visual feedback
+3. `mcp__playwright__browser_close`
+
+Minimal call sequence for content/behavior check:
+1. `mcp__playwright__browser_navigate`
+2. `mcp__playwright__browser_snapshot` — accessibility tree for assertions
+3. `mcp__playwright__browser_console_messages` — only if JS errors are suspected
+4. `mcp__playwright__browser_close`
 
 ## Procedure
 
-1. Confirm the target before starting:
-   - local dev server (default port 3000)
-   - staging CloudFront URL
-   - other explicit URL provided by the human
+1. Confirm with the human before running:
+   - exact URL(s) to visit
+   - what is being checked (layout, content, behavior)
+   - target environment: local dev server (default port 3000), staging, or explicit URL
 
-2. State exactly what will be checked:
-   - URLs
-   - expected rendered content
-   - navigation paths or interactions
+2. Run only what was confirmed. Do not add pages or checks.
 
-3. Verify against the VIEW_CATALOG.md page contract for the affected page(s):
-   - required primitives rendered (hero, nav, cards, etc.)
-   - correct CSS classes present (§4.3 vocabulary)
-   - empty states, error states, notice blocks as specified
-   - no stack traces, SQL errors, or internal details exposed (§7.2)
+3. For QA verification, check against the VIEW_CATALOG.md page contract only for the named page(s).
 
 4. Do not claim browser verification unless it was actually executed.
 
-5. Report:
-   - environment tested and exact URL(s)
-   - actions taken
-   - observed results vs. expected
-   - failures or mismatches
-   - any JS console errors
+5. Report concisely:
+   - URL(s) visited
+   - what was observed (screenshot inline or description)
+   - any failures, mismatches, or JS console errors

@@ -63,7 +63,7 @@ Available workflow skills and when to use them:
 - **add-public-page** — use when a task adds or changes a public route, controller, template, or route-level tests.
 - **extend-service-contract** — use when a task changes a service method signature, return shape, db.ts statements, or service-level error semantics. Run this before add-public-page when a new service method is also needed.
 - **prepare-pr** — use at task completion to produce a human-reviewable PR summary. Ensure doc-sync has run first.
-- **browser-qa** — use only when the human explicitly requests browser testing or rendered-page verification.
+- **browser-qa** — use only when the human explicitly names a specific page or check to run. Covers both visual layout review (screenshot + feedback) and QA verification. Never run unsolicited, never assume a broad test suite is wanted, minimize tool calls to what was asked.
 
 Correct sequencing when skills compose: `extend-service-contract` → `add-public-page` → `doc-sync` → `prepare-pr`
 

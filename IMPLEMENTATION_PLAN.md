@@ -13,18 +13,22 @@ For non-trivial work, read this top status block first, then only the relevant d
 
 ## Active slice now
 
-- docs-first alignment for the deployed public baseline
-- Home + Events public browsing/detail slice
-- PR-era migration/data documentation for historical imported people and result-participant linkage
-- exact public event key behavior: `event_{year}_{event_slug}` / `#event_{year}_{event_slug}`
+- Events results + member pages: look and feel improvements
+- Visitor auth stub: `isLoggedIn` dev-toggle (env var) gates member-only content without implementing real auth
+- TDD expansion: integration tests written alongside or before each feature increment
+- Home page stats (event count, player count, year count already queryable)
+- BAP/HoF honor-roll page and member-list indicators
+- Teammate links on member detail (service change needed to carry person IDs through)
 
 ## Drafted next, but not active code focus now
 
-- Clubs next-level public contract may be drafted, but clubs are not the active implementation focus of this slice.
+- Clubs page with real data (no club data yet; deferred until data exists)
 - Broader service contracts may remain documented in `docs/SERVICE_CATALOG.md`, but implementation status is governed here, not there.
 
 ## Out of scope now
 
+- Schema migration framework — schema changes are handled by rebuilding the DB; no migration runner needed
+- Auth implementation (Phase 4 sequencing unchanged; `isLoggedIn` stub is the placeholder)
 - media/news/tutorial implementation work
 - broad person-identity redesign
 - a platform-wide persons subsystem
@@ -44,12 +48,16 @@ The current deployed public slice is the baseline, not a throwaway prototype.
 
 Current implemented public routes:
 - `/`
-- `/clubs`
+- `/clubs` (placeholder — no real data)
 - `/events`
 - `/events/year/:year`
 - `/events/:eventKey`
+- `/members`
+- `/members/:personId`
 - `/health/live`
 - `/health/ready`
+
+Real MVFP data is loaded: 175 historical persons, 4 events, results and participants visible on public routes.
 
 Current implementation constraints:
 - server-rendered Express + Handlebars
@@ -59,11 +67,12 @@ Current implementation constraints:
 - logic-light templates
 - route ordering matters for `/events/year/:year` before `/events/:eventKey`
 - `OperationsPlatformService` currently composes only the minimal DB readiness check
+- schema changes require a DB rebuild (no migration runner; this is intentional)
 
 Current verification baseline:
-- a single integration test file covers public events routes plus health, home, and clubs
+- a single integration test file (`tests/integration/events.routes.test.ts`) covers public events routes plus health, home, and clubs
+- members routes and auth-stub visibility states not yet covered by tests
 - browser verification is explicit-human-request-only
-- import/migration flows, 500 behavior, and broader operational flows need stronger coverage
 
 ---
 
@@ -158,6 +167,8 @@ Size labels: S = small, M = medium, L = large.
 
 **Goal:** Iteration is safe. Deploys are one-command. CI catches regressions before they reach staging.
 
+**Note: Phase 1 infra tasks run in parallel with the current feature slice. They are not blockers for feature work.**
+
 | # | Task | Size | Dependency |
 |---|------|------|-----------|
 | 1-A | Expand integration tests: home page assertions, clubs page, 404 route, 500 error handler, invalid eventKey formats | M | — |
@@ -172,25 +183,24 @@ Size labels: S = small, M = medium, L = large.
 
 ---
 
-### Phase 2 — Migration plumbing + legacy data import
+### Phase 2 — Legacy data import
 
-**Goal:** Real historical data is visible on the public site. Schema can evolve safely.
+**Goal:** Real historical data is visible on the public site.
+
+**Note: No migration framework. Schema changes require a DB rebuild using `schema_v0_1.sql` + seed.**
 
 | # | Task | Size | Dependency |
 |---|------|------|-----------|
-| 2-A | Numbered migration framework: `database/migrations/` directory, migration runner script, `schema_v0_1.sql` as baseline migration 001 | M | Phase 1 gate |
-| 2-B | MVFP legacy import: load `legacy_data/event_results/seed/mvfp/` CSVs into schema (175 persons, 4 events, 294 results, 484 participants) via idempotent SQL import script | L | 2-A |
-| 2-C | Integration tests for import: fixture-based tests verifying imported events + results appear on public routes | M | 2-B |
-| 2-D | Staging import rehearsal: run import against staging DB; verify public routes show real data | S | 2-B, Phase 1 gate |
-| 2-E | Document import contract appendix: source inventory, trust levels, normalization rules, member matching strategy | M | 2-B |
-| 2-F | Decide: production deploy timing (after staging import validated) | S | 2-D |
+| ~~2-B~~ | ~~MVFP legacy import: 175 persons, 4 events, 294 results, 484 participants~~ | ~~L~~ | DONE |
+| 2-C | Integration tests: fixture-based tests verifying imported events + results appear on public routes | M | — |
+| 2-D | Production deploy (after staging validated) | S | Phase 1 gate |
+| 2-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch beyond MVFP 4 | L | — |
 
 **Notes:**
-- MVFP CSVs are already normalized (`legacy_data/event_results/seed/mvfp/`). Build script `06_build_mvfp_seed.py` and verify script exist. This is an implementation task, not a design task.
-- Imported persons are **not** activated member accounts. They are identity records for future account-claim flow. Keep this boundary explicit.
-- Do not change executable schema/seed filenames without an explicit decision.
+- MVFP data is loaded. Real events and members are visible on public routes.
+- Imported persons are **not** activated member accounts. Identity records only, for future account-claim flow.
 
-**Gate:** Imported events and results are visible on `/events` and `/events/:eventKey` on staging. Import is idempotent and rehearsable.
+**Gate:** Imported events and results are visible on staging. Production deploy approved.
 
 ---
 
@@ -258,10 +268,11 @@ Prerequisites are noted.
 Legacy data import directly affects the usefulness of the current public event/results surface and introduces identity/account risks beyond simple event ingestion.
 
 ### Current state
-- MVFP seed CSVs are ready: `legacy_data/event_results/seed/mvfp/` (4 events, 175 persons, 294 results, 484 participants)
+- MVFP data loaded: 4 events, 175 persons, 294 results, 484 participants — visible on public routes
 - Build script: `legacy_data/event_results/scripts/06_build_mvfp_seed.py`
 - Verify script: `legacy_data/event_results/scripts/verify_mvfp_seed.py`
 - Full legacy mirror: `legacy_data/mirror_footbag_org/` (broader event/result coverage; post-MVFP import batch)
+- Schema changes: rebuild DB using `schema_v0_1.sql` + `database/seeds/seed_mvfp_v0_1.sql`; no migration runner
 
 ### Requirements
 - Idempotent import behavior (rehearsable on staging)
@@ -300,8 +311,8 @@ Do not implement final rule wording until Julie's official published wording exi
 
 ## Cross-cutting prerequisites before wider feature expansion
 
-1. Migration strategy in place before any schema change (Phase 2-A).
-2. Integration-test coverage expanded beyond current single-file baseline (Phase 1-A/B).
+1. Schema changes require a DB rebuild (no migration runner; rebuild from `schema_v0_1.sql` + seed).
+2. Integration-test coverage expanded beyond current single-file baseline (Phase 1-A/B, ongoing with TDD).
 3. Import-safe verification scripts and fixture coverage (Phase 2-C).
 4. Browser smoke-check expectations defined for public routes (explicit-human-request-only for automation).
 5. Readiness expansion tied to real operational dependencies, not speculative checks.
@@ -311,7 +322,7 @@ Do not implement final rule wording until Julie's official published wording exi
 
 ## Refactors that make later work cheaper or safer
 
-- Numbered migrations before nontrivial schema evolution (Phase 2-A is this).
+- Schema changes handled by DB rebuild; no migration runner needed.
 - Import/normalization code isolated from request-serving code.
 - Test coverage for `/`, `/clubs`, health endpoints, 404/500, import/migration logic.
 - Service boundaries explicit before adding write flows or authentication flows.
