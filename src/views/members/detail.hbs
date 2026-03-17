@@ -1,0 +1,75 @@
+<div class="hero hero-sm">
+  <div>
+    <div class="eyebrow">Historical member record</div>
+    <h1>{{member.personName}}{{#if member.bapNickname}} <span class="player-nickname">"{{member.bapNickname}}"</span>{{/if}}</h1>
+    {{#if member.country}}
+      <p>{{countryFlag member.country}} {{member.country}}</p>
+    {{/if}}
+    <div class="hero-stats">
+      {{#if member.eventCount}}
+        <span>{{member.eventCount}} events</span>
+      {{/if}}
+      {{#if member.placementCount}}
+        <span>{{member.placementCount}} placements</span>
+      {{/if}}
+      {{#if member.bapMember}}
+        <span>BAP Member{{#if member.bapInductionYear}} · {{member.bapInductionYear}}{{/if}}</span>
+      {{/if}}
+      {{#if member.fbhofMember}}
+        <span>Footbag HOF{{#if member.fbhofInductionYear}} · {{member.fbhofInductionYear}}{{/if}}</span>
+      {{/if}}
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <a href="/members" class="back-link">&#8592; All Members</a>
+
+    {{#if member.eventGroups.length}}
+      <div class="section-heading" style="margin-top: 28px;">
+        <h2>Historical Results</h2>
+        <span class="section-count">{{member.eventGroups.length}} events</span>
+      </div>
+
+      {{#each member.eventGroups}}
+        <div class="player-event-block">
+          <div class="player-event-header">
+            <a href="/events/{{eventKey}}" class="player-event-title">{{eventTitle}}</a>
+            <span class="player-event-meta">{{startDate}} &middot; {{city}}, {{eventCountry}}</span>
+          </div>
+          <table class="results-table player-results-table">
+            <thead>
+              <tr>
+                <th>Discipline</th>
+                <th>Place</th>
+                <th>With</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each results}}
+                <tr>
+                  <td>{{#if disciplineName}}{{disciplineName}}{{else}}<span class="text-muted">—</span>{{/if}}</td>
+                  <td class="placement-num {{#if (eq placement 1)}}gold{{else if (eq placement 2)}}silver{{else if (eq placement 3)}}bronze{{/if}}">
+                    {{placement}}
+                  </td>
+                  <td>
+                    {{#if (gt teammates.length 0)}}
+                      {{#each teammates}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}
+                    {{/if}}
+                  </td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{/each}}
+
+    {{else}}
+      <div class="empty-state" style="margin-top: 40px;">
+        <p>No historical results on record for this member.</p>
+      </div>
+    {{/if}}
+
+  </section>
+</div>

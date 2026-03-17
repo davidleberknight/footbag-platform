@@ -1,0 +1,11 @@
+import { Request, Response } from 'express';
+
+export const clubController = {
+  /**
+   * GET /clubs
+   * Clubs landing placeholder — no data required.
+   */
+  index(_req: Request, res: Response): void {
+    res.render('public/clubs', { pageTitle: 'Clubs' });
+  },
+};

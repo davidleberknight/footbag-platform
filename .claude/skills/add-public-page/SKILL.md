@@ -43,6 +43,10 @@ After reading docs, read:
 - explicit route registration — no dynamic or catch-all route magic
 - no repository abstractions, ORMs, mediator layers, or speculative API layers
 
+**Naming conventions (enforced):**
+- Controllers: `{domain}Controller.ts` — camelCase, singular noun, no plurals. Examples: `eventController.ts`, `memberController.ts`, `clubController.ts`. There is no `publicController` layer.
+- Services: `{domain}Service.ts` — camelCase, singular noun, no plurals. Examples: `eventService.ts`, `memberPublicReadService.ts`.
+
 ## Step 4 — Watch for route hazards
 
 - preserve explicit route ordering

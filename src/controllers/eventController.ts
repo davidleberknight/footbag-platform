@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { eventService } from '../services/EventService';
+import { eventService } from '../services/eventService';
 import { NotFoundError, ValidationError, ServiceUnavailableError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
 
@@ -14,7 +14,7 @@ import { logger } from '../config/logger';
  *
  * Business logic and page shaping live in EventService, not here.
  */
-export const eventsController = {
+export const eventController = {
   /**
    * GET /events
    * Events landing page: upcoming events + archive year links.
@@ -24,7 +24,7 @@ export const eventsController = {
       const pageModel = eventService.getPublicEventsLandingPage(new Date().toISOString());
       res.render('events/index', { pageTitle: 'Events', ...pageModel });
     } catch (err) {
-      eventsController._handleError(err, res, next);
+      eventController._handleError(err, res, next);
     }
   },
 
@@ -46,7 +46,7 @@ export const eventsController = {
       const pageModel = eventService.getPublicEventsYearPage(year);
       res.render('events/year', { pageTitle: `${year} Events`, ...pageModel });
     } catch (err) {
-      eventsController._handleError(err, res, next);
+      eventController._handleError(err, res, next);
     }
   },
 
@@ -60,7 +60,7 @@ export const eventsController = {
       const pageModel = eventService.getPublicEventPage(eventKey);
       res.render('events/detail', { pageTitle: pageModel.event.title, ...pageModel });
     } catch (err) {
-      eventsController._handleError(err, res, next);
+      eventController._handleError(err, res, next);
     }
   },
 

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { operationsPlatformService } from '../services/OperationsPlatformService';
+import { operationsPlatformService } from '../services/operationsPlatformService';
 
 export const healthController = {
   /**

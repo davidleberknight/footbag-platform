@@ -47,6 +47,7 @@ htmlcov/
 # Databases (local/dev/generated)
 # =========================
 *.db
+*.db.bak
 *.sqlite
 *.sqlite3
 

@@ -620,7 +620,7 @@ The repository shape remains the right mental map:
 │  │  ├─ env.ts
 │  │  └─ logger.ts
 │  ├─ controllers/
-│  │  ├─ eventsController.ts
+│  │  ├─ eventController.ts
 │  │  └─ healthController.ts
 │  ├─ db/
 │  │  ├─ db.ts
@@ -629,8 +629,8 @@ The repository shape remains the right mental map:
 │  │  ├─ publicRoutes.ts
 │  │  └─ healthRoutes.ts
 │  ├─ services/
-│  │  ├─ EventService.ts
-│  │  ├─ OperationsPlatformService.ts
+│  │  ├─ eventService.ts
+│  │  ├─ operationsPlatformService.ts
 │  │  ├─ serviceErrors.ts
 │  │  └─ sqliteRetry.ts
 │  ├─ views/
@@ -694,8 +694,8 @@ Important file-level responsibilities:
 | src/config/logger.ts                | structured logging                                       |
 | src/db/db.ts                        | Database queries & SQLite connections / transaction      |
 | src/db/openDatabase.ts              | SQLite connection bootstrap and PRAGMAs                  |
-| src/services/EventService.ts        | Event and Results business rules and page shaping        |
-| src/controllers/eventsController.ts | route-to-service render bridge                           |
+| src/services/eventService.ts        | Event and Results business rules and page shaping        |
+| src/controllers/eventController.ts | route-to-service render bridge                           |
 | src/controllers/healthController.ts | liveness/readiness handlers                              |
 | src/routes/publicRoutes.ts          | public route wiring                                      |
 | src/views/events/*.hbs              | server-rendered public Handlebars templates              |

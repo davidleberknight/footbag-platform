@@ -23,7 +23,13 @@
               {{#if participants.length}}
                 <ul class="participants-list">
                   {{#each participants}}
-                    <li>{{participantDisplayName}}</li>
+                    <li>
+                      {{#if participantPersonId}}
+                        <a href="/members/{{participantPersonId}}">{{participantDisplayName}}</a>
+                      {{else}}
+                        {{participantDisplayName}}
+                      {{/if}}
+                    </li>
                   {{/each}}
                 </ul>
               {{/if}}

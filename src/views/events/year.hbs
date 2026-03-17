@@ -24,10 +24,22 @@
       {{/if}}
     </div>
 
+    {{! ── Jump nav (shown when there are multiple events) ────── }}
+    {{#if (gt events.length 4)}}
+      <nav class="event-jump-nav" aria-label="Events on this page">
+        {{#each events}}
+          <a href="/events/{{eventKey}}" class="event-jump-link">
+            <span class="event-jump-title">{{title}}</span>
+            <span class="event-jump-meta">{{city}}, {{country}}</span>
+          </a>
+        {{/each}}
+      </nav>
+    {{/if}}
+
     {{! ── Event list ──────────────────────────────────────────── }}
     {{#if events.length}}
       {{#each events}}
-        <div class="card mb-8" style="margin-bottom:32px">
+        <div id="{{eventKey}}" class="card mb-8" style="margin-bottom:32px">
 
           {{! Event header }}
           <div class="card-title" style="margin-bottom:8px">

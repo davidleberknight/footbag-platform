@@ -64,6 +64,10 @@ Do not introduce:
 - generic query-builder layers
 - ad hoc SQL in controllers or templates
 
+**Naming conventions (enforced):**
+- Services: `{domain}Service.ts` — camelCase, singular noun, no plurals. Examples: `eventService.ts`, `memberService.ts`, `operationsPlatformService.ts`.
+- Controllers: `{domain}Controller.ts` — camelCase, singular noun, no plurals. There is no `publicController` layer.
+
 ## Step 4 — State your plan before editing
 
 Before touching any file, state:
