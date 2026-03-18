@@ -2,6 +2,8 @@
 **Last updated:** March 16, 2026
 **Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
 
+**Current implementation status:** This catalog describes the full long-term service model. For which services are implemented now, see `IMPLEMENTATION_PLAN.md`.
+
 ---
 
 ## Table of Contents
@@ -354,9 +356,9 @@ Source-of-truth note: This document defines service ownership, method contracts,
 
 **Consumers:** Public event page controllers, member and organizer controllers, AdminGovernanceService, CompetitionParticipationService
 
-#### MVFP public-route boundary rules
+#### Public-route boundary rules
 
-For the MVFP V0.1 public routes, `EventService` is responsible for:
+For the current public routes, `EventService` is responsible for:
 - validating `year` as a four-digit archive-year input;
 - validating `eventKey` against `event_{year}_{event_slug}`;
 - validating the exact underscore-based public key pattern `event_{year}_{event_slug}` and mapping that exact key to stored standard-tag form `#event_{year}_{event_slug}` before DB lookup; no hyphen/underscore rewrite, aliasing, or fuzzy-match behavior is authorized;
@@ -382,7 +384,7 @@ For the MVFP V0.1 public routes, `EventService` is responsible for:
 - `getPublicEventsLandingPage(nowIso) -> {upcomingEvents, archiveYears}` — page-oriented read method for `GET /events`; may internally reuse lower-level list methods
 - `getPublicEventsYearPage(year) -> {year, previousYear, nextYear, archiveYears, events}` — page-oriented read method for `GET /events/year/:year`; validates year input, returns the full non-paginated year-page view model, and includes grouped inline result sections for events that have public results
 - `getPublicEventPage(eventKey) -> {event, disciplines, hasResults, primarySection, resultSections}` — page-oriented read method for `GET /events/:eventKey`; validates and normalizes the public key, enforces public-visible status rules, and returns a grouped page model for the canonical event page
-- Lower-level helper reads such as `listPublicUpcomingEvents`, `listPublicArchiveYears`, `listPublicCompletedEventsByYear`, `getPublicEventDetail`, and result-row readers may still exist internally, but controllers should consume page-oriented read methods for the MVFP V0.1 slice
+- Lower-level helper reads such as `listPublicUpcomingEvents`, `listPublicArchiveYears`, `listPublicCompletedEventsByYear`, `getPublicEventDetail`, and result-row readers may still exist internally, but controllers should consume page-oriented read methods for the current public slice
 
 **Historical imported people read boundary:**
 - `event_result_entry_participants.display_name` is the always-renderable participant label.
@@ -413,7 +415,7 @@ For the MVFP V0.1 public routes, `EventService` is responsible for:
 - `[APP]` `db.ts` may return flat ordered result rows; grouping and page/view shaping belong above `db.ts`
 - `[APP]` `hostClub` is route-facing display data sourced from `events.host_club_id -> clubs.name` when present and must not be inferred from `event_organizers`
 - `[APP]` when shaping public result rows, emit a participant link to `GET /members/:personId` only when a linked `historical_person_id` is present and public; otherwise emit plain participant display text with no placeholder link
-- `[APP]` Public year archives include the full completed public event list for the selected year and are not paginated in MVFP v0.1
+- `[APP]` Public year archives include the full completed public event list for the selected year and are not paginated in the current slice
 - `[APP]` The year page includes grouped inline public results for events where result rows exist
 - `[APP]` A year-page event has `hasResults = true` only when the event is publicly visible and at least one result row exists for that event
 - `[APP]` If a historical event has no result rows yet, both the year page and the canonical event page still render the event and include an explicit no-results state
@@ -833,8 +835,8 @@ For the MVFP V0.1 public routes, `EventService` is responsible for:
 - `recordJobRun(jobName, status, metadata) -> {ok}` — writes `system_job_runs`; surfaced in `AdminGovernanceService.getSystemHealth()`
 - `raiseAlarm(type, details) -> {ok}` — writes `system_alarm_events`; acknowledged via `AdminGovernanceService.acknowledgeAlarm()`
 - `getJobHistory(adminId, jobName, filters) -> {runs}` — admin; reads `system_job_runs`
-- `runContinuousBackup() -> {ok}` — SYS_Continuous_Database_Backup; every `continuous_backup_interval_minutes` minutes (default: 5); WAL checkpoint; SQLite backup API; upload to primary S3 with retry (3 attempts, exponential backoff); record operational success/failure metadata; raise alarms after repeated failure. Backup health is an operational concern, not an MVFP v0.1 readiness gate.
-- `checkReadiness() -> {isReady, checks}` — read-only; composes the MVFP readiness signal for `/health/ready`; for MVFP v0.1 this means the minimal SQLite readiness probe only
+- `runContinuousBackup() -> {ok}` — SYS_Continuous_Database_Backup; every `continuous_backup_interval_minutes` minutes (default: 5); WAL checkpoint; SQLite backup API; upload to primary S3 with retry (3 attempts, exponential backoff); record operational success/failure metadata; raise alarms after repeated failure. Backup health is an operational concern, not a current readiness gate.
+- `checkReadiness() -> {isReady, checks}` — read-only; composes the readiness signal for `/health/ready`; currently the minimal SQLite readiness probe only
 
 **Authz:** All job methods: system role only. `getJobHistory`: admin.
 
@@ -843,7 +845,7 @@ For the MVFP V0.1 public routes, `EventService` is responsible for:
 **Key Rules:**
 - `[APP]` All background jobs read configuration from `system_config_current` at runtime — no hardcoded thresholds
 - `[APP]` All webhook handlers idempotent
-- `[APP]` Continuous backup success/failure is surfaced through logs, job-run history, and alarms; it does not change `/health/ready` in MVFP v0.1
+- `[APP]` Continuous backup success/failure is surfaced through logs, job-run history, and alarms; it does not change `/health/ready` in the current slice
 - `[APP]` All SYS jobs write `system_job_runs` via `recordJobRun()` on every run for admin visibility
 - `[APP]` Tier expiry: Tier 2 Annual fallback to Tier 1 Lifetime must be atomic (no gap between tier states); atomicity enforced inside `MembershipTieringService.processExpiry()`
 - `[APP]` PII purge job has distinct member branches: soft-deleted accounts use `member_cleanup_grace_days`; deceased members use `deceased_cleanup_grace_days`; these are separate grace rules and must not be collapsed

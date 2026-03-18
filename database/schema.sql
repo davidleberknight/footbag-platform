@@ -1,12 +1,12 @@
 -- =============================================================================
--- Footbag.org — SQLite database schema v0.1
+-- Footbag.org — SQLite database schema
 -- International Footbag Players Association (IFPA) platform
 --
 -- Required at every connection before any reads or writes:
 --   PRAGMA foreign_keys = ON;
 --
 -- Initialize a fresh database:
---   sqlite3 footbag.db < schema_v0_1.sql
+--   sqlite3 footbag.db < schema.sql
 --
 -- All timestamps are stored as ISO-8601 UTC text: 'YYYY-MM-DDTHH:MM:SS.sssZ'
 -- Views and triggers that compare timestamps use strftime('%Y-%m-%dT%H:%M:%fZ','now')

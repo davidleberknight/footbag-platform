@@ -24,7 +24,7 @@ Sneak Preview: [http://34.192.250.246/events/event_2025_beaver_open](http://34.1
 
 - Some legacy migration tooling is done, including a full mirror of the current live footbag.org.
 - Scripts to process and clean historic event-results data are nearly complete.
-- This is why the MVFP scope is viewing events and results.
+- This is why the initial public scope is viewing events and results.
 - Some official rule/policy simplification proposals were recently **Approved by IFPA Board Decision** and will be incorporated in v0.2
 - V0.2 will also have real event result data, and a bit more.
 - An early-draft implementation plan is in `IMPLEMENTATION_PLAN.md`.

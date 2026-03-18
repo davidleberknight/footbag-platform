@@ -8,7 +8,7 @@ export interface MemberResultEntry {
   teamType: string | null;
   placement: number;
   scoreText: string | null;
-  teammates: string[];
+  teammates: { name: string; personId: string | null }[];
 }
 
 export interface MemberEventGroup {
@@ -83,8 +83,8 @@ function groupResults(rows: PublicPlayerResultRow[], personId: string): MemberEv
     }
 
     const isSelf = row.participant_person_id === personId;
-    if (!isSelf && !entry.teammates.includes(row.participant_display_name)) {
-      entry.teammates.push(row.participant_display_name);
+    if (!isSelf && !entry.teammates.some(t => t.name === row.participant_display_name)) {
+      entry.teammates.push({ name: row.participant_display_name, personId: row.participant_person_id ?? null });
     }
   }
 

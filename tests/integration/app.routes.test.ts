@@ -1,11 +1,11 @@
 /**
- * Integration tests for the public Events + Results routes.
+ * Integration tests for all public app routes.
+ * Covers: health, home, clubs, events (list/year/detail), login, logout,
+ * auth redirects, members index, and members detail.
  *
  * Strategy: set FOOTBAG_DB_PATH to a temp file before any module import so
  * that db.ts opens the test database. A beforeAll hook builds the schema and
- * inserts deterministic seed rows. The full seed file (database/seeds/) is
- * the source of truth for development; this file contains a minimal inline
- * version sufficient for route-level assertions.
+ * inserts deterministic seed rows sufficient for route-level assertions.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -35,7 +35,7 @@ function validAuthCookie(): string {
 
 function buildTestDatabase(): void {
   const schema = fs.readFileSync(
-    path.join(process.cwd(), 'database', 'schema_v0_1.sql'),
+    path.join(process.cwd(), 'database', 'schema.sql'),
     'utf8',
   );
 

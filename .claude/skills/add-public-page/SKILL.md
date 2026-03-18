@@ -21,7 +21,7 @@ Read these in order before proposing any change:
    - §5 Route catalog — confirm the route is cataloged or explain why it should be added
    - §6.x Page specification for the affected page — required content, required view-model fields, navigation outputs, empty states
 4. **`docs/SERVICE_CATALOG.md`** — identify the owning service, its method contracts, and any business rules that must remain in the service layer. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
-5. **`database/schema_v0_1.sql`** — verify field names, nullable vs. required, status enum values, and any computed or join-derived fields used in the view-model.
+5. **`database/schema.sql`** — verify field names, nullable vs. required, status enum values, and any computed or join-derived fields used in the view-model.
 
 `docs/VIEW_CATALOG.md` may be intentionally partial. If the requested page is not cataloged, first determine whether it is out of scope for the current slice before proposing catalog expansion.
 

@@ -4,6 +4,8 @@
 
 **Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
 
+**Scope note:** This document describes long-term product architecture and vision. For current implementation status, see `IMPLEMENTATION_PLAN.md`.
+
 **Document Purpose:**
 
 This Footbag Website Modernization Project will upgrade footbag.org as the new global community hub for the sport of footbag. The project will create a secure, open-source, low-cost platform designed for volunteer maintenance over decades. The architecture deliberately prioritizes simplicity over sophisticated features, with the goal being that future volunteer developers should have minimal skill requirements. Features include secure voting, money collection, member-maintained media galleries, and more, all hosted in the AWS cloud, and designed with best-practice design patterns and technologies.

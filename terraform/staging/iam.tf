@@ -4,7 +4,7 @@
 # DEFERRED — bootstrap shortcut (NS-8):
 # Lightsail instances do NOT support EC2 instance profiles natively. These
 # resources are created as groundwork for future use but are not attached to
-# or used by the Lightsail instance in the current MVFP v0.1 deployment.
+# or used by the Lightsail instance in the current deployment.
 #
 # The current app reads process.env only and makes no runtime AWS API calls.
 # When the app begins calling AWS APIs (S3 for media, SES, SSM reads at

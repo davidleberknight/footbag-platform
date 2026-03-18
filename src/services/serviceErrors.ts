@@ -1,5 +1,5 @@
 /**
- * Small, explicit service-layer error types for the MVFP.
+ * Small, explicit service-layer error types.
  *
  * These are intentionally simple. Controllers can map them to HTTP behavior
  * without this module knowing anything about Express or response objects.

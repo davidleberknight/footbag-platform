@@ -25,7 +25,7 @@ For rationale and architectural trade-offs behind these rules, see `docs/DESIGN_
 
 For route/page contracts, see `docs/VIEW_CATALOG.md`.
 For service ownership, see `docs/SERVICE_CATALOG.md`.
-For schema semantics, see `docs/DATA_MODEL.md` and `database/schema_v0_1.sql`.
+For schema semantics, see `docs/DATA_MODEL.md` and `database/schema.sql`.
 
 ---
 
@@ -216,5 +216,5 @@ See `docs/DESIGN_DECISIONS.md §2.4` for the immutable audit log pattern.
 - `docs/VIEW_CATALOG.md` — route/page contracts and view-model specifications
 - `docs/SERVICE_CATALOG.md` — service ownership and method contracts
 - `docs/DATA_MODEL.md` — schema semantics, entity relationships, visibility fields
-- `database/schema_v0_1.sql` — canonical schema; check `email_visibility`, `searchable`, and `historical_persons` fields against this policy
+- `database/schema.sql` — canonical schema; check `email_visibility`, `searchable`, and `historical_persons` fields against this policy
 - `SECURITY.md` — vulnerability reporting

@@ -55,7 +55,7 @@
                   </td>
                   <td>
                     {{#if (gt teammates.length 0)}}
-                      {{#each teammates}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}
+                      {{#each teammates}}{{#unless @first}}, {{/unless}}{{#if personId}}<a href="/members/{{personId}}">{{name}}</a>{{else}}{{name}}{{/if}}{{/each}}
                     {{/if}}
                   </td>
                 </tr>

@@ -447,21 +447,6 @@ export const publicPlayers = {
   `),
 } as const;
 
-export const publicStats = {
-  counts: db.prepare(`
-    SELECT
-      (SELECT COUNT(*)
-         FROM events
-        WHERE status = 'completed') AS event_count,
-      (SELECT COUNT(*)
-         FROM historical_persons
-        WHERE event_count IS NOT NULL) AS player_count,
-      (SELECT COUNT(DISTINCT CAST(substr(start_date, 1, 4) AS INTEGER))
-         FROM events
-        WHERE status = 'completed') AS year_count
-  `),
-} as const;
-
 export const health = {
   checkReady: db.prepare(`
     SELECT 1 AS is_ready

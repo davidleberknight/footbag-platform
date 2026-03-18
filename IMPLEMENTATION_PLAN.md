@@ -14,18 +14,17 @@ For non-trivial work, read this top status block first, then only the relevant d
 ## Active slice now
 
 - **Event results pages:** historical-record UX refinement — provenance, caveats, layout improvements; year-listing pages do not show results inline (results live on separate result-slug pages); result pages more prominent
-- **Members pages:** major reframe from ambiguous "members section" into explicit public historical-record index and detail surfaces; reduce directory-style language; auth stub gates any content not appropriate for anonymous visitors
-- **World records:** add as public historical record surfaces (new in this slice)
-- **BAP/HoF:** honor-roll pages and member-page indicators
+- **Members pages:** explicitly Tier 1 public historical-record surfaces per `docs/GOVERNANCE.md §4–5`; reduce directory-style language; auth stub currently gates both routes temporarily (see baseline note)
 - **Historical-data caveats:** no uncaveated derived stats; scope and completeness messaging where needed; no misleading "all-time" or "career total" claims from partial import data
-- **First fake auth foundation stub:** retire `isLoggedIn` env-toggle; introduce stubbed session middleware; real route-level authorization behavior; designed to mirror the future real auth path except for the stub credential mechanism; runs in all environments including staging during this sprint
-- **TDD expansion:** integration tests for members routes, world-record routes, and auth-stub visibility behaviors
-- Home page stats: event count, player count, year count (already queryable)
-- Teammate links on member detail (service change needed to carry person IDs through)
+- **Shared page contract:** define and implement the common `seo / page / navigation / content` structure for all non-home pages; refactor existing non-home pages to comply; home page (`/`) is explicitly exempt
+- **TDD expansion:** integration tests for members routes and auth-stub visibility behaviors
+- Teammate links on member detail — DONE (personId carried through service + template; plain text where no ID)
 
 ## Drafted next, but not active code focus now
 
 - Clubs page with real data (no club data yet; deferred until data exists)
+- World records — public historical record surfaces; deferred from current slice
+- BAP/HoF honor-roll pages — deferred; member-page indicators are already implemented
 - Broader service contracts may remain documented in `docs/SERVICE_CATALOG.md`, but implementation status is governed here, not there.
 
 ## Out of scope now
@@ -55,15 +54,15 @@ Current implemented public routes:
 - `/events`
 - `/events/year/:year`
 - `/events/:eventKey`
-- `/members` (auth-gated; redirects to `/login` when not authenticated)
-- `/members/:personId` (auth-gated; redirects to `/login` when not authenticated)
+- `/members` (auth-gated for now — Tier 1 historical data per GOVERNANCE.md §4, but kept gated temporarily: the current full-member-list render is a useful auth-path test and guards against exposing an unreviewed list; remove gating once member-list presentation is reviewed and scoped correctly)
+- `/members/:personId` (auth-gated for the same reason as above)
 - `GET /login` (auth stub login form)
 - `POST /login` (auth stub login handler — sets session cookie, redirects to `/members`)
 - `POST /logout` (clears session cookie, redirects to `/`)
 - `/health/live`
 - `/health/ready`
 
-Real MVFP data is loaded: 175 historical persons, 4 events, results and participants visible on public routes.
+Real historical data is loaded and visible on public routes.
 
 Current implementation constraints:
 - server-rendered Express + Handlebars
@@ -76,9 +75,39 @@ Current implementation constraints:
 - schema changes require a DB rebuild (no migration runner; this is intentional)
 
 Current verification baseline:
-- a single integration test file (`tests/integration/events.routes.test.ts`) covers public events routes plus health, home, and clubs
-- members routes and auth-stub visibility states not yet covered by tests
+- a single integration test file (`tests/integration/app.routes.test.ts`) covers: health, home, clubs, events (list/year/detail), login, logout, auth redirects, members index, members detail
+- not yet covered: 404/500 error handling, world-record routes (deferred), honor-roll routes (deferred), worker behavior, browser/UI verification
 - browser verification is explicit-human-request-only
+
+## Accepted temporary deviations
+
+These are known, intentional shortcuts. Each has an explicit unblock condition. Agents must not treat long-term docs as contradicting these — the plan governs current scope.
+
+1. **Auth is a fake stub.** HMAC-signed cookie, env-backed credentials, no DB session check, no CSRF flow, no password-version or session-invalidation model. Mirrors the real auth path structurally. Unblock: replace with real JWT/DB auth (Phase 4) before member onboarding.
+
+2. **Members routes are temporarily auth-gated.** `/members` and `/members/:personId` are Tier 1 public historical-person data per `docs/GOVERNANCE.md §4–5` and should eventually be public. Currently gated to protect an unreviewed full-member-list render and to exercise the auth path. Unblock: review member-list presentation scope, then remove `requireAuth`.
+
+3. **Worker has no real jobs.** `worker.ts` exits cleanly; the worker container is scaffolded only. No outbox, email, or background-job processing is active. Unblock: Phase 4 email outbox activation.
+
+4. **No closed backup/restore workflow.** S3 bucket is scaffolded; no backup producer exists in app or worker; no restore drill has been run. `/health/ready` is a DB-probe only. Unblock: implement backup job in worker and run a restore rehearsal before any production data is at risk.
+
+5. **Maintenance mode is not production-grade.** CloudFront maintenance-origin/error behavior is omitted from Terraform; direct-origin failover is not implemented. Unblock: Phase 1-E CloudFront pass 2.
+
+6. **CloudFront hardening incomplete.** X-Origin-Verify header is absent from Nginx; OAC/ordered-cache controls are deferred; direct-origin bypass is unprotected. Unblock: Phase 1-F security hardening.
+
+7. **CI/CD is absent.** No GitHub Actions workflows exist. Images are built on-host via `docker compose`; the systemd unit starts local builds. Unblock: Phase 1-C deploy script + Phase 1-D GitHub Actions.
+
+8. **Monitoring is partial and intentionally gated.** CloudWatch log groups and alarms are Terraformed; CloudWatch agent install is TODO; monitoring gates default false; backup freshness metric has no producer. Unblock: Phase 1-G agent install + backup job.
+
+9. **Runtime config is manually managed.** App reads local env vars from `/srv/footbag/env` only. SSM/IAM scaffolding exists but app runtime does not consume it. Unblock: when runtime AWS calls (SSM, S3, SES, KMS) are activated.
+
+10. **Bootstrap security shortcuts remain.** Operator IAM and SSH access use bootstrap-era posture, not the final hardened model. Unblock: explicit security hardening pass before production launch.
+
+11. **Browser validation is manual-only.** No automated browser/UI tests. Route and integration tests are the first verification path. Browser checks are explicit-human-request-only.
+
+12. **`image` container is absent.** Docker Compose defines `nginx`, `web`, and `worker`; the `image` container (photo processing, S3 sync) is a later-phase artifact and is not present. Unblock: Phase 3+ media pipeline work.
+
+13. **`/health/ready` is a DB-probe only.** Current implementation validates only the minimal SQLite readiness path. Long-term design includes memory-pressure gating and broader dependency checks (see `docs/DESIGN_DECISIONS.md §8.4`). Unblock: Phase 1-G monitoring pass + backup job activation.
 
 ---
 
@@ -105,7 +134,7 @@ clubs public page
     ← clubs table (EXISTS in schema)
 
 legacy data visible on site
-  ← MVFP import script (CSVs ready, build scripts exist)
+  ← legacy import scripts (CSVs ready, build scripts exist)
     ← migration strategy (numbered migrations must precede schema evolution)
 
 CI/CD automation
@@ -193,17 +222,17 @@ Size labels: S = small, M = medium, L = large.
 
 **Goal:** Real historical data is visible on the public site.
 
-**Note: No migration framework. Schema changes require a DB rebuild using `schema_v0_1.sql` + seed.**
+**Note: No migration framework. Schema changes require a DB rebuild using `database/schema.sql` + seed pipeline.**
 
 | # | Task | Size | Dependency |
 |---|------|------|-----------|
-| ~~2-B~~ | ~~MVFP legacy import: 175 persons, 4 events, 294 results, 484 participants~~ | ~~L~~ | DONE |
+| ~~2-B~~ | ~~Legacy historical import~~ | ~~L~~ | DONE |
 | 2-C | Integration tests: fixture-based tests verifying imported events + results appear on public routes | M | — |
 | 2-D | Production deploy (after staging validated) | S | Phase 1 gate |
-| 2-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch beyond MVFP 4 | L | — |
+| 2-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch from legacy mirror | L | — |
 
 **Notes:**
-- MVFP data is loaded. Real events and members are visible on public routes.
+- Historical data is loaded. Real events and members are visible on public routes.
 - Imported persons are **not** activated member accounts. Identity records only, for future account-claim flow.
 
 **Gate:** Imported events and results are visible on staging. Production deploy approved.
@@ -220,7 +249,7 @@ Size labels: S = small, M = medium, L = large.
 | 3-B | Clubs controller + route: replace "coming soon" placeholder with real data rendering | M | 3-A |
 | 3-C | Clubs integration tests: clubs listing, empty state, individual club route (if scoped) | M | 3-B |
 | 3-D | Clubs seed data: at least NHSA and a few historical clubs from legacy mirror | S | 2-A (migration plumbing) |
-| 3-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch of historical events beyond MVFP 4 | L | 2-B |
+| 3-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch of historical events | L | 2-B |
 | 3-F | Production deploy (if staging validated from Phase 2 and CloudFront active) | M | Phase 2 gate, 1-E |
 
 **Gate:** `/clubs` serves real data. Production deploy is live (if approved).
@@ -274,11 +303,11 @@ Prerequisites are noted.
 Legacy data import directly affects the usefulness of the current public event/results surface and introduces identity/account risks beyond simple event ingestion.
 
 ### Current state
-- MVFP data loaded: 4 events, 175 persons, 294 results, 484 participants — visible on public routes
+- Historical data loaded and visible on public routes
 - Build script: `legacy_data/event_results/scripts/06_build_mvfp_seed.py`
 - Verify script: `legacy_data/event_results/scripts/verify_mvfp_seed.py`
-- Full legacy mirror: `legacy_data/mirror_footbag_org/` (broader event/result coverage; post-MVFP import batch)
-- Schema changes: rebuild DB using `schema_v0_1.sql` + `database/seeds/seed_mvfp_v0_1.sql`; no migration runner
+- Full legacy mirror: `legacy_data/mirror_footbag_org/` (broader event/result coverage; next import batch)
+- Schema changes: rebuild DB using `database/schema.sql` + seed pipeline (`scripts/reset-local-db.sh`); no migration runner
 
 ### Requirements
 - Idempotent import behavior (rehearsable on staging)
@@ -317,7 +346,7 @@ Do not implement final rule wording until Julie's official published wording exi
 
 ## Cross-cutting prerequisites before wider feature expansion
 
-1. Schema changes require a DB rebuild (no migration runner; rebuild from `schema_v0_1.sql` + seed).
+1. Schema changes require a DB rebuild (no migration runner; rebuild from `database/schema.sql` + seed pipeline).
 2. Integration-test coverage expanded beyond current single-file baseline (Phase 1-A/B, ongoing with TDD).
 3. Import-safe verification scripts and fixture coverage (Phase 2-C).
 4. Browser smoke-check expectations defined for public routes (explicit-human-request-only for automation).
@@ -355,6 +384,6 @@ For each increment, confirm:
 - Password reset and account-claim semantics depend on that mapping.
 - Current readiness implementation is intentionally narrower than long-term docs.
 - Canonical docs remain broader than implemented code; phase planning must constantly separate implemented from intended.
-- Executable schema/seed filenames remain versioned for now — need an explicit later decision on naming convention.
+- Schema file is `database/schema.sql` (unversioned); seed pipeline runs via `scripts/reset-local-db.sh`.
 - Production deploy timing is conditional on Phase 2 staging validation.
 - IFPA rules integration is an external dependency (Julie's published wording).

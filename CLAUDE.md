@@ -31,15 +31,17 @@ Read the minimum the task requires. Default: active-slice block + code.
 Load docs in targeted sections only.
 
 1. Explicit human decisions in the current task
-2. `docs/DESIGN_DECISIONS.md` — highest authority; read rarely (already encoded in code patterns); load targeted sections only
-3. Active-slice block in `IMPLEMENTATION_PLAN.md` — current scope and out-of-scope
-4. Current code — implemented behavior
-5. When needed, targeted sections of:
+2. Active-slice block in `IMPLEMENTATION_PLAN.md` — current scope and out-of-scope
+3. Current code — implemented behavior
+4. When needed, targeted sections of:
    - `docs/USER_STORIES.md` — functional requirements
    - `docs/VIEW_CATALOG.md` — route/page contracts
    - `docs/SERVICE_CATALOG.md` — service contracts
    - `docs/DATA_MODEL.md` — schema semantics
    - `docs/GOVERNANCE.md` — security, privacy, historical data policy
+5. `docs/DESIGN_DECISIONS.md` — long-term rationale and architectural commitments; read when entering a new code area, unwinding a temporary simplification, or when the reason behind a pattern is unclear; do not load by default
+
+**Note:** `docs/GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy boundaries.
 
 ## Non-negotiable rules
 

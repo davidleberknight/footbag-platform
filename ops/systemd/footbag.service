@@ -7,8 +7,8 @@
 #          sudo systemctl enable footbag
 #          sudo systemctl start footbag
 #
-# See docs/DEV_ONBOARDING_V0_1.md §4.7-4.8 for host bootstrap and first deploy.
-# See docs/DEVOPS_GUIDE_V0_1.md §7 for the ongoing deployment runbook.
+# See docs/DEV_ONBOARDING.md §4.7-4.8 for host bootstrap and first deploy.
+# See docs/DEVOPS_GUIDE.md §7 for the ongoing deployment runbook.
 # =============================================================================
 
 [Unit]
@@ -26,26 +26,29 @@ RemainAfterExit=yes
 WorkingDirectory=/srv/footbag
 
 # Environment file provides PUBLIC_BASE_URL, FOOTBAG_DB_PATH, etc.
-# Created manually on the host — see section 4.7 step 3 in docs/DEV_ONBOARDING_V0_1.md.
+# Created manually on the host — see section 4.7 step 3 in docs/DEV_ONBOARDING.md.
 EnvironmentFile=/srv/footbag/env
 
-# v0.1: no registry — build images at deploy time with `docker compose build`.
+# No registry yet — build images at deploy time with `docker compose build`.
 # No ExecStartPre pull step.
 
 # Start the stack; --remove-orphans cleans up containers from old service defs
 ExecStart=/usr/bin/docker compose \
+    --env-file /srv/footbag/env \
     -f docker/docker-compose.yml \
     -f docker/docker-compose.prod.yml \
     up --detach --remove-orphans
 
 # Graceful stop — waits up to 30s for in-flight requests to complete
 ExecStop=/usr/bin/docker compose \
+    --env-file /srv/footbag/env \
     -f docker/docker-compose.yml \
     -f docker/docker-compose.prod.yml \
     down --timeout 30
 
 # Reload without downtime (nginx reload + rolling restart for web)
 ExecReload=/usr/bin/docker compose \
+    --env-file /srv/footbag/env \
     -f docker/docker-compose.yml \
     -f docker/docker-compose.prod.yml \
     up --detach --remove-orphans

@@ -22,7 +22,7 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
-SCHEMA="database/schema_v0_1.sql"
+SCHEMA="database/schema.sql"
 CANONICAL_INPUT="legacy_data/event_results/canonical_input"
 SEED_DIR="legacy_data/event_results/seed/mvfp_full"
 VENV="scripts/.venv"

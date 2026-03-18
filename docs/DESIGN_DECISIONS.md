@@ -8,14 +8,7 @@ This document captures technical decisions and rationale so that volunteers can 
 
 Scoping note: Numeric values in this document may represent fixed technical constants, deployment/infrastructure resource allocations and thresholds, or implementation notes. For Administrator-configurable operational, security, reminder, pricing, and retention values, normative defaults are defined in the User Stories document and loaded via configuration seeds. DD may describe parameterization, ranges, and ownership, but if a value is Administrator-configurable, DD does not define the normative default. Any numeric value in this document that conflicts with the User Stories normative defaults section is an error; User Stories wins.
 
-Current implementation note (current deployed public baseline): this document is the long-term architecture reference. For the current deployed public baseline, preserve these narrower rules where they differ from broader design discussion later in this document:
-- `/health/ready` is only the minimal SQLite readiness path;
-- initial database bootstrap comes directly from `schema_v0_1.sql`, with numbered migrations deferred until after the first stable baseline;
-- the initial runtime requires `nginx`, `web`, and `worker`; the `image` container is a later-phase artifact;
-- the initial staging deployment uses the CloudFront default `*.cloudfront.net` URL; Route 53, ACM certificate, and custom domain aliases are deferred and commented out in Terraform (see `acm.tf` activation checklist);
-- the v0.1 runtime credential mechanism uses a dedicated IAM user (`footbag-staging-runtime`) with access keys injected directly as environment variables — the source-profile + AssumeRole pattern from §7.2 is the long-term target and is deferred until post-MVFP;
-- the current public Events + Results MVFP slice makes no runtime AWS calls, so the `footbag-staging-runtime` user is not required for the minimum stand-up described in DEV_ONBOARDING.md; the credential mechanism above applies once runtime AWS calls (SSM, S3, SES, KMS) are activated;
-- the maintenance page (§6.3) is not functional in v0.1 — no `ordered_cache_behavior` routes to the S3 origin; this is a known reliability gap to be addressed post-MVFP.
+Current implementation status and accepted temporary deviations are tracked in `IMPLEMENTATION_PLAN.md`. This document is the long-term architecture reference only.
 
 **Table of Contents**
 
@@ -168,11 +161,11 @@ Minimum Indexes (added when query \>500ms): members(login_email_normalized), mem
 
 Monitoring: Query latency P95, slow query log (\>500ms), transaction duration (alert if P95 \>10s), backup success rate and age (alert if \>15 min), database size (alert at 80%), WAL size (alert if \>1GB), checkpoint latency (alert if \>5s), SQLITE_BUSY frequency (alert if \>5%).
 
-Health Endpoints: `/health/live` is a process check. `/health/ready` follows the current implementation note at the top of this document: for the current public release it is the minimal SQLite readiness path, while broader readiness coverage remains later-phase operational design.
+Health Endpoints: `/health/live` is a process check. `/health/ready` validates essential dependencies required to serve traffic; broader readiness coverage (backup freshness, memory pressure, dependency fan-out) remains later-phase operational design.
 
 Recovery: Download the selected S3 snapshot, run `PRAGMA integrity_check`, replace the live file, restart services, and verify health plus smoke checks. Target RTO remains approximately five minutes for the common restore case.
 
-Initial schema bootstrap for first public launch comes directly from `schema_v0_1.sql`. A numbered migration chain is deferred until after the first stable deployed baseline (no migrations in scope).
+Initial schema bootstrap for first public launch comes directly from `schema.sql`. A numbered migration chain is deferred until after the first stable deployed baseline (no migrations in scope).
 
 **Follow-on Decisions:**
 
@@ -1720,7 +1713,7 @@ For workload AWS API access, the deployed application does not rely on an implic
 
 The authoritative production runtime principal is therefore the assumed runtime role, not the source profile, not the human operator identity, and not a host-attached instance role. Runtime permissions remain narrowly scoped to only the AWS APIs the application actually needs, such as S3, SES, Parameter Store, CloudWatch, and KMS, depending on the environment and service path.
 
-> **v0.1 simplification — AssumeRole step deferred.** MVFP v0.1 uses a dedicated IAM user (`footbag-staging-runtime`) with scoped SSM read permissions and its access keys set directly as `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` environment variables in the root-owned host env file. The source-profile + role-assumption step is not yet implemented. The IAM user's keys are the runtime credential directly. The full AssumeRole pattern described above remains the design target and should be adopted post-MVFP.
+> **Current simplification — AssumeRole step deferred.** The current deployment uses a dedicated IAM user (`footbag-staging-runtime`) with scoped SSM read permissions and its access keys set directly as `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` environment variables in the root-owned host env file. The source-profile + role-assumption step is not yet implemented. The IAM user's keys are the runtime credential directly. The full AssumeRole pattern described above remains the design target.
 
 Terraform remains the authority for the steady-state IAM roles, policies, Lightsail firewall posture, logging resources, and related infrastructure configuration. The exact host-user creation and public-key installation path may begin as documented bootstrap work, but it must be reproducible, reviewable, and reflected in the runbooks.
 
@@ -1761,7 +1754,7 @@ Decision:
 
 Local development uses Docker and docker compose to start the stack (web app, worker, test stubs) with a single command.
 
-The minimum required Docker artifact for the MVFP V1.0 delivery set is:
+The minimum required Docker artifact for the current deployment is:
 - `docker/web/Dockerfile`
 - `docker/worker/Dockerfile`
 - `docker/nginx/nginx.conf`
@@ -1769,11 +1762,11 @@ The minimum required Docker artifact for the MVFP V1.0 delivery set is:
 - root `docker-compose.prod.yml` for Lightsail deployment overrides
 - a documented service wrapper (for example `ops/systemd/footbag.service`) for the production compose stack
 
-The minimum required MVFP runtime containers are:
+The minimum required runtime containers are:
 - `nginx`
 - `web`
 - `worker`
-(The `image` container remains a later-phase artifact and is not required to launch the MVFP public events slice.)
+(The `image` container remains a later-phase artifact and is not required for the current public slice.)
 
 Rationale:
 
@@ -1903,9 +1896,9 @@ AWS best practice is to build health checks into every service to support safe d
 
 Constraints:  
 - `/health/live` is cheap and does not call external dependencies.  
-- `/health/ready` Validates essential dependencies required to serve traffic, only (e.g., ability to read required configuration and perform minimal S3 read access).  MVFP V0.1 NOTE: validates only the minimum SQLite readiness path, for now, required to serve the MVFP v0.1 slice.  
-- Health endpoints must avoid calling Stripe, SES, S3, and any expensive dependency fan-out.  
-- Backup freshness, restore posture, and memory-pressure alarms remain operational concerns rather than MVFP v0.1 readiness gates.
+- `/health/ready` Validates essential dependencies required to serve traffic, only (e.g., ability to read required configuration and perform minimal S3 read access). Long-term target includes memory-pressure gating and broader dependency checks.
+- Health endpoints must avoid calling Stripe, SES, S3, and any expensive dependency fan-out.
+- Backup freshness, restore posture, and memory-pressure alarms are operational concerns, not current readiness gates.
 
 Impact:  
 - Deployment runbooks and any load balancer, target health checks use these endpoints.  

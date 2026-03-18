@@ -1,12 +1,12 @@
 # Footbag Website Modernization Project — Data Model
 **Last updated:** March 16, 2026
 **Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
-**Schema file:** `database/schema_v0_1.sql`  
+**Schema file:** `database/schema.sql`
 **Schema counts:** 49 tables · 9 views · 108 named indexes · 18 triggers
 
 **Quick routing:**
 - Use this document for: persisted entities, relationships, schema conventions, retained triggers, and DB-vs-app enforcement boundaries.
-- Next docs: `database/schema_v0_1.sql` for exact SQL definitions, `docs/SERVICE_CATALOG.md` for service-layer usage, `docs/DESIGN_DECISIONS.md` for rationale, `src/db/db.ts` for sql queries.
+- Next docs: `database/schema.sql` for exact SQL definitions, `docs/SERVICE_CATALOG.md` for service-layer usage, `docs/DESIGN_DECISIONS.md` for rationale, `src/db/db.ts` for sql queries.
 
 ---
 
@@ -190,7 +190,7 @@ Each club has a unique `hashtag_tag_id` (enforced by `UNIQUE INDEX ux_clubs_hash
 
 Events use hard-delete (US `EO_Delete_Event`; DD §2.3). Events with result rows are preserved permanently by workflow constraints; all other events are removed immediately and permanently on deletion. `event_disciplines` uses hard-delete (disciplines removed from draft events are gone immediately).
 
-`events.host_club_id REFERENCES clubs(id)` is the canonical optional relationship for the MVFP `hostClub` display field. It represents the club publicly associated with hosting the event. It is nullable because some imported historical events may not have a confidently known host club. Public MVFP pages must derive `hostClub` from this relationship only when present. They must not infer a host club from organizer membership, tags, or other heuristics.
+`events.host_club_id REFERENCES clubs(id)` is the canonical optional relationship for the `hostClub` display field. It represents the club publicly associated with hosting the event. It is nullable because some imported historical events may not have a confidently known host club. Public pages must derive `hostClub` from this relationship only when present. They must not infer a host club from organizer membership, tags, or other heuristics.
 
 `discipline_category` is an application-enforced taxonomy field (the DB requires only `TEXT NOT NULL`). Canonical top-level families are `net`, `freestyle`, `golf`, and `sideline` (legacy `other` values should be normalized to `sideline`). Variant/sub-discipline structure is managed in application logic, e.g., sideline-family formats such as 2-square, 4-square, consecutives, and one-pass, plus multiple freestyle and net variants.
 
@@ -618,8 +618,8 @@ For public rendering in the current slice:
 - only expose a participant link when a supported historical-person-backed detail target exists
 - otherwise render plain text
 
-#### MVFP public-results clarification
-Version 0.1 of the schema does not define a separate publish/unpublish state for event results. For the MVFP public events/results slice, **public results exist** in application logic only when both of the following are true:
+#### Public-results clarification
+The schema does not define a separate publish/unpublish state for event results. **Public results exist** in application logic only when both of the following are true:
 1. the event itself is publicly visible under the public event-status rule, and
 2. at least one `event_result_entries` row exists for that event.
 If a future version introduces a distinct result-publication workflow, that behavior must be added explicitly to the schema and to the service/view contracts rather than inferred retroactively.
@@ -733,7 +733,7 @@ This is recomputable data; the application owns recomputation cadence and may re
 
 **Tables:** `mailing_lists`, `system_config`
 
-Required default rows are included at the end of `schema_v0_1.sql` (Section 23) and are loaded as part of schema initialization. Seed inserts use `INSERT OR IGNORE`, so **the seed INSERTs are idempotent**, but the full schema file is **not** safe to re-run on an existing database because CREATE statements are unguarded.
+Required default rows are included at the end of `schema.sql` (Section 23) and are loaded as part of schema initialization. Seed inserts use `INSERT OR IGNORE`, so **the seed INSERTs are idempotent**, but the full schema file is **not** safe to re-run on an existing database because CREATE statements are unguarded.
 
 **Cross-table seed policy (verification and references):**
 - Verify/reference `mailing_lists` seeds by `slug` (the natural primary key).
@@ -991,7 +991,7 @@ Admin grant/revoke is application-only logic:
 
 ### APP-021 — Seed data required on fresh DB
 
-**Schema initialization (`schema_v0_1.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
+**Schema initialization (`schema.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
 
 - `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `board-announcements`, `event-notifications`, `technical-updates` (verify by `slug`) — admin notification and member subscription workflows depend on these slugs.
 - `system_config`: all keys in §4.23 (verify by `config_key`) — application reads these at startup and during operations; missing keys will cause runtime errors.
@@ -1086,7 +1086,7 @@ These are kept in the DB because election integrity requires the invariant regar
 PRAGMA foreign_keys = ON;
 ```
 
-**Execute this on every connection before any reads or writes.** SQLite disables FK enforcement by default. The `PRAGMA foreign_keys = ON` at the top of `schema_v0_1.sql` runs once at schema initialization; it does not persist for future connections.
+**Execute this on every connection before any reads or writes.** SQLite disables FK enforcement by default. The `PRAGMA foreign_keys = ON` at the top of `schema.sql` runs once at schema initialization; it does not persist for future connections.
 
 **Implementation checklist:**
 - [ ] DB connection factory/initializer executes `PRAGMA foreign_keys = ON` immediately after opening

@@ -41,7 +41,7 @@ resource "aws_cloudfront_distribution" "main" {
     # When implemented: provision a real secret in SSM, reference it here, and enforce it in nginx.
   }
 
-  # Maintenance-page S3 origin intentionally omitted from v0.1.
+  # Maintenance-page S3 origin intentionally omitted (deferred).
   # Re-add when OAC, ordered_cache_behavior for /maintenance.html, bucket policy,
   # and the maintenance.html object all exist and are tested. See Path E, section 5.3.
 
@@ -101,7 +101,7 @@ resource "aws_cloudfront_distribution" "main" {
     max_ttl     = 0
   }
 
-  # custom_error_response blocks for maintenance page intentionally omitted from v0.1.
+  # custom_error_response blocks for maintenance page intentionally omitted (deferred).
   # Re-add together with the s3-maintenance origin and ordered_cache_behavior for /maintenance.html.
 
   # ── TLS ──────────────────────────────────────────────────────────────────

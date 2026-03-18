@@ -6,7 +6,7 @@ import BetterSqlite3 = require('better-sqlite3');
  * This helper exists so db.ts can remain the single prepared-statement surface
  * while keeping the raw connection-open / PRAGMA bootstrap concerns separate.
  *
- * Scope for this MVFP helper:
+ * Scope for this helper:
  * - open one better-sqlite3 connection
  * - apply the documented startup PRAGMAs for the app connection
  *

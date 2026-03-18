@@ -36,7 +36,7 @@ variable "route53_zone_id" {
 variable "lightsail_bundle_id" {
   description = "Lightsail instance bundle (size)"
   type        = string
-  default     = "small_3_0" # $10/mo — appropriate for production MVFP
+  default     = "small_3_0" # $10/mo — appropriate for production
 }
 
 variable "lightsail_blueprint_id" {

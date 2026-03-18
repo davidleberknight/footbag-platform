@@ -11,9 +11,9 @@ export interface ReadinessStatus {
 }
 
 /**
- * MVFP-scoped operations service surface.
+ * Operations service surface.
  *
- * Readiness composition belongs here, not in db.ts. For this slice the only
+ * Readiness composition belongs here, not in db.ts. Currently the only
  * implemented dependency check is the minimal DB probe from db.ts.
  */
 export class OperationsPlatformService {

@@ -6,7 +6,7 @@ Local rules for schema and data-model work in `database/` and related database d
 
 ## Authority
 
-- Treat `docs/DATA_MODEL.md` and `database/schema_v0_1.sql` as the authoritative sources for persisted structure.
+- Treat `docs/DATA_MODEL.md` and `database/schema.sql` as the authoritative sources for persisted structure.
 - Do not invent columns, relationships, or hidden derived persistence rules.
 
 ## Design rules

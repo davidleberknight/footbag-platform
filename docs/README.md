@@ -21,7 +21,7 @@ Design and specification documents for the footbag-platform modernization projec
 
 - What must the system do? → `USER_STORIES.md`
 - Why was it designed this way? → `DESIGN_DECISIONS.md`
-- What entities exist and how are they related? → `DATA_MODEL.md` + `database/schema_v0_1.sql`
+- What entities exist and how are they related? → `DATA_MODEL.md` + `database/schema.sql`
 - What does a public page/route look like? → `VIEW_CATALOG.md`
 - What does a service own? → `SERVICE_CATALOG.md`
 - How do I build, deploy, or recover? → `DEVOPS_GUIDE.md`

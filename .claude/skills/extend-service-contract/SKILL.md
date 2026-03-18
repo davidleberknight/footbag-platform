@@ -30,7 +30,7 @@ Read these before proposing any change:
    - listed business rules and invariants
    - persistence touchpoints and `db.ts` statement groups used
    - service-level error semantics
-4. **`database/schema_v0_1.sql`** — verify exact column names, types, nullable vs. required, status enums, FK relationships, and any trigger behavior relevant to the change.
+4. **`database/schema.sql`** — verify exact column names, types, nullable vs. required, status enums, FK relationships, and any trigger behavior relevant to the change.
 5. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and any data invariants that must be preserved.
 6. **`docs/DESIGN_DECISIONS.md`** (targeted sections) — check for invariants relevant to the change:
    - §1.6 Controller to Service Pattern

@@ -33,7 +33,7 @@ resource "aws_ssm_parameter" "app_db_path" {
   value = "/srv/footbag/footbag.db"
 }
 
-# ── Stripe (placeholder — payment out of scope for MVFP v0.1) ─────────────────
+# ── Stripe (placeholder — payment deferred) ───────────────────────────────────
 # TODO: Uncomment and populate when payment integration is implemented.
 # resource "aws_ssm_parameter" "stripe_api_key" {
 #   name   = "${local.ssm_prefix}/stripe/api_key"
@@ -43,7 +43,7 @@ resource "aws_ssm_parameter" "app_db_path" {
 #   lifecycle { ignore_changes = [value] }
 # }
 
-# ── SES (placeholder — email out of scope for MVFP v0.1) ─────────────────────
+# ── SES (placeholder — email deferred) ───────────────────────────────────────
 # resource "aws_ssm_parameter" "ses_sender" {
 #   name   = "${local.ssm_prefix}/ses/sender_address"
 #   type   = "SecureString"

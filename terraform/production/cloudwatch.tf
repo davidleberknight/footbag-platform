@@ -23,7 +23,7 @@ resource "aws_cloudwatch_log_group" "worker" {
 # Lightsail does not natively push metrics to CloudWatch.
 # TODO: Install the CloudWatch agent on the Lightsail instance and configure
 # it to push CPU, memory, and disk metrics to the namespace below.
-# Reference: docs/DEVOPS_GUIDE_V0_1.md §4.4
+# Reference: docs/DEVOPS_GUIDE.md §4.4
 
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   alarm_name          = "${local.prefix}-high-cpu"

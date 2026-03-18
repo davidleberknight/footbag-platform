@@ -6,6 +6,8 @@
 
 ## 1. Purpose
 
+**Current implementation status:** see `IMPLEMENTATION_PLAN.md`. This catalog defines the standard and page contracts; the plan governs what is implemented now vs deferred.
+
 This document is the authoritative catalog for the public pages that are already implemented or actively specified in the current slice, and for the rendering standard those cataloged pages must follow.
 
 It is intentionally partial. A view may still be part of the product because it is defined in `docs/USER_STORIES.md` even when it is not yet cataloged here.
@@ -32,13 +34,16 @@ This document covers:
   - Events year archive
   - Event detail
   - Clubs landing placeholder
+  - Members section landing (auth-gated for now; Tier 1 historical-person data)
+  - Member detail (auth-gated for now; Tier 1 historical-person data)
+  - Login (auth stub)
 - the rules future pages must follow to join the catalog
 
 `docs/USER_STORIES.md` remains broader than this file. This catalog is authoritative for the views it includes; it does not attempt to catalog the full future product yet.
 
 This document does not cover (yet):
 
-- authenticated member-only pages beyond the current-slice public Members landing page and minimal historical member detail page
+- authenticated member-only pages and profiles (beyond the current Tier 1 historical-person surfaces)
 - organizer workflows
 - admin pages
 - APIs
@@ -80,7 +85,7 @@ A new public page may join the catalog only if it can be expressed through the s
 
 ### 3.5 Home is a special composition-page exception
 
-Home (`/`) is the one intentional exception to the otherwise route/page pattern used by the current public slice. It still follows the reusable public frame, thin-controller rule, and service-owned shaping rule, but it is a landing-page composition view and should be shaped by a dedicated `HomeService`.
+Home (`/`) is the one intentional exception to the page contract defined in §4.2. It still follows the reusable public frame, thin-controller rule, and service-owned shaping rule, but it is a landing-page composition view and does not follow the standard `seo / page / navigation / content` contract. The home controller currently composes directly from available services; a dedicated `HomeService` may be introduced later if warranted. All other cataloged pages must conform to §4.2.
 
 ---
 
@@ -92,7 +97,7 @@ The public rendering standard defines the shared structure, page contract, and r
 
 ## 4.2 Required page contract
 
-Every public page must render from the same top-level contract.
+Every public page except Home (see §3.5) must render from the same top-level contract. This is a current implementation obligation, not aspirational — existing non-home pages must comply before new pages are added.
 
 ### Required top-level shape
 
@@ -262,8 +267,8 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /events` | Events index | Browse upcoming events and archive entry points | Current |
 | `GET /events/year/:year` | Events year archive | Browse completed events for one year | Current |
 | `GET /events/:eventKey` | Event detail | Canonical public event page | Current |
-| `GET /members` | Members section | Members section entry; public historical-record index for anonymous visitors; auth stub gates member-only content in this sprint | Current |
-| `GET /members/:personId` | Member detail | Member detail page; current slice serves public historical-person record for imported competitive players; will grow to full authenticated member profile (route will migrate from personId to memberId as the section matures) | Current |
+| `GET /members` | Members section | Tier 1 public historical-person index; see GOVERNANCE.md §4 for visibility rules | Current |
+| `GET /members/:personId` | Member detail | Tier 1 public historical-person detail; see GOVERNANCE.md §4 for visibility rules | Current |
 | `GET /clubs` | Clubs landing | Placeholder public clubs entry page | Current stub |
 | `GET /login` | Login | Auth stub login form; redirects authenticated users to `/members` | Current stub |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
@@ -274,8 +279,8 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /` is the canonical public home route.
 - `GET /events` is the canonical events section entry route.
 - `GET /events/:eventKey` is the canonical public event detail route.
-- `GET /members` is the canonical Members section entry route. Currently serves a public historical-record index with auth stub gating for member-only content; will grow to a full authenticated members area.
-- `GET /members/:personId` is the canonical member detail route for the current slice, currently backed by imported historical person data. Route will migrate to `/members/:memberId` as the section grows to serve full authenticated member profiles.
+- `GET /members` is the canonical Members section entry route. Serves a Tier 1 public historical-person index. See GOVERNANCE.md §4 for visibility rules.
+- `GET /members/:personId` is the canonical historical-person detail route for the current slice. Route will evolve as the Members section grows to serve authenticated member profiles.
 - `GET /clubs` is the canonical clubs section entry route for the current slice.
 - `GET /login` is the auth stub login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
 - health routes are operational and are outside the cataloged page system.
@@ -302,7 +307,7 @@ Public visitor.
 
 This page consumes the generic public rendering standard.
 
-It is also the one intentional Home-page exception: a landing-page composition view rather than a generic list/detail consumer. It should be shaped by a dedicated `HomeService`.
+It is also the one intentional Home-page exception: a landing-page composition view rather than a generic list/detail consumer. It does not follow the §4.2 page contract. A dedicated `HomeService` may be introduced later if warranted.
 
 ### Page intent
 
@@ -351,7 +356,7 @@ If there are no featured upcoming events, the page still renders normally with a
 
 ### Purpose
 
-Provide the Members section entry page. Currently shows a public historical-record index for competitive footbag players. The auth stub in this sprint gates member-only content at this route. The section will grow to full authenticated member features.
+Provide the Members section entry page. Serves a Tier 1 public historical-person index for competitive footbag players. The section will grow to full authenticated member features.
 
 ### Route
 
@@ -359,24 +364,23 @@ Provide the Members section entry page. Currently shows a public historical-reco
 
 ### Audience
 
-Public visitor (historical record content). Authenticated member (member-only content, gated by auth stub in current sprint).
+Public visitor. (Temporarily auth-gated — see IMPLEMENTATION_PLAN.md accepted deviations.)
 
 ### Standard relationship
 
-This page consumes the generic public rendering standard. It is the Members section root — not solely a placeholder and not yet a full authenticated-member area. Historical competitive records are public; member-only content is auth-gated.
+This page consumes the generic public rendering standard and the §4.2 page contract.
 
 ### Page intent
 
 - present the public historical competitive record index for footbag players
 - make clear this is the Members section and that member accounts and login are part of this section
-- provide entry point for auth/login flows (currently via auth stub)
 - avoid implying historical imported people are current-member accounts or publicly searchable/contactable members
+- see GOVERNANCE.md §4–5 for visibility rules
 
 ### Required content
 
 - hero for the Members section
 - public historical-record listing (players with imported event data)
-- auth entry point / login call to action
 - optional explanatory text clarifying that historical records and current member accounts are distinct
 
 ### Required view-model fields
@@ -411,11 +415,11 @@ Provide the member detail page. Current slice shows a minimal public read-only p
 
 ### Audience
 
-Public visitor.
+Public visitor. (Temporarily auth-gated — see IMPLEMENTATION_PLAN.md accepted deviations.)
 
 ### Standard relationship
 
-This page consumes the generic public rendering standard. In the current slice it is a public historical read page only. It must not imply current-member capabilities, profile ownership, member-search inclusion, or club-roster visibility for historical-only persons.
+This page consumes the generic public rendering standard and the §4.2 page contract. It is a Tier 1 public historical read page. It must not imply current-member capabilities, profile ownership, member-search inclusion, or club-roster visibility for historical-only persons.
 
 ### Page intent
 

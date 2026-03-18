@@ -4,7 +4,7 @@
 
 ## Local Quickstart, Architecture Orientation, and AWS Staging Deployment
 
-This guide helps contributors do different things: understand how the initial v0.1 Minimal Viable functionality slice is structured and how it was originally assembled, get that slice to run locally (view a working page in your browser), deploy the slice to AWS in a bootstrap scenario, and then close the bootstrap shortcuts.
+This guide helps contributors do different things: understand how the initial public slice is structured and how it was originally assembled, get that slice to run locally (view a working page in your browser), deploy the slice to AWS in a bootstrap scenario, and then close the bootstrap shortcuts.
 
 > **Choose your path**
 >
@@ -15,7 +15,7 @@ This guide helps contributors do different things: understand how the initial v0
 > - **Path E** — The first deployment works. I need to clean up all the shortcuts taken during the bootstrap phase.
 > - **Path F** — The initial deployment is working. I made a code change and want to test it locally, then deploy it to staging.
 
-The repository already contains code, tests, Docker, Terraform, deterministic seed data, and docs. The initial Minimum Viable First Page (MVFP) v0.1 slice (Events + Results) works from a local dev server. 
+The repository already contains code, tests, Docker, Terraform, deterministic seed data, and docs. The initial public slice works from a local dev server.
 
 This guide is therefore **not primarily a blank-repository build plan**, even though that historical context still matters and is preserved below.
 
@@ -46,7 +46,7 @@ This guide **is**:
 - [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
   - [2.1 Project purpose and philosophy](#21-project-purpose-and-philosophy)
   - [2.2 Document relationships](#22-document-relationships)
-  - [2.3 Current MVFP v0.1 scope](#23-current-mvfp-v01-scope)
+  - [2.3 Current scope](#23-current-scope)
   - [2.4 Route contract and UI contract](#24-route-contract-and-ui-contract)
   - [2.5 Architecture mental model](#25-architecture-mental-model)
   - [2.6 Repo map](#26-repo-map)
@@ -499,9 +499,11 @@ How they relate:
 - design decisions define what architectural shortcuts are intentional and what is forbidden
 - The data mode / schema sql is the executable truth for the current data baseline
 
-### 2.3 Initial MVFP v0.1 scope
+### 2.3 Current scope
 
-This guide is about the first public, useful slice of the platform: public Events + Results browsing.
+For the active slice, accepted deviations, and current route list, see `IMPLEMENTATION_PLAN.md`. Bootstrap shortcuts documented in this guide are the authoritative source for those accepted deviations.
+
+This guide is about the first public, useful slice of the platform.
 
 Routes in scope:
 
@@ -651,12 +653,10 @@ The repository shape remains the right mental map:
 │  ├─ app.ts
 │  └─ server.ts
 ├─ database/
-│  ├─ schema_v0_1.sql
-│  └─ seeds/
-│     └─ seed_mvfp_v0_1.sql
+│  └─ schema.sql
 ├─ tests/
 │  └─ integration/
-│     └─ events.routes.test.ts
+│     └─ app.routes.test.ts
 ├─ scripts/
 │  ├─ reset-local-db.sh
 │  └─ smoke-local.sh
@@ -699,7 +699,7 @@ Important file-level responsibilities:
 | src/controllers/healthController.ts | liveness/readiness handlers                              |
 | src/routes/publicRoutes.ts          | public route wiring                                      |
 | src/views/events/*.hbs              | server-rendered public Handlebars templates              |
-| database/seeds/seed_mvfp_v0_1.sql   | Initial data seeds (event / result data)                 |
+| database/schema.sql                  | Schema definition                                        |
 | scripts/reset-local-db.sh           | local DB rebuild                                         |
 | scripts/smoke-local.sh              | local/container/origin smoke checks                      |
 | docker/docker-compose.yml           | base runtime stack                                       |
@@ -934,7 +934,7 @@ The fragile parts are:
 - first-apply inputs must be honest
 - unsupported CloudFront origin assumptions must be removed
 - monitoring must be gated to signals that actually exist
-- manual host bootstrap is still real in v0.1
+- manual host bootstrap is still required (accepted temporary deviation)
 - CloudFront maintenance-page behavior is not truly functional yet
 - Lightsail static IPs and instances share a single namespace — they cannot
   have the same name simultaneously; `lightsail.tf` uses
@@ -1338,7 +1338,7 @@ aws cloudfront get-distribution \
 ```
 
 > [!NOTE]
-> After this apply the Lightsail origin still accepts direct HTTP on port 80 from the public internet. CloudFront is the intended entry point, but direct-origin bypass protection is not implemented in v0.1. Do not treat this deployment as CloudFront-locked until Path E section 5.3 is complete.
+> After this apply the Lightsail origin still accepts direct HTTP on port 80 from the public internet. CloudFront is the intended entry point, but direct-origin bypass protection is not yet implemented. Do not treat this deployment as CloudFront-locked until Path E section 5.3 is complete.
 
 ### 4.7 Host bootstrap
 
@@ -1499,13 +1499,13 @@ sudo chown -R root:root /srv/footbag
 On first deploy only:
 
 ```bash
-sudo sqlite3 /srv/footbag/footbag.db < /srv/footbag/database/schema_v0_1.sql
+sudo sqlite3 /srv/footbag/footbag.db < /srv/footbag/database/schema.sql
 ```
 
-Optional but strongly recommended for first staging smoke verification:
+To load seed data (run the seed pipeline from the repo root):
 
 ```bash
-sudo sqlite3 /srv/footbag/footbag.db < /srv/footbag/database/seeds/seed_mvfp_v0_1.sql
+bash scripts/reset-local-db.sh
 ```
 
 Then lock down the DB file:
@@ -1552,7 +1552,7 @@ Expected behavior:
 
 - `footbag.service` may show `active (exited)` if it is a `Type=oneshot` unit with `RemainAfterExit=yes`
 - nginx and web containers should be running
-- the worker should exist but be in `Exited (0)` state for MVFP v0.1 (after completing pre-apply correction 1)
+- the worker should exist but be in `Exited (0)` state — no jobs are configured yet (accepted temporary deviation)
 - the worker should not be restart-looping
 
 Useful checks:
@@ -1657,7 +1657,7 @@ After first success, these simplifications are still in place:
 - automated DB backup/restore is not yet closed
 - images are still built on-host rather than pulled from a registry
 - maintenance-page behavior is not truly production-grade yet
-- CloudFront maintenance is not reliable in v0.1 until OAC, ordered cache behavior, and origin-bypass protection are added
+- CloudFront maintenance is not reliable until OAC, ordered cache behavior, and origin-bypass protection are added (accepted temporary deviation)
 
 ## 5. Path E — From first success to durable staging
 
@@ -1677,7 +1677,7 @@ This section turns those shortcuts into a grouped hardening roadmap.
 - do not share shell accounts or private keys
 - when maintenance/origin protection is implemented, store origin_verify_secret in SSM as a SecureString
 - if the application later needs runtime AWS access, add scoped runtime credentials deliberately rather than leaking the human operator profile into containers
-- note: `terraform apply` creates the `app-runtime` IAM role and instance profile (see `iam.tf`) as deferred groundwork — they will appear in `terraform state list` but are not active; Lightsail does not support EC2 instance profiles in v0.1 and the app makes no runtime AWS API calls
+- note: `terraform apply` creates the `app-runtime` IAM role and instance profile (see `iam.tf`) as deferred groundwork — they will appear in `terraform state list` but are not active; Lightsail does not support EC2 instance profiles and the app makes no runtime AWS API calls yet
 
 ### 5.3 Edge and public-delivery hardening
 
@@ -1763,7 +1763,7 @@ Suggested seed-contract regression test:
 
 That test should:
 
-- build a fresh DB from schema_v0_1.sql + seed_mvfp_v0_1.sql
+- build a fresh DB from schema.sql + seed pipeline (scripts/reset-local-db.sh)
 - assert the documented public routes return expected status codes
 - fail CI if the seed file drifts from the documented contract
 
@@ -1778,7 +1778,7 @@ That test should:
   - host runtime /srv/footbag/env
   - optional AWS-side reference storage in Parameter Store
 
-If runtime AWS API use is later added, the first simple step is explicit env-var credentials in /srv/footbag/env. A more mature source-profile + AssumeRole design is a post-MVFP improvement.
+If runtime AWS API use is later added, the first simple step is explicit env-var credentials in /srv/footbag/env. A more mature source-profile + AssumeRole design is a future improvement.
 
 ### 5.7 Monitoring maturity
 
@@ -1937,7 +1937,7 @@ rsync -av --delete -e "ssh -i ~/.ssh/id_ed25519 -p 2222" \
 
 This keeps non-deploy repo files such as contributor docs, notes, and root-level metadata out of staging.
 
-#### On the host — promote, preserve runtime env, rebuild, restart
+#### On the host — promote, preserve runtime files, rebuild, restart
 
 SSH to the host:
 
@@ -1945,36 +1945,61 @@ SSH to the host:
 ssh -i ~/.ssh/id_ed25519 -p 2222 footbag@34.192.250.246
 ```
 
-Promote from the user-owned staging path into the live runtime path.
+**Step 1 — Audit the env file before promoting.**
 
-Preserve `/srv/footbag/env`. It is a host runtime file created during the original bootstrap and should not be deleted by routine code deploys.
+Two host runtime files are never overwritten by code deploys: `/srv/footbag/env` and `/srv/footbag/footbag.db`. If this deploy adds new required environment variables, update the env file now before promoting. Compare against `.env.example` in the repo to see all required vars:
 
 ```bash
-sudo rsync -a --delete --exclude env ~/footbag-release/ /srv/footbag/
-sudo chown -R root:root /srv/footbag
-cd /srv/footbag
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+sudo vi /srv/footbag/env
 ```
 
-If `ops/systemd/footbag.service` changed in your deploy, reinstall it before restart:
+The env file must contain at minimum:
+
+```
+NODE_ENV=production
+LOG_LEVEL=info
+FOOTBAG_DB_PATH=/srv/footbag/footbag.db
+PUBLIC_BASE_URL=http://<host-ip>
+SESSION_SECRET=<long-random-string — generate with: openssl rand -hex 32>
+```
+
+> **Warning:** Do not use `#` in env file values — systemd's `EnvironmentFile` parser treats `#` as an inline comment even mid-value.
+
+**Step 2 — Promote the release.**
+
+```bash
+sudo rsync -a --delete --exclude env --exclude footbag.db ~/footbag-release/ /srv/footbag/
+sudo chown -R root:root /srv/footbag
+cd /srv/footbag
+```
+
+**Step 3 — Reinstall the service file and rebuild images.**
+
+Always reinstall the service file on every deploy — it may have changed:
 
 ```bash
 sudo cp ops/systemd/footbag.service /etc/systemd/system/
 sudo systemctl daemon-reload
+sudo docker compose --env-file /srv/footbag/env \
+  -f docker/docker-compose.yml \
+  -f docker/docker-compose.prod.yml \
+  build
 ```
 
-Restart the service:
+**Step 4 — Restart the service.**
+
+Use `restart` (not `start`) — `start` is a no-op if the service is already active:
 
 ```bash
 sudo systemctl restart footbag
 sudo systemctl status footbag --no-pager -l
 ```
 
-If restart fails, inspect the service immediately before continuing:
+If restart fails, inspect immediately before retrying:
 
 ```bash
-sudo systemctl status footbag.service --no-pager -l
-sudo journalctl -xeu footbag.service --no-pager | tail -100
+sudo docker logs docker-web-1 2>&1 | tail -30
+sudo journalctl -xeu footbag.service --no-pager | tail -50
 ```
 
 Routine Step F deploys do **not** touch the existing DB. They rebuild the images and restart the service using the already-established runtime layout.
@@ -2073,7 +2098,7 @@ Do not attempt schema migrations during a routine code deploy. Schema changes re
 - Docker parity skipped entirely before AWS work
 - nginx not fronting the web container correctly
 - DB mount path wrong
-- `docker compose pull` used instead of `docker compose build` — there is no registry in v0.1; images are built locally
+- `docker compose pull` used instead of `docker compose build` — no registry yet; images are built locally (accepted temporary deviation)
 
 #### AWS/bootstrap mistakes
 
@@ -2090,7 +2115,7 @@ Do not attempt schema migrations during a routine code deploy. Schema changes re
 - mixing staging and production state in the same Terraform path
 - creating Terraform state storage without versioning or encryption
 - relying on old Terraform DynamoDB locking patterns — this project uses `use_lockfile = true` (S3 native locking, requires `>= 1.11`)
-- assuming `user_data` bootstraps the instance — it is intentionally omitted in v0.1; all Docker install is manual via SSH (see §4.7)
+- assuming `user_data` bootstraps the instance — it is intentionally omitted; all Docker install is manual via SSH (see §4.7)
 - using raw IP as the CloudFront origin — CloudFront custom origins require a resolvable DNS hostname, not a raw IP
 - assuming Lightsail provides a public DNS hostname like EC2 does —
   `aws lightsail get-instance --query 'instance.publicDnsName'` always
@@ -2162,7 +2187,7 @@ This guide preserves these project constraints:
 - canonical GET /events/:eventKey public route
 - non-paginated whole-year archive page
 - explicit no-results rendering for historical events with no result rows
-- minimal readiness semantics for MVFP v0.1
+- minimal readiness semantics (DB-only; accepted temporary deviation — see IMPLEMENTATION_PLAN.md)
 - Lightsail origin behind CloudFront
 - /srv/footbag/env as the live runtime config source in non-local deployments
 - Parameter Store as optional AWS-side reference storage, not the runtime source of truth

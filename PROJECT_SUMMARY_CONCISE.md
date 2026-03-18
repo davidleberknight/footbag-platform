@@ -8,7 +8,7 @@ Use this file for quick orientation and document routing.
 
 For non-trivial work, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`. The plan is active during normal repo work and governs the current slice.
 
-**Current sprint focus:** historical-record surface governance and privacy, members-page major reframe, world records, first fake auth stub, historical-data caveats. See `IMPLEMENTATION_PLAN.md` active-slice block.
+See `IMPLEMENTATION_PLAN.md` active-slice block for the current sprint focus.
 
 `docs/USER_STORIES.md` is the functional source of truth.
 
@@ -16,28 +16,17 @@ Current code is the source of truth for implemented behavior.
 
 ## Fast routing
 - Use this file for contextual refresh and document routing only.
-- **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/GOVERNANCE.md` first (once created), then targeted sections of `docs/DESIGN_DECISIONS.md`.
+- **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/GOVERNANCE.md` first, then targeted sections of `docs/DESIGN_DECISIONS.md`.
 - For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES.md` first.
 - For current slice/scope, known drift, and sequencing, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`; for sequencing, dependency analysis, or phased planning, read the full document in Plan Mode.
 - For page/UI/view/route/view-model details already in scope, load `docs/VIEW_CATALOG.md`.
 - For service-layer ownership and method contracts, load `docs/SERVICE_CATALOG.md`; use the plan to determine what is implemented now versus what is broader design / planned work.
-- For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema_v0_1.sql`.
-- For non-functional requirements and technical/design detail, load `docs/DESIGN_DECISIONS.md`.
+- For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
+- For rationale, trade-offs, and long-term design commitments, load `docs/DESIGN_DECISIONS.md` — read when entering a new code area or unwinding a temporary simplification; do not load by default.
 
 ## Current implemented baseline
 
-Current code is the source of truth for implemented behavior.
-
-The currently implemented public routes are:
-- `GET /`
-- `GET /clubs` (placeholder — no club data imported yet)
-- `GET /events`
-- `GET /events/year/:year`
-- `GET /events/:eventKey`
-- `GET /members`
-- `GET /members/:personId`
-- `GET /health/live`
-- `GET /health/ready`
+For current routes, implementation status, and accepted deviations, see `IMPLEMENTATION_PLAN.md`.
 
 Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE.md` for ops details.
 
@@ -45,7 +34,7 @@ Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE
 
 - Home (`/`) is the landing-page composition exception in the public architecture.
 - Public event identity is exact and underscore-based: `event_{year}_{event_slug}` / `#event_{year}_{event_slug}`.
-- Historical imported people may appear in legacy results without being current Members.
+- Historical persons in imported results are public Tier 1 record identities — not current member accounts, not searchable profiles. See `docs/GOVERNANCE.md §4`.
 - Media, news, and tutorial flows remain in the user stories but are out of scope for the current slice.
 
 ## Project identity
@@ -62,15 +51,15 @@ Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE
 - Keep code and docs aligned so the project remains maintainable over time.
 - Route and integration tests are the first verification path; browser verification is explicit-human-request-only.
 
-## Big-picture architecture (mental model to preserve)
+## Target system architecture (long-term model — see `IMPLEMENTATION_PLAN.md` for what is implemented now)
 
 - **Server-rendered web application** (Handlebars templates + TypeScript enhancements).
 - **Layered architecture**: controllers -> services -> infrastructure adapters.
 - **SQLite-first** for application data; S3 for photos/media object storage.
 - **Single DB access module/pattern** (`db.ts` style) using prepared statements and transaction helpers.
-- **JWT cookie auth with per-request DB validation** (session token is not sole authority).
-- **Email outbox + worker pattern** (core writes are not coupled to direct send success).
-- **Single origin deployment** behind CloudFront; maintenance page served by CloudFront/S3 when origin is unavailable.
+- **JWT cookie auth with per-request DB validation** (session token is not sole authority). *(target — current auth is a fake stub)*
+- **Email outbox + worker pattern** (core writes are not coupled to direct send success). *(target — worker is scaffolded with no active jobs)*
+- **Single origin deployment** behind CloudFront; maintenance page served by CloudFront/S3 when origin is unavailable. *(target — maintenance mode not yet production-grade)*
 
 ## Project scope snapshot (AI useful summary)
 
@@ -96,6 +85,7 @@ Major areas include:
 - Prefer small, explicit changes that preserve readability for volunteer maintainers.
 
 ### Auth / security invariants
+*(Target auth model — the current auth stub mirrors this path structurally but does not enforce these invariants yet.)*
 - JWT session cookies are **not sufficient authority** on their own; current DB state must be checked.
 - Password changes invalidate sessions via the project’s password-version mechanism.
 - State-changing behavior must follow the documented CSRF / HTTP semantics patterns.
@@ -154,7 +144,7 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 - Need exact feature behavior or acceptance criteria -> **User Stories** (+ **View Catalog** when flow/UI context matters)
 - Need page routes, rendered page behavior, page/view-model composition, or UI-facing implementation conventions for cataloged views -> **View Catalog**
 - Need business rules, service boundaries, controller-to-service expectations, method contracts, or service-level error semantics -> **Service Catalog**
-- Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + **Schema SQL**
+- Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
 - Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DevOps guide**. Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
 - Need big-picture human context or document relationships -> **Project Summary** (full version)

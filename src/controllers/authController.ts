@@ -22,7 +22,7 @@ function postLogin(req: Request, res: Response): void {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: COOKIE_MAX_AGE,
-      secure: config.nodeEnv === 'production',
+      secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
     });
     res.redirect('/members');
     return;
