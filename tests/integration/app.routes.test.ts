@@ -392,10 +392,12 @@ describe('GET /', () => {
     expect(res.status).toBe(200);
   });
 
-  it('features an upcoming published event', async () => {
+  it('includes section cards for Events, Members, and Clubs', async () => {
     const app = createApp();
     const res = await request(app).get('/');
-    expect(res.text).toContain('2026 Spring Classic');
+    expect(res.text).toContain('href="/events"');
+    expect(res.text).toContain('href="/members"');
+    expect(res.text).toContain('href="/clubs"');
   });
 
   it('does not expose draft events', async () => {
@@ -451,10 +453,10 @@ describe('GET /hof', () => {
     expect(res.text).toContain('Hall of Fame');
   });
 
-  it('includes coming-soon notice for inductee profiles', async () => {
+  it('includes link to external Hall of Fame site', async () => {
     const app = createApp();
     const res = await request(app).get('/hof');
-    expect(res.text).toContain('coming soon');
+    expect(res.text).toContain('footbaghalloffame.net');
   });
 
   it('includes HoF nav link', async () => {
@@ -470,12 +472,12 @@ describe('GET /hof', () => {
     expect(res.text).toContain('href="/events"');
   });
 
-  it('renders all editorial content sections', async () => {
+  it('renders history section with key content', async () => {
     const app = createApp();
     const res = await request(app).get('/hof');
     expect(res.text).toContain('A Bit of History');
-    expect(res.text).toContain('The Mike Marshall Award');
-    expect(res.text).toContain('Inductees');
+    expect(res.text).toContain('Hacky Sack');
+    expect(res.text).toContain('Stalberger');
   });
 });
 
