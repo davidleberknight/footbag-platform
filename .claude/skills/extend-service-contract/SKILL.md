@@ -38,7 +38,7 @@ Read these before proposing any change:
    - §2.3 Soft Deletes
    - §2.4 Immutable Audit Logs
    - auth/security invariants if the service touches sessions, passwords, or ballots
-7. **CODE** - Always follow existing code patterns and naming conventions if similar features have already been implemented. If there is no good pattern in existing code to follow for the task at hand, ask the human for adive. Do not write code that deviates from established patterns unless authorized by the human.
+7. **CODE** - Always follow existing code patterns and naming conventions if similar features have already been implemented. If there is no good pattern in existing code to follow for the task at hand, do a targetted lookup for the relevant Decision(s) in **`docs/DESIGN_DECISIONS.md`** and then ask the human for advice. Do not write code that deviates from established patterns unless authorized by the human.
 
 `docs/SERVICE_CATALOG.md` may describe broader service contracts than the active slice. Use `IMPLEMENTATION_PLAN.md` to determine what is implemented now versus what remains broader planned/design contract. Note that the IMPLEMENTATION_PLAN is clear about what services have already been implemented successfully, and those establish the correct patterns to follow.
 

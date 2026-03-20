@@ -188,7 +188,7 @@ The CSS vocabulary is split into two tiers.
 **Shared — required across all public pages:**
 
 - Site frame: `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`
-- Hero: `.hero`, `.hero-sm` (compact variant for secondary pages: year archive and event detail)
+- Hero: `.hero` (base, 72px padding), `.hero-sm` (36px padding — use on all pages; `.hero` without `.hero-sm` is reserved for future large-format hero use only)
 - Sections: `.section-heading`, `.section-count`
 - Cards: `.card-grid`, `.card`, `.card-title`, `.card-meta`, `.card-description`
 - Badges: `.badge`, `.badge-published`, `.badge-registration_full`, `.badge-closed`, `.badge-completed`
