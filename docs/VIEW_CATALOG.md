@@ -120,6 +120,27 @@ Every public page except Home (see §3.5) must render from the same top-level co
 
 Templates must consume this contract rather than derive it.
 
+### Browser tab title rule
+
+The HTML `<title>` tag follows the pattern `Footbag {pageTitle}` for all pages. The sole exception is the home page (`/`), which renders as `Footbag Worldwide` (no suffix, no `pageTitle` passed).
+
+`pageTitle` values by page:
+
+| Page | `pageTitle` | Tab result |
+|---|---|---|
+| Home `/` | *(none)* | `Footbag Worldwide` |
+| Events index | `Events` | `Footbag Events` |
+| Events year archive | `{year} Events` | `Footbag 2024 Events` |
+| Event detail | `event.standardTagDisplay` | `Footbag #event_{year}_{slug}` |
+| Members index | `Members` | `Footbag Members` |
+| Member detail | `{personName}` | `Footbag {name}` |
+| Clubs | `Clubs` | `Footbag Clubs` |
+| HoF | `Hall of Fame` | `Footbag Hall of Fame` |
+| Login | `Login` | `Footbag Login` |
+| Error pages | `Page Not Found` / `Service Unavailable` | `Footbag {error label}` |
+
+New pages must follow this pattern. `pageTitle` is the short section or entity label only — never include the word "Footbag" in `pageTitle`.
+
 ## 4.3 Required reusable primitives
 
 Every public page must be composed from the same small set of reusable primitives.

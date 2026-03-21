@@ -8,6 +8,6 @@ export const hofController = {
    */
   index(_req: Request, res: Response): void {
     const viewModel = hofService.getHofLandingPage();
-    res.render('public/hof', { pageTitle: viewModel.page.title, ...viewModel });
+    res.render('public/hof', { pageTitle: 'Hall of Fame', ...viewModel });
   },
 };

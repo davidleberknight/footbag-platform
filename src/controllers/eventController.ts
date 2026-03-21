@@ -58,7 +58,7 @@ export const eventController = {
     try {
       const eventKey = req.params.eventKey;
       const pageModel = eventService.getPublicEventPage(eventKey);
-      res.render('events/detail', { pageTitle: pageModel.event.title, ...pageModel });
+      res.render('events/detail', { pageTitle: pageModel.event.standardTagDisplay, ...pageModel });
     } catch (err) {
       eventController._handleError(err, res, next);
     }
