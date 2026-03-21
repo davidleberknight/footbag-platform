@@ -266,6 +266,25 @@ def main() -> None:
         raise RuntimeError(f"Duplicate person_id values in persons.csv: {dupes[:10]}")
 
     # ------------------------------------------------------------------
+    # Resolve blank display_names using team_person_key partner rows
+    # ------------------------------------------------------------------
+    if "team_person_key" in event_result_participants.columns:
+        tpk = event_result_participants["team_person_key"].str.strip()
+        name = event_result_participants["display_name"].str.strip()
+        blank_name = name.eq("") & tpk.ne("")
+        if blank_name.any():
+            key_to_name = (
+                event_result_participants[tpk.ne("") & name.ne("")]
+                .groupby("team_person_key")["display_name"]
+                .first()
+            )
+            event_result_participants = event_result_participants.copy()
+            for idx in event_result_participants[blank_name].index:
+                key = event_result_participants.at[idx, "team_person_key"].strip()
+                if key in key_to_name:
+                    event_result_participants.at[idx, "display_name"] = key_to_name[key]
+
+    # ------------------------------------------------------------------
     # Assign stable person_ids to participants that are missing one
     # ------------------------------------------------------------------
     missing_mask = event_result_participants["person_id"].str.strip().eq("")
