@@ -2008,6 +2008,38 @@ sudo journalctl -xeu footbag.service --no-pager | tail -50
 
 Routine Step F deploys do **not** touch the existing DB. They rebuild the images and restart the service using the already-established runtime layout.
 
+#### Optional: replace the staging DB with a freshly seeded local build
+
+Use this step only when you need seed-data changes to appear on staging. `legacy_data/` is not rsync'd to the host, so you cannot run the seed pipeline there directly.
+
+**This overwrites `/srv/footbag/footbag.db` (the live staging DB). That is the destructive step — confirm before proceeding.**
+
+**1. Rebuild the DB locally:**
+
+```bash
+bash scripts/reset-local-db.sh
+```
+
+**2. Verify locally that the seed data is correct:**
+
+```bash
+npm run dev
+# then check e.g. http://localhost:3000/events/event_2025_beaver_open
+```
+
+**3. SCP the rebuilt DB to staging:**
+
+```bash
+scp -i ~/.ssh/id_ed25519 -P 2222 database/footbag.db footbag@34.192.250.246:~/footbag.db.new
+```
+
+**4. On the host, replace the live DB and restart:**
+
+```bash
+sudo cp ~/footbag.db.new /srv/footbag/footbag.db
+sudo systemctl restart footbag
+```
+
 #### Verify staging
 
 Verify the origin directly:

@@ -317,7 +317,7 @@ export class EventService {
   listPublicArchiveYears(): number[] {
     return runSqliteRead('listPublicArchiveYears', () => {
       const rows = publicEvents.listArchiveYears.all() as Array<{ archive_year: number }>;
-      return rows.map((row) => row.archive_year);
+      return rows.map((row) => row.archive_year).filter((year) => year >= 1997);
     });
   }
 
@@ -362,6 +362,10 @@ export class EventService {
   }
 
   getPublicEventsYearPage(year: number): PublicEventsYearPage {
+    if (year < 1997) {
+      throw new NotFoundError('Year not available.', { field: 'year', value: String(year) });
+    }
+
     const archiveYears = this.listPublicArchiveYears();
     const { previousYear, nextYear } = getAdjacentArchiveYears(archiveYears, year);
 

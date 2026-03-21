@@ -1,5 +1,5 @@
 # Footbag Website Modernization Project -- View Catalog
-**Last updated:** March 20, 2026
+**Last updated:** March 21, 2026
 **Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
 
 ---
@@ -36,7 +36,7 @@ This document covers:
   - Clubs landing placeholder
   - Members section landing (auth-gated for now; Tier 1 historical-person data)
   - Member detail (auth-gated for now; Tier 1 historical-person data)
-  - Login (auth stub)
+  - Login (member login preview stub)
   - HoF landing (placeholder; static/editorial content page)
 - the rules future pages must follow to join the catalog
 
@@ -186,9 +186,17 @@ Used in event detail and in year archive inline results. One section per discipl
 - Placements rendered in ascending `placement` order
 - Template comments, loop prose, and debugging text must never appear in rendered HTML output
 
+### Handlebars helpers
+
+Two registered helpers are part of the rendering standard and must be used consistently across all templates:
+
+- `formatDate` — formats an ISO date string (`YYYY-MM-DD`) as `D Month YYYY` (e.g. "29 July 2024"). All templates must use this helper for displayed dates. Raw ISO date strings must never appear in rendered output.
+- `yearFromDate` — extracts the 4-digit year string from an ISO date string. Use when a year value is needed for linking, e.g. `{{yearFromDate event.startDate}}` to build a `/events/year/{year}` href.
+- Same-day events: suppress the end date when `startDate === endDate` using `{{#unless (eq startDate endDate)}}`. This rule applies to all date range displays across all templates.
+
 ### Year navigation
 
-Used in year archive. Renders previous-year and next-year links when adjacent years with completed public events exist. When no adjacent year exists, a disabled placeholder labeled "← Previous" or "Next →" renders instead. Uses `.year-nav`, `.year-nav-arrow`, and `.year-nav-arrow--disabled`.
+Used in year archive. Renders previous-year and next-year links when adjacent years with completed public events exist. When no adjacent year exists, a disabled placeholder renders instead. The nav sits **below the hero inside the wrapper**, not inside the hero. Uses `.year-page-nav`, `.hero-year-arrow`, and `.hero-year-arrow--disabled`.
 
 ### Metadata list / summary rows
 
@@ -218,7 +226,9 @@ The CSS vocabulary is split into two tiers.
 
 **Events section — required within events pages only:**
 
-- Archive years: `.year-grid`, `.year-pill`, `.year-nav`, `.year-nav-arrow`, `.year-nav-arrow--disabled`
+- Archive years: `.year-grid`, `.year-pill`
+- Year page navigation: `.year-page-nav`, `.hero-year-arrow`, `.hero-year-arrow--disabled`
+- Year archive event list: `.event-list`, `.event-list-row`, `.event-list-main`, `.event-list-title`, `.event-list-host`, `.event-list-meta`, `.event-list-date`, `.event-list-location`
 - Event detail layout: `.event-detail`, `.event-header`, `.event-meta-row`, `.event-external-link`
 - Disciplines: `.disciplines-list`, `.discipline-tag`
 - Results: `.results-section`, `.results-section-header`, `.discipline-meta`, `.results-table`, `.placement-num`, `.participants-list`, `.score-text`, `.no-results-notice`
@@ -292,7 +302,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /members` | Members section | Tier 1 public historical-person index; see GOVERNANCE.md §4 for visibility rules | Current |
 | `GET /members/:personId` | Member detail | Tier 1 public historical-person detail; see GOVERNANCE.md §4 for visibility rules | Current |
 | `GET /clubs` | Clubs landing | Placeholder public clubs entry page | Current stub |
-| `GET /login` | Login | Auth stub login form; redirects authenticated users to `/members` | Current stub |
+| `GET /login` | Login | Member login preview; functional stub for members with preview password | Current |
 | `GET /hof` | HoF landing | Footbag Hall of Fame editorial/informational landing page | Current stub |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
 | `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
@@ -305,7 +315,7 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /members` is the canonical Members section entry route. Serves a Tier 1 public historical-person index. See GOVERNANCE.md §4 for visibility rules.
 - `GET /members/:personId` is the canonical historical-person detail route for the current slice. Route will evolve as the Members section grows to serve authenticated member profiles.
 - `GET /clubs` is the canonical clubs section entry route for the current slice.
-- `GET /login` is the auth stub login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
+- `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
 - `GET /hof` is the canonical HoF section entry route.
 - health routes are operational and are outside the cataloged page system.
 
@@ -567,15 +577,22 @@ This page consumes the generic public rendering standard.
 
 ### Page intent
 
-- show completed public events for one year
+- show completed public events for one year as a clean scannable list
 - provide drill-down links to canonical event pages
 - preserve year-level browseability without pagination
 
 ### Required content
 
-- hero showing the selected archive year
-- year navigation using the standard year navigation primitive (§4.3)
-- completed events list for that year — result sections per event use the standard result section primitive (§4.3)
+- hero showing "Footbag Events from {year}"
+- year navigation (previous/next) using the standard year navigation primitive (§4.3), positioned below the hero
+- completed events list for that year — one row per event using the `.event-list` primitive; each row renders title (linked to canonical event route), formatted date range (via `formatDate`; same-day events show one date only), and location
+- no inline results on this page; results are accessed via the canonical event detail route
+- a note below the archive year pills on the events index page that pre-1997 data is incomplete and more historical results are coming
+
+### Data constraints
+
+- years before 1997 are excluded from `archiveYears[]` and from the year navigation
+- direct navigation to a pre-1997 year URL returns a standard 404
 
 ### Required view-model fields
 
@@ -601,8 +618,6 @@ This page consumes the generic public rendering standard.
   - optional `hostClub`
   - `status`
   - `hasResults`
-  - `resultSections[]` (same shape as §6.4; empty array when `hasResults` is false)
-  - `noResultsMessage` (rendered when `hasResults` is false)
 
 ### Navigation outputs
 
@@ -713,7 +728,7 @@ Rules:
 
 ### Navigation outputs
 
-- `GET /events`
+- `GET /events/year/:year` — "More events from {year}" button (`.btn.btn-outline`) at the bottom of the page, using `yearFromDate` on `event.startDate`
 - related public links already shaped into the page model
 
 ### Empty state
@@ -830,6 +845,60 @@ This page is itself a controlled placeholder state for the current slice and sho
 - No DB queries required for the current slice; service shapes static page model only.
 - `extend-service-contract` skill is not needed. Use `add-public-page` directly.
 - Content sections are intentionally empty until the About-Us text is sourced and loaded.
+
+---
+
+## 6.9 Login
+
+### Purpose
+
+Provide the public member login page. For the current slice this is a functional preview stub for members who are in the loop; full authentication is a future implementation.
+
+### Route
+
+`GET /login`
+
+### Audience
+
+Public visitor (specifically: members aware of the preview).
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Page intent
+
+- establish member login as a first-class section of the site
+- make clear this is an early preview, not a finished feature
+- allow members who have the preview password to try it out
+
+### Required content
+
+- hero: "Member Login" title with a brief subtitle establishing context
+- a work-in-progress notice explaining this is an early preview for members who have the preview password
+- a login form with username and password fields
+- inline error display when authentication fails
+
+### Required view-model fields
+
+- `page.sectionKey` — none (login is not a primary nav section)
+- `page.pageKey = login`
+- `page.title = Login`
+- optional `error` — rendered inline above the form when authentication fails
+
+### Navigation outputs
+
+- `GET /members` — on successful authentication
+
+### Empty state
+
+Not applicable. The form always renders.
+
+### Implementation notes
+
+- `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
+- The current implementation is an auth stub. Full member authentication is out of scope for the current slice.
+- WIP notices and stub behaviors in this page are intentional and must not be removed without a corresponding slice promotion.
 
 ---
 

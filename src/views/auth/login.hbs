@@ -1,6 +1,16 @@
-<section class="page-section">
-  <div class="wrapper">
-    <h1 class="page-title">Login</h1>
+{{! Login page }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>Member Login</h1>
+    <p>Sign in to your IFPA member account.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <section>
+    <p class="text-muted">Member login is a work in progress. If you are in the loop and have the preview password, feel free to try it out.</p>
 
     {{#if error}}
       <p class="form-error" role="alert">{{error}}</p>
@@ -15,7 +25,8 @@
         <label for="password">Password</label>
         <input type="password" id="password" name="password" autocomplete="current-password" required />
       </div>
-      <button type="submit" class="btn-primary">Log in</button>
+      <button type="submit" class="btn btn-primary">Log in</button>
     </form>
-  </div>
-</section>
+  </section>
+
+</div>

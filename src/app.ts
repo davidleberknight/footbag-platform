@@ -62,6 +62,15 @@ export function createApp(): express.Application {
         eq:  (a: unknown, b: unknown) => a === b,
         gt:  (a: unknown, b: unknown) => (a as number) > (b as number),
         not: (a: unknown) => !a,
+        formatDate: (iso: string) => {
+          const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+          const parts = String(iso).split('-');
+          const year  = parts[0];
+          const month = parseInt(parts[1], 10);
+          const day   = parseInt(parts[2], 10);
+          return `${day} ${months[month - 1]} ${year}`;
+        },
+        yearFromDate: (iso: string) => String(iso).split('-')[0],
       },
     }),
   );

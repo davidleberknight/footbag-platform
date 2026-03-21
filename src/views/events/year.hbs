@@ -1,76 +1,45 @@
-{{! Year archive page — all completed events for a given year, with inline results }}
+{{! Year archive page — event list for a given year }}
 
 <div class="hero hero-sm">
   <div>
-    <h1>{{year}} Events</h1>
+    <h1>Footbag Events from {{year}}</h1>
   </div>
 </div>
 
 <div class="wrapper">
-  <section>
+  <section style="padding-top: 24px;">
 
-    {{! ── Year navigation ─────────────────────────────────────── }}
-    <div class="year-nav">
+    <div class="year-page-nav">
       {{#if previousYear}}
-        <a href="/events/year/{{previousYear}}" class="year-nav-arrow">&#8592; {{previousYear}}</a>
+        <a href="/events/year/{{previousYear}}" class="hero-year-arrow">&#8592; {{previousYear}}</a>
       {{else}}
-        <span class="year-nav-arrow year-nav-arrow--disabled">&#8592; Previous</span>
+        <span class="hero-year-arrow hero-year-arrow--disabled">&#8592;</span>
       {{/if}}
 
       {{#if nextYear}}
-        <a href="/events/year/{{nextYear}}" class="year-nav-arrow">{{nextYear}} &#8594;</a>
+        <a href="/events/year/{{nextYear}}" class="hero-year-arrow">{{nextYear}} &#8594;</a>
       {{else}}
-        <span class="year-nav-arrow year-nav-arrow--disabled">Next &#8594;</span>
+        <span class="hero-year-arrow hero-year-arrow--disabled">&#8594;</span>
       {{/if}}
     </div>
 
-    {{! ── Jump nav (shown when there are multiple events) ────── }}
-    {{#if (gt events.length 4)}}
-      <nav class="event-jump-nav" aria-label="Events on this page">
+    {{#if events.length}}
+      <div class="event-list">
         {{#each events}}
-          <a href="/events/{{eventKey}}" class="event-jump-link">
-            <span class="event-jump-title">{{title}}</span>
-            <span class="event-jump-meta">{{city}}, {{country}}</span>
+          <a href="/events/{{eventKey}}" class="event-list-row">
+            <div class="event-list-main">
+              <span class="event-list-title">{{title}}</span>
+              {{#if hostClub}}<span class="event-list-host">{{hostClub}}</span>{{/if}}
+            </div>
+            <div class="event-list-meta">
+              <span class="event-list-date">{{formatDate startDate}}{{#unless (eq startDate endDate)}} – {{formatDate endDate}}{{/unless}}</span>
+              <span class="event-list-location">{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</span>
+            </div>
           </a>
         {{/each}}
-      </nav>
-    {{/if}}
-
-    {{! ── Event list ──────────────────────────────────────────── }}
-    {{#if events.length}}
-      {{#each events}}
-        <div id="{{eventKey}}" class="card mb-8" style="margin-bottom:32px">
-
-          {{! Event header }}
-          <div class="card-title" style="margin-bottom:8px">
-            <a href="/events/{{eventKey}}" style="font-size:1.2rem">{{title}}</a>
-          </div>
-          <div class="card-meta">
-            <span>{{startDate}}{{#if endDate}} – {{endDate}}{{/if}}</span>
-            <span>{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</span>
-            {{#if hostClub}}<span>Hosted by {{hostClub}}</span>{{/if}}
-          </div>
-
-          {{! Results or no-results notice }}
-          {{#if hasResults}}
-            <div style="margin-top:20px">
-              {{#each resultSections}}
-                {{> result-section}}
-              {{/each}}
-            </div>
-          {{else}}
-            <div class="no-results-notice" style="margin-top:16px">
-              {{noResultsMessage}}
-            </div>
-          {{/if}}
-
-        </div>
-      {{/each}}
-    {{else}}
-      <div class="empty-state">
-        <p>No completed events found for {{year}}.</p>
-        <a href="/events" class="btn btn-outline" style="margin-top:16px">Back to Events</a>
       </div>
+    {{else}}
+      <p class="text-muted">No events found for {{year}}.</p>
     {{/if}}
 
   </section>

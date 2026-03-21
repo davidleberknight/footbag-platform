@@ -21,6 +21,7 @@
         <a href="/events/year/{{this}}" class="year-pill">{{this}}</a>
       {{/each}}
     </div>
+    <p class="text-muted" style="margin-top: 16px; font-size: 0.9rem;">Results data before 1997 is incomplete. More historical results are coming soon.</p>
   </section>
   {{/if}}
 
@@ -40,9 +41,7 @@
         {{/each}}
       </div>
     {{else}}
-      <div class="empty-state">
-        <p>No upcoming events are currently listed. Check back soon.</p>
-      </div>
+      <p class="text-muted">Upcoming events are a work in progress. Check back soon.</p>
     {{/if}}
   </section>
 
