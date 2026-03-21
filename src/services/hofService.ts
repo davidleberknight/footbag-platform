@@ -31,7 +31,7 @@ export const hofService = {
           {
             heading: 'A Bit of History...',
             paragraphs: [
-              'Mike Marshall and John Stalberger invented Hacky Sack in Oregon in 1972. This was the world\'s first footbag. From that small beginning, footbag became a competitive sport with clubs and tournaments around the globe. The Footbag Hall of Fame was founded in 1997 by Stalberger and fellow pioneers to honour the pioneers, champions, and promoters who left their mark on the sport. Maybe you can become a Hall of Fame member too! Get involved, join a club, go to tournaments, and most of all, have fun! The most fun wins. #BringBackTheHack',
+              'Mike Marshall and John Stalberger invented Hacky Sack in Oregon in 1972. This was the world\'s first footbag. From that small beginning, footbag became a competitive sport with clubs and tournaments around the globe. The Footbag Hall of Fame was founded in 1997 by Stalberger and fellow pioneers to honour the champions and promoters who left their mark on the sport. Maybe you can become a Hall of Fame member too! Get involved, join a club, go to tournaments, and most of all, have fun! The most fun wins. #BringBackTheHack',
             ],
           },
         ],

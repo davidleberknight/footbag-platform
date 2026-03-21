@@ -42,6 +42,7 @@ services:
       LOG_LEVEL: info
       FOOTBAG_DB_PATH: /app/footbag.db
       PUBLIC_BASE_URL: http://localhost
+      SESSION_SECRET: ${SESSION_SECRET}
     volumes:
       # Mount the local seed DB into the container read-write.
       # The app applies SQLite startup pragmas, so must be able to write..

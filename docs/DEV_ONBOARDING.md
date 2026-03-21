@@ -437,11 +437,14 @@ Do this before anyone touches AWS.
 
 > **Note on `COMPOSE_FILE`:** The `.env` file sets `COMPOSE_FILE=docker/docker-compose.yml`. This only applies when running bare `docker compose` without `-f` flags. The parity commands below use explicit `-f` flags that override `COMPOSE_FILE`. Always use the explicit `-f` form shown here.
 
+> **Note on `--env-file`:** The parity commands require `--env-file .env` so that Docker Compose can substitute `SESSION_SECRET` (and any future secrets) from your local `.env` into the container. Without it, Compose resolves variable substitution from `docker/` (the compose file's directory), finds no `.env` there, and the app crashes at startup. This mirrors how the production deploy passes `--env-file /srv/footbag/env`.
+
 > **Note on TypeScript compilation:** The `docker/web/Dockerfile` is a multi-stage build that runs `npm run build` inside the builder stage. You do not need to run `npm run build` before `docker compose build` — the Dockerfile handles compilation internally.
 
 Run the base parity stack locally in a separate terminal (or detached):
 ```bash
 docker compose \
+  --env-file .env \
   -f docker/docker-compose.yml \
   up --build --detach
 ```
@@ -466,6 +469,7 @@ Bring the stack down when done:
 
 ```bash
 docker compose \
+  --env-file .env \
   -f docker/docker-compose.yml \
   down
 ```
@@ -1882,13 +1886,13 @@ If needed, run the optional Docker parity check:
 
 ```bash
 bash scripts/reset-local-db.sh
-docker compose -f docker/docker-compose.yml up --build --detach
+docker compose --env-file .env -f docker/docker-compose.yml up --build --detach
 ```
 
 Verify at `http://localhost`, then stop it:
 
 ```bash
-docker compose -f docker/docker-compose.yml down
+docker compose --env-file .env -f docker/docker-compose.yml down
 ```
 
 Use the same local quality gate before every AWS redeploy.
