@@ -27,17 +27,16 @@ tests/        Integration tests
 
 ## Source-of-truth order for active work
 
-Read the minimum the task requires. Default: active-slice block + code.
-Load docs in targeted sections only.
+Read the minimum the task requires. Default: active-slice block + code. Load docs in targeted sections only.
 
 1. Explicit human decisions in the current task
-2. Active-slice block in `IMPLEMENTATION_PLAN.md` — current scope and out-of-scope
-3. Current code — implemented behavior
+2. Active-slice block in `IMPLEMENTATION_PLAN.md` — current scope, out-of-scope, accepted shortcuts, known drift
+3. Current code — implemented behavior; may contain accepted shortcuts; check the plan's drift and deviation entries before drawing conclusions from code alone
 4. When needed, targeted sections of:
-   - `docs/USER_STORIES.md` — functional requirements
+   - `docs/USER_STORIES.md` — intended behavior (large; read targeted sections only)
    - `docs/VIEW_CATALOG.md` — route/page contracts
-   - `docs/SERVICE_CATALOG.md` — service contracts
-   - `docs/DATA_MODEL.md` — schema semantics
+   - `docs/SERVICE_CATALOG.md` — service contracts (derived from requirements analysis; only reliable where it overlaps with implemented code)
+   - `docs/DATA_MODEL.md` — schema semantics (derived from requirements analysis; verify against `database/schema.sql` and current code)
    - `docs/GOVERNANCE.md` — security, privacy, historical data policy
 5. `docs/DESIGN_DECISIONS.md` — long-term rationale and architectural commitments; read when entering a new code area, unwinding a temporary simplification, or when the reason behind a pattern is unclear; do not load by default
 
@@ -53,8 +52,9 @@ Load docs in targeted sections only.
 
 ## Workflow rules
 
-- Documentation in /docs describe long-term product and design intent, not necessarily the current Sprint's reality.
+- Documentation in /docs describe long-term product and design intent, not necessarily the current sprint's current slice.
 - Use Plan Mode when the task is primarily about sequencing, dependency ordering, or phased planning. For normal implementation work, the top active-slice/status block in `IMPLEMENTATION_PLAN.md` is sufficient.
+- Verification defaults: prefer route/integration verification first. Canonical commands: `npm test` and `npm run build`.
 - Do not use browser automation or MCP tools unless the human explicitly asks for browser testing or verification.
 - Use the Explore sub-agent for broad codebase searches; use the Plan sub-agent for sequencing or architecture tasks. Both protect the main context window.
 
@@ -95,6 +95,5 @@ Memory is for facts that cannot be derived from code, CLAUDE.md, or project docs
 
 - Secret-bearing and local-private files are blocked from editing.
 - `git commit` and `git push` are hard-blocked; `git add` requires explicit confirmation.
-- Destructive database, production-ops, and dangerous git commands may require explicit confirmation.
-- The `systemctl` guard covers `footbag.service` specifically; other host services are not guarded.
+- Destructive database commands, risky git commands, production Terraform mutations, live-service operations, and production-like Docker Compose mutations require explicit human confirmation.
 

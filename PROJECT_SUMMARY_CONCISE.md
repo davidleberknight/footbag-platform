@@ -13,6 +13,7 @@ See `IMPLEMENTATION_PLAN.md` active-slice block for the current sprint focus.
 `docs/USER_STORIES.md` is the functional source of truth.
 
 Current code is the source of truth for implemented behavior.
+Auto memory is not authoritative for current slice status; use the plan for that.
 
 ## Fast routing
 - Use this file for contextual refresh and document routing only.

@@ -1,8 +1,9 @@
 # IMPLEMENTATION_PLAN.md
 
-This document is active during normal repo work. It is the current-slice tracker and scope governor for maintainers, contributors, and AI assistants.
+This document is active during normal repo work. It is the current-slice tracker and scope governor for maintainers, contributors, and AI assistants. ("slice" and "sprint" are used interchangeably.)
 
 For non-trivial work, read this top status block first, then only the relevant downstream docs and code.
+This file — not auto memory — is the source of truth for current slice status, accepted shortcuts, and in-scope vs out-of-scope boundaries.
 
 ## Source-of-truth order for active work
 
@@ -76,13 +77,16 @@ Current implementation constraints:
 - schema changes require a DB rebuild (no migration runner; this is intentional)
 
 Current verification baseline:
+- canonical verification commands: `npm test` and `npm run build`
+- route and integration tests are the first verification path
 - a single integration test file (`tests/integration/app.routes.test.ts`) covers: health, home, clubs, events (list/year/detail), login, logout, auth redirects, members index, members detail
 - not yet covered: 404/500 error handling, world-record routes (deferred), honor-roll routes (deferred), worker behavior, browser/UI verification
 - browser verification is explicit-human-request-only
 
 ## Accepted temporary deviations
 
-These are known, intentional shortcuts. Each has an explicit unblock condition. Agents must not treat long-term docs as contradicting these — the plan governs current scope.
+These are known, intentional shortcuts. Each has an explicit unblock condition. Agents must not treat long-term docs, prior memory, or broader catalog docs as overriding these.
+For current implementation work, this plan governs current scope.
 
 1. **Auth is a fake stub.** HMAC-signed cookie, env-backed credentials, no DB session check, no CSRF flow, no password-version or session-invalidation model. Mirrors the real auth path structurally. Unblock: replace with real JWT/DB auth (Phase 4) before member onboarding.
 
