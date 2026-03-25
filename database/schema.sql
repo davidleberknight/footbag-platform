@@ -1483,15 +1483,10 @@ WHERE NOT EXISTS (
 -- nullable to support GDPR/PII purge. A CHECK enforces they are non-NULL for
 -- all un-purged members and NULL once personal_data_purged_at is set.
 --
--- Tier cache (tier_status, tier_expires_at, fallback_tier_status): denormalized
--- from member_tier_current for auth-path performance. The application MUST keep
--- these in sync with the ledger on every tier-changing write (see APP-017).
--- member_tier_current is authoritative for reads.
---
 -- avatar_media_id: ON DELETE SET NULL ensures that deleting a media item
 -- automatically detaches it as the member's avatar without requiring a trigger.
 
--- Member account: credentials, profile, privacy settings, tier cache, governance
+-- Member account: credentials, profile, privacy settings, governance
 -- flags (is_admin, is_board, is_hof, is_bap, is_deceased), and GDPR lifecycle.
 -- Soft-delete (deleted_at); PII purge nullifies credential and contact fields.
 CREATE TABLE members (
@@ -1520,9 +1515,9 @@ CREATE TABLE members (
   display_name            TEXT NOT NULL,
   display_name_normalized TEXT NOT NULL,
   bio                     TEXT NOT NULL DEFAULT '',
-  city                    TEXT NOT NULL,
+  city                    TEXT,
   region                  TEXT,
-  country                 TEXT NOT NULL,
+  country                 TEXT,
   sex                     TEXT CHECK (sex IN ('male', 'female')),
   phone                   TEXT,
   whatsapp                TEXT,
@@ -1533,20 +1528,7 @@ CREATE TABLE members (
 
   -- ON DELETE SET NULL: see section header comment.
   avatar_media_id TEXT REFERENCES media_items(id) ON DELETE SET NULL,
-  club_id         TEXT REFERENCES clubs(id),
 
-  -- Denormalized tier cache. Source of truth is member_tier_grants via
-  -- member_tier_current. Application MUST update these fields in the same
-  -- transaction as any tier grant write. member_tier_current is authoritative
-  -- for reads; these cache fields exist for auth-path performance.
-  tier_status TEXT NOT NULL DEFAULT 'tier0'
-    CHECK (tier_status IN ('tier0','tier1_annual','tier1_lifetime',
-                           'tier2_annual','tier2_lifetime','tier3')),
-  tier_expires_at      TEXT,
-  fallback_tier_status TEXT
-    -- 'tier3' excluded: board-appointment flag is not a dues-based fallback tier.
-    CHECK (fallback_tier_status IN ('tier0','tier1_annual','tier1_lifetime',
-                                    'tier2_annual','tier2_lifetime')),
   is_admin    INTEGER NOT NULL DEFAULT 0 CHECK (is_admin    IN (0,1)),
   is_board    INTEGER NOT NULL DEFAULT 0 CHECK (is_board    IN (0,1)),
   is_hof      INTEGER NOT NULL DEFAULT 0 CHECK (is_hof      IN (0,1)),
@@ -1566,9 +1548,18 @@ CREATE TABLE members (
   personal_data_purged_at   TEXT,
 
   legacy_member_id TEXT,
+  legacy_user_id   TEXT,
+  legacy_email     TEXT,
+  ifpa_join_date   TEXT,
+  birth_date       TEXT,
+  street_address   TEXT,
+  postal_code      TEXT,
+  legacy_is_admin  INTEGER NOT NULL DEFAULT 0 CHECK (legacy_is_admin IN (0,1)),
 
-  -- PII purge invariant (two-way): credentials are required until purge,
-  -- and must be NULL once personal_data_purged_at is set.
+  -- Three-way credential-state invariant:
+  -- (1) live account: all credential fields present, not purged
+  -- (2) pre-credential imported placeholder: no credentials, not purged
+  -- (3) purged row: all credential fields NULL, personal_data_purged_at set
   CHECK (
     (
       personal_data_purged_at IS NULL
@@ -1576,6 +1567,14 @@ CREATE TABLE members (
       AND login_email_normalized IS NOT NULL
       AND password_hash          IS NOT NULL
       AND password_changed_at    IS NOT NULL
+    )
+    OR
+    (
+      personal_data_purged_at IS NULL
+      AND login_email            IS NULL
+      AND login_email_normalized IS NULL
+      AND password_hash          IS NULL
+      AND password_changed_at    IS NULL
     )
     OR
     (
@@ -1596,13 +1595,17 @@ CREATE UNIQUE INDEX ux_members_email
   WHERE personal_data_purged_at IS NULL
     AND login_email_normalized IS NOT NULL;
 CREATE INDEX idx_members_display_name ON members(display_name_normalized);
-CREATE INDEX idx_members_tier         ON members(tier_status);
-CREATE INDEX idx_members_club
-  ON members(club_id)
-  WHERE club_id IS NOT NULL;
-CREATE INDEX idx_members_legacy_id
+CREATE UNIQUE INDEX ux_members_legacy_id
   ON members(legacy_member_id)
   WHERE legacy_member_id IS NOT NULL;
+-- Provisional unique indexes for legacy migration fields; validated at test load.
+-- Replace with non-unique indexes + ambiguity handling if uniqueness fails validation.
+CREATE UNIQUE INDEX ux_members_legacy_email
+  ON members(legacy_email)
+  WHERE legacy_email IS NOT NULL;
+CREATE UNIQUE INDEX ux_members_legacy_user_id
+  ON members(legacy_user_id)
+  WHERE legacy_user_id IS NOT NULL;
 
 -- members_active: active rows (excludes soft-deleted accounts)
 CREATE VIEW members_active AS
@@ -1613,16 +1616,19 @@ CREATE VIEW members_all AS
   SELECT * FROM members;
 
 -- members_searchable: the ONLY view that should be queried by the member search
--- endpoint. Filters all four conditions that must exclude a member from search:
--- soft-deleted, deceased, opted-out (searchable=0), and PII-purged accounts.
--- Application MUST use this view for search; do not add extra WHERE clauses on
--- top of members or the bare table.
+-- endpoint. Filters five conditions that must exclude a member from search:
+-- soft-deleted, deceased, opted-out (searchable=0), PII-purged, and unverified
+-- (email_verified_at IS NULL). The last condition is the primary enforcement
+-- preventing imported placeholder rows from appearing in search results;
+-- searchable=0 is defense-in-depth. Do not add extra WHERE clauses on top of
+-- members or the bare table.
 CREATE VIEW members_searchable AS
   SELECT * FROM members
   WHERE deleted_at IS NULL
     AND is_deceased = 0
     AND searchable = 1
-    AND personal_data_purged_at IS NULL;
+    AND personal_data_purged_at IS NULL
+    AND email_verified_at IS NOT NULL;
 
 -- =============================================================================
 -- SECTION 15: MEMBER LINKS
@@ -2029,9 +2035,13 @@ CREATE TABLE account_tokens (
   updated_by TEXT NOT NULL,
   version    INTEGER NOT NULL DEFAULT 1,
   member_id  TEXT NOT NULL REFERENCES members(id),
-  -- token_type maps to the token "purpose" concept: email_verify, password_reset, data_export.
+  -- target_member_id: for account_claim tokens only; the imported placeholder row being claimed.
+  -- ON DELETE CASCADE: when the imported row is deleted after a successful claim,
+  -- all outstanding claim tokens pointing at it are removed automatically.
+  target_member_id TEXT REFERENCES members(id) ON DELETE CASCADE,
+  -- token_type maps to the token "purpose" concept.
   token_type TEXT NOT NULL
-    CHECK (token_type IN ('email_verify','password_reset','data_export')),
+    CHECK (token_type IN ('email_verify','password_reset','data_export','account_claim')),
   token_hash         TEXT NOT NULL,
   token_hash_version INTEGER NOT NULL DEFAULT 1,
   issued_at  TEXT NOT NULL,
@@ -2049,6 +2059,8 @@ CREATE UNIQUE INDEX ux_account_tokens_hash     ON account_tokens(token_hash);
 CREATE INDEX        idx_account_tokens_member  ON account_tokens(member_id);
 -- Index on expires_at for background cleanup job (purges expired/consumed tokens).
 CREATE INDEX        idx_account_tokens_expires ON account_tokens(expires_at);
+CREATE INDEX        idx_account_tokens_target_member ON account_tokens(target_member_id)
+  WHERE target_member_id IS NOT NULL;
 
 -- =============================================================================
 -- SECTION 20: MAILING LIST SUBSCRIPTIONS
@@ -2245,6 +2257,7 @@ VALUES
 --   token_cleanup_threshold_days    Age threshold (days) for expired/consumed token cleanup
 --   deceased_cleanup_grace_days     Grace period (days) before PII removal after marked deceased
 --   data_export_link_expiry_hours   Hours before a data export download link expires
+--   account_claim_expiry_hours      Legacy account claim token TTL (hours)
 --   login_rate_limit_max_attempts   Max failed login attempts before account lockout
 --   login_rate_limit_window_minutes Sliding window (minutes) for failed login counting
 --   login_cooldown_minutes          Lockout duration (minutes) after rate-limit exceeded
@@ -2436,6 +2449,15 @@ VALUES
   ),
 
   (
+   'seed-account-claim-expiry-hours',
+   '2000-01-01T00:00:00.000Z',
+   'account_claim_expiry_hours', '24',
+   '2000-01-01T00:00:00.000Z',
+   'Legacy account claim token TTL in hours (default: 24 hours).',
+   NULL
+  ),
+
+  (
    'seed-login-rate-limit-max-attempts',
    '2000-01-01T00:00:00.000Z',
    'login_rate_limit_max_attempts', '10',
@@ -2587,6 +2609,143 @@ VALUES
    'Tier 2 Lifetime dues: $150.00 USD (IFPA default; stored as integer cents). Update before launch.',
    NULL
   );
+
+-- =============================================================================
+-- SECTION 25: LEGACY DATA MIGRATION TABLES
+-- =============================================================================
+
+-- Permanent operational table: live club membership for members.
+-- Written at legacy claim time, by admin, or by member self-service. Never dropped.
+CREATE TABLE member_club_affiliations (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  member_id  TEXT NOT NULL REFERENCES members(id),
+  club_id    TEXT NOT NULL REFERENCES clubs(id),
+  is_current INTEGER NOT NULL DEFAULT 1 CHECK (is_current IN (0,1)),
+  is_contact INTEGER NOT NULL DEFAULT 0 CHECK (is_contact IN (0,1)),
+  source     TEXT NOT NULL DEFAULT 'legacy_claim'
+    CHECK (source IN ('legacy_claim','admin','member_self_service')),
+
+  UNIQUE(member_id, club_id)
+);
+
+CREATE INDEX idx_member_club_affiliations_member ON member_club_affiliations(member_id);
+CREATE INDEX idx_member_club_affiliations_club   ON member_club_affiliations(club_id);
+-- One-current-club invariant: at most one is_current=1 row per member.
+CREATE UNIQUE INDEX ux_member_club_affiliations_one_current
+  ON member_club_affiliations(member_id)
+  WHERE is_current = 1;
+
+-- Migration-only staging table: normalized mirror-derived club identities.
+-- May be dropped once all bootstrap decisions are finalized and no staging review is pending.
+CREATE TABLE legacy_club_candidates (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  legacy_club_key  TEXT NOT NULL,
+  display_name     TEXT NOT NULL,
+  city             TEXT,
+  region           TEXT,
+  country          TEXT,
+  confidence_score REAL,
+  mapped_club_id   TEXT REFERENCES clubs(id),
+  bootstrap_eligible INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_eligible IN (0,1))
+);
+
+CREATE UNIQUE INDEX ux_legacy_club_candidates_key
+  ON legacy_club_candidates(legacy_club_key);
+CREATE INDEX idx_legacy_club_candidates_mapped
+  ON legacy_club_candidates(mapped_club_id)
+  WHERE mapped_club_id IS NOT NULL;
+
+-- Migration-only staging table: mirror-derived scored person-to-club affiliation suggestions.
+-- At least one of historical_person_id or legacy_member_id must be non-NULL.
+-- Uniqueness enforced via two partial indexes (not a single UNIQUE) because SQLite
+-- treats NULLs as distinct in UNIQUE constraints, which would allow duplicate rows
+-- when historical_person_id IS NULL.
+-- May be dropped once all affiliation suggestions are resolved.
+CREATE TABLE legacy_person_club_affiliations (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  historical_person_id     TEXT REFERENCES historical_persons(person_id),
+  legacy_member_id         TEXT,
+  legacy_club_candidate_id TEXT NOT NULL REFERENCES legacy_club_candidates(id),
+  inferred_role            TEXT NOT NULL
+    CHECK (inferred_role IN ('member','contact','leader','co-leader')),
+  confidence_score         REAL,
+  resolution_status        TEXT NOT NULL DEFAULT 'pending'
+    CHECK (resolution_status IN (
+      'pending','confirmed_current','former_only','not_mine',
+      'needs_review','promoted','rejected','superseded'
+    )),
+  resolved_club_id TEXT REFERENCES clubs(id),
+  notes            TEXT,
+
+  CHECK(historical_person_id IS NOT NULL OR legacy_member_id IS NOT NULL)
+);
+
+CREATE INDEX idx_legacy_person_club_affiliations_member
+  ON legacy_person_club_affiliations(legacy_member_id)
+  WHERE legacy_member_id IS NOT NULL;
+CREATE INDEX idx_legacy_person_club_affiliations_person
+  ON legacy_person_club_affiliations(historical_person_id)
+  WHERE historical_person_id IS NOT NULL;
+CREATE INDEX idx_legacy_person_club_affiliations_resolution
+  ON legacy_person_club_affiliations(resolution_status);
+-- Uniqueness by historical_person_id when known.
+CREATE UNIQUE INDEX ux_lpca_by_person
+  ON legacy_person_club_affiliations(historical_person_id, legacy_club_candidate_id, inferred_role)
+  WHERE historical_person_id IS NOT NULL;
+-- Uniqueness by legacy_member_id when historical_person_id is absent.
+CREATE UNIQUE INDEX ux_lpca_by_member
+  ON legacy_person_club_affiliations(legacy_member_id, legacy_club_candidate_id, inferred_role)
+  WHERE legacy_member_id IS NOT NULL AND historical_person_id IS NULL;
+
+-- Operational table (migration-origin): provisional legacy leadership for bootstrapped clubs.
+-- Does not grant live club-management permissions.
+-- legacy_member_id is NOT NULL: it is the stable identifier that survives deletion of the
+-- imported placeholder row after a successful claim.
+-- imported_member_id is ON DELETE SET NULL for the same reason.
+-- May be dropped only after all rows reach a terminal state (claimed, superseded, rejected).
+CREATE TABLE club_bootstrap_leaders (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  club_id            TEXT NOT NULL REFERENCES clubs(id),
+  imported_member_id TEXT REFERENCES members(id) ON DELETE SET NULL,
+  claimed_member_id  TEXT REFERENCES members(id),
+  legacy_member_id   TEXT NOT NULL,
+  role               TEXT NOT NULL CHECK (role IN ('leader','co-leader')),
+  confidence_score   REAL,
+  status             TEXT NOT NULL DEFAULT 'provisional'
+    CHECK (status IN ('provisional','claimed','superseded','rejected')),
+  claim_confirmed_at TEXT,
+  notes              TEXT,
+
+  UNIQUE(club_id, legacy_member_id, role)
+);
+
+CREATE INDEX idx_club_bootstrap_leaders_club   ON club_bootstrap_leaders(club_id);
+CREATE INDEX idx_club_bootstrap_leaders_member ON club_bootstrap_leaders(imported_member_id);
+CREATE INDEX idx_club_bootstrap_leaders_status ON club_bootstrap_leaders(status);
 
 -- =============================================================================
 -- END OF SCHEMA v0.1

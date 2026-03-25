@@ -37,14 +37,16 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
   db.prepare(`
     INSERT INTO members (
       id,
-      login_email, login_email_normalized, password_hash, password_changed_at,
+      login_email, login_email_normalized, email_verified_at,
+      password_hash, password_changed_at,
       real_name, display_name, display_name_normalized,
       city, country,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, '[TEST_HASH]', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, '[TEST_HASH]', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id,
     email, email.toLowerCase(), TS,
+    TS,
     name, display, display.toLowerCase(),
     o.city ?? 'Testville', o.country ?? 'US',
     TS, SYS, TS, SYS,

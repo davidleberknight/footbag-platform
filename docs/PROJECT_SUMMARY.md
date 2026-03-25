@@ -791,13 +791,13 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 - There is no search feature in the archive.
 - Note: this backup contains some member's details such as contact info, and so therefore access is limited to logged-in members only.
 
-**Migration Limitations:**
+**Data Migration:**
 
-- The mirror could not access all members, only members with public presence (club members, event participants with results, published media galleries).
-- The mirror cannot fetch members' login credentials.
-- Full member migration will be completed via a separate Footbag.org data export, technical specifics are out of scope for this document.
-- Other data such as historical event results will be migrated from the legacy site to the new site via data clean-up and migration scripts (out of scope for now).
-- After the data migration from old members to the new site, all such members must complete a password-reset onboarding process at the time of first login.
+- The mirror could not access all members, only those with a public presence (club members, event participants with results, published media galleries).
+- The mirror cannot fetch login credentials. Legacy passwords are never imported or accepted.
+- Legacy data migration uses three streams: (1) historical content — events, results, persons, and honors loaded from canonical CSV files, substantially complete; (2) member account import — all legacy registered accounts imported as pre-credential placeholder rows from a one-time export by the legacy site webmaster, these rows cannot log in or appear in any member-facing surface; (3) mirror-derived club bootstrap — club identities, affiliations, and provisional leadership inferred from the offline mirror.
+- Imported members connect their legacy identity to a modern account via a self-serve claim flow: submit a legacy identifier (email, username, or member ID), verify mailbox ownership via a time-limited email link, then confirm the merge. This transfers legacy identity, honors, tier entitlements, and club data to the modern account.
+- Provisional club leaders assigned at bootstrap hold no governance permissions until a claimed modern account confirms the leadership.
 
 **Archive Hosting Architecture:**
 

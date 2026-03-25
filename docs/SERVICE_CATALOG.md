@@ -33,6 +33,8 @@
 9. Governance & Operations
    9.1 AdminGovernanceService
    9.2 OperationsPlatformService
+10. Legacy Migration
+   10.1 LegacyMigrationService
 
 ---
 
@@ -51,9 +53,9 @@ There is no target-design `publicController` layer. Public controllers/routes st
 **Transaction / idempotency:** Coupled local writes (e.g., dual-write pairs) must be in a single atomic transaction. Webhook and job handlers must be idempotent. Domain services own idempotency behavior even when DB unique indexes assist. Outbox enqueue uses stable idempotency keys.
 
 **Read model conventions:**
-- `member_tier_current` — **authoritative tier projection**; `members` tier cache fields (`tier_status`, `tier_expires_at`, `fallback_tier_status`) exist for auth-path performance only and must be kept in sync (APP-017). Never use cache fields as authorization source.
+- `member_tier_current` — **authoritative tier projection**; no tier cache columns exist on `members`. Use `calculateTierStatus(memberId)` as the sole authoritative tier-read path; never derive tier from `members` directly.
 - `system_config_current` — computed view returning the latest effective row per `config_key` where `effective_start_at <= now`. Authoritative read surface for all runtime config lookups; never query the `system_config` table directly for operational use.
-- `members_searchable` — member search **must** use this view; applies all four exclusion conditions: soft-deleted, deceased, opted-out, PII-purged.
+- `members_searchable` — member search **must** use this view; applies five exclusion conditions: soft-deleted, deceased, opted-out, PII-purged, and unverified (`email_verified_at IS NULL`). The last condition is the primary mechanism preventing imported legacy placeholder rows from appearing in search results.
 - `members_active` — filters `deleted_at IS NULL`; use for general member lookups.
 - `clubs_open` / `clubs_all` — `clubs_open` filters `status IN ('active','inactive')`; `clubs_all` includes archived (SA, no `deleted_at`).
 - `email_templates_enabled` — filters `is_enabled = 1`; use for active template lookups.
@@ -133,9 +135,9 @@ Source-of-truth note: This document defines service ownership, method contracts,
 - **Primary tables:** `payments`, `payment_status_transitions`, `recurring_donation_subscriptions`, `recurring_donation_subscription_transitions`, `stripe_events`, `reconciliation_issues`
 
 **`MembershipTieringService`**
-- **Owns:** All tier grant writes, member tier cache sync, tier expiry processing, HoF/BAP/board flag management, admin role grants
+- **Owns:** All tier grant writes, tier expiry processing, HoF/BAP/board flag management, admin role grants; `calculateTierStatus` is the sole authoritative tier-read path
 - **Does NOT own:** Payment processing, registration
-- **Primary tables:** `member_tier_grants`, `member_tier_current`, `members` (cache sync only)
+- **Primary tables:** `member_tier_grants`, `member_tier_current`, `members` (flag and role fields only; no tier cache columns)
 
 ---
 
@@ -249,9 +251,9 @@ Source-of-truth note: This document defines service ownership, method contracts,
 - `deleteAccount(memberId) -> {ok}` — SD: sets `deleted_at`; synchronously deletes all S3 photos and `media_items` / `member_galleries` rows (HD); if S3 deletion fails, entire operation fails — account must NOT be marked deleted until S3 photos are confirmed removed; if member is sole club leader AND `club.contact_email IS NULL`: also inserts 'Needs Contact' work-queue item → admin-alerts notification; audit-logs
 - `requestDataExport(memberId) -> {downloadLinkToken}` — creates `account_tokens` row of type `data_export`; enqueues email with time-limited link (expires `data_export_link_expiry_hours`, default 72h)
 - `generateDataExport(token) -> {jsonFile}` — validates `data_export` token; assembles profile, tier status, payment history, event registrations, media metadata, vote participation (no ballot content or receipt tokens); audit-logs
-- `markDeceased(adminId, memberId, reason) -> {ok}` — sets `is_deceased = 1`, `deceased_at`; disables login; removes from `members_searchable`; removes from club roster (sets `club_id = NULL` on `members`); unregisters from future events; if member is sole club leader or event organizer, inserts work-queue item ("Needs Leader" / "Needs Organizer") → triggers admin-alerts notification; if member is sole club leader AND `club.contact_email IS NULL`: also inserts 'Needs Contact' work-queue item → admin-alerts notification; PII cleanup is deferred to `OperationsPlatformService.runPIIPurgeJob()` deceased-member branch after `deceased_cleanup_grace_days` (default 30d); deceased and soft-deleted lifecycles are distinct; HoF/BAP honors and media attribution preserved; audit-logs
+- `markDeceased(adminId, memberId, reason) -> {ok}` — sets `is_deceased = 1`, `deceased_at`; disables login; removes from `members_searchable`; removes from club roster (sets `is_current = 0` on `member_club_affiliations` row); unregisters from future events; if member is sole club leader or event organizer, inserts work-queue item ("Needs Leader" / "Needs Organizer") → triggers admin-alerts notification; if member is sole club leader AND `club.contact_email IS NULL`: also inserts 'Needs Contact' work-queue item → admin-alerts notification; PII cleanup is deferred to `OperationsPlatformService.runPIIPurgeJob()` deceased-member branch after `deceased_cleanup_grace_days` (default 30d); deceased and soft-deleted lifecycles are distinct; HoF/BAP honors and media attribution preserved; audit-logs
 - `revertDeceasedFlag(adminId, memberId, reason) -> {ok}` — available within `deceased_cleanup_grace_days` only; clears `is_deceased`; audit-logs
-- `purgeAccountPII(memberId) -> {ok}` — called only by `OperationsPlatformService.runPIIPurgeJob()` after the applicable grace period (soft-delete branch or deceased-member branch); sets `personal_data_purged_at`; clears `login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`, `phone`, `whatsapp`; overwrites `real_name`, `display_name`, `display_name_normalized`, `city`, `country` with anonymized placeholders (APP-022); retains row for referential integrity; HoF/BAP members: retain display name and honor badges
+- `purgeAccountPII(memberId) -> {ok}` — called only by `OperationsPlatformService.runPIIPurgeJob()` after the applicable grace period (soft-delete branch or deceased-member branch); sets `personal_data_purged_at`; clears `login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`, `phone`, `whatsapp`, `legacy_email`, `legacy_user_id`, `street_address`, `postal_code`, `birth_date`; overwrites `real_name`, `display_name`, `display_name_normalized`, `city`, `country` with anonymized placeholders as needed (APP-022); retains row for referential integrity; HoF/BAP members: retain display name and honor badges
 
 **Authz:** `editProfile`, `deleteAccount`, `requestDataExport` — owner only. `searchMembers` — authenticated Tier 0+ only; never callable from public routes. `markDeceased`, `revertDeceasedFlag` — admin only.
 
@@ -323,11 +325,11 @@ Source-of-truth note: This document defines service ownership, method contracts,
 - `createClub(leaderId, input) -> {clubId}` — validates Tier 1+; rejects if member already holds `role='leader'` for any active club `[APP]`; generates unique `#club_{location_slug}` hashtag via HashtagDiscoveryService; creates `clubs` row and `club_leaders` row; audit-logs; emits `club_created` news item via NewsService
 - `editClub(actorId, clubId, input) -> {ok}` — co-leaders may edit all fields; if contact email blanked → upserts "Club Needs Contact" work-queue item → admin-alerts notification; audit-logs changed fields with old/new values
 - `setClubStatus(actorId, clubId, status) -> {ok}` — leader/co-leader: `active ↔ inactive`; admin: can archive (see `archiveClub`); audit-logs
-- `archiveClub(actorId, clubId, reason) -> {ok}` — leader: requires zero active members; admin: no member prerequisite; sets `status = 'archived'` (SA — no `deleted_at`); sets `club_id = NULL` on all member rows; enqueues email to all affected members via CommunicationService; audit-logs; `clubs_open` excludes archived; `clubs_all` includes
+- `archiveClub(actorId, clubId, reason) -> {ok}` — leader: requires zero active members; admin: no member prerequisite; sets `status = 'archived'` (SA — no `deleted_at`); sets `is_current = 0` on all affected `member_club_affiliations` rows; enqueues email to all affected members via CommunicationService; audit-logs; `clubs_open` excludes archived; `clubs_all` includes
 - `addCoLeader(actorId, clubId, targetMemberId) -> {ok}` — max 5 total leaders (APP-010); enqueues email to new co-leader; audit-logs
 - `removeCoLeader(actorId, clubId, targetMemberId) -> {ok}` — anti-self-removal: rejects if actor is sole leader; audit-logs
 - `joinClub(memberId, clubId) -> {ok}` — removes from previous club if any (auto-leave, noted in email); enqueues notification to member + all leaders; audit-logs
-- `leaveClub(memberId, clubId) -> {ok}` — sets `club_id = NULL`; re-evaluates operability; enqueues notification to member + leaders; audit-logs
+- `leaveClub(memberId, clubId) -> {ok}` — sets `is_current = 0` on the member's `member_club_affiliations` row; re-evaluates operability; enqueues notification to member + leaders; audit-logs
 - `reassignLeader(adminId, clubId, newLeaderId, reason) -> {ok}` — admin only; resolves "Needs Leader" work-queue item; audit-logs
 
 **Authz:** Create club: Tier 1+. Edit/manage: club leader or co-leader. Archive (admin path): admin. Reassign leader: admin only.
@@ -514,29 +516,29 @@ For the current public routes, `EventService` is responsible for:
 
 ### 5.2 `MembershipTieringService`
 
-**Purpose/Boundary:** Owns all tier grant writes to `member_tier_grants`, cache sync to `members`, tier expiry processing, HoF/BAP/board flag management, and admin role grants. Does NOT own payment processing or registration.
+**Purpose/Boundary:** Owns all tier grant writes to `member_tier_grants`, tier expiry processing, HoF/BAP/board flag management, and admin role grants. `calculateTierStatus(memberId)` is the sole authoritative tier-read path; it derives from the ledger via `member_tier_current` — no tier cache columns exist on `members`. Does NOT own payment processing or registration.
 
 **Consumers:** PaymentService, CompetitionParticipationService, EventService, AdminGovernanceService, OperationsPlatformService (expiry job)
 
 **Key Methods:**
-- `applyTierGrant(actor, memberId, grantParams) -> {ok}` — writes ledger row; atomically updates `members` tier cache (APP-017); `member_tier_current` remains authoritative read source
-- `applyAttendanceTier(actorId, memberId, eventId, eventDate) -> {ok}` — called by EventService on attendance mark; Tier 0 → `tier1_annual` expiry = eventDate + 365d; existing Tier 1 Annual < eventDate + 365d → extend; existing ≥ eventDate + 365d → no-op; Tier 1 Lifetime+ → no-op; `reason_code = 'attendance.event'`, `related_event_id` set; `[DB]` `ux_tier_grants_event_once` prevents duplicate; dual cache sync; audit-logs
+- `applyTierGrant(actor, memberId, grantParams) -> {ok}` — writes ledger row; `member_tier_current` is the authoritative read source; call `calculateTierStatus(memberId)` for current tier after any grant write
+- `applyAttendanceTier(actorId, memberId, eventId, eventDate) -> {ok}` — called by EventService on attendance mark; Tier 0 → `tier1_annual` expiry = eventDate + 365d; existing Tier 1 Annual < eventDate + 365d → extend; existing ≥ eventDate + 365d → no-op; Tier 1 Lifetime+ → no-op; `reason_code = 'attendance.event'`, `related_event_id` set; `[DB]` `ux_tier_grants_event_once` prevents duplicate; audit-logs
 - `applyVouchGrant(actorId, memberId, pathway, sourceRef) -> {ok}` — called by CompetitionParticipationService; same no-op/extend logic as attendance; Pathway A: `related_event_id`, `reason_code = 'vouch.direct'`; Pathway B: `related_vouch_request_id`, `reason_code = 'vouch.admin'`; enqueues email to vouched member
 - `applyPurchaseGrant(memberId, paymentId, tierProduct) -> {ok}` — called by PaymentService on payment success; `reason_code = 'purchase.dues'`; `related_payment_id` set; Tier 2 purchase permanently sets `fallback_tier_status = 'tier1_lifetime'` on the ledger row; Tier 2 Annual expiry = max(today, current expiry) + 365d; audit-logs
-- `processExpiry(memberId) -> {ok}` — called only by `OperationsPlatformService.runTierExpiryCheck()`; Tier 1 Annual expired → `expire` row, `new_tier_status = 'tier0'`, `reason_code = 'system.tier_expired'`; Tier 2 Annual expired → `expire` row, `new_tier_status = 'tier1_lifetime'`, `reason_code = 'system.tier2_fallback'`; atomic cache sync; enqueues notification
+- `processExpiry(memberId) -> {ok}` — called only by `OperationsPlatformService.runTierExpiryCheck()`; Tier 1 Annual expired → `expire` row, `new_tier_status = 'tier0'`, `reason_code = 'system.tier_expired'`; Tier 2 Annual expired → `expire` row, `new_tier_status = 'tier1_lifetime'`, `reason_code = 'system.tier2_fallback'`; enqueues notification
 - `adminOverrideTier(adminId, memberId, newTier, expiryDate, reason) -> {ok}` — `reason_code = 'admin.override'`, `change_type = 'grant'`; cannot reduce dues-paying member below Tier 1 Lifetime (`member_tier_current` purchase overlay would ignore it anyway, but reject early with a clear error); audit-logs; enqueues member notification
 - `grantHoFBAPStatus(adminId, memberId, badge, reason) -> {ok}` — sets `is_hof` or `is_bap`; unless already Tier 3: writes tier grant to Tier 2 Lifetime (`reason_code = 'admin.hof_bap_grant'`), updates `fallback_tier_status`; emits `member_honor` news item via NewsService; enqueues congratulatory email; audit-logs
 - `setBoardFlag(adminId, memberId, action, reason) -> {ok}` — `flag_set`: snapshot current paid tier in `new_fallback_tier_status` of the `board.flag_set` ledger row → write grant to Tier 3; `flag_removed`: **read `new_fallback_tier_status` from most recent `board.flag_set` ledger row** → write `board.flag_removed` grant reverting to that captured tier; emits `member_honor` news item via NewsService; audit-logs
-- `getCurrentTier(memberId) -> {tierData}` — reads from `member_tier_current` (authoritative); never from `members` cache directly
+- `calculateTierStatus(memberId) -> {tierData}` — sole authoritative tier-read path; derives from `member_tier_current` (ledger-backed); never reads tier fields directly from `members`
 - `adminManageRole(adminId, targetMemberId, action, reason) -> {ok}` — grant: target must be `tier2_lifetime` or `tier3` (APP-015); anti-lockout: last admin cannot be revoked (APP-015); updates `is_admin`; atomically updates admin-alerts mailing list subscription via CommunicationService (APP-015); audit-logs; enqueues email
 
-**Authz:** `applyAttendanceTier`, `applyVouchGrant` (Pathway A): Tier 2+ with active roster grant. `applyVouchGrant` (Pathway B approval), `adminOverrideTier`, `grantHoFBAPStatus`, `setBoardFlag`, `adminManageRole`: admin only. `getCurrentTier`: any authenticated.
+**Authz:** `applyAttendanceTier`, `applyVouchGrant` (Pathway A): Tier 2+ with active roster grant. `applyVouchGrant` (Pathway B approval), `adminOverrideTier`, `grantHoFBAPStatus`, `setBoardFlag`, `adminManageRole`: admin only. `calculateTierStatus`: any authenticated.
 
 **Persistence Touchpoints:** `member_tier_grants`, `member_tier_current`, `members`, `system_config_current`, `mailing_list_subscriptions`, `news_items`, `audit_entries`, `outbox_emails`
 
 **Key Rules:**
 - `[DB]` Append-only: `member_tier_grants` UPDATE/DELETE blocked by triggers
-- `[APP]` `member_tier_current` is authoritative; cache sync (APP-017) in same transaction as every ledger write
+- `[APP]` `calculateTierStatus(memberId)` is the sole authoritative tier-read path; derives from `member_tier_current` via the ledger; no tier cache columns exist on `members`
 - `[APP]` Source linkage discipline: at most one of `related_payment_id`, `related_vouch_request_id`, `related_event_id` non-NULL; `revoke`/`expire` rows have all source FKs NULL (APP-016)
 - `[DB]` `ux_tier_grants_event_once` — one grant per (member, event)
 - `[APP]` Board flag revert: reads `new_fallback_tier_status` from most recent `board.flag_set` ledger row in `member_tier_grants` — not from current `members` cache (which may have been updated by subsequent grants)
@@ -546,7 +548,7 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` Membership pricing is read from `system_config_current` using integer-cents keys (`tier1_lifetime_price_cents`, `tier2_annual_price_cents`, `tier2_lifetime_price_cents`); convert cents to display currency in UI layer
 - `[APP]` News items emitted via `NewsService.emitNewsItem()` — MembershipTieringService does not write to `news_items` directly
 
-**Transaction + Idempotency:** Every ledger write + cache sync in one transaction. `applyAttendanceTier` and `applyVouchGrant` are idempotent via DB unique indexes as safety net; app is primary controller.
+**Transaction + Idempotency:** Every ledger write in one transaction. `applyAttendanceTier` and `applyVouchGrant` are idempotent via DB unique indexes as safety net; app is primary controller.
 
 **Async / Side Effects:** outbox enqueue (tier change notifications, vouching emails, congratulatory HoF/BAP) · news emission (`member_honor`) · audit append
 
@@ -856,6 +858,43 @@ For the current public routes, `EventService` is responsible for:
 **Transaction + Idempotency:** All job handlers idempotent. Webhook processors idempotent. Token cleanup idempotent.
 
 **Async / Side Effects:** audit append (tier expiry, PII purge, tally operations, reconciliation job runs) · alarm raise (backup failures, bounce rates, consecutive webhook failures) · outbox enqueue (tier reminders, expiry notifications, scheduled reconciliation digest; all delegated to domain services)
+
+---
+
+## 10. Legacy Migration
+
+---
+
+### 10.1 `LegacyMigrationService`
+
+**Purpose/Boundary:** Owns all self-serve and admin legacy account claim flows, merge transaction execution, and bootstrap club leadership resolution. Does NOT own club lifecycle, tier grant writes (delegates to MembershipTieringService), or club-leader promotion beyond bootstrap confirmation.
+
+**Consumers:** Member profile controllers (claim flow), admin controllers (manual recovery, bootstrap leadership resolution)
+
+**Key Methods:**
+- `initiateAccountClaim(activeMemberId, identifier) -> {ok}` — classifies identifier type (legacy email, legacy username, or legacy member ID); looks up the matching imported placeholder row; if exactly one eligible row found, creates an `account_claim` token bound to `activeMemberId` and `target_member_id`; applies rate limiting per requesting account, per target row, and per session/IP; queues claim email to `legacy_email`; writes audit event `legacy_claim_email_sent`; returns a generic non-revealing response regardless of outcome (does not distinguish zero matches, multiple matches, ineligible rows, or blocked rows)
+- `consumeAccountClaim(token, activeMemberId) -> {claimData}` — validates token (exists, unconsumed, unexpired, `token_type = 'account_claim'`, `member_id` matches `activeMemberId`); validates target row still exists and is claimable; returns confirmation data including the active account identity and any club-affiliation or bootstrap-leader suggestions for review; on member confirmation, runs merge transaction: transfers `legacy_member_id`, merges profile fields per merge rules, writes tier reconciliation grant via MembershipTieringService if imported tier exceeds current, writes confirmed club affiliations to `member_club_affiliations`, processes bootstrap-leader confirmations, marks token consumed, deletes imported placeholder row (cascades outstanding claim tokens); writes audit event `legacy_claim_completed` with full merge summary
+- `manualLegacyClaimRecovery(adminId, targetImportedMemberId, activeMemberId, reason, verificationNote) -> {ok}` — admin-initiated merge for cases where self-serve claim is unavailable; runs the same merge transaction as `consumeAccountClaim`; requires non-empty `reason` and `verificationNote`; writes audit event `legacy_claim_manual_recovery` with actor, target, reason, and verification note; never auto-promotes `legacy_is_admin` to live admin role
+- `confirmBootstrapLeadership(activeMemberId, bootstrapLeaderId) -> {ok}` — called during claim flow; validates bootstrap row is `provisional` and active member's `legacy_member_id` matches the row's `legacy_member_id`; if no conflicting live leader exists for the club, creates a `club_leaders` row on the active account and marks bootstrap row `claimed`; if a conflict exists, leaves row provisional and flags for admin review; writes audit event `legacy_club_bootstrap_promoted` or notes the conflict
+- `resolveBootstrapLeadership(adminId, bootstrapLeaderId, action, reason) -> {ok}` — admin resolution of provisional bootstrap leadership; actions: `promote` (link to a specific claimed member's `club_leaders` row), `supersede` (mark row superseded; appoint live leader through standard workflow), `reject` (discard provisional assignment); all actions audit-logged
+
+**Authz:** `initiateAccountClaim`, `consumeAccountClaim`, `confirmBootstrapLeadership`: authenticated member (own account only). `manualLegacyClaimRecovery`, `resolveBootstrapLeadership`: admin only.
+
+**Persistence Touchpoints:** `members`, `account_tokens`, `member_tier_grants` (via MembershipTieringService), `member_club_affiliations`, `club_bootstrap_leaders`, `club_leaders`, `audit_entries`, `outbox_emails`
+
+**Key Rules:**
+- `[APP]` Non-revealing messaging: claim initiation response never distinguishes zero matches, multiple matches, ineligible rows, or blocked rows. Recommended: "If an eligible legacy record was found, a claim email will be sent."
+- `[APP]` Merge transaction is atomic; the imported placeholder row is deleted at the end of a successful merge; all `account_claim` tokens pointing at it cascade-delete via `ON DELETE CASCADE`
+- `[APP]` Rate limiting applies to claim initiation and resend per requesting account, per target row, and per session/IP
+- `[APP]` A token may only be consumed by the same `member_id` that initiated the request; consuming while authenticated as a different account is rejected
+- `[APP]` Tier reconciliation grant is written only if the imported effective tier exceeds the current effective tier; uses `reason_code = 'migration.legacy_claim_reconcile'`
+- `[APP]` `legacy_is_admin` metadata is never auto-promoted to live admin role in any flow
+- `[APP]` One-current-club invariant: when writing a confirmed current affiliation to `member_club_affiliations`, any existing current row for that member is converted to `is_current = 0` in the same transaction
+- `[APP]` Bootstrap leadership promotion is only attempted when no conflicting live leader exists for the club; conflicts leave the row provisional and create an admin work queue item
+
+**Transaction + Idempotency:** Merge transaction is atomic. Token validation and consumption are single-transaction.
+
+**Async / Side Effects:** outbox enqueue (claim email, resend) · audit append (all claim and bootstrap events)
 
 ---
 

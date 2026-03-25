@@ -63,11 +63,13 @@ Payment Processing Guarantees: The system does not grant paid access unless Stri
 
 Currency: The platform supports multi-currency payments via Stripe. Amounts are stored and displayed in the currency of the original transaction. The `currency` field is recorded on all payment records. Reconciliation and reporting display currency alongside amounts. No currency conversion is performed by the platform; Stripe handles currency settlement.
 
-Security tokens: Email verification tokens and password reset tokens are stored in the database as SHA-256 hashes, never as plaintext, preventing account takeover if the database is compromised. Email verification tokens expire after 24 hours and are marked consumed via a consumed_at timestamp after single use. Password reset tokens expire after one hour due to higher sensitivity. Password reset requests are rate-limited to five requests per email per hour, preventing enumeration attacks that reveal valid emails and token farming. The rate limit applies regardless of whether the email exists in the system, with consistent timing to prevent enumeration via timing analysis.
+Security tokens: Email verification tokens and password reset tokens are stored in the database as SHA-256 hashes, never as plaintext, preventing account takeover if the database is compromised. Email verification tokens expire after 24 hours and are marked consumed via a consumed_at timestamp after single use. Password reset tokens expire after one hour due to higher sensitivity. Password reset requests are rate-limited to five requests per email per hour, preventing enumeration attacks that reveal valid emails and token farming. The rate limit applies regardless of whether the email exists in the system, with consistent timing to prevent enumeration via timing analysis. Legacy account claim tokens (`account_claim`) expire after 24 hours (configurable via `account_claim_expiry_hours`), are single-use, and are bound to both the requesting authenticated member account and the imported legacy row being claimed. A claim token may only be consumed while authenticated as the same account that initiated the request.
 
 Privacy, visibility, and moderation: Profiles, club rosters, participant lists, and member search results are member-only unless explicitly stated otherwise. Media galleries and tag gallery pages are public, but uploader details (email/phone, uploaded_by) remain private.
 
 Historical imported people may appear in legacy event results and related read-only historical displays even when they are not current Members. This supports historical accuracy only. It does not imply authenticated-member capabilities, profile ownership, member-search inclusion, club-roster visibility, or any other current-member behavior.
+
+Imported legacy member rows are pre-credential placeholder records created during the one-time migration from the legacy site. They cannot log in, do not appear in member search results or any current-member surface, and do not affect normal registration or password-reset behavior. A legacy member who wants to connect their historical identity and data to a modern account must use the self-serve legacy claim flow while logged in.
 
 Moderation flows favor transparency and human oversight: when members flag content, flagged items remain visible until an administrator reviews and decides; no content is hidden or de-ranked automatically by secret algorithms.
 
@@ -508,6 +510,42 @@ Success Criteria:
 - Archive search is not provided and no new content is added to the archive (it is strictly historical).
 - From the member's perspective, the main site is the primary place for new content and participation; the archive is explicitly presented as historical reference only.
 - Security note: Archive access does not perform the passwordVersion check used by the main site (this check requires a database query unavailable at the CloudFront edge). A password change does not immediately revoke archive access; archive access expires naturally when the JWT expires (up to jwt_expiry_hours, default 24 hours). This is an accepted operational trade-off.
+
+**M_Claim_Legacy_Account**
+
+Access: Logged-in members.
+
+Story: As a logged-in member, I can link my legacy footbag.org member record to my current account so that my historical identity, honors, migrated profile data, and relevant club affiliations are associated with my real modern account.
+
+Success Criteria:
+
+- Member can access a Link Legacy Account flow from their profile settings.
+- Member enters one identifier: legacy email address, legacy username, or legacy member ID.
+- If an eligible imported row is found, the system emails a time-limited claim link to that row's legacy email address. The response never reveals whether the identifier matched zero rows, multiple rows, a blocked row, or a row without a usable email address. Recommended message: "If an eligible legacy record was found, a claim email will be sent."
+- The claim link is single-use, time-limited (Administrator-configurable, default 24 hours, keyed by `account_claim_expiry_hours`), and may only be consumed while logged into the same account that initiated the request.
+- Claim initiation and resend are rate-limited per requesting account, per target imported row, and per session/IP.
+- Before merge, the system shows a final confirmation screen identifying the active account that will receive the legacy identity.
+- If mirror-derived club affiliation suggestions or provisional bootstrap leadership suggestions exist for the claimed identity, the member is prompted to review them before confirming (see M_Review_Legacy_Club_Data_During_Claim).
+- On confirmation, the merge runs atomically: transfers `legacy_member_id`; merges allowed profile fields (import fills only if active value is empty or absent; active account always wins for credentials, display name, and contact fields); applies tier adjustment if imported effective tier exceeds current (ledger entry only); writes confirmed club affiliations; may promote confirmed provisional leadership into live club leadership; deletes the imported placeholder row.
+- All claim and merge events are audit-logged.
+- If self-serve claim is not available (no usable legacy email, row flagged for review, or other ineligibility), the member is directed to contact an admin for manual recovery.
+
+**M_Review_Legacy_Club_Data_During_Claim**
+
+Access: Logged-in members in the legacy claim flow.
+
+Story: As a member claiming my legacy account, I can review mirror-derived club suggestions and any provisional legacy leadership so I can confirm or correct club data before the merge is finalized.
+
+Success Criteria:
+
+- When staged club or bootstrap leadership suggestions exist for the claimant's legacy identity, the claim flow presents them before the final merge confirmation.
+- Each suggestion shows the best available club identity and inferred role.
+- Member can mark each suggestion: current club, former-only, not mine, or needs admin review.
+- Member can confirm or reject provisional contact-email assignment.
+- Member can confirm or reject provisional leader or co-leader status.
+- Confirmed current affiliation writes to `member_club_affiliations`; if the member already has a current club affiliation, the previous one is converted to former in the same transaction.
+- Confirmed leadership may promote the bootstrap row into a live `club_leaders` row when no conflicting live leader exists; otherwise it remains provisional and is flagged for admin review.
+- Former-only, not-mine, and needs-review outcomes are persisted so the member is not repeatedly prompted.
 
 ## 3.2 Profile Management
 
@@ -1490,6 +1528,36 @@ Success Criteria:
 - All marking actions audit-logged with admin ID, member ID, reason, timestamp.
 - Admin sees a clear success message when action completes.
 - If marking was done in error, admin can remove the deceased flag within a configurable grace period with audit logging; after grace period, only full account deletion is available.
+
+**A_Manual_Legacy_Claim_Recovery**
+
+Access: Admins only.
+
+Story: As an admin, I can help a member recover or complete legacy account linkage when self-serve claim is unavailable.
+
+Success Criteria:
+
+- Admin can locate imported legacy member rows by legacy email address, legacy username, or legacy member ID.
+- Admin can see why self-serve claim is unavailable for a given row (no usable email, row flagged for review, etc.).
+- Admin can update the legacy email address on an imported row to a reachable mailbox, enabling a re-attempt of self-serve claim.
+- Before performing a manual merge, admin must enter a non-empty reason and verification note.
+- Manual merge follows the same field-level merge rules as self-serve claim.
+- Manual merge is audit-logged with actor, target imported row, active account, reason, verification note, and timestamp.
+- Manual merge never auto-promotes `legacy_is_admin` metadata to a live admin role.
+
+**A_Resolve_Bootstrap_Club_Leadership**
+
+Access: Admins only.
+
+Story: As an admin, I can resolve provisional legacy club leadership when mirror-derived bootstrap data could not be automatically finalized.
+
+Success Criteria:
+
+- Admin can view bootstrapped clubs with unresolved or conflicting provisional leaders.
+- Admin can promote a provisional leader by linking them to a correctly claimed member's live account.
+- Admin can supersede the provisional assignment and appoint a live leader through the standard club leadership workflow, marking the bootstrap row superseded.
+- Admin can reject a provisional assignment as incorrect, marking the bootstrap row rejected.
+- All resolution actions are audit-logged with actor, club, bootstrap row, action taken, and timestamp.
 
 ## 6.3 Content Moderation
 

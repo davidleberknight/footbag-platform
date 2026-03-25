@@ -39,6 +39,8 @@
   4.21 Media Flags & Tags
   4.22 Tag Stats Cache
   4.23 Seed Data
+  4.24 Member Club Affiliations
+  4.25 Migration Staging and Bootstrap Tables
 5. View Reference
 6. Application-Enforced Integrity & Workflow Rules
 7. Retained DB Triggers
@@ -482,7 +484,7 @@ All source FK columns are nullable. The combination of non-null FKs encodes the 
 - `ux_tier_grants_vouch_once`: at most one ledger row per `related_vouch_request_id`. The DB treats this as a last-line safety net; the app is the primary idempotency controller.
 - `ux_tier_grants_event_once`: at most one ledger row per `(member_id, related_event_id)`. Enforces US §1.2 "a unique member may not be listed on the roster more than once."
 
-#### Application responsibilities (APP-016, APP-017; app-enforced values/workflow)
+#### Application responsibilities (APP-016; app-enforced values/workflow)
 - Write valid source-linkage FK combinations and `reason_code` values per the pathway rules above.
 - Enforce semantic consistency between `reason_code` and source linkage (e.g., purchase rows link to payments, admin-vouch rows link to vouch requests, direct-vouch rows link to events).
 - Only populate `related_vouch_request_id` or `related_event_id` on the initial tier-application row for a given source. Subsequent `revoke`/`expire` rows for the same member must leave these FKs NULL. The DB CHECK enforces this structurally; the app must also uphold the convention to prevent misattribution.
@@ -490,14 +492,14 @@ All source FK columns are nullable. The combination of non-null FKs encodes the 
 - **Event-origin error corrections:** if an event-sourced grant must be corrected (e.g., wrong member ID was submitted), use admin override (`change_type = 'grant'` or `'revoke'`, `reason_code = 'admin.override'`, all source FKs NULL). Do not attempt to write a second row carrying the event FK — `ux_tier_grants_event_once` will block it, by design.
 - Enforce idempotent write behavior in the service layer; treat DB unique indexes as a safety net, not the primary control.
 - Write no-op approvals/denials to request/audit records without inserting ledger rows when no tier state changes.
-- Update `members` tier cache fields (`tier_status`, `tier_expires_at`, `fallback_tier_status`) in the same transaction as every tier-changing ledger write.
+- Call `calculateTierStatus(memberId)` after any tier-changing ledger write to derive current tier state; no tier cache columns exist on `members`.
 - **Revoke limitation for dues members:** admin revoke cannot reduce a dues-paying member's tier below Tier 1 Lifetime (the purchase overlay in `member_tier_current` would ignore the revoke anyway, but the application should detect this condition before allowing the action and communicate it clearly to the admin).
 
 ### 4.13 Member Tier Current View
 
 **View:** `member_tier_current`
 
-Derives the effective current tier for each member from the **latest ledger snapshot row** in `member_tier_grants` plus the "ever paid dues" purchase-history overlay. This is the **authoritative read model** for tier data. The `members` tier cache columns exist for auth-path performance; `member_tier_current` is the source of truth.
+Derives the effective current tier for each member from the **latest ledger snapshot row** in `member_tier_grants` plus the "ever paid dues" purchase-history overlay. This is the **authoritative read model** for tier data. No tier cache columns exist on `members`; `calculateTierStatus(memberId)` is the sole authoritative tier-read path and derives from this view.
 
 `member_tier_current` includes a row for every member. Members with no tier ledger entries (including brand-new registrations) are returned with `tier_status = 'tier0'`, `tier_expires_at = NULL`, and `fallback_tier_status = NULL`.
 
@@ -534,11 +536,6 @@ If the latest ledger row shows an annual tier (`tier1_annual` or `tier2_annual`)
 - `password_version`: **session/JWT invalidation counter**. Increment on every password reset or change. All JWTs containing an older value are immediately invalid. Do not use for hash algorithm tracking.
 - `password_hash_version`: hash algorithm version only. Increment when the hashing algorithm changes. Do not use for session invalidation.
 
-#### Tier cache columns
-`tier_status`, `tier_expires_at`, `fallback_tier_status` are denormalized from `member_tier_current`. They exist for performance on authenticated requests (e.g., authorization checks in middleware). `member_tier_current` is authoritative; the application **must** keep these in sync (APP-017).
-
-`fallback_tier_status` accepts `tier0`, `tier1_annual`, `tier1_lifetime`, `tier2_annual`, `tier2_lifetime` only. **`tier3` is not a valid fallback** — it is a board-appointment flag, not a dues-based tier. The DB CHECK enforces this. The canonical behavior is that `member_tier_current` emits `NULL` for `fallback_tier_status` when no non-expiring tier exists.
-
 #### Hall of Fame nomination / induction tracking
 
 `hof_last_nominated_year` (`INTEGER`, nullable) stores the **most recent** Hall of Fame nomination year for the member. This preserves useful history across annual rollover/carryover cases without storing a full nomination-year list.
@@ -550,20 +547,39 @@ If the latest ledger row shows an annual tier (`tier1_annual` or `tier2_annual`)
 #### Stripe identity
 `stripe_customer_id` is the member-level canonical Stripe Customer ID (set when a recurring donation is first created). `payments.stripe_customer_id` is a per-payment snapshot and is **not** the canonical ID.
 
-#### `legacy_member_id`
+#### `legacy_member_id` and migration fields
 
-`legacy_member_id` is a migration-era traceability field. It may help reconcile imported historical records with current members, but it does not by itself imply account ownership, authenticated access, or a unified persons model.
+`legacy_member_id` is the canonical identity key linking an imported legacy member account to the historical pipeline. A unique partial index (`ux_members_legacy_id`) enforces uniqueness where non-NULL.
 
-#### PII purge
-`login_email`, `login_email_normalized`, `password_hash`, and `password_changed_at` are nullable to support GDPR account purge. A `CHECK` constraint enforces a two-way invariant: they are required for un-purged members (`personal_data_purged_at IS NULL`) and must be `NULL` once `personal_data_purged_at` is set.
+The following fields are migration metadata only. None are login credentials:
 
-**Anonymized-stub requirement (app-enforced):** When setting `personal_data_purged_at`, the application must produce a complete anonymized retained stub in the same transaction: clear all nullable contact fields (`phone`, `whatsapp`) and overwrite required non-null identity/location fields with anonymized placeholder values as needed to satisfy schema constraints. Exception: for members with `is_hof = 1` or `is_bap = 1`, preserve `display_name` and `bio` per User Stories deletion policy; other required retained identity/location fields remain anonymized as needed. Schema nullability does not enforce the full anonymized-stub shape; this is application-enforced (see APP-022).
+- `legacy_user_id` — legacy username from the legacy site export.
+- `legacy_email` — email address from the legacy site export. Used solely to deliver the one-time claim link during the self-serve claim flow. Never a login credential.
+- `legacy_is_admin` — flag indicating the account held admin status on the legacy site. Retained for admin review and audit context only; never grants live admin privilege.
+- `legacy_banned` — conditional on test-load validation; omitted if the export field is absent or unreliable.
+- `ifpa_join_date`, `birth_date`, `street_address`, `postal_code` — profile fields from the export; filled on import, merged into the active account at claim time.
+
+#### Credential-state invariant
+
+The `members` table enforces a three-way credential-state invariant via a `CHECK` constraint:
+
+1. **Live account** — `personal_data_purged_at IS NULL`, all credential fields (`login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`) are non-NULL.
+2. **Pre-credential imported placeholder** — `personal_data_purged_at IS NULL`, all credential fields are NULL. Created by the legacy member import; cannot log in; excluded from `members_searchable` and all current-member surfaces via `email_verified_at IS NULL` (primary) and `searchable = 0` (defense-in-depth). Deleted when a claim is completed.
+3. **Purged row** — `personal_data_purged_at IS NOT NULL`, all credential fields are NULL.
+
+#### PII purge (APP-022)
+
+`login_email`, `login_email_normalized`, `password_hash`, and `password_changed_at` are nullable to support GDPR account purge.
+
+**Anonymized-stub requirement (app-enforced):** When setting `personal_data_purged_at`, the application must produce a complete anonymized retained stub in the same transaction: clear all nullable contact fields (`phone`, `whatsapp`, `legacy_email`, `legacy_user_id`, `street_address`, `postal_code`, `birth_date`) and overwrite required non-null identity/location fields with anonymized placeholder values as needed to satisfy schema constraints. Exception: for members with `is_hof = 1` or `is_bap = 1`, preserve `display_name` and `bio` per User Stories deletion policy; other required retained identity/location fields remain anonymized as needed. Schema nullability does not enforce the full anonymized-stub shape; this is application-enforced (see APP-022).
+
+`ifpa_join_date` and `legacy_is_admin` may be retained post-purge as non-identifying administrative metadata.
 
 #### `avatar_media_id`
 `ON DELETE SET NULL`: deleting a media item automatically detaches it as the member's avatar without requiring a before-delete trigger.
 
 #### `members_searchable` view
-**The member search endpoint MUST query this view.** It applies all four exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), and PII-purged accounts. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
+**The member search endpoint MUST query this view.** It applies five exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, and unverified (`email_verified_at IS NULL`). The `email_verified_at IS NULL` condition is the primary mechanism preventing imported placeholder rows from appearing in search results; `searchable = 0` is defense-in-depth. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
 
 `searchable = 1` means the member is **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on public historical-person pages. Member search is authenticated Tier 0+, anti-enumeration, and never public. See `docs/GOVERNANCE.md §7`.
 
@@ -684,6 +700,10 @@ DB-enforced structural invariants:
 #### Anti-self-removal
 The application must prevent an organizer/leader from removing themselves if they are the sole organizer/leader (UI hides the button; API validates before delete). DB does not enforce this.
 
+#### Provisional legacy leadership
+
+`club_leaders` represents live governance permissions only. During the migration window, bootstrapped clubs may have provisional legacy leaders represented in `club_bootstrap_leaders`. These rows confer no live club-management permissions. The UI must show a distinct "pending legacy leader claim" state for clubs with only provisional bootstrap leaders. Leadership becomes live only when a claimed modern account confirms it, at which point a `club_leaders` row is created and the bootstrap row is marked `claimed`. See §4.25 Migration Staging and Bootstrap Tables.
+
 ### 4.19 Account Tokens
 
 **Table:** `account_tokens`
@@ -694,7 +714,8 @@ Security tokens for email verification, password reset, and data export requests
 - **Password reset tokens** expire after the duration configured in `password_reset_expiry_hours` (default: 1 hour).
 - Both TTL values are Administrator-configurable via `system_config_current` (see §4.23).
 - **Multiple outstanding tokens are allowed** per member per type. The index `idx_account_tokens_active` on `(member_id, token_type)` is non-unique; it supports lookup performance but does not limit the number of active tokens.
-- `token_type` represents the token purpose. Values: `email_verify`, `password_reset`, `data_export`.
+- `token_type` represents the token purpose. Values: `email_verify`, `password_reset`, `data_export`, `account_claim`.
+- `account_claim` tokens are used in the self-serve legacy account claim flow. They are single-use, time-limited (default 24 hours, configurable via `account_claim_expiry_hours`), and carry a dual binding: `member_id` (the requesting authenticated account) and `target_member_id` (the imported placeholder row being claimed). A token may only be consumed while authenticated as the same `member_id` that initiated the request. `target_member_id` uses `ON DELETE CASCADE`: when the imported placeholder row is deleted after a successful claim, all outstanding claim tokens pointing at it are automatically removed.
 - `used_at` records when the token was consumed (single-use); `NULL` means not yet consumed.
 - A presented token is valid only when `used_at IS NULL AND now < expires_at`.
 - `idx_account_tokens_expires` supports the background cleanup job, which deletes expired or consumed tokens older than the configured threshold (`token_cleanup_threshold_days`).
@@ -802,6 +823,34 @@ Pricing keys are seeded at platform-epoch defaults. Insert a new `system_config`
 
 ---
 
+### 4.24 Member Club Affiliations
+
+**Table:** `member_club_affiliations`
+
+Permanent operational table recording live club membership for members. Written at legacy claim time, or by admin or member self-service. Never dropped.
+
+- One-current-club invariant: at most one `is_current = 1` row per member, enforced by `ux_member_club_affiliations_one_current` (partial unique index on `member_id WHERE is_current = 1`). When confirming a new current affiliation, the application must convert any existing current row for that member to `is_current = 0` in the same transaction.
+- `is_contact`: indicates the member is the designated club contact. Independent of `is_current`.
+- `source` enum: `legacy_claim` (written during the legacy claim flow), `admin` (admin-assigned), `member_self_service` (member-initiated after claim).
+- A member-club pair is unique (`UNIQUE(member_id, club_id)`); subsequent changes update the existing row.
+
+---
+
+### 4.25 Migration Staging and Bootstrap Tables
+
+Three tables are introduced by the legacy data migration in addition to `member_club_affiliations` (§4.24):
+
+#### `legacy_club_candidates` — migration-only staging
+Mirror-derived normalized club identities. Populated by the mirror-analysis pipeline before cutover. Each row represents one distinct club identity with a `legacy_club_key`, location, confidence score, and bootstrap eligibility decision. May be dropped once all bootstrap decisions are finalized and no staging review is pending.
+
+#### `legacy_person_club_affiliations` — migration-only staging
+Mirror-derived scored person-to-club affiliation suggestions. Each row links a person (by `historical_person_id` and/or `legacy_member_id`) to a `legacy_club_candidates` row with an inferred role (`member`, `contact`, `leader`, `co-leader`), confidence score, and resolution status. At least one of `historical_person_id` or `legacy_member_id` must be non-NULL (CHECK enforced). Uniqueness is enforced via two partial unique indexes rather than a single UNIQUE constraint, because SQLite treats NULLs as distinct in UNIQUE constraints and a single index would silently allow duplicate rows when `historical_person_id` is NULL. May be dropped once all affiliation suggestions are resolved.
+
+#### `club_bootstrap_leaders` — operational, migration-origin
+Provisional legacy leadership for bootstrapped clubs. Live infrastructure during the post-cutover claim window. Confers no live club-management permissions. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives deletion of the imported placeholder row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+
+---
+
 ## 5. View Reference
 
 Physical tables are the direct query surface for unrestricted access. Views provide filtered, computed, or admin surfaces. Application code should use the semantically appropriate surface per operation.
@@ -830,7 +879,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 
 | View | Filter | Use case |
 |------|--------|----------|
-| `members_searchable` | `deleted_at IS NULL AND is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL` | **Member search endpoint only.** Applies all four exclusion conditions. |
+| `members_searchable` | `deleted_at IS NULL AND is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL AND email_verified_at IS NOT NULL` | **Member search endpoint only.** Applies five exclusion conditions; `email_verified_at IS NULL` is the primary guard against imported legacy placeholder rows. |
 
 ### Admin full-rowset views
 
@@ -949,7 +998,7 @@ When the application explicitly deletes a media item or gallery and wants to rec
 ### APP-015 — Admin role prerequisites and side effects
 
 Admin grant/revoke is application-only logic:
-1. **Target-member prerequisite:** only members with `tier_status IN ('tier2_lifetime', 'tier3')` may receive `is_admin = 1` (US §1.2, §6.6 A_Manage_Admin_Role).
+1. **Target-member prerequisite:** only members whose effective tier (as returned by `calculateTierStatus(memberId)`) is `tier2_lifetime` or `tier3` may receive `is_admin = 1` (US §1.2, §6.6 A_Manage_Admin_Role).
 2. **Who may grant/revoke:** only existing admins and IFPA Board actors (`is_board = 1`, Tier 3) may manage admin roles. Bootstrap exception: the initial system administrator may appoint the first admin during first-run setup.
 3. **Anti-lockout:** the last admin may not have `is_admin` removed. Validate before the update.
 4. **Mailing list side effect:** write `mailing_list_subscriptions` changes for admin-alert lists in the same transaction as `is_admin` changes.
@@ -962,10 +1011,6 @@ Admin grant/revoke is application-only logic:
 **Write valid source-linkage FK combinations and `reason_code` values per the pathway rules documented in §4.12.** The DB does not CHECK `reason_code` (to allow future extensions without migration).
 
 ---
-
-### APP-017 — Member tier cache synchronization
-
-**Update `members.tier_status`, `tier_expires_at`, and `fallback_tier_status` in the same transaction as every `member_tier_grants` INSERT.** `member_tier_current` remains authoritative; cache fields exist for auth-path read performance. If a cache drift is detected, recompute from `member_tier_current`.
 
 `members` has no `ever_paid_dues_at` column. Use `member_tier_current` or query `member_tier_grants WHERE reason_code LIKE 'purchase.%'` to determine whether a member has ever paid dues.
 

@@ -900,7 +900,7 @@ Export: because the raw token is never persisted, the GDPR data export (M_Downlo
 
 Decision:
 
-Email verification tokens, password reset tokens, and personal data export download-link tokens are cryptographically random, single-use tokens, not JWTs. Tokens are generated with crypto.randomBytes(32) providing 256 bits of cryptographic randomness, encoded for URLs, and hashed before storage using SHA-256 so that the database never stores a usable raw token. This prevents account takeover if the database is compromised.
+Email verification tokens, password reset tokens, personal data export download-link tokens, and legacy account claim tokens are cryptographically random, single-use tokens, not JWTs. Tokens are generated with crypto.randomBytes(32) providing 256 bits of cryptographic randomness, encoded for URLs, and hashed before storage using SHA-256 so that the database never stores a usable raw token. This prevents account takeover if the database is compromised.
 
 Semantics:
 
@@ -908,15 +908,17 @@ Semantics:
 
 - Password reset token TTL: one hour.
 
+- Legacy account claim token TTL: 24 hours (configurable via `account_claim_expiry_hours`). The claim token carries a dual binding: `member_id` (the requesting authenticated account) and `target_member_id` (the imported placeholder row being claimed). A claim token may only be consumed while authenticated as the same `member_id` that initiated the request; consuming while authenticated as a different account is rejected. `target_member_id` uses `ON DELETE CASCADE` so all outstanding claim tokens for an imported row are automatically removed when that row is deleted after a successful claim.
+
 - Tokens are single-use: on successful consumption, the token record is marked consumed (timestamp) and cannot be reused.
 
 - Multiple outstanding tokens are allowed, but consumption invalidates only the consumed token; rate limiting prevents spam.
 
-- Rate limiting: Password reset requests limited to five per email per hour, applied regardless of whether email exists in system to prevent enumeration attacks.
+- Rate limiting: Password reset requests limited to five per email per hour, applied regardless of whether email exists in system to prevent enumeration attacks. Claim initiation and resend are rate-limited per requesting account, per target imported row, and per session/IP to prevent abuse of legacy mailboxes and limit side-channel enumeration.
 
 - Rate limiting is in-process only; state is not persisted and resets on restart (acceptable for single-instance deployment).
 
-Storage format: Store token_hash, member_id, purpose (email_verify, password_reset, data_export), created_at, expires_at, consumed_at (nullable). Index on (purpose, token_hash) and on expires_at for cleanup.
+Storage format: Store token_hash, member_id, token_type (email_verify, password_reset, data_export, account_claim), target_member_id (nullable; account_claim only), created_at, expires_at, consumed_at (nullable). Index on token_hash (unique) and on expires_at for cleanup.
 
 Validation: A presented token is hashed and compared to stored hashes; validation requires consumed_at IS NULL and now \< expires_at. If hashes match and token is not expired or consumed, verification succeeds. Otherwise, verification fails with a generic error message that does not reveal whether the token was invalid, expired, or already used.
 
@@ -953,6 +955,13 @@ Official result facts, honor rolls, and approved record tables are primary histo
 Two distinct risks apply to incomplete historical statistics. **Statistical accuracy risk:** misleading or uncaveated aggregates make false claims about real people's competitive records. **Privacy pressure risk:** misleading aggregates create pressure to over-link person-level identities to fill data holes, driving the system toward overexposure of person-level data. Both risks share the same policy response (caveat clearly or suppress) but are separate failure modes.
 
 No auth-bypass toggles: environment variables must not gate route-level authorization behavior. Auth is either fully stubbed (with the stub designed to mirror the real path) or real. Boolean env toggles that change what content is served are not allowed.
+
+Legacy migration security rules:
+
+- Legacy passwords are never imported, stored, or used regardless of how they were stored on the legacy system.
+- `legacy_email` is migration metadata only, not a login credential. It is used solely to deliver the one-time claim link during the self-serve claim flow.
+- Mailbox control is the proof step for self-serve claim regardless of which identifier type (email address, username, or member ID) the member submitted. Submitting a username or member ID still requires proving control of the matched `legacy_email` before any merge occurs.
+- Imported placeholder rows cannot log in, are not searchable, and do not receive any member communications before claim.
 
 Rationale:
 
@@ -1453,37 +1462,41 @@ Impact:
 
 Decision:
 
-One-time migration from legacy Footbag.org mirror data files (created separately, with no JS or DB requirements, pure HTML and media files only) to new data format. Migration script transforms old member records to new schema, validates data integrity. Password hashes not migrated (incompatible formats); all members must complete password-reset onboarding at first login.
+The platform absorbs legacy data via three independent streams before or at production go-live:
+
+**Stream A — Historical content.** Competitive events, results, persons, and honors (Hall of Fame, BAP) are loaded from canonical CSV files via the historical data pipeline. Substantially complete and independent of go-live timing. A historical person may exist without a claimed modern account; historical data is published regardless of whether the underlying person has ever claimed a legacy account.
+
+**Stream B — Mirror-derived club bootstrap.** Club identities, per-club affiliations, and provisional leadership are inferred from the offline mirror of the legacy site. The mirror-analysis pipeline produces normalized club candidates and scored person-to-club affiliation suggestions, which are loaded into staging tables (`legacy_club_candidates`, `legacy_person_club_affiliations`). Bootstrap-eligible clubs are created at go-live with provisional legacy leaders in `club_bootstrap_leaders`. Provisional leaders hold no live governance permissions; leadership becomes live only when a claimed modern account confirms it.
+
+**Stream C — Legacy member import.** All legacy registered member accounts are imported as pre-credential placeholder rows in `members`. These rows have all credential fields NULL and `email_verified_at` NULL; they cannot log in, are not searchable, and are invisible to all current-member surfaces. The source is a one-time export from the legacy site webmaster, used first as a test load for validation, then as the final production import after write freeze. Legacy passwords are never imported or used.
+
+The three streams share the same identity key (`legacy_member_id`) and converge when a modern member claims their legacy record.
+
+**Self-serve legacy claim flow.** A logged-in member visits "Link Legacy Account" in profile settings and submits a legacy identifier (email address, username, or member ID). The system looks up the matching imported placeholder row and, if eligible, emails a time-limited single-use claim link to the `legacy_email` on that row. Mailbox control is the proof step regardless of which identifier type was submitted. On confirmation, the merge transaction runs atomically: `legacy_member_id` and allowed profile fields are merged into the active account, tier entitlements are reconciled via the ledger, confirmed club affiliations are written to `member_club_affiliations`, bootstrap leadership may be promoted to `club_leaders`, and the imported placeholder row is deleted. User-visible messaging never reveals whether the submitted identifier matched zero rows, multiple rows, or an ineligible row.
+
+**Tier handling.** Tier state is written as ledger rows in `member_tier_grants` at import time (`reason_code = 'migration.legacy_import'`) and reconciled at claim time if the imported tier exceeds the current tier (`reason_code = 'migration.legacy_claim_reconcile'`). No tier cache columns exist on `members`; all tier reads go through `calculateTierStatus(memberId)`.
+
+**Operational sequencing.** The legacy site enters write freeze; the final export is imported; schema changes are applied to production; clubs are bootstrapped; DNS switches to the new platform. Rollback lever before DNS switch: abort and retry. Rollback lever after DNS switch: manual DNS reversion to the legacy site. The legacy database is retained for 30 days post-cutover for reference and manual recovery. No automated rollback is provided after the DNS switch.
 
 Rationale:
 
-- Clean break from legacy system enables simplified new architecture.
-
-- Data transformation script provides auditable, repeatable migration.
-
-- Password reset ensures security (old hashes may use weak algorithms).
-
-- Member communication prepares users for onboarding requirement.
+- Separating the three streams allows historical content and club bootstrap to proceed independently of the member import, reducing go-live risk.
+- The imported-row model preserves legacy identity without granting premature access. Mailbox verification is the minimal proof step that is both secure and feasible given the data available.
+- Provisional club bootstrap ensures clubs are present on day one without waiting for all legacy leaders to claim their accounts.
+- Ledger-only tier handling eliminates the cache-sync complexity that existed in earlier designs and makes imported-row tier state auditable from day one.
 
 Trade-offs:
 
-- All members must reset passwords (will cause initial friction).
+- Members must take an active step to claim their legacy identity (cannot be auto-matched without mailbox verification).
+- Members without access to their legacy email address must contact an admin for manual recovery.
+- Club bootstrap depends on mirror-derived data quality; clubs with ambiguous or low-confidence leader data require admin review.
+- No automated rollback after DNS switch; rollback requires manual DNS reversion and coordination.
 
-- One-time migration script requires careful testing.
+Cross-references:
 
-- No rollback to legacy system after migration cutover.
-
-- Members without email access may require manual assistance.
-
-Impact:
-
-- Migration script documented and tested in staging environment.
-
-- Legacy member IDs preserved in new records for audit trail.
-
-- Migration validation compares record counts and key data points.
-
-- Historical event results data will be used as import data during a go-live migration script. This data uses a canonical discipline family taxonomy of net, freestyle, golf, and sideline (for example 2-square / consecutive / one-pass). There will be further variations for singles, doubles, mixed doubles. Plus many historical, unstructured discipline names that should be categorized under one of the canonical discipline names. This implies that we will require a legacy_member_id for migrated members, and more, to be determined as we work through the legacy migration aspect of this project in the future.
+- **3.8** Account Security Tokens — `account_claim` token type, dual binding, `ON DELETE CASCADE` on `target_member_id`.
+- **3.9** Security, Privacy, and Historical Record Governance — legacy migration security rules (passwords never imported; `legacy_email` is metadata only; mailbox control is proof step).
+- **6.4** Legacy Archive — the static mirror archive is separate from the migrated live data; archive access is authenticated member-only.
 
 ## 6.6 AWS Service Integration
 
