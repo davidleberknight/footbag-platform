@@ -1,3 +1,5 @@
+import { BADFLAGS } from "dns";
+
 interface HofSection {
   heading: string;
   paragraphs: string[];
@@ -31,7 +33,15 @@ export const hofService = {
           {
             heading: 'A Bit of History...',
             paragraphs: [
-              'Mike Marshall and John Stalberger invented Hacky Sack in Oregon in 1972. This was the world\'s first footbag. From that small beginning, footbag became a competitive sport with clubs and tournaments around the globe. The Footbag Hall of Fame was founded in 1997 by Stalberger and fellow pioneers to honour the champions and promoters who left their mark on the sport. Maybe you can become a Hall of Fame member too! Get involved, join a club, go to tournaments, and most of all, have fun! The most fun wins. #BringBackTheHack',
+              'One fine day in Oregon in 1972, Mike Marshall and John Stalberger decided to hack a sack, ' +
+              'to kick a small bag around for fun and exercise. ' +
+              'This became Hacky Sack brand footbag, and soon there were competitions, ' +
+              'plus joyful free-flow kicking at festivals and events. ' +
+              'The Footbag Hall of Fame was founded in 1997 by Stalberger and fellow pioneers ' +
+              'to honour the champions and promoters who left their mark, turning this back-yard game into a global phenomenon. ' +
+              'Maybe some day you can become a HoF member too! Get involved, join a club, go to tournaments, ' +
+              'and most of all, have fun! Go get a hack with a sack. The most fun wins. ' +
+              'Well, sometimes Kenny Shults still wins! #BringBackTheHack',
             ],
           },
         ],

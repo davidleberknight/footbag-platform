@@ -8,42 +8,155 @@
 
 This document is the Source of Truth for Functional Requirements, defining all User Stories and their user-facing implications for the Footbag Website Modernization Project. It covers all user roles: Visitor, Member (includes Event Organizer and Club Leader), Administrator, and system background processes, plus special flags for the IFPA Board, Hall of Fame (HoF) and Big Add Posse (BAP). Together these User Stories define the complete scope, describing what functionality must exist for users, and success criteria (system side effects).
 
-**Table of Contents**
+## Table of Contents
 
-1. Global Behaviors
-  1.1 Hashtags
-  1.2 Official Rules for Member Tiers
-2. Visitor Stories
-  2.1 Content Discovery
-3. Member Stories
-  3.1 Account Lifecycle
-  3.2 Profile Management
-  3.3 Club Membership
-  3.4 Event Participation
-  3.5 Payments
-  3.6 Membership Tiers and Flags
-  3.7 Voting
-  3.8 Media Sharing
-  3.9 Email
-4. Event Organizer Stories
-  4.1 Event Lifecycle
-  4.2 Registration Management
-  4.3 Communication
-  4.4 Results Publishing
-5. Club Leader Stories
-  5.1 Club Lifecycle
-  5.2 Leadership Management
-6. Administrator Stories
-  6.1 Event and Payments
-  6.2 Data Management
-  6.3 Content Moderation
-  6.4 Vote Management
-  6.5 Communications
-  6.6 System Configuration
-  6.7 Configurable Parameters 
-  6.8 Monitoring and Audit
-7. Background System Jobs
-8. System Administrator Tasks
+- [1. Global Behaviors](#1-global-behaviors)
+  - [1.1 Hashtags](#11-hashtags)
+  - [1.2 Official Rules for Member Tiers](#12-official-rules-for-member-tiers)
+- [2. Visitor Stories](#2-visitor-stories)
+  - [2.1 Content Discovery](#21-content-discovery)
+    - [V_Browse_Static_Content](#v_browse_static_content)
+    - [V_Browse_Clubs](#v_browse_clubs)
+    - [V_Browse_Upcoming_Events](#v_browse_upcoming_events)
+    - [V_Browse_Past_Events](#v_browse_past_events)
+    - [V_View_News_Feed](#v_view_news_feed)
+    - [V_View_Tutorials](#v_view_tutorials)
+    - [V_View_Gallery](#v_view_gallery)
+    - [V_Browse_Hashtags](#v_browse_hashtags)
+    - [V_Access_Denied](#v_access_denied)
+    - [V_Not_Found](#v_not_found)
+    - [V_Error_or_Maintenance_Mode](#v_error_or_maintenance_mode)
+    - [V_Register_Account](#v_register_account)
+- [3. Member Stories](#3-member-stories)
+  - [3.1 Account Lifecycle](#31-account-lifecycle)
+    - [M_Login](#m_login)
+    - [M_Reset_Password](#m_reset_password)
+    - [M_Change_Password](#m_change_password)
+    - [M_Logout](#m_logout)
+    - [M_Delete_Account](#m_delete_account)
+    - [M_Restore_Account](#m_restore_account)
+    - [M_Download_Data](#m_download_data)
+    - [M_Browse_Legacy_Archive](#m_browse_legacy_archive)
+    - [M_Claim_Legacy_Account](#m_claim_legacy_account)
+    - [M_Review_Legacy_Club_Data_During_Claim](#m_review_legacy_club_data_during_claim)
+  - [3.2 Profile Management](#32-profile-management)
+    - [M_Edit_Profile](#m_edit_profile)
+    - [M_Search_Members](#m_search_members)
+    - [M_View_Profile](#m_view_profile)
+    - [M_Send_Announce_Email](#m_send_announce_email)
+  - [3.3 Club Membership](#33-club-membership)
+    - [M_Join_Club](#m_join_club)
+    - [M_Leave_Club](#m_leave_club)
+    - [M_View_Club](#m_view_club)
+  - [3.4 Event Participation](#34-event-participation)
+    - [M_Register_For_Event](#m_register_for_event)
+    - [M_View_Event](#m_view_event)
+  - [3.5 Payments](#35-payments)
+    - [M_Donate](#m_donate)
+    - [M_View_Payment_History](#m_view_payment_history)
+  - [3.6 Membership Tiers and Flags](#36-membership-tiers-and-flags)
+    - [M_Purchase_Tier_1](#m_purchase_tier_1)
+    - [M_Purchase_Tier_2](#m_purchase_tier_2)
+    - [M_View_Tier_Status](#m_view_tier_status)
+    - [M_Tier_Expiry_During_Active_Period](#m_tier_expiry_during_active_period)
+    - [M_Vouch_For_Tier1_Member](#m_vouch_for_tier1_member)
+  - [3.7 Voting](#37-voting)
+    - [M_View_Vote_Options](#m_view_vote_options)
+    - [M_Vote](#m_vote)
+    - [M_Verify_Vote_And_View_Results](#m_verify_vote_and_view_results)
+    - [M_Nominate_HoF_Candidate](#m_nominate_hof_candidate)
+    - [M_Submit_HoF_Affidavit](#m_submit_hof_affidavit)
+  - [3.8 Media Sharing](#38-media-sharing)
+    - [M_Upload_Photo](#m_upload_photo)
+    - [M_Submit_Video](#m_submit_video)
+    - [M_Organize_Media_Galleries](#m_organize_media_galleries)
+    - [M_Delete_Own_Media](#m_delete_own_media)
+    - [M_Flag_Media](#m_flag_media)
+  - [3.9 Email](#39-email)
+    - [M_Manage_Email_Subscriptions](#m_manage_email_subscriptions)
+- [4. Event Organizer Stories](#4-event-organizer-stories)
+  - [4.1 Event Lifecycle](#41-event-lifecycle)
+    - [Event Status Lifecycle](#event-status-lifecycle)
+    - [M_Create_Event](#m_create_event)
+    - [EO_Edit_Event](#eo_edit_event)
+    - [EO_Delete_Event](#eo_delete_event)
+    - [EO_Manage_CoOrganizers](#eo_manage_coorganizers)
+  - [4.2 Registration Management](#42-registration-management)
+    - [EO_View_Participants](#eo_view_participants)
+    - [EO_Close_Registration](#eo_close_registration)
+    - [EO_Export_Participants](#eo_export_participants)
+  - [4.3 Communication](#43-communication)
+    - [EO_Email_Participants](#eo_email_participants)
+  - [4.4 Results Publishing](#44-results-publishing)
+    - [EO_Upload_Results](#eo_upload_results)
+- [5. Club Leader Stories](#5-club-leader-stories)
+  - [5.1 Club Lifecycle](#51-club-lifecycle)
+    - [M_Create_Club](#m_create_club)
+    - [CL_Edit_Club](#cl_edit_club)
+    - [CL_Mark_Club_Inactive](#cl_mark_club_inactive)
+    - [CL_Archive_Club](#cl_archive_club)
+  - [5.2 Leadership Management](#52-leadership-management)
+    - [CL_Manage_CoLeaders](#cl_manage_coleaders)
+- [6. Administrator Stories](#6-administrator-stories)
+  - [6.1 Event and Payments](#61-event-and-payments)
+    - [A_Approve_Sanctioned_Event](#a_approve_sanctioned_event)
+    - [A_Reconcile_Payments](#a_reconcile_payments)
+  - [6.2 Data Management](#62-data-management)
+    - [A_Override_Member_Data](#a_override_member_data)
+    - [A_Grant_HoF_BAP_Board_Status](#a_grant_hof_bap_board_status)
+    - [A_View_Member_History](#a_view_member_history)
+    - [A_View_Official_Roster_Reports](#a_view_official_roster_reports)
+    - [A_Process_Tier1_Recognition_Requests](#a_process_tier1_recognition_requests)
+    - [A_Reassign_Club_Leader](#a_reassign_club_leader)
+    - [A_Reassign_Event_Organizer](#a_reassign_event_organizer)
+    - [A_Fix_Event_Results](#a_fix_event_results)
+    - [A_Mark_Member_Deceased](#a_mark_member_deceased)
+    - [A_Manual_Legacy_Claim_Recovery](#a_manual_legacy_claim_recovery)
+    - [A_Resolve_Bootstrap_Club_Leadership](#a_resolve_bootstrap_club_leadership)
+  - [6.3 Content Moderation](#63-content-moderation)
+    - [A_Moderate_Media](#a_moderate_media)
+    - [A_Create_News_Item](#a_create_news_item)
+    - [A_Moderate_News_Item](#a_moderate_news_item)
+    - [A_Archive_Club](#a_archive_club)
+  - [6.4 Vote Management](#64-vote-management)
+    - [A_Create_Vote](#a_create_vote)
+    - [A_Publish_Vote_Results](#a_publish_vote_results)
+    - [A_Cancel_Vote](#a_cancel_vote)
+  - [6.5 Email](#65-email)
+    - [A_Send_Mailing_List_Email](#a_send_mailing_list_email)
+    - [A_Manage_Mailing_Lists](#a_manage_mailing_lists)
+  - [6.6 System Configuration](#66-system-configuration)
+    - [A_View_Stripe_Config_And_Payments](#a_view_stripe_config_and_payments)
+    - [A_Configure_System_Parameters](#a_configure_system_parameters)
+    - [A_Manage_Admin_Role](#a_manage_admin_role)
+  - [6.7 Configurable Parameters](#67-configurable-parameters)
+    - [Membership Pricing / Dues (IFPA-derived)](#membership-pricing-dues-ifpa-derived)
+    - [Membership Windows / Lifecycle](#membership-windows-lifecycle)
+    - [Email / Notifications / Outbox](#email-notifications-outbox)
+    - [Auth / Security Tokens](#auth-security-tokens)
+    - [Retention / Cleanup](#retention-cleanup)
+  - [6.8 Monitoring and Audit](#68-monitoring-and-audit)
+    - [A_View_Dashboard](#a_view_dashboard)
+    - [A_View_System_Health](#a_view_system_health)
+    - [A_View_Audit_Logs](#a_view_audit_logs)
+    - [A_Acknowledge_Alarm](#a_acknowledge_alarm)
+- [7. Background System Jobs](#7-background-system-jobs)
+    - [SYS_Check_Tier_Expiry](#sys_check_tier_expiry)
+    - [SYS_Send_Email](#sys_send_email)
+    - [SYS_Open_Vote](#sys_open_vote)
+    - [SYS_Close_Vote](#sys_close_vote)
+    - [SYS_Process_One_Time_Payments](#sys_process_one_time_payments)
+    - [SYS_Process_Recurring_Donations](#sys_process_recurring_donations)
+    - [SYS_Reconcile_Payments_Nightly](#sys_reconcile_payments_nightly)
+    - [SYS_Cleanup_Expired_Tokens](#sys_cleanup_expired_tokens)
+    - [SYS_Cleanup_Soft_Deleted_Records](#sys_cleanup_soft_deleted_records)
+    - [SYS_Rebuild_Hashtag_Stats](#sys_rebuild_hashtag_stats)
+    - [SYS_Handle_Stripe_Webhooks](#sys_handle_stripe_webhooks)
+    - [SYS_Handle_SES_Bounce_And_Complaint_Webhooks](#sys_handle_ses_bounce_and_complaint_webhooks)
+    - [SYS_Nightly_Backup_Sync](#sys_nightly_backup_sync)
+    - [SYS_Continuous_Database_Backup](#sys_continuous_database_backup)
+    - [SYS_Cleanup_Static_Asset_Versions](#sys_cleanup_static_asset_versions)
+- [8. System Administrator Stories](#8-system-administrator-stories)
 
 # 1. Global Behaviors
 
@@ -196,7 +309,7 @@ Visitors are unauthenticated users. Visitors can browse public content including
 
 ## 2.1 Content Discovery
 
-**V_Browse_Static_Content**
+### V_Browse_Static_Content
 
 Access: Any visitor can browse the main Footbag website at footbag.org.
 
@@ -209,7 +322,7 @@ Success Criteria:
 - The current footbagworldwide.com implementation is the basis of the new and improved footbag.org; domain and URL details for the final layout are deferred to the detailed design document.
 - Visitors can follow standard navigation (home, clubs, events, media) without leaving the modernized site. If they click “Legacy Archive,” they are redirected to register/log in; only members can proceed to archive.footbag.org.
 
-**V_Browse_Clubs**
+### V_Browse_Clubs
 
 Access: Any visitor can browse the public clubs directory. Only authenticated members can see club member rosters and contact details.
 
@@ -220,7 +333,7 @@ Success Criteria:
 - The system provides a clubs landing view with geographic drill-down navigation (Country, State/Province, City) with club names and member counts.
 - Only members can view club member rosters and contact details.
 
-**V_Browse_Upcoming_Events** 
+### V_Browse_Upcoming_Events
 
 Access: Any visitor can browse upcoming events and open public event detail pages for publicly visible event statuses. Only authenticated members can register or see member-only organizer contact details. 
 
@@ -235,7 +348,7 @@ Success Criteria:
 - Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
 - Organizer contact details, registration actions, payment actions, and member-only state are excluded from this public slice.
 
-**V_Browse_Past_Events** 
+### V_Browse_Past_Events
 
 Access: Any visitor can browse past events, view whole-year public results pages, and drill down to canonical public event pages. 
 
@@ -255,7 +368,7 @@ Success Criteria:
 - Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
 - Legacy archive content at `archive.footbag.org` is a separate repository and the historical event and results data hosted there must not be conflated with the public event browsing pages described here. Everything on `archive.footbag.org` is irrelevant to the canonical event/results route contract.
 
-**V_View_News_Feed**
+### V_View_News_Feed
 
 Access: Any visitor can read the main news feed.
 
@@ -268,7 +381,7 @@ Success Criteria:
 - Each news feed item is backed by a NewsItem record that links to a specific underlying entity (for example an event, club, member, vote, or announcement).
 - NewsItems are created or updated automatically as side effects of those primary flows (e.g., when an event is published, results are posted, a club is created or archived, HoF/BAP/Board Member status is granted, or vote results are published). Admins can create or edit news stories (see separate story below).
 
-**V_View_Tutorials**
+### V_View_Tutorials
 
 Access: Any visitor can view tutorials and informational content without logging in.
 
@@ -280,7 +393,7 @@ Success Criteria:
 - Developers provide initial content as static files for the website.
 - Members can create their own tutorial galleries freely using photo and video upload features with descriptive captions, hashtags, and named galleries (suggest hashtag tutorial among others). Visitors can view this content too.
 
-**V_View_Gallery**
+### V_View_Gallery
 
 Access: Any visitor can view media galleries.
 
@@ -295,7 +408,7 @@ Success Criteria:
 - Empty state displays "No photos or videos found with this tag" with suggestions of 5 popular tags platform-wide (a teachable moment).
 - Media galleries are pubic, but only logged-in members will see details about the personal information of the member who uploaded the media (uploaded_by).
 
-**V_Browse_Hashtags**
+### V_Browse_Hashtags
 
 Access: Any visitor can browse standardized and freeform hashtags on the public Browse Hashtags page and see public content tagged with them. This page will always highlight popular hashtags, recent events, and tutorials.
 
@@ -307,7 +420,7 @@ Success Criteria:
 - Recent events and tutorial will be given special treatment to facilitate discovery.
 - This feature lists only Community Tags: tags that have been used by at least two distinct members. Personal Tags (used by only one member) remain private to that member's gallery and are not listed on public Browse Hashtags page. Background job recomputes tag usage statistics daily, identifying community tags by counting distinct member IDs per tag. Popular Tags section shows top 30 community tags by count of distinct members who have used them.
 
-**V_Access_Denied**  
+### V_Access_Denied
 Access: Any user. This is an exceptional error user story. It should only happen if there is a system bug, because no User Interface field should ever be available for any user to click on if they are not both authorized and authenticated (active session).
 
 Story: As a user, if I attempt an action I’m not permitted to perform, I see a clear Access Denied page so I understand what happened and recover.
@@ -319,7 +432,7 @@ Success Criteria:
 - Returns an Access Denied page with a short explanation and a link back to a safe page (e.g., dashboard or home).
 - Does not reveal private data.
 
-**V_Not_Found**
+### V_Not_Found
 
 Access: Any user. This is an exceptional error user story. It should only happen if there is a system bug, because no User Interface field should ever lead to an unknown URL.
 
@@ -330,7 +443,7 @@ Success Criteria:
 - Returns an Not Found page with a short explanation and a link back to a safe page (e.g., dashboard or home).
 - Does not reveal private data.
 
-**V_Error_or_Maintenance_Mode**  
+### V_Error_or_Maintenance_Mode
 Access: Any user. This is an exceptional error user story. It should only happen if there is a system bug.
 
 Story: As a user, if the system is down or encounters an internal error (50x HTTP code), I see a clear error/maintenance page so I know the issue is not my fault.
@@ -340,7 +453,7 @@ Success Criteria:
 - Shows a friendly error message with next steps (retry later, contact link).
 - Does not reveal stack traces or sensitive internals.
 
-**V_Register_Account**
+### V_Register_Account
 
 Access: Visitors who are not logged in can create an account. A successful registration creates a new member (Tier 0, free lifetime).
 
@@ -372,7 +485,7 @@ Important note: All stories below (except for M_Login) assume that the member ha
 
 ## 3.1 Account Lifecycle
 
-**M_Login**
+### M_Login
 
 Access: All members with a verified email can log in with email and password.
 
@@ -387,7 +500,7 @@ Success Criteria:
 - On successful login, the system issues the authenticated session (HttpOnly, Secure, SameSite=Lax session cookie).
 - Individual failed login attempts are not persisted to the audit log. When the login rate limit threshold is crossed, a single audit log entry is created recording that the threshold was exceeded for the given account identifier (no IP address stored). This preserves the privacy-first audit log design while retaining security traceability.
 
-**M_Reset_Password**
+### M_Reset_Password
 
 Access: Members with a registered email can request a password reset.
 
@@ -406,7 +519,7 @@ Success Criteria:
 - Member receives a confirmation email that their password has been changed.
 - Reset flow follows the same validation and session security assumptions defined in Global Behaviors and Constraints (sanitization, secure session handling, etc.).
 
-**M_Change_Password**
+### M_Change_Password
 
 Access: Logged-in members can change their password while authenticated (different from M_Reset_Password which is for forgotten passwords).
 
@@ -426,7 +539,7 @@ Success Criteria:
 - All password changes audit-logged with member ID, timestamp (but never log actual passwords).
 - Passwords are stored securely using one-way hashing with argon2id; they are never stored or logged in plaintext.
 
-**M_Logout**  
+### M_Logout
 Access: Logged-in members.
 
 Story: As a member, I can log out so that my current session ends and the site no longer treats me as authenticated.
@@ -437,7 +550,7 @@ Success Criteria:
 - After logout, any attempt to access member-only pages redirects to login page.
 - Member sees a clear confirmation message that they are logged out.
 
-**M_Delete_Account**
+### M_Delete_Account
 
 Access: Members can request to delete their own account. Notable exception: HoF and BAP members will always be preserved on the site to preserve history. These members will be allowed to delete their accounts for personal and data privacy reasons, but special rules will apply to their names and brief bios.
 
@@ -461,7 +574,7 @@ Success Criteria:
 - Photo deletion from S3 occurs synchronously during the account deletion request. If S3 deletion fails, the deletion request fails and the member account is NOT deleted (transactional consistency: the account is only marked deleted after all photos are confirmed removed from S3).
 - Named gallery records belonging to the deleted member are hard-deleted when the member's photos are deleted. Gallery rows have no downstream referential integrity concerns (they are leaf nodes). Gallery deletion is part of the same atomic operation as photo deletion.
 
-**M_Restore_Account**
+### M_Restore_Account
 
 Access: Members whose accounts are within the deletion grace period can restore their account by logging in.
 
@@ -477,7 +590,7 @@ Success Criteria:
 - Restoration is only available within the configured grace period (member_cleanup_grace_days). After that period expires and PII has been purged, login is permanently rejected.
 - Restoration is audit-logged with member ID and timestamp.
 
-**M_Download_Data**
+### M_Download_Data
 
 Access: Members can request a download of their own personal data and account records.
 
@@ -492,7 +605,7 @@ Success Criteria:
 - Export contents include: member profile, tier status, email subscription settings, club memberships/roles, event registrations, uploaded media metadata owned by the member (including tags/captions/links), payment history entries that reference the member, and vote participation records (but never vote selections).
 - Delivery: Member clicks an Export My Data link from their dashboard page, and the system generates a file and provides a time-limited download link (expires after the configured duration, default 72 hours, keyed by `data_export_link_expiry_hours`), and also emails the same link to the member's verified email address.
 
-**M_Browse_Legacy_Archive**
+### M_Browse_Legacy_Archive
 
 Access: Members can access the read-only legacy content at archive.footbag.org. Visitors cannot access the archive because it contains private member data.
 
@@ -511,7 +624,7 @@ Success Criteria:
 - From the member's perspective, the main site is the primary place for new content and participation; the archive is explicitly presented as historical reference only.
 - Security note: Archive access does not perform the passwordVersion check used by the main site (this check requires a database query unavailable at the CloudFront edge). A password change does not immediately revoke archive access; archive access expires naturally when the JWT expires (up to jwt_expiry_hours, default 24 hours). This is an accepted operational trade-off.
 
-**M_Claim_Legacy_Account**
+### M_Claim_Legacy_Account
 
 Access: Logged-in members.
 
@@ -530,7 +643,7 @@ Success Criteria:
 - All claim and merge events are audit-logged.
 - If self-serve claim is not available (no usable legacy email, row flagged for review, or other ineligibility), the member is directed to contact an admin for manual recovery.
 
-**M_Review_Legacy_Club_Data_During_Claim**
+### M_Review_Legacy_Club_Data_During_Claim
 
 Access: Logged-in members in the legacy claim flow.
 
@@ -549,7 +662,7 @@ Success Criteria:
 
 ## 3.2 Profile Management
 
-**M_Edit_Profile**
+### M_Edit_Profile
 
 Access: Members can edit their own profile information, subject to validation rules.
 
@@ -570,7 +683,7 @@ Success Criteria:
 - Member profile will automatically show club affiliation, media galleries, and links to event results, if participated.
 - Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
 
-**M_Search_Members**
+### M_Search_Members
 
 Access: Members an search for other members within the visibility and privacy rules.
 
@@ -586,7 +699,7 @@ Success Criteria:
 - Broad queries return a capped result set with a "refine your query" prompt; no exhaustive browse-all or full pagination.
 - This is the only member search feature. It is authenticated-only and deliberately narrowing — not a member directory.
 
-**M_View_Profile**
+### M_View_Profile
 
 Access: Members can view other members' profiles according to each profile's visibility settings.
 
@@ -602,7 +715,7 @@ Success Criteria:
 - When viewing own profile: link to edit profile, clear indication of current tier status and expiry date (if applicable).
 - When viewing other profile: no access to private information (payment history, audit logs).
 
-**M_Send_Announce_Email**  
+### M_Send_Announce_Email
 Access: Tier 2+ members.
 
 Story: As a Tier 2+ member, I can send an email to the IFPA announce mailing list so that I can create community announcements.
@@ -615,7 +728,7 @@ Success Criteria:
 
 ## 3.3 Club Membership
 
-**M_Join_Club**
+### M_Join_Club
 
 Access: Members can join one club.
 
@@ -630,7 +743,7 @@ Success Criteria:
 - Roster does NOT show member email addresses unless member has opted in to email visibility.
 - Joining sends an email notification to the member, and all Club Leaders. If the member was automatically removed from a previous club, then this will be noted in the email.
 
-**M_Leave_Club**
+### M_Leave_Club
 
 Access: Members can leave a club they currently belong to.
 
@@ -640,7 +753,7 @@ Success Criteria:
 
 - Leaving sends an email notification to member, and all Club Leaders.
 
-**M_View_Club**
+### M_View_Club
 
 Access: Members can view full club details and rosters. Visitors see only public club information.
 
@@ -659,7 +772,7 @@ Success Criteria:
 
 ## 3.4 Event Participation
 
-**M_Register_For_Event**
+### M_Register_For_Event
 
 Access: Members can register for events.
 
@@ -682,7 +795,7 @@ Success Criteria:
 - Event registration payments affect registration status only and do not directly change membership tier.
 - When the registered participant count reaches the event's (optional) capacity limit, the event status automatically changes to `registration_full`. Subsequent registration attempts receive the message: "This event has reached capacity and is no longer accepting registrations." No waitlist functionality exists.
 
-**M_View_Event**
+### M_View_Event
 
 Access: Members can view their full event details, including their own registration status and member-only information.
 
@@ -698,7 +811,7 @@ Success Criteria:
 
 ## 3.5 Payments
 
-**M_Donate**
+### M_Donate
 
 Access: Members can make one-time or recurring donations using the site's Stripe-powered checkout.
 
@@ -718,7 +831,7 @@ Success Criteria:
 - I can cancel an active recurring donation from my Payment History page at any time. Cancellation sets the Stripe Subscription to cancel_at_period_end=true so I retain the current period's donation intent and no further charges occur. I see a clear confirmation message and receive a cancellation confirmation email. The local subscription status updates to canceled when the customer.subscription.deleted webhook is received.
 - All donation records (including comment, amount, recurrence info, Stripe subscription_id, and stripeCustomerId) are stored in a way that can be aggregated later for reporting, reconciliation, and tax-related exports where applicable.
 
-**M_View_Payment_History**
+### M_View_Payment_History
 
 Access: Members can view their own donation and payment history.
 
@@ -738,7 +851,7 @@ Refer to Official Rules for Member Tiers in section 1.2 above, as all those rule
 
 In user stories below, "Access: Tier X+" means the authenticated member's current tier is X or higher. Tier 1 includes all Tier 0 privileges. Tier 2 includes all Tier 1 privileges. Tier 3 includes all Tier 2 privileges.
 
-**M_Purchase_Tier_1**
+### M_Purchase_Tier_1
 
 Access: Logged-in members at Tier 0 can use this flow to purchase Tier 1 Lifetime membership. Members who are already Tier 1+ do not see this option.
 
@@ -758,7 +871,7 @@ Success Criteria:
 - Member sees a clear success message when the action completes successfully, including next steps: Tier 1 Lifetime activated! You can now vote in IFPA elections, participate on IFPA committees, and access IFPA-member-only areas of footbag.org.
 - Member sees a clear error message when the action fails.
 
-**M_Purchase_Tier_2**
+### M_Purchase_Tier_2
 
 Access: Members (Tier 0+) can purchase Tier 2 Annual or Tier 2 Lifetime membership. Visitors must register for an account to become a Tier 0 member before purchasing.
 
@@ -782,7 +895,7 @@ Tier changes are applied only after webhook-confirmed success.
 - Member sees a clear success message when the action completes successfully, including next steps: Tier 2 activated! You can now access organizer features, including applying for event sanctioning, requesting sponsorship, sending community announcements to [announce@footbag.org](mailto:announce@footbag.org), and accessing organizer-only areas of footbag.org.
 - Member sees a clear error message when the action fails.
 
-**M_View_Tier_Status**
+### M_View_Tier_Status
 
 Access: Members can view their current tier and relevant dates (such as Tier 2 Annual expiry).
 
@@ -798,7 +911,7 @@ Success Criteria:
 - Tier badges visible to logged-in members on: profiles, club rosters, event participant lists, search results, media author info.
 - Tier badges NOT visible to anonymous visitors.
 
-**M_Tier_Expiry_During_Active_Period**
+### M_Tier_Expiry_During_Active_Period
 
 Access: Members with Tier 2 Annual whose tier expires during an active event registration period or vote.
 
@@ -814,7 +927,7 @@ Success Criteria:
 - For Tier 2 Annual members with Tier 1 Lifetime fallback: When Tier 2 Annual expires (tierExpiryDate = today), the SYS_Check_Tier_Expiry job atomically downgrades tierStatus to 'Tier 1_lifetime' and clears tierExpiryDate, ensuring there is no gap where the member has neither Tier 2 nor Tier 1 status. Member receives email notification explaining the fallback and confirming their Tier 1 Lifetime status remains active.
 - Event Organizer continuity: If the member is serving as an Event Organizer for events in `published`, `registration_full`, `closed`, or `completed` status when their tier expires, they retain their Event Organizer role permissions for those specific events until each event reaches `completed` status. This prevents organizers from being locked out of managing active events mid-lifecycle. 
 
-**M_Vouch_For_Tier1_Member**
+### M_Vouch_For_Tier1_Member
 
 Access: Tier 2+ members can vouch for other members (competitors or non-competitors) to receive Tier 1 Annual status via two pathways:  
 
@@ -859,7 +972,7 @@ Vouching logic (applies to both pathways):
 
 The following stories are for (non-admin) Members. More voting-related stories are given as Admin stories below (primarily A_Create_Vote).
 
-**M_View_Vote_Options**
+### M_View_Vote_Options
 
 Access: Different specific votes have different access rules (based on inclusion list, Tier status, HoF or BAP or Board flag). Therefore this workflow must mimic these access rules exactly. If the member can not vote for a given topic then they cannot see the options.
 
@@ -878,7 +991,7 @@ Success Criteria:
 - Member receives a verification receipt by email after voting.
 - Once a vote's status is 'published', vote results are visible to all members regardless of eligibility. The eligibility restriction applies only during the active voting period. This provides maximum transparency.
 
-**M_Vote**
+### M_Vote
 
 Access: Different specific votes have different access rules (based on inclusion list, Tier status, HoF or BAP or Board flag).
 
@@ -892,7 +1005,7 @@ Success Criteria:
 - Member sees a clear success message when vote is successfully recorded.
 - Member sees a clear error message if voting fails, including a short explanation.
 
-**M_Verify_Vote_And_View_Results**
+### M_Verify_Vote_And_View_Results
 
 Access: Different specific votes have different access rules, and therefore this verification workflow must mimic these access rules exactly. If the member did not vote then they cannot verify that (non-existent) vote, but they can see the results if they were eligible.
 
@@ -906,7 +1019,7 @@ Success Criteria:
 - Verification does not reveal how the member voted, only that their ballot was included.
 - Aggregated results will be viewable for every vote run on the site, with the authorization rule being simply that the viewer was eligible to cast a ballot.
 
-**M_Nominate HoF_Candidate**
+### M_Nominate_HoF_Candidate
 
 Access: Any member can nominate another eligible member to the Footbag Hall of Fame during the annual nomination window.
 
@@ -921,7 +1034,7 @@ Success Criteria:
 - Nominations are NOT carried forward to the next year automatically.
 - Upon admin approval of a nomination, the system sets the `HoF_Nominated` flag on the nominated member. This flag indicates the member is an active HoF candidate for the current nomination cycle. 
 
-**M_Submit_HoF_Affidavit**
+### M_Submit_HoF_Affidavit
 
 Access: A member who has been nominated to the Footbag Hall of Fame, and approved by an Admin as eligible, can submit an affidavit during the admin-configured nomination timeframe.
 
@@ -936,7 +1049,7 @@ Success Criteria:
 
 All member-published media is public unless an Administrator removes it via moderation. There is no per-media member-controlled visibility toggle (for example public/private/unlisted). Members control their own content, and if they delete a photo, video link, or gallery, it is permanently gone.
 
-**M_Upload_Photo**
+### M_Upload_Photo
 
 Access: Members (Tier 1+) can upload photos to personally named galleries.
 
@@ -963,7 +1076,7 @@ Success Criteria:
 - On success, the UI receives sufficient data to display the uploaded photo and related metadata immediately.
 - If upload/processing does not complete within the configured request timeout, the UI displays a clear error message and allows retry.
 
-**M_Submit_Video**
+### M_Submit_Video
 
 Access: Members (Tier 1+) can submit video links for inclusion in media galleries.
 
@@ -984,7 +1097,7 @@ Success Criteria:
 - Video upload/link submission controls are only rendered for Tier 1 and Tier 2 members; Tier 0 members never see any video upload or submission controls.
 - Visitors (not logged in) never see video upload or submission controls.
 
-**M_Organize_Media_Galleries**
+### M_Organize_Media_Galleries
 
 Access: Members (Tier 1+) can organize their own media into named galleries and adjust gallery-level settings.
 
@@ -1002,7 +1115,7 @@ Success Criteria:
 - Maximum 5 video embeds per named gallery to maintain performance.
 - Gallery creation and rename controls are only rendered for Tier 1 and Tier 2 members; Tier 0 members never see gallery creation or rearrangement controls.
 
-**M_Delete_Own_Media**
+### M_Delete_Own_Media
 
 Access: Members (Tier 1+) can delete media items they originally uploaded.
 
@@ -1014,7 +1127,7 @@ Success Criteria:
 - Delete controls for user-owned media are only rendered for Tier 1 and Tier 2 members; Tier 0 members never see delete controls because they cannot upload media.
 - When deleting a media item, the deletion is permanent and has a cascading deletion of all the associated tags.
 
-**M_Flag_Media**
+### M_Flag_Media
 
 Access: Members (Tier 1+) can flag media they believe violates community guidelines. Visitors cannot flag content.
 
@@ -1032,7 +1145,7 @@ Success Criteria:
 
 ## 3.9 Email
 
-**M_Manage_Email_Subscriptions**
+### M_Manage_Email_Subscriptions
 
 Access: Members can manage their mailing-list subscriptions.
 
@@ -1070,7 +1183,7 @@ Valid event statuses and their transitions:
 
 No other status values are valid. All queries and conditional logic must use only these canonical strings.
 
-**M_Create_Event**
+### M_Create_Event
 
 Access: Members (Tier 1+) can create events. This is how a member becomes an Event Organizer.
 
@@ -1102,7 +1215,7 @@ As an event organizer with active Tier 2, I can select the sanctioned option for
 - All sanction requests audit-logged.
 - Selecting the sanctioned event option creates email to all Admins for review, and appears in the Admin work-to-do queue.
 
-**EO_Edit_Event**
+### EO_Edit_Event
 
 Access: Event organizers can edit events they are assigned to, within the constraints for free vs sanctioned events.
 
@@ -1116,7 +1229,7 @@ Success Criteria:
 - Organizers see a clear success message when event is updated.
 - Organizer sees clear error messages for validation failures.
 
-**EO_Delete_Event**
+### EO_Delete_Event
 
 Access: Event organizers can delete their own events only when allowed by status (for example, drafts without registrations), following the event-lifecycle rules.
 
@@ -1131,7 +1244,7 @@ Success Criteria:
 - Deletion audit-logged with organizer ID, reason, timestamp.
 - Organizer sees confirmation dialog before deletion: "Delete Event Name? This will cancel the event and notify all X registered participants."
 
-**EO_Manage_CoOrganizers**
+### EO_Manage_CoOrganizers
 
 Access: Any organizer of an event can manage co-organizers for that event.
 
@@ -1152,7 +1265,7 @@ Success Criteria:
 
 ## 4.2 Registration Management
 
-**EO_View_Participants**
+### EO_View_Participants
 
 Access: Event organizers can view full participant lists for their events.
 
@@ -1178,7 +1291,7 @@ When a participant is marked Attended for a sanctioned event:
 
 - If the member has Tier 1 Lifetime or higher tier, no change (no-op).
 
-**EO_Close_Registration**
+### EO_Close_Registration
 
 Access: Event organizers can close registration for their events according to the registration rules.
 
@@ -1191,7 +1304,7 @@ Success Criteria:
 - Event page displays "Registration Closed" status.
 - All registration status changes audit-logged.
 
-**EO_Export_Participants**
+### EO_Export_Participants
 
 Access: Event organizers can export participant lists for their events as CSV.
 
@@ -1206,7 +1319,7 @@ Success Criteria:
 
 ## 4.3 Communication
 
-**EO_Email_Participants**
+### EO_Email_Participants
 
 Access: Event organizers can send an email to participants of their events.
 
@@ -1226,7 +1339,7 @@ Success Criteria:
 
 ## 4.4 Results Publishing
 
-**EO_Upload_Results**
+### EO_Upload_Results
 
 Access: Event organizers can upload results for events they organize, including sanctioned events where results feed into rankings.
 
@@ -1258,7 +1371,7 @@ Club Leaders are members who create clubs. Leader can add up to 4 co-leaders who
 
 Club operability rule: A club is considered non-operable if it has no current leader and/or no club contact email. Non-operable clubs are flagged into the admin work queue for remediation. Admin remediation options include assigning/reassigning a leader, obtaining/updating a contact email, or archiving the club if it is defunct or unresolved.  
 
-**M_Create_Club**
+### M_Create_Club
 
 Access: Members (Tier 1+) who are not already a Club Leader can create a new club.
 
@@ -1276,7 +1389,7 @@ Success Criteria:
 - If the authenticated member already holds the Club Leader role for any active club, the create club option is not shown in the UI. If attempted via direct URL or API, the service returns a validation error: "You are already a Club Leader for [Club Name]. You must relinquish leadership before creating a new club."
 - Club display names are not required to be globally unique (for example the name could be "Hacky Crew"). Two clubs may share the same display name. The standardised club hashtag (derived from the club name at creation and globally unique) is the canonical identifier. The UI makes the club hashtag visible at creation so leaders understand it is the persistent unique handle.
 
-**CL_Edit_Club**
+### CL_Edit_Club
 
 Access: Club leaders can edit their club's information and settings.
 
@@ -1288,7 +1401,7 @@ Success Criteria:
 - All edits audit-logged with leader ID, fields changed, old values, new values, timestamp.
 - Leaders see a clear success message when club is updated. If a club edit results in a blank contact email, the system warns the leader that the club will be flagged for admin follow-up, and if approved anyway, creates or updates a “Club Needs Contact” admin work queue item.
 
-**CL_Mark_Club_Inactive**
+### CL_Mark_Club_Inactive
 
 Access: The club leader can mark the club inactive or reactivate it later.
 
@@ -1302,7 +1415,7 @@ Success Criteria:
 - Club leader can reactivate club at any time.
 - Inactive status change audit-logged.
 
-**CL_Archive_Club**
+### CL_Archive_Club
 
 Access: The club leader can archive the club if it is inactive.
 
@@ -1319,7 +1432,7 @@ Success Criteria:
 
 ## 5.2 Leadership Management
 
-**CL_Manage_CoLeaders**
+### CL_Manage_CoLeaders
 
 Access: The club leader can add, view, and remove co-leaders for the club.
 
@@ -1346,7 +1459,7 @@ Administrators are member volunteers with elevated privileges for platform opera
 
 ## 6.1 Event and Payments
 
-**A_Approve_Sanctioned_Event**
+### A_Approve_Sanctioned_Event
 
 Access: Only admins can review and approve Stripe configuration for paid events. In this system, paid registration is only enabled after an event's sanction request is approved; sanction status and payment enablement are linked by policy.
 
@@ -1369,7 +1482,7 @@ Success Criteria:
 - Admin sees a clear error message when action fails, including a short explanation.
 - The actual payment of funds to the Event Organizer’s bank account happens outside of this system by the IFPA Treasurer.
 
-**A_Reconcile_Payments**
+### A_Reconcile_Payments
 
 Access: Only admins can run or review payment reconciliation and view the complete list of inbound payments.
 
@@ -1386,7 +1499,7 @@ Success Criteria:
 
 ## 6.2 Data Management
 
-**A_Override_Member_Data**
+### A_Override_Member_Data
 
 Access: Only admins can override member data in exceptional cases where manual correction is required, for example, to fix a data bug, clean up if a member dies, or delete a bogus registration.
 
@@ -1408,7 +1521,7 @@ Success Criteria:
 - Admin sees a clear success message when adjustment completes successfully.
 - Admin sees a clear error message when adjustment fails, including a short explanation.
 
-**A_Grant_HoF_BAP_Board_Status**
+### A_Grant_HoF_BAP_Board_Status
 
 Access: Only admins can grant Hall of Fame (HoF), Big Add Posse (BAP), and IFPA Board status to eligible members.
 
@@ -1422,7 +1535,7 @@ Success Criteria:
 - The IFPA Board flag is temporary, as long as the member is an active board member only.
 - All status grants audit-logged with admin ID, member ID, reason, timestamp.
 
-**A_View_Member_History**
+### A_View_Member_History
 
 Access: Only admins can review member history data.
 
@@ -1435,7 +1548,7 @@ Success Criteria:
 - History sortable by timestamp (newest first by default).
 - History includes system-initiated changes (automatic Tier 2 expiry, payment-triggered upgrades).
 
-**A_View_Official_Roster_Reports**
+### A_View_Official_Roster_Reports
 
 Access: Only admins can view official IFPA roster reports and exports.  
 
@@ -1450,7 +1563,7 @@ Success Criteria:
 - Export includes a header comment line: "# Official IFPA Roster - Tier 1+ members only - Generated YYYY-MM-DD by admin name"  
 - All roster report views and exports are audit-logged with admin ID, export type, member count, timestamp.
 
-**A_Process_Tier1_Recognition_Requests**
+### A_Process_Tier1_Recognition_Requests
 
 Access: Only Admins can review and approve/deny Tier 1 vouching requests submitted by Tier 2+ members outside direct roster access windows.  
 
@@ -1465,7 +1578,7 @@ Success Criteria:
 - All approve/deny actions are persisted as a new row in the tier_grants_base table (which tracks all tier-related grants and associated qualifying actions, such as vouching from a Tier 2+ member, or by other actions such as a purchase).  
 - This Admin workflow represents the platform implementation of IFPA rules requiring "Membership Director discretion"; the actual Membership Director authority remains external to the platform.
 
-**A_Reassign_Club_Leader**
+### A_Reassign_Club_Leader
 
 Access: Only admins can reassign club leadership and remediate non-operable clubs.  
 
@@ -1480,7 +1593,7 @@ Success Criteria:
 - Admin can resolve a “Needs Contact” item by updating the club contact email, or by archiving the club if defunct.  
 - Reassignment restores normal club management capabilities when a leadership gap was the blocking issue.
 
-**A_Reassign_Event_Organizer**
+### A_Reassign_Event_Organizer
 
 Access: Only admins can reassign event leadership.
 
@@ -1492,7 +1605,7 @@ Success Criteria:
 - Events with zero organizers are flagged "Needs Organizer" and appear in an admin work queue.
 - Reassignment restores normal event management capabilities.
 
-**A_Fix_Event_Results**
+### A_Fix_Event_Results
 
 Access: Only admins can correct official event results and related event records.
 
@@ -1507,7 +1620,7 @@ Success Criteria:
 - Participants and organizers see the corrected results in all normal views; where appropriate.
 - Corrections do not bypass normal publishing or sanctioning rules: only events that are otherwise valid (for example sanctioned where required) can have their official results corrected.
 
-**A_Mark_Member_Deceased**
+### A_Mark_Member_Deceased
 
 Access: Only admins can mark members as deceased.
 
@@ -1529,7 +1642,7 @@ Success Criteria:
 - Admin sees a clear success message when action completes.
 - If marking was done in error, admin can remove the deceased flag within a configurable grace period with audit logging; after grace period, only full account deletion is available.
 
-**A_Manual_Legacy_Claim_Recovery**
+### A_Manual_Legacy_Claim_Recovery
 
 Access: Admins only.
 
@@ -1545,7 +1658,7 @@ Success Criteria:
 - Manual merge is audit-logged with actor, target imported row, active account, reason, verification note, and timestamp.
 - Manual merge never auto-promotes `legacy_is_admin` metadata to a live admin role.
 
-**A_Resolve_Bootstrap_Club_Leadership**
+### A_Resolve_Bootstrap_Club_Leadership
 
 Access: Admins only.
 
@@ -1561,7 +1674,7 @@ Success Criteria:
 
 ## 6.3 Content Moderation
 
-**A_Moderate_Media**
+### A_Moderate_Media
 
 Access: Only admins can review and act on flagged media, including deleting items.
 
@@ -1579,7 +1692,7 @@ Success Criteria:
 - System emails uploader with decision.
 - Administrators can set or unset any flags to maintain consistency; all changes audit-logged.
 
-**A_Create_News_Item**
+### A_Create_News_Item
 
 Access: Only admins can manually create a news item.
 
@@ -1592,7 +1705,7 @@ Success Criteria:
 - Creation is audit-logged with admin ID, timestamp, and news item ID.
 - Manually created news items can be edited or deleted via A_Moderate_News_Item.
 
-**A_Moderate_News_Item**
+### A_Moderate_News_Item
 
 Access: Only admins can edit, or remove news feed items.
 
@@ -1609,7 +1722,7 @@ Success Criteria:
 - On delete: NewsItem is immediately and permanently removed from the database and hidden from the public feed. The deletion is recorded in the audit log with admin ID, news item ID, reason, and timestamp.
 - All actions audit-logged.
 
-**A_Archive_Club**
+### A_Archive_Club
 
 Access: Only admins can archive or mark clubs defunct beyond what club leaders can do.
 
@@ -1634,7 +1747,7 @@ All votes have a status field constrained to the following valid values. No othe
 - `published` — Results published and visible to all eligible members. Terminal state; cannot be canceled or reversed.
 - `canceled` — Vote voided before results were published. Terminal state.
 
-**A_Create_Vote**
+### A_Create_Vote
 
 Access: Only admins can configure and create voting topics.
 
@@ -1652,7 +1765,7 @@ Success Criteria:
 - Eligibility Changes: Members cannot gain or lose eligibility after vote opens, ensuring fairness.
 - Eligibility is evaluated and snapshotted at the moment the vote transitions to `open` status. Eligible members at vote-open time are written as rows into `vote_eligibility_snapshot_base`. Members retain voting rights for the full voting window even if their tier or flags change while the vote is open.
 
-**A_Publish_Vote_Results**
+### A_Publish_Vote_Results
 
 Access: Only admins can publish vote results.
 
@@ -1672,7 +1785,7 @@ Success Criteria:
 - Data Export / vote participation records: for each vote the member participated in, the export includes vote title, vote ID, and submission timestamp. The raw receipt token is not included in the export. Members who need to verify their ballot must use the receipt token from their original email.
 - After HoF election results are published (or the vote is canceled), the system clears the `HoF_Nominated` flag from all members who held it during that cycle, resetting the flag for the next nomination cycle.
 
-**A_Cancel_Vote**
+### A_Cancel_Vote
 
 Access: Only admins can cancel a vote.
 
@@ -1687,7 +1800,7 @@ Success Criteria:
 
 ## 6.5 Email
 
-**A_Send_Mailing_List_Email**
+### A_Send_Mailing_List_Email
 
 Access: Only Admins and Event Organizers can send email to general mailing lists from the platform. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2+ member, as defined in M_Send_Announce_Email.
 
@@ -1708,7 +1821,7 @@ Success Criteria:
 - Email body is plain text (no HTML).
 - No approval workflow is required; controls are permissions, audit logging, unsubscribe links, and rate limits where applicable.
 
-**A_Manage_Mailing_Lists**
+### A_Manage_Mailing_Lists
 
 Access: Only admins can view and manage mailing lists. The only exception is EO_Email_Participants.
 
@@ -1725,7 +1838,7 @@ Success Criteria:
 
 ## 6.6 System Configuration
 
-**A_View_Stripe_Config_And_Payments**
+### A_View_Stripe_Config_And_Payments
 
 Access: Only admins can view Stripe configuration and payment details.
 
@@ -1740,7 +1853,7 @@ Success Criteria:
 - From this dashboard, admins can navigate directly to the “All Payments” view and the “Reconciliation Issues” view described in A_Reconcile_Payments for deeper inspection.
 - The dashboard provides clear, explicit actions for key operations such as “View Webhook Logs”, with appropriate confirmations and warnings; all such actions are audit-logged with admin identity and timestamp.
 
-**A_Configure_System_Parameters**
+### A_Configure_System_Parameters
 
 Access: Only admins can configure system-wide parameters.
 
@@ -1760,7 +1873,7 @@ Success Criteria:
 - Price schedule changes are audit-logged with admin ID, old active price, new price, effectiveStartDate, reason, timestamp.
 - Past entries are immutable/read-only (no edit/delete); admins can only supersede by adding a new entry.
 
-**A_Manage_Admin_Role**
+### A_Manage_Admin_Role
 
 Access: Only admins can grant or revoke the admin role for authorized members.
 
@@ -1832,7 +1945,7 @@ Seed these defaults into the database-backed configuration store during initial 
 
 ## 6.8 Monitoring and Audit
 
-**A_View_Dashboard**
+### A_View_Dashboard
 
 Access: Only admin users can view the admin dashboard.
 
@@ -1848,7 +1961,7 @@ Success Criteria:
 - Admin sees only data they are permitted to act on; no member personal data beyond what existing admin stories allow.
 - Dashboard view is read-only; all state changes happen in the underlying queues and flows already defined in other admin stories.
 
-**A_View_System_Health**
+### A_View_System_Health
 
 Access: Only admins can view overall system health, cost, and performance metrics in the application UI. Important note: AWS/System Administrator features related to AWS health/cost/performance (including AWS console/CloudWatch access and infrastructure operations) require special access and are out of scope for this document. We describe only Application Admin role features here, not AWS System Administrator features.
 
@@ -1862,7 +1975,7 @@ Success Criteria:
 - Health view shows at least: Email delivery status (bounce and complaint rates). Email outbox status: pending, sent, failed, and dead-letter counts (for a configurable recent window), plus whether “pause sending” is currently enabled. Backup job status (last run time and success or failure). Origin availability / maintenance mode status (normal vs maintenance page), including current origin 5xx rate (or equivalent) and when the maintenance page was last served. Storage usage (e.g., S3 usage and trends).
 - Monthly cost projection vs budget (current spend and projected end-month spend).
 
-**A_View_Audit_Logs**
+### A_View_Audit_Logs
 
 Access: Only admins can view detailed audit logs.
 
@@ -1879,7 +1992,7 @@ Success Criteria:
 - Logs retain limited identifiers necessary for traceability (IDs, not email addresses), consistent with privacy rules in Global Behaviors and Technical Requirements.
 - All audit log data is read-only; no UI allows editing or deleting existing entries.
 
-**A_Acknowledge_Alarm**
+### A_Acknowledge_Alarm
 
 Access: Only admins can acknowledge platform alarms and document responses.
 
@@ -1896,7 +2009,7 @@ Success Criteria:
 
 System jobs are not User Stories. Instead they represent automated processes that execute on schedules (a DevOps concern), or in response to system events (webhooks). All system job actions are logged so that they can be viewed via the admin dashboard. These jobs are required in order to ensure the success criteria for the User Stories given above are met.
 
-**SYS_Check_Tier_Expiry**
+### SYS_Check_Tier_Expiry
 
 Access: This scheduled process runs under the system role.
 
@@ -1913,7 +2026,7 @@ Success Criteria:
 - Tier 2 Annual fallback logic: When a Tier 2 Annual membership expires (tierExpiryDate = today), the job performs an atomic update, setting tierStatus = 'tier1_lifetime'. Fallback transitions are audit-logged with: member ID, old tier (`tier2_annual`), old expiry date, new tier (`tier1_lifetime`), reason `tier2_annual_expired`, timestamp.
 - All reminder sending and automatic tier-expiry processing performed by this job are logged to CloudWatch (or equivalent monitoring), including counts and failure metrics.
 
-**SYS_Send_Email**
+### SYS_Send_Email
 
 Access: This scheduled polling process runs under the system role to send queued emails by polling the email outbox on a configurable interval (default: every 5 minutes). Only admins can view delivery logs.
 
@@ -1930,7 +2043,7 @@ Success Criteria:
 - Different mailing lists can have different from addresses configured and this job will use them. The special no-reply from address will be an option. Otherwise, all other reply addresses must go to a real inbox for a human to receive replies.
 - All sent emails are logged to CloudWatch with template ID, member ID, outbox message ID, timestamp, and delivery result (do not log raw email addresses or full subject lines).
 
-**SYS_Open_Vote**
+### SYS_Open_Vote
 
 Access: This scheduled process runs under the system role.
 
@@ -1944,7 +2057,7 @@ Success Criteria:
 - Each transition is audit-logged: vote_id, old status, new status, eligible member count, job run timestamp.
 - An admin-alerts email is sent for each automatically opened vote.
 
-**SYS_Close_Vote**
+### SYS_Close_Vote
 
 Access: This scheduled daily process runs under the system role.
 
@@ -1958,7 +2071,7 @@ Success Criteria:
 - The system sends an email notification to the admin-alerts mailing list when a vote is automatically closed, including the vote title and vote ID.
 - No member notifications are sent at close time (only at result publication via A_Publish_Vote_Results).
 
-**SYS_Process_One_Time_Payments**
+### SYS_Process_One_Time_Payments
 
 Access: This event-driven process runs under the system role when Stripe sends payment-related webhook events. Only admins can view logs and failure metrics.
 
@@ -1972,7 +2085,7 @@ Success Criteria:
 - All one-time payment webhook processing is idempotent via the stripe_events table (keyed on Stripe event_id), consistent with the global Payment Processing Guarantees.
 - All events audit-logged with payment_intent_id, member_id, event type, old status, new status, and timestamp.
 
-**SYS_Process_Recurring_Donations**
+### SYS_Process_Recurring_Donations
 
 Access: This event-driven process runs under the system role when Stripe sends subscription-related webhook events. Only admins can view logs and failure metrics. Recurring donation billing schedules are owned entirely by Stripe; the platform does not drive charges.
 
@@ -1988,7 +2101,7 @@ Success Criteria:
 - All subscription webhook processing is idempotent via the stripe_events table (keyed on Stripe event_id) consistent with the global Payment Processing Guarantees.
 - All subscription lifecycle events are audit-logged with subscription_id, invoice_id (where applicable), member_id, event type, old status, new status, and timestamp.
 
-**SYS_Reconcile_Payments_Nightly**
+### SYS_Reconcile_Payments_Nightly
 
 Access: This nightly process runs under the system role to reconcile payments with external providers. Only admins can view its reports.
 
@@ -2006,7 +2119,7 @@ Amount discrepancy checks compare both the amount AND the currency field: a loca
 
 Discrepancies from both passes are stored as durable reconciliation issues with status (Outstanding/Resolved), resolver, timestamps, and resolution notes; shown in admin dashboard; retained 90 days.
 
-**SYS_Cleanup_Expired_Tokens**
+### SYS_Cleanup_Expired_Tokens
 
 Access: This scheduled process runs under the system role. Only admins can view its summary logs.
 
@@ -2019,7 +2132,7 @@ Success Criteria:
 - Each run logs counts of deleted rows by token type and the oldest remaining token age (if any) to CloudWatch (or equivalent monitoring).
 - Cleanup is safe and idempotent (re-running does not affect correctness).
 
-**SYS_Cleanup_Soft_Deleted_Records**
+### SYS_Cleanup_Soft_Deleted_Records
 
 Access: This scheduled process runs under the system role to purge member records after their deletion grace period. Only admins can view or adjust its configuration and logs.
 
@@ -2037,7 +2150,7 @@ Success Criteria:
 - Events and clubs can be marked archived or inactive via admin actions but database records remain indefinitely. When an event organizer or club leader deletes an account, leadership foreign keys continue to point to the retained/anonymized member record to preserve historical leadership. For non-HoF/BAP members, the display name may be anonymized to "Deleted Member" where required by schema/app policy; for HoF/BAP members, preserve displayName and bio per the deletion policy. Historical event results, participant lists, and club rosters remain intact for community record.
 - Each run writes a comprehensive summary entry to application logs and audit trail including: job start/end timestamps, entity types processed (members, payments, ballots), counts per entity type (records eligible for cleanup, records anonymized, records preserved due to special rules, records skipped due to errors), errors encountered with entity IDs and error messages.
 
-**SYS_Rebuild_Hashtag_Stats**
+### SYS_Rebuild_Hashtag_Stats
 
 Access: This scheduled process runs under the system role.
 
@@ -2051,7 +2164,7 @@ Success Criteria:
 - If the job fails, existing stats remain in place and the failure is logged for later investigation.
 - The system exposes basic metrics for the job (run time, success/failure) to operations/admins.
 
-**SYS_Handle_Stripe_Webhooks**  
+### SYS_Handle_Stripe_Webhooks
 Access: This event-driven process runs under the system role when Stripe sends webhook events. Only admins can view logs and failure metrics.
 
 Story: The system validates and processes Stripe webhook events so that payments are confirmed reliably and local records reflect Stripe’s source of truth.
@@ -2063,7 +2176,7 @@ Success Criteria:
 - On successful payment events, the system updates the relevant local payment records and triggers the correct downstream effects (e.g., membership tier upgrades, receipts) consistent with the relevant member/admin stories.
 - Failures are logged with sufficient metadata for debugging, and webhook failure counts/time-since-last-success are surfaced in the admin Stripe dashboard health indicators.
 
-**SYS_Handle_SES_Bounce_And_Complaint_Webhooks**  
+### SYS_Handle_SES_Bounce_And_Complaint_Webhooks
 Access: This event-driven process runs under the system role when SES reports bounces/complaints. Only admins can view detailed logs.
 
 Story: The system processes SES bounce/complaint notifications so that mailing lists remain healthy and future sends avoid problematic addresses.
@@ -2074,7 +2187,7 @@ Success Criteria:
 - Member subscriptions stay consistent with subscription status so future sends skip suppressed addresses.
 - Bounce/complaint rates are tracked and can trigger alarms.
 
-**SYS_Nightly_Backup_Sync**  
+### SYS_Nightly_Backup_Sync
 Access: This process runs under the system role.
 
 Story: The system performs a nightly backup sync so that recovery is possible within the defined RPO/RTO.
@@ -2090,7 +2203,7 @@ Success Criteria:
 - For key datasets (at minimum audit logs and payments), cross-region replication runs continuously; the nightly job also acts as an integrity verification pass (e.g., verifies expected objects/prefixes exist in the backup bucket).
 - Failures are logged and raise an alarm; status is shown in A_View_System_Health as Backup job status.
 
-**SYS_Continuous_Database_Backup**
+### SYS_Continuous_Database_Backup
 
 Access: This process runs under the system role on a configurable interval (default: every 5 minutes; see `continuous_backup_interval_minutes`).
 
@@ -2108,7 +2221,7 @@ Success Criteria:
 - Backup does not interfere with application performance (WAL mode allows concurrent reads).
 - Container shutdown waits for in-flight backup to complete before final upload and exit.
 
-**SYS_Cleanup_Static_Asset_Versions**
+### SYS_Cleanup_Static_Asset_Versions
 
 Access: This process runs under the system role.
 

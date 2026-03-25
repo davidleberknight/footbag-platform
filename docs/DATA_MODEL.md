@@ -12,40 +12,86 @@
 
 ## Table of Contents
 
-1. Design Philosophy
-2. Schema Conventions
-3. DB-Enforced vs App-Enforced Rules
-4. Domain Overview
-  4.1 Tags
-  4.2 Clubs
-  4.3 Events
-  4.4 Tier 1 Vouch Requests
-  4.5 Votes & Elections
-  4.6 Hall of Fame
-  4.7 News
-  4.8 Mailing Lists & Email
-  4.9 Admin Operations
-  4.10 Payments
-  4.11 System Configuration & Pricing
-  4.12 Member Tier Grants
-  4.13 Member Tier Current View
-  4.14 Members & Authentication
-  4.15 Member Links
-  4.16 Registrations & Event Results
-  4.17 Media & Galleries
-  4.18 Club Leaders & Event Organizers
-  4.19 Account Tokens
-  4.20 Mailing List Subscriptions
-  4.21 Media Flags & Tags
-  4.22 Tag Stats Cache
-  4.23 Seed Data
-  4.24 Member Club Affiliations
-  4.25 Migration Staging and Bootstrap Tables
-5. View Reference
-6. Application-Enforced Integrity & Workflow Rules
-7. Retained DB Triggers
-8. SQLite Runtime Requirements
-9. Clarifications
+- [1. Design Philosophy](#1-design-philosophy)
+- [2. Schema Conventions](#2-schema-conventions)
+  - [Standard columns](#standard-columns)
+  - [Soft-delete columns](#soft-delete-columns)
+  - [Enum values](#enum-values)
+  - [Boolean columns](#boolean-columns)
+  - [Foreign keys](#foreign-keys)
+  - [Actor column convention](#actor-column-convention)
+  - [Index naming](#index-naming)
+- [3. DB-Enforced vs App-Enforced Rules](#3-db-enforced-vs-app-enforced-rules)
+  - [DB-enforced (schema layer)](#db-enforced-schema-layer)
+  - [App-enforced (application layer)](#app-enforced-application-layer)
+- [4. Domain Overview](#4-domain-overview)
+  - [4.1 Tags](#41-tags)
+  - [4.2 Clubs](#42-clubs)
+  - [4.3 Events](#43-events)
+  - [4.4 Tier 1 Vouch Requests](#44-tier-1-vouch-requests)
+  - [4.5 Votes & Elections](#45-votes--elections)
+  - [4.6 Hall of Fame](#46-hall-of-fame)
+  - [4.7 News](#47-news)
+  - [4.8 Mailing Lists & Email](#48-mailing-lists--email)
+  - [4.9 Admin Operations](#49-admin-operations)
+  - [4.10 Payments](#410-payments)
+  - [4.11 System Configuration & Pricing](#411-system-configuration--pricing)
+  - [4.12 Member Tier Grants](#412-member-tier-grants)
+  - [4.13 Member Tier Current View](#413-member-tier-current-view)
+  - [4.14 Members & Authentication](#414-members--authentication)
+  - [4.15 Member Links](#415-member-links)
+  - [4.16 Registrations & Event Results](#416-registrations--event-results)
+  - [4.17 Media & Galleries](#417-media--galleries)
+  - [4.18 Club Leaders & Event Organizers](#418-club-leaders--event-organizers)
+  - [4.19 Account Tokens](#419-account-tokens)
+  - [4.20 Mailing List Subscriptions](#420-mailing-list-subscriptions)
+  - [4.21 Media Flags & Tags](#421-media-flags--tags)
+  - [4.22 Tag Stats Cache](#422-tag-stats-cache)
+  - [4.23 Seed Data](#423-seed-data)
+  - [4.24 Member Club Affiliations](#424-member-club-affiliations)
+  - [4.25 Migration Staging and Bootstrap Tables](#425-migration-staging-and-bootstrap-tables)
+- [5. View Reference](#5-view-reference)
+  - [Computed views](#computed-views)
+  - [Semantic filter views](#semantic-filter-views)
+  - [Multi-condition search view](#multi-condition-search-view)
+  - [Admin full-rowset views](#admin-full-rowset-views)
+- [6. Application-Enforced Integrity & Workflow Rules](#6-application-enforced-integrity--workflow-rules)
+  - [APP-001 — Foreign key enforcement per connection](#app-001--foreign-key-enforcement-per-connection)
+  - [APP-002 — ISO-8601 T-format timestamps](#app-002--iso-8601-t-format-timestamps)
+  - [APP-003 — Payment status dual-write](#app-003--payment-status-dual-write)
+  - [APP-004 — Payment state machine validation](#app-004--payment-state-machine-validation)
+  - [APP-005 — Subscription lifecycle dual-write](#app-005--subscription-lifecycle-dual-write)
+  - [APP-006 — Stripe success gating](#app-006--stripe-success-gating)
+  - [APP-007 — Membership pricing config updates](#app-007--membership-pricing-config-updates)
+  - [APP-008 — Max 3 member external links](#app-008--max-3-member-external-links)
+  - [APP-009 — Max 5 video embeds per gallery](#app-009--max-5-video-embeds-per-gallery)
+  - [APP-010 — Max 5 club leaders](#app-010--max-5-club-leaders)
+  - [APP-011 — Max 5 event organizers](#app-011--max-5-event-organizers)
+  - [APP-012 — Updated-at and updated-by stamping on FK-detached rows (optional)](#app-012--updated-at-and-updated-by-stamping-on-fk-detached-rows-optional)
+  - [APP-013 — Competitor registration discipline completeness](#app-013--competitor-registration-discipline-completeness)
+  - [APP-014 — Vote option visibility timing](#app-014--vote-option-visibility-timing)
+  - [APP-015 — Admin role prerequisites and side effects](#app-015--admin-role-prerequisites-and-side-effects)
+  - [APP-016 — Tier grant source linkage discipline](#app-016--tier-grant-source-linkage-discipline)
+  - [APP-018 — Reconciliation issue expiry](#app-018--reconciliation-issue-expiry)
+  - [APP-019 — Ballot receipt token scrubbing](#app-019--ballot-receipt-token-scrubbing)
+  - [APP-020 — Tag stats recomputation](#app-020--tag-stats-recomputation)
+  - [APP-021 — Seed data required on fresh DB](#app-021--seed-data-required-on-fresh-db)
+  - [APP-022 — PII purge anonymized-stub workflow](#app-022--pii-purge-anonymized-stub-workflow)
+  - [APP-023 — Tally authorization (can-tally-votes equivalent)](#app-023--tally-authorization-can-tally-votes-equivalent)
+  - [APP-024 — Standard tags must not be hard-deleted](#app-024--standard-tags-must-not-be-hard-deleted)
+- [7. Retained DB Triggers](#7-retained-db-triggers)
+  - [Append-only / immutability triggers (14)](#append-only--immutability-triggers-14)
+  - [Vote options lock triggers (3)](#vote-options-lock-triggers-3)
+  - [State machine trigger (1)](#state-machine-trigger-1)
+- [8. SQLite Runtime Requirements](#8-sqlite-runtime-requirements)
+  - [Foreign key enforcement (CRITICAL)](#foreign-key-enforcement-critical)
+  - [WAL mode (recommended)](#wal-mode-recommended)
+  - [Timestamp format](#timestamp-format)
+- [9. Clarifications](#9-clarifications)
+  - [9.1 Schema Naming Conventions](#91-schema-naming-conventions)
+  - [9.2 Lifecycle / Deletion Strategy](#92-lifecycle--deletion-strategy)
+  - [9.3 Timestamp Storage Contract (Prominent Clarification)](#93-timestamp-storage-contract-prominent-clarification)
+  - [9.4 Intentional Exceptions / Not a Bug](#94-intentional-exceptions--not-a-bug)
 
 ---
 
@@ -898,7 +944,7 @@ These rules are normative. They **must** be implemented in application code. The
 
 ---
 
-### APP-001 — `PRAGMA foreign_keys = ON` per connection
+### APP-001 — Foreign key enforcement per connection
 
 **Every SQLite connection must execute `PRAGMA foreign_keys = ON` before any reads or writes.** SQLite disables FK enforcement by default. Setting it in the schema file is not sufficient for connection pools or new connections opened after initialization. Add a startup assertion and integration test to verify this is active.
 
@@ -977,7 +1023,7 @@ active | past_due → canceled (on customer.subscription.deleted)
 
 ---
 
-### APP-012 — Updated_at/updated_by stamping on FK-detached rows (optional)
+### APP-012 — Updated-at and updated-by stamping on FK-detached rows (optional)
 
 When the application explicitly deletes a media item or gallery and wants to record the detachment on affected parent rows, it should stamp `updated_at`/`updated_by`/`version` on those rows in the same transaction (before the delete). The FK `ON DELETE SET NULL` action handles the FK nullification automatically but does not stamp metadata. For detachments that occur silently (e.g., uploader self-deletes media while the club still references it as logo), the FK action is sufficient and no stamping is required.
 
@@ -1068,7 +1114,7 @@ This ensures the retained stub row meets data retention and anonymization requir
 
 ---
 
-### APP-023 — Tally authorization (can_tally_votes equivalent)
+### APP-023 — Tally authorization (can-tally-votes equivalent)
 
 **Ballot decryption and tally operations MUST require an authorization check equivalent to a `can_tally_votes` permission.** This permission is not modeled as a column in `members`; enforcement is the responsibility of the application auth layer.
 

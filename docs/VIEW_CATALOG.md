@@ -4,6 +4,42 @@
 
 ---
 
+## Table of Contents
+
+- [1. Purpose](#1-purpose)
+- [2. Scope](#2-scope)
+- [3. Governing Principles](#3-governing-principles)
+  - [3.1 One standard, many pages](#31-one-standard-many-pages)
+  - [3.2 Reuse must be enforceable](#32-reuse-must-be-enforceable)
+  - [3.3 Events are consumers, not the authority](#33-events-are-consumers-not-the-authority)
+  - [3.4 Future pages must fit the standard](#34-future-pages-must-fit-the-standard)
+  - [3.5 Home is a special composition-page exception](#35-home-is-a-special-composition-page-exception)
+- [4. Public Rendering Standard](#4-public-rendering-standard)
+  - [4.1 Standard purpose](#41-standard-purpose)
+  - [4.2 Required page contract](#42-required-page-contract)
+  - [4.3 Required reusable primitives](#43-required-reusable-primitives)
+  - [4.4 Implementation rules](#44-implementation-rules)
+  - [4.5 Visual rules](#45-visual-rules)
+- [5. Public Route Catalog](#5-public-route-catalog)
+- [6. Page Specifications](#6-page-specifications)
+  - [6.1 Home](#61-home)
+  - [6.2 Members section landing](#62-members-section-landing)
+  - [6.3 Member detail](#63-member-detail)
+  - [6.4 Events index](#64-events-index)
+  - [6.5 Events year archive](#65-events-year-archive)
+  - [6.6 Event detail](#66-event-detail)
+  - [6.7 Clubs landing placeholder](#67-clubs-landing-placeholder)
+  - [6.8 HoF landing](#68-hof-landing)
+  - [6.9 Login](#69-login)
+- [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
+  - [7.1 Authorization boundary](#71-authorization-boundary)
+  - [7.2 Error behavior](#72-error-behavior)
+  - [7.3 Template behavior](#73-template-behavior)
+- [8. Future Admission Rules](#8-future-admission-rules)
+- [9. Summary](#9-summary)
+
+---
+
 ## 1. Purpose
 
 **Current implementation status:** see `IMPLEMENTATION_PLAN.md`. This catalog defines the standard and page contracts; the plan governs what is implemented now vs deferred.
@@ -92,11 +128,11 @@ Home (`/`) is the one intentional exception to the page contract defined in §4.
 
 ## 4. Public Rendering Standard
 
-## 4.1 Standard purpose
+### 4.1 Standard purpose
 
 The public rendering standard defines the shared structure, page contract, and reusable UI primitives that every cataloged public page must use.
 
-## 4.2 Required page contract
+### 4.2 Required page contract
 
 Every public page except Home (see §3.5) must render from the same top-level contract. This is a current implementation obligation, not aspirational — existing non-home pages must comply before new pages are added.
 
@@ -141,7 +177,7 @@ The HTML `<title>` tag follows the pattern `Footbag {pageTitle}` for all pages. 
 
 New pages must follow this pattern. `pageTitle` is the short section or entity label only — never include the word "Footbag" in `pageTitle`.
 
-## 4.3 Required reusable primitives
+### 4.3 Required reusable primitives
 
 Every public page must be composed from the same small set of reusable primitives.
 
@@ -233,7 +269,7 @@ The CSS vocabulary is split into two tiers.
 - Disciplines: `.disciplines-list`, `.discipline-tag`
 - Results: `.results-section`, `.results-section-header`, `.discipline-meta`, `.results-table`, `.placement-num`, `.participants-list`, `.score-text`, `.no-results-notice`
 
-## 4.4 Implementation rules
+### 4.4 Implementation rules
 
 The standard must be implemented through reusable code.
 
@@ -263,7 +299,7 @@ Preferred structure:
 - reusable component styles
 - minimal page-specific exceptions only when unavoidable
 
-## 4.5 Visual rules
+### 4.5 Visual rules
 
 All public pages must present a consistent public experience.
 
@@ -323,7 +359,7 @@ Visual token baseline (from `src/public/css/style.css`):
 
 ## 6. Page Specifications
 
-## 6.1 Home
+### 6.1 Home
 
 ### Purpose
 
@@ -386,7 +422,7 @@ If there are no featured upcoming events, the page still renders normally with a
 
 ---
 
-## 6.2 Members section landing
+### 6.2 Members section landing
 
 ### Purpose
 
@@ -437,7 +473,7 @@ This page does not require data-backed list content and should still render norm
 
 ---
 
-## 6.3 Member detail
+### 6.3 Member detail
 
 ### Purpose
 
@@ -494,7 +530,7 @@ Unknown or non-public historical identities resolve through standard not-found b
 
 ---
 
-## 6.4 Events index
+### 6.4 Events index
 
 ### Purpose
 
@@ -557,7 +593,7 @@ If no upcoming events exist, render a standard empty state. Archive-year links m
 
 ---
 
-## 6.5 Events year archive
+### 6.5 Events year archive
 
 ### Purpose
 
@@ -630,7 +666,7 @@ If the requested year is valid but contains no public completed events, render a
 
 ---
 
-## 6.6 Event detail
+### 6.6 Event detail
 
 ### Purpose
 
@@ -737,7 +773,7 @@ There is no empty state for a missing event. A valid missing-record path should 
 
 ---
 
-## 6.7 Clubs landing placeholder
+### 6.7 Clubs landing placeholder
 
 ### Purpose
 
@@ -789,7 +825,7 @@ This page is itself a controlled placeholder state and should use the standard n
 
 ---
 
-## 6.8 HoF landing
+### 6.8 HoF landing
 
 ### Purpose
 
@@ -848,7 +884,7 @@ This page is itself a controlled placeholder state for the current slice and sho
 
 ---
 
-## 6.9 Login
+### 6.9 Login
 
 ### Purpose
 

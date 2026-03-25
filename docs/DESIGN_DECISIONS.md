@@ -10,74 +10,78 @@ Scoping note: Numeric values in this document may represent fixed technical cons
 
 Current implementation status and accepted temporary deviations are tracked in `IMPLEMENTATION_PLAN.md`. This document is the long-term architecture reference only.
 
-**Table of Contents**
+## Table of Contents
 
-1. Architectural Foundations
-  1.1 SQLite Database
-  1.2 Photo Data in S3
-  1.3 Single Lightsail Instance behind CloudFront
-  1.4 Docker Containers
-  1.5 Container Memory Allocation
-  1.6 Controller to Service Pattern
-2. Data Model
-  2.1 Schema and Versioning
-  2.2 Data Access Pattern
-  2.3 Soft Deletes
-  2.4 Immutable Audit Logs with Privacy-safe Fields
-  2.5 Hashtags and Media
-  2.6 Encryption at Rest
-3. Security, Authentication, and Sessions
-  3.1 Password Hashing
-  3.2 JWT sessions
-  3.3 CSRF Protection via SameSite Cookies
-  3.4 JWT Token Lifecycle and Configuration
-  3.5 JWT Signing with AWS KMS Asymmetric Keys
-  3.6 Secrets Management via AWS Parameter Store
-  3.7 Ballot Encryption with AWS KMS
-  3.8 Account Security Tokens
-  3.9 Security, Privacy, and Historical Record Governance
-4. Front-End / UI Technology
-  4.1 Server-rendered HTML with Handlebars Templates
-  4.2 JavaScript Required for Interactivity
-  4.3 Explicit UI Restrictions
-  4.4 Accessible, Responsive HTML-first Design
-  4.5 Front-end TypeScript for Interactivity
-5. Back-End Services and Patterns
-  5.1 Node.js with TypeScript
-  5.2 Express-based HTTP Controllers
-  5.3 Dedicated Adapters for External Services
-  5.4 Outbox Pattern for Emails
-6. External Services and Integrations
-  6.1 Stripe Payments
-  6.2 CloudFront CDN
-  6.3 CloudFront Error Pages
-  6.4 Legacy Archive (old footbag.org)
-  6.5 Legacy Data Migration
-  6.6 AWS Service Integration
-  6.7 Static Assets and CDN Strategy
-  6.8 Image Processing
-  6.9 Voting
-7. DevOps
-  7.1 Dev/Prod Parity
-  7.2 AWS Lightsail and Credentials
-  7.3 Docker
-  7.4 GitHub
-  7.5 Local Development
-  7.6 Health Endpoints
-8. Logging, Monitoring & Abuse Prevention
-  8.1 Structured Logging
-  8.2 Monitoring and Alerting
-  8.3 Rate Limiting and Abuse Prevention
-  8.4 Content Moderation Policy
-9. Performance, Cost and Scalability
-  9.1 Performance Target Architecture
-  9.2 Cost Constraints
-  9.3 Scalability
-  9.4 Backup and Recovery
-  9.5 Failure Modes
-  9.6 Infrastructure as Code
-  9.7 High Availability and Recovery
-  9.8 Monitoring and Alerting
+- [1. Architectural Foundations](#1-architectural-foundations)
+  - [1.1 SQLite Database](#11-sqlite-database)
+  - [1.2 Backup Strategy](#12-backup-strategy)
+  - [1.3 Transaction Model](#13-transaction-model)
+  - [1.4 Development Parity](#14-development-parity)
+  - [1.5 Photo Data in S3](#15-photo-data-in-s3)
+  - [1.6 Single Lightsail Instance behind CloudFront](#16-single-lightsail-instance-behind-cloudfront)
+  - [1.7 Docker Containers](#17-docker-containers)
+  - [1.8 Container Memory Allocation](#18-container-memory-allocation)
+  - [1.9 Controller to Service Pattern](#19-controller-to-service-pattern)
+- [2. Data Model](#2-data-model)
+  - [2.1 Schema and Versioning](#21-schema-and-versioning)
+  - [2.2 Data Access Pattern](#22-data-access-pattern)
+  - [2.3 Soft Deletes](#23-soft-deletes)
+    - [Retention policy](#retention-policy)
+  - [2.4 Immutable Audit Logs with Privacy-safe Fields](#24-immutable-audit-logs-with-privacy-safe-fields)
+  - [2.5 Hashtags and Media](#25-hashtags-and-media)
+  - [2.6 Encryption at Rest](#26-encryption-at-rest)
+- [3. Security, Authentication, and Sessions](#3-security-authentication-and-sessions)
+  - [3.1 Password Hashing](#31-password-hashing)
+  - [3.2 JWT sessions](#32-jwt-sessions)
+  - [3.3 CSRF Protection via SameSite Cookies](#33-csrf-protection-via-samesite-cookies)
+  - [3.4 JWT Token Lifecycle and Configuration](#34-jwt-token-lifecycle-and-configuration)
+  - [3.5 JWT Signing with AWS KMS Asymmetric Keys](#35-jwt-signing-with-aws-kms-asymmetric-keys)
+  - [3.6 Secrets Management via AWS Parameter Store](#36-secrets-management-via-aws-parameter-store)
+  - [3.7 Ballot Encryption with AWS KMS](#37-ballot-encryption-with-aws-kms)
+  - [3.8 Account Security Tokens](#38-account-security-tokens)
+  - [3.9 Security, Privacy, and Historical Record Governance](#39-security-privacy-and-historical-record-governance)
+- [4. Front-End / UI Technology](#4-front-end--ui-technology)
+  - [4.1 Server-rendered HTML with Handlebars Templates](#41-server-rendered-html-with-handlebars-templates)
+  - [4.2 JavaScript Required for Interactivity](#42-javascript-required-for-interactivity)
+  - [4.3 Explicit UI Restrictions](#43-explicit-ui-restrictions)
+  - [4.4 Accessible, Responsive HTML-first Design](#44-accessible-responsive-html-first-design)
+  - [4.5 Front-end TypeScript for Interactivity](#45-front-end-typescript-for-interactivity)
+- [5. Back-End Services and Patterns](#5-back-end-services-and-patterns)
+  - [5.1 Node.js with TypeScript](#51-nodejs-with-typescript)
+  - [5.2 Express-based HTTP Controllers](#52-express-based-http-controllers)
+  - [5.3 Dedicated Adapters for External Services](#53-dedicated-adapters-for-external-services)
+  - [5.4 Outbox Pattern for Emails](#54-outbox-pattern-for-emails)
+- [6. External Services and Integrations](#6-external-services-and-integrations)
+  - [6.1 Stripe Payments](#61-stripe-payments)
+  - [6.2 CloudFront CDN](#62-cloudfront-cdn)
+  - [6.3 CloudFront Error Pages](#63-cloudfront-error-pages)
+  - [6.4 Legacy Archive (old footbag.org)](#64-legacy-archive-old-footbagorg)
+  - [6.5 Legacy Data Migration](#65-legacy-data-migration)
+  - [6.6 AWS Service Integration](#66-aws-service-integration)
+  - [6.7 Static Assets and CDN Strategy](#67-static-assets-and-cdn-strategy)
+  - [6.8 Image Processing](#68-image-processing)
+  - [6.9 Voting](#69-voting)
+- [7. DevOps](#7-devops)
+  - [7.1 Dev/Prod Parity](#71-devprod-parity)
+  - [7.2 AWS Lightsail and Credentials](#72-aws-lightsail-and-credentials)
+  - [7.3 Docker](#73-docker)
+  - [7.4 GitHub](#74-github)
+  - [7.5 Local Development](#75-local-development)
+  - [7.6 Health Endpoints](#76-health-endpoints)
+- [8. Logging, Monitoring & Abuse Prevention](#8-logging-monitoring--abuse-prevention)
+  - [8.1 Structured Logging](#81-structured-logging)
+  - [8.2 Monitoring and Alerting](#82-monitoring-and-alerting)
+  - [8.3 Rate Limiting and Abuse Prevention](#83-rate-limiting-and-abuse-prevention)
+  - [8.4 Content Moderation Policy](#84-content-moderation-policy)
+- [9. Performance, Cost and Scalability](#9-performance-cost-and-scalability)
+  - [9.1 Performance Target Architecture](#91-performance-target-architecture)
+  - [9.2 Cost Constraints](#92-cost-constraints)
+  - [9.3 Scalability](#93-scalability)
+  - [9.4 Backup and Recovery](#94-backup-and-recovery)
+  - [9.5 Failure Modes](#95-failure-modes)
+  - [9.6 Infrastructure as Code](#96-infrastructure-as-code)
+  - [9.7 High Availability and Recovery](#97-high-availability-and-recovery)
+  - [9.8 Monitoring and Alerting](#98-monitoring-and-alerting)
 
 # 1. Architectural Foundations
 
@@ -96,26 +100,6 @@ Configuration: the platform uses only 5 startup configuration PRAGMAs. Operation
 - synchronous=NORMAL: Safe with WAL mode, provides faster writes.
 
 - cache_size=-64000: Allocates 64MB memory for faster reads.
-
-**Backup Strategy:**
-
-Background worker runs every five minutes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to main file, (2) SQLite backup API creates consistent snapshot, (3) Upload to S3 with retry (3 attempts, exponential backoff), (4) Update health timestamp. S3 versioning provides 30-day point-in-time recovery.
-
-Transaction timeout: All transactions must complete within 30 seconds, enforced by application code. Code in db.ts wraps transaction execution and throws an error if the timeout is exceeded (defaults to 30000 ms). When timeout occurs, the wrapper executes ROLLBACK explicitly before throwing, ensuring the transaction releases locks immediately. This prevents indefinite database locks and ensures graceful failure for long-running operations.
-
-Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds for all in-flight transactions to complete (same timeout value for consistency). Any transaction still running after 30 seconds is aborted. Then checkpoint WAL, close connection, perform final S3 backup upload, and exit gracefully.
-
-**Transaction Model:**
-
-ACID transactions provide the platform’s core write-safety guarantees, but the application still needs explicit handling for temporary contention. SQLite serializes conflicting writers through the configured busy_timeout, yet under load the app can still receive SQLITE_BUSY or SQLITE_BUSY_TIMEOUT. The platform therefore uses BEGIN IMMEDIATE to acquire the write lock early, keeps write transactions short, and applies bounded retries only for idempotent operations when a busy condition occurs. The application also enforces a 30-second transaction timeout. Transactions must remain fully synchronous: all database work finishes before commit, and any async follow-up work such as email or S3 runs only after the transaction completes.
-
-In this project, better-sqlite3 together with SQLite’s configured busy timeout is the primary contention-management mechanism. Application code should not add a second general-purpose retry loop by default. Instead, service-layer database helpers should translate busy or locked database failures into a clear temporary-unavailable service error so controllers can render the standard safe failure path.
-
-The version column on mutable tables supports optimistic lost-update detection for human-facing edit flows. When a submitted form includes a stale version, the update can be rejected so the user reloads and reviews intervening changes. This is a user-experience safeguard, not the platform’s primary write-safety mechanism. The version column is intentionally not used on append-only, ledger, junction, or reference tables because those tables are not updated.
-
-**Development Parity:**
-
-Local development and deployed environments use the same application code, the same fixed SQLite runtime filename (`footbag.db`), the same prepared statements, and the same Dockerized process boundaries. The host-side SQLite path may differ by environment, but Docker/Compose mounts it into the application working directory as `./footbag.db`. Backup jobs may be disabled locally, but backup behavior is validated in staging and production.
 
 **Rationale:**
 
@@ -191,7 +175,27 @@ SQLite + Litestream: Rejected for sidecar complexity, operational overhead. 60-s
 
 PostgreSQL on RDS: Rejected for monthly cost, connection management complexity, network latency, DBA knowledge requirement, overkill for community scale.
 
-## 1.2 Photo Data in S3
+## 1.2 Backup Strategy
+
+Background worker runs every five minutes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to main file, (2) SQLite backup API creates consistent snapshot, (3) Upload to S3 with retry (3 attempts, exponential backoff), (4) Update health timestamp. S3 versioning provides 30-day point-in-time recovery.
+
+Transaction timeout: All transactions must complete within 30 seconds, enforced by application code. Code in db.ts wraps transaction execution and throws an error if the timeout is exceeded (defaults to 30000 ms). When timeout occurs, the wrapper executes ROLLBACK explicitly before throwing, ensuring the transaction releases locks immediately. This prevents indefinite database locks and ensures graceful failure for long-running operations.
+
+Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds for all in-flight transactions to complete (same timeout value for consistency). Any transaction still running after 30 seconds is aborted. Then checkpoint WAL, close connection, perform final S3 backup upload, and exit gracefully.
+
+## 1.3 Transaction Model
+
+ACID transactions provide the platform's core write-safety guarantees, but the application still needs explicit handling for temporary contention. SQLite serializes conflicting writers through the configured busy_timeout, yet under load the app can still receive SQLITE_BUSY or SQLITE_BUSY_TIMEOUT. The platform therefore uses BEGIN IMMEDIATE to acquire the write lock early, keeps write transactions short, and applies bounded retries only for idempotent operations when a busy condition occurs. The application also enforces a 30-second transaction timeout. Transactions must remain fully synchronous: all database work finishes before commit, and any async follow-up work such as email or S3 runs only after the transaction completes.
+
+In this project, better-sqlite3 together with SQLite's configured busy timeout is the primary contention-management mechanism. Application code should not add a second general-purpose retry loop by default. Instead, service-layer database helpers should translate busy or locked database failures into a clear temporary-unavailable service error so controllers can render the standard safe failure path.
+
+The version column on mutable tables supports optimistic lost-update detection for human-facing edit flows. When a submitted form includes a stale version, the update can be rejected so the user reloads and reviews intervening changes. This is a user-experience safeguard, not the platform's primary write-safety mechanism. The version column is intentionally not used on append-only, ledger, junction, or reference tables because those tables are not updated.
+
+## 1.4 Development Parity
+
+Local development and deployed environments use the same application code, the same fixed SQLite runtime filename (`footbag.db`), the same prepared statements, and the same Dockerized process boundaries. The host-side SQLite path may differ by environment, but Docker/Compose mounts it into the application working directory as `./footbag.db`. Backup jobs may be disabled locally, but backup behavior is validated in staging and production.
+
+## 1.5 Photo Data in S3
 
 Decision:
 
@@ -237,7 +241,7 @@ Alternative Considered:
 
 - Storing photos in SQLite as BLOBs: Rejected due to database bloat and therefore Lightsail cost, as the database file is co-hosted.
 
-## 1.3 Single Lightsail Instance behind CloudFront
+## 1.6 Single Lightsail Instance behind CloudFront
 
 Decision:
 
@@ -267,7 +271,7 @@ Impact:
 
 - Production uses 4GB Lightsail instance with 2 vCPUs, 80GB SSD, 4TB transfer allowance. This will provide adequate headroom for container allocations: 4GB provides sufficient memory for four Docker containers.
 
-## 1.4 Docker Containers
+## 1.7 Docker Containers
 
 Decision:
 
@@ -293,7 +297,7 @@ Impact:
 
 - Infrastructure runbooks treat instance rebuilds as routine, not emergencies.
 
-## 1.5 Container Memory Allocation
+## 1.8 Container Memory Allocation
 
 Decision:
 
@@ -347,7 +351,7 @@ Impact:
 
 - Regular review of container memory utilization during first 6 months post-launch to validate allocations and adjust if needed.
 
-## 1.6 Controller to Service Pattern
+## 1.9 Controller to Service Pattern
 
 Decision:  
 Controllers call business services directly and return HTML (for browser requests) or JSON (for webhooks/AJAX) based on request context. No separate REST API layer between HTML controllers and services. Only Webhook callbacks use REST. JSON endpoints exist where functionally required: webhook handlers, and AJAX calls. All business services to be documented in the Service Catalog.
@@ -511,7 +515,7 @@ Impact:
 
 - Reuse rules must be explicit: email addresses remain reserved during the account grace period and may be reused only after personal data is purged. Standardized event/club hashtags are reserved permanently and are never reused. Enforce active uniqueness with partial unique indexes on canonical normalized values (e.g., lower(email) WHERE deleted_at IS NULL AND personal_data_purged_at IS NULL), and enforce permanent hashtag uniqueness via normalized unique indexes.
 
-**Retention policy:**
+### Retention policy
 
 Member personal data: retained for a configurable grace period (Administrator-configurable default 90 days, parameter key: member_cleanup_grace_days) after soft delete, then purged from primary storage. Purge sets credential and contact fields (email, phone, passwordHash) to NULL. For non-nullable identity/location columns retained for referential integrity, the application overwrites values with anonymized placeholders (not original data). Exception: members with HoF or BAP flags preserve `displayName` and `bio` after purge per User Stories deletion policy; credential/contact fields are still nulled and other required retained identity/location fields are anonymized as needed. The member row is retained as an anonymized record for referential integrity and audit history.
 

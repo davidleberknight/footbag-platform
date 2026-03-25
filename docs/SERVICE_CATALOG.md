@@ -8,33 +8,34 @@
 
 ## Table of Contents
 
-1. Shared Conventions
-2. Service Quick Reference
-3. Identity & Account
-   3.1 IdentityAccessService
-   3.2 MemberProfileLifecycleService
-   3.3 MemberPublicReadService
-4. Clubs & Events
-   4.1 ClubService
-   4.2 EventService
-   4.3 CompetitionParticipationService
-5. Payments & Membership
-   5.1 PaymentService
-   5.2 MembershipTieringService
-6. Voting & Recognition
-   6.1 VotingElectionService
-   6.2 HallOfFameService
-7. Content & Discovery
-   7.1 MediaGalleryService
-   7.2 HashtagDiscoveryService
-   7.3 NewsService
-8. Communication
-   8.1 CommunicationService
-9. Governance & Operations
-   9.1 AdminGovernanceService
-   9.2 OperationsPlatformService
-10. Legacy Migration
-   10.1 LegacyMigrationService
+- [1. Shared Conventions](#1-shared-conventions)
+- [2. Service Quick Reference](#2-service-quick-reference)
+- [3. Identity & Account](#3-identity--account)
+  - [3.1 `IdentityAccessService`](#31-identityaccessservice)
+  - [3.2 `MemberProfileLifecycleService`](#32-memberprofilelifecycleservice)
+  - [3.3 `MemberPublicReadService`](#33-memberpublicreadservice)
+- [4. Clubs & Events](#4-clubs--events)
+  - [4.0 `HomeService`](#40-homeservice)
+  - [4.1 `ClubService`](#41-clubservice)
+  - [4.2 `EventService`](#42-eventservice)
+  - [4.3 `CompetitionParticipationService`](#43-competitionparticipationservice)
+- [5. Payments & Membership](#5-payments--membership)
+  - [5.1 `PaymentService`](#51-paymentservice)
+  - [5.2 `MembershipTieringService`](#52-membershiptieringservice)
+- [6. Voting & Recognition](#6-voting--recognition)
+  - [6.1 `VotingElectionService`](#61-votingelectionservice)
+  - [6.2 `HallOfFameService`](#62-halloffameservice)
+- [7. Content & Discovery](#7-content--discovery)
+  - [7.1 `MediaGalleryService`](#71-mediagalleryservice)
+  - [7.2 `HashtagDiscoveryService`](#72-hashtagdiscoveryservice)
+  - [7.3 `NewsService`](#73-newsservice)
+- [8. Communication](#8-communication)
+  - [8.1 `CommunicationService`](#81-communicationservice)
+- [9. Governance & Operations](#9-governance--operations)
+  - [9.1 `AdminGovernanceService`](#91-admingovernanceservice)
+  - [9.2 `OperationsPlatformService`](#92-operationsplatformservice)
+- [10. Legacy Migration](#10-legacy-migration)
+  - [10.1 `LegacyMigrationService`](#101-legacymigrationservice)
 
 ---
 

@@ -15,17 +15,6 @@ This guide helps contributors do different things: understand how the initial pu
 > - **Path E** — The first deployment works. I need to clean up all the shortcuts taken during the bootstrap phase.
 > - **Path F** — The initial deployment is working. I made a code change and want to test it locally, then deploy it to staging.
 
-The repository already contains code, tests, Docker, Terraform, deterministic seed data, and docs. The initial public slice works from a local dev server.
-
-This guide is therefore **not primarily a blank-repository build plan**, even though that historical context still matters and is preserved below.
-
-This guide **is**:
-
-- an orientation guide and tutorial.
-- an implementation runbook.
-- a deployment bootstrap guide.
-- a DEV ONBOARDING guide :-)
-
 ---
 
 ## Table of Contents

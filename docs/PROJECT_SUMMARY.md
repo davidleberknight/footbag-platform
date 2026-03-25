@@ -12,44 +12,44 @@ This Footbag Website Modernization Project will upgrade footbag.org as the new g
 
 ## Table of Contents
 
-1. Document Relationships
-2. Design Philosophy
-3. Functionality
-  3.1 Media Content
-  3.2 Membership Tiers
-  3.3 Voting
-  3.4 Payments
-  3.5 Emails
-4. Solution Architecture
-  4.1 Core Design Decisions
-  4.2 SQLite Database
-  4.3 Front to Back Design
-  4.4 AWS Overview
-  4.5 Controllers and Business Services
-  4.6 Technology Stack
-  4.7 Distributed System Patterns
-  4.8 Runtime Infrastructure and Cost
-5. Development and Production Parity
-  5.1 Why Perfect Parity Matters
-  5.2 How Parity Works
-6. Security
-  6.1 Authentication Design
-  6.2 Image Upload Strategy
-  6.3 Additional Security Protections
-  6.4 Video Content
-  6.5 Privacy-First Design
-  6.6 Audit Logging
-  6.7 Data Encryption
-  6.8 Threat Model
-7. DevOps
-  7.1 Backup Strategy
-  7.2 High Availability
-  7.3 Operational Documentation
-  7.4 Infrastructure as Code
-  7.5 Testing
-  7.6 Continuous Integration
-8. Legacy Archive
-9. Volunteer Development
+- [1. Document Relationships](#1-document-relationships)
+- [2. Design Philosophy](#2-design-philosophy)
+- [3. Functionality](#3-functionality)
+  - [3.1 Media Content](#31-media-content)
+  - [3.2 Membership Tiers](#32-membership-tiers)
+  - [3.3 Voting](#33-voting)
+  - [3.4 Payments](#34-payments)
+  - [3.5 Emails](#35-emails)
+- [4. Solution Architecture](#4-solution-architecture)
+  - [4.1 Core Design Decisions](#41-core-design-decisions)
+  - [4.2 SQLite Database](#42-sqlite-database)
+  - [4.3 Front to Back Design](#43-front-to-back-design)
+  - [4.4 AWS Overview](#44-aws-overview)
+  - [4.5 Controllers and Business Services](#45-controllers-and-business-services)
+  - [4.6 Technology Stack](#46-technology-stack)
+  - [4.7 Distributed System Patterns](#47-distributed-system-patterns)
+  - [4.8 Runtime Infrastructure and Cost](#48-runtime-infrastructure-and-cost)
+- [5. Development and Production Parity](#5-development-and-production-parity)
+  - [5.1 Why Perfect Parity Matters](#51-why-perfect-parity-matters)
+  - [5.2 How Parity Works](#52-how-parity-works)
+- [6. Security](#6-security)
+  - [6.1 Authentication Design](#61-authentication-design)
+  - [6.2 Image Upload Strategy](#62-image-upload-strategy)
+  - [6.3 Additional Security Protections](#63-additional-security-protections)
+  - [6.4 Video Content](#64-video-content)
+  - [6.5 Privacy-First Design](#65-privacy-first-design)
+  - [6.6 Audit Logging](#66-audit-logging)
+  - [6.7 Data Encryption](#67-data-encryption)
+  - [6.8 Threat Model](#68-threat-model)
+- [7. DevOps](#7-devops)
+  - [7.1 Backup Strategy](#71-backup-strategy)
+  - [7.2 High Availability](#72-high-availability)
+  - [7.3 Operational Documentation](#73-operational-documentation)
+  - [7.4 Infrastructure as Code](#74-infrastructure-as-code)
+  - [7.5 Testing](#75-testing)
+  - [7.6 Continuous Integration](#76-continuous-integration)
+- [8. Legacy Archive](#8-legacy-archive)
+- [9. Volunteer Development](#9-volunteer-development)
 
 ---
 
