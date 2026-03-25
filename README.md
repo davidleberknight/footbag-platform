@@ -10,68 +10,44 @@ This repository contains the open-source modernization project for the global fo
 
 Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
-## Start here
+## Start Here
 
-- **Humans:** read `docs/PROJECT_SUMMARY.md`
-- **AI tools:** read `PROJECT_SUMMARY_CONCISE.md`
-- **Near-term sequencing:** read `IMPLEMENTATION_PLAN.md`
+- **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
+- **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
+- **Work done already, near-term plan, and current scope:** read [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 
-## Current project state
+## Current Project State
 
-The current public slice is already deployed on AWS and is the baseline for ongoing work.
+Some functionality is done and deployed on AWS. This is the baseline for ongoing work.
 
 Sneak Preview: [http://34.192.250.246/events/event_2025_beaver_open](http://34.192.250.246/events/event_2025_beaver_open)
 
 - Some legacy migration tooling is done, including a full mirror of the current live footbag.org.
 - Scripts to process and clean historic event-results data are nearly complete.
-- This is why the initial public scope is viewing events and results.
-- Some official rule/policy simplification proposals were recently **Approved by IFPA Board Decision** and will be incorporated in v0.2
-- V0.2 will also have real event result data, and a bit more.
-- An early-draft implementation plan is in `IMPLEMENTATION_PLAN.md`.
-
-## Governance
-
-Read `GOVERNANCE.md` before contributing.
-
-This repository distinguishes between:
-
-- **Category A (maintainer authority):** technical implementation, repo configuration, tooling, code/docs changes
-- **Category B (requires IFPA Board approval):** official IFPA policy/rules, rankings/eligibility definitions, authorized IFPA branding decisions, repository ownership transfer
+- This is why the initial public scope is viewing historical events and results.
+- Some official rule/policy simplification proposals were recently **Approved by IFPA Board Decision** and will be incorporated soon.
 
 ## Contributing
 
-Please read:
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [docs/GOVERNANCE.md](docs/GOVERNANCE.md) (security, privacy, and historical data publication policy)
+- [SECURITY.md](SECURITY.md) (for vulnerability reporting — **do not use public issues**)
+- See [CLAUDE.md](CLAUDE.md) for Claude Code's standard operating rules.
 
-- `CONTRIBUTING.md`
-- `docs/GOVERNANCE.md` (security, privacy, and historical data publication policy)
-- `SECURITY.md` (for vulnerability reporting — **do not use public issues**)
+## Project Documantation
 
-## Using AI tools (Claude Code)
+- `docs/` contains the long-term product, design, and operating docs.
+- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) contains current sprint scope, dependency analysis, and incremental planning.
+- `database/` contains the schema SQL definition.
 
-See `CLAUDE.md` for the full rules Claude operates under.
+## Technology Stack
 
-Project conventions enforced with Claude Code:
-- secret-bearing and local-private files are blocked from editing
-- git commits and pushes are blocked
-- risky/destructive commands may require confirmation
-- editing project docs, `.github/`, or `.claude/` requires explicit human approval
+TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Docker · Terraform · Stripe 
 
-## Project docs
+## License and Trademarks
 
-- `docs/` contains canonical long-term product, design, and operating docs
-- `IMPLEMENTATION_PLAN.md` contains near-term sequencing, dependency analysis, and incremental planning
-- `database/` contains the schema SQL and runtime database notes
-
-## Technology stack
-
-TypeScript · Node.js · Express · Handlebars · SQLite · AWS (Lightsail, S3, SES, CloudFront) · Docker · Terraform
-
-Stripe and additional platform integrations are planned for later delivery.
-
-## License and trademarks
-
-- Code in this repository is licensed under the **Apache License 2.0** — see `LICENSE`
-- IFPA names, logos, and marks are **not** granted under Apache-2.0 — see `TRADEMARKS.md`
+- Code in this repository is licensed under the **Apache License 2.0** — see [LICENSE](LICENSE)
+- IFPA names, logos, and marks are **not** granted under Apache-2.0 — see [TRADEMARKS.md](TRADEMARKS.md)
 
 ---
 
