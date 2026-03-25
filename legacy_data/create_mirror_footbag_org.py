@@ -946,7 +946,7 @@ def url_to_filepath(url):
 
     elif parsed.path == '/clubs/showmembers':
         club_id = query_parts.get('clubid', [None])[0]
-        if club_id and club_id.isdigit():
+        if club_id:
             path = f'clubs/ClubID_{club_id}/showmembers/index.html'
         else:
             path = f'clubs/showmembers/index.html'
