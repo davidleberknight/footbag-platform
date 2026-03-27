@@ -14,35 +14,98 @@ This file — not auto memory — is the source of truth for current slice statu
 
 ## Active slice now
 
-### Infra track — CI/CD low-hanging fruit
+### Sprint: Clubs page + members ungating
 
-- 1-C: Write `scripts/deploy-staging.sh` — rsync + docker compose pull + restart, idempotent
-- Add terraform fmt/validate job to GitHub Actions CI workflow
-- Configure GitHub branch protection rules on main (require CI to pass before merge)
+**Goals:**
+1. Extract club seed data from legacy mirror into a CSV
+2. Load club seed data into local DB for dev/test
+3. Implement the clubs page with real data
+4. Ungate `/members` and `/members/:personId` (blocked on James sign-off)
+5. World records page (`/records`)
 
-Deferred to a later infra sprint: 1-E (CloudFront pass 2), 1-F (security hardening), 1-G (CloudWatch agent install)
+### Item 1 — Club seed data extraction
 
-### Feature track
+**Step A: `legacy_data/scripts/extract_clubs.py`** (new)
+- Walk all `clubs/show/*/index.html` under `legacy_data/mirror_footbag_org/`
+- Parse with BeautifulSoup; extract name, city/region/country, email, external URL, description
+- CSS selectors: `h1.clubsShowName`, `div.clubsLocationHeader`, `div.clubsContacts`, `div.clubsURL a[href]`, `div#ClubsWelcome`
+- Derive `legacy_club_key` from directory name; skip pages with no name or country
+- Output: `legacy_data/seed/clubs.csv` (gitignored); columns: `legacy_club_key, name, city, region, country, contact_email, external_url, description`
+- Idempotent: skip if CSV already exists and is fresh
 
-- Legacy data gaps — James owns this track; no auth-gating changes until legacy data is complete
+**Step B: `legacy_data/scripts/load_clubs_seed.py`** (new)
+- Read `legacy_data/seed/clubs.csv`
+- Generate `club_id = stable_id("club", legacy_club_key)`, `tag_id`, `tag_normalized = "#club_" + slugify(legacy_club_key).lower()`, `tag_display`
+- Insert into `tags` (is_standard=1, standard_type='club') then `clubs`; `created_by`/`updated_by = 'seed'`, `status = 'active'`
+- Skip on conflict (idempotent)
+- DB path from `FOOTBAG_DB_PATH` env var (default `./database/footbag.db`)
 
-### Completed this sprint
+**Step C: `scripts/reset-local-db.sh`** (update)
+- Add extract + load steps after the existing MVFP seed load
+
+### Item 2 — Clubs page implementation
+
+Sequencing: extend-service-contract → add-public-page → write-tests → doc-sync
+
+- `src/services/clubService.ts` (new): `listPublicClubs(): ClubSummary[]` — queries `clubs_open` view, returns id/name/city/region/country/external_url, sorted country/city/name ASC
+- `src/controllers/clubController.ts` (update): replace placeholder render with real service call; pass clubs grouped by country
+- `src/views/public/clubs.hbs` (update): country-grouped list; name, city/region, external link if present; no search/filter this sprint
+- Integration tests: 200 with empty DB; 200 with seeded clubs
+
+### Item 3 — Members ungating
+
+**Blocked on:** James confirming legacy data complete and member-list presentation reviewed.
+
+When unblocked:
+- Remove `authMiddleware` from `/members` and `/members/:personId` in `src/routes/publicRoutes.ts`
+- Review member-list template for presentation issues before removing gate
+- Update `docs/GOVERNANCE.md` note if needed
+- Integration test: confirm `/members` returns 200 without auth
+
+### Item 4 — World records page
+
+Route: `/records` (new public page). Sequencing: extend-service-contract → add-public-page → write-tests → doc-sync
+
+- `legacy_data/scripts/extract_records.py` (new): explore `legacy_data/mirror_footbag_org/` for world records pages; output `legacy_data/seed/records.csv` (gitignored); columns TBD after mirror exploration (expected: discipline, record_holder, record_value, date_set, location, notes)
+- `legacy_data/scripts/load_records_seed.py` (new): load into DB; evaluate at sprint start whether a `world_records` table is needed or existing schema fits
+- Wire both scripts into `scripts/reset-local-db.sh`
+- `src/services/recordsService.ts` (new): `listWorldRecords(): WorldRecord[]`
+- `src/controllers/recordsController.ts` (new)
+- `src/views/public/records.hbs` (new): records grouped by discipline
+- Add `/records` to nav in `src/views/layouts/main.hbs`
+- Add `/records` route in `src/routes/publicRoutes.ts`
+- Integration tests for GET `/records`
+
+### Completed last sprint (infra sprint)
 
 - 1-B: Expand integration tests — health/ready edge cases, middleware behavior (content-type, auth not required, `checks.database.isReady` shape, auth redirects, tampered session, returnTo)
 - 404/500 error pages — proper templates using `PageViewModel`; `page.sectionKey = ''`
 - Fix VIEW_CATALOG drift: `navigation.siblings.previous`/`next` (doc corrected)
+- 1-C: `scripts/deploy-staging.sh` — password-arg deploy script with rsync_db flag, sudo via printf/%q, smoke check; `deploy_to_aws.sh` personal wrapper (gitignored)
+- Smoke check made data-independent: removed seed-dependent event key checks; removed `year < 1997` guard from event service
+- Add terraform fmt/validate job to GitHub Actions CI workflow; terraform files reformatted
+- GitHub branch protection ruleset `protect-main` on main: require CI to pass; admin bypass for repo owner
 
 ### Decisions for this sprint
 
-- Members auth ungating: DEFERRED — remove gating only after legacy data is confirmed complete and member-list presentation is reviewed
-- Real login (Phase 4 auth): DEFERRED — legacy data must be 100% before onboarding members
-- `src/types/page.ts` is live (imported in eventService, memberService, hofService) and correct; the `PageViewModel<TContent>` contract is already enforced across non-home public pages; active-slice shared-page-contract note below is now resolved
+- Members ungating: BLOCKED — do not remove `requireAuth` until James confirms legacy data complete and member-list presentation is reviewed
+- Club detail pages: out of scope this sprint (no route contract yet)
+- Club join/leave flows: out of scope this sprint
+- World records schema: evaluate at sprint start whether a `world_records` table is needed
+- Real login (Phase 4 auth): DEFERRED — legacy data must be 100% before member onboarding
+- `src/types/page.ts` is live and correct; `PageViewModel<TContent>` contract enforced across non-home public pages
+
+### Sprint verification checklist
+
+1. `bash scripts/reset-local-db.sh` — completes without errors
+2. `legacy_data/seed/clubs.csv` — inspect a sample of rows for quality
+3. `sqlite3 database/footbag.db "SELECT count(*) FROM clubs;"` — shows populated count
+4. `npm run dev` → visit `http://localhost:3000/clubs` — clubs listed by country
+5. `npm test` — all tests pass including new clubs integration test
+6. `bash scripts/deploy-staging.sh '<password>' no` — code-only deploy, smoke check passes
 
 ## Drafted next, but not active code focus now
 
-- Clubs page with real data (no club data yet; deferred until data exists)
-- World records — public historical record surfaces; deferred from current slice
-- Members auth gating — remove gating on `/members` and `/members/:personId` only after legacy data complete and member-list presentation reviewed
 - BAP honor-roll pages — deferred; member-page indicators are already implemented
 - Broader service contracts may remain documented in `docs/SERVICE_CATALOG.md`, but implementation status is governed here, not there.
 
@@ -97,8 +160,8 @@ Current implementation constraints:
 Current verification baseline:
 - canonical verification commands: `npm test` and `npm run build`
 - route and integration tests are the first verification path
-- a single integration test file (`tests/integration/app.routes.test.ts`) covers: health, home, clubs, events (list/year/detail), login, logout, auth redirects, members index, members detail
-- not yet covered: 404/500 error handling, world-record routes (deferred), honor-roll routes (deferred), worker behavior, browser/UI verification
+- a single integration test file (`tests/integration/app.routes.test.ts`) covers: health, home, clubs, hof, events (list/year/detail), login, logout, auth redirects, members index, members detail, catch-all 404
+- not yet covered: 500 error handler, world-record routes (this sprint), honor-roll routes (deferred), worker behavior, browser/UI verification
 - browser verification is explicit-human-request-only
 
 ## Accepted temporary deviations
@@ -121,7 +184,7 @@ Long-term catalogs should preserve target design; current-slice exceptions belon
 
 7. **CloudFront hardening incomplete.** X-Origin-Verify header is absent from Nginx; OAC/ordered-cache controls are deferred; direct-origin bypass is unprotected. Unblock: Phase 1-F security hardening.
 
-8. **CI/CD is absent.** No GitHub Actions workflows exist. Images are built on-host via `docker compose`; the systemd unit starts local builds. Unblock: Phase 1-C deploy script + Phase 1-D GitHub Actions.
+8. **CI/CD pipeline is partial.** App CI is active: `.github/workflows/ci.yml` runs `npm run build` + `npm test` + terraform fmt/validate on push and PR. Deploy is one-script (`scripts/deploy-staging.sh`). Remaining gaps: CloudFront not wired into CI (1-E), security hardening (1-F), CloudWatch agent not installed (1-G). Unblock: Phase 1-E/F/G.
 
 9. **Monitoring is partial and intentionally gated.** CloudWatch log groups and alarms are Terraformed; CloudWatch agent install is TODO; monitoring gates default false; backup freshness metric has no producer. Unblock: Phase 1-G agent install + backup job.
 
@@ -163,9 +226,10 @@ legacy data visible on site
   ← legacy import scripts (CSVs ready, build scripts exist)
     ← migration strategy (numbered migrations must precede schema evolution)
 
-CI/CD automation
+CI/CD automation — COMPLETE (app CI + deploy script)
   ← staging running end-to-end
     ← AWS host bootstrap COMPLETE
+  remaining: 1-E CloudFront, 1-F security hardening, 1-G CloudWatch agent
 ```
 
 ### Infrastructure dependency chain
@@ -232,15 +296,15 @@ Size labels: S = small, M = medium, L = large.
 
 | # | Task | Size | Dependency |
 |---|------|------|-----------|
-| 1-A | Expand integration tests: home page assertions, clubs page, 404 route, 500 error handler, invalid eventKey formats | M | — |
-| 1-B | Expand integration tests: health/ready edge cases, middleware behavior | S | — |
-| 1-C | Write `scripts/deploy-staging.sh`: rsync + docker compose pull + restart, idempotent | S | Phase 0 gate |
-| 1-D | GitHub Actions workflow: run `npm test` on push + PR | M | 1-A, 1-B |
+| ~~1-A~~ | ~~Expand integration tests: home page assertions, clubs page, 404 route, 500 error handler, invalid eventKey formats~~ | ~~M~~ | DONE |
+| ~~1-B~~ | ~~Expand integration tests: health/ready edge cases, middleware behavior~~ | ~~S~~ | DONE |
+| ~~1-C~~ | ~~Write `scripts/deploy-staging.sh`: rsync + docker compose pull + restart, idempotent~~ | ~~S~~ | DONE |
+| ~~1-D~~ | ~~GitHub Actions workflow: run `npm test` on push + PR~~ | ~~M~~ | DONE |
 | 1-E | CloudFront pass 2: enable_cloudfront = true in Terraform, apply to staging | M | Phase 0 gate |
 | 1-F | Security hardening: X-Origin-Verify header (CloudFront → origin validation), S3 OAC | M | 1-E |
 | 1-G | CloudWatch agent install on host | S | Phase 0 gate |
 
-**Gate:** CI is green on all tests. Deploy is one script invocation. CloudFront is fully active on staging. CloudWatch is receiving metrics.
+**Gate:** PARTIAL — app CI green, deploy is one-script, deploy-staging.sh exists. Remaining: CloudFront fully active on staging (1-E), CloudWatch receiving metrics (1-G).
 
 ---
 
@@ -274,7 +338,7 @@ Size labels: S = small, M = medium, L = large.
 | 3-A | `ClubService` public methods: `listPublicClubs()`, page model shaping (see Service Catalog) | M | — |
 | 3-B | Clubs controller + route: replace "coming soon" placeholder with real data rendering | M | 3-A |
 | 3-C | Clubs integration tests: clubs listing, empty state, individual club route (if scoped) | M | 3-B |
-| 3-D | Clubs seed data: at least NHSA and a few historical clubs from legacy mirror | S | 2-A (migration plumbing) |
+| 3-D | Clubs seed data: extract + load from legacy mirror (extract_clubs.py + load_clubs_seed.py) | S | clubs table exists in schema (DONE) |
 | 3-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch of historical events | L | 2-B |
 | 3-F | Production deploy (if staging validated from Phase 2 and CloudFront active) | M | Phase 2 gate, 1-E |
 
