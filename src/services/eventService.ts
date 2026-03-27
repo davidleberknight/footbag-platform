@@ -86,7 +86,21 @@ export interface PublicEventPage {
   resultSections: PublicResultSection[];
 }
 
+export interface FeaturedPromoCard {
+  title: string;
+  href: string;
+  ctaLabel: string;
+  description?: string;
+  startDate: string;
+  endDate: string;
+  city: string;
+  region?: string | null;
+  country: string;
+  external?: boolean;
+}
+
 export interface EventsLandingContent {
+  featuredPromo?: FeaturedPromoCard;
   upcomingEvents: PublicEventSummary[];
   archiveYears: number[];
 }
@@ -393,6 +407,21 @@ export class EventService {
     });
   }
 
+  private getFeaturedPromo(): FeaturedPromoCard {
+    return {
+      title: '45th IFPA World Footbag Championships 2026',
+      href: 'https://www.footbag.jp/FootbagWorlds2026',
+      ctaLabel: 'Official Website',
+      description: "Asia's first World Footbag Championship will be in Japan in August!",
+      startDate: '2026-08-10',
+      endDate: '2026-08-15',
+      city: 'Tsukuba',
+      region: 'Ibaraki',
+      country: 'Japan',
+      external: true,
+    };
+  }
+
   getPublicEventsLandingPage(nowIso: string): PageViewModel<EventsLandingContent> {
     return {
       seo: { title: 'Events' },
@@ -403,6 +432,7 @@ export class EventService {
         intro: 'Tournaments, competitions, and gatherings from around the world.',
       },
       content: {
+        featuredPromo: this.getFeaturedPromo(),
         upcomingEvents: this.listPublicUpcomingEvents(nowIso),
         archiveYears: this.listPublicArchiveYears(),
       },

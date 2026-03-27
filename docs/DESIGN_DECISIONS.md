@@ -22,6 +22,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.7 Docker Containers](#17-docker-containers)
   - [1.8 Container Memory Allocation](#18-container-memory-allocation)
   - [1.9 Controller to Service Pattern](#19-controller-to-service-pattern)
+  - [1.10 Catalog-governed Page and Service Contracts](#110-catalog-governed-page-and-service-contracts)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -353,28 +354,60 @@ Impact:
 
 ## 1.9 Controller to Service Pattern
 
-Decision:  
-Controllers call business services directly and return HTML (for browser requests) or JSON (for webhooks/AJAX) based on request context. No separate REST API layer between HTML controllers and services. Only Webhook callbacks use REST. JSON endpoints exist where functionally required: webhook handlers, and AJAX calls. All business services to be documented in the Service Catalog.
+Decision:
+Controllers call business services directly and return HTML (for browser requests) or JSON (for webhooks/AJAX) based on request context.
+No separate REST API layer between HTML controllers and services. Only Webhook callbacks use REST. JSON endpoints exist where functionally required: webhook handlers and AJAX calls. All business services must be documented in the Service Catalog.
+
+Controllers are thin HTTP adapters only. They may perform request parsing, invoke validation middleware/helpers, select the response path, and delegate rendering, but they do not own business rules, route-domain interpretation, or page-model shaping beyond trivial glue logic.
 
 Rationale:
 
-- Services contain all business logic; controllers only handle HTTP concerns (request parsing, input validation, authentication, response formatting).
-
-- Reduces cognitive load with Object-oriented design. Single request path through system.
+- Services contain all business logic and route/domain interpretation.
+- Thin controllers reduce drift, simplify testing, and keep request handling predictable.
+- A single request path through the system reduces cognitive load and better fits the project's object-oriented service structure.
 
 Trade-offs:
 
 - No public REST API (except for required Webhook callbacks).
+- Requires discipline to prevent convenience logic from creeping into controllers.
 
 Impact:
 
-- Single controller per domain entity (Member, Event, Club, ...).
-
+- Single controller per domain entity or public section (Member, Event, Club, HoF, Home, ...).
 - Services remain pure domain logic with no HTTP knowledge (no request/response objects in service signatures).
-
-- Controllers return HTML pages (via res.render() or res.redirect()) for browser navigation, JSON for webhooks/callbacks.
-
+- Controllers return HTML pages (via `res.render()` or `res.redirect()`) for browser navigation, JSON for webhooks/callbacks.
+- Controllers should not become the place where page contracts are assembled.
 - JavaScript validation runs client-side; forms submit via traditional POST with full-page navigation.
+
+## 1.10 Catalog-governed Page and Service Contracts
+
+Decision:
+The platform uses catalog-governed architecture for page rendering and service ownership.
+
+- `docs/VIEW_CATALOG.md` is the normative source for reusable public rendering primitives, page contracts, and page-specific view-model requirements.
+- `docs/SERVICE_CATALOG.md` is the normative source for service ownership, service boundaries, service method contracts, and service-level route-interpretation responsibility.
+- `IMPLEMENTATION_PLAN.md` is the normative source for current-slice implementation status, accepted temporary deviations, and intentionally deferred work.
+
+Controllers remain thin HTTP adapters. Templates remain logic-light rendering surfaces. Page shaping, route-domain interpretation, and page-specific read-model assembly belong in services or page-model builders owned by the service layer.
+
+Home is the one intentional composition-page exception to the generic public page contract, but it is not an exception to shared shell/layout standards, service-owned shaping, or the Express + Handlebars + vanilla TypeScript architecture.
+
+Any new page, section, or service boundary that materially changes the public architecture must be admitted by updating the relevant catalog in the same change or earlier.
+
+Rationale:
+- The project now has enough architectural structure that page contracts and service contracts need explicit governing documents.
+- This reduces drift between docs and code.
+- This keeps long-term catalogs future-facing while still allowing current-slice shortcuts to live in the implementation plan.
+- This gives contributors and AI tools a clear source-of-truth order for page behavior and service responsibility.
+
+Trade-offs:
+- Requires more disciplined documentation updates when adding routes or services.
+- Adds one more explicit architectural rule contributors must understand.
+
+Impact:
+- New public pages should not be added without catalog updates.
+- Service ownership disputes should be resolved against the Service Catalog, not by ad hoc controller behavior.
+- Current temporary exceptions belong in `IMPLEMENTATION_PLAN.md`, not as scattered one-off caveats throughout every cataloged page.
 
 # 2. Data Model
 
@@ -990,7 +1023,10 @@ Cross-references:
 
 Decision:
 
-All primary pages are rendered on the server using Handlebars templates and strongly-typed view models from TypeScript controllers.
+All primary pages are rendered on the server using Handlebars templates and strongly-typed view models surfaced through TypeScript controllers and shaped by the service layer.
+
+Home-page exception note:
+The Home page may use richer editorial composition and limited client-side media behavior (for example image/video treatments, inline embeds, or motion treatments) within the same Express + Handlebars + vanilla TypeScript stack. This does not authorize a separate SPA architecture, a separate Home-only framework, or a separate chrome/navigation system.
 
 Rationale:
 
@@ -1001,6 +1037,8 @@ Rationale:
 - Simplicity-first design calls for a standard, non-exotic stack.
 
 - Handlebars templates with vanilla TypeScript for interactivity provides optimal balance of simplicity, maintainability, and sufficiently meets all requirements for the use cases.
+
+- Service-shaped page models keep templates cleaner and make page contracts easier to document in the View Catalog.
 
 Alternatives Considered:
 
@@ -1024,7 +1062,9 @@ Impact:
 
 Decision:
 
-JavaScript provides client-side usability enhancements (autocomplete, media previews, dynamic filters, some validation checks) on top of server-rendered HTML. Core pages and form submissions function without JavaScript, as server-side validation is authoritative and all forms submit via native browser POST regardless. JavaScript acts as a client-side validation gate to improve UX by catching errors before submission, not as the submission mechanism. The one functional exception is Stripe's hosted checkout page, which requires JavaScript as a third-party dependency outside this platform's control.
+JavaScript provides client-side usability enhancements (autocomplete, media previews, dynamic filters, some validation checks, and limited page-specific interactive media behavior) on top of server-rendered HTML. Core pages and form submissions function without JavaScript, as server-side validation is authoritative and all forms submit via native browser POST regardless. JavaScript acts as a client-side validation gate to improve UX by catching errors before submission, not as the submission mechanism. The one functional exception is Stripe's hosted checkout page, which requires JavaScript as a third-party dependency outside this platform's control.
+
+For the Home page, richer media/interactivity may be added within this same progressive-enhancement model. It must not become a separate client-side application architecture.
 
 Rationale:
 
@@ -1192,25 +1232,28 @@ Impact:
 
 Decision:
 
-Express is used as the HTTP framework for routing, middleware, and request handling. Controllers are thin wrappers that delegate to business services and views.
+Express is used as the HTTP framework for routing, middleware, and request handling. Controllers are thin wrappers that delegate to business services and rendering surfaces.
+
+Controllers own HTTP concerns only: request parsing, middleware coordination, auth/session boundary enforcement, choosing the response type, and invoking rendering or redirect paths. Controllers do not own business rules, service-boundary decisions, page-model shaping beyond trivial glue logic, or ad hoc route-domain interpretation.
 
 Rationale:
 
 - Express is simple, mainstream, and well-documented.
-
 - Keeps HTTP concerns (routing, headers, status codes) separate from business logic.
+- Thin-controller discipline makes the service catalog and page/view contracts more stable over time.
 
 Trade-offs:
 
 - Does not provide advanced framework features (e.g., DI containers) out of the box.
-
 - Requires explicit wiring for validation, error handling, and auth checks.
+- Requires discipline to prevent controller convenience logic from expanding over time.
 
 Impact:
 
 - Routes map method + path to controller functions.
-
-- Middleware layers handle JWT validation, rate limiting, etc.
+- Middleware layers handle JWT validation, rate limiting, and similar cross-cutting concerns.
+- Controllers should remain small and easy to reason about.
+- Complex page composition belongs in services or explicitly owned page-model builders, not in controllers.
 
 Authorization Middleware Pattern:
 

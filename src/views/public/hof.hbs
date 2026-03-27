@@ -3,20 +3,26 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>{{page.intro}}</p>
+    {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
+    {{#if page.notice}}<div class="notice">{{page.notice}}</div>{{/if}}
   </div>
 </div>
 
 <div class="wrapper">
 
   {{#each content.sections}}
-  <section>
-    <h2 class="section-heading">{{this.heading}}</h2>
-    {{#each this.paragraphs}}
-    <p>{{this}}</p>
-    {{/each}}
-    <a href="{{../content.externalLink.href}}" class="btn btn-outline" target="_blank" rel="noopener noreferrer">{{../content.externalLink.label}}</a>
-  </section>
+    <section>
+      <h2 class="section-heading">{{this.heading}}</h2>
+      {{#each this.paragraphs}}
+        <p>{{this}}</p>
+      {{/each}}
+    </section>
   {{/each}}
+
+  {{#if content.externalLink}}
+    <section>
+      <a href="{{content.externalLink.href}}" class="btn btn-outline" target="_blank" rel="noopener noreferrer">{{content.externalLink.label}}</a>
+    </section>
+  {{/if}}
 
 </div>

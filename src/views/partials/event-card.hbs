@@ -7,9 +7,10 @@
     <a href="/events/{{eventKey}}">{{title}}</a>
   </div>
   <div class="card-meta">
-    <span>{{startDate}}{{#if endDate}} – {{endDate}}{{/if}}</span>
+    <span>{{formatDate startDate}}{{#if endDate}} – {{formatDate endDate}}{{/if}}</span>
     <span>{{city}}{{#if region}}, {{region}}{{/if}}, {{country}}</span>
     {{#if hostClub}}<span>{{hostClub}}</span>{{/if}}
+    {{#if registrationStatus}}<span>Registration: {{registrationStatus}}</span>{{/if}}
   </div>
   <span class="badge badge-{{status}}">{{status}}</span>
   {{#if description}}

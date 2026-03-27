@@ -2,8 +2,9 @@
 
 <div class="hero hero-sm">
   <div>
-    <h1>Footbag Worldwide</h1>
-    <p>The home of footbag sports and recreational "Hacky Sack."</p>
+    <h1>{{hero.heading}}</h1>
+    {{#if hero.subheading}}<p>{{hero.subheading}}</p>{{/if}}
+    {{#if page.notice}}<div class="notice">{{page.notice}}</div>{{/if}}
   </div>
 </div>
 
@@ -11,26 +12,27 @@
 
   <section>
     <div class="card-grid">
-
-      <div class="card">
-        <div class="card-title">Events</div>
-        <p class="card-description">Browse competitive footbag results from tournaments around the world.</p>
-        <a href="/events" class="btn btn-outline" style="margin-top:12px">Browse Events</a>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Members</div>
-        <p class="card-description">Browse historical player records linked to competitive footbag results from past events.</p>
-        <a href="/members" class="btn btn-outline" style="margin-top:12px">Browse Members</a>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Clubs</div>
-        <p class="card-description">The club directory is coming soon. Browse clubs by country, region, and city.</p>
-        <a href="/clubs" class="btn btn-outline" style="margin-top:12px">Learn more</a>
-      </div>
-
+      {{#each primaryLinks}}
+        <div class="card">
+          <div class="card-title">{{label}}</div>
+          <p class="card-description">{{description}}</p>
+          <a href="{{href}}" class="btn {{#if (eq variant 'primary')}}btn-primary{{else}}btn-outline{{/if}}" style="margin-top:12px">{{label}}</a>
+        </div>
+      {{/each}}
     </div>
   </section>
+
+  {{#if featuredUpcomingEvents.length}}
+    <section>
+      <div class="section-heading">
+        <h2>Featured Upcoming Events</h2>
+      </div>
+      <div class="card-grid">
+        {{#each featuredUpcomingEvents}}
+          {{> event-card}}
+        {{/each}}
+      </div>
+    </section>
+  {{/if}}
 
 </div>

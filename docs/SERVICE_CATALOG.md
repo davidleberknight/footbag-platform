@@ -150,9 +150,9 @@ Source-of-truth note: This document defines service ownership, method contracts,
 - **Primary tables:** `votes`, `vote_options`, `vote_eligibility_snapshot`, `ballots`, `vote_results`, `hof_nominations`, `hof_affidavits`
 
 **`HallOfFameService`**
-- **Owns:** HoF inductee display pages and historical record — read-only
+- **Owns:** Current-slice HoF landing page read for `GET /hof`; future in-site HoF inductee display and historical record reads are deferred out of scope
 - **Does NOT own:** HoF tier promotion or `is_hof` flag writes (MembershipTieringService), nomination/affidavit/election lifecycle (VotingElectionService)
-- **Primary tables:** `members`, `hof_nominations`, `hof_affidavits` (all reads)
+- **Primary tables:** none for current slice
 
 ---
 
@@ -302,17 +302,18 @@ Source-of-truth note: This document defines service ownership, method contracts,
 
 ### 4.0 `HomeService`
 
-**Purpose/Boundary:** Owns the landing-page composition read for `GET /`. This is the one intentional Home-page exception in the current public architecture. It does not own generic event browsing, club-domain lifecycle logic, or controller concerns.
+**Purpose/Boundary:** Owns the service-shaped landing-page composition read for `GET /`. Home is the one intentional composition-page exception in the current public architecture. This service owns the Home page contract, including hero composition, editorial/media modules, primary section links, and any featured event teasers shown on Home. It may compose read models from other public read services. It does not own generic Events browsing, club-domain lifecycle logic, layout chrome, or controller concerns.
 
 **Consumers:** Public home controller
 
 **Key Methods:**
-- `getPublicHomePage(nowIso) -> {featuredUpcomingEvents, primaryLinks, comingSoonSections}`
+- `getPublicHomePage(nowIso) -> { seo, page, hero, primaryLinks, featuredUpcomingEvents?, featurePanels?, comingSoonSections? }`
 
 **Key Rules:**
 - Home remains within the thin-controller / service-owned-shaping architecture.
+- Home may be richer than ordinary list/detail pages, but the page-composition contract belongs here, not in templates.
 - Do not introduce or preserve a `publicController` abstraction as target design.
-- `HomeService` may compose read models from other services, but the page-composition contract belongs here.
+- Do not introduce a separate Home-specific front-end stack.
 
 ---
 
@@ -603,24 +604,20 @@ For the current public routes, `EventService` is responsible for:
 
 ### 6.2 `HallOfFameService`
 
-**Purpose/Boundary:** Owns HoF inductee display pages and historical record — read-only. Does NOT own HoF tier promotion or `is_hof` flag writes (MembershipTieringService), or nomination/affidavit/election lifecycle (VotingElectionService).
+**Purpose/Boundary:** Owns the current-slice HoF landing page read for `GET /hof` — service-shaped, no DB queries required. Does NOT own HoF tier promotion or `is_hof` flag writes (MembershipTieringService), or nomination/affidavit/election lifecycle (VotingElectionService). Future in-site HoF inductee display pages, roster reads, and historical-record surfaces are deferred out of scope.
 
-**Consumers:** Member and visitor controllers (public display)
+**Consumers:** Public HoF controller
 
 **Key Methods:**
-- `getHoFRoster() -> {inductees}` — public; lists all members with `is_hof = 1`; includes name, bio, `hof_inducted_year`, honor badge; shows preserved data for PII-purged members (display name and honor preserved by `OperationsPlatformService.runPIIPurgeJob()`)
-- `getHoFProfile(memberId) -> {profile}` — public; member's HoF profile with community history
-- `getNominationHistory(cycleYear) -> {nominations}` — admin; all nominations for a given year including status and affidavit availability
+- `getHofLandingPage() -> { seo, page, content }` — shapes the current-slice editorial landing page model; no DB reads
 
-**Authz:** `getHoFRoster`, `getHoFProfile`: public (no login required). `getNominationHistory`: admin.
+**Authz:** public (no login required)
 
-**Persistence Touchpoints:** `members`, `members_active`, `hof_nominations`, `hof_affidavits` (all reads)
+**Persistence Touchpoints:** none for current slice
 
 **Key Rules:**
-- `[APP]` This service is read-only — it does not write to any table
-- `[APP]` HoF/BAP honor badges visible to all users including visitors wherever member appears
-- `[APP]` `is_hof` flag + `hof_inducted_year` written by MembershipTieringService; `hof_nominations` and `hof_affidavits` written by VotingElectionService — this service reads both
-- `[APP]` PII-purged HoF members: display name and honors preserved (not anonymized) per `OperationsPlatformService.runPIIPurgeJob()` rules
+- `[APP]` This service is read-only and requires no DB queries for the current slice
+- `[APP]` Templates must not construct the standalone HoF URL; service provides the `content.externalLink` object
 
 **Async / Side Effects:** none
 

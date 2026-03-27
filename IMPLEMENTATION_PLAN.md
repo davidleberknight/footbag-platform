@@ -70,6 +70,7 @@ The current deployed public slice is the baseline, not a throwaway prototype.
 Current implemented public routes:
 - `/`
 - `/clubs` (placeholder — no real data)
+- `/hof` (first-class Hall of Fame landing page for the current slice; links out to the current standalone HoF site)
 - `/events`
 - `/events/year/:year`
 - `/events/:eventKey`
@@ -104,32 +105,35 @@ Current verification baseline:
 
 These are known, intentional shortcuts. Each has an explicit unblock condition. Agents must not treat long-term docs, prior memory, or broader catalog docs as overriding these.
 For current implementation work, this plan governs current scope.
+Long-term catalogs should preserve target design; current-slice exceptions belong here, not as scattered caveats throughout every cataloged page.
 
 1. **Auth is a fake stub.** HMAC-signed cookie, env-backed credentials, no DB session check, no CSRF flow, no password-version or session-invalidation model. Mirrors the real auth path structurally. Unblock: replace with real JWT/DB auth (Phase 4) before member onboarding.
 
-2. **Members routes are temporarily auth-gated.** `/members` and `/members/:personId` are Tier 1 public historical-person data per `docs/GOVERNANCE.md §4–5` and should eventually be public. Currently gated to protect an unreviewed full-member-list render and to exercise the auth path. Unblock: review member-list presentation scope, then remove `requireAuth`.
+2. **Members routes are temporarily auth-gated.** `/members` and `/members/:personId` are Tier 1 public historical-person data per `docs/GOVERNANCE.md §4–5` and should eventually be public. Currently gated to protect an unreviewed public presentation and to exercise the auth path. Unblock: review member-list presentation scope, then remove `requireAuth`.
 
-3. **Worker has no real jobs.** `worker.ts` exits cleanly; the worker container is scaffolded only. No outbox, email, or background-job processing is active. Unblock: Phase 4 email outbox activation.
+3. **The current `/members` full-list/filter surface is temporary.** The implemented page currently renders an authenticated full historical-record list with client-side filter/sort. This is a bootstrapping and review surface, not the final public member-directory/search design. Unblock: finalize the privacy-safe public member discovery/search design, then replace the current list/filter behavior accordingly.
 
-4. **No closed backup/restore workflow.** S3 bucket is scaffolded; no backup producer exists in app or worker; no restore drill has been run. `/health/ready` is a DB-probe only. Unblock: implement backup job in worker and run a restore rehearsal before any production data is at risk.
+4. **Worker has no real jobs.** `worker.ts` exits cleanly; the worker container is scaffolded only. No outbox, email, or background-job processing is active. Unblock: Phase 4 email outbox activation.
 
-5. **Maintenance mode is not production-grade.** CloudFront maintenance-origin/error behavior is omitted from Terraform; direct-origin failover is not implemented. Unblock: Phase 1-E CloudFront pass 2.
+5. **No closed backup/restore workflow.** S3 bucket is scaffolded; no backup producer exists in app or worker; no restore drill has been run. `/health/ready` is a DB-probe only. Unblock: implement backup job in worker and run a restore rehearsal before any production data is at risk.
 
-6. **CloudFront hardening incomplete.** X-Origin-Verify header is absent from Nginx; OAC/ordered-cache controls are deferred; direct-origin bypass is unprotected. Unblock: Phase 1-F security hardening.
+6. **Maintenance mode is not production-grade.** CloudFront maintenance-origin/error behavior is omitted from Terraform; direct-origin failover is not implemented. Unblock: Phase 1-E CloudFront pass 2.
 
-7. **CI/CD is absent.** No GitHub Actions workflows exist. Images are built on-host via `docker compose`; the systemd unit starts local builds. Unblock: Phase 1-C deploy script + Phase 1-D GitHub Actions.
+7. **CloudFront hardening incomplete.** X-Origin-Verify header is absent from Nginx; OAC/ordered-cache controls are deferred; direct-origin bypass is unprotected. Unblock: Phase 1-F security hardening.
 
-8. **Monitoring is partial and intentionally gated.** CloudWatch log groups and alarms are Terraformed; CloudWatch agent install is TODO; monitoring gates default false; backup freshness metric has no producer. Unblock: Phase 1-G agent install + backup job.
+8. **CI/CD is absent.** No GitHub Actions workflows exist. Images are built on-host via `docker compose`; the systemd unit starts local builds. Unblock: Phase 1-C deploy script + Phase 1-D GitHub Actions.
 
-9. **Runtime config is manually managed.** App reads local env vars from `/srv/footbag/env` only. SSM/IAM scaffolding exists but app runtime does not consume it. Unblock: when runtime AWS calls (SSM, S3, SES, KMS) are activated.
+9. **Monitoring is partial and intentionally gated.** CloudWatch log groups and alarms are Terraformed; CloudWatch agent install is TODO; monitoring gates default false; backup freshness metric has no producer. Unblock: Phase 1-G agent install + backup job.
 
-10. **Bootstrap security shortcuts remain.** Operator IAM and SSH access use bootstrap-era posture, not the final hardened model. Unblock: explicit security hardening pass before production launch.
+10. **Runtime config is manually managed.** App reads local env vars from `/srv/footbag/env` only. SSM/IAM scaffolding exists but app runtime does not consume it. Unblock: when runtime AWS calls (SSM, S3, SES, KMS) are activated.
 
-11. **Browser validation is manual-only.** No automated browser/UI tests. Route and integration tests are the first verification path. Browser checks are explicit-human-request-only.
+11. **Bootstrap security shortcuts remain.** Operator IAM and SSH access use bootstrap-era posture, not the final hardened model. Unblock: explicit security hardening pass before production launch.
 
-12. **`image` container is absent.** Docker Compose defines `nginx`, `web`, and `worker`; the `image` container (photo processing, S3 sync) is a later-phase artifact and is not present. Unblock: Phase 3+ media pipeline work.
+12. **Browser validation is manual-only.** No automated browser/UI tests. Route and integration tests are the first verification path. Browser checks are explicit-human-request-only.
 
-13. **`/health/ready` is a DB-probe only.** Current implementation validates only the minimal SQLite readiness path. Long-term design includes memory-pressure gating and broader dependency checks (see `docs/DESIGN_DECISIONS.md §8.4`). Unblock: Phase 1-G monitoring pass + backup job activation.
+13. **`image` container is absent.** Docker Compose defines `nginx`, `web`, and `worker`; the `image` container (photo processing, S3 sync) is a later-phase artifact and is not present. Unblock: Phase 3+ media pipeline work.
+
+14. **`/health/ready` is a DB-probe only.** Current implementation validates only the minimal SQLite readiness path. Long-term design includes memory-pressure gating and broader dependency checks (see `docs/DESIGN_DECISIONS.md §8.4`). Unblock: Phase 1-G monitoring pass + backup job activation.
 
 ---
 

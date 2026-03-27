@@ -33,18 +33,23 @@
 
     <div class="card-grid">
 
-      {{! 45th IFPA World Footbag Championships 2026 }}
-      <div class="card card-featured">
-        <div class="card-title">
-          <a href="https://www.footbag.jp/FootbagWorlds2026" target="_blank" rel="noopener noreferrer">45th IFPA World Footbag Championships 2026</a>
+      {{#if content.featuredPromo}}
+        <div class="card card-featured">
+          <div class="card-title">
+            <a href="{{content.featuredPromo.href}}" {{#if content.featuredPromo.external}}target="_blank" rel="noopener noreferrer"{{/if}}>
+              {{content.featuredPromo.title}}
+            </a>
+          </div>
+          <div class="card-meta">
+            <span>{{formatDate content.featuredPromo.startDate}} – {{formatDate content.featuredPromo.endDate}}</span>
+            <span>{{content.featuredPromo.city}}{{#if content.featuredPromo.region}}, {{content.featuredPromo.region}}{{/if}}, {{content.featuredPromo.country}}</span>
+          </div>
+          {{#if content.featuredPromo.description}}
+            <p class="card-description">{{content.featuredPromo.description}}</p>
+          {{/if}}
+          <a href="{{content.featuredPromo.href}}" {{#if content.featuredPromo.external}}target="_blank" rel="noopener noreferrer"{{/if}} class="btn btn-white" style="margin-top: 16px;">{{content.featuredPromo.ctaLabel}}</a>
         </div>
-        <div class="card-meta">
-          <span>10 August 2026 – 15 August 2026</span>
-          <span>Tsukuba, Ibaraki, Japan</span>
-        </div>
-        <p class="card-description">Asia's first World Footbag Championship will be in Japan in August!</p>
-        <a href="https://www.footbag.jp/FootbagWorlds2026" target="_blank" rel="noopener noreferrer" class="btn btn-white" style="margin-top: 16px;">Official Website</a>
-      </div>
+      {{/if}}
 
       {{#each content.upcomingEvents}}
         {{> event-card}}

@@ -42,7 +42,7 @@
 
 ## 1. Purpose
 
-**Current implementation status:** see `IMPLEMENTATION_PLAN.md`. This catalog defines the standard and page contracts; the plan governs what is implemented now vs deferred.
+**Current implementation status:** see `IMPLEMENTATION_PLAN.md`. This catalog defines the long-lived rendering standard and page contracts. The plan governs what is implemented now versus deferred, and it also governs accepted temporary deviations where the current slice intentionally differs from the target catalog. Contributors and AI assistants must not silently flatten disagreements between this catalog, `IMPLEMENTATION_PLAN.md`, and the code.
 
 This document is the authoritative catalog for the public pages that are already implemented or actively specified in the current slice, and for the rendering standard those cataloged pages must follow.
 
@@ -122,7 +122,11 @@ A new public page may join the catalog only if it can be expressed through the s
 
 ### 3.5 Home is a special composition-page exception
 
-Home (`/`) is the one intentional exception to the page contract defined in §4.2. It still follows the reusable public frame, thin-controller rule, and service-owned shaping rule, but it is a landing-page composition view and does not follow the standard `seo / page / navigation / content` contract. The home controller currently composes directly from available services; a dedicated `HomeService` may be introduced later if warranted. All other cataloged pages must conform to §4.2.
+Home (`/`) is the one intentional composition-page exception. It is not required to use the standard `seo / page / navigation / content` contract, but it must still use the shared site layout, shared visual tokens, shared section identity, thin-controller discipline, and service-owned shaping.
+
+Home may introduce richer editorial composition and optional media/interactivity regions such as hero media, inline video, motion treatments, or other page-specific JavaScript enhancements. These enhancements must remain within the same Express + Handlebars + vanilla TypeScript architecture and must not introduce a separate front-end stack, template-owned routing logic, or a home-only chrome system.
+
+Any permanent change to navigation structure or global shell belongs in the shared layout and design system, not in the Home template alone.
 
 ---
 
@@ -222,7 +226,7 @@ Used in event detail. Each tag renders the discipline name. Non-singles discipli
 
 ### Result section
 
-Used in event detail and in year archive inline results. One section per discipline grouping.
+Used in event detail. One section per discipline grouping.
 
 - Section header: `disciplineName` when present; otherwise "General Results"
 - Optional meta line when `teamType` is present (renders raw `teamType` value)
@@ -371,7 +375,7 @@ Visual token baseline (from `src/public/css/style.css`):
 
 ### Purpose
 
-Provide the primary public entry point for the modernized site.
+Provide the primary public entry point for the modernized site. Home is a richer landing-page composition surface that introduces the platform, highlights live public data, and routes visitors into the main sections.
 
 ### Route
 
@@ -383,27 +387,23 @@ Public visitor.
 
 ### Standard relationship
 
-This page consumes the generic public rendering standard.
-
-It is also the one intentional Home-page exception: a landing-page composition view rather than a generic list/detail consumer. It does not follow the §4.2 page contract. A dedicated `HomeService` may be introduced later if warranted.
+This page consumes the generic public rendering standard's shared frame, shared visual language, and reusable primitives where practical, but it is the one intentional composition-page exception and does not use the §4.2 generic page contract.
 
 ### Page intent
 
 - welcome visitors to IFPA Footbag
-- state clearly that public event data is live now
-- signal that additional sections are coming
-- provide direct navigation into Events
-- establish Clubs as an expected section even while still lightweight
+- establish the site's overall look and feel
+- provide strong entry points into Events, Members, and Clubs
+- support richer editorial/media presentation than ordinary list/detail pages
+- remain compatible with future designer-led landing-page enhancements without requiring a new front-end architecture
 
 ### Required content
 
 - hero with site title and short welcome text
-- clear statement about current platform scope
-- direct links to Home, Events, Members, and Clubs
-- featured upcoming events teaser region
-- link to browse all events
-- clubs teaser / placeholder region
-- optional coming-soon region for other future sections
+- primary navigation cards/links into the major sections
+- optional featured upcoming events teaser region
+- optional editorial or media regions
+- optional coming-soon / future-sections region
 
 ### Required view-model fields
 
@@ -413,20 +413,37 @@ It is also the one intentional Home-page exception: a landing-page composition v
 - optional `page.eyebrow`
 - `page.intro`
 - optional `page.notice`
-- `featuredUpcomingEvents[]`
+- `hero`
+  - `heading`
+  - optional `subheading`
+  - optional `media`
+    - `kind: 'image' | 'video' | 'youtube'`
+    - `src`
+    - optional `alt`
+    - optional `posterSrc`
+    - optional `caption`
 - `primaryLinks[]`
+  - `label`
+  - `href`
+  - `description`
+  - optional `variant`
+- optional `featuredUpcomingEvents[]`
+- optional `featurePanels[]`
+  - `heading`
+  - `body`
+  - optional `href`
+  - optional `ctaLabel`
 - optional `comingSoonSections[]`
 
 ### Navigation outputs
 
 - `GET /events`
-- `GET /events/:eventKey`
 - `GET /members`
 - `GET /clubs`
 
 ### Empty state
 
-If there are no featured upcoming events, the page still renders normally with a standard empty state and retains the Events entry point.
+Home still renders normally when optional featured/media regions are absent.
 
 ---
 
@@ -488,6 +505,11 @@ No service-provided navigation outputs. Member detail links are part of `content
 ### Empty state
 
 This page does not require data-backed list content and should still render normally when no additional member functionality is available yet.
+
+### Implementation notes
+
+- Current-slice exception: the implemented page currently includes an authenticated full historical-record table with client-side filter/sort. This is a temporary review and bootstrapping surface, not the final public member-directory/search design.
+- See `IMPLEMENTATION_PLAN.md` for the accepted temporary deviation and unblock condition.
 
 ---
 
@@ -577,6 +599,7 @@ This page consumes the generic public rendering standard.
 ### Required content
 
 - hero for the Events section
+- optional featured promo region for intentionally highlighted event content
 - upcoming events region — event cards use the standard event card primitive (§4.3)
 - archive years region
 
@@ -589,6 +612,17 @@ This page consumes the generic public rendering standard.
 - optional `page.eyebrow`
 - `page.intro`
 - optional `page.notice`
+- optional `content.featuredPromo`
+  - `title`
+  - `href`
+  - `ctaLabel`
+  - optional `description`
+  - `startDate`
+  - `endDate`
+  - `city`
+  - optional `region`
+  - `country`
+  - optional `external: boolean`
 - `content.upcomingEvents[]`
   - `eventKey`
   - `title`
@@ -602,6 +636,8 @@ This page consumes the generic public rendering standard.
   - `registrationStatus`
   - `status`
 - `content.archiveYears[]`
+
+`registrationStatus` is part of the display contract. Templates should render it when present and should not invent fallback wording when it is absent or empty.
 
 ### Navigation outputs
 
@@ -851,7 +887,7 @@ This page is itself a controlled placeholder state and should use the standard n
 
 ### Purpose
 
-Provide the public Footbag Hall of Fame informational landing page. For the current slice this is a static/editorial content page; it will eventually display About-Us-style text sourced from footbaghalloffame.net.
+Provide the public Footbag Hall of Fame landing page as a first-class route in the main site. In the current slice this is a service-shaped editorial landing page that links to the existing standalone HoF site. Future inductee pages, member-linked HoF records, and richer HoF history remain future scope.
 
 ### Route
 
@@ -868,14 +904,15 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 ### Page intent
 
 - establish the Footbag Hall of Fame as a first-class section in the site navigation
-- communicate that richer HoF content is coming
-- provide a view model shaped to accept rich editorial sections once content is ready
+- provide a credible current landing page now
+- link visitors to the existing standalone HoF site
+- leave a clean expansion path for future HoF detail/history pages inside footbag.org
 
 ### Required content
 
 - hero for the HoF section
-- placeholder notice that full HoF content is coming
-- optional editorial content sections when content is available (heading + body per section)
+- external call-to-action to the current standalone HoF site
+- optional editorial sections when local content is available
 
 ### Required view-model fields
 
@@ -886,7 +923,9 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - optional `page.eyebrow`
 - `page.intro`
 - optional `page.notice`
-- optional `content.externalLink: { href: string; label: string }` — when present, rendered as a call-to-action link (e.g. "Visit FootbagHallOfFame.net"); service-provided; templates must not construct this URL
+- optional `content.externalLink`
+  - `href`
+  - `label`
 - optional `content.sections[]`
   - `heading`
   - `paragraphs: string[]`
@@ -897,13 +936,13 @@ No service-provided navigation outputs. Global nav (`currentSection`) is set by 
 
 ### Empty state
 
-This page is itself a controlled placeholder state for the current slice and should use the standard notice / coming-soon treatment rather than a generic empty state.
+This page has editorial content in the current slice and does not use a generic empty-state treatment.
 
 ### Implementation notes
 
-- No DB queries required for the current slice; service shapes static page model only.
-- `extend-service-contract` skill is not needed. Use `add-public-page` directly.
-- Content sections are intentionally empty until the About-Us text is sourced and loaded.
+- No DB queries required for the current slice; service shapes the page model directly.
+- Templates must not construct the standalone HoF URL.
+- Future HoF inductee/member/history routes are intentionally out of scope here and will be cataloged separately when implemented.
 
 ---
 
