@@ -30,3 +30,35 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  terraform:
+    name: Terraform fmt / validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive
+        working-directory: terraform
+
+      - name: terraform validate (staging)
+        working-directory: terraform/staging
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: terraform validate (production)
+        working-directory: terraform/production
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: terraform validate (shared)
+        working-directory: terraform/shared
+        run: |
+          terraform init -backend=false
+          terraform validate
