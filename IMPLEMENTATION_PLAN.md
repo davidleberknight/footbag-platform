@@ -57,16 +57,7 @@ Route: `/records` (new public page). Sequencing: extend-service-contract → add
 
 ### Completed last sprint (clubs sprint + infra sprint)
 
-- Club seed extraction and loading 
-- Clubs page with dirty legacy data, world map, country and detail pages
-- Home page polish: layout, tab title, nav active state, card buttons
-- 1-B: Expand integration tests — health/ready edge cases, middleware behavior
-- 404/500 error pages — proper templates using `PageViewModel`; `page.sectionKey = ''`
-- Fix VIEW_CATALOG drift: `navigation.siblings.previous`/`next` (doc corrected)
-- 1-C: `scripts/deploy-staging.sh` — password-arg deploy script with rsync_db flag
-- Smoke check made data-independent
-- Add terraform fmt/validate job to GitHub Actions CI workflow
-- GitHub branch protection ruleset `protect-main` on main
+Key deliverables: clubs page with real legacy data (world map, country pages, detail pages), home page polish, 404/500 error pages, data-independent smoke check, terraform fmt/validate CI job, branch protection on main. Three deploy scripts created: `scripts/deploy-code.sh` (code-only, DB untouched), `scripts/deploy-rebuild.sh` (destructive staging/dev DB rebuild), `scripts/deploy-migrate.sh` (stub, not yet implemented).
 
 ### Decisions for this sprint
 
@@ -81,7 +72,112 @@ Route: `/records` (new public page). Sequencing: extend-service-contract → add
 1. `bash scripts/reset-local-db.sh` — completes without errors
 2. `npm run dev` → visit `http://localhost:3000/clubs` — world map + clubs listed by country
 3. `npm test` — all tests pass
-4. `bash scripts/deploy-staging.sh '<password>' no` — code-only deploy, smoke check passes
+4. `bash scripts/deploy-code.sh '<password>'` — code-only deploy (DB untouched), smoke check passes
+
+## Next sprint (planned, not yet active)
+
+### Sprint: Member Auth + Profile MVP
+
+**Goal:** Replace the single-credential stub with multi-user DB-backed login. Seed real test member accounts (David Leberknight, James Leberknight, Julie Symons). Give logged-in members a navigable account area with a real profile view/edit and stub pages for all future member features. Make the distinction between historical persons and active member accounts explicit in the UI.
+
+**Pre-implementation gate:** Read `docs/GOVERNANCE.md` before any work touching auth, members, or historical-persons visibility.
+
+**Decisions for this sprint:**
+- Auth dual-path: check `members` table first by email (argon2id hash); fall through to env-var stub if no match. Stub user (`footbag`) is unchanged; logs in with `footbag` in the email field, fails DB lookup, falls through to stub check.
+- Login form field renamed from `username` to `email`. Real member login is email-only.
+- Schema change: add `legacy_claim_tokens` table. Handled via DB rebuild (no migration runner).
+- Seed passwords via env vars (dev default documented in `.env.example`, never in any checked-in file); seed script marks accounts as `email_verified_at` so no email flow is needed.
+- Seed also creates state-2 placeholder `members` rows for David, James, Julie — needed for the claim flow to find and merge.
+- Avatar: show on profile if `avatar_media_id` is set; upload UI is a stub. No S3/media pipeline work this sprint.
+- Historical persons page (`/members`) remains showing `historical_persons` data; add a clear UI label distinguishing legacy records from authenticated accounts.
+- Claim email deviation: in non-production, the claim link is shown on-screen (email outbox deferred). See accepted deviations.
+
+**Items:**
+
+#### Item A — DB-backed multi-user auth
+
+- Add `argon2` dependency for `argon2id` hashing
+- `src/db/db.ts` new statements: `findMemberByEmail(email)`, `updateMemberLastLogin(memberId)`
+- `IdentityAccessService` (new or extend): `verifyMemberCredentials(email, password)` — returns member row or null
+- Update `authController.postLogin`: check DB first, fall through to env-var stub if no DB match
+- Update `SessionUser`: add `displayName` field so nav can show the member's name
+- Integration tests: login with real DB credentials succeeds; bad password fails; stub user still works
+
+#### Item B — Test seed data
+
+- `legacy_data/scripts/seed_members.py` (new): creates real `members` rows for David Leberknight, James Leberknight, Julie Symons; also creates state-2 placeholder rows for their legacy identities (no credentials, legacy fields set) for the claim flow to find and merge; env-var stub remains unchanged
+- Passwords from env vars (`SEED_PASSWORD_DAVID`, etc.); `.env.example` documents the var names
+- Seed accounts: `email_verified_at` set, `searchable = 1`, Tier 0 initially; can manually set `is_admin = 1` for David via script flag
+- Wire into `scripts/reset-local-db.sh`
+
+#### Item C — Legacy account claim (real partial implementation)
+
+Route: `/account/claim/*`. Sequencing: extend-service-contract → add-public-page → write-tests.
+
+Follows `M_Claim_Legacy_Account` user story in full except the email send step (see deviation below).
+
+- New `legacy_claim_tokens` table in `database/schema.sql` (handled via DB rebuild)
+- `legacyClaim` DB statement group: find placeholder by legacy_member_id / legacy_user_id / legacy_email; create/find/consume token; atomic merge + placeholder delete
+- `identityAccessService`: `initiateClaim`, `validateClaimToken`, `completeClaim`
+- Routes: `GET /account/claim`, `POST /account/claim`, `GET /account/claim/verify/:token`, `POST /account/claim/verify/:token`
+- Templates: claim form, claim-sent page (with dev claim link), claim-verify confirmation
+- Integration tests: lookup found/not-found (enumeration-safe), token validation, wrong-member check, confirm merge + placeholder deleted
+
+**Accepted deviation:** claim link is shown on-screen in non-production (email outbox deferred). Unblock: Phase 4-D email outbox activation.
+**Out of scope this sprint:** `M_Review_Legacy_Club_Data_During_Claim` (no provisional club leadership data). Unblock: club-member leadership import.
+
+#### Item D — Member account area (routes + nav)
+
+All routes require auth. Sequencing: extend-service-contract → add-public-page → write-tests.
+
+**Real (full implementation):**
+- `GET /account` — redirect to `/account/profile`
+- `GET /account/profile` — view own profile: avatar placeholder, display name, bio, city/country, tier badge stub
+- `GET /account/profile/edit` + `POST /account/profile/edit` — edit bio, display name, city, region, country, phone, email visibility toggle
+
+**Stub pages (placeholder "coming soon" template, no backend):**
+- `GET /account/avatar` — Upload Avatar
+- `GET /account/media` — Share Media
+- `GET /account/settings` — Account Settings
+- `GET /account/password` — Change Password
+- `GET /account/download` — Download My Data
+- `GET /account/delete` — Delete Account
+
+**Nav:** Add "My Account" link in `main.hbs` when `isAuthenticated`; show member display name; links to profile, claim, and stub sections
+
+#### Item E — Historical persons page label
+
+- Add a visible "Historical Records" label / explainer to `/members` index and detail pages
+- Short text: these are legacy imported player records, not current member accounts
+- No data or routing changes; templates only
+
+#### Item F — Integration tests
+
+- Login with each seeded test account succeeds
+- Login with wrong password returns error
+- Stub user login still works
+- `GET /account/profile` returns 200 for authenticated user, 302 redirect for visitor
+- `POST /account/profile/edit` saves bio change, redirects back to profile
+- Stub pages return 200 for authenticated users
+
+**Sprint verification checklist:**
+1. `bash scripts/reset-local-db.sh` — completes, seeds test members
+2. `npm test` — all tests pass
+3. Log in as test member → see profile with display name → edit bio → save → see change
+4. Log in as stub admin → still works
+5. Visit `/members` → see "Historical Records" label
+
+**Out of scope:**
+- Email verification flow
+- Password reset / change password (stub page only)
+- Real avatar upload
+- Account deletion, data export (stub pages only)
+- `M_Review_Legacy_Club_Data_During_Claim` sub-flow (no provisional club leadership rows exist yet)
+- Member search
+- Membership tiers / dues
+- Email outbox activation (claim link shown on-screen in dev as accepted deviation)
+
+---
 
 ## Drafted next, but not active code focus now
 
@@ -164,7 +260,7 @@ Long-term catalogs should preserve target design; current-slice exceptions belon
 
 7. **CloudFront hardening incomplete.** X-Origin-Verify header is absent from Nginx; OAC/ordered-cache controls are deferred; direct-origin bypass is unprotected. Unblock: Phase 1-F security hardening.
 
-8. **CI/CD pipeline is partial.** App CI is active: `.github/workflows/ci.yml` runs `npm run build` + `npm test` + terraform fmt/validate on push and PR. Deploy is one-script (`scripts/deploy-staging.sh`). Remaining gaps: CloudFront not wired into CI (1-E), security hardening (1-F), CloudWatch agent not installed (1-G). Unblock: Phase 1-E/F/G.
+8. **CI/CD pipeline is partial.** App CI is active: `.github/workflows/ci.yml` runs `npm run build` + `npm test` + terraform fmt/validate on push and PR. Three deploy scripts exist: `scripts/deploy-code.sh` (code-only), `scripts/deploy-rebuild.sh` (destructive DB rebuild), `scripts/deploy-migrate.sh` (stub, not yet implemented). Remaining gaps: CloudFront not wired into CI (1-E), security hardening (1-F), CloudWatch agent not installed (1-G). Unblock: Phase 1-E/F/G.
 
 9. **Monitoring is partial and intentionally gated.** CloudWatch log groups and alarms are Terraformed; CloudWatch agent install is TODO; monitoring gates default false; backup freshness metric has no producer. Unblock: Phase 1-G agent install + backup job.
 
@@ -206,7 +302,7 @@ legacy data visible on site
   ← legacy import scripts (CSVs ready, build scripts exist)
     ← migration strategy (numbered migrations must precede schema evolution)
 
-CI/CD automation — COMPLETE (app CI + deploy script)
+CI/CD automation — COMPLETE (app CI + deploy scripts: deploy-code.sh, deploy-rebuild.sh)
   ← staging running end-to-end
     ← AWS host bootstrap COMPLETE
   remaining: 1-E CloudFront, 1-F security hardening, 1-G CloudWatch agent
@@ -253,18 +349,7 @@ Size labels: S = small, M = medium, L = large.
 
 ### Phase 0 — In-flight completion
 
-**Goal:** Clear the backlog of in-progress work so Phase 1 starts from a clean, fully deployed baseline.
-
-| # | Task | Size | Dependency |
-|---|------|------|-----------|
-| ~~0-A~~ | ~~Apply revision-plan.md doc/config patch (rename versioned docs, tighten hooks/skills/CLAUDE.md)~~ | ~~M~~ | DONE |
-| ~~0-B~~ | ~~AWS host bootstrap: Docker install on host (§4.7 Step 2)~~ | ~~S~~ | DONE |
-| ~~0-C~~ | ~~AWS host bootstrap: /srv/footbag, rsync, DB init, footbag.service (§4.7 Steps 3–6)~~ | ~~M~~ | DONE |
-| ~~0-D~~ | ~~Build and start app in Docker on host (§4.8)~~ | ~~S~~ | DONE |
-| ~~0-E~~ | ~~Staging verification: direct-IP + CloudFront smoke check (§4.9)~~ | ~~S~~ | DONE |
-| ~~0-F~~ | ~~SNS email subscription confirmation~~ | ~~S~~ | DONE |
-
-**Gate:** COMPLETE — site is live on staging and serving all public routes. CloudFront is responding. SNS subscription confirmed.
+**Gate:** COMPLETE — site is live on staging, all public routes serving, CloudFront responding, SNS confirmed.
 
 ---
 
@@ -276,15 +361,11 @@ Size labels: S = small, M = medium, L = large.
 
 | # | Task | Size | Dependency |
 |---|------|------|-----------|
-| ~~1-A~~ | ~~Expand integration tests: home page assertions, clubs page, 404 route, 500 error handler, invalid eventKey formats~~ | ~~M~~ | DONE |
-| ~~1-B~~ | ~~Expand integration tests: health/ready edge cases, middleware behavior~~ | ~~S~~ | DONE |
-| ~~1-C~~ | ~~Write `scripts/deploy-staging.sh`: rsync + docker compose pull + restart, idempotent~~ | ~~S~~ | DONE |
-| ~~1-D~~ | ~~GitHub Actions workflow: run `npm test` on push + PR~~ | ~~M~~ | DONE |
 | 1-E | CloudFront pass 2: enable_cloudfront = true in Terraform, apply to staging | M | Phase 0 gate |
 | 1-F | Security hardening: X-Origin-Verify header (CloudFront → origin validation), S3 OAC | M | 1-E |
 | 1-G | CloudWatch agent install on host | S | Phase 0 gate |
 
-**Gate:** PARTIAL — app CI green, deploy is one-script, deploy-staging.sh exists. Remaining: CloudFront fully active on staging (1-E), CloudWatch receiving metrics (1-G).
+**Gate:** PARTIAL — app CI green, deploy scripts exist (deploy-code.sh, deploy-rebuild.sh). Remaining: CloudFront fully active on staging (1-E), CloudWatch receiving metrics (1-G).
 
 ---
 
@@ -296,7 +377,6 @@ Size labels: S = small, M = medium, L = large.
 
 | # | Task | Size | Dependency |
 |---|------|------|-----------|
-| ~~2-B~~ | ~~Legacy historical import~~ | ~~L~~ | DONE |
 | 2-C | Integration tests: fixture-based tests verifying imported events + results appear on public routes | M | — |
 | 2-D | Production deploy (after staging validated) | S | Phase 1 gate |
 | 2-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch from legacy mirror | L | — |
@@ -315,10 +395,6 @@ Size labels: S = small, M = medium, L = large.
 
 | # | Task | Size | Dependency |
 |---|------|------|-----------|
-| ~~3-A~~ | ~~`ClubService` public methods: `listPublicClubs()`, page model shaping~~ | ~~M~~ | DONE |
-| ~~3-B~~ | ~~Clubs controller + route: real data rendering, world map, country + detail pages~~ | ~~M~~ | DONE |
-| ~~3-C~~ | ~~Clubs integration tests: clubs listing, empty state, auth routes~~ | ~~M~~ | DONE |
-| ~~3-D~~ | ~~Clubs seed data: extract + load from legacy mirror~~ | ~~S~~ | DONE |
 | 3-E | Broader legacy event import: assess `mirror_footbag_org` coverage; import next batch of historical events | L | 2-B |
 | 3-F | Production deploy (if staging validated from Phase 2 and CloudFront active) | M | Phase 2 gate, 1-E |
 
@@ -369,15 +445,7 @@ Prerequisites are noted.
 
 ## Work package A — legacy data import and normalization
 
-### Why this is first-class work
-Legacy data import directly affects the usefulness of the current public event/results surface and introduces identity/account risks beyond simple event ingestion.
-
-### Current state
-- Historical data loaded and visible on public routes
-- Build script: `legacy_data/event_results/scripts/06_build_mvfp_seed.py`
-- Verify script: `legacy_data/event_results/scripts/verify_mvfp_seed.py`
-- Full legacy mirror: `legacy_data/mirror_footbag_org/` (broader event/result coverage; next import batch)
-- Schema changes: rebuild DB using `database/schema.sql` + seed pipeline (`scripts/reset-local-db.sh`); no migration runner
+Legacy data import directly affects the current public event/results surface and introduces identity/account risks beyond simple event ingestion. Historical data is loaded and visible on public routes. Broader import coverage is in Phase 2-E / 3-E.
 
 ### Requirements
 - Idempotent import behavior (rehearsable on staging)
@@ -396,55 +464,16 @@ Legacy data import directly affects the usefulness of the current public event/r
 
 ## Work package B — IFPA rules integration
 
-### Scope
-Application and documentation alignment for new IFPA-rule wording after official wording is published.
-
-### Analysis buckets
-For each rule change, classify as: docs-only / configuration-only / schema-affecting / service-logic affecting / UI-display affecting.
-
-### Likely impact areas
-- Membership-tier logic and eligibility
-- Sanctioned-event and attendance-derived rules
-- Official roster and flag behavior
-- Registration and result validation
-- Legacy-data interpretation where historical records interact with new policy language
-
-### Gate
-Do not implement final rule wording until Julie's official published wording exists.
+**Gate:** Do not implement until Julie's official published wording exists. For each change, classify impact: docs-only / config-only / schema-affecting / service-logic affecting / UI-display affecting.
 
 ---
 
 ## Cross-cutting prerequisites before wider feature expansion
 
 1. Schema changes require a DB rebuild (no migration runner; rebuild from `database/schema.sql` + seed pipeline).
-2. Integration-test coverage expanded beyond current single-file baseline (Phase 1-A/B, ongoing with TDD).
-3. Import-safe verification scripts and fixture coverage (Phase 2-C).
-4. Browser smoke-check expectations defined for public routes (explicit-human-request-only for automation).
-5. Readiness expansion tied to real operational dependencies, not speculative checks.
-6. Auth invariants from `PROJECT_SUMMARY_CONCISE.md` enforced before any write flow.
-
----
-
-## Refactors that make later work cheaper or safer
-
-- Schema changes handled by DB rebuild; no migration runner needed.
-- Import/normalization code isolated from request-serving code.
-- Test coverage for `/`, `/clubs`, health endpoints, 404/500, import/migration logic.
-- Service boundaries explicit before adding write flows or authentication flows.
-- Readiness composition expanded only after backup/config/job dependencies actually exist.
-
----
-
-## Verification matrix
-
-For each increment, confirm:
-- code paths touched
-- DB/schema implications
-- migration or import rehearsal needs
-- route/integration tests required
-- browser checks only when explicitly requested
-- staging/deployment prerequisites
-- rollback or restore path if data changes are involved
+2. Import-safe verification scripts and fixture coverage (Phase 2-C).
+3. Browser checks are explicit-human-request-only; no automation without explicit ask.
+4. Auth invariants from `PROJECT_SUMMARY_CONCISE.md` enforced before any write flow.
 
 ---
 

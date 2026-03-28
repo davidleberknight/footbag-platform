@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# deploy-staging.sh
+# deploy-code.sh
 #
 # Deploys the current working tree to the staging Lightsail host.
+# Code and images only — the live database is never touched.
 #
 # Prerequisites:
 #   - ~/.ssh/config alias "footbag-staging" configured with User footbag (§6.2)
@@ -9,15 +10,16 @@
 #   - Initial AWS bootstrap (Path D) complete
 #
 # Usage:
-#   bash scripts/deploy-staging.sh <password> [rsync_db]
+#   bash scripts/deploy-code.sh <password>
 #
 #   password   sudo password for the footbag account on the staging host
-#   rsync_db   sync database/ to the host (yes|no, default: yes)
 #
 # Override the SSH config alias:
-#   DEPLOY_TARGET=footbag-staging bash scripts/deploy-staging.sh <password>
+#   DEPLOY_TARGET=footbag-staging bash scripts/deploy-code.sh <password>
 #
-# Preserves /srv/footbag/env and /srv/footbag/footbag.db on every run.
+# Always preserves:
+#   /srv/footbag/env
+#   /srv/footbag/footbag.db (and any DB at FOOTBAG_DB_PATH)
 
 set -euo pipefail
 
@@ -25,13 +27,12 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/deploy-staging.sh <password> [rsync_db]
+Usage: bash scripts/deploy-code.sh <password>
 
   password   sudo password for the footbag account on the staging host
-  rsync_db   sync database/ to the host (yes|no, default: yes)
 
 Override the SSH target:
-  DEPLOY_TARGET=footbag-staging bash scripts/deploy-staging.sh <password>
+  DEPLOY_TARGET=footbag-staging bash scripts/deploy-code.sh <password>
 EOF
 }
 
@@ -41,7 +42,6 @@ if [[ $# -lt 1 ]]; then
 fi
 
 FOOTBAG_PASS="$1"
-RSYNC_DB="${2:-yes}"
 
 # Shell-quote the password for safe embedding in remote command strings.
 # printf '%q' produces a bash-safe representation that the remote shell can
@@ -62,22 +62,14 @@ ssh "$REMOTE" "echo '    SSH OK'"
 echo "==> Preparing remote upload directory..."
 ssh "$REMOTE" "rm -rf ~/footbag-release && mkdir -p ~/footbag-release"
 
-# ── Step 2: Rsync deployable files (allowlist) ───────────────────────────────
+# ── Step 2: Rsync deployable files (code only, no database) ──────────────────
 
-echo "==> Rsyncing source to host (rsync_db=${RSYNC_DB})..."
-
-DB_INCLUDE=()
-DB_EXCLUDE_FILE="--exclude footbag.db"
-if [[ "$RSYNC_DB" == "yes" ]]; then
-  DB_INCLUDE=(--include='/database/***')
-  DB_EXCLUDE_FILE=""
-fi
+echo "==> Rsyncing source to host (code only, no database)..."
 
 rsync -av --delete -e "ssh" \
   --include='/.dockerignore' \
   --include='/docker/***' \
   --include='/src/***' \
-  "${DB_INCLUDE[@]}" \
   --include='/ops/***' \
   --include='/package.json' \
   --include='/package-lock.json' \
@@ -85,15 +77,11 @@ rsync -av --delete -e "ssh" \
   --exclude='*' \
   ./ "$REMOTE:~/footbag-release/"
 
-# ── Step 3: Promote to /srv/footbag (preserves env; DB replaced when rsync_db=yes) ──
+# ── Step 3: Promote to /srv/footbag (always preserves env and live DB) ────────
 
-echo "==> Promoting release..."
-if [[ "$RSYNC_DB" == "yes" ]]; then
-  echo "    Stopping service before replacing DB..."
-  ssh "$REMOTE" "printf '%s\n' $PASS_Q | sudo -S -p '' systemctl stop footbag || true"
-fi
+echo "==> Promoting release (env and live DB preserved)..."
 ssh "$REMOTE" "
-  printf '%s\n' $PASS_Q | sudo -S -p '' rsync -a --delete --exclude env $DB_EXCLUDE_FILE ~/footbag-release/ /srv/footbag/
+  printf '%s\n' $PASS_Q | sudo -S -p '' rsync -a --delete --exclude env --exclude footbag.db ~/footbag-release/ /srv/footbag/
   printf '%s\n' $PASS_Q | sudo -S -p '' chown -R root:root /srv/footbag
 "
 

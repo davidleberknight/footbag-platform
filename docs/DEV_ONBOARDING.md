@@ -1,6 +1,6 @@
 # Footbag Website Modernization Project —  Developer Onboarding Guide
 
-**Last updated:** March 27, 2026
+**Last updated:** March 29, 2026
 
 ## Local Quickstart, Architecture Orientation, and AWS Staging Deployment
 
@@ -12,8 +12,9 @@ This guide helps contributors do different things: understand how the initial pu
 > - **Path B** — I need the architecture mental model, scope boundaries, and workflow rules.
 > - **Path C** — I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
 > - **Path D** — I already have the app working locally, and I am continuing the AWS bootstrap deployment.
-> - **Path E** — The infra sprint is done. I need the remaining hardening roadmap: security scope-down, backups, monitoring, and maintenance mode.
-> - **Path F** — The initial deployment is working. I want to finish the active-slice infra setup (deploy script, CloudFront, CI/CD) and then use the automated routine deploy workflow.
+> - **Path E** — The first deployment works. I need the transition mental model: what is now complete enough to use staging, what remains intentionally temporary, and where the remaining hardening work has moved.
+> - **Path F** — The initial deployment is working. I want the complete repeatable staging deploy workflow, including routine code-only deploys and destructive schema/dev deploys that rebuild and replace the host DB from scratch.
+> - **Path G** — The deploy workflow is established. I need the remaining AWS hardening roadmap before the durable operational guidance moves into `docs/DEVOPS_GUIDE.md`.
 
 ---
 
@@ -54,30 +55,33 @@ This guide helps contributors do different things: understand how the initial pu
   - [4.8 Deploy and start application](#48-deploy-and-start-application)
   - [4.9 Verification](#49-verification)
   - [4.10 Known temporary assumptions](#410-known-temporary-assumptions)
-- [5. Path E — From first success to durable staging](#5-path-e--from-first-success-to-durable-staging)
+- [5. Path E — From first success to the repeatable staging baseline](#5-path-e--from-first-success-to-the-repeatable-staging-baseline)
   - [5.1 Why this section exists](#51-why-this-section-exists)
-  - [5.2 Security hardening](#52-security-hardening)
-  - [5.3 Edge and public-delivery hardening](#53-edge-and-public-delivery-hardening)
-  - [5.4 Reliability and recovery](#54-reliability-and-recovery)
-  - [5.5 Runtime configuration maturity](#55-runtime-configuration-maturity)
-  - [5.6 Monitoring maturity](#56-monitoring-maturity)
-- [6. Path F — Automated deployment setup and routine deploy workflow](#6-path-f--automated-deployment-setup-and-routine-deploy-workflow)
+  - [5.2 What is complete now](#52-what-is-complete-now)
+  - [5.3 What remains intentionally temporary](#53-what-remains-intentionally-temporary)
+  - [5.4 Where the remaining work moved](#54-where-the-remaining-work-moved)
+- [6. Path F — Repeatable staging deploy workflow](#6-path-f--repeatable-staging-deploy-workflow)
   - [6.1 Who this path is for](#61-who-this-path-is-for)
   - [6.1A Claude Code Plan Mode for iteration](#61a-claude-code-plan-mode-for-iteration)
   - [6.2 Fix the SSH config alias](#62-fix-the-ssh-config-alias)
-  - [6.3 Create scripts/deploy-staging.sh](#63-create-scriptsdeploy-stagingsh)
-  - [6.4 CloudFront pass 2](#64-cloudfront-pass-2)
-  - [6.5 Add terraform fmt/validate CI workflow](#65-add-terraform-fmtvalidate-ci-workflow)
-  - [6.6 Configure GitHub branch protection on main](#66-configure-github-branch-protection-on-main)
-  - [6.7 Routine deploy workflow](#67-routine-deploy-workflow)
-  - [6.8 If something goes wrong on staging](#68-if-something-goes-wrong-on-staging)
-  - [6.9 Future: ECR registry and automated image builds](#69-future-ecr-registry-and-automated-image-builds)
-- [7. Appendices](#7-appendices)
-  - [7.1 Troubleshooting reference](#71-troubleshooting-reference)
-  - [7.2 Deterministic seed-data reference](#72-deterministic-seed-data-reference)
-  - [7.3 Smoke-check contract](#73-smoke-check-contract)
-  - [7.4 Authoritative project facts preserved by this guide](#74-authoritative-project-facts-preserved-by-this-guide)
-  - [7.5 Official references](#75-official-references)
+  - [6.3 Deploy scripts and what they do](#63-deploy-scripts-and-what-they-do)
+  - [6.4 Routine deploy workflow](#64-routine-deploy-workflow)
+  - [6.5 If something goes wrong on staging](#65-if-something-goes-wrong-on-staging)
+  - [6.6 Future: ECR registry and automated image builds](#66-future-ecr-registry-and-automated-image-builds)
+- [7. Path G — Remaining AWS hardening after the deploy workflow is established](#7-path-g--remaining-aws-hardening-after-the-deploy-workflow-is-established)
+  - [7.1 Why this section exists](#71-why-this-section-exists)
+  - [7.2 Public edge and delivery hardening](#72-public-edge-and-delivery-hardening)
+  - [7.3 GitHub and operator governance hardening](#73-github-and-operator-governance-hardening)
+  - [7.4 Reliability and recovery](#74-reliability-and-recovery)
+  - [7.5 Runtime configuration maturity](#75-runtime-configuration-maturity)
+  - [7.6 Monitoring maturity](#76-monitoring-maturity)
+  - [7.7 Delivery maturity beyond on-host builds](#77-delivery-maturity-beyond-on-host-builds)
+- [8. Appendices](#8-appendices)
+  - [8.1 Troubleshooting reference](#81-troubleshooting-reference)
+  - [8.2 Deterministic seed-data reference](#82-deterministic-seed-data-reference)
+  - [8.3 Smoke-check contract](#83-smoke-check-contract)
+  - [8.4 Authoritative project facts preserved by this guide](#84-authoritative-project-facts-preserved-by-this-guide)
+  - [8.5 Official references](#85-official-references)
 
 ---
 
@@ -1654,134 +1658,64 @@ After first success, these simplifications are still in place:
 - maintenance-page behavior is not truly production-grade yet
 - CloudFront maintenance is not reliable until OAC, ordered cache behavior, and origin-bypass protection are added (accepted temporary deviation)
 
-## 5. Path E — From first success to durable staging
+## 5. Path E — From first success to the repeatable staging baseline
 
 ### 5.1 Why this section exists
 
-The first deployment used shortcuts so the team could prove the slice end to end quickly. Path F covers the immediate active-slice infra tasks: deploy script, CloudFront, and CI/CD workflow. This section lists the remaining hardening work that follows those tasks.
+After the first successful AWS deployment, the project sits in an in-between state: no longer bootstrap-only, but not yet durably hardened.
 
-### 5.2 Security hardening
+Path F is now the complete repeatable staging deploy workflow.
 
-- Scope down `footbag-operator` from AdministratorAccess to the actual Terraform-managed service set. Services touched by the current Terraform: Lightsail, CloudFront, S3 (state bucket and project buckets), SSM, KMS, SNS, CloudWatch, and IAM (to create the app-runtime role). Review the resource types in each `.tf` file to derive the exact actions for a least-privilege policy or IAM Identity Center permission set.
-- Remove long-lived access keys after the active-slice work is complete. Prefer MFA-backed short-lived credentials or IAM Identity Center.
-- Disable or retire `ec2-user` once the `footbag` operator account is confirmed working on all access paths.
-- Consider disabling Lightsail browser SSH after your own keys are in place.
-- Keep SSH restricted to approved operator CIDRs at all times.
-- Do not share shell accounts or private keys.
-- When maintenance/origin protection is implemented (§5.3), store `origin_verify_secret` in SSM as a SecureString.
-- If the application later needs runtime AWS access, add scoped runtime credentials deliberately. Do not leak the human operator profile into containers.
+Path G contains the remaining AWS hardening work that still follows after that deploy baseline is in place.
 
-> `terraform apply` created the `app-runtime` IAM role and instance profile (see `iam.tf`) as deferred groundwork. They appear in `terraform state list` but are not active. Lightsail does not support EC2 instance profiles and the app makes no runtime AWS API calls yet.
+### 5.2 What is complete now
 
-### 5.3 Edge and public-delivery hardening
+At this point, the project has a working staging origin, a host runtime layout, a repeatable service wrapper, three deploy scripts in the repo, and an initial GitHub Actions CI baseline.
 
-CloudFront pass 2 (enabling the distribution for the first time) is handled in Path F §6.4. The items below go further.
+In practical terms, the team can now do both of the following:
 
-After CloudFront exists:
+- deploy routine code changes while preserving the live staging DB
+- deploy schema/dev-data changes by rebuilding and replacing the staging DB from scratch
 
-- Attach a custom domain (footbag.org) and ACM certificate.
-- Add Route 53 records.
-- Update `PUBLIC_BASE_URL` to the final public URL.
-- Fix maintenance mode properly:
-  - S3-hosted maintenance page
-  - CloudFront Origin Access Control
-  - `ordered_cache_behavior` for `/maintenance.html`
-  - X-Origin-Verify secret between CloudFront and nginx
-  - Direct-origin bypass blocked unless the secret header is present
+### 5.3 What remains intentionally temporary
 
-Concrete maintenance-mode steps:
+The current staging model still includes accepted temporary shortcuts.
 
-```bash
-openssl rand -hex 32   # generate shared secret
-```
+Examples:
 
-- Store the secret in SSM at `/footbag/staging/secrets/origin_verify_secret`
-- Reference it in `cloudfront.tf` via `var.origin_verify_secret`
-- Create a CloudFront OAC for the S3 maintenance bucket
-- Add an S3 bucket policy allowing CloudFront to read
-- Add `ordered_cache_behavior` for `/maintenance.html`
-- Upload `maintenance.html` to the maintenance bucket
-- Enforce `X-Origin-Verify` in nginx
-- Verify direct-origin requests without the header return 403
-- Verify CloudFront serves the maintenance page when the origin is unavailable
+- `/srv/footbag/env` remains manually managed on the host
+- the host still builds Docker images locally rather than pulling from a registry
+- staging data remains disposable for the destructive schema/dev deploy path
+- public-edge hardening, durable backup/restore, and mature monitoring are still not complete
 
-Until this is complete, do not rely on the maintenance page as a graceful-downtime path.
+These are no longer blockers to routine staging deploys, but they are still unfinished.
 
-### 5.4 Reliability and recovery
+### 5.4 Where the remaining work moved
 
-- Add host-side SQLite backups to the snapshots bucket using SQLite's online backup mechanism, not a raw file copy.
-- Create dedicated backup credentials scoped only to the snapshots bucket. Do not reuse `footbag-operator`.
-- Schedule backups with cron or a systemd timer.
-- Keep the backup script in the repo, for example `ops/scripts/backup-db.sh`.
-- Rehearse a full restore in staging before relying on it.
-- Document restore commands and timing in `docs/RESTORE_RUNBOOK_V0_1.md`.
-- Treat restore proof as part of the system baseline, not a future aspiration.
+Use Path F for the operational staging deploy workflow.
 
-Safe backup pattern:
+Use Path G for the remaining AWS hardening roadmap that still needs to be completed before the durable operational guidance is moved into `docs/DEVOPS_GUIDE.md`.
 
-```bash
-sqlite3 /srv/footbag/footbag.db ".backup /tmp/footbag-backup.db"
-aws s3 cp /tmp/footbag-backup.db s3://<snapshots-bucket>/footbag/$(date +%Y-%m-%d-%H%M%S).db
-rm /tmp/footbag-backup.db
-```
-
-Minimal restore drill:
-
-- Stop `footbag`
-- List backups in S3
-- Download a recent backup
-- Preserve current live DB as `.pre-restore`
-- Replace `/srv/footbag/footbag.db`
-- Restart `footbag`
-- Re-run smoke checks
-- Record timing and exact commands in `docs/RESTORE_RUNBOOK_V0_1.md`
-
-### 5.5 Runtime configuration maturity
-
-- Keep `/srv/footbag/env` as the current live runtime source of truth.
-- When manual host edits become too fragile, add an `ExecStartPre` helper that pulls values from Parameter Store and writes `/srv/footbag/env`.
-- Keep Parameter Store paths environment- and sensitivity-aware.
-- Only add runtime AWS credentials when the app actually begins using AWS APIs at runtime.
-- Keep the distinction between: local `.env`, host runtime `/srv/footbag/env`, and optional AWS-side reference storage in Parameter Store.
-
-If runtime AWS API use is later added, the first simple step is explicit env-var credentials in `/srv/footbag/env`. A source-profile and AssumeRole design is a future improvement.
-
-### 5.6 Monitoring maturity
-
-- Leave the CloudFront 5xx alarm active from the first CloudFront deployment (created in Path F §6.4).
-- Only enable CWAgent CPU/memory alarms after CWAgent actually exists on the host.
-- Only enable backup-age alarms after the backup job exists and emits a real metric.
-- After the backup job is in place, emit `BackupAgeMinutes` into CloudWatch.
-- Confirm at least one SNS alert path actually reaches the operator by forcing a test alarm state.
-
-Minimal operator dashboard to document: host runtime health, CloudFront health, backup freshness, alarm destinations.
-
-Minimal real monitoring loop:
-
-- Emit `BackupAgeMinutes = 0` after each successful backup
-- Enable `enable_backup_alarm = true`
-- Verify the metric appears in CloudWatch
-- Force a temporary alarm state to confirm SNS email delivery
-- Document operator health-check locations in `docs/DEVOPS_GUIDE.md`
-
-## 6. Path F — Automated deployment setup and routine deploy workflow
+## 6. Path F — Repeatable staging deploy workflow
 
 ### 6.1 Who this path is for
 
-Use this path when the initial AWS bootstrap is complete (Path D done), the app is running at the staging IP, and you are ready to finish the active-slice infra work and establish a repeatable deploy workflow.
+Use this path when the initial AWS bootstrap is complete (Path D done), the host runtime layout is healthy, and you need the complete repeatable staging deploy workflow.
 
 **Do not use this path to recover a broken host bootstrap.** If `/srv/footbag/env`, the service unit, or the `/srv/footbag` layout is missing or broken, recover the host using §4.7 and §4.8 first.
 
-Sections §6.2 to §6.6 are one-time setup tasks. The routine workflow after setup is §6.7.
+Path F is now operational, not a backlog of one-time setup tasks. The remaining AWS hardening work has moved to Path G.
 
 Current state entering this path:
 
-- Lightsail host running at 34.192.250.246
-- App accessible at `http://34.192.250.246`
-- `footbag.service` installed, enabled, and running
-- `/srv/footbag/env` and `/srv/footbag/footbag.db` present, owned by root
-- CloudFront NOT yet created (`enable_cloudfront = false`)
-- No deploy script, no terraform CI workflow, no branch protection yet
+- the staging host exists and is reachable
+- `footbag.service` is installed and used as the runtime entry point
+- `/srv/footbag/env` remains the live runtime source of truth
+- `scripts/deploy-code.sh` exists for routine code-only deploys
+- `scripts/deploy-rebuild.sh` exists for destructive staging/dev deploys that rebuild and replace the host DB from scratch
+- `scripts/deploy-migrate.sh` exists as a stub for future non-destructive schema migrations
+- initial GitHub Actions CI exists
+- the remaining AWS hardening work now lives in Path G, not here
 
 ### 6.1A Claude Code Plan Mode for iteration
 
@@ -1832,418 +1766,211 @@ ssh footbag-staging "whoami"
 
 Expected output: `footbag`.
 
-### 6.3 Create scripts/deploy-staging.sh
-
-This script automates the full deploy sequence: rsync the deployable files to the host, promote to the runtime path (preserving `/srv/footbag/env` and `/srv/footbag/footbag.db`), reinstall the systemd unit, rebuild the Docker images on-host, restart the service, and run a smoke check.
-
-**Why on-host build:** no image registry exists yet. `docker compose pull` does not apply until images are published to a registry. See §6.9 for that future path.
-
-Create `scripts/deploy-staging.sh`:
-
-```bash
-#!/usr/bin/env bash
-# deploy-staging.sh
-#
-# Deploys the current working tree to the staging Lightsail host.
-#
-# Prerequisites:
-#   - ~/.ssh/config alias "footbag-staging" configured with User footbag (§6.2)
-#   - npm test passing locally before running this script
-#   - Initial AWS bootstrap (Path D) complete
-#
-# Usage:
-#   bash scripts/deploy-staging.sh <password> [rsync_db]
-#
-#   password   sudo password for the footbag account on the staging host
-#   rsync_db   sync database/ to the host (yes|no, default: yes)
-#
-# Override the SSH config alias:
-#   DEPLOY_TARGET=footbag-staging bash scripts/deploy-staging.sh <password>
-#
-# Preserves /srv/footbag/env and /srv/footbag/footbag.db on every run.
-
-set -euo pipefail
-
-# ── Args / help ───────────────────────────────────────────────────────────────
-
-usage() {
-  cat <<'EOF'
-Usage: bash scripts/deploy-staging.sh <password> [rsync_db]
-
-  password   sudo password for the footbag account on the staging host
-  rsync_db   sync database/ to the host (yes|no, default: yes)
-
-Override the SSH target:
-  DEPLOY_TARGET=footbag-staging bash scripts/deploy-staging.sh <password>
-EOF
-}
-
-if [[ $# -lt 1 ]]; then
-  usage
-  exit 1
-fi
-
-FOOTBAG_PASS="$1"
-RSYNC_DB="${2:-yes}"
-
-# Shell-quote the password for safe embedding in remote command strings.
-# printf '%q' produces a bash-safe representation that the remote shell can
-# evaluate without shell injection regardless of special characters in the password.
-PASS_Q=$(printf '%q' "$FOOTBAG_PASS")
+### 6.3 Deploy scripts and what they do
 
-REMOTE="${DEPLOY_TARGET:-footbag-staging}"
-HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}')
+Do not inline deploy script bodies in this guide. The executable source of truth lives in `scripts/`. This section explains what each script does, what commands it runs, and why.
 
-# ── Pre-flight ────────────────────────────────────────────────────────────────
+#### Which script to use
 
-echo "==> Deploy target: $REMOTE ($HOST_IP)"
-echo "==> Confirming SSH connectivity..."
-ssh "$REMOTE" "echo '    SSH OK'"
+Use `scripts/deploy-code.sh` for routine code-only deploys. This is the normal path when the code changes but the live staging database should stay in place. This script has no database logic of any kind. It preserves `/srv/footbag/env` and the live DB on every run.
 
-# ── Step 1: Prepare upload directory ─────────────────────────────────────────
+Use `scripts/deploy-rebuild.sh` for schema-changing or seed-data-changing staging/dev deploys when staging data is disposable. This script is intentionally destructive. It preserves `/srv/footbag/env` but destroys and replaces the live DB from a freshly rebuilt local `database/footbag.db`.
 
-echo "==> Preparing remote upload directory..."
-ssh "$REMOTE" "rm -rf ~/footbag-release && mkdir -p ~/footbag-release"
+Use `scripts/deploy-migrate.sh` for non-destructive schema or data changes against a live DB that must be preserved. This script is not yet implemented. It exits with an error if run. Implement it once the backup/restore path (Path G §7.4) is tested and the project requires non-destructive migrations.
 
-# ── Step 2: Rsync deployable files (allowlist) ───────────────────────────────
+Do not teach manual `scp` + `ssh cp` database replacement as the normal workflow. The destructive staging/dev DB-replacement path is handled by `scripts/deploy-rebuild.sh`.
 
-echo "==> Rsyncing source to host (rsync_db=${RSYNC_DB})..."
+Why both code-deploy and rebuild scripts still build on-host: the current runtime model still uses `docker compose build` on the Lightsail host. There is no image registry in use yet. The future registry-based path belongs in §6.6.
 
-DB_INCLUDE=()
-if [[ "$RSYNC_DB" == "yes" ]]; then
-  DB_INCLUDE=(--include='/database/***')
-fi
+#### What `scripts/deploy-code.sh` does, command by command, and why
 
-rsync -av --delete -e "ssh" \
-  --include='/.dockerignore' \
-  --include='/docker/***' \
-  --include='/src/***' \
-  "${DB_INCLUDE[@]}" \
-  --include='/ops/***' \
-  --include='/package.json' \
-  --include='/package-lock.json' \
-  --include='/tsconfig.json' \
-  --exclude='*' \
-  ./ "$REMOTE:~/footbag-release/"
+1. Resolves the SSH alias target with `ssh -G` and extracts the hostname.
+   Why: show the operator exactly which host is being targeted.
 
-# ── Step 3: Promote to /srv/footbag (preserves env and DB) ───────────────────
+2. Confirms connectivity with `ssh <target> "echo ..."`.
+   Why: fail fast before any upload starts.
 
-echo "==> Promoting release..."
-ssh "$REMOTE" "
-  printf '%s\n' $PASS_Q | sudo -S -p '' rsync -a --delete --exclude env --exclude footbag.db ~/footbag-release/ /srv/footbag/
-  printf '%s\n' $PASS_Q | sudo -S -p '' chown -R root:root /srv/footbag
-"
+3. Deletes and recreates the temporary upload directory with `rm -rf ~/footbag-release && mkdir -p ~/footbag-release`.
+   Why: each deploy starts from a clean user-owned staging directory.
 
-# ── Step 4: Reinstall systemd service unit ───────────────────────────────────
+4. Uploads a restricted allowlist of deployable files with `rsync -av --delete -e "ssh" ...`.
+   Why: push only runtime-relevant code files. The database directory is not in the allowlist.
 
-echo "==> Reinstalling service unit..."
-ssh "$REMOTE" "
-  printf '%s\n' $PASS_Q | sudo -S -p '' cp /srv/footbag/ops/systemd/footbag.service /etc/systemd/system/
-  printf '%s\n' $PASS_Q | sudo -S -p '' systemctl daemon-reload
-"
+5. Promotes the staged release into `/srv/footbag` with `sudo rsync -a --delete --exclude env --exclude footbag.db`.
+   Why: update the runtime tree without overwriting the host env file or the live DB. The live DB is protected at both the upload and the promote step.
 
-# ── Step 5: Rebuild images on host ───────────────────────────────────────────
+6. Resets ownership under `/srv/footbag` with `chown -R root:root`.
+   Why: align the deployed tree with the documented root-owned host runtime model.
 
-echo "==> Building Docker images (this takes a minute)..."
-ssh "$REMOTE" "
-  cd /srv/footbag
-  printf '%s\n' $PASS_Q | sudo -S -p '' docker compose \
-    --env-file /srv/footbag/env \
-    -f docker/docker-compose.yml \
-    -f docker/docker-compose.prod.yml \
-    build
-"
+7. Reinstalls `ops/systemd/footbag.service` and runs `systemctl daemon-reload`.
+   Why: keep the installed unit aligned with repo changes.
 
-# ── Step 6: Restart service ───────────────────────────────────────────────────
+8. Builds images on-host with `docker compose --env-file /srv/footbag/env -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build`.
+   Why: there is still no registry-backed pull path.
 
-echo "==> Restarting service..."
-ssh "$REMOTE" "
-  printf '%s\n' $PASS_Q | sudo -S -p '' systemctl restart footbag
-  sleep 3
-  printf '%s\n' $PASS_Q | sudo -S -p '' systemctl status footbag --no-pager -l
-"
+9. Restarts `footbag` and checks service status.
+   Why: the deploy is not complete until the runtime actually restarts.
 
-# ── Step 7: Smoke check ───────────────────────────────────────────────────────
+10. Runs `BASE_URL=http://<origin-ip> bash scripts/smoke-local.sh` from the local machine.
+    Why: verify the origin contract, not just container startup.
 
-echo "==> Running smoke check against http://$HOST_IP ..."
-BASE_URL="http://$HOST_IP" bash scripts/smoke-local.sh
+#### What `scripts/deploy-rebuild.sh` does, command by command, and why
 
-echo ""
-echo "Deploy complete. Origin: http://$HOST_IP"
-```
+1. Prints a loud destructive warning before doing anything else.
+   Why: this script always replaces the host DB.
 
-Make it executable:
+2. Confirms SSH connectivity.
+   Why: fail fast before any destructive remote action.
 
-```bash
-chmod +x scripts/deploy-staging.sh
-```
+3. Runs the local test preflight unless `SKIP_TESTS=yes` is set.
+   Why: avoid shipping obviously broken code.
 
-Test run:
+4. Rebuilds the local DB with `bash scripts/reset-local-db.sh` unless `SKIP_DB_REBUILD=yes` is set.
+   Why: produce the replacement DB from the current schema and seed pipeline.
 
-```bash
-bash scripts/deploy-staging.sh 'yourpassword'
-```
+5. Verifies the rebuilt local DB with `sqlite3` integrity checks.
+   Why: fail locally before anything is uploaded.
 
-Always wrap the password in single quotes. Single quotes pass the argument literally — no shell expansion of `$`, `!`, or other special characters. Double quotes do not protect `$` and backticks.
+6. Confirms that required schema objects exist, including `legacy_person_club_affiliations`.
+   Why: make sure the rebuilt DB matches the code being deployed.
 
-Expected: rsync file list, Docker build output, service showing active, all smoke checks passing. No interactive prompts appear; the password is forwarded to each `sudo -S` call via `printf '%q'` embedding in the remote command string.
+7. Prepares the remote upload directory and uploads the deployable runtime files, including the rebuilt DB.
+   Why: stage both code and replacement data together.
 
-> **Note:** Write the awk argument with plain ASCII single quotes. Editors that auto-correct punctuation can silently replace them with Unicode curly quotes, which bash does not treat as quoting characters, causing `$2: unbound variable` under `set -u`.
+8. Reads `/srv/footbag/env` on the host, validates required runtime vars, and resolves `FOOTBAG_DB_PATH`.
+   Why: the host env file remains the runtime source of truth.
 
-### 6.4 CloudFront pass 2
+9. Rejects `SESSION_SECRET` values containing `#`.
+   Why: systemd `EnvironmentFile` parsing treats `#` as an inline comment delimiter.
 
-The staging CloudFront distribution has not been created yet. This step creates it.
+10. Stops `footbag` and brings the compose stack fully down.
+    Why: avoid conflicts while replacing the DB file and runtime tree.
 
-#### 1. Update terraform.tfvars
+11. Promotes the new release into `/srv/footbag` while preserving `/srv/footbag/env`.
+    Why: align code and runtime artifacts with the rebuilt DB.
 
-In `terraform/staging/terraform.tfvars`:
+12. Removes the current DB path and installs the rebuilt DB as a fresh root-owned file.
+    Why: avoid bad leftover host-path states and make the destructive replacement explicit.
 
-```hcl
-lightsail_origin_dns = "34.192.250.246.nip.io"
-enable_cloudfront    = true
-```
+13. Verifies the copied DB again on the host with `sqlite3`.
+    Why: confirm the exact host-mounted DB is valid before restart.
 
-CloudFront requires a DNS-resolvable hostname as its origin — raw IPs are not supported. The `nip.io` hostname resolves to the static IP and satisfies that requirement. Do not use nip.io in production; use a real DNS A record there.
+14. Reinstalls the systemd unit, rebuilds images on-host, and restarts `footbag`.
+    Why: finish the deploy the same way the routine path does.
 
-#### 2. Plan and review
+15. Dumps `systemctl`, `journalctl`, and compose diagnostics automatically if restart fails.
+    Why: destructive deploy failures must surface actionable diagnostics immediately.
 
-```bash
-export AWS_PROFILE=footbag-operator
-cd terraform/staging
-terraform plan -out=tfplan
-```
+16. Runs the smoke check against the staging origin.
+    Why: the deployment is only finished when the runtime contract is working.
 
-Confirm: CloudFront distribution is being created, the CloudFront 5xx alarm is being created (gated on `enable_cloudfront`), and no existing resources are being destroyed unexpectedly.
+#### What `scripts/deploy-migrate.sh` will do (not yet implemented)
 
-#### 3. Apply
+This script will deploy code changes and run migration SQL against the existing live DB. Non-destructive: all existing live data is preserved. New schema objects, backfills, and additive data changes are applied in place.
 
-```bash
-terraform apply tfplan
-```
+It becomes the active schema/data-change deploy path once the project reaches the point where host data must be preserved. Until then, use `scripts/deploy-rebuild.sh`.
 
-#### 4. Record the CloudFront domain
+Planned sequence: backup the live DB, deploy code, stop the service, run migration SQL with `sqlite3`, verify DB integrity, restart, smoke check. On any failure: restore from the pre-migration backup and restart.
 
-```bash
-terraform output cloudfront_domain
-terraform output cloudfront_distribution_id
-```
+Do not implement this script until the backup/restore path (Path G §7.4) is tested and a working restore has been rehearsed in staging.
 
-Save both values. Update `AWS_PROJECT_SPECIFICS.md` with the domain and distribution ID.
+The point of this section is not to duplicate shell source. The point is to explain the exact operational sequence so a contributor understands what the scripts do and why the three deploy paths are different.
 
-#### 5. Update PUBLIC_BASE_URL on the host
 
-```bash
-ssh footbag-staging "sudo sed -i 's|PUBLIC_BASE_URL=.*|PUBLIC_BASE_URL=https://<cloudfront_domain>|' /srv/footbag/env && sudo systemctl restart footbag"
-```
+### 6.4 Routine deploy workflow
 
-Replace `<cloudfront_domain>` with the actual value from step 4.
+After the deploy baseline is established, the staging deploy cycle is:
 
-#### 6. Wait for propagation
+1. Make the change locally.
+2. Run the local quality gate.
+3. Push a branch and open a PR.
+4. Let CI run.
+5. Let branch protection block merge until checks pass.
+6. Merge.
+7. Run exactly one deploy command from your local machine against the staging origin.
+8. Verify the origin.
+9. If CloudFront is enabled in staging, verify CloudFront too.
 
-CloudFront takes 15 to 30 minutes to propagate globally after apply. The `*.cloudfront.net` URL is assigned immediately but returns errors during propagation. Poll for deployment status:
-
-```bash
-CF_ID=$(terraform output -raw cloudfront_distribution_id)
-aws cloudfront get-distribution \
-  --id "$CF_ID" \
-  --query 'Distribution.Status' \
-  --output text \
-  --profile footbag-operator
-```
-
-Wait until the output is `Deployed`.
-
-#### 7. Verify through CloudFront
-
-```bash
-CF_DOMAIN=$(terraform output -raw cloudfront_domain)
-BASE_URL="https://$CF_DOMAIN" bash scripts/smoke-local.sh
-```
-
-Also verify manually in a browser:
-
-- `https://<cloudfront_domain>/events`
-- `https://<cloudfront_domain>/events/year/2025`
-- `https://<cloudfront_domain>/events/event_2025_beaver_open`
-
-If CloudFront returns 403 or 502, the distribution may still be propagating. Wait a few minutes and retry.
-
-### 6.5 Add terraform fmt/validate CI workflow
-
-Create `.github/workflows/terraform.yml`:
-
-```yaml
-name: Terraform
-
-on:
-  push:
-    branches:
-      - '**'
-    paths:
-      - 'terraform/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'terraform/**'
-
-jobs:
-  terraform:
-    name: fmt and validate
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        env: [staging, production]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: '~1.11'
-
-      - name: terraform fmt check (${{ matrix.env }})
-        run: terraform fmt -check -recursive
-        working-directory: terraform/${{ matrix.env }}
-
-      - name: terraform init (${{ matrix.env }})
-        run: terraform init -backend=false
-        working-directory: terraform/${{ matrix.env }}
-
-      - name: terraform validate (${{ matrix.env }})
-        run: terraform validate
-        working-directory: terraform/${{ matrix.env }}
-```
-
-This workflow runs only when files under `terraform/` change, so app-only commits do not trigger it. The `-backend=false` flag means CI never needs operator credentials to validate Terraform.
-
-Verify: push a branch that touches a `.tf` file and confirm the workflow passes.
-
-### 6.6 Configure GitHub branch protection on main
-
-This prevents direct pushes to `main` and requires CI to pass before merging.
-
-In the GitHub UI:
-
-1. Go to the repository **Settings**.
-2. Click **Branches** under "Code and automation".
-3. Click **Add branch ruleset**.
-4. Name it `main protection`. Set enforcement to `Active`.
-5. Under **Target branches**, add pattern: `main`.
-6. Enable **Require a pull request before merging**. Set required approvals to 1 if there is more than one active contributor.
-7. Enable **Require status checks to pass**. Add all three checks:
-   - `Type-check and test` (from `ci.yml`)
-   - `fmt and validate (staging)` (from `terraform.yml`)
-   - `fmt and validate (production)` (from `terraform.yml`)
-   - Check **Require branches to be up to date before merging**.
-8. Enable **Block force pushes**.
-9. Click **Create**.
-
-Verify: open a test PR and confirm the merge button is disabled until all checks pass.
-
-### 6.7 Routine deploy workflow
-
-After the one-time setup above is complete, the deploy cycle is:
-
-```
-1.  Make a change locally
-2.  npm test                           # local gate
-3.  Push a branch, open a PR
-4.  CI runs automatically:
-    - npm run build + npm test
-    - terraform fmt/validate (if terraform/ files changed)
-5.  Branch protection blocks merge until all checks pass
-6.  Merge
-7.  bash scripts/deploy-staging.sh <password>    # one command from your local machine
-```
-
-Step 7 is an intentional local manual trigger. GitHub Actions runners use dynamic IPs and the Lightsail firewall is locked to specific operator CIDRs. The deploy script is one command.
+The deploy trigger remains a local manual step by design. GitHub-hosted runners use dynamic IPs, while the Lightsail firewall remains locked to explicit operator CIDRs.
 
 #### Before each deploy: check the env file
 
-Two files on the host are never overwritten by the deploy script: `/srv/footbag/env` and `/srv/footbag/footbag.db`. If this deploy adds a new required environment variable, update the env file first:
+The host env file `/srv/footbag/env` is never overwritten by any deploy script and remains the runtime source of truth. Review it before any deploy that introduces a new required environment variable or changes runtime behavior.
 
-```bash
-ssh footbag-staging "sudo vi /srv/footbag/env"
-```
+At minimum, the host env file must define:
 
-The env file must contain at minimum:
+- `NODE_ENV`
+- `LOG_LEVEL`
+- `FOOTBAG_DB_PATH`
+- `PUBLIC_BASE_URL`
+- `SESSION_SECRET`
 
-```
-NODE_ENV=production
-LOG_LEVEL=info
-FOOTBAG_DB_PATH=/srv/footbag/footbag.db
-PUBLIC_BASE_URL=https://<cloudfront_domain>
-SESSION_SECRET=<long random string — generate with: openssl rand -hex 32>
-```
+`docker/docker-compose.prod.yml` bind-mounts `${FOOTBAG_DB_PATH}` into `/app/footbag.db`, and `footbag.service` starts Docker Compose with `--env-file /srv/footbag/env`. If the env file is wrong, the deploy can succeed mechanically but still fail at runtime.
 
-> **Warning:** Do not use `#` in env file values. systemd's `EnvironmentFile` parser treats `#` as an inline comment even mid-value, silently truncating the value.
+Warning: do not use `#` in env file values. systemd `EnvironmentFile` parsing treats `#` as an inline comment delimiter.
 
 #### Before each deploy: local quality gate
+
+Always run:
 
 ```bash
 npm test
 ```
 
-Optionally run the Docker parity check before any AWS redeploy:
-
-```bash
-bash scripts/reset-local-db.sh
-docker compose --env-file .env -f docker/docker-compose.yml up --build --detach
-BASE_URL=http://localhost bash scripts/smoke-local.sh
-docker compose --env-file .env -f docker/docker-compose.yml down
-```
+Optionally run Docker parity when the change touches runtime shape, static assets, containerization, or environment handling.
 
 #### Deploy options
 
-**Option A — code change only (standard):**
+**Option A — routine code-only deploy**
+
+Use this when the host DB should remain untouched.
 
 ```bash
-bash scripts/deploy-staging.sh <password>
+bash scripts/deploy-code.sh <password>
 ```
 
-The script runs a smoke check automatically at the end. The live DB is untouched.
+This path preserves `/srv/footbag/env` and the live DB.
 
-**Option B — code + replace DB from a fresh local seed build:**
+**Option B — destructive schema/dev deploy**
 
-Use this when seed-data changes need to appear on staging. The deploy script preserves the live DB, so replace it separately after deploying the code.
+Use this when the change requires rebuilding and replacing the host DB from scratch and staging/dev data is still disposable.
 
 ```bash
-# 1. Rebuild and verify locally
-bash scripts/reset-local-db.sh
-npm run dev
-# verify http://localhost:3000/events/event_2025_beaver_open
-
-# 2. Deploy the code
-bash scripts/deploy-staging.sh <password>
-
-# 3. Replace the live DB (destructive — this overwrites /srv/footbag/footbag.db)
-scp database/footbag.db footbag-staging:~/footbag.db.new
-ssh footbag-staging "sudo cp ~/footbag.db.new /srv/footbag/footbag.db && sudo systemctl restart footbag"
-
-# 4. Verify
-BASE_URL=http://34.192.250.246 bash scripts/smoke-local.sh
+bash scripts/deploy-rebuild.sh <password>
 ```
 
-**Option C — code + send a specific DB file:**
+This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB.
 
-Use this when you have a known-good DB file (not from the seed script) that you want to promote to staging.
+**Option C — non-destructive migration deploy (future)**
+
+Use this once the project reaches the point where host data must be preserved. Not yet implemented.
 
 ```bash
-# 1. Deploy the code
-bash scripts/deploy-staging.sh <password>
-
-# 2. Send the file and replace the live DB (destructive — this overwrites /srv/footbag/footbag.db)
-scp /path/to/your.db footbag-staging:~/footbag.db.new
-ssh footbag-staging "sudo cp ~/footbag.db.new /srv/footbag/footbag.db && sudo systemctl restart footbag"
-
-# 3. Verify
-BASE_URL=http://34.192.250.246 bash scripts/smoke-local.sh
+bash scripts/deploy-migrate.sh <password>
+# exits with error until implemented — see Path G §7.4
 ```
 
-### 6.8 If something goes wrong on staging
+Do not document manual `scp` + `ssh sudo cp` DB-replacement procedures. Those manual destructive flows are superseded by `scripts/deploy-rebuild.sh`.
+
+#### After each deploy: verification
+
+Always verify the staging origin first.
+
+```bash
+BASE_URL=http://<staging-origin> bash scripts/smoke-local.sh
+```
+
+Also verify manually in the browser when the change affects routing, rendering, or static assets.
+
+If CloudFront is enabled in staging, also verify CloudFront after the origin is confirmed healthy:
+
+```bash
+BASE_URL=https://<cloudfront-domain> bash scripts/smoke-local.sh
+```
+
+Why origin-first still matters: if the origin fails, CloudFront only obscures the root cause.
+
+### 6.5 If something goes wrong on staging
 
 #### Check logs
 
@@ -2278,12 +2005,16 @@ Check out the last known-good commit and re-run the deploy script:
 
 ```bash
 git checkout <known-good-ref>
-bash scripts/deploy-staging.sh <password>
+bash scripts/deploy-code.sh <password>
 ```
 
-The database is not touched by a routine deploy. Do not attempt schema migrations during a routine code deploy. Schema changes require a separate migration procedure.
+The database is not touched by `scripts/deploy-code.sh`.
 
-### 6.9 Future: ECR registry and automated image builds
+Schema-changing staging/dev deploys are currently handled by `scripts/deploy-rebuild.sh`, which destroys and replaces the host DB from a freshly rebuilt local DB. This is a deliberate temporary development workflow, not the future live-data procedure.
+
+Once the project reaches the point where host data must be preserved, replace this destructive workflow with `scripts/deploy-migrate.sh`. That durable operational guidance belongs in the future DevOps guide, not in the current development-phase onboarding workflow.
+
+### 6.6 Future: ECR registry and automated image builds
 
 When you are ready to move image builds out of the Lightsail host:
 
@@ -2292,15 +2023,152 @@ When you are ready to move image builds out of the Lightsail host:
 3. Add a `build-push` job to `ci.yml` that runs after tests pass on `main`: builds images and pushes to ECR with `${{ github.sha }}` and `latest` tags.
 4. Update `docker/docker-compose.prod.yml` to reference ECR image URIs instead of build directives.
 5. Create a host IAM user `staging-ecr-pull` scoped to ECR read on those repositories only. Add its credentials to `/srv/footbag/env`.
-6. Update `deploy-staging.sh` step 5 to run `docker compose pull` instead of `docker compose build`.
+6. Update `deploy-code.sh` and `deploy-rebuild.sh` to run `docker compose pull` instead of `docker compose build`.
 
-After this, the deploy script becomes much faster. The remaining manual trigger (step 7 in §6.7) can only be eliminated by replacing Lightsail with EC2 and using SSM Session Manager (no IP restriction), or by running a self-hosted GitHub Actions runner on the same network as the host.
+After this, the deploy scripts become much faster. The remaining manual trigger (step 7 in §6.4) can only be eliminated by replacing Lightsail with EC2 and using SSM Session Manager (no IP restriction), or by running a self-hosted GitHub Actions runner on the same network as the host.
 
 ---
 
-## 7. Appendices
+## 7. Path G — Remaining AWS hardening after the deploy workflow is established
 
-### 7.1 Troubleshooting reference
+### 7.1 Why this section exists
+
+Path F is now the complete repeatable staging deploy workflow. Path G collects the remaining AWS hardening and governance work that still follows after that deploy baseline is in place.
+
+This section is still part of onboarding because the AWS setup story is not fully closed yet, but it is no longer part of the day-to-day staging deploy workflow.
+
+### 7.2 Public edge and delivery hardening
+
+If CloudFront pass 2 is not already complete, finish it here rather than treating it as part of the routine deploy path.
+
+When CloudFront is not yet enabled for staging, complete the original pass-2 flow:
+
+1. In `terraform/staging/terraform.tfvars`, set:
+   - `lightsail_origin_dns = "<staging-static-ip>.nip.io"`
+   - `enable_cloudfront = true`
+
+2. Run:
+   - `cd terraform/staging`
+   - `terraform plan -out=tfplan`
+   - `terraform apply tfplan`
+
+3. Record:
+   - `terraform output cloudfront_domain`
+   - `terraform output cloudfront_distribution_id`
+
+4. Wait until the distribution status is `Deployed`.
+
+5. Update `/srv/footbag/env` on the host so `PUBLIC_BASE_URL` points at the CloudFront URL.
+
+6. Restart `footbag`.
+
+7. Verify the origin first, then verify CloudFront with `BASE_URL=https://<cloudfront-domain> bash scripts/smoke-local.sh`.
+
+After CloudFront exists, continue with the remaining public-edge hardening:
+
+- attach the final custom domain and ACM certificate
+- add Route 53 records
+- update `PUBLIC_BASE_URL` to the final public URL
+- implement a real maintenance path:
+  - generate a shared secret: `openssl rand -hex 32`
+  - store it in SSM at `/footbag/staging/secrets/origin_verify_secret`
+  - S3-hosted maintenance page with CloudFront Origin Access Control
+  - `ordered_cache_behavior` for `/maintenance.html`
+  - `X-Origin-Verify` secret enforced in nginx between CloudFront and the origin
+  - direct-origin bypass blocked unless the secret header is present
+
+Until that is complete, do not rely on the maintenance page as a graceful-downtime path.
+
+### 7.3 GitHub and operator governance hardening
+
+Initial CI now exists, but the governance around it still needs to be closed.
+
+Remaining work:
+
+- verify the current GitHub Actions checks from real PR runs
+- configure branch protection on `main`
+- require the current CI checks:
+  - `Type-check and test`
+  - `Terraform fmt / validate`
+- require branches to be up to date before merge
+- scope down `footbag-operator` from `AdministratorAccess` to a least-privilege policy covering only the services actually used: Lightsail, CloudFront, S3 (state bucket and project buckets), SSM, KMS, SNS, CloudWatch, and IAM (for its own key rotation)
+- remove long-lived access keys after a short-lived or IAM Identity Center path is in place
+- retire `ec2-user` once the named operator account is fully validated
+- consider disabling Lightsail browser SSH after normal operator access is confirmed
+
+### 7.4 Reliability and recovery
+
+The staging deploy workflow exists, but durable recovery still does not.
+
+Remaining work:
+
+- add host-side SQLite backups using SQLite's online backup mechanism
+- use dedicated backup credentials scoped only to the backup bucket
+- schedule backups with cron or a systemd timer
+- rehearse a full restore in staging
+- document exact restore commands and timing in a restore runbook
+
+Concrete backup command (run on the host as root):
+
+```bash
+sqlite3 "$FOOTBAG_DB_PATH" ".backup /tmp/footbag-backup-$(date +%Y%m%dT%H%M%S).db"
+aws s3 cp /tmp/footbag-backup-*.db s3://<backup-bucket>/backups/
+```
+
+Concrete restore drill (rehearse this in staging before any migration work):
+
+1. Stop the service: `sudo systemctl stop footbag`
+2. Copy the backup down from S3: `aws s3 cp s3://<backup-bucket>/backups/<filename>.db /tmp/restore.db`
+3. Verify the backup: `sqlite3 /tmp/restore.db 'PRAGMA integrity_check;'`
+4. Replace the live DB: `sudo install -o root -g root -m 600 /tmp/restore.db "$FOOTBAG_DB_PATH"`
+5. Restart the service: `sudo systemctl start footbag`
+6. Run the smoke check: `BASE_URL=http://<host-ip> bash scripts/smoke-local.sh`
+
+The goal here is to move from "we can redeploy" to "we can recover." Completing this section is also a prerequisite for implementing `scripts/deploy-migrate.sh`.
+
+### 7.5 Runtime configuration maturity
+
+The current runtime contract is still intentionally simple.
+
+Remaining work:
+
+- keep `/srv/footbag/env` as the current runtime source of truth for now
+- decide when manual host edits become too fragile
+- if needed later, add a helper that materializes `/srv/footbag/env` from Parameter Store
+- keep local `.env`, host `/srv/footbag/env`, and optional AWS-side reference storage clearly distinct
+- only add runtime AWS credentials if the application actually begins using AWS APIs at runtime
+
+### 7.6 Monitoring maturity
+
+Some monitoring exists in concept, but the full loop is not yet closed.
+
+Remaining work:
+
+- keep the CloudFront 5xx alarm active once CloudFront is in use
+- enable CWAgent CPU/memory alarms only after CWAgent actually exists on the host
+- add backup freshness metrics only after the backup job is real
+- emit `BackupAgeMinutes` after each successful backup
+- verify that SNS alert delivery reaches the operator
+- document the minimal operator dashboard and health-check locations
+
+### 7.7 Delivery maturity beyond on-host builds
+
+The current deploy scripts still rely on on-host image builds.
+
+Remaining work:
+
+- move image builds into CI
+- publish images to a registry such as ECR
+- change the host deploy path from `docker compose build` to `docker compose pull`
+- keep the deploy scripts aligned with that future registry-backed flow
+
+This is the natural handoff point from onboarding into the longer-lived operational guidance in `docs/DEVOPS_GUIDE.md`.
+
+---
+
+## 8. Appendices
+
+### 8.1 Troubleshooting reference
 
 #### Local newcomer setup mistakes
 
@@ -2366,7 +2234,7 @@ After this, the deploy script becomes much faster. The remaining manual trigger 
 - SSH to the Lightsail instance timing out despite correct `operator_cidrs` and a running instance — some ISPs block outbound port 22 to AWS EC2 IP ranges; use `-p 2222` and the Lightsail browser SSH console to configure sshd if needed (see §4.4 note and §4.7 step 1)
 - Claude Code hooks failing with a PreToolUse hook error on every Bash call — `jq` is required by the hook scripts; install with `sudo apt-get install -y jq`
 
-### 7.2 Deterministic seed-data reference
+### 8.2 Deterministic seed-data reference
 
 These seeded routes are useful for local browser verification and integration tests. The deploy smoke check does not rely on them.
 
@@ -2383,7 +2251,7 @@ These seeded routes are useful for local browser verification and integration te
 
 These are reference checks, not the main onboarding story.
 
-### 7.3 Smoke-check contract
+### 8.3 Smoke-check contract
 
 `scripts/smoke-local.sh` is the canonical smoke-check baseline. All checks must be data-independent so the script runs against any staging DB without seed data. It should verify at least:
 
@@ -2404,7 +2272,7 @@ Why this matters:
 
 A `smoke-public.sh` script has not yet been created for this slice.
 
-### 7.4 Authoritative project facts preserved by this guide
+### 8.4 Authoritative project facts preserved by this guide
 
 This guide preserves these project constraints:
 
@@ -2425,7 +2293,7 @@ This guide preserves these project constraints:
 - hardened per-operator SSH for host access
 - manual bootstrap only until Terraform authority is established
 
-### 7.5 Official references
+### 8.5 Official references
 
 #### Windows / WSL
 

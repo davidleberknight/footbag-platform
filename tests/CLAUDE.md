@@ -31,7 +31,7 @@ const eventId  = insertEvent(db, { status: 'draft', title: 'Secret Draft' });
 const discId   = insertDiscipline(db, eventId, { name: 'Freestyle' });
 ```
 
-Available factories: `insertMember`, `insertTag`, `insertEvent`, `insertDiscipline`, `insertResultsUpload`, `insertResultEntry`, `insertResultParticipant`, `insertHistoricalPerson`.
+Available factories: `insertMember`, `insertTag`, `insertEvent`, `insertDiscipline`, `insertResultsUpload`, `insertResultEntry`, `insertResultParticipant`, `insertHistoricalPerson`, `insertClub`, `insertLegacyClubCandidate`, `insertLegacyPersonClubAffiliation`.
 
 Insert only the rows a given test suite needs. Do not assume rows from other test files exist. Keep seed data deterministic — no random values, no timestamps that vary between runs.
 
@@ -75,7 +75,4 @@ npm run build         # tsc type-check — must pass before any PR
 
 On every push and PR, GitHub Actions runs `npm run build` then `npm test`. PRs cannot merge unless CI passes. See `.github/workflows/ci.yml`.
 
-Branch protection rules to configure in GitHub (Settings > Branches > main):
-- Require status checks to pass before merging: select `ci / Type-check and test`
-- Require branches to be up to date before merging
-- Do not allow bypassing the above settings
+Branch protection is configured on `main` (ruleset `protect-main`): requires `CI / Type-check and test` and `Terraform fmt / validate` to pass, branches must be up to date before merge.

@@ -10,8 +10,8 @@
 # project, where staging data is disposable and schema changes are frequent.
 #
 # DO NOT use this script once the project reaches the point where live data
-# on the host must be preserved. At that point, replace this workflow with a
-# real migration / backup / rollback procedure.
+# on the host must be preserved. At that point, use scripts/deploy-migrate.sh
+# instead.
 #
 # This script preserves only:
 #   - /srv/footbag/env
@@ -28,16 +28,16 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/deploy_with_schema.sh <password>
+Usage: bash scripts/deploy-rebuild.sh <password>
 
 WARNING:
   This script DESTROYS the current host database and replaces it with a
   freshly rebuilt local database/footbag.db.
 
 Overrides:
-  DEPLOY_TARGET=footbag-staging bash scripts/deploy_with_schema.sh <password>
-  SKIP_TESTS=yes bash scripts/deploy_with_schema.sh <password>
-  SKIP_DB_REBUILD=yes bash scripts/deploy_with_schema.sh <password>
+  DEPLOY_TARGET=footbag-staging bash scripts/deploy-rebuild.sh <password>
+  SKIP_TESTS=yes bash scripts/deploy-rebuild.sh <password>
+  SKIP_DB_REBUILD=yes bash scripts/deploy-rebuild.sh <password>
 USAGE
 }
 
