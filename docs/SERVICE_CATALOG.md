@@ -13,7 +13,8 @@
 - [3. Identity & Account](#3-identity--account)
   - [3.1 `IdentityAccessService`](#31-identityaccessservice)
   - [3.2 `MemberProfileLifecycleService`](#32-memberprofilelifecycleservice)
-  - [3.3 `MemberPublicReadService`](#33-memberpublicreadservice)
+  - [3.3 `HistoryService`](#33-historyservice)
+  - [3.4 `MemberService`](#34-memberservice)
 - [4. Clubs & Events](#4-clubs--events)
   - [4.0 `HomeService`](#40-homeservice)
   - [4.1 `ClubService`](#41-clubservice)
@@ -41,7 +42,11 @@
 
 ## 1. Shared Conventions
 
-For current implementation scope, active-slice boundaries, and what is implemented now versus only planned or documented more broadly here, consult `IMPLEMENTATION_PLAN.md`. This catalog remains the canonical service-contract reference and may be broader than the active slice.
+Current implementation status: see `IMPLEMENTATION_PLAN.md`. This catalog defines the long-lived service-ownership and service-contract standard for the services that are currently implemented or actively specified in the current slice.
+
+This document is authoritative for the service contracts it includes.
+
+It is intentionally partial. A capability may still be part of the broader product because it is defined elsewhere in the project docs even when it is not yet cataloged here.
 
 There is no target-design `publicController` layer. Public controllers/routes stay thin and delegate to services.
 
@@ -81,26 +86,34 @@ There is no target-design `publicController` layer. Public controllers/routes st
 
 Use this section to identify the correct service before reading its full entry. Each entry states what the service owns, what it explicitly does not own (the most common source of misplacement), and its primary tables.
 
-Source-of-truth note: This document defines service ownership, method contracts, business-rule boundaries, and service-level error semantics. It does not define route URLs or page layouts. Routing note: These are HTML page routes, not REST API endpoints. Public route handlers should stay thin and delegate route interpretation to services.
+Source-of-truth note: This document defines service ownership, method contracts, business-rule boundaries, cross-service dependencies, and service-level error semantics. It does not own bookmarkable page-route contracts or page-layout contracts. Those belong to `docs/VIEW_CATALOG.md`.
+
+Routing note: This project is page-oriented, not REST-API-oriented. Public route handlers should stay thin and delegate route interpretation and page shaping to services.
 
 ---
 
 ### Identity & Account
 
 **`IdentityAccessService`**
-- **Owns:** Registration, login/logout, session JWT lifecycle, password management, email verification, legacy archive passthrough
-- **Does NOT own:** Tier changes, profile fields, data exports
+- **Owns:** Current-slice account entry/auth flows: registration, credential verification, login/logout, and current session-cookie issuance/clearing
+- **Does NOT own:** Member profile CRUD, historical-person reads, tier calculation, data exports
 - **Primary tables:** `members`, `account_tokens`
+- Future detail (retain explicitly): auth hardening to the long-term JWT/session design remains governed by `docs/DESIGN_DECISIONS.md` and `IMPLEMENTATION_PLAN.md`
 
 **`MemberProfileLifecycleService`**
 - **Owns:** Member profile CRUD, account soft-delete and PII purge workflow, deceased handling, GDPR data export, member search
 - **Does NOT own:** Tier grants, payments
 - **Primary tables:** `members`, `member_links`, `media_items`, `member_galleries`, `account_tokens`
 
-**`MemberPublicReadService`**
-- **Owns:** Current-slice public Members read models for `GET /members` and `GET /members/:personId`; minimal historical imported-person detail shaping
-- **Does NOT own:** Auth/account lifecycle, profile CRUD, member search, club-roster visibility, account-claim flow, or any broader platform-wide persons subsystem
-- **Primary tables:** `historical_persons`, `event_result_entry_participants` (read), plus supporting public result/event reads as needed
+**`HistoryService`**
+- **Owns:** Current-slice historical-person index/detail reads, historical-results page shaping, and the distinction between historical imported people and current member accounts
+- **Does NOT own:** Current member account lifecycle, profile CRUD, member search, or account-claim flow
+- **Primary tables:** `historical_persons`, `event_result_entry_participants`, supporting event/result reads
+
+**`MemberService`**
+- **Owns:** Current-slice member-account page shaping and own-account profile operations: own profile read, limited public HoF/BAP profile read, profile edit page shaping, avatar upload page shaping, and supported account stub pages
+- **Does NOT own:** Login/registration credential verification, broader member search, account-claim flow, or tier ledger calculation
+- **Primary tables:** `members`, profile/media-related reads and writes used by the current slice
 
 ---
 
@@ -204,7 +217,9 @@ Source-of-truth note: This document defines service ownership, method contracts,
 
 ### 3.1 `IdentityAccessService`
 
-**Purpose/Boundary:** Owns registration, login/logout, session JWT lifecycle, password management, email verification, and legacy archive passthrough. Does NOT own tier changes, profile fields, or data exports.
+**Purpose/Boundary:** Owns current-slice account entry/auth flows: registration, credential verification, login/logout, and current session-cookie issuance/clearing. Does NOT own member profile CRUD, historical-person reads, tier calculation, or data exports.
+
+Future detail (retain explicitly): auth hardening to the long-term JWT/session design remains governed by `docs/DESIGN_DECISIONS.md` and `IMPLEMENTATION_PLAN.md`.
 
 **Consumers:** Web controllers (auth flows), middleware (JWT validation), OperationsPlatformService (token cleanup)
 
@@ -277,22 +292,41 @@ Source-of-truth note: This document defines service ownership, method contracts,
 
 ---
 
-### 3.3 `MemberPublicReadService`
+### 3.3 `HistoryService`
 
-**Purpose/Boundary:** Owns the current-slice public Members read models for `GET /members` and `GET /members/:personId`. This includes the Members section entry page (public historical-record index + auth entry point) and the member detail page (currently serving imported historical person data). It does NOT own authenticated account lifecycle, profile CRUD, member search, account-claim flow, or any broader platform-wide persons subsystem.
+**Purpose/Boundary:** Owns the current-slice historical-person read models for the `/history` surfaces documented in `docs/VIEW_CATALOG.md`. This includes the auth-gated historical index, the historical-person detail page, the historical-results grouping used on those pages, and the service-layer distinction between imported historical people and current member accounts. It does NOT own current member-account lifecycle, profile CRUD, login/registration, member search, or account-claim flow.
 
-**Consumers:** Public Members controller
+**Consumers:** History controller, event-result participant linking flows
 
 **Key Methods:**
-- `getPublicMembersLandingPage() -> { page, seo, content: { members, memberCount, countryCount } }` — shapes the Members section entry page; includes public historical-record index content and auth entry point; does not implement auth flows directly
-- `getHistoricalMemberPage(personId) -> { page, seo, navigation: { contextLinks }, content: { personId, displayName, honorificNickname?, summaryFacts, eventGroups } }` — resolves one imported historical person into the public member detail page model for the current slice; unknown/non-public IDs resolve as not-found; `displayName` is the person's display name; `honorificNickname` is the BAP nickname when present; `summaryFacts` is a service-computed list of `{ label, value }` pairs (country, BAP induction year, HoF induction year, etc.) including only facts with values; `eventGroups` carries typed event result history with service-computed `eventHref` and per-participant `memberHref` when a historical person link exists; `navigation.contextLinks` carries the typed back link to the Members index
+- `getHistoryLandingPage() -> { page, seo, content: { members, memberCount, countryCount } }` — shapes the historical-person index page
+- `getHistoricalPlayerPage(personId) -> { page, seo, navigation: { contextLinks }, content: { personId, displayName, honorificNickname?, summaryFacts, eventGroups } }` — resolves one imported historical person into the detail page model; unknown/non-public IDs resolve as not-found; `summaryFacts` is a service-computed list of `{ label, value }` pairs; `eventGroups` carries typed event result history with service-computed `eventHref`; `navigation.contextLinks` carries the typed back link to the history index
 
 **Key Rules:**
-- `/members` is the Members section entry; currently shows public historical records and auth entry point; will grow to full member area
-- `/members/:personId` currently serves historical person data only; must not imply current-member capabilities, profile ownership, member-search inclusion, or club-roster visibility for historical-only persons
-- public historical person pages are not current-member directory entries and must not expose contact fields
+- historical imported people remain distinct from current member accounts
+- historical pages must not imply current-member ownership or contactability
+- public honor visibility for HoF/BAP historical persons is bounded and explicit
 - route handlers stay thin; page shaping belongs here
-- any distinction between imported historical people and current Members is enforced here and/or in the data/query layer, not in templates
+
+---
+
+### 3.4 `MemberService`
+
+**Purpose/Boundary:** Owns the current-slice member-account read/write page shaping for the `/members/*` surfaces documented in `docs/VIEW_CATALOG.md`. This includes the member landing redirect target, own-profile read, limited public HoF/BAP member profile read, profile edit page shaping, avatar upload page shaping, and supported account stub pages. It does NOT own login/registration credential verification, broader member search, legacy claim flow, or tier ledger calculation.
+
+**Consumers:** Member controller
+
+**Key Methods:**
+- `getOwnProfile(slug) -> PageViewModel<OwnProfileContent>` — own-profile page model
+- `getPublicProfile(slug) -> PageViewModel<PublicProfileContent> | null` — limited public HoF/BAP profile; returns null for non-HoF/BAP members
+- `getProfileEditPage(slug, error?) -> PageViewModel<ProfileEditContent>` — edit form page model
+- `updateOwnProfile(slug, input) -> void` — validates and persists profile field changes
+
+**Key Rules:**
+- own-profile routes are owner-only
+- public non-owner profile viewing is limited to the explicit HoF/BAP exception
+- no contact-field leakage on public profile views
+- route handlers stay thin; page shaping belongs here
 
 ---
 
@@ -530,7 +564,7 @@ For the current public routes, `EventService` is responsible for:
 - `adminOverrideTier(adminId, memberId, newTier, expiryDate, reason) -> {ok}` — `reason_code = 'admin.override'`, `change_type = 'grant'`; cannot reduce dues-paying member below Tier 1 Lifetime (`member_tier_current` purchase overlay would ignore it anyway, but reject early with a clear error); audit-logs; enqueues member notification
 - `grantHoFBAPStatus(adminId, memberId, badge, reason) -> {ok}` — sets `is_hof` or `is_bap`; unless already Tier 3: writes tier grant to Tier 2 Lifetime (`reason_code = 'admin.hof_bap_grant'`), updates `fallback_tier_status`; emits `member_honor` news item via NewsService; enqueues congratulatory email; audit-logs
 - `setBoardFlag(adminId, memberId, action, reason) -> {ok}` — `flag_set`: snapshot current paid tier in `new_fallback_tier_status` of the `board.flag_set` ledger row → write grant to Tier 3; `flag_removed`: **read `new_fallback_tier_status` from most recent `board.flag_set` ledger row** → write `board.flag_removed` grant reverting to that captured tier; emits `member_honor` news item via NewsService; audit-logs
-- `calculateTierStatus(memberId) -> {tierData}` — sole authoritative tier-read path; derives from `member_tier_current` (ledger-backed); never reads tier fields directly from `members`
+- `calculateTierStatus(memberId) -> {tierData}` — sole authoritative tier-read path; derives from `member_tier_current` (ledger-backed); never reads tier fields directly from `members`. This future-facing contract is intentionally retained even while broader membership-tier implementation remains outside the current slice.
 - `adminManageRole(adminId, targetMemberId, action, reason) -> {ok}` — grant: target must be `tier2_lifetime` or `tier3` (APP-015); anti-lockout: last admin cannot be revoked (APP-015); updates `is_admin`; atomically updates admin-alerts mailing list subscription via CommunicationService (APP-015); audit-logs; enqueues email
 
 **Authz:** `applyAttendanceTier`, `applyVouchGrant` (Pathway A): Tier 2+ with active roster grant. `applyVouchGrant` (Pathway B approval), `adminOverrideTier`, `grantHoFBAPStatus`, `setBoardFlag`, `adminManageRole`: admin only. `calculateTierStatus`: any authenticated.
@@ -870,7 +904,7 @@ For the current public routes, `EventService` is responsible for:
 
 **Key Methods:**
 - `initiateAccountClaim(activeMemberId, identifier) -> {ok}` — classifies identifier type (legacy email, legacy username, or legacy member ID); looks up the matching imported placeholder row; if exactly one eligible row found, creates an `account_claim` token bound to `activeMemberId` and `target_member_id`; applies rate limiting per requesting account, per target row, and per session/IP; queues claim email to `legacy_email`; writes audit event `legacy_claim_email_sent`; returns a generic non-revealing response regardless of outcome (does not distinguish zero matches, multiple matches, ineligible rows, or blocked rows)
-- `consumeAccountClaim(token, activeMemberId) -> {claimData}` — validates token (exists, unconsumed, unexpired, `token_type = 'account_claim'`, `member_id` matches `activeMemberId`); validates target row still exists and is claimable; returns confirmation data including the active account identity and any club-affiliation or bootstrap-leader suggestions for review; on member confirmation, runs merge transaction: transfers `legacy_member_id`, merges profile fields per merge rules, writes tier reconciliation grant via MembershipTieringService if imported tier exceeds current, writes confirmed club affiliations to `member_club_affiliations`, processes bootstrap-leader confirmations, marks token consumed, deletes imported placeholder row (cascades outstanding claim tokens); writes audit event `legacy_claim_completed` with full merge summary
+- `consumeAccountClaim(token, activeMemberId) -> {claimData}` — validates token (exists, unconsumed, unexpired, `token_type = 'account_claim'`, `member_id` matches `activeMemberId`); validates target row still exists and is claimable; returns confirmation data including the active account identity and any club-affiliation or bootstrap-leader suggestions for review; on member confirmation, runs merge transaction: transfers `legacy_member_id`, merges profile fields per merge rules, writes tier reconciliation grant via MembershipTieringService if imported tier exceeds current, writes confirmed club affiliations to `member_club_affiliations`, processes bootstrap-leader confirmations, marks token consumed, soft-deletes the imported placeholder row (sets `deleted_at`; NULLs `legacy_member_id` since it was transferred), and marks all outstanding `account_claim` tokens targeting the placeholder as consumed; writes audit event `legacy_claim_completed` with full merge summary
 - `manualLegacyClaimRecovery(adminId, targetImportedMemberId, activeMemberId, reason, verificationNote) -> {ok}` — admin-initiated merge for cases where self-serve claim is unavailable; runs the same merge transaction as `consumeAccountClaim`; requires non-empty `reason` and `verificationNote`; writes audit event `legacy_claim_manual_recovery` with actor, target, reason, and verification note; never auto-promotes `legacy_is_admin` to live admin role
 - `confirmBootstrapLeadership(activeMemberId, bootstrapLeaderId) -> {ok}` — called during claim flow; validates bootstrap row is `provisional` and active member's `legacy_member_id` matches the row's `legacy_member_id`; if no conflicting live leader exists for the club, creates a `club_leaders` row on the active account and marks bootstrap row `claimed`; if a conflict exists, leaves row provisional and flags for admin review; writes audit event `legacy_club_bootstrap_promoted` or notes the conflict
 - `resolveBootstrapLeadership(adminId, bootstrapLeaderId, action, reason) -> {ok}` — admin resolution of provisional bootstrap leadership; actions: `promote` (link to a specific claimed member's `club_leaders` row), `supersede` (mark row superseded; appoint live leader through standard workflow), `reject` (discard provisional assignment); all actions audit-logged
@@ -881,7 +915,7 @@ For the current public routes, `EventService` is responsible for:
 
 **Key Rules:**
 - `[APP]` Non-revealing messaging: claim initiation response never distinguishes zero matches, multiple matches, ineligible rows, or blocked rows. Recommended: "If an eligible legacy record was found, a claim email will be sent."
-- `[APP]` Merge transaction is atomic; the imported placeholder row is deleted at the end of a successful merge; all `account_claim` tokens pointing at it cascade-delete via `ON DELETE CASCADE`
+- `[APP]` Merge transaction is atomic; the imported placeholder row is soft-deleted at the end of a successful merge (`deleted_at` set, `legacy_member_id` NULLed since it was transferred to the active account); all outstanding `account_claim` tokens targeting the placeholder are marked consumed in the same transaction
 - `[APP]` Rate limiting applies to claim initiation and resend per requesting account, per target row, and per session/IP
 - `[APP]` A token may only be consumed by the same `member_id` that initiated the request; consuming while authenticated as a different account is rejected
 - `[APP]` Tier reconciliation grant is written only if the imported effective tier exceeds the current effective tier; uses `reason_code = 'migration.legacy_claim_reconcile'`

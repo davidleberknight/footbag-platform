@@ -378,7 +378,7 @@ export const publicEvents = {
       erp.id AS participant_row_id,
       erp.participant_order,
       erp.member_id,
-      m_linked.slug AS participant_member_slug,
+      COALESCE(m_linked.slug, m_legacy.slug) AS participant_member_slug,
       erp.display_name AS participant_display_name,
       erp.historical_person_id AS participant_historical_person_id
     FROM events AS e
@@ -390,6 +390,13 @@ export const publicEvents = {
       ON erp.result_entry_id = ere.id
     LEFT JOIN members AS m_linked
       ON m_linked.id = erp.member_id
+    LEFT JOIN historical_persons AS hp_link
+      ON hp_link.person_id = erp.historical_person_id
+      AND hp_link.legacy_member_id IS NOT NULL
+    LEFT JOIN members AS m_legacy
+      ON m_legacy.legacy_member_id = hp_link.legacy_member_id
+      AND m_legacy.deleted_at IS NULL
+      AND m_legacy.login_email IS NOT NULL
     WHERE
       e.id = ?
       AND e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL})
@@ -494,10 +501,16 @@ export const publicPlayers = {
   `),
   findLinkedMemberSlug: db.prepare(`
     SELECT m.slug
-    FROM event_result_entry_participants AS erp
-    INNER JOIN members AS m ON m.id = erp.member_id
-    WHERE erp.historical_person_id = ?
-      AND erp.member_id IS NOT NULL
+    FROM members AS m
+    WHERE m.deleted_at IS NULL
+      AND m.login_email IS NOT NULL
+      AND m.legacy_member_id IS NOT NULL
+      AND m.legacy_member_id = (
+        SELECT hp.legacy_member_id
+        FROM historical_persons AS hp
+        WHERE hp.person_id = ?
+          AND hp.legacy_member_id IS NOT NULL
+      )
     LIMIT 1
   `),
 
@@ -600,6 +613,7 @@ export interface MemberProfileRow {
   is_admin: number;
   is_hof: number;
   is_bap: number;
+  legacy_member_id: string | null;
   avatar_thumb_key: string | null;
 }
 
@@ -630,6 +644,7 @@ export const account = {
       m.is_admin,
       m.is_hof,
       m.is_bap,
+      m.legacy_member_id,
       mi.s3_key_thumb AS avatar_thumb_key
     FROM members_active AS m
     LEFT JOIN media_items AS mi
@@ -681,6 +696,35 @@ export const account = {
     LEFT JOIN event_disciplines AS ed
       ON ed.id = ere.discipline_id
     WHERE erp.member_id = ?
+    ORDER BY
+      e.start_date DESC,
+      COALESCE(ed.sort_order, 0) ASC,
+      ere.placement ASC
+  `),
+
+  listResultsByLegacyMemberId: db.prepare(`
+    SELECT
+      e.id                        AS event_id,
+      e.title                     AS event_title,
+      e.start_date,
+      e.city,
+      e.country                   AS event_country,
+      t.tag_normalized            AS event_tag_normalized,
+      ed.name                     AS discipline_name,
+      ere.placement,
+      ere.score_text
+    FROM event_result_entry_participants AS erp
+    JOIN historical_persons AS hp
+      ON hp.person_id = erp.historical_person_id
+    JOIN event_result_entries AS ere
+      ON ere.id = erp.result_entry_id
+    JOIN events AS e
+      ON e.id = ere.event_id
+    JOIN tags AS t
+      ON t.id = e.hashtag_tag_id
+    LEFT JOIN event_disciplines AS ed
+      ON ed.id = ere.discipline_id
+    WHERE hp.legacy_member_id = ?
     ORDER BY
       e.start_date DESC,
       COALESCE(ed.sort_order, 0) ASC,
@@ -799,6 +843,135 @@ export interface ExistingAvatarRow {
 export interface AvatarUploadCountRow {
   upload_count: number;
 }
+
+// ── Legacy claim ────────────────────────────────────────────────────────────────
+
+export interface LegacyPlaceholderRow {
+  id: string;
+  display_name: string;
+  legacy_member_id: string | null;
+  legacy_user_id: string | null;
+  legacy_email: string | null;
+  bio: string;
+  birth_date: string | null;
+  street_address: string | null;
+  postal_code: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  ifpa_join_date: string | null;
+  is_hof: number;
+  is_bap: number;
+  legacy_is_admin: number;
+}
+
+export interface AlreadyClaimedRow {
+  legacy_member_id: string;
+}
+
+export interface HistoricalPersonClaimRow {
+  person_id: string;
+  person_name: string;
+  legacy_member_id: string;
+  country: string | null;
+  fbhof_member: number;
+  bap_member: number;
+}
+
+export const legacyClaim = {
+  findHistoricalPersonByLegacyId: db.prepare(`
+    SELECT person_id, person_name, legacy_member_id, country, fbhof_member, bap_member
+    FROM historical_persons
+    WHERE legacy_member_id = ?
+    LIMIT 1
+  `),
+
+  checkLegacyIdAlreadyClaimed: db.prepare(`
+    SELECT id
+    FROM members
+    WHERE legacy_member_id = ?
+      AND deleted_at IS NULL
+      AND login_email IS NOT NULL
+    LIMIT 1
+  `),
+
+  findPlaceholderByIdentifier: db.prepare(`
+    SELECT
+      id, display_name,
+      legacy_member_id, legacy_user_id, legacy_email,
+      bio, birth_date, street_address, postal_code,
+      city, region, country,
+      ifpa_join_date, is_hof, is_bap, legacy_is_admin
+    FROM members
+    WHERE deleted_at IS NULL
+      AND personal_data_purged_at IS NULL
+      AND login_email IS NULL
+      AND password_hash IS NULL
+      AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ?)
+    LIMIT 1
+  `),
+
+  findPlaceholderById: db.prepare(`
+    SELECT
+      id, display_name,
+      legacy_member_id, legacy_user_id, legacy_email,
+      bio, birth_date, street_address, postal_code,
+      city, region, country,
+      ifpa_join_date, is_hof, is_bap, legacy_is_admin
+    FROM members
+    WHERE id = ?
+      AND deleted_at IS NULL
+      AND personal_data_purged_at IS NULL
+      AND login_email IS NULL
+      AND password_hash IS NULL
+  `),
+
+  checkAlreadyClaimed: db.prepare(`
+    SELECT legacy_member_id
+    FROM members
+    WHERE id = ?
+      AND legacy_member_id IS NOT NULL
+  `),
+
+  softDeletePlaceholder: db.prepare(`
+    UPDATE members
+    SET
+      deleted_at       = ?,
+      deleted_by       = 'claim_merge',
+      legacy_member_id = NULL,
+      legacy_user_id   = NULL,
+      legacy_email     = NULL,
+      updated_at       = ?,
+      updated_by       = 'claim_merge',
+      version          = version + 1
+    WHERE id = ?
+      AND deleted_at IS NULL
+      AND login_email IS NULL
+      AND password_hash IS NULL
+  `),
+
+  transferLegacyFields: db.prepare(`
+    UPDATE members
+    SET
+      legacy_member_id = ?,
+      legacy_user_id   = COALESCE(legacy_user_id, ?),
+      legacy_email     = COALESCE(legacy_email, ?),
+      bio              = CASE WHEN bio = '' THEN ? ELSE bio END,
+      birth_date       = COALESCE(birth_date, ?),
+      street_address   = COALESCE(street_address, ?),
+      postal_code      = COALESCE(postal_code, ?),
+      city             = CASE WHEN city IS NULL OR city = '' THEN ? ELSE city END,
+      region           = CASE WHEN region IS NULL OR region = '' THEN ? ELSE region END,
+      country          = CASE WHEN country IS NULL OR country = '' THEN ? ELSE country END,
+      ifpa_join_date   = COALESCE(ifpa_join_date, ?),
+      is_hof           = MAX(is_hof, ?),
+      is_bap           = MAX(is_bap, ?),
+      updated_at       = ?,
+      updated_by       = 'claim_merge',
+      version          = version + 1
+    WHERE id = ?
+  `),
+} as const;
 
 let helperTransactionOpen = false;
 

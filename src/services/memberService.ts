@@ -8,6 +8,21 @@ const MAX_DISPLAY_NAME = 64;
 const MAX_BIO = 1000;
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members', 'public']);
 
+export interface ProfileEventResult {
+  disciplineName: string | null;
+  placement: number;
+  scoreText: string | null;
+}
+
+export interface ProfileEventGroup {
+  eventHref: string;
+  eventTitle: string;
+  startDate: string;
+  city: string;
+  eventCountry: string;
+  results: ProfileEventResult[];
+}
+
 export interface OwnProfileContent {
   displayName: string;
   bio: string;
@@ -17,12 +32,16 @@ export interface OwnProfileContent {
   phone: string | null;
   emailVisibility: string;
   isAdmin: boolean;
+  isHof: boolean;
+  isBap: boolean;
+  hasLegacyLink: boolean;
   profileBase?: string;
   avatarThumbUrl: string | null;
+  eventGroups?: ProfileEventGroup[];
 }
 
 export interface ProfileEditContent extends OwnProfileContent {
-  memberId: string;
+  memberKey: string;
   error?: string;
 }
 
@@ -77,8 +96,47 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
     phone:           row.phone,
     emailVisibility: row.email_visibility,
     isAdmin:         Boolean(row.is_admin),
+    isHof:           Boolean(row.is_hof),
+    isBap:           Boolean(row.is_bap),
+    hasLegacyLink:   row.legacy_member_id !== null,
     avatarThumbUrl:  row.avatar_thumb_key ? storage.constructURL(row.avatar_thumb_key) : null,
   };
+}
+
+function fetchEventGroups(row: MemberProfileRow): ProfileEventGroup[] {
+  // Try direct member_id link first, then legacy_member_id chain.
+  let resultRows = runSqliteRead('listResultsByMemberId', () =>
+    account.listResultsByMemberId.all(row.id),
+  ) as MemberResultRow[];
+
+  if (resultRows.length === 0 && row.legacy_member_id) {
+    resultRows = runSqliteRead('listResultsByLegacyMemberId', () =>
+      account.listResultsByLegacyMemberId.all(row.legacy_member_id),
+    ) as MemberResultRow[];
+  }
+
+  const eventMap = new Map<string, ProfileEventGroup>();
+  for (const r of resultRows) {
+    let group = eventMap.get(r.event_id);
+    if (!group) {
+      const tagNorm = r.event_tag_normalized;
+      group = {
+        eventHref:    `/events/${tagNorm.replace(/^#/, '')}`,
+        eventTitle:   r.event_title,
+        startDate:    r.start_date,
+        city:         r.city,
+        eventCountry: r.event_country,
+        results:      [],
+      };
+      eventMap.set(r.event_id, group);
+    }
+    group.results.push({
+      disciplineName: r.discipline_name,
+      placement:      r.placement,
+      scoreText:      r.score_text,
+    });
+  }
+  return Array.from(eventMap.values());
 }
 
 function fetchMemberBySlug(slug: string): MemberProfileRow {
@@ -98,7 +156,7 @@ export const memberService = {
       navigation: {
         contextLinks: [{ label: 'Edit Profile', href: `/members/${slug}/edit`, variant: 'outline' }],
       },
-      content: { ...rowToContent(row), profileBase: `/members/${slug}` },
+      content: { ...rowToContent(row), profileBase: `/members/${slug}`, eventGroups: fetchEventGroups(row) },
     };
   },
 
@@ -114,33 +172,6 @@ export const memberService = {
 
     const storage = getPhotoStorage();
 
-    // Fetch competitive results linked to this member.
-    const resultRows = runSqliteRead('listResultsByMemberId', () =>
-      account.listResultsByMemberId.all(row.id),
-    ) as MemberResultRow[];
-
-    const eventMap = new Map<string, PublicProfileEventGroup>();
-    for (const r of resultRows) {
-      let group = eventMap.get(r.event_id);
-      if (!group) {
-        const tagNorm = r.event_tag_normalized;
-        group = {
-          eventHref:    `/events/${tagNorm.replace(/^#/, '')}`,
-          eventTitle:   r.event_title,
-          startDate:    r.start_date,
-          city:         r.city,
-          eventCountry: r.event_country,
-          results:      [],
-        };
-        eventMap.set(r.event_id, group);
-      }
-      group.results.push({
-        disciplineName: r.discipline_name,
-        placement:      r.placement,
-        scoreText:      r.score_text,
-      });
-    }
-
     return {
       seo:  { title: row.display_name },
       page: { sectionKey: 'members', pageKey: 'member_public_profile', title: row.display_name },
@@ -153,7 +184,7 @@ export const memberService = {
         avatarThumbUrl: row.avatar_thumb_key ? storage.constructURL(row.avatar_thumb_key) : null,
         hofMember:      isHof,
         bapMember:      isBap,
-        eventGroups:    Array.from(eventMap.values()),
+        eventGroups:    fetchEventGroups(row),
       },
     };
   },
@@ -166,7 +197,7 @@ export const memberService = {
       navigation: {
         contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
       },
-      content: { ...rowToContent(row), memberId: slug, error },
+      content: { ...rowToContent(row), memberKey: slug, error },
     };
   },
 

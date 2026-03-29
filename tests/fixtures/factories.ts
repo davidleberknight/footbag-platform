@@ -59,6 +59,60 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
   return id;
 }
 
+// ── Imported placeholder (pre-credential legacy member) ──────────────────────
+
+export interface ImportedPlaceholderOverrides {
+  id?: string;
+  display_name?: string;
+  real_name?: string;
+  legacy_member_id?: string;
+  legacy_user_id?: string;
+  legacy_email?: string;
+  bio?: string;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  birth_date?: string | null;
+  ifpa_join_date?: string | null;
+  is_hof?: 0 | 1;
+  is_bap?: 0 | 1;
+}
+
+export function insertImportedPlaceholder(db: BetterSqlite3.Database, o: ImportedPlaceholderOverrides = {}): string {
+  const id      = o.id              ?? `placeholder-${uid()}`;
+  const name    = o.real_name       ?? 'Legacy Player';
+  const display = o.display_name    ?? name;
+  db.prepare(`
+    INSERT INTO members (
+      id, slug,
+      login_email, login_email_normalized, email_verified_at,
+      password_hash, password_changed_at,
+      real_name, display_name, display_name_normalized,
+      legacy_member_id, legacy_user_id, legacy_email,
+      bio, city, region, country,
+      birth_date, ifpa_join_date,
+      is_hof, is_bap,
+      created_at, created_by, updated_at, updated_by, version
+    ) VALUES (?, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, 'import', 1)
+  `).run(
+    id,
+    name, display, display.toLowerCase(),
+    o.legacy_member_id ?? null,
+    o.legacy_user_id ?? null,
+    o.legacy_email ?? null,
+    o.bio ?? '',
+    o.city ?? null,
+    o.region ?? null,
+    o.country ?? null,
+    o.birth_date ?? null,
+    o.ifpa_join_date ?? null,
+    o.is_hof ?? 0,
+    o.is_bap ?? 0,
+    TS, TS,
+  );
+  return id;
+}
+
 // ── Tag ───────────────────────────────────────────────────────────────────────
 
 export interface TagOverrides {
@@ -332,6 +386,7 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
 export interface HistoricalPersonOverrides {
   person_id?: string;
   person_name?: string;
+  legacy_member_id?: string | null;
   country?: string;
   event_count?: number;
   placement_count?: number;
@@ -342,11 +397,12 @@ export interface HistoricalPersonOverrides {
 export function insertHistoricalPerson(db: BetterSqlite3.Database, o: HistoricalPersonOverrides = {}): string {
   const id = o.person_id ?? `person-test-${uid()}`;
   db.prepare(`
-    INSERT INTO historical_persons (person_id, person_name, country, event_count, placement_count, bap_member, fbhof_member)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO historical_persons (person_id, person_name, legacy_member_id, country, event_count, placement_count, bap_member, fbhof_member)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     o.person_name     ?? 'Test Person',
+    o.legacy_member_id ?? null,
     o.country         ?? 'US',
     o.event_count     ?? 0,
     o.placement_count ?? 0,

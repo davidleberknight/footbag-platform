@@ -2,8 +2,8 @@
  * Integration tests for avatar upload routes.
  *
  * Covers:
- *   GET  /members/:memberId/avatar  — upload form (own profile only)
- *   POST /members/:memberId/avatar  — file upload (own profile only)
+ *   GET  /members/:memberKey/avatar  — upload form (own profile only)
+ *   POST /members/:memberKey/avatar  — file upload (own profile only)
  *
  * All routes require auth. Each unauthenticated test asserts a 302 redirect to
  * /login with a returnTo param.
@@ -75,9 +75,9 @@ afterAll(() => {
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
-// ── GET /members/:memberId/avatar ─────────────────────────────────────────────
+// ── GET /members/:memberKey/avatar ─────────────────────────────────────────────
 
-describe('GET /members/:memberId/avatar -- upload form', () => {
+describe('GET /members/:memberKey/avatar -- upload form', () => {
   it('unauthenticated -> 302 to /login with returnTo', async () => {
     const app = createApp();
     const res = await request(app).get(`/members/${OWN_SLUG}/avatar`);
@@ -103,9 +103,9 @@ describe('GET /members/:memberId/avatar -- upload form', () => {
   });
 });
 
-// ── POST /members/:memberId/avatar ────────────────────────────────────────────
+// ── POST /members/:memberKey/avatar ────────────────────────────────────────────
 
-describe('POST /members/:memberId/avatar -- file upload', () => {
+describe('POST /members/:memberKey/avatar -- file upload', () => {
   it('unauthenticated -> 302 to /login with returnTo', async () => {
     const app = createApp();
     const validJpeg = await sharp({

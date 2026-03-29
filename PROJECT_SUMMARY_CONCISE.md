@@ -54,11 +54,13 @@ Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE
 
 ## Target system architecture (long-term model — see `IMPLEMENTATION_PLAN.md` for what is implemented now)
 
+Current auth/session behavior in the implemented slice is intentionally narrower than the long-term target below. See `IMPLEMENTATION_PLAN.md` for the current route/auth behavior and accepted temporary auth/session deviations.
+
 - **Server-rendered web application** (Handlebars templates + TypeScript enhancements).
 - **Layered architecture**: controllers -> services -> infrastructure adapters.
 - **SQLite-first** for application data; S3 for photos/media object storage.
 - **Single DB access module/pattern** (`db.ts` style) using prepared statements and transaction helpers.
-- **JWT cookie auth with per-request DB validation** (session token is not sole authority). *(target — current auth is a fake stub)*
+- **JWT cookie auth with per-request DB validation** (session token is not sole authority). *(target)*
 - **Email outbox + worker pattern** (core writes are not coupled to direct send success). *(target — worker is scaffolded with no active jobs)*
 - **Single origin deployment** behind CloudFront; maintenance page served by CloudFront/S3 when origin is unavailable. *(target — maintenance mode not yet production-grade)*
 

@@ -127,6 +127,10 @@ def main() -> None:
     )
     print("  → Seeded stub account: Footbag Hacky (login_email='footbag')")
 
+    # No imported placeholder needed here. Historical persons with legacy_member_id
+    # are loaded from persons.csv by the data pipeline. The claim flow searches
+    # historical_persons by legacy_member_id. Test with: /history/claim → enter "11985".
+
     con.commit()
     con.close()
     print("  → Member seed complete: 1 account (Footbag Hacky).")

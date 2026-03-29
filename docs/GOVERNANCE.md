@@ -38,11 +38,13 @@ This file governs:
 
 ## 3. Authentication and authorization boundary
 
-Public routes may serve only content approved for anonymous visitors: official event results, year archives, historical-person pages (minimal/read-only), HoF/BAP honors, world records, and the home page.
+Public anonymous routes may serve only content explicitly approved for anonymous visitors by the repo's governing docs and current-slice decisions. This includes the home page, public events/results pages, year archives, world records, limited historical-person pages (non-PII only), limited HoF/BAP honor-profile pages, limited public club pages, and other surfaces explicitly classified as public.
 
-Current-member-only content (member search, member profiles, rosters, participant lists, contact surfaces, exports) requires a real or stubbed auth context with genuine session-path behavior. Boolean env toggles that change what content is served to anonymous visitors are not allowed.
+Anonymous public surfaces may expose only approved non-PII fields. Contact information, personal addresses, email addresses, phone numbers, and other personally identifiable information are never public by default. Current-member search, ordinary member profiles, broad rosters, participant lists, exports, and other member-only surfaces remain non-public unless a higher-level documented decision says otherwise.
 
-During the current sprint, the "first fake auth foundation stub" provides route-level gating via stubbed session middleware with hard-coded stub credentials. This stub is designed to mirror the future real auth path. It runs in all environments, including staging. It must be replaced by real JWT/DB auth before member onboarding begins.
+A public page may have an authenticated enhancement only when that boundary is explicitly documented. Example: a club detail page may be public while anonymous visitors see no member names and authenticated visitors see only the limited member visibility allowed by the current decision set.
+
+Current-member-only content still requires a genuine session-path authorization check. Boolean env toggles that change what content is served to anonymous visitors are not allowed.
 
 ---
 

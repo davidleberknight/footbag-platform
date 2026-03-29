@@ -3,10 +3,10 @@
  *
  * Covers:
  *   GET  /members                     — landing redirect
- *   GET  /members/:memberId           — profile view (own vs other)
- *   GET  /members/:memberId/edit      — edit form (own vs other)
- *   POST /members/:memberId/edit      — save profile (validation, auth, cross-member guard)
- *   GET  /members/:memberId/:section  — stub pages (own vs other, known vs unknown section)
+ *   GET  /members/:memberKey           — profile view (own vs other)
+ *   GET  /members/:memberKey/edit      — edit form (own vs other)
+ *   POST /members/:memberKey/edit      — save profile (validation, auth, cross-member guard)
+ *   GET  /members/:memberKey/:section  — stub pages (own vs other, known vs unknown section)
  *
  * All routes require auth. Each unauthenticated test asserts a 302 redirect to
  * /login with a returnTo param.
@@ -92,9 +92,9 @@ describe('GET /members — landing redirect', () => {
   });
 });
 
-// ── GET /members/:memberId ─────────────────────────────────────────────────────
+// ── GET /members/:memberKey ─────────────────────────────────────────────────────
 
-describe('GET /members/:memberId — profile view', () => {
+describe('GET /members/:memberKey — profile view', () => {
   it('unauthenticated → 302 to /login with returnTo', async () => {
     const app = createApp();
     const res = await request(app).get(`/members/${OWN_SLUG}`);
@@ -118,7 +118,7 @@ describe('GET /members/:memberId — profile view', () => {
     expect(res.status).toBe(404);
   });
 
-  it('nonexistent member id → 404', async () => {
+  it('nonexistent member key → 404', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/members/does-not-exist')
@@ -127,9 +127,9 @@ describe('GET /members/:memberId — profile view', () => {
   });
 });
 
-// ── GET /members/:memberId/edit ────────────────────────────────────────────────
+// ── GET /members/:memberKey/edit ────────────────────────────────────────────────
 
-describe('GET /members/:memberId/edit — edit form', () => {
+describe('GET /members/:memberKey/edit — edit form', () => {
   it('unauthenticated → 302 to /login with returnTo', async () => {
     const app = createApp();
     const res = await request(app).get(`/members/${OWN_SLUG}/edit`);
@@ -166,9 +166,9 @@ describe('GET /members/:memberId/edit — edit form', () => {
   });
 });
 
-// ── POST /members/:memberId/edit ───────────────────────────────────────────────
+// ── POST /members/:memberKey/edit ───────────────────────────────────────────────
 
-describe('POST /members/:memberId/edit — save profile', () => {
+describe('POST /members/:memberKey/edit — save profile', () => {
   it('unauthenticated → 302 to /login with returnTo', async () => {
     const app = createApp();
     const res = await request(app)
@@ -263,9 +263,9 @@ describe('POST /members/:memberId/edit — save profile', () => {
   });
 });
 
-// ── GET /members/:memberId/:section — stub pages ───────────────────────────────
+// ── GET /members/:memberKey/:section — stub pages ───────────────────────────────
 
-describe('GET /members/:memberId/:section — stub pages', () => {
+describe('GET /members/:memberKey/:section — stub pages', () => {
   const VALID_SECTIONS = ['media', 'settings', 'password', 'download', 'delete'];
 
   it('unauthenticated → 302 to /login with returnTo', async () => {

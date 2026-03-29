@@ -143,6 +143,7 @@ def main() -> None:
                 INSERT INTO historical_persons (
                   person_id,
                   person_name,
+                  legacy_member_id,
                   country,
                   first_year,
                   last_year,
@@ -160,11 +161,12 @@ def main() -> None:
                   signature_trick_1,
                   signature_trick_2,
                   signature_trick_3
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     row.get("person_id", "").strip() or None,
                     row.get("person_name", "").strip() or None,
+                    row.get("legacy_member_id", "").strip() or None,
                     row.get("country", "").strip() or None,
                     int(row["first_year"]) if row.get("first_year", "").strip() else None,
                     int(row["last_year"]) if row.get("last_year", "").strip() else None,

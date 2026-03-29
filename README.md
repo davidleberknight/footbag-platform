@@ -24,7 +24,7 @@ Sneak Preview: [http://34.192.250.246/events/event_2025_beaver_open](http://34.1
 
 - Some legacy migration tooling is done, including a full mirror of the current live footbag.org.
 - Scripts to process and clean historic event-results data are nearly complete.
-- This is why the initial public scope is viewing historical events and results.
+- The current implemented slice is evolving. For the authoritative current scope, implemented routes, and known accepted gaps, see `IMPLEMENTATION_PLAN.md`.
 - Some official rule/policy simplification proposals were recently **Approved by IFPA Board Decision** and will be incorporated soon.
 
 ## Contributing

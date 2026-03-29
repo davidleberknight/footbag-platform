@@ -29,21 +29,21 @@ export const clubController = {
   },
 
   /**
-   * GET /clubs/:slug
+   * GET /clubs/:key
    * Dispatches to club detail or country page based on prefix.
-   * slug starts with 'club_' → club detail; otherwise → country page.
+   * key starts with 'club_' → club detail; otherwise → country page.
    */
-  slug(req: Request, res: Response, next: NextFunction): void {
+  byKey(req: Request, res: Response, next: NextFunction): void {
     try {
-      const { slug } = req.params;
-      if (slug.startsWith('club_')) {
-        const vm = clubService.getPublicClubPage(slug);
+      const key = req.params.key;
+      if (key.startsWith('club_')) {
+        const vm = clubService.getPublicClubPage(key);
         if (!req.isAuthenticated) {
           vm.content.club.members = [];
         }
         res.render('clubs/detail', vm);
       } else {
-        const vm = clubService.getPublicCountryPage(slug);
+        const vm = clubService.getPublicCountryPage(key);
         res.render('clubs/country', vm);
       }
     } catch (err) {

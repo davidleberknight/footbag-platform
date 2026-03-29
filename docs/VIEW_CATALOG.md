@@ -23,16 +23,24 @@
 - [5. Public Route Catalog](#5-public-route-catalog)
 - [6. Page Specifications](#6-page-specifications)
   - [6.1 Home](#61-home)
-  - [6.2 Members section landing](#62-members-section-landing)
-  - [6.3 Member detail](#63-member-detail)
-  - [6.4 Events index](#64-events-index)
-  - [6.5 Events year archive](#65-events-year-archive)
-  - [6.6 Event detail](#66-event-detail)
-  - [6.7 Clubs index](#67-clubs-index)
-  - [6.8 Clubs country page](#68-clubs-country-page)
-  - [6.9 Club detail](#69-club-detail)
-  - [6.10 HoF landing](#610-hof-landing)
-  - [6.11 Login](#611-login)
+  - [6.2 Member account landing redirect](#62-member-account-landing-redirect)
+  - [6.3 Member profile](#63-member-profile)
+  - [6.4 Member profile edit](#64-member-profile-edit)
+  - [6.5 Member avatar upload](#65-member-avatar-upload)
+  - [6.6 Member account stub pages](#66-member-account-stub-pages)
+  - [6.7 Historical players index](#67-historical-players-index)
+  - [6.8 Historical player detail](#68-historical-player-detail)
+  - [6.9 Events index](#69-events-index)
+  - [6.10 Events year archive](#610-events-year-archive)
+  - [6.11 Event detail](#611-event-detail)
+  - [6.12 Clubs index](#612-clubs-index)
+  - [6.13 Clubs country page](#613-clubs-country-page)
+  - [6.14 Club detail](#614-club-detail)
+  - [6.15 HoF landing](#615-hof-landing)
+  - [6.16 Login](#616-login)
+  - [6.17 Register](#617-register)
+  - [6.18 Claim initiation](#618-claim-initiation)
+  - [6.19 Claim verification](#619-claim-verification)
 - [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
   - [7.1 Authorization boundary](#71-authorization-boundary)
   - [7.2 Error behavior](#72-error-behavior)
@@ -66,32 +74,40 @@ This document covers:
 - the public visual and structural standard for server-rendered visitor pages
 - the current public route catalog
 - the required page contract for public rendering
-- the current public pages in the current deployed public baseline:
-  - Home  (main landing page for site)
-  - Events index (main landing page for events)
+- the current public and current-slice account pages in the current deployed baseline:
+  - Home
+  - Events index
   - Events year archive
   - Event detail
-  - Clubs section — live with real club data, SVG world map (JS-enhanced, degrades gracefully, hidden on mobile ≤768px), country and club detail pages
-  - Historical players index (auth-gated; `/history`)
-  - Historical player detail (auth-gated; `/history/:personId`)
-  - Login (DB-backed member authentication)
-  - HoF landing (placeholder; static/editorial content page)
+  - Clubs index
+  - Clubs country pages and club detail pages
+  - Historical players index (`/history`)
+  - Historical player detail (`/history/:personId`)
+  - Member account landing redirect (`/members`)
+  - Member profile (`/members/:memberKey`)
+  - Member profile edit (`/members/:memberKey/edit`)
+  - Member avatar upload (`/members/:memberKey/avatar`)
+  - Member account stub pages (`/members/:memberKey/:section`)
+  - Login
+  - Register
+  - HoF landing
+- the next-to-implement claim pages:
+  - Claim initiation (`/history/claim`)
+  - Claim verification (`/history/claim/verify/:token`)
 - the rules future pages must follow to join the catalog
 
 `docs/USER_STORIES.md` remains broader than this file. This catalog is authoritative for the views it includes; it does not attempt to catalog the full future product yet.
 
 This document does not cover (yet):
 
-- authenticated member-only pages and profiles (beyond the current Tier 1 historical-person surfaces)
 - organizer workflows
 - admin pages
 - APIs
-- full authentication flows (the current auth stub login page at `GET /login` is cataloged; full auth implementation is out of scope for the current slice)
 - internal tools
-- implementation details that belong in code patches rather than catalog definition
 - media pages that remain out of scope for the current slice
 - news pages that remain out of scope for the current slice
 - tutorial pages that remain out of scope for the current slice
+- implementation details that belong in code patches rather than catalog definition
 
 ---
 
@@ -358,12 +374,19 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /events` | Events index | Browse upcoming events and archive entry points | Current |
 | `GET /events/year/:year` | Events year archive | Browse completed events for one year | Current |
 | `GET /events/:eventKey` | Event detail | Canonical public event page | Current |
-| `GET /members` | Members section | Tier 1 public historical-person index | Current |
-| `GET /members/:personId` | Member detail | Tier 1 public historical-person detail | Current |
+| `GET /members` | Member account landing | Auth-gated redirect into member-account area | Current |
+| `GET /members/:memberKey` | Member profile | Own profile or public HoF/BAP read-only view | Current |
+| `GET /members/:memberKey/edit` | Member profile edit | Own-profile edit form | Current |
+| `GET /members/:memberKey/avatar` | Member avatar upload | Own-profile avatar upload form | Current |
+| `GET /members/:memberKey/:section` | Member account stub | Placeholder pages for future account subsections | Current |
+| `GET /history` | Historical players index | Auth-gated imported historical-person index | Current |
+| `GET /history/:personId` | Historical player detail | Historical person competitive record detail | Current |
+| `GET /history/claim` | Claim initiation | Legacy account claim form | Planned next |
+| `GET /history/claim/verify/:token` | Claim verification | Claim confirmation page | Planned next |
 | `GET /clubs` | Clubs index | Country-grouped clubs directory entry page | Current |
-| `GET /clubs/:countrySlug` | Clubs country page | All clubs in one country, grouped by state/province | Current |
-| `GET /clubs/club_:clubKey` | Club detail | Canonical public club page | Current |
-| `GET /login` | Login | Member login preview; functional stub for members with preview password | Current |
+| `GET /clubs/:key` | Clubs shared handler | Dispatches to country page or club detail | Current |
+| `GET /login` | Login | Member login | Current |
+| `GET /register` | Register | Member registration | Current |
 | `GET /hof` | HoF landing | Footbag Hall of Fame editorial/informational landing page | Current stub |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
 | `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
@@ -373,12 +396,19 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /` is the canonical public home route.
 - `GET /events` is the canonical events section entry route.
 - `GET /events/:eventKey` is the canonical public event detail route.
-- `GET /members` is the canonical Members section entry route. Serves a Tier 1 public historical-person index.
-- `GET /members/:personId` is the canonical historical-person detail route for the current slice. Route will evolve as the Members section grows to serve authenticated member profiles.
+- `GET /members` is the auth-gated member-account entry route. It does not render a standalone page in the current slice; it redirects authenticated users to their own profile and redirects unauthenticated visitors to `/login?returnTo=%2Fmembers`.
+- `GET /members/:memberKey` is the canonical current-slice member profile route. It serves the owner's profile when authenticated as that member, and it may serve a limited public read-only profile for HoF/BAP members.
+- `GET /members/:memberKey/edit` is the current-slice member profile edit page.
+- `GET /members/:memberKey/avatar` is the current-slice member avatar upload page.
+- `GET /members/:memberKey/:section` is the current-slice account stub-page route for explicitly supported account sections.
+- `GET /history` is the historical players index route.
+- `GET /history/:personId` is the historical person detail route.
+- `GET /history/claim` is the legacy account claim initiation route (planned next; not yet implemented).
+- `GET /history/claim/verify/:token` is the claim verification and confirmation route (planned next; not yet implemented).
 - `GET /clubs` is the canonical clubs section entry route.
-- `GET /clubs/:slug` is the shared Express handler for both the country page and the club detail page. The controller dispatches by prefix: a slug beginning with `club_` routes to the club detail handler; any other slug routes to the country page handler. No club tag may produce a `clubKey` that is also a valid `countrySlug` — the seed script enforces this collision constraint at data-load time.
-- `GET /clubs/club_:clubKey` is the canonical public club detail route. `clubKey` is `tag_normalized` with the leading `#` stripped (e.g. `club_wellington_hack_crew`). Pattern: `^club_[a-z0-9_]+$`.
+- `GET /clubs/:key` is the shared Express handler for both the country page and the club detail page. The controller dispatches by prefix: a key beginning with `club_` routes to the club detail handler; any other key routes to the country page handler. Public country URLs take the form `/clubs/{countryKey}`. Public club URLs take the form `/clubs/{clubKey}` where `clubKey` matches the `club_...` standard form.
 - `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
+- `GET /register` is the member registration route. `POST /register` is its form-action handler and is not a separate cataloged page.
 - `GET /hof` is the canonical HoF section entry route.
 - health routes are operational and are outside the cataloged page system.
 
@@ -462,7 +492,125 @@ Home still renders normally when optional featured/media regions are absent.
 
 ---
 
-### 6.2 Historical players index
+### 6.2 Member account landing redirect
+
+### Purpose
+
+Provide the authenticated entry point for the member-account area without introducing a duplicate landing page.
+
+### Route
+
+`GET /members`
+
+### Audience
+
+Authenticated member primarily; unauthenticated visitor is redirected through the standard auth gate.
+
+### Standard relationship
+
+This route is part of the account-area contract but does not render a standalone page in the current slice.
+
+### Behavior
+
+- authenticated visitor -> redirect to `/members/{memberKey}`
+- unauthenticated visitor -> redirect to `/login?returnTo=%2Fmembers`
+
+---
+
+### 6.3 Member profile
+
+### Purpose
+
+Provide the canonical current-slice member profile page.
+
+### Route
+
+`GET /members/:memberKey`
+
+### Audience
+
+Profile owner when authenticated as that member; limited public read-only audience for HoF/BAP member profiles only.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Required content
+
+- own-profile view: display name, bio, city, region, country, phone (if applicable to the current slice), email visibility setting, avatar thumbnail, account context links
+- public HoF/BAP view: approved non-PII profile fields only; no edit links; no contact-field exposure
+
+### Key rules
+
+- own profile access is owner-only
+- non-owner access is limited to the explicit HoF/BAP public-profile exception
+- non-HoF/BAP public access redirects to login and then fails closed
+
+---
+
+### 6.4 Member profile edit
+
+### Route
+
+`GET /members/:memberKey/edit`
+
+### Purpose
+
+Allow a member to edit the currently implemented profile fields for their own account.
+
+### Key rules
+
+- auth required
+- own-profile only
+- current implemented fields must match current code, not the full long-term user story
+
+---
+
+### 6.5 Member avatar upload
+
+### Route
+
+`GET /members/:memberKey/avatar`
+
+### Purpose
+
+Allow a member to upload their avatar for their own account.
+
+### Key rules
+
+- auth required
+- own-profile only
+- upload constraints belong to code/service validation; this catalog defines only the page contract
+
+---
+
+### 6.6 Member account stub pages
+
+### Route
+
+`GET /members/:memberKey/:section`
+
+### Purpose
+
+Provide explicit placeholder pages for currently implemented but not-yet-built account subsections.
+
+### Supported current sections
+
+- media
+- settings
+- password
+- download
+- delete
+
+### Key rules
+
+- auth required
+- own-profile only
+- unsupported sections must fail closed
+
+---
+
+### 6.7 Historical players index
 
 ### Purpose
 
@@ -527,7 +675,7 @@ This page does not require data-backed list content and should still render norm
 
 ---
 
-### 6.3 Historical player detail
+### 6.8 Historical player detail
 
 ### Purpose
 
@@ -586,7 +734,7 @@ Unknown or non-public historical identities resolve through standard not-found b
 
 ---
 
-### 6.4 Events index
+### 6.9 Events index
 
 ### Purpose
 
@@ -664,7 +812,7 @@ If no upcoming events exist, render a standard empty state. Archive-year links m
 
 ---
 
-### 6.5 Events year archive
+### 6.10 Events year archive
 
 ### Purpose
 
@@ -737,7 +885,7 @@ If the requested year is valid but contains no public completed events, render a
 
 ---
 
-### 6.6 Event detail
+### 6.11 Event detail
 
 ### Purpose
 
@@ -845,7 +993,7 @@ There is no empty state for a missing event. A valid missing-record path should 
 
 ---
 
-### 6.7 Clubs index
+### 6.12 Clubs index
 
 ### Purpose
 
@@ -903,7 +1051,7 @@ Render standard empty state if no clubs are active.
 
 ---
 
-### 6.8 Clubs country page
+### 6.13 Clubs country page
 
 ### Purpose
 
@@ -911,7 +1059,7 @@ Show all active clubs in one country, grouped by state or province when applicab
 
 ### Route
 
-`GET /clubs/:countrySlug`
+Public country URLs take the form `GET /clubs/{countryKey}`. In Express these are handled by the shared route `GET /clubs/:key`.
 
 ### Audience
 
@@ -971,7 +1119,7 @@ Unknown country slug returns standard 404. A valid country with zero active club
 
 ---
 
-### 6.9 Club detail
+### 6.14 Club detail
 
 ### Purpose
 
@@ -979,7 +1127,7 @@ Provide the canonical public page for one club.
 
 ### Route
 
-`GET /clubs/club_:clubKey`
+Public club URLs take the form `GET /clubs/{clubKey}` where `clubKey` begins with `club_`. In Express these are handled by the shared route `GET /clubs/:key`.
 
 ### Audience
 
@@ -993,7 +1141,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 - present the club's identity, location, and contact/web information
 - act as the canonical drill-down destination from the country page
-- support future map and membership features via stable `club_:clubKey` URLs
+- support future map and membership features via stable `club_{clubKey}` URLs
 
 ### Canonical club identity rule
 
@@ -1007,6 +1155,8 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - hero with club name
 - meta: city, region (when present), country, hashtag, external URL when present
 - optional description when non-empty
+- when unauthenticated: no club member names are exposed; render a login prompt or equivalent bounded call-to-action in place of the visible roster
+- when authenticated: only the currently allowed club-member visibility may be shown; unresolved affiliations and non-approved roster visibility must not leak through template logic
 
 ### Required view-model fields
 
@@ -1040,7 +1190,7 @@ Unknown or inactive club key returns standard 404.
 
 ---
 
-### 6.10 HoF landing
+### 6.15 HoF landing
 
 ### Purpose
 
@@ -1103,7 +1253,7 @@ This page has editorial content in the current slice and does not use a generic 
 
 ---
 
-### 6.11 Login
+### 6.16 Login
 
 ### Purpose
 
@@ -1143,11 +1293,11 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - `page.title = Member Login` — displayed h1; `seo.title` is the shorter tab suffix
 - optional `content.error` — rendered inline above the form when authentication fails
 - optional `content.authReason` — informational notice shown when the visitor was redirected from a protected page (present when `returnTo` query param exists)
-- optional `content.returnTo: string` — the path to redirect to after successful login; read by the controller from the `?returnTo` query parameter; must be validated as a relative same-site path (starts with `/`, not `//` or `http`) before use — invalid or absent values fall back to `/members/{memberSlug}`; rendered as a hidden form field so the destination survives the `POST /login` submission
+- optional `content.returnTo: string` — the path to redirect to after successful login; read by the controller from the `?returnTo` query parameter; must be validated as a relative same-site path (starts with `/`, not `//` or `http`) before use — invalid or absent values fall back to `/members/{memberKey}`; rendered as a hidden form field so the destination survives the `POST /login` submission
 
 ### Navigation outputs
 
-No service-provided navigation outputs. When `requireAuth` intercepts an unauthenticated request, it redirects to `/login?returnTo=<originalUrl>`. On successful `POST /login`, the controller redirects to `content.returnTo` (the validated return path) when present; otherwise falls back to `GET /members/{memberSlug}`.
+No service-provided navigation outputs. When `requireAuth` intercepts an unauthenticated request, it redirects to `/login?returnTo=<originalUrl>`. On successful `POST /login`, the controller redirects to `content.returnTo` (the validated return path) when present; otherwise falls back to `GET /members/{memberKey}`.
 
 ### Empty state
 
@@ -1160,6 +1310,165 @@ Not applicable. The form always renders.
 
 ---
 
+### 6.17 Register
+
+### Purpose
+
+Provide the public member registration page.
+
+### Route
+
+`GET /register`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Page intent
+
+- allow a new member account to be created in the current slice
+- provide a clear companion path to login
+- preserve safe validation feedback without leaking protected account information
+
+### Required content
+
+- registration form
+- inline validation errors
+- link back to login
+
+### Required view-model fields
+
+- `seo.title = Register`
+- `page.pageKey = register`
+- `page.title = Member Registration`
+- optional `content.error`
+
+### Implementation notes
+
+- `POST /register` is the form-action handler, not a separate cataloged page
+- successful registration redirects into the member account flow
+
+---
+
+### 6.18 Claim initiation
+
+### Purpose
+
+Provide the legacy account claim form where a logged-in member can initiate linking their modern account to a legacy footbag.org member record.
+
+### Route
+
+`GET /history/claim`
+
+### Audience
+
+Authenticated member only. Unauthenticated visitors are redirected to `/login?returnTo=%2Fhistory%2Fclaim`.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Page intent
+
+- allow a logged-in member to begin the self-serve legacy account claim flow
+- accept one identifier: legacy email address, legacy username, or legacy member ID
+- return a non-revealing response regardless of lookup outcome
+
+### Required content
+
+- claim form with a single identifier input field
+- explanatory text about what the claim flow does and what identifiers are accepted
+- non-revealing confirmation page after form submission ("If an eligible legacy record was found, a claim email will be sent.")
+- in non-production: the claim link is shown on-screen (email outbox deferred)
+
+### Required view-model fields
+
+- `seo.title = Link Legacy Account`
+- `page.sectionKey = members`
+- `page.pageKey = claim_initiate`
+- `page.title = Link Legacy Account`
+- optional `content.error` — rate limit or validation feedback (never revealing about the target row)
+
+### Key rules
+
+- auth required
+- non-revealing messaging: the response must never distinguish zero matches, multiple matches, ineligible rows, or blocked rows
+- rate limiting applies per requesting account, per target row, and per session/IP
+
+### Implementation notes
+
+- `POST /history/claim` is the form-action handler, not a separate cataloged page
+- the claim-sent confirmation is rendered by the same route after successful POST (or as a redirect target)
+- claim email delivery is deferred; in non-production the claim link is displayed on-screen as an accepted deviation
+
+---
+
+### 6.19 Claim verification
+
+### Purpose
+
+Provide the claim confirmation page where a logged-in member reviews and confirms the legacy account merge.
+
+### Route
+
+`GET /history/claim/verify/:token`
+
+### Audience
+
+Authenticated member only. The token must have been initiated by the same member account.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Page intent
+
+- present the active account identity that will receive the legacy identity
+- show the legacy record being claimed
+- if club-affiliation suggestions or provisional bootstrap-leader suggestions exist, present them for review
+- allow the member to confirm or cancel the merge
+
+### Required content
+
+- confirmation display naming the active account
+- summary of what will be merged (legacy identity, profile fields that will be filled, tier adjustment if applicable)
+- optional club-affiliation review section (when `M_Review_Legacy_Club_Data_During_Claim` data exists)
+- optional bootstrap-leader confirmation section
+- confirm and cancel actions
+
+### Required view-model fields
+
+- `seo.title = Confirm Legacy Account Link`
+- `page.sectionKey = members`
+- `page.pageKey = claim_verify`
+- `page.title = Confirm Legacy Account Link`
+- `content.activeAccountName` — the display name of the currently logged-in member
+- `content.legacyDisplayName` — the display name from the imported placeholder row
+- `content.mergePreview` — summary of fields that will be transferred or filled
+- optional `content.clubSuggestions[]` — mirror-derived club affiliation suggestions for review
+- optional `content.bootstrapLeaderSuggestions[]` — provisional leadership suggestions for review
+- optional `content.tierAdjustment` — description of tier change if imported tier exceeds current
+
+### Key rules
+
+- auth required; consuming member must match the token's `member_id`
+- token must be unconsumed, unexpired, and of type `account_claim`
+- target imported row must still exist and be claimable
+- invalid or expired tokens render a clear error, not the confirmation page
+
+### Implementation notes
+
+- `POST /history/claim/verify/:token` is the form-action handler that executes the atomic merge
+- after successful merge, the imported placeholder row is soft-deleted and all outstanding claim tokens targeting it are marked consumed
+- the member is redirected to their profile after successful merge
+- `M_Review_Legacy_Club_Data_During_Claim` sub-flow is out of scope for the initial implementation (no provisional club leadership data exists yet)
+
+---
+
 ## 7. Shared Public Behavior Rules
 
 ### 7.1 Authorization boundary
@@ -1167,11 +1476,14 @@ Not applicable. The form always renders.
 Most pages in this catalog are public visitor pages. The following routes require authentication and redirect unauthenticated visitors to `/login?returnTo=<originalUrl>`:
 
 - `GET /history` — historical players index (controller-enforced)
-- `GET /history/:personId` — historical player detail (public for HoF/BAP; controller-enforced for others)
-- `GET /members/:memberId` — public read-only view for HoF/BAP members; auth required otherwise (controller-enforced)
-- `GET /members/:memberId/edit`, `POST /members/:memberId/edit` — auth required (route middleware)
-- `GET /members/:memberId/avatar`, `POST /members/:memberId/avatar` — auth required (route middleware)
-- `GET /members/:memberId/:section` — auth required (route middleware)
+- `GET /history/:personId` — historical player detail (public for HoF/BAP persons; auth required otherwise)
+- `GET /history/claim` — auth required (route middleware)
+- `GET /history/claim/verify/:token` — auth required; token must match authenticated member
+- `GET /members` — auth-gated redirect into the member-account area
+- `GET /members/:memberKey` — own profile when authenticated as that member; limited public read-only HoF/BAP view otherwise; non-HoF/BAP public access fails closed
+- `GET /members/:memberKey/edit`, `POST /members/:memberKey/edit` — auth required, own-profile only
+- `GET /members/:memberKey/avatar`, `POST /members/:memberKey/avatar` — auth required, own-profile only
+- `GET /members/:memberKey/:section` — auth required, own-profile only
 
 Public pages must not expose:
 

@@ -4,6 +4,7 @@ import { clubController } from '../controllers/clubController';
 import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
+import { claimController } from '../controllers/claimController';
 import { authController } from '../controllers/authController';
 import { hofController } from '../controllers/hofController';
 import { requireAuth } from '../middleware/authStub';
@@ -12,7 +13,7 @@ export const publicRouter = Router();
 
 publicRouter.get('/',      homeController.home);
 publicRouter.get('/clubs',       clubController.index);
-publicRouter.get('/clubs/:slug', clubController.slug);
+publicRouter.get('/clubs/:key', clubController.byKey);
 publicRouter.get('/hof',   hofController.index);
 
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.
@@ -25,18 +26,23 @@ publicRouter.get('/events/year/:year',   eventController.year);
 publicRouter.get('/events/:eventKey',    eventController.event);
 
 publicRouter.get('/history',             historyController.index);
+// IMPORTANT: /history/claim routes MUST be registered before /history/:personId.
+// Without this ordering, "claim" would be captured as the :personId param.
+publicRouter.get('/history/claim',                requireAuth, claimController.getClaim);
+publicRouter.post('/history/claim',               requireAuth, claimController.postClaim);
+publicRouter.post('/history/claim/confirm',       requireAuth, claimController.postClaimConfirm);
 publicRouter.get('/history/:personId',   historyController.detail);
 
-// IMPORTANT: /members/:memberId/edit and /members/:memberId/avatar must be
-// registered before /members/:memberId/:section so literal segments are not
+// IMPORTANT: /members/:memberKey/edit and /members/:memberKey/avatar must be
+// registered before /members/:memberKey/:section so literal segments are not
 // captured as :section.
 publicRouter.get('/members',                       requireAuth, memberController.landing);
-publicRouter.get('/members/:memberId',             memberController.getProfile);
-publicRouter.get('/members/:memberId/edit',        requireAuth, memberController.getProfileEdit);
-publicRouter.post('/members/:memberId/edit',       requireAuth, memberController.postProfileEdit);
-publicRouter.get('/members/:memberId/avatar',      requireAuth, memberController.getAvatarUpload);
-publicRouter.post('/members/:memberId/avatar',     requireAuth, memberController.postAvatarUpload);
-publicRouter.get('/members/:memberId/:section',    requireAuth, memberController.getStub);
+publicRouter.get('/members/:memberKey',             memberController.getProfile);
+publicRouter.get('/members/:memberKey/edit',        requireAuth, memberController.getProfileEdit);
+publicRouter.post('/members/:memberKey/edit',       requireAuth, memberController.postProfileEdit);
+publicRouter.get('/members/:memberKey/avatar',      requireAuth, memberController.getAvatarUpload);
+publicRouter.post('/members/:memberKey/avatar',     requireAuth, memberController.postAvatarUpload);
+publicRouter.get('/members/:memberKey/:section',    requireAuth, memberController.getStub);
 
 publicRouter.get('/login',      authController.getLogin);
 publicRouter.post('/login',     authController.postLogin);

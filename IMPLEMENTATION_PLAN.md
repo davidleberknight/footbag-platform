@@ -18,9 +18,11 @@ This file — not auto memory — is the source of truth for current slice statu
 
 See full item descriptions in the "Next sprint" section below (now active).
 
-**Status:** Items A, B, D, E, F, G complete. Item C (legacy account claim) is the one remaining item.
+**Status:** Items A, B, D, E, F, G complete. Item C (legacy account claim) is now active.
 
-**Routing (implemented):** Member profiles live at `/members/:memberId/*`. Historical persons live at `/history/*` (not in primary nav; accessed via event-result participant links only). Account creation at `/register`. The item descriptions below reflect the implemented routes.
+**Item C implementation note:** The current implementation is the early-test shortcut version: direct lookup + confirm + merge. No email verification, no token round-trip, no rate limiting, no name-plausibility guard. The full production version will require email verification (member must prove control of the placeholder's legacy_email before the merge executes). Placeholders without a usable legacy_email will require admin recovery. This shortcut is acceptable because no imported placeholder data exists yet (awaiting Steve's export) and this lets us test the merge logic end-to-end before real data arrives.
+
+**Routing (implemented):** Member profiles live at `/members/:memberKey/*`. Historical persons live at `/history/*` (not in primary nav; accessed via event-result participant links only). Account creation at `/register`. The item descriptions below reflect the implemented routes.
 
 Both remaining clubs-sprint items are blocked on James (members ungating: data review; world records: records CSV). Clubs sprint archived below.
 
@@ -34,8 +36,8 @@ Both remaining clubs-sprint items are blocked on James (members ungating: data r
 - Club seed extraction: `legacy_data/scripts/extract_clubs.py` + `load_clubs_seed.py`; `scripts/reset-local-db.sh` updated
 - `src/services/clubService.ts`: `listPublicClubs()`, `getClubsByCountry()`, world-map data shaping
 - Clubs index page (`/clubs`): country-grouped list with SVG world map (interactive, JS-enhanced; degrades to list without JS; hidden on mobile ≤768px)
-- Clubs country page (`/clubs/:countrySlug`): clubs grouped by region, external links
-- Clubs detail page (`/clubs/:countrySlug/:clubSlug`): individual club view
+- Clubs country page (public URL form `/clubs/{countryKey}`, handled by shared Express route `/clubs/:key`): clubs grouped by region, external links
+- Clubs detail page (public URL form `/clubs/{clubKey}`, handled by shared Express route `/clubs/:key`): individual club view
 - Integration tests: `tests/integration/clubs-auth.routes.test.ts`
 - Home page polish: 3-column card layout, aligned buttons, correct tab title ("Footbag Worldwide"), fixed active nav highlight
 - Hero text updates: clubs intro, members intro
@@ -47,11 +49,13 @@ Both remaining clubs-sprint items are blocked on James (members ungating: data r
 **Blocked on:** James confirming legacy data complete and member-list presentation reviewed.
 
 When unblocked:
-- Remove `authMiddleware` from `/members` and `/members/:personId` in `src/routes/publicRoutes.ts`
-- Review member-list template for presentation issues before removing gate
-- Update `docs/GOVERNANCE.md` note if needed
-- Integration test: confirm `/members` returns 200 without auth
-- Fully clean and integrate club-member data
+This archived ungating item referred to the pre-split historical-person design and is no longer current.
+
+Current route split:
+- `/history` and `/history/:personId` are the historical-person surfaces
+- `/members/:memberKey/*` is the current member-account area
+
+No historical-person ungating change is currently active beyond the explicit HoF/BAP honor-surface exceptions already implemented.
 
 ### Item 2 — World records page
 
@@ -109,7 +113,7 @@ Key deliverables: clubs page with real legacy data (world map, country pages, de
 - Account creation uses `/register` flow (Item G); no batch seed of named accounts.
 - Avatar: upload implemented with local photo storage (Busboy streaming, 5 MB limit). No S3/media pipeline this sprint.
 - Historical persons live at `/history/*` with clear "Historical Records" labeling.
-- `/members/:memberId` has conditional visibility: public read-only for HoF/BAP members; login required for all others.
+- `/members/:memberKey` has conditional visibility: public read-only for HoF/BAP members; login required for all others.
 - Claim email deviation: in non-production, the claim link will be shown on-screen (email outbox deferred). See accepted deviations.
 
 **Items:**
@@ -130,7 +134,9 @@ Key deliverables: clubs page with real legacy data (world map, country pages, de
 - Wired into `scripts/reset-local-db.sh`
 - Other member accounts are created via the `/register` flow (Item G)
 
-#### Item C — Legacy account claim (real partial implementation)
+#### Item C — Legacy account claim (planned next; not yet implemented)
+
+The detailed route/template/service/test notes in this item are design targets for the next implementation step. They are not current code and must not be read as already implemented behavior.
 
 Route prefix: `/history/claim` (not `/account/claim` — see routing design change note above). Sequencing: extend-service-contract → add-public-page → write-tests.
 
@@ -149,23 +155,23 @@ Follows `M_Claim_Legacy_Account` user story in full except the email send step (
 #### Item D — Member account area (routes + nav) ✓ DONE
 
 **Real (full implementation):**
-- `GET /members` (auth-gated) — redirect to `/members/:slug` (own profile)
-- `GET /members/:memberId` — own profile (auth required) or public read-only for HoF/BAP members; non-HoF/BAP visitors redirected to login
-- `GET /members/:memberId/edit` + `POST /members/:memberId/edit` (auth, own-profile only) — edit display name, bio, city, region, country, phone, email visibility
-- `GET /members/:memberId/avatar` + `POST /members/:memberId/avatar` (auth, own-profile only) — avatar upload (Busboy streaming, 5 MB limit, local photo storage)
+- `GET /members` (auth-gated) — redirect to `/members/:memberKey` (own profile)
+- `GET /members/:memberKey` — own profile (auth required) or public read-only for HoF/BAP members; non-HoF/BAP visitors redirected to login
+- `GET /members/:memberKey/edit` + `POST /members/:memberKey/edit` (auth, own-profile only) — edit display name, bio, city, region, country, phone, email visibility
+- `GET /members/:memberKey/avatar` + `POST /members/:memberKey/avatar` (auth, own-profile only) — avatar upload (Busboy streaming, 5 MB limit, local photo storage)
 
 **Stub pages (placeholder "coming soon" template, own-profile only):**
-- `GET /members/:memberId/media` — Share Media
-- `GET /members/:memberId/settings` — Account Settings
-- `GET /members/:memberId/password` — Change Password
-- `GET /members/:memberId/download` — Download My Data
-- `GET /members/:memberId/delete` — Delete Account
+- `GET /members/:memberKey/media` — Share Media
+- `GET /members/:memberKey/settings` — Account Settings
+- `GET /members/:memberKey/password` — Change Password
+- `GET /members/:memberKey/download` — Download My Data
+- `GET /members/:memberKey/delete` — Delete Account
 
 **Nav:** "My Account" link in `main.hbs` when `isAuthenticated`; shows member display name
 
 #### Item E — Historical persons page label ✓ DONE
 
-- Add a visible "Historical Records" label / explainer to `/members` index and detail pages
+- Add a visible "Historical Records" label / explainer to `/history` index and `/history/:personId` detail pages
 - Short text: these are legacy imported player records, not current member accounts
 - No data or routing changes; templates only
 
@@ -195,7 +201,7 @@ Implemented during the sprint but not originally planned as a separate item.
 4. Log in as Footbag Hacky → see profile → edit bio → save → see change
 5. Register a new account → auto-login → see profile
 6. Visit `/history` → see "Historical Records" label
-7. Visit `/members/:memberId` for a HoF/BAP member without auth → see public profile
+7. Visit `/members/:memberKey` for a HoF/BAP member without auth → see public profile
 
 **Out of scope:**
 - Email verification flow
@@ -207,6 +213,13 @@ Implemented during the sprint but not originally planned as a separate item.
 - Membership tiers / dues
 - Email outbox activation (claim link shown on-screen in dev as accepted deviation)
 - Auth hardening (JWT, CSRF, session invalidation) -- Phase 4-A'
+
+**Current auth/session implementation note:** The current slice still uses the signed-cookie session stub in `src/middleware/authStub.ts` for live route/session behavior. Long-term auth hardening to the JWT/DB/CSRF/session-invalidation design remains deferred and is tracked separately.
+
+**Known current member-profile gaps vs long-term user stories:**
+- Current profile edit implementation is narrower than the full long-term story (for example external URLs and broader contact/preferences behavior are not yet implemented)
+- Current member-profile viewing is narrower than the full long-term story (own profile + limited HoF/BAP public profile exception only; no broad member-profile viewing)
+- These gaps are accepted current-slice limitations and must not be silently erased from `docs/USER_STORIES.md`
 
 ---
 
@@ -239,7 +252,7 @@ The current deployed public slice is the baseline, not a throwaway prototype.
 Current implemented public routes:
 - `/` — home page
 - `/clubs` — real data; SVG world map (JS-enhanced, degrades to list, hidden mobile); country index
-- `/clubs/:slug` — handles both country pages (clubs grouped by region) and individual club detail pages
+- `/clubs/:key` — handles both country pages (clubs grouped by region) and individual club detail pages
 - `/hof` — Hall of Fame landing page; links out to standalone HoF site
 - `/events` — event listing
 - `/events/year/:year` — year archive
@@ -247,10 +260,10 @@ Current implemented public routes:
 - `/history` — historical persons index ("Historical Records" label)
 - `/history/:personId` — historical person detail
 - `/members` (auth-gated) — redirects to own profile
-- `/members/:memberId` — own profile (auth required) or public read-only for HoF/BAP members; non-HoF/BAP visitors redirected to login
-- `/members/:memberId/edit` (auth, own-profile only) — profile editor
-- `/members/:memberId/avatar` (auth, own-profile only) — avatar upload
-- `/members/:memberId/:section` (auth, own-profile only) — stub pages (media, settings, password, download, delete)
+- `/members/:memberKey` — own profile (auth required) or public read-only for HoF/BAP members; non-HoF/BAP visitors redirected to login
+- `/members/:memberKey/edit` (auth, own-profile only) — profile editor
+- `/members/:memberKey/avatar` (auth, own-profile only) — avatar upload
+- `/members/:memberKey/:section` (auth, own-profile only) — stub pages (media, settings, password, download, delete)
 - `GET /login` — DB-backed login form
 - `POST /login` — DB-first auth with env-var fallback; sets session cookie
 - `GET /register` — account creation form
@@ -292,7 +305,7 @@ Long-term catalogs should preserve target design; current-slice exceptions belon
 
 1. **Auth is DB-backed but not hardened.** HMAC-signed cookie with DB-backed argon2 credential verification. Env-var stub fallback remains for dev. No CSRF flow, no password-version or session-invalidation model, no JWT. Unblock: replace with real JWT/DB sessions, add CSRF, session invalidation before production member onboarding.
 
-2. **Member profiles have conditional public visibility.** `/members/:memberId` is publicly visible for HoF/BAP members (read-only profile with competitive results). All other member profiles require authentication. `/members` (landing) is auth-gated and redirects to own profile. Historical persons live at `/history/*` (separate from member profiles). Unblock: finalize the privacy-safe public member discovery/search design.
+2. **Member profiles have conditional public visibility.** `/members/:memberKey` is publicly visible for HoF/BAP members (read-only profile with competitive results). All other member profiles require authentication. `/members` (landing) is auth-gated and redirects to own profile. Historical persons live at `/history/*` (separate from member profiles). Unblock: finalize the privacy-safe public member discovery/search design.
 
 3. **No public member directory or search.** There is no public member listing page. `/members` redirects authenticated users to their own profile. Historical persons are browsable at `/history`. Unblock: design and implement a privacy-safe public member directory.
 

@@ -1,0 +1,36 @@
+{{! Legacy account claim lookup form }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>If you had an account on the original footbag.org, you can link that legacy record to your current account. A future update will require email verification to complete the claim.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <section>
+    {{#if content.error}}
+      <p class="form-error" role="alert">{{content.error}}</p>
+    {{/if}}
+
+    <form method="POST" action="/history/claim" class="login-form">
+      <div class="form-field">
+        <label for="identifier">Legacy identifier</label>
+        <input
+          type="text"
+          id="identifier"
+          name="identifier"
+          value="{{content.identifier}}"
+          placeholder="Legacy email, username, or member ID"
+          required
+        />
+      </div>
+
+      <button type="submit" class="btn btn-primary">Look up legacy account</button>
+    </form>
+
+    <p style="margin-top:24px"><a href="/members/{{user.slug}}">Back to profile</a></p>
+  </section>
+
+</div>

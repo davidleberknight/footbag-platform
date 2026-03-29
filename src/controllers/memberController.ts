@@ -22,7 +22,7 @@ const STUB_SEGMENTS: Record<string, StubConfig> = {
 };
 
 function isOwnProfile(req: Request): boolean {
-  return req.user?.slug === req.params.memberId;
+  return req.user?.slug === req.params.memberKey;
 }
 
 function renderNotFound(res: Response): void {
@@ -38,11 +38,11 @@ export const memberController = {
     res.redirect(`/members/${req.user!.slug}`);
   },
 
-  /** GET /members/:memberId — own profile, or public read-only for HoF/BAP members. */
+  /** GET /members/:memberKey — own profile, or public read-only for HoF/BAP members. */
   getProfile(req: Request, res: Response, next: NextFunction): void {
     if (isOwnProfile(req)) {
       try {
-        const vm = memberService.getOwnProfile(req.params.memberId);
+        const vm = memberService.getOwnProfile(req.params.memberKey);
         res.render('members/profile', vm);
       } catch (err) {
         if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -54,7 +54,7 @@ export const memberController = {
 
     // Not own profile: try public HoF/BAP view.
     try {
-      const publicVm = memberService.getPublicProfile(req.params.memberId);
+      const publicVm = memberService.getPublicProfile(req.params.memberKey);
       if (publicVm) {
         res.render('members/public-profile', publicVm);
         return;
@@ -74,14 +74,14 @@ export const memberController = {
     renderNotFound(res);
   },
 
-  /** GET /members/:memberId/edit */
+  /** GET /members/:memberKey/edit */
   getProfileEdit(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnProfile(req)) {
       renderNotFound(res);
       return;
     }
     try {
-      const vm = memberService.getProfileEditPage(req.params.memberId);
+      const vm = memberService.getProfileEditPage(req.params.memberKey);
       res.render('members/profile-edit', vm);
     } catch (err) {
       if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -90,14 +90,14 @@ export const memberController = {
     }
   },
 
-  /** POST /members/:memberId/edit */
+  /** POST /members/:memberKey/edit */
   postProfileEdit(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnProfile(req)) {
       renderNotFound(res);
       return;
     }
     try {
-      const memberId = req.params.memberId;
+      const memberKey = req.params.memberKey;
       const input: ProfileEditInput = {
         displayName:     req.body.displayName    ?? '',
         bio:             req.body.bio            ?? '',
@@ -108,11 +108,11 @@ export const memberController = {
         emailVisibility: req.body.emailVisibility ?? 'private',
       };
       try {
-        memberService.updateOwnProfile(memberId, input);
-        res.redirect(`/members/${memberId}`);
+        memberService.updateOwnProfile(memberKey, input);
+        res.redirect(`/members/${memberKey}`);
       } catch (err) {
         if (err instanceof ValidationError) {
-          const vm = memberService.getProfileEditPage(memberId, err.message);
+          const vm = memberService.getProfileEditPage(memberKey, err.message);
           res.status(422).render('members/profile-edit', vm);
           return;
         }
@@ -124,31 +124,31 @@ export const memberController = {
     }
   },
 
-  /** GET /members/:memberId/avatar — avatar upload form. */
+  /** GET /members/:memberKey/avatar — avatar upload form. */
   getAvatarUpload(req: Request, res: Response): void {
     if (!isOwnProfile(req)) {
       renderNotFound(res);
       return;
     }
-    const slug = req.params.memberId;
+    const memberKey = req.params.memberKey;
     res.render('members/avatar-upload', {
       seo:  { title: 'Upload Avatar' },
       page: { sectionKey: 'members', pageKey: 'member_avatar', title: 'Upload Avatar' },
       navigation: {
-        contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
+        contextLinks: [{ label: 'Back to Profile', href: `/members/${memberKey}` }],
       },
       content: {},
     });
   },
 
-  /** POST /members/:memberId/avatar — handle avatar file upload. */
+  /** POST /members/:memberKey/avatar — handle avatar file upload. */
   postAvatarUpload(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnProfile(req)) {
       renderNotFound(res);
       return;
     }
 
-    const slug = req.params.memberId;
+    const memberKey = req.params.memberKey;
     const memberId = req.user!.userId;
 
     const renderError = (msg: string) => {
@@ -156,7 +156,7 @@ export const memberController = {
         seo:  { title: 'Upload Avatar' },
         page: { sectionKey: 'members', pageKey: 'member_avatar', title: 'Upload Avatar' },
         navigation: {
-          contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
+          contextLinks: [{ label: 'Back to Profile', href: `/members/${memberKey}` }],
         },
         content: { error: msg },
       });
@@ -200,7 +200,7 @@ export const memberController = {
 
       avatarService.uploadAvatar(memberId, fileBuffer)
         .then(() => {
-          res.redirect(`/members/${slug}`);
+          res.redirect(`/members/${memberKey}`);
         })
         .catch((err: unknown) => {
           if (err instanceof ValidationError) {
@@ -220,7 +220,7 @@ export const memberController = {
     req.pipe(busboy);
   },
 
-  /** GET /members/:memberId/:section — stub pages (own profile only). */
+  /** GET /members/:memberKey/:section — stub pages (own profile only). */
   getStub(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnProfile(req)) {
       renderNotFound(res);
@@ -233,7 +233,7 @@ export const memberController = {
         seo:  { title: config.title },
         page: { sectionKey: 'members', pageKey: config.pageKey, title: config.title },
         navigation: {
-          contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberId}` }],
+          contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
         },
         content: {},
       });
