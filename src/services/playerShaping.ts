@@ -1,11 +1,11 @@
 /**
  * Shared shaping helpers for player profile views.
  * Used by both historyService and memberService to produce consistent
- * PlayerEventGroup[] and PlayerSummaryFact[] data.
+ * PlayerEventGroup[] data.
  */
 
 import { personHref } from './personLink';
-import type { PlayerEventGroup, PlayerResultEntry, PlayerSummaryFact } from '../types/playerProfile';
+import type { PlayerEventGroup } from '../types/playerProfile';
 
 /** Row shape that both history and member result queries must satisfy. */
 export interface PlayerResultRow {
@@ -90,20 +90,3 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
   return Array.from(eventMap.values());
 }
 
-export interface SummaryFactsOpts {
-  eventCount: number;
-  placementCount: number;
-  isHof: boolean;
-  isBap: boolean;
-  hofYear?: number | null;
-  bapYear?: number | null;
-}
-
-export function buildPlayerSummaryFacts(opts: SummaryFactsOpts): PlayerSummaryFact[] {
-  const facts: PlayerSummaryFact[] = [];
-  if (opts.eventCount > 0) facts.push({ label: 'Events', value: String(opts.eventCount) });
-  if (opts.placementCount > 0) facts.push({ label: 'Placements', value: String(opts.placementCount) });
-  if (opts.isBap) facts.push({ label: 'BAP Member since', value: opts.bapYear ? String(opts.bapYear) : 'Yes' });
-  if (opts.isHof) facts.push({ label: 'Footbag HOF', value: opts.hofYear ? String(opts.hofYear) : 'Yes' });
-  return facts;
-}

@@ -111,7 +111,7 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Primary tables:** `historical_persons`, `event_result_entry_participants`, supporting event/result reads
 
 **`MemberService`**
-- **Owns:** Current-slice member-account page shaping and own-account profile operations: own profile read, limited public HoF/BAP profile read, profile edit page shaping, avatar upload page shaping, and supported account stub pages
+- **Owns:** Current-slice member-account page shaping and own-account profile operations: own profile read, limited public HoF/BAP profile read, profile edit page shaping (includes inline avatar upload), and supported account stub pages
 - **Does NOT own:** Login/registration credential verification, broader member search, account-claim flow, or tier ledger calculation
 - **Primary tables:** `members`, profile/media-related reads and writes used by the current slice
 
@@ -262,7 +262,7 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 
 **Key Methods:**
 - `getProfile(memberId, viewerContext) -> {profile}` — applies visibility rules: email shown only to owner, or when `email_visibility = 'members'` (to logged-in members); `email_visibility = 'public'` is not a forward-looking supported value — contact fields must never be publicly exposed; tier badges to logged-in members only; honor badges (HoF, BAP, board) to all
-- `editProfile(memberId, input) -> {ok}` — validates/sanitizes display name (homograph prevention), URLs (https, max 3 via `member_links`), bio; audit-logs changed fields
+- `editProfile(memberId, input) -> {ok}` — validates/sanitizes URLs (https, max 3 via `member_links`), bio; audit-logs changed fields
 - `searchMembers(query) -> {results}` — **authenticated members only (Tier 0+); never public**; queries `members_searchable` view exclusively; min 2-char query; prefix match on display name; capped result count for broad queries with "refine your query" signal; no browse-all/exhaustive pagination; anti-enumeration by design
 - `deleteAccount(memberId) -> {ok}` — SD: sets `deleted_at`; synchronously deletes all S3 photos and `media_items` / `member_galleries` rows (HD); if S3 deletion fails, entire operation fails — account must NOT be marked deleted until S3 photos are confirmed removed; if member is sole club leader AND `club.contact_email IS NULL`: also inserts 'Needs Contact' work-queue item → admin-alerts notification; audit-logs
 - `requestDataExport(memberId) -> {downloadLinkToken}` — creates `account_tokens` row of type `data_export`; enqueues email with time-limited link (expires `data_export_link_expiry_hours`, default 72h)
@@ -299,8 +299,8 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 **Consumers:** History controller, event-result participant linking flows
 
 **Key Methods:**
-- `getHistoryLandingPage() -> { page, seo, content: { members, memberCount, countryCount } }` — shapes the historical-person index page
-- `getHistoricalPlayerPage(personId) -> { page, seo, navigation: { contextLinks }, content: { personId, displayName, honorificNickname?, summaryFacts, eventGroups } }` — resolves one imported historical person into the detail page model; unknown/non-public IDs resolve as not-found; `summaryFacts` is a service-computed list of `{ label, value }` pairs; `eventGroups` carries typed event result history with service-computed `eventHref`; `navigation.contextLinks` carries the typed back link to the history index
+- `getHistoryLandingPage() -> { page, seo, content: { players, playerCount } }` — shapes the historical-person index page
+- `getHistoricalPlayerPage(personId) -> { page, seo, navigation: { contextLinks }, content: { personId, displayName, honorificNickname?, eventGroups } }` — resolves one imported historical person into the detail page model; unknown/non-public IDs resolve as not-found; `eventGroups` carries typed event result history with service-computed `eventHref`; `navigation.contextLinks` carries the typed back link to the history index
 
 **Key Rules:**
 - historical imported people remain distinct from current member accounts
@@ -312,7 +312,7 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 
 ### 3.4 `MemberService`
 
-**Purpose/Boundary:** Owns the current-slice member-account read/write page shaping for the `/members/*` surfaces documented in `docs/VIEW_CATALOG.md`. This includes the member landing redirect target, own-profile read, limited public HoF/BAP member profile read, profile edit page shaping, avatar upload page shaping, and supported account stub pages. It does NOT own login/registration credential verification, broader member search, legacy claim flow, or tier ledger calculation.
+**Purpose/Boundary:** Owns the current-slice member-account read/write page shaping for the `/members/*` surfaces documented in `docs/VIEW_CATALOG.md`. This includes the member landing redirect target, own-profile read, limited public HoF/BAP member profile read, profile edit page shaping (includes inline avatar upload), and supported account stub pages. It does NOT own login/registration credential verification, broader member search, legacy claim flow, or tier ledger calculation.
 
 **Consumers:** Member controller
 
@@ -320,7 +320,11 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 - `getOwnProfile(slug) -> PageViewModel<OwnProfileContent>` — own-profile page model
 - `getPublicProfile(slug) -> PageViewModel<PublicProfileContent> | null` — limited public HoF/BAP profile; returns null for non-HoF/BAP members
 - `getProfileEditPage(slug, error?) -> PageViewModel<ProfileEditContent>` — edit form page model
-- `updateOwnProfile(slug, input) -> void` — validates and persists profile field changes
+- `updateOwnProfile(slug, input) -> void` — validates and persists profile field changes (bio, location, contact prefs, competition history)
+
+**Avatar upload** (implemented via `createAvatarService` factory in `avatarService.ts`):
+- `uploadAvatar(memberId, fileBuffer) -> { thumbUrl }` — validates image type (JPEG/PNG only), enforces 5 MB size limit, processes to thumb and display sizes, atomically replaces any existing avatar (delete old media item, insert new, link to member)
+- own-profile only; Busboy streaming in controller, business logic in service
 
 **Key Rules:**
 - own-profile routes are owner-only

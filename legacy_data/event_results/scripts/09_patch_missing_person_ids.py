@@ -83,7 +83,7 @@ def main() -> None:
         person_fields = list(persons[0].keys()) if persons else [
             "person_id", "person_name", "country", "first_year", "last_year",
             "event_count", "placement_count", "bap_member", "bap_nickname",
-            "bap_induction_year", "fbhof_member", "fbhof_induction_year",
+            "bap_induction_year", "hof_member", "hof_induction_year",
             "freestyle_sequences", "freestyle_max_add", "freestyle_unique_tricks",
             "freestyle_diversity_ratio", "signature_trick_1", "signature_trick_2",
             "signature_trick_3",

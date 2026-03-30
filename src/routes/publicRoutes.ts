@@ -40,7 +40,6 @@ publicRouter.get('/members',                       requireAuth, memberController
 publicRouter.get('/members/:memberKey',             memberController.getProfile);
 publicRouter.get('/members/:memberKey/edit',        requireAuth, memberController.getProfileEdit);
 publicRouter.post('/members/:memberKey/edit',       requireAuth, memberController.postProfileEdit);
-publicRouter.get('/members/:memberKey/avatar',      requireAuth, memberController.getAvatarUpload);
 publicRouter.post('/members/:memberKey/avatar',     requireAuth, memberController.postAvatarUpload);
 publicRouter.get('/members/:memberKey/:section',    requireAuth, memberController.getStub);
 

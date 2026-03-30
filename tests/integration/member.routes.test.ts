@@ -143,8 +143,8 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .get(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('displayName');
     expect(res.text).toContain('emailVisibility');
+    expect(res.text).not.toContain('name="displayName"');
   });
 
   it("another member's edit page → 404", async () => {
@@ -174,7 +174,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .type('form')
-      .send({ displayName: 'New Name', bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Fedit`);
   });
@@ -185,31 +185,8 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', otherCookie())
       .type('form')
-      .send({ displayName: 'Hijacked', bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
+      .send({ bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(404);
-  });
-
-  it('empty displayName → 422 with error message', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .post(`/members/${OWN_SLUG}/edit`)
-      .set('Cookie', ownCookie())
-      .type('form')
-      .send({ displayName: '', bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('Display name is required');
-  });
-
-  it('displayName exceeding 64 characters → 422 with error message', async () => {
-    const app = createApp();
-    const longName = 'A'.repeat(65);
-    const res = await request(app)
-      .post(`/members/${OWN_SLUG}/edit`)
-      .set('Cookie', ownCookie())
-      .type('form')
-      .send({ displayName: longName, bio: '', city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('64 characters');
   });
 
   it('bio exceeding 1000 characters → 422 with error message', async () => {
@@ -219,7 +196,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ displayName: 'Valid Name', bio: longBio, city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
+      .send({ bio: longBio, city: '', region: '', country: '', phone: '', emailVisibility: 'private' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('1000 characters');
   });
@@ -231,7 +208,6 @@ describe('POST /members/:memberKey/edit — save profile', () => {
       .set('Cookie', ownCookie())
       .type('form')
       .send({
-        displayName:     'Test Member',
         bio:             '',
         city:            '',
         region:          '',
@@ -243,14 +219,13 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     expect(res.status).toBe(302);
   });
 
-  it('valid input → 302 redirect to own profile', async () => {
+  it('valid input → 302 redirect to own profile (slug unchanged)', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie())
       .type('form')
       .send({
-        displayName:     'Updated Name',
         bio:             'A short bio.',
         city:            'Portland',
         region:          'OR',
@@ -259,8 +234,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
         emailVisibility: 'members',
       });
     expect(res.status).toBe(302);
-    // Display name changed so slug is regenerated.
-    expect(res.headers.location).toBe('/members/updated_name');
+    expect(res.headers.location).toBe(`/members/${OWN_SLUG}`);
   });
 });
 

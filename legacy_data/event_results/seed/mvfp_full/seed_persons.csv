@@ -1,4 +1,4 @@
-person_id,person_canon,source_scope,ifpa_member_id,bap_member,bap_nickname,bap_induction_year,fbhof_member,fbhof_induction_year,first_year,last_year,country,data_source
+person_id,person_canon,source_scope,ifpa_member_id,bap_member,bap_nickname,bap_induction_year,hof_member,hof_induction_year,first_year,last_year,country,data_source
 071ff943-073b-5edb-b2b1-ae6bb1676176,AJ Shultz,POST1997,,N,,,N,,1999,2007,United States,POST1997
 b7a11079-a08c-5010-9f3f-35e35e46e966,Aaro Wichmann,POST1997,53085,N,,,N,,2002,2005,Finland,POST1997
 eea1063c-fcc1-5849-9e35-592bdf13fd7b,Aaron De Glanville,POST1997,40298,N,,,N,,1997,1998,United States,POST1997

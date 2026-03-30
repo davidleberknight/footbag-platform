@@ -251,7 +251,7 @@ function lookupLegacyClaim(
       displayName: hp.person_name,
       legacyMemberId: hp.legacy_member_id,
       country: hp.country,
-      isHof: Boolean(hp.fbhof_member),
+      isHof: Boolean(hp.hof_member),
       isBap: Boolean(hp.bap_member),
     };
   }
@@ -311,7 +311,7 @@ function completeClaim(requestingMemberId: string, source: string, targetId: str
         null,                 // region
         hp.country,           // country (fill if empty/null)
         null,                 // ifpa_join_date
-        hp.fbhof_member,      // is_hof (MAX)
+        hp.hof_member,      // is_hof (MAX)
         hp.bap_member,        // is_bap (MAX)
         hp.first_year,        // first_competition_year (COALESCE)
         now,                  // updated_at

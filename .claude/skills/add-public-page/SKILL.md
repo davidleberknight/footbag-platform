@@ -45,6 +45,7 @@ If this task adds a **new top-level nav section**, also read:
 - server-rendered Express + Handlebars — no client-side rendering
 - thin controllers: HTTP glue only; no business logic
 - service-owned shaping: all page-model building, business rules, and domain logic belong in services
+- services own auth-conditional shaping: viewer context (logged-in user, roles) is passed in by the controller but the service decides what to include or omit based on it; controllers never mutate service output (DD 1.9)
 - logic-light templates: templates branch only on already-shaped booleans, empty arrays, or presentation-ready sections — never on raw domain data or route semantics
 - explicit route registration — no dynamic or catch-all route magic
 - no repository abstractions, ORMs, mediator layers, or speculative API layers
@@ -70,7 +71,17 @@ Before touching any file, state:
 - complete list of files expected to change
 - verification plan
 
-## Step 6 — Verification
+## Step 6 — Layout review
+
+Before finishing, review all new or changed templates and CSS for responsive correctness:
+
+- **Laptop (768px+):** verify the layout reads well at typical desktop/laptop widths. Check that grids, flex rows, and max-width constraints produce a balanced page.
+- **Phone (480px and below):** verify that every flex row, grid, multi-column layout, and inline element stacks or wraps gracefully. Check the 480px media query block in `style.css` and add rules if the new layout would break at narrow widths.
+- Common pitfalls: horizontal overflow from fixed-width elements, side-by-side rows that do not stack, text truncation, touch targets too small, identity/detail rows that need vertical stacking on narrow screens.
+
+If in doubt about a layout, flag it to the human rather than shipping something that looks broken on mobile.
+
+## Step 7 — Verification
 
 - write or update integration tests in `tests/integration/` using factory helpers from `tests/fixtures/factories.ts` (see `tests/CLAUDE.md` for conventions and `write-tests` skill for guidance)
 - make excellent adversarial tests: happy path, auth gates, not-found, draft/unpublished leakage, route ordering, edge cases from acceptance criteria

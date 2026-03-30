@@ -1,13 +1,11 @@
-import { account, slugRedirects, MemberProfileRow, MemberResultRow } from '../db/db';
-import { generateUniqueSlug, slugify } from './identityAccessService';
+import { account, MemberProfileRow, MemberResultRow } from '../db/db';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { getPhotoStorage } from '../adapters/photoStorageInstance';
 import { PageViewModel } from '../types/page';
-import { groupPlayerResults, buildPlayerSummaryFacts } from './playerShaping';
+import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 
-const MAX_DISPLAY_NAME = 64;
 const MAX_BIO = 1000;
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members', 'public']);
 
@@ -26,7 +24,7 @@ export interface OwnProfileContent {
   historicalPersonName: string | null;
   firstCompetitionYear: number | null;
   showCompetitiveResults: boolean;
-  heroData: PlayerHeroData;
+  heroData?: PlayerHeroData;
   profileBase?: string;
   avatarThumbUrl: string | null;
   eventGroups?: PlayerEventGroup[];
@@ -34,7 +32,10 @@ export interface OwnProfileContent {
 
 export interface ProfileEditContent extends OwnProfileContent {
   memberKey: string;
+  loginEmail: string;
+  profileUrl: string;
   error?: string;
+  avatarError?: string;
 }
 
 export interface PublicProfileContent {
@@ -53,7 +54,6 @@ export interface PublicProfileContent {
 }
 
 export interface ProfileEditInput {
-  displayName: string;
   bio: string;
   city: string;
   region: string;
@@ -75,8 +75,7 @@ function resolveHistoricalName(row: MemberProfileRow): string | null {
     : null;
 }
 
-function buildMemberHeroData(row: MemberProfileRow, eventGroups: PlayerEventGroup[]): PlayerHeroData {
-  const placementCount = eventGroups.reduce((sum, g) => sum + g.results.length, 0);
+function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
   return {
     displayName:          row.display_name,
     honorificNickname:    row.historical_bap_nickname ?? undefined,
@@ -88,14 +87,6 @@ function buildMemberHeroData(row: MemberProfileRow, eventGroups: PlayerEventGrou
     city:                 row.city,
     region:               row.region,
     country:              row.country,
-    summaryFacts:         buildPlayerSummaryFacts({
-      eventCount:     eventGroups.length,
-      placementCount,
-      isHof:          Boolean(row.is_hof),
-      isBap:          Boolean(row.is_bap),
-      hofYear:        row.historical_hof_induction_year,
-      bapYear:        row.historical_bap_induction_year,
-    }),
     isHistoricalOnly: false,
   };
 }
@@ -117,7 +108,6 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
     firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
     showCompetitiveResults: row.show_competitive_results !== 0,
     historicalPersonName: resolveHistoricalName(row),
-    heroData:        { displayName: '', isHof: false, isBap: false, summaryFacts: [], isHistoricalOnly: false },
     avatarThumbUrl:  row.avatar_thumb_key ? storage.constructURL(row.avatar_thumb_key) : null,
   };
 }
@@ -149,7 +139,7 @@ export const memberService = {
   getOwnProfile(slug: string): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
-    const heroData = buildMemberHeroData(row, eventGroups);
+    const heroData = buildMemberHeroData(row);
     return {
       seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
       page: { sectionKey: 'members', pageKey: 'member_profile', title: 'My Profile' },
@@ -172,7 +162,7 @@ export const memberService = {
 
     const storage = getPhotoStorage();
     const eventGroups = row.show_competitive_results !== 0 ? fetchEventGroups(row) : [];
-    const heroData = buildMemberHeroData(row, eventGroups);
+    const heroData = buildMemberHeroData(row);
 
     return {
       seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
@@ -195,7 +185,7 @@ export const memberService = {
     };
   },
 
-  getProfileEditPage(slug: string, error?: string): PageViewModel<ProfileEditContent> {
+  getProfileEditPage(slug: string, error?: string, avatarError?: string): PageViewModel<ProfileEditContent> {
     const row = fetchMemberBySlug(slug);
     return {
       seo:  { title: 'Edit Profile' },
@@ -203,13 +193,19 @@ export const memberService = {
       navigation: {
         contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
       },
-      content: { ...rowToContent(row), memberKey: slug, error },
+      content: {
+        ...rowToContent(row),
+        memberKey: slug,
+        loginEmail: row.login_email,
+        profileUrl: `/members/${slug}`,
+        error,
+        avatarError,
+      },
     };
   },
 
-  updateOwnProfile(slug: string, input: ProfileEditInput): { newSlug: string } {
+  updateOwnProfile(slug: string, input: ProfileEditInput): void {
     const row = fetchMemberBySlug(slug);
-    const displayName = normalizeText(input.displayName);
     const bio         = normalizeText(input.bio);
     const city        = normalizeText(input.city) || null;
     const region      = normalizeText(input.region) || null;
@@ -227,20 +223,12 @@ export const memberService = {
       : input.showCompetitiveResults;
     const showResults = rawShow === '0' ? 0 : 1;
 
-    if (!displayName) {
-      throw new ValidationError('Display name is required.');
-    }
-    if (displayName.length > MAX_DISPLAY_NAME) {
-      throw new ValidationError(`Display name must be ${MAX_DISPLAY_NAME} characters or fewer.`);
-    }
     if (bio.length > MAX_BIO) {
       throw new ValidationError(`Bio must be ${MAX_BIO} characters or fewer.`);
     }
 
     const now = new Date().toISOString();
     account.updateMemberProfile.run(
-      displayName,
-      displayName.toLowerCase(),
       bio,
       city,
       region,
@@ -252,23 +240,5 @@ export const memberService = {
       now,
       row.id,
     );
-
-    // Regenerate slug if display name changed and would produce a different slug.
-    let newSlug = slug;
-    const candidateBase = slugify(displayName);
-    const currentBase = row.slug ? slugify(row.display_name) : null;
-    if (candidateBase && currentBase && candidateBase !== currentBase) {
-      newSlug = generateUniqueSlug(displayName);
-      // Delete any redirect that would collide with the new slug.
-      slugRedirects.deleteBySlug.run(newSlug);
-      // Store the old slug as a redirect.
-      if (row.slug) {
-        slugRedirects.insert.run(row.slug, row.id, now);
-      }
-      // Update the member's slug.
-      account.updateMemberSlug.run(newSlug, now, row.id);
-    }
-
-    return { newSlug };
   },
 };

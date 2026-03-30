@@ -49,10 +49,11 @@ Read the minimum the task requires. Default: active-slice block + code. Load doc
 3. When asking the human a question, always provide context so the human can understand clearly.
 4. Refer to appropriate Claude skills whenever appropriate for the task at hand.
 5. If unclear, escalate to the human. Never guess.
+6. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask.
 
 ## Workflow rules
 
-- Documentation in /docs describe long-term product and design intent, not necessarily the current sprint's current slice.
+- Documentation in /docs describe long-term product and design intent, not necessarily the current sprint's current slice. Long-term docs (USER_STORIES, DESIGN_DECISIONS, SERVICE_CATALOG, PROJECT_SUMMARY_CONCISE) must never contain implementation-status language, current-slice notes, deviation qualifiers, or shortcut descriptions. All such language belongs exclusively in IMPLEMENTATION_PLAN.md.
 - Use Plan Mode when the task is primarily about sequencing, dependency ordering, or phased planning. For normal implementation work, the top active-slice/status block in `IMPLEMENTATION_PLAN.md` is sufficient.
 - Verification defaults: prefer route/integration verification first. Canonical commands: `npm test` and `npm run build`.
 - Do not use browser automation or MCP tools unless the human explicitly asks for browser testing or verification.

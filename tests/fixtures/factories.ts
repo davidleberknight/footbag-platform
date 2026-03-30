@@ -30,30 +30,52 @@ export interface MemberOverrides {
   country?: string;
   password_hash?: string;
   email_verified_at?: string | null;
+  is_hof?: 0 | 1;
+  is_bap?: 0 | 1;
+  is_deceased?: 0 | 1;
+  deleted_at?: string | null;
+  personal_data_purged_at?: string | null;
+  show_competitive_results?: 0 | 1;
+  legacy_member_id?: string | null;
+  first_competition_year?: number | null;
+  bio?: string;
 }
 
 export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}): string {
   const id      = o.id            ?? `member-test-${uid()}`;
   const slug    = o.slug          ?? `test_user_${uid()}`;
-  const email   = o.login_email   ?? `test-${uid()}@example.com`;
   const name    = o.real_name     ?? 'Test User';
   const display = o.display_name  ?? name;
-  const emailVerifiedAt = o.email_verified_at !== undefined ? o.email_verified_at : TS;
+  const purged  = o.personal_data_purged_at ?? null;
+
+  // Three-way credential-state invariant: when purged, all credential fields must be NULL.
+  const email            = purged ? null : (o.login_email ?? `test-${uid()}@example.com`);
+  const emailNormalized  = email ? email.toLowerCase() : null;
+  const emailVerifiedAt  = purged ? null : (o.email_verified_at !== undefined ? o.email_verified_at : TS);
+  const passwordHash     = purged ? null : (o.password_hash ?? '[TEST_HASH]');
+  const passwordChanged  = purged ? null : TS;
+
   db.prepare(`
     INSERT INTO members (
       id, slug,
       login_email, login_email_normalized, email_verified_at,
       password_hash, password_changed_at,
       real_name, display_name, display_name_normalized,
-      city, country,
+      bio, city, country,
+      is_hof, is_bap, is_deceased,
+      deleted_at, personal_data_purged_at,
+      show_competitive_results, legacy_member_id, first_competition_year,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
-    email, email.toLowerCase(), emailVerifiedAt,
-    o.password_hash ?? '[TEST_HASH]', TS,
+    email, emailNormalized, emailVerifiedAt,
+    passwordHash, passwordChanged,
     name, display, display.toLowerCase(),
-    o.city ?? 'Testville', o.country ?? 'US',
+    o.bio ?? '', o.city ?? 'Testville', o.country ?? 'US',
+    o.is_hof ?? 0, o.is_bap ?? 0, o.is_deceased ?? 0,
+    o.deleted_at ?? null, purged,
+    o.show_competitive_results ?? 1, o.legacy_member_id ?? null, o.first_competition_year ?? null,
     TS, SYS, TS, SYS,
   );
   return id;
@@ -391,13 +413,13 @@ export interface HistoricalPersonOverrides {
   event_count?: number;
   placement_count?: number;
   bap_member?: 0 | 1;
-  fbhof_member?: 0 | 1;
+  hof_member?: 0 | 1;
 }
 
 export function insertHistoricalPerson(db: BetterSqlite3.Database, o: HistoricalPersonOverrides = {}): string {
   const id = o.person_id ?? `person-test-${uid()}`;
   db.prepare(`
-    INSERT INTO historical_persons (person_id, person_name, legacy_member_id, country, event_count, placement_count, bap_member, fbhof_member)
+    INSERT INTO historical_persons (person_id, person_name, legacy_member_id, country, event_count, placement_count, bap_member, hof_member)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
@@ -407,7 +429,7 @@ export function insertHistoricalPerson(db: BetterSqlite3.Database, o: Historical
     o.event_count     ?? 0,
     o.placement_count ?? 0,
     o.bap_member      ?? 0,
-    o.fbhof_member    ?? 0,
+    o.hof_member    ?? 0,
   );
   return id;
 }

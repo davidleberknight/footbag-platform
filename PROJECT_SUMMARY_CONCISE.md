@@ -36,7 +36,7 @@ Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE
 - Home (`/`) is the landing-page composition exception in the public architecture.
 - Public event identity is exact and underscore-based: `event_{year}_{event_slug}` / `#event_{year}_{event_slug}`.
 - Historical persons in imported results are public Tier 1 record identities — not current member accounts, not searchable profiles. See `docs/GOVERNANCE.md §4`.
-- Media, news, and tutorial flows remain in the user stories but are out of scope for the current slice.
+
 
 ## Project identity
 
@@ -52,17 +52,15 @@ Site is deployed on AWS staging (Lightsail + CloudFront). See `docs/DEVOPS_GUIDE
 - Keep code and docs aligned so the project remains maintainable over time.
 - Route and integration tests are the first verification path; browser verification is explicit-human-request-only.
 
-## Target system architecture (long-term model — see `IMPLEMENTATION_PLAN.md` for what is implemented now)
-
-Current auth/session behavior in the implemented slice is intentionally narrower than the long-term target below. See `IMPLEMENTATION_PLAN.md` for the current route/auth behavior and accepted temporary auth/session deviations.
+## Target system architecture
 
 - **Server-rendered web application** (Handlebars templates + TypeScript enhancements).
 - **Layered architecture**: controllers -> services -> infrastructure adapters.
 - **SQLite-first** for application data; S3 for photos/media object storage.
 - **Single DB access module/pattern** (`db.ts` style) using prepared statements and transaction helpers.
-- **JWT cookie auth with per-request DB validation** (session token is not sole authority). *(target)*
-- **Email outbox + worker pattern** (core writes are not coupled to direct send success). *(target — worker is scaffolded with no active jobs)*
-- **Single origin deployment** behind CloudFront; maintenance page served by CloudFront/S3 when origin is unavailable. *(target — maintenance mode not yet production-grade)*
+- **Authenticated sessions with per-request DB validation** (session token is not sole authority).
+- **Email outbox + worker pattern** (core writes are not coupled to direct send success).
+- **Single origin deployment** behind CloudFront; maintenance page served by CloudFront/S3 when origin is unavailable.
 
 ## Project scope snapshot (AI useful summary)
 
@@ -88,11 +86,7 @@ Major areas include:
 - Prefer small, explicit changes that preserve readability for volunteer maintainers.
 
 ### Auth / security invariants
-*(Target auth model — the current auth stub mirrors this path structurally but does not enforce these invariants yet.)*
-- JWT session cookies are **not sufficient authority** on their own; current DB state must be checked.
-- Password changes invalidate sessions via the project’s password-version mechanism.
-- State-changing behavior must follow the documented CSRF / HTTP semantics patterns.
-- Ballot confidentiality is required; voting is auditable but not fully anonymous.
+Auth architecture: `docs/DESIGN_DECISIONS.md` §3 (session model, CSRF, password invalidation, ballot encryption). Privacy boundaries: `docs/GOVERNANCE.md` §3-6. Current-slice auth behavior and deviations: `IMPLEMENTATION_PLAN.md` accepted deviations.
 
 ### Data / integrity invariants
 - SQLite is the source of truth for app data (except photo/media objects in S3).

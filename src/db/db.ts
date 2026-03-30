@@ -150,8 +150,8 @@ export interface PublicPlayerRow {
   bap_member: number;
   bap_nickname: string | null;
   bap_induction_year: number | null;
-  fbhof_member: number;
-  fbhof_induction_year: number | null;
+  hof_member: number;
+  hof_induction_year: number | null;
 }
 
 export interface PublicPlayerResultRow {
@@ -421,7 +421,7 @@ export const publicPlayers = {
       COUNT(DISTINCT ere.event_id)       AS event_count,
       COUNT(DISTINCT erp.result_entry_id) AS placement_count,
       hp.bap_member,
-      hp.fbhof_member,
+      hp.hof_member,
       (SELECT m.slug
        FROM members AS m
        WHERE m.deleted_at IS NULL
@@ -437,7 +437,7 @@ export const publicPlayers = {
       ON ere.id = erp.result_entry_id
     GROUP BY
       hp.person_id, hp.person_name, hp.country,
-      hp.bap_member, hp.fbhof_member
+      hp.bap_member, hp.hof_member
     HAVING COUNT(DISTINCT erp.result_entry_id) > 0
         OR hp.first_year IS NOT NULL
         OR hp.country IS NOT NULL
@@ -455,8 +455,8 @@ export const publicPlayers = {
       hp.bap_member,
       hp.bap_nickname,
       hp.bap_induction_year,
-      hp.fbhof_member,
-      hp.fbhof_induction_year
+      hp.hof_member,
+      hp.hof_induction_year
     FROM historical_persons AS hp
     LEFT JOIN event_result_entry_participants AS erp
       ON erp.historical_person_id = hp.person_id
@@ -466,7 +466,7 @@ export const publicPlayers = {
     GROUP BY
       hp.person_id, hp.person_name, hp.country,
       hp.bap_member, hp.bap_nickname, hp.bap_induction_year,
-      hp.fbhof_member, hp.fbhof_induction_year
+      hp.hof_member, hp.hof_induction_year
   `),
 
   listResultsByPersonId: db.prepare(`
@@ -632,6 +632,7 @@ export interface MemberProfileRow {
   first_competition_year: number | null;
   show_competitive_results: number;
   legacy_member_id: string | null;
+  login_email: string;
   avatar_thumb_key: string | null;
   historical_person_name: string | null;
   historical_first_year: number | null;
@@ -676,12 +677,13 @@ export const account = {
       m.first_competition_year,
       m.show_competitive_results,
       m.legacy_member_id,
+      m.login_email,
       mi.s3_key_thumb AS avatar_thumb_key,
       hp.person_name AS historical_person_name,
       hp.first_year AS historical_first_year,
       hp.bap_nickname AS historical_bap_nickname,
       hp.bap_induction_year AS historical_bap_induction_year,
-      hp.fbhof_induction_year AS historical_hof_induction_year
+      hp.hof_induction_year AS historical_hof_induction_year
     FROM members_active AS m
     LEFT JOIN media_items AS mi
       ON mi.id = m.avatar_media_id
@@ -811,8 +813,6 @@ export const account = {
   updateMemberProfile: db.prepare(`
     UPDATE members
     SET
-      display_name            = ?,
-      display_name_normalized = ?,
       bio                     = ?,
       city                    = ?,
       region                  = ?,
@@ -825,31 +825,6 @@ export const account = {
       updated_by              = 'member',
       version                 = version + 1
     WHERE id = ?
-  `),
-
-  updateMemberSlug: db.prepare(`
-    UPDATE members
-    SET slug = ?, updated_at = ?, updated_by = 'member', version = version + 1
-    WHERE id = ?
-  `),
-} as const;
-
-export const slugRedirects = {
-  findBySlug: db.prepare(`
-    SELECT m.slug AS current_slug
-    FROM member_slug_redirects AS r
-    INNER JOIN members AS m ON m.id = r.member_id
-    WHERE r.old_slug = ?
-      AND m.deleted_at IS NULL
-  `),
-
-  insert: db.prepare(`
-    INSERT OR REPLACE INTO member_slug_redirects (old_slug, member_id, created_at)
-    VALUES (?, ?, ?)
-  `),
-
-  deleteBySlug: db.prepare(`
-    DELETE FROM member_slug_redirects WHERE old_slug = ?
   `),
 } as const;
 
@@ -978,14 +953,14 @@ export interface HistoricalPersonClaimRow {
   person_name: string;
   legacy_member_id: string;
   country: string | null;
-  fbhof_member: number;
+  hof_member: number;
   bap_member: number;
   first_year: number | null;
 }
 
 export const legacyClaim = {
   findHistoricalPersonByLegacyId: db.prepare(`
-    SELECT person_id, person_name, legacy_member_id, country, fbhof_member, bap_member, first_year
+    SELECT person_id, person_name, legacy_member_id, country, hof_member, bap_member, first_year
     FROM historical_persons
     WHERE legacy_member_id = ?
     LIMIT 1

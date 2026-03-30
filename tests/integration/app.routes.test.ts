@@ -89,7 +89,7 @@ async function buildTestDatabase(): Promise<void> {
     country:         'US',
     event_count:     1,
     placement_count: 1,
-    fbhof_member:    1,
+    hof_member:    1,
   });
   insertHistoricalPerson(db, {
     person_id:       BOB_ID,

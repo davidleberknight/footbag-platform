@@ -11,7 +11,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit/",
+    "test:integration": "vitest run tests/integration/",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@playwright/test": "^1.58.2",
@@ -31,6 +34,7 @@
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
     "@types/supertest": "^6.0.2",
+    "@vitest/coverage-v8": "^1.6.1",
     "supertest": "^7.0.0",
     "tsx": "^4.15.7",
     "typescript": "^5.4.5",

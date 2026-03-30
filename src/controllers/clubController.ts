@@ -37,10 +37,7 @@ export const clubController = {
     try {
       const key = req.params.key;
       if (key.startsWith('club_')) {
-        const vm = clubService.getPublicClubPage(key);
-        if (!req.isAuthenticated) {
-          vm.content.club.members = [];
-        }
+        const vm = clubService.getPublicClubPage(key, req.isAuthenticated);
         res.render('clubs/detail', vm);
       } else {
         const vm = clubService.getPublicCountryPage(key);

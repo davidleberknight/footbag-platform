@@ -55,6 +55,7 @@ After reading docs:
 
 - `db.ts` returns flat rows and prepared-statement helpers — it does not own business rules
 - services own: business rules, validation, authorization, grouping, shaping, page-model building, domain invariants
+- services own auth-conditional shaping: viewer context (logged-in user, roles) is passed in by the controller but the service decides what to include or omit based on it; controllers never mutate service output (DD 1.9)
 - controllers stay thin: HTTP glue only — no business logic, no SQL
 - templates stay logic-light: branch only on pre-shaped display values
 

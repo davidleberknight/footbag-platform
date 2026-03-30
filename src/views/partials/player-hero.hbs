@@ -12,10 +12,5 @@
       {{/unless}}{{/unless}}
     {{/if}}
     {{#if heroData.city}}<p class="hero-subtitle">{{heroData.city}}{{#if heroData.region}}, {{heroData.region}}{{/if}}{{#if heroData.country}} · {{heroData.country}}{{/if}}</p>{{/if}}
-    {{#if heroData.summaryFacts.length}}
-    <div class="hero-stats">
-      {{#each heroData.summaryFacts}}<span>{{label}}: {{value}}</span>{{/each}}
-    </div>
-    {{/if}}
   </div>
 </div>

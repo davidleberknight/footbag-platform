@@ -283,7 +283,7 @@ export class ClubService {
     });
   }
 
-  getPublicClubPage(clubKey: string): PageViewModel<{ club: PublicClubDetail }> {
+  getPublicClubPage(clubKey: string, isAuthenticated: boolean): PageViewModel<{ club: PublicClubDetail }> {
     const tagNormalized = normalizePublicClubKeyToStoredTag(clubKey);
 
     return runSqliteRead('clubService.getPublicClubPage', () => {
@@ -296,11 +296,12 @@ export class ClubService {
         });
       }
 
-      const memberRows = clubs.listMembersByClubId.all(row.club_id) as PublicClubMemberRow[];
-      const members: ClubMemberSummary[] = memberRows.map((m) => ({
-        personId: m.person_id,
-        name: m.person_name,
-      }));
+      const members: ClubMemberSummary[] = isAuthenticated
+        ? (clubs.listMembersByClubId.all(row.club_id) as PublicClubMemberRow[]).map((m) => ({
+            personId: m.person_id,
+            name: m.person_name,
+          }))
+        : [];
       const club = toPublicClubDetail(row, members);
 
       return {

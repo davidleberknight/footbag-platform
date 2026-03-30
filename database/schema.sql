@@ -1614,15 +1614,6 @@ CREATE UNIQUE INDEX ux_members_legacy_user_id
   ON members(legacy_user_id)
   WHERE legacy_user_id IS NOT NULL;
 
--- member_slug_redirects: when a member changes their display name, the old slug
--- is preserved here so that old URLs (bookmarks, external links) still work via
--- 301 redirect. Active member slugs always take priority over redirects.
-CREATE TABLE member_slug_redirects (
-  old_slug   TEXT NOT NULL PRIMARY KEY,
-  member_id  TEXT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL
-);
-
 -- members_active: active rows (excludes soft-deleted accounts)
 CREATE VIEW members_active AS
   SELECT * FROM members WHERE deleted_at IS NULL;
@@ -1763,8 +1754,8 @@ CREATE TABLE historical_persons (
   bap_member           INTEGER NOT NULL DEFAULT 0,
   bap_nickname         TEXT,
   bap_induction_year   INTEGER,
-  fbhof_member         INTEGER NOT NULL DEFAULT 0,
-  fbhof_induction_year INTEGER,
+  hof_member         INTEGER NOT NULL DEFAULT 0,
+  hof_induction_year INTEGER,
   freestyle_sequences      INTEGER,
   freestyle_max_add        REAL,
   freestyle_unique_tricks  INTEGER,

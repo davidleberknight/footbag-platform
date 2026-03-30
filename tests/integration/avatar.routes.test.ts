@@ -2,7 +2,6 @@
  * Integration tests for avatar upload routes.
  *
  * Covers:
- *   GET  /members/:memberKey/avatar  — upload form (own profile only)
  *   POST /members/:memberKey/avatar  — file upload (own profile only)
  *
  * All routes require auth. Each unauthenticated test asserts a 302 redirect to
@@ -75,34 +74,6 @@ afterAll(() => {
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
-// ── GET /members/:memberKey/avatar ─────────────────────────────────────────────
-
-describe('GET /members/:memberKey/avatar -- upload form', () => {
-  it('unauthenticated -> 302 to /login with returnTo', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/members/${OWN_SLUG}/avatar`);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Favatar`);
-  });
-
-  it('own profile -> 200 with upload form', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .get(`/members/${OWN_SLUG}/avatar`)
-      .set('Cookie', ownCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Upload Avatar');
-  });
-
-  it("another member's avatar page -> 404", async () => {
-    const app = createApp();
-    const res = await request(app)
-      .get(`/members/${OWN_SLUG}/avatar`)
-      .set('Cookie', otherCookie());
-    expect(res.status).toBe(404);
-  });
-});
-
 // ── POST /members/:memberKey/avatar ────────────────────────────────────────────
 
 describe('POST /members/:memberKey/avatar -- file upload', () => {
@@ -130,7 +101,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'test.jpg');
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/members/${OWN_SLUG}`);
+    expect(res.headers.location).toBe(`/members/${OWN_SLUG}/edit`);
   });
 
   it('non-image file -> 422 with error', async () => {

@@ -464,7 +464,8 @@ Success Criteria:
 - New member registration with email verification.
 - **Name model:** Registration collects two name fields:
   - **Full legal name** (`real_name`): required. Must be at least two words, no digits. Capitalization is normalized on save (no policing of input casing).
-  - **Display name** (`display_name`): optional. Defaults to `real_name` if left blank. Must share a surname with `real_name` (surname extracted with suffix stripping: Jr, Sr, II, III, IV).
+  - **Display name** (`display_name`): optional. Defaults to `real_name` if left blank. Must share a surname with `real_name` (surname extracted with suffix stripping: Jr, Sr, II, III, IV). Display name is permanent and cannot be changed after registration; the registration form must make this clear.
+  - **Slug selection:** The member's URL slug is generated from display name by default but the member can customize it during registration. The slug must contain their surname (same suffix-stripping rule). Two members may share the same display name; slug uniqueness is enforced. Slug is permanent after registration.
 - This registration MUST use the human’s real and full name, spelled out, with no initials or abbreviations. Bogus registrations that do not follow this rule, upon discovery, will be deleted.
 - This registration MUST use the human’s city, state, country. USA members must use the official two-letter state name (eg: CO, CA, NY).
 - System sends verification email.
@@ -677,12 +678,12 @@ Success Criteria:
 
 Access: Members can edit their own profile information, subject to validation rules.
 
-Story: As a member, I can view and edit my profile (display name, bio, avatar, contact prefs, competition history, external URLs) so that others see accurate info.
+Story: As a member, I can view and edit my profile (bio, avatar, contact prefs, competition history, external URLs) so that others see accurate info.
 
 Success Criteria:
 
 - Member profile creation and editing (photo, bio, contact preferences).
-- **Name editing:** Members can edit their display name. The surname constraint applies: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV). When display name changes, the slug regenerates and the old slug is recorded in `member_slug_redirects` for 301 redirects.
+- **Name display:** Display name is set at registration and cannot be changed. The surname constraint is enforced at registration: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV). Contact IFPA admin for corrections.
 - City, country, and email are mandatory fields; phone is optional.
 - **Competition history fields:**
   - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
@@ -1529,7 +1530,7 @@ Success Criteria:
 - Admin can access member profile from admin member management interface.
 - Admin can change tierStatus to any valid state: `tier0`, `tier1_annual`, `tier1_lifetime`, `tier2_annual`, `tier2_lifetime`, `tier3` (using canonical database string values).
 - For annual memberships, admin can set or modify tierExpiryDate.
-- Admin should not edit member-editable fields (email, display name, city, country, club affiliation) via this interface; members must edit these themselves, except in the case of a member death.
+- Admin should not edit member-editable fields (email, city, country, club affiliation) via this interface; members must edit these themselves, except in the case of a member death. Display name corrections require admin action (contact IFPA).
 - Event results and other data fields that could be buggy can also be edited via this interface, but will require additional UI support.
 - Mandatory reason field for manual adjustment (typically: payment issue resolution, complimentary access, error correction).
 - Confirmation dialog before applying with member name, old tier, new tier, and reason.

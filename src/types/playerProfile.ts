@@ -22,11 +22,6 @@ export interface PlayerEventGroup {
   results: PlayerResultEntry[];
 }
 
-export interface PlayerSummaryFact {
-  label: string;
-  value: string;
-}
-
 export interface PlayerHeroData {
   displayName: string;
   honorificNickname?: string;
@@ -38,6 +33,5 @@ export interface PlayerHeroData {
   city?: string | null;
   region?: string | null;
   country?: string | null;
-  summaryFacts: PlayerSummaryFact[];
   isHistoricalOnly: boolean;
 }

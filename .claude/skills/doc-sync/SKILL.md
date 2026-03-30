@@ -151,7 +151,8 @@ Do not:
 - edit docs without explicit human approval
 - mix confirmed drift with speculative improvements
 - expand scope beyond the area actually under review
-- never introduce implementation-status language ("deferred," "not yet implemented," "target design," "subsumed," current-slice scoping) into USER_STORIES.md or DESIGN_DECISIONS.md; these are long-term source-of-truth documents that describe target behavior only; all deferral and scoping annotations belong exclusively in IMPLEMENTATION_PLAN.md
+- never introduce implementation-status language ("deferred," "not yet implemented," "target design," "subsumed," current-slice scoping) into USER_STORIES.md, DESIGN_DECISIONS.md, SERVICE_CATALOG.md, or PROJECT_SUMMARY_CONCISE.md; these are long-term source-of-truth documents that describe target behavior only; all deferral and scoping annotations belong exclusively in IMPLEMENTATION_PLAN.md
+- PROJECT_SUMMARY_CONCISE.md must stay token-efficient: no implementation mechanism details, no sprint status, no deviation language, no shortcut descriptions
 
 ## Default stance
 - prefer no change over unnecessary change

@@ -4,7 +4,7 @@ import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
 import { getPhotoStorage } from '../adapters/photoStorageInstance';
 import { PageViewModel } from '../types/page';
-import { groupPlayerResults, buildPlayerSummaryFacts } from './playerShaping';
+import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 
 interface HistoricalPlayer {
@@ -17,7 +17,7 @@ interface HistoricalPlayer {
   bapNickname: string | null;
   bapInductionYear: number | null;
   hofMember: boolean;
-  fbhofInductionYear: number | null;
+  hofInductionYear: number | null;
   eventGroups: PlayerEventGroup[];
 }
 
@@ -58,7 +58,7 @@ export const historyService = {
       event_count: number | null;
       placement_count: number | null;
       bap_member: number;
-      fbhof_member: number;
+      hof_member: number;
       linked_member_slug: string | null;
     }>;
 
@@ -69,7 +69,7 @@ export const historyService = {
       eventCount:     r.event_count ?? null,
       placementCount: r.placement_count ?? null,
       bapMember:      Boolean(r.bap_member),
-      hofMember:      Boolean(r.fbhof_member),
+      hofMember:      Boolean(r.hof_member),
       playerHref:     personHref(r.linked_member_slug, r.person_id)!,
     }));
 
@@ -109,8 +109,8 @@ export const historyService = {
       bapMember:          Boolean(p['bap_member']),
       bapNickname:        (p['bap_nickname'] as string | null) ?? null,
       bapInductionYear:   (p['bap_induction_year'] as number | null) ?? null,
-      hofMember:        Boolean(p['fbhof_member']),
-      fbhofInductionYear: (p['fbhof_induction_year'] as number | null) ?? null,
+      hofMember:        Boolean(p['hof_member']),
+      hofInductionYear: (p['hof_induction_year'] as number | null) ?? null,
       eventGroups:        groupPlayerResults(resultRows, { selfPersonId: personId }),
     };
 
@@ -136,17 +136,9 @@ export const historyService = {
       honorificNickname: player.bapNickname ?? undefined,
       isHof:             player.hofMember,
       isBap:             player.bapMember,
-      hofInductionYear:  player.fbhofInductionYear ?? undefined,
+      hofInductionYear:  player.hofInductionYear ?? undefined,
       bapInductionYear:  player.bapInductionYear ?? undefined,
       country:           player.country,
-      summaryFacts:      buildPlayerSummaryFacts({
-        eventCount:     player.eventCount,
-        placementCount: player.placementCount,
-        isHof:          player.hofMember,
-        isBap:          player.bapMember,
-        hofYear:        player.fbhofInductionYear,
-        bapYear:        player.bapInductionYear,
-      }),
       isHistoricalOnly: true,
     };
 

@@ -16,23 +16,55 @@
       </div>
     {{/if}}
 
+    {{!-- Read-only identity block --}}
+    <div class="profile-identity-block">
+      <dl class="identity-fields">
+        <div class="identity-row">
+          <dt>Name</dt>
+          <dd>{{content.displayName}}</dd>
+        </div>
+        <div class="identity-row">
+          <dt>Email</dt>
+          <dd>{{content.loginEmail}}</dd>
+        </div>
+        <div class="identity-row">
+          <dt>Profile URL</dt>
+          <dd>{{content.profileUrl}}</dd>
+        </div>
+      </dl>
+      <p class="identity-note">Name and profile URL are set at registration. Email changes coming soon.</p>
+    </div>
+
+    {{!-- Avatar upload (separate form, multipart) --}}
+    <fieldset class="form-fieldset">
+      <legend>Avatar</legend>
+
+      {{#if content.avatarError}}
+        <p class="form-error" role="alert">{{content.avatarError}}</p>
+      {{/if}}
+
+      <div class="avatar-edit-row">
+        {{#if content.avatarThumbUrl}}
+          <img src="{{content.avatarThumbUrl}}" alt="Current avatar" class="avatar-edit-thumb" />
+        {{else}}
+          <div class="avatar-edit-placeholder">?</div>
+        {{/if}}
+
+        <form method="POST" action="/members/{{content.memberKey}}/avatar" enctype="multipart/form-data" class="avatar-edit-form">
+          <div class="form-field">
+            <label for="avatar">Upload new photo (JPEG or PNG, max 5 MB)</label>
+            <input type="file" id="avatar" name="avatar" accept="image/jpeg,image/png" required />
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Upload</button>
+        </form>
+      </div>
+    </fieldset>
+
+    {{!-- Editable profile fields --}}
     <form method="POST" class="form-block">
 
       <fieldset class="form-fieldset">
-        <legend>Personal Info</legend>
-
-        <div class="form-field">
-          <label for="displayName">Display name</label>
-          <input
-            type="text"
-            id="displayName"
-            name="displayName"
-            value="{{content.displayName}}"
-            maxlength="64"
-            required
-            autocomplete="nickname"
-          />
-        </div>
+        <legend>About You</legend>
 
         <div class="form-field">
           <label for="bio">Bio</label>
@@ -43,6 +75,33 @@
             rows="4"
             placeholder="Tell people about yourself..."
           >{{content.bio}}</textarea>
+        </div>
+
+        <div class="form-field">
+          <label for="firstCompetitionYear">First year of competition</label>
+          <input
+            type="number"
+            id="firstCompetitionYear"
+            name="firstCompetitionYear"
+            value="{{content.firstCompetitionYear}}"
+            min="1972"
+            max="2026"
+            placeholder="e.g. 1995"
+          />
+          <small class="form-hint">Leave blank to hide from your profile.</small>
+        </div>
+
+        <div class="form-field">
+          <label>
+            <input type="hidden" name="showCompetitiveResults" value="0" />
+            <input
+              type="checkbox"
+              name="showCompetitiveResults"
+              value="1"
+              {{#if content.showCompetitiveResults}}checked{{/if}}
+            />
+            Show competitive results on my public profile
+          </label>
         </div>
       </fieldset>
 
@@ -86,7 +145,7 @@
       </fieldset>
 
       <fieldset class="form-fieldset">
-        <legend>Privacy</legend>
+        <legend>Privacy &amp; Contact</legend>
 
         <div class="form-field">
           <label for="phone">Phone (optional)</label>
@@ -97,33 +156,6 @@
             value="{{content.phone}}"
             autocomplete="tel"
           />
-        </div>
-
-        <div class="form-field">
-          <label for="firstCompetitionYear">First year of competition</label>
-          <input
-            type="number"
-            id="firstCompetitionYear"
-            name="firstCompetitionYear"
-            value="{{content.firstCompetitionYear}}"
-            min="1972"
-            max="2026"
-            placeholder="e.g. 1995"
-          />
-          <small class="form-hint">Leave blank to hide from your profile.</small>
-        </div>
-
-        <div class="form-field">
-          <label>
-            <input type="hidden" name="showCompetitiveResults" value="0" />
-            <input
-              type="checkbox"
-              name="showCompetitiveResults"
-              value="1"
-              {{#if content.showCompetitiveResults}}checked{{/if}}
-            />
-            Show competitive results on my public profile
-          </label>
         </div>
 
         <div class="form-field">

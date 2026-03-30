@@ -358,7 +358,7 @@ Decision:
 Controllers call business services directly and return HTML (for browser requests) or JSON (for webhooks/AJAX) based on request context.
 No separate REST API layer between HTML controllers and services. Only Webhook callbacks use REST. JSON endpoints exist where functionally required: webhook handlers and AJAX calls. All business services must be documented in the Service Catalog.
 
-Controllers are thin HTTP adapters only. They may perform request parsing, invoke validation middleware/helpers, select the response path, and delegate rendering, but they do not own business rules, route-domain interpretation, or page-model shaping beyond trivial glue logic.
+Controllers are thin HTTP adapters only. They may perform request parsing, invoke validation middleware/helpers, select the response path, and delegate rendering, but they do not own business rules, route-domain interpretation, or page-model shaping beyond trivial glue logic. When a page varies by authentication state or viewer role, the controller passes viewer context to the service and the service returns the appropriately shaped response. Controllers must not mutate service-returned view models based on auth state.
 
 Rationale:
 

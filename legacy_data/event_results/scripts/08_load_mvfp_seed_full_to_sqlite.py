@@ -152,8 +152,8 @@ def main() -> None:
                   bap_member,
                   bap_nickname,
                   bap_induction_year,
-                  fbhof_member,
-                  fbhof_induction_year,
+                  hof_member,
+                  hof_induction_year,
                   freestyle_sequences,
                   freestyle_max_add,
                   freestyle_unique_tricks,
@@ -176,8 +176,8 @@ def main() -> None:
                     (1 if row.get("bap_member", "").strip().upper() == "Y" else int(row["bap_member"]) if row.get("bap_member", "").strip() not in ("", "N") else 0),
                     row.get("bap_nickname", "").strip() or None,
                     int(row["bap_induction_year"]) if row.get("bap_induction_year", "").strip() else None,
-                    (1 if row.get("fbhof_member", "").strip().upper() == "Y" else int(row["fbhof_member"]) if row.get("fbhof_member", "").strip() not in ("", "N") else 0),
-                    int(row["fbhof_induction_year"]) if row.get("fbhof_induction_year", "").strip() else None,
+                    (1 if row.get("hof_member", "").strip().upper() == "Y" else int(row["hof_member"]) if row.get("hof_member", "").strip() not in ("", "N") else 0),
+                    int(row["hof_induction_year"]) if row.get("hof_induction_year", "").strip() else None,
                     int(row["freestyle_sequences"]) if row.get("freestyle_sequences", "").strip() else None,
                     float(row["freestyle_max_add"]) if row.get("freestyle_max_add", "").strip() else None,
                     int(row["freestyle_unique_tricks"]) if row.get("freestyle_unique_tricks", "").strip() else None,
@@ -493,7 +493,7 @@ def main() -> None:
             INSERT OR IGNORE INTO historical_persons (
               person_id, person_name, country,
               event_count, placement_count,
-              bap_member, fbhof_member, fbhof_induction_year
+              bap_member, hof_member, hof_induction_year
             ) VALUES (?, ?, ?, 1, 1, 0, 1, 2025)
             """,
             (fx_person_id, "Footbag Hacky", "New Zealand"),

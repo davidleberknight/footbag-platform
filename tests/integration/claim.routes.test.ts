@@ -77,7 +77,7 @@ beforeAll(async () => {
     person_name: 'Historical Claimant',
     legacy_member_id: HP_LEGACY_ID,
     country: 'NZ',
-    fbhof_member: 1,
+    hof_member: 1,
     bap_member: 0,
   });
 
@@ -340,5 +340,101 @@ describe('merge field semantics', () => {
 
     // is_hof: both 0, stays 0.
     expect(row.is_hof).toBe(0);
+  });
+});
+
+// ── Adversarial claim cases ───────────────────────────────────────────────────
+
+describe('POST /history/claim/confirm — adversarial cases', () => {
+  it('rejects invalid source value with 422', async () => {
+    // Use a fresh member that has not claimed anything
+    const freshId = insertMember(testDb, { slug: 'adv_fresh', display_name: 'Adv Fresh', login_email: 'advfresh@example.com' });
+    const freshCookie = `footbag_session=${createSessionCookie(freshId, 'member', TEST_SECRET, 'Adv Fresh', 'adv_fresh')}`;
+    const app = createApp();
+    const res = await request(app)
+      .post('/history/claim/confirm')
+      .set('Cookie', freshCookie)
+      .type('form')
+      .send({ source: 'bogus_source', targetId: 'some-id' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Invalid claim source');
+  });
+
+  it('rejects empty source with 422', async () => {
+    const freshId = insertMember(testDb, { slug: 'adv_empty_src', display_name: 'Adv Empty Src', login_email: 'advemptysrc@example.com' });
+    const freshCookie = `footbag_session=${createSessionCookie(freshId, 'member', TEST_SECRET, 'Adv Empty Src', 'adv_empty_src')}`;
+    const app = createApp();
+    const res = await request(app)
+      .post('/history/claim/confirm')
+      .set('Cookie', freshCookie)
+      .type('form')
+      .send({ source: '', targetId: 'some-id' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Invalid claim request');
+  });
+
+  it('rejects empty targetId with 422', async () => {
+    const freshId = insertMember(testDb, { slug: 'adv_empty_tid', display_name: 'Adv Empty Tid', login_email: 'advemptytid@example.com' });
+    const freshCookie = `footbag_session=${createSessionCookie(freshId, 'member', TEST_SECRET, 'Adv Empty Tid', 'adv_empty_tid')}`;
+    const app = createApp();
+    const res = await request(app)
+      .post('/history/claim/confirm')
+      .set('Cookie', freshCookie)
+      .type('form')
+      .send({ source: 'historical_person', targetId: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Invalid claim request');
+  });
+
+  it('second claim on same historical person is rejected', async () => {
+    const raceHpId = 'hp-race-001';
+    const raceLegacyId = 'RACE-LEGACY';
+    insertHistoricalPerson(testDb, {
+      person_id: raceHpId,
+      person_name: 'Race Target',
+      legacy_member_id: raceLegacyId,
+      country: 'US',
+      hof_member: 0,
+    });
+    const firstId = insertMember(testDb, { slug: 'race_first', display_name: 'Race First', login_email: 'racefirst@example.com' });
+    const secondId = insertMember(testDb, { slug: 'race_second', display_name: 'Race Second', login_email: 'racesecond@example.com' });
+
+    const firstCookie = `footbag_session=${createSessionCookie(firstId, 'member', TEST_SECRET, 'Race First', 'race_first')}`;
+    const secondCookie = `footbag_session=${createSessionCookie(secondId, 'member', TEST_SECRET, 'Race Second', 'race_second')}`;
+
+    // completeClaim expects targetId to be the legacy_member_id (what lookupLegacyClaim returns as id)
+    const app1 = createApp();
+    const res1 = await request(app1)
+      .post('/history/claim/confirm')
+      .set('Cookie', firstCookie)
+      .type('form')
+      .send({ source: 'historical_person', targetId: raceLegacyId });
+    expect(res1.status).toBe(302);
+
+    // Second claim on same HP is rejected
+    const app2 = createApp();
+    const res2 = await request(app2)
+      .post('/history/claim/confirm')
+      .set('Cookie', secondCookie)
+      .type('form')
+      .send({ source: 'historical_person', targetId: raceLegacyId });
+    expect(res2.status).toBe(422);
+    expect(res2.text).toContain('already been claimed');
+  });
+});
+
+describe('POST /history/claim — whitespace identifier', () => {
+  it('whitespace-only identifier returns 422 with validation error', async () => {
+    // Use a fresh member that has not claimed anything
+    const freshId = insertMember(testDb, { slug: 'ws_tester', display_name: 'WS Tester', login_email: 'wstester@example.com' });
+    const freshCookie = `footbag_session=${createSessionCookie(freshId, 'member', TEST_SECRET, 'WS Tester', 'ws_tester')}`;
+    const app = createApp();
+    const res = await request(app)
+      .post('/history/claim')
+      .set('Cookie', freshCookie)
+      .type('form')
+      .send({ identifier: '   ' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Please enter a legacy identifier');
   });
 });
