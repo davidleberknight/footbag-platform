@@ -26,14 +26,8 @@ function normalizeEmail(email: string): string {
  * Rules: lowercase, spaces become _, strip non-alphanumeric/underscore,
  * collapse consecutive underscores, trim leading/trailing underscores.
  */
-export function slugify(displayName: string): string {
-  return displayName
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-}
+import { slugify } from './slugify';
+export { slugify };
 
 /**
  * Generate a unique slug. Appends _2, _3, etc. on conflict.

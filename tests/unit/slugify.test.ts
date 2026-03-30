@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slugify } from '../../src/services/identityAccessService';
+import { slugify } from '../../src/services/slugify';
 
 describe('slugify', () => {
   it('lowercases and replaces spaces with underscores', () => {
