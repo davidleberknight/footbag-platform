@@ -174,7 +174,19 @@ export interface CountryPageContent {
 
 // ── Service ────────────────────────────────────────────────────────────────────
 
+export type ClubRouteResult =
+  | { template: 'clubs/detail'; vm: PageViewModel<{ club: PublicClubDetail }> }
+  | { template: 'clubs/country'; vm: PageViewModel<CountryPageContent> };
+
 export class ClubService {
+  /** Resolve GET /clubs/:key to the correct page (club detail or country). */
+  resolveByKey(key: string, isAuthenticated: boolean): ClubRouteResult {
+    if (key.startsWith('club_')) {
+      return { template: 'clubs/detail', vm: this.getPublicClubPage(key, isAuthenticated) };
+    }
+    return { template: 'clubs/country', vm: this.getPublicCountryPage(key) };
+  }
+
   getPublicClubsIndexPage(): PageViewModel<ClubsIndexContent> {
     return runSqliteRead('clubService.getPublicClubsIndexPage', () => {
       const rows = clubs.listOpen.all() as PublicClubRow[];

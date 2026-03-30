@@ -167,9 +167,9 @@ No contact field (email, phone, social handle) is visible on any public page or 
 
 **Identity linking** (when a `historical_person_id` is linked to a `member` record because a past competitor creates an account):
 
-- does not escalate the historical-person page into a current-member profile,
-- public historical pages continue to show only historical-record data regardless of whether the person has an account,
-- searchability and contact visibility are governed by member profile settings, not by the existence of a historical link.
+- when a linked member account exists, the historical-person URL redirects to the member profile as a navigational convenience; the historical identity is not a separate public surface once claimed,
+- this redirect does not expose any data beyond what the member profile already shows; searchability and contact visibility remain governed by member profile settings, not by the existence of a historical link,
+- if a member later deletes their account, historical-person URLs revert to showing historical-record data only.
 
 **Data subject erasure:** the tension between permanent historical record preservation and data-subject erasure rights (GDPR Article 17 and equivalents) is an open governance question. HoF/BAP preservation is treated as a given in this version of this document, but whether that survives an erasure request from a living person is not yet resolved. This must be addressed as a separate governance decision before member onboarding launches and before the platform processes data from GDPR-jurisdiction members at scale.
 

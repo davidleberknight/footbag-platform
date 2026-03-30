@@ -20,7 +20,7 @@ This file, not auto memory, is the source of truth for current slice status, acc
 
 **Item C implementation note:** The current code is the early-test shortcut: direct lookup + confirm + merge. No email verification, no token round-trip, no rate limiting, no name reconciliation guard. The full production version requires email verification, name reconciliation (last-name mismatch blocks, first-name mismatch warns), and `first_competition_year` COALESCE. Current shortcut methods live in `identityAccessService` as `lookupLegacyClaim` and `completeClaim`; these will move to a dedicated `LegacyMigrationService` in the production rewrite. Routes are `POST /history/claim` (lookup) and `POST /history/claim/confirm` (merge), not the token-based `GET /history/claim/verify/:token` described in `SERVICE_CATALOG.md`.
 
-**Routing (implemented):** Member profiles at `/members/:memberKey/*`. Historical persons at `/history/*` (accessed via event-result participant links, not primary nav). Registration at `/register`.
+**Routing (implemented):** Member profiles at `/members/:memberKey/*`. Historical persons at `/history/*` (primary nav "Players" link and event-result participant links). Registration at `/register`.
 
 **Blocked items from prior sprints:** Members ungating and world records page both blocked on James. See "Blocked / deferred" section below.
 
@@ -60,7 +60,7 @@ Follows `M_Claim_Legacy_Account` user story in full except the email send step (
 - **A** — DB-backed multi-user auth (argon2, session cookie, integration tests)
 - **B** — Test seed data (`seed_members.py`, Footbag Hacky stub account)
 - **D** — Member account area: profile view/edit, avatar upload. Stub pages: media, settings, password, download, delete
-- **E** — Historical persons "Historical Records" label on `/history` pages
+- **E** — Historical persons "Players" nav label and `/history` pages
 - **F** — Integration tests (run `npm test` for current count and coverage)
 - **G** — Account registration (`/register` flow, auto-login on success)
 - **Identity Phase 1** — Name model (real_name + display_name, surname constraint, slug set at registration), person links (personHref helper), historical name display on profiles, `first_competition_year` and `show_competitive_results` fields

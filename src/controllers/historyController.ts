@@ -25,25 +25,21 @@ export const historyController = {
     }
   },
 
-  /** GET /history/:personId -- public for HoF/BAP persons; auth required otherwise. */
+  /** GET /history/:personId -- service decides: redirect, require auth, or render. */
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
-      const { personId } = req.params;
-      const vm = historyService.getHistoricalPlayerPage(personId);
-
-      // If the historical person is linked to a current member, redirect there.
-      if (vm.content.memberHref) {
-        res.redirect(301, vm.content.memberHref);
-        return;
+      const result = historyService.getHistoricalPlayerPage(req.params.personId, req.isAuthenticated);
+      switch (result.action) {
+        case 'redirect':
+          res.redirect(301, result.href);
+          break;
+        case 'requireAuth':
+          redirectToLogin(req, res);
+          break;
+        case 'render':
+          res.render('history/detail', result.vm);
+          break;
       }
-
-      const isPublicHonor = vm.content.hofMember || vm.content.bapMember;
-      if (!isPublicHonor && !req.isAuthenticated) {
-        redirectToLogin(req, res);
-        return;
-      }
-
-      res.render('history/detail', vm);
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {

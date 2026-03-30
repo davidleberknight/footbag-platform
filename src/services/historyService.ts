@@ -41,11 +41,15 @@ export interface HistoryDetailContent {
   displayName: string;
   hofMember: boolean;
   bapMember: boolean;
-  memberHref: string | null;
   avatarThumbUrl: string | null;
   heroData: PlayerHeroData;
   eventGroups: PlayerEventGroup[];
 }
+
+export type HistoryDetailResult =
+  | { action: 'redirect'; href: string }
+  | { action: 'requireAuth' }
+  | { action: 'render'; vm: PageViewModel<HistoryDetailContent> };
 
 export const historyService = {
   getHistoryLandingPage(): PageViewModel<HistoryLandingContent> {
@@ -85,7 +89,7 @@ export const historyService = {
     };
   },
 
-  getHistoricalPlayerPage(personId: string): PageViewModel<HistoryDetailContent> {
+  getHistoricalPlayerPage(personId: string, isAuthenticated: boolean): HistoryDetailResult {
     const row = runSqliteRead('getHistoricalPlayerById', () =>
       publicPlayers.getById.get(personId),
     );
@@ -120,9 +124,21 @@ export const historyService = {
     ) as { slug: string } | undefined;
 
     const memberHref = personHref(linkedRow?.slug ?? null, null);
+
+    // Linked member: redirect to their profile.
+    if (memberHref) {
+      return { action: 'redirect', href: memberHref };
+    }
+
+    // Non-public-honor person: require authentication.
+    const isPublicHonor = player.hofMember || player.bapMember;
+    if (!isPublicHonor && !isAuthenticated) {
+      return { action: 'requireAuth' };
+    }
+
     let avatarThumbUrl: string | null = null;
 
-    if (memberHref && linkedRow?.slug) {
+    if (linkedRow?.slug) {
       const memberRow = runSqliteRead('findMemberBySlugForAvatar', () =>
         account.findMemberBySlug.get(linkedRow.slug),
       ) as { avatar_thumb_key: string | null } | undefined;
@@ -143,24 +159,26 @@ export const historyService = {
     };
 
     return {
-      seo: { title: `Player ${player.personName}` },
-      page: {
-        sectionKey: 'history',
-        pageKey:    'history_player_detail',
-        title:      player.personName,
-      },
-      navigation: {
-        contextLinks: [{ label: 'Historical Players', href: '/history' }],
-      },
-      content: {
-        personId:      player.personId,
-        displayName:   player.personName,
-        hofMember:     player.hofMember,
-        bapMember:     player.bapMember,
-        memberHref,
-        avatarThumbUrl,
-        heroData,
-        eventGroups:   player.eventGroups,
+      action: 'render',
+      vm: {
+        seo: { title: `Player ${player.personName}` },
+        page: {
+          sectionKey: 'history',
+          pageKey:    'history_player_detail',
+          title:      player.personName,
+        },
+        navigation: {
+          contextLinks: [{ label: 'Historical Players', href: '/history' }],
+        },
+        content: {
+          personId:      player.personId,
+          displayName:   player.personName,
+          hofMember:     player.hofMember,
+          bapMember:     player.bapMember,
+          avatarThumbUrl,
+          heroData,
+          eventGroups:   player.eventGroups,
+        },
       },
     };
   },

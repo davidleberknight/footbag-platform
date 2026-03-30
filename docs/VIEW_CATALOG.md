@@ -90,9 +90,9 @@ This document covers:
   - Login
   - Register
   - HoF landing
-- the next-to-implement claim pages:
-  - Claim initiation (`/history/claim`)
-  - Claim verification (`/history/claim/verify/:token`)
+- the implemented claim pages:
+  - Claim initiation (`GET /history/claim`, `POST /history/claim`)
+  - Claim confirmation (`POST /history/claim/confirm`)
 - the rules future pages must follow to join the catalog
 
 `docs/USER_STORIES.md` remains broader than this file. This catalog is authoritative for the views it includes; it does not attempt to catalog the full future product yet.
@@ -1152,7 +1152,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 - `clubKey` = `tag_normalized` with the leading `#` stripped: `club_wellington_hack_crew`
 - Pattern: `^club_[a-z0-9_]+$`
-- Controller dispatch: `slug.startsWith('club_')` → club detail; otherwise → country page
+- Service dispatch: `key.startsWith('club_')` → club detail; otherwise → country page
 - No aliasing, hyphen rewrites, or fuzzy matching
 
 ### Required content
@@ -1476,7 +1476,8 @@ Most pages in this catalog are public visitor pages. The following routes requir
 - `GET /history` — historical players index (controller-enforced)
 - `GET /history/:personId` — historical player detail (public for HoF/BAP persons; auth required otherwise)
 - `GET /history/claim` — auth required (route middleware)
-- `GET /history/claim/verify/:token` — auth required; token must match authenticated member
+- `POST /history/claim` — auth required (route middleware)
+- `POST /history/claim/confirm` — auth required (route middleware)
 - `GET /members` — auth-gated redirect into the member-account area
 - `GET /members/:memberKey` — own profile when authenticated as that member; limited public read-only HoF/BAP view otherwise; non-HoF/BAP public access fails closed
 - `GET /members/:memberKey/edit`, `POST /members/:memberKey/edit` — auth required, own-profile only

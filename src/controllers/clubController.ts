@@ -30,19 +30,12 @@ export const clubController = {
 
   /**
    * GET /clubs/:key
-   * Dispatches to club detail or country page based on prefix.
-   * key starts with 'club_' → club detail; otherwise → country page.
+   * Service resolves key to club detail or country page.
    */
   byKey(req: Request, res: Response, next: NextFunction): void {
     try {
-      const key = req.params.key;
-      if (key.startsWith('club_')) {
-        const vm = clubService.getPublicClubPage(key, req.isAuthenticated);
-        res.render('clubs/detail', vm);
-      } else {
-        const vm = clubService.getPublicCountryPage(key);
-        res.render('clubs/country', vm);
-      }
+      const result = clubService.resolveByKey(req.params.key, req.isAuthenticated);
+      res.render(result.template, result.vm);
     } catch (err) {
       clubController._handleError(err, res, next);
     }
