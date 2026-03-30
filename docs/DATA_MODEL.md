@@ -1,8 +1,8 @@
 # Footbag Website Modernization Project — Data Model
-**Last updated:** March 16, 2026
+**Last updated:** March 30, 2026
 **Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
 **Schema file:** `database/schema.sql`
-**Schema counts:** 49 tables · 9 views · 108 named indexes · 18 triggers
+**Schema counts:** 54 tables · 9 views · 123 named indexes · 18 triggers
 
 ---
 
@@ -35,6 +35,7 @@
   - [4.12 Member Tier Grants](#412-member-tier-grants)
   - [4.13 Member Tier Current View](#413-member-tier-current-view)
   - [4.14 Members & Authentication](#414-members--authentication)
+  - [4.14a Member Slug Redirects](#414a-member-slug-redirects)
   - [4.15 Member Links](#415-member-links)
   - [4.16 Registrations & Event Results](#416-registrations--event-results)
   - [4.17 Media & Galleries](#417-media--galleries)
@@ -586,6 +587,15 @@ If the latest ledger row shows an annual tier (`tier1_annual` or `tier2_annual`)
 
 `is_hof` remains the permanent Hall of Fame honor flag. Any current-cycle authorization/workflow flag equivalent to `HoF_Nominated` is application-derived from `hof_last_nominated_year` and the active nomination cycle year (US §2.1 / US §3.7).
 
+#### Competition history
+
+- `first_competition_year` (`INTEGER`, nullable): the member's first competition year. Editable on profile edit. Pre-populated from `historical_persons.first_year` during legacy claim via COALESCE (member value wins if already set). Shown as "Competing since {year}" on profile; leave blank to hide.
+- `show_competitive_results` (`INTEGER`, default 1): controls whether competition results appear on the member's public profile. Own-profile view always shows results to the owner regardless of toggle state.
+
+#### Slug lifecycle
+
+When `display_name` changes, the member's slug is regenerated and the old slug is recorded in `member_slug_redirects` (see §4.14a). Old slugs produce 301 redirects to the current slug. The `display_name` surname constraint (must share surname with `real_name`, suffix-stripped) is application-enforced on new registrations and profile edits only; imported placeholders are exempt.
+
 #### Stripe identity
 `stripe_customer_id` is the member-level canonical Stripe Customer ID (set when a recurring donation is first created). `payments.stripe_customer_id` is a per-payment snapshot and is **not** the canonical ID.
 
@@ -624,6 +634,18 @@ The `members` table enforces a three-way credential-state invariant via a `CHECK
 **The member search endpoint MUST query this view.** It applies five exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, and unverified (`email_verified_at IS NULL`). The `email_verified_at IS NULL` condition is the primary mechanism preventing imported placeholder rows from appearing in search results; `searchable = 0` is defense-in-depth. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
 
 `searchable = 1` means the member is **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on public historical-person pages. Member search is authenticated Tier 0+, anti-enumeration, and never public.
+
+### 4.14a Member Slug Redirects
+
+**Table:** `member_slug_redirects`
+
+Stores old slugs after a member's display name (and therefore slug) changes. Enables 301 redirects from old profile URLs to the member's current slug.
+
+- `old_slug` (`TEXT`, PRIMARY KEY): the previous slug value.
+- `member_id` (`TEXT`, FK to `members(id)`, `ON DELETE CASCADE`): the member who owned this slug.
+- `created_at` (`TEXT`): timestamp when the slug was superseded.
+
+When a member is deleted, all their slug redirect rows are cascade-deleted.
 
 ### 4.15 Member Links
 
@@ -880,7 +902,13 @@ Permanent operational table recording live club membership for members. Written 
 
 ### 4.25 Migration Staging and Bootstrap Tables
 
-Three tables are introduced by the legacy data migration in addition to `member_club_affiliations` (§4.24):
+Three tables are introduced by the legacy data migration in addition to `member_club_affiliations` (§4.24). All three have explicit drop conditions. None are permanent operational tables.
+
+| Table | Category | Drop condition |
+|---|---|---|
+| `legacy_club_candidates` | Migration-only staging | After all bootstrap decisions are finalized |
+| `legacy_person_club_affiliations` | Migration-only staging | After all affiliation suggestions are resolved |
+| `club_bootstrap_leaders` | Operational, migration-origin | After all rows reach terminal state (`claimed`, `superseded`, or `rejected`) |
 
 #### `legacy_club_candidates` — migration-only staging
 Mirror-derived normalized club identities. Populated by the mirror-analysis pipeline before cutover. Each row represents one distinct club identity with a `legacy_club_key`, location, confidence score, and bootstrap eligibility decision. May be dropped once all bootstrap decisions are finalized and no staging review is pending.

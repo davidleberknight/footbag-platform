@@ -100,6 +100,33 @@
         </div>
 
         <div class="form-field">
+          <label for="firstCompetitionYear">First year of competition</label>
+          <input
+            type="number"
+            id="firstCompetitionYear"
+            name="firstCompetitionYear"
+            value="{{content.firstCompetitionYear}}"
+            min="1972"
+            max="2026"
+            placeholder="e.g. 1995"
+          />
+          <small class="form-hint">Leave blank to hide from your profile.</small>
+        </div>
+
+        <div class="form-field">
+          <label>
+            <input type="hidden" name="showCompetitiveResults" value="0" />
+            <input
+              type="checkbox"
+              name="showCompetitiveResults"
+              value="1"
+              {{#if content.showCompetitiveResults}}checked{{/if}}
+            />
+            Show competitive results on my public profile
+          </label>
+        </div>
+
+        <div class="form-field">
           <label for="emailVisibility">Email visibility</label>
           <select id="emailVisibility" name="emailVisibility">
             <option value="private"{{#if (eq content.emailVisibility 'private')}} selected{{/if}}>Private (only you)</option>

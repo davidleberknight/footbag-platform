@@ -1,0 +1,21 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{heroData.displayName}}{{#if heroData.honorificNickname}} <span class="player-nickname">"{{heroData.honorificNickname}}"</span>{{/if}}</h1>
+    {{#if heroData.isHof}}
+      <p class="hero-subtitle">Member of the Footbag Hall of Fame{{#if heroData.isBap}} and the Big Add Posse{{/if}}</p>
+    {{else if heroData.isBap}}
+      <p class="hero-subtitle">Member of the Footbag Big Add Posse</p>
+    {{/if}}
+    {{#if heroData.isHistoricalOnly}}
+      {{#unless heroData.isHof}}{{#unless heroData.isBap}}
+        <p class="hero-subtitle">Historical player record</p>
+      {{/unless}}{{/unless}}
+    {{/if}}
+    {{#if heroData.city}}<p class="hero-subtitle">{{heroData.city}}{{#if heroData.country}}, {{heroData.country}}{{/if}}</p>{{/if}}
+    {{#if heroData.summaryFacts.length}}
+    <div class="hero-stats">
+      {{#each heroData.summaryFacts}}<span>{{label}}: {{value}}</span>{{/each}}
+    </div>
+    {{/if}}
+  </div>
+</div>

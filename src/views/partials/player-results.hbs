@@ -1,0 +1,46 @@
+{{#if eventGroups.length}}
+<div class="section-heading" style="margin-top: 28px;">
+  <h2>Competitive Results</h2>
+  <span class="section-count">{{eventGroups.length}} events</span>
+</div>
+{{#if firstCompetitionYear}}<p class="text-muted" style="font-size:0.85rem; margin-bottom:12px;">Competing since {{firstCompetitionYear}}</p>{{/if}}
+<p class="text-muted" style="font-size:0.8rem; margin-bottom:16px;">Published event results only. Historical records may be incomplete.</p>
+
+{{#each eventGroups}}
+  <div class="player-event-block">
+    <div class="player-event-header">
+      <a href="{{eventHref}}" class="player-event-title">{{eventTitle}}</a>
+      <span class="player-event-meta">{{formatDate startDate}} &middot; {{formatLocation city "" eventCountry}}</span>
+    </div>
+    <table class="results-table player-results-table">
+      <thead>
+        <tr>
+          <th>Discipline</th>
+          <th>Place</th>
+          <th>With</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each results}}
+          <tr>
+            <td>{{#if disciplineName}}{{disciplineName}}{{else}}<span class="text-muted">&mdash;</span>{{/if}}</td>
+            <td class="placement-num {{#if (eq placement 1)}}gold{{else if (eq placement 2)}}silver{{else if (eq placement 3)}}bronze{{/if}}">
+              {{placement}}
+            </td>
+            <td>
+              {{#if (gt teammates.length 0)}}
+                {{#each teammates}}{{#unless @first}}, {{/unless}}{{#if playerHref}}<a href="{{playerHref}}">{{name}}</a>{{else}}{{name}}{{/if}}{{/each}}
+              {{/if}}
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+{{/each}}
+
+{{else}}
+<div class="empty-state" style="margin-top: 40px;">
+  <p>No competitive results on record.</p>
+</div>
+{{/if}}

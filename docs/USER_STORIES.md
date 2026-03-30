@@ -1,6 +1,6 @@
 # Footbag Website Modernization Project -- User Stories
 
-**Last updated:** March 16, 2026
+**Last updated:** March 30, 2026
 
 **Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
 
@@ -113,6 +113,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Mark_Member_Deceased](#a_mark_member_deceased)
     - [A_Manual_Legacy_Claim_Recovery](#a_manual_legacy_claim_recovery)
     - [A_Resolve_Bootstrap_Club_Leadership](#a_resolve_bootstrap_club_leadership)
+    - [A_Review_Auto_Link_Matches](#a_review_auto_link_matches)
   - [6.3 Content Moderation](#63-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Create_News_Item](#a_create_news_item)
@@ -457,12 +458,15 @@ Success Criteria:
 
 Access: Visitors who are not logged in can create an account. A successful registration creates a new member (Tier 0, free lifetime).
 
-Story: As a visitor, I can register with email, password, real full name, real location, and display name so that I can become a member.
+Story: As a visitor, I can register with email, password, real full name, real location, and display name so that I can become a member. Registration also serves as the data-cleanup funnel for legacy identity linking and club questions.
 
 Success Criteria:
 
 - New member registration with email verification.
-- This registration MUST use the human’s real and full name, spelled out and capitalized correctly, with no initials or abbreviations. Bogus registrations that do not follow this rule, upon discovery, will be deleted.
+- **Name model:** Registration collects two name fields:
+  - **Full legal name** (`real_name`): required. Must be at least two words, no digits. Capitalization is normalized on save (no policing of input casing).
+  - **Display name** (`display_name`): optional. Defaults to `real_name` if left blank. Must share a surname with `real_name` (surname extracted with suffix stripping: Jr, Sr, II, III, IV).
+- This registration MUST use the human’s real and full name, spelled out, with no initials or abbreviations. Bogus registrations that do not follow this rule, upon discovery, will be deleted.
 - This registration MUST use the human’s city, state, country. USA members must use the official two-letter state name (eg: CO, CA, NY).
 - System sends verification email.
 - After clicking link, user can log in and create profile.
@@ -470,6 +474,9 @@ Success Criteria:
 - Registration enforces email uniqueness. If a submitted email belongs to an account currently in its deletion grace period, the response is identical to a successful new registration. No indication is given that the email is reserved, preventing account-existence enumeration via the registration flow.
 - Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
 - New members automatically assigned Tier 0 (free lifetime) status.
+- **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported placeholder row’s `legacy_email`. If a match is found: Tier 1 (exact name match) or Tier 2 (known variant name match) auto-link is applied (Tier 2 is audit-logged), and the member is informed that their historical identity has been linked. Other cases prompt the member to use the self-serve claim flow (see M_Claim_Legacy_Account).
+- **Club questions:** During onboarding, the member is presented with club-related questions. For members with legacy matches, mirror-derived club affiliation suggestions are shown for confirmation, rejection, or "not mine" responses. For new members without legacy matches, relevant clubs in their region are suggested. When a member picks a dormant club: offer leadership if Tier 1 or higher, otherwise record intent and defer.
+- **First competition year:** During onboarding, the member is asked to optionally confirm their first competition year. This field is editable later on the profile edit page (see M_Edit_Profile).
 - Member sees a clear success message after registration: "Registration successful! Please check your email to verify your account."
 - Member sees clear error messages for validation failures with hints about what to fix.
 - Passwords are stored securely using one-way hashing; they are never stored or logged in plaintext.
@@ -562,6 +569,7 @@ Success Criteria:
 - System explains the deletion consequences and the grace period before permanent deletion (account enters a grace-period deletion state; Administrator-configurable grace period length).
 - After confirmation, the account enters a deleted state; member cannot log in or use the site, except to restore the account within the grace period.
 - After deletion, member no longer appears in member search results or active member lists. Historical records (e.g., past event results, archives, and logs) preserve the member as a non-clickable “Deleted Member” placeholder to maintain history and data referential integrity.
+- **Person-link reversion:** When a member deletes their account, any historical person links (in event results and other historical surfaces) that were pointing to `/members/:slug` must revert to `/history/:personId`. The `personHref()` helper handles this automatically when `member_id` is cleared or the member row is soft-deleted.
 - Members with HoF or BAP flags receive special treatment during deletion. Admin-configurable soft-delete grace period applies. After this grace period expires: email/phone/passwordHash removed like all members, but displayName and bio fields are always preserved regardless of deletion. Deleted HoF/BAP profiles continue showing: special status badges (HoF or BAP flag), preserved displayName (not changed to "Deleted Member"), preserved bio text, memberId for referential integrity. Historical event results, leadership records, and community contributions remain attributed to these members by preserved displayName. This preserves community history and honors that are meant to be permanent regardless of account status.
 - Financial and audit records anonymized after the configured grace period. Transaction IDs retained for a configurable compliance period (default: 7 years).
 - Audit logs retain for a configurable compliance period (default: 7 years) with no personal identifiers (except member id).
@@ -628,7 +636,7 @@ Success Criteria:
 
 Access: Logged-in members.
 
-Story: As a logged-in member, I can link my legacy footbag.org member record to my current account so that my historical identity, honors, migrated profile data, and relevant club affiliations are associated with my real modern account.
+Story: As a logged-in member, I can link my legacy footbag.org member record to my current account so that my historical identity, honors, migrated profile data, competition history, and relevant club affiliations are associated with my real modern account.
 
 Success Criteria:
 
@@ -637,25 +645,29 @@ Success Criteria:
 - If an eligible imported row is found, the system emails a time-limited claim link to that row's legacy email address. The response never reveals whether the identifier matched zero rows, multiple rows, a blocked row, or a row without a usable email address. Recommended message: "If an eligible legacy record was found, a claim email will be sent."
 - The claim link is single-use, time-limited (Administrator-configurable, default 24 hours, keyed by `account_claim_expiry_hours`), and may only be consumed while logged into the same account that initiated the request.
 - Claim initiation and resend are rate-limited per requesting account, per target imported row, and per session/IP.
+- **Name reconciliation step:** Before merge, the system compares the active account's name with the imported row's name:
+  - Last-name mismatch: **blocks the merge**. The member must update their display name to match or contact an admin for manual recovery.
+  - First-name mismatch: **warns** but allows the member to proceed.
 - Before merge, the system shows a final confirmation screen identifying the active account that will receive the legacy identity.
 - If mirror-derived club affiliation suggestions or provisional bootstrap leadership suggestions exist for the claimed identity, the member is prompted to review them before confirming (see M_Review_Legacy_Club_Data_During_Claim).
-- On confirmation, the merge runs atomically: transfers `legacy_member_id`; merges allowed profile fields (import fills only if active value is empty or absent; active account always wins for credentials, display name, and contact fields); applies tier adjustment if imported effective tier exceeds current (ledger entry only); writes confirmed club affiliations; may promote confirmed provisional leadership into live club leadership; deletes the imported placeholder row.
+- On confirmation, the merge runs atomically: transfers `legacy_member_id`; merges allowed profile fields (import fills only if active value is empty or absent; active account always wins for credentials, display name, and contact fields); applies `first_competition_year` via COALESCE (member value wins if already set, import value fills if member is NULL); applies tier adjustment if imported effective tier exceeds current (ledger entry only); writes confirmed club affiliations; may promote confirmed provisional leadership into live club leadership; deletes the imported placeholder row.
 - All claim and merge events are audit-logged.
 - If self-serve claim is not available (no usable legacy email, row flagged for review, or other ineligibility), the member is directed to contact an admin for manual recovery.
 
 ### M_Review_Legacy_Club_Data_During_Claim
 
-Access: Logged-in members in the legacy claim flow.
+Access: Logged-in members in the legacy claim flow or during registration onboarding.
 
-Story: As a member claiming my legacy account, I can review mirror-derived club suggestions and any provisional legacy leadership so I can confirm or correct club data before the merge is finalized.
+Story: As a member claiming my legacy account (or completing registration onboarding), I can review mirror-derived club suggestions and any provisional legacy leadership so I can confirm or correct club data before the merge is finalized.
 
 Success Criteria:
 
-- When staged club or bootstrap leadership suggestions exist for the claimant's legacy identity, the claim flow presents them before the final merge confirmation.
+- When staged club or bootstrap leadership suggestions exist for the claimant's legacy identity, the claim flow (or onboarding flow) presents them before the final merge confirmation.
 - Each suggestion shows the best available club identity and inferred role.
 - Member can mark each suggestion: current club, former-only, not mine, or needs admin review.
 - Member can confirm or reject provisional contact-email assignment.
 - Member can confirm or reject provisional leader or co-leader status.
+- When a member picks a dormant club: offer leadership if Tier 1 or higher, otherwise record intent and defer the leadership offer.
 - Confirmed current affiliation writes to `member_club_affiliations`; if the member already has a current club affiliation, the previous one is converted to former in the same transaction.
 - Confirmed leadership may promote the bootstrap row into a live `club_leaders` row when no conflicting live leader exists; otherwise it remains provisional and is flagged for admin review.
 - Former-only, not-mine, and needs-review outcomes are persisted so the member is not repeatedly prompted.
@@ -666,13 +678,17 @@ Success Criteria:
 
 Access: Members can edit their own profile information, subject to validation rules.
 
-Story: As a member, I can view and edit my profile (display name, bio, avatar, contact prefs, external URLs) so that others see accurate info.
+Story: As a member, I can view and edit my profile (display name, bio, avatar, contact prefs, competition history, external URLs) so that others see accurate info.
 
 Success Criteria:
 
 - Member profile creation and editing (photo, bio, contact preferences).
+- **Name editing:** Members can edit their display name. The surname constraint applies: display name must share a surname with `real_name` (suffix-stripped: Jr, Sr, II, III, IV). When display name changes, the slug regenerates and the old slug is recorded in `member_slug_redirects` for 301 redirects.
 - City, country, and email are mandatory fields; phone is optional.
-- Member search is authenticated members only (Tier 0+) — never public. Search results show display name and country only; email and contact fields are never exposed in search results.
+- **Competition history fields:**
+  - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
+  - `show_competitive_results` (default on): toggle controlling whether competition results appear on the member's public profile. The member's own profile view always shows their results regardless of toggle state.
+- Member search is authenticated members only (Tier 0+), never public. Search results show display name and country only; email and contact fields are never exposed in search results.
 - Public visibility (visible to all including visitors): Events list, news feed, public galleries (if explicitly marked public).
 - Members-only visibility (visible to logged-in members): Member profiles, club rosters, event participant lists, member search results.
 - Private visibility (visible only to owner or admins): Email addresses (unless member opts in), payment history, audit records.
@@ -709,6 +725,8 @@ Success Criteria:
 
 - Member can view any member profile (own or others).
 - Profile displays: photo, display name, city, country, bio, tier badge, external URLs, club affiliation (if any).
+- **Historical name:** When a member has a linked historical person whose name differs from the member's current display name, the historical name is shown on the profile (e.g., "Also known as {historical name} in competition records").
+- **Competition history:** If `first_competition_year` is set, display "Competing since {year}" on the profile. If `show_competitive_results` is on (or the viewer is the profile owner), display the member's competition results section. Results section includes the caveat text: "Published event results only. Historical records may be incomplete."
 - Email address shown only if: (viewer is profile owner) OR (profile owner opted in to email visibility).
 - Tier badges visible to logged-in members only on profiles, club rosters, event participant lists, search results, media author info. Honor badges such as Hall of Fame (HoF), Big Add Posse (BAP), and Board Member are visible to all users (including visitors) wherever the member appears.
 - Profile shows member's uploaded photos and videos in thumbnail grid.
@@ -1671,6 +1689,22 @@ Success Criteria:
 - Admin can supersede the provisional assignment and appoint a live leader through the standard club leadership workflow, marking the bootstrap row superseded.
 - Admin can reject a provisional assignment as incorrect, marking the bootstrap row rejected.
 - All resolution actions are audit-logged with actor, club, bootstrap row, action taken, and timestamp.
+
+### A_Review_Auto_Link_Matches
+
+Access: Admins only.
+
+Story: As an admin, I can review and resolve Tier 3 auto-link cases (email match but name mismatch between a historical person and an imported member placeholder) so that identity links are correct before or after go-live.
+
+Success Criteria:
+
+- Admin can view a queue of Tier 3 auto-link cases: each case shows the historical person name, the imported placeholder name, the matched email, and any relevant context (country, event history).
+- Admin can confirm the link (the historical person and the placeholder are the same person despite the name mismatch).
+- Admin can reject the link (the historical person and the placeholder are different people who happen to share an email).
+- Admin can defer a case for further investigation.
+- Confirmed links are applied: the historical person's `person_id` is linked to the member row. Audit-logged with actor, historical person ID, member ID, decision, and timestamp.
+- Rejected links are recorded so the system does not re-queue the same pair.
+- All actions are audit-logged.
 
 ## 6.3 Content Moderation
 

@@ -4,25 +4,12 @@ import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { getPhotoStorage } from '../adapters/photoStorageInstance';
 import { PageViewModel } from '../types/page';
+import { groupPlayerResults, buildPlayerSummaryFacts } from './playerShaping';
+import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 
 const MAX_DISPLAY_NAME = 64;
 const MAX_BIO = 1000;
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members', 'public']);
-
-export interface ProfileEventResult {
-  disciplineName: string | null;
-  placement: number;
-  scoreText: string | null;
-}
-
-export interface ProfileEventGroup {
-  eventHref: string;
-  eventTitle: string;
-  startDate: string;
-  city: string;
-  eventCountry: string;
-  results: ProfileEventResult[];
-}
 
 export interface OwnProfileContent {
   displayName: string;
@@ -37,29 +24,17 @@ export interface OwnProfileContent {
   isBap: boolean;
   hasLegacyLink: boolean;
   historicalPersonName: string | null;
+  firstCompetitionYear: number | null;
+  showCompetitiveResults: boolean;
+  heroData: PlayerHeroData;
   profileBase?: string;
   avatarThumbUrl: string | null;
-  eventGroups?: ProfileEventGroup[];
+  eventGroups?: PlayerEventGroup[];
 }
 
 export interface ProfileEditContent extends OwnProfileContent {
   memberKey: string;
   error?: string;
-}
-
-export interface PublicProfileEventResult {
-  disciplineName: string | null;
-  placement: number;
-  scoreText: string | null;
-}
-
-export interface PublicProfileEventGroup {
-  eventHref: string;
-  eventTitle: string;
-  startDate: string;
-  city: string;
-  eventCountry: string;
-  results: PublicProfileEventResult[];
 }
 
 export interface PublicProfileContent {
@@ -71,7 +46,10 @@ export interface PublicProfileContent {
   hofMember: boolean;
   bapMember: boolean;
   historicalPersonName: string | null;
-  eventGroups: PublicProfileEventGroup[];
+  firstCompetitionYear: number | null;
+  showCompetitiveResults: boolean;
+  heroData: PlayerHeroData;
+  eventGroups: PlayerEventGroup[];
 }
 
 export interface ProfileEditInput {
@@ -82,10 +60,44 @@ export interface ProfileEditInput {
   country: string;
   phone: string;
   emailVisibility: string;
+  firstCompetitionYear: string;
+  showCompetitiveResults: string | string[];
 }
 
 function normalizeText(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
+}
+
+function resolveHistoricalName(row: MemberProfileRow): string | null {
+  return row.historical_person_name &&
+    row.historical_person_name.toLowerCase() !== row.display_name.toLowerCase()
+    ? row.historical_person_name
+    : null;
+}
+
+function buildMemberHeroData(row: MemberProfileRow, eventGroups: PlayerEventGroup[]): PlayerHeroData {
+  const placementCount = eventGroups.reduce((sum, g) => sum + g.results.length, 0);
+  return {
+    displayName:          row.display_name,
+    honorificNickname:    row.historical_bap_nickname ?? undefined,
+    isHof:                Boolean(row.is_hof),
+    isBap:                Boolean(row.is_bap),
+    hofInductionYear:     row.historical_hof_induction_year ?? undefined,
+    bapInductionYear:     row.historical_bap_induction_year ?? undefined,
+    historicalPersonName: resolveHistoricalName(row),
+    city:                 row.city,
+    region:               row.region,
+    country:              row.country,
+    summaryFacts:         buildPlayerSummaryFacts({
+      eventCount:     eventGroups.length,
+      placementCount,
+      isHof:          Boolean(row.is_hof),
+      isBap:          Boolean(row.is_bap),
+      hofYear:        row.historical_hof_induction_year,
+      bapYear:        row.historical_bap_induction_year,
+    }),
+    isHistoricalOnly: false,
+  };
 }
 
 function rowToContent(row: MemberProfileRow): OwnProfileContent {
@@ -102,15 +114,15 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
     isHof:           Boolean(row.is_hof),
     isBap:           Boolean(row.is_bap),
     hasLegacyLink:   row.legacy_member_id !== null,
-    historicalPersonName: row.historical_person_name &&
-      row.historical_person_name.toLowerCase() !== row.display_name.toLowerCase()
-      ? row.historical_person_name
-      : null,
+    firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
+    showCompetitiveResults: row.show_competitive_results !== 0,
+    historicalPersonName: resolveHistoricalName(row),
+    heroData:        { displayName: '', isHof: false, isBap: false, summaryFacts: [], isHistoricalOnly: false },
     avatarThumbUrl:  row.avatar_thumb_key ? storage.constructURL(row.avatar_thumb_key) : null,
   };
 }
 
-function fetchEventGroups(row: MemberProfileRow): ProfileEventGroup[] {
+function fetchEventGroups(row: MemberProfileRow): PlayerEventGroup[] {
   // Try direct member_id link first, then legacy_member_id chain.
   let resultRows = runSqliteRead('listResultsByMemberId', () =>
     account.listResultsByMemberId.all(row.id),
@@ -122,28 +134,7 @@ function fetchEventGroups(row: MemberProfileRow): ProfileEventGroup[] {
     ) as MemberResultRow[];
   }
 
-  const eventMap = new Map<string, ProfileEventGroup>();
-  for (const r of resultRows) {
-    let group = eventMap.get(r.event_id);
-    if (!group) {
-      const tagNorm = r.event_tag_normalized;
-      group = {
-        eventHref:    `/events/${tagNorm.replace(/^#/, '')}`,
-        eventTitle:   r.event_title,
-        startDate:    r.start_date,
-        city:         r.city,
-        eventCountry: r.event_country,
-        results:      [],
-      };
-      eventMap.set(r.event_id, group);
-    }
-    group.results.push({
-      disciplineName: r.discipline_name,
-      placement:      r.placement,
-      scoreText:      r.score_text,
-    });
-  }
-  return Array.from(eventMap.values());
+  return groupPlayerResults(resultRows, { selfMemberId: row.id });
 }
 
 function fetchMemberBySlug(slug: string): MemberProfileRow {
@@ -157,13 +148,15 @@ function fetchMemberBySlug(slug: string): MemberProfileRow {
 export const memberService = {
   getOwnProfile(slug: string): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
+    const eventGroups = fetchEventGroups(row);
+    const heroData = buildMemberHeroData(row, eventGroups);
     return {
       seo:  { title: 'My Profile' },
       page: { sectionKey: 'members', pageKey: 'member_profile', title: 'My Profile' },
       navigation: {
         contextLinks: [{ label: 'Edit Profile', href: `/members/${slug}/edit`, variant: 'outline' }],
       },
-      content: { ...rowToContent(row), profileBase: `/members/${slug}`, eventGroups: fetchEventGroups(row) },
+      content: { ...rowToContent(row), heroData, profileBase: `/members/${slug}`, eventGroups },
     };
   },
 
@@ -178,6 +171,8 @@ export const memberService = {
     if (!isHof && !isBap) return null;
 
     const storage = getPhotoStorage();
+    const eventGroups = row.show_competitive_results !== 0 ? fetchEventGroups(row) : [];
+    const heroData = buildMemberHeroData(row, eventGroups);
 
     return {
       seo:  { title: row.display_name },
@@ -191,11 +186,11 @@ export const memberService = {
         avatarThumbUrl: row.avatar_thumb_key ? storage.constructURL(row.avatar_thumb_key) : null,
         hofMember:      isHof,
         bapMember:      isBap,
-        historicalPersonName: row.historical_person_name &&
-          row.historical_person_name.toLowerCase() !== row.display_name.toLowerCase()
-          ? row.historical_person_name
-          : null,
-        eventGroups:    fetchEventGroups(row),
+        historicalPersonName: resolveHistoricalName(row),
+        firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
+        showCompetitiveResults: row.show_competitive_results !== 0,
+        heroData,
+        eventGroups,
       },
     };
   },
@@ -223,6 +218,14 @@ export const memberService = {
     const emailVis    = VALID_EMAIL_VISIBILITY.has(input.emailVisibility)
       ? input.emailVisibility
       : 'private';
+    const rawYear = normalizeText(input.firstCompetitionYear);
+    const firstCompYear = rawYear ? parseInt(rawYear, 10) : null;
+    const validYear = firstCompYear && firstCompYear >= 1972 && firstCompYear <= new Date().getFullYear()
+      ? firstCompYear : null;
+    const rawShow = Array.isArray(input.showCompetitiveResults)
+      ? input.showCompetitiveResults[input.showCompetitiveResults.length - 1]
+      : input.showCompetitiveResults;
+    const showResults = rawShow === '0' ? 0 : 1;
 
     if (!displayName) {
       throw new ValidationError('Display name is required.');
@@ -244,6 +247,8 @@ export const memberService = {
       country,
       phone,
       emailVis,
+      validYear,
+      showResults,
       now,
       row.id,
     );

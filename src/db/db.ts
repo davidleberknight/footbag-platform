@@ -629,9 +629,15 @@ export interface MemberProfileRow {
   is_admin: number;
   is_hof: number;
   is_bap: number;
+  first_competition_year: number | null;
+  show_competitive_results: number;
   legacy_member_id: string | null;
   avatar_thumb_key: string | null;
   historical_person_name: string | null;
+  historical_first_year: number | null;
+  historical_bap_nickname: string | null;
+  historical_bap_induction_year: number | null;
+  historical_hof_induction_year: number | null;
 }
 
 export interface MemberResultRow {
@@ -642,8 +648,14 @@ export interface MemberResultRow {
   event_country: string;
   event_tag_normalized: string;
   discipline_name: string | null;
+  discipline_category: string | null;
+  team_type: string | null;
   placement: number;
   score_text: string | null;
+  participant_display_name: string;
+  participant_person_id: string | null;
+  participant_member_slug: string | null;
+  participant_member_id: string | null;
 }
 
 export const account = {
@@ -661,9 +673,15 @@ export const account = {
       m.is_admin,
       m.is_hof,
       m.is_bap,
+      m.first_competition_year,
+      m.show_competitive_results,
       m.legacy_member_id,
       mi.s3_key_thumb AS avatar_thumb_key,
-      hp.person_name AS historical_person_name
+      hp.person_name AS historical_person_name,
+      hp.first_year AS historical_first_year,
+      hp.bap_nickname AS historical_bap_nickname,
+      hp.bap_induction_year AS historical_bap_induction_year,
+      hp.fbhof_induction_year AS historical_hof_induction_year
     FROM members_active AS m
     LEFT JOIN media_items AS mi
       ON mi.id = m.avatar_media_id
@@ -705,22 +723,41 @@ export const account = {
       e.country                   AS event_country,
       t.tag_normalized            AS event_tag_normalized,
       ed.name                     AS discipline_name,
+      ed.discipline_category,
+      ed.team_type,
       ere.placement,
-      ere.score_text
-    FROM event_result_entry_participants AS erp
+      ere.score_text,
+      erp_co.display_name         AS participant_display_name,
+      erp_co.historical_person_id AS participant_person_id,
+      COALESCE(m_co_linked.slug, m_co_legacy.slug) AS participant_member_slug,
+      erp_co.member_id            AS participant_member_id
+    FROM event_result_entry_participants AS erp_me
     JOIN event_result_entries AS ere
-      ON ere.id = erp.result_entry_id
+      ON ere.id = erp_me.result_entry_id
     JOIN events AS e
       ON e.id = ere.event_id
     JOIN tags AS t
       ON t.id = e.hashtag_tag_id
     LEFT JOIN event_disciplines AS ed
       ON ed.id = ere.discipline_id
-    WHERE erp.member_id = ?
+    JOIN event_result_entry_participants AS erp_co
+      ON erp_co.result_entry_id = ere.id
+    LEFT JOIN members AS m_co_linked
+      ON m_co_linked.id = erp_co.member_id
+    LEFT JOIN historical_persons AS hp_co
+      ON hp_co.person_id = erp_co.historical_person_id
+      AND hp_co.legacy_member_id IS NOT NULL
+    LEFT JOIN members AS m_co_legacy
+      ON m_co_legacy.legacy_member_id = hp_co.legacy_member_id
+      AND m_co_legacy.deleted_at IS NULL
+      AND m_co_legacy.login_email IS NOT NULL
+    WHERE erp_me.member_id = ?
     ORDER BY
       e.start_date DESC,
       COALESCE(ed.sort_order, 0) ASC,
-      ere.placement ASC
+      COALESCE(ed.name, '') COLLATE NOCASE ASC,
+      ere.placement ASC,
+      erp_co.participant_order ASC
   `),
 
   listResultsByLegacyMemberId: db.prepare(`
@@ -732,24 +769,43 @@ export const account = {
       e.country                   AS event_country,
       t.tag_normalized            AS event_tag_normalized,
       ed.name                     AS discipline_name,
+      ed.discipline_category,
+      ed.team_type,
       ere.placement,
-      ere.score_text
-    FROM event_result_entry_participants AS erp
+      ere.score_text,
+      erp_co.display_name         AS participant_display_name,
+      erp_co.historical_person_id AS participant_person_id,
+      COALESCE(m_co_linked.slug, m_co_legacy.slug) AS participant_member_slug,
+      erp_co.member_id            AS participant_member_id
+    FROM event_result_entry_participants AS erp_me
     JOIN historical_persons AS hp
-      ON hp.person_id = erp.historical_person_id
+      ON hp.person_id = erp_me.historical_person_id
     JOIN event_result_entries AS ere
-      ON ere.id = erp.result_entry_id
+      ON ere.id = erp_me.result_entry_id
     JOIN events AS e
       ON e.id = ere.event_id
     JOIN tags AS t
       ON t.id = e.hashtag_tag_id
     LEFT JOIN event_disciplines AS ed
       ON ed.id = ere.discipline_id
+    JOIN event_result_entry_participants AS erp_co
+      ON erp_co.result_entry_id = ere.id
+    LEFT JOIN members AS m_co_linked
+      ON m_co_linked.id = erp_co.member_id
+    LEFT JOIN historical_persons AS hp_co
+      ON hp_co.person_id = erp_co.historical_person_id
+      AND hp_co.legacy_member_id IS NOT NULL
+    LEFT JOIN members AS m_co_legacy
+      ON m_co_legacy.legacy_member_id = hp_co.legacy_member_id
+      AND m_co_legacy.deleted_at IS NULL
+      AND m_co_legacy.login_email IS NOT NULL
     WHERE hp.legacy_member_id = ?
     ORDER BY
       e.start_date DESC,
       COALESCE(ed.sort_order, 0) ASC,
-      ere.placement ASC
+      COALESCE(ed.name, '') COLLATE NOCASE ASC,
+      ere.placement ASC,
+      erp_co.participant_order ASC
   `),
 
   updateMemberProfile: db.prepare(`
@@ -763,6 +819,8 @@ export const account = {
       country                 = ?,
       phone                   = ?,
       email_visibility        = ?,
+      first_competition_year  = ?,
+      show_competitive_results = ?,
       updated_at              = ?,
       updated_by              = 'member',
       version                 = version + 1
@@ -922,11 +980,12 @@ export interface HistoricalPersonClaimRow {
   country: string | null;
   fbhof_member: number;
   bap_member: number;
+  first_year: number | null;
 }
 
 export const legacyClaim = {
   findHistoricalPersonByLegacyId: db.prepare(`
-    SELECT person_id, person_name, legacy_member_id, country, fbhof_member, bap_member
+    SELECT person_id, person_name, legacy_member_id, country, fbhof_member, bap_member, first_year
     FROM historical_persons
     WHERE legacy_member_id = ?
     LIMIT 1
@@ -1012,6 +1071,7 @@ export const legacyClaim = {
       ifpa_join_date   = COALESCE(ifpa_join_date, ?),
       is_hof           = MAX(is_hof, ?),
       is_bap           = MAX(is_bap, ?),
+      first_competition_year = COALESCE(first_competition_year, ?),
       updated_at       = ?,
       updated_by       = 'claim_merge',
       version          = version + 1

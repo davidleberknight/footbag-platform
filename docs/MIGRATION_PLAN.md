@@ -1,0 +1,892 @@
+# Footbag Website Modernization Project — Migration Plan
+
+**Last updated:** March 30, 2026
+
+**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
+
+**Document Purpose:**
+
+This document is the source of truth for all legacy data migration design: the three migration streams, the imported-row model, the self-serve claim flow, auto-link matching, merge rules, club bootstrap, name model, competition history, phasing, operational states, and validation gates. For functional requirements, see `USER_STORIES.md`. For privacy and visibility policy, see `GOVERNANCE.md`.
+
+**Status:** Design-final, pre-implementation (revised)
+
+---
+
+## Table of contents
+
+1. [Executive summary](#1-executive-summary)
+2. [What is already done](#2-what-is-already-done)
+3. [Three migration streams](#3-three-migration-streams)
+4. [Name model](#4-name-model)
+5. [Competition history fields](#5-competition-history-fields)
+6. [Identity and person links](#6-identity-and-person-links)
+7. [Auto-link: matching historical persons to members](#7-auto-link-matching-historical-persons-to-members)
+8. [Self-serve legacy claim flow](#8-self-serve-legacy-claim-flow)
+9. [Merge rules](#9-merge-rules)
+10. [Club bootstrap and onboarding](#10-club-bootstrap-and-onboarding)
+11. [Registration as the data-cleanup funnel](#11-registration-as-the-data-cleanup-funnel)
+12. [Required schema changes](#12-required-schema-changes)
+13. [Data pipeline inventory](#13-data-pipeline-inventory)
+14. [What we need from Steve Goldberg](#14-what-we-need-from-steve-goldberg)
+15. [What we need from James](#15-what-we-need-from-james)
+16. [Phasing](#16-phasing)
+17. [Operational states](#17-operational-states)
+18. [Validation gates](#18-validation-gates)
+19. [Data quality from persons.csv analysis](#19-data-quality-from-personcsv-analysis)
+20. [Audit requirements](#20-audit-requirements)
+21. [Admin flows](#21-admin-flows)
+22. [Security model summary](#22-security-model-summary)
+23. [Migration vs operational table classification](#23-migration-vs-operational-table-classification)
+24. [Open issues deferred to test load](#24-open-issues-deferred-to-test-load)
+25. [Rollback posture](#25-rollback-posture)
+26. [Design decisions affected](#26-design-decisions-affected)
+27. [User stories summary](#27-user-stories-summary)
+
+---
+
+## 1. Executive summary
+
+The new footbag.org platform must absorb three distinct bodies of legacy data before or at production go-live:
+
+1. **Historical content** (Stream A): competitive events, results, persons, honors (Hall of Fame, BAP). Already represented in the canonical historical pipeline and largely complete.
+2. **Legacy member accounts** (Stream C): login-bearing accounts from the current live legacy site. Require a one-time export from Steve Goldberg and a secure voluntary claim flow.
+3. **Mirror-derived club data** (Stream B): club identities, member affiliations, and leadership inferences drawn from the project's offline mirror of www.footbag.org. Independent of Steve's export.
+
+These three streams share the same identity key (`legacy_member_id`) and converge at the moment a modern member claims their legacy record. The migration is complete when all three streams are reconciled and the DNS switch has occurred.
+
+Additionally, the platform introduces a name model, competition history fields, and an auto-link system that connects historical persons to modern member accounts. These are described in detail in sections 4 through 7.
+
+---
+
+## 2. What is already done
+
+### 2.1 Historical pipeline (Stream A)
+
+The `legacy_data/event_results/canonical_input/` directory contains cleaned CSV files derived from the mirror and other data sources:
+
+- `persons.csv`: ~4,861 historical players with `member_id` (legacy member ID), `bap_member`, `fbhof_member`, and statistical fields
+- `events.csv`, `events_normalized.csv`: historical event records
+- `event_results.csv`, `event_result_participants.csv`: placement rows
+- `event_disciplines.csv`: discipline breakdown
+
+These are loaded into `historical_persons` and `event_result_entries`/`event_result_entry_participants` by the existing data pipeline (`legacy_data/event_results/scripts/`). `historical_persons.legacy_member_id` is the join key that will later connect a historical player to a claimed live account.
+
+**HoF and BAP data:** Both are already present in `persons.csv` (`fbhof_member`, `fbhof_induction_year`, `bap_member`, etc.). Any additional records not in the CSV can be added manually before or after go-live.
+
+### 2.2 Mirror
+
+The `legacy_data/mirror_footbag_org/` directory contains an offline crawl of www.footbag.org. Notably:
+
+- `www.footbag.org/clubs/`: 346 club subdirectories representing the full legacy club registry
+- `www.footbag.org/clublist/`: aggregate listings
+- Member profile pages (accessible via member ID paths)
+
+The mirror is the primary input for Stream B (club migration). It does not replace Steve's live export for member credentials or current membership state.
+
+### 2.3 Club seed data
+
+Club extraction from the mirror is complete:
+
+- `legacy_data/seed/clubs.csv`: extracted club identities
+- `legacy_data/seed/club_members.csv`: extracted club membership associations
+- `legacy_data/scripts/extract_clubs.py`, `load_clubs_seed.py`: extraction and loading scripts
+- 311 mirror clubs are available
+
+### 2.4 Schema
+
+All schema changes required for the migration have been applied to `database/schema.sql`. See section 12 for the full inventory with status.
+
+### 2.5 Phase 1 code (identity sprint)
+
+The following are implemented in the current codebase:
+
+- Name model: `real_name` and `display_name` fields, validation, slug lifecycle
+- Person links: `personHref()` helper for unified historical/member linking
+- Historical name display on member profiles when it differs from display_name
+- `first_competition_year` and `show_competitive_results` fields on members
+- `member_slug_redirects` table and redirect logic
+- Claim flow early-test shortcut (direct lookup + confirm + merge, no email verification)
+
+---
+
+## 3. Three migration streams
+
+### Stream A: Historical content
+
+**Status:** Substantially complete. Independent of go-live timing.
+
+**What it covers:** Historical events, results, persons, honors.
+
+**Key invariant:** A historical person may exist without a claimed modern account. Historical data is published regardless of whether the underlying person has ever claimed a legacy account. The `legacy_member_id` on a `historical_persons` row becomes the bridge to a modern account only after a successful claim.
+
+**No action required for cutover.** The pipeline is already producing the canonical inputs.
+
+---
+
+### Stream B: Mirror-derived club analysis and bootstrap
+
+**Status:** Club extraction complete. Bootstrap pipeline and decisions pending.
+
+**What it covers:** Club identity normalization, affiliation inference, leadership inference, and bootstrap decisions for go-live club population.
+
+**Why it exists:** The live system needs clubs on day one. Clubs cannot appear leaderless or absent. The mirror is the best available source of club identity and prior leadership information.
+
+#### Phase 0 outputs (required before Steve's export)
+
+The mirror-analysis pipeline must produce:
+
+- Normalized legacy club candidates (one row per distinct club identity)
+- Inferred person-to-club affiliation rows with confidence scores
+- Inferred role classifications: `member`, `contact`, `leader`, `co-leader`
+- Linkage from inferred persons to `historical_persons.person_id` where possible
+- Preserved `legacy_member_id` when known from the mirror
+- Bootstrap eligibility decision per club
+- Review report including:
+  - Clubs with no credible leader candidate
+  - Clubs with multiple competing leader candidates
+  - People with multiple apparent current-club indications
+  - Unmapped club aliases or duplicate club identities
+  - Recommended split: bootstrap now / stage for manual review / do not create at go-live
+
+#### Bootstrap rule
+
+A club may be bootstrapped into the live system only when all of the following hold:
+
+- Club identity is normalized with high confidence
+- At least one high-confidence provisional leader candidate is available
+- That candidate maps to a `legacy_member_id` that will exist in the imported member rows
+
+If these conditions are not met, the club is staged for admin review and not auto-created.
+
+#### Provisional leadership model
+
+Bootstrap-eligible clubs are created with:
+
+- A live `clubs` row
+- One or more `club_bootstrap_leaders` rows representing provisional legacy leaders
+
+`club_bootstrap_leaders` confers **no live club-management permissions**. It represents "the system believes this was the legacy leader, pending confirmation by a claimed modern account."
+
+When a member later claims their legacy account and that account is the matched provisional leader, the claim flow presents the leadership for confirmation. On confirmation (with no conflicting live-leader state), the system promotes the bootstrap row to a real `club_leaders` row and marks it `claimed`.
+
+The UI must show distinct states:
+
+- **Claimed leader**: live `club_leaders` row, full governance permissions
+- **Pending legacy leader claim**: `club_bootstrap_leaders` row only, no governance permissions
+
+A club with only provisional bootstrap leaders must not appear leaderless, but must not expose live governance.
+
+---
+
+### Stream C: Legacy member import from live site
+
+**Status:** Awaiting Steve's export. Schema changes already applied.
+
+**What it covers:** All legacy registered member accounts from the live legacy site.
+
+**Source:** One-time export from Steve Goldberg, used twice: first as a test load, then as the final production import after write freeze.
+
+#### Imported-row model
+
+Each imported legacy member is a **pre-credential placeholder row** inserted into `members`. It looks like a member row but cannot log in and is invisible to all current-member surfaces.
+
+Fields present on imported rows:
+
+| Field | Notes |
+|---|---|
+| `id` | New platform UUID |
+| `legacy_member_id` | The canonical identity key; unique where non-NULL |
+| `legacy_user_id` | Legacy username column; migration metadata only |
+| `legacy_email` | Migration metadata only; not a login credential |
+| `real_name` | Best available name from export; required (use display_name as fallback). See section 4 for name model notes on imports |
+| `display_name` | From export |
+| `display_name_normalized` | Derived |
+| `city` | From export; nullable |
+| `region` | From export; nullable |
+| `country` | From export; nullable |
+| `bio` | From export if available |
+| `birth_date` | From export if available |
+| `street_address` | From export if available |
+| `postal_code` | From export if available |
+| `ifpa_join_date` | From export if available |
+| `first_competition_year` | Pre-populated from `historical_persons.first_year` via COALESCE at import if a match exists |
+| `is_hof` | OR-merged at claim; set from historical_persons if matched |
+| `is_bap` | OR-merged at claim; set from historical_persons if matched |
+| `legacy_banned` | Conditional on test-load evidence (column not yet in schema) |
+| `searchable` | **Always 0** regardless of export |
+| `email_verified_at` | **Always NULL** |
+| `login_email` | **Always NULL** |
+| `login_email_normalized` | **Always NULL** |
+| `password_hash` | **Always NULL** |
+| `password_changed_at` | **Always NULL** |
+
+Fields explicitly absent:
+
+- Login credentials of any kind
+- Any live authentication state
+- Any mailing list subscriptions
+- Any club-governance permissions
+
+Imported rows are **not** current members. They do not appear in search, rosters, member broadcasts, or any governance surface. The `email_verified_at IS NULL` condition in `members_searchable` is the primary enforcement; `searchable = 0` is defense-in-depth.
+
+**Name model note for imports:** The surname constraint (display name must share surname with real_name) applies only to new registrations and profile edits. Imported placeholders are exempt because legacy data may contain names that do not conform to the new model. Use "imported placeholder" terminology consistently when referring to these rows.
+
+#### Tier handling at import
+
+For each imported row, the migration writes one ledger row in `member_tier_grants` with `reason_code = 'migration.legacy_import'`.
+
+Tier mapping rules:
+
+| Legacy state | New effective tier |
+|---|---|
+| No valid legacy tier | `tier0` |
+| Tier 1 annual, active | `tier1_annual` with expiry |
+| Tier 1 annual, expired | `tier0` |
+| Tier 1 lifetime | `tier1_lifetime` |
+| Tier 2 annual, active | `tier2_annual` with expiry + `tier1_lifetime` fallback |
+| Tier 2 annual, expired (ever held Tier 2 paid status) | `tier1_lifetime` |
+| Tier 2 lifetime | `tier2_lifetime` |
+| HoF member | minimum `tier2_lifetime` |
+| BAP member | minimum `tier2_lifetime` |
+
+The Tier 2 annual expired mapping requires the export to include enough membership history to determine "ever held Tier 2 paid status." This is a test-load validation gate.
+
+---
+
+## 4. Name model
+
+Two registration fields:
+
+- **Full legal name** (`real_name`): required. Validation: two words minimum, no digits, no capitalization policing (caps normalized on save).
+- **Display name** (`display_name`): optional, defaults to `real_name` if not provided.
+
+**Surname constraint:** Display name must share a surname with real_name. Surname extraction uses suffix stripping (Jr, Sr, II, III, IV). This constraint applies to new registrations and profile edits only. Imported placeholders are exempt.
+
+**Semantic asymmetry:** For new registrations, `real_name` is the legal name supplied by the member. For imported placeholders, `real_name` is the best-available name from the legacy export, which may be a display name, a username, or something else entirely. The field name is the same but the quality and provenance differ.
+
+**Slug lifecycle:** Slug regenerates when `display_name` changes. Old slugs are recorded in `member_slug_redirects` and produce 301 redirects to the current slug.
+
+---
+
+## 5. Competition history fields
+
+Two fields on `members`:
+
+- `first_competition_year` (INTEGER, nullable): editable on profile edit. Pre-populated from `historical_persons.first_year` during claim (COALESCE; member value wins if already set). Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing).
+- `show_competitive_results` (INTEGER, default 1): toggle controlling whether results show on public profile. Own profile always shows results to the owner regardless of toggle state.
+
+**Caveat text on results section:** "Published event results only. Historical records may be incomplete."
+
+**Onboarding prompt:** During registration/onboarding, ask the member to confirm their first competition year. (Deferred to onboarding flow implementation.)
+
+---
+
+## 6. Identity and person links
+
+- A single `personHref()` helper generates all person links. If the person has a linked member account, the link points to `/members/:slug`. Otherwise, it points to `/history/:personId`. This is implemented.
+- When a member has a linked historical person whose name differs from the member's display name, the historical name is shown on the member profile. This is implemented.
+- **Account deletion reversion:** When a member deletes their account, all person links that were pointing to `/members/:slug` must revert to `/history/:personId`. This is reflected in the M_Delete_Account user story.
+
+---
+
+## 7. Auto-link: matching historical persons to members
+
+Auto-link connects `historical_persons` records to `members` rows using email as the identity anchor.
+
+### Tier system
+
+| Tier | Condition | Action |
+|---|---|---|
+| Tier 1 | Email match + exact name match | Auto-link, no review |
+| Tier 2 | Email match + known variant name match | Auto-link, audit-logged |
+| Tier 3 | Email match + name mismatch | Admin review queue |
+
+**Email match required:** Email is the mandatory identity anchor for all tiers. No auto-link occurs without an email match.
+
+### Known name variants
+
+Known name variants are stored in a **DB table** (not CSV), seeded from mined data (~290 pairs). Variant categories:
+
+- Accent variations (~26 pairs)
+- Prefix variations (~88 pairs)
+- Typo corrections (~139 pairs)
+- Diminutives (~40 pairs)
+
+The Jody/Jolene Welch class (same person, completely different first name) is only catchable by admin review (Tier 3).
+
+### Batch auto-link at cutover
+
+At cutover, a batch auto-link pass runs across all imported placeholder rows. No confirmation prompt is needed for batch; the email match is the proof step.
+
+### Registration-time auto-link
+
+Deferred. Requires post-login prompt infrastructure that does not yet exist. When implemented, a newly registered member whose email matches a historical person's legacy email would be prompted to confirm the link.
+
+---
+
+## 8. Self-serve legacy claim flow
+
+The claim flow is account-bound and mailbox-verified.
+
+### Prerequisites
+
+- Member must have a live, authenticated modern account
+- The imported placeholder row must exist and be eligible for claim
+- The imported row must have a usable `legacy_email`
+
+### Flow
+
+1. Member logs into their modern account.
+2. Member visits **Link Legacy Account** in profile settings.
+3. Member enters one identifier: legacy email address, legacy username, or legacy member ID.
+4. System classifies the identifier type and looks up the matching imported row.
+5. If exactly one eligible row is found, the system creates an `account_claim` token:
+   - `member_id` = requesting active modern account
+   - `target_member_id` = imported legacy row (with `ON DELETE CASCADE`)
+   - Token is single-use, time-limited (default 24 hours, configurable)
+6. System emails the one-time claim link to `legacy_email`.
+7. Member opens the link while logged into the same modern account.
+8. System validates:
+   - Token exists, is unconsumed, is unexpired
+   - `token_type = 'account_claim'`
+   - Authenticated session matches token `member_id`
+   - Target imported row still exists and is still claimable
+9. **Name reconciliation step:**
+   - Last-name mismatch between active account and imported row: **blocks** (member must update their name or contact admin)
+   - First-name mismatch: **warns** but allows proceed
+10. System presents final confirmation naming the active account that will receive the legacy identity.
+11. If club-affiliation suggestions or provisional bootstrap-leader suggestions exist for the claimed identity, member is prompted to review them (see section 10).
+12. Member confirms.
+13. Merge transaction runs atomically (see section 9).
+14. Imported row is deleted. All `account_claim` tokens pointing at it cascade-delete.
+
+### Current implementation status
+
+The current code is an early-test shortcut: direct lookup + confirm + merge. No email verification, no token round-trip, no rate limiting, no name reconciliation guard. The full production version will require email verification (member must prove control of the placeholder's `legacy_email` before the merge executes). Placeholders without a usable `legacy_email` will require admin recovery.
+
+### Non-revealing messaging
+
+User-visible messages must never reveal whether the submitted identifier:
+
+- Matched no row
+- Matched multiple rows
+- Matched a blocked row
+- Matched a row without self-serve eligibility
+
+Recommended message: "If an eligible legacy record was found, a claim email will be sent."
+
+### Rate limiting
+
+Claim initiation and resend must be rate-limited per requesting account, per target imported row, and per source IP/session. This prevents abuse of legacy mailboxes and limits side-channel enumeration.
+
+### Self-serve ineligibility
+
+A row is ineligible for self-serve claim when:
+
+- No usable `legacy_email` exists
+- Duplicate imported rows matched the identifier (test-load uniqueness failure)
+- `legacy_banned = 1` (if the test load validates this field as trustworthy)
+- An admin has flagged the row as review-only
+
+Ineligible cases are directed to manual admin recovery.
+
+---
+
+## 9. Merge rules
+
+The active modern account always survives. The imported row is deleted after merge.
+
+| Field / category | Merge rule |
+|---|---|
+| `legacy_member_id` | Always transferred to active account |
+| `legacy_user_id` | Retained on active account as migration metadata |
+| `legacy_email` | May be retained on active account as legacy metadata; never a login credential |
+| Login and auth fields | Active account always wins |
+| `display_name`, `real_name` | Active account always wins |
+| `phone`, `whatsapp` | Active account always wins |
+| `bio` | Import fills only if active `bio` is empty string |
+| `birth_date`, `street_address`, `postal_code` | Import fills only if active value is NULL |
+| `city`, `region`, `country` | Import fills only if active value is NULL or empty |
+| `ifpa_join_date` | Copy from import if present and active value absent |
+| `first_competition_year` | COALESCE: member value wins; import value fills if member is NULL |
+| `is_hof`, `is_bap` | OR semantics |
+| `announce_opt_in` | Carry forward only if the validated export contains this field and its semantics are confirmed; imported placeholder rows are never treated as active mail recipients before claim |
+| Legacy admin metadata (`legacy_is_admin`) | Retained as audit/history context only; never auto-promotes live admin role |
+| Tier | Write new `member_tier_grants` row with `reason_code = 'migration.legacy_claim_reconcile'` only if imported effective tier exceeds current effective tier |
+| Confirmed club affiliations | Write/update `member_club_affiliations` |
+| Confirmed bootstrap leadership | May promote to `club_leaders` if safe; otherwise remains provisional |
+| Discarded conflicting imported values | Preserved in audit metadata |
+
+After merge, `legacy_email` may survive on the active account as legacy metadata but is never a login identity.
+
+---
+
+## 10. Club bootstrap and onboarding
+
+### Expanding historical_persons for club members
+
+The historical_persons table currently contains ~4,861 persons drawn from event results. Approximately 1,600 additional people in the mirror appear only as club members (never competed in events). These must be extracted and added to historical_persons to support club affiliation linking at claim time.
+
+### Club visibility at onboarding
+
+All 311 mirror clubs are visible during registration onboarding. Only high-confidence clubs are pre-populated into the live `clubs` table at go-live.
+
+### Club membership and contact cleanup at claim
+
+At claim time, the member is shown mirror-derived club affiliation suggestions and may:
+
+- Confirm current affiliation (writes to `member_club_affiliations`)
+- Mark former-only affiliation
+- Reject bad suggestions
+- Confirm or reject contact-email assignment
+- Request admin review for unresolved cases
+
+At most one current club affiliation may exist per member. When confirming a current club, any existing current affiliation for that member is converted to former in the same transaction.
+
+### Dormant club leadership
+
+When a member picks a dormant club during onboarding:
+
+- If the member is Tier 1 or higher: offer club leadership
+- Otherwise: record the member's intent and defer the leadership offer
+
+---
+
+## 11. Registration as the data-cleanup funnel
+
+Registration is the primary mechanism for cleaning up legacy identity data. Every registrant, whether new or returning from the legacy site, goes through:
+
+1. **Legacy-link check:** Does the registrant's email match an imported placeholder? If so, prompt to link (auto-link for Tier 1/2; claim flow for others).
+2. **Club questions:** Mirror-derived club affiliation suggestions are presented for confirmation, rejection, or "not mine" responses.
+
+This replaces the narrower `M_Review_Legacy_Club_Data_During_Claim` user story with a broader onboarding flow that applies to both legacy and new members. New members without any legacy match still see the club questions (relevant clubs in their region, or "find a club").
+
+---
+
+## 12. Required schema changes
+
+All changes below have been applied to `database/schema.sql` unless marked otherwise.
+
+### 12.1 Credential-state invariant: two-way to three-way (DONE)
+
+Three-way CHECK on `members`: live account, pre-credential imported placeholder, or purged row.
+
+### 12.2 Location field nullability (DONE)
+
+`city` and `country` are nullable. `region` was already nullable.
+
+### 12.3 Remove tier cache columns from `members` (DONE)
+
+`tier_status`, `tier_expires_at`, `fallback_tier_status` removed from `members`. All current-tier reads derive from `member_tier_grants` via `member_tier_current`.
+
+### 12.4 New migration fields on `members` (DONE)
+
+Added: `legacy_user_id`, `legacy_email`, `ifpa_join_date`, `birth_date`, `street_address`, `postal_code`, `legacy_is_admin`.
+
+### 12.5 Conditional: `legacy_banned` (NOT YET IN SCHEMA)
+
+Conditional on test-load evidence. If Steve's export contains a trustworthy banned/inactive field:
+
+```sql
+legacy_banned INTEGER NOT NULL DEFAULT 0 CHECK (legacy_banned IN (0,1)),
+```
+
+### 12.6 `legacy_member_id` uniqueness (DONE)
+
+Partial unique index `ux_members_legacy_id` on `members(legacy_member_id) WHERE legacy_member_id IS NOT NULL`.
+
+### 12.7 Provisional uniqueness for `legacy_email` and `legacy_user_id` (DONE)
+
+Partial unique indexes. If the test load disproves either uniqueness assumption, replace with non-unique lookup plus ambiguity handling.
+
+### 12.8 `members_searchable` view (DONE)
+
+Includes `email_verified_at IS NOT NULL` filter.
+
+### 12.9 `account_tokens`: `account_claim` type and target binding (DONE)
+
+`token_type` CHECK includes `'account_claim'`. `target_member_id` with `ON DELETE CASCADE`.
+
+### 12.10 `member_club_affiliations` (DONE)
+
+Permanent operational table with one-current-club invariant.
+
+### 12.11 `legacy_club_candidates` (DONE)
+
+Migration-only staging table.
+
+### 12.12 `legacy_person_club_affiliations` (DONE)
+
+Migration-only staging table with dual partial unique indexes.
+
+### 12.13 `club_bootstrap_leaders` (DONE)
+
+Operational table with `imported_member_id ON DELETE SET NULL`.
+
+### 12.14 `first_competition_year` and `show_competitive_results` (DONE)
+
+On `members` table.
+
+### 12.15 `member_slug_redirects` (DONE)
+
+Slug redirect table for display name changes.
+
+### 12.16 Known name variants table (NOT YET IN SCHEMA)
+
+New table for storing known name variant pairs, seeded from mined data (~290 pairs). Used by the auto-link system (section 7). Design TBD; expected columns: `variant_a`, `variant_b`, `variant_type` (accent, prefix, typo, diminutive), `confidence`.
+
+---
+
+## 13. Data pipeline inventory
+
+### Curated CSVs (human-curated, source of truth)
+
+Location: `legacy_data/event_results/canonical_input/`
+
+- `persons.csv`: historical persons with IFPA IDs, honors, stats
+- `events.csv`, `events_normalized.csv`: historical events
+- `event_results.csv`: result entries
+- `event_result_participants.csv`: participant-to-result mappings
+- `event_disciplines.csv`: discipline breakdowns
+
+`persons.csv` is in git for now. Will be removed from git later.
+
+### Extracted CSVs (from mirror, treated as source of truth)
+
+Location: `legacy_data/seed/`
+
+- `clubs.csv`: club identities extracted from mirror
+- `club_members.csv`: club membership associations from mirror
+
+### Generated CSVs (pipeline output, regenerable)
+
+Location: `legacy_data/event_results/seed/mvfp_full/`
+
+- `seed_events.csv`, `seed_event_disciplines.csv`, `seed_event_results.csv`, `seed_event_result_participants.csv`, `seed_persons.csv`
+
+### Pipeline scripts
+
+**Event results pipeline** (`legacy_data/event_results/scripts/`):
+
+- `06_build_mvfp_seed.py`: build MVFP subset seed
+- `07_build_mvfp_seed_full.py`: build full seed from canonical inputs
+- `08_load_mvfp_seed_full_to_sqlite.py`: load full seed into SQLite
+- `09_patch_missing_person_ids.py`: patch missing person IDs in result participants
+- `verify_mvfp_seed.py`: seed verification
+
+**Club and member scripts** (`legacy_data/scripts/`):
+
+- `extract_clubs.py`, `load_clubs_seed.py`: club extraction and loading
+- `extract_club_members.py`, `load_club_members_seed.py`: club member extraction and loading
+- `seed_members.py`: dev seed account creation
+- `generate_world_map_svg.py`: SVG map generation
+
+**Note:** James has unchecked-in extraction code for the mirror member pipeline. Do not touch pipeline scripts this sprint.
+
+---
+
+## 14. What we need from Steve Goldberg
+
+Steve is the current webmaster of the live legacy site. His contribution is specifically and only:
+
+1. **Test export**: a full export of live legacy member records, in agreed format, for validation purposes only (no production changes)
+2. **Field semantics confirmation**: for each export column, especially:
+   - Legacy member ID (field name, format, uniqueness guarantee)
+   - Legacy username (field name, uniqueness guarantee)
+   - Legacy email (field name, uniqueness guarantee)
+   - Tier / membership fields (current tier, expiry dates, tier history if available)
+   - Banned, inactive, is_admin flags (presence, reliability, semantics)
+3. **Final production export**: after write freeze, same format as test export
+4. **Write-freeze coordination**: legacy site goes into maintenance/read-only mode before the final export
+5. **Legacy database retention**: keep the legacy database available for at least 30 days after cutover for manual recovery reference
+6. **DNS cutover coordination**: confirm timing and TTL reduction window
+
+We do **not** need Steve to produce club data. That comes from the mirror pipeline.
+
+---
+
+## 15. What we need from James
+
+James's contributions are blocked on specific data work:
+
+1. **Mirror member extraction** into `historical_persons`: the ~1,600 club-only members from the mirror who never appeared in event results
+2. **Club bootstrap pipeline**: soup-to-nuts extraction, normalization, confidence scoring, and bootstrap eligibility decisions
+3. **Data review confirmation**: confirming legacy data is complete and member-list presentation is reviewed (unblocks members ungating)
+4. **World records CSV**: for the records page (separate from migration, but blocked on James)
+
+---
+
+## 16. Phasing
+
+### Phase 1: No external data (THIS SPRINT)
+
+Name model, slug lifecycle, person links, historical name display, `first_competition_year`, `show_competitive_results`.
+
+**Status:** Code done. Schema applied.
+
+### Phase 2: Needs James
+
+- Mirror member extraction into `historical_persons` (~1,600 club-only members)
+- Club bootstrap pipeline (soup-to-nuts)
+- Known name variants table seeded from mined data
+
+### Phase 3: Needs Steve
+
+- Legacy member import script
+- Email-verified claim flow (production rewrite of current early-test shortcut)
+- Auto-link matching (batch at cutover)
+- Name reconciliation in claim flow
+
+### Phase 4: Go-live
+
+- DNS switch
+- Post-cutover notification batch (emails to all imported placeholders with reachable `legacy_email`)
+- Admin review queue for Tier 3 auto-link cases
+- Registration-time auto-link (deferred; needs post-login prompt infrastructure)
+
+---
+
+## 17. Operational states
+
+### State 0: Current state
+
+- Historical pipeline complete (or in progress)
+- Legacy site live, accepting writes
+- New platform deployed on staging
+- Phase 1 code complete
+
+### State 1: Phase 0 complete (mirror analysis)
+
+- `legacy_club_candidates` populated
+- `legacy_person_club_affiliations` populated
+- Bootstrap eligibility decisions made
+- Review report reviewed; admin decisions logged for ambiguous cases
+- Known name variants table seeded
+
+### State 2: Phase 1 complete (test load)
+
+- Steve provides test export
+- Imported member rows inserted into staging `members`
+- Tier grants written for all imported rows
+- `legacy_email` and `legacy_user_id` uniqueness verified
+- Banned field evaluated
+- Club bootstrap candidates resolved against imported placeholder rows
+- `club_bootstrap_leaders` rows created in staging
+- Batch auto-link pass run on staging
+- Full claim flow rehearsed end-to-end on staging
+- All validation gates (section 18) evaluated
+
+### State 3: Phase 2 complete (go-live preparation)
+
+- DNS TTL reduced (24 to 48 hours before go-live)
+- All migration scripts finalized
+- Admin review of unresolved high-impact clubs complete
+- Final cutover checklist confirmed
+- Steve briefed on final export and freeze timing
+
+### State 4: Phase 3 (production cutover)
+
+1. Steve places legacy site in write freeze / maintenance mode
+2. Steve produces final production export
+3. New platform imports legacy member rows
+4. New platform writes tier grants
+5. New platform creates bootstrapped `clubs` rows for approved candidates
+6. New platform creates `club_bootstrap_leaders` rows
+7. New platform runs batch auto-link (Tier 1 and Tier 2)
+8. New platform runs validation checks
+9. DNS switch to new platform
+10. Admin verifies the new platform is operational (smoke checks, critical flows confirmed)
+11. Admin triggers post-cutover notification batch
+
+### State 5: Post-cutover (30-day window)
+
+- New platform live
+- Legacy database retained by Steve for reference and targeted recovery
+- Members self-serve claim their legacy accounts over time
+- Admins handle manual recovery cases and Tier 3 review queue
+- Bootstrap-leader confirmations accumulate as members claim
+
+### State 6: Migration complete
+
+- All high-priority legacy accounts claimed or manually recovered
+- All bootstrap clubs resolved or admin-reviewed
+- Auto-link Tier 3 review queue cleared
+- Legacy database retired
+
+---
+
+## 18. Validation gates
+
+The following must be confirmed at the test load before go-live. These are not open design questions; they are data-quality checkpoints.
+
+| Gate | Description | Failure handling |
+|---|---|---|
+| G1 | `legacy_email` is unique where non-NULL | Replace provisional unique index with non-unique lookup + ambiguity handling |
+| G2 | `legacy_user_id` is unique where non-NULL | Same as G1 |
+| G3 | Live export contains a trustworthy `banned` field | If absent or unreliable, omit `legacy_banned` column; restrict claim for unverifiable rows via admin review instead |
+| G4 | Shape and null quality of profile/contact fields | Adjust import logic and field mapping |
+| G5 | Legacy member ID quality (format, completeness, uniqueness) | Resolve before final export |
+| G6 | Tier-state mapping inputs (current tier, expiry, history) | Confirm Tier 2 annual expiry handling; may require simplified fallback |
+| G7 | Mirror-derived club normalization quality | Increase manual review threshold |
+| G8 | Sufficient high-confidence club-leader bootstrap candidates | Adjust bootstrap threshold or expand manual review scope |
+| G9 | Bootstrapped clubs produce valid, non-broken club pages | Fix UI before go-live |
+
+---
+
+## 19. Data quality from persons.csv analysis
+
+Current analysis of `legacy_data/event_results/canonical_input/persons.csv`:
+
+- 4,861 total persons
+- 1,743 with IFPA IDs (legacy member IDs)
+- 290 mined name variant pairs:
+  - ~26 accent variations
+  - ~88 prefix variations
+  - ~139 typo corrections
+  - ~40 diminutives
+- 103 garbled parse-artifact entries needing cleanup
+- Jody/Jolene Welch class: same person, completely different first name; only catchable by admin review (Tier 3)
+
+---
+
+## 20. Audit requirements
+
+No migration dashboard is required. The existing append-only audit history records all migration events.
+
+Required event types:
+
+- `legacy_claim_requested`
+- `legacy_claim_email_sent`
+- `legacy_claim_email_resent`
+- `legacy_claim_completed`
+- `legacy_claim_blocked`
+- `legacy_claim_manual_recovery`
+- `legacy_club_bootstrap_created`
+- `legacy_club_bootstrap_promoted`
+- `legacy_club_bootstrap_superseded`
+- `auto_link_tier1_applied`
+- `auto_link_tier2_applied`
+- `auto_link_tier3_queued`
+
+Required metadata per event where applicable:
+
+- Active member ID
+- Imported member ID
+- `legacy_member_id`
+- Masked `legacy_email`
+- Submitted identifier type
+- Merge field summary
+- Tier-change summary
+- Club IDs involved
+- Provisional bootstrap outcome
+- Admin reason / verification note
+- Auto-link tier and match details (for auto-link events)
+
+---
+
+## 21. Admin flows
+
+### Manual claim recovery (A_Manual_Legacy_Claim_Recovery)
+
+When self-serve claim is unavailable, admins can:
+
+- Locate imported rows by legacy identifier
+- See why self-serve is unavailable
+- Correct `legacy_email` to a reachable mailbox (enabling re-attempt of self-serve)
+- Perform a controlled manual merge with a required reason and verification note
+
+Manual recovery does not require second-admin approval. It does require full audit metadata.
+
+Manual recovery never auto-promotes legacy `is_admin` metadata to a live admin role.
+
+### Bootstrap club leadership resolution (A_Resolve_Bootstrap_Club_Leadership)
+
+Admins can:
+
+- Review bootstrapped clubs with unresolved or conflicting provisional leaders
+- Re-map a provisional leader to a correctly-claimed member
+- Supersede provisional assignments and appoint a normal live leader via the standard `club_leaders` workflow
+- All actions are audit-logged
+
+### Auto-link Tier 3 review (A_Review_Auto_Link_Matches)
+
+Admins can:
+
+- Review queued Tier 3 auto-link cases (email match, name mismatch)
+- Confirm or reject the proposed link
+- All actions are audit-logged
+
+---
+
+## 22. Security model summary
+
+- Legacy passwords are never imported, stored, or accepted
+- `legacy_email` is migration metadata, not a login credential
+- Mailbox control is the proof step for self-serve claim regardless of which identifier type was submitted
+- Imported rows cannot log in, cannot be searched, cannot receive member broadcasts
+- Claim tokens are account-bound: consuming a token while authenticated as a different account fails
+- Rate limiting applies to claim initiation and resend
+- The non-revealing messaging rule applies everywhere in the claim flow
+- Bootstrap leadership confers zero live permissions until confirmed on a real modern account
+- Auto-link requires email match as identity anchor; no auto-link without email match
+- Name validation is loosened for imports (two words + no digits only); surname constraint scoped to new registrations and edits
+
+---
+
+## 23. Migration vs operational table classification
+
+| Table | Category | May be dropped |
+|---|---|---|
+| `legacy_club_candidates` | Migration-only staging | Yes, after all bootstrap decisions are finalized |
+| `legacy_person_club_affiliations` | Migration-only staging | Yes, after all affiliation suggestions are resolved |
+| `club_bootstrap_leaders` | Operational, migration-origin | Yes, after all provisional rows reach a terminal state (`claimed`, `superseded`, or `rejected`) |
+| `member_club_affiliations` | Permanent operational | Never |
+| Known name variants (TBD) | Permanent operational | Never (useful beyond migration for ongoing name matching) |
+
+---
+
+## 24. Open issues deferred to test load
+
+1. **`announce_opt_in`**: Not in the current schema. If Steve's export contains a meaningful communication-preference field, add the column to `members` and carry it forward at claim. Gated entirely on the test load.
+2. **`legacy_banned`**: Column added only if Steve's export contains a trustworthy banned/inactive field. See section 12.5.
+
+**Standing consistency note:** The product-facing term for `legacy_user_id` is "legacy username." This must be applied consistently in all UI copy, error messages, and documentation regardless of the column name.
+
+---
+
+## 25. Rollback posture
+
+- Before DNS switch: abort, fix issues, retry
+- After DNS switch: manual DNS reversion to the legacy site is the rollback lever
+- Steve retains the legacy database for 30 days for reference and targeted manual recovery
+- No automated rollback is provided after the DNS switch
+
+---
+
+## 26. Design decisions affected
+
+The following design decisions require updating or creation before or after go-live. Do not update without explicit human approval per project rules.
+
+| Decision | Change required |
+|---|---|
+| DD 3.8 (account security tokens) | Add `account_claim` token type with dual binding and `ON DELETE CASCADE` |
+| DD 3.9 (security / privacy) | Add: legacy passwords never imported; `legacy_email` is migration metadata only; mailbox control is proof step |
+| DD 6.5 (legacy data migration) | Full replacement per this document |
+| DD (new) name model | Two-field name model, surname constraint, slug lifecycle, import exemption |
+| DD (new) auto-link | Tiered auto-link system with email anchor, known variants table, batch vs registration-time split |
+| DD (new) competition history | `first_competition_year` and `show_competitive_results` fields, opt-out semantics, caveat text |
+
+---
+
+## 27. User stories summary
+
+| ID | Actor | Summary |
+|---|---|---|
+| M_Claim_Legacy_Account | Logged-in member | Link a legacy footbag.org member record to current account via identifier lookup and mailbox verification |
+| M_Review_Legacy_Club_Data_During_Claim | Member in claim flow | Review mirror-derived club suggestions and provisional leadership before merge confirmation (subsumed by broader onboarding flow) |
+| M_Edit_Profile | Member | Edit profile including first_competition_year and show_competitive_results |
+| M_View_Profile | Member / public | View profile with competition history, historical name, caveat text |
+| M_Delete_Account | Member | Delete account; person links revert from /members/ to /history/ |
+| A_Manual_Legacy_Claim_Recovery | Admin | Help a member complete legacy claim when self-serve is unavailable |
+| A_Resolve_Bootstrap_Club_Leadership | Admin | Resolve provisional club leadership that could not be automatically finalized |
+| A_Review_Auto_Link_Matches | Admin | Review and resolve Tier 3 auto-link cases (email match, name mismatch) |

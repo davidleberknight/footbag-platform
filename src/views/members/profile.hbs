@@ -1,12 +1,4 @@
-<div class="hero hero-sm">
-  <div>
-    <h1>{{content.displayName}}</h1>
-    {{#if content.isHof}}<p class="hero-subtitle">Member of the Footbag Hall of Fame{{#if content.isBap}} and the Big Add Posse{{/if}}</p>
-    {{else if content.isBap}}<p class="hero-subtitle">Member of the Footbag Big Add Posse</p>
-    {{else if content.historicalPersonName}}<p class="hero-subtitle">Historical record: {{content.historicalPersonName}}</p>{{/if}}
-    {{#if content.city}}<p>{{content.city}}{{#if content.country}}, {{content.country}}{{/if}}</p>{{/if}}
-  </div>
-</div>
+{{> player-hero heroData=content.heroData}}
 
 <div class="wrapper">
   <section>
@@ -20,12 +12,6 @@
           <div class="profile-avatar-placeholder" aria-hidden="true">&#128100;</div>
           {{/if}}
           <div class="profile-name">{{content.displayName}}</div>
-          {{#if content.isHof}}
-            <div class="profile-honor-badge">Hall of Fame</div>
-          {{/if}}
-          {{#if content.isBap}}
-            <div class="profile-honor-badge">BAP Member</div>
-          {{/if}}
           {{#if content.city}}
             <div class="profile-location text-muted">{{content.city}}{{#if content.region}}, {{content.region}}{{/if}}{{#if content.country}} · {{content.country}}{{/if}}</div>
           {{/if}}
@@ -60,22 +46,9 @@
           </div>
         </div>
 
-        {{#if content.eventGroups.length}}
+        {{#if content.showCompetitiveResults}}
         <div class="profile-section">
-          <h2 class="profile-section-heading">Competitive Results</h2>
-          {{#each content.eventGroups}}
-          <div class="card" style="margin-bottom:16px;">
-            <p style="margin:0;">
-              <a href="{{eventHref}}" style="font-weight:500;">{{eventTitle}}</a>
-            </p>
-            <p class="text-muted" style="margin:4px 0 0; font-size:0.85rem;">{{startDate}} · {{city}}, {{eventCountry}}</p>
-            {{#each results}}
-            <p style="margin:4px 0 0; font-size:0.9rem;">
-              {{#if disciplineName}}{{disciplineName}} · {{/if}}Place: {{placement}}{{#if scoreText}} · {{scoreText}}{{/if}}
-            </p>
-            {{/each}}
-          </div>
-          {{/each}}
+          {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear}}
         </div>
         {{/if}}
 

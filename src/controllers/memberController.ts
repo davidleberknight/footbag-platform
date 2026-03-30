@@ -138,6 +138,8 @@ export const memberController = {
         country:         req.body.country        ?? '',
         phone:           req.body.phone          ?? '',
         emailVisibility: req.body.emailVisibility ?? 'private',
+        firstCompetitionYear: req.body.firstCompetitionYear ?? '',
+        showCompetitiveResults: req.body.showCompetitiveResults ?? '1',
       };
       try {
         const { newSlug } = memberService.updateOwnProfile(memberKey, input);

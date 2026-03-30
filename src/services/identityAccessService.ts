@@ -313,6 +313,7 @@ function completeClaim(requestingMemberId: string, source: string, targetId: str
         null,                 // ifpa_join_date
         hp.fbhof_member,      // is_hof (MAX)
         hp.bap_member,        // is_bap (MAX)
+        hp.first_year,        // first_competition_year (COALESCE)
         now,                  // updated_at
         requestingMemberId,   // WHERE id = ?
       );
@@ -338,6 +339,7 @@ function completeClaim(requestingMemberId: string, source: string, targetId: str
         placeholder.ifpa_join_date,
         placeholder.is_hof,
         placeholder.is_bap,
+        null,                 // first_competition_year (no data from placeholder)
         now,
         requestingMemberId,
       );

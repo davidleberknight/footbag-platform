@@ -99,7 +99,7 @@ def main() -> None:
             login_email, login_email_normalized, email_verified_at,
             password_hash, password_changed_at,
             real_name, display_name, display_name_normalized,
-            country,
+            city, region, country, first_competition_year,
             searchable, is_admin, is_hof, hof_inducted_year,
             created_at, created_by, updated_at, updated_by, version
         ) VALUES (
@@ -107,7 +107,7 @@ def main() -> None:
             :email, :email_norm, :ts,
             :hash, :ts,
             :real_name, :display_name, :display_name_norm,
-            :country,
+            :city, :region, :country, :first_comp_year,
             1, 0, 1, 2025,
             :ts, 'seed', :ts, 'seed', 1
         )
@@ -122,14 +122,32 @@ def main() -> None:
             "real_name": "Footbag Hacky",
             "display_name": "Footbag Hacky",
             "display_name_norm": "footbag hacky",
-            "country": "New Zealand",
+            "city": "Oregon City",
+            "region": "OR",
+            "country": "USA",
+            "first_comp_year": 1972,
         },
     )
     print("  → Seeded stub account: Footbag Hacky (login_email='footbag')")
 
-    # No imported placeholder needed here. Historical persons with legacy_member_id
-    # are loaded from persons.csv by the data pipeline. The claim flow searches
-    # historical_persons by legacy_member_id. Test with: /history/claim → enter "11985".
+    # Link Footbag Hacky to any matching historical_persons record.
+    # This is a special case for the test stub account. In production, this
+    # linkage happens through the claim flow or auto-link at migration.
+    hacky_legacy_id = "STUB_FOOTBAG_HACKY"
+    cur.execute(
+        "UPDATE members SET legacy_member_id = :lid WHERE id = :mid AND legacy_member_id IS NULL",
+        {"lid": hacky_legacy_id, "mid": member_id},
+    )
+    cur.execute(
+        """UPDATE historical_persons SET legacy_member_id = :lid
+           WHERE person_name = 'Footbag Hacky' AND legacy_member_id IS NULL""",
+        {"lid": hacky_legacy_id},
+    )
+    linked = cur.rowcount
+    if linked:
+        print(f"  → Linked Footbag Hacky member to historical person (legacy_member_id={hacky_legacy_id})")
+    else:
+        print("  → No matching historical person found for Footbag Hacky (will link when results are loaded)")
 
     con.commit()
     con.close()

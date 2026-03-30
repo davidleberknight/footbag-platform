@@ -1548,6 +1548,9 @@ CREATE TABLE members (
   deletion_grace_expires_at TEXT,
   personal_data_purged_at   TEXT,
 
+  first_competition_year INTEGER,
+  show_competitive_results INTEGER NOT NULL DEFAULT 1 CHECK (show_competitive_results IN (0,1)),
+
   legacy_member_id TEXT,
   legacy_user_id   TEXT,
   legacy_email     TEXT,

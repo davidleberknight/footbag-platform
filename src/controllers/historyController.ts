@@ -31,6 +31,12 @@ export const historyController = {
       const { personId } = req.params;
       const vm = historyService.getHistoricalPlayerPage(personId);
 
+      // If the historical person is linked to a current member, redirect there.
+      if (vm.content.memberHref) {
+        res.redirect(301, vm.content.memberHref);
+        return;
+      }
+
       const isPublicHonor = vm.content.hofMember || vm.content.bapMember;
       if (!isPublicHonor && !req.isAuthenticated) {
         redirectToLogin(req, res);

@@ -1050,6 +1050,43 @@ th.sortable:hover { color: var(--primary); }
   .form-row-2col { grid-template-columns: 1fr; }
 }
 
+/* ── Nav utilities ──────────────────────────────────────────── */
+.nav-logout {
+  display: inline;
+  margin: 0;
+  padding: 0;
+}
+.nav-logout-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 6px 12px;
+}
+.nav-logout-btn:hover {
+  color: var(--primary);
+}
+
+/* ── Form utilities ────────────────────────────────────────── */
+.form-hint {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.avatar-upload-form {
+  max-width: 480px;
+}
+
+/* ── Notice ────────────────────────────────────────────────── */
+.notice {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
 /* ── Dividers & helpers ──────────────────────────────────────── */
 .text-muted { color: var(--text-muted); }
 .mt-4  { margin-top: 1rem; }

@@ -293,6 +293,10 @@ The CSS vocabulary is split into two tiers.
 - Badges: `.badge`, `.badge-published`, `.badge-registration_full`, `.badge-closed`, `.badge-completed`
 - Buttons: `.btn`, `.btn-primary`, `.btn-outline`
 - States: `.empty-state`
+- Notices: `.notice` (subtle informational text below hero or section heading)
+- Nav utilities: `.nav-logout`, `.nav-logout-btn`
+- Form utilities: `.form-hint` (helper text below form fields), `.avatar-upload-form`
+- Spacing: `.mt-4`, `.mb-4`, `.mb-8`, `.text-muted`
 
 **Clubs section — required within clubs pages only:**
 
@@ -348,6 +352,12 @@ Preferred structure:
 - layout styles
 - reusable component styles
 - minimal page-specific exceptions only when unavoidable
+
+Hard rules:
+
+- Every CSS class used in a template must have a corresponding rule in `src/public/css/style.css`. No undefined classes.
+- New classes must be documented in the CSS class vocabulary (section 4.3 above).
+- Content that appears in the hero (honors, location) must not be duplicated in the page body. Choose one canonical placement per data element.
 
 ### 4.5 Visual rules
 
