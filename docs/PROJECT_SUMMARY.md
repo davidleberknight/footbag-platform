@@ -795,9 +795,9 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 
 - The mirror could not access all members, only those with a public presence (club members, event participants with results, published media galleries).
 - The mirror cannot fetch login credentials. Legacy passwords are never imported or accepted.
-- Legacy data migration uses three streams: (1) historical content — events, results, persons, and honors loaded from canonical CSV files, substantially complete; (2) member account import — all legacy registered accounts imported as pre-credential placeholder rows from a one-time export by the legacy site webmaster, these rows cannot log in or appear in any member-facing surface; (3) mirror-derived club bootstrap — club identities, affiliations, and provisional leadership inferred from the offline mirror.
+- Legacy data migration uses two sources: (1) historical pipeline (James) — persons from human-curated CSV, clubs from mirror extraction, events, results, and honors; (2) legacy member import (Steve's export) — all legacy registered accounts imported as pre-credential placeholder rows, these rows cannot log in or appear in any member-facing surface.
 - Imported members connect their legacy identity to a modern account via a self-serve claim flow: submit a legacy identifier (email, username, or member ID), verify mailbox ownership via a time-limited email link, then confirm the merge. This transfers legacy identity, honors, tier entitlements, and club data to the modern account.
-- Provisional club leaders assigned at bootstrap hold no governance permissions until a claimed modern account confirms the leadership.
+- Club leaders assigned at bootstrap are leaders. They can manage the club once they register.
 
 **Archive Hosting Architecture:**
 

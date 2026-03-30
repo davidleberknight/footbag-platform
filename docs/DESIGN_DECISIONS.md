@@ -1509,27 +1509,25 @@ Impact:
 
 Decision:
 
-The platform absorbs legacy data via three independent streams before or at production go-live:
+The platform absorbs legacy data from two sources before or at production go-live:
 
-**Stream A — Historical content.** Competitive events, results, persons, and honors (Hall of Fame, BAP) are loaded from canonical CSV files via the historical data pipeline. Substantially complete and independent of go-live timing. A historical person may exist without a claimed modern account; historical data is published regardless of whether the underlying person has ever claimed a legacy account.
+**Historical pipeline (James).** Persons, events, results, honors (Hall of Fame, BAP), clubs, club affiliations, and club leadership. Person truth comes from human-curated CSV files. Club data comes from mirror extraction scripts integrated into the same pipeline. The pipeline also creates historical person records for ~1,600 club-only members who never competed in events. A historical person may exist without a claimed modern account; historical data is published regardless. Bootstrap-eligible clubs are created at go-live with leaders in `club_bootstrap_leaders`. Leaders can manage the club once they register. If a leader has not registered, the first affiliated member who registers can accept leadership during onboarding (Tier 1+, no admin confirmation).
 
-**Stream B — Mirror-derived club bootstrap.** Club identities, per-club affiliations, and provisional leadership are inferred from the offline mirror of the legacy site. The mirror-analysis pipeline produces normalized club candidates and scored person-to-club affiliation suggestions, which are loaded into staging tables (`legacy_club_candidates`, `legacy_person_club_affiliations`). Bootstrap-eligible clubs are created at go-live with provisional legacy leaders in `club_bootstrap_leaders`. Provisional leaders hold no live governance permissions; leadership becomes live only when a claimed modern account confirms it.
+**Legacy member import (Steve's export).** All legacy registered member accounts are imported as pre-credential placeholder rows in `members`. These rows have all credential fields NULL and `email_verified_at` NULL; they cannot log in, are not searchable, and are invisible to all current-member surfaces. The source is a one-time export from the legacy site webmaster, used first as a test load for validation, then as the final production import after write freeze. Legacy passwords are never imported or used.
 
-**Stream C — Legacy member import.** All legacy registered member accounts are imported as pre-credential placeholder rows in `members`. These rows have all credential fields NULL and `email_verified_at` NULL; they cannot log in, are not searchable, and are invisible to all current-member surfaces. The source is a one-time export from the legacy site webmaster, used first as a test load for validation, then as the final production import after write freeze. Legacy passwords are never imported or used.
-
-The three streams share the same identity key (`legacy_member_id`) and converge when a modern member claims their legacy record.
+The two sources share the same identity key (`legacy_member_id`) and converge at cutover when historical persons are auto-linked to imported members by email.
 
 **Self-serve legacy claim flow.** A logged-in member visits "Link Legacy Account" in profile settings and submits a legacy identifier (email address, username, or member ID). The system looks up the matching imported placeholder row and, if eligible, emails a time-limited single-use claim link to the `legacy_email` on that row. Mailbox control is the proof step regardless of which identifier type was submitted. On confirmation, the merge transaction runs atomically: `legacy_member_id` and allowed profile fields are merged into the active account, tier entitlements are reconciled via the ledger, confirmed club affiliations are written to `member_club_affiliations`, bootstrap leadership may be promoted to `club_leaders`, and the imported placeholder row is deleted. User-visible messaging never reveals whether the submitted identifier matched zero rows, multiple rows, or an ineligible row.
 
 **Tier handling.** Tier state is written as ledger rows in `member_tier_grants` at import time (`reason_code = 'migration.legacy_import'`) and reconciled at claim time if the imported tier exceeds the current tier (`reason_code = 'migration.legacy_claim_reconcile'`). No tier cache columns exist on `members`; all tier reads go through `calculateTierStatus(memberId)`.
 
-**Operational sequencing.** The legacy site enters write freeze; the final export is imported; schema changes are applied to production; clubs are bootstrapped; DNS switches to the new platform. Rollback lever before DNS switch: abort and retry. Rollback lever after DNS switch: manual DNS reversion to the legacy site. The legacy database is retained for 30 days post-cutover for reference and manual recovery. No automated rollback is provided after the DNS switch.
+**Operational sequencing.** The legacy site enters write freeze; the final export is imported; schema changes are applied to production; clubs are bootstrapped; DNS switches to the new platform. Rollback lever before DNS switch: abort and retry. Rollback lever after DNS switch: manual DNS reversion to the legacy site. No automated rollback is provided after the DNS switch.
 
 Rationale:
 
-- Separating the three streams allows historical content and club bootstrap to proceed independently of the member import, reducing go-live risk.
+- Separating the historical pipeline from Steve's member import allows historical content and clubs to proceed independently, reducing go-live risk.
 - The imported-row model preserves legacy identity without granting premature access. Mailbox verification is the minimal proof step that is both secure and feasible given the data available.
-- Provisional club bootstrap ensures clubs are present on day one without waiting for all legacy leaders to claim their accounts.
+- Club bootstrap ensures clubs are present on day one. Leaders can manage clubs once they register.
 - Ledger-only tier handling eliminates the cache-sync complexity that existed in earlier designs and makes imported-row tier state auditable from day one.
 
 Trade-offs:

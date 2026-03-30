@@ -151,7 +151,7 @@ export const memberService = {
     const eventGroups = fetchEventGroups(row);
     const heroData = buildMemberHeroData(row, eventGroups);
     return {
-      seo:  { title: 'My Profile' },
+      seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
       page: { sectionKey: 'members', pageKey: 'member_profile', title: 'My Profile' },
       navigation: {
         contextLinks: [{ label: 'Edit Profile', href: `/members/${slug}/edit`, variant: 'outline' }],
@@ -175,7 +175,7 @@ export const memberService = {
     const heroData = buildMemberHeroData(row, eventGroups);
 
     return {
-      seo:  { title: row.display_name },
+      seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
       page: { sectionKey: 'members', pageKey: 'member_public_profile', title: row.display_name },
       navigation: { contextLinks: [] },
       content: {

@@ -921,7 +921,7 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` Tier reconciliation grant is written only if the imported effective tier exceeds the current effective tier; uses `reason_code = 'migration.legacy_claim_reconcile'`
 - `[APP]` `legacy_is_admin` metadata is never auto-promoted to live admin role in any flow
 - `[APP]` One-current-club invariant: when writing a confirmed current affiliation to `member_club_affiliations`, any existing current row for that member is converted to `is_current = 0` in the same transaction
-- `[APP]` Bootstrap leadership promotion is only attempted when no conflicting live leader exists for the club; conflicts leave the row provisional and create an admin work queue item
+- `[APP]` Bootstrap leadership promotion is only attempted when no conflicting live `club_leaders` row exists for the club; conflicts leave the bootstrap row provisional and create an admin work queue item
 
 **Transaction + Idempotency:** Merge transaction is atomic. Token validation and consumption are single-transaction.
 

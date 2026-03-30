@@ -91,6 +91,51 @@ Not yet covered by tests: 500 error handler, world-record routes, honor-roll rou
 
 ---
 
+## James's sprint: Historical pipeline completion (parallel)
+
+James is merging his footbag-results repo (github.com/JamesLeberknight/footbag-results) into this repo. His pipeline already produces events, results, persons, world records, and has identity/name-variant mining tools. This sprint integrates that work and extends it to cover clubs.
+
+### What James's pipeline already produces
+
+- Canonical persons CSV (~4,861 competitors with identity resolution)
+- Events, results, disciplines CSVs (761+ published events, 1980-present)
+- World records data (166 tricks, in `early_data/out/records/`)
+- Platform export tools (`tools/export_platform_*.py`)
+- Identity suggestion and name alias mining tools
+- QC gate validation
+
+### Sprint goals
+
+1. **Merge James's repo**: integrate the footbag-results pipeline into this repo under `legacy_data/`.
+2. **Unified persons truth**: expand the curated `persons.csv` to include ~1,600 club-only members from the mirror (people who appear only as club members, never competed in events). One CSV is the source of truth for all historical persons.
+3. **Club pipeline integration**: take over existing club scripts (`legacy_data/scripts/extract_clubs.py`, `load_clubs_seed.py`, `extract_club_members.py`, `load_club_members_seed.py`) and integrate them into the pipeline. Extend with: confidence scoring, leadership inference, and bootstrap eligibility decisions per club.
+4. **Leadership and bootstrap data**: populate `club_bootstrap_leaders` rows for bootstrap-eligible clubs. Each club needs at least one high-confidence leader candidate.
+5. **Known name variants**: seed the name variants table from mined data (~290 pairs). James's identity suggestion tools may already have this data.
+6. **World records CSV**: James's pipeline already has records data. Export in platform-loadable format.
+7. **Soup-to-nuts master script**: one entry point that produces all seed data (persons, events, results, clubs, affiliations, leaders, name variants, records) from curated CSV + mirror, then loads everything into the DB. `scripts/reset-local-db.sh` must run the complete pipeline end-to-end.
+8. **Data review sign-off**: confirm legacy data is complete and member-list presentation is reviewed.
+
+### Deliverables
+
+- James's pipeline code merged into this repo
+- Expanded `persons.csv` with club-only persons (with `legacy_member_id` where known)
+- Club candidates in `legacy_club_candidates` with confidence scores and `bootstrap_eligible` flag
+- Person-to-club affiliations in `legacy_person_club_affiliations` with inferred roles and confidence scores
+- `club_bootstrap_leaders` rows for bootstrap-eligible clubs
+- Known name variants table seeded
+- World records CSV in platform format
+- Unified master script that rebuilds everything from scratch
+- Data review sign-off
+
+### Unblocks
+
+- Members ungating (requires data review sign-off)
+- World records page (requires records CSV)
+- Club bootstrap at cutover (requires club pipeline output + leadership data)
+- Auto-link coverage for club-only members (requires expanded persons.csv)
+
+---
+
 ## Blocked / deferred
 
 ### Members ungating — blocked on James
@@ -103,9 +148,6 @@ Current route split (implemented): `/history` and `/history/:personId` are histo
 
 Blocked on James providing the records CSV file. Route: `/records` (new public page). Sequencing: extend-service-contract → add-public-page → write-tests → doc-sync.
 
-- `legacy_data/scripts/extract_records.py` (new): explore mirror for world records pages; output `legacy_data/seed/records.csv` (gitignored); columns TBD after mirror exploration
-- `legacy_data/scripts/load_records_seed.py` (new): load into DB; evaluate whether a `world_records` table is needed
-- Wire both scripts into `scripts/reset-local-db.sh`
 - `src/services/recordsService.ts`, `src/controllers/recordsController.ts`, `src/views/public/records.hbs` (new)
 - Add `/records` to nav and routes
 - Integration tests for GET `/records`
@@ -211,8 +253,8 @@ auth hardening (4-A')
   ← admin work queue
 
 legacy member import + claim flow
-  ← Steve's export (Stream C)
-  ← James's mirror member extraction (Stream B)
+  ← Steve's export
+  ← James's historical pipeline (clubs + club-only persons)
 
 CI/CD — COMPLETE (app CI + deploy scripts)
   remaining: 1-E CloudFront, 1-F security hardening, 1-G CloudWatch agent

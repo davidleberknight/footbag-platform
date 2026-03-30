@@ -188,26 +188,28 @@ Templates must consume this contract rather than derive it.
 
 ### Browser tab title rule
 
-The HTML `<title>` tag follows the pattern `Footbag {seo.title}` for all pages. The sole exception is the home page (`/`), which renders as `Footbag Worldwide` (no suffix, no `seo` contract applies). The layout accesses `seo.title` directly from the view model.
+The HTML `<title>` tag follows the pattern `Footbag {seo.title}` for most pages. When `seo.fullTitle` is set, it is used as the complete tab title (no "Footbag" prefix). The home page renders as `Footbag Worldwide` (no suffix, no `seo` contract applies).
 
-`seo.title` values by page:
+`seo.title` / `seo.fullTitle` values by page:
 
-| Page | `seo.title` | Tab result |
-|---|---|---|
-| Home `/` | *(none — home is exempt)* | `Footbag Worldwide` |
-| Events index | `Events` | `Footbag Events` |
-| Events year archive | `{year} Events` | `Footbag 2024 Events` |
-| Event detail | `event.standardTagDisplay` | `Footbag #event_{year}_{slug}` |
-| Members index | `Members` | `Footbag Members` |
-| Member detail | `{personName}` | `Footbag {name}` |
-| Clubs index | `Clubs` | `Footbag Clubs` |
-| Clubs country | `"{country} Clubs"` | `Footbag New Zealand Clubs` |
-| Club detail | `club.standardTagDisplay` | `Footbag #club_wellington_hack_crew` |
-| HoF | `Hall of Fame` | `Footbag Hall of Fame` |
-| Login | `Login` | `Footbag Login` |
-| Error pages | `Page Not Found` / `Service Unavailable` | `Footbag {error label}` |
+| Page | `seo.title` | `seo.fullTitle` | Tab result |
+|---|---|---|---|
+| Home `/` | *(none — home is exempt)* | | `Footbag Worldwide` |
+| Events index | `Events` | | `Footbag Events` |
+| Events year archive | `{year} Events` | | `Footbag 2024 Events` |
+| Event detail | `event.standardTagDisplay` | | `Footbag #event_{year}_{slug}` |
+| Historical person detail | `Player {name}` | | `Footbag Player {name}` |
+| Members index | `Members` | | `Footbag Members` |
+| Member profile (own) | `{displayName}` | `IFPA Member {displayName}` | `IFPA Member {name}` |
+| Member profile (public) | `{displayName}` | `IFPA Member {displayName}` | `IFPA Member {name}` |
+| Clubs index | `Clubs` | | `Footbag Clubs` |
+| Clubs country | `"{country} Clubs"` | | `Footbag New Zealand Clubs` |
+| Club detail | `club.standardTagDisplay` | | `Footbag #club_wellington_hack_crew` |
+| HoF | `Hall of Fame` | | `Footbag Hall of Fame` |
+| Login | `Login` | | `Footbag Login` |
+| Error pages | `Page Not Found` / `Service Unavailable` | | `Footbag {error label}` |
 
-New pages must follow this pattern. `seo.title` is the short section or entity label only — never include the word "Footbag" in it. Note that `page.title` is the full displayed h1 text (e.g. `"Footbag Events"`, `"Member Login"`) and is distinct from `seo.title`.
+Default pattern: `seo.title` is the short section or entity label; never include the word "Footbag" in it. Use `seo.fullTitle` only when the page needs a non-"Footbag" prefix (e.g., IFPA Member pages). `page.title` is the full displayed h1 text (e.g. `"Footbag Events"`, `"Member Login"`) and is distinct from `seo.title`.
 
 ### 4.3 Required reusable primitives
 
@@ -1450,7 +1452,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 - present the active account identity that will receive the legacy identity
 - show the legacy record being claimed
-- if club-affiliation suggestions or provisional bootstrap-leader suggestions exist, present them for review
+- if club-affiliation suggestions or leadership assignments exist, present them for review
 - allow the member to confirm or cancel the merge
 
 ### Required content
@@ -1458,7 +1460,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - confirmation display naming the active account
 - summary of what will be merged (legacy identity, profile fields that will be filled, tier adjustment if applicable)
 - optional club-affiliation review section (when `M_Review_Legacy_Club_Data_During_Claim` data exists)
-- optional bootstrap-leader confirmation section
+- optional leadership confirmation section
 - confirm and cancel actions
 
 ### Required view-model fields
@@ -1471,7 +1473,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - `content.legacyDisplayName` — the display name from the imported placeholder row
 - `content.mergePreview` — summary of fields that will be transferred or filled
 - optional `content.clubSuggestions[]` — mirror-derived club affiliation suggestions for review
-- optional `content.bootstrapLeaderSuggestions[]` — provisional leadership suggestions for review
+- optional `content.leadershipSuggestions[]` — leadership assignments for review
 - optional `content.tierAdjustment` — description of tier change if imported tier exceeds current
 
 ### Key rules
@@ -1486,7 +1488,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - `POST /history/claim/verify/:token` is the form-action handler that executes the atomic merge
 - after successful merge, the imported placeholder row is soft-deleted and all outstanding claim tokens targeting it are marked consumed
 - the member is redirected to their profile after successful merge
-- `M_Review_Legacy_Club_Data_During_Claim` sub-flow is out of scope for the initial implementation (no provisional club leadership data exists yet)
+- `M_Review_Legacy_Club_Data_During_Claim` sub-flow is out of scope for the initial implementation (no club leadership data exists yet)
 
 ---
 

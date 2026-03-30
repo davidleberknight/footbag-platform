@@ -1,5 +1,6 @@
 export interface SeoMeta {
   title: string;
+  fullTitle?: string;
   description?: string;
 }
 

@@ -764,9 +764,9 @@ DB-enforced structural invariants:
 #### Anti-self-removal
 The application must prevent an organizer/leader from removing themselves if they are the sole organizer/leader (UI hides the button; API validates before delete). DB does not enforce this.
 
-#### Provisional legacy leadership
+#### Bootstrap leadership
 
-`club_leaders` represents live governance permissions only. During the migration window, bootstrapped clubs may have provisional legacy leaders represented in `club_bootstrap_leaders`. These rows confer no live club-management permissions. The UI must show a distinct "pending legacy leader claim" state for clubs with only provisional bootstrap leaders. Leadership becomes live only when a claimed modern account confirms it, at which point a `club_leaders` row is created and the bootstrap row is marked `claimed`. See §4.25 Migration Staging and Bootstrap Tables.
+`club_bootstrap_leaders` rows are real leaders who have not yet registered. When the leader registers and confirms (or the first affiliated member accepts leadership during onboarding), the bootstrap row is promoted to a `club_leaders` row. See §4.25 Migration Staging and Bootstrap Tables.
 
 ### 4.19 Account Tokens
 
@@ -917,7 +917,7 @@ Mirror-derived normalized club identities. Populated by the mirror-analysis pipe
 Mirror-derived scored person-to-club affiliation suggestions. Each row links a person (by `historical_person_id` and/or `legacy_member_id`) to a `legacy_club_candidates` row with an inferred role (`member`, `contact`, `leader`, `co-leader`), confidence score, and resolution status. At least one of `historical_person_id` or `legacy_member_id` must be non-NULL (CHECK enforced). Uniqueness is enforced via two partial unique indexes rather than a single UNIQUE constraint, because SQLite treats NULLs as distinct in UNIQUE constraints and a single index would silently allow duplicate rows when `historical_person_id` is NULL. May be dropped once all affiliation suggestions are resolved.
 
 #### `club_bootstrap_leaders` — operational, migration-origin
-Provisional legacy leadership for bootstrapped clubs. Live infrastructure during the post-cutover claim window. Confers no live club-management permissions. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives deletion of the imported placeholder row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives deletion of the imported placeholder row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
 
 ---
 

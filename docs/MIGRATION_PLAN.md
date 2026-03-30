@@ -46,13 +46,12 @@ This document is the source of truth for all legacy data migration design: the t
 
 ## 1. Executive summary
 
-The new footbag.org platform must absorb three distinct bodies of legacy data before or at production go-live:
+The new footbag.org platform must absorb two bodies of legacy data before or at production go-live:
 
-1. **Historical content** (Stream A): competitive events, results, persons, honors (Hall of Fame, BAP). Already represented in the canonical historical pipeline and largely complete.
-2. **Legacy member accounts** (Stream C): login-bearing accounts from the current live legacy site. Require a one-time export from Steve Goldberg and a secure voluntary claim flow.
-3. **Mirror-derived club data** (Stream B): club identities, member affiliations, and leadership inferences drawn from the project's offline mirror of www.footbag.org. Independent of Steve's export.
+1. **Historical pipeline** (James): persons, events, results, honors (Hall of Fame, BAP), clubs, club affiliations, and club leadership. Person truth comes from human-curated CSV. Club data comes from mirror extraction scripts that are part of the same pipeline. The pipeline also creates historical person records for ~1,600 club-only members who never competed in events.
+2. **Legacy member accounts** (Steve's export): login-bearing accounts from the current live legacy site. Require a one-time export from Steve Goldberg and a secure voluntary claim flow.
 
-These three streams share the same identity key (`legacy_member_id`) and converge at the moment a modern member claims their legacy record. The migration is complete when all three streams are reconciled and the DNS switch has occurred.
+These two sources share the same identity key (`legacy_member_id`) and converge at cutover when historical persons are auto-linked to imported members by email. The migration is complete when all data is reconciled and the DNS switch has occurred.
 
 Additionally, the platform introduces a name model, competition history fields, and an auto-link system that connects historical persons to modern member accounts. These are described in detail in sections 4 through 7.
 
@@ -60,9 +59,9 @@ Additionally, the platform introduces a name model, competition history fields, 
 
 ## 2. What is already done
 
-### 2.1 Historical pipeline (Stream A)
+### 2.1 Historical pipeline (James)
 
-The `legacy_data/event_results/canonical_input/` directory contains cleaned CSV files derived from the mirror and other data sources:
+The `legacy_data/event_results/canonical_input/` directory contains human-curated CSV files:
 
 - `persons.csv`: ~4,861 historical players with `member_id` (legacy member ID), `bap_member`, `fbhof_member`, and statistical fields
 - `events.csv`, `events_normalized.csv`: historical event records
@@ -81,16 +80,18 @@ The `legacy_data/mirror_footbag_org/` directory contains an offline crawl of www
 - `www.footbag.org/clublist/`: aggregate listings
 - Member profile pages (accessible via member ID paths)
 
-The mirror is the primary input for Stream B (club migration). It does not replace Steve's live export for member credentials or current membership state.
+The mirror is the source for club extraction (part of James's pipeline). It does not replace Steve's live export for member credentials or current membership state.
 
 ### 2.3 Club seed data
 
-Club extraction from the mirror is complete:
+Initial club extraction from the mirror exists. James is taking over these scripts and integrating them into his pipeline:
 
-- `legacy_data/seed/clubs.csv`: extracted club identities
-- `legacy_data/seed/club_members.csv`: extracted club membership associations
-- `legacy_data/scripts/extract_clubs.py`, `load_clubs_seed.py`: extraction and loading scripts
-- 311 mirror clubs are available
+- `legacy_data/scripts/extract_clubs.py`, `load_clubs_seed.py`: club identity extraction and loading
+- `legacy_data/scripts/extract_club_members.py`, `load_club_members_seed.py`: club membership extraction and loading
+- `legacy_data/seed/clubs.csv`: 311 extracted club identities
+- `legacy_data/seed/club_members.csv`: ~2,400 club membership associations
+
+Remaining work (James's sprint): confidence scoring, leadership inference, bootstrap eligibility, club-only person extraction into `historical_persons`, and `club_bootstrap_leaders` population.
 
 ### 2.4 Schema
 
@@ -109,31 +110,27 @@ The following are implemented in the current codebase:
 
 ---
 
-## 3. Three migration streams
+## 3. Migration sources
 
-### Stream A: Historical content
+### Historical pipeline (James)
 
-**Status:** Substantially complete. Independent of go-live timing.
+**Status:** Event/results/persons substantially complete. Club extraction scripts exist but must be integrated into James's pipeline. Mirror member extraction (~1,600 club-only persons) pending.
 
-**What it covers:** Historical events, results, persons, honors.
+**What it covers:** Historical events, results, persons, honors, clubs, club affiliations, and club leadership. Person truth comes from human-curated CSV. Club data comes from mirror extraction scripts.
 
 **Key invariant:** A historical person may exist without a claimed modern account. Historical data is published regardless of whether the underlying person has ever claimed a legacy account. The `legacy_member_id` on a `historical_persons` row becomes the bridge to a modern account only after a successful claim.
 
-**No action required for cutover.** The pipeline is already producing the canonical inputs.
+**Remaining work (James):**
+- Integrate club extraction scripts into the pipeline
+- Extract ~1,600 club-only members from mirror into `historical_persons`
+- Club identity normalization, affiliation inference, leadership inference
+- Bootstrap eligibility decisions for go-live club population
 
----
+The live system needs clubs on day one. The mirror is the best available source of club identity and prior leadership information.
 
-### Stream B: Mirror-derived club analysis and bootstrap
+#### Pipeline outputs (required before Steve's export)
 
-**Status:** Club extraction complete. Bootstrap pipeline and decisions pending.
-
-**What it covers:** Club identity normalization, affiliation inference, leadership inference, and bootstrap decisions for go-live club population.
-
-**Why it exists:** The live system needs clubs on day one. Clubs cannot appear leaderless or absent. The mirror is the best available source of club identity and prior leadership information.
-
-#### Phase 0 outputs (required before Steve's export)
-
-The mirror-analysis pipeline must produce:
+James's pipeline must produce:
 
 - Normalized legacy club candidates (one row per distinct club identity)
 - Inferred person-to-club affiliation rows with confidence scores
@@ -153,32 +150,29 @@ The mirror-analysis pipeline must produce:
 A club may be bootstrapped into the live system only when all of the following hold:
 
 - Club identity is normalized with high confidence
-- At least one high-confidence provisional leader candidate is available
+- At least one high-confidence leader candidate is available
 - That candidate maps to a `legacy_member_id` that will exist in the imported member rows
 
 If these conditions are not met, the club is staged for admin review and not auto-created.
 
-#### Provisional leadership model
+#### Leadership model
 
 Bootstrap-eligible clubs are created with:
 
 - A live `clubs` row
-- One or more `club_bootstrap_leaders` rows representing provisional legacy leaders
+- One or more `club_bootstrap_leaders` rows representing leaders
 
-`club_bootstrap_leaders` confers **no live club-management permissions**. It represents "the system believes this was the legacy leader, pending confirmation by a claimed modern account."
+`club_bootstrap_leaders` rows are leaders (and co-leaders). They can manage the club once they register.
 
-When a member later claims their legacy account and that account is the matched provisional leader, the claim flow presents the leadership for confirmation. On confirmation (with no conflicting live-leader state), the system promotes the bootstrap row to a real `club_leaders` row and marks it `claimed`.
+**Leadership activation paths:**
 
-The UI must show distinct states:
-
-- **Claimed leader**: live `club_leaders` row, full governance permissions
-- **Pending legacy leader claim**: `club_bootstrap_leaders` row only, no governance permissions
-
-A club with only provisional bootstrap leaders must not appear leaderless, but must not expose live governance.
+1. **Bootstrap leader registers and claims**: the claim flow presents the leadership for confirmation. On confirmation, the system promotes the bootstrap row to a live `club_leaders` row, and the leader can manage the club.
+2. **First affiliated member accepts leadership**: if no bootstrap leader has registered, the first member who registers and confirms affiliation with that club is offered leadership during onboarding (if Tier 1+). On acceptance, the system supersedes the bootstrap assignment and appoints the member as leader. No admin confirmation required.
+3. **Admin resolution**: admin can supersede bootstrap assignments and appoint any registered member as leader through the standard `club_leaders` workflow.
 
 ---
 
-### Stream C: Legacy member import from live site
+### Legacy member import (Steve's export)
 
 **Status:** Awaiting Steve's export. Schema changes already applied.
 
@@ -299,7 +293,7 @@ Auto-link connects `historical_persons` records to `members` rows using email as
 |---|---|---|
 | Tier 1 | Email match + exact name match | Auto-link, no review |
 | Tier 2 | Email match + known variant name match | Auto-link, audit-logged |
-| Tier 3 | Email match + name mismatch | Admin review queue |
+| Tier 3 | Email match + name mismatch | Admin review (migration-time only) |
 
 **Email match required:** Email is the mandatory identity anchor for all tiers. No auto-link occurs without an email match.
 
@@ -312,15 +306,21 @@ Known name variants are stored in a **DB table** (not CSV), seeded from mined da
 - Typo corrections (~139 pairs)
 - Diminutives (~40 pairs)
 
-The Jody/Jolene Welch class (same person, completely different first name) is only catchable by admin review (Tier 3).
+The Jody/Jolene Welch class (same person, completely different first name) is only catchable by admin review at migration time, or by user confirmation at registration time.
 
 ### Batch auto-link at cutover
 
-At cutover, a batch auto-link pass runs across all imported placeholder rows. No confirmation prompt is needed for batch; the email match is the proof step.
+At cutover, a batch auto-link pass runs across all imported placeholder rows:
+- Tier 1 and Tier 2: auto-linked immediately, audit-logged.
+- Tier 3: flagged for admin review. These are existing IFPA members from Steve's data whose email matches but name does not. Because they have not yet registered, we cannot ask them directly, so admins resolve these cases.
 
 ### Registration-time auto-link
 
-Deferred. Requires post-login prompt infrastructure that does not yet exist. When implemented, a newly registered member whose email matches a historical person's legacy email would be prompted to confirm the link.
+At first registration, when a member's email matches a historical person's legacy email, the system prompts the user inline:
+- **All tiers**: the user is always asked to confirm the link ("We found a history record, is this you?").
+- **High confidence (Tier 1/2)**: default answer is yes (pre-checked, confirm to proceed).
+- **Low confidence (Tier 3)**: default answer is no (user must actively opt in).
+- Decision is audit-logged. No admin queue is involved at registration time; the user is the authority on their own identity.
 
 ---
 
@@ -355,7 +355,7 @@ The claim flow is account-bound and mailbox-verified.
    - Last-name mismatch between active account and imported row: **blocks** (member must update their name or contact admin)
    - First-name mismatch: **warns** but allows proceed
 10. System presents final confirmation naming the active account that will receive the legacy identity.
-11. If club-affiliation suggestions or provisional bootstrap-leader suggestions exist for the claimed identity, member is prompted to review them (see section 10).
+11. If club-affiliation suggestions or leadership assignments exist for the claimed identity, member is prompted to review them (see section 10).
 12. Member confirms.
 13. Merge transaction runs atomically (see section 9).
 14. Imported row is deleted. All `account_claim` tokens pointing at it cascade-delete.
@@ -429,7 +429,7 @@ The historical_persons table currently contains ~4,861 persons drawn from event 
 
 ### Club visibility at onboarding
 
-All 311 mirror clubs are visible during registration onboarding. Only high-confidence clubs are pre-populated into the live `clubs` table at go-live.
+All 311 mirror clubs are visible during registration onboarding for affiliation questions. Only high-confidence clubs are pre-populated into the live `clubs` table at go-live. Bootstrapped clubs are publicly visible at go-live but cannot be managed until a leader confirms (see bootstrap rule above).
 
 ### Club membership and contact cleanup at claim
 
@@ -607,12 +607,13 @@ We do **not** need Steve to produce club data. That comes from the mirror pipeli
 
 ## 15. What we need from James
 
-James's contributions are blocked on specific data work:
+James's historical pipeline work (running as a parallel sprint; see IMPLEMENTATION_PLAN.md for sprint goals):
 
-1. **Mirror member extraction** into `historical_persons`: the ~1,600 club-only members from the mirror who never appeared in event results
-2. **Club bootstrap pipeline**: soup-to-nuts extraction, normalization, confidence scoring, and bootstrap eligibility decisions
-3. **Data review confirmation**: confirming legacy data is complete and member-list presentation is reviewed (unblocks members ungating)
-4. **World records CSV**: for the records page (separate from migration, but blocked on James)
+1. **Club extraction into pipeline**: move mirror club extraction scripts into the historical pipeline; club identity normalization, affiliation inference, leadership inference, bootstrap eligibility decisions
+2. **Mirror member extraction** into `historical_persons`: ~1,600 club-only members from the mirror who never appeared in event results
+3. **Known name variants table**: seeded from mined data
+4. **World records CSV**: for the records page
+5. **Data review confirmation**: confirming legacy data is complete and member-list presentation is reviewed (unblocks members ungating)
 
 ---
 
@@ -624,11 +625,13 @@ Name model, slug lifecycle, person links, historical name display, `first_compet
 
 **Status:** Code done. Schema applied.
 
-### Phase 2: Needs James
+### Phase 2: James's pipeline (parallel sprint)
 
+- Club extraction integrated into historical pipeline
 - Mirror member extraction into `historical_persons` (~1,600 club-only members)
-- Club bootstrap pipeline (soup-to-nuts)
 - Known name variants table seeded from mined data
+- World records CSV
+- Data review confirmation
 
 ### Phase 3: Needs Steve
 
@@ -641,8 +644,8 @@ Name model, slug lifecycle, person links, historical name display, `first_compet
 
 - DNS switch
 - Post-cutover notification batch (emails to all imported placeholders with reachable `legacy_email`)
-- Admin review queue for Tier 3 auto-link cases
-- Registration-time auto-link (deferred; needs post-login prompt infrastructure)
+- Admin review of Tier 3 auto-link cases from Steve's data (migration-time only)
+- Registration-time auto-link with inline user prompt (all tiers)
 
 ---
 
@@ -655,7 +658,7 @@ Name model, slug lifecycle, person links, historical name display, `first_compet
 - New platform deployed on staging
 - Phase 1 code complete
 
-### State 1: Phase 0 complete (mirror analysis)
+### State 1: James's pipeline complete
 
 - `legacy_club_candidates` populated
 - `legacy_person_club_affiliations` populated
@@ -698,19 +701,19 @@ Name model, slug lifecycle, person links, historical name display, `first_compet
 10. Admin verifies the new platform is operational (smoke checks, critical flows confirmed)
 11. Admin triggers post-cutover notification batch
 
-### State 5: Post-cutover (30-day window)
+### State 5: Post-cutover
 
 - New platform live
 - Legacy database retained by Steve for reference and targeted recovery
 - Members self-serve claim their legacy accounts over time
-- Admins handle manual recovery cases and Tier 3 review queue
-- Bootstrap-leader confirmations accumulate as members claim
+- Admins handle manual recovery cases and remaining Tier 3 cases from migration
+- Leadership activations accumulate as members register and claim
 
 ### State 6: Migration complete
 
 - All high-priority legacy accounts claimed or manually recovered
 - All bootstrap clubs resolved or admin-reviewed
-- Auto-link Tier 3 review queue cleared
+- All Tier 3 auto-link cases resolved (by admin review or member registration)
 - Legacy database retired
 
 ---
@@ -799,22 +802,17 @@ Manual recovery does not require second-admin approval. It does require full aud
 
 Manual recovery never auto-promotes legacy `is_admin` metadata to a live admin role.
 
-### Bootstrap club leadership resolution (A_Resolve_Bootstrap_Club_Leadership)
-
-Admins can:
-
-- Review bootstrapped clubs with unresolved or conflicting provisional leaders
-- Re-map a provisional leader to a correctly-claimed member
-- Supersede provisional assignments and appoint a normal live leader via the standard `club_leaders` workflow
-- All actions are audit-logged
-
 ### Auto-link Tier 3 review (A_Review_Auto_Link_Matches)
 
+Migration-time admin review of Tier 3 cases from Steve's data import (email match, name mismatch). These are existing IFPA members who have not yet registered, so the system cannot ask them directly.
+
 Admins can:
 
-- Review queued Tier 3 auto-link cases (email match, name mismatch)
+- Review Tier 3 auto-link cases: each case shows the historical person name, the imported placeholder name, the matched email, and relevant context
 - Confirm or reject the proposed link
 - All actions are audit-logged
+
+Note: At registration time, Tier 3 cases are handled by inline user prompt (no admin involvement).
 
 ---
 
@@ -883,10 +881,9 @@ The following design decisions require updating or creation before or after go-l
 | ID | Actor | Summary |
 |---|---|---|
 | M_Claim_Legacy_Account | Logged-in member | Link a legacy footbag.org member record to current account via identifier lookup and mailbox verification |
-| M_Review_Legacy_Club_Data_During_Claim | Member in claim flow | Review mirror-derived club suggestions and provisional leadership before merge confirmation (subsumed by broader onboarding flow) |
+| M_Review_Legacy_Club_Data_During_Claim | Member in claim flow | Review mirror-derived club suggestions and leadership assignments before merge confirmation (subsumed by broader onboarding flow) |
 | M_Edit_Profile | Member | Edit profile including first_competition_year and show_competitive_results |
 | M_View_Profile | Member / public | View profile with competition history, historical name, caveat text |
 | M_Delete_Account | Member | Delete account; person links revert from /members/ to /history/ |
 | A_Manual_Legacy_Claim_Recovery | Admin | Help a member complete legacy claim when self-serve is unavailable |
-| A_Resolve_Bootstrap_Club_Leadership | Admin | Resolve provisional club leadership that could not be automatically finalized |
 | A_Review_Auto_Link_Matches | Admin | Review and resolve Tier 3 auto-link cases (email match, name mismatch) |

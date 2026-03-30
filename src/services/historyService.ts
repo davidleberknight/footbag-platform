@@ -151,7 +151,7 @@ export const historyService = {
     };
 
     return {
-      seo: { title: player.personName },
+      seo: { title: `Player ${player.personName}` },
       page: {
         sectionKey: 'history',
         pageKey:    'history_player_detail',

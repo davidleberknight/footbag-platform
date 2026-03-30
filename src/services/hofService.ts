@@ -26,7 +26,7 @@ export const hofService = {
           {
             heading: 'A Bit of History...',
             paragraphs: [
-              'One fine day in Oregon in 1972, Mike Marshall and John Stalberger decided to hack a sack, ' +
+              'One fine day in Oregon in 1972, <a href="https://www.footbaghalloffame.net/our-members/mike-marshall" target="_blank" rel="noopener noreferrer">Mike Marshall</a> and <a href="https://www.footbaghalloffame.net/our-members/john-stalberger" target="_blank" rel="noopener noreferrer">John Stalberger</a> decided to hack a sack, ' +
               'to kick a small bag around for fun and exercise. ' +
               'This became Hacky Sack brand footbag, and soon there were competitions, ' +
               'plus joyful free-flow kicking at festivals and events. ' +
