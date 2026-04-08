@@ -76,6 +76,10 @@ Stage 05p5 pipeline/05p5_remediate_canonical.py            final integrity + eve
 QC         pipeline/qc/run_qc.py                           validate — must return QC STATUS: PASS
 ```
 
+NOTE: `03_build_excel.py` and `04_build_analytics.py` are **deprecated** and no longer
+run as part of the rebuild stage. They produced a summary-column format that is not the
+workbook deliverable. See the Workbook Builds section below.
+
 The early pipeline (`./run_early_pipeline.sh`) produces the merged `out/canonical_all/`
 dataset combining post-1997 and pre-1997. It is separate from the main production path
 and is used for the platform export.
@@ -120,12 +124,83 @@ After a full `rebuild + release + qc` run:
 Current totals: **830 events / 4,295 disciplines / 25,807 results / 36,261 participants
 / 3,396 persons**. QC: PASS.
 
-The platform export (`out/release_publication/`) is produced separately by:
+## Workbook Builds
 
-    tools/build_canonical_enrichment.py   (discipline normalization, coverage filter)
-    tools/export_platform_canonical.py    (platform schema export)
+Workbook builds are **separate** from the canonical pipeline and do not affect `out/canonical/`.
+Run them standalone after a completed `rebuild + release + qc` cycle.
 
-These apply enrichment (discipline normalization, coverage filtering) before export.
+### Primary deliverable — v22-style release workbook
+
+**Script:** `pipeline/build_workbook_release.py` *(forthcoming — port of v17 lineage)*
+**Output:** `out/Footbag_Results_Release.xlsx`
+
+Rules:
+- **Year sheets:** display only **non-sparse** events (events with real placement data)
+- **EVENT INDEX sheet:** references **all** events including sparse/excluded ones
+- **Person visibility:** workbook persons should align with platform-facing persons
+  (`canonical_input/persons.csv`) as closely as practical — the same filtering logic
+  (referenced by participants, or has member_id/BAP/HOF) should govern both
+- **Not included:** Consecutive Records sheet, Freestyle Insights sheet — these are
+  out of scope for the main release deliverable
+
+```bash
+.venv/bin/python pipeline/build_workbook_release.py   # v22-style release format
+```
+
+### Community distribution format
+
+**Script:** `pipeline/build_workbook_community.py` *(active — v13 lineage port)*
+**Output:** `out/Footbag_Results_Community.xlsx`
+
+```bash
+.venv/bin/python pipeline/build_workbook_community.py   # community format
+```
+
+### Deprecated workbook builders
+
+| Script | Reason deprecated |
+|--------|-------------------|
+| `pipeline/03_build_excel.py` | Summary-column format — **not** the release deliverable; do not use as model |
+| `pipeline/04_build_analytics.py` | Companion to 03; same issue |
+| `pipeline/04B_create_community_excel.py` | Predates v13 port; superseded by `build_workbook_community.py` |
+
+`03_build_excel.py` is intentionally retained for audit traceability but must not be
+treated as the canonical workbook builder.
+
+## Pipeline Relationship: Rebuild/Workbook vs Release/Platform
+
+The two downstream pipelines are **separate but related**:
+
+| | Rebuild → Workbook | Release → Platform/DB |
+|---|---|---|
+| Input | `out/canonical/*.csv` (after rebuild) | `out/canonical/*.csv` (after rebuild) |
+| Output | `out/Footbag_Results_Release.xlsx` | `event_results/canonical_input/*.csv` → SQLite DB |
+| Key script | `pipeline/build_workbook_release.py` | `pipeline/platform/export_canonical_platform.py` |
+| Person filtering | Align with platform filtering as closely as practical | Referenced by participants, or has member_id/BAP/HOF |
+| Event visibility | Year sheets: non-sparse only; INDEX: all events | All non-excluded events |
+
+**Both paths share the same canonical source** (`out/canonical/`). The workbook's visible
+persons and event visibility should reflect the same population as the platform DB — do not
+design them independently.
+
+## Platform / DB Export
+
+`out/canonical/*.csv` → platform schema:
+
+```bash
+./run_pipeline.sh release   # exports canonical CSVs and runs export_canonical_platform.py
+```
+
+Then:
+
+```bash
+# From footbag-platform/ root:
+python legacy_data/event_results/scripts/07_build_mvfp_seed_full.py  # canonical_input → seed
+python legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py --db database/footbag.db
+```
+
+The platform path is separate from the workbook path — but person and event filtering
+decisions in one should inform the other. Do not conflate the mechanics; do align the intent.
 
 ---
 
@@ -146,7 +221,12 @@ These apply enrichment (discipline normalization, coverage filtering) before exp
   comparison feeds); not part of the production run path
 - `tools/patch_*.py` — historical version migration scripts; not called in production;
   do not re-run without understanding their context
-- `tools/build_workbook_v13.py` through `v18.py` — superseded workbook builders
+- `tools/build_workbook_v13.py` through `v18.py` — superseded workbook builders (in FOOTBAG_DATA repo; ported versions live in `pipeline/`)
+- `pipeline/03_build_excel.py` — deprecated workbook builder (summary-column format); **not**
+  the release deliverable; do not use as a model or migration base
+- `pipeline/04_build_analytics.py` — deprecated workbook builder (companion to 03)
+- `pipeline/04B_create_community_excel.py` — deprecated community workbook (predates v13 port)
+- `pipeline/06_build_mvfp_seed.py` — deprecated seed builder (superseded by event_results/scripts/07)
 
 ### Deferred (known gaps, not blocking)
 - Event key standardization for 1982–1986 (18 unambiguous renames identified)

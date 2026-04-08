@@ -9,7 +9,10 @@ Invoke this skill when:
 Do NOT invoke this skill for:
 - Adding a new pre-1997 source (use `promote-curated-source` instead)
 - Identity lock version upgrades (those have their own patch toolchain)
-- Workbook-only changes that don't touch canonical CSVs
+- Workbook generation — use the `workbook-v22` skill; builder is
+  `pipeline/build_workbook_release.py` (v22-style) or `pipeline/build_workbook_community.py`
+- Platform/DB export — that is `./run_pipeline.sh release` followed by scripts 07 and 08;
+  see CLAUDE.md "Platform / DB Export" section; do not conflate with rebuild
 
 ---
 
