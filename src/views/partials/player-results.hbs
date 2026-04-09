@@ -17,7 +17,7 @@
         <tr>
           <th>Discipline</th>
           <th>Place</th>
-          <th>With</th>
+          <th>{{withHeader}}</th>
         </tr>
       </thead>
       <tbody>
@@ -28,9 +28,7 @@
               {{placement}}
             </td>
             <td>
-              {{#if (gt teammates.length 0)}}
-                {{#each teammates}}{{#unless @first}}, {{/unless}}{{#if playerHref}}<a href="{{playerHref}}">{{name}}</a>{{else}}{{name}}{{/if}}{{/each}}
-              {{/if}}
+              {{#each teammates}}{{#unless @first}}, {{/unless}}{{#if playerHref}}<a href="{{playerHref}}">{{name}}</a>{{else}}{{name}}{{/if}}{{/each}}
             </td>
           </tr>
         {{/each}}

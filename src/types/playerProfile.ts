@@ -10,6 +10,7 @@ export interface PlayerResultEntry {
   placement: number;
   scoreText: string | null;
   teammates: { name: string; playerHref?: string }[];
+  isTie: boolean;
 }
 
 export interface PlayerEventGroup {
@@ -21,6 +22,7 @@ export interface PlayerEventGroup {
   eventRegion: string | null;
   eventCountry: string;
   results: PlayerResultEntry[];
+  withHeader: string;
 }
 
 export interface PlayerHeroData {

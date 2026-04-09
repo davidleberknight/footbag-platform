@@ -55,6 +55,7 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
         eventRegion:  row.event_region,
         eventCountry: row.event_country,
         results:      [],
+        withHeader:   '',
       });
     }
 
@@ -73,6 +74,7 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
         placement:          row.placement,
         scoreText:          row.score_text,
         teammates:          [],
+        isTie:              row.team_type === 'singles',
       };
       group.results.push(entry);
     }
@@ -89,6 +91,17 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
     }
   }
 
-  return Array.from(eventMap.values());
+  const groups = Array.from(eventMap.values());
+  for (const g of groups) {
+    const labels = new Set<string>();
+    for (const r of g.results) {
+      if (r.teammates.length === 0) continue;
+      if (r.isTie) labels.add('Tied with');
+      else if (r.teammates.length > 1) labels.add('With partners');
+      else labels.add('With partner');
+    }
+    g.withHeader = labels.size === 1 ? [...labels][0] : '';
+  }
+  return groups;
 }
 
