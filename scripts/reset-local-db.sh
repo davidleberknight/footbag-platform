@@ -23,7 +23,7 @@ fi
 
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 SCHEMA="database/schema.sql"
-CANONICAL_INPUT="legacy_data/event_results/canonical_input"
+CANONICAL_INPUT_DIR="legacy_data/event_results/canonical_input"
 SEED_DIR="legacy_data/event_results/seed/mvfp_full"
 VENV="scripts/.venv"
 REQUIREMENTS="scripts/requirements.txt"
@@ -46,10 +46,13 @@ rm -f "${DB_FILE}" "${DB_FILE}-wal" "${DB_FILE}-shm"
 echo "  → Applying schema..."
 sqlite3 "${DB_FILE}" < "${SCHEMA}"
 
-# Persons come from the canonical list — authoritative, James-curated.
-# Overwrite seed_persons.csv so 08_load picks up the clean source.
-# (Extra columns in canonical are ignored by the loader's row.get() calls.)
-cp "${CANONICAL_INPUT}/persons.csv" "${SEED_DIR}/seed_persons.csv"
+# Build seed CSVs from canonical input. Script 07 stamps source_scope='CANONICAL'
+# on persons, which the /history Players query requires. This replaces the prior
+# cp-based shortcut, which dropped source_scope and broke the /history listing.
+echo "  → Building seed CSVs from canonical input..."
+"${PYTHON}" legacy_data/event_results/scripts/07_build_mvfp_seed_full.py \
+  --input-dir "${CANONICAL_INPUT_DIR}" \
+  --output-dir "${SEED_DIR}"
 
 # Load seed CSVs into database
 echo "  → Loading seed data into database..."
