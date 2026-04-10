@@ -1,0 +1,16 @@
+{
+  "conflict_count": 7,
+  "exact_match_count": 17,
+  "match_status_counts": {
+    "EXACT_HISTORICAL_MATCH": 17,
+    "HISTORICAL_CONFLICT": 7,
+    "NO_HISTORICAL_MATCH": 1905,
+    "VARIANT_HISTORICAL_MATCH": 20,
+    "WEAK_HISTORICAL_MATCH": 214
+  },
+  "no_match_count": 1905,
+  "provisional_identity_count": 2163,
+  "review_needed_count": 221,
+  "variant_match_count": 20,
+  "weak_match_count": 214
+}

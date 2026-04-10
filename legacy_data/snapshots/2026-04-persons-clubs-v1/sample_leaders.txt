@@ -1,0 +1,20 @@
+club_key,club_name,person_id,person_name,mirror_member_id,role,status,affiliation_confidence_score,club_confidence_score,selection_rank,selection_reason
+1005960946,FootbagDenmark,816ccebb-84e4-551e-b7bb-d6517dd88e83,Asmus Helms,69571,leader,provisional,0.9,0.95,1,top_matched_linkable_affiliation
+1005960946,FootbagDenmark,d7070195-f1d4-50ec-b00a-e13088399b00,Benny Leick,14744,co_leader,provisional,0.9,0.95,2,tied_top_score_with_sufficient_depth
+1014117242,Finnsta,998c87dc-4197-5f4d-97aa-f54b82f96a13,Aleksi Öhman,37326,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1018615368,Fundación Footbag Colombia - IFC,6fd37375-f36d-5615-a5b4-698d49e2c31d,Camilo Moreno,70188,leader,provisional,0.9,0.9,1,top_matched_linkable_affiliation
+1019075457,Riverside Kicks,5fb5dad9-fea9-5d00-b248-0c99eded7fa6,Jonathan Felix,45621,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1021384954,Freestyle Fanatics,85d475d3-73ed-5d1b-acfc-682ee32b8965,Benjamin Schmidtke,82326,leader,provisional,0.9,0.9,1,top_matched_linkable_affiliation
+1021384954,Freestyle Fanatics,7a495ac2-7771-5070-a3ef-6cd2d465daa4,Björn Stenzel,75740,co_leader,provisional,0.9,0.9,2,tied_top_score_with_sufficient_depth
+1021573277,Sole Purpose,ece72308-6a72-551f-866a-e348728ee455,Kendall KIC,13397,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1025613544,ToMiStyKa Footbag Club,fc0e50ee-c392-5d00-a7f1-be70b324c749,Adam Cieszkiel,66198,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1027195555,Naurava Ampiainen,23f60613-fbe8-5442-9981-114fd3cf4c14,Jussi Lahtinen,43909,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1030716331,Asociacion Argentina de Footbag,edc74680-06cd-5651-8fd3-6881c9af20ce,Jan Konietzko,81124,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1041981808,"United Flyers of Sonoma, UFOS",8959d778-41d3-554e-a831-6e1f73534b0f,Chris Ott,40543,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1042652245,Les Pieds à Gilles,a42cf921-c464-5ab4-b1ff-f7ce4c0bf8ed,Alain Custovic,77993,leader,provisional,0.9,0.95,1,top_matched_linkable_affiliation
+1042652245,Les Pieds à Gilles,67249857-b2ef-52b9-972f-6d43915f17fc,David Garcia,64078,co_leader,provisional,0.9,0.95,2,tied_top_score_with_sufficient_depth
+1045423024,Nashville Kicks,e369e282-1618-545f-8baa-b12ee76814aa,Alex Grammer,62690,leader,provisional,0.9,0.9,1,top_matched_linkable_affiliation
+1049582357,FOOTBAG ERIE,37561288-5ce0-5b8b-b297-0181cdd489fc,Cory Carr,64864,leader,provisional,0.9,0.9,1,top_matched_linkable_affiliation
+1053476560,Victoria Footbag,be733240-4c4d-553c-9df4-4c47b38a19e4,Allan Haggett,12181,leader,provisional,0.9,0.85,1,top_matched_linkable_affiliation
+1056107923,Footbag Kranj,9872302c-81c0-5679-8be2-a2deb87c71f4,Ervin Pahulje,79035,leader,provisional,0.9,0.95,1,top_matched_linkable_affiliation
+1056107923,Footbag Kranj,cd054fc0-0dbe-582f-9e04-7b4b1d16cf23,Grega Morel,66098,co_leader,provisional,0.9,0.95,2,tied_top_score_with_sufficient_depth
