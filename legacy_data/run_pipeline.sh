@@ -8,9 +8,11 @@
 # canonical QC gate and DB load complete.
 #
 # Modes:
-#   full            — V0 backbone → preflight → phases C–F
-#   canonical_only  — V0 backbone only
-#   enrichment_only — preflight → phases C–F (requires canonical outputs)
+#   full            — V0 backbone → preflight → phases C–F → G (soup to nuts)
+#   canonical_only  — V0 backbone only (mirror access required)
+#   enrichment_only — preflight → phases C–F → G (requires canonical outputs)
+#   csv_only        — DB load from existing CSVs → phases C–F → G
+#                     (no mirror access required; seed and canonical_input must exist)
 #
 # Run from: legacy_data/
 # Assumes:  venv already active
@@ -55,6 +57,76 @@ run_preflight() {
     fi
 
     echo "  Preflight passed"
+    echo "───────────────────────────────────────────────────────────────────────"
+    echo ""
+}
+
+# =============================================================================
+# PREFLIGHT (csv_only)
+#
+# Verifies all CSV artifacts that csv_only mode requires are already present.
+# These are produced by a prior canonical_only run (and mirror extraction for
+# clubs seed).  csv_only does NOT re-run QC or the workbook — it loads existing
+# seed files into the DB then runs enrichment phases C–F and G.
+#
+# Required files:
+#   event_results/canonical_input/   — 5 platform-export CSVs
+#   event_results/seed/mvfp_full/    — 5 seed CSVs (built by script 07)
+#   membership/inputs/               — membership normalized CSV
+#   seed/                            — clubs + club_members CSVs
+# =============================================================================
+run_preflight_csv_only() {
+    echo ""
+    echo "── csv_only preflight ─────────────────────────────────────────────────"
+
+    local missing=()
+
+    # Canonical platform export (produced by export_canonical_platform.py)
+    for f in events event_disciplines event_results event_result_participants persons; do
+        [[ -f "event_results/canonical_input/${f}.csv" ]] \
+            || missing+=("event_results/canonical_input/${f}.csv")
+    done
+
+    # Seed CSVs (produced by script 07)
+    for f in seed_events seed_event_disciplines seed_event_results seed_event_result_participants seed_persons; do
+        [[ -f "event_results/seed/mvfp_full/${f}.csv" ]] \
+            || missing+=("event_results/seed/mvfp_full/${f}.csv")
+    done
+
+    # Membership input
+    [[ -f "membership/inputs/membership_input_normalized.csv" ]] \
+        || missing+=("membership/inputs/membership_input_normalized.csv")
+
+    # Club seed inputs
+    [[ -f "seed/clubs.csv"        ]] || missing+=("seed/clubs.csv")
+    [[ -f "seed/club_members.csv" ]] || missing+=("seed/club_members.csv")
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "  ERROR: csv_only preflight failed — missing required files:" >&2
+        for f in "${missing[@]}"; do
+            echo "    MISSING: $f" >&2
+        done
+        echo "" >&2
+        echo "  These files are produced by a full canonical_only run." >&2
+        echo "  If you have mirror access, run:  ./run_pipeline.sh canonical_only" >&2
+        echo "  Otherwise, obtain these CSVs from a collaborator." >&2
+        exit 1
+    fi
+
+    echo "  csv_only preflight passed"
+    echo "───────────────────────────────────────────────────────────────────────"
+    echo ""
+}
+
+# =============================================================================
+# DB LOAD (canonical seed only — step 7 of V0 backbone, extracted for reuse)
+# =============================================================================
+run_db_load_canonical() {
+    echo ""
+    echo "── DB load: canonical seed ────────────────────────────────────────────"
+    python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
+        --db "${REPO_ROOT}/database/footbag.db" \
+        --seed-dir "event_results/seed/mvfp_full"
     echo "───────────────────────────────────────────────────────────────────────"
     echo ""
 }
@@ -238,8 +310,24 @@ case "$MODE" in
         echo "╚══════════════════════════════════════════════════════╝"
         ;;
 
+    csv_only)
+        # No mirror access required.  Loads existing seed → DB, then runs all
+        # enrichment phases (C–F) and the enrichment DB load (G).
+        run_preflight_csv_only
+        run_db_load_canonical
+        run_phase_c
+        run_phase_d
+        run_phase_e
+        run_phase_f
+        run_phase_g
+        echo ""
+        echo "╔══════════════════════════════════════════════════════╗"
+        echo "║  CSV-ONLY PIPELINE DONE                              ║"
+        echo "╚══════════════════════════════════════════════════════╝"
+        ;;
+
     *)
-        echo "Usage: $0 {full|canonical_only|enrichment_only}" >&2
+        echo "Usage: $0 {full|canonical_only|enrichment_only|csv_only}" >&2
         exit 1
         ;;
 esac
