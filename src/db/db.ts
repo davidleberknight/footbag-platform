@@ -610,6 +610,71 @@ export const clubs = {
   `),
 } as const;
 
+// ---------------------------------------------------------------------------
+// Freestyle records — public read path
+//
+// Public filter contract (enforced here, not in service layer):
+//   confidence IN ('verified', 'probable')
+//   AND superseded_by IS NULL
+//   AND (person_id IS NOT NULL OR display_name IS NOT NULL)
+//
+// Holder name: canonical person_name when person_id resolves; otherwise
+// freestyle_records.display_name (raw player name from source CSV).
+// ---------------------------------------------------------------------------
+export interface FreestyleRecordRow {
+  id: string;
+  record_type: string;
+  person_id: string | null;
+  holder_name: string;
+  trick_name: string | null;
+  sort_name: string | null;
+  adds_count: number | null;
+  value_numeric: number;
+  achieved_date: string | null;
+  date_precision: string;
+  confidence: string;
+  video_url: string | null;
+  video_timecode: string | null;
+  notes: string | null;
+}
+
+export const freestyleRecords = {
+  listPublic: db.prepare(`
+    SELECT
+      fr.id,
+      fr.record_type,
+      fr.person_id,
+      COALESCE(hp.person_name, fr.display_name) AS holder_name,
+      fr.trick_name,
+      fr.sort_name,
+      fr.adds_count,
+      fr.value_numeric,
+      fr.achieved_date,
+      fr.date_precision,
+      fr.confidence,
+      fr.video_url,
+      fr.video_timecode,
+      fr.notes
+    FROM freestyle_records AS fr
+    LEFT JOIN historical_persons AS hp
+      ON hp.person_id = fr.person_id
+    WHERE fr.confidence IN ('verified', 'probable')
+      AND fr.superseded_by IS NULL
+      AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
+    ORDER BY fr.record_type ASC, fr.value_numeric DESC
+  `),
+
+  countPublicByType: db.prepare(`
+    SELECT record_type, COUNT(*) AS n
+    FROM freestyle_records
+    WHERE confidence IN ('verified', 'probable')
+      AND superseded_by IS NULL
+      AND (person_id IS NOT NULL OR display_name IS NOT NULL)
+    GROUP BY record_type
+    ORDER BY record_type ASC
+  `),
+} as const;
+
 export const health = {
   checkReady: db.prepare(`
     SELECT 1 AS is_ready

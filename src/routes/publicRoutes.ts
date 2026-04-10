@@ -7,6 +7,7 @@ import { memberController } from '../controllers/memberController';
 import { claimController } from '../controllers/claimController';
 import { authController } from '../controllers/authController';
 import { hofController } from '../controllers/hofController';
+import { freestyleController } from '../controllers/freestyleController';
 import { requireAuth } from '../middleware/authStub';
 
 export const publicRouter = Router();
@@ -15,6 +16,11 @@ publicRouter.get('/',      homeController.home);
 publicRouter.get('/clubs',       clubController.index);
 publicRouter.get('/clubs/:key', clubController.byKey);
 publicRouter.get('/hof',   hofController.index);
+
+// IMPORTANT: /freestyle/records must be registered before /freestyle (exact match
+// first) so the literal segment "records" is not swallowed by a future param route.
+publicRouter.get('/freestyle/records', freestyleController.records);
+publicRouter.get('/freestyle',         freestyleController.landing);
 
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.
 // Express matches routes in registration order. Without this ordering,
