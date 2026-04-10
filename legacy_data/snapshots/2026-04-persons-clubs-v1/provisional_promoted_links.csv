@@ -1,0 +1,38 @@
+provisional_identity_id,canonical_candidate_name,canonical_candidate_name_norm,source_types,staged_row_count,membership_row_count,club_row_count,mirror_member_id_count,provisional_confidence,matched_historical_person_id,matched_historical_person_name,match_status,match_rule,match_score
+provisional_identity::f457b56260c7c42b,Aleksi Öhman,aleksi öhman,MEMBERSHIP,1,1,0,0,high,998c87dc-4197-5f4d-97aa-f54b82f96a13,Aleksi Öhman,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::8476e55e9a4b46ba,Andreas Käfer,andreas käfer,MEMBERSHIP,1,1,0,0,high,b4d3857a-5a59-5e4f-8756-766f9defcce8,Andreas Käfer,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::ee49bfafd6f6f58e,Benjamin Appold,benjamin appold,CLUB,1,0,1,1,high,8904d5de-3a3f-5eec-9898-3b1881fa1a2e,Ben Appold,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::7f3a0b19c0060141,Benjamin West,benjamin west,CLUB,1,0,1,1,high,df61f0d0-bab6-5f50-8b83-2e90f43cf96d,Ben West,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::4ce81a8ccf69c894,Christopher A. Gregory,christopher a. gregory,CLUB,1,0,1,1,high,552a9fb8-e63c-5f87-b431-06f68b0a1323,Chris Gregory,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::3b2dac09f80a64a1,Chris Löw,chris löw,MEMBERSHIP,1,1,0,0,high,59b9b60b-1697-54f8-98d1-eaed43e99f65,Chris Löw,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::8f1a0f5fe788d954,Christopher D. Miller,christopher d. miller,CLUB,1,0,1,1,high,d53d0dae-9c1e-5773-a133-e42829b7a2ae,Chris Miller,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::2f78d4ddc3c932f8,David O. Beyers,david o. beyers,CLUB,1,0,1,1,high,f11252e7-1d3c-5e22-9819-32bdb69775de,Dave Boatz Beyers,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::d7c994723df2ff30,David J. Hill,david j. hill,CLUB,1,0,1,1,high,5cb79fb4-ab20-558f-b4a2-e7206c9f22df,Dave Hill,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::8dad70dcdc9530fd,David Hillis,david hillis,CLUB,1,0,1,1,high,ece5d70c-5b61-5d08-aa25-aeda95b1cca2,Dave Hillis,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::29ace9672c0a2267,Geneviève Bousquet,geneviève bousquet,MEMBERSHIP,1,1,0,0,high,fea99a91-ae13-5cb1-b87f-3c352783dc2e,Geneviève Bousquet,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::3c2bfc18a9c10b39,Jani Säntti,jani säntti,MEMBERSHIP,1,1,0,0,high,bd8f51fb-7188-58b6-96ef-720edd7c8a61,Jani Säntti,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::09382385e8aaccd8,James McCoppin,james mccoppin,CLUB,1,0,1,1,high,3ab114f1-839a-5581-a859-8c48809ae672,Jim McCoppin,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::dcef8da3264abb23,Jon Spencer,jon spencer,CLUB,1,0,1,1,high,14319ccf-800c-5f01-823e-49b4d7d1f840,Jonathan Spencer,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::44e95d3ca1fb2980,Jule Böhm,jule böhm,MEMBERSHIP,1,1,0,0,high,1cf1eda3-ba6d-5074-aaa7-85e6c5bb6567,Jule Böhm,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::d872f61e33e96246,Kenneth D. Hamric,kenneth d. hamric,CLUB,1,0,1,1,high,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken Hamric,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::7ecd09ffece6e7d0,Marco Döbeli,marco döbeli,MEMBERSHIP,1,1,0,0,high,5fc5f6c4-2883-5af7-9870-04d8c9378031,Marco Döbeli,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::04f5f1ef44b7ab24,Matthew A. Churney,matthew a. churney,CLUB,1,0,1,1,high,381a0064-039e-5cd5-983c-317508c83591,Matt Churney,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::2272d3af2dff57e5,Matthew Evans,matthew evans,CLUB,1,0,1,1,high,19c11d95-82bd-502b-8c8f-1ebffa8bbb44,Matt Evans,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::c1f59f72d36c785a,Matthew A. McLaren,matthew a. mclaren,CLUB,1,0,1,1,high,a4299d6f-ea7b-54a5-9523-f16ba89259df,Matt Mclaren,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::5068484e8a7aaefd,Matt L. Baker,matt l. baker,CLUB,1,0,1,1,high,d8b4d902-044d-5140-8713-39c727613771,Matthew Baker,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::3891ff378f32f7d4,Matt A. Churney,matt a. churney,CLUB,1,0,1,1,high,d040b1f6-a1b1-597d-8d41-05432b35fc68,Matthew Churney,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::d714d8280998465d,Matt L. Cross,matt l. cross,CLUB,1,0,1,1,high,0f49163a-1b6c-5734-b255-f1667058719f,Matthew Cross,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::4d6a307946934a3a,Mike Bellman,mike bellman,CLUB,1,0,1,1,high,6ed2ffbb-a3ce-5313-b045-2a382da11dd3,Michael Bellman,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::4a9e24319b08aeec,Mike P. McCarthy,mike p. mccarthy,CLUB,1,0,1,1,high,4c4505cd-7a52-5203-8e56-902558ac2935,Michael McCarthy,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::24d93d202d43d432,Michael P. Scheele,michael p. scheele,CLUB,1,0,1,1,high,ee312ddb-1d0b-5e91-b59f-1860309e0c67,Mike Scheele,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::e6ea98104981ebb0,Michael A. Stokely,michael a. stokely,CLUB,1,0,1,1,high,746cc216-852b-5788-bdf3-7b08b853664c,Mike Stokely,VARIANT_HISTORICAL_MATCH,known_variant,75
+provisional_identity::13e6e7357a07058a,Olli Kärki,olli kärki,MEMBERSHIP,1,1,0,0,high,344f3a03-99b4-5d91-9f08-7625248cad4a,Olli Kärki,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::22a8e7bd7e894086,P.T. Lovern,p.t. lovern,MEMBERSHIP,1,1,0,0,high,7c5778f0-6847-58e6-9e37-09967ef3db13,P.T. Lovern,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::7794e0b6a2bcb28d,Petteri Petäinen,petteri petäinen,MEMBERSHIP,1,1,0,0,high,0db6a0c8-57d8-589f-8822-a5c544f5bbf6,Petteri Petäinen,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::723e77c6dcc7cca3,Piia Tantarimäki,piia tantarimäki,MEMBERSHIP,1,1,0,0,high,1dc7bf3f-8a4d-57b0-912b-b6626fb29cfb,Piia Tantarimäki,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::07a0e86a82cfd9a4,Rico Böhme,rico böhme,MEMBERSHIP,1,1,0,0,high,7615cbad-eda1-5a2a-bff6-f63e883433e9,Rico Böhme,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::7bd3d92f2e44d6a0,Silvan Lötscher,silvan lötscher,MEMBERSHIP,1,1,0,0,high,2ba10b8c-881e-5942-b3fc-50a70760841c,Silvan Lötscher,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::7f1c94b25d5263b5,T.J. Boutorwick,t.j. boutorwick,MEMBERSHIP,1,1,0,0,high,4120a537-80b0-5a89-a0b2-b24a4cf4550a,T.J. Boutorwick,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::378560ebbc4ea4f4,Thorsten Schäfer,thorsten schäfer,MEMBERSHIP,1,1,0,0,high,da228355-48d6-5112-8208-97793d324412,Thorsten Schäfer,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::d1c61dd621b02c5e,Tomasz Wróbel,tomasz wróbel,MEMBERSHIP,1,1,0,0,high,495fbdce-986d-523e-9b01-f699a035c4ef,Tomasz Wróbel,EXACT_HISTORICAL_MATCH,exact_full_name,100
+provisional_identity::e0e6ea4284f0b2b2,Toni Pääkkönen,toni pääkkönen,MEMBERSHIP,1,1,0,0,high,98945320-03c6-5cb1-8dbd-886ce1019bb9,Toni Pääkkönen,EXACT_HISTORICAL_MATCH,exact_full_name,100
