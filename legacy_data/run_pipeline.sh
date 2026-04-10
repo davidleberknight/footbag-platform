@@ -182,6 +182,28 @@ run_phase_f() {
 }
 
 # =============================================================================
+# PHASE G — Enrichment DB load
+# Reads:    persons/out/persons_master.csv
+#           clubs/out/legacy_club_candidates.csv
+#           clubs/out/legacy_person_club_affiliations.csv
+# Produces: historical_persons (PROVISIONAL), legacy_club_candidates,
+#           legacy_person_club_affiliations rows in footbag.db
+# Note:     club_bootstrap_leaders deferred — requires live clubs.id FK
+# =============================================================================
+run_phase_g() {
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  PHASE G: ENRICHMENT DB LOAD                         ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    python event_results/scripts/09_load_enrichment_to_sqlite.py \
+        --db "${REPO_ROOT}/database/footbag.db" \
+        --persons-csv      persons/out/persons_master.csv \
+        --candidates-csv   clubs/out/legacy_club_candidates.csv \
+        --affiliations-csv clubs/out/legacy_person_club_affiliations.csv
+    echo ""
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 case "$MODE" in
@@ -192,6 +214,7 @@ case "$MODE" in
         run_phase_d
         run_phase_e
         run_phase_f
+        run_phase_g
         echo ""
         echo "╔══════════════════════════════════════════════════════╗"
         echo "║  FULL PIPELINE DONE                                  ║"
@@ -208,6 +231,7 @@ case "$MODE" in
         run_phase_d
         run_phase_e
         run_phase_f
+        run_phase_g
         echo ""
         echo "╔══════════════════════════════════════════════════════╗"
         echo "║  ENRICHMENT PIPELINE DONE                            ║"

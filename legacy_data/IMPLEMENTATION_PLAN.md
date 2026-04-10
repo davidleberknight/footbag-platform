@@ -17,6 +17,7 @@ The root `IMPLEMENTATION_PLAN.md` governs the broader platform sprint.
 - `persons/out/` and `persons/provisional/out/` added to `.gitignore` (matching `clubs/out/`, `membership/out/`)
 - **Fix 9 in `05p5_remediate_canonical.py`**: disambiguates bare division labels (e.g. "Open Singles" → "Open Singles Net") in multi-category events; 242 labels upgraded, QC PASS, platform DB updated
 - `README.md` and `CLAUDE.md` updated: three pipeline modes documented
+- **Phase G** (`event_results/scripts/09_load_enrichment_to_sqlite.py`): loads enrichment pipeline outputs into footbag.db — 2,121 PROVISIONAL persons, 311 club candidates, 2,399 affiliations; wired into `run_pipeline.sh` as `run_phase_g()` (runs at end of `enrichment_only` and `full` modes)
 
 ### What the PR delivered
 
@@ -33,8 +34,8 @@ The root `IMPLEMENTATION_PLAN.md` governs the broader platform sprint.
 Per root `IMPLEMENTATION_PLAN.md §James's sprint`:
 
 - [ ] Expanded `persons.csv` with ~1,600 club-only members
-- [ ] Club pipeline: `legacy_club_candidates`, affiliations, confidence scoring, bootstrap eligibility
-- [ ] `club_bootstrap_leaders` rows for bootstrap-eligible clubs
+- [x] Club pipeline: `legacy_club_candidates`, affiliations, confidence scoring, bootstrap eligibility (Phase G loads these)
+- [ ] `club_bootstrap_leaders` rows for bootstrap-eligible clubs (deferred — requires live `clubs.id` FK)
 - [ ] Known name variants seeded (~290 pairs)
 - [ ] World records CSV in platform-loadable format
 - [ ] Legacy member identity extraction (`legacy_member_id`, `legacy_user_id`, `legacy_email`)
