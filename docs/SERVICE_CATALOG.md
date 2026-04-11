@@ -20,6 +20,9 @@
   - [4.1 `ClubService`](#41-clubservice)
   - [4.2 `EventService`](#42-eventservice)
   - [4.3 `CompetitionParticipationService`](#43-competitionparticipationservice)
+  - [4.4 `FreestyleService`](#44-freestyleservice)
+  - [4.5 `ConsecutiveService`](#45-consecutiveservice)
+  - [4.6 `NetService`](#46-netservice)
 - [5. Payments & Membership](#5-payments--membership)
   - [5.1 `PaymentService`](#51-paymentservice)
   - [5.2 `MembershipTieringService`](#52-membershiptieringservice)
@@ -138,6 +141,21 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Owns:** Event registration, discipline selections, participant list management, roster-access vouch grants (Pathway A)
 - **Does NOT own:** Event creation, payment processing, official IFPA roster reporting/export (AdminGovernanceService)
 - **Primary tables:** `registrations`, `registration_discipline_selections`, `roster_access_grants`, `tier1_vouch_requests`
+
+**`FreestyleService`**
+- **Owns:** All public freestyle section page reads: landing, records, leaders, about, moves, and trick detail pages
+- **Does NOT own:** Event lifecycle, canonical result ingestion, or net/consecutive domain reads
+- **Primary tables:** `freestyle_records` (read-only)
+
+**`ConsecutiveService`**
+- **Owns:** Public consecutive kicks records page read
+- **Does NOT own:** Event lifecycle, freestyle, or net domain reads
+- **Primary tables:** `consecutive_kicks_records` (read-only)
+
+**`NetService`**
+- **Owns:** Public net doubles team list and team detail page reads; discipline label resolution (conflict-flag-aware); evidence disclaimer rendering; statistics firewall enforcement (`canonical_only` data only)
+- **Does NOT own:** Canonical result ingestion, freestyle, or consecutive domain reads
+- **Primary tables:** `net_team`, `net_team_member`, `net_team_appearance_canonical` (view), `net_discipline_group` (read-only)
 
 ---
 
@@ -335,7 +353,7 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 
 ---
 
-## 4. Clubs & Events
+## 4. Clubs & Events (and sport-result read services)
 
 ---
 
@@ -502,6 +520,65 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` Participant email: rate-limited 1/event/day
 
 **Async / Side Effects:** outbox enqueue (registration confirmation, reminder, vouch notifications, participant emails) · audit append · work queue insert (vouch request Pathway B) → admin-alerts notification
+
+---
+
+### 4.4 `FreestyleService`
+
+**Purpose/Boundary:** Owns all public freestyle section page reads for `GET /freestyle*`. Shapes page view-models for the landing page, world records (grouped by record type), leaders list, about page, moves reference, and individual trick detail pages. All reads are against pre-loaded canonical data. Does not own event lifecycle, result ingestion, or any other sport domain.
+
+**Consumers:** Public freestyle controller
+
+**Key Methods:**
+- `getLandingPage() -> PageViewModel` — freestyle section entry
+- `getRecordsPage() -> PageViewModel` — world records grouped by record type
+- `getLeadersPage() -> PageViewModel` — leaders list
+- `getTrickDetailPage(slug) -> PageViewModel` — single trick detail; throws `NotFoundError` for unknown slugs
+- `getAboutPage() -> PageViewModel` — about freestyle
+- `getMovesPage() -> PageViewModel` — moves reference
+
+**Persistence Touchpoints:** `freestyle_records` (read-only)
+
+**Key Rules:**
+- `[APP]` All reads are read-only against canonical tables; no writes
+- `[APP]` `NotFoundError` on unknown trick slug → controller renders 404
+
+---
+
+### 4.5 `ConsecutiveService`
+
+**Purpose/Boundary:** Owns the public consecutive kicks records page read for `GET /consecutive`. Shapes the single-page view-model from canonical consecutive records data. Does not own event lifecycle or any other sport domain.
+
+**Consumers:** Public consecutive controller
+
+**Key Methods:**
+- `getRecordsPage() -> ConsecutiveRecordsViewModel` — full records page, grouped by division
+
+**Persistence Touchpoints:** `consecutive_kicks_records` (read-only)
+
+**Key Rules:**
+- `[APP]` All reads are read-only against canonical tables; no writes
+
+---
+
+### 4.6 `NetService`
+
+**Purpose/Boundary:** Owns public net doubles team list and team detail page reads for `GET /net/teams` and `GET /net/teams/:teamId`. Enforces the statistics firewall: only `evidence_class = 'canonical_only'` data is exposed. Handles conflict-flag-aware discipline label resolution: when `conflict_flag = 1` on a `net_discipline_group` row, the raw canonical discipline name is used instead of the canonical group label. Both pages always render the disclaimer: "Team identities are algorithmically constructed from placement data and may not reflect official partnerships." (not conditioned on a flag). Does not expose win/loss records, head-to-head stats, or rankings.
+
+**Consumers:** Public net controller
+
+**Key Methods:**
+- `getTeamsPage() -> NetTeamsPageViewModel` — team list ordered by appearance count descending
+- `getTeamDetailPage(teamId) -> NetTeamDetailViewModel` — team detail with appearances grouped by year, descending; throws `NotFoundError` for unknown team IDs
+
+**Persistence Touchpoints:** `net_team`, `net_team_member`, `net_team_appearance_canonical` (view — enforces `canonical_only` at DB layer), `net_discipline_group`, `historical_persons` (read for display names and country)
+
+**Key Rules:**
+- `[APP]` Statistics firewall: all appearance reads use `net_team_appearance_canonical` view; `inferred_partial` data is never exposed in public routes
+- `[APP]` `conflict_flag = 1` → render raw `discipline_name`, never the `canonical_group` label
+- `[APP]` Disclaimer "Team identities are algorithmically constructed from placement data and may not reflect official partnerships." is always rendered unconditionally on both pages
+- `[APP]` No win/loss, head-to-head, or ranking data of any kind
+- `[APP]` `NotFoundError` on unknown team ID → controller renders 404
 
 ---
 

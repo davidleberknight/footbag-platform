@@ -643,6 +643,7 @@ export interface FreestyleRecordRow {
   video_url: string | null;
   video_timecode: string | null;
   notes: string | null;
+  superseded_by?: string | null;
 }
 
 export const freestyleRecords = {
@@ -756,6 +757,32 @@ export const freestyleRecords = {
     ORDER BY fr.value_numeric DESC
   `),
 
+  listAllByTrickName: db.prepare(`
+    SELECT
+      fr.id,
+      fr.record_type,
+      fr.person_id,
+      COALESCE(hp.person_name, fr.display_name) AS holder_name,
+      fr.trick_name,
+      fr.sort_name,
+      fr.adds_count,
+      fr.value_numeric,
+      fr.achieved_date,
+      fr.date_precision,
+      fr.confidence,
+      fr.video_url,
+      fr.video_timecode,
+      fr.notes,
+      fr.superseded_by
+    FROM freestyle_records AS fr
+    LEFT JOIN historical_persons AS hp
+      ON hp.person_id = fr.person_id
+    WHERE fr.trick_name = ?
+      AND fr.confidence IN ('verified', 'probable')
+      AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
+    ORDER BY fr.value_numeric DESC
+  `),
+
   listRecentPublic: db.prepare(`
     SELECT
       fr.id,
@@ -791,6 +818,174 @@ export interface FreestyleLeaderRow {
   top_value: number;
   top_trick: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// freestyleTricks
+//
+// Canonical trick dictionary loaded by script 17 from tricks.csv (73 tricks).
+// Slug = lowercase-hyphenated canonical name. aliases_json is a JSON array.
+// trick_family: for compound/dex tricks = slug of base trick; for base tricks =
+//   own slug; for modifiers = NULL.
+// ---------------------------------------------------------------------------
+export interface FreestyleTrickRow {
+  slug:           string;
+  canonical_name: string;
+  adds:           string | null;
+  base_trick:     string | null;
+  trick_family:   string | null;
+  category:       string | null;
+  description:    string | null;
+  aliases_json:   string | null;
+  sort_order:     number;
+}
+
+export interface FreestyleTrickModifierRow {
+  slug:                 string;
+  modifier_name:        string;
+  add_bonus:            number;
+  add_bonus_rotational: number;
+  modifier_type:        string;
+  notes:                string | null;
+}
+
+export const freestyleTricks = {
+  listAll: db.prepare(`
+    SELECT slug, canonical_name, adds, base_trick, trick_family, category,
+           description, aliases_json, sort_order
+    FROM freestyle_tricks
+    ORDER BY sort_order ASC
+  `),
+
+  getBySlug: db.prepare(`
+    SELECT slug, canonical_name, adds, base_trick, trick_family, category,
+           description, aliases_json, sort_order
+    FROM freestyle_tricks
+    WHERE slug = ?
+  `),
+
+  listByFamily: db.prepare(`
+    SELECT slug, canonical_name, adds, base_trick, trick_family, category,
+           description, aliases_json, sort_order
+    FROM freestyle_tricks
+    WHERE trick_family = ?
+    ORDER BY sort_order ASC
+  `),
+} as const;
+
+export const freestyleTrickModifiers = {
+  listAll: db.prepare(`
+    SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
+    FROM freestyle_trick_modifiers
+    ORDER BY modifier_type ASC, modifier_name ASC
+  `),
+
+  getBySlug: db.prepare(`
+    SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
+    FROM freestyle_trick_modifiers
+    WHERE slug = ?
+  `),
+} as const;
+
+// ---------------------------------------------------------------------------
+// freestyleCompetition
+//
+// Results-derived freestyle competition data. Queries canonical tables only —
+// no freestyle-domain tables are written; this is a read-only projection.
+//
+// Discipline filter: any discipline whose name contains 'freestyle', excluding
+// doubles and team formats. This covers Open/Intermediate/Women's Singles
+// Freestyle, Open Freestyle, Freestyle, etc.
+//
+// STATS FIREWALL: no evidence-class filtering needed here — these are canonical
+// placement records, not enrichment data.
+// ---------------------------------------------------------------------------
+export interface FreestyleCompetitorRow {
+  person_id:     string;
+  person_name:   string;
+  country:       string | null;
+  golds:         number;
+  silvers:       number;
+  bronzes:       number;
+  total_podiums: number;
+}
+
+export interface FreestyleEraRow {
+  era:    string;
+  events: number;
+}
+
+export interface FreestyleRecentEventRow {
+  event_id:       string;
+  event_title:    string;
+  start_date:     string;
+  city:           string;
+  country:        string;
+  tag_normalized: string;   // from tags.tag_normalized via events.hashtag_tag_id
+}
+
+export const freestyleCompetition = {
+  // Top freestyle singles competitors by gold medals, then total podiums
+  listTopCompetitors: db.prepare(`
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.country,
+      SUM(CASE WHEN ere.placement = 1 THEN 1 ELSE 0 END) AS golds,
+      SUM(CASE WHEN ere.placement = 2 THEN 1 ELSE 0 END) AS silvers,
+      SUM(CASE WHEN ere.placement = 3 THEN 1 ELSE 0 END) AS bronzes,
+      COUNT(*)                                             AS total_podiums
+    FROM event_result_entries ere
+    JOIN event_disciplines ed ON ed.id = ere.discipline_id
+    JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
+    JOIN historical_persons hp ON hp.person_id = erep.historical_person_id
+    WHERE (lower(ed.name) LIKE '%freestyle%'
+           AND lower(ed.name) NOT LIKE '%doubles%'
+           AND lower(ed.name) NOT LIKE '%team%')
+      AND ere.placement BETWEEN 1 AND 3
+    GROUP BY hp.person_id
+    ORDER BY golds DESC, total_podiums DESC
+    LIMIT 20
+  `),
+
+  // Event counts per era (decade buckets)
+  listEventsByEra: db.prepare(`
+    SELECT
+      CASE
+        WHEN substr(e.start_date,1,4) < '1990' THEN '1980s'
+        WHEN substr(e.start_date,1,4) < '2000' THEN '1990s'
+        WHEN substr(e.start_date,1,4) < '2010' THEN '2000s'
+        WHEN substr(e.start_date,1,4) < '2020' THEN '2010s'
+        ELSE '2020s'
+      END AS era,
+      COUNT(DISTINCT e.id) AS events
+    FROM events e
+    JOIN event_disciplines ed ON ed.event_id = e.id
+    WHERE lower(ed.name) LIKE '%freestyle%'
+      AND lower(ed.name) NOT LIKE '%doubles%'
+      AND lower(ed.name) NOT LIKE '%team%'
+    GROUP BY era
+    ORDER BY era ASC
+  `),
+
+  // 10 most recent freestyle events
+  listRecentEvents: db.prepare(`
+    SELECT DISTINCT
+      e.id         AS event_id,
+      e.title      AS event_title,
+      e.start_date,
+      e.city,
+      e.country,
+      t.tag_normalized
+    FROM events e
+    JOIN tags t ON t.id = e.hashtag_tag_id
+    JOIN event_disciplines ed ON ed.event_id = e.id
+    WHERE lower(ed.name) LIKE '%freestyle%'
+      AND lower(ed.name) NOT LIKE '%doubles%'
+      AND lower(ed.name) NOT LIKE '%team%'
+    ORDER BY e.start_date DESC
+    LIMIT 10
+  `),
+} as const;
 
 // ---------------------------------------------------------------------------
 // consecutiveKicksRecords
@@ -856,11 +1051,1045 @@ export const consecutiveKicksRecords = {
   `),
 } as const;
 
+// ---------------------------------------------------------------------------
+// netTeams
+//
+// Net domain enrichment layer — additive, never modifies canonical tables.
+// Evidence class: canonical_only only in phase 1.
+//
+// STATISTICS FIREWALL: all appearance queries use the net_team_appearance_canonical
+// view, which enforces evidence_class = 'canonical_only' at the DB layer.
+// Never query net_team_appearance directly from this statement group.
+//
+// Routes: /net/teams  |  /net/teams/:teamId
+// ---------------------------------------------------------------------------
+export interface NetTeamSummaryRow {
+  team_id:          string;
+  person_id_a:      string;
+  person_name_a:    string;
+  country_a:        string | null;
+  person_id_b:      string;
+  person_name_b:    string;
+  country_b:        string | null;
+  first_year:       number | null;
+  last_year:        number | null;
+  appearance_count: number;
+}
+
+export interface NetTeamAppearanceRow {
+  appearance_id:    string;
+  event_id:         string;
+  event_title:      string;
+  event_city:       string;
+  event_country:    string;
+  start_date:       string;
+  discipline_name:  string;
+  canonical_group:  string | null;
+  conflict_flag:    number;           // 0 or 1 — 1 = use raw discipline_name
+  placement:        number;
+  score_text:       string | null;
+  event_year:       number;
+}
+
+export const netTeams = {
+  // STATS FIREWALL: queries net_team_appearance_canonical view (canonical_only enforced at DB layer)
+
+  listAll: db.prepare(`
+    SELECT
+      t.team_id,
+      t.person_id_a,
+      pa.person_name  AS person_name_a,
+      pa.country      AS country_a,
+      t.person_id_b,
+      pb.person_name  AS person_name_b,
+      pb.country      AS country_b,
+      t.first_year,
+      t.last_year,
+      t.appearance_count
+    FROM net_team t
+    JOIN historical_persons pa ON pa.person_id = t.person_id_a
+    JOIN historical_persons pb ON pb.person_id = t.person_id_b
+    ORDER BY t.appearance_count DESC, t.last_year DESC, pa.person_name ASC
+  `),
+
+  getById: db.prepare(`
+    SELECT
+      t.team_id,
+      t.person_id_a,
+      pa.person_name  AS person_name_a,
+      pa.country      AS country_a,
+      t.person_id_b,
+      pb.person_name  AS person_name_b,
+      pb.country      AS country_b,
+      t.first_year,
+      t.last_year,
+      t.appearance_count
+    FROM net_team t
+    JOIN historical_persons pa ON pa.person_id = t.person_id_a
+    JOIN historical_persons pb ON pb.person_id = t.person_id_b
+    WHERE t.team_id = ?
+  `),
+
+  listAppearancesByTeamId: db.prepare(`
+    SELECT
+      a.id            AS appearance_id,
+      a.event_id,
+      e.title         AS event_title,
+      e.city          AS event_city,
+      e.country       AS event_country,
+      e.start_date,
+      ed.name         AS discipline_name,
+      dg.canonical_group,
+      COALESCE(dg.conflict_flag, 0) AS conflict_flag,
+      a.placement,
+      a.score_text,
+      a.event_year
+    FROM net_team_appearance_canonical a
+    JOIN events e           ON e.id  = a.event_id
+    JOIN event_disciplines ed ON ed.id = a.discipline_id
+    LEFT JOIN net_discipline_group dg ON dg.discipline_id = a.discipline_id
+    WHERE a.team_id = ?
+    ORDER BY a.event_year DESC, e.start_date DESC, a.placement ASC
+  `),
+} as const;
+
+// ---------------------------------------------------------------------------
+// netPlayers
+//
+// Player-centric reads for the net domain enrichment layer.
+//
+// STATISTICS FIREWALL: all appearance queries use the net_team_appearance_canonical
+// view, which enforces evidence_class = 'canonical_only' at the DB layer.
+// Never query net_team_appearance directly from this statement group.
+//
+// Routes: /net/players/:personId  |  /net/players/:personId/partners/:teamId
+// ---------------------------------------------------------------------------
+export interface NetPlayerSummaryRow {
+  person_id:              string;
+  person_name:            string;
+  country:                string | null;
+  total_net_appearances:  number;
+}
+
+export interface NetPartnerRow {
+  partner_person_id: string;
+  partner_name:      string;
+  partner_country:   string | null;
+  team_id:           string;
+  appearance_count:  number;
+  first_year:        number | null;
+  last_year:         number | null;
+  best_placement:    number;
+}
+
+export const netPlayers = {
+  // STATS FIREWALL: all appearance joins use net_team_appearance_canonical view.
+  // INNER JOINs mean null result = no net appearances (→ 404, not an error).
+
+  getPlayerSummary: db.prepare(`
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.country,
+      COUNT(a.id) AS total_net_appearances
+    FROM historical_persons hp
+    JOIN net_team_member nm    ON nm.person_id = hp.person_id
+    JOIN net_team_appearance_canonical a ON a.team_id = nm.team_id
+    WHERE hp.person_id = ?
+    GROUP BY hp.person_id
+  `),
+
+  listPartnersByPersonId: db.prepare(`
+    -- STATS FIREWALL: uses net_team_appearance_canonical view
+    SELECT
+      nm_partner.person_id  AS partner_person_id,
+      hp.person_name        AS partner_name,
+      hp.country            AS partner_country,
+      nm_self.team_id       AS team_id,
+      COUNT(a.id)           AS appearance_count,
+      MIN(a.event_year)     AS first_year,
+      MAX(a.event_year)     AS last_year,
+      MIN(a.placement)      AS best_placement
+    FROM net_team_member nm_self
+    JOIN net_team_member nm_partner
+      ON  nm_partner.team_id   = nm_self.team_id
+      AND nm_partner.person_id != nm_self.person_id
+    JOIN net_team_appearance_canonical a ON a.team_id = nm_self.team_id
+    JOIN historical_persons hp ON hp.person_id = nm_partner.person_id
+    WHERE nm_self.person_id = ?
+    GROUP BY nm_partner.person_id, nm_self.team_id
+    ORDER BY COUNT(a.id) DESC, MIN(a.placement) ASC
+  `),
+} as const;
+
+// ---------------------------------------------------------------------------
+// netEvents
+//
+// Event-centric reads for the net domain enrichment layer.
+//
+// STATISTICS FIREWALL: all appearance queries use the net_team_appearance_canonical
+// view, which enforces evidence_class = 'canonical_only' at the DB layer.
+// Never query net_team_appearance directly from this statement group.
+//
+// QC hints surfaced to public pages (safe summaries only, never raw review queue rows):
+//   has_multi_stage_hint       — event contains multi-stage bracket results
+//   unknown_team_excluded_count — count of results where team could not be linked
+//   discipline_review_count    — count of disciplines flagged for review
+//
+// Routes: /net/events  |  /net/events/:eventId
+// ---------------------------------------------------------------------------
+export interface NetEventSummaryRow {
+  event_id:                    string;
+  event_title:                 string;
+  start_date:                  string;
+  city:                        string;
+  country:                     string;
+  event_year:                  number;
+  appearance_count:            number;
+  discipline_count:            number;
+  team_count:                  number;
+  has_multi_stage_hint:        number;   // 0 or 1
+  unknown_team_excluded_count: number;
+  discipline_review_count:     number;
+}
+
+export interface NetEventAppearanceRow {
+  appearance_id:   string;
+  team_id:         string;
+  person_id_a:     string;
+  person_name_a:   string;
+  country_a:       string | null;
+  person_id_b:     string;
+  person_name_b:   string;
+  country_b:       string | null;
+  discipline_id:   string;
+  discipline_name: string;
+  canonical_group: string | null;
+  conflict_flag:   number;
+  placement:       number;
+  score_text:      string | null;
+  event_year:      number;
+}
+
+const EVENT_SUMMARY_SELECT = `
+    SELECT
+      e.id                            AS event_id,
+      e.title                         AS event_title,
+      e.start_date,
+      e.city,
+      e.country,
+      CAST(SUBSTR(e.start_date, 1, 4) AS INTEGER) AS event_year,
+      COUNT(a.id)                     AS appearance_count,
+      COUNT(DISTINCT a.discipline_id) AS discipline_count,
+      COUNT(DISTINCT a.team_id)       AS team_count,
+      COALESCE((
+        SELECT 1 FROM net_review_queue rq
+        WHERE rq.event_id = e.id AND rq.reason_code = 'multi_stage_result' LIMIT 1
+      ), 0) AS has_multi_stage_hint,
+      (
+        SELECT COUNT(*) FROM net_review_queue rq
+        WHERE rq.event_id = e.id AND rq.reason_code = 'unknown_team'
+      ) AS unknown_team_excluded_count,
+      (
+        SELECT COUNT(DISTINCT disc_id) FROM (
+          SELECT a2.discipline_id AS disc_id
+          FROM net_team_appearance_canonical a2
+          JOIN net_discipline_group dg ON dg.discipline_id = a2.discipline_id
+          WHERE a2.event_id = e.id AND dg.conflict_flag = 1
+          UNION
+          SELECT rq2.discipline_id AS disc_id
+          FROM net_review_queue rq2
+          WHERE rq2.event_id = e.id AND rq2.reason_code = 'discipline_team_type_mismatch'
+            AND rq2.discipline_id IS NOT NULL
+        )
+      ) AS discipline_review_count
+    FROM events e
+    JOIN net_team_appearance_canonical a ON a.event_id = e.id
+`;
+
+export const netEvents = {
+  // STATS FIREWALL: all appearance joins use net_team_appearance_canonical view.
+
+  listEvents: db.prepare(
+    EVENT_SUMMARY_SELECT + `
+    GROUP BY e.id
+    ORDER BY e.start_date DESC, e.title ASC
+  `),
+
+  getEventSummary: db.prepare(
+    EVENT_SUMMARY_SELECT + `
+    WHERE e.id = ?
+    GROUP BY e.id
+  `),
+
+  listAppearancesByEventId: db.prepare(`
+    -- STATS FIREWALL: uses net_team_appearance_canonical view
+    SELECT
+      a.id              AS appearance_id,
+      a.team_id,
+      t.person_id_a,
+      pa.person_name    AS person_name_a,
+      pa.country        AS country_a,
+      t.person_id_b,
+      pb.person_name    AS person_name_b,
+      pb.country        AS country_b,
+      a.discipline_id,
+      ed.name           AS discipline_name,
+      dg.canonical_group,
+      COALESCE(dg.conflict_flag, 0) AS conflict_flag,
+      a.placement,
+      a.score_text,
+      a.event_year
+    FROM net_team_appearance_canonical a
+    JOIN net_team t           ON t.team_id    = a.team_id
+    JOIN historical_persons pa ON pa.person_id = t.person_id_a
+    JOIN historical_persons pb ON pb.person_id = t.person_id_b
+    JOIN event_disciplines ed  ON ed.id        = a.discipline_id
+    LEFT JOIN net_discipline_group dg ON dg.discipline_id = a.discipline_id
+    WHERE a.event_id = ?
+    ORDER BY ed.name ASC, a.placement ASC
+  `),
+} as const;
+
+// ---------------------------------------------------------------------------
+// netHome
+//
+// Summary queries for the /net landing page.
+//
+// STATISTICS FIREWALL: all queries use net_team_appearance_canonical.
+// No inferred data, no rankings, no match-level reconstruction.
+//
+// Route: /net
+// ---------------------------------------------------------------------------
+export interface NetHomeTopTeamRow {
+  team_id:          string;
+  person_id_a:      string;
+  person_name_a:    string;
+  country_a:        string | null;
+  person_id_b:      string;
+  person_name_b:    string;
+  country_b:        string | null;
+  first_year:       number | null;
+  last_year:        number | null;
+  appearance_count: number;
+  win_count:        number;
+  podium_count:     number;
+  best_placement:   number;
+}
+
+export interface NetHomeTopPlayerRow {
+  person_id:        string;
+  person_name:      string;
+  country:          string | null;
+  partner_count:    number;
+  appearance_count: number;
+}
+
+export interface NetHomeRecentEventRow {
+  event_id:             string;
+  event_title:          string;
+  start_date:           string;
+  event_year:           number;
+  appearance_count:     number;
+  has_multi_stage_hint: number;   // 0 or 1
+}
+
+export interface NetHomeInterestingTeamRow {
+  team_id:          string;
+  person_id_a:      string;
+  person_name_a:    string;
+  country_a:        string | null;
+  person_id_b:      string;
+  person_name_b:    string;
+  country_b:        string | null;
+  first_year:       number | null;
+  last_year:        number | null;
+  appearance_count: number;
+  year_span_length: number;
+  win_count:        number;
+  best_placement:   number;
+}
+
+export const netHome = {
+  // STATS FIREWALL: all queries use net_team_appearance_canonical view.
+
+  getTopTeams: db.prepare(`
+    SELECT
+      t.team_id,
+      t.person_id_a,
+      pa.person_name  AS person_name_a,
+      pa.country      AS country_a,
+      t.person_id_b,
+      pb.person_name  AS person_name_b,
+      pb.country      AS country_b,
+      t.first_year,
+      t.last_year,
+      t.appearance_count,
+      SUM(CASE WHEN a.placement = 1 THEN 1 ELSE 0 END) AS win_count,
+      SUM(CASE WHEN a.placement <= 3 THEN 1 ELSE 0 END) AS podium_count,
+      MIN(a.placement) AS best_placement
+    FROM net_team t
+    JOIN historical_persons pa ON pa.person_id = t.person_id_a
+    JOIN historical_persons pb ON pb.person_id = t.person_id_b
+    JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
+    GROUP BY t.team_id
+    ORDER BY t.appearance_count DESC, t.last_year DESC
+    LIMIT 10
+  `),
+
+  getTopPlayersByPartners: db.prepare(`
+    -- STATS FIREWALL: counts partners only from canonical appearances
+    SELECT
+      hp.person_id,
+      hp.person_name,
+      hp.country,
+      COUNT(DISTINCT nm_partner.person_id) AS partner_count,
+      COUNT(a.id)                          AS appearance_count
+    FROM historical_persons hp
+    JOIN net_team_member nm_self    ON nm_self.person_id = hp.person_id
+    JOIN net_team_member nm_partner
+      ON  nm_partner.team_id   = nm_self.team_id
+      AND nm_partner.person_id != nm_self.person_id
+    JOIN net_team_appearance_canonical a ON a.team_id = nm_self.team_id
+    GROUP BY hp.person_id
+    ORDER BY partner_count DESC, appearance_count DESC
+    LIMIT 10
+  `),
+
+  getRecentEvents: db.prepare(`
+    -- STATS FIREWALL: only events with canonical appearances
+    SELECT
+      e.id                                AS event_id,
+      e.title                             AS event_title,
+      e.start_date,
+      CAST(SUBSTR(e.start_date, 1, 4) AS INTEGER) AS event_year,
+      COUNT(a.id)                         AS appearance_count,
+      COALESCE((
+        SELECT 1 FROM net_review_queue rq
+        WHERE rq.event_id = e.id AND rq.reason_code = 'multi_stage_result' LIMIT 1
+      ), 0) AS has_multi_stage_hint
+    FROM events e
+    JOIN net_team_appearance_canonical a ON a.event_id = e.id
+    GROUP BY e.id
+    ORDER BY e.start_date DESC
+    LIMIT 10
+  `),
+
+  getInterestingTeams: db.prepare(`
+    -- Long-career teams: ordered by year span, then wins.
+    -- STATS FIREWALL: uses net_team_appearance_canonical view.
+    SELECT
+      t.team_id,
+      t.person_id_a,
+      pa.person_name  AS person_name_a,
+      pa.country      AS country_a,
+      t.person_id_b,
+      pb.person_name  AS person_name_b,
+      pb.country      AS country_b,
+      t.first_year,
+      t.last_year,
+      t.appearance_count,
+      COALESCE(t.last_year, 0) - COALESCE(t.first_year, 0) AS year_span_length,
+      SUM(CASE WHEN a.placement = 1 THEN 1 ELSE 0 END) AS win_count,
+      MIN(a.placement) AS best_placement
+    FROM net_team t
+    JOIN historical_persons pa ON pa.person_id = t.person_id_a
+    JOIN historical_persons pb ON pb.person_id = t.person_id_b
+    JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
+    WHERE t.first_year IS NOT NULL AND t.last_year IS NOT NULL
+    GROUP BY t.team_id
+    ORDER BY year_span_length DESC, win_count DESC, best_placement ASC
+    LIMIT 10
+  `),
+} as const;
+
 export const health = {
   checkReady: db.prepare(`
     SELECT 1 AS is_ready
   `),
 } as const;
+
+// ---------------------------------------------------------------------------
+// netReview
+//
+// Internal / QC reads for the net enrichment review workflow.
+// These queries are for operator review only — never exposed in public pages.
+//
+// Sources: net_review_queue, net_discipline_group, events, event_disciplines
+// Route: GET /internal/net/review
+// ---------------------------------------------------------------------------
+export interface NetReviewSummaryRow {
+  reason_code:       string | null;
+  priority:          number;
+  resolution_status: string;
+  item_count:        number;
+}
+
+export interface NetReviewItemRow {
+  id:                string;
+  item_type:         string;
+  priority:          number;
+  reason_code:       string | null;
+  severity:          string;
+  message:           string;
+  event_id:          string | null;
+  event_title:       string | null;
+  discipline_id:     string | null;
+  discipline_name:   string | null;
+  review_stage:      string | null;
+  resolution_status: string;
+  imported_at:       string;
+}
+
+export interface NetReviewEventContextRow {
+  event_id:   string;
+  title:      string;
+  start_date: string;
+  city:       string;
+  country:    string;
+}
+
+export interface NetReviewConflictDisciplineRow {
+  discipline_id:   string;
+  discipline_name: string;
+  canonical_group: string;
+  conflict_flag:   number;
+  review_needed:   number;
+  match_method:    string;
+}
+
+export interface NetReviewFilters {
+  reason_code?:       string;
+  priority?:          number;
+  resolution_status?: string;
+  event_id?:          string;
+  limit?:             number;
+  offset?:            number;
+}
+
+export const netReview = {
+  listReviewSummary: db.prepare(`
+    SELECT reason_code, priority, resolution_status, COUNT(*) AS item_count
+    FROM net_review_queue
+    GROUP BY reason_code, priority, resolution_status
+    ORDER BY priority ASC, reason_code ASC, resolution_status ASC
+  `),
+
+  getReviewEventContext: db.prepare(`
+    SELECT id AS event_id, title, start_date, city, country
+    FROM events WHERE id = ?
+  `),
+
+  listConflictDisciplines: db.prepare(`
+    SELECT
+      dg.discipline_id,
+      ed.name   AS discipline_name,
+      dg.canonical_group,
+      dg.conflict_flag,
+      dg.review_needed,
+      dg.match_method
+    FROM net_discipline_group dg
+    JOIN event_disciplines ed ON ed.id = dg.discipline_id
+    WHERE dg.conflict_flag = 1 OR dg.review_needed = 1
+    ORDER BY dg.conflict_flag DESC, dg.review_needed DESC, ed.name ASC
+  `),
+} as const;
+
+/**
+ * Dynamic query for review items with optional filtering.
+ * Uses runtime db.prepare() since filter combinations are not enumerable.
+ * Acceptable for a low-frequency internal review tool.
+ */
+// ---------------------------------------------------------------------------
+// netCandidates
+//
+// Internal / operator reads for the net candidate match review page.
+// These queries are operator-only — never exposed in public pages.
+// All rows have evidence_class = 'unresolved_candidate'.
+// ---------------------------------------------------------------------------
+
+export interface NetCandidateSummaryRow {
+  review_status:    string;
+  linked_count:     number;
+  total_count:      number;
+}
+
+export interface NetCandidateSourceSummaryRow {
+  source_file:            string;
+  fragment_count:         number;
+  candidate_count:        number;
+  high_conf_count:        number;
+  medium_conf_count:      number;
+  low_conf_count:         number;
+  linked_candidate_count: number;
+}
+
+export interface NetCandidateEventSummaryRow {
+  event_id:               string | null;
+  event_title:            string | null;
+  candidate_count:        number;
+  linked_candidate_count: number;
+  avg_confidence:         number | null;
+  year_hint:              number | null;
+}
+
+export interface NetCandidateYearSummaryRow {
+  year_hint:              number | null;
+  candidate_count:        number;
+  linked_candidate_count: number;
+  avg_confidence:         number | null;
+}
+
+export interface NetCandidateRow {
+  candidate_id:        string;
+  fragment_id:         string | null;
+  event_id:            string | null;
+  discipline_id:       string | null;
+  player_a_raw_name:   string | null;
+  player_b_raw_name:   string | null;
+  player_a_person_id:  string | null;
+  player_b_person_id:  string | null;
+  raw_text:            string;
+  extracted_score:     string | null;
+  round_hint:          string | null;
+  year_hint:           number | null;
+  confidence_score:    number | null;
+  review_status:       string;
+  imported_at:         string;
+  source_file:         string | null;
+  event_title:         string | null;
+  person_name_a:       string | null;
+  person_name_b:       string | null;
+}
+
+export interface NetCandidateFilters {
+  review_status?:  string;
+  event_id?:       string;
+  source_file?:    string;
+  linked_only?:    boolean;
+  min_confidence?: number;
+  limit?:          number;
+  offset?:         number;
+}
+
+export const netCandidates = {
+  listSummary: db.prepare(`
+    SELECT
+      review_status,
+      SUM(CASE WHEN player_a_person_id IS NOT NULL AND player_b_person_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_count,
+      COUNT(*) AS total_count
+    FROM net_candidate_match
+    GROUP BY review_status
+    ORDER BY review_status ASC
+  `),
+  getTotalCount: db.prepare(`SELECT COUNT(*) AS cnt FROM net_candidate_match`),
+  getTotalFragmentCount: db.prepare(`SELECT COUNT(*) AS cnt FROM net_raw_fragment`),
+
+  listSummaryBySource: db.prepare(`
+    SELECT
+      f.source_file,
+      COUNT(DISTINCT f.id) AS fragment_count,
+      COUNT(c.candidate_id) AS candidate_count,
+      SUM(CASE WHEN c.confidence_score >= 0.85 THEN 1 ELSE 0 END) AS high_conf_count,
+      SUM(CASE WHEN c.confidence_score >= 0.70 AND c.confidence_score < 0.85 THEN 1 ELSE 0 END) AS medium_conf_count,
+      SUM(CASE WHEN c.confidence_score IS NOT NULL AND c.confidence_score < 0.70 THEN 1 ELSE 0 END) AS low_conf_count,
+      SUM(CASE WHEN c.player_a_person_id IS NOT NULL AND c.player_b_person_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_candidate_count
+    FROM net_raw_fragment f
+    LEFT JOIN net_candidate_match c ON c.fragment_id = f.id
+    GROUP BY f.source_file
+    ORDER BY candidate_count DESC, fragment_count DESC
+  `),
+
+  listSummaryByEvent: db.prepare(`
+    SELECT
+      c.event_id,
+      e.title AS event_title,
+      COUNT(*) AS candidate_count,
+      SUM(CASE WHEN c.player_a_person_id IS NOT NULL AND c.player_b_person_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_candidate_count,
+      AVG(c.confidence_score) AS avg_confidence,
+      c.year_hint
+    FROM net_candidate_match c
+    LEFT JOIN events e ON e.id = c.event_id
+    WHERE c.event_id IS NOT NULL
+    GROUP BY c.event_id
+    ORDER BY candidate_count DESC, c.event_id ASC
+  `),
+
+  listSummaryByYear: db.prepare(`
+    SELECT
+      c.year_hint,
+      COUNT(*) AS candidate_count,
+      SUM(CASE WHEN c.player_a_person_id IS NOT NULL AND c.player_b_person_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_candidate_count,
+      AVG(c.confidence_score) AS avg_confidence
+    FROM net_candidate_match c
+    WHERE c.year_hint IS NOT NULL
+    GROUP BY c.year_hint
+    ORDER BY c.year_hint ASC
+  `),
+} as const;
+
+/**
+ * Dynamic candidate query — filter by review_status, event_id, linked_only.
+ * Uses runtime db.prepare() since filter combinations are not enumerable.
+ * Acceptable for a low-frequency internal review tool.
+ */
+export function queryCandidateItems(filters: NetCandidateFilters): NetCandidateRow[] {
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (filters.review_status) {
+    conditions.push('c.review_status = ?');
+    params.push(filters.review_status);
+  }
+  if (filters.event_id) {
+    conditions.push('c.event_id = ?');
+    params.push(filters.event_id);
+  }
+  if (filters.source_file) {
+    conditions.push('f.source_file = ?');
+    params.push(filters.source_file);
+  }
+  if (filters.linked_only) {
+    conditions.push('c.player_a_person_id IS NOT NULL AND c.player_b_person_id IS NOT NULL');
+  }
+  if (filters.min_confidence !== undefined) {
+    conditions.push('c.confidence_score >= ?');
+    params.push(filters.min_confidence);
+  }
+
+  const where  = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const limit  = Math.min(filters.limit  ?? 50, 200);
+  const offset = filters.offset ?? 0;
+  params.push(limit, offset);
+
+  return db.prepare(`
+    SELECT
+      c.candidate_id, c.fragment_id,
+      c.event_id,       e.title        AS event_title,
+      c.discipline_id,
+      c.player_a_raw_name, c.player_b_raw_name,
+      c.player_a_person_id, pa.person_name AS person_name_a,
+      c.player_b_person_id, pb.person_name AS person_name_b,
+      c.raw_text, c.extracted_score, c.round_hint, c.year_hint,
+      c.confidence_score, c.review_status, c.imported_at,
+      f.source_file
+    FROM net_candidate_match c
+    LEFT JOIN events            e   ON e.id            = c.event_id
+    LEFT JOIN net_raw_fragment  f   ON f.id             = c.fragment_id
+    LEFT JOIN historical_persons pa ON pa.person_id     = c.player_a_person_id
+    LEFT JOIN historical_persons pb ON pb.person_id     = c.player_b_person_id
+    ${where}
+    ORDER BY c.confidence_score DESC, c.imported_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...params) as NetCandidateRow[];
+}
+
+// ---------------------------------------------------------------------------
+// netCurated
+//
+// Internal / operator statements for the candidate → curated promotion workflow.
+// evidence_class for net_curated_match rows is always 'curated_enrichment'.
+// Both approvals and rejections are stored for a complete audit trail.
+// ---------------------------------------------------------------------------
+
+export interface NetCuratedDetailRow {
+  candidate_id:        string;
+  fragment_id:         string | null;
+  event_id:            string | null;
+  event_title:         string | null;
+  discipline_id:       string | null;
+  discipline_name:     string | null;
+  player_a_raw_name:   string | null;
+  player_b_raw_name:   string | null;
+  player_a_person_id:  string | null;
+  person_name_a:       string | null;
+  player_b_person_id:  string | null;
+  person_name_b:       string | null;
+  raw_text:            string;
+  extracted_score:     string | null;
+  round_hint:          string | null;
+  year_hint:           number | null;
+  confidence_score:    number | null;
+  review_status:       string;
+  imported_at:         string;
+  source_file:         string | null;
+}
+
+export interface NetCuratedMatchRow {
+  curated_id:         string;
+  candidate_id:       string;
+  curated_status:     string;
+  curator_note:       string | null;
+  curated_at:         string;
+  curated_by:         string;
+}
+
+export const netCurated = {
+  getCandidateById: db.prepare(`
+    SELECT
+      c.candidate_id, c.fragment_id,
+      c.event_id,       e.title       AS event_title,
+      c.discipline_id,  ed.name       AS discipline_name,
+      c.player_a_raw_name, c.player_b_raw_name,
+      c.player_a_person_id, pa.person_name AS person_name_a,
+      c.player_b_person_id, pb.person_name AS person_name_b,
+      c.raw_text, c.extracted_score, c.round_hint, c.year_hint,
+      c.confidence_score, c.review_status, c.imported_at,
+      f.source_file
+    FROM net_candidate_match c
+    LEFT JOIN events             e   ON e.id         = c.event_id
+    LEFT JOIN event_disciplines  ed  ON ed.id        = c.discipline_id
+    LEFT JOIN net_raw_fragment   f   ON f.id         = c.fragment_id
+    LEFT JOIN historical_persons pa  ON pa.person_id = c.player_a_person_id
+    LEFT JOIN historical_persons pb  ON pb.person_id = c.player_b_person_id
+    WHERE c.candidate_id = ?
+  `),
+
+  getCuratedByCandidate: db.prepare(`
+    SELECT curated_id, candidate_id, curated_status, curator_note, curated_at, curated_by
+    FROM net_curated_match
+    WHERE candidate_id = ?
+  `),
+
+  insertCuratedMatch: db.prepare(`
+    INSERT INTO net_curated_match
+      (curated_id, candidate_id, curated_status, evidence_class,
+       event_id, discipline_id, player_a_person_id, player_b_person_id,
+       extracted_score, raw_text, curator_note,
+       curated_at, curated_by)
+    VALUES (?, ?, ?, 'curated_enrichment', ?, ?, ?, ?, ?, ?, ?,
+            strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?)
+  `),
+
+  updateCandidateStatus: db.prepare(`
+    UPDATE net_candidate_match SET review_status = ? WHERE candidate_id = ?
+  `),
+} as const;
+
+// ---------------------------------------------------------------------------
+// netCuratedBrowse
+//
+// Internal / operator queries for browsing the net_curated_match collection.
+// Read-only. Never exposed on public pages.
+// source_file and year_hint are sourced via net_candidate_match / net_raw_fragment
+// because net_curated_match snapshots only the identity fields needed for audit.
+// ---------------------------------------------------------------------------
+
+export interface NetCuratedStatusSummaryRow {
+  curated_status: string;
+  item_count:     number;
+}
+
+export interface NetCuratedSourceSummaryRow {
+  source_file:    string | null;
+  curated_count:  number;
+  approved_count: number;
+  rejected_count: number;
+}
+
+export interface NetCuratedEventSummaryRow {
+  event_id:       string;
+  event_title:    string | null;
+  curated_count:  number;
+  approved_count: number;
+  rejected_count: number;
+}
+
+export interface NetCuratedYearSummaryRow {
+  year_hint:      number;
+  curated_count:  number;
+  approved_count: number;
+  rejected_count: number;
+}
+
+export interface NetCuratedBrowseRow {
+  curated_id:          string;
+  candidate_id:        string;
+  curated_status:      string;
+  curator_note:        string | null;
+  curated_by:          string;
+  curated_at:          string;
+  event_id:            string | null;
+  event_title:         string | null;
+  discipline_id:       string | null;
+  discipline_name:     string | null;
+  player_a_person_id:  string | null;
+  person_name_a:       string | null;
+  player_b_person_id:  string | null;
+  person_name_b:       string | null;
+  player_a_raw_name:   string | null;
+  player_b_raw_name:   string | null;
+  extracted_score:     string | null;
+  raw_text:            string;
+  round_hint:          string | null;
+  year_hint:           number | null;
+  source_file:         string | null;
+}
+
+export interface NetCuratedBrowseFilters {
+  curated_status?: string;
+  source_file?:    string;
+  event_id?:       string;
+  year_hint?:      number;
+  linked_only?:    boolean;
+  limit?:          number;
+  offset?:         number;
+}
+
+export const netCuratedBrowse = {
+  getTotalCount: db.prepare(`SELECT COUNT(*) AS cnt FROM net_curated_match`),
+
+  getLinkedCount: db.prepare(`
+    SELECT COUNT(*) AS cnt FROM net_curated_match
+    WHERE player_a_person_id IS NOT NULL AND player_b_person_id IS NOT NULL
+  `),
+
+  listStatusSummary: db.prepare(`
+    SELECT curated_status, COUNT(*) AS item_count
+    FROM net_curated_match
+    GROUP BY curated_status
+    ORDER BY curated_status ASC
+  `),
+
+  listBySource: db.prepare(`
+    SELECT
+      f.source_file,
+      COUNT(*)                                                            AS curated_count,
+      SUM(CASE WHEN cm.curated_status = 'approved' THEN 1 ELSE 0 END)   AS approved_count,
+      SUM(CASE WHEN cm.curated_status = 'rejected' THEN 1 ELSE 0 END)   AS rejected_count
+    FROM net_curated_match cm
+    JOIN net_candidate_match  c ON c.candidate_id = cm.candidate_id
+    LEFT JOIN net_raw_fragment f ON f.id          = c.fragment_id
+    GROUP BY f.source_file
+    ORDER BY curated_count DESC, f.source_file ASC
+  `),
+
+  listByEvent: db.prepare(`
+    SELECT
+      cm.event_id,
+      e.title                                                             AS event_title,
+      COUNT(*)                                                            AS curated_count,
+      SUM(CASE WHEN cm.curated_status = 'approved' THEN 1 ELSE 0 END)   AS approved_count,
+      SUM(CASE WHEN cm.curated_status = 'rejected' THEN 1 ELSE 0 END)   AS rejected_count
+    FROM net_curated_match cm
+    LEFT JOIN events e ON e.id = cm.event_id
+    WHERE cm.event_id IS NOT NULL
+    GROUP BY cm.event_id
+    ORDER BY curated_count DESC, cm.event_id ASC
+  `),
+
+  listByYear: db.prepare(`
+    SELECT
+      c.year_hint,
+      COUNT(*)                                                            AS curated_count,
+      SUM(CASE WHEN cm.curated_status = 'approved' THEN 1 ELSE 0 END)   AS approved_count,
+      SUM(CASE WHEN cm.curated_status = 'rejected' THEN 1 ELSE 0 END)   AS rejected_count
+    FROM net_curated_match cm
+    JOIN net_candidate_match c ON c.candidate_id = cm.candidate_id
+    WHERE c.year_hint IS NOT NULL
+    GROUP BY c.year_hint
+    ORDER BY c.year_hint ASC
+  `),
+} as const;
+
+/**
+ * Dynamic curated-match browse query — filter by status, source, event, year, linked.
+ * Uses runtime db.prepare() for filter flexibility on a low-frequency internal tool.
+ */
+export function queryCuratedItems(filters: NetCuratedBrowseFilters): NetCuratedBrowseRow[] {
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (filters.curated_status) {
+    conditions.push('cm.curated_status = ?');
+    params.push(filters.curated_status);
+  }
+  if (filters.event_id) {
+    conditions.push('cm.event_id = ?');
+    params.push(filters.event_id);
+  }
+  if (filters.source_file) {
+    conditions.push('f.source_file = ?');
+    params.push(filters.source_file);
+  }
+  if (filters.year_hint !== undefined) {
+    conditions.push('c.year_hint = ?');
+    params.push(filters.year_hint);
+  }
+  if (filters.linked_only) {
+    conditions.push('cm.player_a_person_id IS NOT NULL AND cm.player_b_person_id IS NOT NULL');
+  }
+
+  const where  = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const limit  = Math.min(filters.limit  ?? 50, 200);
+  const offset = filters.offset ?? 0;
+  params.push(limit, offset);
+
+  return db.prepare(`
+    SELECT
+      cm.curated_id, cm.candidate_id, cm.curated_status,
+      cm.curator_note, cm.curated_by, cm.curated_at,
+      cm.event_id,       e.title        AS event_title,
+      cm.discipline_id,  ed.name        AS discipline_name,
+      cm.player_a_person_id, pa.person_name AS person_name_a,
+      cm.player_b_person_id, pb.person_name AS person_name_b,
+      cm.extracted_score, cm.raw_text,
+      c.player_a_raw_name, c.player_b_raw_name,
+      c.round_hint, c.year_hint,
+      f.source_file
+    FROM net_curated_match cm
+    JOIN  net_candidate_match  c   ON c.candidate_id  = cm.candidate_id
+    LEFT JOIN events             e   ON e.id           = cm.event_id
+    LEFT JOIN event_disciplines  ed  ON ed.id          = cm.discipline_id
+    LEFT JOIN net_raw_fragment   f   ON f.id           = c.fragment_id
+    LEFT JOIN historical_persons pa  ON pa.person_id   = cm.player_a_person_id
+    LEFT JOIN historical_persons pb  ON pb.person_id   = cm.player_b_person_id
+    ${where}
+    ORDER BY cm.curated_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...params) as NetCuratedBrowseRow[];
+}
+
+export function queryReviewItems(filters: NetReviewFilters): NetReviewItemRow[] {
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (filters.reason_code) {
+    conditions.push('rq.reason_code = ?');
+    params.push(filters.reason_code);
+  }
+  if (filters.priority !== undefined) {
+    conditions.push('rq.priority = ?');
+    params.push(filters.priority);
+  }
+  if (filters.resolution_status) {
+    conditions.push('rq.resolution_status = ?');
+    params.push(filters.resolution_status);
+  }
+  if (filters.event_id) {
+    conditions.push('rq.event_id = ?');
+    params.push(filters.event_id);
+  }
+
+  const where   = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const limit   = Math.min(filters.limit  ?? 50, 200);
+  const offset  = filters.offset ?? 0;
+  params.push(limit, offset);
+
+  return db.prepare(`
+    SELECT
+      rq.id, rq.item_type, rq.priority, rq.reason_code, rq.severity, rq.message,
+      rq.event_id,      e.title      AS event_title,
+      rq.discipline_id, ed.name      AS discipline_name,
+      rq.review_stage,  rq.resolution_status, rq.imported_at
+    FROM net_review_queue rq
+    LEFT JOIN events            e   ON e.id   = rq.event_id
+    LEFT JOIN event_disciplines ed  ON ed.id  = rq.discipline_id
+    ${where}
+    ORDER BY rq.priority ASC, rq.imported_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...params) as NetReviewItemRow[];
+}
 
 export interface MemberAuthRow {
   id: string;

@@ -9,6 +9,7 @@ import { authController } from '../controllers/authController';
 import { hofController } from '../controllers/hofController';
 import { freestyleController } from '../controllers/freestyleController';
 import { consecutiveController } from '../controllers/consecutiveController';
+import { netController } from '../controllers/netController';
 import { requireAuth } from '../middleware/authStub';
 
 export const publicRouter = Router();
@@ -20,14 +21,34 @@ publicRouter.get('/hof',   hofController.index);
 
 // IMPORTANT: literal sub-routes registered before param routes (/freestyle/tricks/:slug)
 // and before /freestyle itself.
-publicRouter.get('/freestyle/records',       freestyleController.records);
-publicRouter.get('/freestyle/leaders',       freestyleController.leaders);
-publicRouter.get('/freestyle/about',         freestyleController.about);
-publicRouter.get('/freestyle/moves',         freestyleController.moves);
-publicRouter.get('/freestyle/tricks/:slug',  freestyleController.trick);
-publicRouter.get('/freestyle',               freestyleController.landing);
+publicRouter.get('/freestyle/records',     freestyleController.records);
+publicRouter.get('/freestyle/leaders',     freestyleController.leaders);
+publicRouter.get('/freestyle/competition', freestyleController.competition);
+publicRouter.get('/freestyle/history',     freestyleController.history);
+publicRouter.get('/freestyle/about',       freestyleController.about);
+publicRouter.get('/freestyle/moves',       freestyleController.moves);
+publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
+publicRouter.get('/freestyle/insights',    freestyleController.insights);
+publicRouter.get('/freestyle/tricks/:slug', freestyleController.trick);
+publicRouter.get('/freestyle',             freestyleController.landing);
 
 publicRouter.get('/consecutive', consecutiveController.records);
+
+// IMPORTANT: /net must be registered before all /net/* sub-routes
+publicRouter.get('/net',                  netController.homePage);
+
+// IMPORTANT: /net/events/:eventId must be registered after /net/events
+publicRouter.get('/net/events',           netController.eventsPage);
+publicRouter.get('/net/events/:eventId',  netController.eventDetailPage);
+
+// IMPORTANT: /net/teams/:teamId must be registered after /net/teams
+publicRouter.get('/net/teams',          netController.teams);
+publicRouter.get('/net/teams/:teamId',  netController.teamDetail);
+
+// IMPORTANT: /net/players/:personId/partners/:teamId must be registered before
+// /net/players/:personId so the literal segment 'partners' is not captured as :personId.
+publicRouter.get('/net/players/:personId/partners/:teamId', netController.playerPartnerDetail);
+publicRouter.get('/net/players/:personId',                  netController.playerPage);
 
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.
 // Express matches routes in registration order. Without this ordering,

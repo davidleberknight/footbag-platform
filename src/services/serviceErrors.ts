@@ -34,6 +34,12 @@ export class ServiceUnavailableError extends ServiceError {
   }
 }
 
+export class ConflictError extends ServiceError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('conflict', message, details);
+  }
+}
+
 export function isServiceError(error: unknown): error is ServiceError {
   return error instanceof ServiceError;
 }

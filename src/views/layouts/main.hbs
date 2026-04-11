@@ -21,6 +21,8 @@
         <a href="/clubs" {{#if (eq currentSection 'clubs')}}class="active"{{/if}}>Clubs</a>
         <a href="/hof" {{#if (eq currentSection 'hof')}}class="active"{{/if}}>HoF</a>
         <a href="/freestyle" {{#if (eq currentSection 'freestyle')}}class="active"{{/if}}>Freestyle</a>
+        <a href="/consecutive" {{#if (eq currentSection 'consecutive')}}class="active"{{/if}}>Consecutive</a>
+        <a href="/net" {{#if (eq currentSection 'net')}}class="active"{{/if}}>Net</a>
         {{#if isAuthenticated}}
           <a href="/members/{{currentUser.slug}}" {{#if (eq currentSection 'members')}}class="active"{{/if}}>
             {{#if currentUser.displayName}}{{currentUser.displayName}}{{else}}My Profile{{/if}}
@@ -52,6 +54,8 @@
         <a href="/clubs">Clubs</a>
         <a href="/hof">HoF</a>
         <a href="/freestyle">Freestyle</a>
+        <a href="/consecutive">Consecutive</a>
+        <a href="/net">Net</a>
       </div>
     </div>
     <div class="wrapper">

@@ -1,0 +1,66 @@
+{{! /net/events/:eventId — net event detail }}
+
+<div class="hero hero-sm">
+  <div>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/net/teams">Net Teams</a> <span class="breadcrumb-sep">/</span>
+      <a href="/net/events">Events</a> <span class="breadcrumb-sep">/</span>
+      <span>{{page.title}}</span>
+    </nav>
+    <h1>{{page.title}}</h1>
+    <div class="hero-stats">
+      {{#if content.event.city}}<span>{{content.event.city}}{{#if content.event.country}}, {{content.event.country}}{{/if}}</span>{{/if}}
+      <span>{{content.event.eventYear}}</span>
+      <span>{{content.event.teamCount}} teams</span>
+      <span>{{content.event.appearanceCount}} results</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <p class="source-note">{{content.disclaimer}}</p>
+
+  {{#if content.event.qcHints.hasMultiStageHint}}
+  <div class="notice notice-warn">
+    <strong>Multi-stage results:</strong> This event used a bracket or multi-stage format. Results reflect final placements only.
+  </div>
+  {{/if}}
+
+  {{#if content.event.qcHints.unknownTeamExcludedCount}}
+  <div class="notice notice-warn">
+    <strong>{{content.event.qcHints.unknownTeamExcludedCount}} result(s) not shown</strong> because the team could not be linked to player records.
+  </div>
+  {{/if}}
+
+  {{#if content.byDiscipline}}
+  {{#each content.byDiscipline}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>{{disciplineLabel}}{{#if hasConflictFlag}} <span class="badge badge-warn">Review</span>{{/if}}</h2>
+    </div>
+    <table class="records-table">
+      <thead>
+        <tr>
+          <th class="col-rank">Place</th>
+          <th>Team</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each appearances}}
+        <tr>
+          <td class="col-rank">{{placementLabel}}</td>
+          <td>
+            <a href="{{hrefA}}">{{personNameA}}</a> / <a href="{{hrefB}}">{{personNameB}}</a>
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+  {{/each}}
+  {{else}}
+  <div class="empty-state">No results found.</div>
+  {{/if}}
+
+</div>

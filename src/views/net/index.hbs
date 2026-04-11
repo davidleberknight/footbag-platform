@@ -1,0 +1,151 @@
+{{! /net — net doubles landing page }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">Historical footbag net doubles results from IFPA competitions.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <p class="source-note">{{content.disclaimer}}</p>
+
+  <div class="source-note">
+    <strong>About this section:</strong>
+    Teams are algorithmically constructed from placement records — they are not official registrations.
+    Results reflect placements only; no match-level data is reconstructed.
+    Some events are incomplete or under review.
+    <a href="/net/teams">Browse all teams</a> &middot;
+    <a href="/net/events">Browse all events</a>
+  </div>
+
+  {{! ── Top Teams ────────────────────────────────────────────────── }}
+  {{#if content.topTeams}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most Active Teams</h2>
+      <a href="/net/teams" class="section-link">All teams &rarr;</a>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Team</th>
+            <th class="col-num">Events</th>
+            <th class="col-rank">Wins</th>
+            <th class="col-rank">Podiums</th>
+            <th>Years</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.topTeams}}
+          <tr>
+            <td class="col-rank">{{add @index 1}}</td>
+            <td><a href="{{teamHref}}">{{teamName}}</a></td>
+            <td class="col-num">{{appearanceCount}}</td>
+            <td class="col-rank">{{winCount}}</td>
+            <td class="col-rank">{{podiumCount}}</td>
+            <td>{{#if yearSpan}}{{yearSpan}}{{else}}&mdash;{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Most Connected Players ─────────────────────────────────── }}
+  {{#if content.topPlayers}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most Connected Players</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Player</th>
+            <th class="col-num">Partners</th>
+            <th class="col-num">Appearances</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.topPlayers}}
+          <tr>
+            <td class="col-rank">{{add @index 1}}</td>
+            <td><a href="{{href}}">{{personName}}</a>{{#if country}} <span class="detail-muted">{{country}}</span>{{/if}}</td>
+            <td class="col-num">{{partnerCount}}</td>
+            <td class="col-num">{{appearanceCount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Recent Events ────────────────────────────────────────────── }}
+  {{#if content.recentEvents}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Recent Events</h2>
+      <a href="/net/events" class="section-link">All events &rarr;</a>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th class="col-num">Results</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.recentEvents}}
+          <tr>
+            <td><a href="{{eventHref}}">{{eventTitle}}</a> <span class="detail-muted">{{eventYear}}</span></td>
+            <td class="col-num">{{appearanceCount}}</td>
+            <td>{{#if hasMultiStageHint}}<span class="badge badge-warn">Multi-stage</span>{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Interesting Teams ──────────────────────────────────────── }}
+  {{#if content.interestingTeams}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Long Careers</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th>Team</th>
+            <th>Years Active</th>
+            <th class="col-rank">Wins</th>
+            <th class="col-rank">Best</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.interestingTeams}}
+          <tr>
+            <td><a href="{{teamHref}}">{{teamName}}</a></td>
+            <td>{{#if yearSpan}}{{yearSpan}}{{else}}&mdash;{{/if}}</td>
+            <td class="col-rank">{{winCount}}</td>
+            <td class="col-rank">{{bestPlacementLabel}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+</div>

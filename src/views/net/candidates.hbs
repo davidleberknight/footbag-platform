@@ -1,0 +1,262 @@
+{{! /internal/net/candidates — net match candidate review from noise extraction }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">
+      Operator review of match candidates extracted from unstructured noise sources.
+      All items have evidence class <code>unresolved_candidate</code>.
+      Read-only. Not shown in public pages.
+    </p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Section A: Extraction Metrics ──────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Extraction Metrics</h2>
+    </div>
+    <div class="review-summary-grid">
+
+      <div class="review-card">
+        <h3>Totals</h3>
+        <table class="records-table records-table-sm">
+          <tbody>
+            <tr><td>Total fragments</td><td class="col-num">{{content.metrics.totalFragments}}</td></tr>
+            <tr><td>Total candidates</td><td class="col-num">{{content.metrics.totalCandidates}}</td></tr>
+            <tr><td>Promote rate</td><td class="col-num">{{content.metrics.promoteRatePct}}</td></tr>
+            <tr><td>Linked rate</td><td class="col-num">{{content.metrics.linkedRatePct}}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="review-card">
+        <h3>By Confidence</h3>
+        <table class="records-table records-table-sm">
+          <thead><tr><th>Bucket</th><th class="col-num">Count</th></tr></thead>
+          <tbody>
+            <tr><td><span class="badge badge-ok">high ≥ 0.85</span></td><td class="col-num">{{content.metrics.highConfCount}}</td></tr>
+            <tr><td><span class="badge badge-warn">medium ≥ 0.70</span></td><td class="col-num">{{content.metrics.mediumConfCount}}</td></tr>
+            <tr><td><span class="badge badge-muted">low &lt; 0.70</span></td><td class="col-num">{{content.metrics.lowConfCount}}</td></tr>
+            {{#if content.metrics.unknownConfCount}}
+            <tr><td><em>no score</em></td><td class="col-num">{{content.metrics.unknownConfCount}}</td></tr>
+            {{/if}}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="review-card">
+        <h3>By Status</h3>
+        <table class="records-table records-table-sm">
+          <thead><tr><th>Status</th><th class="col-num">Linked</th><th class="col-num">Total</th></tr></thead>
+          <tbody>
+            {{#each content.summary.byStatus}}
+            <tr>
+              <td>{{status}}</td>
+              <td class="col-num">{{linkedCount}}</td>
+              <td class="col-num">{{totalCount}}</td>
+            </tr>
+            {{/each}}
+            {{#unless content.summary.byStatus}}
+            <tr><td colspan="3"><em>No candidates</em></td></tr>
+            {{/unless}}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+  {{! ── Section B: Source Summary ────────────────────────────────────────── }}
+  {{#if content.summaryBySource}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>By Source File</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th class="col-num">Fragments</th>
+            <th class="col-num">Candidates</th>
+            <th class="col-num">High</th>
+            <th class="col-num">Med</th>
+            <th class="col-num">Low</th>
+            <th class="col-num">Linked %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.summaryBySource}}
+          <tr>
+            <td><a href="{{{filterHref}}}">{{sourceFile}}</a></td>
+            <td class="col-num">{{fragmentCount}}</td>
+            <td class="col-num">{{candidateCount}}</td>
+            <td class="col-num">{{highConfCount}}</td>
+            <td class="col-num">{{mediumConfCount}}</td>
+            <td class="col-num">{{lowConfCount}}</td>
+            <td class="col-num">{{linkedPct}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Section C: Event Summary ────────────────────────────────────────── }}
+  {{#if content.summaryByEvent}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>By Event</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th class="col-num">Candidates</th>
+            <th class="col-num">Linked %</th>
+            <th class="col-num">Avg Conf</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.summaryByEvent}}
+          <tr>
+            <td>
+              <a href="{{{filterHref}}}">{{eventTitle}}</a>
+              {{#if yearHint}}<span class="detail-muted">{{yearHint}}</span>{{/if}}
+            </td>
+            <td class="col-num">{{candidateCount}}</td>
+            <td class="col-num">{{linkedPct}}</td>
+            <td class="col-num">{{avgConfidence}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Section D: Year Summary ─────────────────────────────────────────── }}
+  {{#if content.summaryByYear}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>By Year</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Year</th>
+            <th class="col-num">Candidates</th>
+            <th class="col-num">Linked %</th>
+            <th class="col-num">Avg Conf</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.summaryByYear}}
+          <tr>
+            <td>{{yearLabel}}</td>
+            <td class="col-num">{{candidateCount}}</td>
+            <td class="col-num">{{linkedPct}}</td>
+            <td class="col-num">{{avgConfidence}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Section E: Filters ──────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Filter Candidates</h2>
+    </div>
+    <form method="GET" action="/internal/net/candidates" class="review-filter-form">
+      <label>
+        Status
+        <select name="status">
+          {{#each content.filterOptions.statuses}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Min confidence
+        <select name="min_confidence">
+          {{#each content.filterOptions.confOptions}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Person linking
+        <select name="linked">
+          {{#each content.filterOptions.linkedFilter}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Group by
+        <select name="group">
+          {{#each content.filterOptions.groupByOptions}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Event ID
+        <input type="text" name="event" value="{{content.activeFilters.eventId}}" placeholder="event id..." />
+      </label>
+      <label>
+        Source file
+        <input type="text" name="source" value="{{content.activeFilters.sourceFile}}" placeholder="source file name..." />
+      </label>
+      <div class="review-filter-actions">
+        <button type="submit">Apply</button>
+        <a href="/internal/net/candidates" class="btn-link">Clear</a>
+      </div>
+    </form>
+  </section>
+
+  {{! ── Section F: Candidate Items (grouped or flat) ────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Candidate Items</h2>
+      <span class="section-meta">{{content.totalFiltered}} shown</span>
+    </div>
+
+    {{#if content.groups}}
+
+      {{! Grouped view }}
+      {{#each content.groups}}
+      <div class="content-section-sub">
+        <div class="section-heading section-heading-sm">
+          <h3>{{groupLabel}}</h3>
+          <span class="section-meta">{{items.length}}</span>
+        </div>
+        {{> candidates-table items=items}}
+      </div>
+      {{/each}}
+      {{#unless content.groups}}
+      <div class="empty-state">No candidates match the current filter.</div>
+      {{/unless}}
+
+    {{else}}
+
+      {{! Flat view }}
+      {{#if content.items}}
+        {{> candidates-table items=content.items}}
+      {{else}}
+      <div class="empty-state">No candidates match the current filter.</div>
+      {{/if}}
+
+    {{/if}}
+  </section>
+
+</div>

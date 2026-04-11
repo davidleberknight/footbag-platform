@@ -1,0 +1,57 @@
+{{! /net/events — net event list }}
+
+<div class="hero hero-sm">
+  <div>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/net/teams">Net Teams</a> <span class="breadcrumb-sep">/</span>
+      <span>Events</span>
+    </nav>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+    {{#if content.totalEvents}}
+    <div class="hero-stats">
+      <span>{{content.totalEvents}} events</span>
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <p class="source-note">{{content.disclaimer}}</p>
+
+  {{#if content.events}}
+  <div class="records-table-wrap">
+    <table class="records-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th class="col-num">Teams</th>
+          <th class="col-num">Results</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.events}}
+        <tr>
+          <td>
+            <a href="{{eventHref}}">{{eventTitle}}</a>
+            <span class="detail-muted">{{city}}{{#if country}}, {{country}}{{/if}} &middot; {{eventYear}}</span>
+          </td>
+          <td class="col-num">{{teamCount}}</td>
+          <td class="col-num">{{appearanceCount}}</td>
+          <td class="badge-cell">
+            {{#if qcHints.hasMultiStageHint}}<span class="badge badge-warn">Multi-stage</span>{{/if}}
+            {{#if qcHints.unknownTeamExcludedCount}}<span class="badge badge-warn">{{qcHints.unknownTeamExcludedCount}} unlinked</span>{{/if}}
+            {{#if qcHints.disciplineReviewCount}}<span class="badge badge-warn">Discipline review</span>{{/if}}
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="empty-state">No net events found.</div>
+  {{/if}}
+
+</div>

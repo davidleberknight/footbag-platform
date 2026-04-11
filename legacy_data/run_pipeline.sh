@@ -276,6 +276,48 @@ run_phase_g() {
 }
 
 # =============================================================================
+# PHASE NET — Net enrichment layer
+#
+# Reads (read-only against canonical tables — never modifies them):
+#   event_disciplines, event_result_entries, event_result_entry_participants,
+#   events, historical_persons
+#
+# Writes (additive enrichment tables only):
+#   net_discipline_group   — discipline name → canonical group mapping
+#   net_team               — stable doubles team entities
+#   net_team_member        — per-team member rows
+#   net_team_appearance    — per-team × event_discipline placement cache
+#   net_stat_policy        — evidence class policy registry
+#   net_review_queue       — QC items and quarantine events
+#
+# Scripts run in order: 12 → 13 → 14
+# Script 15 is NOT included (net_relative_performance deferred from phase 1).
+#
+# Requires: canonical DB already loaded (run canonical_only or csv_only first).
+# =============================================================================
+run_phase_net() {
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  PHASE NET: NET ENRICHMENT LAYER                     ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+
+    python event_results/scripts/12_build_net_discipline_groups.py \
+        --db "${REPO_ROOT}/database/footbag.db"
+
+    python event_results/scripts/13_build_net_teams.py \
+        --db "${REPO_ROOT}/database/footbag.db"
+
+    python event_results/scripts/14_import_net_review_queue.py \
+        --db "${REPO_ROOT}/database/footbag.db"
+
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  PHASE NET DONE                                      ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    echo ""
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 case "$MODE" in
@@ -326,8 +368,14 @@ case "$MODE" in
         echo "╚══════════════════════════════════════════════════════╝"
         ;;
 
+    net_enrichment)
+        # Runs net enrichment layer only (scripts 12→13→14).
+        # Requires the canonical DB to already be loaded.
+        run_phase_net
+        ;;
+
     *)
-        echo "Usage: $0 {full|canonical_only|enrichment_only|csv_only}" >&2
+        echo "Usage: $0 {full|canonical_only|enrichment_only|csv_only|net_enrichment}" >&2
         exit 1
         ;;
 esac

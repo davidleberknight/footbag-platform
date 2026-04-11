@@ -1,0 +1,159 @@
+{{! /internal/net/candidates/:candidateId — candidate detail + promote/reject workflow }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">
+      Review extracted match candidate. Approve to promote to curated enrichment or reject to mark as unusable.
+      <a href="{{content.backHref}}" class="btn-link">← Back to candidates</a>
+    </p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Already Curated Banner ──────────────────────────────────────────────── }}
+  {{#if content.isAlreadyCurated}}
+  <div class="review-card review-card-alert">
+    {{#if (eq content.existing.curatedStatus 'approved')}}
+    <strong>Approved</strong> by {{content.existing.curatedBy}} on {{content.existing.curatedAt}}
+    {{else}}
+    <strong>Rejected</strong> by {{content.existing.curatedBy}} on {{content.existing.curatedAt}}
+    {{/if}}
+    {{#if content.existing.curatorNote}}<p class="detail-muted">Note: {{content.existing.curatorNote}}</p>{{/if}}
+    <p class="detail-muted">This candidate has already been curated. No further action is possible.</p>
+  </div>
+  {{/if}}
+
+  {{! ── Section A: Candidate Fields ────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Candidate</h2>
+      <span class="section-meta"><code>{{content.candidate.candidateId}}</code></span>
+    </div>
+    <div class="review-summary-grid">
+
+      <div class="review-card">
+        <h3>Confidence &amp; Status</h3>
+        <table class="records-table records-table-sm">
+          <tbody>
+            <tr>
+              <td>Confidence</td>
+              <td>
+                {{#if (eq content.candidate.confidenceLabel 'high')}}<span class="badge badge-ok">high</span>{{/if}}
+                {{#if (eq content.candidate.confidenceLabel 'medium')}}<span class="badge badge-warn">medium</span>{{/if}}
+                {{#if (eq content.candidate.confidenceLabel 'low')}}<span class="badge badge-muted">low</span>{{/if}}
+                {{#if (eq content.candidate.confidenceLabel 'unknown')}}<span class="detail-muted">unknown</span>{{/if}}
+                {{#if content.candidate.confidenceScore}}<span class="detail-muted">({{content.candidate.confidenceScore}})</span>{{/if}}
+              </td>
+            </tr>
+            <tr><td>Review status</td><td>{{content.candidate.reviewStatus}}</td></tr>
+            <tr><td>Imported</td><td class="detail-muted">{{content.candidate.importedAt}}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="review-card">
+        <h3>Players</h3>
+        <table class="records-table records-table-sm">
+          <tbody>
+            <tr>
+              <td>Player A (raw)</td>
+              <td>{{#if content.candidate.playerARawName}}{{content.candidate.playerARawName}}{{else}}<em>—</em>{{/if}}</td>
+            </tr>
+            <tr>
+              <td>Player A (linked)</td>
+              <td>
+                {{#if content.candidate.playerAPersonId}}
+                  <a href="/net/players/{{content.candidate.playerAPersonId}}">{{#if content.candidate.playerAName}}{{content.candidate.playerAName}}{{else}}{{content.candidate.playerAPersonId}}{{/if}}</a>
+                {{else}}<span class="badge badge-warn">unlinked</span>{{/if}}
+              </td>
+            </tr>
+            <tr>
+              <td>Player B (raw)</td>
+              <td>{{#if content.candidate.playerBRawName}}{{content.candidate.playerBRawName}}{{else}}<em>—</em>{{/if}}</td>
+            </tr>
+            <tr>
+              <td>Player B (linked)</td>
+              <td>
+                {{#if content.candidate.playerBPersonId}}
+                  <a href="/net/players/{{content.candidate.playerBPersonId}}">{{#if content.candidate.playerBName}}{{content.candidate.playerBName}}{{else}}{{content.candidate.playerBPersonId}}{{/if}}</a>
+                {{else}}<span class="badge badge-warn">unlinked</span>{{/if}}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="review-card">
+        <h3>Match Data</h3>
+        <table class="records-table records-table-sm">
+          <tbody>
+            <tr><td>Score</td><td>{{#if content.candidate.extractedScore}}{{content.candidate.extractedScore}}{{else}}<em>—</em>{{/if}}</td></tr>
+            <tr><td>Round</td><td>{{#if content.candidate.roundHint}}{{content.candidate.roundHint}}{{else}}<em>—</em>{{/if}}</td></tr>
+            <tr><td>Year hint</td><td>{{#if content.candidate.yearHint}}{{content.candidate.yearHint}}{{else}}<em>—</em>{{/if}}</td></tr>
+            <tr>
+              <td>Event</td>
+              <td>
+                {{#if content.candidate.eventHref}}
+                  <a href="{{content.candidate.eventHref}}">{{#if content.candidate.eventTitle}}{{content.candidate.eventTitle}}{{else}}{{content.candidate.eventId}}{{/if}}</a>
+                {{else if content.candidate.eventId}}
+                  {{content.candidate.eventId}}
+                {{else}}<em>—</em>{{/if}}
+              </td>
+            </tr>
+            <tr><td>Discipline</td><td>{{#if content.candidate.disciplineName}}{{content.candidate.disciplineName}}{{else}}<em>—</em>{{/if}}</td></tr>
+            <tr><td>Source file</td><td class="detail-muted">{{#if content.candidate.sourceFile}}{{content.candidate.sourceFile}}{{else}}<em>—</em>{{/if}}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <div class="review-card">
+      <h3>Raw Text</h3>
+      <p class="col-message">{{content.candidate.rawText}}</p>
+    </div>
+  </section>
+
+  {{! ── Section B: Promote / Reject Forms ───────────────────────────────────── }}
+  {{#unless content.isAlreadyCurated}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Curate</h2>
+    </div>
+    <div class="review-summary-grid">
+
+      <div class="review-card">
+        <h3>Approve</h3>
+        <p class="detail-muted">Marks candidate as <code>accepted</code> and stores a <code>curated_enrichment</code> record.</p>
+        <form method="POST" action="/internal/net/candidates/{{content.candidate.candidateId}}/approve">
+          <label>
+            Note (optional)
+            <input type="text" name="note" placeholder="Curator note..." />
+          </label>
+          <div class="review-filter-actions">
+            <button type="submit" class="btn-primary">Approve</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="review-card">
+        <h3>Reject</h3>
+        <p class="detail-muted">Marks candidate as <code>rejected</code> and records the reason.</p>
+        <form method="POST" action="/internal/net/candidates/{{content.candidate.candidateId}}/reject">
+          <label>
+            Note (optional)
+            <input type="text" name="note" placeholder="Rejection reason..." />
+          </label>
+          <div class="review-filter-actions">
+            <button type="submit">Reject</button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </section>
+  {{/unless}}
+
+</div>

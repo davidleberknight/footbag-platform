@@ -163,6 +163,7 @@ James has merged his footbag-results pipeline into this repo under `legacy_data/
 - **Pipeline merged**: `legacy_data/pipeline/`, `legacy_data/scripts/`, `legacy_data/event_results/` all in repo
 - **Events + results + persons soup-to-nuts**: `legacy_data/run_pipeline.sh complete` runs mirror + curated → canonical → QC → workbook → seed → DB
 - **Club extract/load scripts wired**: `extract_clubs.py`, `load_clubs_seed.py`, `extract_club_members.py`, `load_club_members_seed.py` run from `scripts/reset-local-db.sh`; produces `seed/clubs.csv` (1,035 raw rows) and `seed/club_members.csv` (2,399 rows); loads `clubs` and `legacy_person_club_affiliations`
+- **Net enrichment subsystem**: schema tables (`net_team`, `net_team_member`, `net_team_appearance`, `net_discipline_group`, `net_stat_policy`, `net_review_queue`, `net_team_appearance_canonical` view) added to `database/schema.sql`; scripts 12 (`12_build_net_discipline_groups.py`), 13 (`13_build_net_teams.py`), and 14 (`14_import_net_review_queue.py`) under `legacy_data/event_results/scripts/`; `run_pipeline.sh net_enrichment` mode added; TypeScript layer: `netService.ts`, `netController.ts`, `/net/teams` and `/net/teams/:teamId` public routes, `src/views/net/` templates, Nav link; DB seeded with 4,176 teams, ~7,300 appearances (point-in-time from current canonical dataset), 607 QC review items
 - **`legacy_data/CLAUDE.md`**: exists; currently scoped to events/results/persons pipeline only
 - **`legacy_data/skills/`**: directory exists
 

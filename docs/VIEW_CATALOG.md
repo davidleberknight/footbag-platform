@@ -410,6 +410,15 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /login` | Login | Member login | Current |
 | `GET /register` | Register | Member registration | Current |
 | `GET /hof` | HoF landing | Footbag Hall of Fame editorial/informational landing page | Current stub |
+| `GET /freestyle` | Freestyle landing | Freestyle section entry page | Current |
+| `GET /freestyle/records` | Freestyle records | Freestyle world records (authoritative list) | Current |
+| `GET /freestyle/leaders` | Freestyle leaders | Freestyle leaders list | Current |
+| `GET /freestyle/about` | Freestyle about | Freestyle discipline overview | Current |
+| `GET /freestyle/moves` | Freestyle moves | Freestyle moves reference | Current |
+| `GET /freestyle/tricks/:slug` | Freestyle trick detail | Detail page for a single freestyle trick | Current |
+| `GET /consecutive` | Consecutive records | Consecutive kicks world records | Current |
+| `GET /net/teams` | Net teams list | Doubles net team list ordered by appearance count | Current |
+| `GET /net/teams/:teamId` | Net team detail | Doubles net team competition history | Current |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
 | `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
 
@@ -433,6 +442,9 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
 - `GET /register` is the member registration route. `POST /register` is its form-action handler and is not a separate cataloged page.
 - `GET /hof` is the canonical HoF section entry route.
+- `GET /freestyle` is the canonical freestyle section entry route. Sub-routes `/freestyle/records`, `/freestyle/leaders`, `/freestyle/about`, `/freestyle/moves`, and `/freestyle/tricks/:slug` are all public and unauthenticated.
+- `GET /consecutive` is the canonical consecutive section entry route and the single page in the consecutive section.
+- `GET /net/teams` is the canonical net section entry route; lists doubles teams ordered by appearance count. `GET /net/teams/:teamId` is the team detail route; returns 404 for unknown team IDs. Both pages always render the disclaimer: "Team identities are algorithmically constructed from placement data and may not reflect official partnerships."
 - health routes are operational and are outside the cataloged page system.
 
 ---

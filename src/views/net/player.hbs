@@ -1,0 +1,56 @@
+{{! /net/players/:personId — player net history overview }}
+
+<div class="hero hero-sm">
+  <div>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/net/teams">Net Teams</a> <span class="breadcrumb-sep">/</span>
+      <span>{{page.title}}</span>
+    </nav>
+    <h1>{{page.title}}</h1>
+    <div class="hero-stats">
+      {{#if content.player.country}}<span>{{content.player.country}}</span>{{/if}}
+      <span>{{content.player.totalAppearances}} net appearances</span>
+      <span>{{content.totalPartners}} {{#if (eq content.totalPartners 1)}}partner{{else}}partners{{/if}}</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <p class="source-note">{{content.disclaimer}}</p>
+
+  {{#if content.partners}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Partners</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Partner</th>
+            <th class="col-num">Together</th>
+            <th class="col-rank">Best</th>
+            <th>Years</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.partners}}
+          <tr>
+            <td class="col-rank">{{add @index 1}}</td>
+            <td><a href="{{teamHref}}">{{partnerName}}</a></td>
+            <td class="col-num">{{appearanceCount}}</td>
+            <td class="col-rank">{{bestPlacementLabel}}</td>
+            <td>{{#if yearSpan}}{{yearSpan}}{{else}}&mdash;{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{else}}
+  <div class="empty-state">No net competition history found.</div>
+  {{/if}}
+
+</div>

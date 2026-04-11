@@ -5,8 +5,9 @@ import { engine } from 'express-handlebars';
 import { logger } from './config/logger';
 import { config } from './config/env';
 import { authStub } from './middleware/authStub';
-import { healthRouter } from './routes/healthRoutes';
-import { publicRouter } from './routes/publicRoutes';
+import { healthRouter }   from './routes/healthRoutes';
+import { internalRouter } from './routes/internalRoutes';
+import { publicRouter }   from './routes/publicRoutes';
 
 /**
  * Factory function — returns a configured Express application without
@@ -125,6 +126,7 @@ export function createApp(): express.Application {
       : req.path.startsWith('/hof') ? 'hof'
       : req.path.startsWith('/freestyle') ? 'freestyle'
       : req.path.startsWith('/consecutive') ? 'consecutive'
+      : req.path.startsWith('/net') ? 'net'
       : '';
     res.locals.isAuthenticated = req.isAuthenticated;
     res.locals.currentUser = req.user;
@@ -138,8 +140,9 @@ export function createApp(): express.Application {
   });
 
   // ── Routes ───────────────────────────────────────────────────────────────
-  app.use('/health', healthRouter);
-  app.use('/', publicRouter);
+  app.use('/health',   healthRouter);
+  app.use('/internal', internalRouter);
+  app.use('/',         publicRouter);
 
   // ── 404 handler ──────────────────────────────────────────────────────────
   app.use((_req, res) => {

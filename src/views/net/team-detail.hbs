@@ -1,0 +1,63 @@
+{{! /net/teams/:teamId — team detail }}
+
+<div class="hero hero-sm">
+  <div>
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      <a href="/net/teams">Net Teams</a> <span class="breadcrumb-sep">/</span>
+      <span>{{page.title}}</span>
+    </nav>
+    <h1>{{page.title}}</h1>
+    <div class="hero-stats">
+      <span>{{content.team.appearanceCount}} events</span>
+      {{#if content.team.yearSpan}}<span>{{content.team.yearSpan}}</span>{{/if}}
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <p class="source-note">{{content.disclaimer}}</p>
+
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Partners</h2>
+    </div>
+    <ul class="plain-list">
+      <li><a href="{{content.team.hrefA}}">{{content.team.personNameA}}</a>{{#if content.team.countryA}} — {{content.team.countryA}}{{/if}}</li>
+      <li><a href="{{content.team.hrefB}}">{{content.team.personNameB}}</a>{{#if content.team.countryB}} — {{content.team.countryB}}{{/if}}</li>
+    </ul>
+  </section>
+
+  {{#if content.byYear}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Competition History</h2>
+    </div>
+
+    {{#each content.byYear}}
+    <h3 class="year-heading">{{year}}</h3>
+    <table class="records-table">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Discipline</th>
+          <th class="col-rank">Place</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each appearances}}
+        <tr>
+          <td><a href="{{eventHref}}">{{eventTitle}}</a></td>
+          <td>{{disciplineLabel}}</td>
+          <td class="col-rank">{{placementLabel}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    {{/each}}
+  </section>
+  {{else}}
+  <div class="empty-state">No competition history found.</div>
+  {{/if}}
+
+</div>

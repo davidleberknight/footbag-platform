@@ -2851,5 +2851,248 @@ CREATE INDEX idx_consecutive_kicks_section
   ON consecutive_kicks_records(section, sort_order);
 
 -- =============================================================================
+-- NET DOMAIN LAYER  (additive — canonical tables are never modified)
+-- Evidence classes: canonical_only | curated_enrichment | inferred_partial | unresolved_candidate
+-- STATISTICS FIREWALL: service layer enforces evidence_class = 'canonical_only' for all
+--   user-facing stats. inferred_partial is never exposed in phase 1 routes.
+--   DB-level guard: use net_team_appearance_canonical view instead of the table directly.
+-- =============================================================================
+
+-- Policy registry (populated by script 12, queried by service layer for disclaimers)
+CREATE TABLE IF NOT EXISTS net_stat_policy (
+  evidence_class      TEXT PRIMARY KEY
+    CHECK (evidence_class IN ('canonical_only','curated_enrichment','inferred_partial','unresolved_candidate')),
+  display_label       TEXT NOT NULL,
+  may_show_public     INTEGER NOT NULL CHECK (may_show_public IN (0,1)),
+  requires_disclaimer INTEGER NOT NULL CHECK (requires_disclaimer IN (0,1)),
+  disclaimer_text     TEXT,
+  may_use_in_stats    INTEGER NOT NULL CHECK (may_use_in_stats IN (0,1)),
+  created_at          TEXT NOT NULL
+);
+
+-- Canonical group mapping for net disciplines (~50 name variants → 13 groups)
+-- SAFETY: conflict_flag=1 means this discipline matched multiple patterns ambiguously.
+-- These rows MUST be reviewed before their canonical_group is trusted.
+-- This table never overrides canonical event_disciplines data — it only annotates gaps.
+CREATE TABLE IF NOT EXISTS net_discipline_group (
+  discipline_id   TEXT PRIMARY KEY REFERENCES event_disciplines(id),
+  canonical_group TEXT NOT NULL,   -- open_doubles | mixed_doubles | womens_doubles |
+                                   -- intermediate_doubles | novice_doubles | masters_doubles |
+                                   -- other_doubles | open_singles | womens_singles |
+                                   -- intermediate_singles | novice_singles | masters_singles |
+                                   -- other_singles | uncategorized
+  match_method    TEXT NOT NULL CHECK (match_method IN ('exact','pattern','fallback')),
+  review_needed   INTEGER NOT NULL DEFAULT 0 CHECK (review_needed IN (0,1)),
+  conflict_flag   INTEGER NOT NULL DEFAULT 0 CHECK (conflict_flag IN (0,1)),
+                                   -- 1 = matched multiple patterns; canonical_group is best guess only
+  mapped_at       TEXT NOT NULL,
+  mapped_by       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_net_discipline_group_group    ON net_discipline_group(canonical_group);
+CREATE INDEX IF NOT EXISTS idx_net_discipline_group_conflict ON net_discipline_group(conflict_flag);
+
+-- Stable doubles team entity (sorted person_id pair)
+-- team_id = UUID5(NAMESPACE, f"{person_id_a}|{person_id_b}")
+-- NAMESPACE = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  ← fixed constant in script 13
+-- person_id_a is always lexicographically < person_id_b  (CHECK enforced)
+-- NOTE: team_instance (same pair reforming after a multi-year gap) is NOT modeled here.
+--   If needed in a future phase, add a team_instance table referencing net_team.
+CREATE TABLE IF NOT EXISTS net_team (
+  team_id          TEXT PRIMARY KEY,
+  person_id_a      TEXT NOT NULL REFERENCES historical_persons(person_id),
+  person_id_b      TEXT NOT NULL REFERENCES historical_persons(person_id),
+  first_year       INTEGER,
+  last_year        INTEGER,
+  appearance_count INTEGER NOT NULL DEFAULT 0,  -- count(distinct event_id, discipline_id), not raw entries
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL,
+  CHECK (person_id_a < person_id_b),
+  UNIQUE (person_id_a, person_id_b)
+);
+CREATE INDEX IF NOT EXISTS idx_net_team_person_a ON net_team(person_id_a);
+CREATE INDEX IF NOT EXISTS idx_net_team_person_b ON net_team(person_id_b);
+
+-- Explicit membership (2 rows per team; enables person→teams index)
+CREATE TABLE IF NOT EXISTS net_team_member (
+  id        TEXT PRIMARY KEY,
+  team_id   TEXT NOT NULL REFERENCES net_team(team_id),
+  person_id TEXT NOT NULL REFERENCES historical_persons(person_id),
+  position  TEXT NOT NULL CHECK (position IN ('a','b')),
+  UNIQUE (team_id, person_id)
+);
+CREATE INDEX IF NOT EXISTS idx_net_team_member_person ON net_team_member(person_id);
+
+-- One row per (team × event_discipline); denormalized placement cache
+-- appearance_count on net_team = count(distinct event_id, discipline_id) across these rows.
+-- STATISTICS FIREWALL: query via net_team_appearance_canonical view, not this table directly.
+CREATE TABLE IF NOT EXISTS net_team_appearance (
+  id              TEXT PRIMARY KEY,
+  team_id         TEXT NOT NULL REFERENCES net_team(team_id),
+  event_id        TEXT NOT NULL REFERENCES events(id),
+  discipline_id   TEXT NOT NULL REFERENCES event_disciplines(id),
+  result_entry_id TEXT NOT NULL REFERENCES event_result_entries(id),
+  placement       INTEGER NOT NULL,
+  score_text      TEXT,
+  event_year      INTEGER NOT NULL,
+  evidence_class  TEXT NOT NULL DEFAULT 'canonical_only'
+    CHECK (evidence_class IN ('canonical_only','curated_enrichment','inferred_partial','unresolved_candidate')),
+  extracted_at    TEXT NOT NULL,
+  UNIQUE (team_id, result_entry_id),
+  UNIQUE (team_id, event_id, discipline_id)   -- prevents duplicate ingestion and malformed joins
+);
+CREATE INDEX IF NOT EXISTS idx_net_team_appearance_team  ON net_team_appearance(team_id);
+CREATE INDEX IF NOT EXISTS idx_net_team_appearance_event ON net_team_appearance(event_id);
+CREATE INDEX IF NOT EXISTS idx_net_team_appearance_year  ON net_team_appearance(event_year);
+
+-- Defensive view: enforces evidence_class = 'canonical_only' at the DB layer.
+-- db.ts queries MUST use this view instead of net_team_appearance directly.
+-- Protects against future dev mistakes and ad-hoc SQL bypassing the service layer.
+CREATE VIEW IF NOT EXISTS net_team_appearance_canonical AS
+  SELECT * FROM net_team_appearance WHERE evidence_class = 'canonical_only';
+
+-- net_relative_performance: DEFERRED. Not in phase 1.
+-- Placement-derived pairwise ordering is inferred_partial evidence and cannot be
+-- displayed without risk of being misread as match outcomes. Re-evaluate in phase 2 only
+-- after a curator review workflow exists. Table intentionally NOT created here.
+
+-- QC items and quarantined events for manual review
+-- priority: 1=critical data conflict, 2=discipline ambiguity,
+--           3=structural issue, 4=low-priority cleanup
+CREATE TABLE IF NOT EXISTS net_review_queue (
+  id                TEXT PRIMARY KEY,
+  source_file       TEXT NOT NULL,
+  item_type         TEXT NOT NULL CHECK (item_type IN ('quarantine_event','qc_issue')),
+  priority          INTEGER NOT NULL DEFAULT 3
+    CHECK (priority IN (1,2,3,4)),
+  event_id          TEXT,
+  discipline_id     TEXT,
+  check_id          TEXT,
+  severity          TEXT NOT NULL,
+  reason_code       TEXT,
+  message           TEXT NOT NULL,
+  raw_context       TEXT,        -- JSON blob (opaque QC metadata — never queried structurally)
+  review_stage      TEXT,
+  resolution_status TEXT NOT NULL DEFAULT 'open'
+    CHECK (resolution_status IN ('open','resolved','wont_fix','escalated')),
+  resolution_notes  TEXT,
+  resolved_by       TEXT,
+  resolved_at       TEXT,
+  imported_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_net_review_event    ON net_review_queue(event_id);
+CREATE INDEX IF NOT EXISTS idx_net_review_status   ON net_review_queue(resolution_status);
+CREATE INDEX IF NOT EXISTS idx_net_review_priority ON net_review_queue(priority);
+
+-- Phase 2 stub: raw text fragments from unstructured sources (OLD_RESULTS.txt etc.)
+CREATE TABLE IF NOT EXISTS net_raw_fragment (
+  id             TEXT PRIMARY KEY,
+  source_file    TEXT NOT NULL,
+  source_line    INTEGER,
+  raw_text       TEXT NOT NULL,
+  fragment_type  TEXT NOT NULL
+    CHECK (fragment_type IN ('match_result','bracket_line','placement_block')),
+  event_hint     TEXT,
+  year_hint      INTEGER,
+  parse_status   TEXT NOT NULL DEFAULT 'pending'
+    CHECK (parse_status IN ('pending','parsed','unparseable','skipped')),
+  imported_at    TEXT NOT NULL
+);
+
+-- Phase 2 stub: extracted match candidates from noise/unstructured sources.
+-- Populated by script 16 (phase 2). Created now so schema is stable.
+-- evidence_class is always 'unresolved_candidate' until manually curated.
+-- Extraction guard: a candidate is only inserted when BOTH conditions hold:
+--   1. Two distinct player/team names detected in the fragment
+--   2. A numeric score OR explicit win/loss verb (defeated, def., bt, beat, lost to) present
+CREATE TABLE IF NOT EXISTS net_candidate_match (
+  candidate_id         TEXT PRIMARY KEY,
+  fragment_id          TEXT REFERENCES net_raw_fragment(id),
+  event_id             TEXT,                        -- nullable: linked after disambiguation
+  discipline_id        TEXT,                        -- nullable: linked after disambiguation
+  player_a_raw_name    TEXT,                        -- extracted name before person linking
+  player_b_raw_name    TEXT,                        -- extracted name before person linking
+  player_a_person_id   TEXT,                        -- nullable: linked after name resolution
+  player_b_person_id   TEXT,                        -- nullable: for doubles
+  raw_text             TEXT NOT NULL,
+  extracted_score      TEXT,                        -- raw score string, not normalized
+  round_hint           TEXT,                        -- 'final','semi','quarter','pool', etc.
+  year_hint            INTEGER,
+  confidence_score     REAL CHECK (confidence_score BETWEEN 0.0 AND 1.0),
+  evidence_class       TEXT NOT NULL DEFAULT 'unresolved_candidate'
+    CHECK (evidence_class = 'unresolved_candidate'),
+  review_status        TEXT NOT NULL DEFAULT 'pending'
+    CHECK (review_status IN ('pending','accepted','rejected','needs_info')),
+  imported_at          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_net_candidate_event  ON net_candidate_match(event_id);
+CREATE INDEX IF NOT EXISTS idx_net_candidate_status ON net_candidate_match(review_status);
+
+-- Promoted / rejected candidates — full audit trail of curator decisions.
+-- evidence_class is always 'curated_enrichment'.
+-- UNIQUE(candidate_id) prevents double-promotion at the DB level.
+-- Both approvals and rejections are stored; curated_status distinguishes them.
+-- Key fields from the candidate are snapshotted here for audit continuity
+-- even if the source candidate row is later modified.
+CREATE TABLE IF NOT EXISTS net_curated_match (
+  curated_id          TEXT PRIMARY KEY,
+  candidate_id        TEXT NOT NULL REFERENCES net_candidate_match(candidate_id),
+  curated_status      TEXT NOT NULL
+    CHECK (curated_status IN ('approved', 'rejected')),
+  evidence_class      TEXT NOT NULL DEFAULT 'curated_enrichment'
+    CHECK (evidence_class = 'curated_enrichment'),
+  event_id            TEXT,
+  discipline_id       TEXT,
+  player_a_person_id  TEXT,
+  player_b_person_id  TEXT,
+  extracted_score     TEXT,
+  raw_text            TEXT NOT NULL,
+  curator_note        TEXT,
+  curated_at          TEXT NOT NULL,
+  curated_by          TEXT NOT NULL,
+  UNIQUE (candidate_id)
+);
+CREATE INDEX IF NOT EXISTS idx_net_curated_candidate ON net_curated_match(candidate_id);
+CREATE INDEX IF NOT EXISTS idx_net_curated_status    ON net_curated_match(curated_status);
+
+-- =============================================================================
+-- FREESTYLE TRICK DICTIONARY
+-- Loaded by legacy_data/event_results/scripts/17_load_trick_dictionary.py
+-- Source: legacy_data/inputs/noise/tricks.csv (74 tricks)
+-- Keyed on slug (lowercase-hyphenated canonical name); separate from freestyle_records.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS freestyle_tricks (
+  slug            TEXT PRIMARY KEY,                -- e.g. 'blurry-whirl'
+  canonical_name  TEXT NOT NULL,                   -- e.g. 'blurry whirl'
+  adds            TEXT,                            -- numeric ADD value or 'modifier'
+  base_trick      TEXT,                            -- immediate base trick name (may equal canonical_name)
+  trick_family    TEXT,                            -- family grouping slug (= base_trick for compounds, self for base tricks)
+  category        TEXT,                            -- 'dex' | 'body' | 'set' | 'compound' | 'modifier'
+  description     TEXT,                            -- from notes column in tricks.csv
+  aliases_json    TEXT,                            -- JSON array of alias strings (may be '[]')
+  sort_order      INTEGER NOT NULL DEFAULT 0,      -- load order from source CSV
+  loaded_at       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_category ON freestyle_tricks(category);
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_adds     ON freestyle_tricks(adds);
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_family   ON freestyle_tricks(trick_family);
+
+-- Modifier reference table — loaded from trick_modifiers.csv (21 rows).
+-- Each modifier applies a flat ADD bonus to any base trick,
+-- with a higher bonus when the base is rotational (blurry, spinning, swirling).
+-- NOT a duplicate of freestyle_tricks modifier rows — this table carries the ADD rules.
+CREATE TABLE IF NOT EXISTS freestyle_trick_modifiers (
+  slug                  TEXT PRIMARY KEY,          -- e.g. 'blurry'
+  modifier_name         TEXT NOT NULL,             -- e.g. 'blurry'
+  add_bonus             INTEGER NOT NULL,          -- ADD added to non-rotational base tricks
+  add_bonus_rotational  INTEGER NOT NULL,          -- ADD added to rotational base tricks (mirage, whirl, torque…)
+  modifier_type         TEXT NOT NULL              -- 'body' | 'set'
+    CHECK (modifier_type IN ('body', 'set')),
+  notes                 TEXT,
+  loaded_at             TEXT NOT NULL
+);
+
+-- =============================================================================
 -- END OF SCHEMA v0.1
 -- =============================================================================

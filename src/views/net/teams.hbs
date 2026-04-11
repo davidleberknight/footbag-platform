@@ -1,0 +1,46 @@
+{{! /net/teams — doubles team list }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+    {{#if content.totalTeams}}
+    <div class="hero-stats">
+      <span>{{content.totalTeams}} teams</span>
+    </div>
+    {{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <p class="source-note">{{content.disclaimer}}</p>
+
+  {{#if content.teams}}
+  <div class="records-table-wrap">
+    <table class="records-table">
+      <thead>
+        <tr>
+          <th class="col-rank">#</th>
+          <th>Partners</th>
+          <th class="col-num">Events</th>
+          <th>Years</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.teams}}
+        <tr>
+          <td class="col-rank">{{add @index 1}}</td>
+          <td><a href="{{teamHref}}">{{teamName}}</a></td>
+          <td class="col-num">{{appearanceCount}}</td>
+          <td>{{#if yearSpan}}{{yearSpan}}{{else}}&mdash;{{/if}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="empty-state">No teams found.</div>
+  {{/if}}
+
+</div>

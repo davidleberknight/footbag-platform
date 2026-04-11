@@ -1,0 +1,273 @@
+/**
+ * Integration tests for public net team routes.
+ *
+ * Covers:
+ *   GET /net/teams              — team list
+ *   GET /net/teams/:teamId      — team detail
+ *
+ * Verifies:
+ *   - 200 for valid routes, 404 for unknown teamId
+ *   - Evidence disclaimer always present
+ *   - Teams ordered by appearance_count DESC
+ *   - Team name and partner names visible
+ *   - Year grouping on detail page
+ *   - conflict_flag=1 renders raw discipline name instead of canonical group label
+ *   - Appearances with evidence_class != 'canonical_only' do NOT appear
+ *   - No rankings, win/loss, or head-to-head stats appear
+ */
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+import BetterSqlite3 from 'better-sqlite3';
+
+import {
+  setTestEnv,
+  createTestDb,
+  cleanupTestDb,
+  importApp,
+} from '../fixtures/testDb';
+import {
+  insertHistoricalPerson,
+  insertEvent,
+  insertDiscipline,
+  insertMember,
+  insertResultsUpload,
+  insertResultEntry,
+  insertNetTeam,
+  insertNetTeamMember,
+  insertNetTeamAppearance,
+} from '../fixtures/factories';
+
+const { dbPath } = setTestEnv('3095');
+
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+let createApp: Awaited<ReturnType<typeof importApp>>;
+
+// IDs used across tests
+const TEAM_1_ID = 'net-team-test-0001';
+const TEAM_2_ID = 'net-team-test-0002';
+const PERSON_A1 = 'person-net-aa-test-1';   // a < b lexicographically
+const PERSON_B1 = 'person-net-bb-test-1';
+const PERSON_A2 = 'person-net-aa-test-2';
+const PERSON_B2 = 'person-net-bb-test-2';
+
+function setupDb(db: BetterSqlite3.Database): void {
+  // Historical persons for team 1 (2 appearances) and team 2 (1 appearance)
+  insertHistoricalPerson(db, { person_id: PERSON_A1, person_name: 'Alice Net' });
+  insertHistoricalPerson(db, { person_id: PERSON_B1, person_name: 'Bob Net' });
+  insertHistoricalPerson(db, { person_id: PERSON_A2, person_name: 'Carol Net' });
+  insertHistoricalPerson(db, { person_id: PERSON_B2, person_name: 'Dave Net' });
+
+  // Events
+  const event1 = insertEvent(db, { id: 'event-net-test-2010', title: 'Net Open 2010', start_date: '2010-07-01', city: 'Chicago', country: 'US' });
+  const event2 = insertEvent(db, { id: 'event-net-test-2015', title: 'Net Open 2015', start_date: '2015-07-01', city: 'Denver', country: 'US' });
+  const event3 = insertEvent(db, { id: 'event-net-test-2012', title: 'European Net 2012', start_date: '2012-06-01', city: 'Berlin', country: 'DE' });
+
+  // Disciplines
+  const disc1 = insertDiscipline(db, event1, { id: 'disc-net-test-open-2010', name: 'Open Doubles Net', discipline_category: 'net', team_type: 'doubles' });
+  const disc2 = insertDiscipline(db, event2, { id: 'disc-net-test-open-2015', name: 'Open Doubles Net', discipline_category: 'net', team_type: 'doubles' });
+  const disc3 = insertDiscipline(db, event3, { id: 'disc-net-test-conflict-2012', name: 'Footbag Net: Singles', discipline_category: 'net', team_type: 'doubles' });
+
+  // net_discipline_group for conflict_flag test (disc3)
+  db.prepare(`
+    INSERT INTO net_discipline_group
+      (discipline_id, canonical_group, match_method, review_needed, conflict_flag, mapped_at, mapped_by)
+    VALUES (?, 'uncategorized', 'pattern', 1, 1, '2025-01-01T00:00:00.000Z', 'test')
+  `).run('disc-net-test-conflict-2012');
+
+  // Need result_entries for FK in net_team_appearance
+  // Use a member + upload to satisfy the FK chain (results_upload_id is nullable, pass null directly)
+  const member = insertMember(db);
+  const upload1 = insertResultsUpload(db, event1, member);
+  const upload2 = insertResultsUpload(db, event2, member);
+  const upload3 = insertResultsUpload(db, event3, member);
+
+  const entry1 = insertResultEntry(db, event1, upload1, disc1, { id: 'entry-net-test-01', placement: 1 });
+  const entry2 = insertResultEntry(db, event2, upload2, disc2, { id: 'entry-net-test-02', placement: 2 });
+  const entry3 = insertResultEntry(db, event1, upload1, disc1, { id: 'entry-net-test-03', placement: 3 });
+  const entry4 = insertResultEntry(db, event3, upload3, disc3, { id: 'entry-net-test-04', placement: 1 });
+  // Entry for inferred_partial test (team 1 at event 3 — should be hidden)
+  const entry5 = insertResultEntry(db, event3, upload3, disc3, { id: 'entry-net-test-05', placement: 2 });
+
+  // Team 1: Alice + Bob — 2 canonical_only appearances + 1 inferred_partial (should be hidden)
+  insertNetTeam(db, {
+    team_id:          TEAM_1_ID,
+    person_id_a:      PERSON_A1,
+    person_id_b:      PERSON_B1,
+    first_year:       2010,
+    last_year:        2015,
+    appearance_count: 2,
+  });
+  insertNetTeamMember(db, { team_id: TEAM_1_ID, person_id: PERSON_A1, position: 'a' });
+  insertNetTeamMember(db, { team_id: TEAM_1_ID, person_id: PERSON_B1, position: 'b' });
+
+  insertNetTeamAppearance(db, { team_id: TEAM_1_ID, event_id: event1, discipline_id: disc1, result_entry_id: entry1, placement: 1, event_year: 2010 });
+  insertNetTeamAppearance(db, { team_id: TEAM_1_ID, event_id: event2, discipline_id: disc2, result_entry_id: entry2, placement: 2, event_year: 2015 });
+  // inferred_partial appearance — must NOT appear in public output
+  insertNetTeamAppearance(db, { team_id: TEAM_1_ID, event_id: event3, discipline_id: disc3, result_entry_id: entry5, placement: 2, event_year: 2012, evidence_class: 'inferred_partial' });
+
+  // Team 2: Carol + Dave — 1 canonical_only appearance (conflict_flag=1 discipline)
+  insertNetTeam(db, {
+    team_id:          TEAM_2_ID,
+    person_id_a:      PERSON_A2,
+    person_id_b:      PERSON_B2,
+    first_year:       2012,
+    last_year:        2012,
+    appearance_count: 1,
+  });
+  insertNetTeamMember(db, { team_id: TEAM_2_ID, person_id: PERSON_A2, position: 'a' });
+  insertNetTeamMember(db, { team_id: TEAM_2_ID, person_id: PERSON_B2, position: 'b' });
+
+  insertNetTeamAppearance(db, { team_id: TEAM_2_ID, event_id: event3, discipline_id: disc3, result_entry_id: entry4, placement: 1, event_year: 2012 });
+}
+
+beforeAll(async () => {
+  const db = createTestDb(dbPath);
+  setupDb(db);
+  db.close();
+  createApp = await importApp();
+});
+
+afterAll(() => cleanupTestDb(dbPath));
+
+// ---------------------------------------------------------------------------
+
+describe('GET /net/teams', () => {
+  it('returns 200', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    expect(res.status).toBe(200);
+  });
+
+  it('includes the evidence disclaimer', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    expect(res.text).toContain('may not reflect official partnerships');
+  });
+
+  it('shows team names', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    expect(res.text).toContain('Alice Net');
+    expect(res.text).toContain('Bob Net');
+    expect(res.text).toContain('Carol Net');
+    expect(res.text).toContain('Dave Net');
+  });
+
+  it('orders teams by appearance_count descending (team1 before team2)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    const posTeam1 = res.text.indexOf('Alice Net');
+    const posTeam2 = res.text.indexOf('Carol Net');
+    expect(posTeam1).toBeGreaterThan(-1);
+    expect(posTeam2).toBeGreaterThan(-1);
+    expect(posTeam1).toBeLessThan(posTeam2);
+  });
+
+  it('shows team detail links', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    expect(res.text).toContain(`/net/teams/${TEAM_1_ID}`);
+  });
+
+  it('does not show rankings, win/loss, or head-to-head stats', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams');
+    const lower = res.text.toLowerCase();
+    expect(lower).not.toContain('win/loss');
+    expect(lower).not.toContain('ranking');
+    expect(lower).not.toContain('head-to-head');
+    expect(lower).not.toContain('rating');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /net/teams/:teamId', () => {
+  it('returns 200 for a valid team', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 404 for an unknown teamId', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/teams/not-a-real-team-id');
+    expect(res.status).toBe(404);
+  });
+
+  it('shows both partner names', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    expect(res.text).toContain('Alice Net');
+    expect(res.text).toContain('Bob Net');
+  });
+
+  it('includes the evidence disclaimer', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    expect(res.text).toContain('may not reflect official partnerships');
+  });
+
+  it('shows both canonical_only appearances', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    expect(res.text).toContain('Net Open 2010');
+    expect(res.text).toContain('Net Open 2015');
+  });
+
+  it('groups appearances by year (2015 section before 2010 section)', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    // Search for year-heading elements specifically to avoid matching yearSpan "2010–2015" in the hero
+    const pos2015 = res.text.indexOf('year-heading">2015');
+    const pos2010 = res.text.indexOf('year-heading">2010');
+    expect(pos2015).toBeGreaterThan(-1);
+    expect(pos2010).toBeGreaterThan(-1);
+    expect(pos2015).toBeLessThan(pos2010);
+  });
+
+  it('does NOT show inferred_partial appearances', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    // The inferred_partial appearance is at event3 (European Net 2012)
+    // It should not appear because the view filters to canonical_only
+    expect(res.text).not.toContain('European Net 2012');
+  });
+
+  it('renders raw discipline name when conflict_flag=1', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_2_ID}`);
+    // disc3 has conflict_flag=1; raw name is 'Footbag Net: Singles'
+    // canonical_group is 'uncategorized' which maps to '' in GROUP_LABELS
+    // service should use raw discipline_name
+    expect(res.text).toContain('Footbag Net: Singles');
+  });
+
+  it('shows placement labels', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    expect(res.text).toContain('1st');
+  });
+
+  it('links to event pages', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    expect(res.text).toContain('/events/event-net-test-2010');
+  });
+
+  it('links to partner net player pages', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    expect(res.text).toContain(`/net/players/${PERSON_A1}`);
+    expect(res.text).toContain(`/net/players/${PERSON_B1}`);
+  });
+
+  it('does not show rankings, win/loss, or head-to-head stats', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/net/teams/${TEAM_1_ID}`);
+    const lower = res.text.toLowerCase();
+    expect(lower).not.toContain('win/loss');
+    expect(lower).not.toContain('ranking');
+    expect(lower).not.toContain('head-to-head');
+  });
+});

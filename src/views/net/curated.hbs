@@ -1,0 +1,239 @@
+{{! /internal/net/curated — read-only browser of reviewed match interpretations }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">
+      Read-only audit view of curator decisions on extracted match candidates.
+      These are reviewed interpretations, not canonical match records.
+      Not shown on public pages.
+    </p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Section B: Summary Cards ────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Summary</h2>
+    </div>
+    <div class="review-summary-grid">
+
+      <div class="review-card">
+        <h3>Totals</h3>
+        <table class="records-table records-table-sm">
+          <tbody>
+            <tr><td>Total curated</td><td class="col-num">{{content.metrics.totalCurated}}</td></tr>
+            <tr><td>Approved</td>     <td class="col-num">{{content.metrics.approvedCount}} ({{content.metrics.approvedPct}})</td></tr>
+            <tr><td>Rejected</td>     <td class="col-num">{{content.metrics.rejectedCount}} ({{content.metrics.rejectedPct}})</td></tr>
+            <tr><td>Linked</td>       <td class="col-num">{{content.metrics.linkedCount}} ({{content.metrics.linkedPct}})</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+  {{! ── Section C: By Source ────────────────────────────────────────────────── }}
+  {{#if content.summaryBySource}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>By Source File</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th class="col-num">Approved</th>
+            <th class="col-num">Rejected</th>
+            <th class="col-num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.summaryBySource}}
+          <tr>
+            <td><a href="{{{filterHref}}}">{{sourceFile}}</a></td>
+            <td class="col-num">{{approvedCount}}</td>
+            <td class="col-num">{{rejectedCount}}</td>
+            <td class="col-num">{{curatedCount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Section D: By Event ─────────────────────────────────────────────────── }}
+  {{#if content.summaryByEvent}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>By Event</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th class="col-num">Approved</th>
+            <th class="col-num">Rejected</th>
+            <th class="col-num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.summaryByEvent}}
+          <tr>
+            <td><a href="{{{filterHref}}}">{{#if eventTitle}}{{eventTitle}}{{else}}{{eventId}}{{/if}}</a></td>
+            <td class="col-num">{{approvedCount}}</td>
+            <td class="col-num">{{rejectedCount}}</td>
+            <td class="col-num">{{curatedCount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Section E: By Year ──────────────────────────────────────────────────── }}
+  {{#if content.summaryByYear}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>By Year</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Year</th>
+            <th class="col-num">Approved</th>
+            <th class="col-num">Rejected</th>
+            <th class="col-num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.summaryByYear}}
+          <tr>
+            <td><a href="{{{filterHref}}}">{{yearHint}}</a></td>
+            <td class="col-num">{{approvedCount}}</td>
+            <td class="col-num">{{rejectedCount}}</td>
+            <td class="col-num">{{curatedCount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Section F: Filters ─────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Filter</h2>
+    </div>
+    <form method="GET" action="/internal/net/curated" class="review-filter-form">
+      <label>
+        Status
+        <select name="status">
+          {{#each content.filterOptions.statuses}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Person linking
+        <select name="linked">
+          {{#each content.filterOptions.linkedFilter}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Event ID
+        <input type="text" name="event" value="{{content.activeFilters.eventId}}" placeholder="event id..." />
+      </label>
+      <label>
+        Source file
+        <input type="text" name="source" value="{{content.activeFilters.sourceFile}}" placeholder="source file name..." />
+      </label>
+      <label>
+        Year
+        <input type="text" name="year" value="{{content.activeFilters.yearHint}}" placeholder="e.g. 1998" />
+      </label>
+      <div class="review-filter-actions">
+        <button type="submit">Apply</button>
+        <a href="/internal/net/curated" class="btn-link">Clear</a>
+      </div>
+    </form>
+  </section>
+
+  {{! ── Section G: Curated Items Table ─────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Curated Items</h2>
+      <span class="section-meta">{{content.totalFiltered}} shown</span>
+    </div>
+
+    {{#if content.items}}
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Players</th>
+            <th>Score</th>
+            <th>Round</th>
+            <th>Event / Year</th>
+            <th>Source</th>
+            <th>Note</th>
+            <th>Curated</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.items}}
+          <tr>
+            <td>
+              {{#if (eq curatedStatus 'approved')}}<span class="badge badge-ok">approved</span>{{/if}}
+              {{#if (eq curatedStatus 'rejected')}}<span class="badge badge-muted">rejected</span>{{/if}}
+            </td>
+            <td>
+              {{#if isFullyLinked}}
+                {{#if playerAName}}<a href="/net/players/{{playerAPersonId}}">{{playerAName}}</a>{{else}}{{playerAPersonId}}{{/if}}
+                /
+                {{#if playerBName}}<a href="/net/players/{{playerBPersonId}}">{{playerBName}}</a>{{else}}{{playerBPersonId}}{{/if}}
+              {{else}}
+                {{#if playerARawName}}{{playerARawName}}{{else}}<em>unknown</em>{{/if}}
+                /
+                {{#if playerBRawName}}{{playerBRawName}}{{else}}<em>unknown</em>{{/if}}
+                <span class="badge badge-warn">unlinked</span>
+              {{/if}}
+            </td>
+            <td>{{#if extractedScore}}{{extractedScore}}{{else}}<em>—</em>{{/if}}</td>
+            <td>{{#if roundHint}}{{roundHint}}{{else}}<em>—</em>{{/if}}</td>
+            <td>
+              {{#if eventHref}}
+                <a href="{{eventHref}}">{{#if eventTitle}}{{eventTitle}}{{else}}{{eventId}}{{/if}}</a>
+              {{else if yearHint}}
+                {{yearHint}}
+              {{else}}
+                <em>—</em>
+              {{/if}}
+            </td>
+            <td class="detail-muted">{{#if sourceFile}}{{sourceFile}}{{else}}<em>—</em>{{/if}}</td>
+            <td class="col-message">{{#if curatorNote}}{{curatorNote}}{{else}}<em>—</em>{{/if}}</td>
+            <td class="detail-muted">{{curatedAt}}</td>
+            <td><a href="{{candidateHref}}" class="btn-link">detail</a></td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">No curated matches match the current filter.</div>
+    {{/if}}
+  </section>
+
+</div>

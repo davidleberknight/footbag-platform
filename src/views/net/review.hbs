@@ -1,0 +1,209 @@
+{{! /internal/net/review — net enrichment QC / review tool }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">
+      Operator review of net enrichment metadata.
+      Summarises non-public QC items and discipline mapping issues.
+      Read-only. Not shown in public pages.
+    </p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Section B: Summary ─────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Summary</h2>
+    </div>
+    <div class="review-summary-grid">
+
+      <div class="review-card">
+        <h3>By Reason</h3>
+        <table class="records-table records-table-sm">
+          <thead><tr><th>Reason</th><th class="col-num">Count</th></tr></thead>
+          <tbody>
+            {{#each content.summary.byReason}}
+            <tr>
+              <td>{{#if reasonCode}}{{reasonCode}}{{else}}<em>none</em>{{/if}}</td>
+              <td class="col-num">{{count}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="review-card">
+        <h3>By Priority</h3>
+        <table class="records-table records-table-sm">
+          <thead><tr><th>Priority</th><th class="col-num">Count</th></tr></thead>
+          <tbody>
+            {{#each content.summary.byPriority}}
+            <tr>
+              <td>{{priority}} — {{label}}</td>
+              <td class="col-num">{{count}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="review-card">
+        <h3>By Status</h3>
+        <table class="records-table records-table-sm">
+          <thead><tr><th>Status</th><th class="col-num">Count</th></tr></thead>
+          <tbody>
+            {{#each content.summary.byStatus}}
+            <tr>
+              <td>{{status}}</td>
+              <td class="col-num">{{count}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+        <p class="detail-muted">Total: {{content.summary.totalItems}}</p>
+      </div>
+
+    </div>
+  </section>
+
+  {{! ── Section C: Filters ──────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Filter Items</h2>
+    </div>
+    <form method="GET" action="/internal/net/review" class="review-filter-form">
+      <label>
+        Reason
+        <select name="reason">
+          {{#each content.filterOptions.reasonCodes}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Priority
+        <select name="priority">
+          {{#each content.filterOptions.priorities}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Status
+        <select name="status">
+          {{#each content.filterOptions.statuses}}
+          <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </label>
+      <label>
+        Event ID
+        <input type="text" name="event" value="{{content.activeFilters.eventId}}" placeholder="event id..." />
+      </label>
+      <div class="review-filter-actions">
+        <button type="submit">Apply</button>
+        <a href="/internal/net/review" class="btn-link">Clear</a>
+      </div>
+    </form>
+  </section>
+
+  {{! ── Optional event context when filtering by event ─────────────── }}
+  {{#if content.eventContext}}
+  <div class="notice notice-info">
+    Filtered to event: <strong>{{content.eventContext.title}}</strong>
+    ({{content.eventContext.city}}, {{content.eventContext.country}} &middot; {{content.eventContext.startDate}})
+    &mdash; <a href="{{content.eventContext.href}}">View net event page &rarr;</a>
+  </div>
+  {{/if}}
+
+  {{! ── Section D: Review Items ─────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Review Items</h2>
+      <span class="section-meta">{{content.totalFiltered}} shown</span>
+    </div>
+
+    {{#if content.items}}
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Pri</th>
+            <th>Reason</th>
+            <th>Status</th>
+            <th>Event</th>
+            <th>Discipline</th>
+            <th>Message</th>
+            <th>Imported</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.items}}
+          <tr>
+            <td class="col-rank">{{priority}}&nbsp;<span class="detail-muted">{{priorityLabel}}</span></td>
+            <td>{{#if reasonCode}}{{reasonCode}}{{else}}<em>—</em>{{/if}}</td>
+            <td>{{status}}</td>
+            <td>
+              {{#if eventHref}}
+                <a href="{{eventHref}}">{{#if eventTitle}}{{eventTitle}}{{else}}{{eventId}}{{/if}}</a>
+              {{else if eventId}}
+                {{eventId}}
+              {{else}}
+                <em>—</em>
+              {{/if}}
+            </td>
+            <td>{{#if disciplineName}}{{disciplineName}}{{else if disciplineId}}{{disciplineId}}{{else}}<em>—</em>{{/if}}</td>
+            <td>{{message}}</td>
+            <td class="col-date">{{importedAt}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">No items match the current filter.</div>
+    {{/if}}
+  </section>
+
+  {{! ── Section E: Discipline Mapping Review ────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Discipline Mappings — Conflict / Review Needed</h2>
+    </div>
+
+    {{#if content.conflictDisciplines}}
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Discipline ID</th>
+            <th>Raw Name</th>
+            <th>Canonical Group</th>
+            <th>Method</th>
+            <th>Conflict</th>
+            <th>Review</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.conflictDisciplines}}
+          <tr>
+            <td class="col-id">{{disciplineId}}</td>
+            <td>{{disciplineName}}</td>
+            <td>{{#if canonicalGroup}}{{canonicalGroup}}{{else}}<em>—</em>{{/if}}</td>
+            <td>{{matchMethod}}</td>
+            <td class="col-rank">{{#if conflictFlag}}<span class="badge badge-warn">yes</span>{{else}}—{{/if}}</td>
+            <td class="col-rank">{{#if reviewNeeded}}<span class="badge badge-warn">yes</span>{{else}}—{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">No conflict or review-needed discipline mappings found.</div>
+    {{/if}}
+  </section>
+
+</div>

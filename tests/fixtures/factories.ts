@@ -545,3 +545,267 @@ export function insertConsecutiveKicksRecord(
   );
   return sort_order;
 }
+
+// ── Net Team ──────────────────────────────────────────────────────────────────
+
+export interface NetTeamOverrides {
+  team_id?:          string;
+  person_id_a?:      string;
+  person_id_b?:      string;
+  first_year?:       number | null;
+  last_year?:        number | null;
+  appearance_count?: number;
+}
+
+export function insertNetTeam(db: BetterSqlite3.Database, o: NetTeamOverrides = {}): string {
+  const team_id   = o.team_id    ?? `net-team-${uid()}`;
+  const pid_a     = o.person_id_a ?? `person-test-${uid()}`;
+  const pid_b     = o.person_id_b ?? `person-test-${uid()}`;
+  // Enforce CHECK (person_id_a < person_id_b) from schema
+  const [sorted_a, sorted_b] = pid_a < pid_b ? [pid_a, pid_b] : [pid_b, pid_a];
+  db.prepare(`
+    INSERT INTO net_team
+      (team_id, person_id_a, person_id_b, first_year, last_year,
+       appearance_count, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    team_id, sorted_a, sorted_b,
+    o.first_year       ?? 2010,
+    o.last_year        ?? 2015,
+    o.appearance_count ?? 1,
+    TS, TS,
+  );
+  return team_id;
+}
+
+// ── Net Team Member ───────────────────────────────────────────────────────────
+
+export interface NetTeamMemberOverrides {
+  id?:        string;
+  team_id:    string;
+  person_id:  string;
+  position?:  'a' | 'b';
+}
+
+export function insertNetTeamMember(
+  db: BetterSqlite3.Database,
+  o: NetTeamMemberOverrides,
+): string {
+  const id = o.id ?? `net-member-${uid()}`;
+  db.prepare(`
+    INSERT INTO net_team_member (id, team_id, person_id, position)
+    VALUES (?, ?, ?, ?)
+  `).run(id, o.team_id, o.person_id, o.position ?? 'a');
+  return id;
+}
+
+// ── Net Team Appearance ───────────────────────────────────────────────────────
+
+export interface NetTeamAppearanceOverrides {
+  id?:              string;
+  team_id:          string;
+  event_id:         string;
+  discipline_id:    string;
+  result_entry_id?: string;
+  placement?:       number;
+  score_text?:      string | null;
+  event_year?:      number;
+  evidence_class?:  string;
+}
+
+export function insertNetTeamAppearance(
+  db: BetterSqlite3.Database,
+  o: NetTeamAppearanceOverrides,
+): string {
+  const id = o.id ?? `net-appearance-${uid()}`;
+  db.prepare(`
+    INSERT INTO net_team_appearance
+      (id, team_id, event_id, discipline_id, result_entry_id,
+       placement, score_text, event_year, evidence_class, extracted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    o.team_id,
+    o.event_id,
+    o.discipline_id,
+    o.result_entry_id ?? `result-test-${uid()}`,
+    o.placement       ?? 1,
+    o.score_text      ?? null,
+    o.event_year      ?? 2010,
+    o.evidence_class  ?? 'canonical_only',
+    TS,
+  );
+  return id;
+}
+
+// ── Net Raw Fragment ──────────────────────────────────────────────────────────
+
+export interface NetRawFragmentOverrides {
+  id?:            string;
+  source_file?:   string;
+  source_line?:   number | null;
+  raw_text?:      string;
+  fragment_type?: 'match_result' | 'bracket_line' | 'placement_block';
+  event_hint?:    string | null;
+  year_hint?:     number | null;
+  parse_status?:  'pending' | 'parsed' | 'unparseable' | 'skipped';
+}
+
+export function insertNetRawFragment(
+  db: BetterSqlite3.Database,
+  o: NetRawFragmentOverrides = {},
+): string {
+  const id = o.id ?? `net-frag-${uid()}`;
+  db.prepare(`
+    INSERT INTO net_raw_fragment
+      (id, source_file, source_line, raw_text, fragment_type, event_hint, year_hint, parse_status, imported_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    o.source_file   ?? 'test-source.txt',
+    o.source_line   ?? null,
+    o.raw_text      ?? 'Doubles Net - 1st - Alice/Bob, 2nd - Carol/Dave',
+    o.fragment_type ?? 'placement_block',
+    o.event_hint    ?? null,
+    o.year_hint     ?? null,
+    o.parse_status  ?? 'pending',
+    TS,
+  );
+  return id;
+}
+
+// ── Net Candidate Match ───────────────────────────────────────────────────────
+
+export interface NetCandidateMatchOverrides {
+  candidate_id?:       string;
+  fragment_id?:        string | null;
+  event_id?:           string | null;
+  discipline_id?:      string | null;
+  player_a_raw_name?:  string | null;
+  player_b_raw_name?:  string | null;
+  player_a_person_id?: string | null;
+  player_b_person_id?: string | null;
+  raw_text?:           string;
+  extracted_score?:    string | null;
+  round_hint?:         string | null;
+  year_hint?:          number | null;
+  confidence_score?:   number | null;
+  review_status?:      'pending' | 'accepted' | 'rejected' | 'needs_info';
+}
+
+export function insertNetCandidateMatch(
+  db: BetterSqlite3.Database,
+  o: NetCandidateMatchOverrides = {},
+): string {
+  const id = o.candidate_id ?? `net-cand-${uid()}`;
+  db.prepare(`
+    INSERT INTO net_candidate_match
+      (candidate_id, fragment_id, event_id, discipline_id,
+       player_a_raw_name, player_b_raw_name,
+       player_a_person_id, player_b_person_id,
+       raw_text, extracted_score, round_hint, year_hint,
+       confidence_score, evidence_class, review_status, imported_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unresolved_candidate', ?, ?)
+  `).run(
+    id,
+    o.fragment_id        ?? null,
+    o.event_id           ?? null,
+    o.discipline_id      ?? null,
+    o.player_a_raw_name  ?? null,
+    o.player_b_raw_name  ?? null,
+    o.player_a_person_id ?? null,
+    o.player_b_person_id ?? null,
+    o.raw_text           ?? 'Alice defeated Bob 15-10',
+    o.extracted_score    ?? null,
+    o.round_hint         ?? null,
+    o.year_hint          ?? null,
+    o.confidence_score   ?? null,
+    o.review_status      ?? 'pending',
+    TS,
+  );
+  return id;
+}
+
+// ── Net Curated Match ─────────────────────────────────────────────────────────
+
+export interface NetCuratedMatchOverrides {
+  curated_id?:          string;
+  candidate_id:         string;   // required — must reference an existing net_candidate_match row
+  curated_status?:      'approved' | 'rejected';
+  event_id?:            string | null;
+  discipline_id?:       string | null;
+  player_a_person_id?:  string | null;
+  player_b_person_id?:  string | null;
+  extracted_score?:     string | null;
+  raw_text?:            string;
+  curator_note?:        string | null;
+  curated_by?:          string;
+}
+
+// ── Freestyle Trick Dictionary ────────────────────────────────────────────────
+
+export interface FreestyleTrickOverrides {
+  slug?:           string;
+  canonical_name?: string;
+  adds?:           string | null;
+  base_trick?:     string | null;
+  trick_family?:   string | null;
+  category?:       string | null;
+  description?:    string | null;
+  aliases_json?:   string;
+  sort_order?:     number;
+}
+
+export function insertFreestyleTrick(
+  db: BetterSqlite3.Database,
+  o: FreestyleTrickOverrides = {},
+): string {
+  const slug = o.slug ?? `trick-${uid()}`;
+  db.prepare(`
+    INSERT INTO freestyle_tricks
+      (slug, canonical_name, adds, base_trick, trick_family, category,
+       description, aliases_json, sort_order, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    slug,
+    o.canonical_name ?? slug.replace(/-/g, ' '),
+    o.adds           ?? '3',
+    o.base_trick     ?? null,
+    o.trick_family   ?? null,
+    o.category       ?? 'compound',
+    o.description    ?? null,
+    o.aliases_json   ?? '[]',
+    o.sort_order     ?? 0,
+    TS,
+  );
+  return slug;
+}
+
+export function insertNetCuratedMatch(
+  db: BetterSqlite3.Database,
+  o: NetCuratedMatchOverrides,
+): string {
+  const id = o.curated_id ?? `net-curated-${uid()}`;
+  db.prepare(`
+    INSERT INTO net_curated_match
+      (curated_id, candidate_id, curated_status, evidence_class,
+       event_id, discipline_id, player_a_person_id, player_b_person_id,
+       extracted_score, raw_text, curator_note,
+       curated_at, curated_by)
+    VALUES (?, ?, ?, 'curated_enrichment', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    o.candidate_id,
+    o.curated_status      ?? 'approved',
+    o.event_id            ?? null,
+    o.discipline_id       ?? null,
+    o.player_a_person_id  ?? null,
+    o.player_b_person_id  ?? null,
+    o.extracted_score     ?? null,
+    o.raw_text            ?? 'Alice defeated Bob 15-10',
+    o.curator_note        ?? null,
+    TS,
+    o.curated_by          ?? 'operator',
+  );
+  return id;
+}
