@@ -1,0 +1,115 @@
+{{! /freestyle/competition — results-derived competition history }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+    <div class="hero-stats">
+      <span>{{content.totalEvents}} events</span>
+      <span>1980–present</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Top Competitors ─────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Top Freestyle Singles Competitors</h2>
+    </div>
+    <p class="section-intro">Ranked by gold medals, then total podium finishes. Covers all freestyle singles disciplines (Open, Intermediate, Women's).</p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Player</th>
+            <th>Country</th>
+            <th class="col-num" title="1st place finishes">Gold</th>
+            <th class="col-num" title="2nd place finishes">Silver</th>
+            <th class="col-num" title="3rd place finishes">Bronze</th>
+            <th class="col-num">Podiums</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.topCompetitors}}
+          <tr>
+            <td class="col-rank">{{add @index 1}}</td>
+            <td><a href="{{profileHref}}">{{name}}</a></td>
+            <td class="detail-muted">{{#if country}}{{country}}{{else}}&mdash;{{/if}}</td>
+            <td class="col-num">{{golds}}</td>
+            <td class="col-num">{{silvers}}</td>
+            <td class="col-num">{{bronzes}}</td>
+            <td class="col-num">{{totalPodiums}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Events By Era ────────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Events by Era</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Decade</th>
+            <th class="col-num">Freestyle Events</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.eventsByEra}}
+          <tr>
+            <td>{{era}}</td>
+            <td class="col-num">{{events}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Recent Events ───────────────────────────────────────────────────────── }}
+  {{#if content.recentEvents}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Recent Freestyle Events</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Location</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.recentEvents}}
+          <tr>
+            <td><a href="{{href}}">{{title}}</a></td>
+            <td class="detail-muted">{{city}}, {{country}}</td>
+            <td class="detail-muted">{{startDate}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  <p class="source-note">{{content.dataNote}}</p>
+
+</div>

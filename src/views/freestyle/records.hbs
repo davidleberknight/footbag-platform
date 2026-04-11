@@ -72,7 +72,7 @@
               </td>
               <td class="col-date">
                 {{#if achievedDate}}
-                  {{achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
+                  {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
                 {{else}}
                   &mdash;
                 {{/if}}

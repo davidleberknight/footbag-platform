@@ -1,0 +1,219 @@
+{{! /freestyle/insights — data-driven editorial insights }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Most Used Tricks ──────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most Used Tricks</h2>
+    </div>
+    <p class="section-intro">Tricks appearing most frequently across documented competitive sequences.</p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Trick</th>
+            <th class="col-adds">ADD</th>
+            <th>Frequency</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.mostUsed}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{name}}</td>
+            <td class="col-adds">{{adds}}</td>
+            <td>{{label}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Most Influential Connectors ────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most Influential Connectors</h2>
+    </div>
+    <p class="section-intro">Tricks appearing most often as transition points between other tricks in a sequence.</p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Trick</th>
+            <th class="col-adds">ADD</th>
+            <th>Connections</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.connectors}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{name}}</td>
+            <td class="col-adds">{{adds}}</td>
+            <td>{{label}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Most Common Transitions ────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most Common Trick Transitions</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>From</th>
+            <th>To</th>
+            <th class="col-num">Count</th>
+            <th class="col-num">Players</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.transitions}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{from}}</td>
+            <td>{{to}}</td>
+            <td class="col-num">{{count}}</td>
+            <td class="col-num">{{players}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Hardest Documented Sequences ──────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Hardest Documented Sequences</h2>
+    </div>
+    <p class="section-intro">Highest total-ADD sequences from the passback archive. ADD is the sum of all tricks in the chain.</p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Player</th>
+            <th class="col-adds">Year</th>
+            <th class="col-adds">ADD</th>
+            <th class="col-adds">Length</th>
+            <th>Sequence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.hardestSequences}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{player}}</td>
+            <td class="col-adds">{{year}}</td>
+            <td class="col-adds">{{adds}}</td>
+            <td class="col-adds">{{length}}</td>
+            <td class="col-message">{{sequence}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Evolution of Difficulty ─────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Evolution of Difficulty</h2>
+    </div>
+    <p class="section-intro">Average ADD per documented sequence chain, by era.</p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Era</th>
+            <th class="col-num">Documented Chains</th>
+            <th class="col-adds">Avg ADD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.difficultyEras}}
+          <tr>
+            <td>{{era}}</td>
+            <td class="col-num">{{chains}}</td>
+            <td class="col-adds">{{avgAdd}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Most Diverse Players ───────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Most Diverse Players</h2>
+    </div>
+    <p class="section-intro">Players using the widest variety of distinct tricks across documented sequences.</p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th>Player</th>
+            <th class="col-num">Unique Tricks</th>
+            <th>Years Active</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.diversePlayers}}
+          <tr>
+            <td class="col-rank">{{rank}}</td>
+            <td>{{player}}</td>
+            <td class="col-num">{{uniqueTricks}}</td>
+            <td>{{yearsActive}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── Narrative analysis ─────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Analysis</h2>
+    </div>
+    {{#each content.narratives}}
+    <p>{{this}}</p>
+    {{/each}}
+  </section>
+
+  <p class="source-note">
+    Derived from 774 documented competitive events (1980–2026) and 395 Sick3 format sequences
+    spanning 22 years of ADD-scored competition. Sequence data draws primarily from Sick3 submissions
+    where trick ADD values are mechanically verifiable.
+    Modifier tricks (pixie, ducking, spinning, etc.) have no fixed standalone ADD; they are counted by mention only.
+  </p>
+
+</div>

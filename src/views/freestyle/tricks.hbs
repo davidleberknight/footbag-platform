@@ -1,0 +1,145 @@
+{{! /freestyle/tricks — trick dictionary index }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+    <div class="hero-stats">
+      <span>{{content.totalTricks}} tricks</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ------------------------------------------------------------------ }}
+  {{! Category-based reference tables }}
+  {{! ------------------------------------------------------------------ }}
+  {{#each content.groups}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>{{label}}</h2>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Trick</th>
+            <th class="col-adds">ADD</th>
+            <th>Description</th>
+            <th>Also known as</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each tricks}}
+          <tr>
+            <td class="col-trick">
+              <a href="{{detailHref}}">{{canonicalName}}</a>
+              {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+            </td>
+            <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
+            <td>{{#if description}}{{description}}{{else}}<em class="detail-muted">—</em>{{/if}}</td>
+            <td class="detail-muted">
+              {{#if aliases.length}}
+                {{#each aliases}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}
+              {{else}}
+                &mdash;
+              {{/if}}
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/each}}
+
+  {{! ------------------------------------------------------------------ }}
+  {{! Trick Families — compound tricks grouped by their base }}
+  {{! ------------------------------------------------------------------ }}
+  {{#if content.familyGroups.length}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Trick Families</h2>
+      <p class="section-intro">Compound tricks grouped by their base move. ADD values increase as modifiers stack.</p>
+    </div>
+
+    <div class="family-grid">
+      {{#each content.familyGroups}}
+      <div class="family-card">
+        <h3 class="family-card-title">{{familyName}} Family</h3>
+        <table class="records-table records-table-sm family-table">
+          <thead>
+            <tr>
+              <th>Trick</th>
+              <th class="col-adds">ADD</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each members}}
+            <tr>
+              <td class="col-trick">
+                <a href="{{detailHref}}">{{canonicalName}}</a>
+                {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+              </td>
+              <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ------------------------------------------------------------------ }}
+  {{! Modifier Reference }}
+  {{! ------------------------------------------------------------------ }}
+  {{#if content.modifiers.length}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Modifier Reference</h2>
+      <p class="section-intro">Modifiers add difficulty to base tricks. The ADD bonus depends on whether the base trick is rotational (whirl, torque, mirage, etc.) or non-rotational.</p>
+    </div>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Modifier</th>
+            <th>Type</th>
+            <th class="col-adds">+ADD (standard)</th>
+            <th class="col-adds">+ADD (rotational)</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.modifiers}}
+          <tr>
+            <td class="col-trick">{{name}}</td>
+            <td><span class="tag-badge">{{modifierType}}</span></td>
+            <td class="col-adds">+{{addBonus}}</td>
+            <td class="col-adds">+{{addBonusRotational}}</td>
+            <td class="detail-muted">{{#if notes}}{{notes}}{{else}}&mdash;{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  <p class="source-note">
+    Trick data sourced from community documentation.
+    ADD values reflect the standard difficulty scoring system.
+    Tricks with passback records are linked to their record pages.
+  </p>
+
+</div>

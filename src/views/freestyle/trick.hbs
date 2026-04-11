@@ -1,4 +1,4 @@
-{{! /freestyle/tricks/:slug — trick record detail }}
+{{! /freestyle/tricks/:slug — trick reference and record page }}
 
 <div class="hero hero-sm">
   <div>
@@ -13,14 +13,115 @@
     <h1>{{page.title}}</h1>
     {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
     <div class="hero-stats">
-      <span>{{content.topValue}} best count</span>
-      {{#if (gt content.recordCount 1)}}<span>{{content.recordCount}} holders</span>{{/if}}
+      {{#if content.dictEntry}}
+        {{#unless content.dictEntry.isModifier}}
+          {{#if content.dictEntry.adds}}<span>{{content.dictEntry.adds}} ADD</span>{{/if}}
+        {{/unless}}
+        {{#if content.dictEntry.category}}<span class="hero-stat-label">{{content.dictEntry.category}}</span>{{/if}}
+      {{/if}}
+      {{#if content.recordCount}}<span>{{content.topValue}} kicks (record)</span>{{/if}}
     </div>
   </div>
 </div>
 
 <div class="wrapper">
 
+  {{! ── About This Trick ───────────────────────────────────────────────────── }}
+  {{#if content.dictEntry}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>About This Trick</h2>
+    </div>
+
+    {{! Prose description — the primary human-readable explanation }}
+    {{#if content.dictEntry.description}}
+    <p class="trick-description">{{content.dictEntry.description}}</p>
+    {{/if}}
+
+    {{! Modifier special case }}
+    {{#if content.dictEntry.isModifier}}
+    <p class="trick-description">
+      This is a <strong>modifier</strong> — it has no fixed ADD value of its own. It adds difficulty
+      when layered onto a base trick, and the bonus depends on whether the base is rotational
+      (whirl, mirage, torque, blender) or non-rotational.
+    </p>
+    {{/if}}
+
+    <dl class="detail-list">
+
+      {{! ADD composition — the key insight for compound tricks }}
+      {{#if content.dictEntry.addComposition}}
+      <dt>How it's built</dt>
+      <dd class="add-composition">{{content.dictEntry.addComposition}}</dd>
+      {{else if content.dictEntry.baseTrick}}
+      <dt>Base trick</dt>
+      <dd>
+        {{#if content.dictEntry.baseTrickSlug}}
+          <a href="/freestyle/tricks/{{content.dictEntry.baseTrickSlug}}">{{content.dictEntry.baseTrick}}</a>
+        {{else}}
+          {{content.dictEntry.baseTrick}}
+        {{/if}}
+        {{#if content.dictEntry.baseTrickAdds}} ({{content.dictEntry.baseTrickAdds}} ADD){{/if}}
+      </dd>
+      {{/if}}
+
+      {{! Only show ADD separately when there's no composition formula }}
+      {{#unless content.dictEntry.addComposition}}
+        {{#unless content.dictEntry.isModifier}}
+          {{#if content.dictEntry.adds}}
+          <dt>ADD value</dt>
+          <dd>{{content.dictEntry.adds}}</dd>
+          {{/if}}
+        {{/unless}}
+      {{/unless}}
+
+      {{#if content.dictEntry.aliases.length}}
+      <dt>Also known as</dt>
+      <dd>{{#each content.dictEntry.aliases}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</dd>
+      {{/if}}
+
+    </dl>
+
+    {{! Family editorial note for major families }}
+    {{#if content.dictEntry.familyNote}}
+    <div class="family-note">
+      <p>{{content.dictEntry.familyNote}}</p>
+    </div>
+    {{/if}}
+
+  </section>
+  {{/if}}
+
+  {{! ── Trick Family — difficulty ladder ──────────────────────────────────── }}
+  {{#if content.hasFamilyMembers}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>{{page.title}} Family</h2>
+      <p class="section-intro">Tricks in this family, from simplest to most complex:</p>
+    </div>
+    <div class="family-ladder">
+      {{#each content.familyMembers}}
+      <div class="family-ladder-item{{#if isCurrentTrick}} family-ladder-current{{/if}}">
+        <span class="family-ladder-adds">{{#if adds}}{{adds}}{{else}}mod{{/if}}</span>
+        <span class="family-ladder-name">
+          {{#if isCurrentTrick}}
+            <strong>{{canonicalName}}</strong>
+          {{else}}
+            <a href="{{detailHref}}">{{canonicalName}}</a>
+          {{/if}}
+          {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+        </span>
+        {{#if isCurrentTrick}}<span class="family-ladder-here">&larr;</span>{{/if}}
+      </div>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Passback Records ───────────────────────────────────────────────────── }}
+  {{#if content.recordCount}}
+  <section class="content-section">
+  <div class="section-heading"><h2>Passback Records</h2></div>
   <div class="records-table-wrap">
     <table class="records-table">
       <thead>
@@ -49,7 +150,7 @@
           <td class="col-adds">{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
           <td class="col-date">
             {{#if achievedDate}}
-              {{achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
+              {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
             {{else}}
               &mdash;
             {{/if}}
@@ -70,11 +171,71 @@
       </tbody>
     </table>
   </div>
+  </section>
+  {{/if}}
+
+  {{! ── Record Progression ─────────────────────────────────────────────────── }}
+  {{#if content.hasProgression}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Record Progression</h2>
+    </div>
+    <table class="records-table">
+      <thead>
+        <tr>
+          <th class="col-rank">#</th>
+          <th>Holder</th>
+          <th class="col-num">Count</th>
+          <th>Adds</th>
+          <th>Date</th>
+          <th>Video</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.progression}}
+        <tr class="record-row{{#if isProbable}} record-probable{{/if}}">
+          <td class="col-rank">{{add @index 1}}</td>
+          <td class="col-holder">
+            {{#if holderHref}}
+              <a href="{{holderHref}}">{{holderName}}</a>
+            {{else}}
+              {{holderName}}
+            {{/if}}
+          </td>
+          <td class="col-num">{{valueNumeric}}</td>
+          <td class="col-adds">{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
+          <td class="col-date">
+            {{#if achievedDate}}
+              {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
+            {{else}}
+              &mdash;
+            {{/if}}
+          </td>
+          <td class="col-video">
+            {{#if videoUrl}}
+              <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"
+                 aria-label="Watch {{holderName}} {{../page.title}} record video">
+                ▶{{#if videoTimecode}} {{videoTimecode}}{{/if}}
+              </a>
+            {{else}}
+              &mdash;
+            {{/if}}
+          </td>
+          <td class="col-notes">{{#if notes}}{{notes}}{{else}}&mdash;{{/if}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+  {{/if}}
 
   <p class="source-note">
     Records sourced from the freestyle passback video archive.
     Dates marked <em>approx.</em> are confirmed only to the month or year.
     <a href="/freestyle/records">View all records</a>
+    &mdash;
+    <a href="/freestyle/tricks">Trick Dictionary</a>
   </p>
 
 </div>

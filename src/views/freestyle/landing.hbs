@@ -1,4 +1,4 @@
-{{! /freestyle landing page }}
+{{! /freestyle — portal landing page }}
 
 <div class="hero hero-sm">
   <div>
@@ -6,8 +6,9 @@
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
     {{#if content.totalRecords}}
     <div class="hero-stats">
-      <span>{{content.totalRecords}} records</span>
-      <span>{{content.recordTypes}} disciplines</span>
+      <span>{{content.totalEvents}} events</span>
+      <span>{{content.totalRecords}} passback records</span>
+      <span>{{content.totalTricks}} documented tricks</span>
     </div>
     {{/if}}
   </div>
@@ -15,17 +16,66 @@
 
 <div class="wrapper">
 
-  <nav class="section-nav" aria-label="Freestyle sections">
-    <a href="/freestyle/records" class="btn btn-primary">Records</a>
-    <a href="/freestyle/leaders" class="btn btn-outline">Leaders</a>
-    <a href="/freestyle/moves"   class="btn btn-outline">Move Sets</a>
-    <a href="/freestyle/about"   class="btn btn-outline">About</a>
-  </nav>
+  {{! ── Four pillars ─────────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="review-summary-grid">
 
+      <div class="review-card">
+        <h3>Competition</h3>
+        <p>
+          Top competitors, podium counts, and event history from
+          {{content.totalEvents}} documented freestyle events (1980–present).
+          Derived from canonical competition records.
+        </p>
+        <p>
+          <a href="/freestyle/competition" class="btn btn-primary btn-sm">Competition history &rarr;</a>
+        </p>
+      </div>
+
+      <div class="review-card">
+        <h3>Passback Records</h3>
+        <p>
+          Per-trick consecutive completion records from the freestyle
+          passback community. {{content.totalRecords}} records across {{content.recordTypes}} disciplines.
+        </p>
+        <p>
+          <a href="/freestyle/records" class="btn btn-outline btn-sm">View records &rarr;</a>
+          <a href="/freestyle/leaders" class="btn btn-outline btn-sm">Leaderboard &rarr;</a>
+        </p>
+      </div>
+
+      <div class="review-card">
+        <h3>Trick Dictionary</h3>
+        <p>
+          Reference for {{content.totalTricks}} documented tricks — ADD values, categories,
+          descriptions, base components, and modifier relationships.
+        </p>
+        <p>
+          <a href="/freestyle/tricks" class="btn btn-outline btn-sm">Browse tricks &rarr;</a>
+          <a href="/freestyle/moves"  class="btn btn-outline btn-sm">Move sets &rarr;</a>
+        </p>
+      </div>
+
+      <div class="review-card">
+        <h3>History &amp; Insights</h3>
+        <p>
+          From the foundational 1980s vocabulary to the technical peak of the 2000s
+          and the modern European era. Data-driven sequence analysis from 395 documented chains.
+        </p>
+        <p>
+          <a href="/freestyle/history"  class="btn btn-outline btn-sm">History &rarr;</a>
+          <a href="/freestyle/insights" class="btn btn-outline btn-sm">Insights &rarr;</a>
+        </p>
+      </div>
+
+    </div>
+  </section>
+
+  {{! ── Top Record Holders ────────────────────────────────────────────────────── }}
   {{#if content.topHolders}}
   <section class="content-section">
     <div class="section-heading">
-      <h2>Top Record Holders</h2>
+      <h2>Top Passback Record Holders</h2>
     </div>
     <table class="records-table leaders-table">
       <thead>
@@ -59,10 +109,11 @@
   </section>
   {{/if}}
 
+  {{! ── Recent Records ─────────────────────────────────────────────────────────── }}
   {{#if content.recentRecords}}
   <section class="content-section">
     <div class="section-heading">
-      <h2>Recent Records</h2>
+      <h2>Recent Passback Records</h2>
     </div>
     <table class="records-table">
       <thead>
@@ -79,7 +130,11 @@
         {{#each content.recentRecords}}
         <tr class="record-row{{#if isProbable}} record-probable{{/if}}">
           <td class="col-trick">
-            <span class="trick-name">{{trickName}}</span>
+            {{#if trickHref}}
+              <a href="{{trickHref}}">{{trickName}}</a>
+            {{else}}
+              <span class="trick-name">{{trickName}}</span>
+            {{/if}}
             {{#if sortName}}<span class="trick-sort-name">{{sortName}}</span>{{/if}}
           </td>
           <td class="col-adds">{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
@@ -93,7 +148,7 @@
           </td>
           <td class="col-date">
             {{#if achievedDate}}
-              {{achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
+              {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
             {{else}}
               &mdash;
             {{/if}}
@@ -124,8 +179,12 @@
       freestyle rewards trick diversity, add difficulty, and sequence length.
     </p>
     <p>
-      The records on this site track the best known per-trick consecutive completions
-      from the freestyle passback community, sourced from video documentation.
+      The ADD (Additional Degree of Difficulty) system assigns a numerical value to each trick,
+      enabling objective difficulty scoring alongside subjective execution judging. The core vocabulary
+      was established by the early 1990s; modifier stacking extended it through the 2000s.
+    </p>
+    <p>
+      <a href="/freestyle/history">Full history &rarr;</a>
     </p>
   </section>
 

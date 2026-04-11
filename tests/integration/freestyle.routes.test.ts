@@ -230,14 +230,14 @@ describe('GET /freestyle — enriched landing page', () => {
   it('shows top holders section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('Top Record Holders');
+    expect(res.text).toContain('Top Passback Record Holders');
     expect(res.text).toContain('Alice Shredder');
   });
 
   it('shows recent records section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('Recent Records');
+    expect(res.text).toContain('Recent Passback Records');
   });
 
   it('contains links to both records and leaders sub-pages', async () => {
@@ -315,6 +315,28 @@ describe('GET /freestyle/tricks/:slug', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/torque');
     expect(res.text).toContain('https://youtu.be/abc123');
+  });
+
+  it('shows Record Progression section when superseded records exist', async () => {
+    const app = createApp();
+    // Torque has fr-old (30) superseded by fr-public-linked (42)
+    const res = await request(app).get('/freestyle/tricks/torque');
+    expect(res.text).toContain('Record Progression');
+  });
+
+  it('shows superseded holder in progression section', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/torque');
+    // Old Record Holder is superseded but should appear in progression history
+    expect(res.text).toContain('Old Record Holder');
+  });
+
+  it('does not show progression section for a trick with only one record', async () => {
+    const app = createApp();
+    // 'Whirl' has only one record (no superseded entries)
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Record Progression');
   });
 });
 

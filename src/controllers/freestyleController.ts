@@ -55,6 +55,46 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/competition */
+  competition(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getFreestyleCompetitionPage();
+      res.render('freestyle/competition', vm);
+    } catch (err) {
+      freestyleController._handleError(err, res, next);
+    }
+  },
+
+  /** GET /freestyle/history */
+  history(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getFreestyleHistoryPage();
+      res.render('freestyle/history', vm);
+    } catch (err) {
+      freestyleController._handleError(err, res, next);
+    }
+  },
+
+  /** GET /freestyle/tricks */
+  tricksIndex(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getFreestyleTricksIndexPage();
+      res.render('freestyle/tricks', vm);
+    } catch (err) {
+      freestyleController._handleError(err, res, next);
+    }
+  },
+
+  /** GET /freestyle/insights */
+  insights(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getFreestyleInsightsPage();
+      res.render('freestyle/insights', vm);
+    } catch (err) {
+      freestyleController._handleError(err, res, next);
+    }
+  },
+
   /** GET /freestyle/about */
   about(_req: Request, res: Response, next: NextFunction): void {
     try {

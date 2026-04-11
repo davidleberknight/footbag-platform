@@ -1,0 +1,110 @@
+{{! /freestyle/history — editorial history, pioneers, eras }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Competitive Eras ──────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Competitive Eras</h2>
+    </div>
+    {{#each content.eras}}
+    <div class="history-era">
+      <h3>{{period}} — {{label}}</h3>
+      <p>{{summary}}</p>
+      {{#if keyFigures.length}}
+      <p class="detail-muted">Key figures: {{#each keyFigures}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</p>
+      {{/if}}
+    </div>
+    {{/each}}
+  </section>
+
+  {{! ── Pioneers ────────────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Founders &amp; Pioneers</h2>
+    </div>
+    <p class="section-intro">
+      The early BAP (Bag Arts Pioneer) inductees (1992–1996) were establishing freestyle's visual identity,
+      trick taxonomy, and competition culture before the ADD table was widely standardized.
+      They built the language the sport still speaks.
+    </p>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Contribution</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.pioneers}}
+          <tr>
+            <td>
+              {{#if profileHref}}
+                <a href="{{profileHref}}">{{name}}</a>
+              {{else}}
+                {{name}}
+              {{/if}}
+            </td>
+            <td>{{note}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {{! ── ADD System ───────────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>The ADD System</h2>
+    </div>
+    {{#each content.addSystem}}
+    <p>{{this}}</p>
+    {{/each}}
+    <p>
+      See the <a href="/freestyle/tricks">Trick Dictionary</a> for ADD values and modifier relationships,
+      and <a href="/freestyle/insights">Freestyle Insights</a> for data-driven difficulty analysis.
+    </p>
+  </section>
+
+  {{! ── Regional Shift ──────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>The Geographic Shift</h2>
+    </div>
+    <p>{{content.regionalShift}}</p>
+    <p>
+      See <a href="/freestyle/competition">Freestyle Competition</a> for podium counts and career records.
+    </p>
+  </section>
+
+  {{! ── Modern Era ────────────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>The Modern Game</h2>
+    </div>
+    <p>{{content.modernEra}}</p>
+  </section>
+
+  <p class="source-note">
+    Based on analysis of 774 documented competitive events (1980–2026) and 395 Sick3 format sequences.
+    Player descriptions draw from competition records and community documentation.
+    BAP designation reflects historical recognition by the IFPA.
+  </p>
+
+</div>
