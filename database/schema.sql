@@ -2921,6 +2921,7 @@ CREATE TABLE IF NOT EXISTS net_team_member (
   UNIQUE (team_id, person_id)
 );
 CREATE INDEX IF NOT EXISTS idx_net_team_member_person ON net_team_member(person_id);
+CREATE INDEX IF NOT EXISTS idx_net_team_member_team   ON net_team_member(team_id);
 
 -- One row per (team × event_discipline); denormalized placement cache
 -- appearance_count on net_team = count(distinct event_id, discipline_id) across these rows.

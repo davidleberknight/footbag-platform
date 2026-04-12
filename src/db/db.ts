@@ -1887,19 +1887,18 @@ export const netHome = {
   `),
 
   getTopPlayersByPartners: db.prepare(`
-    -- STATS FIREWALL: counts partners only from canonical appearances
+    -- STATS FIREWALL: counts partners only from canonical appearances.
+    -- Uses team_id count as partner proxy (each team = one unique partner).
+    -- Avoids expensive self-join on net_team_member.
     SELECT
       hp.person_id,
       hp.person_name,
       hp.country,
-      COUNT(DISTINCT nm_partner.person_id) AS partner_count,
-      COUNT(a.id)                          AS appearance_count
+      COUNT(DISTINCT nm.team_id) AS partner_count,
+      COUNT(a.id)                AS appearance_count
     FROM historical_persons hp
-    JOIN net_team_member nm_self    ON nm_self.person_id = hp.person_id
-    JOIN net_team_member nm_partner
-      ON  nm_partner.team_id   = nm_self.team_id
-      AND nm_partner.person_id != nm_self.person_id
-    JOIN net_team_appearance_canonical a ON a.team_id = nm_self.team_id
+    JOIN net_team_member nm ON nm.person_id = hp.person_id
+    JOIN net_team_appearance_canonical a ON a.team_id = nm.team_id
     GROUP BY hp.person_id
     ORDER BY partner_count DESC, appearance_count DESC
     LIMIT 10
@@ -1954,6 +1953,7 @@ export const netHome = {
   /** Player aggregate pool for notable player buckets — top 100 by appearances. */
   listNotablePlayerPool: db.prepare(`
     -- STATS FIREWALL: uses net_team_appearance_canonical view.
+    -- Uses team_id count as partner proxy — avoids expensive self-join.
     SELECT
       hp.person_id,
       hp.person_name,
@@ -1963,13 +1963,10 @@ export const netHome = {
       SUM(CASE WHEN a.placement <= 3 THEN 1 ELSE 0 END)    AS total_podiums,
       MIN(a.event_year)                                      AS first_year,
       MAX(a.event_year)                                      AS last_year,
-      COUNT(DISTINCT nm_partner.person_id)                   AS partner_count
+      COUNT(DISTINCT nm.team_id)                             AS partner_count
     FROM historical_persons hp
-    JOIN net_team_member nm_self    ON nm_self.person_id = hp.person_id
-    JOIN net_team_member nm_partner
-      ON  nm_partner.team_id   = nm_self.team_id
-      AND nm_partner.person_id != nm_self.person_id
-    JOIN net_team_appearance_canonical a ON a.team_id = nm_self.team_id
+    JOIN net_team_member nm ON nm.person_id = hp.person_id
+    JOIN net_team_appearance_canonical a ON a.team_id = nm.team_id
     WHERE hp.person_name NOT IN ('Unknown', '__NON_PERSON__', '[UNKNOWN PARTNER]', '__UNKNOWN_PARTNER__')
     GROUP BY hp.person_id
     HAVING COUNT(a.id) >= 3
