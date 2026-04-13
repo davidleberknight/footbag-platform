@@ -1242,6 +1242,17 @@ section.home-media { padding-top: 0; }
   margin-bottom: 24px;
 }
 
+.form-success-banner {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #16a34a;
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  color: #166534;
+  font-size: 0.95rem;
+  margin-bottom: 24px;
+}
+
 .form-fieldset {
   border: none;
   padding: 0;

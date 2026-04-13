@@ -60,6 +60,7 @@ export interface ProfileEditContent extends OwnProfileContent {
   profileUrl: string;
   error?: string;
   avatarError?: string;
+  avatarSuccess?: string;
 }
 
 export interface PublicProfileContent {
@@ -99,6 +100,18 @@ function resolveHistoricalName(row: MemberProfileRow): string | null {
     : null;
 }
 
+/**
+ * Build an avatar URL with a cache-bust version tied to the media item id.
+ * The media_id is a fresh UUID on every upload (see avatarService.uploadAvatar),
+ * so downstream caches (browser, CloudFront) invalidate immediately after upload
+ * while keeping the URL stable between uploads.
+ */
+function buildAvatarUrl(thumbKey: string | null, mediaId: string | null): string | null {
+  if (!thumbKey) return null;
+  const base = getPhotoStorage().constructURL(thumbKey);
+  return mediaId ? `${base}?v=${encodeURIComponent(mediaId)}` : base;
+}
+
 function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
   return {
     displayName:          row.display_name,
@@ -116,7 +129,6 @@ function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
 }
 
 function rowToContent(row: MemberProfileRow): OwnProfileContent {
-  const storage = getPhotoStorage();
   return {
     displayName:     row.display_name,
     bio:             row.bio,
@@ -132,7 +144,7 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
     firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
     showCompetitiveResults: row.show_competitive_results !== 0,
     historicalPersonName: resolveHistoricalName(row),
-    avatarThumbUrl:  row.avatar_thumb_key ? storage.constructURL(row.avatar_thumb_key) : null,
+    avatarThumbUrl:  buildAvatarUrl(row.avatar_thumb_key, row.avatar_media_id),
   };
 }
 
@@ -190,7 +202,6 @@ export const memberService = {
     const isBap = Boolean(row.is_bap);
     if (!isHof && !isBap) return null;
 
-    const storage = getPhotoStorage();
     const eventGroups = row.show_competitive_results !== 0 ? fetchEventGroups(row) : [];
     const heroData = buildMemberHeroData(row);
 
@@ -203,7 +214,7 @@ export const memberService = {
         city:           row.city,
         country:        row.country,
         bio:            row.bio,
-        avatarThumbUrl: row.avatar_thumb_key ? storage.constructURL(row.avatar_thumb_key) : null,
+        avatarThumbUrl: buildAvatarUrl(row.avatar_thumb_key, row.avatar_media_id),
         hofMember:      isHof,
         bapMember:      isBap,
         historicalPersonName: resolveHistoricalName(row),
@@ -215,7 +226,12 @@ export const memberService = {
     };
   },
 
-  getProfileEditPage(slug: string, error?: string, avatarError?: string): PageViewModel<ProfileEditContent> {
+  getProfileEditPage(
+    slug: string,
+    error?: string,
+    avatarError?: string,
+    avatarSuccess?: string,
+  ): PageViewModel<ProfileEditContent> {
     const row = fetchMemberBySlug(slug);
     return {
       seo:  { title: 'Edit Profile' },
@@ -230,6 +246,7 @@ export const memberService = {
         profileUrl: `/members/${slug}`,
         error,
         avatarError,
+        avatarSuccess,
       },
     };
   },

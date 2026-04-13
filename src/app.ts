@@ -116,6 +116,17 @@ export function createApp(): express.Application {
   // ── Auth stub ────────────────────────────────────────────────────────────
   app.use(authStub(config.sessionSecret));
 
+  // ── No-store on authenticated responses (DD §6.7) ────────────────────────
+  // Prevents CloudFront (and other shared caches) from storing personalized
+  // HTML. Without this, post-upload redirects serve cached HTML carrying
+  // stale avatar version tokens, making new uploads appear to not take effect.
+  app.use((req, res, next) => {
+    if (req.isAuthenticated) {
+      res.setHeader('Cache-Control', 'private, no-store');
+    }
+    next();
+  });
+
   // ── Active nav section + auth locals ─────────────────────────────────────
   app.use((req, res, next) => {
     res.locals.currentSection = req.path === '/' ? 'home'

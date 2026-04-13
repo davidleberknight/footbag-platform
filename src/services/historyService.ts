@@ -95,9 +95,12 @@ export const historyService = {
     if (linkedRow?.slug) {
       const memberRow = runSqliteRead('findMemberBySlugForAvatar', () =>
         account.findMemberBySlug.get(linkedRow.slug),
-      ) as { avatar_thumb_key: string | null } | undefined;
+      ) as { avatar_thumb_key: string | null; avatar_media_id: string | null } | undefined;
       if (memberRow?.avatar_thumb_key) {
-        avatarThumbUrl = getPhotoStorage().constructURL(memberRow.avatar_thumb_key);
+        const base = getPhotoStorage().constructURL(memberRow.avatar_thumb_key);
+        avatarThumbUrl = memberRow.avatar_media_id
+          ? `${base}?v=${encodeURIComponent(memberRow.avatar_media_id)}`
+          : base;
       }
     }
 

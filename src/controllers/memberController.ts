@@ -8,6 +8,17 @@ import { logger } from '../config/logger';
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
+// One-shot flash cookies used to surface a post-redirect success message on
+// the profile-edit page. Written by postAvatarUpload, read and cleared by
+// getProfileEdit.
+// - FLASH_COOKIE: presence indicator; value is a fixed enum string
+// - FLASH_NAME_COOKIE: optional filename from the upload, shown in the banner
+//   so the user sees continuity between "chose X.jpg" and "updated: X.jpg"
+const FLASH_COOKIE = 'footbag_flash';
+const FLASH_AVATAR_UPLOADED = 'avatar_uploaded';
+const FLASH_NAME_COOKIE = 'footbag_flash_name';
+const FLASH_NAME_MAX_LEN = 120;
+
 interface StubConfig {
   pageKey: string;
   title: string;
@@ -102,7 +113,22 @@ export const memberController = {
       return;
     }
     try {
-      const vm = memberService.getProfileEditPage(req.params.memberKey);
+      let avatarSuccess: string | undefined;
+      if (req.cookies?.[FLASH_COOKIE] === FLASH_AVATAR_UPLOADED) {
+        const rawName = req.cookies?.[FLASH_NAME_COOKIE];
+        const name = typeof rawName === 'string' && rawName.length > 0
+          ? rawName.slice(0, FLASH_NAME_MAX_LEN)
+          : null;
+        avatarSuccess = name ? `Avatar updated: ${name}` : 'Avatar updated.';
+        res.clearCookie(FLASH_COOKIE, { path: '/' });
+        res.clearCookie(FLASH_NAME_COOKIE, { path: '/' });
+      }
+      const vm = memberService.getProfileEditPage(
+        req.params.memberKey,
+        undefined,
+        undefined,
+        avatarSuccess,
+      );
       res.render('members/profile-edit', vm);
     } catch (err) {
       if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -165,14 +191,18 @@ export const memberController = {
     let fileFound = false;
     let totalBytes = 0;
     let limitExceeded = false;
+    let uploadedFilename = '';
 
     const busboy = Busboy({
       headers: req.headers,
       limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
     });
 
-    busboy.on('file', (_fieldname, stream, _info) => {
+    busboy.on('file', (_fieldname, stream, info) => {
       fileFound = true;
+      if (info && typeof info.filename === 'string') {
+        uploadedFilename = info.filename.slice(0, FLASH_NAME_MAX_LEN);
+      }
       stream.on('data', (chunk: Buffer) => {
         totalBytes += chunk.length;
         if (totalBytes > MAX_UPLOAD_BYTES) {
@@ -199,6 +229,16 @@ export const memberController = {
 
       avatarService.uploadAvatar(memberId, fileBuffer)
         .then(() => {
+          const flashOpts = {
+            maxAge: 60_000,
+            httpOnly: true,
+            sameSite: 'lax' as const,
+            path: '/',
+          };
+          res.cookie(FLASH_COOKIE, FLASH_AVATAR_UPLOADED, flashOpts);
+          if (uploadedFilename) {
+            res.cookie(FLASH_NAME_COOKIE, uploadedFilename, flashOpts);
+          }
           res.redirect(`/members/${memberKey}/edit`);
         })
         .catch((err: unknown) => {

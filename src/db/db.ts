@@ -2776,6 +2776,7 @@ export interface MemberProfileRow {
   legacy_member_id: string | null;
   login_email: string;
   avatar_thumb_key: string | null;
+  avatar_media_id: string | null;
   historical_person_name: string | null;
   historical_first_year: number | null;
   historical_bap_nickname: string | null;
@@ -2831,6 +2832,7 @@ export const account = {
       m.legacy_member_id,
       m.login_email,
       mi.s3_key_thumb AS avatar_thumb_key,
+      mi.id           AS avatar_media_id,
       hp.person_name AS historical_person_name,
       hp.first_year AS historical_first_year,
       hp.bap_nickname AS historical_bap_nickname,
@@ -2860,7 +2862,8 @@ export const account = {
       m.is_admin,
       m.is_hof,
       m.is_bap,
-      mi.s3_key_thumb AS avatar_thumb_key
+      mi.s3_key_thumb AS avatar_thumb_key,
+      mi.id           AS avatar_media_id
     FROM members_active AS m
     LEFT JOIN media_items AS mi
       ON mi.id = m.avatar_media_id
