@@ -92,7 +92,7 @@ describe('GET /members — landing page', () => {
     expect(res.text).toContain('Welcome,');
     expect(res.text).toContain('My Profile');
     expect(res.text).toContain(`/members/${OWN_SLUG}`);
-    expect(res.text).toContain('Search for Members and Historical Players');
+    expect(res.text).toContain('Search for IFPA Members and Historical Players');
     expect(res.text).toContain('Member Features');
     expect(res.text).toContain('card-coming-soon');
   });

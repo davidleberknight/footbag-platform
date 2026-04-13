@@ -6,12 +6,12 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 
 [ -n "$COMMAND" ] || exit 0
 
-if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])git[[:space:]]+commit([[:space:]]|$)|(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)'; then
+if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])git[[:space:]]+(commit|push|pull)([[:space:]]|$)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: "HARD BLOCK: Claude must never run git commit or git push. The human owns all commits."
+      permissionDecisionReason: "HARD BLOCK: Claude must never run git commit, git push, or git pull. The human owns all commits and upstream syncs."
     }
   }'
   exit 0

@@ -20,11 +20,11 @@ Use this skill — not general editing — when a task does any of the following
 
 ## Step 1 — Load authoritative docs before touching code
 
-Read these before proposing any change:
+Read only the section relevant to this task. For large documents, locate the section by heading or keyword before reading. Do not load entire files into context.
 
 1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`** — confirm the service change is in scope now.
-2. **`docs/USER_STORIES.md`** (targeted sections) — find the acceptance criteria that motivate this change. Understand what behavior is being added or corrected.
-3. **`docs/SERVICE_CATALOG.md`** — locate the section for the affected service. Read:
+2. **`docs/USER_STORIES.md`** — locate the relevant user story by feature name, then read only that story's acceptance criteria. Understand what behavior is being added or corrected.
+3. **`docs/SERVICE_CATALOG.md`** — locate the section for the affected service by name. Read only that section:
    - the service's stated ownership and responsibility boundary
    - current method contracts (parameters, return shapes, pre/postconditions)
    - listed business rules and invariants

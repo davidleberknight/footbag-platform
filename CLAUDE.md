@@ -53,7 +53,7 @@ Read the minimum the task requires. Default: active-slice block + code. Load doc
 
 ## Workflow rules
 
-- Documentation in /docs describe long-term product and design intent, not necessarily the current sprint's current slice. Long-term docs (USER_STORIES, DESIGN_DECISIONS, SERVICE_CATALOG, PROJECT_SUMMARY_CONCISE) must never contain implementation-status language, current-slice notes, deviation qualifiers, or shortcut descriptions. All such language belongs exclusively in IMPLEMENTATION_PLAN.md.
+- Long-term docs describe design intent, not implementation status. See doc-sync skill for governance details.
 - Use Plan Mode when the task is primarily about sequencing, dependency ordering, or phased planning. For normal implementation work, the top active-slice/status block in `IMPLEMENTATION_PLAN.md` is sufficient.
 - Verification defaults: prefer route/integration verification first. Canonical commands: `npm test` and `npm run build`.
 - Do not use browser automation or MCP tools unless the human explicitly asks for browser testing or verification.
@@ -76,25 +76,15 @@ When a task matches a skill's trigger condition, invoke that skill as the **firs
 
 Correct sequencing when skills compose: `extend-service-contract` → `add-public-page` → `write-tests` → `doc-sync` → `prepare-pr`
 
-## Memory hygiene
+## Memory
 
-Memory is for facts that cannot be derived from code, CLAUDE.md, or project docs: behavioral corrections, user preferences, and external references (e.g. AWS_PROJECT_SPECIFICS.md).
-
-**Never store in memory:**
-- Implementation status, feature completion, or sprint state (read IMPLEMENTATION_PLAN.md instead)
-- File inventories, architecture snapshots, or code patterns (read the code instead)
-- Plans or task breakdowns (use tasks or Plan Mode instead)
-- Anything already in CLAUDE.md or project docs
-
-**Active cleanup rule:** Any session that reads or writes memory must audit and prune before closing. Do not defer. Delete anything completed, stale, or now captured elsewhere.
-
-**Size rule:** MEMORY.md must stay under 30 lines. Prune before adding.
-
-**Promotion rule:** If a memory entry survives more than one session and is still needed, it belongs in CLAUDE.md. Propose the move to the human.
+MEMORY.md must stay under 30 lines. Promote durable rules to hooks or CLAUDE.md. See system memory instructions for all other hygiene rules.
 
 ## Hooks
 
-- Secret-bearing and local-private files are blocked from editing.
-- `git commit` and `git push` are hard-blocked; `git add` requires explicit confirmation.
-- Destructive database commands, risky git commands, production Terraform mutations, live-service operations, and production-like Docker Compose mutations require explicit human confirmation.
+Enforcement guardrails in `.claude/hooks/`. Secrets hard-blocked, git commit/push/pull hard-blocked, destructive operations require confirmation. See each script for details.
+
+## External access
+
+WebFetch and WebSearch are not pre-approved. First use per session will prompt. Use the `researcher` sub-agent for extended web research to keep external content out of the main context.
 

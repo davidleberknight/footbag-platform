@@ -9,10 +9,10 @@ Public pages in this project are IFPA-facing visitor pages. Every page must conf
 
 ## Step 1 — Load authoritative docs before touching code
 
-Read these in order before proposing any change:
+Read only the section relevant to this task. For large documents, locate the section by heading or keyword before reading. Do not load entire files into context.
 
 1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`** — confirm the page is in scope now, drafted next, or out of scope, noting that some pages are only partially complete, with final details defered.
-2. **`docs/USER_STORIES.md`** (targeted sections) — find the acceptance criteria that drive this page. Do not infer behavior; derive it from the stories.
+2. **`docs/USER_STORIES.md`** — locate the relevant user story by page name or route, then read only that story's acceptance criteria. Do not infer behavior; derive it from the stories.
 3. **`docs/VIEW_CATALOG.md`** — the authoritative page contract for views already implemented, fully or partially, or specified in the current implementation slice / sprint. Read:
    - §4.2 Required top-level view-model shape (`seo`, `page`, `navigation`, `content`)
    - §4.3 Required reusable primitives (event card, discipline tag, result section, year nav, etc.)
@@ -20,7 +20,7 @@ Read these in order before proposing any change:
    - §4.5 Visual rules and CSS token baseline
    - §5 Route catalog — confirm the route is cataloged or explain why it should be added
    - §6.x Page specification for the affected page — required content, required view-model fields, navigation outputs, empty states
-4. **`docs/SERVICE_CATALOG.md`** — identify the owning service, its method contracts, and any business rules that must remain in the service layer. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
+4. **`docs/SERVICE_CATALOG.md`** — locate the section for the owning service, then read only that section's method contracts and business rules. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
 5. **`database/schema.sql`** — verify exact column or field names, types, nullable vs. required, status enum values, and any computed or join-derived fields used in the view-model, plus impacted FK relationships, indices, and/or triggers relevant to the change. The database schema was derived from early requirements analysis so there might be drift compared to current details. If drift is detected, call it out to the human and explain.
 6. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and any data invariants that must be preserved. Double check against drift from the schema if impacted by this change to the view layer.
 7. **CODE** - Always follow existing code patterns and naming conventions if similar features have already been implemented. If there is no good pattern in existing code to follow for the task at hand, do a targetted lookup for the relevant Decision(s) in **`docs/DESIGN_DECISIONS.md`** and then ask the human for advice. Do not write code that deviates from established patterns unless authorized by the human.
