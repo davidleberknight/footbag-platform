@@ -73,7 +73,7 @@ const PRIVACY_SECTION: LegalSection = {
     {
       subheading: 'Contact',
       bodyHtml:
-        'For privacy questions or requests not handled by the automated account tools, contact <a href="mailto:admin@footbag.org">admin@footbag.org</a>.',
+        'For privacy questions or requests not handled by the automated account tools, contact <span class="contact-pending">admin@footbag.org (mailbox not yet active)</span>.',
     },
   ],
 };
@@ -130,7 +130,7 @@ const TERMS_SECTION: LegalSection = {
     {
       subheading: 'Contact',
       bodyHtml:
-        'For Terms questions or administrative matters, contact <a href="mailto:admin@footbag.org">admin@footbag.org</a>.',
+        'For Terms questions or administrative matters, contact <span class="contact-pending">admin@footbag.org (mailbox not yet active)</span>.',
     },
   ],
 };
@@ -167,7 +167,7 @@ const COPYRIGHT_SECTION: LegalSection = {
     {
       subheading: 'Contact',
       bodyHtml:
-        'For copyright or trademark inquiries, contact <a href="mailto:admin@footbag.org">admin@footbag.org</a>.',
+        'For copyright or trademark inquiries, contact <span class="contact-pending">admin@footbag.org (mailbox not yet active)</span>.',
     },
   ],
 };

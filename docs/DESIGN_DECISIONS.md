@@ -52,6 +52,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [5.2 Express-based HTTP Controllers](#52-express-based-http-controllers)
   - [5.3 Dedicated Adapters for External Services](#53-dedicated-adapters-for-external-services)
   - [5.4 Outbox Pattern for Emails](#54-outbox-pattern-for-emails)
+  - [5.5 Canonical Email Addresses](#55-canonical-email-addresses)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
   - [6.1 Stripe Payments](#61-stripe-payments)
   - [6.2 CloudFront CDN](#62-cloudfront-cdn)
@@ -1338,6 +1339,39 @@ Impact:
 - Operational dashboards track pending, sent, and failed outbox entries and expose a “pause sending” emergency toggle.
 
 - Email records are inserted into the outbox table within the same transaction as the business operation that triggers the email. This guarantees that if the transaction commits, the email is queued; if the transaction rolls back, neither the event nor the email record exists.
+
+## 5.5 Canonical Email Addresses
+
+Decision:
+
+The platform uses a small, enumerated set of `@footbag.org` addresses with distinct, non-overlapping purposes. All platform code, documentation, and terraform configuration references these canonical addresses. New email addresses are added to this list before they are introduced into the codebase.
+
+| Address | Purpose | Direction | Used by |
+|---|---|---|---|
+| `admin@footbag.org` | Legal, administrative, privacy, copyright, and trademark contact for members and the public | Receives | `/legal` page (Privacy, Terms, Copyright sections); operator of record contact |
+| `announce@footbag.org` | IFPA community announce list; a Tier 2+ member may send here; used as both sender and recipient for archived community announcements | Sends + Receives | `CommunicationService.sendAnnounceEmail` (`M_Send_Announce_Email`) |
+| `noreply@footbag.org` | Transactional sender (account verification, password reset, receipts, system notifications); never monitored, never a reply target | Sends | `CommunicationService.processSendQueue` via SES |
+| `ops-alert@footbag.org` | Operational alarm recipient (system health, backup failures, worker errors, SES bounce/complaint thresholds) | Receives | Terraform alarms (CloudWatch), `OperationsPlatformService` alarm flows |
+
+Rationale:
+
+- A single canonical list prevents drift between code, docs, and terraform. A future maintainer or handover to IFPA can find every address in one place.
+- Splitting receiving addresses by purpose (admin, announce, ops-alert) allows selective filtering, forwarding, and escalation without comingling legal inquiries with ops alerts or community mail.
+- A dedicated `noreply@` sender preserves the convention that transactional messages are not a reply channel. Members who need to respond are directed to the appropriate purpose-specific address.
+- Privacy and legal requests (GDPR export, CCPA deletion, copyright inquiries, trademark questions) are consolidated under `admin@footbag.org`; the `/legal` page surfaces this address in all three sections.
+
+Trade-offs:
+
+- Additional mailbox or alias configuration at the mail provider level (four addresses rather than one catch-all).
+- Requires discipline in code review to avoid introducing new addresses without updating this list.
+
+Impact:
+
+- `admin@footbag.org` is named in the `/legal` page Privacy, Terms, and Copyright sections as the legal/administrative contact.
+- `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits) and `docs/SERVICE_CATALOG.md` (`CommunicationService.sendAnnounceEmail`).
+- `noreply@footbag.org` and `ops-alert@footbag.org` are referenced as TODO values in `terraform/staging/ssm.tf`, `terraform/production/ssm.tf`, and `terraform/production/terraform.tfvars.example`; activation of these addresses is part of the Phase 4 email activation work.
+- Any additional address (e.g., `privacy@`, `legal@`, `support@`, `info@`) must be justified against this list and added here before it is introduced. The default is to route new purposes to `admin@footbag.org` unless volume or scope warrants a split.
+- Handover to IFPA: ownership of these addresses transfers as part of the operational handover; the addresses themselves and their purposes do not change.
 
 # 6. External Services and Integrations
 

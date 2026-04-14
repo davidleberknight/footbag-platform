@@ -204,6 +204,11 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Does NOT own:** Generating its own news — calling services invoke NewsService methods as a side effect of their own domain actions
 - **Primary tables:** `news_items`
 
+**`LegalService`**
+- **Owns:** Static legal content shaping for the public `/legal` page (Privacy, Terms of Use, Copyright & Trademarks)
+- **Does NOT own:** Policy decisions themselves — those are authored and approved out-of-band and captured as static content; no data persistence
+- **Primary tables:** none (static content)
+
 ---
 
 ### Communication
@@ -837,6 +842,30 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` Deletion requires mandatory reason
 
 **Async / Side Effects:** audit append (manual create/edit/delete)
+
+---
+
+### 7.4 `LegalService`
+
+**Purpose/Boundary:** Owns the static page view-model for the public `/legal` route, which composes Privacy, Terms of Use, and Copyright & Trademarks as three anchored sections on a single page. Does NOT own policy decisions themselves — the content strings are authored and approved out-of-band and updated by editing the service source.
+
+**Consumers:** Web controllers (`legalController.index` renders `GET /legal`)
+
+**Key Methods:**
+- `getLegalPage() -> {PageViewModel<LegalContent>}` — public; returns a page view-model conforming to VIEW_CATALOG §6.19; includes `content.lastUpdated` (ISO date) and `content.sections` (ordered array of three `LegalSection` entries with ids `privacy`, `terms`, `copyright`)
+
+**Authz:** Public.
+
+**Persistence Touchpoints:** none (static content).
+
+**Key Rules:**
+- `[APP]` Content is static; no database reads or writes
+- `[APP]` Section order is fixed: Privacy, Terms of Use, Copyright & Trademarks
+- `[APP]` Anchor IDs are stable (`privacy`, `terms`, `copyright`) so external deep links and footer links remain valid
+- `[APP]` Substantive content changes must be reflected by updating `content.lastUpdated`
+- `[APP]` Operator identity, governing law, and copyright year range are authoritative and require deliberate review when changed
+
+**Async / Side Effects:** none.
 
 ---
 

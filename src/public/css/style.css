@@ -1609,6 +1609,10 @@ section.home-media { padding-top: 0; }
 .legal-section p {
   margin: 8px 0 12px;
 }
+.contact-pending {
+  color: var(--text-muted);
+  font-style: italic;
+}
 
 /* ── Moves reference table ──────────────────────────────────────────────── */
 .moves-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }

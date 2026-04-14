@@ -40,6 +40,7 @@
   - [6.16 Register](#616-register)
   - [6.17 Claim initiation](#617-claim-initiation)
   - [6.18 Claim verification](#618-claim-verification)
+  - [6.19 Legal](#619-legal)
 - [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
   - [7.1 Authorization boundary](#71-authorization-boundary)
   - [7.2 Error behavior](#72-error-behavior)
@@ -297,6 +298,11 @@ The CSS vocabulary is split into two tiers.
 - Nav utilities: `.nav-logout`, `.nav-logout-btn`
 - Form utilities: `.form-hint` (helper text below form fields), `.profile-identity-block` (read-only identity section), `.avatar-edit-row` (inline avatar upload)
 - Spacing: `.mt-4`, `.mb-4`, `.mb-8`, `.text-muted`
+- Footer: `.footer-brand-block`, `.footer-logo`, `.footer-tagline`, `.footer-links`, `.footer-legal`, `.footer-legal-links`, `.footer-copy`
+
+**Legal page — required within `/legal` only:**
+
+- `.legal-toc`, `.legal-section`, `.legal-last-updated`
 
 **Clubs section — required within clubs pages only:**
 
@@ -419,6 +425,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /records` | Consecutive records | Consecutive kicks world records | Current |
 | `GET /net/teams` | Net teams list | Doubles net team list ordered by appearance count | Current |
 | `GET /net/teams/:teamId` | Net team detail | Doubles net team competition history | Current |
+| `GET /legal` | Legal | Privacy, Terms of Use, and Copyright & Trademarks on a single page with anchored sections | Current |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
 | `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
 
@@ -445,6 +452,7 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /freestyle` is the canonical freestyle section entry route. Sub-routes `/freestyle/records`, `/freestyle/leaders`, `/freestyle/about`, `/freestyle/moves`, and `/freestyle/tricks/:slug` are all public and unauthenticated.
 - `GET /records` is the canonical records section entry route and the single page in the records section.
 - `GET /net/teams` is the canonical net section entry route; lists doubles teams ordered by appearance count. `GET /net/teams/:teamId` is the team detail route; returns 404 for unknown team IDs. Both pages always render the disclaimer: "Team identities are algorithmically constructed from placement data and may not reflect official partnerships."
+- `GET /legal` is the canonical legal page. It is a public, unauthenticated single page that composes Privacy, Terms of Use, and Copyright & Trademarks as three anchored sections (`#privacy`, `#terms`, `#copyright`). Footer links across the site deep-link to these anchors.
 - health routes are operational and are outside the cataloged page system.
 
 ---
@@ -1451,6 +1459,70 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 ### Implementation notes
 
 - This is the early-test shortcut: direct lookup + confirm + merge. No email verification, no token round-trip, no rate limiting, no name reconciliation guard. The production token-based flow is deferred to Phase 4 (see `IMPLEMENTATION_PLAN.md`).
+
+---
+
+### 6.19 Legal
+
+### Purpose
+
+Provide the canonical site-wide legal surface covering Privacy, Terms of Use, and Copyright & Trademarks as a single page with three anchored sections.
+
+### Route
+
+`GET /legal`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Page intent
+
+- consolidate Privacy, Terms, and Copyright content on one maintainable page
+- support deep linking to individual sections via anchors (`#privacy`, `#terms`, `#copyright`)
+- document operator identity, governing law, user-content licensing, trademark notices, and source-code licensing in one authoritative location
+- survive the eventual transfer of operational responsibility from the current volunteer maintainer to IFPA with minimal edits (section content updates only; URL and structure unchanged)
+
+### Required content
+
+- hero: "Legal" title with brief subtitle
+- last-updated date line
+- in-page table of contents linking to the three section anchors
+- three anchored sections in order: Privacy, Terms of Use, Copyright & Trademarks
+- each section composed of sub-headed paragraphs for readable legal prose
+- trademark, IFPA mark, and Hacky Sack descriptive-use notices in the Copyright section
+- source-code license reference (Apache-2.0) and repository URL in the Copyright section
+- contact email (`admin@footbag.org`) named in all three sections for questions relevant to that section
+
+### Required view-model fields
+
+- `seo.title = Legal`
+- `page.sectionKey` — empty string (legal is not a primary nav section; footer-linked only)
+- `page.pageKey = legal_index`
+- `page.title = Legal` — displayed h1
+- optional `page.intro` — short subtitle prose
+- `content.lastUpdated: string` — ISO date (YYYY-MM-DD) of the most recent substantive revision
+- `content.sections: LegalSection[]` — exactly three entries in order with `id` values `privacy`, `terms`, `copyright`
+- each `LegalSection` has `id: string`, `heading: string`, `paragraphs: LegalParagraph[]`
+- each `LegalParagraph` has optional `subheading: string` and required `bodyHtml: string`; `bodyHtml` is pre-shaped by the service, may contain anchor and entity markup, and is rendered via triple-stache in the template
+
+### Navigation outputs
+
+No service-provided navigation outputs. Footer links across the site deep-link to `/legal#privacy`, `/legal#terms`, `/legal#copyright`.
+
+### Empty state
+
+Not applicable. Legal content is static and always present.
+
+### Implementation notes
+
+- Content is static, owned by `legalService.getLegalPage()`; no database dependency
+- The page is unauthenticated and cacheable
+- Operator identity, governing law, and copyright year range are authoritative; changes require substantive review and a `lastUpdated` bump
 
 ---
 

@@ -18,7 +18,7 @@ Cross-track changes require explicit human coordination.
 
 ### Sprint: Auth + Profile MVP consolidation
 
-**Status:** MVP items A, B, D, E, F, G complete. Item C (legacy account claim) early-test shortcut implemented; production rewrite deferred to Phase 4 (needs Steve's export). Identity sprint Phase 1 code (name model, slug lifecycle, person links, competition history fields) complete. Sprint has shifted to consolidation: fixing low-hanging shortcuts and visible deviations that do not depend on external blockers.
+**Status:** MVP items A, B, D, E, F, G complete. Item C (legacy account claim) early-test shortcut; production rewrite deferred to Phase 4. Identity Phase 1 complete. Sprint is in consolidation.
 
 **Item C note:** Current code is the early-test shortcut: direct lookup + confirm + merge. No email verification, token round-trip, rate limiting, or name reconciliation. Shortcut methods live in `identityAccessService` as `lookupLegacyClaim` and `completeClaim`; these will move to a dedicated `LegacyMigrationService` in the production rewrite. Routes are `POST /history/claim` + `POST /history/claim/confirm`, not the token-based `GET /history/claim/verify/:token` in `SERVICE_CATALOG.md`.
 
@@ -49,7 +49,8 @@ Deferred candidates: avatar server-side processing (media/S3 sprint); stub pages
 - **F** — Integration tests (run `npm test` for current count)
 - **G** — Account registration (`/register`, auto-login)
 - **Identity Phase 1** — Name model (real_name + display_name, surname constraint, slug at registration), person links (personHref), historical name display, `first_competition_year` and `show_competitive_results`
-- **1-E CloudFront** — staging + production active at `doye1nvv64qep.cloudfront.net` (April 2026). Cache behaviors, cookie/query forwarding, static asset caching, `CloudFront-Forwarded-Proto` mapping all in place.
+- **1-E CloudFront** — staging + production active (April 2026).
+- **Legal** — `/legal` page (Privacy, Terms, Copyright & Trademarks).
 
 ### Current gaps vs long-term user stories
 
@@ -194,21 +195,23 @@ Each has an explicit unblock condition. Long-term docs preserve target design; c
 3. **Member search is authenticated only.** `/members` covers members + historical persons with dedup. No public directory.
 4. **Worker has no real jobs.** `worker.ts` exits cleanly; scaffolded only. Unblock: 4-D (next sprint).
 5. **Claim email shown on-screen in non-production.** Email outbox deferred. Unblock: 4-D.
-6. **Avatar pipeline is local-only.** No server-side processing (resize/crop/optimize); raw uploads stored as-is. URLs use stable path (`/media/avatars/{memberId}/thumb.jpg`) with `?v={media_id}` cache-bust token at the service layer; DD §2.5's "photos are immutable due to unique paths" target will be revisited with the S3/media pipeline.
-7. **Cache-Control implemented at app layer, not CloudFront cache policy.** DD §6.7 specifies the AWS managed `CachingDisabled` policy; current implementation sets `Cache-Control: private, no-store` via Express middleware for authenticated responses. Functionally equivalent; terraform change deferred.
+6. **Avatar pipeline is local-only.** No server-side processing; raw uploads stored as-is. Stable path + `?v={media_id}` cache-bust. Unblock: S3/media pipeline.
+7. **Cache-Control at app layer, not CloudFront cache policy.** DD §6.7 target is the AWS managed `CachingDisabled` policy; current is Express middleware for authenticated responses. Functionally equivalent.
+8. **`/legal` `admin@footbag.org` greyed as "mailbox not yet active".** `.contact-pending` span replaces `mailto:` across Privacy, Terms, Copyright contact lines. Unblock: 4-D.
+9. **Vimeo click-to-load facade not implemented.** Privacy section on `/legal` states Vimeo uses the click-to-load facade; only YouTube is covered today (`youtube-facade.js`). Unblock: media pipeline (Phase 3+).
 
 ### Infrastructure deviations
 
-8. **No closed backup/restore workflow.** S3 bucket scaffolded; no producer; no restore drill. `/health/ready` is DB-probe only. Unblock: Tier 2 next sprint.
-9. **Maintenance mode not production-grade.** CloudFront active but maintenance-origin/error behavior not implemented. Unblock: 1-F security hardening.
-10. **CloudFront hardening incomplete.** X-Origin-Verify absent in Nginx; OAC/ordered-cache controls deferred; direct-origin bypass unprotected. Unblock: 1-F.
-11. **CI/CD partial.** App CI active (build + test + terraform fmt/validate). Deploy scripts: `deploy-code.sh`, `deploy-rebuild.sh`, `deploy-migrate.sh` (stub). Remaining: 1-F, 1-G.
-12. **Monitoring partial and gated.** CloudWatch log groups + alarms Terraformed; agent install TODO; monitoring gates default false. Unblock: 1-G.
-13. **Runtime config manually managed.** App reads local env from `/srv/footbag/env`. SSM/IAM scaffolding exists but runtime does not consume it. Unblock: first AWS runtime call (SES, via 4-D).
-14. **Bootstrap security shortcuts remain.** Operator IAM + SSH use bootstrap posture. Unblock: pre-launch security pass.
-15. **Browser validation manual-only.** Route/integration tests are first verification path. Browser checks are explicit-human-request-only.
-16. **`image` container absent.** Docker Compose has `nginx`, `web`, `worker`; `image` (photo processing, S3 sync) is later-phase. Unblock: Phase 3+ media pipeline.
-17. **`/health/ready` is DB-probe only.** Long-term design includes memory-pressure gating + broader dependency checks (DD §8.4). Unblock: 1-G + backup activation.
+10. **No closed backup/restore workflow.** S3 bucket scaffolded; no producer; no restore drill. Unblock: Tier 2 next sprint.
+11. **Maintenance mode not production-grade.** CloudFront active; maintenance-origin/error behavior not implemented. Unblock: 1-F.
+12. **CloudFront hardening incomplete.** X-Origin-Verify absent in Nginx; OAC/ordered-cache controls deferred; direct-origin bypass unprotected. Unblock: 1-F.
+13. **CI/CD partial.** App CI active; deploy scripts: `deploy-code.sh`, `deploy-rebuild.sh`, `deploy-migrate.sh` (stub). Remaining: 1-F, 1-G.
+14. **Monitoring partial and gated.** CloudWatch log groups + alarms Terraformed; agent install TODO. Unblock: 1-G.
+15. **Runtime config manually managed.** App reads `/srv/footbag/env`; SSM/IAM scaffolding not consumed. Unblock: first AWS runtime call (SES, via 4-D).
+16. **Bootstrap security shortcuts remain.** Operator IAM + SSH use bootstrap posture. Unblock: pre-launch security pass.
+17. **Browser validation manual-only.** Route/integration tests are first verification path.
+18. **`image` container absent.** Docker Compose has `nginx`, `web`, `worker`. Unblock: Phase 3+ media pipeline.
+19. **`/health/ready` is DB-probe only.** DD §8.4 adds memory-pressure gating + broader dependency checks. Unblock: 1-G + backup activation.
 
 ---
 
