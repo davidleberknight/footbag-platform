@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{#if seo.fullTitle}}{{seo.fullTitle}}{{else}}Footbag{{#if seo.title}} {{seo.title}}{{else}} Worldwide{{/if}}{{/if}}</title>
   <link rel="stylesheet" href="/css/style.css" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
 
@@ -40,8 +37,8 @@
 
   <footer class="site-footer">
     <div class="wrapper">
-      <div>
-        <div class="footer-brand">IFPA Footbag Worldwide</div>
+      <div class="footer-brand-block">
+        <img src="/img/ifpa-logo.png" alt="IFPA" class="footer-logo" width="175" height="68" />
         <div class="footer-tagline">International Footbag Players Association</div>
       </div>
       <div class="footer-links">
@@ -53,8 +50,17 @@
       </div>
     </div>
     <div class="wrapper">
-      <div class="footer-copy">
-        &copy; International Footbag Players Association. All rights reserved.
+      <div class="footer-legal">
+        <div class="footer-legal-links">
+          <a href="/legal#privacy">Privacy</a>
+          <span aria-hidden="true">&middot;</span>
+          <a href="/legal#terms">Terms</a>
+          <span aria-hidden="true">&middot;</span>
+          <a href="/legal#copyright">Copyright &amp; Trademarks</a>
+        </div>
+        <div class="footer-copy">
+          &copy; 1983&ndash;2026 International Footbag Players Association. IFPA marks used with permission. &ldquo;Hacky Sack&rdquo; is a trademark of its respective owner, used descriptively.
+        </div>
       </div>
     </div>
   </footer>

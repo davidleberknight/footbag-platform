@@ -10,6 +10,7 @@ import { hofController } from '../controllers/hofController';
 import { freestyleController } from '../controllers/freestyleController';
 import { recordsController } from '../controllers/recordsController';
 import { netController } from '../controllers/netController';
+import { legalController } from '../controllers/legalController';
 import { requireAuth } from '../middleware/authStub';
 
 export const publicRouter = Router();
@@ -79,6 +80,8 @@ publicRouter.get('/members/:memberKey/edit',        requireAuth, memberControlle
 publicRouter.post('/members/:memberKey/edit',       requireAuth, memberController.postProfileEdit);
 publicRouter.post('/members/:memberKey/avatar',     requireAuth, memberController.postAvatarUpload);
 publicRouter.get('/members/:memberKey/:section',    requireAuth, memberController.getStub);
+
+publicRouter.get('/legal',      legalController.index);
 
 publicRouter.get('/login',      authController.getLogin);
 publicRouter.post('/login',     authController.postLogin);

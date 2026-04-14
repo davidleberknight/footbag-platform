@@ -1,0 +1,30 @@
+{{! /legal — Privacy, Terms of Use, Copyright & Trademarks }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <p class="legal-last-updated text-muted">Last updated: {{content.lastUpdated}}</p>
+
+  <nav class="legal-toc" aria-label="Legal contents">
+    {{#each content.sections}}
+      <a href="#{{id}}">{{heading}}</a>
+    {{/each}}
+  </nav>
+
+  {{#each content.sections}}
+    <section class="content-section legal-section" id="{{id}}">
+      <h2 class="section-heading">{{heading}}</h2>
+      {{#each paragraphs}}
+        {{#if subheading}}<h3 class="content-subheading">{{subheading}}</h3>{{/if}}
+        <p>{{{bodyHtml}}}</p>
+      {{/each}}
+    </section>
+  {{/each}}
+
+</div>

@@ -4,6 +4,36 @@
    flat UI, green/teal accent, card layout, Inter sans-serif
    ============================================================ */
 
+/* ── Self-hosted Inter font (rsms.me/inter, SIL Open Font License) ─ */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Inter-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/Inter-Medium.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/Inter-SemiBold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/Inter-Bold.woff2") format("woff2");
+}
+
 /* ── Reset & root variables ─────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -813,18 +843,36 @@ section.home-media { padding-top: 0; }
   gap: 32px;
   flex-wrap: wrap;
 }
+.footer-brand-block { display: flex; flex-direction: column; gap: 10px; }
 .footer-brand { color: #fff; font-weight: 600; font-size: 1rem; margin-bottom: 6px; }
+.footer-logo { width: 175px; height: 68px; display: block; background: transparent; border-radius: 0; }
 .footer-tagline { color: #777; font-size: 0.8rem; }
 .footer-links { display: flex; flex-direction: column; gap: 6px; }
 .footer-links a { color: #aaa; }
 .footer-links a:hover { color: #fff; }
-.footer-copy {
+.footer-legal {
   border-top: 1px solid #222;
   margin-top: 40px;
   padding-top: 24px;
+  width: 100%;
+}
+.footer-legal-links {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+.footer-legal-links a { color: #aaa; }
+.footer-legal-links a:hover { color: #fff; }
+.footer-legal-links span { color: #444; }
+.footer-copy {
   text-align: center;
   color: #555;
   font-size: 0.8rem;
+  line-height: 1.5;
+  max-width: 820px;
+  margin: 0 auto;
 }
 
 /* ── Breadcrumb ──────────────────────────────────────────────── */
@@ -1396,6 +1444,7 @@ section.home-media { padding-top: 0; }
   .card-grid-2col { grid-template-columns: 1fr; }
   .card-grid-3col { grid-template-columns: 1fr; }
   .site-footer .wrapper { flex-direction: column; }
+  .footer-legal-links { flex-wrap: wrap; justify-content: center; }
   .main-nav a { padding: 6px 10px; font-size: 0.875rem; }
   #clubs-map { display: none; }
   .profile-layout { grid-template-columns: 1fr; gap: 24px; }
@@ -1536,6 +1585,29 @@ section.home-media { padding-top: 0; }
   font-weight: 600;
   margin: 20px 0 6px;
   color: var(--text-primary, #111);
+}
+
+/* ── Legal page (/legal) ──────────────────────────────────────────────── */
+.legal-last-updated {
+  font-size: 0.875rem;
+  margin: 16px 0 8px;
+}
+.legal-toc {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 24px;
+  font-size: 0.9rem;
+}
+.legal-section {
+  scroll-margin-top: 20px;
+}
+.legal-section p {
+  margin: 8px 0 12px;
 }
 
 /* ── Moves reference table ──────────────────────────────────────────────── */
