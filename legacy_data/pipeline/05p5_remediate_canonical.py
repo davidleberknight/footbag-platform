@@ -799,6 +799,67 @@ if QUARANTINE_RULES.exists():
 else:
     print(f"\n[Quarantine] No quarantine rules file (create {QUARANTINE_RULES.name} to add)")
 
+# ── Team corrections: fix missing/corrupted partner data ──────────────────────
+# Applies manual corrections from team_corrections.csv.
+# Each row replaces participant data for a specific (event_key, discipline_key, placement).
+TEAM_CORRECTIONS = ROOT / "inputs" / "team_corrections.csv"
+_tc_applied = 0
+if TEAM_CORRECTIONS.exists():
+    print("\n[Team corrections] Loading team_corrections.csv...")
+    tc_rules: list[dict] = []
+    with open(TEAM_CORRECTIONS, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row.get("active", "").strip() != "1":
+                continue
+            tc_rules.append(row)
+    print(f"  Active correction rules: {len(tc_rules)}")
+
+    for rule in tc_rules:
+        ek = rule["event_key"].strip()
+        dk = rule["discipline_key"].strip()
+        pl = rule["placement"].strip()
+        pa = rule["corrected_player_a"].strip()
+        pb = rule["corrected_player_b"].strip()
+        ctype = rule.get("correction_type", "").strip()
+
+        # Find matching participant rows
+        matching = [
+            p for p in participants
+            if p["event_key"] == ek and p["discipline_key"] == dk and p["placement"] == pl
+        ]
+        if not matching:
+            print(f"  WARN  ({ek}, {dk}, P{pl}) not found in participants — skipping")
+            continue
+
+        # Replace participant rows for this placement
+        # Remove existing rows for this (event, discipline, placement)
+        participants[:] = [
+            p for p in participants
+            if not (p["event_key"] == ek and p["discipline_key"] == dk and p["placement"] == pl)
+        ]
+
+        # Add corrected rows
+        base = dict(matching[0])  # copy metadata from first existing row
+        row_a = dict(base)
+        row_a["participant_order"] = "1"
+        row_a["display_name"] = pa
+        row_a["person_id"] = ""  # will be resolved by Fix 1 identity sync or next rebuild
+        row_a["notes"] = ""
+
+        row_b = dict(base)
+        row_b["participant_order"] = "2"
+        row_b["display_name"] = pb
+        row_b["person_id"] = ""
+        row_b["notes"] = ""
+
+        participants.extend([row_a, row_b])
+        _tc_applied += 1
+        print(f"  APPLIED  ({ek}, {dk}, P{pl})  {pa} / {pb}  [{ctype}]")
+
+    print(f"  Team corrections applied: {_tc_applied}")
+else:
+    print(f"\n[Team corrections] No file (create {TEAM_CORRECTIONS.name} to add)")
+
 # ── Fix 1 & 2: Identity Sync + Regex Deep-Clean ───────────────────────────────
 
 print("\n[Fix 1+2] Identity sync & regex cleaning...")

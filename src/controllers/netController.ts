@@ -86,6 +86,58 @@ export const netController = {
     }
   },
 
+  /** GET /internal/net/team-corrections */
+  teamCorrectionsPage(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = netService.getTeamCorrectionsPage({
+        severity:      typeof req.query['severity'] === 'string' && req.query['severity'] ? req.query['severity'] : undefined,
+        event:         typeof req.query['event'] === 'string' && req.query['event'] ? req.query['event'] : undefined,
+        anomalyType:   typeof req.query['type'] === 'string' && req.query['type'] ? req.query['type'] : undefined,
+        hasSuggestion: typeof req.query['suggestion'] === 'string' && req.query['suggestion'] ? req.query['suggestion'] : undefined,
+      });
+      res.render('net/team-corrections', vm);
+    } catch (err) {
+      netController._handleError(err, res, next);
+    }
+  },
+
+  /** POST /internal/net/team-corrections/:id/decision */
+  teamCorrectionDecision(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const candidateId = req.params['id'] ?? '';
+      const rawDecision = req.body?.['decision'];
+      const rawPlayerA  = req.body?.['player_a'];
+      const rawPlayerB  = req.body?.['player_b'];
+      const rawNotes    = req.body?.['notes'];
+
+      if (typeof rawDecision !== 'string' || !rawDecision.trim()) {
+        res.status(400).send('Bad Request: decision is required');
+        return;
+      }
+
+      netService.updateTeamCorrectionDecision(candidateId, {
+        decision: rawDecision.trim(),
+        playerA:  typeof rawPlayerA === 'string' ? rawPlayerA : undefined,
+        playerB:  typeof rawPlayerB === 'string' ? rawPlayerB : undefined,
+        notes:    typeof rawNotes === 'string' ? rawNotes : undefined,
+      });
+      res.redirect('/internal/net/team-corrections');
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        res.status(404).render('errors/not-found', {
+          seo: { title: 'Page Not Found' },
+          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
+        });
+        return;
+      }
+      if (err instanceof ValidationError) {
+        res.status(400).send(`Bad Request: ${err.message}`);
+        return;
+      }
+      netController._handleError(err, res, next);
+    }
+  },
+
   /** GET /internal/net/recovery-candidates */
   recoveryCandidatesPage(_req: Request, res: Response, next: NextFunction): void {
     try {

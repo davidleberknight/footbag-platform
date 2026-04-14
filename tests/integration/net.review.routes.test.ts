@@ -1077,3 +1077,131 @@ describe('POST /internal/net/recovery-candidates/:id/decision', () => {
     expect(res.text).toContain('export_approved_aliases.py');
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /internal/net/team-corrections
+// ---------------------------------------------------------------------------
+
+describe('GET /internal/net/team-corrections', () => {
+  it('returns 200', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections');
+    expect(res.status).toBe(200);
+  });
+
+  it('shows the page title', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections');
+    expect(res.text).toContain('Team Corrections Triage');
+  });
+
+  it('shows overview stats', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections');
+    expect(res.text).toContain('anomalies');
+    expect(res.text).toContain('HIGH');
+    expect(res.text).toContain('MEDIUM');
+  });
+
+  it('shows filter controls', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections');
+    expect(res.text).toContain('name="severity"');
+    expect(res.text).toContain('name="type"');
+    expect(res.text).toContain('name="event"');
+  });
+
+  it('shows worklist section', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections');
+    expect(res.text).toContain('Worklist');
+  });
+
+  it('handles empty CSV gracefully', async () => {
+    // Test DB has no CSV file in the test working directory — should still render
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections');
+    expect(res.status).toBe(200);
+  });
+
+  it('is not accessible via public route', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net/team-corrections');
+    expect(res.status).toBe(404);
+  });
+
+  it('supports severity filter', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections?severity=HIGH');
+    expect(res.status).toBe(200);
+  });
+
+  it('supports event filter', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections?event=1998_worlds_montreal');
+    expect(res.status).toBe(200);
+  });
+
+  it('shows approved count', async () => {
+    const app = createApp();
+    const res = await request(app).get('/internal/net/team-corrections');
+    expect(res.text).toContain('approved');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /internal/net/team-corrections/:id/decision
+// ---------------------------------------------------------------------------
+
+describe('POST /internal/net/team-corrections/:id/decision', () => {
+  // Seed a candidate row first
+  it('can approve a team correction candidate', async () => {
+    const app = createApp();
+    // First, insert a candidate row directly
+    const { createTestDb } = await import('../fixtures/testDb');
+    // The candidate must already exist in DB — the GET page upserts from CSV.
+    // Since test has no CSV, we seed directly via DB.
+    const BetterSqlite3 = (await import('better-sqlite3')).default;
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`
+      INSERT OR IGNORE INTO net_team_correction_candidate
+        (id, event_key, discipline_key, placement, original_display, anomaly_type, created_at)
+      VALUES ('tc-test-1', 'test_event', 'doubles_net', '1', 'Test Original', 'MISSING_PARTNER',
+              '2026-01-01T00:00:00.000Z')
+    `).run();
+    db.close();
+
+    const res = await request(app)
+      .post('/internal/net/team-corrections/tc-test-1/decision')
+      .type('form')
+      .send({ decision: 'approve', player_a: 'Alice', player_b: 'Bob' });
+    expect(res.status).toBe(302);
+  });
+
+  it('returns 400 for invalid decision', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/internal/net/team-corrections/tc-test-1/decision')
+      .type('form')
+      .send({ decision: 'invalid' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 404 for unknown candidate', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/internal/net/team-corrections/nonexistent/decision')
+      .type('form')
+      .send({ decision: 'approve' });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 for empty decision', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/internal/net/team-corrections/tc-test-1/decision')
+      .type('form')
+      .send({ decision: '' });
+    expect(res.status).toBe(400);
+  });
+});

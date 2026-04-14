@@ -1634,6 +1634,59 @@ export const netRecoveryCandidates = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// netTeamCorrectionApproval
+//
+// Internal-only: operator approval for team anomaly corrections.
+// Route: /internal/net/team-corrections
+// ---------------------------------------------------------------------------
+
+export const netTeamCorrectionApproval = {
+  upsertCandidate: db.prepare(`
+    INSERT INTO net_team_correction_candidate
+      (id, event_key, discipline_key, placement, original_display, anomaly_type,
+       suggested_player_a, suggested_player_b, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    ON CONFLICT(event_key, discipline_key, placement) DO UPDATE SET
+      original_display   = excluded.original_display,
+      anomaly_type       = excluded.anomaly_type,
+      suggested_player_a = COALESCE(net_team_correction_candidate.suggested_player_a, excluded.suggested_player_a),
+      suggested_player_b = COALESCE(net_team_correction_candidate.suggested_player_b, excluded.suggested_player_b)
+  `),
+
+  getById: db.prepare(`SELECT id FROM net_team_correction_candidate WHERE id = ?`),
+
+  updateDecision: db.prepare(`
+    UPDATE net_team_correction_candidate
+    SET decision       = ?,
+        suggested_player_a = ?,
+        suggested_player_b = ?,
+        decision_notes = ?,
+        decided_by     = ?,
+        decided_at     = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+    WHERE id = ?
+  `),
+
+  listAll: db.prepare(`
+    SELECT id, event_key, discipline_key, placement, original_display, anomaly_type,
+           suggested_player_a, suggested_player_b, decision, decision_notes
+    FROM net_team_correction_candidate
+    ORDER BY
+      CASE decision WHEN 'approve' THEN 0 WHEN 'defer' THEN 1 ELSE 2 END,
+      event_key, placement
+  `),
+
+  listApproved: db.prepare(`
+    SELECT event_key, discipline_key, placement, original_display,
+           suggested_player_a, suggested_player_b, anomaly_type, decision_notes
+    FROM net_team_correction_candidate
+    WHERE decision = 'approve'
+      AND suggested_player_a IS NOT NULL AND suggested_player_a != ''
+      AND suggested_player_b IS NOT NULL AND suggested_player_b != ''
+    ORDER BY event_key, discipline_key, CAST(placement AS INTEGER)
+  `),
+} as const;
+
+// ---------------------------------------------------------------------------
 // netRecoveryApproval
 //
 // Internal-only: operator approval workflow for recovery alias candidates.

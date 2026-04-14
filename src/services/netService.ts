@@ -4,6 +4,7 @@ import {
   queryFilteredPartnerships,
   netRecoverySignals, RecoveryPartnerRepeatRow, RecoveryAbbreviationRow,
                       RecoveryHighValueRow,
+  netTeamCorrectionApproval,
   netRecoveryCandidates, RecoveryCandidateAbbrevRow, RecoveryCandidateFreqRow,
   netRecoveryApproval, RecoveryAliasCandidateRow,
   netPlayers,    NetPlayerSummaryRow, NetPartnerRow, NetPartnerNetworkRow,
@@ -30,6 +31,8 @@ import {
 } from '../db/db';
 import { NotFoundError, ConflictError, ValidationError } from './serviceErrors';
 import { randomUUID } from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // ---------------------------------------------------------------------------
 // Evidence disclaimer — always rendered on net pages (not conditioned on data)
@@ -295,6 +298,53 @@ interface NetRecoveryCandidatesPageViewModel {
     totalAlias:          number;
     totalApproved:       number;
     totalNewPerson:      number;
+  };
+}
+
+// ── Team corrections triage (internal) ──────────────────────────────────────
+
+interface TeamAnomalyRow {
+  id:                string;
+  eventKey:          string;
+  eventName:         string;
+  year:              string;
+  discipline:        string;
+  placement:         string;
+  originalDisplay:   string;
+  anomalyType:       string;
+  severity:          string;
+  suggestedAction:   string;
+  notes:             string;
+  suggestedPartner:  string;
+  cooccurrenceCount: number;
+  suggestedPlayerA:  string;
+  suggestedPlayerB:  string;
+  decision:          string | null;
+}
+
+interface TeamCorrectionsPageViewModel {
+  seo:  { title: string };
+  page: { sectionKey: string; pageKey: string; title: string };
+  content: {
+    totalAnomalies: number;
+    totalHigh:      number;
+    totalMedium:    number;
+    totalApproved:  number;
+    distinctEvents: number;
+    topEvents:      { eventKey: string; eventName: string; total: number; high: number }[];
+    fastAction:     TeamAnomalyRow[];
+    items:          TeamAnomalyRow[];
+    filterOptions: {
+      severities:  { value: string; label: string }[];
+      anomalyTypes: { value: string; label: string }[];
+      events:      { value: string; label: string }[];
+    };
+    activeFilters: {
+      severity:      string | null;
+      event:         string | null;
+      anomalyType:   string | null;
+      hasSuggestion: string | null;
+    };
   };
 }
 
@@ -1997,6 +2047,191 @@ export const netService = {
 
     netRecoveryApproval.updateDecision.run(
       payload.decision,
+      payload.notes?.trim() || null,
+      'operator',
+      candidateId,
+    );
+  },
+
+  getTeamCorrectionsPage(filters: {
+    severity?: string;
+    event?: string;
+    anomalyType?: string;
+    hasSuggestion?: string;
+  }): TeamCorrectionsPageViewModel {
+    const csvPath = path.join(process.cwd(), 'legacy_data', 'out', 'team_anomaly_worklist.csv');
+    let rows: TeamAnomalyRow[] = [];
+
+    try {
+      const content = fs.readFileSync(csvPath, 'utf-8');
+      const lines = content.split('\n').filter(l => l.trim());
+      if (lines.length > 1) {
+        const headers = lines[0].split(',').map(h => h.trim());
+        for (let i = 1; i < lines.length; i++) {
+          // Simple CSV parse (handles quoted fields with commas)
+          const fields: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          for (const ch of lines[i]) {
+            if (ch === '"') { inQuotes = !inQuotes; continue; }
+            if (ch === ',' && !inQuotes) { fields.push(current.trim()); current = ''; continue; }
+            current += ch;
+          }
+          fields.push(current.trim());
+
+          const row: Record<string, string> = {};
+          headers.forEach((h, idx) => { row[h] = fields[idx] || ''; });
+
+          // Parse partner suggestion from notes
+          let suggestedPartner = '';
+          let cooccurrenceCount = 0;
+          const likelyMatch = (row['notes'] || '').match(/Likely partners: ([^(]+)\((\d+)x\)/);
+          if (likelyMatch) {
+            suggestedPartner = likelyMatch[1].trim();
+            cooccurrenceCount = parseInt(likelyMatch[2], 10);
+          }
+
+          const ek = row['event_key'] || '';
+          const dk = row['discipline'] || '';
+          const pl = row['placement'] || '';
+          const candidateId = `tc_${ek}_${dk}_${pl}`.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 80);
+
+          // Upsert into DB for decision persistence
+          // Extract player_a from original display (name before location annotation)
+          const playerA = (row['original_display'] || '').split('(')[0].split('/')[0].trim();
+
+          netTeamCorrectionApproval.upsertCandidate.run(
+            candidateId, ek, dk, pl,
+            row['original_display'] || '',
+            row['anomaly_type'] || '',
+            playerA || null,
+            suggestedPartner || null,
+          );
+
+          rows.push({
+            id:              candidateId,
+            eventKey:        ek,
+            eventName:       row['event_name'] || '',
+            year:            row['year'] || '',
+            discipline:      dk,
+            placement:       pl,
+            originalDisplay: row['original_display'] || '',
+            anomalyType:     row['anomaly_type'] || '',
+            severity:        row['severity'] || '',
+            suggestedAction: row['suggested_action'] || '',
+            notes:           row['notes'] || '',
+            suggestedPartner,
+            cooccurrenceCount,
+            suggestedPlayerA: playerA,
+            suggestedPlayerB: suggestedPartner,
+            decision:        null,
+          });
+        }
+      }
+    } catch {
+      // CSV not found — return empty page
+    }
+
+    // Read decisions back from DB
+    const dbRows = netTeamCorrectionApproval.listAll.all() as {
+      id: string; decision: string | null;
+      suggested_player_a: string | null; suggested_player_b: string | null;
+    }[];
+    const decisionMap = new Map(dbRows.map(r => [r.id, r]));
+    for (const row of rows) {
+      const dbRow = decisionMap.get(row.id);
+      if (dbRow) {
+        row.decision = dbRow.decision;
+        if (dbRow.suggested_player_a) row.suggestedPlayerA = dbRow.suggested_player_a;
+        if (dbRow.suggested_player_b) row.suggestedPlayerB = dbRow.suggested_player_b;
+      }
+    }
+
+    // Apply filters
+    if (filters.severity) rows = rows.filter(r => r.severity === filters.severity);
+    if (filters.event) rows = rows.filter(r => r.eventKey === filters.event);
+    if (filters.anomalyType) rows = rows.filter(r => r.anomalyType === filters.anomalyType);
+    if (filters.hasSuggestion === 'yes') rows = rows.filter(r => r.suggestedPartner !== '');
+    if (filters.hasSuggestion === 'no') rows = rows.filter(r => r.suggestedPartner === '');
+
+    // Compute summaries
+    const totalHigh = rows.filter(r => r.severity === 'HIGH').length;
+    const totalMedium = rows.filter(r => r.severity === 'MEDIUM').length;
+    const totalApproved = rows.filter(r => r.decision === 'approve').length;
+    const distinctEvents = new Set(rows.map(r => r.eventKey)).size;
+
+    // Top events
+    const eventCounts = new Map<string, { name: string; total: number; high: number }>();
+    for (const r of rows) {
+      const entry = eventCounts.get(r.eventKey) || { name: r.eventName, total: 0, high: 0 };
+      entry.total++;
+      if (r.severity === 'HIGH') entry.high++;
+      eventCounts.set(r.eventKey, entry);
+    }
+    const topEvents = [...eventCounts.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 15)
+      .map(([ek, info]) => ({
+        eventKey: ek, eventName: info.name,
+        total: info.total, high: info.high,
+      }));
+
+    // Fast-action: HIGH severity + MEDIUM with strong suggestion (>=5 co-occurrences)
+    const fastAction = rows.filter(r =>
+      r.severity === 'HIGH' || (r.severity === 'MEDIUM' && r.cooccurrenceCount >= 5),
+    );
+
+    // Filter options
+    const severities = [...new Set(rows.map(r => r.severity))].sort();
+    const anomalyTypes = [...new Set(rows.map(r => r.anomalyType))].sort();
+    const events = [...eventCounts.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .map(([ek, info]) => ({ value: ek, label: `${info.name} (${info.total})` }));
+
+    return {
+      seo: { title: 'Team Corrections Triage' },
+      page: { sectionKey: '', pageKey: 'team_corrections', title: 'Team Corrections Triage' },
+      content: {
+        totalAnomalies: rows.length,
+        totalHigh,
+        totalMedium,
+        totalApproved,
+        distinctEvents,
+        topEvents,
+        fastAction: fastAction.slice(0, 30),
+        items: rows.slice(0, 100),
+        filterOptions: {
+          severities: [{ value: '', label: 'All' }, ...severities.map(s => ({ value: s, label: s }))],
+          anomalyTypes: [{ value: '', label: 'All types' }, ...anomalyTypes.map(t => ({ value: t, label: t }))],
+          events: [{ value: '', label: 'All events' }, ...events.slice(0, 30)],
+        },
+        activeFilters: {
+          severity: filters.severity ?? null,
+          event: filters.event ?? null,
+          anomalyType: filters.anomalyType ?? null,
+          hasSuggestion: filters.hasSuggestion ?? null,
+        },
+      },
+    };
+  },
+
+  updateTeamCorrectionDecision(candidateId: string, payload: {
+    decision: string;
+    playerA?: string;
+    playerB?: string;
+    notes?: string;
+  }): void {
+    const VALID = new Set(['approve', 'reject', 'defer']);
+    if (!VALID.has(payload.decision)) {
+      throw new ValidationError(`Invalid decision: ${payload.decision}`);
+    }
+    const row = netTeamCorrectionApproval.getById.get(candidateId);
+    if (!row) throw new NotFoundError(`Team correction candidate not found: ${candidateId}`);
+
+    netTeamCorrectionApproval.updateDecision.run(
+      payload.decision,
+      payload.playerA?.trim() || null,
+      payload.playerB?.trim() || null,
       payload.notes?.trim() || null,
       'operator',
       candidateId,

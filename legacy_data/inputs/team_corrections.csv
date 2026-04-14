@@ -1,0 +1,26 @@
+event_key,discipline_key,placement,original_display,corrected_player_a,corrected_player_b,correction_type,source_note,active,verification_level,verified_by,confidence
+1998_worlds_montreal,open_doubles_freestyle,1,"Daryl Genz (Thornton / CO, USA)",Daryl Genz,Rick Reese,MISSING_PARTNER,Mirror source confirmed,1,source_verified,,HIGH
+1998_worlds_montreal,open_doubles_freestyle,3,"Peter Irish (College Park / MD, USA)",Peter Irish,Greg Nelson,MISSING_PARTNER,Mirror source confirmed,1,source_verified,,HIGH
+1998_worlds_montreal,womens_open_doubles_footbag_net,1,"Jody Welch (Mountain View / California",Jody Badger Welch,Julie Symons,SPLIT_PARSING_ERROR,Jody confirmed + mirror source,1,human_verified,Jody Badger Welch,HIGH
+1998_worlds_montreal,womens_open_doubles_distance_one_pass,1,"Jody Welch (Mountain View / California",Jody Badger Welch,Julie Symons,SPLIT_PARSING_ERROR,Jody confirmed + mirror source,1,human_verified,Jody Badger Welch,HIGH
+1998_vancouver,womens_doubles_net,1,,Jody Badger Welch,Julie Symons,MISSING_PARTNER,Jody confirmed,1,human_verified,Jody Badger Welch,HIGH
+1998_vancouver,mixed_doubles_net,1,,Jody Badger Welch,Brent Welch,MISSING_PARTNER,Jody confirmed,1,human_verified,Jody Badger Welch,MEDIUM
+2024_worlds_montreal,womens_doubles_net,3,"Becca English-Ross )USA) / Kim Savard",Becca English-Ross,Kim Savard,SPLIT_PARSING_ERROR,Typo in source,1,source_verified,,HIGH
+1998_worlds_montreal,mens_open_doubles_footbag_net,1,"Sebastian Verdy / [UNKNOWN PARTNER]",Sebastian Verdy,Emmanuel Bouchard,MISSING_PARTNER,Mirror source: 1st Sebastian Verdy and Emmanuel Bouchard,1,source_verified,,HIGH
+1998_worlds_montreal,mens_open_doubles_footbag_net,2,"Dan Borsky / British Columbia",Dan Borsky,Andrew Morgan,SPLIT_PARSING_ERROR,Mirror source: Dan Borsky and Andrew Morgan,1,source_verified,,HIGH
+1998_worlds_montreal,mens_open_doubles_footbag_net,3,"Peter Shunny (Denver / Colorado",Peter Shunny,Allan Petersen,SPLIT_PARSING_ERROR,Mirror source: Peter Shunny and Allan Petersen,1,source_verified,,HIGH
+1998_worlds_montreal,open_mixed_doubles_footbag_net,1,"Emmanuel Bouchard (Montreal / Quebec",Emmanuel Bouchard,Amy Westberg,SPLIT_PARSING_ERROR,Mirror source: Emmanuel Bouchard and Amy Westberg,1,source_verified,,HIGH
+1998_worlds_montreal,open_mixed_doubles_footbag_net,2,"Sebastian Verdy / [UNKNOWN PARTNER]",Sebastian Verdy,Jody Badger Welch,MISSING_PARTNER,Mirror source: Sebastian Verdy and Jody Welch,1,source_verified,,HIGH
+1998_worlds_montreal,open_mixed_doubles_footbag_net,3,"Alexis Deschenes / [UNKNOWN PARTNER]",Alexis Deschenes,Julie Symons,MISSING_PARTNER,Mirror source: Alexis Deschesnes and Julie Symons,1,source_verified,,HIGH
+1998_worlds_montreal,open_mixed_doubles_freestyle,2,"Lisa McDaniel (Berkeley / California, USA)",Lisa McDaniel Jones,Greg Nelson,SPLIT_PARSING_ERROR,Mirror source: Lisa McDaniel and Greg Nelson,1,source_verified,,HIGH
+1998_worlds_montreal,open_mixed_doubles_freestyle,3,"Samantha Conlon (San Francisco / CA, USA)",Samantha Conlon,Steve Goldberg,SPLIT_PARSING_ERROR,Mirror source: Samantha Conlon and Steve Goldberg,1,source_verified,,HIGH
+1998_worlds_montreal,open_doubles_distance_one_pass,1,"Chard Cook / British Columbia",Chard Cook,Scott Milne,SPLIT_PARSING_ERROR,Mirror source: Chard Cook and Scott Milne,1,source_verified,,HIGH
+1998_worlds_montreal,open_doubles_distance_one_pass,2,"Jim Caveney (Mountain View / California",Jim Caveney,Bruce Guettich,SPLIT_PARSING_ERROR,Mirror source: Jim Caveney and Bruce Guettich,1,source_verified,,HIGH
+1998_worlds_montreal,open_doubles_distance_one_pass,3,"Allan Petersen (Denmark) and / [UNKNOWN PARTNER]",Allan Petersen,Peter Shunny,SPLIT_PARSING_ERROR,Mirror source: Allan Petersen and Peter Shunny,1,source_verified,,HIGH
+1998_worlds_montreal,womens_open_doubles_footbag_net,2,"Evanne Lamarche (Phoenix / Arizona",Evanne LaMarche,Lisa McDaniel Jones,SPLIT_PARSING_ERROR,Mirror source: Evanne Lamarche and Lisa McDaniel,1,source_verified,,HIGH
+1998_worlds_montreal,womens_open_doubles_footbag_net,3,"Amy Westberg (Chandler / Arizona",Amy Westberg,Genevieve Bousquet,SPLIT_PARSING_ERROR,Mirror source: Amy Westberg and Genevieve Bousquet,1,source_verified,,HIGH
+1998_worlds_montreal,womens_open_doubles_freestyle,1,"Evanne Lamarche (Phoenix / AZ, USA)",Evanne LaMarche,Ann Kaplan,SPLIT_PARSING_ERROR,Mirror source: Evanne Lamarche and Ann Kaplan,1,source_verified,,HIGH
+1998_worlds_montreal,womens_open_doubles_distance_one_pass,2,"Amy Westberg (Chandler / Arizona",Amy Westberg,Genevieve Bousquet,SPLIT_PARSING_ERROR,Mirror source: Amy Westberg and Genevieve Bousquet,1,source_verified,,HIGH
+1998_worlds_montreal,womens_open_doubles_distance_one_pass,3,"Tina Lewis (Austin / Texas",Tina Lewis,Kelley Kelly,SPLIT_PARSING_ERROR,Mirror source: Tina Lewis and Kelley Kelly,1,source_verified,,HIGH
+1998_worlds_montreal,intermediate_doubles_footbag_net,2,"Iain McKechnie (San Rafael / California",Iain McKechnie,Christopher Young,SPLIT_PARSING_ERROR,Mirror source: Iain McKechnie and Christopher Young,1,source_verified,,HIGH
+1998_worlds_montreal,intermediate_doubles_footbag_net,3,"Dan Botkin (Gill / Massachusetts",Dan Botkin,Jack Lentz,SPLIT_PARSING_ERROR,Mirror source: Dan Botkin and Jack Lentz,1,source_verified,,HIGH

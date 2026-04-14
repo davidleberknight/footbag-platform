@@ -1,0 +1,192 @@
+{{! /internal/net/team-corrections — anomaly triage dashboard }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">
+      Prioritized worklist of team/participant anomalies for correction.
+      Internal only.
+      <a href="/internal/net/review">&larr; Review</a>
+    </p>
+    <div class="hero-stats">
+      <span>{{content.totalAnomalies}} anomalies</span>
+      <span>{{content.totalHigh}} HIGH</span>
+      <span>{{content.totalMedium}} MEDIUM</span>
+      <span>{{content.totalApproved}} approved</span>
+      <span>{{content.distinctEvents}} events</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{! ── Filters ─────────────────────────────────────────────────── }}
+  <form method="GET" action="/internal/net/team-corrections" class="filter-bar">
+    <label>
+      Severity
+      <select name="severity" onchange="this.form.submit()">
+        {{#each content.filterOptions.severities}}
+        <option value="{{value}}"{{#if (eq value ../content.activeFilters.severity)}} selected{{/if}}>{{label}}</option>
+        {{/each}}
+      </select>
+    </label>
+    <label>
+      Type
+      <select name="type" onchange="this.form.submit()">
+        {{#each content.filterOptions.anomalyTypes}}
+        <option value="{{value}}"{{#if (eq value ../content.activeFilters.anomalyType)}} selected{{/if}}>{{label}}</option>
+        {{/each}}
+      </select>
+    </label>
+    <label>
+      Event
+      <select name="event" onchange="this.form.submit()">
+        {{#each content.filterOptions.events}}
+        <option value="{{value}}"{{#if (eq value ../content.activeFilters.event)}} selected{{/if}}>{{label}}</option>
+        {{/each}}
+      </select>
+    </label>
+    <label>
+      Suggestion
+      <select name="suggestion" onchange="this.form.submit()">
+        <option value="">All</option>
+        <option value="yes"{{#if (eq content.activeFilters.hasSuggestion 'yes')}} selected{{/if}}>Has suggestion</option>
+        <option value="no"{{#if (eq content.activeFilters.hasSuggestion 'no')}} selected{{/if}}>No suggestion</option>
+      </select>
+    </label>
+    {{#if content.activeFilters.severity}}
+    <a href="/internal/net/team-corrections" class="btn-link">Clear</a>
+    {{else if content.activeFilters.event}}
+    <a href="/internal/net/team-corrections" class="btn-link">Clear</a>
+    {{else if content.activeFilters.anomalyType}}
+    <a href="/internal/net/team-corrections" class="btn-link">Clear</a>
+    {{else if content.activeFilters.hasSuggestion}}
+    <a href="/internal/net/team-corrections" class="btn-link">Clear</a>
+    {{/if}}
+  </form>
+
+  {{#if content.totalApproved}}
+  <div class="notice notice-info">
+    {{content.totalApproved}} approved correction(s) ready for export. Run:<br>
+    <code>.venv/bin/python pipeline/export_team_corrections.py</code>
+  </div>
+  {{/if}}
+
+  {{! ── Fast Action ─────────────────────────────────────────────── }}
+  {{#if content.fastAction.length}}
+  <section class="content-section">
+    <h2>Fast Action</h2>
+    <p class="detail-muted">HIGH severity + MEDIUM with strong partner suggestion (5+ co-occurrences)</p>
+    <div class="records-table-wrap" style="overflow-x:auto">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Sev</th>
+            <th>Event</th>
+            <th>Discipline</th>
+            <th>P</th>
+            <th>Original</th>
+            <th>Decision</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.fastAction}}
+          <tr class="{{#if (eq decision 'approve')}}rc-approved{{/if}}{{#if (eq decision 'reject')}}rc-rejected{{/if}}">
+            <td>{{severity}}</td>
+            <td>{{year}} {{eventName}}</td>
+            <td>{{discipline}}</td>
+            <td class="col-rank">{{placement}}</td>
+            <td>{{originalDisplay}}</td>
+            <td>
+              <form method="POST" action="/internal/net/team-corrections/{{id}}/decision" class="rc-decision-form">
+                <input type="text" name="player_a" value="{{suggestedPlayerA}}" placeholder="Player A" style="width:120px" />
+                <input type="text" name="player_b" value="{{suggestedPlayerB}}" placeholder="Player B" style="width:120px" />
+                <select name="decision">
+                  <option value="">--</option>
+                  <option value="approve"{{#if (eq decision 'approve')}} selected{{/if}}>Approve</option>
+                  <option value="reject"{{#if (eq decision 'reject')}} selected{{/if}}>Reject</option>
+                  <option value="defer"{{#if (eq decision 'defer')}} selected{{/if}}>Defer</option>
+                </select>
+                <button type="submit">Save</button>
+              </form>
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Top Events ──────────────────────────────────────────────── }}
+  {{#if content.topEvents.length}}
+  <section class="content-section">
+    <h2>Top Events</h2>
+    <div class="records-table-wrap">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th class="col-num">Total</th>
+            <th class="col-num">HIGH</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.topEvents}}
+          <tr>
+            <td>{{eventName}}</td>
+            <td class="col-num">{{total}}</td>
+            <td class="col-num">{{high}}</td>
+            <td><a href="/internal/net/team-corrections?event={{eventKey}}">View</a></td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {{/if}}
+
+  {{! ── Full Worklist ───────────────────────────────────────────── }}
+  <section class="content-section">
+    <h2>Worklist</h2>
+    <p class="detail-muted">Showing {{content.items.length}} of {{content.totalAnomalies}}</p>
+    {{#if content.items.length}}
+    <div class="records-table-wrap" style="overflow-x:auto">
+      <table class="records-table records-table-sm">
+        <thead>
+          <tr>
+            <th>Sev</th>
+            <th>Year</th>
+            <th>Event</th>
+            <th>Discipline</th>
+            <th>P</th>
+            <th>Original</th>
+            <th>Type</th>
+            <th>Suggested Partner</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each content.items}}
+          <tr>
+            <td>{{severity}}</td>
+            <td>{{year}}</td>
+            <td>{{eventName}}</td>
+            <td>{{discipline}}</td>
+            <td class="col-rank">{{placement}}</td>
+            <td>{{originalDisplay}}</td>
+            <td>{{anomalyType}}</td>
+            <td>{{#if suggestedPartner}}<strong>{{suggestedPartner}}</strong> ({{cooccurrenceCount}}x){{else}}<em>—</em>{{/if}}</td>
+            <td>{{notes}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="empty-state">No anomalies match the current filter.</div>
+    {{/if}}
+  </section>
+
+</div>

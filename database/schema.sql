@@ -3129,6 +3129,27 @@ CREATE TABLE IF NOT EXISTS net_recovery_alias_candidate (
 );
 CREATE INDEX IF NOT EXISTS idx_net_recovery_decision ON net_recovery_alias_candidate(operator_decision);
 
+-- Team correction candidates — operator-reviewed anomaly fixes.
+-- Populated from anomaly worklist; operator marks approve/reject/defer.
+-- Approved rows are exported to inputs/team_corrections.csv via pipeline script.
+CREATE TABLE IF NOT EXISTS net_team_correction_candidate (
+  id                  TEXT PRIMARY KEY,
+  event_key           TEXT NOT NULL,
+  discipline_key      TEXT NOT NULL,
+  placement           TEXT NOT NULL,
+  original_display    TEXT NOT NULL,
+  anomaly_type        TEXT NOT NULL,
+  suggested_player_a  TEXT,
+  suggested_player_b  TEXT,
+  decision            TEXT,   -- approve | reject | defer
+  decision_notes      TEXT,
+  decided_by          TEXT,
+  decided_at          TEXT,
+  created_at          TEXT NOT NULL,
+  UNIQUE(event_key, discipline_key, placement)
+);
+CREATE INDEX IF NOT EXISTS idx_net_tc_decision ON net_team_correction_candidate(decision);
+
 -- =============================================================================
 -- END OF SCHEMA v0.1
 -- =============================================================================

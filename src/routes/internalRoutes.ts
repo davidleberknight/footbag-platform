@@ -8,6 +8,9 @@ import { netController } from '../controllers/netController';
  */
 export const internalRouter = Router();
 
+// Net team corrections triage
+internalRouter.get('/net/team-corrections',                    netController.teamCorrectionsPage);
+internalRouter.post('/net/team-corrections/:id/decision',      netController.teamCorrectionDecision);
 // Net recovery signals + candidates (identity diagnostic)
 internalRouter.get('/net/recovery-signals',    netController.recoverySignalsPage);
 internalRouter.get('/net/recovery-candidates',              netController.recoveryCandidatesPage);
