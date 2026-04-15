@@ -94,7 +94,7 @@
           {{#each content.fastAction}}
           <tr class="{{#if (eq decision 'approve')}}rc-approved{{/if}}{{#if (eq decision 'reject')}}rc-rejected{{/if}}">
             <td>{{severity}}</td>
-            <td>{{year}} {{eventName}}</td>
+            <td>{{year}} {{eventName}}<br><span style="font-size:10px;opacity:0.6">{{eventKey}}</span></td>
             <td>{{discipline}}</td>
             <td class="col-rank">{{placement}}</td>
             <td>{{originalDisplay}}</td>
@@ -182,7 +182,7 @@
           <tr>
             <td>{{severity}}</td>
             <td>{{year}}</td>
-            <td>{{eventName}}</td>
+            <td>{{eventName}}<br><span style="font-size:10px;opacity:0.6">{{eventKey}}</span></td>
             <td>{{discipline}}</td>
             <td class="col-rank">{{placement}}</td>
             <td>{{originalDisplay}}</td>

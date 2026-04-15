@@ -33,6 +33,7 @@ is the source of truth.
 
 ## Pipeline modes
 
+<<<<<<< HEAD
 | Mode | Purpose | Mirror access? | Use when |
 |------|---------|----------------|----------|
 | `full` | Canonical backbone → phase NET → enrichment phases, end to end | Required | **Recommended** — full soup-to-nuts rebuild (current gold standard) |
@@ -40,6 +41,15 @@ is the source of truth.
 | `enrichment_only` | Membership, clubs, persons enrichment phases only | Not required | Iterating on enrichment logic (requires canonical outputs already present) |
 | `csv_only` | DB load from existing seed CSVs, then enrichment phases | Not required | No mirror access; canonical CSVs and seed must already exist on disk |
 | `net_enrichment` | Net enrichment layer only | Not required | Rebuilding net tables against an already-loaded canonical DB |
+=======
+| Mode | What it runs | Mirror access? | Use when |
+|------|-------------|----------------|----------|
+| `full` | V0 backbone → net enrichment → phases C–G | Required | Full soup-to-nuts rebuild |
+| `canonical_only` | V0 backbone: mirror + curated → canonical CSVs → QC → workbook → seed → DB | Required | Updating source data or overrides |
+| `enrichment_only` | Phases C–G: membership, clubs, provisional persons, persons master, DB load | Not required | Iterating on enrichment logic (requires canonical outputs already present) |
+| `csv_only` | DB load from existing seed CSVs + phases C–G | Not required | No mirror access; canonical CSVs and seed must already exist |
+| `net_enrichment` | Net enrichment layer only — scripts 12→13→14 | Not required | Rebuild net teams/discipline groups (requires canonical DB loaded) |
+>>>>>>> 7d430af ( feat: auto-resolve anomalies, viewer modernization, pipeline doc sync)
 
 ### Canonical backbone (`canonical_only` / included in `full`)
 

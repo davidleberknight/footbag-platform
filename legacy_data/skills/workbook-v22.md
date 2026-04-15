@@ -19,9 +19,9 @@ Do NOT invoke this skill for:
 **Output:** `out/Footbag_Results_Release.xlsx`
 **Run after:** rebuild + release + QC pass
 
-Preferred invocation — part of the complete pipeline:
+Preferred invocation — part of the full pipeline:
 ```bash
-./run_pipeline.sh complete   # workbook is stage 5 of 7; QC must pass first
+./run_pipeline.sh full   # workbook is stage 5 of 7; QC must pass first
 ```
 
 Standalone invocation (only after a completed rebuild + release + QC pass):

@@ -78,8 +78,8 @@ event_key,discipline_key,placement,original_display,corrected_player_a,corrected
 2013_worlds_montreal,open_doubles_net,22,,Yves Archambault,Carl-Antoine Boulay,MISSING_PARTNER,Yves Archambault confirmed,1,human_verified,Yves Archambault,HIGH
 2013_worlds_montreal,open_doubles_net,31,,Jack Lentz,Pierre-Jacques Daigle,MISSING_PARTNER,User confirmed,1,human_verified,,HIGH
 2013_worlds_montreal,open_mixed_doubles_net,7,,Dominic O'Brien,Marie-Lou Roy,MISSING_PARTNER,User confirmed,1,human_verified,,HIGH
-2012_worlds_warsaw,open_doubles_routines,6,,Julian Sinnl / [UNKNOWN PARTNER],__REMOVE__,__REMOVE__,PHANTOM_ROW,Mirror source has only 5 placements — P6 does not exist,1,source_verified,,HIGH
-2012_worlds_warsaw,open_doubles_routines,7,,Theodore Fritsch / [UNKNOWN PARTNER],__REMOVE__,__REMOVE__,PHANTOM_ROW,Mirror source has only 5 placements — P7 does not exist,1,source_verified,,HIGH
+2012_worlds_warsaw,open_doubles_routines,6,Julian Sinnl / [UNKNOWN PARTNER],__REMOVE__,__REMOVE__,PHANTOM_ROW,Mirror source has only 5 placements — P6 does not exist,1,source_verified,,HIGH
+2012_worlds_warsaw,open_doubles_routines,7,Theodore Fritsch / [UNKNOWN PARTNER],__REMOVE__,__REMOVE__,PHANTOM_ROW,Mirror source has only 5 placements — P7 does not exist,1,source_verified,,HIGH
 2008_worlds_prague,masters_doubles_net,5,,Steve Goldberg,Michael Stefanelli,MISSING_PARTNER,Mirror source: (scratched) Michael Stefanelli / Steve Goldberg,1,source_verified,,HIGH
 2006_worlds_frankfurt,open_doubles_net,3,,Yves Archambault,Jean-Francois Lemieux,MISSING_PARTNER,Yves Archambault confirmed,1,human_verified,Yves Archambault,HIGH
 2003_worlds_prague,intermediate_doubles_net,9,,Zahrer,Waldispuhl,MISSING_PARTNER,Mirror source: 9th ties — last names only,1,source_verified,,MEDIUM
@@ -114,3 +114,81 @@ event_key,discipline_key,placement,original_display,corrected_player_a,corrected
 1998_vancouver,womens_doubles_net,3,,Vera DeBaere,Ann Lasken,MISSING_PARTNER,Mirror source: Vera DeBaere (BC) Ann Lasken (DC),1,source_verified,,HIGH
 2013_footbagjam_burgas,open_doubles_net,3,,Benjamin Kanske,Stoyan Tsonev,MISSING_PARTNER,Mirror manual results: Benjamin Kanske/Stoyan Tsonev — structured HTML had PHP errors hiding partner,1,source_verified,,HIGH
 2013_footbagjam_burgas,open_doubles_net,4,,Dinko Dimitrov,Ivailo Yordanov,MISSING_PARTNER,Mirror manual results: Dinko Dimitrov/Ivailo Yordanov — structured HTML had PHP errors hiding partner,1,source_verified,,HIGH
+2025_footbagjam_lausanne,open_doubles_net,6,,Renatto Zülli,Jean-Marie Letort,MISSING_PARTNER,Mirror source: Renato Zülli / Jean-Marie Letort,1,source_verified,,HIGH
+2025_worlds_nantes,master_doubles_net,4,,David Rambaud,Jean-Marie Letort,MISSING_PARTNER,Mirror source: David Rambaud / Jean-Marie Letort,1,source_verified,,HIGH
+2025_worlds_nantes,open_doubles_net,25,,Marcin Czech,Jean-Marie Letort,MISSING_PARTNER,Mirror source: Marcin Czech / Jean-Marie Letort,1,source_verified,,HIGH
+2005_worlds_helsinki,intermediate_doubles_net,3,,Hakan Hellberg,Magnus Hellberg,MISSING_PARTNER,Mirror source: Hellberg / Hellberg — resolved to Hakan + Magnus from PT,1,source_verified,,HIGH
+2009_french,open_doubles_net,1,,Greg Lima,David Chabannes,MISSING_PARTNER,Mirror source: Greg Lima / David Chabannes,1,source_verified,,HIGH
+2009_french,open_doubles_net,2,,Grischa Tellenbach,Vincent Rousseau,MISSING_PARTNER,Mirror source: Grischa Tellenbach / Vincent Rousseau,1,source_verified,,HIGH
+2009_french,open_doubles_net,3,,Mouss Kabbal,Sebastien Maillet,MISSING_PARTNER,Mirror source: Mouss Kabbal / Sebastien Maillet,1,source_verified,,HIGH
+2009_french,open_doubles_net,4,,Lino Landau,Marc Brunet,MISSING_PARTNER,Mirror source: Lino Landau / Marc Brunet,1,source_verified,,HIGH
+2009_french,open_doubles_net,6,,Fabien Riffaud,Guillaume Degat,MISSING_PARTNER,Mirror source: Fabien Riffaud / Guillaume Degat,1,source_verified,,HIGH
+2009_french,open_doubles_net,7,,Emilien Groussin,Clement Gobe,MISSING_PARTNER,Mirror source: Emilien Groussin / Clement Gobe,1,source_verified,,HIGH
+2009_french,open_doubles_net,8,,Ludovic Lacaze,Jules Meneboo,MISSING_PARTNER,Mirror source: Ludovic Lacaze / Jules Meneboo,1,source_verified,,HIGH
+2009_french,open_doubles_net,10,,Thomas Sustrac,Augustin Tiffou,MISSING_PARTNER,Mirror source: Thomas Sustrac / Augustin Tiffou,1,source_verified,,HIGH
+2009_french,open_doubles_net,11,,Sven Depoilly,Emmanuelle Bouvier,MISSING_PARTNER,Mirror source: Sven Depoilly / Emmanuelle Bouvier,1,source_verified,,HIGH
+2009_french,open_doubles_net,12,,Lisa Amengual,Johanna Nigisch,MISSING_PARTNER,Mirror source: Lisa Amengual / Johanna Nigisch — canonical has typo Lisa Amenguale,1,source_verified,,HIGH
+2009_french,open_doubles_net,13,,David Rambaud,Maël Nantes,MISSING_PARTNER,Mirror source: David Rambaud / Maël Nantes,1,source_verified,,HIGH
+2009_french,open_doubles_net,14,,Boris Belouin,Romain Vaschy,MISSING_PARTNER,Mirror source: Boris Belouin / Romain Vaschy — canonical wrongly has Boris Ollivier (identity error),1,source_verified,,HIGH
+1997_montreal,intermediate_doubles_net,3,Éric Côté,Éric Côté,Pierre-Jacques Daigle,MISSING_PARTNER,Auto-resolved from mirror (slash): INTERMEDIATE DOUBLES NET:,1,auto_mirror,,HIGH
+1998_winter_windchill_warm,intermediate_doubles_net,1,Dominique Soulard,Dominique Soulard,Alexandre Gravel,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Intermediate doubles net,1,auto_mirror,,HIGH
+1998_winter_windchill_warm,intermediate_doubles_net,3,Sean Doiron,Sean Doiron,Ben West,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Intermediate doubles net,1,auto_mirror,,HIGH
+1998_winter_windchill_warm,open_doubles_net,1,Yves Archambault,Yves Archambault,Andrew Morgan,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Open doubles net,1,auto_mirror,,HIGH
+1998_winter_windchill_warm,open_doubles_net,2,Mario Vaillancourt,Mario Vaillancourt,Steve Smith,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Open doubles net,1,auto_mirror,,HIGH
+1998_winter_windchill_warm,open_doubles_net,3,Martin Côté Martin Graton,Martin Côté Martin Graton,Martin Graton,MISSING_PARTNER,Auto-resolved from mirror (whitespace): Open doubles net,1,auto_mirror,,HIGH
+2000_first_arica,doubles_net,1,John Leys,John Leys,Fabian,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net,1,auto_mirror,,HIGH
+2000_first_arica,doubles_net,3,Lito Marley,Lito Marley,Pelao,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net,1,auto_mirror,,HIGH
+2001_turku_finland,doubles_net,3,Janne Uusitalo,Janne Uusitalo,Juha-Matti Rytilahti,MISSING_PARTNER,Auto-resolved from mirror (slash): DOUBLES NET,1,auto_mirror,,HIGH
+2001_westregion,intermediate_doubles_net,3,Darlene House,Darlene House,Teresa Rodgerson,MISSING_PARTNER,Auto-resolved from mirror + event-local context: Teresa = Teresa ("Tree") Rodgerson,1,source_verified,,HIGH
+2001_westregion,open_mixed_doubles_net,8,Sage Woodmansee,Sage Woodmansee,Teresa Rodgerson,MISSING_PARTNER,Auto-resolved from mirror + event-local context: Teresa = Teresa ("Tree") Rodgerson,1,source_verified,,HIGH
+2001_westregion,womens_doubles_net,4,Darlene House,Darlene House,Teresa Rodgerson,MISSING_PARTNER,Auto-resolved from mirror + event-local context: Teresa = Teresa ("Tree") Rodgerson,1,source_verified,,HIGH
+2002_footbagjam_frankfurt,doubles_net_open,6,Faris Barakat,Faris Barakat,Aleksander,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net Open,1,auto_mirror,,HIGH
+2002_footbagjam_frankfurt,doubles_net_open,8,"Thorsten, Ole","Thorsten, Ole",-14. Sandro,MISSING_PARTNER,DEACTIVATED — bad parse from mirror formatting,0,auto_mirror,,HIGH
+2003_rnh_contest,open_doubles_net,4,Arthur Ledain,Arthur Ledain,David,MISSING_PARTNER,Auto-resolved from mirror (location): Open Doubles Net,1,auto_mirror,,HIGH
+2004_finnish_helsinki,open_doubles_net,6,Jani Lirkki,Jani Lirkki,Juha-Matti Rytilahti,MISSING_PARTNER,Auto-resolved from mirror (slash): Open doubles net,1,auto_mirror,,HIGH
+2006_eastregion,open_doubles_net,3,Phil Lessard,Phil Lessard,Francois,MISSING_PARTNER,Auto-resolved from mirror (slash): open doubles net:,1,auto_mirror,,HIGH
+2006_green_chaos,open_doubles_the_green_cup,9,Tuan Vu,Tuan Vu,Jean-Francois Lemieux,MISSING_PARTNER,Auto-resolved from mirror (slash+fuzzy_section): (bronze: 2 - 0 PT/John),1,auto_mirror,,HIGH
+2006_southeast,net_doubles,3,Emily Johns,Emily Johns,elliott,MISSING_PARTNER,Auto-resolved from mirror (slash): net doubles,1,auto_mirror,,HIGH
+2009_german,interm_double_net,1,Tim Heun,Tim Heun,Matze,MISSING_PARTNER,Auto-resolved from mirror (slash): Interm. Double Net,1,auto_mirror,,HIGH
+2009_german,interm_double_net,3,Ingo Hartmann,Ingo Hartmann,Jannes,MISSING_PARTNER,Auto-resolved from mirror (slash): Interm. Double Net,1,auto_mirror,,HIGH
+2010_de_france_de,open_doubles_net,2,Florian Goetze,Florian Goetze,Jean-Francois Lemieux,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2011_akisphere,open_doubles_net,11,Sébastien Lessard,Sébastien Lessard,Marilou Roy,MISSING_PARTNER,Auto-resolved from mirror (slash): Open doubles net,1,auto_mirror,,HIGH
+2011_bembel_gimbledon,doubles_net,2,Greg Lima,Greg Lima,Jean-Francois Lemieux,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net Results,1,auto_mirror,,HIGH
+2012_bembel,open_doubles_net,6,Luka Weyler,Luka Weyler,Carl-Antoine Boulay,MISSING_PARTNER,Auto-resolved from mirror (slash+fuzzy_section): Results:,1,auto_mirror,,HIGH
+2012_eurochamp_dusseldorf,open_doubles_net,3,Arthur Ledain,Arthur Ledain,JF Lemieux,MISSING_PARTNER,Auto-resolved from mirror (tab+fuzzy_section): NAME 1		NAME 2		initial seed,1,auto_mirror,,HIGH
+2013_akisphere,open_doubles_net,5,Yves Archambault,Yves Archambault,Carl-antoine Boulay,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2013_akisphere,open_doubles_net,14,Thibault Rehn,Thibault Rehn,Marie-lou Roy,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2013_akisphere,open_mixed_doubles_net,5,Dominic O'Brien,Dominic O'Brien,Marie-lou Roy,MISSING_PARTNER,Auto-resolved from mirror (slash): Mixed Doubles Net,1,auto_mirror,,HIGH
+2013_de_france_de,open_doubles_net,1,Francois Pelletier,Francois Pelletier,Jean-Francois Lemieux,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net:,1,auto_mirror,,HIGH
+2013_kick_volley_04,open_doubles_net,3,Yves Archambault,Yves Archambault,Maude Landreville,MISSING_PARTNER,Auto-resolved from mirror (slash+fuzzy_section): Les r�sultats du double mixte,1,auto_mirror,,HIGH
+2013_kick_volley_04,open_mixed_doubles_net,4,Christian Bock,Christian Bock,Marie-Lou Roy,MISSING_PARTNER,Auto-resolved from mirror (slash+fuzzy_section): Les r�sultats du double mixte,1,auto_mirror,,HIGH
+2013_worlds_montreal,intermediate_doubles_net,4,Jesse Ross,Jesse Ross,Marie-Lou Roy,MISSING_PARTNER,Auto-resolved from mirror (location): Intermediate Doubles Net,1,auto_mirror,,HIGH
+2014_akisphere,open_doubles_net,4,Luka Weyler,Luka Weyler,Carl-Antoine Boulay,MISSING_PARTNER,Auto-resolved from mirror (slash+fuzzy_section): Double open,1,auto_mirror,,HIGH
+2014_anniversary_rnh_rnh,open_doubles_net,3,Eurik Lindner,Eurik Lindner,Jean-Francois Lemieux,MISSING_PARTNER,Auto-resolved from mirror (slash): Results Open Doubles Net,1,auto_mirror,,HIGH
+2014_footbagjam_lausanne,open_doubles_net,3,Andreas Wolff,Andreas Wolff,Jean-Francois Lemieux,MISSING_PARTNER,Auto-resolved from mirror + context: Lemieux = JF Lemieux (same circuit),1,source_verified,,HIGH
+2017_championnat_de_france,open_doubles_net,2,David Ramaud,David Ramaud,Jean-Francois Lemieux,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2017_championnat_de_france,open_doubles_net,5,Emmanuelle Vincendeau,Emmanuelle Vincendeau,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2017_championnat_de_france,open_doubles_net,9,Xavier Lancret,Xavier Lancret,Jean-Gabriel Davis,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2018_championnat_de_france,doubles_net,5,Xavier Lancret,Xavier Lancret,Jean-Marie LETORT,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles net,1,auto_mirror,,HIGH
+2018_de_france,open_doubles_net,4,Xavier Lancret,Xavier Lancret,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2018_rnh_contest,doubles_net,11,Xavier Lancret,Xavier Lancret,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net,1,auto_mirror,,HIGH
+2018_rnh_contest,doubles_net,13,Clovis Jaunet,Clovis Jaunet,scratch,MISSING_PARTNER,DEACTIVATED — scratch means withdrawal not a person name,0,auto_mirror,,HIGH
+2019_akisphere,mixed_doubles,3,Yves Archambault,Yves Archambault,Marie-Lou Roy,MISSING_PARTNER,Auto-resolved from mirror (slash): Mixed Doubles,1,auto_mirror,,HIGH
+2019_akisphere,open_doubles,10,Nazly Safarzadeh,Nazly Safarzadeh,Marie-Lou Roy,MISSING_PARTNER,Auto-resolved from mirror (slash): Open doubles,1,auto_mirror,,HIGH
+2019_de_france,open_doubles_net,5,Xavier Lancret,Xavier Lancret,Jean-Marie LETORT,MISSING_PARTNER,Auto-resolved from mirror (slash): OPEN DOUBLES NET,1,auto_mirror,,HIGH
+2019_rnh_contest,open_doubles_net,6,Xavier Lancret,Xavier Lancret,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2019_usopen_boston,intermediate_doubles_net,1,Jack Lentz,Jack Lentz,Marc-Andre,MISSING_PARTNER,Auto-resolved from mirror (slash): Intermediate Doubles Net,1,auto_mirror,,HIGH
+2021_basque_bilbao_2,open_doubles_net,2,Tomas Beriashvilli,Tomas Beriashvilli,Juanjo,MISSING_PARTNER,Auto-resolved from mirror (location+fuzzy_section): Classification,1,auto_mirror,,HIGH
+2022_basque_bilbao_3,open_doubles_net,3,Iker Ortega,Iker Ortega,Cristian,MISSING_PARTNER,Auto-resolved from mirror (location+fuzzy_section): Classification,1,auto_mirror,,HIGH
+2022_de_france_de,open_doubles_net,5,David Rambaud,David Rambaud,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2022_footbagjam,open_doubles_net,10,Benjamin De Bastos,Benjamin De Bastos,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror — fixed typo Jean-Maris→Jean-Marie,1,source_verified,,HIGH
+2023_footbagjam_stara_zagora,open_doubles_net,5,Hristo Georgiev,Hristo Georgiev,Stefan,MISSING_PARTNER,Auto-resolved from mirror (slash): open doubles net,1,auto_mirror,,HIGH
+2024_de_france_de,open_doubles_net,6,Antony Arnaud,Antony Arnaud,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2024_footbagjam_lausanne,open_doubles_net,5,Loic Bigey,Loic Bigey,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2024_footbagjam_lausanne,random_doubles_net,1,Pawel Rozek,Pawel Rozek,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Random Doubles Net,1,auto_mirror,,HIGH
+2024_rnh_contest,open_doubles_net,3,Sébastien Maillet,Sébastien Maillet,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles Net,1,auto_mirror,,HIGH
+2025_akisphere,double_open_open_doubles,4,Dominic Soulard,Dominic Soulard,Jérôme 50,MISSING_PARTNER,DEACTIVATED — partner name has score/number appended (bad parse),0,auto_mirror,,HIGH
+2025_eurochamp_frankfurt,open_doubles_net,15,Audrey Tumelin,Audrey Tumelin,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Open Doubles:,1,auto_mirror,,HIGH
+2025_footbagjam_lausanne,americano_doubles_net,10,Tim Heun,Tim Heun,Boris Belouin,MISSING_PARTNER,Auto-resolved from mirror (slash+fuzzy_section): Open Doubles Net,1,auto_mirror,,HIGH
+2025_polish_jaworzno,open_double_net,5,Maciej Niczyporuk,Maciej Niczyporuk,Przemyslaw Pietrzycki,MISSING_PARTNER,Auto-resolved from mirror + event-local context: Przemyslaw = Przemyslaw Pietrzycki,1,source_verified,,HIGH
+2025_rnh_contest,doubles_net,5,Khyle Clarence Martin,Khyle Clarence Martin,Jean-Marie Letort,MISSING_PARTNER,Auto-resolved from mirror (slash): Doubles Net,1,auto_mirror,,HIGH

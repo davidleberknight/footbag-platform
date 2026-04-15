@@ -153,7 +153,7 @@ run_v0_backbone() {
     python pipeline/01c_merge_stage1.py
     python pipeline/02_canonicalize_results.py
     python pipeline/02p5_player_token_cleanup.py \
-        --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final_v52.csv \
+        --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final_v53.csv \
         --identity_lock_placements_csv inputs/identity_lock/Placements_ByPerson_v97.csv
     python pipeline/02p6_structural_cleanup.py
     echo ""

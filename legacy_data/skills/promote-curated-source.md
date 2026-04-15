@@ -40,9 +40,9 @@ Do NOT invoke this skill for:
 # Step 5: If replacing a legacy stub, remove it from stage1_raw_events_magazine.csv
 # and from overrides/results_file_overrides.csv
 
-# Step 6: Run the complete pipeline (fails fast on QC hard failures)
+# Step 6: Run the full pipeline (fails fast on QC hard failures)
 cd ~/projects/footbag-platform/legacy_data
-./run_pipeline.sh complete
+./run_pipeline.sh full
 
 # Step 7: Confirm new event appears in canonical
 grep "<event_key>" out/canonical/events.csv

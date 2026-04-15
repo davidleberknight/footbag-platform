@@ -57,12 +57,107 @@ mirror.
 
 ## Pipeline Modes
 
+<<<<<<< HEAD
 See `run_pipeline.sh` for the authoritative mode list, stages, and script
 invocations. See `README.md` for a human-oriented summary of when to use each
 mode.
 
 **Rule:** the pipeline enforces stage ordering and fails fast on QC hard
 failures. Do not run post-QC stages manually when QC is failing.
+=======
+Five modes — run from `legacy_data/` with the venv active:
+
+```bash
+./run_pipeline.sh full              # V0 backbone → net enrichment → phases C–G (soup to nuts)
+./run_pipeline.sh canonical_only    # V0 backbone only (mirror access required)
+./run_pipeline.sh enrichment_only   # enrichment phases C–G only (requires canonical outputs)
+./run_pipeline.sh csv_only          # DB load from existing CSVs → enrichment C–G (no mirror needed)
+./run_pipeline.sh net_enrichment    # net enrichment layer only — scripts 12→13→14
+```
+
+The venv is detected automatically (`VENV_DIR` env var → `.venv` → `footbag_venv` → `venv`).
+
+### canonical_only
+
+Runs the V0 backbone (7 stages) in order and **fails fast on QC hard failures**
+(stages 5–7 never run if QC returns a hard failure). Use this after changing any
+source data, override, or curated CSV.
+
+| # | Stage | Key script |
+|---|-------|------------|
+| 1 | Rebuild | mirror + curated → stage2 |
+| 2 | Release | export canonical CSVs + platform export + remediation (05p5) |
+| 3 | Supplement | `02p5b_supplement_class_b.py` (Placements_Flat workbook completeness) |
+| 4 | QC gate | `pipeline/qc/run_qc.py` — **exit 1 on any hard failure** |
+| 4b | QC viewer | `event_comparison_viewerV13.py` → `out/event_comparison_viewer_v13.html` |
+| 5 | Workbook | `pipeline/build_workbook_release.py` → `out/Footbag_Results_Release.xlsx` |
+| 6 | Seed | `event_results/scripts/07_build_mvfp_seed_full.py` → `event_results/seed/mvfp_full/` |
+| 7 | DB load | `08_load` + `10_load_freestyle_records` + `11_load_consecutive_records` → `database/footbag.db` |
+
+### enrichment_only
+
+Runs a preflight check (exits if canonical outputs are missing), then:
+
+| Phase | What it does |
+|-------|-------------|
+| C | Membership enrichment → `membership/out/` |
+| D | Club inference pipeline → `clubs/out/` |
+| E | Provisional persons → `persons/provisional/out/` |
+| F | Persons master → `persons/out/persons_master.csv` |
+
+### full
+
+Runs `canonical_only` then `enrichment_only` in sequence.
+
+**Do NOT run stages 5–7 manually when QC is failing.** The pipeline enforces ordering
+automatically. Script 08 needs the repo root for `database/footbag.db` — always run
+from `legacy_data/`.
+
+---
+
+## Individual Stage Reference
+
+Use these when you need to re-run a single stage by hand:
+
+```bash
+# From legacy_data/:
+python pipeline/adapters/mirror_results_adapter.py --mirror mirror_footbag_org
+python pipeline/adapters/curated_events_adapter.py
+python pipeline/01c_merge_stage1.py
+python pipeline/02_canonicalize_results.py
+python pipeline/02p5_player_token_cleanup.py \
+    --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final_v53.csv \
+    --identity_lock_placements_csv inputs/identity_lock/Placements_ByPerson_v97.csv
+python pipeline/02p6_structural_cleanup.py
+python pipeline/historical/export_historical_csvs.py
+python pipeline/05p5_remediate_canonical.py
+python pipeline/platform/export_canonical_platform.py
+python pipeline/qc/run_qc.py    # must return QC STATUS: PASS before commit
+```
+
+Full stage sequence:
+
+```
+Stage 01   pipeline/adapters/mirror_results_adapter.py     mirror HTML → stage1_raw_events_mirror.csv
+Stage 01c  pipeline/adapters/curated_events_adapter.py     curated CSVs → stage1_raw_events_curated.csv
+Stage 02   pipeline/02_canonicalize_results.py             raw events → stage2_canonical_events.csv
+Stage 02p5 pipeline/02p5_player_token_cleanup.py           apply identity lock (PT v53 / PBP v97)
+Stage 02p6 pipeline/02p6_structural_cleanup.py             artifact removal + structural fixes
+Stage 05   pipeline/historical/export_historical_csvs.py   export out/canonical/*.csv  ← AUTHORITATIVE
+Stage 05p5 pipeline/05p5_remediate_canonical.py            final integrity + event merge pass
+Stage 05p5b pipeline/02p5b_supplement_class_b.py           Class B injection into Placements_Flat
+              (runs AFTER release — needs canonical_input/ to be populated first)
+QC         pipeline/qc/run_qc.py                           validate — must return QC STATUS: PASS
+```
+
+NOTE: `03_build_excel.py` and `04_build_analytics.py` are **deprecated** and no longer
+run as part of the rebuild stage. They produced a summary-column format that is not the
+workbook deliverable. See the Workbook Builds section below.
+
+The early pipeline (`./run_early_pipeline.sh`) produces the merged `out/canonical_all/`
+dataset combining post-1997 and pre-1997. It is separate from the main production path
+and is used for the platform export.
+>>>>>>> 7d430af ( feat: auto-resolve anomalies, viewer modernization, pipeline doc sync)
 
 ---
 
@@ -175,6 +270,13 @@ python event_results/scripts/07_build_mvfp_seed_full.py
 python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
   --db ~/projects/footbag-platform/database/footbag.db \
   --seed-dir event_results/seed/mvfp_full
+
+# Records loaders (also part of stage 7):
+python event_results/scripts/10_load_freestyle_records_to_sqlite.py \
+  --db ~/projects/footbag-platform/database/footbag.db \
+  --records-csv inputs/curated/records/records_master.csv
+python event_results/scripts/11_load_consecutive_records_to_sqlite.py \
+  --db ~/projects/footbag-platform/database/footbag.db
 ```
 
 The platform path is separate from the workbook path — but person and event filtering

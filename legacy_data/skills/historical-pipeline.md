@@ -5,15 +5,15 @@ Invoke this skill when:
 - Rebuilding canonical outputs after a parser fix, override change, or curated CSV addition
 - Validating that a change to pipeline code, overrides, or identity lock did not break QC
 - Preparing a release-ready canonical dataset
-- Running the full soup-to-nuts pipeline (use `./run_pipeline.sh complete`)
+- Running the full soup-to-nuts pipeline (use `./run_pipeline.sh full`)
 
 Do NOT invoke this skill for:
 - Adding a new pre-1997 source (use `promote-curated-source` instead)
 - Identity lock version upgrades (those have their own patch toolchain)
 - Workbook generation alone — use the `workbook-v22` skill; but note that
-  `./run_pipeline.sh complete` builds the workbook as part of the full pipeline
+  `./run_pipeline.sh full` builds the workbook as part of the full pipeline
 - Platform/DB export alone — scripts 07 and 08 run automatically inside
-  `./run_pipeline.sh complete`; see CLAUDE.md "Platform / DB Export" for manual invocation
+  `./run_pipeline.sh full`; see CLAUDE.md "Platform / DB Export" for manual invocation
 
 ---
 
@@ -37,7 +37,7 @@ wc -l out/canonical/*.csv
 
 # Complete pipeline: rebuild → release → supplement → QC → workbook → seed → DB
 # Fails fast on QC hard failures (stages 5–7 never run if QC fails)
-./run_pipeline.sh complete
+./run_pipeline.sh full
 
 # Diff canonical outputs to confirm expected delta
 wc -l out/canonical/*.csv

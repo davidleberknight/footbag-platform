@@ -607,19 +607,24 @@ def load_pf():
 
 def load_slug_to_numeric():
     """
-    Returns {event_key_slug: legacy_event_id} from canonical/events.csv.
-    Used to join canonical_discipline_fixes.csv (slug keys) with stage2 (numeric IDs).
+    Returns ({event_key_slug: legacy_event_id}, {legacy_event_id: event_key_slug},
+             {legacy_event_id: canonical_event_name}) from canonical/events.csv.
     """
-    mapping: dict[str, str] = {}
+    slug_to_num: dict[str, str] = {}
+    num_to_slug: dict[str, str] = {}
+    num_to_name: dict[str, str] = {}
     if not CANON_EVENTS.exists():
-        return mapping
+        return slug_to_num, num_to_slug, num_to_name
     with open(CANON_EVENTS, newline='', encoding='utf-8') as f:
         for r in csv.DictReader(f):
             slug    = r.get('event_key', '').strip()
             numeric = r.get('legacy_event_id', '').strip()
+            cname   = r.get('event_name', '').strip()
             if slug and numeric:
-                mapping[slug] = numeric
-    return mapping
+                slug_to_num[slug] = numeric
+                num_to_slug[numeric] = slug
+                num_to_name[numeric] = cname
+    return slug_to_num, num_to_slug, num_to_name
 
 
 def load_fixes(slug_to_numeric: dict):
@@ -659,9 +664,11 @@ def _qc_status(qc: dict) -> str:
     return 'green'
 
 
-def build_events(quarantine, pf, fixes):
+def build_events(quarantine, pf, fixes, numeric_to_slug=None, numeric_to_name=None):
     events = []
     seen_ids = set()
+    numeric_to_slug = numeric_to_slug or {}
+    numeric_to_name = numeric_to_name or {}
 
     if not STAGE2_CSV.exists():
         print(f"ERROR: {STAGE2_CSV} not found.")
@@ -672,6 +679,8 @@ def build_events(quarantine, pf, fixes):
             event_id = r['event_id']           # numeric legacy ID
             year     = r.get('year', '')
             name     = r.get('event_name', '')
+            event_key = numeric_to_slug.get(event_id, '')
+            canon_name = numeric_to_name.get(event_id, '')
 
             raw_text        = r.get('results_raw', '')
             pf_rows         = pf.get(event_id, [])
@@ -681,8 +690,9 @@ def build_events(quarantine, pf, fixes):
 
             events.append({
                 'id':    event_id,
+                'ek':    event_key,
                 'year':  year,
-                'name':  name,
+                'name':  canon_name or name,
                 'q':     quarantine.get(event_id, ''),
                 'rows':  aligned,
                 'qc':    qc_sum,
@@ -705,6 +715,7 @@ def build_events(quarantine, pf, fixes):
                 event_fixes = fixes.get(key, []) or fixes.get(slug, [])
                 events.append({
                     'id':    slug or numeric,
+                    'ek':    slug,
                     'year':  r.get('year', ''),
                     'name':  r.get('event_name', ''),
                     'q':     '',
@@ -998,6 +1009,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
           <span class="qc-dot ${dotCls}"></span>
           <span class="ev-name">
             <span class="ev-year">${esc(ev.year)}</span>${esc(ev.name)}
+            ${ev.ek ? `<br><span style="font-size:10px;opacity:0.6">${esc(ev.ek)}</span>` : ''}
             ${ev.q ? `<br><span class="ev-q-flag">⚑ quarantined</span>` : ''}
             ${hasFixes ? `<br><span class="ev-fix-flag">⚙ discipline fix</span>` : ''}
           </span>
@@ -1068,7 +1080,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
       const q  = document.getElementById('search').value.toLowerCase();
       const qs = document.getElementById('qc-filter').value;
       filtered = EVENTS.filter(e => {
-        if (q  && !(e.year+' '+e.name+' '+e.id).toLowerCase().includes(q)) return false;
+        if (q  && !(e.year+' '+e.name+' '+(e.ek||'')+' '+e.id).toLowerCase().includes(q)) return false;
         if (qs === 'has_fixes') {
           if (!e.fixes || e.fixes.length === 0) return false;
         } else if (qs) {
@@ -1098,7 +1110,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
       document.getElementById('cmp-title').textContent =
         ev.year + ' ' + ev.name + (ev.q ? '  ⚑ QUARANTINED: ' + ev.q : '');
-      document.getElementById('cmp-eventkey').textContent = ev.id;
+      document.getElementById('cmp-eventkey').textContent =
+        (ev.ek || ev.id) + (ev.ek && ev.id !== ev.ek ? '  (legacy: ' + ev.id + ')' : '');
 
       const grid = document.getElementById('cmp-grid');
       const rows = ev.rows || [];
@@ -1142,7 +1155,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
 def main():
     print("Loading slug→numeric mapping…")
-    slug_to_numeric = load_slug_to_numeric()
+    slug_to_numeric, numeric_to_slug, numeric_to_name = load_slug_to_numeric()
     print(f"  {len(slug_to_numeric)} events in canonical/events.csv")
 
     print("Loading discipline fixes…")
@@ -1156,7 +1169,7 @@ def main():
     pf = load_pf()
 
     print("Building aligned rows…")
-    events = build_events(quarantine, pf, fixes)
+    events = build_events(quarantine, pf, fixes, numeric_to_slug, numeric_to_name)
 
     total_exact     = sum(e['qc'].get('exact',             0) for e in events)
     total_norm      = sum(e['qc'].get('norm',              0) for e in events)
