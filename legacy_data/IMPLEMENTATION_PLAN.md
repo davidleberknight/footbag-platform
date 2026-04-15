@@ -6,30 +6,7 @@ The root `IMPLEMENTATION_PLAN.md` governs the broader platform sprint.
 
 ---
 
-## Current status (as of 2026-04-10)
-
-**soup2nuts PR merged.** Post-merge cleanup and canonical data bug fix complete.
-
-### Completed since PR merge (2026-04-10)
-
-- `run_pipeline.sh` v2: three modes (`canonical_only`, `enrichment_only`, `full`); brother's venv-detection loop merged in
-- `run_pipeline.sh_V0` removed from git; `run_pipeline_reference.sh` kept untracked for reference
-- `persons/out/` and `persons/provisional/out/` added to `.gitignore` (matching `clubs/out/`, `membership/out/`)
-- **Fix 9 in `05p5_remediate_canonical.py`**: disambiguates bare division labels (e.g. "Open Singles" → "Open Singles Net") in multi-category events; 242 labels upgraded, QC PASS, platform DB updated
-- `README.md` and `CLAUDE.md` updated: three pipeline modes documented
-- **Phase G** (`event_results/scripts/09_load_enrichment_to_sqlite.py`): loads enrichment pipeline outputs into footbag.db — 2,121 PROVISIONAL persons, 311 club candidates, 2,399 affiliations; wired into `run_pipeline.sh` as `run_phase_g()` (runs at end of `enrichment_only` and `full` modes)
-
-### What the PR delivered
-
-- Full pipeline code merged into `legacy_data/` (Python scripts, QC, overrides, inputs, skills)
-- Curated event CSVs (1980–1997) committed as authoritative source inputs
-- Identity lock snapshots: `Persons_Truth_Final_v52`, `Placements_ByPerson_v97`
-- `legacy_data/CLAUDE.md` and pipeline skills
-- Generated outputs (`canonical_input/`, `seed/mvfp_full/`) removed from git tracking (gitignored)
-- `db.ts` history listing filter simplified to `WHERE source_scope = 'CANONICAL'`
-- Test factory fix: `insertHistoricalPerson` now defaults `source_scope = 'CANONICAL'`
-
-### What is NOT yet done (sprint goals outstanding)
+## Outstanding sprint goals
 
 Per root `IMPLEMENTATION_PLAN.md §James's sprint`:
 

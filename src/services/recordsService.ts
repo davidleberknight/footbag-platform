@@ -25,7 +25,7 @@ export interface ConsecutiveGroup {
   rows:       ConsecutiveRecordViewModel[];
 }
 
-export interface ConsecutiveRecordsContent {
+export interface RecordsContent {
   worldRecords:      ConsecutiveRecordViewModel[];
   highestScores:     ConsecutiveGroup[];
   progression:       ConsecutiveGroup[];
@@ -34,10 +34,10 @@ export interface ConsecutiveRecordsContent {
   totalPassback:     number;
 }
 
-interface ConsecutiveRecordsViewModel {
+interface RecordsViewModel {
   seo:     { title: string };
   page:    { sectionKey: string; pageKey: string; title: string; intro: string };
-  content: ConsecutiveRecordsContent;
+  content: RecordsContent;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,8 +84,8 @@ function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
 // Service
 // ---------------------------------------------------------------------------
 
-export const consecutiveService = {
-  getRecordsPage(): ConsecutiveRecordsViewModel {
+export const recordsService = {
+  getRecordsPage(): RecordsViewModel {
     const worldRows       = consecutiveKicksRecords.listWorldRecords.all()   as ConsecutiveKicksRow[];
     const highScoreRows   = consecutiveKicksRecords.listHighestScores.all()  as ConsecutiveKicksRow[];
     const progressionRows = consecutiveKicksRecords.listProgression.all()    as ConsecutiveKicksRow[];
@@ -101,7 +101,7 @@ export const consecutiveService = {
         sectionKey: 'records',
         pageKey:    'records',
         title:      'Records',
-        intro:      'Official consecutive kicks records and freestyle passback records.',
+        intro:      'Official consecutive and freestyle records.',
       },
       content: {
         worldRecords:    worldRows.map(shapeRow),

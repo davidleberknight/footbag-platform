@@ -49,104 +49,20 @@ mirror.
    authoritative intake format for all pre-1997 data. Raw TXT/magazine stubs are legacy
    and must be promoted to structured CSVs before being treated as authoritative.
 
-4. **Identity lock** (`inputs/identity_lock/Persons_Truth_Final_v53.csv`,
-   `Placements_ByPerson_v97.csv`) is frozen. Do not modify identity lock files directly.
+4. **Identity lock** files in `inputs/identity_lock/` (`Persons_Truth_Final_*.csv`,
+   `Placements_ByPerson_*.csv`) are frozen. Do not modify identity lock files directly.
    New persons or merges require a new lock version via the patch toolchain.
-   PT v53 added 690 persons for previously-unresolved canonical participants.
 
 ---
 
 ## Pipeline Modes
 
-Three modes — run from `legacy_data/` with the venv active:
+See `run_pipeline.sh` for the authoritative mode list, stages, and script
+invocations. See `README.md` for a human-oriented summary of when to use each
+mode.
 
-```bash
-./run_pipeline.sh canonical_only  # canonical pipeline only (V0 backbone)
-./run_pipeline.sh enrichment_only # enrichment phases C–F only
-./run_pipeline.sh full            # both in sequence (soup to nuts)
-```
-
-The venv is detected automatically (`VENV_DIR` env var → `.venv` → `footbag_venv` → `venv`).
-
-### canonical_only
-
-Runs the V0 backbone (7 stages) in order and **fails fast on QC hard failures**
-(stages 5–7 never run if QC returns a hard failure). Use this after changing any
-source data, override, or curated CSV.
-
-| # | Stage | Key script |
-|---|-------|------------|
-| 1 | Rebuild | mirror + curated → stage2 |
-| 2 | Release | export canonical CSVs + platform export |
-| 3 | Supplement | `02p5b_supplement_class_b.py` (Placements_Flat workbook completeness) |
-| 4 | QC gate | `pipeline/qc/run_qc.py` — **exit 1 on any hard failure** |
-| 5 | Workbook | `pipeline/build_workbook_release.py` → `out/Footbag_Results_Release.xlsx` |
-| 6 | Seed | `event_results/scripts/07_build_mvfp_seed_full.py` → `event_results/seed/mvfp_full/` |
-| 7 | DB load | `event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` → `database/footbag.db` |
-
-### enrichment_only
-
-Runs a preflight check (exits if canonical outputs are missing), then:
-
-| Phase | What it does |
-|-------|-------------|
-| C | Membership enrichment → `membership/out/` |
-| D | Club inference pipeline → `clubs/out/` |
-| E | Provisional persons → `persons/provisional/out/` |
-| F | Persons master → `persons/out/persons_master.csv` |
-
-### full
-
-Runs `canonical_only` then `enrichment_only` in sequence.
-
-**Do NOT run stages 5–7 manually when QC is failing.** The pipeline enforces ordering
-automatically. Script 08 needs the repo root for `database/footbag.db` — always run
-from `legacy_data/`.
-
----
-
-## Individual Stage Reference
-
-Use these when you need to re-run a single stage by hand:
-
-```bash
-# From legacy_data/:
-python pipeline/adapters/mirror_results_adapter.py --mirror mirror_footbag_org
-python pipeline/adapters/curated_events_adapter.py
-python pipeline/01c_merge_stage1.py
-python pipeline/02_canonicalize_results.py
-python pipeline/02p5_player_token_cleanup.py \
-    --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final_v53.csv \
-    --identity_lock_placements_csv inputs/identity_lock/Placements_ByPerson_v97.csv
-python pipeline/02p6_structural_cleanup.py
-python pipeline/historical/export_historical_csvs.py
-python pipeline/05p5_remediate_canonical.py
-python pipeline/platform/export_canonical_platform.py
-python pipeline/qc/run_qc.py    # must return QC STATUS: PASS before commit
-```
-
-Full stage sequence:
-
-```
-Stage 01   pipeline/adapters/mirror_results_adapter.py     mirror HTML → stage1_raw_events_mirror.csv
-Stage 01c  pipeline/adapters/curated_events_adapter.py     curated CSVs → stage1_raw_events_curated.csv
-Stage 02   pipeline/02_canonicalize_results.py             raw events → stage2_canonical_events.csv
-Stage 02p5 pipeline/02p5_player_token_cleanup.py           apply identity lock (PT v53 / PBP v97)
-Stage 02p6 pipeline/02p6_structural_cleanup.py             artifact removal + structural fixes
-Stage 05   pipeline/historical/export_historical_csvs.py   export out/canonical/*.csv  ← AUTHORITATIVE
-Stage 05p5 pipeline/05p5_remediate_canonical.py            final integrity + event merge pass
-Stage 05p5b pipeline/02p5b_supplement_class_b.py           Class B injection into Placements_Flat
-              (runs AFTER release — needs canonical_input/ to be populated first)
-QC         pipeline/qc/run_qc.py                           validate — must return QC STATUS: PASS
-```
-
-NOTE: `03_build_excel.py` and `04_build_analytics.py` are **deprecated** and no longer
-run as part of the rebuild stage. They produced a summary-column format that is not the
-workbook deliverable. See the Workbook Builds section below.
-
-The early pipeline (`./run_early_pipeline.sh`) produces the merged `out/canonical_all/`
-dataset combining post-1997 and pre-1997. It is separate from the main production path
-and is used for the platform export.
+**Rule:** the pipeline enforces stage ordering and fails fast on QC hard
+failures. Do not run post-QC stages manually when QC is failing.
 
 ---
 
@@ -175,7 +91,7 @@ production-relevant events are covered. It is retained only for audit traceabili
 
 ## Canonical Outputs
 
-After a full `rebuild + release + qc` run:
+After a successful canonical run, the authoritative dataset lives in `out/canonical/`:
 
 | File | Description |
 |------|-------------|
@@ -185,9 +101,6 @@ After a full `rebuild + release + qc` run:
 | `out/canonical/event_result_participants.csv` | Participant rows |
 | `out/canonical/persons.csv` | Canonically identified persons |
 
-Current totals: **838 events / 4,398 disciplines / 26,385 results / 36,966 participants
-/ 4,085 persons**. QC: PASS.
-
 ## Workbook Builds
 
 Workbook builds are **separate** from the canonical pipeline and do not affect `out/canonical/`.
@@ -195,7 +108,7 @@ Run them standalone after a completed `rebuild + release + qc` cycle.
 
 ### Primary deliverable — v22-style release workbook
 
-**Script:** `pipeline/build_workbook_release.py` *(forthcoming — port of v17 lineage)*
+**Script:** `pipeline/build_workbook_release.py`
 **Output:** `out/Footbag_Results_Release.xlsx`
 
 Rules:
@@ -249,7 +162,7 @@ design them independently.
 
 ## Platform / DB Export
 
-Handled automatically by `./run_pipeline.sh complete` (stages 6–7).
+Handled automatically by `./run_pipeline.sh full` (stages 6–7).
 
 To run manually (e.g. after a release-only change):
 
@@ -272,7 +185,7 @@ decisions in one should inform the other. Do not conflate the mechanics; do alig
 ## What Is Migrated vs Legacy/Research-Only
 
 ### Migrated (production canonical)
-- All post-1997 mirror events (PT v53 / PBP v97 identity lock)
+- All post-1997 mirror events (under the frozen identity lock)
 - 19 FBW structured CSVs (Variant B)
 - 15 magazine structured CSVs (Variant B)
 - 13 Worlds TXT files 1985–1997 (Variant A/C)
@@ -311,8 +224,8 @@ decisions in one should inform the other. Do not conflate the mechanics; do alig
    Fix at the parser, override, or curated CSV level — then rebuild.
 
 3. **Never modify identity lock files directly.**
-   `inputs/identity_lock/Persons_Truth_Final_v53.csv` and `Placements_ByPerson_v97.csv`
-   are versioned and frozen. Changes require a new version via patch toolchain.
+   Files in `inputs/identity_lock/` are versioned and frozen. Changes require a new
+   version via the patch toolchain.
 
 4. **Never fabricate results.** Unknown data stays unknown. Unresolved names are
    preserved as-is. Absence ≠ non-existence.
@@ -342,7 +255,7 @@ entering the pipeline. No raw files enter the pipeline directly.
 
 3. Run the complete pipeline:
    cd ~/projects/footbag-platform/legacy_data
-   ./run_pipeline.sh complete
+   ./run_pipeline.sh full
 
 4. QC must return PASS — pipeline halts on hard failure before workbook/DB stages
 
@@ -357,7 +270,7 @@ entering the pipeline. No raw files enter the pipeline directly.
 ```
 
 **Do not commit if QC has hard failures.** Fix at the source — parser, override, or
-curated CSV — then re-run `./run_pipeline.sh complete`.
+curated CSV — then re-run `./run_pipeline.sh full`.
 
 **Where new files belong:**
 
@@ -371,26 +284,3 @@ curated CSV — then re-run `./run_pipeline.sh complete`.
 | New person display-name variant | `inputs/identity_lock/Person_Display_Names_v1.csv` |
 | Supplemental member_id | `inputs/identity_lock/member_id_supplement.csv` |
 
----
-
-## Safe Rebuild Workflow (individual stages)
-
-```bash
-# 1. Full rebuild
-./run_pipeline.sh rebuild
-
-# 2. Apply identity lock + export canonical
-./run_pipeline.sh release
-
-# 3. Validate
-.venv/bin/python pipeline/qc/run_qc.py
-
-# 4. Only commit if QC STATUS: PASS
-```
-
-For pre-1997 work (merged canonical_all):
-
-```bash
-./run_early_pipeline.sh finalize   # re-merge early data into canonical_all
-./run_early_pipeline.sh merge      # produce merged platform export
-```

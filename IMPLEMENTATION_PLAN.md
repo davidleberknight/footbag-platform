@@ -220,7 +220,7 @@ Each has an explicit unblock condition. Long-term docs preserve target design; c
 ## Blocked / deferred
 
 - **Members ungating**: public historical-person detail pages blocked on James's data review sign-off. Current split: `/history*` historical surfaces, `/members/:memberKey/*` member-account area.
-- **World records page**: blocked on James's records CSV. Route `/records` is live; page renders without data. Controller `src/controllers/recordsController.ts`, service `src/services/consecutiveService.ts`, view `src/views/records/records.hbs`, tests pass.
+- **World records page**: blocked on James's records CSV. Route `/records` is live; page renders without data. Controller `src/controllers/recordsController.ts`, service `src/services/recordsService.ts`, view `src/views/records/records.hbs`, tests pass.
 - **BAP honor-roll pages**: member-page indicators implemented; full honor-roll deferred.
 - **Broader service contracts**: `docs/SERVICE_CATALOG.md` may remain broader than active slice; implementation status is governed here, not there.
 

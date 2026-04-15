@@ -60,6 +60,31 @@ echo "  → Loading seed data into database..."
   --db "${DB_FILE}" \
   --seed-dir "${SEED_DIR}"
 
+# Load freestyle records
+echo "  → Loading freestyle records into database..."
+"${PYTHON}" legacy_data/event_results/scripts/10_load_freestyle_records_to_sqlite.py \
+  --db "${DB_FILE}" \
+  --records-csv legacy_data/inputs/curated/records/records_master.csv
+
+# Load consecutive kicks records
+echo "  → Loading consecutive kicks records into database..."
+"${PYTHON}" legacy_data/event_results/scripts/11_load_consecutive_records_to_sqlite.py \
+  --db "${DB_FILE}"
+
+# Phase NET: net enrichment layer (discipline groups, teams, appearances, review queue).
+# Reads canonical tables, writes net_* tables. Must run after script 08.
+echo "  → Building net discipline groups..."
+"${PYTHON}" legacy_data/event_results/scripts/12_build_net_discipline_groups.py \
+  --db "${DB_FILE}"
+
+echo "  → Building net teams..."
+"${PYTHON}" legacy_data/event_results/scripts/13_build_net_teams.py \
+  --db "${DB_FILE}"
+
+echo "  → Importing net review queue..."
+"${PYTHON}" legacy_data/event_results/scripts/14_import_net_review_queue.py \
+  --db "${DB_FILE}"
+
 # Extract club seed data from legacy mirror
 echo "  → Extracting club seed data from mirror..."
 "${PYTHON}" legacy_data/scripts/extract_clubs.py

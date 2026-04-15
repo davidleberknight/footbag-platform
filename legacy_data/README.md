@@ -11,44 +11,47 @@ covering 1980–present and loads it into the platform SQLite database.
 cd ~/projects/footbag-platform/legacy_data
 source .venv/bin/activate        # or footbag_venv / venv — auto-detected
 
-./run_pipeline.sh full           # soup-to-nuts (mirror access required)
-./run_pipeline.sh canonical_only # canonical pipeline only → workbook + DB load (mirror access required)
-./run_pipeline.sh enrichment_only# enrichment phases only (requires canonical outputs already present)
-./run_pipeline.sh csv_only       # load DB from existing CSVs + run enrichment (no mirror access needed)
+./run_pipeline.sh full           # recommended: full rebuild (mirror access required)
+./run_pipeline.sh canonical_only # canonical pipeline only (mirror access required)
+./run_pipeline.sh enrichment_only# enrichment phases only (canonical outputs must exist)
+./run_pipeline.sh csv_only       # DB load from existing CSVs + enrichment (no mirror needed)
+./run_pipeline.sh net_enrichment # net enrichment layer only (canonical DB must be loaded)
 ```
+
+`full` is the current gold-standard rebuild command. It runs the canonical
+backbone, the net enrichment layer, and all enrichment phases in one invocation.
+Prefer it over ad-hoc mode sequencing unless you specifically need a partial
+rerun.
 
 Run from `legacy_data/`. The venv is detected automatically; set `VENV_DIR` to
 override.
+
+For exact stage order, script paths, and arguments, read `run_pipeline.sh` — it
+is the source of truth.
 
 ---
 
 ## Pipeline modes
 
-| Mode | What it runs | Mirror access? | Use when |
-|------|-------------|----------------|----------|
-| `canonical_only` | V0 backbone: mirror + curated → canonical CSVs → QC → workbook → seed → DB | Required | Updating source data or overrides |
-| `enrichment_only` | Phases C–F + G: membership enrichment, clubs pipeline, provisional persons, persons master, DB load | Not required | Iterating on enrichment logic (requires canonical outputs already present) |
-| `full` | `canonical_only` then `enrichment_only` in sequence | Required | Full soup-to-nuts rebuild |
-| `csv_only` | DB load from existing seed CSVs + Phases C–F + G | Not required | No mirror access; canonical CSVs and seed must already exist |
+| Mode | Purpose | Mirror access? | Use when |
+|------|---------|----------------|----------|
+| `full` | Canonical backbone → phase NET → enrichment phases, end to end | Required | **Recommended** — full soup-to-nuts rebuild (current gold standard) |
+| `canonical_only` | Canonical backbone only: mirror + curated → canonical CSVs → QC → workbook → seed → DB | Required | Updating source data, overrides, or identity lock |
+| `enrichment_only` | Membership, clubs, persons enrichment phases only | Not required | Iterating on enrichment logic (requires canonical outputs already present) |
+| `csv_only` | DB load from existing seed CSVs, then enrichment phases | Not required | No mirror access; canonical CSVs and seed must already exist on disk |
+| `net_enrichment` | Net enrichment layer only | Not required | Rebuilding net tables against an already-loaded canonical DB |
 
-### canonical_only (V0 backbone)
+### Canonical backbone (`canonical_only` / included in `full`)
 
-Seven stages in order, **fails fast on QC hard failures** (stages 5–7 never run
-if QC returns exit 1):
+Extracts events from the footbag.org mirror and curated pre-1997 sources,
+canonicalizes them into `out/canonical/*.csv`, runs a QC gate, builds the
+release workbook, and loads the canonical seed into the platform SQLite DB.
 
-| # | Stage | Output |
-|---|-------|--------|
-| 1 | Rebuild | mirror + curated → `out/stage2_canonical_events.csv` |
-| 2 | Release | identity lock + export → `out/canonical/*.csv` + platform export |
-| 3 | Supplement | `02p5b_supplement_class_b.py` → Placements_Flat workbook completeness |
-| 4 | QC gate | `pipeline/qc/run_qc.py` — exit 1 on any hard failure |
-| 5 | Workbook | `pipeline/build_workbook_release.py` → `out/Footbag_Results_Release.xlsx` |
-| 6 | Seed build | `event_results/scripts/07_build_mvfp_seed_full.py` → `event_results/seed/mvfp_full/` |
-| 7 | DB load | `event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` → `database/footbag.db` |
+**Fails fast on QC hard failures** — workbook, seed, and DB steps do not run
+if QC reports hard errors. Fix at the source (parser, override, or curated CSV)
+and re-run.
 
-### enrichment_only (Phases C–F + G)
-
-Runs a preflight check first (exits if required canonical outputs are missing):
+### Enrichment phases (`enrichment_only` / included in `full`)
 
 | Phase | What it does | Output |
 |-------|-------------|--------|
@@ -58,28 +61,26 @@ Runs a preflight check first (exits if required canonical outputs are missing):
 | F | Persons master | `persons/out/persons_master.csv` |
 | G | Enrichment DB load | `historical_persons` (PROVISIONAL), `legacy_club_candidates`, `legacy_person_club_affiliations` |
 
-### csv_only (DB load + Phases C–F + G)
+A preflight check runs first; if the required canonical outputs are missing,
+the mode exits early.
 
-For use **without mirror access**. Requires that canonical CSVs and seed files already
-exist on disk (produced by a prior `canonical_only` run).
+### Net enrichment (`net_enrichment` / included in `full`)
 
-Preflight checks for:
-- `event_results/canonical_input/{events,event_disciplines,event_results,event_result_participants,persons}.csv`
-- `event_results/seed/mvfp_full/seed_{events,event_disciplines,event_results,event_result_participants,persons}.csv`
-- `membership/inputs/membership_input_normalized.csv`
-- `seed/clubs.csv`, `seed/club_members.csv`
+Additive layer that reads canonical tables read-only and populates net-specific
+enrichment tables (discipline groups, teams, appearances, review queue).
+Requires the canonical DB to already be loaded.
 
-Then runs:
-1. DB load from existing seed (`08_load_mvfp_seed_full_to_sqlite.py`)
-2. Phases C → D → E → F → G (enrichment + enrichment DB load)
+### CSV-only rebuild (`csv_only`)
 
-Does **not** re-run QC, the workbook, or mirror/curated extraction.
+For use without mirror access. Loads the canonical seed from existing CSVs into
+the DB, then runs the enrichment phases. Does not re-run QC, the workbook, or
+mirror/curated extraction, and does not run phase NET.
 
 ---
 
 ## Authoritative documentation
 
-Full pipeline rules, source hierarchy, QC requirements, and non-negotiable
-constraints are documented in `CLAUDE.md`.
-
-The current sprint status and release checklist are in `IMPLEMENTATION_PLAN.md`.
+- `run_pipeline.sh` — authoritative for modes, stages, script paths, arguments.
+- `CLAUDE.md` — pipeline rules, source hierarchy, QC requirements, non-negotiable
+  constraints.
+- `IMPLEMENTATION_PLAN.md` — current sprint status and release checklist.

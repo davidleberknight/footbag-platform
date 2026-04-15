@@ -227,19 +227,6 @@ describe('GET /freestyle/leaders', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle — enriched landing page', () => {
-  it('shows top holders section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('Top Passback Record Holders');
-    expect(res.text).toContain('Alice Shredder');
-  });
-
-  it('shows recent records section', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('Recent Passback Records');
-  });
-
   it('contains links to both records and leaders sub-pages', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');

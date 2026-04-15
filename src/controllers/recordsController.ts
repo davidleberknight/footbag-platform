@@ -1,17 +1,17 @@
 import { Request, Response, NextFunction } from 'express';
-import { consecutiveService } from '../services/consecutiveService';
+import { recordsService } from '../services/recordsService';
 import { ServiceUnavailableError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
 
 /**
- * Thin controller for public consecutive kicks routes.
- * Business logic and page shaping live in consecutiveService.
+ * Thin controller for public records routes.
+ * Business logic and page shaping live in recordsService.
  */
 export const recordsController = {
   /** GET /records */
   records(_req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = consecutiveService.getRecordsPage();
+      const vm = recordsService.getRecordsPage();
       res.render('records/records', vm);
     } catch (err) {
       recordsController._handleError(err, res, next);
