@@ -167,6 +167,10 @@ run_v0_backbone() {
     python pipeline/qc/run_qc.py
     echo ""
 
+    echo "── [4b] QC VIEWER ─────────────────────────────────────"
+    python pipeline/event_comparison_viewerV13.py
+    echo ""
+
     echo "── [5/7] WORKBOOK ─────────────────────────────────────"
     python pipeline/build_workbook_release.py
     echo ""
