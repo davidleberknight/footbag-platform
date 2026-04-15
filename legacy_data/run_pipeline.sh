@@ -127,6 +127,8 @@ run_db_load_canonical() {
     python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --seed-dir "event_results/seed/mvfp_full"
+    python event_results/scripts/10_load_freestyle_records_to_sqlite.py \
+        --db "${REPO_ROOT}/database/footbag.db"
     python event_results/scripts/11_load_consecutive_records_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db"
     echo "───────────────────────────────────────────────────────────────────────"
@@ -185,6 +187,8 @@ run_v0_backbone() {
     python event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db" \
         --seed-dir "event_results/seed/mvfp_full"
+    python event_results/scripts/10_load_freestyle_records_to_sqlite.py \
+        --db "${REPO_ROOT}/database/footbag.db"
     python event_results/scripts/11_load_consecutive_records_to_sqlite.py \
         --db "${REPO_ROOT}/database/footbag.db"
     echo ""

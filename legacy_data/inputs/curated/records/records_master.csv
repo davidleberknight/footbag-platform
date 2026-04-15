@@ -1,0 +1,206 @@
+record_id,trick_name,sort_name,record_value,place,adds,player,date_normalized,approx_date,video,time_clip,notes,unit,confidence,source
+6c853c1d-4be3-5ca1-b63c-22d6b59e4b98,2-Bag Juggle,Juggle (2-bag) (ss),75,,N/A,Taishi Ishida,5/25/2021,,https://youtu.be/XeJHACfaU2Q?t=103,1:43,,consecutive_juggles,medium,passback
+81d5e58d-5fc0-5834-b816-4bb6cb156aa9,Alpine Blurry Whirl,Stepping Whirl (op) (ducking),4,,6,David Clavens,5/11/2012,,https://youtu.be/NWEsbDJw5Lc?t=136,2:16,,consecutive_completions,medium,passback
+eed0d055-a05a-5895-b7d1-429e0983aa39,Alpine Magellan,Pixie Legover (ss) (diving),15,,4,Jakub Worek,5/15/2018,,https://www.youtube.com/watch?v=NzTDp2IvJYE,,,consecutive_completions,medium,passback
+d1773504-4321-5e28-91d8-5abb9072c4ca,Alpine Paste,Pixie Pickup (op) (ducking),6,1,4,Derek Littlefield,2/23/2025,,https://youtu.be/UcSxoF3Moag?t=74,1:14,,consecutive_completions,medium,passback
+9f66e0f2-0a5a-5b70-93bf-783dcb191506,Alpine Paste,Pixie Pickup (op) (ducking),4,2,4,Derek Littlefield,4/13/2022,,https://www.instagram.com/p/CcTRQ0xOmLL/?img_index=3,3,,consecutive_completions,medium,passback
+c92a10ad-ad94-5635-b1f6-99a51be05c2b,Alpine Pigbeater,Pixie Eggbeager (ducking) (op),3,,5,Jakub Worek,3/1/2020,,https://www.facebook.com/jakub.worek.5/videos/10213551042290800/,,,consecutive_completions,medium,passback
+769680bb-c3f0-5e36-93d3-d8be63e24b8b,Alpine PLO,Pixie Legover (op) (ducking),24,,4,Krzysztof Sobotka,7/6/2011,,https://youtu.be/JQMLJirIic0?t=11,0:11,,consecutive_completions,medium,passback
+de63920c-da99-5844-8271-49c77ae81341,Alpine Smog,Pixie DLO (op) (ducking),3,,5,Jakub Worek,6/27/2018,,https://www.youtube.com/watch?v=wNuFpxbEUVA,,,consecutive_completions,medium,passback
+97ce5623-5d82-5911-9f9a-cbb31c63d5a0,Alpine Smudge,Pixie Illusion (ducking) (op),2,,4,Derek Littlefield,2/27/2025,,https://www.instagram.com/p/DGlbm3quyxE/?img_index=4,4,,consecutive_completions,medium,passback
+b5121fe0-99c2-5e2b-aabb-2c7ad5954594,Assassin,Pixie Mirage (op) (ducking),14,,4,Tuukka Antikainen,12/1/2011,,https://youtu.be/PHA9IqbW6JA?t=260,4:20,,consecutive_completions,medium,passback
+7be7429b-404d-5b3c-86f1-3cce6e82f274,Assassin (ss),Pixie Mirage (ss) (diving),5,,4,Derek Littlefield,10/31/2021,,https://www.instagram.com/p/CVsfQXRrpOm/?img_index=8,8,,consecutive_completions,medium,passback
+a700dcfe-00ee-5fa7-b8d1-74c0fee0b22d,Atomic Legover,Atomic Legover (op),18,,3,Jay Boychuk,4/14/2012,,https://youtu.be/g_Hkw6Pckvk?t=909,15:10,,consecutive_completions,medium,passback
+b6b15425-e470-5c7a-8d38-459a2eab90e5,Atomic Pickup,Atomic Pickup (op),4,,3,Derek Littlefield,2/27/2025,,https://www.instagram.com/p/DGlbm3quyxE/?img_index=4,5,date_corrected,consecutive_completions,medium,passback
+9bde019f-9a5c-5ebc-b95d-d7e84dc0125c,Atomsmasher,Atomic Mirage (op),28,,4,Mathias Blau,10/13/2012,,https://www.youtube.com/watch?v=IC7NLnIniew,,,consecutive_completions,medium,passback
+e90ae713-4f1f-52ea-b7b6-fb42034ba32d,ATW,ATW (in),100,,2,Krzysztof Sobotka,7/6/2011,,https://youtu.be/zhrbljcVSvE?t=9,0:09,,consecutive_completions,medium,passback
+4683cd55-15ed-58df-af79-058e2c1fffc8,Barfly,Double down (op),53,,4,Anssi Sundberg,7/9/2013,,https://www.youtube.com/watch?v=y20OHe6pqm0,,,consecutive_completions,medium,passback
+b11634ed-2b02-5c20-8e4d-1b18d382a140,Barrage,Barrage (op),20,,3,Norek,3/17/2010,,https://www.youtube.com/watch?v=1sZy4gc5rr0,,,consecutive_completions,medium,passback
+38d99eff-9a65-52ad-b13a-d56980bc3213,Bladerunner,Atomic Eggbeater (op),4,,5,Jindra Smola,2/28/2016,,https://youtu.be/qf8b2ohTcPI?t=6,0:06,,consecutive_completions,medium,passback
+7bdf7ff3-8532-5c6d-98d3-9128c7a897ad,Blazing Butterfly,Whirling Butterfly (ss),18,,4,Jim Penske,1/14/2008,,https://youtu.be/YE68rfFGI7s?t=291,4:52,,consecutive_completions,medium,passback
+8e57f03d-bde6-51e3-82a6-1b8f27d9fc68,Blender,Blender (ss),13,,4,Kenzo Ogawa,1/21/2008,,https://youtu.be/HDyc0jHz5OY?t=66,1:06,,consecutive_completions,medium,passback
+472f852e-621c-53b6-a323-c416c7b9effc,Blink,Swirling Toe (op) (rev),10,,2,Nick Polini,5/9/2015,,https://youtu.be/vhR3eiAWeNs?t=143,2:23,,consecutive_completions,medium,passback
+818276b9-502d-5cdc-b294-089794fad2b0,Blurriest,Stepping Double Down (op),16,,5,David Clavens,12/20/2009,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=539s,8:59,,consecutive_completions,medium,passback
+6f277866-b5aa-5a3d-9e50-a07ba1643ff9,Blurry Drifter,Stepping Drifter (op),16,,5,Nathan Pipenberg,1/26/2014,,https://www.youtube.com/watch?v=CMAmLycY69k,,,consecutive_completions,medium,passback
+ffcbf04a-8995-56f3-abf2-35def9629fab,Blurry Whirl,Stepping Whirl (op),35,,5,Norek,11/2/2009,,https://www.youtube.com/watch?v=Zmv5ydko6gk,,,consecutive_completions,medium,passback
+cfc984cd-2592-521f-b1da-bd0ea78f8428,BS Magellan,Pixie Legover (ss) (symp),15,,3,Jim Penske,2/4/2019,,https://www.youtube.com/watch?v=agezrN_CCpY,,,consecutive_completions,medium,passback
+47d38031-081f-540e-886c-efc7c9acb450,BS Paste,Pixie Pickup (op) (symp),6,,3,SkyLon Smith,8/28/2014,,https://www.youtube.com/watch?v=Ij-LgWB1PH8,,,consecutive_completions,medium,passback
+e1591575-070a-5cae-a28e-843a5d5522f8,Butterfly,Butterfly (ss),50,,3,Ken Somolinos,1/6/2013,,https://www.youtube.com/watch?v=etZnKP2qQJA,,,consecutive_completions,medium,passback
+8ef57418-dc34-5d14-bbea-073a702ed00f,Butterfly Swirl,Butterfly Swirl (ss),10,,4,Jakub Mosciszewski,10/7/2018,,https://www.youtube.com/watch?v=Mslx_LkWFyg,,,consecutive_completions,medium,passback
+9854553c-ca58-5647-9811-3a37d249fca3,Clipper,Clipper,41,,2,Ken Somolinos,2/2/2013,,https://www.youtube.com/watch?v=4pBkALFaGQ4,,,consecutive_completions,medium,passback
+c2e06315-3714-5a69-8c67-6f817a16f57c,Clipper (ss),Clipper (ss),96,,2,Ken Somolinos,2/2/2013,,https://www.youtube.com/watch?v=E1xgRyOvHlA,,,consecutive_completions,medium,passback
+1619f10c-75e9-5b8c-a71f-41730d3927f7,Dada Curve,Dada Curve (ss),14,,4,Anssi Sundberg,1/27/2013,,https://youtu.be/EwZyd_xHMdc?t=117,1:57,,consecutive_completions,medium,passback
+5c0f6df7-d315-5765-b353-5ead95891ceb,DATW,ATW (in) (double),29,,3,Norek,3/17/2010,,https://www.youtube.com/watch?v=CfyBwCc1ifA,,,consecutive_completions,medium,passback
+afd1c382-a558-5fc3-9ed9-36e3ea622ee2,DDD,Double down (ss),19,,4,Norek,3/17/2010,,https://www.youtube.com/watch?v=iLs8jwiAdEU,,,consecutive_completions,medium,passback
+d652e1f7-0761-51d8-96f6-828e12232961,Diving Clipper,Diving Clipper (ss),107,,3,Norek,3/17/2010,,https://www.youtube.com/watch?v=1M0orYIX8bA,,,consecutive_completions,medium,passback
+cd242aab-63b5-59c9-b681-265e76af2f3c,Diving Mirage,Mirage (diving) (ss),15,,3,SkyLon Smith,8/15/2014,,https://www.youtube.com/watch?v=KXhN7tt7of0,,,consecutive_completions,medium,passback
+334bfc13-cee0-5f7b-8584-5e672dd61b3f,Diving Osis,Osis (diving) (ss),11,,4,Ben Skaggs,1/27/2013,,https://www.youtube.com/watch?v=Q9xXlOxmiig,,,consecutive_completions,medium,passback
+4ae3e6e3-6061-5a27-b8e2-8e0193223e44,Diving Smudge,Pixie Illusion (diving) (ss),2,,4,Derek Littlefield,2/27/2025,,https://www.instagram.com/p/DGlbm3quyxE/?img_index=4,6,date_corrected,consecutive_completions,medium,passback
+3259fd60-0de7-5562-ae41-081a754ab85c,DLO,DLO (op),26,,3,Derek Littlefield,9/1/2024,,https://www.instagram.com/p/C_YhxDXubde/,,,consecutive_completions,medium,passback
+b9fa659a-226b-5b53-95d7-546be03b1911,DLO (ss),DLO (ss),24,,3,Derek Littlefield,3/3/2015,,https://youtu.be/KTfIsduRCaE?t=20,0:20,,consecutive_completions,medium,passback
+95771812-0b09-512f-8f73-4d8a5cfe1842,Double Dyno,Blender (ss) (rev) (double),5,,5,Pawel Nowak,1/28/2017,,https://www.youtube.com/watch?v=paGnSIHqF3Y,,,consecutive_completions,medium,passback
+4b7aef85-11ce-5d99-a08d-956586b703f7,Double Fairy,Illusion (ss) (double),6,,3,Anssi Sundberg,6/1/2010,Yes,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=0s,0:00,,consecutive_completions,low,passback
+debb133d-9e04-5b0f-a66c-2850b2e06a62,Double Orbit,ATW (out) (double),13,,3,Derek Littlefield,9/22/2024,,https://www.instagram.com/p/DAOgQIjuzoG/?img_index=2,2,,consecutive_completions,medium,passback
+10d6390b-7305-5aca-a494-ed6b23c531f0,Double Spinning Butterfly,Double Spinning Butterfly (op),4,,5,SkyLon Smith,8/17/2014,,https://youtu.be/zTbF0YyyIbI?t=7,0:07,,consecutive_completions,medium,passback
+2d0c1f20-8f4d-598c-9060-b83dc52efb2c,Double Spinning Clipper,Double Spinning Clipper (op),8,1,4,SkyLon Smith,8/17/2014,,https://www.youtube.com/watch?v=HyfJ8ZTw4TI&list=PLT4DlJ0jRYlyxVOCKyyzhiiFwWHAXRZF3&index=3,,,consecutive_completions,medium,passback
+ecdfa87c-e716-548c-a84d-6d0056bbfd18,Double Spinning Clipper,Double Spinning Clipper (op),7,2,4,SkyLon Smith,7/28/2014,,https://www.youtube.com/watch?v=8YZ6lD8OLsg,,"8 hit on camera, alleged slop after 7th.",consecutive_completions,medium,passback
+cecffe82-5c84-5709-b14c-5a8f2cb6706f,Double Spinning Osis,Double Spinning Osis (op),2,,5,Nick Polini,7/6/2014,,https://www.youtube.com/watch?v=oixKaJrA2Qg,,,consecutive_completions,medium,passback
+8740d241-9746-5a51-ba8d-16d4887d6121,Double Whip,Whirl (rev) (ss) (double),6,,4,Pawel Nowak,6/10/2018,,https://www.youtube.com/watch?v=aQJuESP6PtM,,,consecutive_completions,medium,passback
+a82dbe45-8e6a-55de-a09e-9b705783721c,Drifter,Drifter (ss),56,1,3,Jim Penske,7/17/2014,,https://youtu.be/cZczu2TRrZw?t=29,0:29,"Video glitch that cuts off part of 5 & 6, but still verified",consecutive_completions,medium,passback
+33bdd542-9c2b-5829-b148-c918d44847a5,Drifter,Drifter (ss),50,2,3,SkyLon Smith,7/17/2014,,https://www.youtube.com/shorts/nLm3UtIzOc4,,,consecutive_completions,medium,passback
+96ebb511-8ef4-565a-845c-a7878827e9cb,Drifter,Drifter (ss),32,3,3,TJ Boutorwick,6/14/2014,,https://www.youtube.com/watch?v=asSDtZ9MGeo,,,consecutive_completions,medium,passback
+b5ad0e5e-1f3b-594c-96ca-9dad1ca38c8c,DSO,Legover (double) (op),23,1,3,Anssi Sundberg,1/5/2008,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=11s,0:11,,consecutive_completions,medium,passback
+2c1ce1fd-ae7e-5ac2-ab5c-64406b4440bf,DSO,Legover (double) (op),23,2,3,Derek Littlefield,3/1/2021,,https://www.facebook.com/100001366459443/videos/3717885388266973/,,,consecutive_completions,medium,passback
+de232796-bd1c-5bbc-a25f-11d39d368158,Ducking Butterfly,Ducking Butterfly (op),65,,4,Norek,2/23/2010,,https://www.youtube.com/watch?v=dAxf2uKDvM4,,,consecutive_completions,medium,passback
+e6ba40d3-5714-5170-81f1-a51a17cea95d,Ducking Clipper,Ducking Clipper (op),329,,3,Norek,7/7/2009,,https://www.youtube.com/watch?v=Oxm5ZbCOwWk,,,consecutive_completions,medium,passback
+fc8e3f46-4d97-5326-819f-93c75e4189b9,Ducking Osis,Ducking Osis (op),19,,4,Honza Weber,7/3/1905,,https://vimeo.com/25019188,,Video unavailable; previously verified,consecutive_completions,medium,passback
+b68c13ab-80fe-5127-9bb4-4204c3fa6755,Ducking Pdx Torque,Torque (ducking) (op),3,,6,SkyLon Smith,8/18/2014,,https://www.youtube.com/watch?v=-onsVZOEyg4,,,consecutive_completions,medium,passback
+ee98cd40-30c2-5132-8664-b3fb107a16ff,Dyno,Blender (ss) (rev),75,1,4,Pawel Nowak,10/8/2019,,http://youtube.com/watch?v=8WQ_bzl2I80,,,consecutive_completions,medium,passback
+6530e542-5b24-591a-b58a-44ed661bf590,Dyno,Blender (ss) (rev),64,2,4,SkyLon Smith,8/5/2014,,https://www.youtube.com/watch?v=vudKdNGi4TA,,,consecutive_completions,medium,passback
+09adb5ff-6b6a-5a15-9ff9-013f29e2d396,Dyno (op),Blender (op) (rev),15,,4,Jim Penske,6/27/1905,,https://youtu.be/1oWNEtnQ0ik?t=4,0:04,,consecutive_completions,medium,passback
+f3c37b74-6c63-5529-8ba1-964d7b9b5336,Eclipse,Eclipse (op),32,1,3,Yosshi Yamamoto,12/6/2020,,https://youtu.be/LdTt0x8TzsQ?t=29,0:29,,consecutive_completions,medium,passback
+72de6819-cdb1-5bde-b994-bb80addad0ed,Eclipse,Eclipse (op),19,2,3,Ken Somolinos,1/26/2013,,https://www.youtube.com/watch?v=iQXz4kGeTDI,,,consecutive_completions,medium,passback
+c50e9adc-1c33-58cd-918c-bad9653797ae,Eclipse (ss),Eclipse (ss),5,,3,Evan Gatesman,1/27/2013,,https://youtu.be/lSXlJzQgkNI?t=4,0:04,,consecutive_completions,medium,passback
+9de7cbee-b347-5543-a725-8137159f6dc4,Eggbeater,Eggbeater (op),24,,3,Derek Littlefield,9/15/2024,,https://youtu.be/Br69lQdbyS0?t=33,0:33,,consecutive_completions,medium,passback
+a5881e95-0287-5eb4-a220-69b23b13d22a,Eggbeater (ss),Eggbeater (ss),22,,3,Derek Littlefield,10/23/2014,,https://youtu.be/W1ePQDnIqA4?t=20,0:20,,consecutive_completions,medium,passback
+f31f0508-2d6e-5e2a-95a0-e9400221ba45,Enterrage,Terraging Legover (op),6,,4,Anssi Sundberg,7/5/1905,,https://youtu.be/BXeRFrEsDkQ?t=154,2:34,,consecutive_completions,medium,passback
+5d5b63b4-b605-5855-895e-fffd204a98e5,Fairy DLO (ss),Fairy DLO (ss),3,,4,Evan Gatesman,1/27/2013,,https://youtu.be/5O3HWZlxLMk?t=4,0:04,,consecutive_completions,medium,passback
+3c9b937b-fb79-51c9-964f-fae0f7dd53ed,Fairy Legover (ss),Fairy Legover (ss),20,,3,Jakub Worek,5/1/2018,,https://www.youtube.com/watch?v=UhjUDRN4Fe4,,,consecutive_completions,medium,passback
+adf1a04e-b388-587c-8351-9aa7744590b1,Fairy Pickup (ss),Fairy Pickup (ss),28,,3,Jakub Worek,6/17/2018,,https://www.youtube.com/watch?v=x166_T11TmQ,,,consecutive_completions,medium,passback
+798f4f8f-d6b0-5a08-acb5-7a2a0535025d,Flail (ss),Illusion (ss) (symp),18,,3,Norek,4/13/2010,,https://www.youtube.com/watch?v=dn11VDAIs2s,,,consecutive_completions,medium,passback
+7aa29c09-a206-5a1f-9169-df3b5d361ba5,Flapper,Flapper (op),16,,3,Nick Polini,10/17/2014,,https://www.youtube.com/watch?v=lInHcHngs2w,,,consecutive_completions,medium,passback
+161331e2-b8ef-5f9d-9af8-1b2fa5aa27e0,Food Processor,Stepping Blender (op),15,1,6,Jim Penske,3/7/2025,,https://youtu.be/V_N-THthxWw?t=31,0:31,,consecutive_completions,medium,passback
+add15781-b263-51f1-b231-a87583b5ca84,Food Processor,Stepping Blender (op),11,2,6,Jim Penske,3/3/2025,,https://www.youtube.com/watch?v=i6FUONkUxlM,,,consecutive_completions,medium,passback
+7118c7fa-c904-5746-822e-14c3668992d4,Food Processor,Stepping Blender (op),9,3,6,Honza,8/1/2006,Yes,http://webslinger.cz/videos/anxiety01.mpg,,Video unavailable; previously verified,consecutive_completions,low,passback
+57f330d2-a516-5802-896a-d8ffa461f47f,Fracture,Sailing DLO (ss),3,,5,Jakub Worek,10/31/2018,,https://www.youtube.com/watch?v=CBKbeZwcoUA,,,consecutive_completions,medium,passback
+282ca28c-6715-5e34-a5b0-40b3711b71b7,Frantic Legover,Pixie Quantum Legover (op),10,,4,Jakub Mosciszewski,8/13/2020,,https://www.youtube.com/watch?v=cfNrMlTv4EY,,,consecutive_completions,medium,passback
+fc229bda-6803-53a6-87c2-52751fc64f8a,Genesis,Barraging Whirl (op),3,,6,Anssi Sundberg,12/13/2012,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=161s,2:41,Originally uploaded in high speed; sped back up close to normal speed as part of archiving on YouTube.,consecutive_completions,medium,passback
+e60b63ba-4a52-50a1-8d8c-68a9f83dd0d0,Grifter,Grifter (ss),30,1,3,Anssi Sundberg,6/1/2010,Yes,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=71s,1:11,,consecutive_completions,low,passback
+ae077e35-f328-56f5-95fa-a30491e7c9ea,Grifter,Grifter (ss),12,2,3,Anssi Sundberg,1/16/2008,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=45s,0:45,,consecutive_completions,medium,passback
+ac417e32-f9fb-51d7-9652-6f929ddff417,Gyro Clipper,Spinning Clipper (ss),94,1,3,SkyLon Smith,8/15/2014,,https://www.youtube.com/watch?v=DaDOV-7fIk0,,,consecutive_completions,medium,passback
+447417fb-3199-5813-a233-bfe9d6aa4839,Gyro Clipper,Spinning Clipper (ss),31,2,3,Byrin Wylie,6/2/2009,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=272s,4:32,,consecutive_completions,medium,passback
+4a4da92a-2838-58a6-a2e7-3a66c889055f,Gyro Osis,Spinning Osis (ss),23,,4,Brian Sherrill,9/9/2010,,https://youtu.be/xAX8VwFzaXE?t=138,2:18,35 on camera but disputed,consecutive_completions,medium,passback
+0e59275b-b3a1-5932-9c90-4b4cdd18aca8,Gyro Symp Swirl,Spinning Swirl (ss) (symp),4,,4,Evan Gatesman,1/27/2013,,https://youtu.be/mxVw0m5hD6Q?t=4,0:04,,consecutive_completions,medium,passback
+992670a3-09ac-5ff7-a07c-97706de1db6b,Gyro Toe,Gyro Toe (op),10,,2,Jakub Mosciszewski,8/23/2020,,https://www.youtube.com/watch?v=tgLpTopvEo8,,,consecutive_completions,medium,passback
+ba8eec68-a466-5de2-9747-cd288434f61f,Gyro Whirling Swirl,Spinning Whirling Swirl (ss),3,,4,Evan Gatesman,2/3/2016,,https://www.instagram.com/p/BBWche2A_4wRda3-3gHsWvpPdMnBLuWDLEj5Hs0/,,,consecutive_completions,medium,passback
+a5ba8635-8b03-5cb5-a93b-0471a0e8eb5e,Hatchet,Diving Whirl (ss),5,,4,Ken Somolinos,12/22/2012,,https://www.youtube.com/watch?v=_Oh_4ZoRKc0,,,consecutive_completions,medium,passback
+c9f9b0e2-f170-5fbb-a05b-26401029fecc,Infinity,Butterfly (op),118,,3,Ken Somolinos,6/17/2009,,https://www.youtube.com/watch?v=rgGNsy-7Vi4,,,consecutive_completions,medium,passback
+56000a4a-5f63-520a-aa16-0d2f2705a7ff,Infinity Swirl,Butterfly Swirl (op),9,,4,Evan Gatesman,11/22/2014,,https://youtu.be/G3tDw8fsX4Y?t=4,0:04,,consecutive_completions,medium,passback
+8618f990-e249-5ee1-8674-37f3765b239a,Inspinning Clipper,Inspinning Clipper (op),4,,4,Nate Linscott,10/28/2006,,https://youtu.be/nx3i657kUa8?t=163,2:43,,consecutive_completions,medium,passback
+14211b0a-8070-51f6-b409-100196401d0e,Inspinning Osis,Inspinning Osis (op),10,,4,SkyLon Smith,8/18/2014,,https://www.youtube.com/watch?v=D4R2tViZDSY,,,consecutive_completions,medium,passback
+d195ceb2-4828-593e-bad6-9d79100e8470,Janiwalker,Barraging Butterfly (op),15,1,5,Jim Penske,5/18/2015,,https://www.youtube.com/watch?v=Y5rTAwH3C-Y,,,consecutive_completions,medium,passback
+828f99f5-438d-5a9e-87b8-88202e01f3ba,Janiwalker,Barraging Butterfly (op),14,2,5,David Clavens,7/29/2006,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=475s,7:55,,consecutive_completions,medium,passback
+d286fb4e-af76-5ea1-b52c-546880cb51a9,Legover,Legover (op),198,,2,Derek Littlefield,6/21/2016,,https://youtu.be/gRCnEq_QZ6o?t=10,0:10,,consecutive_completions,medium,passback
+e82d15ba-4089-5c0d-882f-9c422182c4ee,Locomotion,Stepping Motion (far),8,1,6,Jim Penske,9/29/2017,,https://youtu.be/ntyOMnGgXs8?t=14,0:14,,consecutive_completions,medium,passback
+329a89ec-47ab-50d9-877f-79892cf474c9,Locomotion,Stepping Motion (far),7,2,6,Pawel Nowak,6/10/2018,,https://www.youtube.com/watch?v=xttFhB3-6Dk,,,consecutive_completions,medium,passback
+5234fa58-ea97-57b0-ac21-2d92857043ae,Magellan,Pixie Legover (ss),65,,3,Jakub Worek,6/17/2018,,https://www.youtube.com/watch?v=cKQFZsPLgME,,,consecutive_completions,medium,passback
+96e9bf68-ea15-54ae-bdd1-39b302a6988d,Matador,Nuclear Butterfly (op),7,,5,Mateusz Janicki,4/21/2010,,https://www.youtube.com/watch?v=cFxnGWdohME,,,consecutive_completions,medium,passback
+e091efd9-eb0b-5d66-933b-c167bca16fed,Merlin,Miraging Symp Mirage (op),10,,4,Jakub Mosciszewski,10/3/2018,,https://www.youtube.com/watch?v=YIpl077P2HI,,,consecutive_completions,medium,passback
+20edf4bd-c501-5fab-a4a7-16cc9f93b329,Mirage,Mirage (op),100,,2,Ken Somolinos,1/20/2013,,https://www.youtube.com/watch?v=eTW2NwlD0sE,,,consecutive_completions,medium,passback
+f5dfbec3-997d-5eb4-80b6-fe449608dcb3,Mobius,Spinning Torque (ss),11,,5,Evan Gatesman,9/28/2014,,https://www.youtube.com/watch?v=YiheEeHc9Fs,,,consecutive_completions,medium,passback
+c3ce5f24-ea8b-5dd8-91d3-a841593504a2,Montage,Spinning Whirl (op) (symp) (ducking),3,,7,David Clavens,5/25/2008,,https://www.youtube.com/watch?v=BYi503YHpZg,,Video unavailable; previously verified,consecutive_completions,medium,passback
+7d2a3d1d-269a-5ec5-8350-8e2ed8301def,Motion,Motion (op),19,1,5,Jim Penske,3/7/2025,,https://www.youtube.com/watch?v=V_N-THthxWw,0:00,,consecutive_completions,medium,passback
+60ad80ec-ed1f-5485-9d80-70f8c5708a1b,Motion,Motion (op),16,2,5,Jim Penske,3/12/2023,,https://youtu.be/iSp3-yXIOA4?t=200,3:20,,consecutive_completions,medium,passback
+21cbc78b-7d60-5132-b817-077e5275c997,Motion,Motion (op),9,3,5,Honza Weber,7/11/2004,,https://youtu.be/ABezmw88DU8?t=393,6:32,,consecutive_completions,medium,passback
+21f6eb33-daaf-54bc-a7b9-b94f05aa0b4e,Mullet,Whirl (op) (ducking) (symp),3,1,6,Norek,3/17/2010,,https://www.youtube.com/watch?v=g6XgA7yMvDQ,,,consecutive_completions,medium,passback
+1cbf874d-dfd0-50d7-864c-bcf0503ec63a,Mullet,Whirl (op) (ducking) (symp),3,2,6,Ken Somolinos,2/26/2012,,https://youtu.be/xPTjAKS7Pu8?t=4,0:04,mid-combo,consecutive_completions,medium,passback
+238c2534-81d8-5d7a-9329-5c694377040a,Nemesis,Barraging Double Down (op),3,,6,David Clavens,12/27/2008,,https://www.youtube.com/watch?v=Dmr7zj_c7cY#t=2m05s,,Video unavailable; previously verified,consecutive_completions,medium,passback
+8d28c29d-c6a8-56a0-ad94-fe70a1dbf74a,Omelette,Atomic Illusion (op),10,,4,Derek Littlefield,8/15/2024,,https://www.instagram.com/p/C-tI87cuxoZ,3,,consecutive_completions,medium,passback
+fa18c7ca-32be-5909-8223-b36db83d887f,Osis,Osis (ss),256,2,3,Maruisz Wilk,7/7/2009,,https://www.youtube.com/watch?v=eAHKpV-t_04,,,consecutive_completions,medium,passback
+90cfe32b-71df-5e0f-8f5a-02d819878a90,Paste,Pixie Pickup (op),42,1,3,Jakub Mosciszewski,3/5/2025,,https://youtu.be/xVl9Fyc4ino?t=35,,,consecutive_completions,medium,passback
+470ed666-2088-5a59-98b1-c6992150b457,Paste,Pixie Pickup (op),30,2,3,Derek Littlefield,2/23/2025,,https://youtu.be/UcSxoF3Moag?t=4,0:04,,consecutive_completions,medium,passback
+f78ad1c5-4694-55a8-a5c6-ce11c61bfa77,Paste (ss),Pixie Pickup (ss),43,,3,Krzysztof Sobotka,3/14/2010,,https://www.youtube.com/watch?v=haZxU-MjdVY,,,consecutive_completions,medium,passback
+bfe2120b-25aa-58ff-9641-100e712f35f9,Pdx Blender,Blender (op),20,1,5,Jim Penske,9/14/2014,,https://www.youtube.com/watch?v=om4wz1nxVqM,,,consecutive_completions,medium,passback
+cea46739-1e6d-5f24-8fd8-021692f3cdeb,Pdx Blender,Blender (op),11,2,5,Evan Gatesman,1/27/2013,,https://www.youtube.com/watch?v=LsUHxgbqamE,,,consecutive_completions,medium,passback
+a0477f34-b7e4-5a05-b7f6-6aca354f9613,Pdx Drifter,Drifter (far),32,1,4,Jim Penske,12/9/2020,,https://www.youtube.com/watch?v=-yZ4o7cnCdk,,,consecutive_completions,medium,passback
+f503359d-ab87-5612-ad59-178542d31335,Pdx Drifter,Drifter (far),26,2,4,Norek,4/13/2010,,https://www.youtube.com/watch?v=7V91IZM8kNI,,,consecutive_completions,medium,passback
+1ee5c817-8d49-5105-8e23-dace5346ee7d,Pdx Torque,Torque (op),23,1,5,SkyLon Smith,10/6/2016,,https://www.youtube.com/watch?v=eFFO4FrZzw8,,,consecutive_completions,medium,passback
+7c47ede0-5a7e-52fa-855f-5a3e223640ff,Pdx Torque,Torque (op),14,2,5,SkyLon Smith,8/14/2014,,https://www.youtube.com/watch?v=e8EQmVtrRl8,,,consecutive_completions,medium,passback
+67e6026f-485b-5574-92c6-2a6588aef8d9,Pickup (ss),Pickup (ss),42,,2,Patryk Tenderenda,11/2/2011,,https://www.youtube.com/watch?v=LR-IY5A44BI,,,consecutive_completions,medium,passback
+f756ca24-0ca3-5854-9d9c-354ebf0a1aa6,Pigbeater,Pixie Eggbeater,16,,4,Jakub Worek,6/17/2018,,https://www.youtube.com/watch?v=4KsXDNOV4RM,,,consecutive_completions,medium,passback
+70ad2202-9502-5935-9fa4-6b13ebca0f4a,Pigbeater (ss),Pixie Eggbeater (ss),10,,4,Jakub Mosciszewski,12/19/2024,,https://youtu.be/8TnwHZCsXWU?t=63,1:03,,consecutive_completions,medium,passback
+e93b7ad8-a518-5070-b1eb-8ea952aca952,Pixie Double Pickup (ss),Pixie Double Pickup (ss),3,,4,Jindra Smola,3/2/2016,,https://youtu.be/Nz5l6CFyDYc?t=6,0:06,,consecutive_completions,medium,passback
+8061e8e8-0585-523d-a18e-6b1371134b0a,Pixie DSO,Pixie DSO (op),5,,4,Jakub Mosciszewski,11/28/2017,,https://www.youtube.com/watch?v=M8bFCczr9rQ,,,consecutive_completions,medium,passback
+87701ed6-ebe8-5a87-8410-d8290a9a48ba,Pixie DSO (ss),Pixie DSO (ss),4,,4,Jakub Worek,7/1/2020,Yes,https://youtu.be/gksYcNKy6HU?t=1583,,26:23:00,consecutive_completions,low,passback
+0db44a39-ff48-5a4f-a709-c492c2dbee9b,PLO,Pixie Legover (op),123,,3,Jakub Worek,5/1/2018,,https://www.youtube.com/watch?v=DQ0T2RHrLC0,,,consecutive_completions,medium,passback
+adaf9efa-0a4b-5c7c-9d68-43a489536e4c,PS Whirl,Whirl (op) (symp),31,1,5,Jim Penske,3/1/2023,,https://www.youtube.com/watch?v=CaHJLHKEzuo,,,consecutive_completions,medium,passback
+04d75def-e55d-5cc5-9f84-cb8a0b0d566c,PS Whirl,Whirl (op) (symp),26,2,5,Norek,8/23/2010,,https://www.youtube.com/watch?v=pwrNDlxqqio,,,consecutive_completions,medium,passback
+481678d9-8cb6-5136-b20a-a5fac303ac14,Reverse Swirl,Swirl (rev) (ss),50,,3,Norek,3/17/2010,,https://www.youtube.com/watch?v=WerCXKoXEEw,,,consecutive_completions,medium,passback
+9967b6ad-715f-5427-b18c-c438a4ef2cc8,Ripped Warrior,Stepping Butterfly (ducking) (op),24,,5,David Clavens,7/1/2010,Yes,https://youtu.be/_Kdgzd_cI4U?t=37,0:37,,consecutive_completions,low,passback
+16e80d57-34cf-53c4-a5f4-ba64cdc7b908,Ripstein,Swirl (ss) (double),22,1,4,Evan Gatesman,1/2/2015,,https://youtu.be/nE12ACkE0QA?t=231,3:51,,consecutive_completions,medium,passback
+c85f4de8-3f5f-5710-878c-e579361582a2,Ripstein,Swirl (ss) (double),8,2,4,Evan Gatesman,1/27/2013,,https://youtu.be/YSNAY8Ho-18?t=6,0:06,,consecutive_completions,medium,passback
+07aa66da-c00c-58a6-84ed-a7bd68161a55,Ripwalk,Stepping Butterfly (op),106,,4,Norek,2/23/2010,,https://www.youtube.com/watch?v=bpDzW-WCvkg,,,consecutive_completions,medium,passback
+5fc67f23-e7d0-5e63-af09-31374afb7d51,Scorpion's Tail,Spinning Double Down (op),7,,5,Jim Penske,11/15/2006,,https://youtu.be/KPkQY4_jtJA?t=188,3:08,,consecutive_completions,medium,passback
+c61acec8-f6f1-5923-ba75-76ac8d100fed,Sidewalk,Stepping Butterfly (ss),72,,4,Norek,7/7/2009,,https://www.youtube.com/watch?v=8cQO9yV-g1o,,,consecutive_completions,medium,passback
+3626a3e6-e9bc-5e0d-8562-298cb695b645,Smear,Pixie Mirage (op),57,,3,Bartosz Bubula,2/15/2010,,https://www.youtube.com/watch?v=21jCqlE8yeM,,,consecutive_completions,medium,passback
+e8d710a9-3029-508e-8d12-db60a3b7ab52,Smear (ss),Pixie Mirage (ss),22,,3,Derek Littlefield,8/31/2024,,https://youtu.be/QnFUp1BqHyI?t=167,2:47,,consecutive_completions,medium,passback
+78fa7863-199e-5390-8f97-0ed17752bf0a,Smog,Pixie DLO (op),19,,4,Damian Gielnicki,3/14/2012,,https://youtu.be/N8xC15b3ytg?t=9,0:09,,consecutive_completions,medium,passback
+6d330c84-d3f2-56d3-b492-755bd1ada0f5,Smog (ss),Pixie DLO (ss),12,1,4,SkyLon Smith,8/17/2014,,https://www.youtube.com/watch?v=AQ-gJtDcudE,,,consecutive_completions,medium,passback
+b92bb232-147e-5ff8-a544-f6b058ed8149,Smog (ss),Pixie DLO (ss),5,2,4,Derek Littlefield,3/3/2015,,https://www.youtube.com/watch?v=KTfIsduRCaE,,,consecutive_completions,medium,passback
+78a24b28-782d-562d-bd7c-b635f6211a32,Smudge,Pixie Illusion (op),43,,3,Byrin Wylie,6/2/2009,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=383s,6:23,,consecutive_completions,medium,passback
+fd3282f9-94b3-5f3d-9797-6aa1d2a6c6aa,Smudge (ss),Pixie Illusion (ss),40,,3,Byrin Wylie,6/2/2009,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=314s,5:14,,consecutive_completions,medium,passback
+67fa5a3e-fe6e-50e6-a150-9fa83b0518be,Solestice,Osis Flapper,6,,4,Nick Polini,6/28/2015,,https://www.youtube.com/watch?v=wUtrai2YRJo,,,consecutive_completions,medium,passback
+7fade90a-1808-5cc2-9ccd-f52dcee4f5fc,Spanishfly,Ducking Double Down (op),5,,5,Anssi Sundberg,12/10/2011,,https://youtu.be/y78OOFDKhZY?t=168,2:48,,consecutive_completions,medium,passback
+93b1544e-c330-59cb-a422-4abb7e2d2777,Spender,Spinning Blender (op),10,1,6,Nick Landes,4/16/2015,,https://youtu.be/h4jXISlPecI?t=36,0:36,,consecutive_completions,medium,passback
+1d560b11-65f3-5420-9d75-330486b5c075,Spender,Spinning Blender (op),3,2,6,David Clavens,12/31/2007,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=558s,9:18,,consecutive_completions,medium,passback
+ce678a3e-c81a-59f3-ab47-51f5a155670e,Spinning Butterfly,Spinning Butterfly (op),40,,4,Damian Gielnicki,7/7/2009,,https://www.youtube.com/watch?v=yPi4k_rkUJ8,,,consecutive_completions,medium,passback
+e67b5b30-2dec-59ad-bd7f-5333e882d0b4,Spinning Clipper,Spinning Clipper (op),32,,3,Byrin Wylie,6/2/2009,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=429s,7:09,,consecutive_completions,medium,passback
+591648e5-51ea-5b31-8b14-62b9cd4b9523,Spinning Ducking Butterfly,Spinning Butterfly (op) (ducking),6,,5,SkyLon Smith,8/28/2014,,https://www.youtube.com/watch?v=LArkGz4HfpQ,,,consecutive_completions,medium,passback
+cd5346b5-792b-5c92-ab4e-0515caa45869,Spinning Ducking Osis,Spinning Osis (ducking) (op),16,,5,Brian Sherrill,7/20/2014,,https://www.youtube.com/watch?v=6rpKqDRLgRA,,,consecutive_completions,medium,passback
+7439984a-fccf-5d36-bf67-ad765f3f6246,Spinning Osis,Spinning Osis (op),84,,4,Brian Sherrill,7/20/2014,,https://youtu.be/-aT1G5R6fyY?t=25,0:25,"mid-combo, after a ducking clipper",consecutive_completions,medium,passback
+7439984a-fccf-5d36-bf67-ad765f3f6246,Spinning Osis,Spinning Osis (op),35,,4,Nick Polini,1/12/2014,,https://youtu.be/gZzHutLCa0o?t=9,0:09,,consecutive_completions,medium,passback
+de6ad43f-fac3-5bd9-8acf-3550db2d456d,Spinning Symp Swirl,Spinning Swirl (op) (symp),8,,4,Aleksi Airinen,2/1/2013,,https://youtu.be/0Ex4fuikQj4?t=12,0:12,,consecutive_completions,medium,passback
+b26c417a-0a25-5a17-bbf6-0d4def4db97e,Spinning Whirl,Spinning Whirl (op),25,1,5,SkyLon Smith,11/3/2015,,https://youtu.be/aYV562tQDBM?t=360,6:00,"#23 is off camera, but we're assuming it's clean. the 22 on camera would also be the WR",consecutive_completions,medium,passback
+171ef3b0-32ce-5634-9d79-43f2367ee26d,Spinning Whirl,Spinning Whirl (op),18,2,5,Evan Gatesman,1/27/2013,,https://www.youtube.com/watch?v=Lxbt8nxeLRk,,,consecutive_completions,medium,passback
+4a492f2b-8c3d-5afe-9fe6-abfdbb26e1bc,Spinning Whirl,Spinning Whirl (op),18,3,5,Jim Penske,9/9/2014,,https://www.youtube.com/watch?v=d1Uy768K3cA,,,consecutive_completions,medium,passback
+75b677d8-f94c-5223-b284-b353a4aa719b,Stepping Clipper,Stepping Clipper (ss),27,,3,Josh Munstermann,6/8/2009,,https://www.youtube.com/watch?v=7LpkJFmYo7k,,,consecutive_completions,medium,passback
+97280739-3e66-53e7-aa02-8f3c06aa31b6,Stepping Ducking Osis,Stepping Osis (op) (ducking),5,,5,Maruisz Wilk,3/14/2010,,https://www.youtube.com/watch?v=4wxlFGXA7G8,,,consecutive_completions,medium,passback
+807c3522-540b-5eb8-bcba-ec97b5f2e086,Stepping Osis,Stepping Osis (ss),12,,4,Evan Gatesman,1/27/2013,,https://www.youtube.com/watch?v=yYdCrAcR_GI,,,consecutive_completions,medium,passback
+c51ceb1c-b861-501e-a5e4-323a919c6cb7,Superfly,Double Down (op) (symp),10,,5,Anssi Sundberg,2/18/2013,,https://youtu.be/6h7yJJoir4s?t=92,1:32,,consecutive_completions,medium,passback
+c43798eb-f5f5-5ee8-b41b-8253d922edd9,Swifter,Stepping Swirl (op),5,1,4,Jim Penske,5/8/2020,,https://www.youtube.com/watch?v=misRIkKeX24,,,consecutive_completions,medium,passback
+f7f6c5eb-009f-53bd-89ce-1636b0f5ef12,Swifter,Stepping Swirl (op),4,2,4,Evan Gatesman,1/27/2013,,https://www.youtube.com/watch?v=CsYWfEniX5s,,,consecutive_completions,medium,passback
+5885e373-78ef-588a-9d69-8e7320843927,Swirl,Swirl (ss),84,1,3,Jim Penske,11/24/2013,,https://youtu.be/VMIUPcyyAz0?t=6,0:06,,consecutive_completions,medium,passback
+cf6b589d-ae0c-58ab-b61c-b33ecbd5f5f4,Swirl,Swirl (ss),42,2,3,Evan Gatesman,5/10/2007,,https://youtu.be/x8ruLjlx73M?t=259,4:19,,consecutive_completions,medium,passback
+10123598-3b85-5876-b83b-b07a59fd7fb3,Symp Eggbeater,Eggbeater (op) (symp),9,1,4,Jakub Worek,7/14/2009,,https://youtu.be/WBLP77dwvgw?t=6,0:06,,consecutive_completions,medium,passback
+a9a0b086-a875-59a3-81de-f6750f9af72d,Symp Eggbeater,Eggbeater (op) (symp),4,2,4,Byrin Wylie,6/2/2009,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=467s,7:47,,consecutive_completions,medium,passback
+55d64093-e516-5c02-95cd-239ddb5e4639,Symp Mirage,Mirage (op) (symp),20,,3,Ken Somolinos,6/17/2009,,https://www.youtube.com/watch?v=0qpRaqg0OXU,,,consecutive_completions,medium,passback
+b2d4797d-7a9b-5a7b-9607-ad501af26d11,Symp Mirage (ss),Mirage (ss) (symp),29,,3,Ken Somolinos,6/18/2009,,https://www.youtube.com/watch?v=Y7t-kl3dA-k,,,consecutive_completions,medium,passback
+2a97183d-20ea-5fa6-9f73-79d9a73a981b,Symp Swirl (op),Swirl (symp) (op),12,,3,Jim Penske,5/27/2020,,https://www.youtube.com/watch?v=rh9pQwhjAio,,,consecutive_completions,medium,passback
+f48cafcc-e32e-539e-8cbc-6015f4ec67b0,Symp Whirl,Whirl (ss) (symp),19,,4,Norek,11/2/2009,,https://www.youtube.com/watch?v=P5CD1-3TTZ8,,,consecutive_completions,medium,passback
+b75df7bd-7afc-5773-a236-0a919668c0b0,Symp Whirling Swirl,Whirling Swirl (ss) (symp),7,,5,Jim Penske,12/8/2013,,https://youtu.be/PBTH9Iqerow?t=73,1:13,,consecutive_completions,medium,passback
+799cc1e8-35d2-5454-9f02-58f56bf0535a,Tap,Atomic Mirage (ss),27,,3,Przemysław Pietrzycki,6/17/2008,,https://youtu.be/NrXz5dZLioQ?t=8,0:08,,consecutive_completions,medium,passback
+2149acce-a47b-5d70-a23d-251e683b5c47,Tapping Legover,Atomic Legover (ss),17,,3,Derek Littlefield,4/13/2022,,https://youtu.be/UcSxoF3Moag?t=54,0:54,,consecutive_completions,medium,passback
+f36fc6f2-c6bd-5c23-87d4-b4e87a001e93,Tapping Pickup,Atomic Pickup (ss),20,,3,SkyLon Smith,2/20/2021,,https://www.youtube.com/watch?v=nVZu4_TdxbU,,,consecutive_completions,medium,passback
+b72ebac9-cee2-5152-a548-f625b989f756,Terrage,Terrage (ss),32,,3,Anssi Sundberg,1/5/2008,,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=108s,1:48,,consecutive_completions,medium,passback
+4d0d0c4e-61eb-59c3-aaf8-7bab8334bdcc,Toe Blur,Quantum Mirage (op),12,,4,Anssi Sundberg,3/1/2013,,https://youtu.be/_Q6sz9i1OoI?t=109,1:49,,consecutive_completions,medium,passback
+448562ef-734c-5ce9-9f37-e0f7336727e6,Toe Ducking Legover,Toe Ducking Legover (op),34,,3,Jakub Worek,10/28/2017,,https://www.youtube.com/watch?v=6C5Rsk3YO8M,,,consecutive_completions,medium,passback
+c7794f1d-e41e-5dd4-82d1-e58423deb66d,Toe Gyro Mirage,Toe Spinning Mirage (ss),4,,3,Ken Somolinos,1/6/2013,,https://www.youtube.com/watch?v=5Wyx-Of1qsw,,,consecutive_completions,medium,passback
+05c20715-d349-5803-a14e-8cfe0c44112c,Toe Spinning Toe,Toe Spinning Toe (op),10,,2,Krzysztof Sobotka,3/14/2010,,https://www.youtube.com/watch?v=v4cdKsy8c1I,,Video unavailable; previously verified,consecutive_completions,medium,passback
+3b5f76d0-7bc8-58b3-a36b-c4fd8c1adf9b,Tomahawk,Whirl (op) (ducking),20,,5,Norek,11/2/2009,,https://www.youtube.com/watch?v=1n3Agt8IbPw,,,consecutive_completions,medium,passback
+a07af4c9-a69b-5d99-907a-997172aa5bfb,Tombstone,Stepping Drifter (ss),8,,4,Nathan Pipenberg,12/10/2013,,https://www.youtube.com/watch?v=jogQ-qUrku0#t=3m51s,,Video unavailable; previously verified,consecutive_completions,medium,passback
+c4f03114-bf3d-50aa-9cfe-79f3ec0b24ce,Torque,Torque (ss),26,1,4,Jim Penske,8/1/2019,,https://www.youtube.com/watch?v=-Q0bJAmbe_Q,,,consecutive_completions,medium,passback
+54f3f047-2b60-59f0-8d6a-1e50c8830b6a,Torque,Torque (ss),14,2,4,Ryan Thomas,5/31/2009,,https://www.youtube.com/watch?v=Ei2DnRCZJBU,,,consecutive_completions,medium,passback
+45f2ca17-7683-510f-988d-b190f6924529,Triple Orbit,ATW (out) (triple),2,,4,Ales Zelinka,6/1/2005,Yes,https://youtu.be/eW-ZyQmw7qM?t=1557,,25:57:00,consecutive_completions,low,passback
+6e65c615-b979-52b3-b19a-70203f674406,Unique 3-Dex,Unique 3-Dex,13,1,N/A,Aleksi Airinen,12/31/2011,Yes,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=563s,9:23,,consecutive_dex,low,passback
+f53ef3b7-036e-556c-a165-54f706708001,Unique 3-Dex,Unique 3-Dex,12,2,N/A,David Clavens,9/1/2010,Yes,https://youtu.be/NDj5xn8-VWE?t=244,4:04,,consecutive_dex,low,passback
+b43608b1-85b7-5b1b-ae58-7a9af7f697a8,Unique Beastly,Unique 6-ADD,9,,6,Jim Penske,9/7/2015,,https://youtu.be/xo1FM0Ay4B0?t=1219,20:19,,consecutive_dex,medium,passback
+ba6a86f1-d286-5731-bd24-b1923fdd567c,Unique Fearless,Unique 5-ADD,25,1,5,Jim Penske,7/23/2023,,https://www.youtube.com/watch?v=uSBHfyY5tOE,,,consecutive_dex,medium,passback
+aba87920-48e4-55fe-b2eb-abbffa7a4361,Unique Fearless,Unique 5-ADD,22,2,5,Jim Penske,2/1/2017,,https://www.youtube.com/watch?v=Hg2g4bNzP8k,,,consecutive_dex,medium,passback
+e23b2593-e871-5b10-98a8-3390e6721702,Unique Fearless,Unique 5-ADD,21,3,5,David Clavens,1/1/2014,,https://youtu.be/loO-z2neJ2M?t=51,0:51,,consecutive_dex,medium,passback
+2fe48f41-62bc-59e1-abc6-c92814140e2b,Unique Fearless,Unique 5-ADD,20,4,5,David Clavens,6/1/2006,Yes,https://youtu.be/0iIEgusNBBc?t=85,1:25,,consecutive_dex,low,passback
+71d705fa-d30f-5b11-9de4-90ce77568190,Unique Fearless,Unique 5-ADD,19,5,5,Vasek Klouda,6/1/2005,Yes,Feet on Fire,,"DVD released in 2007 (after the 2006 record), but was technically the filmed record at the time",consecutive_dex,low,passback
+4ff36864-57d1-5616-ba90-5fa2dbe8c6cc,Void,Spinning Drifter (op),13,1,5,Nick Landes,4/16/2015,,https://www.youtube.com/watch?v=h4jXISlPecI,,,consecutive_completions,medium,passback
+71e234fc-18eb-5245-b1d9-7742e73bd7df,Void,Spinning Drifter (op),5,2,5,Nick Landes,2/15/2010,,https://youtu.be/O7NNRmXjQYw?t=359,5:59,,consecutive_completions,medium,passback
+2c69966a-e0c9-5ac4-863c-4a2467acda93,Vortex,Spinning Drifter (ss),13,,4,Evan Gatesman,11/15/2014,,https://youtu.be/G3tDw8fsX4Y?t=52,0:52,,consecutive_completions,medium,passback
+c406c8e3-7a8a-5dcb-b675-aaa357a9a95c,Weaving Magellan,Pixie Legover (ducking) (ss),2,,4,Derek Littlefield,2/27/2025,,https://www.instagram.com/p/DGlbm3quyxE/,3,,consecutive_completions,medium,passback
+f1552f35-9aab-56f1-afa0-bb4556ffaddd,Weaving Pigbeater,Pixie Eggbeater (ducking) (ss),2,,5,Derek Littlefield,12/22/2024,,https://youtu.be/7wKBeMg5OkQ?t=378,6:18,,consecutive_completions,medium,passback
+57289c4f-9e51-523a-8633-4f6d05e572a3,Whip,Whirl (rev) (ss),61,,3,Norek,11/2/2009,,https://youtu.be/LDnSwsn_820?t=23,0:23,,consecutive_completions,medium,passback
+8f6b0c8f-9544-51bd-8ee3-da28cf715a0c,Whip (op),Whirl (rev) (op),56,,3,SkyLon Smith,8/27/2014,,https://youtu.be/-QjtgUc1Z9c?t=15,0:15,,consecutive_completions,medium,passback
+5d8e4871-7417-56b5-a5b3-60e65457e1a1,Whirl,Whirl (ss),41,,3,Ken Somolinos,11/14/2012,,https://youtu.be/YlRRABchDVw?t=7,0:07,after 2-bag juggling,consecutive_completions,medium,passback
+424cfce3-2788-5a59-82a4-1b0b7da99fd4,Whirling Swirl,Whirling Swirl (ss),12,,4,Norek,3/17/2010,,https://www.youtube.com/watch?v=PhTKzs-elF0,,,consecutive_completions,medium,passback
+d9b3dc27-ca5e-5836-b54c-ff79b2cf6154,Whirlwind,Spinning Whirl (op) (symp),5,,6,David Clavens,12/27/2008,,https://www.youtube.com/watch?v=Dmr7zj_c7cY,,Video unavailable; previously verified,consecutive_completions,medium,passback
+e3259e3d-45f3-59ef-8ee3-1dc28c86af37,Whirlygig,Stepping Whirl (op) (symp),9,,6,David Clavens,9/1/2010,Yes,https://youtu.be/NDj5xn8-VWE?t=430,7:10,,consecutive_completions,low,passback
+18f1f508-2da5-5344-82b1-dcb3ece4ea51,Whirr,Whirl (ss) (double),20,1,4,Jim Penske,9/8/2018,,https://www.youtube.com/watch?v=5oo3OOCu08I,,,consecutive_completions,medium,passback
+333c5494-c9da-587f-bc37-72f4a2a7836f,Whirr,Whirl (ss) (double),16,2,4,Evan Gatesman,1/27/2013,,https://www.youtube.com/watch?v=bcnLyQvneuE,,,consecutive_completions,medium,passback
+e1c6171f-ae52-5d4a-a531-e39e0d73d0f3,Zulu Clipper,Diving Clipper (op),60,1,3,Jakub Mosciszewski,9/29/2018,,https://www.youtube.com/watch?v=cJcMH90zcj4,,,consecutive_completions,medium,passback
+8b21cb4c-e169-58db-a11c-4cf1c69a4a73,Zulu Clipper,Diving Clipper (op),40,2,3,TJ Boutorwick,11/28/2013,,https://www.youtube.com/watch?v=JvvHWZ-1Q-A,,,consecutive_completions,medium,passback
