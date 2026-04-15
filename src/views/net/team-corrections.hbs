@@ -76,7 +76,7 @@
   {{#if content.fastAction.length}}
   <section class="content-section">
     <h2>Fast Action</h2>
-    <p class="detail-muted">HIGH severity + MEDIUM with strong partner suggestion (5+ co-occurrences)</p>
+    <p class="detail-muted">HIGH severity + rows with strong partner suggestions from co-occurrence graph</p>
     <div class="records-table-wrap" style="overflow-x:auto">
       <table class="records-table records-table-sm">
         <thead>
@@ -86,6 +86,7 @@
             <th>Discipline</th>
             <th>P</th>
             <th>Original</th>
+            <th>Suggested Partners</th>
             <th>Decision</th>
           </tr>
         </thead>
@@ -97,6 +98,15 @@
             <td>{{discipline}}</td>
             <td class="col-rank">{{placement}}</td>
             <td>{{originalDisplay}}</td>
+            <td>
+              {{#if topSuggestions.length}}
+              {{#each topSuggestions}}
+              <span class="{{#if (eq confidence 'HIGH')}}badge-success{{/if}}" style="{{#if (eq confidence 'HIGH')}}font-weight:600{{/if}}">{{personName}} ({{count}}x)</span>{{#unless @last}}, {{/unless}}
+              {{/each}}
+              {{else}}
+              <em class="detail-muted">No strong match</em>
+              {{/if}}
+            </td>
             <td>
               <form method="POST" action="/internal/net/team-corrections/{{id}}/decision" class="rc-decision-form">
                 <input type="text" name="player_a" value="{{suggestedPlayerA}}" placeholder="Player A" style="width:120px" />

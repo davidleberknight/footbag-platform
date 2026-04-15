@@ -127,7 +127,7 @@ describe('GET /records', () => {
   it('renders the page title', async () => {
     const app = createApp();
     const res = await request(app).get('/records');
-    expect(res.text).toContain('Consecutive Kicks Records');
+    expect(res.text).toContain('Records');
   });
 
   it('shows Current World Records section', async () => {

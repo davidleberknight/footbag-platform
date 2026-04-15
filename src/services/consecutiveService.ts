@@ -1,4 +1,6 @@
-import { consecutiveKicksRecords, ConsecutiveKicksRow } from '../db/db';
+import { consecutiveKicksRecords, ConsecutiveKicksRow, freestyleRecords, FreestyleRecordRow } from '../db/db';
+import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleService';
+import { runSqliteRead } from './sqliteRetry';
 
 // ---------------------------------------------------------------------------
 // View-model types
@@ -24,10 +26,12 @@ export interface ConsecutiveGroup {
 }
 
 export interface ConsecutiveRecordsContent {
-  worldRecords:  ConsecutiveRecordViewModel[];
-  highestScores: ConsecutiveGroup[];
-  progression:   ConsecutiveGroup[];
-  milestones:    ConsecutiveGroup[];
+  worldRecords:      ConsecutiveRecordViewModel[];
+  highestScores:     ConsecutiveGroup[];
+  progression:       ConsecutiveGroup[];
+  milestones:        ConsecutiveGroup[];
+  passbackRecords:   FreestyleRecordViewModel[];
+  totalPassback:     number;
 }
 
 interface ConsecutiveRecordsViewModel {
@@ -87,19 +91,25 @@ export const consecutiveService = {
     const progressionRows = consecutiveKicksRecords.listProgression.all()    as ConsecutiveKicksRow[];
     const milestoneRows   = consecutiveKicksRecords.listMilestones.all()     as ConsecutiveKicksRow[];
 
+    const passbackRows = runSqliteRead('freestyleRecords.listPublic', () =>
+      freestyleRecords.listPublic.all() as FreestyleRecordRow[],
+    );
+
     return {
-      seo:  { title: 'Consecutive Kicks Records' },
+      seo:  { title: 'Records' },
       page: {
         sectionKey: 'records',
-        pageKey:    'consecutive_records',
-        title:      'Consecutive Kicks Records',
-        intro:      'Consecutive kicks world records, highest scores, and milestones.',
+        pageKey:    'records',
+        title:      'Records',
+        intro:      'Official consecutive kicks records and freestyle passback records.',
       },
       content: {
-        worldRecords:  worldRows.map(shapeRow),
-        highestScores: groupBySubsection(highScoreRows),
-        progression:   groupBySubsection(progressionRows),
-        milestones:    groupBySubsection(milestoneRows),
+        worldRecords:    worldRows.map(shapeRow),
+        highestScores:   groupBySubsection(highScoreRows),
+        progression:     groupBySubsection(progressionRows),
+        milestones:      groupBySubsection(milestoneRows),
+        passbackRecords: passbackRows.map(shapeFreestyleRecord),
+        totalPassback:   passbackRows.length,
       },
     };
   },

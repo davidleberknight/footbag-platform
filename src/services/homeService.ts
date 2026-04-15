@@ -96,11 +96,15 @@ export const homeService = {
           href: '/net',
           description: 'Fast-paced foot volleyball over a 5-foot net.',
         },
+        {
+          label: 'Records',
+          href: '/records',
+          description: 'Consecutive kicks world records, highest scores, and milestones.',
+        },
       ],
       comingSoonSections: [
-        { heading: 'Records', body: 'Consecutive kicks world records, highest scores, and milestones.' },
         { heading: 'Media Gallery', body: 'Browse photos and videos by hashtag, member, event, and club galleries.' },
-        { heading: 'Sideline Events', body: 'Golf, 2-Square, 4-Square, Consecutive Kicks, and Circle Kicking (old-school Hack).' },
+        { heading: 'Sideline Events', body: 'Golf, 2-Square, 4-Square, Consecutive Kicks, and Circle Kicking (old school).' },
         { heading: 'Tutorials', body: 'Rules, how-to guides, and reference material for all levels.' },
       ],
     };

@@ -324,6 +324,13 @@ interface NetRecoveryCandidatesPageViewModel {
 
 // ── Team corrections triage (internal) ──────────────────────────────────────
 
+interface PartnerSuggestion {
+  personName:  string;
+  count:       number;
+  lastYear:    number | null;
+  confidence:  string;  // HIGH | MEDIUM | LOW
+}
+
 interface TeamAnomalyRow {
   id:                string;
   eventKey:          string;
@@ -341,6 +348,7 @@ interface TeamAnomalyRow {
   suggestedPlayerA:  string;
   suggestedPlayerB:  string;
   decision:          string | null;
+  topSuggestions:    PartnerSuggestion[];
 }
 
 interface TeamCorrectionsPageViewModel {
@@ -2122,6 +2130,7 @@ export const netService = {
             suggestedPlayerA: playerA,
             suggestedPlayerB: suggestedPartner,
             decision:        null,
+            topSuggestions:  [],
           });
         }
       }
@@ -2141,6 +2150,57 @@ export const netService = {
         row.decision = dbRow.decision;
         if (dbRow.suggested_player_a) row.suggestedPlayerA = dbRow.suggested_player_a;
         if (dbRow.suggested_player_b) row.suggestedPlayerB = dbRow.suggested_player_b;
+      }
+    }
+
+    // Load partner graph for richer suggestions
+    const graphPath = path.join(process.cwd(), 'legacy_data', 'out', 'partner_graph.json');
+    let partnerGraph: Record<string, { person_name: string; partners: {
+      person_id: string; person_name: string; count: number;
+      first_year: number | null; last_year: number | null;
+    }[] }> = {};
+    try {
+      partnerGraph = JSON.parse(fs.readFileSync(graphPath, 'utf-8'));
+    } catch { /* graph not available */ }
+
+    // Build reverse name→pid index from graph
+    const nameToPid = new Map<string, string>();
+    for (const [pid, entry] of Object.entries(partnerGraph)) {
+      nameToPid.set(entry.person_name.toLowerCase(), pid);
+    }
+
+    // Compute graph-based suggestions for each row
+    for (const row of rows) {
+      const playerName = row.suggestedPlayerA || row.originalDisplay.split('(')[0].split('/')[0].trim();
+      const pid = nameToPid.get(playerName.toLowerCase());
+      if (!pid || !partnerGraph[pid]) continue;
+
+      const eventYear = parseInt(row.year, 10) || 0;
+      const suggestions: PartnerSuggestion[] = [];
+
+      for (const p of partnerGraph[pid].partners.slice(0, 5)) {
+        const yearDiff = (p.last_year && eventYear) ? Math.abs(eventYear - p.last_year) : 99;
+        let confidence = 'LOW';
+        if (p.count >= 5 && yearDiff <= 5) confidence = 'HIGH';
+        else if (p.count >= 3) confidence = 'MEDIUM';
+
+        if (confidence !== 'LOW') {
+          suggestions.push({
+            personName:  p.person_name,
+            count:       p.count,
+            lastYear:    p.last_year,
+            confidence,
+          });
+        }
+      }
+
+      row.topSuggestions = suggestions;
+
+      // If no suggestedPartner yet but we have a HIGH suggestion, pre-fill
+      if (!row.suggestedPartner && suggestions.length > 0 && suggestions[0].confidence === 'HIGH') {
+        row.suggestedPartner = suggestions[0].personName;
+        row.cooccurrenceCount = suggestions[0].count;
+        row.suggestedPlayerB = suggestions[0].personName;
       }
     }
 
@@ -2173,9 +2233,11 @@ export const netService = {
         total: info.total, high: info.high,
       }));
 
-    // Fast-action: HIGH severity + MEDIUM with strong suggestion (>=5 co-occurrences)
+    // Fast-action: HIGH severity + any row with HIGH-confidence graph suggestion
     const fastAction = rows.filter(r =>
-      r.severity === 'HIGH' || (r.severity === 'MEDIUM' && r.cooccurrenceCount >= 5),
+      r.severity === 'HIGH' ||
+      (r.severity === 'MEDIUM' && r.cooccurrenceCount >= 5) ||
+      r.topSuggestions.some(s => s.confidence === 'HIGH'),
     );
 
     // Filter options

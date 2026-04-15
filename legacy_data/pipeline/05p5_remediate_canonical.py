@@ -127,8 +127,21 @@ def _ordinal(n: int) -> str:
     return f"{n}{suffix[n % 10]}"
 
 
-def _worlds_canonical_name(year: int) -> str:
-    return f"{_ordinal(year - 1979)} Annual World Footbag Championships"
+def _worlds_canonical_name(year: int, existing_name: str = "") -> str:
+    """Build canonical Worlds display name.
+
+    Prefer the ordinal from the mirror source (e.g. '44th Annual IFPA WORLD ...')
+    over the year-based formula, since the mirror's numbering is authoritative
+    and accounts for skipped years (e.g. 2020 COVID cancellation).
+    """
+    # Try to extract the ordinal from the existing mirror name
+    m = re.match(r"(\d+)\s*(st|nd|rd|th)\b", existing_name.strip(), re.IGNORECASE)
+    if m:
+        n = int(m.group(1))
+    else:
+        # Fallback: formula-based (1980 = 1st)
+        n = year - 1979
+    return f"{_ordinal(n)} Annual World Footbag Championships"
 
 
 # Signals that confirm the event is the official championships (not a warm-up,
@@ -289,8 +302,8 @@ for ev in events:
     if not _is_worlds_event(ev):
         continue
     year = int(ev["year"])
-    new_name = _worlds_canonical_name(year)
     old_name = ev["event_name"]
+    new_name = _worlds_canonical_name(year, old_name)
     old_type = ev["event_type"]
     name_changed = old_name != new_name
     type_changed = old_type != "worlds"
