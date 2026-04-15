@@ -9,8 +9,7 @@ import {
   netRecoveryApproval, RecoveryAliasCandidateRow,
   netPlayers,    NetPlayerSummaryRow, NetPartnerRow, NetPartnerNetworkRow,
   netEvents,     NetEventSummaryRow, NetEventAppearanceRow,
-  netHome,       NetHomeTopTeamRow, NetHomeTopPlayerRow,
-                 NetHomeRecentEventRow, NetHomeInterestingTeamRow,
+  netHome,       NetHomeRecentEventRow,
                  NetNotablePlayerRow,
   netReview,     NetReviewSummaryRow, NetReviewClassificationSummaryRow,
                  NetReviewDecisionSummaryRow, NetReviewFixTypeSummaryRow,
@@ -44,26 +43,6 @@ const TEAM_DISCLAIMER =
 // View-model types
 // ---------------------------------------------------------------------------
 
-export interface NetHomeTopTeamViewModel {
-  teamId:             string;
-  teamName:           string;
-  teamHref:           string;
-  yearSpan:           string | null;
-  appearanceCount:    number;
-  winCount:           number;
-  podiumCount:        number;
-  bestPlacementLabel: string;
-}
-
-export interface NetHomeTopPlayerViewModel {
-  personId:        string;
-  personName:      string;
-  country:         string | null;
-  partnerCount:    number;
-  appearanceCount: number;
-  href:            string;
-}
-
 export interface NetHomeRecentEventViewModel {
   eventId:             string;
   eventTitle:          string;
@@ -71,15 +50,6 @@ export interface NetHomeRecentEventViewModel {
   eventYear:           number;
   appearanceCount:     number;
   hasMultiStageHint:   boolean;
-}
-
-export interface NetHomeInterestingTeamViewModel {
-  teamId:             string;
-  teamName:           string;
-  teamHref:           string;
-  yearSpan:           string | null;
-  winCount:           number;
-  bestPlacementLabel: string;
 }
 
 interface NotableBucketViewModel {
@@ -135,10 +105,7 @@ interface NetHomePageViewModel {
     intro:                 NetLandingExplainer;
     competitionFormats:    NetCompetitionFormat[];
     exploreCards:          NetExploreCard[];
-    topTeams:              NetHomeTopTeamViewModel[];
-    topPlayers:            NetHomeTopPlayerViewModel[];
     recentEvents:          NetHomeRecentEventViewModel[];
-    interestingTeams:      NetHomeInterestingTeamViewModel[];
     notablePartnerships:   NotableBucketViewModel[];
     notablePlayers:        NotablePlayerBucketViewModel[];
   };
@@ -171,7 +138,6 @@ const NET_COMPETITION_FORMATS: NetCompetitionFormat[] = [
     videoTitle:    'IFPA World Footbag Championships 2019 — Mixed Doubles Net Final',
   },
 ];
-
 
 export interface NetTeamViewModel {
   teamId:          string;
@@ -756,30 +722,6 @@ function buildCareerHighlights(networkRows: NetPartnerNetworkRow[]): CareerHighl
   };
 }
 
-function shapeHomeTopTeam(row: NetHomeTopTeamRow): NetHomeTopTeamViewModel {
-  return {
-    teamId:             row.team_id,
-    teamName:           teamName(row.person_name_a, row.person_name_b),
-    teamHref:           `/net/teams/${row.team_id}`,
-    yearSpan:           yearSpan(row.first_year, row.last_year),
-    appearanceCount:    row.appearance_count,
-    winCount:           row.win_count,
-    podiumCount:        row.podium_count,
-    bestPlacementLabel: placementLabel(row.best_placement),
-  };
-}
-
-function shapeHomeTopPlayer(row: NetHomeTopPlayerRow): NetHomeTopPlayerViewModel {
-  return {
-    personId:        row.person_id,
-    personName:      row.person_name,
-    country:         row.country,
-    partnerCount:    row.partner_count,
-    appearanceCount: row.appearance_count,
-    href:            netPlayerHref(row.person_id),
-  };
-}
-
 function shapeHomeRecentEvent(row: NetHomeRecentEventRow): NetHomeRecentEventViewModel {
   return {
     eventId:           row.event_id,
@@ -788,17 +730,6 @@ function shapeHomeRecentEvent(row: NetHomeRecentEventRow): NetHomeRecentEventVie
     eventYear:         row.event_year,
     appearanceCount:   row.appearance_count,
     hasMultiStageHint: row.has_multi_stage_hint === 1,
-  };
-}
-
-function shapeHomeInterestingTeam(row: NetHomeInterestingTeamRow): NetHomeInterestingTeamViewModel {
-  return {
-    teamId:             row.team_id,
-    teamName:           teamName(row.person_name_a, row.person_name_b),
-    teamHref:           `/net/teams/${row.team_id}`,
-    yearSpan:           yearSpan(row.first_year, row.last_year),
-    winCount:           row.win_count,
-    bestPlacementLabel: placementLabel(row.best_placement),
   };
 }
 
@@ -1635,11 +1566,8 @@ function buildCandidatesFilterOptions(
 
 export const netService = {
   getNetHomePage(): NetHomePageViewModel {
-    const topTeamRows        = netHome.getTopTeams.all()             as NetHomeTopTeamRow[];
-    const topPlayerRows      = netHome.getTopPlayersByPartners.all()  as NetHomeTopPlayerRow[];
-    const recentEventRows    = netHome.getRecentEvents.all()          as NetHomeRecentEventRow[];
-    const interestingTeamRows = netHome.getInterestingTeams.all()     as NetHomeInterestingTeamRow[];
-    const notablePool        = netPartnerships.listNotablePool.all()  as NetPartnershipRow[];
+    const recentEventRows = netHome.getRecentEvents.all()         as NetHomeRecentEventRow[];
+    const notablePool     = netPartnerships.listNotablePool.all() as NetPartnershipRow[];
 
     // Build notable buckets from the shared pool (different sort orders, top 5 each)
     const BUCKET_SIZE = 5;
@@ -1734,7 +1662,7 @@ export const netService = {
 
     // Grey-out rule: an explore card is "coming soon" when its underlying
     // data is thin enough that the linked sub-page would be an empty stub.
-    const hasTeams        = topTeamRows.length > 0;
+    const hasTeams        = notablePool.length > 0;
     const hasPartnerships = notablePartnerships.length > 0;
     const hasEvents       = recentEventRows.length > 0;
 
@@ -1758,10 +1686,7 @@ export const netService = {
         intro:               NET_LANDING_INTRO,
         competitionFormats:  NET_COMPETITION_FORMATS,
         exploreCards,
-        topTeams:            topTeamRows.map(shapeHomeTopTeam),
-        topPlayers:          topPlayerRows.map(shapeHomeTopPlayer),
         recentEvents:        recentEventRows.map(shapeHomeRecentEvent),
-        interestingTeams:    interestingTeamRows.map(shapeHomeInterestingTeam),
         notablePartnerships,
         notablePlayers,
       },

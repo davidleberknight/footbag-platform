@@ -7,10 +7,9 @@
  * Verifies:
  *   - 200 response
  *   - Hero with mascot + "What is Footbag Net?" narrative
- *   - Competition Formats cards (Singles + Doubles) with YouTube embeds and Rules links
+ *   - Competition Formats cards (Singles + Doubles) with YouTube embeds
  *   - Explore cards link to real sub-routes (/net/teams, /net/partnerships, /net/events)
  *   - Notable partnerships, notable players, recent events sections preserved
- *   - Evidence disclaimer always present
  *   - No forbidden terms: "ranking", "head-to-head", "win/loss"
  *   - Only canonical_only data surfaces (inferred_partial excluded)
  *   - Multi-stage QC badge appears when hint is set
