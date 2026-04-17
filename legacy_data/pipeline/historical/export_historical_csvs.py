@@ -1253,40 +1253,55 @@ print(f"  {len(_part_place_count):,} persons with placements (from participants_
 
 # BAP / FBHOF matching helpers (mirrors build_final_workbook_v12 logic)
 def _honor_norm(s: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", s.lower())
+    """Normalize for honor matching: strip diacritics, lowercase, remove non-alnum."""
+    import unicodedata
+    nfkd = unicodedata.normalize("NFKD", s)
+    stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]", "", stripped.lower())
 
 _HONOR_OVERRIDES: dict[str, str] = {
-    "ken shults":               "Kenneth Shults",
-    "kenny shults":             "Kenneth Shults",
-    "vasek klouda":             "Václav Klouda",
-    "vaclav (vasek) klouda":    "Václav Klouda",
+    # Name in BAP/HoF source → canonical name in PT/persons
+    "ken shults":               "Kenny Shults",
+    "kenny shults":             "Kenny Shults",
+    "vasek klouda":             "Vaclav Klouda",
+    "vaclav (vasek) klouda":    "Vaclav Klouda",
     "tina aberli":              "Tina Aeberli",
-    "eli piltz":                "Eliott Piltz Galán",
-    "eliott piltz galan":       "Eliott Piltz Galán",
+    "eli piltz":                "Eliott Piltz Galan",
+    "eliott piltz galan":       "Eliott Piltz Galan",
     "evanne lamarch":           "Evanne Lemarche",
     "evanne lamarche":          "Evanne Lemarche",
     "arek dzudzinski":          "Arkadiusz Dudzinski",
-    "martin cote":              "Martin Côté",
-    "sebastien duchesne":       "Sébastien Duchesne",
-    "sebastien duschesne":      "Sébastien Duchesne",
-    "lon smith":                "Lon Skyler Smith",
-    "lon skyler smith":         "Lon Skyler Smith",
-    "ales zelinka":             "Aleš Zelinka",
-    "jere vainikka":            "Jere Väinikkä",
-    "tuomas karki":             "Tuomas Kärki",
-    "rafal kaleta":             "Rafał Kaleta",
-    "pawel nowak":              "Paweł Nowak",
-    "jakub mosciszewski":       "Jakub Mościszewski",
-    "dominik simku":            "Dominik Šimků",
+    "martin cote":              "Martin Cote",
+    "sebastien duchesne":       "Sebastien Duchesne",
+    "sebastien duschesne":      "Sebastien Duchesne",
+    "lon smith":                "Skyler Lon Smith",
+    "lon skyler smith":         "Skyler Lon Smith",
+    "ales zelinka":             "Ales Zelinka",
+    "jere vainikka":            "Jere Vainikka",
+    "tuomas karki":             "Tuomas Karki",
+    "rafal kaleta":             "Rafal Kaleta",
+    "pawel nowak":              "Pawel Nowak",
+    "jakub mosciszewski":       "Jakub Mosciszewski",
+    "dominik simku":            "Dominik Simku",
     "honza weber":              "Jan Weber",
-    "genevieve bousquet":       "Geneviève Bousquet",
-    "becca english-ross":       "Becca English",
+    "genevieve bousquet":       "Genevieve Bousquet",
+    "becca english-ross":       "Becca English-Ross",
     "pt lovern":                "P.T. Lovern",
     "p.t. lovern":              "P.T. Lovern",
     "kendall kic":              "Kendall KIC",
-    "wiktor debski":            "Wiktor Dębski",
-    "florian gotze":            "Florian Götze",
+    "wiktor debski":            "Wiktor Debski",
+    "florian gotze":            "Florian Gotze",
     "chantelle laurent":        "Chantelle Laurent",
+    # BAP members with name variants
+    "red husted":               "Red Fred Husted",
+    "dave holton":              "David Holton",
+    "gordon scott bevier":      "Gordon Bevier",
+    "bryan fournier":           "Brian Fournier",
+    "johnny murphy":            "Jonathan Murphy",
+    "phillip morrison":         "Phil Morrison",
+    "olav piwowar":             "Olaf Piwowar",
+    "jindra smola":             "Jindrich Smola",
+    "rene ruhr":                "Ren Ruhr",
 }
 
 # Build norm → person_id lookup from PT

@@ -44,13 +44,15 @@ ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_INPUT    = ROOT / "event_results" / "canonical_input"
 CANONICAL_UPSTREAM = ROOT / "out" / "canonical"   # for early-era person supplement
 QUARANTINE_CSV     = ROOT / "inputs" / "review_quarantine_events.csv"
+KNOWN_UNKNOWNS_CSV = ROOT / "out" / "known_unknowns.csv"
+CONSECUTIVE_CSV    = ROOT / "inputs" / "curated" / "records" / "consecutives_records.csv"
 OUTPUT_PATH        = ROOT / "out" / "Footbag_Results_Release.xlsx"
 
 # Threshold for early-era person supplement (section 3 of alignment audit).
 # Persons with first_year ≤ this value are included even without placements.
 _EARLY_ERA_FIRST_YEAR_CUTOFF = 1990
 
-VERSION = "v22.1"
+VERSION = "v23"
 UPDATED = date.today().isoformat()
 
 # ── Styles ─────────────────────────────────────────────────────────────────────
@@ -613,6 +615,373 @@ def compute_stats(raw_results, events, discs, persons):
     return result
 
 
+# ── Discipline-specific singles stats ─────────────────────────────────────────
+
+def compute_discipline_singles(raw_results, events, discs, persons, category: str):
+    """Compute per-player stats for a specific discipline category (singles only).
+
+    Returns dict keyed by person_id with columns matching the spec:
+    Player, Country, Events, Wins, 2nds, 3rds, Podiums, Finals (appearances),
+    First Year, Last Year, Career Span, Best Finish.
+    """
+    stats: dict[str, dict] = defaultdict(lambda: {
+        "events": set(), "years": set(),
+        "wins": 0, "p2": 0, "p3": 0, "podiums": 0,
+        "finals": 0, "best": 999,
+    })
+
+    for row in raw_results:
+        pid = row.get("person_id", "").strip()
+        if not pid or pid in _SKIP_PID:
+            continue
+        dname = row.get("display_name", "").strip()
+        if dname in _SKIP_DNAME:
+            continue
+        porder = row.get("participant_order", "1").strip()
+        if porder != "1":
+            continue
+
+        eid      = row.get("event_key", "").strip()
+        ev       = events.get(eid, {})
+        year     = ev.get("year", "").strip()
+        disc_key = row.get("discipline_key", "").strip()
+        disc     = discs.get((eid, disc_key), {})
+        cat      = disc.get("discipline_category", "").lower().strip()
+        ttype    = disc.get("team_type", "").lower().strip()
+
+        if cat != category or ttype != "singles":
+            continue
+
+        try:
+            place = int(row.get("placement", "0") or 0)
+        except ValueError:
+            continue
+        if place < 1:
+            continue
+
+        s = stats[pid]
+        s["finals"] += 1
+        if eid:
+            s["events"].add(eid)
+        if year:
+            try:
+                s["years"].add(int(year))
+            except ValueError:
+                pass
+        if place < s["best"]:
+            s["best"] = place
+        if place == 1:
+            s["wins"] += 1
+        if place == 2:
+            s["p2"] += 1
+        if place == 3:
+            s["p3"] += 1
+        if 1 <= place <= 3:
+            s["podiums"] += 1
+
+    result = {}
+    for pid, s in stats.items():
+        if pid not in persons:
+            continue
+        p = persons[pid]
+        yr = sorted(s["years"]) if s["years"] else []
+        result[pid] = {
+            "player":  p.get("person_name", ""),
+            "country": p.get("country", ""),
+            "events":  len(s["events"]),
+            "wins":    s["wins"],
+            "p2":      s["p2"],
+            "p3":      s["p3"],
+            "podiums": s["podiums"],
+            "finals":  s["finals"],
+            "first":   yr[0]  if yr else "",
+            "last":    yr[-1] if yr else "",
+            "span":    (yr[-1] - yr[0] + 1) if len(yr) >= 2 else (1 if yr else ""),
+            "best":    s["best"] if s["best"] < 999 else "",
+        }
+    return result
+
+
+def build_discipline_singles_sheet(wb: Workbook, title: str, data: dict) -> None:
+    """Build a NET SINGLES STATS or FREESTYLE SINGLES STATS sheet."""
+    ws = wb.create_sheet(title)
+
+    headers = ["Player", "Country", "Events", "Wins", "2nds", "3rds",
+               "Podiums", "Finals", "First Year", "Last Year", "Career Span",
+               "Best Finish"]
+    widths  = [34, 18, 9, 9, 9, 9, 9, 9, 11, 11, 12, 12]
+    for i, (h, w) in enumerate(zip(headers, widths), 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "B2"
+
+    row = _title_row(ws, 1, f"{title} — DERIVED FROM CANONICAL RESULTS", ncols=len(headers))
+    row = _note_row(ws, row,
+        "Statistical aggregation computed from canonical placements.  "
+        "Singles disciplines only.  Not a primary source table.")
+    row = _hrow(ws, row, *headers)
+
+    # Sort by placement count desc, wins desc, then name alphabetically
+    # (matches DB ordering: appearance_count DESC, win_count DESC, name ASC)
+    sorted_data = sorted(
+        data.values(),
+        key=lambda d: (-d["finals"], -d["wins"], d["player"].lower()),
+    )
+
+    for d in sorted_data:
+        row = _drow(ws, row,
+            d["player"], d["country"], d["events"],
+            d["wins"], d["p2"], d["p3"], d["podiums"], d["finals"],
+            d["first"], d["last"], d["span"], d["best"])
+
+    print(f"  {title}: {len(sorted_data)} rows")
+
+
+# ── Partnership stats ─────────────────────────────────────────────────────────
+
+def compute_partnerships(raw_results, events, discs, persons, category: str):
+    """Extract and aggregate normalized player pairs from doubles placements.
+
+    For each doubles result entry (team_type=doubles), groups participants
+    by (event_key, discipline_key, placement) to find the pair. Normalizes
+    ordering by person_id (lexicographic) so A < B.
+
+    Returns dict keyed by (pid_a, pid_b) with aggregate stats.
+    """
+    # Step 1: group participants by (event_key, discipline_key, placement)
+    slots: dict[tuple, list] = defaultdict(list)
+    for row in raw_results:
+        eid      = row.get("event_key", "").strip()
+        disc_key = row.get("discipline_key", "").strip()
+        disc     = discs.get((eid, disc_key), {})
+        cat      = disc.get("discipline_category", "").lower().strip()
+        ttype    = disc.get("team_type", "").lower().strip()
+
+        if cat != category or ttype != "doubles":
+            continue
+
+        pid = row.get("person_id", "").strip()
+        if not pid or pid in _SKIP_PID:
+            continue
+        dname = row.get("display_name", "").strip()
+        if dname in _SKIP_DNAME:
+            continue
+
+        place_str = row.get("placement", "").strip()
+        try:
+            place = int(place_str or 0)
+        except ValueError:
+            continue
+        if place < 1:
+            continue
+
+        slot_key = (eid, disc_key, place_str)
+        slots[slot_key].append((pid, dname, place))
+
+    # Step 2: extract pairs — exactly 2 distinct person_ids per slot
+    pair_stats: dict[tuple, dict] = defaultdict(lambda: {
+        "events": set(), "years": set(),
+        "wins": 0, "p2": 0, "p3": 0, "podiums": 0,
+        "appearances": 0, "best": 999,
+    })
+
+    for (eid, disc_key, place_str), members in slots.items():
+        pids = list(dict.fromkeys(m[0] for m in members))  # dedupe, preserve order
+        if len(pids) != 2:
+            continue  # skip entries without exactly 2 resolved partners
+
+        # Normalize: A < B by display name (alphabetical)
+        name_0 = next((m[1] for m in members if m[0] == pids[0]), "")
+        name_1 = next((m[1] for m in members if m[0] == pids[1]), "")
+        if name_0.lower() <= name_1.lower():
+            a, b = pids[0], pids[1]
+        else:
+            a, b = pids[1], pids[0]
+        place = members[0][2]
+
+        ev   = events.get(eid, {})
+        year = ev.get("year", "").strip()
+
+        s = pair_stats[(a, b)]
+        s["appearances"] += 1
+        if eid:
+            s["events"].add(eid)
+        if year:
+            try:
+                s["years"].add(int(year))
+            except ValueError:
+                pass
+        if place < s["best"]:
+            s["best"] = place
+        if place == 1:
+            s["wins"] += 1
+        if place == 2:
+            s["p2"] += 1
+        if place == 3:
+            s["p3"] += 1
+        if 1 <= place <= 3:
+            s["podiums"] += 1
+
+    # Step 3: build output
+    result = {}
+    for (a, b), s in pair_stats.items():
+        pa = persons.get(a, {})
+        pb = persons.get(b, {})
+        if not pa.get("person_name") or not pb.get("person_name"):
+            continue
+        yr = sorted(s["years"]) if s["years"] else []
+        result[(a, b)] = {
+            "player_a":    pa["person_name"],
+            "player_b":    pb["person_name"],
+            "appearances": s["appearances"],
+            "wins":        s["wins"],
+            "p2":          s["p2"],
+            "p3":          s["p3"],
+            "podiums":     s["podiums"],
+            "first":       yr[0]  if yr else "",
+            "last":        yr[-1] if yr else "",
+            "span":        (yr[-1] - yr[0] + 1) if len(yr) >= 2 else (1 if yr else ""),
+            "best":        s["best"] if s["best"] < 999 else "",
+        }
+    return result
+
+
+def build_partnerships_sheet(wb: Workbook, title: str, data: dict) -> None:
+    """Build a NET PARTNERSHIPS or FREESTYLE PARTNERSHIPS sheet."""
+    ws = wb.create_sheet(title)
+
+    headers = ["Player A", "Player B", "Appearances", "Wins", "2nds", "3rds",
+               "Podiums", "First Year", "Last Year", "Career Span", "Best Finish"]
+    widths  = [30, 30, 13, 9, 9, 9, 9, 11, 11, 12, 12]
+    for i, (h, w) in enumerate(zip(headers, widths), 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "C2"
+
+    row = _title_row(ws, 1, f"{title} — DERIVED FROM CANONICAL RESULTS", ncols=len(headers))
+    row = _note_row(ws, row,
+        "Statistical aggregation computed from canonical doubles placements.  "
+        "Pairs normalized (A < B by person_id).  Not a primary source table.")
+    row = _hrow(ws, row, *headers)
+
+    # Sort by appearances desc, wins desc, then names alphabetically
+    # (matches DB ordering: appearance_count DESC, win_count DESC, name ASC)
+    sorted_data = sorted(
+        data.values(),
+        key=lambda d: (-d["appearances"], -d["wins"],
+                       d["player_a"].lower(), d["player_b"].lower()),
+    )
+
+    for d in sorted_data:
+        row = _drow(ws, row,
+            d["player_a"], d["player_b"], d["appearances"],
+            d["wins"], d["p2"], d["p3"], d["podiums"],
+            d["first"], d["last"], d["span"], d["best"])
+
+    print(f"  {title}: {len(sorted_data)} partnerships")
+
+
+# ── KNOWN UNKNOWNS sheet ──────────────────────────────────────────────────────
+
+def build_known_unknowns(wb: Workbook) -> None:
+    """Build KNOWN UNKNOWNS sheet from out/known_unknowns.csv."""
+    ws = wb.create_sheet("KNOWN UNKNOWNS")
+
+    if not KNOWN_UNKNOWNS_CSV.exists():
+        row = _title_row(ws, 1, "KNOWN UNKNOWNS", ncols=4)
+        _w(ws, row, 1, "(known_unknowns.csv not found)", font=FONT_NOTE)
+        print("  KNOWN UNKNOWNS: skipped (file not found)")
+        return
+
+    with open(KNOWN_UNKNOWNS_CSV, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    headers = ["Category", "Count / Scope", "Issue", "Suggested Action"]
+    widths  = [32, 28, 50, 45]
+    for i, (h, w) in enumerate(zip(headers, widths), 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+
+    row = _title_row(ws, 1, "KNOWN UNKNOWNS — DATA LIMITATIONS & GAPS", ncols=len(headers))
+    row = _note_row(ws, row,
+        "Documented data gaps and known limitations.  "
+        "These do not affect the integrity of reported results.")
+    row = _hrow(ws, row, *headers)
+
+    for r in rows:
+        row = _drow(ws, row,
+            r.get("Category", ""),
+            r.get("Count/Scope", ""),
+            r.get("Issue", ""),
+            r.get("Suggested Action", ""))
+
+    ws.sheet_view.showGridLines = True
+    print(f"  KNOWN UNKNOWNS: {len(rows)} entries")
+
+
+# ── CONSECUTIVE RECORDS sheet ─────────────────────────────────────────────────
+
+def build_consecutive_records(wb: Workbook) -> None:
+    """Build CONSECUTIVE RECORDS sheet from curated consecutives_records.csv."""
+    ws = wb.create_sheet("CONSECUTIVE RECORDS")
+
+    if not CONSECUTIVE_CSV.exists():
+        row = _title_row(ws, 1, "CONSECUTIVE RECORDS", ncols=6)
+        _w(ws, row, 1, "(consecutives_records.csv not found)", font=FONT_NOTE)
+        print("  CONSECUTIVE RECORDS: skipped (file not found)")
+        return
+
+    with open(CONSECUTIVE_CSV, newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    ws.column_dimensions["A"].width = 42
+    ws.column_dimensions["B"].width = 24
+    ws.column_dimensions["C"].width = 24
+    ws.column_dimensions["D"].width = 14
+    ws.column_dimensions["E"].width = 14
+    ws.column_dimensions["F"].width = 36
+    ws.column_dimensions["G"].width = 28
+    ws.freeze_panes = "A3"
+
+    row = _title_row(ws, 1,
+        "CONSECUTIVE KICKS RECORDS — CURATED HISTORICAL DATA", ncols=7)
+    row = _note_row(ws, row,
+        "Official world records, highest scores, record progression, "
+        "and milestone firsts.  Source: curated records archive.")
+
+    current_section = ""
+    for r in rows:
+        section    = r.get("section", "").strip()
+        subsection = r.get("subsection", "").strip()
+        division   = r.get("division", "").strip()
+        player     = r.get("person_or_team", "").strip()
+        partner    = r.get("partner", "").strip()
+        score      = r.get("score", "").strip()
+        year       = r.get("year", "").strip()
+        note       = r.get("note", "").strip()
+        event      = r.get("event_name", "").strip()
+        location   = r.get("location", "").strip()
+
+        # Section header
+        if section != current_section:
+            current_section = section
+            row = _section_row(ws, row, section, ncols=7)
+            row = _hrow(ws, row,
+                "Division / Subsection", "Player", "Partner",
+                "Score", "Year", "Event", "Note")
+
+        display_name = f"{division}" if division else subsection
+        display_partner = partner if partner else ""
+
+        row = _drow(ws, row,
+            display_name, player, display_partner,
+            int(score) if score.isdigit() else score,
+            int(year) if year.isdigit() else year,
+            event or location,
+            note)
+
+    print(f"  CONSECUTIVE RECORDS: {len(rows)} entries across "
+          f"{len(set(r.get('section','') for r in rows))} sections")
+
+
 # ── README sheet ──────────────────────────────────────────────────────────────
 
 def build_readme(wb: Workbook, events: dict, persons: dict, n_parts: int) -> None:
@@ -657,7 +1026,7 @@ def build_readme(wb: Workbook, events: dict, persons: dict, n_parts: int) -> Non
              "Categories: freestyle, net, golf, sideline."),
             ("Version",  f"{VERSION} — {UPDATED}"),
         ]),
-        ("SHEETS", [
+        ("SHEETS — CANONICAL RESULT TABLES", [
             ("README",               "This sheet — dataset overview, notes, known issues."),
             ("EVENT INDEX",          "All events (including sparse/excluded) with metadata."),
             ("STATISTICS",           "Career leaderboards: top 25 per category with rank and tie notation."),
@@ -666,6 +1035,24 @@ def build_readme(wb: Workbook, events: dict, persons: dict, n_parts: int) -> Non
             ("QC - EXCLUDED EVENTS", "Events excluded from year sheets (sparse or no results)."),
             ("<year>",               "One sheet per year (1980 – present).  Each column is one event; "
                                      "rows show placements by division.  Non-sparse events only."),
+        ]),
+        ("SHEETS — DERIVED STATISTICAL SUMMARIES", [
+            ("NET SINGLES STATS",
+                "Per-player net singles career: events, wins, podiums, career span.  "
+                "Computed from canonical net singles placements only."),
+            ("FREESTYLE SINGLES STATS",
+                "Per-player freestyle singles career: events, wins, podiums, career span.  "
+                "Computed from canonical freestyle singles placements only."),
+            ("NET PARTNERSHIPS",
+                "Doubles partnership stats for net: appearances, wins, podiums.  "
+                "Pairs extracted from canonical doubles placements; normalized ordering."),
+            ("FREESTYLE PARTNERSHIPS",
+                "Doubles partnership stats for freestyle: appearances, wins, podiums.  "
+                "Pairs extracted from canonical doubles placements; normalized ordering."),
+            ("Note",
+                "Derived sheets are statistical aggregations computed from canonical results.  "
+                "They are NOT primary source tables.  All underlying data comes from the "
+                "canonical CSV layer."),
         ]),
         ("DATA NOTES / LIMITATIONS", [
             ("Sparse events",
@@ -1467,15 +1854,33 @@ def main() -> None:
     stats = compute_stats(raw_results, events, discs, persons)
     print(f"  Persons with stats: {len(stats)}")
 
+    print("Computing discipline-specific stats…")
+    net_singles = compute_discipline_singles(raw_results, events, discs, persons, "net")
+    fs_singles  = compute_discipline_singles(raw_results, events, discs, persons, "freestyle")
+    print(f"  Net singles: {len(net_singles)} players  |  Freestyle singles: {len(fs_singles)} players")
+
+    print("Computing partnerships…")
+    net_pairs = compute_partnerships(raw_results, events, discs, persons, "net")
+    fs_pairs  = compute_partnerships(raw_results, events, discs, persons, "freestyle")
+    print(f"  Net partnerships: {len(net_pairs)}  |  Freestyle partnerships: {len(fs_pairs)}")
+
     wb = Workbook()
     wb.remove(wb.active)
 
     print("\nBuilding sheets…")
 
     build_readme(wb, events, persons, len(raw_results))
+    build_known_unknowns(wb)
+    build_consecutive_records(wb)
     build_statistics(wb, stats, persons)
     build_era_leaders(wb, raw_results, events, discs, persons)
     build_player_stats(wb, stats, persons)
+
+    # Derived discipline-specific sheets
+    build_discipline_singles_sheet(wb, "NET SINGLES STATS", net_singles)
+    build_discipline_singles_sheet(wb, "FREESTYLE SINGLES STATS", fs_singles)
+    build_partnerships_sheet(wb, "NET PARTNERSHIPS", net_pairs)
+    build_partnerships_sheet(wb, "FREESTYLE PARTNERSHIPS", fs_pairs)
 
     event_col_map = build_year_sheets(
         wb, raw_results, events, discs, persons, quarantine, pub_eids)
@@ -1484,8 +1889,12 @@ def main() -> None:
     build_excluded_events(wb, events, quarantine, discs, raw_results)
 
     # Reorder front-matter sheets before year sheets
-    desired_front = ["README", "EVENT INDEX", "STATISTICS", "ERA LEADERS",
-                     "PLAYER STATS", "QC - EXCLUDED EVENTS"]
+    desired_front = ["README", "KNOWN UNKNOWNS", "EVENT INDEX",
+                     "STATISTICS", "ERA LEADERS", "PLAYER STATS",
+                     "NET SINGLES STATS", "FREESTYLE SINGLES STATS",
+                     "NET PARTNERSHIPS", "FREESTYLE PARTNERSHIPS",
+                     "CONSECUTIVE RECORDS",
+                     "QC - EXCLUDED EVENTS"]
     final_order = desired_front + [s for s in wb.sheetnames if s not in desired_front]
     for i, name in enumerate(final_order):
         if name in wb.sheetnames:
