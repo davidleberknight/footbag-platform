@@ -2,9 +2,9 @@
   <div>
     <h1>{{heroData.displayName}}{{#if heroData.honorificNickname}} <span class="player-nickname">"{{heroData.honorificNickname}}"</span>{{/if}}</h1>
     {{#if heroData.isHof}}
-      <p class="hero-subtitle">Member of the Footbag Hall of Fame{{#if heroData.isBap}} and the Big Add Posse{{/if}}</p>
+      <p class="hero-subtitle">Member of the Footbag Hall of Fame{{#if heroData.hofInductionYear}} ({{heroData.hofInductionYear}}){{/if}}{{#if heroData.isBap}} and the Big Add Posse{{#if heroData.bapInductionYear}} ({{heroData.bapInductionYear}}){{/if}}{{/if}}</p>
     {{else if heroData.isBap}}
-      <p class="hero-subtitle">Member of the Footbag Big Add Posse</p>
+      <p class="hero-subtitle">Member of the Footbag Big Add Posse{{#if heroData.bapInductionYear}} ({{heroData.bapInductionYear}}){{/if}}</p>
     {{/if}}
     {{#if heroData.isHistoricalOnly}}
       {{#unless heroData.isHof}}{{#unless heroData.isBap}}
