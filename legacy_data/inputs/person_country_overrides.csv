@@ -51,7 +51,7 @@ e881c68e-e8fd-52ad-88eb-666f12a5d931,Alexandre Kègle,Canada,event_location_heur
 240d0483-2ac6-5fa4-b492-2e90969711fa,Alpha Schwa Omega,United States,event_location_heuristic:1/1,auto
 ff61e6f1-ddee-5f7d-aa31-7b689d602033,Alpine Smog,Denmark,event_location_heuristic:1/1,auto
 54921e82-57a6-55ce-bc52-aa7218fc6c4f,Alpine Whirlgig,Denmark,event_location_heuristic:1/1,auto
-b1c0d55c-d633-58ca-b18e-4ef0373e50d9,Amélie Beck,Canada,"REVIEW:current=United States,events_suggest=Canada:3/5",review
+b1c0d55c-d633-58ca-b18e-4ef0373e50d9,Amélie Beck,Canada,"human_approved:previous=United States,events_suggest=Canada:3/5",manual
 e361a088-0b37-54f8-8b09-98b5905a68eb,Andi Beimel,Germany,event_location_heuristic:2/2,auto
 ad171a1d-399c-590c-a7ed-b87d688ca54d,Andr Lemaire,Canada,event_location_heuristic:1/1,auto
 d89fb4a8-445e-5a3b-8634-420b1d4d88f7,Andre Peńa,Venezuela,event_location_heuristic:1/1,auto
@@ -71,7 +71,7 @@ bd356b7c-9551-5004-ad5a-7c5492df2642,Annaleissa Cohen,United States,event_locati
 83577342-91bd-5546-b599-133919ee289c,Annamarie Fillmore,United States,event_location_heuristic:1/1,auto
 e0e61399-16fb-5726-b14d-87bb55e2a0a2,Anne Laskin,United States,event_location_heuristic:1/1,auto
 c2c3262e-2c77-5286-a14c-35ed53c75eb2,Annual Mountain Dew's,United States,event_location_heuristic:1/1,auto
-b046ab19-f057-53dd-a850-18c4248086ff,Antek Szczeniowski,Poland,"REVIEW:current=Germany,events_suggest=Poland:2/3",review
+b046ab19-f057-53dd-a850-18c4248086ff,Antek Szczeniowski,Poland,"human_approved:previous=Germany,events_suggest=Poland:2/3",manual
 c58c203f-0eee-5faf-9116-e1425b81bffb,Anthony Glick,United States,event_location_heuristic:1/1,auto
 3bee9edb-d696-5787-8bc6-171bad4c54e6,Anthony Intemann / Greg Nice Neumann,United States,event_location_heuristic:1/1,auto
 23538743-e231-58c7-b978-18d5b048cab0,Anthony Raymond Intemann,United States,event_location_heuristic:2/2,auto
@@ -103,7 +103,7 @@ e49606c9-e902-513d-adb9-563426c0ae98,Barb Lareau,United States,event_location_he
 c653acac-232c-57bf-a21f-69168681b046,Bathélémy Meridjen,France,event_location_heuristic:1/1,auto
 1b0957a6-2207-5531-b9d8-eb472b4f4dca,Beau Barnett,United States,event_location_heuristic:2/2,auto
 c9bf0c11-f04e-58fe-a5e0-44e8c4974022,Bedwetter>Frantic Butterfly,Hungary,event_location_heuristic:1/1,auto
-74e79140-82cd-54e3-b171-c60bbc50fb33,Belouin Ollivier,France,"REVIEW:current=Switzerland,events_suggest=France:2/3",review
+74e79140-82cd-54e3-b171-c60bbc50fb33,Belouin Ollivier,France,"human_approved:previous=Switzerland,events_suggest=France:2/3",manual
 e92579eb-135d-5493-aa49-5b3d3c35e205,"Belozerov, Roman",Finland,event_location_heuristic:1/1,auto
 5ed35e24-8690-5e94-81d6-d8d5788c6333,Ben B,United States,event_location_heuristic:1/1,auto
 cc742bca-887e-59a5-93f5-9e6c150224ad,Ben Baybak,United States,event_location_heuristic:1/1,auto
@@ -196,7 +196,7 @@ f4b3a710-aaeb-55ff-a0f7-d567050d9d15,Chris Eichman,United States,event_location_
 f167387d-c29b-5b96-b663-9568fdbb22f0,Chris H.,United States,event_location_heuristic:1/1,auto
 4d88e588-7fee-54f6-be7e-e53e322e12de,Chris J,United States,event_location_heuristic:1/1,auto
 a99d39eb-06c9-534d-9eeb-17b790af4cb0,Chris Knight,United States,event_location_heuristic:3/3,auto
-8959d778-41d3-554e-a831-6e1f73534b0f,Chris Ott,United States,"REVIEW:current=Finland,events_suggest=United States:18/23",review
+8959d778-41d3-554e-a831-6e1f73534b0f,Chris Ott,United States,"human_approved:previous=Finland,events_suggest=United States:18/23",manual
 2dad2f09-7552-5822-b8af-d1c62f7d0ae3,Chris Schoonover,United States,event_location_heuristic:1/1,auto
 6177295a-750d-5f81-a203-61eb8157ae94,Chris Seguin,United States,event_location_heuristic:1/1,auto
 50e6e450-d92d-59ee-b37b-94cc93adaeed,Chris Shears,United States,event_location_heuristic:1/1,auto
@@ -280,7 +280,7 @@ bbd1e614-ad30-5a7e-bd75-501dceb9664b,Dea Evans,United States,event_location_heur
 f3953f36-bcbd-5a75-a80d-e436477517cc,Deb Partridge,United States,event_location_heuristic:1/1,auto
 4e3de5ce-3552-5a7b-9ca0-3ef21d7040cb,Debra Cleere,United States,event_location_heuristic:1/1,auto
 c09440e1-39a7-5b75-a15a-e6e1f24a9444,Demers $250,United States,event_location_heuristic:1/1,auto
-837ec022-2c71-5b9a-b878-c1f89a95e57e,Denise Kurz,Germany,"REVIEW:current=Poland,events_suggest=Germany:2/3",review
+837ec022-2c71-5b9a-b878-c1f89a95e57e,Denise Kurz,Germany,"human_approved:previous=Poland,events_suggest=Germany:2/3",manual
 229212a9-513e-5b9a-87fc-779d686bca05,Dennis Griffin,United States,event_location_heuristic:1/1,auto
 84641a6f-36d4-5857-af3f-827b1f57102f,Dennis Ross,United States,event_location_heuristic:16/18,auto
 62e250bb-818f-52ac-b704-52b04b21522f,Denton Louis : Butterfly,Canada,event_location_heuristic:1/1,auto
@@ -310,9 +310,9 @@ c540febd-ce4e-5312-a77e-ecdcae122094,Ebb Huggins,United States,event_location_he
 411a2252-54bf-5a3e-8e1e-643c572833fc,Ed Larnacchia,United States,event_location_heuristic:1/1,auto
 53b62622-65cc-5c71-87d3-423fe3931645,Ed Stawicki,United States,event_location_heuristic:1/1,auto
 040edc30-57b1-5dc9-9586-16629a07fe2a,Eddie Sarabia,United States,event_location_heuristic:2/2,auto
-9381df36-35c3-5703-b87e-fc0f8e93e704,Edgar Camargo,Colombia,"REVIEW:current=Venezuela,events_suggest=Colombia:7/11",review
+9381df36-35c3-5703-b87e-fc0f8e93e704,Edgar Camargo,Colombia,"human_approved:previous=Venezuela,events_suggest=Colombia:7/11",manual
 a65c1e85-08b8-514f-b398-7299abd066c1,Edmund Larnacchia,United States,event_location_heuristic:1/1,auto
-7b729bc2-570a-543c-a460-24ed136deb5b,Eduardo Martinez,Venezuela,"REVIEW:current=Poland,events_suggest=Venezuela:19/28",review
+7b729bc2-570a-543c-a460-24ed136deb5b,Eduardo Martinez,Venezuela,"human_approved:previous=Poland,events_suggest=Venezuela:19/28",manual
 da5d3d9e-8e70-5d51-9aae-a55d25601a6e,Eduardo Portillo,Venezuela,event_location_heuristic:1/1,auto
 5021dfa1-3c8b-5197-b45c-1b63c581158c,Edward Orlando,United States,event_location_heuristic:1/1,auto
 f50b3c75-c930-5a71-a9f4-c5dda9e3a430,Eli Laird,United States,event_location_heuristic:1/1,auto
@@ -451,7 +451,7 @@ c86e1ec0-fcf2-5279-81e5-abf4ab5ff157,Hanneé Daniel,Germany,event_location_heuri
 e1dae8d3-6efe-5f69-b26f-43bfea773928,Hanneé Tiger,Germany,event_location_heuristic:1/1,auto
 28ccdba7-d837-53e4-bd64-ebc2c8341142,Heather Cook,United States,event_location_heuristic:2/2,auto
 737c677f-3150-5e10-8fcb-51e536b47bed,Heather Van Hoesen,United States,event_location_heuristic:1/1,auto
-b6b18fd6-fb1b-51f1-b41e-4c7f0c032770,Henning Lindner,Germany,"REVIEW:current=Switzerland,events_suggest=Germany:7/10",review
+b6b18fd6-fb1b-51f1-b41e-4c7f0c032770,Henning Lindner,Germany,"human_approved:previous=Switzerland,events_suggest=Germany:7/10",manual
 384db19e-5a55-531e-8e6f-589021f09229,Henri Nlend,France,event_location_heuristic:1/1,auto
 0c44ad0a-c5e2-58f8-a4f2-55b2a80123f2,Henrik Simon,Germany,event_location_heuristic:1/1,auto
 93ec95fa-5c8b-520e-a051-302fe7bbcc81,Herra X,Finland,event_location_heuristic:1/1,auto
@@ -610,7 +610,7 @@ d49ee933-78d1-537e-a866-0a2a87dc1bef,Joseba Nieto,Spain,event_location_heuristic
 83208b47-aa71-5ed0-8e8d-438c0f32f99f,Joseph Solonoski,United States,event_location_heuristic:1/1,auto
 faf2bc88-f262-5538-99a2-f51bee51913c,Josh Casey,United States,event_location_heuristic:1/1,auto
 ca1522d3-d150-52fc-ae19-1b0b7cd2cd0a,Josh Jones,United States,event_location_heuristic:1/1,auto
-b39ec050-703f-574a-a2ab-d59749391429,Josh Vorvel,Canada,"REVIEW:current=United States,events_suggest=Canada:2/3",review
+b39ec050-703f-574a-a2ab-d59749391429,Josh Vorvel,Canada,"human_approved:previous=United States,events_suggest=Canada:2/3",manual
 bf895acc-2d39-53eb-b454-9175f0237a9f,Joshua Munstermann,United States,event_location_heuristic:1/1,auto
 0f1d5703-1707-50c0-b53e-310a32d256e6,Joshua Penney,United States,event_location_heuristic:1/1,auto
 bc532fc0-b0e0-5d8b-be4c-887e8bb9facb,Joso Palencár,Czech Republic,event_location_heuristic:1/1,auto
@@ -865,8 +865,8 @@ eccb075a-3997-5288-a805-774d358f5656,Nancy Reynolds,United States,event_location
 1e82408a-8d7b-5bfa-97db-58ba8d355c57,Natalie Allen,New Zealand,event_location_heuristic:1/1,auto
 0bb23c1b-6ce7-5fc1-8726-a72d885d3456,Nate Allison,United States,event_location_heuristic:1/1,auto
 0a0437ab-52ec-5db5-ae21-f2462e49de20,Nate Wicker,United States,event_location_heuristic:1/1,auto
-9af9fa47-67ea-5376-8875-71bf24016a7a,Nathan Rhoads,Canada,"REVIEW:current=United States,events_suggest=Canada:3/5",review
-1eae2110-079e-5e9b-afa3-9f9f570eb2d0,Nell Tekam,Germany,"REVIEW:current=France,events_suggest=Germany:3/5",review
+9af9fa47-67ea-5376-8875-71bf24016a7a,Nathan Rhoads,Canada,"human_approved:previous=United States,events_suggest=Canada:3/5",manual
+1eae2110-079e-5e9b-afa3-9f9f570eb2d0,Nell Tekam,Germany,"human_approved:previous=France,events_suggest=Germany:3/5",manual
 e140e411-57f3-5e19-be5b-8c692d32afbc,Nelson Mantilla,Venezuela,event_location_heuristic:1/1,auto
 eb3025da-5788-57d0-ac5e-2c6a1db5ea70,Nemesis bedwetter pixie whirling swirl,Poland,event_location_heuristic:1/1,auto
 88b3f57f-29cf-5f33-9042-60385be2725b,New Orleans,United States,event_location_heuristic:1/1,auto
@@ -969,7 +969,7 @@ f72bace0-f194-5284-b023-44f42dc38be3,Piotr Staroscic,Poland,event_location_heuri
 5609483c-e5a8-550e-b6ee-7051359f68bd,Platz nur Gnitzen,Germany,event_location_heuristic:1/1,auto
 e8ee7762-403c-5c08-a4f1-69034a08287b,Priit Jõe,Estonia,event_location_heuristic:2/2,auto
 8c52b3d5-6cba-5f85-ba6d-a5115f33f12a,Priit Kruus,Estonia,event_location_heuristic:2/2,auto
-beed13f8-2a6d-580b-beff-448a8a792a0e,Prikhosko Oxana,Russia,"REVIEW:current=Denmark,events_suggest=Russia:2/3",review
+beed13f8-2a6d-580b-beff-448a8a792a0e,Prikhosko Oxana,Russia,"human_approved:previous=Denmark,events_suggest=Russia:2/3",manual
 96b84e1f-af05-57a8-b277-d3d3c86bb884,Przemysaw Pietrzycki,Poland,event_location_heuristic:1/1,auto
 202cb90a-850e-5c14-9dc0-93a292f486d3,Quan Theo Phung,Canada,event_location_heuristic:1/1,auto
 276d1c8a-d38a-5d30-9bf4-4771822b6c6b,R Abramson,United States,event_location_heuristic:1/1,auto
@@ -1066,7 +1066,7 @@ baf7e83e-842d-5289-a53d-0478dd5c37cb,Sain Palacios,Venezuela,event_location_heur
 fc4f71ad-edf0-5d7a-8097-610b82e4f4c5,Sam Cloutier,United States,"REVIEW:current=Canada,events_suggest=United States:2/3",review
 18b95c98-9221-5e29-be20-bbb408dc435c,Sam Meyers,United States,event_location_heuristic:1/1,auto
 ecfcea17-316e-5db0-bfdd-a74b08da29a6,Sami Ruohonen,Finland,event_location_heuristic:1/1,auto
-e5b5852c-6792-5d2b-a8e6-b754be9ae2bd,Samuel Cloutier,Canada,"REVIEW:current=United States,events_suggest=Canada:12/18",review
+e5b5852c-6792-5d2b-a8e6-b754be9ae2bd,Samuel Cloutier,Canada,"human_approved:previous=United States,events_suggest=Canada:12/18",manual
 b8e1c931-d662-5b51-a93f-f87757facc50,"Samuel Jobin, Shawinigan",Canada,event_location_heuristic:1/1,auto
 a38904c5-3972-5325-8c21-c59f7fe45388,Sandra Kostrzewa,Poland,event_location_heuristic:2/2,auto
 1733c7a5-b516-5d8e-9261-4ff1f26a2ee6,Sara-Maude Duguay,Canada,event_location_heuristic:1/1,auto
@@ -1083,7 +1083,7 @@ e967dfce-4594-591f-903b-95b327c52496,Sean Robertson,United States,event_location
 e87e5404-7adb-596f-8f1d-a69249f6e391,Sebastien Vanhove,Belgium,event_location_heuristic:1/1,auto
 e2e64ec8-d0c0-5352-93a4-2975ea456f53,Sergey Kozlow,Czech Republic,event_location_heuristic:1/1,auto
 56dbd704-ec6a-5c62-b91a-0606448d337a,Sergio Gomez,France,event_location_heuristic:1/1,auto
-0b0dbf15-8800-5001-81b5-bb9a2f088118,Sergio Martin,Spain,"REVIEW:current=Denmark,events_suggest=Spain:2/3",review
+0b0dbf15-8800-5001-81b5-bb9a2f088118,Sergio Martin,Spain,"human_approved:previous=Denmark,events_suggest=Spain:2/3",manual
 4667c817-96f6-5e6e-b3ab-46ecd390dc0e,Shannon Aubin,United States,event_location_heuristic:5/5,auto
 9b37c96d-ebd0-5b5b-9bd5-09864ced9edd,Shannon Moore,United States,event_location_heuristic:1/1,auto
 c04b0df1-3194-55ab-aa97-16adb45c25d3,Shannon Storment,United States,event_location_heuristic:1/1,auto
@@ -1194,7 +1194,11 @@ ee4f7703-fea7-5a51-b35b-7d5629d175ec,Tomi Szekely,Austria,event_location_heurist
 1e47dccb-0bab-53cc-bccb-daac24614ff4,Tommi Hatakka,Finland,event_location_heuristic:1/1,auto
 5c70d95e-dacb-56f7-8a98-74d14a46b920,Tommi Terä,Finland,event_location_heuristic:2/2,auto
 6b4ff6ed-91f2-5232-9eb0-be12a9a4a0d0,Tony Nevara,United States,event_location_heuristic:1/1,auto
+<<<<<<< HEAD
 f38e2f8e-cba6-5fff-8b20-90791fd0d794,Torbin Wigger,Denmark,user_confirmed_nationality,auto
+=======
+f38e2f8e-cba6-5fff-8b20-90791fd0d794,Torbin Wigger,Denmark,"human_override:previous=Germany,heuristic_suggest=United States:6/8",manual
+>>>>>>> 8b23f07 (update country override)
 f31b6715-c9ff-5d27-9bb1-bf260b19ebe7,Travis Tips,United States,event_location_heuristic:1/1,auto
 bb786de7-6041-5abe-aa75-5fff53e3fe7b,Tre Jones,United States,event_location_heuristic:1/1,auto
 fcd5bac7-6c1b-5d1f-8ff4-b9bedebc33e4,Tricia Sullivan,United States,event_location_heuristic:11/11,auto
