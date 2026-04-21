@@ -30,9 +30,38 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 import uuid
 from pathlib import Path
 import pandas as pd
+
+# Make pipeline.identity importable when this script is run directly.
+_THIS_FILE = Path(__file__).resolve()
+sys.path.insert(0, str(_THIS_FILE.parents[2]))  # legacy_data/
+from pipeline.identity.alias_resolver import AliasResolver  # noqa: E402
+
+
+def _build_alias_resolver(persons_df: pd.DataFrame) -> AliasResolver | None:
+    """Construct an AliasResolver from the in-memory canonical persons frame.
+
+    The persons frame at this stage already contains the canonical persons
+    loaded from canonical_input/persons.csv plus any in-memory transformations
+    earlier in this script, so we pass (person_id, person_name) tuples
+    directly rather than re-reading the CSV.
+
+    Returns None if the resolver cannot be constructed (missing aliases CSV,
+    missing required columns), so the caller can fall through to the existing
+    UUID5 stub path.
+    """
+    aliases_csv = _THIS_FILE.parents[2] / "overrides" / "person_aliases.csv"
+    if "person_id" not in persons_df.columns or "person_name" not in persons_df.columns:
+        return None
+    pairs = [
+        (str(pid).strip(), str(name).strip())
+        for pid, name in zip(persons_df["person_id"], persons_df["person_name"])
+        if str(pid).strip() and str(name).strip()
+    ]
+    return AliasResolver(aliases_csv=aliases_csv, canonical_persons=pairs)
 
 # Fixed namespace for auto-assigned person IDs.
 # Using a stable UUID so that the same display_name always produces the
@@ -380,51 +409,85 @@ def main() -> None:
     # ------------------------------------------------------------------
     # Assign stable person_ids to participants that are missing one
     # ------------------------------------------------------------------
+    # Two-stage resolution:
+    #   PASS 0: shared AliasResolver — if display_name resolves via
+    #           person_aliases.csv or via direct canonical-name match, reuse
+    #           the canonical person_id. NO new person row is created.
+    #   PASS 1: stable UUID5 stub — only for participants whose display_name
+    #           did not resolve via alias and whose name passes the
+    #           person-likeness gate.
+    #
+    # Without PASS 0, alias-equivalent display_names ("Renato Zülli" while
+    # canonical is "Renatto Zülli") were getting a uuid5 stub and a new
+    # persons row, producing duplicate person rows in the DB.
+
     missing_mask = event_result_participants["person_id"].str.strip().eq("")
-    n_missing = missing_mask.sum()
+    n_missing = int(missing_mask.sum())
+
     if n_missing:
         event_result_participants = event_result_participants.copy()
-        event_result_participants.loc[missing_mask, "person_id"] = (
-            event_result_participants.loc[missing_mask, "display_name"]
-            .apply(auto_person_id)
-        )
+        resolver = _build_alias_resolver(persons)
+        n_alias_resolved = 0
 
-        # Create minimal persons records for any newly assigned IDs
-        # Skip non-person-like display names (junk, tricks, narrative, etc.)
-        # and null their person_id so no dangling FK is created.
-        existing_ids = set(persons["person_id"].str.strip())
-        new_rows = []
-        seen_good: set[str] = set()
+        # PASS 0: alias resolution
+        if resolver is not None:
+            for idx in event_result_participants[missing_mask].index:
+                dn = event_result_participants.at[idx, "display_name"]
+                pid = resolver.resolve(dn)
+                if pid:
+                    event_result_participants.at[idx, "person_id"] = pid
+                    n_alias_resolved += 1
+
+        # Recompute missing AFTER alias resolution
+        missing_mask = event_result_participants["person_id"].str.strip().eq("")
+        n_still_missing = int(missing_mask.sum())
+
+        # PASS 1: UUID5 stub (only for what's still missing)
+        new_rows: list[dict] = []
         seen_bad: set[str] = set()
-        for _, row in event_result_participants[missing_mask].iterrows():
-            pid = row["person_id"]
-            dn = row["display_name"]
-            if pid in existing_ids or pid in seen_good:
-                continue
-            if pid in seen_bad:
-                continue
-            if _is_person_like(dn):
-                seen_good.add(pid)
-                new_rows.append({"person_id": pid, "person_name": dn})
-            else:
-                seen_bad.add(pid)
 
-        # Null person_id for participants whose display_name failed the gate
-        if seen_bad:
-            bad_mask = event_result_participants["person_id"].isin(seen_bad)
-            event_result_participants = event_result_participants.copy()
-            event_result_participants.loc[bad_mask, "person_id"] = ""
-
-        if new_rows:
-            persons = pd.concat(
-                [persons, pd.DataFrame(new_rows)],
-                ignore_index=True,
+        if n_still_missing:
+            event_result_participants.loc[missing_mask, "person_id"] = (
+                event_result_participants.loc[missing_mask, "display_name"]
+                .apply(auto_person_id)
             )
 
+            # Create minimal persons records for any newly assigned IDs
+            # Skip non-person-like display names (junk, tricks, narrative, etc.)
+            # and null their person_id so no dangling FK is created.
+            existing_ids = set(persons["person_id"].str.strip())
+            seen_good: set[str] = set()
+            for _, row in event_result_participants[missing_mask].iterrows():
+                pid = row["person_id"]
+                dn = row["display_name"]
+                if pid in existing_ids or pid in seen_good:
+                    continue
+                if pid in seen_bad:
+                    continue
+                if _is_person_like(dn):
+                    seen_good.add(pid)
+                    new_rows.append({"person_id": pid, "person_name": dn})
+                    print(f"    STUB: '{dn}' → {pid}")
+                else:
+                    seen_bad.add(pid)
+
+            # Null person_id for participants whose display_name failed the gate
+            if seen_bad:
+                bad_mask = event_result_participants["person_id"].isin(seen_bad)
+                event_result_participants = event_result_participants.copy()
+                event_result_participants.loc[bad_mask, "person_id"] = ""
+
+            if new_rows:
+                persons = pd.concat(
+                    [persons, pd.DataFrame(new_rows)],
+                    ignore_index=True,
+                )
+
         print(
-            f"  Auto-assigned person_id to {n_missing} participant rows "
-            f"({len(new_rows)} new minimal person records created"
-            f"{f', {len(seen_bad)} non-person-like nulled' if seen_bad else ''})"
+            f"  Resolution of {n_missing} missing participant person_id(s): "
+            f"alias-resolved={n_alias_resolved}, "
+            f"new uuid5 stubs={len(new_rows)}, "
+            f"non-person-like nulled={len(seen_bad)}"
         )
 
     # ------------------------------------------------------------------

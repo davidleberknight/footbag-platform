@@ -1,5 +1,6 @@
 # legacy_data/persons/provisional/scripts/02_build_provisional_identity_candidates.py
 
+import sys
 from pathlib import Path
 import pandas as pd
 import hashlib
@@ -7,6 +8,10 @@ import hashlib
 ROOT = Path(__file__).resolve().parents[4]
 IN = ROOT / "legacy_data/persons/provisional/out/provisional_persons_master.csv"
 OUT = ROOT / "legacy_data/persons/provisional/out/provisional_identity_candidates.csv"
+
+# Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(ROOT / "legacy_data"))
+from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
 
 
 def make_id(key):
@@ -20,6 +25,21 @@ def make_id(key):
 
 def main():
     df = pd.read_csv(IN).fillna("")
+
+    # ── Alias guard (defense-in-depth) ──────────────────────────────────────
+    # Script 01 should already have filtered alias-resolvable names. This
+    # second guard catches anything that slipped through (e.g. if 01 was run
+    # before aliases were updated and 02 runs later). Drops alias-resolvable
+    # rows before generating prov_identity::<digest> IDs.
+    resolver = load_default_resolver()
+    n_alias_dropped = 0
+    if not df.empty and resolver is not None:
+        alias_resolved = df["person_name"].apply(resolver.resolve)
+        drop_mask = alias_resolved.notna() & alias_resolved.ne("")
+        n_alias_dropped = int(drop_mask.sum())
+        if n_alias_dropped:
+            print(f"  Alias guard: dropping {n_alias_dropped} provisional row(s) that resolve via alias")
+            df = df[~drop_mask].copy()
 
     df["key"] = df.apply(
         lambda r: r["mirror_member_id"] if r["mirror_member_id"] else r["person_name_norm"],

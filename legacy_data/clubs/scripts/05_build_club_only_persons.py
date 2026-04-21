@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
+from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
 
 AFFILIATIONS_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "legacy_person_club_affiliations.csv"
 OUT_DIR = REPO_ROOT / "legacy_data" / "clubs" / "out"
@@ -83,6 +88,21 @@ def main() -> None:
         subset=["club_key", "person_name_norm"],
         keep="first",
     )
+
+    # ── Alias guard ────────────────────────────────────────────────────────
+    # Drop NO_MATCH rows whose person_name resolves to a canonical person via
+    # the shared alias registry. Without this guard, alias-equivalent names
+    # (e.g. "Darryl Genz" while canonical is "Daryl Genz") propagate into the
+    # provisional pipeline as prov_person::<digest> and end up as duplicates
+    # in historical_persons.
+    resolver = load_default_resolver()
+    if not club_only.empty and resolver is not None:
+        alias_resolved = club_only["person_name"].apply(resolver.resolve)
+        drop_mask = alias_resolved.notna() & alias_resolved.ne("")
+        n_alias_dropped = int(drop_mask.sum())
+        if n_alias_dropped:
+            print(f"  Alias guard: dropping {n_alias_dropped} club_only row(s) that resolve via alias")
+            club_only = club_only[~drop_mask].copy()
 
     out = club_only[
         [

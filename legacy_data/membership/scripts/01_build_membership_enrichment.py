@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -13,6 +14,11 @@ OUT_DIR = BASE_DIR / "out"
 
 MEMBERSHIP_INPUT = INPUT_DIR / "membership_input_normalized.csv"
 PERSONS_INPUT = Path(__file__).resolve().parents[3] / "legacy_data" / "event_results" / "canonical_input" / "persons.csv"
+
+# Make pipeline.identity importable when this script is run directly.
+_LEGACY_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_LEGACY_ROOT))
+from pipeline.identity.alias_resolver import AliasResolver  # noqa: E402
 
 KNOWN_FIRST_NAME_VARIANTS = {
     "dave": {"david"},
@@ -132,6 +138,26 @@ def candidate_row(person: dict, rule: str, score: int) -> dict:
         "rule": rule,
         "score": score,
     }
+
+
+def alias_pass(member: dict, resolver: AliasResolver | None, persons_by_pid: dict) -> list[dict]:
+    """PASS 0: shared AliasResolver lookup against person_aliases.csv.
+
+    Resolves member.name_raw via the alias registry. If the name maps to a
+    canonical person_id, that person is returned as a strong (score 100)
+    match. This replaces the previous local KNOWN_FIRST_NAME_VARIANTS pass
+    for the alias case — Dave/David name-variant logic still runs in
+    variant_pass below.
+    """
+    if resolver is None:
+        return []
+    pid = resolver.resolve(member["name_raw"])
+    if not pid:
+        return []
+    person = persons_by_pid.get(pid)
+    if person is None:
+        return []
+    return [candidate_row(person, "alias_resolved", 100)]
 
 
 def exact_pass(member: dict, idx: dict) -> list[dict]:
@@ -309,6 +335,20 @@ def main() -> None:
     persons = normalize_persons(persons_raw)
     idx = build_indexes(persons)
 
+    # Build the shared alias resolver from the same canonical persons frame
+    # used by the heuristic passes, plus an pid → person lookup so the alias
+    # pass can wrap the resolved canonical row in a candidate_row.
+    aliases_csv = _LEGACY_ROOT / "overrides" / "person_aliases.csv"
+    pairs = [
+        (str(pid).strip(), str(name).strip())
+        for pid, name in zip(persons.get("person_id", []), persons.get("person_name_raw", persons.get("person_name", [])))
+        if str(pid).strip() and str(name).strip()
+    ]
+    resolver = AliasResolver(aliases_csv=aliases_csv, canonical_persons=pairs) if pairs else None
+    persons_by_pid = {row.get("person_id", ""): row.to_dict() for _, row in persons.iterrows()}
+    if resolver is not None:
+        print(f"AliasResolver: {resolver.stats()}")
+
     candidate_rows = []
     best_rows = []
 
@@ -328,6 +368,7 @@ def main() -> None:
         }
 
         passes = [
+            alias_pass(m, resolver, persons_by_pid),
             exact_pass(m, idx),
             variant_pass(m, idx),
             same_first_same_surname_pass(m, idx),

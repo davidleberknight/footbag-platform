@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 from pathlib import Path
 import pandas as pd
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
+from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
 
 PERSONS_CSV = REPO_ROOT / "legacy_data" / "event_results" / "canonical_input" / "persons.csv"
 MEMBERSHIP_LINKED_CSV = REPO_ROOT / "legacy_data" / "membership" / "out" / "membership_linked_persons.csv"
@@ -221,6 +226,21 @@ def main() -> None:
     membership_only_rows = membership_only_rows[
         ~membership_only_rows["person_name_norm"].isin(existing_norm_names)
     ].copy()
+
+    # ── Alias guard ────────────────────────────────────────────────────────
+    # Any membership_only row whose name resolves via the shared alias
+    # registry to an existing canonical person is a duplicate. Drop it before
+    # generating membership_only::<digest> IDs that would propagate downstream
+    # into the provisional pipeline as stub identities.
+    resolver = load_default_resolver()
+    n_alias_dropped = 0
+    if not membership_only_rows.empty and resolver is not None:
+        alias_resolved = membership_only_rows["person_name"].apply(resolver.resolve)
+        drop_mask = alias_resolved.notna() & alias_resolved.ne("")
+        n_alias_dropped = int(drop_mask.sum())
+        if n_alias_dropped:
+            print(f"  Alias guard: dropping {n_alias_dropped} membership_only row(s) that resolve via alias")
+            membership_only_rows = membership_only_rows[~drop_mask].copy()
 
     final_df = pd.concat([enriched_base, membership_only_rows], ignore_index=True)
 

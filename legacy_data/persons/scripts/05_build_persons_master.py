@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 from pathlib import Path
 import pandas as pd
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+# Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(REPO_ROOT / "legacy_data"))
+from pipeline.identity.alias_resolver import load_default_resolver  # noqa: E402
 
 CANONICAL_PERSONS_CSV = REPO_ROOT / "legacy_data" / "event_results" / "canonical_input" / "persons.csv"
 # Optional: full promoted sheet if you materialize it; otherwise built from candidates + links below.
@@ -184,6 +189,23 @@ def build_provisional_rows(candidates: pd.DataFrame, promoted_links: pd.DataFram
     # Only unmatched or review-needed provisional rows should become standalone master persons.
     # MATCHED_TO_HISTORICAL rows are represented by canonical rows and should not be duplicated.
     out = out[out["promotion_status"].isin(["STAGED", "REVIEW_REQUIRED"])].copy()
+
+    # ── Alias guard (defense-in-depth) ──────────────────────────────────────
+    # Even after script 03 routes alias-resolvable candidates to
+    # MATCHED_TO_HISTORICAL, upstream feeds (membership/clubs) may produce
+    # name variants that didn't reach script 03 with the right normalization.
+    # This guard re-checks every STAGED/REVIEW row against the shared
+    # AliasResolver. If a row resolves to a canonical person, it is
+    # reclassified as MATCHED_TO_HISTORICAL and excluded from master_person::
+    # generation here.
+    resolver = load_default_resolver()
+    if not out.empty:
+        resolved_pids = out["canonical_candidate_name"].apply(resolver.resolve)
+        alias_mask = resolved_pids.notna() & resolved_pids.ne("")
+        n_guarded = int(alias_mask.sum())
+        if n_guarded:
+            print(f"  Alias guard: dropping {n_guarded} STAGED/REVIEW row(s) that resolve via alias")
+            out = out[~alias_mask].copy()
 
     out["master_person_id"] = out.apply(
         lambda r: stable_master_person_id(

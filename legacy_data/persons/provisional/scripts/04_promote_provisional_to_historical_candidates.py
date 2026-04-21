@@ -10,7 +10,10 @@ OUT = ROOT / "legacy_data/persons/provisional/out/provisional_promoted_links.csv
 
 
 def classify(x):
-    if x == "EXACT_HISTORICAL_MATCH":
+    # ALIAS_HISTORICAL_MATCH is emitted by script 03 PASS 0 (alias resolver)
+    # and is treated identically to EXACT_HISTORICAL_MATCH downstream:
+    # alias-equivalent candidates must NOT generate a master_person:: stub.
+    if x in ("EXACT_HISTORICAL_MATCH", "ALIAS_HISTORICAL_MATCH"):
         return "MATCHED_TO_HISTORICAL"
     if x in ["WEAK_HISTORICAL_MATCH", "HISTORICAL_CONFLICT"]:
         return "REVIEW_REQUIRED"
