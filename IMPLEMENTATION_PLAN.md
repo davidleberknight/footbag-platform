@@ -18,7 +18,7 @@ Cross-track changes require explicit human coordination.
 
 ### Sprint: Auth hardening + email activation
 
-**Status:** All code complete; staging deployed and behaviorally smoke-validated end-to-end (login → KMS-signed JWT; register → outbox → SES → recipient inbox). Three-table identity refactor fully landed (members + historical_persons FKs to `legacy_members`; UNIQUE indexes in place; `legacy_members` temporarily populated with 2,507 rows from `legacy_data/scripts/load_legacy_members_seed.py` pending Steve Goldberg's dump — see item 12 in James's sprint). Tests: 833/833; tsc clean.
+**Status:** All code complete; staging deployed and behaviorally smoke-validated end-to-end (login → KMS-signed JWT; register → outbox → SES → recipient inbox). Three-table identity refactor fully landed (members + historical_persons FKs to `legacy_members`; UNIQUE indexes in place; `legacy_members` temporarily populated with 2,507 rows from `legacy_data/scripts/load_legacy_members_seed.py` pending the legacy-account export — see item 12 in James's sprint). Tests: 833/833; tsc clean.
 
 **Active gotcha — must revert before prod cutover:** JWT `exp` and session-cookie `maxAge` temporarily reduced from 24h to 10 minutes for staging observability. `src/services/jwtService.ts DEFAULT_TTL_SECONDS` and `src/middleware/auth.ts SESSION_COOKIE_MAX_AGE_MS`. DD §3.5 baseline is 24h.
 
@@ -81,7 +81,7 @@ Cutover to `noreply@footbag.org` once the domain is acquired: re-run §8.8 again
 
 ### Open production-rewrite item (carried over)
 
-**Legacy account claim:** current code is the early-test shortcut (direct lookup + confirm + merge via `identityAccessService.lookupLegacyClaim` / `completeClaim`; routes `POST /history/claim` + `POST /history/claim/confirm`). Production rewrite moves to a dedicated `LegacyMigrationService` with email-verified token flow (`GET /history/claim/verify/:token` per `docs/SERVICE_CATALOG.md`), name reconciliation, and rate limiting. Deferred to Phase 4.
+**Legacy account claim:** current code is the early-test shortcut (direct lookup + confirm + merge via `identityAccessService.lookupLegacyAccount` / `claimLegacyAccount`; routes `POST /history/claim` + `POST /history/claim/confirm`). Production rewrite moves to a dedicated `LegacyMigrationService` with email-verified token flow (`GET /history/claim/verify/:token` per `docs/SERVICE_CATALOG.md`), name reconciliation, and rate limiting. Deferred to Phase 4.
 
 **Routing invariants:** `/members` dashboard (auth) or welcome (public); `/members/:memberKey/*` profiles; `/history/:personId` historical detail; `/history` 301s to `/members`; `/register` registration; home Media Gallery is coming-soon (no `/media` route).
 
@@ -160,10 +160,10 @@ James has merged his footbag-results pipeline into this repo under `legacy_data/
 9. **Integrate into `run_pipeline.sh complete`**: today `complete` stops at events/results/persons; extend to produce clubs (classified), bootstrap leaders, club-only persons, variants, records. `scripts/reset-local-db.sh` then collapses to a one-liner.
 10. **Data review sign-off**: confirm legacy data is complete and member-list presentation is reviewed.
 11. **Freestyle rules pages**: content for the four competition formats (Routine, Circle, Sick 3, Shred 30) — template(s) and route(s) for `/freestyle/rules` (single page with anchors, or per-format paths). Unblocks re-enabling the "Rules" buttons that were dropped from `/freestyle` landing competition-format cards.
-12. **Steve Goldberg legacy-account dump** — final source for `legacy_members`. Current population is from `legacy_data/scripts/load_legacy_members_seed.py` (mirror-derived, 2,507 rows, columns limited to PK + `display_name` + `import_source='mirror'`). Steve's dump supersedes with full profile fields (`real_name`, `legacy_email`, `legacy_user_id`, `country`, `city`, `region`, `bio`, `birth_date`, `ifpa_join_date`, `first_competition_year`, `is_hof`, `is_bap`, `legacy_is_admin`) and flips `import_source` to `'steve_dump'`. Outstanding coordination:
-    - **Namespace agreement.** Steve's dump and mirror-derived IDs must use the same `legacy_member_id` namespace (same IDs for same real-world accounts). If they diverge, resolve before loading Steve's dump.
+12. **Legacy-site data dump (Steve Goldberg coordination)** — final source for `legacy_members`. Current population is from `legacy_data/scripts/load_legacy_members_seed.py` (mirror-derived, 2,507 rows, columns limited to PK + `display_name` + `import_source='mirror'`). The legacy-site dump supersedes with full profile fields (`real_name`, `legacy_email`, `legacy_user_id`, `country`, `city`, `region`, `bio`, `birth_date`, `ifpa_join_date`, `first_competition_year`, `is_hof`, `is_bap`, `legacy_is_admin`) and flips `import_source` to `'legacy_site_data'`. Outstanding coordination:
+    - **Namespace agreement.** The legacy-account export and mirror-derived IDs must use the same `legacy_member_id` namespace (same IDs for same real-world accounts). If they diverge, resolve before loading the export.
     - **MIGRATION_PLAN §5 + §9.** The platform-side doc rewrites (imported rows live in `legacy_members`; claim marks rather than deletes the legacy record) depend on the final dump structure. Coordinate before rewrites land.
-    - **Test fixture support.** `tests/fixtures/factories.ts` already has a `legacy_members` factory and auto-creates stub rows on HP insert; additional richer fields in Steve's dump may warrant factory extensions.
+    - **Test fixture support.** `tests/fixtures/factories.ts` already has a `legacy_members` factory and auto-creates stub rows on HP insert; additional richer fields in the legacy-account export may warrant factory extensions.
 
 ### Deliverables (remaining)
 
@@ -249,7 +249,7 @@ Each has an explicit unblock condition. Long-term docs preserve target design; c
 12. **CloudFront hardening incomplete.** X-Origin-Verify absent in Nginx; OAC/ordered-cache controls deferred; direct-origin bypass unprotected. Unblock: 1-F.
 13. **CI/CD partial.** App CI active; deploy scripts: `deploy-code.sh`, `deploy-rebuild.sh`, `deploy-migrate.sh` (stub). Remaining: 1-F, 1-G.
 14. **Monitoring partial and gated.** CloudWatch log groups + alarms Terraformed; agent install TODO. Unblock: 1-G.
-15. **Runtime config manually managed; AssumeRole step deferred.** App reads `/srv/footbag/env`. Current deployment uses a dedicated IAM user (`footbag-staging-runtime`) with scoped SSM read permissions; the IAM user's access keys are set directly as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in the env file. The source-profile plus role-assumption step per DD §7.2 is not yet implemented. Unblock: first AWS runtime call (SES, via 4-D) plus AssumeRole activation.
+15. **Terraform trust-policy stub for runtime role.** `terraform/staging/iam.tf:16-85` declares `aws_iam_role.app_runtime`'s trust policy as `ec2.amazonaws.com` (bootstrap stub from the unreachable-on-Lightsail instance-profile scaffold). Path H §8.9 step 4c Console-amended the trust policy to trust the source-profile IAM user; HCL reconciliation deferred. Source-profile + AssumeRole chain per DD §7.2 is otherwise active: long-lived keys at `/root/.aws/credentials` (root-owned, 0600), app uses `AWS_PROFILE=footbag-staging-runtime`. Unblock: post-sprint infrastructure tidy-up.
 16. **Bootstrap security shortcuts remain.** Operator IAM + SSH use bootstrap posture. Unblock: pre-launch security pass.
 17. **Browser validation manual-only.** Route/integration tests are first verification path.
 18. **`image` container absent.** Docker Compose has `nginx`, `web`, `worker`. Unblock: Phase 3+ media pipeline.

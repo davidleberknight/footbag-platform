@@ -7,7 +7,7 @@ import { getCommunicationService } from './communicationService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
-import { ValidationError } from './serviceErrors';
+import { RateLimitedError, ValidationError } from './serviceErrors';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_DISPLAY_NAME = 64;
@@ -16,18 +16,12 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
 
-/**
- * Generate a URL-safe slug from a display name.
- * Rules: lowercase, spaces become _, strip non-alphanumeric/underscore,
- * collapse consecutive underscores, trim leading/trailing underscores.
- */
 import { slugify } from './slugify';
-export { slugify };
 
 /**
  * Generate a unique slug. Appends _2, _3, etc. on conflict.
  */
-export function generateUniqueSlug(displayName: string): string {
+function generateUniqueSlug(displayName: string): string {
   const base = slugify(displayName);
   if (!base) {
     // Fallback for names that produce empty slugs (e.g. all non-ASCII).
@@ -66,9 +60,7 @@ export interface RegisterResult {
  * Verify member credentials against the database.
  *
  * Returns the member row on success, null on any failure (wrong password,
- * not found, unverified, deceased). Fall-through to the env-var stub is the
- * caller's responsibility and must only happen when this returns null AND the
- * email did not match any DB row.
+ * not found, unverified, deceased).
  */
 async function verifyMemberCredentials(
   email: string,
@@ -90,6 +82,29 @@ async function verifyMemberCredentials(
   auth.updateMemberLastLogin.run(now, now, member.id);
 
   return member;
+}
+
+/**
+ * Attempt a login: rate-limit by normalized email + client IP, then delegate
+ * to credential verification. Throws RateLimitedError when the bucket is
+ * exceeded; returns null on invalid credentials.
+ */
+async function attemptLogin(
+  email: string,
+  password: string,
+  ip: string,
+): Promise<MemberAuthRow | null> {
+  const normalized = normalizeEmail(email);
+  const maxAttempts = readIntConfig('login_rate_limit_max_attempts', 10);
+  const windowMinutes = readIntConfig('login_rate_limit_window_minutes', 15);
+  const rl = rateLimitHit(`login:${normalized}:${ip}`, maxAttempts, windowMinutes);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      'Too many failed login attempts. Please try again later.',
+      rl.retryAfterSeconds,
+    );
+  }
+  return verifyMemberCredentials(email, password);
 }
 
 /**
@@ -287,12 +302,16 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
 }
 
 /**
- * Re-send an email_verify token to an unverified member. Normalizes the
- * provided email, silently no-ops when no unverified member matches.
- * Callers are expected to rate-limit per-email before invoking.
+ * Re-send an email_verify token to an unverified member. Rate-limited per
+ * normalized email; silently no-ops when the bucket is exceeded or no
+ * unverified member matches (identical response for anti-enumeration).
  */
 async function resendVerifyEmail(email: string): Promise<void> {
   const normalized = normalizeEmail(email);
+  const maxAttempts = readIntConfig('verify_resend_rate_limit_max_attempts', 3);
+  const windowMinutes = readIntConfig('verify_resend_rate_limit_window_minutes', 60);
+  const rl = rateLimitHit(`verify-resend:${normalized}`, maxAttempts, windowMinutes);
+  if (!rl.allowed) return;
   const row = auth.findUnverifiedMemberByEmail.get(normalized) as
     | { id: string }
     | undefined;
@@ -408,6 +427,16 @@ async function changePassword(
   newPassword: string,
   confirmPassword: string,
 ): Promise<PasswordChangeResult> {
+  const maxAttempts = readIntConfig('password_change_rate_limit_max_attempts', 10);
+  const windowMinutes = readIntConfig('password_change_rate_limit_window_minutes', 15);
+  const rl = rateLimitHit(`pwchange:${memberId}`, maxAttempts, windowMinutes);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      'Too many password-change attempts. Please try again later.',
+      rl.retryAfterSeconds,
+    );
+  }
+
   if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
     throw new ValidationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
   }
@@ -554,4 +583,4 @@ async function completePasswordReset(
   };
 }
 
-export const identityAccessService = { verifyMemberCredentials, registerMember, lookupLegacyAccount, claimLegacyAccount, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset };
+export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset };

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { freestyleService } from '../services/freestyleService';
-import { NotFoundError, ServiceUnavailableError } from '../services/serviceErrors';
-import { logger } from '../config/logger';
+import { handleControllerError } from '../lib/controllerErrors';
+import { NotFoundError } from '../services/serviceErrors';
 
 /**
  * Thin controller for public freestyle routes.
@@ -14,7 +14,7 @@ export const freestyleController = {
       const vm = freestyleService.getLandingPage();
       res.render('freestyle/landing', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -24,7 +24,7 @@ export const freestyleController = {
       const vm = freestyleService.getRecordsPage();
       res.render('freestyle/records', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -34,7 +34,7 @@ export const freestyleController = {
       const vm = freestyleService.getLeadersPage();
       res.render('freestyle/leaders', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -51,7 +51,7 @@ export const freestyleController = {
         });
         return;
       }
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -61,7 +61,7 @@ export const freestyleController = {
       const vm = freestyleService.getFreestyleCompetitionPage();
       res.render('freestyle/competition', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -71,7 +71,7 @@ export const freestyleController = {
       const vm = freestyleService.getFreestylePartnershipsPage();
       res.render('freestyle/partnerships', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -81,7 +81,7 @@ export const freestyleController = {
       const vm = freestyleService.getFreestyleHistoryPage();
       res.render('freestyle/history', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -91,7 +91,7 @@ export const freestyleController = {
       const vm = freestyleService.getFreestyleTricksIndexPage();
       res.render('freestyle/tricks', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -101,7 +101,7 @@ export const freestyleController = {
       const vm = freestyleService.getFreestyleInsightsPage();
       res.render('freestyle/insights', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -111,7 +111,7 @@ export const freestyleController = {
       const vm = freestyleService.getAboutPage();
       res.render('freestyle/about', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
@@ -121,21 +121,8 @@ export const freestyleController = {
       const vm = freestyleService.getMovesPage();
       res.render('freestyle/moves', vm);
     } catch (err) {
-      freestyleController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'freestyle controller');
     }
   },
 
-  _handleError(err: unknown, res: Response, next: NextFunction): void {
-    if (err instanceof ServiceUnavailableError) {
-      res.status(503).render('errors/unavailable', {
-        seo:  { title: 'Service Unavailable' },
-        page: { sectionKey: '', pageKey: 'error_503', title: 'Service Unavailable' },
-      });
-      return;
-    }
-    logger.error('unexpected error in freestyle controller', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    next(err);
-  },
 };

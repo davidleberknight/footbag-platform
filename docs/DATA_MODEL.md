@@ -1,6 +1,4 @@
-# Footbag Website Modernization Project — Data Model
-**Last updated:** March 30, 2026
-**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
+# Footbag Website Modernization Project -- Data Model
 **Schema file:** `database/schema.sql`
 **Schema counts:** 54 tables · 9 views · 123 named indexes · 18 triggers
 
@@ -653,7 +651,7 @@ When a member is deleted, all their slug redirect rows are cascade-deleted.
 
 **Table:** `legacy_members`
 
-Permanent archival table: one row per imported legacy account from the old footbag.org mirror and, going forward, Steve Goldberg's data dump. Identified by `legacy_member_id` (PK) — the old-site's user-account id, which is the external-namespace pointer also carried by `members.legacy_member_id` and `historical_persons.legacy_member_id`. See DD §2.4 for the three-entity identity model.
+Permanent archival table: one row per imported legacy account from the old footbag.org mirror and, going forward, the legacy data dump. Identified by `legacy_member_id` (PK) — the old-site's user-account id, which is the external-namespace pointer also carried by `members.legacy_member_id` and `historical_persons.legacy_member_id`. See DD §2.4 for the three-entity identity model.
 
 #### Immutability and claim semantics
 
@@ -669,7 +667,7 @@ Permanent archival table: one row per imported legacy account from the old footb
 - Profile snapshot — `real_name`, `display_name`, `display_name_normalized`, `city`, `region`, `country`, `bio`, `birth_date`, `street_address`, `postal_code`, `ifpa_join_date`, `first_competition_year`.
 - Honor flags — `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per §9 OR-merge rule).
 - `legacy_is_admin` — old-site admin flag. Retained for audit; never grants live admin privilege.
-- Import audit — `import_source` ('mirror' | 'steve_dump' | NULL pre-integration), `imported_at`, `version`.
+- Import audit — `import_source` ('mirror' | 'legacy_site_data' | NULL pre-integration), `imported_at`, `version`.
 - Claim state — `claimed_by_member_id` (nullable FK to `members(id)` with `ON DELETE NO ACTION`), `claimed_at`. A CHECK constraint enforces the two-column invariant: both NULL (unclaimed) or both set (claimed).
 
 #### Indexes
@@ -708,7 +706,7 @@ Before a competitor registration reaches `status = 'confirmed'`, the application
 Three entity types form the identity model — see DD §2.4:
 
 - `members` — credentialed accounts on this platform.
-- `legacy_members` (§4.14b) — imported legacy accounts from the old footbag.org site (mirror + Steve's dump).
+- `legacy_members` (§4.14b) — imported legacy accounts from the old footbag.org site (mirror + legacy data dump).
 - `historical_persons` — archival identity records of past participants.
 
 Linkage is expressed via explicit FK pointers (not via shared-column derivation):
@@ -965,6 +963,21 @@ Mirror-derived scored person-to-club affiliation suggestions. Each row links a p
 
 #### `club_bootstrap_leaders` — operational, migration-origin
 Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives deletion of the imported placeholder row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+
+### 4.26 Name-matching utilities
+
+#### `name_variants` — permanent, not migration-only
+
+Name-equivalence pairs that support auto-link matching across `legacy_members`, `historical_persons`, and `members` (see `MIGRATION_PLAN.md` §7 auto-link and §8 self-serve claim flow). Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
+
+- **Columns**: `canonical_normalized` TEXT, `variant_normalized` TEXT, `source` TEXT with CHECK in (`mirror_mined`, `admin_added`, `member_submitted`), `created_at` TEXT default `datetime('now')`. Composite primary key on (`canonical_normalized`, `variant_normalized`).
+- **Symmetric lookup**: storing `('robert', 'bob')` is equivalent to storing `('bob', 'robert')`. Lookups must check both columns. Never insert both directions; the self-pair CHECK and the PRIMARY KEY enforce uniqueness.
+- **Normalization is application-side**: every value is NFKC-normalized, lowercased, whitespace-collapsed, and trimmed before it reaches the table. The table stores only the normalized forms. Unicode logic lives in the application to keep SQLite free of UDF registration.
+- **No confidence column in v1**: seeded pairs are trusted (curator oversight), admin-added pairs are trusted (admin oversight), member-submitted pairs are distinguished via the `source` column. Per-pair scoring can be added later without breaking existing lookups.
+
+#### Naming-convention note
+
+This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is reserved for migration-scope staging (`legacy_club_candidates`, `legacy_person_club_affiliations`) or archival data of legacy origin (`legacy_members`). Name-variant pairs are a permanent platform utility that grows over the life of the platform and has no "resolution" step, so the pairs themselves are the permanent artifact and the table is unprefixed. See §2 Schema Conventions for the general rule.
 
 ---
 

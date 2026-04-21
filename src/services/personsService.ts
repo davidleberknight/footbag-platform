@@ -1,5 +1,6 @@
 import { personsQc, PersonsQcRow } from '../db/db';
 import { runPersonsQcChecks, PersonQcIssue, PersonQcCategory, PersonQcSeverity } from './personsQcChecks';
+import { PageViewModel } from '../types/page';
 
 interface PersonsQcFilters {
   category?: string;
@@ -52,10 +53,49 @@ interface PersonsBrowseFilters {
   page?: number;
 }
 
+interface PersonsBrowseItem {
+  person_id: string;
+  person_name: string;
+  source: string;
+  country: string;
+  event_count: number;
+  placement_count: number;
+  flagged: boolean;
+}
+
+interface PersonsBrowseContent {
+  totalPersons: number;
+  totalFiltered: number;
+  totalFlagged: number;
+  activeFilters: { search: string; source: string };
+  filterOptions: { sources: FilterOption[] };
+  items: PersonsBrowseItem[];
+  itemCount: number;
+  currentPage: number;
+  totalPages: number;
+  prevPage: number | null;
+  nextPage: number | null;
+}
+
+interface PersonsQcContent {
+  totalPersons: number;
+  totalFlagged: number;
+  totalIssues: number;
+  totalHigh: number;
+  totalMedium: number;
+  totalLow: number;
+  countsByCategory: CategoryCount[];
+  countsBySeverity: SeverityCount[];
+  activeFilters: { category: string; source: string };
+  filterOptions: { categories: FilterOption[]; sources: FilterOption[] };
+  items: PersonsQcPageItem[];
+  itemCount: number;
+}
+
 const BROWSE_PAGE_SIZE = 200;
 
 export const personsService = {
-  getPersonsBrowsePage(filters: PersonsBrowseFilters) {
+  getPersonsBrowsePage(filters: PersonsBrowseFilters): PageViewModel<PersonsBrowseContent> {
     const rows = personsQc.listAll.all() as PersonsQcRow[];
     const allIssues = runPersonsQcChecks(rows);
     const flaggedIds = new Set(allIssues.map(i => i.person_id));
@@ -123,7 +163,7 @@ export const personsService = {
     };
   },
 
-  getPersonsQcPage(filters: PersonsQcFilters) {
+  getPersonsQcPage(filters: PersonsQcFilters): PageViewModel<PersonsQcContent> {
     const rows = personsQc.listAll.all() as PersonsQcRow[];
     const allIssues = runPersonsQcChecks(rows);
 

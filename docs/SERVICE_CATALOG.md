@@ -1,7 +1,4 @@
-# Footbag Website Modernization Project — Service Catalog
-**Last updated:** March 16, 2026
-**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
-
+# Footbag Website Modernization Project -- Service Catalog
 **Current implementation status:** This catalog describes the full long-term service model. For which services are implemented now, see `IMPLEMENTATION_PLAN.md`.
 
 ---
@@ -60,6 +57,23 @@ There is no target-design `publicController` layer. Public controllers/routes st
 **Timestamp requirement:** All writers must use `strftime('%Y-%m-%dT%H:%M:%fZ','now')` — not `datetime('now')`, which produces a space-separated format that breaks lexical ordering in views, triggers, and timestamp string comparisons/sorts.
 
 **Transaction / idempotency:** Coupled local writes (e.g., dual-write pairs) must be in a single atomic transaction. Webhook and job handlers must be idempotent. Domain services own idempotency behavior even when DB unique indexes assist. Outbox enqueue uses stable idempotency keys.
+
+**Naming conventions:**
+- Service files: `<domain>Service.ts` (e.g. `identityAccessService.ts`, `freestyleService.ts`).
+- Controller files: `<domain>Controller.ts` (see `docs/VIEW_CATALOG.md` §4.2 for page-shape naming).
+- Prepared-statement groups: object exports in `src/db/db.ts` named after the domain or feature (`auth`, `registration`, `publicEvents`, `netTeams`, `freestyleRecords`, etc.); QC-only groups carry the `// ---- QC-only (delete with pipeline-qc subsystem) ----` banner.
+- Service errors: `<Kind>Error` extending `ServiceError` in `src/services/serviceErrors.ts`. Canonical classes: `ValidationError`, `NotFoundError`, `ServiceUnavailableError`, `ConflictError`, `RateLimitedError` (carries `retryAfterSeconds`). HTTP mapping lives in `docs/VIEW_CATALOG.md` §7.2.
+
+**Adapter pattern:** Adapters are the only seam between app code and external services. Interface: `<Purpose>Adapter`; implementations: `<Backend><Purpose>Adapter`. Current adapters:
+- `JwtSigningAdapter` — `LocalJwtSigningAdapter` (dev, HS256 with local secret) / `KmsJwtSigningAdapter` (staging/prod, AWS KMS).
+- `SesAdapter` — `StubSesAdapter` (dev, in-process capture) / `LiveSesAdapter` (staging/prod, real SES).
+- `PhotoStorageAdapter` — local-fs (dev) / S3 (staging/prod).
+
+Adapters must fail-fast at boot when required env vars are absent. Integration tests stand up an injected fake client against the adapter interface; tests must never mock the AWS SDK package itself. See `tests/CLAUDE.md` §"Dev↔staging adapter parity" for the required three-test pattern (boot-time, interface parity, staging smoke).
+
+**Rate-limit placement:** rate-limit enforcement (`rateLimitHit` + `throw new RateLimitedError(...)`) lives in services. Controllers catch `RateLimitedError` and map it to HTTP 429 with `Retry-After` set from `retryAfterSeconds`. Never implement rate limits in middleware or inline in controllers. All rate-limit bucket sizes and windows are read from `system_config_current` keys (e.g. `login_rate_limit_max_attempts`, `password_reset_rate_limit_window_minutes`).
+
+**Anti-enumeration invariant:** Any endpoint that could leak account existence (login, register, password-reset request, email-verify/resend, member lookup, legacy claim) must return identical UX and identical timing for "exists" vs "does not exist." Services enforce this by running the same code path in both cases (e.g., always hitting the hash-compare, always running the rate-limit bucket); controllers must not short-circuit around an earlier existence check. Implemented by `IdentityAccessService` for account endpoints and by `MemberProfileLifecycleService.searchMembers` for member lookup.
 
 **Read model conventions:**
 - `member_tier_current` — **authoritative tier projection**; no tier cache columns exist on `members`. Use `calculateTierStatus(memberId)` as the sole authoritative tier-read path; never derive tier from `members` directly.
@@ -244,12 +258,18 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 
 Future detail (retain explicitly): auth hardening to the long-term JWT/session design remains governed by `docs/DESIGN_DECISIONS.md` and `IMPLEMENTATION_PLAN.md`.
 
+**JWT session model (current summary):**
+- JWT is signed via `JwtSigningAdapter` (HS256 in dev, KMS in staging/prod).
+- Payload embeds `memberId` and `passwordVersion`; middleware verifies `passwordVersion` against `members.password_version` on every authenticated request. Bumping `password_version` (on password change or reset) invalidates all outstanding sessions immediately.
+- Session cookies are `HttpOnly`, `Secure` (production), `SameSite=Lax`. Controllers set/clear via `issueSessionCookie` / `clearSessionCookie` in `src/lib/sessionCookie.ts`; never write `Set-Cookie` directly.
+- The archive passthrough (`generateLegacyArchiveAccess`) does not re-check `password_version` at the archive edge — archive JWTs expire naturally at `jwt_expiry_hours`; this is an accepted operational trade-off documented in DD and IP.
+
 **Consumers:** Web controllers (auth flows), middleware (JWT validation), OperationsPlatformService (token cleanup)
 
 **Key Methods:**
 - `register(input) -> {memberId, verificationTokenSent}` — creates `members` row at Tier 0; enqueues verification email via CommunicationService; audit-logs
 - `verifyEmail(token) -> {ok}` — validates SHA-256 token hash, marks `used_at`, activates account
-- `verifyMemberCredentials(email, password) -> Member | null` — validates credentials against argon2 hash; enforces deceased/grace-period rules; returns the member row on success or null. Session issuance is the caller's responsibility (controller mints the JWT via `createSessionJwt` and sets the cookie). Login rate limiting is applied at the controller.
+- `verifyMemberCredentials(email, password) -> Member | null` — validates credentials against argon2 hash; enforces deceased/grace-period rules; throws `RateLimitedError` when the per-email/per-IP bucket is exceeded (enforced in-service; controller maps to HTTP 429 with `Retry-After`); returns the member row on success or null. Session issuance is the caller's responsibility (controller mints the JWT via `createSessionJwt` and sets the cookie through `issueSessionCookie`).
 - `changePassword(input) -> {ok}` — increments `password_version` (invalidates all existing JWTs); updates `password_hash`; increments `password_hash_version` only on algorithm change; audit-logs
 - `requestPasswordReset(email) -> {ok}` — rate-limited (5 requests/email/hour regardless of email existence); enqueues reset email with SHA-256-hashed token; consistent timing prevents enumeration
 - `resetPassword(token, newPassword) -> {ok}` — validates token (1-hour expiry, unused); increments `password_version`; marks token consumed; audit-logs

@@ -1,17 +1,24 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { memberService, ProfileEditInput } from '../services/memberService';
-import { createAvatarService } from '../services/avatarService';
+import { AVATAR_MAX_BYTES, createAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
 import { getPhotoStorageAdapter } from '../adapters/photoStorageAdapter';
 import { createSessionJwt } from '../services/jwtService';
-import { issueSessionCookie } from './sessionCookieHelper';
-import { ValidationError, NotFoundError } from '../services/serviceErrors';
-import { logger } from '../config/logger';
+import { issueSessionCookie } from '../lib/sessionCookie';
+import { RateLimitedError, ValidationError, NotFoundError } from '../services/serviceErrors';
+import { PageViewModel } from '../types/page';
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+type MemberWelcomeContent = Record<string, never>;
+
+interface MemberPasswordEditContent {
+  memberKey: string;
+  error?: string;
+  success?: boolean;
+}
+
+type MemberStubContent = Record<string, never>;
+import { logger } from '../config/logger';
 
 // One-shot flash cookies used to surface a post-redirect success message on
 // the profile-edit page. Written by postAvatarUpload, read and cleared by
@@ -54,7 +61,8 @@ export const memberController = {
       res.render('members/welcome', {
         seo: { title: 'Members' },
         page: { sectionKey: 'members', pageKey: 'member_welcome', title: 'Members' },
-      });
+        content: {},
+      } satisfies PageViewModel<MemberWelcomeContent>);
       return;
     }
     try {
@@ -199,7 +207,7 @@ export const memberController = {
 
     const busboy = Busboy({
       headers: req.headers,
-      limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+      limits: { fileSize: AVATAR_MAX_BYTES, files: 1 },
     });
 
     busboy.on('file', (_fieldname, stream, info) => {
@@ -209,7 +217,7 @@ export const memberController = {
       }
       stream.on('data', (chunk: Buffer) => {
         totalBytes += chunk.length;
-        if (totalBytes > MAX_UPLOAD_BYTES) {
+        if (totalBytes > AVATAR_MAX_BYTES) {
           limitExceeded = true;
           stream.resume();
           return;
@@ -276,7 +284,7 @@ export const memberController = {
         contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
       },
       content: { memberKey: req.params.memberKey },
-    });
+    } satisfies PageViewModel<MemberPasswordEditContent>);
   },
 
   /** POST /members/:memberKey/edit/password, apply password change. */
@@ -286,9 +294,6 @@ export const memberController = {
       return;
     }
     const memberId = req.user!.userId;
-    const maxAttempts = readIntConfig('login_rate_limit_max_attempts', 10);
-    const windowMinutes = readIntConfig('login_rate_limit_window_minutes', 15);
-    const rl = rateLimitHit(`pwchange:${memberId}`, maxAttempts, windowMinutes);
 
     const renderForm = (opts: { error?: string; success?: boolean; status?: number }) => {
       res.status(opts.status ?? 200).render('members/password-edit', {
@@ -298,14 +303,8 @@ export const memberController = {
           contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
         },
         content: { error: opts.error, success: opts.success, memberKey: req.params.memberKey },
-      });
+      } satisfies PageViewModel<MemberPasswordEditContent>);
     };
-
-    if (!rl.allowed) {
-      if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
-      renderForm({ error: 'Too many password-change attempts. Please try again later.', status: 429 });
-      return;
-    }
 
     const { oldPassword, newPassword, confirmPassword } = req.body as {
       oldPassword?: string; newPassword?: string; confirmPassword?: string;
@@ -326,6 +325,11 @@ export const memberController = {
       issueSessionCookie(res, cookieValue, req);
       renderForm({ success: true });
     } catch (err) {
+      if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        renderForm({ error: err.message, status: 429 });
+        return;
+      }
       if (err instanceof ValidationError) {
         renderForm({ error: err.message, status: 422 });
         return;
@@ -350,7 +354,7 @@ export const memberController = {
           contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
         },
         content: {},
-      });
+      } satisfies PageViewModel<MemberStubContent>);
     } catch (err) {
       next(err);
     }

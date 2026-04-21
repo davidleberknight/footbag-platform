@@ -1,4 +1,4 @@
-# Footbag Website Modernization Project —  Developer Onboarding Guide
+# Footbag Website Modernization Project --  Developer Onboarding Guide
 
 **Last updated:** March 29, 2026
 
@@ -90,12 +90,25 @@ This guide helps contributors do different things: understand how the initial pu
   - [8.11 Step 6 — Post-setup validation](#811-step-6--post-setup-validation)
   - [8.12 Where rotation lives](#812-where-rotation-lives)
   - [8.13 Where the remaining AWS work lives](#813-where-the-remaining-aws-work-lives)
-- [9. Appendices](#9-appendices)
-  - [9.1 Troubleshooting reference](#91-troubleshooting-reference)
-  - [9.2 Deterministic seed-data reference](#92-deterministic-seed-data-reference)
-  - [9.3 Smoke-check contract](#93-smoke-check-contract)
-  - [9.4 Authoritative project facts preserved by this guide](#94-authoritative-project-facts-preserved-by-this-guide)
-  - [9.5 Official references](#95-official-references)
+- [9. Path I — Production activation](#9-path-i--production-activation)
+  - [9.1 Why this path exists](#91-why-this-path-exists)
+  - [9.2 Scope](#92-scope)
+  - [9.3 Preconditions](#93-preconditions)
+  - [9.4 Domain acquisition and DNS delegation](#94-domain-acquisition-and-dns-delegation)
+  - [9.5 Cloudflare Email Routing for noreply@footbag.org](#95-cloudflare-email-routing-for-noreplyfootbagorg)
+  - [9.6 SES production-access activation](#96-ses-production-access-activation)
+  - [9.7 SES domain identity with DKIM](#97-ses-domain-identity-with-dkim)
+  - [9.8 Production KMS key, source-profile, and runtime role](#98-production-kms-key-source-profile-and-runtime-role)
+  - [9.9 Production SES sender identity and IAM pin](#99-production-ses-sender-identity-and-iam-pin)
+  - [9.10 SES bounce/complaint webhook subscription](#910-ses-bouncecomplaint-webhook-subscription)
+  - [9.11 Host credential wiring on the production Lightsail instance](#911-host-credential-wiring-on-the-production-lightsail-instance)
+  - [9.12 Post-setup validation](#912-post-setup-validation)
+- [10. Appendices](#10-appendices)
+  - [10.1 Troubleshooting reference](#101-troubleshooting-reference)
+  - [10.2 Deterministic seed-data reference](#102-deterministic-seed-data-reference)
+  - [10.3 Smoke-check contract](#103-smoke-check-contract)
+  - [10.4 Authoritative project facts preserved by this guide](#104-authoritative-project-facts-preserved-by-this-guide)
+  - [10.5 Official references](#105-official-references)
 
 ---
 
@@ -2218,68 +2231,638 @@ sudo systemctl restart footbag
 
 #### Remaining public-edge hardening (after CloudFront exists)
 
-After CloudFront is active and validated, continue with:
+After CloudFront is active and validated, three operations close the public-edge posture: attach the custom domain, enforce origin-bypass protection, and provision the maintenance page. They are independent of each other; attach them in the order below so that the maintenance page can use the final custom domain. Until all three land, do not rely on the maintenance page as a graceful-downtime path and expect direct-to-origin traffic to reach the host.
 
-- attach the final custom domain and ACM certificate
-- add Route 53 records
-- update `PUBLIC_BASE_URL` to the final public URL
-- implement origin-bypass protection and maintenance path:
-  - generate a shared secret: `openssl rand -hex 32`
-  - add the secret as a `custom_header` (`X-Origin-Verify`) on the CloudFront origin in `cloudfront.tf`
-  - add the secret to `/srv/footbag/env` on the host (Lightsail cannot use SSM at runtime; the env file is the runtime source of truth)
-  - optionally store a copy in SSM at `/footbag/staging/secrets/origin_verify_secret` for reference only
-  - enforce the header in `docker/nginx/nginx.conf`: reject requests that lack the correct `X-Origin-Verify` value (blocks direct-to-origin bypass)
-  - S3-hosted maintenance page with CloudFront Origin Access Control (OAC)
-  - `ordered_cache_behavior` for `/maintenance.html` routing to the S3 origin
+##### Attach custom domain (ACM + Route 53)
 
-Until that is complete, do not rely on the maintenance page as a graceful-downtime path.
+Prerequisites:
+
+- The project's canonical domain is owned in Route 53 (or at least has a Route 53 hosted zone that can serve as the authoritative DNS for it).
+- `var.domain_name` and `var.route53_zone_id` are populated in `terraform/staging/terraform.tfvars`.
+
+1. Uncomment the ACM resources in `terraform/staging/acm.tf` (all three: `aws_acm_certificate.main`, `aws_route53_record.acm_validation`, `aws_acm_certificate_validation.main`).
+
+2. Uncomment the Route 53 records in `terraform/staging/route53.tf` (`apex_a`, `apex_aaaa`, `www_a`).
+
+3. In `terraform/staging/cloudfront.tf`:
+   - Uncomment the `aliases` line on `aws_cloudfront_distribution.main`.
+   - Replace the `viewer_certificate { cloudfront_default_certificate = true }` block with:
+
+     ```hcl
+     viewer_certificate {
+       acm_certificate_arn      = aws_acm_certificate_validation.main.certificate_arn
+       ssl_support_method       = "sni-only"
+       minimum_protocol_version = "TLSv1.2_2021"
+     }
+     ```
+
+4. Plan and review:
+
+   ```bash
+   cd terraform/staging
+   terraform plan -out=tfplan
+   ```
+
+   Expect: one ACM certificate, its DNS validation records (one per name), one `aws_acm_certificate_validation`, three Route 53 alias records (apex A, apex AAAA, www A), and one change on `aws_cloudfront_distribution.main` (viewer_certificate + aliases).
+
+5. Apply:
+
+   ```bash
+   terraform apply tfplan
+   ```
+
+   Certificate validation takes 1 to 5 minutes; `terraform apply` blocks on `aws_acm_certificate_validation.main` until DNS propagation succeeds.
+
+6. Wait for CloudFront to redeploy (15 to 30 minutes):
+
+   ```bash
+   CF_ID=$(terraform output -raw cloudfront_distribution_id)
+   aws cloudfront get-distribution --id "$CF_ID" --query 'Distribution.Status' --output text
+   ```
+
+7. Validate DNS resolution and TLS:
+
+   ```bash
+   dig +short <domain>
+   dig +short www.<domain>
+   curl -I https://<domain>/health/ready
+   curl -I https://www.<domain>/health/ready
+   ```
+
+   Both `dig` calls resolve to CloudFront edge IPs (Route 53 alias targets). Both `curl` calls return 200 with TLS handshake against the new ACM cert.
+
+8. Update `PUBLIC_BASE_URL` on the host:
+
+   ```bash
+   ssh footbag-staging
+   sudo sed -i 's|PUBLIC_BASE_URL=.*|PUBLIC_BASE_URL=https://<domain>|' /srv/footbag/env
+   sudo systemctl restart footbag
+   exit
+   ```
+
+9. Run the full smoke check against the custom domain:
+
+   ```bash
+   BASE_URL=https://<domain> bash scripts/smoke-local.sh
+   ```
+
+Rollback: comment the ACM and Route 53 resources back, restore `cloudfront_default_certificate = true` in `cloudfront.tf`, `terraform apply`, revert `PUBLIC_BASE_URL` to the CloudFront default URL.
+
+##### Enforce origin-bypass protection (X-Origin-Verify)
+
+Until this step is complete, direct-to-origin traffic at `http://<lightsail-static-ip>/` bypasses CloudFront entirely. Origin-bypass protection places a shared secret header on every CloudFront → origin request and makes nginx reject requests that lack it.
+
+1. Generate the shared secret:
+
+   ```bash
+   openssl rand -hex 32
+   ```
+
+   Keep this value in the operator vault; it must match in CloudFront and on the host. Store an optional reference copy in SSM at `/footbag/staging/secrets/origin_verify_secret`.
+
+2. Declare the sensitive variable in `terraform/staging/variables.tf`:
+
+   ```hcl
+   variable "origin_verify_secret" {
+     description = "Shared secret between CloudFront and the origin's nginx; rejects direct-to-origin traffic."
+     type        = string
+     sensitive   = true
+   }
+   ```
+
+3. Provide the value via a non-committed source (gitignored tfvars file, or `TF_VAR_origin_verify_secret` exported in the shell before `terraform plan`). Do not commit it to `terraform.tfvars`.
+
+4. Add the header to the CloudFront origin in `terraform/staging/cloudfront.tf`. Inside the `origin` block for `lightsail-origin`, add a `custom_header` block:
+
+   ```hcl
+   custom_header {
+     name  = "X-Origin-Verify"
+     value = var.origin_verify_secret
+   }
+   ```
+
+5. Add the secret to the host's runtime env (the running app does not read it; nginx inside the web container does):
+
+   ```bash
+   ssh footbag-staging
+   sudo bash -c 'printf "\nX_ORIGIN_VERIFY_SECRET=<paste-the-secret>\n" >> /srv/footbag/env'
+   ```
+
+6. Enforce the header in `docker/nginx/nginx.conf`. In the server block that listens on port 80, before any `proxy_pass` to the app, add:
+
+   ```nginx
+   # Reject direct-to-origin bypass. CloudFront sets X-Origin-Verify; direct callers do not.
+   if ($http_x_origin_verify != "${X_ORIGIN_VERIFY_SECRET}") {
+     return 403;
+   }
+   ```
+
+   The `${X_ORIGIN_VERIFY_SECRET}` substitution requires nginx to see the variable at config-evaluation time. Use nginx's official `envsubst`-on-templates entrypoint (rename `nginx.conf` to `nginx.conf.template` and list `X_ORIGIN_VERIFY_SECRET` in `NGINX_ENVSUBST_TEMPLATE_SUFFIX`), or an equivalent templating step in the container build.
+
+7. Plan and apply the terraform change, then deploy the code and nginx update:
+
+   ```bash
+   cd terraform/staging && terraform plan -out=tfplan && terraform apply tfplan
+   bash scripts/deploy-code.sh <password>
+   ```
+
+8. Validate enforcement:
+
+   ```bash
+   # Through CloudFront: expect 200.
+   curl -I https://<domain>/health/ready
+
+   # Direct to the Lightsail static IP: expect 403.
+   curl -I http://<lightsail-static-ip>/health/ready
+   ```
+
+   The direct call must fail with 403. A 200 means nginx is not enforcing the header and the procedure is incomplete.
+
+##### Provision the maintenance page (S3 + OAC)
+
+Serve a static `/maintenance.html` from S3 behind CloudFront so that origin outages are covered by a graceful page rather than a CloudFront 5xx. Uses Origin Access Control (OAC), not the older Origin Access Identity.
+
+The `maintenance` S3 bucket already exists (`aws_s3_bucket.maintenance` in `terraform/staging/s3.tf`) but has no OAC, no bucket policy, and no object.
+
+1. Upload the maintenance HTML. If no canonical page exists yet, author a minimal static page first under a repo-tracked path (for example `docker/nginx/maintenance.html`):
+
+   ```bash
+   MAINT_BUCKET=$(cd terraform/staging && terraform output -raw maintenance_bucket || echo "footbag-staging-maintenance")
+   aws s3 cp docker/nginx/maintenance.html "s3://${MAINT_BUCKET}/maintenance.html" \
+     --content-type text/html \
+     --cache-control "public, max-age=60"
+   ```
+
+2. Add an Origin Access Control in `terraform/staging/cloudfront.tf`:
+
+   ```hcl
+   resource "aws_cloudfront_origin_access_control" "maintenance" {
+     name                              = "${local.prefix}-maintenance-oac"
+     description                       = "OAC for the maintenance S3 bucket"
+     origin_access_control_origin_type = "s3"
+     signing_behavior                  = "always"
+     signing_protocol                  = "sigv4"
+   }
+   ```
+
+3. Add the S3 origin to `aws_cloudfront_distribution.main`, alongside the existing `lightsail-origin`:
+
+   ```hcl
+   origin {
+     origin_id                = "maintenance-origin"
+     domain_name              = aws_s3_bucket.maintenance.bucket_regional_domain_name
+     origin_access_control_id = aws_cloudfront_origin_access_control.maintenance.id
+
+     s3_origin_config {
+       origin_access_identity = ""
+     }
+   }
+   ```
+
+4. Add an `ordered_cache_behavior` for `/maintenance.html`:
+
+   ```hcl
+   ordered_cache_behavior {
+     path_pattern           = "/maintenance.html"
+     target_origin_id       = "maintenance-origin"
+     viewer_protocol_policy = "redirect-to-https"
+     allowed_methods        = ["GET", "HEAD"]
+     cached_methods         = ["GET", "HEAD"]
+
+     forwarded_values {
+       query_string = false
+       cookies { forward = "none" }
+     }
+
+     min_ttl     = 0
+     default_ttl = 60
+     max_ttl     = 300
+   }
+   ```
+
+5. Add `custom_error_response` blocks so CloudFront serves `/maintenance.html` when the origin is unavailable:
+
+   ```hcl
+   custom_error_response {
+     error_code            = 502
+     response_code         = 503
+     response_page_path    = "/maintenance.html"
+     error_caching_min_ttl = 0
+   }
+
+   custom_error_response {
+     error_code            = 503
+     response_code         = 503
+     response_page_path    = "/maintenance.html"
+     error_caching_min_ttl = 0
+   }
+
+   custom_error_response {
+     error_code            = 504
+     response_code         = 504
+     response_page_path    = "/maintenance.html"
+     error_caching_min_ttl = 0
+   }
+   ```
+
+6. Add a bucket policy in `terraform/staging/s3.tf` granting CloudFront (via the OAC) read access to the maintenance bucket:
+
+   ```hcl
+   data "aws_iam_policy_document" "maintenance_bucket" {
+     statement {
+       actions   = ["s3:GetObject"]
+       resources = ["${aws_s3_bucket.maintenance.arn}/*"]
+
+       principals {
+         type        = "Service"
+         identifiers = ["cloudfront.amazonaws.com"]
+       }
+
+       condition {
+         test     = "StringEquals"
+         variable = "AWS:SourceArn"
+         values   = [aws_cloudfront_distribution.main[0].arn]
+       }
+     }
+   }
+
+   resource "aws_s3_bucket_policy" "maintenance" {
+     bucket = aws_s3_bucket.maintenance.id
+     policy = data.aws_iam_policy_document.maintenance_bucket.json
+   }
+
+   resource "aws_s3_bucket_public_access_block" "maintenance" {
+     bucket                  = aws_s3_bucket.maintenance.id
+     block_public_acls       = true
+     block_public_policy     = false
+     ignore_public_acls      = true
+     restrict_public_buckets = false
+   }
+   ```
+
+7. Plan, apply, wait for CloudFront to redeploy.
+
+8. Validate `/maintenance.html` is reachable:
+
+   ```bash
+   curl -I https://<domain>/maintenance.html
+   ```
+
+   Expect 200 with `X-Cache` set (first call `Miss from cloudfront`, subsequent `Hit from cloudfront`).
+
+9. Simulate an origin failure to confirm the error-response fallback:
+
+   ```bash
+   ssh footbag-staging
+   sudo systemctl stop footbag
+   exit
+
+   # From the workstation:
+   curl -I https://<domain>/
+   ```
+
+   Expect 503 with the maintenance page body. Restart the service afterward:
+
+   ```bash
+   ssh footbag-staging
+   sudo systemctl start footbag
+   ```
 
 ### 7.3 GitHub and operator governance hardening
 
-Initial CI now exists, but the governance around it still needs to be closed.
+Initial CI now exists, but the governance around it still needs to be closed. Three one-time operations: enable GitHub branch protection on `main`, scope `footbag-operator` down from `AdministratorAccess` to a least-privilege policy, and retire the Lightsail `ec2-user` default account. Two additional governance notes appear at the end.
 
-Remaining work:
+#### Enable branch protection on `main`
 
-- verify the current GitHub Actions checks from real PR runs
-- configure branch protection on `main`
-- require the current CI checks:
-  - `Type-check and test`
-  - `Terraform fmt / validate`
-- require branches to be up to date before merge
-- scope down `footbag-operator` from `AdministratorAccess` to a least-privilege policy covering only the services actually used: Lightsail, CloudFront, S3 (state bucket and project buckets), SSM, KMS, SNS, CloudWatch, and IAM (for its own key rotation)
-- remove long-lived access keys after a short-lived or IAM Identity Center path is in place
-- retire `ec2-user` once the named operator account is fully validated
-- consider disabling Lightsail browser SSH after normal operator access is confirmed
+1. GitHub → the repository → Settings → Branches → Branch protection rules → Add rule.
+2. Branch name pattern: `main`.
+3. Enable:
+   - Require a pull request before merging.
+   - Require approvals: 1.
+   - Require status checks to pass before merging:
+     - `Type-check and test`
+     - `Terraform fmt / validate`
+   - Require branches to be up to date before merging.
+   - Require linear history (optional but recommended).
+4. Save.
+5. Verify by opening a test PR with a known-failing check; confirm the merge button is blocked until the check passes.
+
+Refresh the required-check names if the CI workflow job names change: branch protection reads the exact job-name strings from the latest runs.
+
+#### Scope down `footbag-operator` from `AdministratorAccess`
+
+The operator IAM user initially holds `AdministratorAccess` for bootstrap. After the first successful deploy, move it to a least-privilege policy covering only services the project uses.
+
+1. Define the scoped policy in `terraform/staging/iam.tf` (or a sibling file) with statements covering:
+   - Lightsail (full: instance management, static IP, SSH key, firewall rules)
+   - CloudFront (full: distribution, OAC, cache policies)
+   - S3 (the project's state bucket, media bucket, snapshots bucket, DR bucket, maintenance bucket; scoped by ARN)
+   - SSM Parameter Store under `/footbag/*`
+   - KMS scoped to the project's keys by ARN (SSM key, JWT signing key)
+   - SNS (the operator alert topic)
+   - CloudWatch (metrics, alarms, dashboards)
+   - IAM self-rotation (only on the operator user's own access keys)
+   - STS for `sts:AssumeRole` if the operator assumes any project roles
+
+2. Attach the scoped policy to `footbag-operator` via Terraform. Leave `AdministratorAccess` attached for one `terraform apply` cycle so you can compare permission sets in practice.
+
+3. Apply:
+
+   ```bash
+   cd terraform/staging
+   terraform plan -out=tfplan
+   terraform apply tfplan
+   ```
+
+4. Exercise the operator path end-to-end while both policies are attached:
+   - `terraform plan` and `terraform apply` on a no-op change.
+   - `aws s3 ls` on each project bucket.
+   - `aws cloudfront list-distributions`.
+   - `bash scripts/deploy-code.sh <password>`.
+
+5. When the above is green, detach `AdministratorAccess`:
+
+   ```bash
+   aws iam detach-user-policy \
+     --user-name footbag-operator \
+     --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
+   ```
+
+6. Re-exercise the same paths. Any denied action indicates a missing statement in the scoped policy. Tighten, re-apply, re-test. Keep the final policy in Terraform HCL so the scope-down is reproducible and audit-trailable.
+
+#### Retire `ec2-user`
+
+The Lightsail default `ec2-user` account was used for initial SSH before the named operator account existed. After named operator SSH is validated, retire it.
+
+Prerequisite: `ssh footbag-staging` (the named operator account) has worked for multiple sessions without needing `ec2-user` as a fallback.
+
+1. SSH in as the named operator and escalate:
+
+   ```bash
+   ssh footbag-staging
+   sudo -i
+   ```
+
+2. Lock the `ec2-user` account (lock rather than delete; locked accounts preserve audit trails):
+
+   ```bash
+   passwd -l ec2-user
+   usermod -s /usr/sbin/nologin ec2-user
+   ```
+
+3. Remove `ec2-user`'s authorized SSH keys:
+
+   ```bash
+   rm /home/ec2-user/.ssh/authorized_keys
+   ```
+
+4. Verify the named operator still has access in a fresh shell:
+
+   ```bash
+   ssh footbag-staging -o ControlMaster=no -o ControlPath=none
+   ```
+
+5. Attempt to log in as `ec2-user` from the workstation using the old key:
+
+   ```bash
+   ssh -i ~/.ssh/footbag-lightsail-key ec2-user@<lightsail-static-ip> -p 2222
+   ```
+
+   Expect "Permission denied" or immediate disconnect.
+
+Rollback: `usermod -s /bin/bash ec2-user` and restore the authorized_keys file from a backup. Rotate or delete the old key material only after a cooling-off period.
+
+#### Additional governance notes
+
+- Long-lived IAM access keys on `footbag-operator` remain in place until the project selects a short-lived-credential path (IAM Identity Center, workload identity federation, or equivalent). Until that decision lands, rotate keys on the 90-day cadence per `docs/DEVOPS_GUIDE.md` §5.7.
+- Lightsail browser SSH can be disabled once named-operator SSH is fully reliable. Browser SSH has no per-IP allowlist and expands the attack surface; disable it from the Lightsail console under the instance's Networking tab once an alternative recovery path is confirmed.
 
 ### 7.4 Reliability and recovery
 
-The staging deploy workflow exists, but durable recovery still does not.
+The staging deploy workflow exists, but durable recovery does not. Close it with four one-time operations: provision dedicated backup credentials, deploy a scheduled backup producer, emit a backup-age metric for alerting, and rehearse a full restore drill. The goal is to move from "we can redeploy" to "we can recover," and it is a prerequisite for implementing `scripts/deploy-migrate.sh`.
 
-Remaining work:
+#### Provision dedicated backup credentials
 
-- add host-side SQLite backups using SQLite's online backup mechanism
-- use dedicated backup credentials scoped only to the backup bucket
-- schedule backups with cron or a systemd timer
-- rehearse a full restore in staging
-- document exact restore commands and timing in a restore runbook
+The backup producer must not use the operator's credentials or the app-runtime role. Create a dedicated IAM user with `s3:PutObject` on the snapshots bucket only, plus `cloudwatch:PutMetricData` for the freshness metric added below.
 
-Concrete backup command (run on the host as root):
+1. Declare the backup user and scoped policy in `terraform/staging/iam.tf`:
 
-```bash
-sqlite3 "$FOOTBAG_DB_PATH" ".backup /tmp/footbag-backup-$(date +%Y%m%dT%H%M%S).db"
-aws s3 cp /tmp/footbag-backup-*.db s3://<backup-bucket>/backups/
-```
+   ```hcl
+   resource "aws_iam_user" "backup_writer" {
+     name = "${local.prefix}-backup-writer"
+   }
 
-Concrete restore drill (rehearse this in staging before any migration work):
+   data "aws_iam_policy_document" "backup_writer" {
+     statement {
+       actions = ["s3:PutObject", "s3:ListBucket"]
+       resources = [
+         aws_s3_bucket.snapshots.arn,
+         "${aws_s3_bucket.snapshots.arn}/*",
+       ]
+     }
 
-1. Stop the service: `sudo systemctl stop footbag`
-2. Copy the backup down from S3: `aws s3 cp s3://<backup-bucket>/backups/<filename>.db /tmp/restore.db`
-3. Verify the backup: `sqlite3 /tmp/restore.db 'PRAGMA integrity_check;'`
-4. Replace the live DB: `sudo install -o root -g root -m 600 /tmp/restore.db "$FOOTBAG_DB_PATH"`
-5. Restart the service: `sudo systemctl start footbag`
-6. Run the smoke check: `BASE_URL=http://<host-ip> bash scripts/smoke-local.sh`
+     statement {
+       actions   = ["cloudwatch:PutMetricData"]
+       resources = ["*"]
 
-The goal here is to move from "we can redeploy" to "we can recover." Completing this section is also a prerequisite for implementing `scripts/deploy-migrate.sh`.
+       condition {
+         test     = "StringEquals"
+         variable = "cloudwatch:namespace"
+         values   = ["Footbag"]
+       }
+     }
+   }
+
+   resource "aws_iam_user_policy" "backup_writer" {
+     user   = aws_iam_user.backup_writer.name
+     policy = data.aws_iam_policy_document.backup_writer.json
+   }
+   ```
+
+2. `terraform plan` and `terraform apply`.
+
+3. Create an access key for the user and install it on the host in a root-only credentials file:
+
+   ```bash
+   aws iam create-access-key --user-name footbag-staging-backup-writer
+   # Record AccessKeyId and SecretAccessKey in the operator vault.
+
+   ssh footbag-staging
+   sudo bash -c 'cat > /root/.aws/credentials-backup <<EOF
+   [backup]
+   aws_access_key_id = <AccessKeyId>
+   aws_secret_access_key = <SecretAccessKey>
+   EOF'
+   sudo chmod 600 /root/.aws/credentials-backup
+   ```
+
+   Rotate this key on the same 90-day cadence as other access keys per `docs/DEVOPS_GUIDE.md` §5.7.
+
+#### Deploy the backup producer (systemd timer)
+
+A systemd timer is preferred over cron because it integrates with journalctl and handles missed runs via `Persistent=true`. Backups run every 5 minutes; the snapshots bucket holds versioned objects so a 5-minute cadence gives a ~5-minute RPO.
+
+1. Install the backup script on the host at `/usr/local/sbin/footbag-backup.sh`:
+
+   ```bash
+   sudo tee /usr/local/sbin/footbag-backup.sh > /dev/null <<'EOF'
+   #!/bin/bash
+   set -euo pipefail
+
+   export AWS_SHARED_CREDENTIALS_FILE=/root/.aws/credentials-backup
+   export AWS_PROFILE=backup
+   BUCKET="<your-snapshots-bucket-name>"
+   DB_PATH="${FOOTBAG_DB_PATH:-/srv/footbag/footbag.db}"
+   TS="$(date -u +%Y%m%dT%H%M%SZ)"
+   OUT="/tmp/footbag-${TS}.db"
+
+   sqlite3 "$DB_PATH" ".backup $OUT"
+   sqlite3 "$OUT" 'PRAGMA integrity_check;' | grep -q '^ok$' || { echo "integrity check failed"; exit 1; }
+   aws s3 cp "$OUT" "s3://${BUCKET}/snapshots/${TS}.db"
+   aws cloudwatch put-metric-data \
+     --namespace "Footbag" \
+     --metric-name BackupAgeMinutes \
+     --value 0 \
+     --unit Count \
+     --dimensions Environment=staging
+   rm -f "$OUT"
+   EOF
+   sudo chmod +x /usr/local/sbin/footbag-backup.sh
+   ```
+
+2. Install the systemd service unit at `/etc/systemd/system/footbag-backup.service`:
+
+   ```bash
+   sudo tee /etc/systemd/system/footbag-backup.service > /dev/null <<'EOF'
+   [Unit]
+   Description=footbag.org SQLite snapshot producer
+   After=network-online.target
+
+   [Service]
+   Type=oneshot
+   ExecStart=/usr/local/sbin/footbag-backup.sh
+   User=root
+   EOF
+   ```
+
+3. Install the timer unit at `/etc/systemd/system/footbag-backup.timer`:
+
+   ```bash
+   sudo tee /etc/systemd/system/footbag-backup.timer > /dev/null <<'EOF'
+   [Unit]
+   Description=footbag.org backup schedule
+
+   [Timer]
+   OnCalendar=*:0/5
+   Persistent=true
+   AccuracySec=1min
+   Unit=footbag-backup.service
+
+   [Install]
+   WantedBy=timers.target
+   EOF
+   ```
+
+4. Enable and start the timer:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now footbag-backup.timer
+   ```
+
+5. Verify:
+
+   ```bash
+   sudo systemctl status footbag-backup.timer
+   sudo journalctl -u footbag-backup.service --no-pager | tail
+   aws s3 ls "s3://<snapshots-bucket>/snapshots/" | tail
+   ```
+
+   Expect the timer active, the service journal showing a recent successful run, and the bucket listing new objects every 5 minutes.
+
+#### Enable the backup-age alarm
+
+Without a freshness alarm, a silent backup failure can go unnoticed until the next restore drill. The Terraform scaffolding for the alarm already exists in `terraform/staging/cloudwatch.tf`; enabling it now that the metric is being emitted is a one-line tfvars change.
+
+1. Trigger a manual backup run to confirm the metric appears:
+
+   ```bash
+   sudo systemctl start footbag-backup.service
+   aws cloudwatch list-metrics --namespace Footbag
+   ```
+
+2. Enable the alarm in `terraform/staging/terraform.tfvars`:
+
+   ```hcl
+   enable_backup_alarm = true
+   ```
+
+3. `terraform plan` and `terraform apply`.
+
+4. Confirm the alarm reaches the operator by temporarily stopping the timer and waiting past the alarm threshold, then re-enabling:
+
+   ```bash
+   sudo systemctl stop footbag-backup.timer
+   # Wait past the configured threshold; observe the alarm firing via SNS email.
+   sudo systemctl start footbag-backup.timer
+   ```
+
+#### Rehearse a full restore
+
+Rehearse this before any migration-related work. Completing the drill is a gate for §28.1.
+
+1. Capture baseline state so you can compare after restore:
+
+   ```bash
+   ssh footbag-staging
+   sudo sqlite3 /srv/footbag/footbag.db 'SELECT COUNT(*) FROM members;' > /tmp/members-baseline.txt
+   ```
+
+2. Stop the service:
+
+   ```bash
+   sudo systemctl stop footbag
+   ```
+
+3. Pick a known-good snapshot and copy it down:
+
+   ```bash
+   SNAPSHOT=$(aws s3 ls s3://<snapshots-bucket>/snapshots/ | awk '{print $4}' | tail -1)
+   aws s3 cp "s3://<snapshots-bucket>/snapshots/${SNAPSHOT}" /tmp/restore.db
+   ```
+
+4. Verify snapshot integrity:
+
+   ```bash
+   sqlite3 /tmp/restore.db 'PRAGMA integrity_check;'
+   ```
+
+   Expect `ok`.
+
+5. Replace the live DB in place:
+
+   ```bash
+   sudo install -o root -g root -m 600 /tmp/restore.db /srv/footbag/footbag.db
+   ```
+
+6. Restart the service:
+
+   ```bash
+   sudo systemctl start footbag
+   ```
+
+7. Run the smoke check and compare member counts:
+
+   ```bash
+   BASE_URL=https://<public-url> bash scripts/smoke-local.sh
+   sudo sqlite3 /srv/footbag/footbag.db 'SELECT COUNT(*) FROM members;'
+   ```
+
+   Confirm the smoke passes and the member count matches expectations for the snapshot age.
+
+8. Time the sequence end-to-end. Target: under 5 minutes RTO from "stop service" to "smoke passes."
+
+9. Record the timing in operator notes and confirm it meets the `docs/DEVOPS_GUIDE.md` §10.1 target.
 
 ### 7.5 Runtime configuration maturity
 
@@ -2294,16 +2877,144 @@ Remaining work:
 
 ### 7.6 Monitoring maturity
 
-Some monitoring exists in concept, but the full loop is not yet closed.
+Some monitoring exists in concept. Close the full loop with three one-time operations: install the CloudWatch agent (CWAgent) on the runtime host, enable the CWAgent CPU / memory / disk alarms, and validate SNS alert delivery end-to-end. Backup-freshness alarms are covered in §7.4; the CloudFront 5xx alarm is enabled automatically with CloudFront in §7.2.
 
-Remaining work:
+#### Install CWAgent on the Lightsail host
 
-- keep the CloudFront 5xx alarm active once CloudFront is in use
-- enable CWAgent CPU/memory alarms only after CWAgent actually exists on the host
-- add backup freshness metrics only after the backup job is real
-- emit `BackupAgeMinutes` after each successful backup
-- verify that SNS alert delivery reaches the operator
-- document the minimal operator dashboard and health-check locations
+1. SSH in and install the agent from Amazon's apt repo:
+
+   ```bash
+   ssh footbag-staging
+   sudo bash -c '
+   cd /tmp
+   curl -fsSL https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
+   dpkg -i amazon-cloudwatch-agent.deb
+   '
+   ```
+
+2. Create the agent config at `/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json`:
+
+   ```bash
+   sudo tee /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json > /dev/null <<'EOF'
+   {
+     "agent": {
+       "metrics_collection_interval": 60,
+       "run_as_user": "root"
+     },
+     "metrics": {
+       "namespace": "CWAgent",
+       "metrics_collected": {
+         "cpu": {
+           "measurement": ["usage_idle", "usage_iowait", "usage_user", "usage_system"],
+           "totalcpu": true
+         },
+         "mem": {
+           "measurement": ["mem_used_percent", "mem_available_percent"]
+         },
+         "disk": {
+           "measurement": ["used_percent"],
+           "resources": ["/"]
+         }
+       }
+     }
+   }
+   EOF
+   ```
+
+3. CWAgent publishes via the host's default AWS profile, which under Path H is the assumed runtime-role chain. Verify:
+
+   ```bash
+   sudo -u root aws sts get-caller-identity
+   ```
+
+   Expect the assumed runtime role ARN. If the chain is not in place, CWAgent will fail to publish and its log at `/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log` will show the credential error.
+
+4. Grant the runtime role `cloudwatch:PutMetricData` on the `CWAgent` namespace. Extend the `app_runtime` inline policy in `terraform/staging/iam.tf`:
+
+   ```hcl
+   statement {
+     sid       = "CWAgentMetrics"
+     actions   = ["cloudwatch:PutMetricData"]
+     resources = ["*"]
+
+     condition {
+       test     = "StringEquals"
+       variable = "cloudwatch:namespace"
+       values   = ["CWAgent"]
+     }
+   }
+   ```
+
+   `terraform apply`.
+
+5. Start the agent and confirm metrics arrive:
+
+   ```bash
+   sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+     -a fetch-config \
+     -m onPremise \
+     -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+     -s
+
+   sudo systemctl status amazon-cloudwatch-agent
+   ```
+
+   Then from the workstation:
+
+   ```bash
+   aws cloudwatch list-metrics --namespace CWAgent
+   ```
+
+   Expect entries for `cpu_usage_idle`, `mem_used_percent`, and `disk_used_percent`.
+
+#### Enable CWAgent alarms
+
+1. In `terraform/staging/terraform.tfvars`:
+
+   ```hcl
+   enable_cwagent_alarms = true
+   ```
+
+2. `terraform plan` and `terraform apply`. Expect CPU, memory, and disk alarms added.
+
+3. Verify alarm states:
+
+   ```bash
+   aws cloudwatch describe-alarms --query 'MetricAlarms[].{Name:AlarmName,State:StateValue}' --output table
+   ```
+
+   Each should show `INSUFFICIENT_DATA` initially and transition to `OK` within one evaluation period.
+
+#### Validate SNS alert delivery end-to-end
+
+CloudWatch alarms are only useful if the operator receives them. Confirm the path with a deliberate test.
+
+1. Identify the SNS topic and confirm the operator subscription is active:
+
+   ```bash
+   cd terraform/staging
+   TOPIC_ARN=$(terraform output -raw alerts_topic_arn)
+   aws sns list-subscriptions-by-topic --topic-arn "$TOPIC_ARN"
+   ```
+
+   Expect at least one `Protocol=email` subscription in the `Confirmed` state (not `PendingConfirmation`).
+
+2. Publish a test message:
+
+   ```bash
+   aws sns publish \
+     --topic-arn "$TOPIC_ARN" \
+     --subject "footbag.org monitoring test" \
+     --message "Manual SNS delivery check."
+   ```
+
+3. Confirm the operator receives the email within one minute.
+
+4. Force a real alarm to confirm the alarm-to-SNS path. A simple approach: temporarily lower the CPU alarm threshold in `cloudwatch.tf` to 1%, `terraform apply`, wait for the alarm to breach, confirm the SNS email arrives, then revert.
+
+#### Document the operator dashboard
+
+Record the CloudWatch dashboard URL, the `/health/live` and `/health/ready` URLs through CloudFront, and the confirmed SNS subscription address in operator notes. These are the first-check locations when an alarm fires.
 
 ### 7.7 Delivery maturity beyond on-host builds
 
@@ -2339,7 +3050,7 @@ Staging only. Four tasks, in order:
 
 This path assumes the staging baseline from Paths D through F is already in place: the `footbag-operator` human identity exists, Terraform state is bootstrapped, the Lightsail instance is running, and the routine deploy workflow is working. If any of that is not true, complete those paths first.
 
-Out of scope: custom domains, ACM, Route 53, new CloudFront work (§7.2); backups and monitoring (§7.4, §7.6); CI image publishing (§7.7); production (production KMS, SES production-access, and production IAM are a separate later activation); domain-identity verification (this path uses a sandbox email identity only); Terraform HCL reconciliation of the inline policy + trust edits made via Console in this path (deferred post-sprint).
+Out of scope: custom domains, ACM, Route 53, new CloudFront work (§7.2); backups and monitoring (§7.4, §7.6); CI image publishing (§7.7); production (production KMS, SES production-access, and production IAM are a separate later activation); domain-identity verification (this path uses a sandbox email identity only); Terraform HCL reconciliation of the inline policy + trust edits made via Console in this path.
 
 ### 8.3 Preconditions
 
@@ -2449,7 +3160,7 @@ The IAM policy in the next step uses v1 SES actions (`ses:SendEmail`, `ses:SendR
 
 ### 8.9 Step 4 — Attach policies and amend the runtime role's trust
 
-Three Console actions. Terraform authority over these IAM edits is deferred (reconciliation post-sprint); HCL in `terraform/staging/iam.tf` will remain out of sync until that reconciliation lands. The drift is expected and tracked.
+Three Console actions. These IAM edits are applied via the AWS Console; Terraform HCL reconciliation for them is out of scope for this path.
 
 **4a. Source-profile user → `sts:AssumeRole` only.**
 
@@ -2576,7 +3287,7 @@ The `Arn` in the output should be `arn:aws:sts::<ACCOUNT>:assumed-role/footbag-s
 
 **5b. Append non-secret AWS config to `/srv/footbag/env`.**
 
-`/srv/footbag/env` is the runtime source of truth on the Lightsail host for non-secret runtime config (see §9.4). Access-key material does not live here.
+`/srv/footbag/env` is the runtime source of truth on the Lightsail host for non-secret runtime config (see §10.4). Access-key material does not live here.
 
 ```bash
 sudo tee -a /srv/footbag/env > /dev/null <<'EOF'
@@ -2745,9 +3456,247 @@ Once all Path G items are complete, the durable operational content (including t
 
 ---
 
-## 9. Appendices
+## 9. Path I — Production activation
 
-### 9.1 Troubleshooting reference
+### 9.1 Why this path exists
+
+Path H activates KMS-backed JWT session signing, runtime AWS identity, and SES-backed transactional email on staging. Path I is the equivalent activation for production: it establishes a production AWS account posture with its own KMS signing key, runtime role, SES domain identity, and bounce/complaint handling, and stands up the production Lightsail host with the credential chain it needs. The shape of each step mirrors Path H; the names, ARNs, domain, and sender identity are production-scoped.
+
+Several production-only operations have no staging equivalent and are covered here in full: domain acquisition and DNS delegation, Cloudflare Email Routing for the canonical sender, the SES production-access support ticket, SES domain identity with DKIM, and the bounce/complaint webhook subscription.
+
+Like Path H, this is a one-time activation per environment, not part of the routine deploy workflow.
+
+### 9.2 Scope
+
+Production only. The work falls into two groups:
+
+**Production-only procedures authored here (§9.4 through §9.7, §9.10):**
+1. Domain acquisition and DNS delegation
+2. Cloudflare Email Routing for `noreply@footbag.org`
+3. SES production-access activation (AWS support ticket)
+4. SES domain identity with DKIM
+5. SES bounce/complaint webhook subscription
+
+**Mirrors of Path H with production naming (§9.8, §9.9, §9.11, §9.12):**
+
+| Path H entity (staging) | Path I entity (production) |
+|---|---|
+| `alias/footbag-staging-jwt` | `alias/footbag-production-jwt` |
+| `footbag-staging-source-profile` | `footbag-production-source-profile` |
+| `footbag-staging-app-runtime` | `footbag-production-app-runtime` |
+| `footbag-staging-source-profile-assume-role` | `footbag-production-source-profile-assume-role` |
+| SDK profile name `footbag-staging-runtime` | `footbag-production-runtime` |
+
+Out of scope: code changes (the app already selects KMS signing and live SES adapters via env vars; no compilation difference between staging and production); migration cutover itself (see `docs/MIGRATION_PLAN.md` §17 State 4).
+
+### 9.3 Preconditions
+
+Before starting Path I, confirm:
+
+- Path H on staging is complete and behaviorally smoke-validated end-to-end (login → KMS JWT; register → outbox → SES → recipient inbox).
+- AWS account hardening from Path D applied to the production AWS account: root MFA enabled, named human operator identity in place, Terraform state bootstrapped for production.
+- A production Lightsail instance exists and is reachable over SSH using a named operator account.
+- IFPA has secured control of `footbag.org` (or the project's canonical public domain), including registrar-level ownership and access to configure authoritative DNS.
+- Operator vault access is arranged for the production KMS key material, source-profile access keys, and backup credentials.
+
+### 9.4 Domain acquisition and DNS delegation
+
+Production cutover requires IFPA to own `footbag.org` at the registrar level and to delegate authoritative DNS to a provider the project operates. Two provider patterns are supported: Cloudflare (used for Email Routing in §9.5; recommended) and AWS Route 53 (used for ACM validation and CloudFront alias records).
+
+1. Registrar ownership: IFPA confirms domain renewal and registrar credentials in the operator vault. Registrar choice is outside this runbook; the only requirement is that registrar-level NS record edits are possible.
+
+2. Pick the authoritative DNS provider:
+   - **Cloudflare**: free tier sufficient; needed anyway for Email Routing in §9.5. Create a Cloudflare account under an IFPA-owned email and add the `footbag.org` zone. Cloudflare returns two nameservers.
+   - **AWS Route 53**: the existing staging `acm.tf` and `route53.tf` templates use Route 53. Create a hosted zone in Route 53 in the production AWS account.
+
+   Mixing providers (Cloudflare for email + Route 53 for web) is possible but complicates ownership; prefer one provider authoritative for the whole zone.
+
+3. Delegate DNS at the registrar by setting the domain's NS records to the chosen provider's nameservers. Propagation takes up to 48 hours globally; typically completes within an hour.
+
+4. Confirm delegation:
+
+   ```bash
+   dig NS footbag.org +short
+   ```
+
+   Expect the chosen provider's nameservers.
+
+5. Record in operator notes: registrar used, renewal contact, DNS provider, zone ID (if Route 53).
+
+### 9.5 Cloudflare Email Routing for noreply@footbag.org
+
+SES verifies a sender identity by sending a confirmation email to that address; the address must be deliverable. Cloudflare Email Routing (free) forwards `noreply@footbag.org` to an operator mailbox for the verification step and for any replies to operational emails.
+
+1. In the Cloudflare dashboard, go to the `footbag.org` zone → Email → Email Routing.
+
+2. Enable Email Routing. Cloudflare auto-provisions MX records and a `_cf-mailchannels` TXT record. Confirm the records appear in the zone.
+
+3. Add a custom address route:
+   - Custom address: `noreply@footbag.org`
+   - Action: Send to an email (an operator inbox the project controls)
+   - Save.
+
+4. Confirm the destination address. Cloudflare sends a confirmation link to the operator inbox; open it and confirm.
+
+5. Test end-to-end by sending a test message from a personal account to `noreply@footbag.org`. Confirm it arrives at the operator inbox.
+
+6. Update SPF to authorize Cloudflare's forwarding so DKIM alignment continues to work after SES sends are added in §9.7. Accept Cloudflare's SPF prompt, or manually add the `include:_spf.mx.cloudflare.net` mechanism to the existing SPF record.
+
+### 9.6 SES production-access activation
+
+Production cutover is incompatible with SES sandbox (caps are 200 sends/day with per-recipient verification). Production access is an AWS support ticket with a typical 24 to 48-hour approval window.
+
+1. Confirm the production AWS account has a verified SES identity in the target region (us-east-1). If not, verify `noreply@footbag.org` per Path H §8.8 first; AWS deprioritizes production-access requests from accounts with no verified identities.
+
+2. In the AWS Console, go to SES → Account dashboard → Request production access.
+
+3. Provide (paraphrase for the project):
+   - Use case: Transactional email for a volunteer-run sports-community platform. Email types: registration verification, password reset, password-change confirmation, post-migration notification batch (one-time to legacy accounts with explicit consent).
+   - Expected volume: initial steady state under 500 emails/day; one-time migration batch whose size equals the count of legacy accounts to be notified.
+   - Recipient list: registered members (opt-in at registration; consent recorded in `members.email_verified_at`).
+   - Bounce and complaint handling: described in §9.10.
+   - Compliance: unsubscribe mechanism via account preferences (not applicable to transactional types).
+
+4. AWS typically responds within 24 to 48 hours. Expect either approval with default limits (50,000 sends/day, 14 sends/second) or a request for more detail. Respond promptly; delays here extend the cutover timeline.
+
+5. After approval, confirm:
+
+   ```bash
+   aws ses get-send-quota --region us-east-1
+   ```
+
+   Expect non-sandbox values (`Max24HourSend` well above 200).
+
+### 9.7 SES domain identity with DKIM
+
+A domain identity (distinct from the email identity verified in Path H §8.8) allows SES to send from any address at the domain and supports DKIM signing. DKIM signing improves deliverability and reputation. Verify the domain identity after §9.6 approves; some receiving providers reject DKIM-signed mail from sandbox accounts.
+
+1. In SES → Identities → Create identity → Domain:
+   - Identity: `footbag.org`
+   - Enable DKIM. Accept Easy DKIM defaults (three CNAME records).
+
+2. SES returns three CNAME records. Add them to the `footbag.org` zone:
+   - **Cloudflare**: paste the three CNAME records into the DNS tab. Leave proxy status set to DNS only (gray cloud); DKIM must resolve to the AWS values, not Cloudflare's proxy.
+   - **Route 53**: add them as standard CNAME records via Terraform or console.
+
+3. SES polls DNS and confirms verification within 72 hours (usually within 15 minutes). Poll:
+
+   ```bash
+   aws ses get-identity-verification-attributes --identities footbag.org --region us-east-1
+   ```
+
+   Expect `VerificationStatus=Success` on the identity and on the three DKIM tokens.
+
+4. Point the app's SES sender ARN at the domain identity (`arn:aws:ses:us-east-1:<account-id>:identity/footbag.org`) instead of the single-address identity. This broadens the allowed sender addresses; `SES_FROM_IDENTITY` still pins the From address to `noreply@footbag.org`.
+
+5. Send a test DKIM-signed email. Inspect headers at the recipient to confirm `DKIM-Signature` is present and `dkim=pass` appears in `Authentication-Results`.
+
+### 9.8 Production KMS key, source-profile, and runtime role
+
+Mirror Path H §8.6 through §8.9 with production-scoped names. Execute each Path H step against the production AWS account, substituting per the table in §9.2.
+
+Terraform: create a `terraform/production/` directory structurally mirroring `terraform/staging/` if one does not yet exist. Reuse all modules and resource shapes; change the `prefix` local and account/region as appropriate.
+
+Exercise the source-profile → runtime-role chain locally with `aws sts get-caller-identity` before proceeding to §9.9.
+
+### 9.9 Production SES sender identity and IAM pin
+
+Mirror Path H §8.8 and §8.9 against the production identity.
+
+1. Confirm `noreply@footbag.org` is deliverable via Cloudflare Email Routing (§9.5).
+2. Verify the sender identity in SES (email identity, distinct from the domain identity in §9.7): add and confirm the verification link at the operator inbox.
+3. Amend the `OutboundEmail` statement on the production runtime role's inline policy so `Resource` is the ARN of the `noreply@footbag.org` identity (`arn:aws:ses:us-east-1:<account-id>:identity/noreply@footbag.org`). If §9.7 is already complete, point to the domain identity ARN for broader sender flexibility; the app still pins the From address via `SES_FROM_IDENTITY`.
+4. `terraform apply`.
+
+### 9.10 SES bounce/complaint webhook subscription
+
+Bounce and complaint rates determine SES sender reputation. Uncontrolled bounces get production access revoked. Subscribe an SNS topic to SES bounce and complaint notifications, and surface the events to the application's suppression list.
+
+1. Create the SNS topic in `terraform/production/sns.tf`:
+
+   ```hcl
+   resource "aws_sns_topic" "ses_feedback" {
+     name = "${local.prefix}-ses-feedback"
+   }
+   ```
+
+2. In SES → Identities → `footbag.org` (or the email identity) → Notifications, set:
+   - Bounce notifications: the `ses_feedback` topic.
+   - Complaint notifications: the `ses_feedback` topic.
+   - (Delivery notifications: optional; noisy.)
+   - Include original headers: enabled.
+   - Disable email feedback forwarding. With SNS enabled, SES will not also send bounce emails to the From address.
+
+3. Choose a consumer pattern:
+   - **Inline HTTPS subscription to the app** (simpler): expose `POST /internal/ses-feedback` with SigV4 signature validation and an SNS HTTPS subscription through CloudFront.
+   - **Staged consumer via SQS** (more durable): an SQS queue subscribed to the SNS topic; a worker process drains the queue and updates the suppression list. Survives app restarts without losing events.
+
+   Pick one and record the choice in operator notes.
+
+4. Application handler (regardless of pattern):
+   - Parse the SNS message payload per AWS's SES notification format.
+   - For `Bounce` with `bounceType=Permanent`: mark the recipient as hard-bounced (`members.email_bounced_at` or equivalent suppression column); future sends are skipped.
+   - For `Complaint`: mark the recipient as complained; suppress all future sends and surface to admin review.
+   - Append an audit event for each action.
+
+5. Validate end-to-end by sending to AWS's bounce simulator:
+
+   ```bash
+   aws ses send-email \
+     --from noreply@footbag.org \
+     --destination ToAddresses=bounce@simulator.amazonses.com \
+     --message 'Subject={Data="test"},Body={Text={Data="test"}}' \
+     --region us-east-1
+   ```
+
+   Confirm the SNS topic receives the bounce event (via CloudWatch logs or a temporary operator-email subscription) and confirm the suppression row is written for the simulated recipient.
+
+### 9.11 Host credential wiring on the production Lightsail instance
+
+Mirror Path H §8.10 against the production host.
+
+1. Write `/root/.aws/credentials` and `/root/.aws/config` on the production host with production source-profile credentials (from §9.8) and the production runtime-role ARN.
+2. Update `/srv/footbag/env` on production with:
+   - `JWT_SIGNER=kms`
+   - `JWT_KMS_KEY_ID=alias/footbag-production-jwt`
+   - `SES_ADAPTER=live`
+   - `SES_FROM_IDENTITY=noreply@footbag.org`
+   - `AWS_REGION=us-east-1`
+   - `AWS_PROFILE=footbag-production-runtime`
+   - `SESSION_SECRET` set to a fresh production value (min 32 chars, never the staging value, never `changeme`).
+3. Update the compose file on the production host to mount `/root/.aws` read-only per Path H §8.10.
+4. Restart the app.
+
+### 9.12 Post-setup validation
+
+Mirror Path H §8.11 against production.
+
+1. Verify the source-profile → runtime-role chain from the host:
+
+   ```bash
+   ssh footbag-production
+   sudo -u root aws sts get-caller-identity
+   ```
+
+   Expect the production runtime role ARN.
+
+2. Exercise the KMS signing path: issue a login against production and inspect the resulting `footbag_session` cookie's JWT `kid` header to confirm it matches the production KMS key ID.
+
+3. Exercise the SES path: trigger a registration flow and confirm the verification email arrives at a test inbox with DKIM signature present.
+
+4. Exercise the bounce path: send to `bounce@simulator.amazonses.com` via the outbox and confirm the suppression row is written (§9.10 step 5).
+
+5. Run `tests/smoke/staging-readiness.test.ts` adapted against production, if a production smoke-readiness test exists.
+
+6. Record in operator notes: production activation date, operator who performed the cutover, KMS key ID, SES production-access approval ticket ID, validated sender identity.
+
+Path I is complete when all five validation steps pass. Production activation is now the canonical state; `docs/DEVOPS_GUIDE.md` covers routine operations from this point.
+
+---
+
+## 10. Appendices
+
+### 10.1 Troubleshooting reference
 
 #### Local newcomer setup mistakes
 
@@ -2813,7 +3762,7 @@ Once all Path G items are complete, the durable operational content (including t
 - SSH to the Lightsail instance timing out despite correct `operator_cidrs` and a running instance — some ISPs block outbound port 22 to AWS EC2 IP ranges; use `-p 2222` and the Lightsail browser SSH console to configure sshd if needed (see §4.4 note and §4.7 step 1)
 - Claude Code hooks failing with a PreToolUse hook error on every Bash call — `jq` is required by the hook scripts; install with `sudo apt-get install -y jq`
 
-### 9.2 Deterministic seed-data reference
+### 10.2 Deterministic seed-data reference
 
 These seeded routes are useful for local browser verification and integration tests. The deploy smoke check does not rely on them.
 
@@ -2830,7 +3779,7 @@ These seeded routes are useful for local browser verification and integration te
 
 These are reference checks, not the main onboarding story.
 
-### 9.3 Smoke-check contract
+### 10.3 Smoke-check contract
 
 `scripts/smoke-local.sh` is the canonical smoke-check baseline. All checks must be data-independent so the script runs against any staging DB without seed data. It should verify at least:
 
@@ -2851,7 +3800,7 @@ Why this matters:
 
 A `smoke-public.sh` script has not yet been created for this slice.
 
-### 9.4 Authoritative project facts preserved by this guide
+### 10.4 Authoritative project facts preserved by this guide
 
 This guide preserves these project constraints:
 
@@ -2872,7 +3821,7 @@ This guide preserves these project constraints:
 - hardened per-operator SSH for host access
 - manual bootstrap only until Terraform authority is established
 
-### 9.5 Official references
+### 10.5 Official references
 
 #### Windows / WSL
 

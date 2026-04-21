@@ -132,12 +132,11 @@
           <th>Adds</th>
           <th>Date</th>
           <th>Video</th>
-          <th>Notes</th>
         </tr>
       </thead>
       <tbody>
         {{#each content.records}}
-        <tr class="record-row{{#if isProbable}} record-probable{{/if}}">
+        <tr class="record-row">
           <td class="col-rank">{{add @index 1}}</td>
           <td class="col-holder">
             {{#if holderHref}}
@@ -165,7 +164,6 @@
               &mdash;
             {{/if}}
           </td>
-          <td class="col-notes">{{#if notes}}{{notes}}{{else}}&mdash;{{/if}}</td>
         </tr>
         {{/each}}
       </tbody>
@@ -189,12 +187,11 @@
           <th>Adds</th>
           <th>Date</th>
           <th>Video</th>
-          <th>Notes</th>
         </tr>
       </thead>
       <tbody>
         {{#each content.progression}}
-        <tr class="record-row{{#if isProbable}} record-probable{{/if}}">
+        <tr class="record-row">
           <td class="col-rank">{{add @index 1}}</td>
           <td class="col-holder">
             {{#if holderHref}}
@@ -222,7 +219,6 @@
               &mdash;
             {{/if}}
           </td>
-          <td class="col-notes">{{#if notes}}{{notes}}{{else}}&mdash;{{/if}}</td>
         </tr>
         {{/each}}
       </tbody>

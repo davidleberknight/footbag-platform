@@ -40,6 +40,14 @@ export class ConflictError extends ServiceError {
   }
 }
 
+export class RateLimitedError extends ServiceError {
+  public readonly retryAfterSeconds?: number;
+  constructor(message: string, retryAfterSeconds?: number) {
+    super('rate_limited', message);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export function isServiceError(error: unknown): error is ServiceError {
   return error instanceof ServiceError;
 }

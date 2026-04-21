@@ -1,8 +1,4 @@
-# Footbag Website Modernization Project — Glossary
-
-**Last updated:** March 16, 2026
-
-**Prepared by:** David Leberknight / DavidLeberknight@gmail.com
+# Footbag Website Modernization Project -- Glossary
 
 **Glossary of Technical Terms:** Definitions of technical jargon, acronyms, and specialized terminology used throughout the project documentation. Each entry provides a concise, plain-language explanation to help volunteers understand system concepts without requiring deep technical expertise.
 

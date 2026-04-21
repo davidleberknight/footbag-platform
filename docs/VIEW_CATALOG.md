@@ -1,7 +1,4 @@
 # Footbag Website Modernization Project -- View Catalog
-**Last updated:** March 21, 2026
-**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
-
 ---
 
 ## Table of Contents
@@ -185,6 +182,35 @@ Every public page except Home (see §3.5) must render from the same top-level co
 
 Templates must consume this contract rather than derive it.
 
+### TypeScript enforcement: `PageViewModel<TContent>`
+
+The shape above is codified as a generic TypeScript interface in `src/types/page.ts`:
+
+```ts
+interface PageViewModel<TContent = Record<string, unknown>> {
+  seo: SeoMeta;                // title, fullTitle?, description?
+  page: PageMeta;              // sectionKey, pageKey, title, eyebrow?, intro?, notice?
+  navigation?: NavigationMeta; // breadcrumbs?, siblings?, contextLinks?
+  content: TContent;           // page-specific body (generic slot)
+}
+```
+
+The generic slot `TContent` is the page-specific content shape. Each page declares its own `*Content` interface (e.g., `RecordsContent`, `NetTeamsContent`, `LoginContent`) and services return `PageViewModel<RecordsContent>` rather than hand-rolling a bespoke `{ seo; page; content }` shape.
+
+**Naming conventions:**
+
+- Page-content interfaces are `<PageName>Content` (e.g. `LoginContent`, `RecordsContent`, `NetTeamsContent`).
+- Row-level view-model interfaces that appear inside a `*Content` shape are `<Entity>ViewModel` (e.g. `FreestyleRecordViewModel`, `NetTeamViewModel`, `NetPartnershipViewModel`).
+- Controllers are `<domain>Controller.ts`; templates live under `src/views/<section>/<page>.hbs`. Service and prepared-statement naming are defined in `docs/SERVICE_CATALOG.md` §1.
+
+Enforcement:
+
+- Every service method that produces a public page returns `PageViewModel<TContent>` as its declared return type.
+- Controllers that render inline (no service-method wrapper) type the render arg with `satisfies PageViewModel<TContent>` so the envelope shape is compile-time-checked.
+- Renaming a field in `SeoMeta`, `PageMeta`, or `NavigationMeta` now produces a compile error at every call site, not a silent runtime rendering gap.
+
+Home is exempt per §3.5. Internal `/internal/*` routes (operator tooling) are exempt — they are not part of the public rendering standard.
+
 ### Browser tab title rule
 
 The HTML `<title>` tag follows the pattern `Footbag {seo.title}` for most pages. When `seo.fullTitle` is set, it is used as the complete tab title (no "Footbag" prefix). The home page renders as `Footbag Worldwide` (no suffix, no `seo` contract applies).
@@ -347,6 +373,19 @@ The standard must be implemented through reusable code.
 - controllers stay thin
 - page shaping belongs in services or page-model builders
 - shared site-wide data may be injected through `app.locals` and `res.locals`
+- error mapping runs through `handleControllerError` in `src/lib/controllerErrors.ts` (see §7.2)
+- session cookies are set/cleared through `issueSessionCookie` / `clearSessionCookie` in `src/lib/sessionCookie.ts`; controllers never write to `Set-Cookie` directly
+
+### Service-owned shaping helpers
+
+Services are the single source of URL construction and cross-entity shape. Templates receive pre-shaped hrefs and labels; they never construct URLs or apply domain rules. Current shared helpers:
+
+- `personHref(memberSlug, historicalPersonId)` — canonical person-detail URL (`/members/:slug` or `/history/:personId` per DD §2.4 rule 2), or `null` when no linkable identity exists.
+- `shapePartnershipPair(row)` — shapes a two-person doubles partnership into the view-model pair used by net and freestyle partnership surfaces.
+- `shapeFreestyleRecord(row)` — shapes a `FreestyleRecordRow` into the public `FreestyleRecordViewModel`, stripping pipeline-curation metadata.
+- `groupPlayerResults(rows)` — groups flat player-result rows into per-event and per-discipline view-model groups.
+
+Helpers live alongside the service that owns their shape (`src/services/*Shaping.ts`) or inside the service module itself when scoped to one consumer.
 
 ### Handlebars rules
 
@@ -434,11 +473,20 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /freestyle/leaders` | Freestyle leaders | Freestyle leaders list | Current |
 | `GET /freestyle/about` | Freestyle about | Freestyle discipline overview | Current |
 | `GET /freestyle/moves` | Freestyle moves | Freestyle moves reference | Current |
+| `GET /freestyle/tricks` | Freestyle tricks index | Trick dictionary browse, all tricks with optional record counts | Current |
 | `GET /freestyle/tricks/:slug` | Freestyle trick detail | Detail page for a single freestyle trick | Current |
+| `GET /freestyle/competition` | Freestyle competition | Results-derived competition analytics: top competitors, eras, recent events | Current |
+| `GET /freestyle/partnerships` | Freestyle partnerships | Doubles partnerships extracted from competition results | Current |
+| `GET /freestyle/history` | Freestyle history | Editorial history + pioneers + eras (static curated content) | Current |
+| `GET /freestyle/insights` | Freestyle insights | Analytical insights (most-used tricks, transitions, difficulty eras, narratives) | Current |
 | `GET /records` | Consecutive records | Consecutive kicks world records | Current |
 | `GET /net` | Footbag Net landing | Footbag Net section entry page (hero with mascot, "What is Footbag Net?" narrative, Singles/Doubles competition-format cards, Explore cards into teams/partnerships/events, notable partnerships, notable players, recent events) | Current |
 | `GET /net/teams` | Net teams list | Doubles net team list ordered by appearance count | Current |
 | `GET /net/teams/:teamId` | Net team detail | Doubles net team competition history | Current |
+| `GET /net/partnerships` | Net partnerships list | League-table view of top net doubles partnerships, filterable by division | Current |
+| `GET /net/partnerships/:teamId` | Net partnership detail | Partnership detail with summary stats + appearance timeline | Current |
+| `GET /net/events` | Net events list | Net events ordered by recency, with team/appearance counts | Current |
+| `GET /net/events/:eventId` | Net event detail | Net event detail grouped by discipline | Current |
 | `GET /legal` | Legal | Privacy, Terms of Use, and Copyright & Trademarks on a single page with anchored sections | Current |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
 | `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
@@ -1580,6 +1628,18 @@ They must not expose:
 - stack traces
 - SQL errors
 - internal implementation details
+
+Service-layer errors map to HTTP responses through `handleControllerError` in `src/lib/controllerErrors.ts`:
+
+| Service error class | HTTP status | Rendered page |
+|---|---|---|
+| `NotFoundError` | 404 | `errors/not-found` |
+| `ValidationError` | 404 | `errors/not-found` (validation details are intentionally not leaked to public visitors) |
+| `ServiceUnavailableError` | 503 | `errors/unavailable` |
+| `ConflictError` | — | unhandled by public controller; falls to Express error middleware |
+| `RateLimitedError` | 429 | controller sets `Retry-After` from `retryAfterSeconds` and renders a rate-limited response |
+
+Errors not listed above delegate to Express's default error middleware. Controllers that do not use `handleControllerError` must still preserve the same status mapping and must not leak service-layer detail into the response body.
 
 ### 7.3 Template behavior
 

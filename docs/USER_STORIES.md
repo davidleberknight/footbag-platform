@@ -1,9 +1,5 @@
 # Footbag Website Modernization Project -- User Stories
 
-**Last updated:** March 30, 2026
-
-**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
-
 **Document Purpose:**
 
 This document is the Source of Truth for Functional Requirements, defining all User Stories and their user-facing implications for the Footbag Website Modernization Project. It covers all user roles: Visitor, Member (includes Event Organizer and Club Leader), Administrator, and system background processes, plus special flags for the IFPA Board, Hall of Fame (HoF) and Big Add Posse (BAP). Together these User Stories define the complete scope, describing what functionality must exist for users, and success criteria (system side effects).
@@ -1706,7 +1702,7 @@ Success Criteria:
 
 Access: Admins only.
 
-Story: As an admin, I can review and resolve Tier 3 auto-link cases from Steve's data import (email match but name mismatch between a historical person and an imported member placeholder) so that identity links are correct. This is a migration-time review for existing IFPA members who have not yet registered and therefore cannot be asked directly.
+Story: As an admin, I can review and resolve Tier 3 auto-link cases from the legacy data import (email match but name mismatch between a historical person and an imported member placeholder) so that identity links are correct. This is a migration-time review for existing IFPA members who have not yet registered and therefore cannot be asked directly.
 
 Success Criteria:
 

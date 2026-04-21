@@ -50,15 +50,6 @@ publicRouter.get('/net/partnerships/:teamId',    netController.partnershipDetail
 publicRouter.get('/net/teams',          netController.teams);
 publicRouter.get('/net/teams/:teamId',  netController.teamDetail);
 
-// IMPORTANT: /partners/:teamId variant must be registered before the bare
-// :personId route so the literal 'partners' is not captured as :personId.
-publicRouter.get('/net/players/:personId/partners/:teamId', (req, res) => {
-  res.redirect(302, `/history/${encodeURIComponent(req.params['personId'] ?? '')}`);
-});
-publicRouter.get('/net/players/:personId', (req, res) => {
-  res.redirect(302, `/history/${encodeURIComponent(req.params['personId'] ?? '')}`);
-});
-
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.
 // Express matches routes in registration order. Without this ordering,
 // the literal segment "year" would be captured as the :eventKey param,

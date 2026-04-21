@@ -1,10 +1,4 @@
-# Footbag Website Modernization Project — Project Summary
-
-**Last updated:** March 16, 2026
-
-**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
-
-**Scope note:** This document describes long-term product architecture and vision. For current implementation status, see `IMPLEMENTATION_PLAN.md`.
+# Footbag Website Modernization Project -- Project Summary
 
 **Document Purpose:**
 
@@ -76,6 +70,10 @@ The project documentation suite consists of the following documents:
 **Design Decisions:** Captures technology and design decisions and their rationale. It explains why major choices were made, and which constraints are intentional, with implementation details where known or applicable. It is the Source of Truth for design commitments and non-functional requirements from which the Solution Architecture follows.
 
 **Data Model:** Defines canonical data schemas and conventions for all persisted entities. It is the Source of Truth for entity types, common fields, storage layout, key structure, relationships between entities. The Service Catalog document elaborates on the expected queries into the data and their requirements that are used to derive this model. The schema sql file goes with this, to create the SQLite database.
+
+**Migration Plan:** Source of Truth for go-live readiness, covering legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational-readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern cutover. The two canonical docs above describe the long-term design; this one describes how the project transitions from where it is today to production launch.
+
+**Implementation Plan:** Active-slice / current-sprint tracker for the project. Source of Truth for current scope, accepted shortcuts, known drift, sprint-level sequencing, and developer track assignments. Unlike the canonical docs above, which describe design intent, this document carries all implementation-status language; the canonical docs do not describe status.
 
 ---
 
@@ -796,7 +794,7 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 
 - The mirror could not access all members, only those with a public presence (club members, event participants with results, published media galleries).
 - The mirror cannot fetch login credentials. Legacy passwords are never imported or accepted.
-- Legacy data migration uses two sources: (1) historical pipeline (James) — persons from human-curated CSV, clubs from mirror extraction, events, results, and honors; (2) legacy member import (Steve's export) — all legacy registered accounts imported as rows in the `legacy_members` table, which cannot log in and do not appear in any member-facing surface.
+- Legacy data migration uses two sources: (1) historical pipeline: persons from human-curated CSV, clubs from mirror extraction, events, results, and honors; (2) legacy member import: all legacy registered accounts imported as rows in the `legacy_members` table, which cannot log in and do not appear in any member-facing surface.
 - Imported members connect their legacy identity to a modern account via a self-serve claim flow: submit a legacy identifier (email, username, or member ID), verify mailbox ownership via a time-limited email link, then confirm the merge. This transfers legacy identity, honors, tier entitlements, and club data to the modern account.
 - Club leaders assigned at bootstrap are leaders. They can manage the club once they register.
 

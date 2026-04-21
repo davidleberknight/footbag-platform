@@ -1,14 +1,45 @@
 import { Request, Response, NextFunction } from 'express';
 import { SESSION_COOKIE_NAME } from '../middleware/auth';
 import { createSessionJwt } from '../services/jwtService';
-import { issueSessionCookie } from './sessionCookieHelper';
+import { issueSessionCookie } from '../lib/sessionCookie';
 import { identityAccessService } from '../services/identityAccessService';
-import { hit as rateLimitHit } from '../services/rateLimitService';
-import { readIntConfig } from '../services/configReader';
-import { ValidationError } from '../services/serviceErrors';
+import { RateLimitedError, ValidationError } from '../services/serviceErrors';
+import { PageViewModel } from '../types/page';
 
 export const FLASH_LOGOUT_COOKIE = 'footbag_flash_logout';
 export const FLASH_LOGOUT_VALUE = '1';
+
+interface LoginContent {
+  returnTo?: string;
+  authReason?: string;
+  error?: string;
+}
+
+interface RegisterContent {
+  error?: string;
+  realName?: string;
+  displayName?: string;
+  email?: string;
+}
+
+interface CheckEmailContent {
+  resent?: boolean;
+}
+
+interface VerifyResultContent {
+  ok: boolean;
+}
+
+type PasswordForgotContent = Record<string, never>;
+
+interface PasswordForgotSentContent {
+  email?: string;
+}
+
+interface PasswordResetContent {
+  token: string | undefined;
+  error?: string;
+}
 
 function isSafePath(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
@@ -27,7 +58,7 @@ function getLogin(req: Request, res: Response): void {
       returnTo,
       authReason: returnTo ? 'The content you are trying to reach requires an IFPA Member account.' : undefined,
     },
-  });
+  } satisfies PageViewModel<LoginContent>);
 }
 
 async function postLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -38,23 +69,13 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
       seo: { title: 'Login' },
       page: { sectionKey: '', pageKey: 'login', title: 'Member Login', intro: 'Sign in to your IFPA member account.' },
       content: { error: msg, returnTo: isSafePath(returnTo) ? returnTo : undefined },
-    });
+    } satisfies PageViewModel<LoginContent>);
   };
 
-  const normalizedEmail = (email ?? '').trim().toLowerCase();
   const ip = req.ip ?? 'unknown';
-  const maxAttempts = readIntConfig('login_rate_limit_max_attempts', 10);
-  const windowMinutes = readIntConfig('login_rate_limit_window_minutes', 15);
-  const rl = rateLimitHit(`login:${normalizedEmail}:${ip}`, maxAttempts, windowMinutes);
-  if (!rl.allowed) {
-    if (rl.retryAfterSeconds) res.setHeader('Retry-After', String(rl.retryAfterSeconds));
-    renderError('Too many failed login attempts. Please try again later.', 429);
-    return;
-  }
 
   try {
-    // DB-first: attempt to verify against the members table.
-    const member = await identityAccessService.verifyMemberCredentials(email ?? '', password ?? '');
+    const member = await identityAccessService.attemptLogin(email ?? '', password ?? '', ip);
 
     if (member !== null) {
       const role = member.is_admin ? 'admin' : 'member';
@@ -67,6 +88,11 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
 
     renderError('Invalid email or password. Please try again.');
   } catch (err) {
+    if (err instanceof RateLimitedError) {
+      if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      renderError(err.message, 429);
+      return;
+    }
     next(err);
   }
 }
@@ -80,7 +106,7 @@ function getRegister(req: Request, res: Response): void {
     seo: { title: 'Create Account' },
     page: { sectionKey: '', pageKey: 'register', title: 'Create an IFPA Account' },
     content: {},
-  });
+  } satisfies PageViewModel<RegisterContent>);
 }
 
 async function postRegister(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -98,7 +124,7 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
         displayName: displayName ?? '',
         email: email ?? '',
       },
-    });
+    } satisfies PageViewModel<RegisterContent>);
   };
 
   try {
@@ -127,7 +153,7 @@ function getCheckEmail(_req: Request, res: Response): void {
     seo: { title: 'Check your email' },
     page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
     content: {},
-  });
+  } satisfies PageViewModel<CheckEmailContent>);
 }
 
 async function getVerify(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -139,7 +165,7 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
         seo: { title: 'Verification' },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
         content: { ok: false },
-      });
+      } satisfies PageViewModel<VerifyResultContent>);
       return;
     }
     const role = result.isAdmin ? 'admin' : 'member';
@@ -157,27 +183,24 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
 
 async function postVerifyResend(req: Request, res: Response, next: NextFunction): Promise<void> {
   const { email } = req.body as { email?: string };
-  const normalized = (email ?? '').trim().toLowerCase();
-  const rl = rateLimitHit(`verify-resend:${normalized}`, 3, 60);
-  // Always render the identical response regardless of rate-limit outcome or
-  // whether a member exists (anti-enumeration).
-  if (rl.allowed) {
-    try {
-      await identityAccessService.resendVerifyEmail(normalized);
-    } catch (err) {
-      next(err);
-      return;
-    }
+  // Service rate-limits internally and no-ops when the bucket is exceeded or
+  // no unverified member matches; response is identical either way for
+  // anti-enumeration.
+  try {
+    await identityAccessService.resendVerifyEmail(email ?? '');
+  } catch (err) {
+    next(err);
+    return;
   }
   res.render('auth/check-email', {
     seo: { title: 'Check your email' },
     page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
     content: { resent: true },
-  });
+  } satisfies PageViewModel<CheckEmailContent>);
 }
 
 function postLogout(req: Request, res: Response): void {
-  res.clearCookie(SESSION_COOKIE_NAME);
+  res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
   res.cookie(FLASH_LOGOUT_COOKIE, FLASH_LOGOUT_VALUE, {
     maxAge: 60_000,
     httpOnly: true,
@@ -203,7 +226,7 @@ function getPasswordForgot(_req: Request, res: Response): void {
     seo: { title: 'Reset your password' },
     page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
     content: {},
-  });
+  } satisfies PageViewModel<PasswordForgotContent>);
 }
 
 async function postPasswordForgot(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -214,7 +237,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
       seo: { title: 'Reset your password' },
       page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset your password' },
       content: {},
-    });
+    } satisfies PageViewModel<PasswordForgotSentContent>);
   } catch (err) {
     next(err);
   }
@@ -232,7 +255,7 @@ function getPasswordReset(req: Request, res: Response): void {
     seo: { title: 'Set a new password' },
     page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
     content: { token: req.params.token },
-  });
+  } satisfies PageViewModel<PasswordResetContent>);
 }
 
 async function postPasswordReset(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -256,7 +279,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
         seo: { title: 'Set a new password' },
         page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
         content: { token, error: err.message },
-      });
+      } satisfies PageViewModel<PasswordResetContent>);
       return;
     }
     next(err);

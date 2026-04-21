@@ -1,8 +1,4 @@
-# Footbag Website Modernization Project — Diagrams
-
-**Last updated:** March 16, 2026
-
-**Prepared by:** David Leberknight / DavidLeberknight@gmail.com
+# Footbag Website Modernization Project -- Diagrams
 
 Visual aids for understanding the system design. Eight diagrams cover production infrastructure, software layer architecture, authentication flows, request routing, the data model, read/write request lifecycles, development environment parity, and background worker jobs.
 

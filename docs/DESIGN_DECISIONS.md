@@ -1,6 +1,4 @@
-# Footbag Website Modernization Project — Design Decisions
-**Last updated:** March 16, 2026
-**Prepared by:** David Leberknight / [DavidLeberknight@gmail.com](mailto:DavidLeberknight@gmail.com)
+# Footbag Website Modernization Project -- Design Decisions
 
 **Document Purpose:**
 
@@ -679,7 +677,7 @@ Rules:
 
    - `members` = authenticated accounts on this platform. Identified by `members.id`; addressable by `members.slug`. Hold credentials, tier, profile fields, optional avatar, mailing-list subscriptions.
 
-   - `legacy_members` = imported archival records of old footbag.org user accounts (from the mirror and Steve Goldberg's forthcoming data dump). Identified by `legacy_members.legacy_member_id` (the old-site account id). Read-only after import; never deleted; hold no live credentials. Persist as the permanent audit record of a legacy account even after a current member claims it.
+   - `legacy_members` = imported archival records of old footbag.org user accounts (from the mirror and the forthcoming legacy data dump). Identified by `legacy_members.legacy_member_id` (the old-site account id). Read-only after import; never deleted; hold no live credentials. Persist as the permanent audit record of a legacy account even after a current member claims it.
 
    - `historical_persons` = archival records of past participants sourced from event data and (future) mirror club-roster extraction. Identified by `historical_persons.person_id`. Read-only; never deleted; hold no credentials. Contact information, if present, is admin-surface only and never publicly rendered.
 
@@ -1524,6 +1522,7 @@ Outbound send is handled by AWS SES (see §5.4). Inbound receive for all role ad
 |---|---|---|---|
 | `admin@footbag.org` | Legal, administrative, privacy, copyright, and trademark contact for members and the public | Receives | `/legal` page (Privacy, Terms, Copyright sections); operator of record contact |
 | `announce@footbag.org` | IFPA community announce list; a Tier 2+ member may send here; used as both sender and recipient for archived community announcements | Sends + Receives | `CommunicationService.sendAnnounceEmail` (`M_Send_Announce_Email`) |
+| `brat@footbag.org` | Legacy footbag.org webmaster (operator of record for the pre-migration site); must remain deliverable through and after cutover for migration coordination and any ongoing legacy-recovery correspondence | Receives | Carried over from the legacy site; in-use contact for the current webmaster |
 | `directors@footbag.org` | IFPA Board of Directors contact for governance, board inquiries, and director correspondence | Receives | Carried over from the legacy site; in-use public contact for the Board |
 | `noreply@footbag.org` | Transactional sender (account verification, password reset, receipts, system notifications); never monitored, never a reply target | Sends | `CommunicationService.processSendQueue` via SES |
 | `ops-alert@footbag.org` | Operational alarm recipient (system health, backup failures, worker errors, SES bounce/complaint thresholds) | Receives | Terraform alarms (CloudWatch), `OperationsPlatformService` alarm flows |
@@ -1546,7 +1545,7 @@ Impact:
 - `admin@footbag.org` is named in the `/legal` page Privacy, Terms, and Copyright sections as the legal/administrative contact.
 - `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits) and `docs/SERVICE_CATALOG.md` (`CommunicationService.sendAnnounceEmail`).
 - `noreply@footbag.org` and `ops-alert@footbag.org` are referenced as TODO values in `terraform/staging/ssm.tf`, `terraform/production/ssm.tf`, and `terraform/production/terraform.tfvars.example`; activation of these addresses is part of the Phase 4 email activation work.
-- Cloudflare Email Routing is configured with one forwarding rule per receive address (`admin@`, `announce@` inbound, `directors@`, `ops-alert@`, `sanctioning@`) pointing to an operator-designated destination inbox. `directors@` and `sanctioning@` are in-use contacts carried over from the legacy site and must be routed at cutover so no mail is lost.
+- Cloudflare Email Routing is configured with one forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`) pointing to an operator-designated destination inbox. `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be routed at cutover so no mail is lost.
 - Any additional address (e.g., `privacy@`, `legal@`, `support@`, `info@`) must be justified against this list and added here before it is introduced. The default is to route new purposes to `admin@footbag.org` unless volume or scope warrants a split.
 - Handover to IFPA: ownership of these addresses transfers as part of the operational handover; the addresses themselves and their purposes do not change.
 
@@ -1722,9 +1721,9 @@ Decision:
 
 The platform absorbs legacy data from two sources before or at production go-live:
 
-**Historical pipeline (James).** Persons, events, results, honors (Hall of Fame, BAP), clubs, club affiliations, and club leadership. Person truth comes from human-curated CSV files. Club data comes from mirror extraction scripts integrated into the same pipeline. The pipeline also creates historical person records for ~1,600 club-only members who never competed in events. A historical person may exist without a claimed modern account; historical data is published regardless. Bootstrap-eligible clubs are created at go-live with leaders in `club_bootstrap_leaders`. Leaders can manage the club once they register. If a leader has not registered, the first affiliated member who registers can accept leadership during onboarding (Tier 1+, no admin confirmation).
+**Historical pipeline.** Persons, events, results, honors (Hall of Fame, BAP), clubs, club affiliations, and club leadership. Person truth comes from human-curated CSV files. Club data comes from mirror extraction scripts integrated into the same pipeline. The pipeline also creates historical person records for ~1,600 club-only members who never competed in events. A historical person may exist without a claimed modern account; historical data is published regardless. Bootstrap-eligible clubs are created at go-live with leaders in `club_bootstrap_leaders`. Leaders can manage the club once they register. If a leader has not registered, the first affiliated member who registers can accept leadership during onboarding (Tier 1+, no admin confirmation).
 
-**Legacy member import (Steve's export).** All legacy registered member accounts are imported as rows in the `legacy_members` table. These rows hold the legacy-account identity and import-era profile snapshot as a permanent archival record; they cannot log in (there is no credential material in `legacy_members` at all) and do not appear in any current-member surface. The source is a one-time export from the legacy site webmaster, used first as a test load for validation, then as the final production import after write freeze. Legacy passwords are never imported or used.
+**Legacy member import.** All legacy registered member accounts are imported as rows in the `legacy_members` table. These rows hold the legacy-account identity and import-era profile snapshot as a permanent archival record; they cannot log in (there is no credential material in `legacy_members` at all) and do not appear in any current-member surface. The source is a one-time export from the legacy site webmaster, used first as a test load for validation, then as the final production import after write freeze. Legacy passwords are never imported or used.
 
 The two sources share the same identity key (`legacy_member_id`) and converge via FK: `historical_persons.legacy_member_id` and `legacy_members.legacy_member_id` point at the same namespace, and a modern `members` row links into both at claim time via `members.legacy_member_id` and `members.historical_person_id`.
 
@@ -1736,7 +1735,7 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 
 Rationale:
 
-- Separating the historical pipeline from Steve's member import allows historical content and clubs to proceed independently, reducing go-live risk.
+- Separating the historical pipeline from the legacy member import allows historical content and clubs to proceed independently, reducing go-live risk.
 - The imported-row model preserves legacy identity without granting premature access. Mailbox verification is the minimal proof step that is both secure and feasible given the data available.
 - Club bootstrap ensures clubs are present on day one. Leaders can manage clubs once they register.
 - Ledger-only tier handling eliminates the cache-sync complexity that existed in earlier designs and makes imported-row tier state auditable from day one.

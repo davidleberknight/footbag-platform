@@ -55,18 +55,11 @@ import { config } from '../config/env';
 const DB_FILENAME = config.dbPath;
 const TRANSACTION_TIMEOUT_MS = 30_000;
 
-const PUBLIC_EVENT_DETAIL_VISIBLE_STATUSES = [
-  'published',
-  'registration_full',
-  'closed',
-  'completed',
-] as const;
-
-const PUBLIC_UPCOMING_VISIBLE_STATUSES = [
-  'published',
-  'registration_full',
-  'closed',
-] as const;
+import {
+  PUBLIC_EVENT_DETAIL_VISIBLE_STATUSES,
+  PUBLIC_UPCOMING_VISIBLE_STATUSES,
+} from '../services/eventVisibility';
+import { PUBLIC_FREESTYLE_RECORD_CONFIDENCES } from '../services/freestyleRecordVisibility';
 
 const PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL = PUBLIC_EVENT_DETAIL_VISIBLE_STATUSES
   .map((status) => `'${status}'`)
@@ -74,6 +67,10 @@ const PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL = PUBLIC_EVENT_DETAIL_VISIBLE_STATU
 
 const PUBLIC_UPCOMING_VISIBLE_STATUS_SQL = PUBLIC_UPCOMING_VISIBLE_STATUSES
   .map((status) => `'${status}'`)
+  .join(', ');
+
+const PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL = PUBLIC_FREESTYLE_RECORD_CONFIDENCES
+  .map((c) => `'${c}'`)
   .join(', ');
 
 const ARCHIVE_YEAR_SQL = `CAST(substr(e.start_date, 1, 4) AS INTEGER)`;
@@ -674,7 +671,7 @@ export const clubs = {
 // Freestyle records, public read path
 //
 // Public filter contract (enforced here, not in service layer):
-//   confidence IN ('verified', 'probable')
+//   confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
 //   AND superseded_by IS NULL
 //   AND (person_id IS NOT NULL OR display_name IS NOT NULL)
 //
@@ -724,7 +721,7 @@ export const freestyleRecords = {
     LEFT JOIN members AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
-    WHERE fr.confidence IN ('verified', 'probable')
+    WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.record_type ASC, fr.value_numeric DESC
@@ -733,7 +730,7 @@ export const freestyleRecords = {
   countPublicByType: db.prepare(`
     SELECT record_type, COUNT(*) AS n
     FROM freestyle_records
-    WHERE confidence IN ('verified', 'probable')
+    WHERE confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND superseded_by IS NULL
       AND (person_id IS NOT NULL OR display_name IS NOT NULL)
     GROUP BY record_type
@@ -764,7 +761,7 @@ export const freestyleRecords = {
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.person_id = ?
-      AND fr.confidence IN ('verified', 'probable')
+      AND fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.value_numeric DESC
@@ -781,7 +778,7 @@ export const freestyleRecords = {
             SELECT MAX(fr2.value_numeric)
             FROM freestyle_records fr2
             WHERE (fr2.person_id = fr.person_id OR (fr2.person_id IS NULL AND fr2.display_name = fr.display_name))
-              AND fr2.confidence IN ('verified', 'probable')
+              AND fr2.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
               AND fr2.superseded_by IS NULL
           ) THEN fr.trick_name END)              AS top_trick
     FROM freestyle_records AS fr
@@ -790,7 +787,7 @@ export const freestyleRecords = {
     LEFT JOIN members AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
-    WHERE fr.confidence IN ('verified', 'probable')
+    WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     GROUP BY fr.person_id, fr.display_name
@@ -821,7 +818,7 @@ export const freestyleRecords = {
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.trick_name = ?
-      AND fr.confidence IN ('verified', 'probable')
+      AND fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.value_numeric DESC
@@ -852,7 +849,7 @@ export const freestyleRecords = {
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.trick_name = ?
-      AND fr.confidence IN ('verified', 'probable')
+      AND fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.value_numeric DESC
   `),
@@ -880,7 +877,7 @@ export const freestyleRecords = {
     LEFT JOIN members AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
-    WHERE fr.confidence IN ('verified', 'probable')
+    WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND fr.superseded_by IS NULL
       AND fr.achieved_date IS NOT NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
@@ -1508,6 +1505,7 @@ export function queryFilteredPartnerships(filters: {
   `).all(...params) as NetPartnershipRow[];
 }
 
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // netRecoverySignals
 //
@@ -1634,6 +1632,7 @@ export const netRecoverySignals = {
   `),
 } as const;
 
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // netRecoveryCandidates
 //
@@ -1717,6 +1716,7 @@ export const netRecoveryCandidates = {
   `),
 } as const;
 
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // netTeamCorrectionApproval
 //
@@ -2178,6 +2178,7 @@ export const health = {
   `),
 } as const;
 
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // netReview
 //
@@ -2364,6 +2365,7 @@ export const netReview = {
  * Uses runtime db.prepare() since filter combinations are not enumerable.
  * Acceptable for a low-frequency internal review tool.
  */
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // netCandidates
 //
@@ -2558,6 +2560,7 @@ export function queryCandidateItems(filters: NetCandidateFilters): NetCandidateR
   `).all(...params) as NetCandidateRow[];
 }
 
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // netCurated
 //
@@ -2650,6 +2653,7 @@ export const netCurated = {
   `),
 } as const;
 
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // netCuratedBrowse
 //
@@ -3666,7 +3670,10 @@ export const legacyMembers = {
   `),
 } as const;
 
-// ── Persons QC ───────��───────────────────────────────────────────────────────
+// ---- QC-only (delete with pipeline-qc subsystem) ----
+// ---------------------------------------------------------------------------
+// personsQc
+// ---------------------------------------------------------------------------─────
 
 export interface PersonsQcRow {
   person_id: string;

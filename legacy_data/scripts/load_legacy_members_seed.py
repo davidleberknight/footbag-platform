@@ -3,13 +3,13 @@
 
 This population is TEMPORARY. It exists to unblock the FK
 historical_persons.legacy_member_id -> legacy_members(legacy_member_id).
-Steve Goldberg's data dump will supersede these rows with full profile
-fields and flip import_source from 'mirror' to 'steve_dump'.
+The legacy-site data dump will supersede these rows with full profile
+fields and flip import_source from 'mirror' to 'legacy_site_data'.
 
 Minimum columns populated today: legacy_member_id (PK), display_name,
 display_name_normalized, imported_at, import_source='mirror'. Everything
 else (legacy_email, legacy_user_id, country, bio, honor flags, etc.) is
-intentionally left NULL until Steve's dump lands.
+intentionally left NULL until the legacy-site dump lands.
 
 Sources:
   legacy_data/seed/club_members.csv                       (2,372 unique

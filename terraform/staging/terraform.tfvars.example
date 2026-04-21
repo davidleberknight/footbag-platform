@@ -46,3 +46,9 @@ lightsail_origin_dns = ""
 # Both default to false. See variables.tf descriptions before enabling.
 enable_cwagent_alarms = false
 enable_backup_alarm   = false
+
+# ── SES sender identity ───────────────────────────────────────────────────────
+# Target canonical: noreply@footbag.org (once the footbag.org domain is
+# acquired). Until then, set to a Workspace alias on an institutional
+# domain you control — recorded in local operator notes, not committed.
+ses_sender_identity = "TODO-noreply@example.org"

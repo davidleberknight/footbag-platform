@@ -33,7 +33,7 @@ export interface JwtSigningAdapter {
   verifyJwt(token: string): Promise<JwtClaims | null>;
 }
 
-export const DEFAULT_TTL_SECONDS = 10 * 60;
+const DEFAULT_TTL_SECONDS = 10 * 60;
 const PUBLIC_KEY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function b64urlEncode(buf: Buffer): string {
@@ -141,7 +141,9 @@ export function createLocalJwtAdapter(opts: {
       if (!parsed) return null;
       const { signingInput, header, payload, signature } = parsed;
       if (!header || typeof header !== 'object') return null;
-      if ((header as Record<string, unknown>).alg !== 'RS256') return null;
+      const h = header as Record<string, unknown>;
+      if (h.alg !== 'RS256') return null;
+      if (h.kid !== kid) return null;
       if (!isValidClaims(payload)) return null;
       const ok = crypto.verify(
         'sha256',
@@ -215,7 +217,9 @@ export function createKmsJwtAdapter(opts: {
       if (!parsed) return null;
       const { signingInput, header, payload, signature } = parsed;
       if (!header || typeof header !== 'object') return null;
-      if ((header as Record<string, unknown>).alg !== 'RS256') return null;
+      const h = header as Record<string, unknown>;
+      if (h.alg !== 'RS256') return null;
+      if (h.kid !== kid) return null;
       if (!isValidClaims(payload)) return null;
       const pem = await publicKeyPem();
       const ok = crypto.verify(

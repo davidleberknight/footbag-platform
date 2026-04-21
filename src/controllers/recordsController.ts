@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { recordsService } from '../services/recordsService';
-import { ServiceUnavailableError } from '../services/serviceErrors';
-import { logger } from '../config/logger';
+import { handleControllerError } from '../lib/controllerErrors';
 
 /**
  * Thin controller for public records routes.
@@ -14,21 +13,8 @@ export const recordsController = {
       const vm = recordsService.getRecordsPage();
       res.render('records/records', vm);
     } catch (err) {
-      recordsController._handleError(err, res, next);
+      handleControllerError(err, res, next, 'records controller');
     }
   },
 
-  _handleError(err: unknown, res: Response, next: NextFunction): void {
-    if (err instanceof ServiceUnavailableError) {
-      res.status(503).render('errors/unavailable', {
-        seo:  { title: 'Service Unavailable' },
-        page: { sectionKey: '', pageKey: 'error_503', title: 'Service Unavailable' },
-      });
-      return;
-    }
-    logger.error('unexpected error in records controller', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    next(err);
-  },
 };

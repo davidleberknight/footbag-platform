@@ -1,4 +1,4 @@
-# Footbag Website Modernization — Project Summary for AI
+# Footbag Website Modernization -- Project Summary for AI
 
 ## Purpose
 
@@ -24,6 +24,7 @@ Auto memory is not authoritative for current slice status; use the plan for that
 - For service-layer ownership and method contracts, load `docs/SERVICE_CATALOG.md`; use the plan to determine what is implemented now versus what is broader design / planned work.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load `docs/DESIGN_DECISIONS.md` — read when entering a new code area or unwinding a temporary simplification; do not load by default.
+- For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
 
 ## Current implemented baseline
 
@@ -144,5 +145,6 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 - Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
 - Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DevOps guide**. Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
+- Need go-live readiness, legacy data migration scope, operational-readiness gates, or cutover sequencing -> **Migration Plan** (`docs/MIGRATION_PLAN.md`)
 - Need big-picture human context or document relationships -> **Project Summary** (full version)
 

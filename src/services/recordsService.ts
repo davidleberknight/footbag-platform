@@ -1,6 +1,7 @@
 import { consecutiveKicksRecords, ConsecutiveKicksRow, freestyleRecords, FreestyleRecordRow } from '../db/db';
-import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleService';
+import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { runSqliteRead } from './sqliteRetry';
+import { PageViewModel } from '../types/page';
 
 // ---------------------------------------------------------------------------
 // View-model types
@@ -32,12 +33,6 @@ export interface RecordsContent {
   milestones:        ConsecutiveGroup[];
   passbackRecords:   FreestyleRecordViewModel[];
   totalPassback:     number;
-}
-
-interface RecordsViewModel {
-  seo:     { title: string };
-  page:    { sectionKey: string; pageKey: string; title: string; intro: string };
-  content: RecordsContent;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,7 +80,7 @@ function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
 // ---------------------------------------------------------------------------
 
 export const recordsService = {
-  getRecordsPage(): RecordsViewModel {
+  getRecordsPage(): PageViewModel<RecordsContent> {
     const worldRows       = consecutiveKicksRecords.listWorldRecords.all()   as ConsecutiveKicksRow[];
     const highScoreRows   = consecutiveKicksRecords.listHighestScores.all()  as ConsecutiveKicksRow[];
     const progressionRows = consecutiveKicksRecords.listProgression.all()    as ConsecutiveKicksRow[];

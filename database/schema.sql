@@ -2713,7 +2713,7 @@ CREATE TABLE legacy_members (
   legacy_is_admin INTEGER NOT NULL DEFAULT 0 CHECK (legacy_is_admin IN (0,1)),
 
   -- Import audit
-  import_source TEXT,                 -- 'mirror' | 'steve_dump' | null pre-integration
+  import_source TEXT,                 -- 'mirror' | 'legacy_site_data' | null pre-integration
   imported_at   TEXT NOT NULL,
   version       INTEGER NOT NULL DEFAULT 1,
 
@@ -2847,6 +2847,46 @@ CREATE TABLE club_bootstrap_leaders (
 CREATE INDEX idx_club_bootstrap_leaders_club   ON club_bootstrap_leaders(club_id);
 CREATE INDEX idx_club_bootstrap_leaders_member ON club_bootstrap_leaders(imported_member_id);
 CREATE INDEX idx_club_bootstrap_leaders_status ON club_bootstrap_leaders(status);
+
+-- =============================================================================
+-- NAME-MATCHING UTILITIES (permanent, not migration-only)
+-- =============================================================================
+
+-- name_variants
+--
+-- Name-equivalence pairs that support auto-link matching at claim and
+-- registration time (see docs/MIGRATION_PLAN.md §7 auto-link and §8 self-serve
+-- claim flow). Seeded at migration State 1 from mirror-mined pairs (~290 known
+-- variants in the legacy HTML). Remains live post-cutover so admins and
+-- members may record additional equivalences as they surface.
+--
+-- Relation semantics: symmetric. Storing ('robert', 'bob') means the two
+-- forms are treated as the same name for matching purposes; lookups must
+-- check both columns. Do not insert both directions (enforced by the
+-- PRIMARY KEY plus the self-pair CHECK).
+--
+-- Normalization: every inserted value and every lookup input is normalized
+-- by the application to NFKC + lowercase + whitespace-collapse + trim before
+-- it reaches this table. The table stores only the normalized forms.
+--
+-- Not prefixed `legacy_*`: this is a permanent name-matching utility, not
+-- migration-only staging. Compare with `legacy_club_candidates`, which
+-- resolves into `clubs` at State 2 and is archival thereafter. Name variants
+-- have no resolution step; the pairs themselves are the permanent artifact.
+CREATE TABLE name_variants (
+  canonical_normalized TEXT NOT NULL,
+  variant_normalized   TEXT NOT NULL,
+  source               TEXT NOT NULL DEFAULT 'mirror_mined'
+                         CHECK (source IN ('mirror_mined', 'admin_added', 'member_submitted')),
+  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+
+  PRIMARY KEY (canonical_normalized, variant_normalized),
+  CHECK (canonical_normalized <> variant_normalized),
+  CHECK (length(canonical_normalized) > 0),
+  CHECK (length(variant_normalized)   > 0)
+);
+
+CREATE INDEX idx_name_variants_variant ON name_variants(variant_normalized);
 
 -- =============================================================================
 -- FREESTYLE DOMAIN LAYER

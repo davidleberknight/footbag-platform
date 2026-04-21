@@ -5,12 +5,12 @@ import { PhotoStorageAdapter } from '../adapters/photoStorageAdapter';
 import { ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 export function createAvatarService(storage: PhotoStorageAdapter) {
   return {
     async uploadAvatar(memberId: string, fileBuffer: Buffer): Promise<{ thumbUrl: string }> {
-      if (fileBuffer.length > MAX_FILE_SIZE) {
+      if (fileBuffer.length > AVATAR_MAX_BYTES) {
         throw new ValidationError('File is too large. Maximum size is 5 MB.');
       }
 
