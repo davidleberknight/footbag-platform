@@ -11,6 +11,13 @@ import { requireAuth } from '../middleware/auth';
  * Mount point: /internal
  */
 export const internalRouter = Router();
+
+// Dev outbox: registered BEFORE requireAuth so a localhost developer can
+// read the stub outbox without an existing session (needed to complete
+// the very first email-verification flow). The SES_ADAPTER=stub gate
+// inside devOutboxService 404s this route in any non-dev environment.
+internalRouter.get('/dev-outbox',                                  devOutboxController.page);
+
 internalRouter.use(requireAuth);
 
 // Persons QC + browse
@@ -39,5 +46,3 @@ internalRouter.get('/net/candidates',                              netQcControll
 internalRouter.get('/net/candidates/:candidateId',                 netQcController.candidateDetail);
 internalRouter.post('/net/candidates/:candidateId/approve',        netQcController.candidateApprove);
 internalRouter.post('/net/candidates/:candidateId/reject',         netQcController.candidateReject);
-// Dev outbox: stub SES adapter in-memory message log; 404 when SES_ADAPTER is not stub
-internalRouter.get('/dev-outbox',                                  devOutboxController.page);

@@ -4,7 +4,8 @@
 // reset) without bypassing the adapter seam. Throws NotFoundError when SES_ADAPTER
 // is not 'stub' — the controller maps that to 404.
 
-import { getStubSesAdapterForTests } from '../../adapters/sesAdapter';
+import { getSesAdapter, getStubSesAdapterForTests } from '../../adapters/sesAdapter';
+import { operationsPlatformService } from '../../services/operationsPlatformService';
 import { NotFoundError } from '../../services/serviceErrors';
 import { PageViewModel } from '../../types/page';
 
@@ -25,11 +26,22 @@ interface DevOutboxContent {
 const URL_PATTERN = /https?:\/\/\S+/;
 
 export const devOutboxService = {
-  getDevOutboxPage(): PageViewModel<DevOutboxContent> {
+  async getDevOutboxPage(): Promise<PageViewModel<DevOutboxContent>> {
+    // Force adapter init: getStubSesAdapterForTests() returns null until
+    // getSesAdapter() has run at least once, which would 404 this route
+    // on a fresh server with no prior email dispatch. getSesAdapter() is
+    // idempotent, so calling it here is safe when the stub is already live.
+    getSesAdapter();
     const stub = getStubSesAdapterForTests();
     if (!stub) {
       throw new NotFoundError('dev outbox is disabled when SES_ADAPTER is not stub');
     }
+
+    // Drain any pending rows in outbox_emails through the stub adapter so
+    // a localhost developer sees their verify/reset mail without having to
+    // run the worker process separately. Safe because we only reach here
+    // when SES_ADAPTER=stub: the adapter is in-process with no network calls.
+    await operationsPlatformService.runEmailWorker();
 
     const messages: DevOutboxMessageViewModel[] = [...stub.sentMessages]
       .reverse()

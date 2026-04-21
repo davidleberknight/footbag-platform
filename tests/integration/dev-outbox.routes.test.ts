@@ -60,11 +60,11 @@ describe('GET /internal/dev-outbox (stub mode)', () => {
     expect(res.text).toContain('No messages sent yet.');
   });
 
-  it('redirects unauthenticated requests to /login', async () => {
+  it('is accessible without a session (dev-only route)', async () => {
     const app = createApp();
     const res = await request(app).get('/internal/dev-outbox');
-    expect(res.status).toBe(302);
-    expect(res.headers['location']).toMatch(/^\/login\?returnTo=/);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('No messages sent yet.');
   });
 
   it('escapes HTML in subject and body (XSS safety)', async () => {

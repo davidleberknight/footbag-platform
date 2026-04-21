@@ -67,6 +67,16 @@ body {
 a { color: var(--primary); text-decoration: none; }
 a:hover { color: var(--primary-dk); text-decoration: underline; }
 
+/* Dev-only notice block (SES_ADAPTER=stub only — hidden in staging/prod) */
+.dev-only-note {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-light);
+  border-left: 3px solid var(--primary);
+  font-size: 0.9rem;
+}
+.dev-only-note a { text-decoration: underline; font-weight: 600; }
+
 img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
 
 /* ── Typography ─────────────────────────────────────────────── */

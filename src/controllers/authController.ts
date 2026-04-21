@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { SESSION_COOKIE_NAME } from '../middleware/auth';
+import { config } from '../config/env';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { identityAccessService } from '../services/identityAccessService';
@@ -24,7 +25,11 @@ interface RegisterContent {
 
 interface CheckEmailContent {
   resent?: boolean;
+  /** Dev-only: path to /internal/dev-outbox. Populated only when SES_ADAPTER=stub. */
+  devOutboxUrl?: string;
 }
+
+const DEV_OUTBOX_URL = config.sesAdapter === 'stub' ? '/internal/dev-outbox' : undefined;
 
 interface VerifyResultContent {
   ok: boolean;
@@ -152,7 +157,7 @@ function getCheckEmail(_req: Request, res: Response): void {
   res.render('auth/check-email', {
     seo: { title: 'Check your email' },
     page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
-    content: {},
+    content: { devOutboxUrl: DEV_OUTBOX_URL },
   } satisfies PageViewModel<CheckEmailContent>);
 }
 
@@ -195,7 +200,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   res.render('auth/check-email', {
     seo: { title: 'Check your email' },
     page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
-    content: { resent: true },
+    content: { resent: true, devOutboxUrl: DEV_OUTBOX_URL },
   } satisfies PageViewModel<CheckEmailContent>);
 }
 
