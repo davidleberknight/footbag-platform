@@ -19,14 +19,24 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 import uuid
 from pathlib import Path
+
+# Make pipeline.identity importable when this script is run directly.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # legacy_data/
+from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
 
 _AUTO_PERSON_NS = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
 
 def auto_person_id(display_name: str) -> str:
-    return str(uuid.uuid5(_AUTO_PERSON_NS, display_name.strip().lower()))
+    """Stable UUID5 — must match the seed builder (07_build_mvfp_seed_full.py).
+
+    Uses pipeline.identity.alias_resolver.normalize_name so diacritic /
+    casing variants of the same name collapse to a single stub UUID.
+    """
+    return str(uuid.uuid5(_AUTO_PERSON_NS, normalize_name(display_name)))
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:

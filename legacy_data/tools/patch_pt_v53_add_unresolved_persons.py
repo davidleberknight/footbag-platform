@@ -37,6 +37,11 @@ PT_V53 = ROOT / "inputs" / "identity_lock" / "Persons_Truth_Final_v53.csv"
 PARTICIPANTS_CSV = ROOT / "out" / "canonical" / "event_result_participants.csv"
 ALIASES_CSV = ROOT / "overrides" / "person_aliases.csv"
 
+# Make pipeline.identity importable so auto_person_id below stays in sync
+# with the seed builder.
+sys.path.insert(0, str(ROOT))
+from pipeline.identity.alias_resolver import normalize_name as _shared_normalize_name  # noqa: E402
+
 # Same namespace as seed builder auto_person_id
 _AUTO_PERSON_NS = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
@@ -57,8 +62,14 @@ def _norm_name(s: str) -> str:
 
 
 def auto_person_id(display_name: str) -> str:
-    """Stable UUID5 — matches seed builder."""
-    return str(uuid.uuid5(_AUTO_PERSON_NS, display_name.strip().lower()))
+    """Stable UUID5 — matches seed builder (07_build_mvfp_seed_full.py).
+
+    Uses the shared pipeline.identity.alias_resolver.normalize_name so
+    diacritic / casing variants of the same name collapse to a single stub
+    UUID. The local _norm_name() above is for matching/dedup purposes only
+    and intentionally has different semantics; do not use it for hashing.
+    """
+    return str(uuid.uuid5(_AUTO_PERSON_NS, _shared_normalize_name(display_name)))
 
 
 def main() -> None:
