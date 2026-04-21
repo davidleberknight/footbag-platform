@@ -3215,16 +3215,23 @@ CREATE TABLE IF NOT EXISTS freestyle_tricks (
   adds            TEXT,                            -- numeric ADD value or 'modifier'
   base_trick      TEXT,                            -- immediate base trick name (may equal canonical_name)
   trick_family    TEXT,                            -- family grouping slug (= base_trick for compounds, self for base tricks)
-  category        TEXT,                            -- 'dex' | 'body' | 'set' | 'compound' | 'modifier'
+  category        TEXT,                            -- 'dex' | 'body' | 'set' | 'compound' | 'modifier' (no CHECK; broad/inclusive)
   description     TEXT,                            -- from notes column in tricks.csv
-  aliases_json    TEXT,                            -- JSON array of alias strings (may be '[]')
+  aliases_json    TEXT,                            -- JSON array of alias strings; DEPRECATED — see freestyle_trick_aliases
+  notation        TEXT,                            -- v2.1: Jobs notation, opaque text from sources
+  review_status   TEXT NOT NULL DEFAULT 'curated', -- v2.1: 'curated' | 'scraped' | 'expert_reviewed' | 'pending' (no CHECK)
+  is_core         INTEGER NOT NULL DEFAULT 0,      -- v2.1: 1 for irreducible dex/body/set primitives only (not modifiers)
+  is_active       INTEGER NOT NULL DEFAULT 1,      -- v2.1: 0 hides from public listings (used for review_status='pending' rows)
   sort_order      INTEGER NOT NULL DEFAULT 0,      -- load order from source CSV
-  loaded_at       TEXT NOT NULL
+  loaded_at       TEXT NOT NULL,
+  updated_at      TEXT                             -- v2.1: populated by loaders on row update; nullable on first insert
 );
 
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_category ON freestyle_tricks(category);
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_adds     ON freestyle_tricks(adds);
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_family   ON freestyle_tricks(trick_family);
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_category      ON freestyle_tricks(category);
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_adds          ON freestyle_tricks(adds);
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_family        ON freestyle_tricks(trick_family);
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_is_active     ON freestyle_tricks(is_active);
+CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_review_status ON freestyle_tricks(review_status);
 
 -- Modifier reference table — loaded from trick_modifiers.csv (21 rows).
 -- Each modifier applies a flat ADD bonus to any base trick,
@@ -3235,11 +3242,96 @@ CREATE TABLE IF NOT EXISTS freestyle_trick_modifiers (
   modifier_name         TEXT NOT NULL,             -- e.g. 'blurry'
   add_bonus             INTEGER NOT NULL,          -- ADD added to non-rotational base tricks
   add_bonus_rotational  INTEGER NOT NULL,          -- ADD added to rotational base tricks (mirage, whirl, torque…)
-  modifier_type         TEXT NOT NULL              -- 'body' | 'set'
-    CHECK (modifier_type IN ('body', 'set')),
+  modifier_type         TEXT NOT NULL,             -- 'body' | 'set' | 'rotational-qualifier' (no CHECK; v2.1 expanded for Gyro)
   notes                 TEXT,
   loaded_at             TEXT NOT NULL
 );
+
+-- =============================================================================
+-- TRICK DICTIONARY v2.1 — provenance, aliases, relations, composition
+-- Loaded by scripts 17 (curated), 19 (Red expert review), 20 (footbag.org scrape).
+-- =============================================================================
+
+-- v2.1: Source registry. Every loaded trick row is attributed to one or more
+-- sources via freestyle_trick_source_links. Examples:
+--   'curated-v1'              — original tricks.csv
+--   'red-husted-2026-04-20'   — domain expert review email
+--   'footbag-org-2026-04'     — scraped from footbag.org/newmoves/list
+CREATE TABLE IF NOT EXISTS freestyle_trick_sources (
+  id            TEXT PRIMARY KEY,
+  source_type   TEXT NOT NULL,                     -- 'curated' | 'scraped' | 'expert' | 'imported' (no CHECK)
+  source_label  TEXT NOT NULL,                     -- human description
+  source_url    TEXT,                              -- when scraped/imported
+  retrieved_at  TEXT NOT NULL,
+  notes         TEXT
+);
+
+-- v2.1: Many-to-many trick↔source. Captures per-source assertions that may
+-- diverge from canonical (asserted_adds vs freestyle_tricks.adds). Canonical
+-- is authoritative; this table preserves the disagreement for QC and audit.
+-- The QC script pipeline/qc/check_trick_source_disagreements.py emits a CSV
+-- of all rows where asserted_* differs from canonical.
+CREATE TABLE IF NOT EXISTS freestyle_trick_source_links (
+  trick_slug         TEXT NOT NULL REFERENCES freestyle_tricks(slug),
+  source_id          TEXT NOT NULL REFERENCES freestyle_trick_sources(id),
+  external_ref       TEXT,                         -- e.g. footbag.org showmove_id, magazine page
+  external_url       TEXT,                         -- e.g. http://footbag.org/newmoves/showmove/27
+  asserted_adds      INTEGER,                      -- what THIS source claims; NULL = agrees with canonical
+  asserted_notation  TEXT,                         -- what THIS source uses; NULL = agrees with canonical
+  asserted_category  TEXT,                         -- what THIS source claims; NULL = agrees with canonical
+  notes              TEXT,
+  PRIMARY KEY (trick_slug, source_id)
+);
+CREATE INDEX IF NOT EXISTS idx_freestyle_trick_source_links_source ON freestyle_trick_source_links(source_id);
+
+-- v2.1: First-class alias table. Replaces the aliases_json column on
+-- freestyle_tricks (the column is retained during migration for backwards
+-- compat; new code reads this table). alias_type distinguishes:
+--   'common'        — established alternate name (Sidewalk, Tombstone)
+--   'abbreviation'  — short form (BW, p-whirl)
+--   'historical'    — renamed-from name (toe blur → quantum)
+--   'notation'      — notation-form alias (XBD/B)
+CREATE TABLE IF NOT EXISTS freestyle_trick_aliases (
+  alias_slug   TEXT PRIMARY KEY,                   -- normalized alias key, e.g. 'bw'
+  alias_text   TEXT NOT NULL,                      -- display form, e.g. 'BW'
+  trick_slug   TEXT NOT NULL REFERENCES freestyle_tricks(slug),
+  alias_type   TEXT NOT NULL,                      -- 'common' | 'abbreviation' | 'historical' | 'notation' (no CHECK)
+  source_id    TEXT REFERENCES freestyle_trick_sources(id),
+  notes        TEXT,
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_freestyle_trick_aliases_trick ON freestyle_trick_aliases(trick_slug);
+
+-- v2.1: Composition links — which modifiers are baked into a trick's canonical
+-- form. Example: 'spinning paradox mirage' → mirage (base) + paradox (order=1)
+-- + spinning (order=2). Apply order matters because conventional naming is
+-- ordered. ADD math validation against these links is DEFERRED — the loader
+-- populates them but does not yet enforce sum(modifier bonuses) + base.adds
+-- == trick.adds.
+CREATE TABLE IF NOT EXISTS freestyle_trick_modifier_links (
+  trick_slug    TEXT NOT NULL REFERENCES freestyle_tricks(slug),
+  modifier_slug TEXT NOT NULL REFERENCES freestyle_trick_modifiers(slug),
+  apply_order   INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (trick_slug, modifier_slug, apply_order)
+);
+CREATE INDEX IF NOT EXISTS idx_freestyle_trick_modifier_links_modifier ON freestyle_trick_modifier_links(modifier_slug);
+
+-- v2.1: Trick-to-trick relations distinct from base/family/aliases. Used when
+-- two distinct canonical entries refer to the same physical trick OR carry
+-- meaningful historical/derivative relationships:
+--   'equivalent_to'  — same physical trick, both names well-established (Vortex ⇄ Gyro Drifter)
+--   'renamed_from'   — newer name supersedes older (Quantum ← Toe Blur)
+--   'variant_of'     — minor execution variant
+--   'derivative_of'  — non-base derivation that doesn't fit base_trick
+CREATE TABLE IF NOT EXISTS freestyle_trick_relations (
+  from_trick_slug  TEXT NOT NULL REFERENCES freestyle_tricks(slug),
+  to_trick_slug    TEXT NOT NULL REFERENCES freestyle_tricks(slug),
+  relation_type    TEXT NOT NULL,                  -- 'equivalent_to' | 'renamed_from' | 'variant_of' | 'derivative_of' (no CHECK)
+  notes            TEXT,
+  created_at       TEXT NOT NULL,
+  PRIMARY KEY (from_trick_slug, to_trick_slug, relation_type)
+);
+CREATE INDEX IF NOT EXISTS idx_freestyle_trick_relations_to ON freestyle_trick_relations(to_trick_slug);
 
 -- Recovery alias candidates — operator-reviewed identity recovery workflow.
 -- Populated from recovery signal analysis; operator marks approve/reject/defer.

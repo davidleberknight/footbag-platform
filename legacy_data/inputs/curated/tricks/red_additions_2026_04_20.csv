@@ -1,0 +1,23 @@
+canonical_name,adds,base_trick,category,aliases,modifier_links,description,review_status,is_active,review_note
+toe stall,1,toe stall,set,toe,,1-ADD delayed surface (toe stall),expert_reviewed,1,
+heel stall,1,heel stall,set,,,1-ADD delayed surface (heel stall),expert_reviewed,1,
+outside stall,1,outside stall,set,outside,,1-ADD delayed surface (outside stall),expert_reviewed,1,
+flying inside,1,flying inside,body,,,1-ADD body trick (per Red 2026-04-20),expert_reviewed,1,
+flying outside,1,flying outside,body,,,1-ADD body trick (per Red 2026-04-20),expert_reviewed,1,
+hop over,2,hop over,body,,,2-ADD body trick (per Red 2026-04-20),expert_reviewed,1,
+double spin,2,double spin,body,,,2-ADD body trick (per Red 2026-04-20),expert_reviewed,1,
+walk over,2,walk over,body,,,2-ADD body trick (per Red 2026-04-20),expert_reviewed,1,
+spyro,1,spyro,body,,,1-ADD body trick standalone; distinct from Surging (spinning-stepping concept),expert_reviewed,1,
+surging,2,surging,compound,spinning stepping,spinning|stepping,spinning + stepping = 2 ADD (1 spin + 1 step),expert_reviewed,1,
+sidewalk,4,butterfly,compound,same-side stepping butterfly|ss stepping butterfly,stepping,same-side stepping butterfly = 4 ADD,expert_reviewed,1,'same-side' qualifier not in modifiers table; capturing via alias only for now
+tombstone,4,drifter,compound,stepping drifter,stepping,stepping drifter = 4 ADD,expert_reviewed,1,
+fury,4,mirage,compound,barraging paradox mirage,paradox|barraging,barraging + paradox + mirage = 4 ADD,expert_reviewed,1,
+vortex,4,drifter,compound,gyro drifter,gyro,gyro + drifter = 4 ADD,expert_reviewed,1,
+quantum,,quantum,,toe blur|toe butterfly,,"newer name for toe blur / toe butterfly; ""quantum mirage"" = miraging mirage",pending,0,Is Quantum a standalone trick or a modifier-like qualifier? What ADD does it carry alone? Toe blur and toe butterfly are not yet in the dictionary as separate entries.
+merkon,,merkon,,,,standalone trick (per Red 2026-04-20),pending,0,ADD count not given by Red
+terrage,,terrage,,,,standalone trick; also acts as modifier (e.g. terraging X),pending,0,ADD count not given as standalone; also need separate freestyle_trick_modifiers row for terraging
+barrage,,barrage,,,,standalone trick distinct from existing 'barraging' modifier; barraging paradox mirage = Fury,pending,0,ADD count as standalone not given
+royale,,,compound,,,popular trick (per Red 2026-04-20),pending,0,ADD count and base trick not given
+ripstein,,,compound,,,popular trick (per Red 2026-04-20),pending,0,ADD count and base trick not given
+flail,,,,,,common name (per Red 2026-04-20),pending,0,Which existing canonical trick is Flail a common name for?
+omelette,,,,,,common name (per Red 2026-04-20),pending,0,Which existing canonical trick is Omelette a common name for?
