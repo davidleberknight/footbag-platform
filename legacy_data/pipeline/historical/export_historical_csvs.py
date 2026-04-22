@@ -1301,7 +1301,6 @@ _HONOR_OVERRIDES: dict[str, str] = {
     "lon smith":                "Skyler Lon Smith",
     "lon skyler smith":         "Skyler Lon Smith",
     "honza weber":              "Jan Weber",
-    "chantelle laurent":        "Chantelle Laurent",
     # BAP members with name variants
     "dave holton":              "David Holton",
     "phillip morrison":         "Phil Morrison",
