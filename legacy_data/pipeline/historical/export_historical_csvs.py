@@ -1259,6 +1259,40 @@ def _honor_norm(s: str) -> str:
     stripped = "".join(c for c in nfkd if not unicodedata.combining(c))
     return re.sub(r"[^a-z0-9]", "", stripped.lower())
 
+
+# Minimal person-likeness gate. Used to (a) prevent AliasResolver / honor-match
+# from resolving junk strings, and (b) drop non-person-like PT rows from
+# persons_out so canonical output matches what the platform export gate
+# produces downstream. Patterns are a conservative subset of the authoritative
+# gate in pipeline/platform/export_canonical_platform.py::_is_person_like —
+# sharing to a common helper is a deferred refactor.
+_RE_PERSONLIKE_PRIZE = re.compile(r"\$\d|-prizes\b|\bprize\b", re.IGNORECASE)
+
+def _is_person_like(name: str) -> bool:
+    s = (name or "").strip()
+    if not s:
+        return False
+    if _RE_PERSONLIKE_PRIZE.search(s):
+        return False            # "$N" / "prize" / "-prizes" suffixes
+    if "," in s:
+        return False            # commas never appear in canonical person_name
+    if " " not in s and "." not in s:
+        return False            # single-word names
+    if re.search(r"\bThe\b", s):
+        return False            # embedded nickname narrative form
+    if s[0].islower():
+        return False            # narrative fragment, not a name
+    if '"' in s:
+        return False            # quoted nickname form — alias should resolve
+    return True
+
+
+# Raw honor-name inputs whose hardcoded _HONOR_OVERRIDES target should win
+# over the AliasResolver result. Used only for deferred contradictory cases
+# where two canonical persons exist and the alias file's target is not yet
+# confirmed by domain review.
+_PIN_OVERRIDE_FIRST: set[str] = {"lon smith", "honza weber"}
+
 _HONOR_OVERRIDES: dict[str, str] = {
     # Name in BAP/HoF source → canonical name in PT/persons
     "ken shults":               "Kenny Shults",
@@ -1318,22 +1352,69 @@ for _r in pt_rows:
         _norm_to_pid[_nk]   = _pid
         _norm_to_canon[_nk] = _pc
 
+# Unified AliasResolver over the same PT data used by _norm_to_pid. Honor
+# lookups consult this first, so every alias in overrides/person_aliases.csv
+# is available to BAP/HoF matching — not only the hardcoded _HONOR_OVERRIDES
+# entries. The override-based fallback below is preserved for cases the
+# resolver can't handle (raw variants with no alias row, suspicious entries).
+import sys as _sys
+from pathlib import Path as _Path
+_LEGACY_ROOT_FOR_RESOLVER = _Path(__file__).resolve().parents[2]
+if str(_LEGACY_ROOT_FOR_RESOLVER) not in _sys.path:
+    _sys.path.insert(0, str(_LEGACY_ROOT_FOR_RESOLVER))
+from pipeline.identity.alias_resolver import AliasResolver as _AliasResolver
+_ALIAS_RESOLVER = _AliasResolver(
+    aliases_csv=_LEGACY_ROOT_FOR_RESOLVER / "overrides" / "person_aliases.csv",
+    canonical_persons=[(r["effective_person_id"], r["person_canon"]) for r in pt_rows],
+)
+
 def _resolve_honor(raw_name: str) -> str | None:
     """Returns person_id or None."""
+    # Person-likeness guard: junk strings don't get resolved through any path
+    if not _is_person_like(raw_name):
+        return None
+    # Pinned override-first: deferred contradictory cases keep hardcoded behavior
+    low = raw_name.lower().strip()
+    if low in _PIN_OVERRIDE_FIRST:
+        canon = _HONOR_OVERRIDES.get(low)
+        if canon:
+            _pinned_pid = _norm_to_pid.get(_honor_norm(canon))
+            if _pinned_pid:
+                return _pinned_pid
+    # Primary path: unified alias resolver
+    pid = _ALIAS_RESOLVER.resolve(raw_name)
+    if pid:
+        return pid
+    # Fallback path (preserves behavior for required cases, suspicious entries,
+    # and any raw name not covered by the alias file)
     key = _honor_norm(raw_name)
-    canon = _HONOR_OVERRIDES.get(key.replace("", "").strip()) or _HONOR_OVERRIDES.get(raw_name.lower().strip())
+    canon = _HONOR_OVERRIDES.get(key.replace("", "").strip()) or _HONOR_OVERRIDES.get(low)
     if not canon:
-        # Try direct key lookup
         if key in _norm_to_canon:
             canon = _norm_to_canon[key]
     if canon:
         return _norm_to_pid.get(_honor_norm(canon))
     return None
 
-# Rebuild using override-first approach
 def _match_honor(raw_name: str) -> str | None:
+    # Person-likeness guard
+    if not _is_person_like(raw_name):
+        return None
+    # Pinned override-first
+    low = raw_name.lower().strip()
+    if low in _PIN_OVERRIDE_FIRST:
+        canon = _HONOR_OVERRIDES.get(low)
+        if canon:
+            _pinned_pid = _norm_to_pid.get(_honor_norm(canon))
+            if _pinned_pid:
+                return _pinned_pid
+    # Primary path: unified alias resolver
+    pid = _ALIAS_RESOLVER.resolve(raw_name)
+    if pid:
+        return pid
+    # Fallback path preserved
     key = _honor_norm(raw_name)
-    override_canon = _HONOR_OVERRIDES.get(raw_name.lower().strip())
+    override_canon = _HONOR_OVERRIDES.get(low)
     if override_canon:
         return _norm_to_pid.get(_honor_norm(override_canon))
     if key in _norm_to_pid:
@@ -1442,6 +1523,26 @@ for row in sorted(pt_rows, key=lambda r: r["person_canon"]):
         "signature_trick_2":          top_tricks[1] if len(top_tricks) > 1 else "",
         "signature_trick_3":          top_tricks[2] if len(top_tricks) > 2 else "",
     })
+
+
+# ── Person-likeness filter: drop non-person-like PT rows ─────────────────────
+# Some PT entries are patched-in "unresolved_canonical_participant" rows whose
+# person_canon is a junk string ("Calab Abraham $25", "Antoine The Rocks-Godin",
+# etc.). Drop them from persons_out and null any participant references so the
+# authoritative canonical output matches what the platform export gate produces.
+_blocked_pids: set[str] = {
+    p["person_id"] for p in persons_out
+    if not _is_person_like(p["person_name"])
+}
+if _blocked_pids:
+    _nulled = 0
+    for _r in participants_out:
+        if _r.get("person_id", "").strip() in _blocked_pids:
+            _r["person_id"] = ""
+            _nulled += 1
+    persons_out = [p for p in persons_out if p["person_id"] not in _blocked_pids]
+    print(f"\n  Person-likeness gate: removed {len(_blocked_pids)} non-person-like PT row(s); "
+          f"nulled {_nulled} participant reference(s)")
 
 
 # ── Write outputs ─────────────────────────────────────────────────────────────
