@@ -35,6 +35,15 @@ MODE="${1:-full}"
 # =============================================================================
 # PREFLIGHT
 # =============================================================================
+run_alias_registry_preflight() {
+    echo ""
+    echo "── Alias registry preflight ───────────────────────────────────────────"
+    if ! python "${SCRIPT_DIR}/pipeline/qc/check_alias_registry.py" --mode preflight; then
+        echo "  ERROR: alias registry preflight failed — see out/qc_alias_registry.csv" >&2
+        exit 1
+    fi
+}
+
 run_preflight() {
     echo ""
     echo "── Preflight checks ───────────────────────────────────────────────────"
@@ -334,6 +343,8 @@ run_phase_net() {
 # =============================================================================
 # Main
 # =============================================================================
+run_alias_registry_preflight
+
 case "$MODE" in
     full)
         run_v0_backbone

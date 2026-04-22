@@ -48,6 +48,18 @@ OPTIONAL_CHECKS = [
         "needs_workbook": False,
         "args": ["--source", "csv"],
     },
+    # Alias registry validator in gate mode. Reports malformed UUID, blank
+    # alias, duplicate rows, missing canonical target pid, and Bucket-2 alias
+    # conflicts. Severity=warn for now: a backlog of pre-existing stale/mojibake
+    # rows and deferred Bucket-2 conflicts would otherwise block every rebuild.
+    # Promote to hard once the backlog is cleared.
+    {
+        "name": "alias_registry",
+        "path": "pipeline/qc/check_alias_registry.py",
+        "severity": "warn",
+        "needs_workbook": False,
+        "args": ["--mode", "gate"],
+    },
     # Community workbook matters, but qc_spreadsheet_gate.py expects a different workbook shape.
     {
         "name": "workbook_qc",
