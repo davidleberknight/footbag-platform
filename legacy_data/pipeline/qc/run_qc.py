@@ -60,6 +60,17 @@ OPTIONAL_CHECKS = [
         "needs_workbook": False,
         "args": ["--mode", "gate"],
     },
+    # Hardcoded-override contradiction detector. Flags cases where a
+    # hardcoded name-override dict in export_historical_csvs.py (e.g.
+    # _HONOR_OVERRIDES) silently overrules a deliberate alias-file remap.
+    # Severity=warn — overrides may be intentional, but contradictions
+    # warrant review.
+    {
+        "name": "hardcoded_override_conflicts",
+        "path": "pipeline/qc/check_hardcoded_overrides.py",
+        "severity": "warn",
+        "needs_workbook": False,
+    },
     # Community workbook matters, but qc_spreadsheet_gate.py expects a different workbook shape.
     {
         "name": "workbook_qc",
