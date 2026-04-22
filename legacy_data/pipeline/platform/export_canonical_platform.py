@@ -51,6 +51,10 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+# Shared alias resolution (see pipeline/identity/alias_resolver.py).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from pipeline.identity.alias_resolver import AliasResolver
+
 ROOT         = Path(__file__).resolve().parents[2]
 CANONICAL    = ROOT / "out" / "canonical"
 CANONICAL_IN = ROOT / "event_results" / "canonical_input"
@@ -449,57 +453,40 @@ def main() -> None:
 
     # ── 5a. Alias-based person merge ────────────────────────────────────────────
     # person_aliases.csv maps variant names to canonical person_ids. The identity
-    # lock may not have resolved these, so we remap here: if a person's name
-    # matches an alias and their person_id differs from the alias target, remap
-    # the participant references and drop the duplicate person row.
-    import unicodedata as _unicodedata
-    def _norm_alias(name: str) -> str:
-        nfkd = _unicodedata.normalize("NFKD", name)
-        stripped = "".join(c for c in nfkd if not _unicodedata.combining(c))
-        return re.sub(r"\s+", " ", stripped.lower().strip())
-
+    # lock + upstream 05p5 may not have resolved persons injected by steps 4b/4c
+    # (display-name mapping / identity-mapped person guarantee), so we remap here:
+    # if a person's name resolves via the alias registry to a different extant
+    # canonical person_id, remap participant references and drop the duplicate.
+    #
+    # Resolution delegated to pipeline.identity.AliasResolver — the same
+    # resolver used by pipeline/qc/check_alias_duplicate_persons.py and
+    # pipeline/05p5_remediate_canonical.py. Its normalization is strictly
+    # stronger than the previous inline _norm_alias (adds artifact-char strip,
+    # separator collapse, and punctuation strip to NFKD + combining-mark strip).
     _alias_csv = ROOT / "overrides" / "person_aliases.csv"
-    _alias_remap: dict[str, str] = {}  # norm(alias) → target person_id
-    _alias_remap_rows: list[dict] = []  # full rows for canon name lookup
-    if _alias_csv.exists():
-        with open(_alias_csv, newline="", encoding="utf-8") as _f:
-            for _row in csv.DictReader(_f):
-                _a = _row.get("alias", "").strip()
-                _tpid = _row.get("person_id", "").strip()
-                if _a and _tpid:
-                    _alias_remap[_norm_alias(_a)] = _tpid
-                    _alias_remap_rows.append(_row)
-
-    # Build pid remap: person_id → target_person_id for persons whose name is an alias.
-    # Also build a name→pid index for the current persons list so we can resolve
-    # aliases whose target_pid doesn't exist (the target was itself aliased).
-    _current_pids: set[str] = {p["person_id"] for p in persons if p.get("person_id", "").strip()}
-    _name_to_pid: dict[str, str] = {}
-    for p in persons:
-        _name_to_pid[_norm_alias(p.get("person_name", ""))] = p["person_id"]
+    _canonical_tuples: list[tuple[str, str]] = [
+        (p["person_id"].strip(), p.get("person_name", "").strip())
+        for p in persons
+        if p.get("person_id", "").strip() and p.get("person_name", "").strip()
+    ]
+    _resolver = AliasResolver(
+        aliases_csv=_alias_csv,
+        canonical_persons=_canonical_tuples,
+    )
+    _current_pids: set[str] = {pid for pid, _ in _canonical_tuples}
 
     _pid_remap: dict[str, str] = {}
     for p in persons:
         pname = p.get("person_name", "").strip()
         pid = p.get("person_id", "").strip()
-        normed = _norm_alias(pname)
-        if normed in _alias_remap:
-            target = _alias_remap[normed]
-            # If the target pid doesn't exist in persons, look up the target's
-            # person_canon by name — the target may have been loaded under a
-            # different pid (e.g. Calab Abraham → Caleb Abraham).
-            if target not in _current_pids:
-                # Find the alias row's person_canon and look it up by name
-                # (scan alias CSV again for the canon name)
-                for _row2 in _alias_remap_rows:
-                    if _norm_alias(_row2.get("alias", "")) == normed:
-                        canon_name = _row2.get("person_canon", "").strip()
-                        resolved = _name_to_pid.get(_norm_alias(canon_name))
-                        if resolved:
-                            target = resolved
-                        break
-            if pid and target and pid != target and target in _current_pids:
-                _pid_remap[pid] = target
+        if not pname or not pid:
+            continue
+        target = _resolver.resolve(pname)
+        # target is drawn from _canonical_tuples so it is always in _current_pids;
+        # the membership check is a belt-and-suspenders guard matching the prior
+        # inline contract.
+        if target and target != pid and target in _current_pids:
+            _pid_remap[pid] = target
 
     if _pid_remap:
         # Resolve transitive chains: if A→B and B→C, make A→C
@@ -522,7 +509,8 @@ def main() -> None:
         # Drop remapped person rows (their participants now point to the canonical person)
         persons = [p for p in persons if p["person_id"] not in _pid_remap]
         print(f"Alias merge: remapped {len(_pid_remap)} person(s), "
-              f"{n_remapped_parts} participant reference(s)")
+              f"{n_remapped_parts} participant reference(s); "
+              f"resolver stats={_resolver.stats()}")
 
     # ── 5b. Person-likeness gate: catch encoding corruption and junk names ─────
     # Encoding artifacts (Windows-1250 mojibake)
