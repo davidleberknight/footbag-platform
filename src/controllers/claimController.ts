@@ -28,16 +28,34 @@ const AUTO_LINK_FORM_VM = {
   page: { sectionKey: 'members', pageKey: 'auto_link_confirm', title: 'We found a match' },
 };
 
+// Reason-aware guidance shown on the manual claim page for each tier3 branch.
+// Messages are kept short and pick the same tone as the verify/auth templates.
+const TIER3_MESSAGES: Record<string, string> = {
+  ambiguous_email_anchor:
+    'This identifier matches multiple legacy accounts. Please enter a legacy username or member ID to continue.',
+  multiple_name_candidates:
+    'We found multiple possible matches for your name. Please select your profile below.',
+  no_name_candidate:
+    "We couldn't find a matching profile automatically. Please search for your name below.",
+  hp_mismatch:
+    "We found a similar name, but couldn't confirm it's your profile. Please verify manually.",
+  no_hp_for_legacy_account:
+    "Your account exists, but isn't yet linked to a competition profile. Please search to continue.",
+};
+
 export const claimController = {
   /**
    * GET /history/claim, render the legacy claim lookup form.
    *
    * Prefills the identifier input with the member's real_name (best-effort
-   * context only; the lookup remains identifier-based) and, when the
-   * verify-time classifier reported tier3, shows a soft notice plus any HP
-   * candidates the name-match helper returned. Candidate links go to the
-   * existing `/history/:personId/claim` page — no new route, no
-   * claim-flow changes, no new matching heuristic.
+   * context only; the lookup remains identifier-based). When the verify-time
+   * classifier reported tier3, shows a reason-aware message and — where the
+   * existing `findAutoLinkCandidates` helper returned HP options — lists them
+   * as selectable links to the existing `/history/:personId/claim` page.
+   *
+   * No new route, no claim-flow changes, no new matching heuristic. The
+   * candidate fetch reuses the same read helper the classifier uses; no new
+   * DB work beyond that helper.
    */
   getClaim(req: Request, res: Response): void {
     const userId = req.user?.userId;
@@ -46,19 +64,25 @@ export const claimController = {
       : undefined;
     const realName = member?.real_name?.trim() ?? '';
 
-    let autoLinkNotice: string | undefined;
+    let message: string | undefined;
     const candidates: Array<{ personId: string; personName: string }> = [];
 
     if (userId && realName) {
       const classification = identityAccessService.getAutoLinkClassificationForMember(userId);
       if (classification.tier === 'tier3') {
-        for (const c of findAutoLinkCandidates(realName)) {
-          candidates.push({ personId: c.personId, personName: c.personName });
-        }
-        if (candidates.length > 0) {
-          autoLinkNotice =
-            "We couldn't confidently match your profile automatically. " +
-            'Please select your profile below or enter a legacy identifier.';
+        message = TIER3_MESSAGES[classification.reason];
+        // Surface candidate HPs only for reasons where name-match data is
+        // meaningful: multi-legacy candidates and the decoy-HP case. For
+        // ambiguous_email_anchor and no_hp_for_legacy_account the name
+        // didn't drive the tier3, so a candidate list could mislead.
+        if (
+          classification.reason === 'multiple_name_candidates' ||
+          classification.reason === 'hp_mismatch' ||
+          classification.reason === 'no_name_candidate'
+        ) {
+          for (const c of findAutoLinkCandidates(realName)) {
+            candidates.push({ personId: c.personId, personName: c.personName });
+          }
         }
       }
     }
@@ -67,7 +91,7 @@ export const claimController = {
       ...FORM_VM,
       content: {
         identifier: realName,
-        autoLinkNotice,
+        message,
         candidates,
       },
     });
