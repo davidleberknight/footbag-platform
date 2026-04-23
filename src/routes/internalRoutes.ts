@@ -7,6 +7,9 @@ import { requireAuth } from '../middleware/auth';
  * Internal / operator routes.
  * Not linked from public nav. Gated to any logged-in member
  * (redirects to /login when unauthenticated).
+ * Current auth gate is any-member; target gate is admin/operator role.
+ * Must change before production cutover: these routes include
+ * state-changing QC decision POSTs that affect public Net data.
  * Mount point: /internal
  */
 export const internalRouter = Router();

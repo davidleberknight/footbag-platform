@@ -106,7 +106,6 @@ The following are implemented in the current codebase:
 - Person links: `personHref()` helper for unified historical/member linking
 - Historical name display on member profiles when it differs from display_name
 - `first_competition_year` and `show_competitive_results` fields on members
-- `member_slug_redirects` table and redirect logic
 - Claim flow early-test shortcut (direct lookup + confirm + merge, no email verification)
 
 ---
@@ -264,7 +263,7 @@ Two registration fields:
 
 **Semantic asymmetry:** For new registrations, `real_name` is the legal name supplied by the member. For imported placeholders, `real_name` is the best-available name from the legacy export, which may be a display name, a username, or something else entirely. The field name is the same but the quality and provenance differ.
 
-**Slug lifecycle:** Slug regenerates when `display_name` changes. Old slugs are recorded in `member_slug_redirects` and produce 301 redirects to the current slug.
+**Slug lifecycle:** `display_name` and the derived slug are permanent post-registration.
 
 ---
 
@@ -690,10 +689,6 @@ Operational table with `imported_member_id ON DELETE SET NULL`.
 
 On `members` table.
 
-### 12.15 `member_slug_redirects` (DONE)
-
-Slug redirect table for display name changes.
-
 ### 12.16 Known name variants table (NEW)
 
 New table `name_variants` stores name-equivalence pairs that support auto-link matching (§7) and ongoing claim/registration-time prompts. Seeded at State 1 from mirror-mined pairs (~290); remains live post-cutover so admins and members may record further equivalences as new name collisions surface.
@@ -1093,7 +1088,7 @@ Non-data workstreams that must close before production cutover. Each subsection 
 
 ### 28.1 Data backup and disaster recovery
 
-Gate: host-side SQLite backup producer runs on a schedule, ships to S3, and emits `BackupAgeMinutes`; a full restore drill has been rehearsed end-to-end; the backup-age CloudWatch alarm (`enable_backup_alarm = true`) is enabled and has emitted a non-alarm state. Recovery targets: 5–10 min RPO, ~5 min RTO per `docs/DEVOPS_GUIDE.md` §10.1. Procedure: `docs/DEV_ONBOARDING.md` §7.4 (setup); `docs/DEVOPS_GUIDE.md` §10 (runbook).
+Gate: host-side SQLite backup producer runs on a schedule, ships to S3, and emits `BackupAgeMinutes`; a full restore drill has been rehearsed end-to-end; the backup-age CloudWatch alarm (`enable_backup_alarm = true`) is enabled and has emitted a non-alarm state; the cross-region DR bucket has Object Lock configured per `docs/DEVOPS_GUIDE.md` §3.6 (Object Lock can only be enabled at bucket creation, so retrofitting requires bucket recreation). Recovery targets: 5–10 min RPO, ~5 min RTO per `docs/DEVOPS_GUIDE.md` §10.1. Procedure: `docs/DEV_ONBOARDING.md` §7.4 (setup); `docs/DEVOPS_GUIDE.md` §10 (runbook).
 
 ### 28.2 Observability and monitoring readiness
 
@@ -1105,7 +1100,7 @@ Gate: CloudFront enforces `X-Origin-Verify` on origin requests; Nginx rejects di
 
 ### 28.4 IAM least-privilege scope-down
 
-Gate: `footbag-operator` removed from `AdministratorAccess` and moved to a least-privilege policy covering only services the project uses (Lightsail, CloudFront, S3, SSM, KMS, SNS, CloudWatch, self-IAM for rotation); the Lightsail host's `ec2-user` default account retired in favor of named operator accounts; source-profile IAM user's access keys on a documented 90-day rotation cadence. Procedure: `docs/DEV_ONBOARDING.md` §7.3; `docs/DEVOPS_GUIDE.md` §5.7.
+Gate: `footbag-operator` removed from `AdministratorAccess` and moved to a least-privilege policy covering only services the project uses (Lightsail, CloudFront, S3, SSM, KMS, SNS, CloudWatch, self-IAM for rotation); the Lightsail host's `ec2-user` default account retired in favor of named operator accounts; source-profile IAM user's access keys on a documented 90-day rotation cadence; all runtime-role IAM policies (SSM read, S3 snapshots, SES send, KMS sign) declared in Terraform HCL so `terraform apply` is a safe operation that cannot silently drop a Console-added capability. Procedure: `docs/DEV_ONBOARDING.md` §7.3; `docs/DEVOPS_GUIDE.md` §5.7.
 
 ### 28.5 Email deliverability operations
 
@@ -1117,17 +1112,19 @@ Gate: login rate-limit cooldown is wired to the `login_cooldown_minutes` setting
 
 ### 28.7 Secrets rotation
 
-Gate: JWT signing-key rotation procedure with 24h overlap is documented and drilled against staging before production cutover (generate new key, stand it up alongside current key, flip the active signer, retire the old key after the overlap window); `SESSION_SECRET` rotation runbook exists. Source-profile access-key rotation is covered under §28.4. Procedure: `docs/DEVOPS_GUIDE.md` §5.
+Gate: JWT signing-key rotation procedure with 24h overlap is documented and drilled against staging before production cutover (generate new key, stand it up alongside current key, flip the active signer, retire the old key after the overlap window); session JWT refresh re-issues the cookie when `exp` is within 6h per DD §3.4 so users are not silently logged out at the 24h TTL boundary; `SESSION_SECRET` rotation runbook exists. Source-profile access-key rotation is covered under §28.4. Procedure: `docs/DEVOPS_GUIDE.md` §5.
 
 ### 28.8 Pre-cutover revert and rotation checklist
 
 Before Phase 4 cutover, the following staging-observability-only deviations must be reverted and rotations completed:
 
-1. JWT TTL revert: `DEFAULT_TTL_SECONDS` in `src/services/jwtService.ts` and `SESSION_COOKIE_MAX_AGE_MS` in `src/middleware/auth.ts` restored to the DD §3.5 24h baseline.
-2. SES sender cutover: `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` IAM policy `Resource` ARN switched from the interim sender to the canonical `noreply@footbag.org` identity.
+1. JWT TTL revert: `DEFAULT_TTL_SECONDS` in `src/services/jwtService.ts` and `SESSION_COOKIE_MAX_AGE_MS` in `src/middleware/auth.ts` restored to the DD §3.4 24h baseline. Session JWT refresh (§28.7) must land before this revert to avoid silent mid-session logouts at the 24h boundary.
+2. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical address; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` IAM policy `Resource` ARN from the interim staging sender to the canonical `noreply@footbag.org` identity; restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
 3. STUB_PASSWORD rotation: staging preview-user credential rotated in local `.env`, redeployed, and the vault entry updated before any external tester receives the credential.
-4. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove Console-applied loosening of the port-22 rule and return to the `operator_cidrs`-constrained ingress.
+4. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove the Path H §8.10 browser-SSH override (loosened beyond `operator_cidrs`) and return to the `operator_cidrs`-constrained ingress.
 5. SES sandbox-mode flip: `SES_SANDBOX_MODE` in `/srv/footbag/env` cleared (removed or set to `0`) once SES production access has been granted for the account. Clears the staging-warning card rendered on email-gated pages (DD §5.6).
+6. Production Terraform region fix: change `terraform/production/variables.tf:14` region default from `us-east-2` to `us-east-1` before any `terraform apply` from `terraform/production/`. Staging is `us-east-1` per §28.2 / `docs/DEVOPS_GUIDE.md` §3.3; applying as-is would create cross-region production resources.
+7. Preview fixture scrub: `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` inserts a "Footbag Hacky" fixture (fake event, discipline, result, HP record with HoF flag, and result-entry participant) alongside the preview-user account. Acceptable in staging for UX preview; must not reach the production DB. Either condition the fixture block on an env flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`) or delete the block in the production-cutover data pass.
 
 Sign-off on this checklist is a prerequisite for §17 State 3 → State 4 transition.
 
@@ -1135,6 +1132,6 @@ Sign-off on this checklist is a prerequisite for §17 State 3 → State 4 transi
 
 ## 29. QC subsystem retirement (go-live gate)
 
-The internal QC subsystem (`/internal/net/*`, `/internal/persons/*`, and supporting code, tables, and tests) is a hard go-live gate: no production deployment may carry QC code, routes, or tables. Deletion is not a post-launch tidy-up. `PIPELINE_QC.md` is the authoritative scope document: it enumerates the routes, services, templates, schema tables, test files, and DB prepared-statement groups that must be removed, and specifies that `PIPELINE_QC.md` itself is deleted in the same pass.
+The internal QC subsystem (`/internal/net/*`, `/internal/persons/*`, and supporting code, tables, and tests) is a hard go-live gate: no production deployment may carry QC code, routes, or tables. Deletion is not a post-launch tidy-up. Scope at retirement time: every `/internal/*` route, its controller and service code, its Handlebars views, its schema tables, its `db.ts` prepared-statement groups, and its tests.
 
 Sign-off on QC retirement is a prerequisite for §17 State 3 → State 4 transition.

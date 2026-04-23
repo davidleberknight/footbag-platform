@@ -8,7 +8,6 @@ paths:
   - "CODE_OF_CONDUCT.md"
   - "GOVERNANCE.md"
   - "PROJECT_SUMMARY*.md"
-  - "PIPELINE_QC.md"
   - "GLOSSARY.md"
   - "DIAGRAMS.md"
 ---
@@ -83,7 +82,7 @@ When reviewing DD drift, cite the design sources as evidence. Do NOT cite curren
 
 ## Team-member names
 
-Do not reference internal team members by name in **technical / design project docs**: MIGRATION_PLAN, DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, SERVICE_CATALOG, VIEW_CATALOG, DEVOPS_GUIDE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY, PIPELINE_QC. Use role-based labels.
+Do not reference internal team members by name in **technical / design project docs**: MIGRATION_PLAN, DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, SERVICE_CATALOG, VIEW_CATALOG, DEVOPS_GUIDE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. Use role-based labels.
 
 - "James" / "James Leberknight" → "the historical-pipeline maintainer".
 - "Dave" / "David" / "David Leberknight" → "the primary maintainer" / "the project maintainer".
@@ -91,7 +90,7 @@ Do not reference internal team members by name in **technical / design project d
 
 **Meta / governance docs** (README, CONTRIBUTING, CODE_OF_CONDUCT, GOVERNANCE) may name the maintainer for attribution and contact. Attribution is not sprint tracking.
 
-**IMPLEMENTATION_PLAN.md is the only technical-doc exception** — sprint tracking by name (James / Dave / John) is expected and correct there.
+**The root `IMPLEMENTATION_PLAN.md` and `legacy_data/IMPLEMENTATION_PLAN.md` are the only technical-doc exceptions** — sprint tracking by name (James / Dave) is expected and correct in both. The root IP routes to `legacy_data/IMPLEMENTATION_PLAN.md` for historical-pipeline detail; do not reintroduce that detail into the root.
 
 **Steve Goldberg is a narrow preserved exception** in MIGRATION_PLAN §14 (the coordination contract with the legacy-site webmaster). Elsewhere, use "the legacy data" / "the legacy data import" — never "Steve's data" / "Steve's dump" / possessive constructions. His address `brat@footbag.org` is authoritatively listed in DD §5.5.
 

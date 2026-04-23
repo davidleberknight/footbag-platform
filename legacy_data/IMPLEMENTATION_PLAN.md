@@ -1,23 +1,68 @@
 # legacy_data/IMPLEMENTATION_PLAN.md
 
-Tracks pipeline sprint status, known gaps, and the release checklist for the
-historical data integration. This file governs scope and sequencing within `legacy_data/`.
-The root `IMPLEMENTATION_PLAN.md` governs the broader platform sprint.
+Historical pipeline integration sprint. Source of truth for the historical-pipeline maintainer's track; the root `IMPLEMENTATION_PLAN.md` links here rather than duplicating. Scope: events, results, persons, clubs, classification, bootstrap leaders, records, variants, legacy identity columns.
 
 ---
 
-## Outstanding sprint goals
+## Already done
 
-Per root `IMPLEMENTATION_PLAN.md §James's sprint`:
+- **Pipeline merged**: `legacy_data/pipeline/`, `legacy_data/scripts/`, `legacy_data/event_results/`
+- **Events + results + persons soup-to-nuts**: `legacy_data/run_pipeline.sh complete` runs mirror + curated → canonical → QC → workbook → seed → DB
+- **Club extract/load scripts wired**: `extract_clubs.py`, `load_clubs_seed.py`, `extract_club_members.py`, `load_club_members_seed.py` run from `scripts/reset-local-db.sh`; produces `seed/clubs.csv` (1,035 rows) and `seed/club_members.csv` (2,399 rows); loads `clubs` and `legacy_person_club_affiliations`
+- **Club candidate + confidence pipeline wired**: `clubs/scripts/02_build_legacy_club_candidates.py` produces a candidate CSV with `confidence_score`; `event_results/scripts/09_load_enrichment_to_sqlite.py` loads into `legacy_club_candidates` (311 rows in current DB). Scripts `03_build_legacy_person_club_affiliations.py` and `04_build_club_bootstrap_leaders.py` also exist but leader table is empty today (see Still to do items 2 and 3).
+- **Net enrichment subsystem**: schema tables (`net_team`, `net_team_member`, `net_team_appearance`, `net_discipline_group`, `net_stat_policy`, `net_review_queue`, `net_team_appearance_canonical` view); scripts 12/13/14 under `legacy_data/event_results/scripts/`; `run_pipeline.sh net_enrichment` mode; TypeScript layer: `netService.ts`, `netController.ts`, `/net/teams` and `/net/teams/:teamId` routes, `src/views/net/` templates, Nav link; DB seeded with 4,176 teams, ~7,300 appearances, 607 QC review items
+- **`legacy_data/CLAUDE.md`**: exists; currently scoped to events/results/persons pipeline only
+- **`legacy_data/skills/`**: directory exists
 
-- [ ] Expanded `persons.csv` with ~1,600 club-only members
-- [x] Club pipeline: `legacy_club_candidates`, affiliations, confidence scoring, bootstrap eligibility (Phase G loads these)
-- [ ] `club_bootstrap_leaders` rows for bootstrap-eligible clubs (deferred — requires live `clubs.id` FK)
-- [ ] Known name variants seeded (~290 pairs)
-- [ ] World records CSV in platform-loadable format
-- [ ] Legacy member identity extraction (`legacy_member_id`, `legacy_user_id`, `legacy_email`)
-- [ ] Soup-to-nuts master script (`scripts/reset-local-db.sh` runs everything end-to-end)
-- [ ] **Data review sign-off** (blocks members ungating)
+---
+
+## Still to do
+
+1. **Club-only persons extraction** (~1,600): people who appear in mirror only as club members. Prerequisite for classification (per `docs/MIGRATION_PLAN.md §10.1`).
+2. **Club classification** per `docs/MIGRATION_PLAN.md §10.1` R1–R9. Deterministic classifier → pre-populate / onboarding-visible / dormant / junk. Current `02_build_legacy_club_candidates.py` sets `bootstrap_eligible` via a placeholder heuristic (`confidence_score >= 0.55 AND mirror_member_id_count >= 1 AND linkable_member_count >= 1`); 0 of 311 candidates qualify today. Replace with the §10.1 R1–R9 rules (hosted-event-in-2020+, page-updated-2020+, contact-competed-2020+, etc.) which require joining hosted-event year and contact-member last_year.
+3. **Leadership inference**: populate `club_bootstrap_leaders` for pre-populated clubs with `confidence_score >= 0.70` (MIGRATION_PLAN §3). Script `04_build_club_bootstrap_leaders.py` exists and filters on `bootstrap_eligible=1`; empty in DB today because no candidate is marked eligible (see item 2).
+4. **Legacy identity columns** on persons: add `legacy_user_id` and `legacy_email` to canonical persons CSV where mirror provides them. Claim flow needs all three keys.
+5. **Name variants table seed** (~290 pairs). Schema exists (`name_variants` in `database/schema.sql`; documented in DATA_MODEL §4.26 and MIGRATION_PLAN §12.16). Pipeline scripts already encode variant knowledge across `legacy_data/inputs/identity_lock/Person_Display_Names_v1.csv`, `legacy_data/overrides/person_aliases.csv`, and workbook builders (`pipeline/04B_create_community_excel.py`, `persons/scripts/05_build_persons_master.py`). Work: extract/curate the ~290 canonical pairs, add a loader script (analogous to `load_legacy_members_seed.py`) that inserts into `name_variants`, and wire it into `run_pipeline.sh complete`. Unblocks registration-time auto-link (root IP §Open production-rewrite item) and ongoing claim-time prompts (MIGRATION_PLAN §7).
+6. **World records CSV export**: 166 tricks in records data; no `out/records/` export in repo yet. Unblocks `/records`.
+7. **Persons count reconciliation**: canonical `persons.csv` has 3,366 rows; MIGRATION_PLAN §19/§2.1 say ~4,861. Reconcile.
+8. **Extend `legacy_data/CLAUDE.md`**: add sections for clubs, classification, bootstrap, records, variants, `docs/MIGRATION_PLAN.md` refs.
+9. **Integrate into `run_pipeline.sh complete`**: today `complete` stops at events/results/persons; extend to produce clubs (classified), bootstrap leaders, club-only persons, variants, records. `scripts/reset-local-db.sh` then collapses to a one-liner.
+10. **Data review sign-off**: confirm legacy data is complete and member-list presentation is reviewed.
+11. **Freestyle rules pages**: content for the four competition formats (Routine, Circle, Sick 3, Shred 30) — template(s) and route(s) for `/freestyle/rules` (single page with anchors, or per-format paths). Unblocks re-enabling the "Rules" buttons that were dropped from `/freestyle` landing competition-format cards.
+12. **Legacy-site data dump (legacy-site webmaster coordination)** — final source for `legacy_members`. Current population is from `legacy_data/scripts/load_legacy_members_seed.py` (mirror-derived, 2,507 rows, columns limited to PK + `display_name` + `import_source='mirror'`). The legacy-site dump supersedes with full profile fields (`real_name`, `legacy_email`, `legacy_user_id`, `country`, `city`, `region`, `bio`, `birth_date`, `ifpa_join_date`, `first_competition_year`, `is_hof`, `is_bap`, `legacy_is_admin`) and flips `import_source` to `'legacy_site_data'`. Outstanding coordination:
+    - **Namespace agreement.** The legacy-account export and mirror-derived IDs must use the same `legacy_member_id` namespace (same IDs for same real-world accounts). If they diverge, resolve before loading the export.
+    - **MIGRATION_PLAN §5 + §9.** The platform-side doc rewrites (imported rows live in `legacy_members`; claim marks rather than deletes the legacy record) depend on the final dump structure. Coordinate before rewrites land.
+    - **Test fixture support.** `tests/fixtures/factories.ts` already has a `legacy_members` factory and auto-creates stub rows on HP insert; additional richer fields in the legacy-account export may warrant factory extensions.
+
+---
+
+## Deliverables (remaining)
+
+- Expanded canonical `persons.csv` with club-only persons + `legacy_user_id` / `legacy_email`
+- `legacy_club_candidates` rows with `bootstrap_eligible` per §10.1
+- `club_bootstrap_leaders` rows for pre-populated clubs ≥0.70 confidence
+- Name variants seed file + schema
+- World records CSV in platform format
+- `run_pipeline.sh complete` as single soup-to-nuts entry point
+- Extended `legacy_data/CLAUDE.md`
+- Data review sign-off
+
+---
+
+## Low-priority: score_text pass-through from legacy HTML
+
+UI renders `score_text` per result row when present. Schema field exists (`event_result_entries.score_text`) but pipeline drops it; 1 of 26,210 entries has a value today. Legacy HTML has extractable data worth passing through:
+
+- **Consecutives / DDOP**: kick counts in parentheses after player names, e.g. "(826)". Clean, consistent format. Extract as "826 kicks". Present post-1996. Pre-1997 sources have placements only.
+- **Specific freestyle categories** (Sick 3, routine trick lists): trick names / short descriptions where source HTML is consistent.
+
+Skip generic point totals, judge scores, net rankings. Canonical CSV schema has `score_text` + `notes` (`event_results.csv`), both empty today. Mirror/curated adapters would populate. DB seed scripts already carry the field through. Not blocking.
+
+---
+
+## Next sprint
+
+- **Investigate FK-off in bulk reseed.** `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py:131` disables FK enforcement with `PRAGMA foreign_keys = OFF` during bulk delete-and-reload (re-enabled at line 534). Only migration script that does so. Determine whether load order can be reordered or cascade-delete applied so FK-on is preserved throughout; if operationally necessary, add an explanatory comment at the deviation site per doc-governance temp-shortcut rule (state: what, why, rollback pattern, re-enable location).
 
 ---
 
@@ -113,8 +158,8 @@ Document what is excluded (sparse events), what sources are used, and what
 
 ## Unblocks
 
-Completing the release checklist unblocks:
-- **Members ungating** (remove `requireAuth` from member-list routes)
-- **World records page** (requires world records CSV in platform format)
-- **Club bootstrap at cutover** (requires club pipeline output + leadership data)
-- **Legacy account claim at registration** (requires legacy member identity extraction)
+- Members ungating (requires data review sign-off)
+- World records page (requires records CSV)
+- Club bootstrap at cutover (requires classification + leader population)
+- Auto-link coverage for club-only members (requires expanded persons.csv)
+- Legacy account claim at registration (requires three-key coverage)

@@ -40,7 +40,7 @@ describe('GET /register/check-email — sandbox mode (SES_ADAPTER=live, SES_SAND
     const res = await request(app).get('/register/check-email');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Staging: SES sandbox');
-    expect(res.text).toContain('Ask Dave to be added');
+    expect(res.text).toContain('Contact the platform maintainer to be added');
     expect(res.text).not.toContain('@gmail.com');
     expect(res.text).not.toContain('mailto:');
     expect(res.text).not.toContain('@simulator.amazonses.com');

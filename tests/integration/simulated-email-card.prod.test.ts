@@ -3,8 +3,8 @@
  *
  * Simulates real prod: SES_ADAPTER=live + SES_SANDBOX_MODE=0. No card is
  * rendered (neither the dev table nor the staging warning). This is the
- * permanent contract for what end users see post-SES-production-cutover
- * (IMPLEMENTATION_PLAN.md line 35 unblock condition).
+ * permanent contract for what end users see once SES is out of sandbox
+ * and `SES_SANDBOX_MODE=0` is active.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

@@ -1,6 +1,7 @@
 /**
  * Integration tests for identityAccessService.lookupLegacyAccount and
- * claimLegacyAccount (three-table claim flow per DD §2.4).
+ * claimLegacyAccount (three-table claim flow: members + legacy_members +
+ * historical_persons; claim marks the legacy row, never deletes).
  *
  * Exercises the new methods directly without going through HTTP; controllers
  * are swapped to these in a later batch.

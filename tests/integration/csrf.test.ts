@@ -1,7 +1,7 @@
 /**
- * CSRF-related integration tests per DD §3.3.
+ * CSRF-related integration tests.
  *
- * DD §3.3 protects state-changing routes via two invariants:
+ * State-changing routes are protected by two invariants:
  *   1. All mutations are POST (no state change on GET).
  *   2. Session cookie carries SameSite=Lax, which browsers will not attach
  *      to cross-site POSTs — so an attacker page cannot ride the victim's

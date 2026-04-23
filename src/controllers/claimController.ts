@@ -93,7 +93,24 @@ export const claimController = {
     }
   },
 
-  /** POST /history/claim, look up a legacy record by identifier. */
+  /**
+   * POST /history/claim, look up a legacy record by identifier.
+   *
+   * Current flow is a direct-lookup early-test shortcut: no email
+   * verification, no token round-trip, no rate limiting, no name
+   * reconciliation guard, and revealing "no match" vs confirmation-
+   * page responses (fails the anti-enumeration invariant that
+   * lookup must return identical UX for found vs not-found).
+   *
+   * Target flow lives in `LegacyMigrationService` and delivers an
+   * email-verified claim token to the legacy email address, with
+   * per-account / per-target / per-IP rate limiting, name
+   * reconciliation, and identical-UX anti-enumeration responses.
+   * The token is consumed at `GET /history/claim/verify/:token`
+   * which runs the confirm + merge transaction.
+   *
+   * Must change before production cutover.
+   */
   postClaim(req: Request, res: Response, next: NextFunction): void {
     const identifier = req.body.identifier ?? '';
 

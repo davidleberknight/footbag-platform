@@ -1,5 +1,6 @@
 /**
- * Integration tests for legacy account claim routes (three-table design per DD §2.4).
+ * Integration tests for legacy account claim routes (three-table design:
+ * members + legacy_members + historical_persons; claim marks the legacy row).
  *
  * Covers:
  *   GET  /history/claim          — claim lookup form (auth required)

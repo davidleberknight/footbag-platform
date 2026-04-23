@@ -36,7 +36,7 @@
   - [6.15 Login](#615-login)
   - [6.16 Register](#616-register)
   - [6.17 Claim initiation](#617-claim-initiation)
-  - [6.18 Claim verification](#618-claim-verification)
+  - [6.18 Claim confirmation](#618-claim-confirmation)
   - [6.19 Legal](#619-legal)
 - [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
   - [7.1 Authorization boundary](#71-authorization-boundary)
@@ -49,7 +49,7 @@
 
 ## 1. Purpose
 
-**Current implementation status:** see `IMPLEMENTATION_PLAN.md`. This catalog defines the long-lived rendering standard and page contracts. The plan governs what is implemented now versus deferred, and it also governs accepted temporary deviations where the current slice intentionally differs from the target catalog. Contributors and AI assistants must not silently flatten disagreements between this catalog, `IMPLEMENTATION_PLAN.md`, and the code.
+**Before using this catalog, read `IMPLEMENTATION_PLAN.md` first.** This catalog defines the long-lived rendering standard and target page contracts; it does not track what is actually shipped. `IMPLEMENTATION_PLAN.md` is authoritative for current scope, in-progress work, and accepted temporary shortcuts the dev/staging environment runs with (early-test flows, deferred verifications, substitute adapters). When this catalog and `IMPLEMENTATION_PLAN.md` disagree, the plan wins for current-state questions; this catalog wins for target-design questions. Never silently reconcile them.
 
 This document is the authoritative catalog for the public pages that are already implemented or actively specified in the current slice, and for the rendering standard those cataloged pages must follow.
 
@@ -1451,7 +1451,6 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - claim form with a single identifier input field
 - explanatory text about what the claim flow does and what identifiers are accepted
 - non-revealing confirmation page after form submission ("If an eligible legacy record was found, a claim email will be sent.")
-- in non-production: the claim link is shown on-screen (email outbox deferred)
 
 ### Required view-model fields
 
@@ -1471,11 +1470,10 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 - `POST /history/claim` is the form-action handler, not a separate cataloged page
 - the claim-sent confirmation is rendered by the same route after successful POST (or as a redirect target)
-- claim email delivery is deferred; in non-production the claim link is displayed on-screen as an accepted deviation
 
 ---
 
-### 6.18 Claim confirmation (early-test shortcut)
+### 6.18 Claim confirmation
 
 ### Purpose
 
@@ -1523,10 +1521,6 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - member can claim at most one legacy record
 - merge is atomic: legacy fields transferred, placeholder soft-deleted (if imported_placeholder source), boolean flags use OR semantics, text fields use fill-if-empty semantics
 - after successful merge, redirect to own profile
-
-### Implementation notes
-
-- This is the early-test shortcut: direct lookup + confirm + merge. No email verification, no token round-trip, no rate limiting, no name reconciliation guard. The production token-based flow is deferred to Phase 4 (see `IMPLEMENTATION_PLAN.md`).
 
 ---
 

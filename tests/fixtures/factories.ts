@@ -131,7 +131,7 @@ export function createTestSessionJwt(opts: TestSessionJwtOpts): string {
   );
 }
 
-// ── Legacy member (three-table design per DD §2.4) ───────────────────────────
+// ── Legacy member (three-table design: members + legacy_members + historical_persons) ─
 //
 // Row in legacy_members table — the imported-legacy-account entity.
 // Returns the legacy_member_id (PK).

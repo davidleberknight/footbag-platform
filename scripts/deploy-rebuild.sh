@@ -199,11 +199,14 @@ require_path "service unit source" "$RELEASE_DIR/ops/systemd/footbag.service"
 require_path "compose file" "$RELEASE_DIR/docker/docker-compose.yml"
 require_path "compose prod file" "$RELEASE_DIR/docker/docker-compose.prod.yml"
 
-# Runtime AWS credential files must exist per DEV_ONBOARDING Path H §8.10 5a.
-# Without these, the app inside the container cannot assume the runtime role
-# and KMS Sign / SES Send will fail at request time.
-run_sudo test -f /root/.aws/credentials || { echo "Missing /root/.aws/credentials (see DEV_ONBOARDING Path H §8.10 5a)" >&2; exit 1; }
-run_sudo test -f /root/.aws/config       || { echo "Missing /root/.aws/config (see DEV_ONBOARDING Path H §8.10 5a)"       >&2; exit 1; }
+# Runtime AWS credential files must exist on the host for the source-profile +
+# AssumeRole chain. Without these, the app inside the container cannot assume
+# the runtime role and KMS Sign / SES Send will fail at request time.
+# Expected layout: /root/.aws/credentials holds the source-profile access keys
+# (root-owned, 0600); /root/.aws/config declares the source profile and the
+# role profile referenced by AWS_PROFILE.
+run_sudo test -f /root/.aws/credentials || { echo "Missing /root/.aws/credentials on the host" >&2; exit 1; }
+run_sudo test -f /root/.aws/config       || { echo "Missing /root/.aws/config on the host"       >&2; exit 1; }
 
 # One-shot migration: the DB layout switched from a file bind mount
 # (/srv/footbag/footbag.db) to a directory bind mount (/srv/footbag/db/...)

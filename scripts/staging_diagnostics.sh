@@ -215,7 +215,7 @@ cmd_ses_bounces() {
 
 cmd_kms_probe() {
   banner "KMS Sign probe (minimal payload against JWT_KMS_KEY_ID)"
-  compose exec -T web sh -c 'node -e "const {KMSClient,SignCommand}=require(\"@aws-sdk/client-kms\"); const c=new KMSClient({region:process.env.AWS_REGION}); c.send(new SignCommand({KeyId:process.env.JWT_KMS_KEY_ID,Message:Buffer.from(\"probe\"),SigningAlgorithm:\"RSASSA_PSS_SHA_256\"})).then(r=>console.log(\"ok kid=\"+r.KeyId)).catch(e=>console.error(\"KMS probe failed:\",e.name,e.message))"' || true
+  compose exec -T web sh -c 'node -e "const {KMSClient,SignCommand}=require(\"@aws-sdk/client-kms\"); const c=new KMSClient({region:process.env.AWS_REGION}); c.send(new SignCommand({KeyId:process.env.JWT_KMS_KEY_ID,Message:Buffer.from(\"probe\"),SigningAlgorithm:\"RSASSA_PKCS1_V1_5_SHA_256\"})).then(r=>console.log(\"ok kid=\"+r.KeyId)).catch(e=>console.error(\"KMS probe failed:\",e.name,e.message))"' || true
 }
 
 cmd_jwt_kid() {

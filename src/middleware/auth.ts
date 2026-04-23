@@ -3,6 +3,8 @@ import { auth as authDb } from '../db/db';
 import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
 
 export const SESSION_COOKIE_NAME = 'footbag_session';
+// Staging currently runs at 10 minutes for observability; target baseline
+// is 24h. Must revert before production cutover.
 export const SESSION_COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 
 export interface SessionUser {

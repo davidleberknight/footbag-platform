@@ -9,8 +9,8 @@
 //  - null:     SES_ADAPTER=live AND SES_SANDBOX_MODE=0. Real production:
 //              no card is rendered.
 //
-// Scrub safety: DD §5.4 requires outbox_emails.body_text to be NULLed
-// after send. That scrub runs on the DB row, not on the stub adapter's
+// Scrub safety: outbox_emails.body_text is NULLed after send for PII
+// hygiene. That scrub runs on the DB row, not on the stub adapter's
 // in-memory array, so the dev-mode card remains authoritative for the
 // original message content.
 

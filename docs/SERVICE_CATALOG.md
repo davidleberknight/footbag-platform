@@ -1,5 +1,5 @@
 # Footbag Website Modernization Project -- Service Catalog
-**Current implementation status:** This catalog describes the full long-term service model. For which services are implemented now, see `IMPLEMENTATION_PLAN.md`.
+This catalog is the target-design reference for the platform's service layer: method signatures, return shapes, persistence touchpoints, and service-boundary ownership. It describes the permanent design, not the active implementation. `IMPLEMENTATION_PLAN.md` is authoritative for current scope, in-progress work, and accepted temporary shortcuts where the active implementation intentionally differs from a target contract here. When this catalog and `IMPLEMENTATION_PLAN.md` disagree, the plan wins for current-state questions; this catalog wins for target-design questions. Never silently reconcile them.
 
 ---
 
@@ -42,7 +42,7 @@
 
 ## 1. Shared Conventions
 
-Current implementation status: see `IMPLEMENTATION_PLAN.md`. This catalog defines the long-lived service-ownership and service-contract standard for the services that are currently implemented or actively specified in the current slice.
+This catalog defines the long-lived service-ownership and service-contract standard.
 
 This document is authoritative for the service contracts it includes.
 
@@ -128,9 +128,9 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Primary tables:** `historical_persons`, `event_result_entry_participants`, supporting event/result reads
 
 **`MemberService`**
-- **Owns:** Current-slice member-account page shaping and own-account profile operations: own profile read, limited public HoF/BAP profile read, profile edit page shaping (includes inline avatar upload), and supported account stub pages
+- **Owns:** Member-account page shaping and own-account profile operations: own profile read, limited public HoF/BAP profile read, profile edit page shaping (includes inline avatar upload), and supported account stub pages
 - **Does NOT own:** Login/registration credential verification, broader member search, account-claim flow, or tier ledger calculation
-- **Primary tables:** `members`, profile/media-related reads and writes used by the current slice
+- **Primary tables:** `members`, profile/media-related reads and writes
 
 ---
 
@@ -195,9 +195,9 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Primary tables:** `votes`, `vote_options`, `vote_eligibility_snapshot`, `ballots`, `vote_results`, `hof_nominations`, `hof_affidavits`
 
 **`HallOfFameService`**
-- **Owns:** Current-slice HoF landing page read for `GET /hof`; future in-site HoF inductee display and historical record reads are deferred out of scope
+- **Owns:** HoF landing page read for `GET /hof`; in-site HoF inductee display and historical record reads
 - **Does NOT own:** HoF tier promotion or `is_hof` flag writes (MembershipTieringService), nomination/affidavit/election lifecycle (VotingElectionService)
-- **Primary tables:** none for current slice
+- **Primary tables:** none (read-only rollup view of HoF-flagged rows owned by other services)
 
 ---
 
@@ -469,7 +469,7 @@ For the current public routes, `EventService` is responsible for:
 - `getPublicEventsLandingPage(nowIso) -> { page, seo, content: { featuredPromo?, upcomingEvents, archiveYears } }` — page-oriented read method for `GET /events`; `featuredPromo` field shape is owned by `docs/VIEW_CATALOG.md` §6.8; may internally reuse lower-level list methods
 - `getPublicEventsYearPage(year) -> { page, seo, navigation: { siblings }, content: { year, events } }` — page-oriented read method for `GET /events/year/:year`; validates year input; returns the full non-paginated year-page view model; year page shows event summaries only — results are on the canonical event detail page; `navigation.siblings` carries typed previous/next year links when adjacent archive years exist
 - `getPublicEventPage(eventKey) -> { page, seo, navigation: { contextLinks }, content: { event, disciplines, hasResults, primarySection, resultSections } }` — page-oriented read method for `GET /events/:eventKey`; validates and normalizes the public key, enforces public-visible status rules, and returns a grouped page model for the canonical event page; `navigation.contextLinks` carries the typed "more events from {year}" link
-- Lower-level helper reads such as `listPublicUpcomingEvents`, `listPublicArchiveYears`, `listPublicCompletedEventsByYear`, `getPublicEventDetail`, and result-row readers may still exist internally, but controllers should consume page-oriented read methods for the current public slice
+- Lower-level helper reads such as `listPublicUpcomingEvents`, `listPublicArchiveYears`, `listPublicCompletedEventsByYear`, `getPublicEventDetail`, and result-row readers may exist internally, but controllers consume the page-oriented read methods
 
 **Historical imported people read boundary:**
 - `event_result_entry_participants.display_name` is the always-renderable participant label.
@@ -500,7 +500,7 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` `db.ts` may return flat ordered result rows; grouping and page/view shaping belong above `db.ts`
 - `[APP]` `hostClub` is route-facing display data sourced from `events.host_club_id -> clubs.name` when present and must not be inferred from `event_organizers`
 - `[APP]` when shaping public result rows, set `participantHref` via `personHref(participant_member_slug, participant_historical_person_id)` per DD §2.4 rule 2 (dispatches to `/members/{slug}` for claimed members, `/history/{personId}` otherwise, null if neither). Templates render a plain name when `participantHref` is null; no URL construction in templates.
-- `[APP]` Public year archives include the full completed public event list for the selected year and are not paginated in the current slice
+- `[APP]` Public year archives include the full completed public event list for the selected year and are not paginated
 - `[APP]` A year-page event has `hasResults = true` only when the event is publicly visible and at least one result row exists for that event; this flag may be used for visual treatment on the year page (e.g. a results indicator) but results are not rendered inline on the year page
 - `[APP]` If a historical event has no result rows yet, the canonical event page renders the event and includes an explicit no-results state; the year page shows the event summary regardless of result availability
 - `[APP]` The canonical public event page is one route and one template; render emphasis is expressed through page-model fields such as `primarySection`, not through alternate public URLs
@@ -671,7 +671,7 @@ For the current public routes, `EventService` is responsible for:
 - `adminOverrideTier(adminId, memberId, newTier, expiryDate, reason) -> {ok}` — `reason_code = 'admin.override'`, `change_type = 'grant'`; cannot reduce dues-paying member below Tier 1 Lifetime (`member_tier_current` purchase overlay would ignore it anyway, but reject early with a clear error); audit-logs; enqueues member notification
 - `grantHoFBAPStatus(adminId, memberId, badge, reason) -> {ok}` — sets `is_hof` or `is_bap`; unless already Tier 3: writes tier grant to Tier 2 Lifetime (`reason_code = 'admin.hof_bap_grant'`), updates `fallback_tier_status`; emits `member_honor` news item via NewsService; enqueues congratulatory email; audit-logs
 - `setBoardFlag(adminId, memberId, action, reason) -> {ok}` — `flag_set`: snapshot current paid tier in `new_fallback_tier_status` of the `board.flag_set` ledger row → write grant to Tier 3; `flag_removed`: **read `new_fallback_tier_status` from most recent `board.flag_set` ledger row** → write `board.flag_removed` grant reverting to that captured tier; emits `member_honor` news item via NewsService; audit-logs
-- `calculateTierStatus(memberId) -> {tierData}` — sole authoritative tier-read path; derives from `member_tier_current` (ledger-backed); never reads tier fields directly from `members`. This future-facing contract is intentionally retained even while broader membership-tier implementation remains outside the current slice.
+- `calculateTierStatus(memberId) -> {tierData}` — sole authoritative tier-read path; derives from `member_tier_current` (ledger-backed); never reads tier fields directly from `members`.
 - `adminManageRole(adminId, targetMemberId, action, reason) -> {ok}` — grant: target must be `tier2_lifetime` or `tier3` (APP-015); anti-lockout: last admin cannot be revoked (APP-015); updates `is_admin`; atomically updates admin-alerts mailing list subscription via CommunicationService (APP-015); audit-logs; enqueues email
 
 **Authz:** `applyAttendanceTier`, `applyVouchGrant` (Pathway A): Tier 2+ with active roster grant. `applyVouchGrant` (Pathway B approval), `adminOverrideTier`, `grantHoFBAPStatus`, `setBoardFlag`, `adminManageRole`: admin only. `calculateTierStatus`: any authenticated.
@@ -754,10 +754,10 @@ For the current public routes, `EventService` is responsible for:
 
 **Authz:** public (no login required)
 
-**Persistence Touchpoints:** none for current slice
+**Persistence Touchpoints:** none
 
 **Key Rules:**
-- `[APP]` This service is read-only and requires no DB queries for the current slice
+- `[APP]` This service is read-only and does not issue DB queries
 - `[APP]` Templates must not construct the standalone HoF URL; service provides the `content.externalLink` object
 
 **Async / Side Effects:** none
@@ -903,7 +903,7 @@ For the current public routes, `EventService` is responsible for:
 - `processSendQueue() -> {ok}` — called by `OperationsPlatformService.runEmailWorker()`; polls `outbox_emails`; skips if `email_outbox_paused = 1` (read from `system_config_current`); sends via SES; retries up to `outbox_max_retry_attempts`; dead-letters after max retries; updates `status`; scrubs plaintext receipt tokens from `body_text` after successful delivery (APP-019); logs to CloudWatch (template ID, member ID, outbox ID, timestamp, result — not raw email addresses)
 - `enqueueEmail(recipient, templateId, context, idempotencyKey) -> {outboxId}` — internal; writes `outbox_emails`; stable idempotency key prevents duplicate sends
 
-Future-scope methods (not implemented in the current slice; retained here as the target service contract for mailing lists, admin sends, bounce/complaint handling, and template management):
+Target service contract for mailing lists, admin sends, bounce/complaint handling, and template management:
 - `sendAnnounceEmail(memberId, subject, body) -> {ok}` — **Tier 2+ members only** (distinct from admin-only list sends); rate-limited; sends to configured `announce@footbag.org` address; archives in `email_archives` with `archive_type='announce'`, `sender_member_id`, `subject`, `body_text`, `sent_at`, `recipient_count=1`; audit-logs (actor ID, subject, timestamp)
 - `sendMailingListEmail(actorId, listSlug, subject, body) -> {ok}` — admin only (except announce list, handled by `sendAnnounceEmail`); enumerates `mailing_list_subscriptions`; applies subscription status filter; archives in `email_archives`; audit-logs; includes unsubscribe links
 - `createMailingList(adminId, input) -> {listId}` — admin; mailing list backed by `mailing_lists`
@@ -1011,7 +1011,7 @@ Future-scope methods (not implemented in the current slice; retained here as the
 **Key Rules:**
 - `[APP]` All background jobs read configuration from `system_config_current` at runtime — no hardcoded thresholds
 - `[APP]` All webhook handlers idempotent
-- `[APP]` Continuous backup success/failure is surfaced through logs, job-run history, and alarms; it does not change `/health/ready` in the current slice
+- `[APP]` Continuous backup success/failure is surfaced through logs, job-run history, and alarms, not through `/health/ready`
 - `[APP]` All SYS jobs write `system_job_runs` via `recordJobRun()` on every run for admin visibility
 - `[APP]` Tier expiry: Tier 2 Annual fallback to Tier 1 Lifetime must be atomic (no gap between tier states); atomicity enforced inside `MembershipTieringService.processExpiry()`
 - `[APP]` PII purge job has distinct member branches: soft-deleted accounts use `member_cleanup_grace_days`; deceased members use `deceased_cleanup_grace_days`; these are separate grace rules and must not be collapsed

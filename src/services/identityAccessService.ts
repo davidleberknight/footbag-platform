@@ -108,13 +108,6 @@ async function attemptLogin(
 }
 
 /**
- * Register a new member account.
- *
- * Validates input, hashes password, generates a unique slug, and inserts the
- * member row. Email is auto-verified in the current dev phase (real email
- * verification is a later-phase item).
- */
-/**
  * Extract the surname (last word) from a name after stripping common suffixes.
  * Exported so other services (e.g., historyService) can reuse the same rule.
  */

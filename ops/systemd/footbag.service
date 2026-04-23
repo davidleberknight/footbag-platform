@@ -7,8 +7,9 @@
 #          sudo systemctl enable footbag
 #          sudo systemctl start footbag
 #
-# See docs/DEV_ONBOARDING.md §4.7-4.8 for host bootstrap and first deploy.
-# See docs/DEVOPS_GUIDE.md §7 for the ongoing deployment runbook.
+# Runs the compose stack defined by docker/docker-compose.yml + prod overrides.
+# Host bootstrap (Docker CE install, /srv/footbag layout, /srv/footbag/env
+# creation) must be completed before enabling this unit.
 # =============================================================================
 
 [Unit]
@@ -26,7 +27,7 @@ RemainAfterExit=yes
 WorkingDirectory=/srv/footbag
 
 # Environment file provides PUBLIC_BASE_URL, FOOTBAG_DB_PATH, etc.
-# Created manually on the host — see section 4.7 step 3 in docs/DEV_ONBOARDING.md.
+# Created manually on the host during bootstrap (root-owned, 0600).
 EnvironmentFile=/srv/footbag/env
 
 # No registry yet — build images at deploy time with `docker compose build`.

@@ -323,9 +323,9 @@ describe('GET /events', () => {
   });
 
   // Upcoming-events region intentionally omitted from /events while only the
-  // featured promo (Worlds 2026) is highlighted. See IMPLEMENTATION_PLAN.md
-  // known deviation. The data path (eventService.listPublicUpcomingEvents)
-  // remains intact and is exercised via getPublicEventsLandingPage shape.
+  // featured promo (Worlds 2026) is highlighted. The data path
+  // (eventService.listPublicUpcomingEvents) remains intact and is exercised
+  // via getPublicEventsLandingPage shape.
   it('does not currently render the upcoming-events region', async () => {
     const app = createApp();
     const res = await request(app).get('/events');

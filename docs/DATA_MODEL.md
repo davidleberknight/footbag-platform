@@ -1,6 +1,5 @@
 # Footbag Website Modernization Project -- Data Model
 **Schema file:** `database/schema.sql`
-**Schema counts:** 54 tables · 9 views · 123 named indexes · 18 triggers
 
 ---
 
@@ -33,7 +32,6 @@
   - [4.12 Member Tier Grants](#412-member-tier-grants)
   - [4.13 Member Tier Current View](#413-member-tier-current-view)
   - [4.14 Members & Authentication](#414-members--authentication)
-  - [4.14a Member Slug Redirects](#414a-member-slug-redirects)
   - [4.14b Legacy Members](#414b-legacy-members)
   - [4.15 Member Links](#415-member-links)
   - [4.16 Registrations & Event Results](#416-registrations--event-results)
@@ -591,9 +589,9 @@ If the latest ledger row shows an annual tier (`tier1_annual` or `tier2_annual`)
 - `first_competition_year` (`INTEGER`, nullable): the member's first competition year. Editable on profile edit. Pre-populated from `historical_persons.first_year` during legacy claim via COALESCE (member value wins if already set). Shown as "Competing since {year}" on profile; leave blank to hide.
 - `show_competitive_results` (`INTEGER`, default 1): controls whether competition results appear on the member's public profile. Own-profile view always shows results to the owner regardless of toggle state.
 
-#### Slug lifecycle
+#### Display name and slug
 
-When `display_name` changes, the member's slug is regenerated and the old slug is recorded in `member_slug_redirects` (see §4.14a). Old slugs produce 301 redirects to the current slug. The `display_name` surname constraint (must share surname with `real_name`, suffix-stripped) is application-enforced on new registrations and profile edits only; imported placeholders are exempt.
+`display_name` and the derived slug are permanent post-registration. The `display_name` surname constraint (must share surname with `real_name`, suffix-stripped) is application-enforced at registration; imported placeholders are exempt.
 
 #### Stripe identity
 `stripe_customer_id` is the member-level canonical Stripe Customer ID (set when a recurring donation is first created). `payments.stripe_customer_id` is a per-payment snapshot and is **not** the canonical ID.
@@ -634,18 +632,6 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 **The member search endpoint MUST query this view.** It applies five exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, and unverified (`email_verified_at IS NULL`). The `email_verified_at IS NULL` condition is the primary mechanism preventing imported placeholder rows from appearing in search results; `searchable = 0` is defense-in-depth. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
 
 `searchable = 1` means the member is **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on public historical-person pages. Member search is authenticated Tier 0+, anti-enumeration, and never public.
-
-### 4.14a Member Slug Redirects
-
-**Table:** `member_slug_redirects`
-
-Stores old slugs after a member's display name (and therefore slug) changes. Enables 301 redirects from old profile URLs to the member's current slug.
-
-- `old_slug` (`TEXT`, PRIMARY KEY): the previous slug value.
-- `member_id` (`TEXT`, FK to `members(id)`, `ON DELETE CASCADE`): the member who owned this slug.
-- `created_at` (`TEXT`): timestamp when the slug was superseded.
-
-When a member is deleted, all their slug redirect rows are cascade-deleted.
 
 ### 4.14b Legacy Members
 
@@ -738,9 +724,9 @@ Possible row combinations (all legitimate):
 
 `event_result_entry_participants.historical_person_id` is the optional link to `historical_persons(person_id)` for imported historical identity when known.
 
-For public rendering in the current slice:
+For public rendering:
 - always render `display_name`
-- only expose a participant link when a supported historical-person-backed detail target exists
+- expose a participant link only when a supported historical-person-backed or member-backed detail target exists
 - otherwise render plain text
 
 #### Public-results clarification
@@ -895,7 +881,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `ballot_retention_days` | `2555` | Ballot retention window (~7 years) |
 | `audit_retention_days` | `2555` | Audit log retention window (~7 years) |
 | `reconciliation_expiry_days` | `90` | Resolved reconciliation issue TTL |
-| `email_sending_paused` | `0` | `1` = pause all outbound email |
+| `email_outbox_paused` | `0` | `1` = pause the transactional email outbox worker (DD §5.4) |
 | `tier_expiry_grace_days` | `0` | Grace days after `expires_at` before expiry job fires |
 | `event_registration_reminder_days` | `7` | Days before event start to send reminder |
 | `member_cleanup_grace_days` | `90` | Grace days after soft-delete before PII purge job runs |
@@ -914,6 +900,10 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `login_cooldown_minutes` | `30` | Lockout duration (minutes) after rate-limit threshold exceeded |
 | `password_reset_rate_limit_max_attempts` | `5` | Max password reset requests per email per window |
 | `password_reset_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting password reset requests |
+| `password_change_rate_limit_max_attempts` | `10` | Max authenticated password-change attempts per member per window |
+| `password_change_rate_limit_window_minutes` | `15` | Sliding window (minutes) for counting password-change attempts per member |
+| `verify_resend_rate_limit_max_attempts` | `3` | Max verify-email resend requests per email per window |
+| `verify_resend_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting verify-email resend requests |
 | `jwt_expiry_hours` | `24` | Session JWT lifetime (hours); governs archive access expiry |
 | `photo_upload_rate_limit_per_hour` | `10` | Max photo uploads per member per hour |
 | `video_submission_rate_limit_per_hour` | `5` | Max video link submissions per member per hour |

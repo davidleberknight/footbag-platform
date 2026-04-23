@@ -1,13 +1,6 @@
-# Footbag Website Modernization Project — DevOps Guide
-
-**Last updated:** March 16, 2026
+# Footbag Website Modernization Project -- DevOps Guide
 
 This file is the operator manual for the deployed platform. It assumes the solution architecture, functional requirements, and service boundaries are already defined elsewhere and intentionally does not repeat that material. It focuses on what a System Administrator must provision, secure, deploy, monitor, back up, restore, and maintain.
-
-Current implementation note (current deployed public baseline): this guide covers the long-term operating model, but the current deployed public baseline is narrower in three places that must not be lost:
-- `/health/ready` is currently only the minimal SQLite readiness check;
-- the initial database baseline comes from `schema.sql`, so the migration-chain runbooks here are post-baseline guidance rather than a bootstrap prerequisite;
-- Backup freshness, required-config breadth, and memory-pressure handling remain operational monitoring concerns for this stage rather than readiness gates.
 
 ## Table of Contents
 
@@ -124,10 +117,10 @@ Current implementation note (current deployed public baseline): this guide cover
   - [17.6 Lightsail constraints](#176-lightsail-constraints)
   - [17.7 Two-pass CloudFront bootstrap](#177-two-pass-cloudfront-bootstrap)
   - [17.8 Host bootstrap sequence](#178-host-bootstrap-sequence)
-  - [17.9 IAM identity model (current state)](#179-iam-identity-model-current-state)
+  - [17.9 IAM identity model](#179-iam-identity-model)
   - [17.10 S3 bucket inventory (staging)](#1710-s3-bucket-inventory-staging)
-  - [17.11 SSM Parameter Store (current state)](#1711-ssm-parameter-store-current-state)
-  - [17.12 Monitoring — current state](#1712-monitoring--current-state)
+  - [17.11 SSM Parameter Store](#1711-ssm-parameter-store)
+  - [17.12 Monitoring](#1712-monitoring)
   - [17.13 Subsequent deploy procedure](#1713-subsequent-deploy-procedure)
   - [17.14 Bootstrap confirmation checklist](#1714-bootstrap-confirmation-checklist)
 
@@ -288,7 +281,7 @@ After sign-in, confirm the Console region selector (top-right) is `US East (N. V
 
 The workload AWS principal must be a narrow and explicit runtime assumed role. Do not describe it as an EC2-style role attached to the Lightsail host. Operator SSH access to the host is a separate mechanism and must not be confused with the runtime principal.
 
-> **Current runtime credential model — none required.** The current public slice makes no runtime AWS API calls. The application reads `process.env` (sourced from `/srv/footbag/env`) and SQLite only. Do not add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or any AWS credential to `/srv/footbag/env` for the current slice. Do not mount the human operator CLI credentials into containers. The `app-runtime` IAM role created by `iam.tf` is deferred groundwork — it appears in `terraform state list` but is not active. Lightsail does not support EC2 instance profiles. The full source-profile + AssumeRole chain described in this section is the intended long-term model when the app begins making runtime AWS API calls (S3 backup writes, SES sends, etc.).
+Lightsail does not support EC2 instance profiles. The runtime AWS principal is a source-profile IAM user plus an AssumeRole chain to `app-runtime`: the source-profile access keys live at `/root/.aws/credentials` on the host (root-owned, 0600) and the app runs under `AWS_PROFILE=<env>-runtime` which resolves via `sts:AssumeRole`. Do not add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or any AWS credential to `/srv/footbag/env`. Do not mount the human operator CLI credentials into containers.
 
 | AWS service | Runtime access | Notes |
 |---|---|---|
@@ -381,7 +374,7 @@ Break-glass rules:
 
 1. Viewer traffic terminates at CloudFront.
 2. CloudFront serves cached static assets and forwards dynamic requests to the Lightsail origin.
-3. If the origin returns configured 5xx responses or is unreachable, CloudFront serves the maintenance page. *(Not yet functional: S3 OAC and `ordered_cache_behavior` for `/maintenance.html` are deferred to 1-F. See §8.3.)*
+3. If the origin returns configured 5xx responses or is unreachable, CloudFront serves the maintenance page.
 4. The origin runs nginx, which proxies to the Node.js web application.
 5. The worker container executes background jobs and operational tasks.
 6. Media is served from S3/CloudFront according to the configured media path.
@@ -391,12 +384,10 @@ Important limitation: browsing traffic gets the maintenance page during origin f
 ### 4.2 Networking and TLS
 
 - viewer TLS terminates at CloudFront
-- Route 53 points public DNS at the CloudFront distribution (deferred in staging; see note below)
+- Route 53 points public DNS at the CloudFront distribution when a real domain is attached
 - custom domains and certificates must be managed as infrastructure
 - origin exposure should be minimized; direct origin access is not the user-facing path
 - use WAF at CloudFront for basic managed-rule protection and IP-based emergency blocking when required
-
-> **Current deployment — custom domain deferred.** The initial staging deployment uses the CloudFront default `*.cloudfront.net` URL. Route 53, ACM certificate provisioning, and custom domain aliases are commented out in Terraform (`acm.tf`, `route53.tf`, `cloudfront.tf`). The full custom-domain path described here applies when a real domain is attached. See `terraform/staging/acm.tf` for the activation checklist.
 
 ### 4.3 S3 layout expectations
 
@@ -577,11 +568,11 @@ This is the direct operationalization of the older `SA_Rotate_Stripe_Keys` story
 - Tally operations use a separate privileged role with tightly scoped decrypt permission.
 - Key policy changes are infrastructure changes and require code review.
 
-### 5.7 Source-profile access-key rotation (runbook pending)
+### 5.7 Source-profile access-key rotation
 
-Access keys issued for the `footbag-staging-source-profile` IAM user (provisioned per DEV_ONBOARDING Path H, §8.7) are the long-lived AWS credentials on the staging host. The runtime role (`footbag-staging-app-runtime`) is assumed via `sts:AssumeRole` using these keys and is not itself rotated. CIS Benchmark calls for rotation at least every 90 days; current AWS IAM guidance prefers short-lived credentials overall and flags unused keys via last-accessed information. A full rotation runbook has not yet been authored in this guide and is tracked as pending work.
+Access keys issued for the `footbag-staging-source-profile` IAM user (provisioned per DEV_ONBOARDING Path H, §8.7) are the long-lived AWS credentials on the staging host. The runtime role (`footbag-staging-app-runtime`) is assumed via `sts:AssumeRole` using these keys and is not itself rotated. CIS Benchmark calls for rotation at least every 90 days; AWS IAM guidance prefers short-lived credentials overall and flags unused keys via last-accessed information.
 
-Mechanical skeleton (to be expanded into a full procedure, modeled on §5.5):
+Procedure (modeled on §5.5):
 
 **Never delete and recreate** the `footbag-staging-source-profile` IAM user to rotate credentials. AWS resolves the runtime role's trust policy to the source-profile user's internal unique ID at save time, not the ARN text; a recreated user with the same name produces a trust that looks correct in JSON but silently refuses `AssumeRole` until the trust policy is re-edited. Rotation is always "issue a second key under the existing user" (see DEV_ONBOARDING §8.9 step 4c for the principal-ARN pitfall).
 
@@ -695,7 +686,7 @@ For the initial blank-account bootstrap, apply in this sequence:
 8. CloudFront distribution
 9. public DNS records
 
-> **Current deployment — steps 3, 4, and 9 deferred.** Route 53 zone, ACM certificate, and public DNS records are not required when using the CloudFront default URL. The `terraform/shared/` module must be applied first to create the state bucket before applying `terraform/staging/`. See `DEV_ONBOARDING.md` §4.6 (Terraform staging apply) for the full bootstrap sequence.
+Steps 3, 4, and 9 apply only when a real domain is attached to the distribution; they are skipped when the CloudFront default `*.cloudfront.net` URL is in use. The `terraform/shared/` module must be applied first to create the state bucket before applying `terraform/staging/` or `terraform/production/`. See `DEV_ONBOARDING.md` §4.6 for the full bootstrap sequence.
 
 ### 6.4 Environment separation
 
@@ -862,8 +853,6 @@ Primary mechanism:
 
 This is the authoritative maintenance/outage experience for browsing traffic.
 
-> **Deferred — maintenance page is not functional.** The CloudFront distribution has no `ordered_cache_behavior` routing `/maintenance.html` to the S3 origin. The custom error response block exists in `cloudfront.tf`, but when the origin is down the error response will itself fail to load. The full fix requires an S3 cache behavior, an Origin Access Control (OAC), and an X-Origin-Verify header. This is a known reliability gap (accepted temporary deviation).
-
 ### 8.4 Planned maintenance
 
 Use a maintenance window for:
@@ -967,8 +956,6 @@ Common first checks:
 
 ### 10.2 Continuous database backup
 
-The continuous backup job is part of normal operations.
-
 Required behavior:
 
 - run every `continuous_backup_interval_minutes` minutes (default 5)
@@ -993,8 +980,6 @@ Required behavior:
 - raise alarms on failure
 
 ### 10.4 Media backup
-
-Media is backed up separately from the database.
 
 Required stance:
 
@@ -1411,7 +1396,7 @@ If SSH access fails:
 - old value removed
 - audit note recorded
 
-Per-secret runbooks: §5.5 (Stripe), §5.6 (JWT/KMS — pending full procedure; tracked in `IMPLEMENTATION_PLAN.md` drift notes), §5.7 (source-profile access keys — pending full procedure; tracked in `IMPLEMENTATION_PLAN.md`), §5.8 (`SESSION_SECRET`).
+Per-secret runbooks: §5.5 (Stripe), §5.6 (JWT/KMS), §5.7 (source-profile access keys), §5.8 (`SESSION_SECRET`).
 
 ### 16.3 Snapshot restore checklist
 
@@ -1646,8 +1631,8 @@ the CloudFront origin hostname from the static IP Terraform output using nip.io 
 or a real DNS A record (production). See §17.7.
 
 **No EC2 instance profiles:** Lightsail does not support EC2 instance profiles. The
-`app-runtime` IAM role created by `iam.tf` is deferred groundwork — it appears in
-`terraform state list` but is not yet active.
+runtime AWS principal is a source-profile IAM user plus an AssumeRole chain to the
+`app-runtime` role declared in `iam.tf`. See §3.4 for the workload IAM model.
 
 **No user_data bootstrap:** `user_data` is intentionally omitted from `lightsail.tf`. All
 host bootstrap (Docker CE install, `/srv/footbag` setup, systemd service) is performed
@@ -1717,18 +1702,16 @@ Wait for `Deployed` before testing through the edge.
 **CloudFront 5xx alarm:** Gated on `enable_cloudfront` (`count = var.enable_cloudfront ? 1 : 0`
 in `cloudwatch.tf`). Does not exist after pass 1. Created in pass 2 alongside the distribution.
 
-**Current CloudFront configuration:**
+**CloudFront configuration (staging):**
 
 | Item | Value |
 |------|-------|
-| Distribution | `E1SJIAXV0H24H2` — Terraform-managed, active on staging |
+| Distribution | `E1SJIAXV0H24H2` (Terraform-managed) |
 | Origin | `34.192.250.246.nip.io` (staging); real DNS A record for production |
-| Domain | `doye1nvv64qep.cloudfront.net` (custom domain deferred to 1-F) |
-| HTTPS | CloudFront default certificate (ACM cert deferred to 1-F) |
+| Domain | `doye1nvv64qep.cloudfront.net` (custom domain attaches when Route 53 + ACM are wired per §17.7) |
+| HTTPS | CloudFront default certificate (ACM cert attaches with the custom domain) |
 | Protocol forwarding | `CloudFront-Forwarded-Proto` whitelisted and mapped to `X-Forwarded-Proto` in nginx |
 | Cache behaviors | Default (all methods, `footbag_session` cookie, query strings), `/css/*` `/js/*` `/img/*` (long TTL), `/health/*` (pass-through) |
-| Maintenance mode | Not functional — S3 OAC and `ordered_cache_behavior` not yet implemented (deferred to 1-F) |
-| Origin bypass protection | Not implemented — `X-Origin-Verify` header deferred to 1-F |
 
 ---
 
@@ -1815,8 +1798,10 @@ sudo chmod 600 /srv/footbag/env
 
 Required values: `NODE_ENV`, `LOG_LEVEL`, `FOOTBAG_DB_PATH`, `FOOTBAG_DB_DIR`, `PUBLIC_BASE_URL`.
 
-**Do not add runtime AWS credentials.** The current slice makes no runtime AWS API calls.
-See §3.4 and §17.9 for the full runtime credential model.
+**Do not add runtime AWS credentials to `/srv/footbag/env`.** Runtime credentials live at
+`/root/.aws/credentials` under the source-profile IAM user; this file holds only
+`AWS_PROFILE` and other non-secret runtime config. See §3.4 and §17.9 for the full
+runtime credential model.
 
 #### Step 4 — Rsync application files (from local machine)
 
@@ -1878,18 +1863,19 @@ docker ps
 Expected:
 - `footbag.service` may show `active (exited)` — correct for `Type=oneshot` with `RemainAfterExit=yes`
 - nginx and web containers running
-- worker container in `Exited (0)` state — no jobs configured yet (accepted temporary deviation)
+- worker container runs the email outbox drain (`src/worker.ts`); short `Exited (0)` cycles between polls are normal
 - worker must not be restart-looping
 
 ---
 
-### 17.9 IAM identity model (current state)
+### 17.9 IAM identity model
 
-| Identity | Type | Permissions | Purpose | Shortcut? |
-|----------|------|-------------|---------|-----------|
-| Root user | AWS root | Unrestricted | Account recovery only | No — correct |
-| `footbag-operator` | IAM user | `AdministratorAccess` | Human operator — Terraform + CLI | Yes — scope down |
-| `app-runtime` | IAM role | Deferred groundwork | Future app runtime calls | N/A — not active |
+| Identity | Type | Permissions | Purpose |
+|----------|------|-------------|---------|
+| Root user | AWS root | Unrestricted | Account recovery only |
+| `footbag-operator` | IAM user | `AdministratorAccess` during bootstrap; scoped down after first deploy | Human operator (Terraform + CLI) |
+| `footbag-<env>-source-profile` | IAM user | `sts:AssumeRole` onto the runtime role only | Long-lived credential host for the AssumeRole chain |
+| `footbag-<env>-app-runtime` | IAM role | KMS Sign, SES Send, SSM read, S3 snapshot write | Runtime principal assumed by the app via the source-profile chain |
 
 **Scope down footbag-operator after first successful deploy:**
 
@@ -1922,13 +1908,13 @@ sudo passwd -l ec2-user
 | `footbag-staging-snapshots` | SQLite DB backups | `terraform/staging` |
 | `footbag-staging-dr` | Disaster recovery copies | `terraform/staging` |
 | `footbag-staging-maintenance` | Maintenance page HTML | `terraform/staging` |
-| `footbag-staging-media` | Media assets (deferred — not yet in use) | `terraform/staging` |
+| `footbag-staging-media` | Media assets (Phase 3+ media pipeline) | `terraform/staging` |
 
 All project buckets are created by Terraform with versioning and encryption enabled.
 
 ---
 
-### 17.11 SSM Parameter Store (current state)
+### 17.11 SSM Parameter Store
 
 Provisioned by `terraform/staging/ssm.tf` as reference storage:
 
@@ -1939,27 +1925,27 @@ Provisioned by `terraform/staging/ssm.tf` as reference storage:
 /footbag/staging/app/db_path
 ```
 
-Not yet provisioned (deferred):
+Additional keys used by later phases of the platform:
 ```
 /footbag/staging/app/node_env
 /footbag/staging/secrets/origin_verify_secret
 ```
 
-**The running app reads `/srv/footbag/env`, not SSM.** Lightsail does not support EC2 instance profiles, so the app cannot call SSM at runtime. Updating Parameter Store does not change the running app. Update `/srv/footbag/env` and restart the service to apply changes. When `origin_verify_secret` is implemented (1-F), the secret must go in `/srv/footbag/env` for nginx to use and optionally in SSM for reference.
+**The running app reads `/srv/footbag/env`, not SSM.** Updating Parameter Store does not change the running app. Update `/srv/footbag/env` and restart the service to apply changes. Operator-facing secrets that the app container or nginx consume live in `/srv/footbag/env`; SSM is reference-only unless a future host setup wires runtime SSM reads.
 
 ---
 
-### 17.12 Monitoring — current state
+### 17.12 Monitoring
 
-| Signal | Status | Notes |
-|--------|--------|-------|
-| CloudFront 5xx alarm | Created in pass 2 only | Gated on `enable_cloudfront` — does not exist until CloudFront distribution is created |
-| SNS email subscription | Created on first apply; must be confirmed | Check `alarm_email` inbox after apply and click the confirmation link |
-| CWAgent CPU/memory alarms | Disabled — `enable_cwagent_alarms = false` | Do not enable until CWAgent is installed and confirmed to be emitting metrics |
-| DB backup age alarm | Disabled — `enable_backup_alarm = false` | Do not enable until backup job exists and emits `BackupAgeMinutes` to `Footbag/{env}` CloudWatch namespace; uses `treat_missing_data = "breaching"` — enabling before the job exists fires the alarm continuously |
+| Signal | Gate | Rule |
+|--------|------|------|
+| CloudFront 5xx alarm | `enable_cloudfront` | Created only when the CloudFront distribution is created (two-pass bootstrap, §17.7) |
+| SNS email subscription | First apply | Confirm via the link sent to `alarm_email`; alarms do not deliver until confirmed |
+| CWAgent CPU/memory alarms | `enable_cwagent_alarms` | Enable only after CWAgent is installed and emitting metrics |
+| DB backup age alarm | `enable_backup_alarm` | Enable only after the backup producer emits `BackupAgeMinutes` to the `Footbag/{env}` CloudWatch namespace; uses `treat_missing_data = "breaching"`, so enabling before the producer exists fires continuously |
 
-Alarms for signals that do not exist are worse than no alarms — they train operators to
-ignore monitoring.
+Alarms for signals that do not exist are worse than no alarms, because they train
+operators to ignore monitoring.
 
 ---
 

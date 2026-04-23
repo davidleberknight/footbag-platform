@@ -128,6 +128,10 @@ export function createApp(): express.Application {
   // Prevents CloudFront (and other shared caches) from storing personalized
   // HTML. Without this, post-upload redirects serve cached HTML carrying
   // stale avatar version tokens, making new uploads appear to not take effect.
+  //
+  // Current implementation is at the app layer. Target is the AWS managed
+  // `CachingDisabled` CloudFront cache policy; this middleware is
+  // functionally equivalent until the CloudFront policy is wired up.
   app.use((req, res, next) => {
     if (req.isAuthenticated) {
       res.setHeader('Cache-Control', 'private, no-store');

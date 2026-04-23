@@ -120,9 +120,10 @@ describe('OperationsPlatformService.runEmailWorker', () => {
     expect(ms).toBe(30 * 1000);
   });
 
-  // Outbox worker per-email observability (USER_STORIES §SYS_Send_Email lines
-  // 2089-2092). PII allowlist: outboxId, memberId, deliveryResult, attemptCount,
-  // errorClass. Forbidden: recipientEmail, bodyText, subject, raw err.message.
+  // Outbox worker per-email observability.
+  // PII allowlist for log output: outboxId, memberId, deliveryResult,
+  // attemptCount, errorClass. Forbidden: recipientEmail, bodyText, subject,
+  // raw err.message.
   //
   // These assertions close the exact gap that made the first staging
   // registration impossible to diagnose without hand-reading the database.

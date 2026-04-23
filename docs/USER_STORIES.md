@@ -1955,7 +1955,7 @@ Seed these defaults into the database-backed configuration store during initial 
 
 - `outbox_max_retry_attempts = 5`
 - `outbox_poll_interval_seconds = 30 seconds`
-- `email_sending_paused = 0` (admin-only emergency kill switch; DB literal `0/1`)
+- `email_outbox_paused = 0` (admin-only emergency kill switch; DB literal `0/1`)
 - `event_registration_reminder_days = 7 days`
 
 ### Auth / Security Tokens

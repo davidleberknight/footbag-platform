@@ -1536,6 +1536,10 @@ CREATE TABLE members (
   -- Most recent Hall of Fame nomination year (nullable; application-managed).
   hof_last_nominated_year INTEGER,
   -- Hall of Fame induction year (nullable; set when is_hof becomes 1).
+  -- Named `hof_inducted_year` here (past participle: the member was inducted) and
+  -- `hof_induction_year` on `historical_persons` (noun form: the archival HP's
+  -- induction-year attribute). The merge in db.ts copies HP.hof_induction_year
+  -- onto members.hof_inducted_year at claim time. Intentional naming asymmetry.
   hof_inducted_year       INTEGER,
   is_bap      INTEGER NOT NULL DEFAULT 0 CHECK (is_bap      IN (0,1)),
   is_deceased INTEGER NOT NULL DEFAULT 0 CHECK (is_deceased IN (0,1)),
@@ -2271,7 +2275,7 @@ VALUES
 --   ballot_retention_days           Ballot retention window before policy cleanup allowed
 --   audit_retention_days            Audit log retention window
 --   reconciliation_expiry_days      Resolved reconciliation issue TTL
---   email_sending_paused            0=sending active, 1=paused (admin toggle)
+--   email_outbox_paused             0=outbox worker draining, 1=paused (admin toggle; DD §5.4)
 --   tier_expiry_grace_days          Grace days before tier-expiry job fires after expires_at
 --   event_registration_reminder_days Days before event start to send registration reminder
 --   member_cleanup_grace_days       Grace days after soft-delete before PII purge job runs
@@ -2291,6 +2295,10 @@ VALUES
 --   login_cooldown_minutes          Lockout duration (minutes) after rate-limit exceeded
 --   password_reset_rate_limit_max_attempts  Max password reset requests per window
 --   password_reset_rate_limit_window_minutes Window for password reset rate limiting
+--   password_change_rate_limit_max_attempts  Max authenticated password-change attempts per window
+--   password_change_rate_limit_window_minutes Window for password-change rate limiting
+--   verify_resend_rate_limit_max_attempts  Max verify-email resend requests per email per window
+--   verify_resend_rate_limit_window_minutes Window for verify-email resend rate limiting
 --   jwt_expiry_hours                Main site session JWT lifetime (hours)
 --   photo_upload_rate_limit_per_hour Max photo uploads per member per hour
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
@@ -2340,15 +2348,6 @@ VALUES
    'reconciliation_expiry_days', '90',
    '2000-01-01T00:00:00.000Z',
    'Resolved reconciliation issues expire after 90 days.',
-   NULL
-  ),
-
-  (
-   'seed-email-sending-paused',
-   '2000-01-01T00:00:00.000Z',
-   'email_sending_paused', '0',
-   '2000-01-01T00:00:00.000Z',
-   'Email sending active by default. Set to 1 to pause all outbound email.',
    NULL
   ),
 
@@ -2540,6 +2539,42 @@ VALUES
   ),
 
   (
+   'seed-password-change-rate-limit-max-attempts',
+   '2000-01-01T00:00:00.000Z',
+   'password_change_rate_limit_max_attempts', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Max authenticated password-change attempts per member per window (default: 10).',
+   NULL
+  ),
+
+  (
+   'seed-password-change-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'password_change_rate_limit_window_minutes', '15',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting password-change attempts per member (default: 15).',
+   NULL
+  ),
+
+  (
+   'seed-verify-resend-rate-limit-max-attempts',
+   '2000-01-01T00:00:00.000Z',
+   'verify_resend_rate_limit_max_attempts', '3',
+   '2000-01-01T00:00:00.000Z',
+   'Max verify-email resend requests per email per window before silent rate-limiting (default: 3).',
+   NULL
+  ),
+
+  (
+   'seed-verify-resend-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'verify_resend_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting verify-email resend requests per email (default: 60).',
+   NULL
+  ),
+
+  (
    'seed-jwt-expiry-hours',
    '2000-01-01T00:00:00.000Z',
    'jwt_expiry_hours', '24',
@@ -2648,7 +2683,7 @@ VALUES
   );
 
 -- =============================================================================
--- SECTION 25: LEGACY DATA MIGRATION TABLES
+-- SECTION 24: LEGACY DATA MIGRATION TABLES
 -- =============================================================================
 
 -- Permanent operational table: live club membership for members.
@@ -2991,7 +3026,7 @@ CREATE INDEX idx_consecutive_kicks_section
 -- =============================================================================
 
 -- Policy registry (populated by script 12, queried by service layer for disclaimers)
-CREATE TABLE IF NOT EXISTS net_stat_policy (
+CREATE TABLE net_stat_policy (
   evidence_class      TEXT PRIMARY KEY
     CHECK (evidence_class IN ('canonical_only','curated_enrichment','inferred_partial','unresolved_candidate')),
   display_label       TEXT NOT NULL,
@@ -3006,7 +3041,7 @@ CREATE TABLE IF NOT EXISTS net_stat_policy (
 -- SAFETY: conflict_flag=1 means this discipline matched multiple patterns ambiguously.
 -- These rows MUST be reviewed before their canonical_group is trusted.
 -- This table never overrides canonical event_disciplines data — it only annotates gaps.
-CREATE TABLE IF NOT EXISTS net_discipline_group (
+CREATE TABLE net_discipline_group (
   discipline_id   TEXT PRIMARY KEY REFERENCES event_disciplines(id),
   canonical_group TEXT NOT NULL,   -- open_doubles | mixed_doubles | womens_doubles |
                                    -- intermediate_doubles | novice_doubles | masters_doubles |
@@ -3020,8 +3055,8 @@ CREATE TABLE IF NOT EXISTS net_discipline_group (
   mapped_at       TEXT NOT NULL,
   mapped_by       TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_net_discipline_group_group    ON net_discipline_group(canonical_group);
-CREATE INDEX IF NOT EXISTS idx_net_discipline_group_conflict ON net_discipline_group(conflict_flag);
+CREATE INDEX idx_net_discipline_group_group    ON net_discipline_group(canonical_group);
+CREATE INDEX idx_net_discipline_group_conflict ON net_discipline_group(conflict_flag);
 
 -- Stable doubles team entity (sorted person_id pair)
 -- team_id = UUID5(NAMESPACE, f"{person_id_a}|{person_id_b}")
@@ -3029,7 +3064,7 @@ CREATE INDEX IF NOT EXISTS idx_net_discipline_group_conflict ON net_discipline_g
 -- person_id_a is always lexicographically < person_id_b  (CHECK enforced)
 -- NOTE: team_instance (same pair reforming after a multi-year gap) is NOT modeled here.
 --   If needed in a future phase, add a team_instance table referencing net_team.
-CREATE TABLE IF NOT EXISTS net_team (
+CREATE TABLE net_team (
   team_id          TEXT PRIMARY KEY,
   person_id_a      TEXT NOT NULL REFERENCES historical_persons(person_id),
   person_id_b      TEXT NOT NULL REFERENCES historical_persons(person_id),
@@ -3041,24 +3076,24 @@ CREATE TABLE IF NOT EXISTS net_team (
   CHECK (person_id_a < person_id_b),
   UNIQUE (person_id_a, person_id_b)
 );
-CREATE INDEX IF NOT EXISTS idx_net_team_person_a ON net_team(person_id_a);
-CREATE INDEX IF NOT EXISTS idx_net_team_person_b ON net_team(person_id_b);
+CREATE INDEX idx_net_team_person_a ON net_team(person_id_a);
+CREATE INDEX idx_net_team_person_b ON net_team(person_id_b);
 
 -- Explicit membership (2 rows per team; enables person→teams index)
-CREATE TABLE IF NOT EXISTS net_team_member (
+CREATE TABLE net_team_member (
   id        TEXT PRIMARY KEY,
   team_id   TEXT NOT NULL REFERENCES net_team(team_id),
   person_id TEXT NOT NULL REFERENCES historical_persons(person_id),
   position  TEXT NOT NULL CHECK (position IN ('a','b')),
   UNIQUE (team_id, person_id)
 );
-CREATE INDEX IF NOT EXISTS idx_net_team_member_person ON net_team_member(person_id);
-CREATE INDEX IF NOT EXISTS idx_net_team_member_team   ON net_team_member(team_id);
+CREATE INDEX idx_net_team_member_person ON net_team_member(person_id);
+CREATE INDEX idx_net_team_member_team   ON net_team_member(team_id);
 
 -- One row per (team × event_discipline); denormalized placement cache
 -- appearance_count on net_team = count(distinct event_id, discipline_id) across these rows.
 -- STATISTICS FIREWALL: query via net_team_appearance_canonical view, not this table directly.
-CREATE TABLE IF NOT EXISTS net_team_appearance (
+CREATE TABLE net_team_appearance (
   id              TEXT PRIMARY KEY,
   team_id         TEXT NOT NULL REFERENCES net_team(team_id),
   event_id        TEXT NOT NULL REFERENCES events(id),
@@ -3073,14 +3108,14 @@ CREATE TABLE IF NOT EXISTS net_team_appearance (
   UNIQUE (team_id, result_entry_id),
   UNIQUE (team_id, event_id, discipline_id)   -- prevents duplicate ingestion and malformed joins
 );
-CREATE INDEX IF NOT EXISTS idx_net_team_appearance_team  ON net_team_appearance(team_id);
-CREATE INDEX IF NOT EXISTS idx_net_team_appearance_event ON net_team_appearance(event_id);
-CREATE INDEX IF NOT EXISTS idx_net_team_appearance_year  ON net_team_appearance(event_year);
+CREATE INDEX idx_net_team_appearance_team  ON net_team_appearance(team_id);
+CREATE INDEX idx_net_team_appearance_event ON net_team_appearance(event_id);
+CREATE INDEX idx_net_team_appearance_year  ON net_team_appearance(event_year);
 
 -- Defensive view: enforces evidence_class = 'canonical_only' at the DB layer.
 -- db.ts queries MUST use this view instead of net_team_appearance directly.
 -- Protects against future dev mistakes and ad-hoc SQL bypassing the service layer.
-CREATE VIEW IF NOT EXISTS net_team_appearance_canonical AS
+CREATE VIEW net_team_appearance_canonical AS
   SELECT * FROM net_team_appearance WHERE evidence_class = 'canonical_only';
 
 -- net_relative_performance: DEFERRED. Not in phase 1.
@@ -3091,7 +3126,7 @@ CREATE VIEW IF NOT EXISTS net_team_appearance_canonical AS
 -- QC items and quarantined events for manual review
 -- priority: 1=critical data conflict, 2=discipline ambiguity,
 --           3=structural issue, 4=low-priority cleanup
-CREATE TABLE IF NOT EXISTS net_review_queue (
+CREATE TABLE net_review_queue (
   id                TEXT PRIMARY KEY,
   source_file       TEXT NOT NULL,
   item_type         TEXT NOT NULL CHECK (item_type IN ('quarantine_event','qc_issue')),
@@ -3125,14 +3160,14 @@ CREATE TABLE IF NOT EXISTS net_review_queue (
   classified_by             TEXT,
   classified_at             TEXT   -- ISO-8601 timestamp
 );
-CREATE INDEX IF NOT EXISTS idx_net_review_event          ON net_review_queue(event_id);
-CREATE INDEX IF NOT EXISTS idx_net_review_status         ON net_review_queue(resolution_status);
-CREATE INDEX IF NOT EXISTS idx_net_review_priority       ON net_review_queue(priority);
-CREATE INDEX IF NOT EXISTS idx_net_review_classification ON net_review_queue(classification);
-CREATE INDEX IF NOT EXISTS idx_net_review_decision       ON net_review_queue(decision_status);
+CREATE INDEX idx_net_review_event          ON net_review_queue(event_id);
+CREATE INDEX idx_net_review_status         ON net_review_queue(resolution_status);
+CREATE INDEX idx_net_review_priority       ON net_review_queue(priority);
+CREATE INDEX idx_net_review_classification ON net_review_queue(classification);
+CREATE INDEX idx_net_review_decision       ON net_review_queue(decision_status);
 
 -- Phase 2 stub: raw text fragments from unstructured sources (OLD_RESULTS.txt etc.)
-CREATE TABLE IF NOT EXISTS net_raw_fragment (
+CREATE TABLE net_raw_fragment (
   id             TEXT PRIMARY KEY,
   source_file    TEXT NOT NULL,
   source_line    INTEGER,
@@ -3152,7 +3187,7 @@ CREATE TABLE IF NOT EXISTS net_raw_fragment (
 -- Extraction guard: a candidate is only inserted when BOTH conditions hold:
 --   1. Two distinct player/team names detected in the fragment
 --   2. A numeric score OR explicit win/loss verb (defeated, def., bt, beat, lost to) present
-CREATE TABLE IF NOT EXISTS net_candidate_match (
+CREATE TABLE net_candidate_match (
   candidate_id         TEXT PRIMARY KEY,
   fragment_id          TEXT REFERENCES net_raw_fragment(id),
   event_id             TEXT,                        -- nullable: linked after disambiguation
@@ -3172,8 +3207,8 @@ CREATE TABLE IF NOT EXISTS net_candidate_match (
     CHECK (review_status IN ('pending','accepted','rejected','needs_info')),
   imported_at          TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_net_candidate_event  ON net_candidate_match(event_id);
-CREATE INDEX IF NOT EXISTS idx_net_candidate_status ON net_candidate_match(review_status);
+CREATE INDEX idx_net_candidate_event  ON net_candidate_match(event_id);
+CREATE INDEX idx_net_candidate_status ON net_candidate_match(review_status);
 
 -- Promoted / rejected candidates — full audit trail of curator decisions.
 -- evidence_class is always 'curated_enrichment'.
@@ -3181,7 +3216,7 @@ CREATE INDEX IF NOT EXISTS idx_net_candidate_status ON net_candidate_match(revie
 -- Both approvals and rejections are stored; curated_status distinguishes them.
 -- Key fields from the candidate are snapshotted here for audit continuity
 -- even if the source candidate row is later modified.
-CREATE TABLE IF NOT EXISTS net_curated_match (
+CREATE TABLE net_curated_match (
   curated_id          TEXT PRIMARY KEY,
   candidate_id        TEXT NOT NULL REFERENCES net_candidate_match(candidate_id),
   curated_status      TEXT NOT NULL
@@ -3199,8 +3234,8 @@ CREATE TABLE IF NOT EXISTS net_curated_match (
   curated_by          TEXT NOT NULL,
   UNIQUE (candidate_id)
 );
-CREATE INDEX IF NOT EXISTS idx_net_curated_candidate ON net_curated_match(candidate_id);
-CREATE INDEX IF NOT EXISTS idx_net_curated_status    ON net_curated_match(curated_status);
+CREATE INDEX idx_net_curated_candidate ON net_curated_match(candidate_id);
+CREATE INDEX idx_net_curated_status    ON net_curated_match(curated_status);
 
 -- =============================================================================
 -- FREESTYLE TRICK DICTIONARY
@@ -3209,7 +3244,7 @@ CREATE INDEX IF NOT EXISTS idx_net_curated_status    ON net_curated_match(curate
 -- Keyed on slug (lowercase-hyphenated canonical name); separate from freestyle_records.
 -- =============================================================================
 
-CREATE TABLE IF NOT EXISTS freestyle_tricks (
+CREATE TABLE freestyle_tricks (
   slug            TEXT PRIMARY KEY,                -- e.g. 'blurry-whirl'
   canonical_name  TEXT NOT NULL,                   -- e.g. 'blurry whirl'
   adds            TEXT,                            -- numeric ADD value or 'modifier'
@@ -3227,17 +3262,17 @@ CREATE TABLE IF NOT EXISTS freestyle_tricks (
   updated_at      TEXT                             -- v2.1: populated by loaders on row update; nullable on first insert
 );
 
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_category      ON freestyle_tricks(category);
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_adds          ON freestyle_tricks(adds);
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_family        ON freestyle_tricks(trick_family);
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_is_active     ON freestyle_tricks(is_active);
-CREATE INDEX IF NOT EXISTS idx_freestyle_tricks_review_status ON freestyle_tricks(review_status);
+CREATE INDEX idx_freestyle_tricks_category      ON freestyle_tricks(category);
+CREATE INDEX idx_freestyle_tricks_adds          ON freestyle_tricks(adds);
+CREATE INDEX idx_freestyle_tricks_family        ON freestyle_tricks(trick_family);
+CREATE INDEX idx_freestyle_tricks_is_active     ON freestyle_tricks(is_active);
+CREATE INDEX idx_freestyle_tricks_review_status ON freestyle_tricks(review_status);
 
 -- Modifier reference table — loaded from trick_modifiers.csv (21 rows).
 -- Each modifier applies a flat ADD bonus to any base trick,
 -- with a higher bonus when the base is rotational (blurry, spinning, swirling).
 -- NOT a duplicate of freestyle_tricks modifier rows — this table carries the ADD rules.
-CREATE TABLE IF NOT EXISTS freestyle_trick_modifiers (
+CREATE TABLE freestyle_trick_modifiers (
   slug                  TEXT PRIMARY KEY,          -- e.g. 'blurry'
   modifier_name         TEXT NOT NULL,             -- e.g. 'blurry'
   add_bonus             INTEGER NOT NULL,          -- ADD added to non-rotational base tricks
@@ -3257,7 +3292,7 @@ CREATE TABLE IF NOT EXISTS freestyle_trick_modifiers (
 --   'curated-v1'              — original tricks.csv
 --   'red-husted-2026-04-20'   — domain expert review email
 --   'footbag-org-2026-04'     — scraped from footbag.org/newmoves/list
-CREATE TABLE IF NOT EXISTS freestyle_trick_sources (
+CREATE TABLE freestyle_trick_sources (
   id            TEXT PRIMARY KEY,
   source_type   TEXT NOT NULL,                     -- 'curated' | 'scraped' | 'expert' | 'imported' (no CHECK)
   source_label  TEXT NOT NULL,                     -- human description
@@ -3271,7 +3306,7 @@ CREATE TABLE IF NOT EXISTS freestyle_trick_sources (
 -- is authoritative; this table preserves the disagreement for QC and audit.
 -- The QC script pipeline/qc/check_trick_source_disagreements.py emits a CSV
 -- of all rows where asserted_* differs from canonical.
-CREATE TABLE IF NOT EXISTS freestyle_trick_source_links (
+CREATE TABLE freestyle_trick_source_links (
   trick_slug         TEXT NOT NULL REFERENCES freestyle_tricks(slug),
   source_id          TEXT NOT NULL REFERENCES freestyle_trick_sources(id),
   external_ref       TEXT,                         -- e.g. footbag.org showmove_id, magazine page
@@ -3282,7 +3317,7 @@ CREATE TABLE IF NOT EXISTS freestyle_trick_source_links (
   notes              TEXT,
   PRIMARY KEY (trick_slug, source_id)
 );
-CREATE INDEX IF NOT EXISTS idx_freestyle_trick_source_links_source ON freestyle_trick_source_links(source_id);
+CREATE INDEX idx_freestyle_trick_source_links_source ON freestyle_trick_source_links(source_id);
 
 -- v2.1: First-class alias table. Replaces the aliases_json column on
 -- freestyle_tricks (the column is retained during migration for backwards
@@ -3291,7 +3326,7 @@ CREATE INDEX IF NOT EXISTS idx_freestyle_trick_source_links_source ON freestyle_
 --   'abbreviation'  — short form (BW, p-whirl)
 --   'historical'    — renamed-from name (toe blur → quantum)
 --   'notation'      — notation-form alias (XBD/B)
-CREATE TABLE IF NOT EXISTS freestyle_trick_aliases (
+CREATE TABLE freestyle_trick_aliases (
   alias_slug   TEXT PRIMARY KEY,                   -- normalized alias key, e.g. 'bw'
   alias_text   TEXT NOT NULL,                      -- display form, e.g. 'BW'
   trick_slug   TEXT NOT NULL REFERENCES freestyle_tricks(slug),
@@ -3300,7 +3335,7 @@ CREATE TABLE IF NOT EXISTS freestyle_trick_aliases (
   notes        TEXT,
   created_at   TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_freestyle_trick_aliases_trick ON freestyle_trick_aliases(trick_slug);
+CREATE INDEX idx_freestyle_trick_aliases_trick ON freestyle_trick_aliases(trick_slug);
 
 -- v2.1: Composition links — which modifiers are baked into a trick's canonical
 -- form. Example: 'spinning paradox mirage' → mirage (base) + paradox (order=1)
@@ -3308,13 +3343,13 @@ CREATE INDEX IF NOT EXISTS idx_freestyle_trick_aliases_trick ON freestyle_trick_
 -- ordered. ADD math validation against these links is DEFERRED — the loader
 -- populates them but does not yet enforce sum(modifier bonuses) + base.adds
 -- == trick.adds.
-CREATE TABLE IF NOT EXISTS freestyle_trick_modifier_links (
+CREATE TABLE freestyle_trick_modifier_links (
   trick_slug    TEXT NOT NULL REFERENCES freestyle_tricks(slug),
   modifier_slug TEXT NOT NULL REFERENCES freestyle_trick_modifiers(slug),
   apply_order   INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (trick_slug, modifier_slug, apply_order)
 );
-CREATE INDEX IF NOT EXISTS idx_freestyle_trick_modifier_links_modifier ON freestyle_trick_modifier_links(modifier_slug);
+CREATE INDEX idx_freestyle_trick_modifier_links_modifier ON freestyle_trick_modifier_links(modifier_slug);
 
 -- v2.1: Trick-to-trick relations distinct from base/family/aliases. Used when
 -- two distinct canonical entries refer to the same physical trick OR carry
@@ -3323,7 +3358,7 @@ CREATE INDEX IF NOT EXISTS idx_freestyle_trick_modifier_links_modifier ON freest
 --   'renamed_from'   — newer name supersedes older (Quantum ← Toe Blur)
 --   'variant_of'     — minor execution variant
 --   'derivative_of'  — non-base derivation that doesn't fit base_trick
-CREATE TABLE IF NOT EXISTS freestyle_trick_relations (
+CREATE TABLE freestyle_trick_relations (
   from_trick_slug  TEXT NOT NULL REFERENCES freestyle_tricks(slug),
   to_trick_slug    TEXT NOT NULL REFERENCES freestyle_tricks(slug),
   relation_type    TEXT NOT NULL,                  -- 'equivalent_to' | 'renamed_from' | 'variant_of' | 'derivative_of' (no CHECK)
@@ -3331,12 +3366,12 @@ CREATE TABLE IF NOT EXISTS freestyle_trick_relations (
   created_at       TEXT NOT NULL,
   PRIMARY KEY (from_trick_slug, to_trick_slug, relation_type)
 );
-CREATE INDEX IF NOT EXISTS idx_freestyle_trick_relations_to ON freestyle_trick_relations(to_trick_slug);
+CREATE INDEX idx_freestyle_trick_relations_to ON freestyle_trick_relations(to_trick_slug);
 
 -- Recovery alias candidates — operator-reviewed identity recovery workflow.
 -- Populated from recovery signal analysis; operator marks approve/reject/defer.
 -- Approved rows are exported to overrides/person_aliases.csv via pipeline script.
-CREATE TABLE IF NOT EXISTS net_recovery_alias_candidate (
+CREATE TABLE net_recovery_alias_candidate (
   id                    TEXT PRIMARY KEY,
   stub_name             TEXT NOT NULL,
   stub_person_id        TEXT NOT NULL,
@@ -3351,12 +3386,12 @@ CREATE TABLE IF NOT EXISTS net_recovery_alias_candidate (
   reviewed_at           TEXT,              -- ISO-8601 timestamp
   created_at            TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_net_recovery_decision ON net_recovery_alias_candidate(operator_decision);
+CREATE INDEX idx_net_recovery_decision ON net_recovery_alias_candidate(operator_decision);
 
 -- Team correction candidates — operator-reviewed anomaly fixes.
 -- Populated from anomaly worklist; operator marks approve/reject/defer.
 -- Approved rows are exported to inputs/team_corrections.csv via pipeline script.
-CREATE TABLE IF NOT EXISTS net_team_correction_candidate (
+CREATE TABLE net_team_correction_candidate (
   id                  TEXT PRIMARY KEY,
   event_key           TEXT NOT NULL,
   discipline_key      TEXT NOT NULL,
@@ -3372,7 +3407,7 @@ CREATE TABLE IF NOT EXISTS net_team_correction_candidate (
   created_at          TEXT NOT NULL,
   UNIQUE(event_key, discipline_key, placement)
 );
-CREATE INDEX IF NOT EXISTS idx_net_tc_decision ON net_team_correction_candidate(decision);
+CREATE INDEX idx_net_tc_decision ON net_team_correction_candidate(decision);
 
 -- =============================================================================
 -- END OF SCHEMA v0.1

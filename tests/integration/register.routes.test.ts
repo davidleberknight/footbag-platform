@@ -110,8 +110,8 @@ describe('POST /register', () => {
     // The registered branch MUST insert a members row AND enqueue an
     // outbox_emails row. Anti-enumeration keeps the HTTP response identical
     // to silent_duplicate, so DB state is the only signal that the write
-    // path actually ran. USER_STORIES §V_Register_Account line 472: "System
-    // sends verification email" on successful registration.
+    // path actually ran. Successful registration must enqueue a verification
+    // email to the new member.
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     const member = db.prepare(
       `SELECT id, slug, login_email_normalized, display_name_normalized,
@@ -148,8 +148,8 @@ describe('POST /register', () => {
 
     // Snapshot counts *before* the POST. Prior it-blocks may have created
     // rows; we assert ONLY that the duplicate POST added nothing.
-    // USER_STORIES §V_Register_Account line 530: "no new verification
-    // email is sent" when the address is already registered.
+    // When the submitted address is already registered, no new member row
+    // is created and no new verification email is enqueued.
     const countBefore = (() => {
       const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
       const m = db.prepare(`SELECT COUNT(*) AS n FROM members`).get() as { n: number };

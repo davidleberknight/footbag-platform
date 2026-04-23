@@ -436,7 +436,7 @@ The platform uses catalog-governed architecture for page rendering and service o
 
 - `docs/VIEW_CATALOG.md` is the normative source for reusable public rendering primitives, page contracts, and page-specific view-model requirements.
 - `docs/SERVICE_CATALOG.md` is the normative source for service ownership, service boundaries, service method contracts, and service-level route-interpretation responsibility.
-- `IMPLEMENTATION_PLAN.md` is the normative source for current-slice implementation status, accepted temporary deviations, and intentionally deferred work.
+- `IMPLEMENTATION_PLAN.md` is the normative source for current implementation status, accepted temporary deviations, and intentionally deferred work.
 
 Controllers remain thin HTTP adapters. Templates remain logic-light rendering surfaces. Page shaping, route-domain interpretation, and page-specific read-model assembly belong in services or page-model builders owned by the service layer.
 
@@ -2060,7 +2060,7 @@ Decision:
 
 Local development uses Docker and docker compose to start the stack (web app, worker, test stubs) with a single command.
 
-The minimum required Docker artifact for the current deployment is:
+The minimum required Docker artifact set is:
 - `docker/web/Dockerfile`
 - `docker/worker/Dockerfile`
 - `docker/nginx/nginx.conf`
@@ -2072,7 +2072,7 @@ The minimum required runtime containers are:
 - `nginx`
 - `web`
 - `worker`
-(The `image` container remains a later-phase artifact and is not required for the current public slice.)
+- `image`
 
 Rationale:
 

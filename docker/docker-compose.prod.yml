@@ -12,6 +12,12 @@
 #   - Secrets and config injected from host environment / SSM at deploy time
 # =============================================================================
 
+# Logging (pending): no service below declares a `logging` block, so container
+# stdout/stderr defaults to Docker's unbounded json-file driver and grows
+# without rotation on the Lightsail host. Target: `logging: driver: json-file,
+# options: { max-size: "10m", max-file: "3" }` per service. Must add before
+# production cutover (disk-fill risk, especially as worker poll tightens).
+
 services:
 
   nginx:
@@ -32,7 +38,8 @@ services:
       # Media uploads (avatars, photos). Persisted on host across deploys.
       - ${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}:/app/data/media:rw
       # AWS config/credentials for the source-profile -> assumed-role chain.
-      # Root-owned on the host (0600); mounted read-only. See Path H §8.10.
+      # Root-owned on the host (0600); mounted read-only. Runtime reads
+      # AWS_PROFILE from the environment and resolves it via sts:AssumeRole.
       - /root/.aws:/root/.aws:ro
     environment:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
@@ -59,8 +66,9 @@ services:
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ${FOOTBAG_DB_DIR:-/srv/footbag/db}:/app/db:rw
-      # AWS config/credentials for the email-outbox worker (activates in the
-      # auth-hardening sprint Phase 8). Matches the web-service mount above.
+      # AWS config/credentials for the email-outbox worker: read-only
+      # source-profile keys at /root/.aws plus the AssumeRole chain to the
+      # runtime role. Matches the web-service mount above.
       - /root/.aws:/root/.aws:ro
     environment:
       PORT: "3000"

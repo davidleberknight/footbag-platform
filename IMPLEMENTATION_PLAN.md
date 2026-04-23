@@ -6,36 +6,29 @@ Current-slice tracker and scope governor. Source of truth for active sprint stat
 
 ### Parallel tracks (current sprint)
 
-Three developers work in parallel. **AI assistants: read only the track section matching the active developer; other tracks are out-of-scope noise.** Identify the developer from the git user, the prompt, or by asking.
+Two developers work in parallel. **AI assistants: read only the track section matching the active developer; other tracks are out-of-scope noise.** Identify the developer from the git user, the prompt, or by asking.
 
 | Dev | Handle | Track | Section |
 |---|---|---|---|
-| Dave | (primary maintainer) | Tier 2 hardening + pre-cutover (CloudWatch, backup, audit logging, catalog audit) | "Sprint: Tier 2 hardening + pre-cutover checklist" |
-| James | JamesLeberknight | Historical pipeline completion (data import / legacy migration) | "James's sprint" |
-| John | guruJBC | Look-and-feel enhancements (visual / design polish) | "John's track" |
+| Dave | (primary maintainer) | Tier 2 hardening (CloudWatch, backup, audit logging, catalog audit) | "Sprint: Tier 2 hardening" |
+| James | JamesLeberknight | Historical pipeline completion (data import / legacy migration) | "James's track" (routing only; detail in `legacy_data/IMPLEMENTATION_PLAN.md`) |
 
 Cross-track changes require explicit human coordination.
 
-### Sprint: Tier 2 hardening + pre-cutover checklist
+### Sprint: Tier 2 hardening
 
-**Pre-prod cutover checklist (deferred, do not start):**
-
-1. JWT TTL revert: `exp` + session-cookie `maxAge` from staging 10min back to 24h baseline. `src/services/jwtService.ts DEFAULT_TTL_SECONDS`, `src/middleware/auth.ts SESSION_COOKIE_MAX_AGE_MS`. DD §3.5.
-2. SES sender cutover to `noreply@footbag.org`: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical address, update `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` policy `Resource` ARN to the canonical identity, restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
-3. SES sandbox-mode flip: once the SES production-access ticket is approved (see post-auth-hardening carryover below), set `SES_SANDBOX_MODE=0` in `/srv/footbag/env` or remove the line, then restart. Clears the staging-warning card on email-gated pages (DD §5.6). Env only, no code.
-4. `terraform apply` from `terraform/staging/` to restore tight port-22 rule (Path H §8.10 browser-SSH override loosened beyond `operator_cidrs`).
+Pre-cutover revert / rotation / scrub checklist lives in `docs/MIGRATION_PLAN.md` §28.8 (permanent gate; 7 items). Do not duplicate here.
 
 **Staging wiring readiness probe:** long-term test `tests/smoke/staging-readiness.test.ts` (run via `npm run test:smoke`, gated behind `RUN_STAGING_SMOKE=1`, excluded from default `npm test`) asserts the permanent contract that staging runtime identity reaches AWS and KMS/SES calls succeed. Operator runs it from the Lightsail host or a workstation with the staging profile on every subsequent staging AWS wiring change (blocked on host-Node install below).
 
 **In scope (review tasks first, then build):**
 
-- **Catalog completeness audit** (M). `docs/VIEW_CATALOG.md` + `docs/SERVICE_CATALOG.md` invariant sweep: `PageViewModel<TContent>` contract, thin-controller discipline, db.ts purity, service-owned URL construction, adapter pattern, file-naming conventions (`<domain>Service.ts`, `<domain>Controller.ts`, `<PageName>Content`, `<Entity>ViewModel`), error-class naming (`<Kind>Error`), shared shaping helpers (`personHref`, `shapePartnershipPair`, `shapeFreestyleRecord`, `groupPlayerResults`), HTTP helpers (`issueSessionCookie`, `handleControllerError`), Handlebars helpers, cross-catalog consistency.
-- **QC code separation audit** (M). Before go-live, confirm QC internal code is 100% separated from public release per `PIPELINE_QC.md`. Mixed files: `src/services/netService.ts` (~38% public / 62% QC), `src/controllers/netController.ts`, `src/views/net/` (target split: `src/views/internal-qc/net/`), `src/db/db.ts` QC-only statement groups (`netReview`, `netCandidates`, `netCurated`, `netCuratedBrowse`, `netRecoverySignals`, `netRecoveryCandidates`, `netReviewSummary`, `netTeamCorrectionApproval`, `personsQc`), `database/schema.sql` QC-only tables (`net_raw_fragment`, `net_candidate_match`, `net_curated_match`, `net_recovery_alias_candidate`, `net_review_queue`). 100% QC files: `personsService.ts`, `personsQcChecks.ts`, `personsController.ts`, `src/views/persons/`. Sweep public templates for pipeline-curation columns (confidence, notes, date_precision, source_reference); prior findings 11.1 and 11.2 flagged two sites in freestyle.
-- **Net player-route redirect cleanup** (S). `/net/players/:personId` and `/net/players/:personId/partners/:teamId` (`src/routes/publicRoutes.ts:55-59`) only 302 to `/history/:personId` and `/net/teams/:teamId`. Grep for consumers; if none, delete both handlers and remove VIEW_CATALOG §5 entries. Audit other redirect-only routes beyond the intentional `/history` to `/members` canonical.
+- **Catalog completeness audit** (M). `docs/VIEW_CATALOG.md` + `docs/SERVICE_CATALOG.md` invariant sweep: `PageViewModel<TContent>` contract, thin-controller discipline, db.ts purity, service-owned URL construction, adapter pattern, file-naming conventions (`<domain>Service.ts`, `<domain>Controller.ts`, `<PageName>Content`, `<Entity>ViewModel`), error-class naming (`<Kind>Error`), shared shaping helpers (`personHref`, `shapePartnershipPair`, `shapeFreestyleRecord`, `groupPlayerResults`), HTTP helpers (`issueSessionCookie`, `handleControllerError`), Handlebars helpers, service-boundary drift, cross-service coupling, undocumented services, cross-domain queries, cross-catalog consistency. Known specific mismatches to resolve during this sweep: (a) `authController.ts:12-44` defines 7 `*Content` interfaces inline instead of on the service; (b) `claimController` `res.render` calls omit `satisfies PageViewModel<TContent>`; (c) `personsController` and `legalController` use `logger.error + next(err)` instead of `handleControllerError`; (d) `homeController` + `hofController` have no try/catch/next; (e) SC §4.5 names `ConsecutiveService` but code is `recordsService`; (f) SC §3.2 assigns `searchMembers` to non-existent `MemberProfileLifecycleService` module (§3.4 assigns it to `MemberService`, which matches code); (g) SC §3.2 says `searchMembers` does prefix match but code (`db.ts:3171`) does substring `LIKE '%' || ? || '%'` (VC §6.2 agrees with code); (h) `historyService.ts:11` imports `surnameKey` from `identityAccessService` (move to a shared nameUtils); (i) `recordsService` queries both consecutive-kicks and freestyle passback records (cross-domain; SC says ConsecutiveService doesn't own freestyle); (j) `simulatedEmailService`, `personsService`, `personsQcChecks` not in SERVICE_CATALOG; (k) `authController.ts:108,121` renders `seo.title='Create Account'` while VC §6.16 says `'Register'`; (l) `COUNTRY_FLAGS` in `app.ts:37-79` and `COUNTRY_CODE` in `clubService.ts:9-64` split country-name canonicalization across modules; (m) QC-only deletion banner present on `netQcController.ts` and db.ts QC groups but missing from `personsService.ts`, `personsQcChecks.ts`, `personsController.ts`.
+- **QC code separation audit** (M). Per MP §29 (hard go-live gate). Sweep public templates for pipeline-curation columns (confidence, notes, date_precision, source_reference) before retirement pass.
 - **Approval-fatigue review v2** (S). Decide per class hook-regex vs `permissions.allow` prefix vs behavioral-only rule: `Bash(find:* -exec*)` + `-execdir*` mechanical backstop on top of the behavioral ban, read-only `for`/`while` loops, `xargs`, command substitution, subshells, pipelines, `if [[ -f x ]]` tests. Reference: repo-root `approval_fatigue.md`.
-- **Post-auth-hardening carryovers:** audit logging for password-change and login rate-limit threshold crossings (US M_Change_Password line 550, M_Login line 512); daily token-cleanup job (DD §3.8 line 969); SES bounce/complaint webhook (DD §5.4, SERVICE_CATALOG line 973); JWT key rotation with 24h overlap (DD §3.4 line 813); login rate-limit cooldown wiring (`login_cooldown_minutes` seed row); SES domain identity + production-access ticket.
-- **1-G CloudWatch agent** (S). Unblocks richer `/health/ready` memory-pressure gating per DD §8.4.
-- **Backup/restore workflow** (M). S3 bucket scaffolded, no producer, no restore drill. Must land before prod data is at risk.
+- **Post-auth-hardening carryovers (IP-scope only; MP §28.5/§28.6/§28.7 cover SES webhook, token cleanup, JWT rotation, session refresh, rate-limit cooldown, SES production access):** audit logging for register, changePassword, resetPassword, restoreAccount, and login rate-limit threshold crossings per SERVICE_CATALOG §3.1 (the `audit_entries` table exists in schema but has no writers today); redact token paths in the debug request logger (`src/app.ts:171-173` logs `req.url` at debug; `/verify/:token` and `/password/reset/:token` expose raw tokens when LOG_LEVEL=debug); add `email_verified_at IS NOT NULL` filter to `findMemberForSession` (`src/db/db.ts:3259-3268`) for defense-in-depth parity with `findMemberByEmail`; concurrent two-actor legacy-claim race test (testing.md mandate; `security.atomicity.test.ts` currently covers sequential only).
+- **1-G CloudWatch agent** (S). Per MP §28.2. Unblocks richer `/health/ready` memory-pressure gating (DD §8.4).
+- **Backup/restore workflow** (M). Per MP §28.1. Must land before prod data is at risk.
 - **Docker log rotation** (S). `docker-compose.prod.yml` has no `logging:` block for `web`/`worker`/`nginx`; container stdout/stderr grow unbounded on the Lightsail host. Add `driver: json-file`, `max-size: "10m"`, `max-file: "3"` per service. Disk-fill risk, especially once worker poll tightens.
 - **Preserve clubs-map anchor hooks** (XS). Retain `id="region-{regionSlug}"` on region sections and `data-club-id="{clubId}"` on club entries on `/clubs/:countrySlug`; intentional anchor-jump targets for the future interactive map.
 
@@ -45,37 +38,23 @@ Cross-track changes require explicit human coordination.
 
 ### Open production-rewrite item (carried over)
 
-**Legacy account claim:** current code is the early-test shortcut (direct lookup + confirm + merge via `identityAccessService.lookupLegacyAccount` / `claimLegacyAccount`; routes `POST /history/claim` + `POST /history/claim/confirm`). Production rewrite moves to a dedicated `LegacyMigrationService` with email-verified token flow (`GET /history/claim/verify/:token` per `docs/SERVICE_CATALOG.md`), name reconciliation, and rate limiting. Deferred to Phase 4.
+**Legacy account claim:** current code is the early-test shortcut (direct lookup + confirm + merge via `identityAccessService.lookupLegacyAccount` / `claimLegacyAccount`; routes `POST /history/claim` + `POST /history/claim/confirm`). Production rewrite moves to a dedicated `LegacyMigrationService` with email-verified token flow (`GET /history/claim/verify/:token` per `docs/SERVICE_CATALOG.md`), name reconciliation, per-account / per-target / per-IP rate limiting (DD §3.8), and anti-enumeration messaging (SC §1.1 invariant: identical UX for found vs not-found; current `claimController.ts:111-116` returns distinct "No matching legacy record was found..." vs confirmation page, which must collapse to a single identical response). Deferred to Phase 4.
 
-**Historical-person direct claim (scenarios D and E per MIGRATION_PLAN §8):** shipped. `identityAccessService.lookupHistoricalPersonForClaim` / `claimHistoricalPerson`; routes `GET /history/:personId/claim` + `POST /history/:personId/claim/confirm`; `/history/:personId` shows a "Claim this identity" CTA for authenticated viewers whose `real_name` surname matches the HP `person_name`. Surname mismatch blocks; first-name variant warns. Transitive legacy_members claim runs atomically when the HP carries an unclaimed `legacy_member_id` back-link. Will fold into `LegacyMigrationService` when that service is extracted in Phase 4.
-
-**HP field carry-forward on claim:** shipped. Both claim paths now merge `historical_persons.country`, `hof_member`, `bap_member`, `hof_induction_year`, and `first_year` onto the member row in the same transaction that sets `members.historical_person_id`, so search / hero / public profile surfaces reflect the HP honors and country. Backfill for already-claimed members runs via the one-shot SQL in `scripts/` (below).
-
-**Registration-time auto-link (MIGRATION_PLAN §7):** not yet implemented. Requires seeding the `name_variants` table (James's sprint §5) and wiring the tier classifier into `verifyEmailByToken`. Deferred to Phase 4-F'.
+**Registration-time auto-link (MIGRATION_PLAN §7):** not yet implemented. Requires seeding the `name_variants` table (see `legacy_data/IMPLEMENTATION_PLAN.md`) and wiring the tier classifier into `verifyEmailByToken`. Deferred to Phase 4-F'.
 
 **Routing invariants:** `/members` dashboard (auth) or welcome (public); `/members/:memberKey/*` profiles; `/history/:personId` historical detail; `/history` 301s to `/members`; `/register` registration; home Media Gallery is coming-soon (no `/media` route).
 
 ### Active sprint decisions (positive state)
 
-- Auth is DB-backed via `identityAccessService.verifyMemberCredentials`. Session mechanism is JWT (RS256, KMS or local RSA-2048 signer per env) with per-request `password_version` check. `STUB_USERNAME`/`STUB_PASSWORD` env-var fallback has been removed (DD §3.9). Legacy middleware file `src/middleware/authStub.ts` replaced by `src/middleware/auth.ts`.
-- **Intentional:** "Footbag Hacky" is a seeded preview-user account using a non-email login identifier. Permanent special login for preview/demo users. Literal login identifier is not published in checked-in docs.
-- Seed password via `STUB_PASSWORD` env var (never in checked-in files).
-- Avatar: local photo storage only (Busboy streaming, 5 MB limit). Upload lives inline on profile-edit.
+- Auth is DB-backed via `identityAccessService.verifyMemberCredentials`. Session mechanism is JWT (RS256, KMS or local RSA-2048 signer per env) with per-request `password_version` check.
+- **Intentional:** "Footbag Hacky" is a seeded preview-user account using a non-email login identifier. Permanent special login for preview/demo users. The literal login identifier may appear in seed scripts and test files (operational strings, comments, and print statements); the password is never committed and lives only in the `STUB_PASSWORD` env var. Canonical docs still refer to the preview-user account by role, not by identifier.
 - `PageViewModel<TContent>` contract enforced across non-home public pages.
-- Cache-Control: authenticated responses get `Cache-Control: private, no-store` via app middleware (app-level implementation of DD §6.7; not the AWS managed `CachingDisabled` policy).
-
-### Consolidation items in scope this sprint
-
-None. Items H and I deferred as known gaps (see "Current gaps" below).
-
-Deferred candidates: avatar server-side processing (media/S3 sprint); stub pages (blocked on 4-D / media / governance); 4-A' auth hardening (next sprint); backup/restore (Tier 2 next sprint).
 
 ### Current gaps vs long-term user stories
 
 - Profile edit is narrower than the full story (external URLs, broader contact/preferences not yet implemented)
 - Profile viewing is narrower (own profile + HoF/BAP public exception only; no broad member-profile viewing)
 - `/events` upcoming-events region remains omitted; reinstate (with empty-state per `docs/VIEW_CATALOG.md §6.8`) when the data contains actual upcoming events. All 810 current events are `completed`.
-- Literal preview-user login identifier remains in test comments and seed script strings; the preview user (Footbag Hacky) functions as a dummy account for HoF-member previews. Scrub when revisited: `tests/integration/auth.routes.test.ts` (lines 5, 65), `tests/integration/app.routes.test.ts` (line 70), `legacy_data/scripts/seed_members.py` (lines 90, 93, 131).
 - These are accepted current-slice limitations; do not silently erase them from `docs/USER_STORIES.md`.
 
 ### Out of scope this sprint
@@ -90,99 +69,13 @@ S3 media pipeline, account deletion, data export, `M_Review_Legacy_Club_Data_Dur
 
 ### Verification
 
-Canonical commands: `npm test` and `npm run build`. Not yet covered by tests: 500 handler, world-record routes, honor-roll routes, worker behavior, browser/UI. Browser verification is explicit-human-request-only.
+Canonical commands: `npm test` and `npm run build`. Not yet covered by tests: 500 handler, honor-roll routes, browser/UI. Browser verification is explicit-human-request-only.
 
 ---
 
-## James's sprint: Historical pipeline completion (parallel)
+## James's track: Historical pipeline completion (parallel)
 
-James has merged his footbag-results pipeline into this repo under `legacy_data/`. Events, results, persons, and club extract/load scripts are in place. This sprint completes: club classification, bootstrap leaders, club-only persons, world records, name variants, legacy identity columns.
-
-### Already done
-
-- **Pipeline merged**: `legacy_data/pipeline/`, `legacy_data/scripts/`, `legacy_data/event_results/`
-- **Events + results + persons soup-to-nuts**: `legacy_data/run_pipeline.sh complete` runs mirror + curated → canonical → QC → workbook → seed → DB
-- **Club extract/load scripts wired**: `extract_clubs.py`, `load_clubs_seed.py`, `extract_club_members.py`, `load_club_members_seed.py` run from `scripts/reset-local-db.sh`; produces `seed/clubs.csv` (1,035 rows) and `seed/club_members.csv` (2,399 rows); loads `clubs` and `legacy_person_club_affiliations`
-- **Net enrichment subsystem**: schema tables (`net_team`, `net_team_member`, `net_team_appearance`, `net_discipline_group`, `net_stat_policy`, `net_review_queue`, `net_team_appearance_canonical` view); scripts 12/13/14 under `legacy_data/event_results/scripts/`; `run_pipeline.sh net_enrichment` mode; TypeScript layer: `netService.ts`, `netController.ts`, `/net/teams` and `/net/teams/:teamId` routes, `src/views/net/` templates, Nav link; DB seeded with 4,176 teams, ~7,300 appearances, 607 QC review items
-- **`legacy_data/CLAUDE.md`**: exists; currently scoped to events/results/persons pipeline only
-- **`legacy_data/skills/`**: directory exists
-
-### Still to do
-
-1. **Club-only persons extraction** (~1,600): people who appear in mirror only as club members. Prerequisite for classification (per `docs/MIGRATION_PLAN.md §10.1`).
-2. **Club classification** per `docs/MIGRATION_PLAN.md §10.1` R1–R9. Deterministic classifier → pre-populate / onboarding-visible / dormant / junk. Sets `bootstrap_eligible` flag and populates `legacy_club_candidates`.
-3. **Leadership inference + confidence scoring**: populate `club_bootstrap_leaders` for pre-populated clubs with `confidence_score >= 0.70` (MIGRATION_PLAN §3).
-4. **Legacy identity columns** on persons: add `legacy_user_id` and `legacy_email` to canonical persons CSV where mirror provides them. Claim flow needs all three keys.
-5. **Name variants table seed** (~290 pairs): schema TBD per MIGRATION_PLAN §12.16.
-6. **World records CSV export**: 166 tricks in James's records data; no `out/records/` export in repo yet. Unblocks `/records`.
-7. **Persons count reconciliation**: canonical `persons.csv` has 3,366 rows; MIGRATION_PLAN §19/§2.1 say ~4,861. Reconcile.
-8. **Extend `legacy_data/CLAUDE.md`**: add sections for clubs, classification, bootstrap, records, variants, `docs/MIGRATION_PLAN.md` refs.
-9. **Integrate into `run_pipeline.sh complete`**: today `complete` stops at events/results/persons; extend to produce clubs (classified), bootstrap leaders, club-only persons, variants, records. `scripts/reset-local-db.sh` then collapses to a one-liner.
-10. **Data review sign-off**: confirm legacy data is complete and member-list presentation is reviewed.
-11. **Freestyle rules pages**: content for the four competition formats (Routine, Circle, Sick 3, Shred 30) — template(s) and route(s) for `/freestyle/rules` (single page with anchors, or per-format paths). Unblocks re-enabling the "Rules" buttons that were dropped from `/freestyle` landing competition-format cards.
-12. **Legacy-site data dump (Steve Goldberg coordination)** — final source for `legacy_members`. Current population is from `legacy_data/scripts/load_legacy_members_seed.py` (mirror-derived, 2,507 rows, columns limited to PK + `display_name` + `import_source='mirror'`). The legacy-site dump supersedes with full profile fields (`real_name`, `legacy_email`, `legacy_user_id`, `country`, `city`, `region`, `bio`, `birth_date`, `ifpa_join_date`, `first_competition_year`, `is_hof`, `is_bap`, `legacy_is_admin`) and flips `import_source` to `'legacy_site_data'`. Outstanding coordination:
-    - **Namespace agreement.** The legacy-account export and mirror-derived IDs must use the same `legacy_member_id` namespace (same IDs for same real-world accounts). If they diverge, resolve before loading the export.
-    - **MIGRATION_PLAN §5 + §9.** The platform-side doc rewrites (imported rows live in `legacy_members`; claim marks rather than deletes the legacy record) depend on the final dump structure. Coordinate before rewrites land.
-    - **Test fixture support.** `tests/fixtures/factories.ts` already has a `legacy_members` factory and auto-creates stub rows on HP insert; additional richer fields in the legacy-account export may warrant factory extensions.
-
-### Deliverables (remaining)
-
-- Expanded canonical `persons.csv` with club-only persons + `legacy_user_id` / `legacy_email`
-- `legacy_club_candidates` rows with `bootstrap_eligible` per §10.1
-- `club_bootstrap_leaders` rows for pre-populated clubs ≥0.70 confidence
-- Name variants seed file + schema
-- World records CSV in platform format
-- `run_pipeline.sh complete` as single soup-to-nuts entry point
-- Extended `legacy_data/CLAUDE.md`
-- Data review sign-off
-
-### Low-priority: score_text pass-through from legacy HTML
-
-UI renders `score_text` per result row when present. Schema field exists (`event_result_entries.score_text`) but pipeline drops it; 1 of 26,210 entries has a value today. Legacy HTML has extractable data worth passing through:
-
-- **Consecutives / DDOP**: kick counts in parentheses after player names, e.g. "(826)". Clean, consistent format. Extract as "826 kicks". Present post-1996. Pre-1997 sources have placements only.
-- **Specific freestyle categories** (Sick 3, routine trick lists): trick names / short descriptions where source HTML is consistent.
-
-Skip generic point totals, judge scores, net rankings. Canonical CSV schema has `score_text` + `notes` (`event_results.csv`), both empty today. Mirror/curated adapters would populate. DB seed scripts already carry the field through. Not blocking.
-
-### Unblocks
-
-- Members ungating (requires data review sign-off)
-- World records page (requires records CSV)
-- Club bootstrap at cutover (requires classification + leader population)
-- Auto-link coverage for club-only members (requires expanded persons.csv)
-- Legacy account claim at registration (requires three-key coverage)
-
----
-
-## John's track: Look-and-feel enhancements (parallel)
-
-John is working on visual / design polish: making the public site look more modern and inviting. Design-quality track, not feature. Must not block Dave's or James's sprints.
-
-### AI guidance for John's prompts
-
-1. **Catalogs are guides, not handcuffs.** `docs/VIEW_CATALOG.md` and `docs/SERVICE_CATALOG.md` define contracts that *new code* must integrate with. Honor contracts when adding code.
-2. **Look-and-feel is flexible.** John may freely experiment with templates, CSS, layout, typography, color, motion, imagery, hero treatments, card styling. Catalog descriptions of "look" are not binding for this track; descriptions of *contracts* (VM field names, service shapes, route paths, authz rules) are.
-3. **Prototype / design mode allowed within limits.** OK: new partials, new CSS, new progressive-enhancement JS, image assets, visual swaps, section reordering on a public page, hero/media additions, animation. Not OK without explicit human approval: schema changes, service-method signature changes, new routes, new domain behavior, deletions of contract fields, changes to page data or URL surface.
-4. **When in doubt, ask** before broadening scope.
-5. **Doc edits still require explicit human approval** (per root `CLAUDE.md`).
-6. **Discuss significant visual/UI changes with John before writing code** (Dave's standing rule).
-
-### Track scope
-
-- Public-page polish: home, events landing, event detail, players, clubs, HoF, login/register
-- Reusable visual primitives in `src/public/css/style.css` and partials under `src/views/partials/`
-- Client-side progressive enhancements in `src/public/js/` (vanilla JS, no bundler)
-- Static assets in `src/public/img/`
-- Layout / shared chrome (`src/views/layouts/main.hbs`) — coordinate before site-wide changes
-
-### Out of scope
-
-Service-layer logic, DB schema, migrations, controllers (other than thin template wiring for new VM fields agreed with the service track owner); authentication; member CRUD; identity; payments; legacy pipeline; infra; CI.
-
-### Coordination
-
-Visual changes that need a new VM field must be coordinated with the relevant service-track owner (Dave for member/event/club; James for historical/legacy) before implementation. John's track may add `imageUrl`-style optional contract extensions via the proper path (extend interface → populate in service → render in template → update VC) with human approval; no ad-hoc parallel data flows.
+Tracked in `legacy_data/IMPLEMENTATION_PLAN.md`. Load only when working in that subtree. Platform-side blockers dependent on this track are listed under "Blocked / deferred" below.
 
 ---
 
@@ -194,32 +87,38 @@ Each has an explicit unblock condition. Long-term docs preserve target design; c
 
 1. **Member profiles have conditional public visibility.** `/members/:memberKey` public for HoF/BAP; auth-required otherwise.
 2. **Member search is authenticated only.** `/members` covers members + historical persons with dedup. No public directory.
-3. **Avatar pipeline is local-only.** No server-side processing; raw uploads stored as-is. Stable path + `?v={media_id}` cache-bust. Unblock: S3/media pipeline.
+3. **Avatar pipeline is local-only.** No server-side processing; raw uploads stored as-is (Busboy streaming, 5 MB limit); stable path + `?v={media_id}` cache-bust. `PhotoStorageAdapter` boot-time/parity/staging-smoke trio still to complete for S3 impl. Unblock: S3/media pipeline.
 4. **Cache-Control at app layer, not CloudFront cache policy.** DD §6.7 target is the AWS managed `CachingDisabled` policy; current is Express middleware for authenticated responses. Functionally equivalent.
 5. **`/legal` `admin@footbag.org` greyed as "mailbox not yet active".** `.contact-pending` span replaces `mailto:` across Privacy, Terms, Copyright contact lines. Unblock: IFPA domain acquisition + SES identity provisioning.
 6. **Vimeo click-to-load facade not implemented.** Privacy section on `/legal` states Vimeo uses the click-to-load facade; only YouTube is covered today (`youtube-facade.js`). Unblock: media pipeline (Phase 3+).
 
 ### Infrastructure deviations
 
-7. **No closed backup/restore workflow.** S3 bucket scaffolded; no producer; no restore drill. Unblock: Tier 2 next sprint.
-8. **Maintenance mode not production-grade.** CloudFront active; maintenance-origin/error behavior not implemented. Unblock: 1-F.
-9. **CloudFront hardening incomplete.** X-Origin-Verify absent in Nginx; OAC/ordered-cache controls deferred; direct-origin bypass unprotected. Unblock: 1-F.
+7. **No closed backup/restore workflow.** Unblock: Dave's Tier 2 sprint / MP §28.1.
+8. **Maintenance mode not production-grade.** Unblock: 1-F / MP §28.3.
+9. **CloudFront hardening incomplete.** Unblock: 1-F / MP §28.3.
 10. **CI/CD partial.** App CI active; deploy scripts: `deploy-code.sh`, `deploy-rebuild.sh`, `deploy-migrate.sh` (stub). Remaining: 1-F, 1-G.
-11. **Monitoring partial and gated.** CloudWatch log groups + alarms Terraformed; agent install TODO. Unblock: 1-G.
+11. **Monitoring partial and gated.** Unblock: 1-G / MP §28.2.
 12. **Terraform trust-policy stub for runtime role.** `terraform/staging/iam.tf:16-85` declares `aws_iam_role.app_runtime`'s trust policy as `ec2.amazonaws.com` (bootstrap stub from the unreachable-on-Lightsail instance-profile scaffold). Path H §8.9 step 4c Console-amended the trust policy to trust the source-profile IAM user; HCL reconciliation deferred. Source-profile + AssumeRole chain per DD §7.2 is otherwise active: long-lived keys at `/root/.aws/credentials` (root-owned, 0600), app uses `AWS_PROFILE=footbag-staging-runtime`. Unblock: post-sprint infrastructure tidy-up.
 13. **Bootstrap security shortcuts remain.** Operator IAM + SSH use bootstrap posture. Unblock: pre-launch security pass.
 14. **Browser validation manual-only.** Route/integration tests are first verification path.
 15. **`image` container absent.** Docker Compose has `nginx`, `web`, `worker`. Unblock: Phase 3+ media pipeline.
-16. **`/health/ready` is DB-probe only.** DD §8.4 adds memory-pressure gating + broader dependency checks. Unblock: 1-G + backup activation.
+16. **`/health/ready` is DB-probe only.** DD §8.4 adds memory-pressure gating + broader dependency checks. Unblock: 1-G / MP §28.1 + §28.2.
+17. **`/internal` routes gated at member-level only.** All `/internal/*` routes (persons QC, net QC decision POSTs, candidate approve/reject) use `requireAuth` with no role check. Any registered member can approve/reject QC curation decisions that alter public Net data. Intentional dev/staging shortcut to unblock QC reviewers without a role system. Unblock: admin/operator role gate before go-live. Files: `src/routes/internalRoutes.ts`, `src/middleware/auth.ts`. When the gate lands, tests must pin auth-gate behavior on the 6 state-changing `/internal/*` POST routes; `internal.auth-gate.test.ts` currently covers `GET /internal/persons/qc` only.
+18. **`terraform/staging/terraform.tfvars` missing `ses_sender_identity`.** Variable is declared in `terraform/staging/ses.tf` with no default, so `terraform plan|apply` from `terraform/staging/` fails today; SES identity was verified by hand via Console. Unblock: add `ses_sender_identity = "..."` to tfvars in the same task that reconciles the `OutboundEmail` IAM policy into HCL (MP §28.4 gate).
+19. **SSM `app_db_path` value stale.** `terraform/staging/ssm.tf:33-37` hardcodes `/srv/footbag/footbag.db`; the runtime DB path (per `docs/DEV_ONBOARDING.md` Path H host bootstrap) is `/srv/footbag/db/footbag.db` and `deploy-rebuild.sh` migrates host env but not SSM. The app reads `FOOTBAG_DB_PATH` from `/srv/footbag/env` today, so this SSM value is unconsumed, but it will misfire when host-SSM reads are wired. Unblock: update the `ssm.tf` value to match the current mount path in the next Terraform pass.
+20. **`SESSION_SECRET` validated at boot but never consumed.** `src/config/env.ts:120-131` requires `SESSION_SECRET` in prod (length ≥32, rejects `changeme`) but nothing in `src/` reads `config.sessionSecret`. JWT auth uses RSA/KMS signing, not HMAC; there is no express-session, cookie-session, or other HMAC consumer. Operators following rotation guidance rotate a no-op secret. Unblock: decide to either remove the env var + its validation (and any rotation runbook entries) or wire it to a genuine use (CSRF double-submit token, cookie signing, etc.).
+21. **`TRUST_PROXY` implicit in production compose.** `docker/docker-compose.prod.yml` does not set `TRUST_PROXY`; `src/config/env.ts:108-118` defaults to 2 under `NODE_ENV=production`. Correct today but invisible to operators; a wrong value (too permissive) would bypass rate limiting. Unblock: set `TRUST_PROXY=2` explicitly in compose env after 1-F origin-bypass hardening closes (project memory note: re-evaluate integer hop count vs explicit subnet allow-list at that time).
 
 ---
 
 ## Blocked / deferred
 
 - **Members ungating**: public historical-person detail pages blocked on James's data review sign-off. Current split: `/history*` historical surfaces, `/members/:memberKey/*` member-account area.
-- **World records page**: blocked on James's records CSV. Route `/records` is live; page renders without data. Controller `src/controllers/recordsController.ts`, service `src/services/recordsService.ts`, view `src/views/records/records.hbs`, tests pass.
+- **World records page**: route `/records` live with empty state; blocked on James's records CSV.
 - **BAP honor-roll pages**: member-page indicators implemented; full honor-roll deferred.
 - **Broader service contracts**: `docs/SERVICE_CATALOG.md` may remain broader than active slice; implementation status is governed here, not there.
+- **Freestyle trick metadata tables**: 5 `freestyle_trick_*` tables scaffolded in `database/schema.sql`; no loader, no `db.ts` statements, no consumer. Phase 4+ (curated tricks browser).
 
 ---
 
