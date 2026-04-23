@@ -17,14 +17,14 @@ corrections:
   remove_results:
     - event: 1991_worlds
       note: incorrect events listed
-    - event: 1986_worlds
+    - event: 1986_worlds_golden
       division: singles_consecutives
 
   add_or_confirm_results:
     - event: 1991_worlds
       division: singles_freestyle
       place: 2
-    - event: 1986_worlds
+    - event: 1986_worlds_golden
       division: singles_freestyle
       place: 2
 
@@ -34,7 +34,7 @@ corrections:
       month: March
     - event: 1985_chicago
       correct_name: Oak Park - Chicago Open
-    - event: 1985_worlds
+    - event: 1985_worlds_golden
       note: confirm WFA World Championships
     - event: 1984_worlds
       action: remove duplicate

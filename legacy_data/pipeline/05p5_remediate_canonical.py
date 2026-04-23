@@ -471,25 +471,28 @@ else:
 # 1985–1990 Worlds were held in Golden, CO (FBW/WFA).
 # 1991 onwards the Worlds rotated to international host cities.
 # Source: events_normalized.csv (mirror-era records); "Golden CO" country-field
-# format is the same parsing artifact as 1985_worlds.
+# format is the same parsing artifact as 1985_worlds_golden (post-H2 key).
 # 1988 confirmed Golden by series pattern (1986–1990 all Golden, no contrary source).
 # 1993 confirmed Golden by user (source TXT blank; events_normalized has no entry).
 
 _1985_EVENT_FIXES: dict[str, dict[str, str]] = {
     # ── 1985 ──────────────────────────────────────────────────────────────────
-    "1985_worlds": {
+    # Keys below are post-H2-normalization (applied via event_rename.csv
+    # at historical-export time; 05p5 runs against the renamed canonical).
+    "1985_worlds_golden": {
         "city":    "Golden",
         "region":  "Colorado",
         "country": "United States",
     },
-    "1985_western_national_indoor": {
+    "1985_western_national_chicago": {
         "event_name": "Oak Park \u2014 Chicago Open",
         "city":       "Chicago",
         "region":     "Illinois",
         "country":    "United States",
     },
     # ── 1986–1990 Worlds → Golden, CO ("Golden CO" stored in country field) ───
-    "1986_worlds": {"city": "Golden",        "region": "Colorado",          "country": "United States"},
+    # 1986_worlds_golden is the post-H2-normalization key.
+    "1986_worlds_golden": {"city": "Golden",        "region": "Colorado",          "country": "United States"},
     "1987_worlds": {"city": "Golden",        "region": "Colorado",          "country": "United States"},
     "1988_worlds": {"city": "Golden",        "region": "Colorado",          "country": "United States"},
     "1989_worlds": {"city": "Golden",        "region": "Colorado",          "country": "United States"},
@@ -1829,7 +1832,7 @@ print(f"  Remaining empty person_id:         {_f8_remaining:,}")
 # ── Andy Linder corrections (S-17, S-18, S-19) ───────────────────────────────
 # S-17: Remove Andy Linder from 1980_western_states / freestyle / p1 (+ cascade)
 # S-18: Rename 1985_mountainregion event_name → "Cabin Fever Classic"
-# S-19: Rename 1985_western_national_indoor event_name → "Oak Park - Chicago Open"
+# S-19: Rename 1985_western_national_chicago event_name → "Oak Park - Chicago Open"
 
 print("\n[Andy Linder corrections] S-17/S-18/S-19...")
 
@@ -1872,15 +1875,17 @@ for _ev in events:
         _ev["event_name"] = "Cabin Fever Classic"
         _s18_count += 1
 
-# S-19: Rename 1985_western_national_indoor
+# S-19: Rename 1985_western_national_chicago
+#   (event_key 1985_western_national_indoor was renamed to
+#    1985_western_national_chicago via event_rename.csv H2 normalization).
 _s19_count = 0
 for _ev in events:
-    if _ev["event_key"] == "1985_western_national_indoor":
+    if _ev["event_key"] == "1985_western_national_chicago":
         _ev["event_name"] = "Oak Park - Chicago Open"
         _s19_count += 1
 
 print(f"  S-18: 1985_mountainregion renamed: {_s18_count}")
-print(f"  S-19: 1985_western_national_indoor renamed: {_s19_count}")
+print(f"  S-19: 1985_western_national_chicago renamed: {_s19_count}")
 
 # ── Pre-1997 parse failure repairs + authoritative enrichment ─────────────────
 #

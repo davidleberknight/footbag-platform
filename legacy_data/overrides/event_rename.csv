@@ -7,3 +7,10 @@ event_id,new_event_id,reason
 
 2012_usopen_portland,2012_usopen_freestyle_portland,discipline split
 2012_usopen_portland_2,2012_usopen_net_portland,discipline split
+
+1985_worlds,1985_worlds_golden,H2 normalization YYYY_city_slug (1985-1986)
+1985_eastregion,1985_eastregion_long_branch,H2 normalization YYYY_city_slug (1985-1986)
+1985_western_states,1985_western_states_portland,H2 normalization YYYY_city_slug (1985-1986)
+1985_western_national_indoor,1985_western_national_chicago,H2 normalization YYYY_city_slug (1985-1986)
+1986_worlds,1986_worlds_golden,H2 normalization YYYY_city_slug (1985-1986)
+1986_eastregion,1986_eastregion_long_branch,H2 normalization YYYY_city_slug (1985-1986)
