@@ -401,6 +401,13 @@ def load_all():
     # (magazines, TXT files).  This is a workbook-only supplement; it does not
     # modify canonical_input or the platform export.
     #
+    # H1 VISIBLE_PERSON parity note (see export_canonical_platform.py step 11):
+    # the platform and workbook share the same base filter. This supplement is
+    # an intentional workbook-only extension for archival purposes — the
+    # workbook is a historical reference and preserves documented early-era
+    # names with no current event linkage; the platform has no search surface
+    # for event-less persons and deliberately omits them.
+    #
     # Person-likeness + alias-dedup gates are applied so the supplement doesn't
     # re-introduce junk or duplicate entries that the platform export filtered.
     import re as _re

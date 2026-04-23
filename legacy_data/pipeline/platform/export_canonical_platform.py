@@ -752,6 +752,15 @@ def main() -> None:
     #
     # PT v52 membership alone is not sufficient: anonymous PT v52 entries
     # with no participant rows and no profile link add no value.
+    #
+    # Intentional workbook divergence: build_workbook_release.py applies
+    # an additional archival "early-era supplement" (first_year ≤ 1990 +
+    # person-like gate + alias dedup) on top of this filter. That rescues
+    # a handful of pre-1991 names documented in the identity lock whose
+    # events were sparse-filtered. The platform deliberately does NOT
+    # include those persons: platform surfaces are search-driven and have
+    # no meaningful display for event-less rows. Workbook is a historical
+    # reference; platform is an active record.
     def is_visible_person(p: dict) -> bool:
         return (
             p["person_id"] in used_pids
