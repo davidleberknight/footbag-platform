@@ -3658,6 +3658,23 @@ export const legacyMembers = {
     LIMIT 1
   `),
 
+  // Sibling of findByIdentifier without LIMIT 1 so the service can detect
+  // ambiguity (e.g. duplicate legacy_email after the legacy-site data dump).
+  findAllByIdentifier: db.prepare(`
+    SELECT
+      legacy_member_id,
+      legacy_user_id, legacy_email,
+      real_name, display_name,
+      bio, birth_date, street_address, postal_code,
+      city, region, country,
+      ifpa_join_date, first_competition_year,
+      is_hof, is_bap, legacy_is_admin,
+      claimed_by_member_id, claimed_at
+    FROM legacy_members
+    WHERE claimed_by_member_id IS NULL
+      AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ?)
+  `),
+
   findByLegacyMemberId: db.prepare(`
     SELECT
       legacy_member_id,

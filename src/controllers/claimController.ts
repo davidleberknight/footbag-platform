@@ -204,9 +204,9 @@ export const claimController = {
     const identifier = req.body.identifier ?? '';
 
     try {
-      const result = identityAccessService.lookupLegacyAccount(req.user!.userId, identifier);
+      const lookup = identityAccessService.lookupLegacyAccount(req.user!.userId, identifier);
 
-      if (!result) {
+      if (lookup.kind === 'none') {
         res.status(200).render('history/claim-form', {
           ...FORM_VM,
           content: { error: 'No matching legacy record was found for that identifier.', identifier },
@@ -214,6 +214,20 @@ export const claimController = {
         return;
       }
 
+      if (lookup.kind === 'ambiguous_email') {
+        res.status(200).render('history/claim-form', {
+          ...FORM_VM,
+          content: {
+            error:
+              'This identifier matches multiple legacy accounts. ' +
+              'Please try a legacy username or member ID instead.',
+            identifier,
+          },
+        });
+        return;
+      }
+
+      const { result } = lookup;
       res.render('history/claim-confirm', {
         seo:  { title: 'Confirm Legacy Account Link' },
         page: { sectionKey: 'members', pageKey: 'claim_verify', title: 'Confirm Legacy Account Link' },

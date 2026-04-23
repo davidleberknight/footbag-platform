@@ -251,7 +251,8 @@ export type AutoLinkClassification =
         | 'no_hp_for_legacy_account'
         | 'no_name_candidate'
         | 'multiple_name_candidates'
-        | 'hp_mismatch';
+        | 'hp_mismatch'
+        | 'ambiguous_email_anchor';
     };
 
 export interface VerifyEmailResult {
@@ -303,20 +304,24 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
   if (!row) return null;
 
   // Legacy-link check: see whether this member's email matches an
-  // imported legacy row so the post-verify
-  // landing can offer the claim flow. lookupLegacyAccount throws on already-
-  // claimed; at verify time the member has never claimed, so errors here
-  // are swallowed, they don't belong on the verify path.
+  // imported legacy row so the post-verify landing can offer the claim
+  // flow. lookupLegacyAccount throws on already-claimed; at verify time
+  // the member has never claimed, so errors here are swallowed.
   let legacyMatch: LegacyAccountLookupResult | null = null;
+  let emailAmbiguous = false;
   if (row.login_email) {
     try {
-      legacyMatch = lookupLegacyAccount(row.id, row.login_email);
+      const lookup = lookupLegacyAccount(row.id, row.login_email);
+      if (lookup.kind === 'single') legacyMatch = lookup.result;
+      else if (lookup.kind === 'ambiguous_email') emailAmbiguous = true;
     } catch {
       legacyMatch = null;
     }
   }
 
-  const autoLinkClassification = classifyAutoLink(row.real_name, legacyMatch);
+  const autoLinkClassification: AutoLinkClassification = emailAmbiguous
+    ? { tier: 'tier3', reason: 'ambiguous_email_anchor' }
+    : classifyAutoLink(row.real_name, legacyMatch);
   logger.info('verify.autolink.classification', {
     memberId: row.id,
     tier: autoLinkClassification.tier,
@@ -362,10 +367,16 @@ function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassific
   if (!loginEmail) return { tier: 'none' };
 
   let legacyMatch: LegacyAccountLookupResult | null = null;
+  let emailAmbiguous = false;
   try {
-    legacyMatch = lookupLegacyAccount(memberId, loginEmail);
+    const lookup = lookupLegacyAccount(memberId, loginEmail);
+    if (lookup.kind === 'single') legacyMatch = lookup.result;
+    else if (lookup.kind === 'ambiguous_email') emailAmbiguous = true;
   } catch {
     legacyMatch = null;
+  }
+  if (emailAmbiguous) {
+    return { tier: 'tier3', reason: 'ambiguous_email_anchor' };
   }
   return classifyAutoLink(member.real_name, legacyMatch);
 }
@@ -462,10 +473,23 @@ export interface LegacyAccountLookupResult {
   isBap: boolean;
 }
 
+/**
+ * Outcome of a legacy-account lookup by identifier (email / username / id).
+ *
+ * The `ambiguous_email` branch signals that the identifier matches 2+ rows.
+ * Callers MUST NOT silently pick one. Verify-time paths surface this as
+ * classification `tier3 / ambiguous_email_anchor`; the manual claim form
+ * surfaces it as a form-level error asking the user to disambiguate.
+ */
+export type LegacyAccountLookup =
+  | { kind: 'none' }
+  | { kind: 'single'; result: LegacyAccountLookupResult }
+  | { kind: 'ambiguous_email'; count: number };
+
 function lookupLegacyAccount(
   requestingMemberId: string,
   identifier: string,
-): LegacyAccountLookupResult | null {
+): LegacyAccountLookup {
   const trimmed = identifier.trim();
   if (!trimmed) {
     throw new ValidationError('Please enter a legacy identifier.');
@@ -476,15 +500,22 @@ function lookupLegacyAccount(
     throw new ValidationError('Your account is already linked to a legacy record.');
   }
 
-  const row = legacyMembers.findByIdentifier.get(trimmed, trimmed, trimmed) as LegacyMemberRow | undefined;
-  if (!row) return null;
+  const rows = legacyMembers.findAllByIdentifier.all(trimmed, trimmed, trimmed) as LegacyMemberRow[];
+  if (rows.length === 0) return { kind: 'none' };
+  if (rows.length > 1) {
+    return { kind: 'ambiguous_email', count: rows.length };
+  }
 
+  const row = rows[0]!;
   return {
-    legacyMemberId: row.legacy_member_id,
-    displayName: row.display_name ?? row.real_name ?? null,
-    country: row.country,
-    isHof: Boolean(row.is_hof),
-    isBap: Boolean(row.is_bap),
+    kind: 'single',
+    result: {
+      legacyMemberId: row.legacy_member_id,
+      displayName: row.display_name ?? row.real_name ?? null,
+      country: row.country,
+      isHof: Boolean(row.is_hof),
+      isBap: Boolean(row.is_bap),
+    },
   };
 }
 

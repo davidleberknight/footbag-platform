@@ -107,30 +107,38 @@ function legacyRow(id: string): Record<string, unknown> {
 
 describe('lookupLegacyAccount', () => {
   it('finds an unclaimed legacy_members row by legacy_member_id', () => {
-    const result = svc.lookupLegacyAccount(MEMBER_A, LEGACY_UNCLAIMED);
-    expect(result).not.toBeNull();
-    expect(result!.legacyMemberId).toBe(LEGACY_UNCLAIMED);
-    expect(result!.country).toBe('Canada');
+    const lookup = svc.lookupLegacyAccount(MEMBER_A, LEGACY_UNCLAIMED);
+    expect(lookup.kind).toBe('single');
+    if (lookup.kind === 'single') {
+      expect(lookup.result.legacyMemberId).toBe(LEGACY_UNCLAIMED);
+      expect(lookup.result.country).toBe('Canada');
+    }
   });
 
   it('finds by legacy_email', () => {
-    const result = svc.lookupLegacyAccount(MEMBER_A, 'findme@example.com');
-    expect(result?.legacyMemberId).toBe(LEGACY_EMAIL_MATCH);
+    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'findme@example.com');
+    expect(lookup.kind).toBe('single');
+    if (lookup.kind === 'single') {
+      expect(lookup.result.legacyMemberId).toBe(LEGACY_EMAIL_MATCH);
+    }
   });
 
   it('finds by legacy_user_id', () => {
-    const result = svc.lookupLegacyAccount(MEMBER_A, 'legacy_name_42');
-    expect(result?.legacyMemberId).toBe(LEGACY_USERID_MATCH);
+    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'legacy_name_42');
+    expect(lookup.kind).toBe('single');
+    if (lookup.kind === 'single') {
+      expect(lookup.result.legacyMemberId).toBe(LEGACY_USERID_MATCH);
+    }
   });
 
-  it('returns null for non-matching identifier', () => {
-    const result = svc.lookupLegacyAccount(MEMBER_A, 'nonexistent-id-999');
-    expect(result).toBeNull();
+  it('returns none for non-matching identifier', () => {
+    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'nonexistent-id-999');
+    expect(lookup).toEqual({ kind: 'none' });
   });
 
-  it('returns null when the legacy_members row is already claimed', () => {
-    const result = svc.lookupLegacyAccount(MEMBER_A, LEGACY_PRECLAIMED);
-    expect(result).toBeNull();
+  it('returns none when the legacy_members row is already claimed', () => {
+    const lookup = svc.lookupLegacyAccount(MEMBER_A, LEGACY_PRECLAIMED);
+    expect(lookup).toEqual({ kind: 'none' });
   });
 
   it('throws when the requesting member has already claimed a legacy record', () => {

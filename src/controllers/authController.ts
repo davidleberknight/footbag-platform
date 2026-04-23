@@ -183,7 +183,9 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
       res.redirect('/history/auto-link');
       return;
     }
-    if (result.legacyMatch) {
+    // tier3 without a legacyMatch is the ambiguous-email case: route to the
+    // manual claim form so the user can disambiguate with a unique identifier.
+    if (tier === 'tier3' || result.legacyMatch) {
       res.redirect('/history/claim');
       return;
     }
