@@ -123,7 +123,6 @@ _HONOR_OVERRIDES: dict[str, str] = {
     "sebastien duchesne":       "Sébastien Duchesne",
     "sebastien duschesne":      "Sébastien Duchesne",
     "jonathan schneider":       "Jonathan Schneider",
-    "lon smith":                "Lon Skyler Smith",
     "lon skyler smith":         "Lon Skyler Smith",
     "aleksi airinen":           "Aleksi Airinen",
     "lauri airinen":            "Lauri Airinen",
