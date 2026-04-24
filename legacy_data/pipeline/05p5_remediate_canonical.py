@@ -2384,6 +2384,72 @@ print(f"  host_club assigned: {_f10_assigned} events  "
       f"(NHSA: {sum(1 for e in events if e.get('host_club') == 'NHSA' and int(e.get('year','0') or 0) <= 1993)}, "
       f"WFA: {sum(1 for e in events if e.get('host_club') == 'WFA')})")
 
+# ── Fix 11: Scoped disambiguation — bare "Open Doubles" → Net ────────────────
+# Fix 9's sibling-inference cannot reach single-discipline events whose only
+# discipline is a bare "Open Doubles". An explicit scoped table covers 13
+# events whose event_name contains "Net" plus one sibling-inference case
+# (2008_phoenix has other _net siblings but its "Open Doubles" itself has
+# no explicit token — Fix 9 renamed its siblings but not this bare label).
+# Rename discipline_key open_doubles → open_doubles_net and discipline_name
+# "Open Doubles" → "Open Doubles Net". discipline_category ("net") and
+# team_type ("doubles") are already correct — not modified.
+# Cascades to results + participants. Collision-safe.
+
+_FIX11_SCOPED_EVENTS: frozenset[str] = frozenset({
+    "1998_air_a_zona", "1999_air_a_zona", "2000_air_a_zona",
+    "2000_quebec_city", "2001_montreal", "2002_quebec_city",
+    "2008_phoenix",
+    "2010_usopen_portland", "2011_usopen_portland", "2011_windy_city",
+    "2012_usopen_net_portland", "2015_perpetual_flame_challenge",
+    "2024_1era_copa_altos", "2024_copa_bobston_de",
+})
+
+print("\n[Fix 11] Scoped 'Open Doubles' → 'Open Doubles Net' rename...")
+
+_f11_existing: dict[str, set[str]] = {}
+for d in disciplines:
+    _f11_existing.setdefault(d["event_key"], set()).add(d["discipline_key"])
+
+_f11_renames: dict[tuple[str, str], str] = {}
+_f11_upgraded = 0
+_f11_skipped_collision = 0
+for d in disciplines:
+    ek = d["event_key"]
+    if ek not in _FIX11_SCOPED_EVENTS:
+        continue
+    if d["discipline_key"] != "open_doubles":
+        continue
+    if "open_doubles_net" in _f11_existing.get(ek, set()):
+        print(f"    SKIP collision: {ek}: open_doubles → open_doubles_net already exists")
+        _f11_skipped_collision += 1
+        continue
+    _f11_renames[(ek, "open_doubles")] = "open_doubles_net"
+    d["discipline_key"]  = "open_doubles_net"
+    d["discipline_name"] = "Open Doubles Net"
+    _f11_upgraded += 1
+    print(f"    {ek}: 'Open Doubles' → 'Open Doubles Net'")
+
+_f11_results_updated = 0
+for r in results:
+    new_dk = _f11_renames.get((r["event_key"], r["discipline_key"]))
+    if new_dk:
+        r["discipline_key"] = new_dk
+        _f11_results_updated += 1
+
+_f11_parts_updated = 0
+for p in participants:
+    new_dk = _f11_renames.get((p["event_key"], p["discipline_key"]))
+    if new_dk:
+        p["discipline_key"] = new_dk
+        _f11_parts_updated += 1
+
+_f11_expected = len(_FIX11_SCOPED_EVENTS)
+print(f"  Disciplines renamed:     {_f11_upgraded} (expected {_f11_expected})")
+print(f"  Results rows updated:    {_f11_results_updated}")
+print(f"  Participant rows updated:{_f11_parts_updated}")
+if _f11_skipped_collision:
+    print(f"  Collisions skipped:      {_f11_skipped_collision}")
+
 # ── Save ──────────────────────────────────────────────────────────────────────
 
 print("\nSaving...")
@@ -2436,6 +2502,7 @@ print(f"""
 ║        Left unresolved (empty pid)       {_f7_left_empty:>6,} ║
 ║ Fix 9  Bare labels → Net                 {_f9_upgraded:>6,} ║
 ║ Fix 10 host_club assigned (NHSA/WFA)     {_f10_assigned:>6,} ║
+║ Fix 11 Scoped Open Doubles → Net         {_f11_upgraded:>6,} ║
 ║ Pre97  Parse failures repaired           {_pA_fixed:>6,} ║
 ║        Missing placements added          {_pB_results_added:>6,} ║
 ╠══════════════════════════════════════════╣
