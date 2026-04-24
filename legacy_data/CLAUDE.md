@@ -58,6 +58,17 @@ For repo-root/platform tasks, defer to repo-root `CLAUDE.md` and `IMPLEMENTATION
 - Prefer one-command workflows defined in skills
 - Never run git commit/push/pull; stage-only changes allowed, human owns commits
 
+## Workbook generation contract
+- The ONLY supported workbook pipeline is:
+  canonical CSVs
+    → `pipeline/platform/export_canonical_platform.py`
+    → `event_results/canonical_input/*.csv`
+    → `pipeline/build_workbook_release.py`
+    → `out/Footbag_Results_Release.xlsx`
+- The legacy builders (`pipeline/03_build_excel.py`, `pipeline/04_build_analytics.py`) and their output (`Footbag_Results_Canonical.xlsx`) have been removed and must not be reintroduced.
+- `build_workbook_release.py` reads only from `event_results/canonical_input/` + `inputs/review_quarantine_events.csv` + `inputs/identity_lock/` + `inputs/curated/`. EVENT INDEX must match `canonical_input/events.csv` row-for-row; if it ever diverges, the bug is in `build_event_index` or in what populates the `events` dict — not in the canonical input.
+- The 30-event delta between `out/canonical/events.csv` (pre-filter) and `event_results/canonical_input/events.csv` (post-filter) is intentional: `export_canonical_platform.py` drops sparse disciplines, then drops events with zero remaining disciplines. Never reintroduce the dropped events downstream.
+
 ## Clubs + classification + bootstrap
 - Extraction: `scripts/extract_clubs.py` parses mirror HTML → `seed/clubs.csv`. Columns include `contact_member_id` (from `members/profile/{id}`) alongside `contact_email`.
 - Classification: `clubs/scripts/02_build_legacy_club_candidates.py` implements MIGRATION_PLAN §9.1 R1–R10. Emits `clubs/out/legacy_club_candidates.csv` with `category` ∈ {pre_populate, onboarding_visible, dormant, junk}. `bootstrap_eligible=1` iff `category='pre_populate'`.
