@@ -65,7 +65,7 @@ Aleksi Öhman,998c87dc-4197-5f4d-97aa-f54b82f96a13,Aleksi Oehman,candidate,
 Aleksi Oman,998c87dc-4197-5f4d-97aa-f54b82f96a13,Aleksi Oehman,verified,
 Ales Pelko,d56fe6aa-9b02-5154-8b51-9464b5746bc0,Ale Pelko,verified,
 Ales Zelinka,f2e73bec-d859-51b9-8312-edb5a473e83e,Ales Zelinka,verified,
-Alex (Zeke) Ibardaloza,1b7f1d70-1719-533a-957a-1dae6a2dc23e,Alex Zeke Ibardaloza,verified,
+Alex (Zeke) Ibardaloza,be0d9849-db58-5aa2-90cc-df475a8c43bd,Alex Ibardaloza,verified,consolidation:2026-04-23
 Alex Bartsch,45b40a79-0205-5653-b18d-237dc54e3692,Alex Bartsch,verified,
 Alex Bartsch Max Gerhardt,45b40a79-0205-5653-b18d-237dc54e3692,Alex Bartsch,verified,quarantine_split:redirect_from_concat
 Alex Dworetzky,337dc937-b022-51ef-8470-99fff306e2c9,Alex Dworetzky,verified,
@@ -85,7 +85,6 @@ Alex Trenne,24ffb4bb-a58e-54d8-b0d9-06b989c794cd,Alexander Trenner,candidate,
 Alex Trenner,24ffb4bb-a58e-54d8-b0d9-06b989c794cd,Alexander Trenner,candidate,
 Alex Vannier,4c8215b4-4847-581a-a0d0-2ce338a83ed1,Alex Vannier,verified,
 Alex Venis,6cad1bc8-4e4c-51e3-9611-affd2ad897c5,Alex Venis,verified,
-Alex Zeke Ibardaloza,1b7f1d70-1719-533a-957a-1dae6a2dc23e,Alex Zeke Ibardaloza,verified,
 Alex Zerbe,dccd2dfd-4392-506e-9341-41106dd1e2f0,Alex Zerbe,verified,
 Alexander Bartsch,baf55af8-3c88-5c65-95cf-12f3b2c7c390,Alexander Bartsch,verified,
 Alexander Kermit Zamotin,09fb3eb7-247a-5a41-8720-b4cc412e4beb,Alexander kermit Zamotin,verified,
@@ -1358,14 +1357,14 @@ Kelly Kelley,e3000de1-60fa-51e1-bc35-98a860fadd6b,Kelly Kelley,verified,
 Kelly Kelly,e3000de1-60fa-51e1-bc35-98a860fadd6b,Kelly Kelley,verified,redirected:91301727-10db-57f9-8a6f-182af83537f0->e3000de1
 KellyKelley,e3000de1-60fa-51e1-bc35-98a860fadd6b,Kelly Kelley,verified,
 Ken 'Hammer' Hamric,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken The Hammer Hamric,verified,
-Ken Hamric,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken The Hammer Hamric,verified,
+Ken Hamric,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken Hamric,verified,canon_realigned:2026-04-23
 Ken Moller,cb3bbcdd-5807-5fa1-a1a7-3367acf07b95,Ken Moller,verified,
 Ken Shults,2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f,"Kenneth ""Kenny"" Shults",verified,
 Ken Somolinos,d1aace44-cd92-5b85-9ed1-fe4afb2cd502,Ken Somolinos,verified,
 Ken The Hammer Hamric,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken The Hammer Hamric,verified,
 Kendall KIC,ece72308-6a72-551f-866a-e348728ee455,Kendall KIC,verified,
 Kendall Kic,ece72308-6a72-551f-866a-e348728ee455,Kendall KIC,verified,lowercase variant
-Kenneth Hamric,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken The Hammer Hamric,verified,FBW mis-attribution — same person as Ken Hamric (HOF 2007 US)
+Kenneth Hamric,3991f932-86d6-54ae-8e43-9f7e651142cf,Ken Hamric,verified,FBW mis-attribution — same person as Ken Hamric (HOF 2007 US); canon_realigned:2026-04-23
 Kenneth Shults,2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f,"Kenneth ""Kenny"" Shults",verified,
 Kenny Schultz,2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f,"Kenneth ""Kenny"" Shults",verified,
 Kenny Shults,2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f,"Kenneth ""Kenny"" Shults",verified,
@@ -1473,6 +1472,7 @@ Locher Nora,2147dbe3-da70-55cd-a988-43bcec841389,Nora Locher,verified,merged: La
 Loic Bigey,f604fadc-5953-5d33-9bb2-628bff698444,Loic Bigey,verified,
 Loïc Bigey,f604fadc-5953-5d33-9bb2-628bff698444,Loic Bigey,verified,
 Lon Smith,11d216c3-891d-5728-981f-dc20ba381dd9,Skyler Lon Smith,verified,consolidation:2026-04-23
+Lon Skyler Smith,11d216c3-891d-5728-981f-dc20ba381dd9,Skyler Lon Smith,verified,consolidation:2026-04-23
 Lonya Julin,0bb608ec-43de-5a37-a2a7-9e5c5717853a,Lonya Julin,verified,quarantine_split:existing_person
 Lonya Julin Randy Pace,0bb608ec-43de-5a37-a2a7-9e5c5717853a,Lonya Julin,verified,quarantine_split:redirect_from_concat
 Lorenzen Nikolai,2d8be0d2-af88-5902-92be-5e6171bee781,Nikolai Lorenzen,verified,merged: Last-First format swap or confirmed variant
@@ -1640,6 +1640,8 @@ Max Kerkhoff,ce7e0e5a-0d7f-542c-8d5d-fb4895184909,Max Kerkhoff,verified,
 Max Kerkoff,ce7e0e5a-0d7f-542c-8d5d-fb4895184909,Max Kerkhoff,verified,redirected:28eccfee-f511-5a23-9439-ca67afab9ae3->ce7e0e5a
 Max Koendgen,e7cc97c0-2208-59de-88da-709faed573a2,Max Koendgen,verified,
 Max Smith Jr.,95fb4def-7ff2-5c9c-8de5-1b97d0e13756,Max Smith,verified,suffix variant
+Maxell Smith,95fb4def-7ff2-5c9c-8de5-1b97d0e13756,Max Smith,verified,consolidation:2026-04-23
+Maxell Smith Jr.,95fb4def-7ff2-5c9c-8de5-1b97d0e13756,Max Smith,verified,consolidation:2026-04-23
 Maxime Boucoiran,8069a4cf-1543-5a0a-bf83-92edff9e120f,Maxime Boucoiran,verified,
 Medat Osmanoski,900e4b36-bcc8-50fa-9b7a-800227b12992,Medet Osmanoski,verified,
 Medet Osmanoski,900e4b36-bcc8-50fa-9b7a-800227b12992,Medet Osmanoski,verified,
@@ -2013,7 +2015,6 @@ Randy Dix,3b9aa46e-f575-53b1-8cb1-0d75bec9ed86,Randy Dix,verified,
 Randy Mulder,c2da6bcd-ccc4-5ecf-8e49-d1c4ef4260b9,Randy Mulder,verified,
 Randy Pace,d97bdb08-5caa-51bc-8f26-aca27accb727,Randy Pace,verified,
 Rasmus Rendsvig,b1dbcec6-2d10-55c9-878c-df0104ad5d2a,Rasmus Rendsvig,verified,
-Ray Adams,526baae4-39bf-5caa-b548-14ed106bd118,Ray Adams,verified,
 Rebattu Yohann,93df01b3-35be-5b3b-9ce6-19c010c4474f,Yohann Rebattu,verified,merged: Last-First format swap or confirmed variant
 Red Fred Husted,a67698e9-2dd8-5853-b75a-3c6e535d7610,Red Fred Husted,verified,
 Red Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Husted,verified,
@@ -2683,7 +2684,6 @@ Tanya Jeliazkova,f95453fc-b49b-55df-954e-7b9f22c63f3b,Tania Jeliazkova,verified,
 Vald Eskenasy,ace0f85a-fff5-5fc2-b175-bea0fc903043,Vlad Eskenasy,verified,typo:events_1_vs_9
 Valerie Davidson,77d78830-84f5-520d-99d7-105a2b455eb3,Valeria Davidson,verified,typo:events_1_vs_12
 Vá ka Kouda,4a9eec48-24df-5707-b379-12a9599106fb,Váška Kouda,verified,typo:events_0_vs_1
-Zac Jackson,348ea683-38f2-54ab-ad04-db29a37bb687,Zeb Jackson,verified,typo:events_2_vs_4
 Anthony Raymond Intemann,71ae4086-3d7f-5fdb-812b-778eda4da0cf,Anthony Intemann,verified,full_name:events_1_vs_22
 Ben Baybak,c5297bc0-0f46-5f3f-b165-c6f4901f8838,Ben Babyak,verified,typo:scan_match
 Benjamin Babiak,c5297bc0-0f46-5f3f-b165-c6f4901f8838,Ben Babyak,verified,typo:scan_match
