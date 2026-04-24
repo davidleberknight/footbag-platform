@@ -2,70 +2,9 @@ import { PublicClubRow, PublicClubMemberRow, clubs } from '../db/db';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
+import { countryCode } from './countryUtils';
 
 const PUBLIC_CLUB_KEY_PATTERN = /^club_[a-z0-9_]+$/;
-
-// ── ISO country code lookup ────────────────────────────────────────────────────
-// Maps full country names (as stored in the DB) to ISO 3166-1 alpha-2 codes.
-// Used for seo.title on the country page: "{code} Clubs" → "Footbag NZ Clubs".
-// Add entries as new countries appear in club data.
-const COUNTRY_CODE: Record<string, string> = {
-  Argentina: 'AR',
-  Australia: 'AU',
-  Austria: 'AT',
-  Belgium: 'BE',
-  Brazil: 'BR',
-  Bulgaria: 'BG',
-  Canada: 'CA',
-  Chile: 'CL',
-  China: 'CN',
-  Colombia: 'CO',
-  Croatia: 'HR',
-  'Czech Republic': 'CZ',
-  Denmark: 'DK',
-  Estonia: 'EE',
-  Finland: 'FI',
-  France: 'FR',
-  Germany: 'DE',
-  Greece: 'GR',
-  Hungary: 'HU',
-  India: 'IN',
-  Ireland: 'IE',
-  Israel: 'IL',
-  Italy: 'IT',
-  Japan: 'JP',
-  Mexico: 'MX',
-  Netherlands: 'NL',
-  'The Netherlands': 'NL',
-  'New Zealand': 'NZ',
-  Nigeria: 'NG',
-  Norway: 'NO',
-  Pakistan: 'PK',
-  Peru: 'PE',
-  Poland: 'PL',
-  Portugal: 'PT',
-  'Puerto Rico': 'PR',
-  Romania: 'RO',
-  Russia: 'RU',
-  Slovakia: 'SK',
-  Slovenia: 'SI',
-  'South Africa': 'ZA',
-  'South Korea': 'KR',
-  Spain: 'ES',
-  Sweden: 'SE',
-  Switzerland: 'CH',
-  Turkey: 'TR',
-  Ukraine: 'UA',
-  'United Kingdom': 'GB',
-  'United States': 'US',
-  Uruguay: 'UY',
-  USA: 'US',
-  Venezuela: 'VE',
-};
-
-function countryCode(country: string): string {
-  return COUNTRY_CODE[country] ?? country;
-}
 
 function slugifyCountry(country: string): string {
   return country.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');

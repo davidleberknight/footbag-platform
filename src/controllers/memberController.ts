@@ -8,6 +8,7 @@ import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { RateLimitedError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
 type MemberWelcomeContent = Record<string, never>;
 
@@ -20,15 +21,8 @@ interface MemberPasswordEditContent {
 type MemberStubContent = Record<string, never>;
 import { logger } from '../config/logger';
 
-// One-shot flash cookies used to surface a post-redirect success message on
-// the profile-edit page. Written by postAvatarUpload, read and cleared by
-// getProfileEdit.
-// - FLASH_COOKIE: presence indicator; value is a fixed enum string
-// - FLASH_NAME_COOKIE: optional filename from the upload, shown in the banner
-//   so the user sees continuity between "chose X.jpg" and "updated: X.jpg"
-const FLASH_COOKIE = 'footbag_flash';
-const FLASH_AVATAR_UPLOADED = 'avatar_uploaded';
-const FLASH_NAME_COOKIE = 'footbag_flash_name';
+// Avatar-upload flash: filename display is capped so a maliciously long
+// filename cannot blow out the banner. Cookie semantics live in lib/flashCookie.
 const FLASH_NAME_MAX_LEN = 120;
 
 interface StubConfig {
@@ -126,14 +120,13 @@ export const memberController = {
     }
     try {
       let avatarSuccess: string | undefined;
-      if (req.cookies?.[FLASH_COOKIE] === FLASH_AVATAR_UPLOADED) {
-        const rawName = req.cookies?.[FLASH_NAME_COOKIE];
-        const name = typeof rawName === 'string' && rawName.length > 0
-          ? rawName.slice(0, FLASH_NAME_MAX_LEN)
+      const flash = readFlash(req);
+      if (flash?.kind === FLASH_KIND.AVATAR_UPLOADED) {
+        const name = flash.payload && flash.payload.length > 0
+          ? flash.payload.slice(0, FLASH_NAME_MAX_LEN)
           : null;
         avatarSuccess = name ? `Avatar updated: ${name}` : 'Avatar updated.';
-        res.clearCookie(FLASH_COOKIE, { path: '/' });
-        res.clearCookie(FLASH_NAME_COOKIE, { path: '/' });
+        clearFlash(res);
       }
       const vm = memberService.getProfileEditPage(
         req.params.memberKey,
@@ -241,16 +234,7 @@ export const memberController = {
 
       avatarService.uploadAvatar(memberId, fileBuffer)
         .then(() => {
-          const flashOpts = {
-            maxAge: 60_000,
-            httpOnly: true,
-            sameSite: 'lax' as const,
-            path: '/',
-          };
-          res.cookie(FLASH_COOKIE, FLASH_AVATAR_UPLOADED, flashOpts);
-          if (uploadedFilename) {
-            res.cookie(FLASH_NAME_COOKIE, uploadedFilename, flashOpts);
-          }
+          writeFlash(res, req, FLASH_KIND.AVATAR_UPLOADED, uploadedFilename || undefined);
           res.redirect(`/members/${memberKey}/edit`);
         })
         .catch((err: unknown) => {

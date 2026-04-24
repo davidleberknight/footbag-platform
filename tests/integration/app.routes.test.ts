@@ -858,28 +858,39 @@ describe('POST /logout', () => {
 
   it('preserves flash cookie across redirects — only clears when banner actually renders', async () => {
     const app = createApp();
+    // Get a real signed logout flash cookie via POST /logout.
+    const logoutRes = await request(app)
+      .post('/logout')
+      .set('Cookie', validAuthCookie());
+    const logoutSetCookie: string[] = Array.isArray(logoutRes.headers['set-cookie'])
+      ? logoutRes.headers['set-cookie']
+      : [logoutRes.headers['set-cookie'] ?? ''];
+    const flashValue = logoutSetCookie
+      .find((c: string) => c.startsWith('footbag_flash='))!
+      .split(';')[0];
+
     // Simulate: logout landed on a redirect-only response (e.g., protected
     // page bounce). Flash cookie must survive and be cleared only by the
     // eventual page render.
     const redirectOnly = await request(app)
       .get('/history')
-      .set('Cookie', 'footbag_flash_logout=1');
+      .set('Cookie', flashValue);
     expect(redirectOnly.status).toBe(301);
     const redirectCookies: string[] = Array.isArray(redirectOnly.headers['set-cookie'])
       ? redirectOnly.headers['set-cookie']
       : [redirectOnly.headers['set-cookie'] ?? ''];
-    const redirectCleared = redirectCookies.find((c: string) => c.startsWith('footbag_flash_logout='));
+    const redirectCleared = redirectCookies.find((c: string) => c.startsWith('footbag_flash='));
     expect(redirectCleared).toBeUndefined();
 
     // Now actually render a page with the flash cookie still set.
     const rendered = await request(app)
       .get('/')
-      .set('Cookie', 'footbag_flash_logout=1');
+      .set('Cookie', flashValue);
     expect(rendered.text).toContain('You have been logged out.');
     const renderedCookies: string[] = Array.isArray(rendered.headers['set-cookie'])
       ? rendered.headers['set-cookie']
       : [rendered.headers['set-cookie'] ?? ''];
-    const renderedCleared = renderedCookies.find((c: string) => c.startsWith('footbag_flash_logout='));
+    const renderedCleared = renderedCookies.find((c: string) => c.startsWith('footbag_flash='));
     expect(renderedCleared).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
   });
 
@@ -891,16 +902,17 @@ describe('POST /logout', () => {
     const cookies: string[] = Array.isArray(logoutRes.headers['set-cookie'])
       ? logoutRes.headers['set-cookie']
       : [logoutRes.headers['set-cookie'] ?? ''];
-    const flashCookie = cookies.find((c: string) => c.startsWith('footbag_flash_logout='));
+    const flashCookie = cookies.find((c: string) => c.startsWith('footbag_flash='));
     expect(flashCookie).toBeDefined();
+    const flashValue = flashCookie!.split(';')[0];
 
-    const landing = await request(app).get('/').set('Cookie', 'footbag_flash_logout=1');
+    const landing = await request(app).get('/').set('Cookie', flashValue);
     expect(landing.status).toBe(200);
     expect(landing.text).toContain('You have been logged out.');
     const landingCookies: string[] = Array.isArray(landing.headers['set-cookie'])
       ? landing.headers['set-cookie']
       : [landing.headers['set-cookie'] ?? ''];
-    const clearedFlash = landingCookies.find((c: string) => c.startsWith('footbag_flash_logout='));
+    const clearedFlash = landingCookies.find((c: string) => c.startsWith('footbag_flash='));
     expect(clearedFlash).toMatch(/Max-Age=0|Expires=Thu, 01 Jan 1970/i);
 
     const next = await request(app).get('/');

@@ -257,37 +257,32 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       create: { width: 10, height: 10, channels: 3, background: { r: 10, g: 10, b: 10 } },
     }).jpeg().toBuffer();
 
-    // Upload sets the flash cookie on the redirect response.
+    // Upload sets the signed flash cookie on the redirect response.
     const uploadRes = await request(app)
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'flash.jpg');
     expect(uploadRes.status).toBe(302);
-    const flashSet = uploadRes.headers['set-cookie']?.find((c: string) =>
-      c.startsWith('footbag_flash=avatar_uploaded'),
+    const flashSet = (uploadRes.headers['set-cookie'] ?? []).find((c: string) =>
+      c.startsWith('footbag_flash='),
     );
     expect(flashSet).toBeTruthy();
 
-    // Simulate the browser following the redirect with both flash cookies.
-    // The filename (captured from multipart upload) rides in a companion cookie
-    // and is shown in the banner so the user sees continuity between
-    // "chose flash.jpg" and "updated: flash.jpg".
+    // Replay the signed flash cookie with the auth cookie on the profile-edit
+    // GET. The filename is embedded in the signed cookie value so the banner
+    // shows continuity between "chose flash.jpg" and "updated: flash.jpg".
+    const flashValue = flashSet!.split(';')[0];
     const firstGet = await request(app)
       .get(`/members/${OWN_SLUG}/edit`)
-      .set('Cookie', [
-        ownCookie(),
-        'footbag_flash=avatar_uploaded',
-        'footbag_flash_name=flash.jpg',
-      ].join('; '));
+      .set('Cookie', [ownCookie(), flashValue].join('; '));
     expect(firstGet.status).toBe(200);
     expect(firstGet.text).toContain('Avatar updated: flash.jpg');
 
-    // The same request must clear both flash cookies so a reload does not re-show them.
+    // The same request must clear the flash cookie so a reload does not re-show.
     const setCookies = (firstGet.headers['set-cookie'] ?? []) as string[];
     expect(setCookies.some((c) => /^footbag_flash=;/.test(c))).toBe(true);
-    expect(setCookies.some((c) => /^footbag_flash_name=;/.test(c))).toBe(true);
 
-    // Without the cookies, the message must not appear.
+    // Without the cookie, the message must not appear.
     const secondGet = await request(app)
       .get(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie());
@@ -295,7 +290,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(secondGet.text).not.toContain('Avatar updated');
   });
 
-  it('upload POST sets the filename flash cookie from multipart info', async () => {
+  it('upload POST sets a signed flash cookie carrying the filename from multipart info', async () => {
     const app = createApp();
     const validJpeg = await sharp({
       create: { width: 10, height: 10, channels: 3, background: { r: 5, g: 5, b: 5 } },
@@ -308,7 +303,16 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(uploadRes.status).toBe(302);
 
     const setCookies = (uploadRes.headers['set-cookie'] ?? []) as string[];
-    expect(setCookies.some((c) => c.startsWith('footbag_flash=avatar_uploaded'))).toBe(true);
-    expect(setCookies.some((c) => c.startsWith('footbag_flash_name=my-photo.jpg'))).toBe(true);
+    const flashCookie = setCookies.find((c) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeTruthy();
+
+    // Round-trip the signed cookie through the real read path to confirm
+    // the filename survives signing/verification.
+    const flashValue = flashCookie!.split(';')[0];
+    const editRes = await request(app)
+      .get(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', [ownCookie(), flashValue].join('; '));
+    expect(editRes.status).toBe(200);
+    expect(editRes.text).toContain('Avatar updated: my-photo.jpg');
   });
 });

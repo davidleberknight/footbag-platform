@@ -22,6 +22,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.9 Layered Architecture: Controllers, Services, Middleware, Adapters](#19-layered-architecture-controllers-services-middleware-adapters)
   - [1.10 Catalog-governed Page and Service Contracts](#110-catalog-governed-page-and-service-contracts)
   - [1.11 Configuration Model](#111-configuration-model)
+  - [1.12 Internal-only Subtrees](#112-internal-only-subtrees)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -143,7 +144,7 @@ Service Layer: Import db module, call queries.memberByEmail.get(email), wrap mul
 
 Schema Design: refer to Data_Model md file.
 
-Minimum Indexes (added when query \>500ms): members(login_email_normalized), members(display_name), events(start_date), events(hashtag), audit_logs(timestamp), media(member_id), registrations(event_id, member_id).
+Minimum Indexes (added when query \>500ms): members(login_email_normalized), members(display_name), events(start_date), events(hashtag), audit_entries(occurred_at), media(member_id), registrations(event_id, member_id).
 
 Monitoring: Query latency P95, slow query log (\>500ms), transaction duration (alert if P95 \>10s), backup success rate and age (alert if \>15 min), database size (alert at 80%), WAL size (alert if \>1GB), checkpoint latency (alert if \>5s), SQLITE_BUSY frequency (alert if \>5%).
 
@@ -506,6 +507,36 @@ Impact:
 - Secrets-handling rules (§3.6) apply to env-var secrets; system_config is not a secret store.
 - SESSION_SECRET is the canonical example of an env-var secret that lives in the host's `/srv/footbag/env` outside Git. See §3.6.
 
+## 1.12 Internal-only Subtrees
+
+Decision:
+
+Internal-only code (operator, maintainer, and QC tools that are not reachable from public navigation and are gated by role) lives under dedicated subtrees at `src/internal-<purpose>/**` with matching view trees at `src/views/internal-<purpose>/**`. It is kept separate from the permanent product surface in `src/services/**`, `src/controllers/**`, and `src/views/**`. Internal-only subtrees are present in every environment (dev, staging, production): the separation is role-based, not environment-based, and is orthogonal to the dev/staging/production adapter parity model defined in §1.9 and §5.3.
+
+Current and reserved subtrees:
+
+- `src/internal-qc/{controllers,services}/**` (live): historical-data QC tooling (net team corrections, persons data-quality review). Every file in this subtree carries the banner `// ---- QC-only (delete with pipeline-qc subsystem) ----` so the retirement scope (per `docs/MIGRATION_PLAN.md` §29) is mechanically greppable at retirement time.
+- `src/internal-admin/**` (reserved, not yet created): future role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes per `docs/SERVICE_CATALOG.md` §9.1. Follows the same subtree convention without the QC deletion banner.
+
+Rationale:
+
+- A distinct subtree signals at a glance whether code serves the public product or serves operator/maintainer needs. Nothing in `src/services/` or `src/controllers/` is silently QC-only.
+- The QC-only banner on every source file makes the "delete with pipeline-qc subsystem" scope mechanically greppable at retirement time (MIGRATION_PLAN §29).
+- Keeping internal-only code out of `src/services/` preserves the service-catalog invariant: `docs/SERVICE_CATALOG.md` covers permanent product surface only (see SC §1 "Catalog scope and organizational tiers"). Internal-only code is documented in its relevant runbook, not in the main service catalog.
+- Role-based separation is orthogonal to environment-based adapter parity: dev, staging, and production differ only at the `<Purpose>Adapter` seam (§5.3). Internal-only surfaces exist in every environment and are gated by auth role, not by env config.
+
+Trade-offs:
+
+- Two parallel subtree roots (permanent product vs internal-only) to maintain. Minor, and is the point of the separation.
+- A tool transitioning in or out of the QC lifecycle requires renaming its subtree (for example, migrating a tool from `src/internal-qc/` to `src/internal-admin/` if it survives QC retirement). Acceptable: it is a deliberate lifecycle transition and should not be silent.
+
+Impact:
+
+- `src/internal-qc/` already houses the Net QC and persons QC subsystems. `src/internal-admin/` is reserved, not yet created.
+- `src/services/`, `src/controllers/`, `src/views/` hold permanent product code only. New internal-only code must land under the appropriate `src/internal-<purpose>/**` subtree on first commit. Do not merge an internal-only addition into the main trees with intent to move later.
+- Integration tests for internal-only routes continue to live in `tests/integration/` alongside other route tests. Test-file paths do not mirror the src-layer separation today; if a convention for that is adopted later, it is a test-layout decision, not a change to this rule.
+- `docs/SERVICE_CATALOG.md` §1 documents the catalog-scope consequence: internal-only subtrees are out of catalog scope. Permanent product services (including dev-mode shaping services such as `SimulatedEmailService` at SC §8.2) remain in-catalog.
+
 # 2. Data Model
 
 ## 2.1 Schema and Versioning
@@ -734,7 +765,7 @@ Trade-offs:
 
 - 7-year retention increases storage costs (acceptable for compliance).
 
-- Immutability is enforced at the application-code boundary: no service method issues UPDATE or DELETE against `audit_logs`. Database-level tampering by an actor with direct SQLite write access (for example a Lightsail host compromise) is a residual risk bounded by the SSH access posture (§7.2) and backup retention (§9.4). For tally audit records specifically, WORM storage in S3 Object Lock (§6.9) is the stronger commitment.
+- Immutability is enforced at the application-code boundary: no service method issues UPDATE or DELETE against `audit_entries`. Database-level tampering by an actor with direct SQLite write access (for example a Lightsail host compromise) is a residual risk bounded by the SSH access posture (§7.2) and backup retention (§9.4). For tally audit records specifically, WORM storage in S3 Object Lock (§6.9) is the stronger commitment.
 
 Impact:
 
@@ -913,6 +944,12 @@ Requirements:
 Trade-offs:
 
 - Requires discipline in HTTP verb usage. No protection for ancient browsers (IE 10 and older); acceptable given browser baseline.
+
+Cookie integrity for display state:
+
+- Server-issued cookies that carry display state (flash banners today; preferences or remember-me in the future) are HMAC-signed with the per-host `SESSION_SECRET` via `cookie-parser`'s signed-cookie mechanism. This is distinct from synchronizer tokens, which are not used: signing defends against client-side cookie-jar tampering of state the server will later echo, not against cross-site request forgery (which SameSite handles).
+
+- Cookie policy (name, format, options) lives in `src/lib/*Cookie.ts` helpers; controllers and middleware call helpers rather than hand-rolling cookie options. Services are unaware of flash cookies (HTTP-layer concern).
 
 ## 3.4 JWT Token Lifecycle and Configuration
 
@@ -1167,7 +1204,7 @@ For normative policy detail, implementation rules, and reference tables, see `do
 
 Cross-references:
 
-- **2.4** Immutable Audit Logs with Privacy-safe Fields — extend audit guidance to member-search, export, and sensitive visibility checks.
+- **2.5** Immutable Audit Logs with Privacy-safe Fields — extend audit guidance to member-search, export, and sensitive visibility checks.
 - **3.2/3.4** JWT Sessions / Token Lifecycle — session and auth boundaries protect current-member-only surfaces, not public historical record surfaces.
 - **6.4** Legacy Archive — member-only because it contains private legacy member information; explicitly distinct from public migrated historical results.
 - **6.5** Legacy Data Migration — imported people and imported stat fields do not automatically become public current-member data or authoritative public statistics.

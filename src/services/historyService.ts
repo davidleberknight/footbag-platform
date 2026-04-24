@@ -8,7 +8,7 @@ import { PageViewModel } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
-import { surnameKey } from './identityAccessService';
+import { surnameKey } from './nameUtils';
 
 interface HistoricalPlayer {
   personId: string;

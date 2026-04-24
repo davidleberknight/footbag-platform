@@ -1,9 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
-import { identityAccessService } from '../services/identityAccessService';
+import {
+  identityAccessService,
+  ClaimFormContent,
+  AutoLinkConfirmContent,
+  ClaimHpConfirmContent,
+  ClaimConfirmContent,
+} from '../services/identityAccessService';
 import { findAutoLinkCandidates } from '../services/nameVariantsService';
 import { legacyClaim } from '../db/db';
 import { ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
+import { PageViewModel } from '../types/page';
 
 interface ClaimingMemberRow {
   id: string;
@@ -108,7 +115,7 @@ export const claimController = {
         message,
         candidates,
       },
-    });
+    } satisfies PageViewModel<ClaimFormContent>);
   },
 
   /**
@@ -138,7 +145,7 @@ export const claimController = {
             : undefined,
           declineHref:              `/members/${encodeURIComponent(req.user!.slug)}`,
         },
-      });
+      } satisfies PageViewModel<AutoLinkConfirmContent>);
     } catch (err) {
       logger.error('auto-link confirm error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
@@ -177,7 +184,7 @@ export const claimController = {
             error:       'Invalid claim request.',
             declineHref: `/members/${encodeURIComponent(slug)}`,
           },
-        });
+        } satisfies PageViewModel<AutoLinkConfirmContent>);
         return;
       }
 
@@ -214,7 +221,7 @@ export const claimController = {
               error:       err.message,
               declineHref: `/members/${encodeURIComponent(slug)}`,
             },
-          });
+          } satisfies PageViewModel<AutoLinkConfirmContent>);
           return;
         }
         throw err;
@@ -249,7 +256,7 @@ export const claimController = {
           firstNameWarning: result.firstNameWarning,
           cancelHref:       `/history/${encodeURIComponent(result.personId)}`,
         },
-      });
+      } satisfies PageViewModel<ClaimHpConfirmContent>);
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('history/claim-hp-confirm', {
@@ -259,7 +266,7 @@ export const claimController = {
             error: err.message,
             cancelHref: `/history/${encodeURIComponent(personId)}`,
           },
-        });
+        } satisfies PageViewModel<ClaimHpConfirmContent>);
         return;
       }
       logger.error('hp claim lookup error', { error: err instanceof Error ? err.message : String(err) });
@@ -276,7 +283,7 @@ export const claimController = {
       res.status(422).render('history/claim-hp-confirm', {
         ...HP_FORM_VM,
         content: { error: 'Invalid claim request.', cancelHref: '/members' },
-      });
+      } satisfies PageViewModel<ClaimHpConfirmContent>);
       return;
     }
     try {
@@ -291,7 +298,7 @@ export const claimController = {
             error: err.message,
             cancelHref: `/history/${encodeURIComponent(personId)}`,
           },
-        });
+        } satisfies PageViewModel<ClaimHpConfirmContent>);
         return;
       }
       logger.error('hp claim error', { error: err instanceof Error ? err.message : String(err) });
@@ -327,7 +334,7 @@ export const claimController = {
         res.status(200).render('history/claim-form', {
           ...FORM_VM,
           content: { error: 'No matching legacy record was found for that identifier.', identifier },
-        });
+        } satisfies PageViewModel<ClaimFormContent>);
         return;
       }
 
@@ -340,7 +347,7 @@ export const claimController = {
               'Please try a legacy username or member ID instead.',
             identifier,
           },
-        });
+        } satisfies PageViewModel<ClaimFormContent>);
         return;
       }
 
@@ -355,13 +362,13 @@ export const claimController = {
           isHof:            result.isHof,
           isBap:            result.isBap,
         },
-      });
+      } satisfies PageViewModel<ClaimConfirmContent>);
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('history/claim-form', {
           ...FORM_VM,
           content: { error: err.message, identifier },
-        });
+        } satisfies PageViewModel<ClaimFormContent>);
         return;
       }
       logger.error('claim lookup error', { error: err instanceof Error ? err.message : String(err) });
@@ -377,7 +384,7 @@ export const claimController = {
       res.status(422).render('history/claim-form', {
         ...FORM_VM,
         content: { error: 'Invalid claim request.' },
-      });
+      } satisfies PageViewModel<ClaimFormContent>);
       return;
     }
 
@@ -389,7 +396,7 @@ export const claimController = {
         res.status(422).render('history/claim-form', {
           ...FORM_VM,
           content: { error: err.message },
-        });
+        } satisfies PageViewModel<ClaimFormContent>);
         return;
       }
       logger.error('claim merge error', { error: err instanceof Error ? err.message : String(err) });

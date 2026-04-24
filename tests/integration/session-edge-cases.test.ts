@@ -180,6 +180,39 @@ describe('session edge cases — unknown sub', () => {
   });
 });
 
+describe('session edge cases — unverified email', () => {
+  // Contract (defense-in-depth parity with findMemberByEmail): a valid JWT
+  // whose `sub` points at a member whose `email_verified_at IS NULL` must not
+  // resolve to an authenticated session. In practice email verification only
+  // clears forward on registration, so reaching this branch requires a bug or
+  // token misuse; the filter keeps such sessions unauthenticated anyway.
+
+  const UNVERIFIED_ID   = 'unverified-session-001';
+  const UNVERIFIED_SLUG = 'unverified_session_user';
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: UNVERIFIED_ID,
+      slug: UNVERIFIED_SLUG,
+      login_email: 'unverified-session@example.com',
+      display_name: 'Unverified Session User',
+      email_verified_at: null,
+      password_version: 1,
+    });
+    db.close();
+  });
+
+  it('JWT for a member with email_verified_at=NULL is rejected', async () => {
+    const token = createTestSessionJwt({ memberId: UNVERIFIED_ID, passwordVersion: 1 });
+    const app = createApp();
+    const res = await request(app)
+      .get(PROTECTED_ROUTE)
+      .set('Cookie', `footbag_session=${token}`);
+    expectUnauthenticated(res);
+  });
+});
+
 describe('session edge cases — authz role is derived from DB, not JWT claims', () => {
   // Regression guard: a JWT carrying `role: 'admin'` for a user whose
   // `members.is_admin = 0` must NOT resolve to role='admin' in the session.

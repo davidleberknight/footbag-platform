@@ -33,7 +33,7 @@ resource "aws_ssm_parameter" "app_public_base_url" {
 resource "aws_ssm_parameter" "app_db_path" {
   name  = "${local.ssm_prefix}/app/db_path"
   type  = "String"
-  value = "/srv/footbag/footbag.db"
+  value = "/srv/footbag/db/footbag.db"
 }
 
 # ── Stripe (placeholder — payment deferred) ───────────────────────────────────

@@ -9,9 +9,8 @@ This catalog is the target-design reference for the platform's service layer: me
 - [2. Service Quick Reference](#2-service-quick-reference)
 - [3. Identity & Account](#3-identity--account)
   - [3.1 `IdentityAccessService`](#31-identityaccessservice)
-  - [3.2 `MemberProfileLifecycleService`](#32-memberprofilelifecycleservice)
+  - [3.2 `MemberService`](#32-memberservice)
   - [3.3 `HistoryService`](#33-historyservice)
-  - [3.4 `MemberService`](#34-memberservice)
 - [4. Clubs & Events](#4-clubs--events)
   - [4.0 `HomeService`](#40-homeservice)
   - [4.1 `ClubService`](#41-clubservice)
@@ -32,6 +31,7 @@ This catalog is the target-design reference for the platform's service layer: me
   - [7.3 `NewsService`](#73-newsservice)
 - [8. Communication](#8-communication)
   - [8.1 `CommunicationService`](#81-communicationservice)
+  - [8.2 `SimulatedEmailService`](#82-simulatedemailservice)
 - [9. Governance & Operations](#9-governance--operations)
   - [9.1 `AdminGovernanceService`](#91-admingovernanceservice)
   - [9.2 `OperationsPlatformService`](#92-operationsplatformservice)
@@ -71,9 +71,17 @@ There is no target-design `publicController` layer. Public controllers/routes st
 
 Adapters must fail-fast at boot when required env vars are absent. Integration tests stand up an injected fake client against the adapter interface; tests must never mock the AWS SDK package itself. See `tests/CLAUDE.md` §"Dev↔staging adapter parity" for the required three-test pattern (boot-time, interface parity, staging smoke).
 
+**Catalog scope and organizational tiers:** This catalog covers adapters under `src/adapters/**` and permanent product services under `src/services/**`, including **dev-mode shaping services** whose only job is to produce fallback view-models when an adapter is in `stub` or sandbox mode (e.g. `SimulatedEmailService` at `src/services/simulatedEmailService.ts`, consumed by the public `/register/check-email` page when `SES_ADAPTER=stub`; cataloged at §8.2). The **QC-only subsystem** under `src/internal-qc/{controllers,services}/**` (with views under `src/views/internal-qc/**`) is **out of catalog scope**: every source file carries the `// ---- QC-only (delete with pipeline-qc subsystem) ----` banner and the entire subtree retires with the pipeline-qc subsystem per `docs/MIGRATION_PLAN.md` §29. When future role-gated internal-admin tooling (operator pages that outlive the QC retirement) is built, it will get its own subtree (`src/internal-admin/`) and its own catalog treatment at that time.
+
+Four organizational tiers the catalog-scope rule recognizes:
+1. **Adapters** — `src/adapters/<purpose>Adapter.ts`; interface `<Purpose>Adapter`, impls `<Backend><Purpose>Adapter`. See *Adapter pattern* above and `docs/DESIGN_DECISIONS.md` §1.9.
+2. **Permanent product services** — `src/services/<domain>Service.ts`. Cataloged in §3 through §10.
+3. **Dev-mode shaping services** — `src/services/simulated<Purpose>Service.ts` (or any `src/services/` service whose name signals fallback-mode intent). Cataloged alongside product services; the name carries the "not for production delivery" signal, env config gates the behavior.
+4. **Internal-only subsystem** (`src/internal-qc/**` today; future `src/internal-admin/**`) — not cataloged here. QC-only code additionally carries the deletion-marker banner in every source file.
+
 **Rate-limit placement:** rate-limit enforcement (`rateLimitHit` + `throw new RateLimitedError(...)`) lives in services. Controllers catch `RateLimitedError` and map it to HTTP 429 with `Retry-After` set from `retryAfterSeconds`. Never implement rate limits in middleware or inline in controllers. All rate-limit bucket sizes and windows are read from `system_config_current` keys (e.g. `login_rate_limit_max_attempts`, `password_reset_rate_limit_window_minutes`).
 
-**Anti-enumeration invariant:** Any endpoint that could leak account existence (login, register, password-reset request, email-verify/resend, member lookup, legacy claim) must return identical UX and identical timing for "exists" vs "does not exist." Services enforce this by running the same code path in both cases (e.g., always hitting the hash-compare, always running the rate-limit bucket); controllers must not short-circuit around an earlier existence check. Implemented by `IdentityAccessService` for account endpoints and by `MemberProfileLifecycleService.searchMembers` for member lookup.
+**Anti-enumeration invariant:** Any endpoint that could leak account existence (login, register, password-reset request, email-verify/resend, member lookup, legacy claim) must return identical UX and identical timing for "exists" vs "does not exist." Services enforce this by running the same code path in both cases (e.g., always hitting the hash-compare, always running the rate-limit bucket); controllers must not short-circuit around an earlier existence check. Implemented by `IdentityAccessService` for account endpoints and by `MemberService.searchMembers` for member lookup.
 
 **Read model conventions:**
 - `member_tier_current` — **authoritative tier projection**; no tier cache columns exist on `members`. Use `calculateTierStatus(memberId)` as the sole authoritative tier-read path; never derive tier from `members` directly.
@@ -117,20 +125,15 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Primary tables:** `members`, `account_tokens`
 - Future detail (retain explicitly): auth hardening to the long-term JWT/session design remains governed by `docs/DESIGN_DECISIONS.md` and `IMPLEMENTATION_PLAN.md`
 
-**`MemberProfileLifecycleService`**
-- **Owns:** Member profile CRUD, account soft-delete and PII purge workflow, deceased handling, GDPR data export, member search
-- **Does NOT own:** Tier grants, payments
+**`MemberService`**
+- **Owns:** Member-account page shaping and lifecycle: members landing with search, own-profile read, limited public HoF/BAP profile read, profile edit (includes inline avatar upload), account soft-delete and PII purge workflow, deceased handling, GDPR data export, member search
+- **Does NOT own:** Login/registration credential verification, account-claim flow, tier grants/ledger, payments
 - **Primary tables:** `members`, `member_links`, `media_items`, `member_galleries`, `account_tokens`
 
 **`HistoryService`**
 - **Owns:** Current-slice historical-person index/detail reads, historical-results page shaping, and the distinction between historical imported people and current member accounts
 - **Does NOT own:** Current member account lifecycle, profile CRUD, member search, or account-claim flow
 - **Primary tables:** `historical_persons`, `event_result_entry_participants`, supporting event/result reads
-
-**`MemberService`**
-- **Owns:** Member-account page shaping and own-account profile operations: own profile read, limited public HoF/BAP profile read, profile edit page shaping (includes inline avatar upload), and supported account stub pages
-- **Does NOT own:** Login/registration credential verification, broader member search, account-claim flow, or tier ledger calculation
-- **Primary tables:** `members`, profile/media-related reads and writes
 
 ---
 
@@ -232,6 +235,11 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Does NOT own:** Triggering sends directly — all other services enqueue to outbox; this service owns the worker
 - **Primary tables:** `outbox_emails`, `mailing_lists`, `mailing_list_subscriptions`, `email_archives`, `email_templates`
 
+**`SimulatedEmailService`** (dev-mode shaping tier)
+- **Owns:** View-model for the `simulated-email-card` partial on email-gated public pages (`/register/check-email`); three-mode switch driven by `SES_ADAPTER` + `SES_SANDBOX_MODE`
+- **Does NOT own:** Any outbox write, any production delivery path; returns `null` in production
+- **Primary tables:** none (reads `StubSesAdapter.sentMessages` in-memory)
+
 ---
 
 ### Governance & Operations
@@ -243,7 +251,7 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 
 **`OperationsPlatformService`**
 - **Owns:** All background job orchestration, system job run logging, alarm raise/ack, backup jobs, static asset cleanup
-- **Does NOT own:** Domain business logic — delegates all of it to domain services; row-level PII purge logic (MemberProfileLifecycleService)
+- **Does NOT own:** Domain business logic — delegates all of it to domain services; row-level PII purge logic (MemberService)
 - **Primary tables:** `system_job_runs`, `system_alarm_events`
 
 ---
@@ -294,18 +302,21 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 
 ---
 
-### 3.2 `MemberProfileLifecycleService`
+### 3.2 `MemberService`
 
-**Purpose/Boundary:** Owns member profile CRUD, account soft-delete and PII purge workflow, deceased handling, GDPR data export, and member search. Does NOT own tier grants or payments.
+**Purpose/Boundary:** Owns member-account read/write page shaping for `/members/*` surfaces (see `docs/VIEW_CATALOG.md`): members landing with search, own-profile read, limited public HoF/BAP member profile read, profile edit (includes inline avatar upload). Also owns member-account lifecycle: soft-delete and PII purge workflow, deceased handling, GDPR data export, and member search. Does NOT own login/registration credential verification, legacy claim flow, or tier grants / ledger calculation.
 
 > **Purge boundary:** This service owns the row-level PII clearing logic (`purgeAccountPII`). `OperationsPlatformService` owns orchestration — it determines which members qualify and calls this service after the applicable grace period. See §9.2.
 
-**Consumers:** Member controllers, AdminGovernanceService, OperationsPlatformService (purge job)
+**Consumers:** Member controller, AdminGovernanceService, OperationsPlatformService (purge job)
 
 **Key Methods:**
-- `getProfile(memberId, viewerContext) -> {profile}` — applies visibility rules: email shown only to owner, or when `email_visibility = 'members'` (to logged-in members); `email_visibility = 'public'` is not a forward-looking supported value — contact fields must never be publicly exposed; tier badges to logged-in members only; honor badges (HoF, BAP, board) to all
-- `editProfile(memberId, input) -> {ok}` — validates/sanitizes URLs (https, max 3 via `member_links`), bio; audit-logs changed fields
-- `searchMembers(query) -> {results}` — **authenticated members only (Tier 0+); never public**; queries `members_searchable` view exclusively; min 2-char query; prefix match on display name; capped result count for broad queries with "refine your query" signal; no browse-all/exhaustive pagination; anti-enumeration by design
+- `getMembersLandingPage(slug, displayName, query?) -> PageViewModel<MembersLandingContent>` — member dashboard page model with optional search; content includes `profileSlug`, `displayName`, and `search`
+- `searchMembers(query) -> MemberSearchResult` — **authenticated members only (Tier 0+); never public**; queries `members_searchable` view exclusively; min 2-char query; substring match on display name (`LIKE '%' || query || '%'`); 20-result cap with `hasMore` flag and "refine your query" signal for broad queries; no browse-all/exhaustive pagination; anti-enumeration by design
+- `getOwnProfile(slug) -> PageViewModel<OwnProfileContent>` — own-profile page model; applies visibility rules for contact fields: email shown to owner, or when `email_visibility = 'members'` (to logged-in members); tier badges to logged-in members only; honor badges (HoF, BAP, board) to all
+- `getPublicProfile(slug) -> PageViewModel<PublicProfileContent> | null` — limited public HoF/BAP profile; returns null for non-HoF/BAP members; `email_visibility = 'public'` is not a forward-looking supported value — contact fields must never be publicly exposed
+- `getProfileEditPage(slug, error?) -> PageViewModel<ProfileEditContent>` — edit form page model
+- `updateOwnProfile(slug, input) -> void` — validates/sanitizes URLs (https, max 3 via `member_links`), bio, location, contact prefs, competition history; audit-logs changed fields
 - `deleteAccount(memberId) -> {ok}` — SD: sets `deleted_at`; synchronously deletes all S3 photos and `media_items` / `member_galleries` rows (HD); if S3 deletion fails, entire operation fails — account must NOT be marked deleted until S3 photos are confirmed removed; if member is sole club leader AND `club.contact_email IS NULL`: also inserts 'Needs Contact' work-queue item → admin-alerts notification; audit-logs
 - `requestDataExport(memberId) -> {downloadLinkToken}` — creates `account_tokens` row of type `data_export`; enqueues email with time-limited link (expires `data_export_link_expiry_hours`, default 72h)
 - `generateDataExport(token) -> {jsonFile}` — validates `data_export` token; assembles profile, tier status, payment history, event registrations, media metadata, vote participation (no ballot content or receipt tokens); audit-logs
@@ -313,7 +324,11 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 - `revertDeceasedFlag(adminId, memberId, reason) -> {ok}` — available within `deceased_cleanup_grace_days` only; clears `is_deceased`; audit-logs
 - `purgeAccountPII(memberId) -> {ok}` — called only by `OperationsPlatformService.runPIIPurgeJob()` after the applicable grace period (soft-delete branch or deceased-member branch); sets `personal_data_purged_at`; clears `login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`, `phone`, `whatsapp`, `legacy_email`, `legacy_user_id`, `street_address`, `postal_code`, `birth_date`; overwrites `real_name`, `display_name`, `display_name_normalized`, `city`, `country` with anonymized placeholders as needed (APP-022); retains row for referential integrity; HoF/BAP members: retain display name and honor badges
 
-**Authz:** `editProfile`, `deleteAccount`, `requestDataExport` — owner only. `searchMembers` — authenticated Tier 0+ only; never callable from public routes. `markDeceased`, `revertDeceasedFlag` — admin only.
+**Avatar upload** (implemented via `createAvatarService` factory in `avatarService.ts`):
+- `uploadAvatar(memberId, fileBuffer) -> { thumbUrl }` — validates image type (JPEG/PNG only), enforces 5 MB size limit, processes to thumb and display sizes, atomically replaces any existing avatar (delete old media item, insert new, link to member)
+- own-profile only; Busboy streaming in controller, business logic in service
+
+**Authz:** `updateOwnProfile`, `deleteAccount`, `requestDataExport` — owner only. `searchMembers` — authenticated Tier 0+ only; never callable from public routes. `markDeceased`, `revertDeceasedFlag` — admin only.
 
 **Persistence Touchpoints:** `members`, `members_active`, `members_all`, `members_searchable`, `member_links`, `media_items`, `member_galleries`, `account_tokens`, `audit_entries`, `outbox_emails`, `work_queue_items`
 
@@ -325,6 +340,10 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 - `[APP]` `purgeAccountPII` is not callable by any service other than `OperationsPlatformService` — it is not a general-purpose purge method
 - `[APP]` `is_deceased` removal only within `deceased_cleanup_grace_days`; after that only full account deletion is available
 - `[APP]` Deceased and soft-deleted members are distinct cleanup paths: `deceased_cleanup_grace_days` applies only after `markDeceased`; `member_cleanup_grace_days` applies only after `deleteAccount`
+- `[APP]` own-profile routes are owner-only
+- `[APP]` public non-owner profile viewing is limited to the explicit HoF/BAP exception
+- `[APP]` no contact-field leakage on public profile views
+- `[APP]` route handlers stay thin; page shaping belongs here
 - `[DB]` Partial UNIQUE index: one avatar per member; email unique for un-purged members
 - `[APP]` Max 3 external URLs per member (APP-008)
 
@@ -347,32 +366,6 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 - historical imported people vs current member accounts: see DD §2.4
 - historical pages must not imply current-member ownership or contactability
 - public honor visibility for HoF/BAP historical persons is bounded and explicit
-- route handlers stay thin; page shaping belongs here
-
----
-
-### 3.4 `MemberService`
-
-**Purpose/Boundary:** Owns the member-account read/write page shaping for the `/members/*` surfaces documented in `docs/VIEW_CATALOG.md`. This includes the members landing page with member search, own-profile read, limited public HoF/BAP member profile read, profile edit page shaping (includes inline avatar upload), and supported account stub pages. It does NOT own login/registration credential verification, legacy claim flow, or tier ledger calculation.
-
-**Consumers:** Member controller
-
-**Key Methods:**
-- `getMembersLandingPage(slug, displayName, query?) -> PageViewModel<MembersLandingContent>` — member dashboard page model with optional search; content includes `profileSlug`, `displayName`, and `search`
-- `searchMembers(query) -> MemberSearchResult` — prefix-match search on `members_searchable` view; returns shaped results with honor badges; 20-result cap with `hasMore` flag
-- `getOwnProfile(slug) -> PageViewModel<OwnProfileContent>` — own-profile page model
-- `getPublicProfile(slug) -> PageViewModel<PublicProfileContent> | null` — limited public HoF/BAP profile; returns null for non-HoF/BAP members
-- `getProfileEditPage(slug, error?) -> PageViewModel<ProfileEditContent>` — edit form page model
-- `updateOwnProfile(slug, input) -> void` — validates and persists profile field changes (bio, location, contact prefs, competition history)
-
-**Avatar upload** (implemented via `createAvatarService` factory in `avatarService.ts`):
-- `uploadAvatar(memberId, fileBuffer) -> { thumbUrl }` — validates image type (JPEG/PNG only), enforces 5 MB size limit, processes to thumb and display sizes, atomically replaces any existing avatar (delete old media item, insert new, link to member)
-- own-profile only; Busboy streaming in controller, business logic in service
-
-**Key Rules:**
-- own-profile routes are owner-only
-- public non-owner profile viewing is limited to the explicit HoF/BAP exception
-- no contact-field leakage on public profile views
 - route handlers stay thin; page shaping belongs here
 
 ---
@@ -402,7 +395,7 @@ Future detail (retain explicitly): auth hardening to the long-term JWT/session d
 
 **Purpose/Boundary:** Owns club lifecycle (create, edit, activate/deactivate, archive), leader/co-leader management, roster management, and club operability enforcement. Does NOT own media or payments.
 
-**Consumers:** Member controllers, AdminGovernanceService, MemberProfileLifecycleService (deceased handling)
+**Consumers:** Member controllers, AdminGovernanceService, MemberService (deceased handling)
 
 **Key Methods:**
 - `createClub(leaderId, input) -> {clubId}` — validates Tier 1+; rejects if member already holds `role='leader'` for any active club `[APP]`; generates unique `#club_{location_slug}` hashtag via HashtagDiscoveryService; creates `clubs` row and `club_leaders` row; audit-logs; emits `club_created` news item via NewsService
@@ -936,6 +929,31 @@ Target service contract for mailing lists, admin sends, bounce/complaint handlin
 
 ---
 
+### 8.2 `SimulatedEmailService`
+
+**Purpose/Boundary:** Dev-mode shaping service that produces the view-model for the `simulated-email-card` Handlebars partial rendered on email-gated public pages (currently `/register/check-email` and its post-resend landing). Three modes, driven by env config:
+- **`dev`** (`SES_ADAPTER=stub`): returns captured in-memory messages from `StubSesAdapter.sentMessages` so a developer can finish an email flow without leaving the page.
+- **`sandbox`** (`SES_ADAPTER=live` + `SES_SANDBOX_MODE=1`): returns a marker view-model so the page renders a one-line staging notice.
+- **`null`** (`SES_ADAPTER=live` + `SES_SANDBOX_MODE=0`): returns no view-model; the page omits the card entirely in production.
+
+Dev-mode shaping only. Does NOT enqueue, send, or mutate `outbox_emails`. The `dev` mode reads the stub adapter's in-memory `sentMessages` array, which is independent of `outbox_emails.body_text` (the DB row is scrubbed post-send for PII hygiene per APP-019; the stub's memory array retains the original message content so dev visibility is preserved after the DB scrub).
+
+**Consumers:** `authController` via `auth/check-email` template (public `/register/check-email`; post-resend landing).
+
+**Key Methods:**
+- `getEmailPreview() -> Promise<SimulatedEmailPreview | null>` — returns `{ mode: 'dev', messages }` / `{ mode: 'sandbox' }` / `null` per env config. In `dev` mode, force-initializes the SES adapter singleton and drains the outbox by invoking `OperationsPlatformService.runEmailWorker()` so the most recently enqueued email is visible without waiting for the scheduled worker.
+
+**Persistence Touchpoints:** none. Reads only from the in-memory `StubSesAdapter.sentMessages` array.
+
+**Key Rules:**
+- `[APP]` Dev-mode content comes from the stub adapter's in-memory array, never from `outbox_emails`; production outbox scrub (APP-019) therefore does not affect dev visibility.
+- `[APP]` Never used for production delivery. The `null` return when `SES_ADAPTER=live` + `SES_SANDBOX_MODE=0` guarantees the card is absent in production rendering.
+- `[APP]` Calling `getEmailPreview()` in `dev` mode is safe to repeat: no network calls, idempotent outbox drain via `OperationsPlatformService.runEmailWorker()`.
+
+**Async / Side Effects:** invokes `OperationsPlatformService.runEmailWorker()` in `dev` mode to drain the outbox before reading the stub array.
+
+---
+
 ## 9. Governance & Operations
 
 ---
@@ -981,7 +999,7 @@ Target service contract for mailing lists, admin sends, bounce/complaint handlin
 
 ### 9.2 `OperationsPlatformService`
 
-**Purpose/Boundary:** Owns background job orchestration, system job run logging, alarm raise/ack, backup jobs, static asset cleanup, and application-level readiness composition for operational health checks. Does NOT own domain business logic, delegates all of it to named domain service methods. Does NOT own row-level PII purge logic (MemberProfileLifecycleService).
+**Purpose/Boundary:** Owns background job orchestration, system job run logging, alarm raise/ack, backup jobs, static asset cleanup, and application-level readiness composition for operational health checks. Does NOT own domain business logic, delegates all of it to named domain service methods. Does NOT own row-level PII purge logic (MemberService).
 
 **Consumers:** Job scheduler, system role processes
 
@@ -993,7 +1011,7 @@ Target service contract for mailing lists, admin sends, bounce/complaint handlin
 - `runPaymentWebhookProcessor(payload, sig) -> {ok}` — SYS_Process_One_Time_Payments / SYS_Process_Recurring_Donations; validates Stripe signature; delegates to `PaymentService.handleStripeWebhook()`; idempotent
 - `runSESWebhookProcessor(payload) -> {ok}` — SYS_Handle_SES_Bounce_And_Complaint_Webhooks; delegates to `CommunicationService.handleSESBounce()` / `handleSESComplaint()`; idempotent
 - `runNightlyReconciliation() -> {ok}` — SYS_Reconcile_Payments_Nightly; 2 AM UTC; delegates to `PaymentService.runReconciliation()`; after passes complete, deletes resolved `reconciliation_issues` rows where `expires_at <= now`; if digest cadence is due (`reconciliation_summary_interval_days`), calls `AdminGovernanceService.buildReconciliationDigestData()` and enqueues delivery via `CommunicationService.enqueueEmail()` under system-role context; idempotent and operationally logged
-- `runPIIPurgeJob() -> {ok}` — SYS_Cleanup_Soft_Deleted_Records; daily; executes **separate** member PII cleanup branches: (1) soft-deleted accounts after `member_cleanup_grace_days`; (2) deceased-member records after `deceased_cleanup_grace_days`; deceased and deleted are distinct lifecycle states — do not collapse into one grace rule; also applies payment record cleanup after `payment_retention_days` and ballot retention cleanup after `ballot_retention_days`; events with published results and clubs never deleted; delegates member-row PII work to `MemberProfileLifecycleService.purgeAccountPII()`; writes comprehensive audit log entry with counts per entity type/branch
+- `runPIIPurgeJob() -> {ok}` — SYS_Cleanup_Soft_Deleted_Records; daily; executes **separate** member PII cleanup branches: (1) soft-deleted accounts after `member_cleanup_grace_days`; (2) deceased-member records after `deceased_cleanup_grace_days`; deceased and deleted are distinct lifecycle states — do not collapse into one grace rule; also applies payment record cleanup after `payment_retention_days` and ballot retention cleanup after `ballot_retention_days`; events with published results and clubs never deleted; delegates member-row PII work to `MemberService.purgeAccountPII()`; writes comprehensive audit log entry with counts per entity type/branch
 - `runTokenCleanup() -> {ok}` — SYS_Cleanup_Expired_Tokens; daily; deletes expired or consumed tokens older than `token_cleanup_threshold_days`; idempotent; logs counts by token type
 - `runTagStatsRebuild() -> {ok}` — SYS_Rebuild_Hashtag_Stats; daily; delegates to `HashtagDiscoveryService.rebuildTagStats()`; failure leaves existing stats; logs metrics
 - `runNightlyBackupSync() -> {ok}` — SYS_Nightly_Backup_Sync; incremental S3 → cross-region DR bucket sync; integrity verification; S3 Object Lock (WORM) on DR bucket; logs run metadata; calls `raiseAlarm()` on failure

@@ -9,7 +9,10 @@ import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { RateLimitedError, ValidationError } from './serviceErrors';
 import { findAutoLinkCandidates } from './nameVariantsService';
+import { appendAuditEntry } from './auditService';
+import { createHash } from 'crypto';
 import { logger } from '../config/logger';
+import type { SimulatedEmailPreview } from './simulatedEmailService';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_DISPLAY_NAME = 64;
@@ -19,6 +22,7 @@ function normalizeEmail(email: string): string {
 }
 
 import { slugify } from './slugify';
+import { extractSurname, stripAccents, surnameKey } from './nameUtils';
 
 /**
  * Generate a unique slug. Appends _2, _3, etc. on conflict.
@@ -40,6 +44,81 @@ function generateUniqueSlug(displayName: string): string {
   while (exists(`${base}_${suffix}`)) suffix++;
   return `${base}_${suffix}`;
 }
+
+// ── Page content contracts ─────────────────────────────────────────────────
+// Consumed by authController and claimController renders. Kept here so page
+// contracts live with the domain service that owns the business logic behind
+// each page.
+
+export interface LoginContent {
+  returnTo?: string;
+  authReason?: string;
+  error?: string;
+}
+
+export interface RegisterContent {
+  error?: string;
+  realName?: string;
+  displayName?: string;
+  email?: string;
+}
+
+export interface CheckEmailContent {
+  resent?: boolean;
+  emailPreview?: SimulatedEmailPreview;
+}
+
+export interface VerifyResultContent {
+  ok: boolean;
+}
+
+export type PasswordForgotContent = Record<string, never>;
+
+export interface PasswordForgotSentContent {
+  email?: string;
+}
+
+export interface PasswordResetContent {
+  token: string | undefined;
+  error?: string;
+}
+
+export interface ClaimFormContent {
+  identifier?: string;
+  message?: string;
+  error?: string;
+  candidates?: Array<{ personId: string; personName: string }>;
+}
+
+export interface AutoLinkConfirmContent {
+  personId?: string;
+  personName?: string;
+  tier?: 'tier1' | 'tier2';
+  matchedVariantNormalized?: string;
+  error?: string;
+  declineHref: string;
+}
+
+export interface ClaimHpConfirmContent {
+  personId?: string;
+  personName?: string;
+  country?: string | null;
+  isHof?: boolean;
+  isBap?: boolean;
+  firstNameWarning?: boolean;
+  error?: string;
+  cancelHref: string;
+}
+
+export interface ClaimConfirmContent {
+  legacyMemberId: string;
+  displayName: string | null;
+  country: string | null;
+  isHof: boolean;
+  isBap: boolean;
+}
+
+// ── Business result contracts ──────────────────────────────────────────────
 
 export interface RegisteredMember {
   id: string;
@@ -101,33 +180,26 @@ async function attemptLogin(
   const windowMinutes = readIntConfig('login_rate_limit_window_minutes', 15);
   const rl = rateLimitHit(`login:${normalized}:${ip}`, maxAttempts, windowMinutes);
   if (!rl.allowed) {
+    const emailHash = createHash('sha256').update(normalized).digest('hex');
+    appendAuditEntry({
+      actionType: 'auth.login_rate_limited',
+      category: 'auth',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'login_attempt',
+      entityId: emailHash,
+      metadata: {
+        retryAfterSeconds: rl.retryAfterSeconds,
+        windowMinutes,
+        maxAttempts,
+      },
+    });
     throw new RateLimitedError(
       'Too many failed login attempts. Please try again later.',
       rl.retryAfterSeconds,
     );
   }
   return verifyMemberCredentials(email, password);
-}
-
-/**
- * Extract the surname (last word) from a name after stripping common suffixes.
- * Exported so other services (e.g., historyService) can reuse the same rule.
- */
-export function extractSurname(name: string): string {
-  const suffixes = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'phd', 'md']);
-  const words = name.trim().split(/\s+/);
-  // Strip trailing suffixes
-  while (words.length > 1 && suffixes.has(words[words.length - 1].replace(/\.$/, '').toLowerCase())) {
-    words.pop();
-  }
-  return words[words.length - 1] || '';
-}
-
-/**
- * Strip accents for comparison (Unicode NFD decomposition, remove combining marks).
- */
-export function stripAccents(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 /**
@@ -224,6 +296,16 @@ async function registerMember(
   );
 
   await issueAndEnqueueVerifyEmail(id, trimmedEmail);
+
+  appendAuditEntry({
+    actionType: 'auth.register',
+    category: 'auth',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'member',
+    entityId: id,
+  });
+
   return { status: 'registered' };
 }
 
@@ -608,11 +690,6 @@ export interface HistoricalPersonClaimLookup {
   firstNameWarning: boolean;
 }
 
-export function surnameKey(name: string | null | undefined): string {
-  if (!name) return '';
-  return stripAccents(extractSurname(name)).toLowerCase();
-}
-
 function normalizedSurnamesMatch(a: string | null, b: string | null): boolean {
   if (!a || !b) return false;
   return surnameKey(a) === surnameKey(b);
@@ -828,6 +905,15 @@ async function changePassword(
   const now = new Date().toISOString();
   auth.updateMemberPassword.run(newHash, now, now, memberId);
 
+  appendAuditEntry({
+    actionType: 'auth.password_change',
+    category: 'auth',
+    actorType: 'member',
+    actorMemberId: memberId,
+    entityType: 'member',
+    entityId: memberId,
+  });
+
   // Confirmation email. Best-effort: enqueue failures must not unwind
   // the password change.
   try {
@@ -924,6 +1010,15 @@ async function completePasswordReset(
   const newHash = await argon2.hash(newPassword);
   const now = new Date().toISOString();
   auth.updateMemberPassword.run(newHash, now, now, consumed.memberId);
+
+  appendAuditEntry({
+    actionType: 'auth.password_reset',
+    category: 'auth',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'member',
+    entityId: consumed.memberId,
+  });
 
   // Confirmation email, best-effort.
   try {

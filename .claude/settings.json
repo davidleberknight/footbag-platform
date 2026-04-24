@@ -33,6 +33,16 @@
       "Bash(kill:*)",
       "Bash(pkill:*)",
       "Bash(mkdir:*)",
+      "Bash(find:*)",
+      "Bash(xargs:*)",
+      "Bash(ls:*)",
+      "Bash(stat:*)",
+      "Bash(file:*)",
+      "Bash(wc:*)",
+      "Bash(tree:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(cat:*)",
       "WebFetch(domain:*)",
       "WebSearch",
       "mcp__playwright__browser_navigate",
@@ -220,6 +230,10 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-readonly-bash.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-find-exec.sh"
           }
         ]
       }

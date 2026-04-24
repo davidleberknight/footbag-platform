@@ -141,6 +141,109 @@ describe('claimLegacyAccount — atomicity invariants', () => {
   });
 });
 
+// ── claimLegacyAccount two-actor concurrency ─────────────────────────────────
+//
+// Per `.claude/rules/testing.md` adversarial checklist: "two simultaneous
+// claims of the same legacy account." Fires both POSTs via Promise.all and
+// asserts the markClaimed `WHERE claimed_by_member_id IS NULL` guard lets
+// exactly one actor win (legacy_members.claimed_by_member_id is populated by
+// exactly that member, and no stray member row ends up with a cross-claim).
+
+describe('claimLegacyAccount — two-actor race', () => {
+  const MEMBER_B_ID   = 'atomic-member-002';
+  const MEMBER_B_SLUG = 'atomic_member_b';
+
+  function cookieB(): string {
+    return `footbag_session=${createTestSessionJwt({ memberId: MEMBER_B_ID })}`;
+  }
+
+  function readMemberB(): Record<string, unknown> {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT * FROM members WHERE id = ?').get(MEMBER_B_ID) as Record<string, unknown>;
+    db.close();
+    return row;
+  }
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: MEMBER_B_ID,
+      slug: MEMBER_B_SLUG,
+      login_email: 'atomic-b@example.com',
+      display_name: 'Atomic Member B',
+    });
+    db.close();
+  });
+
+  // Clear B's claim alongside A's (the outer beforeEach only touches A).
+  beforeEach(() => {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET legacy_member_id = NULL, historical_person_id = NULL WHERE id = ?').run(MEMBER_B_ID);
+    db.close();
+  });
+
+  it('two actors targeting the same legacy_member_id → exactly one wins', async () => {
+    const app = createApp();
+    const reqA = request(app)
+      .post('/history/claim/confirm')
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send({ legacyMemberId: LEGACY_ID });
+    const reqB = request(app)
+      .post('/history/claim/confirm')
+      .set('Cookie', cookieB())
+      .type('form')
+      .send({ legacyMemberId: LEGACY_ID });
+
+    const [resA, resB] = await Promise.all([reqA, reqB]);
+    expect(resA.status).toBeLessThan(500);
+    expect(resB.status).toBeLessThan(500);
+
+    const memberA = readMember();
+    const memberB = readMemberB();
+    const legacy = readLegacy();
+
+    const aClaimed = memberA.legacy_member_id === LEGACY_ID;
+    const bClaimed = memberB.legacy_member_id === LEGACY_ID;
+    // Exactly one member ends up linked to the legacy account.
+    expect(aClaimed).not.toBe(bClaimed);
+    // legacy_members row reflects the same winner and nothing else.
+    expect(legacy.claimed_by_member_id).toBe(aClaimed ? MEMBER_ID : MEMBER_B_ID);
+    expect(legacy.claimed_at).toBeTruthy();
+    // Loser's member row is untouched.
+    expect(aClaimed ? memberB.legacy_member_id : memberA.legacy_member_id).toBeNull();
+  });
+
+  it('repeated two-actor races always settle with exactly one winner', async () => {
+    // Run the race five times in a loop; each iteration must land in a
+    // clean one-winner state. Pins that the race-condition guard never
+    // lets both succeed nor corrupts state on the losing path.
+    const app = createApp();
+    for (let i = 0; i < 5; i++) {
+      // Reset state before each iteration (beforeEach only fires once).
+      const resetDb = new BetterSqlite3(dbPath);
+      resetDb.prepare('UPDATE legacy_members SET claimed_by_member_id = NULL, claimed_at = NULL WHERE legacy_member_id = ?').run(LEGACY_ID);
+      resetDb.prepare('UPDATE members SET legacy_member_id = NULL, historical_person_id = NULL WHERE id IN (?, ?)').run(MEMBER_ID, MEMBER_B_ID);
+      resetDb.close();
+
+      const [resA, resB] = await Promise.all([
+        request(app).post('/history/claim/confirm').set('Cookie', ownCookie())
+          .type('form').send({ legacyMemberId: LEGACY_ID }),
+        request(app).post('/history/claim/confirm').set('Cookie', cookieB())
+          .type('form').send({ legacyMemberId: LEGACY_ID }),
+      ]);
+      expect(resA.status).toBeLessThan(500);
+      expect(resB.status).toBeLessThan(500);
+
+      const memberA = readMember();
+      const memberB = readMemberB();
+      const aClaimed = memberA.legacy_member_id === LEGACY_ID;
+      const bClaimed = memberB.legacy_member_id === LEGACY_ID;
+      expect(aClaimed).not.toBe(bClaimed);
+    }
+  });
+});
+
 // ── completePasswordReset atomicity ───────────────────────────────────────────
 //
 // completePasswordReset updates the password, bumps password_version, and

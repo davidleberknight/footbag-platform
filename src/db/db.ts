@@ -3265,6 +3265,7 @@ export const auth = {
       m.is_admin
     FROM members_active AS m
     WHERE m.id = ?
+      AND m.email_verified_at IS NOT NULL
   `),
 
   updateMemberLastLogin: db.prepare(`
@@ -3349,6 +3350,20 @@ export const accountTokens = {
         updated_by = 'system',
         version    = version + 1
     WHERE id = ? AND used_at IS NULL
+  `),
+} as const;
+
+export const auditEntries = {
+  insert: db.prepare(`
+    INSERT INTO audit_entries (
+      id, created_at, created_by,
+      occurred_at, actor_type, actor_member_id,
+      action_type, entity_type, entity_id,
+      category, reason_text, metadata_json
+    ) VALUES (?, ?, 'system',
+      ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?)
   `),
 } as const;
 

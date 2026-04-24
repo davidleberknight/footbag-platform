@@ -117,7 +117,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 ║  • Call db.ts prepared statements for reads and writes              ║
 ║  • Wrap multi-step writes in  transaction()  helper                 ║
 ║  • INSERT into outbox within same transaction as the write          ║
-║  • INSERT into audit_logs on every state-changing action            ║
+║  • INSERT into audit_entries on every state-changing action         ║
 ║  • Never touches  req / res / cookies / HTTP headers                ║
 ╚═════════════════════════════════════════════════════════════════════╝
 
@@ -190,7 +190,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 └─────────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Audit log  (INSERT into audit_logs — append-only)                  │
+│  Audit log  (INSERT into audit_entries — append-only)               │
 │    event_type: 'auth.login' · actor_id: memberId                    │
 │    timestamp: ISO-8601 UTC · result: 'success'                      │
 │    (no IP address stored — privacy-safe audit log policy)           │

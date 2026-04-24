@@ -10,18 +10,22 @@
 #   - DB volume path from env (not a hardcoded local path)
 #   - No host port binding for web — traffic flows through nginx only
 #   - Secrets and config injected from host environment / SSM at deploy time
+#   - Bounded container log rotation on every service (json-file driver,
+#     10 MB per file, 3 files retained) so stdout/stderr cannot fill the
+#     Lightsail host disk.
 # =============================================================================
 
-# Logging (pending): no service below declares a `logging` block, so container
-# stdout/stderr defaults to Docker's unbounded json-file driver and grows
-# without rotation on the Lightsail host. Target: `logging: driver: json-file,
-# options: { max-size: "10m", max-file: "3" }` per service. Must add before
-# production cutover (disk-fill risk, especially as worker poll tightens).
+x-log-rotation: &log-rotation
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
 
   nginx:
     restart: always
+    logging: *log-rotation
     deploy:
       resources:
         limits:
@@ -29,6 +33,7 @@ services:
 
   web:
     restart: always
+    logging: *log-rotation
     volumes:
       # Directory bind mount so SQLite WAL/SHM sidecars live on the host and
       # are shared between web and worker containers. A file bind mount would
@@ -63,6 +68,7 @@ services:
     # src/worker.ts handles graceful shutdown on `docker compose down` and
     # systemd stop.
     restart: unless-stopped
+    logging: *log-rotation
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ${FOOTBAG_DB_DIR:-/srv/footbag/db}:/app/db:rw

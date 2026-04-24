@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { netQcController } from '../internal-qc/controllers/netQcController';
-import { personsController } from '../controllers/personsController';
+import { personsQcController } from '../internal-qc/controllers/personsQcController';
 import { requireAuth } from '../middleware/auth';
 
 /**
@@ -17,8 +17,8 @@ export const internalRouter = Router();
 internalRouter.use(requireAuth);
 
 // Persons QC + browse
-internalRouter.get('/persons/qc', personsController.qcPage);
-internalRouter.get('/persons/browse', personsController.browsePage);
+internalRouter.get('/persons/qc', personsQcController.qcPage);
+internalRouter.get('/persons/browse', personsQcController.browsePage);
 
 // Net team corrections triage
 internalRouter.get('/net/team-corrections',                    netQcController.teamCorrectionsPage);

@@ -20,7 +20,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertHistoricalPerson, insertMember, createTestSessionJwt } from '../fixtures/factories';
-import { runPersonsQcChecks, PersonQcRow } from '../../src/services/personsQcChecks';
+import { runPersonsQcChecks, PersonQcRow } from '../../src/internal-qc/services/personsQcChecks';
 
 const { dbPath } = setTestEnv('3115');
 

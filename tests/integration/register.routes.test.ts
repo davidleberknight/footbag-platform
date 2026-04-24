@@ -64,7 +64,7 @@ describe('GET /register', () => {
     const app = createApp();
     const res = await request(app).get('/register');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Create an IFPA Account');
+    expect(res.text).toContain('Register to create an IFPA member account.');
     expect(res.text).toContain('name="realName"');
     expect(res.text).toContain('name="displayName"');
     expect(res.text).toContain('name="email"');

@@ -35,6 +35,13 @@
   </nav>
   {{/if}}
 
+  {{!--
+    Preserve anchor/data hooks on region sections and club entries:
+    `id="region-{regionSlug}"` is the jump target for the in-page region
+    nav, and `data-club-id="{clubId}"` is the hook an interactive clubs
+    map will use to highlight / pan to the matching marker. Both are
+    intentional UX contracts; do not drop them on future refactors.
+  --}}
   {{#each content.regions}}
   <section {{#if regionSlug}}id="region-{{regionSlug}}"{{/if}} class="club-section">
     {{#if region}}

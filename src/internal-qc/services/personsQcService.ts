@@ -1,6 +1,7 @@
-import { personsQc, PersonsQcRow } from '../db/db';
+// ---- QC-only (delete with pipeline-qc subsystem) ----
+import { personsQc, PersonsQcRow } from '../../db/db';
 import { runPersonsQcChecks, PersonQcIssue, PersonQcCategory, PersonQcSeverity } from './personsQcChecks';
-import { PageViewModel } from '../types/page';
+import { PageViewModel } from '../../types/page';
 
 interface PersonsQcFilters {
   category?: string;
@@ -94,7 +95,7 @@ interface PersonsQcContent {
 
 const BROWSE_PAGE_SIZE = 200;
 
-export const personsService = {
+export const personsQcService = {
   getPersonsBrowsePage(filters: PersonsBrowseFilters): PageViewModel<PersonsBrowseContent> {
     const rows = personsQc.listAll.all() as PersonsQcRow[];
     const allIssues = runPersonsQcChecks(rows);

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { legalService } from '../services/legalService';
-import { logger } from '../config/logger';
+import { handleControllerError } from '../lib/controllerErrors';
 
 /**
  * Thin controller for the /legal route.
@@ -13,10 +13,7 @@ export const legalController = {
       const vm = legalService.getLegalPage();
       res.render('legal/index', vm);
     } catch (err) {
-      logger.error('unexpected error in legal controller', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      next(err);
+      handleControllerError(err, res, next, 'legal controller');
     }
   },
 };

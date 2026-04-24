@@ -1,8 +1,9 @@
+// ---- QC-only (delete with pipeline-qc subsystem) ----
 import { Request, Response, NextFunction } from 'express';
-import { personsService } from '../services/personsService';
-import { logger } from '../config/logger';
+import { personsQcService } from '../services/personsQcService';
+import { handleControllerError } from '../../lib/controllerErrors';
 
-export const personsController = {
+export const personsQcController = {
   /** GET /internal/persons/qc */
   qcPage(req: Request, res: Response, next: NextFunction): void {
     try {
@@ -16,13 +17,10 @@ export const personsController = {
           ? rawSource.trim() : undefined,
       };
 
-      const vm = personsService.getPersonsQcPage(filters);
-      res.render('persons/qc', vm);
+      const vm = personsQcService.getPersonsQcPage(filters);
+      res.render('internal-qc/persons/qc', vm);
     } catch (err) {
-      logger.error('unexpected error in persons controller', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      next(err);
+      handleControllerError(err, res, next, 'persons qc controller');
     }
   },
 
@@ -42,13 +40,10 @@ export const personsController = {
           ? parseInt(rawPage, 10) : undefined,
       };
 
-      const vm = personsService.getPersonsBrowsePage(filters);
-      res.render('persons/browse', vm);
+      const vm = personsQcService.getPersonsBrowsePage(filters);
+      res.render('internal-qc/persons/browse', vm);
     } catch (err) {
-      logger.error('unexpected error in persons controller', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      next(err);
+      handleControllerError(err, res, next, 'persons qc controller');
     }
   },
 };

@@ -1412,7 +1412,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 - `seo.title = Register`
 - `page.pageKey = register`
-- `page.title = Member Registration`
+- `page.title = Register to create an IFPA member account.`
 - optional `content.error`
 
 ### Implementation notes

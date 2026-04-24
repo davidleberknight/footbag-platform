@@ -2,46 +2,20 @@ import { Request, Response, NextFunction } from 'express';
 import { SESSION_COOKIE_NAME } from '../middleware/auth';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
-import { identityAccessService } from '../services/identityAccessService';
+import {
+  identityAccessService,
+  LoginContent,
+  RegisterContent,
+  CheckEmailContent,
+  VerifyResultContent,
+  PasswordForgotContent,
+  PasswordForgotSentContent,
+  PasswordResetContent,
+} from '../services/identityAccessService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { simulatedEmailService, SimulatedEmailPreview } from '../services/simulatedEmailService';
+import { simulatedEmailService } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
-
-export const FLASH_LOGOUT_COOKIE = 'footbag_flash_logout';
-export const FLASH_LOGOUT_VALUE = '1';
-
-interface LoginContent {
-  returnTo?: string;
-  authReason?: string;
-  error?: string;
-}
-
-interface RegisterContent {
-  error?: string;
-  realName?: string;
-  displayName?: string;
-  email?: string;
-}
-
-interface CheckEmailContent {
-  resent?: boolean;
-  emailPreview?: SimulatedEmailPreview;
-}
-
-interface VerifyResultContent {
-  ok: boolean;
-}
-
-type PasswordForgotContent = Record<string, never>;
-
-interface PasswordForgotSentContent {
-  email?: string;
-}
-
-interface PasswordResetContent {
-  token: string | undefined;
-  error?: string;
-}
+import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
 function isSafePath(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
@@ -105,8 +79,8 @@ function getRegister(req: Request, res: Response): void {
     return;
   }
   res.render('auth/register', {
-    seo: { title: 'Create Account' },
-    page: { sectionKey: '', pageKey: 'register', title: 'Create an IFPA Account' },
+    seo: { title: 'Register' },
+    page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
     content: {},
   } satisfies PageViewModel<RegisterContent>);
 }
@@ -118,8 +92,8 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
 
   const renderError = (msg: string) => {
     res.status(422).render('auth/register', {
-      seo: { title: 'Create Account' },
-      page: { sectionKey: '', pageKey: 'register', title: 'Create an IFPA Account' },
+      seo: { title: 'Register' },
+      page: { sectionKey: '', pageKey: 'register', title: 'Register to create an IFPA member account.' },
       content: {
         error: msg,
         realName: realName ?? '',
@@ -216,13 +190,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
 
 function postLogout(req: Request, res: Response): void {
   res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
-  res.cookie(FLASH_LOGOUT_COOKIE, FLASH_LOGOUT_VALUE, {
-    maxAge: 60_000,
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
-    path: '/',
-  });
+  writeFlash(res, req, FLASH_KIND.LOGOUT);
   const referer = req.get('Referer');
   if (referer) {
     try {

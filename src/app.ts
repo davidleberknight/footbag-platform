@@ -5,10 +5,12 @@ import { engine } from 'express-handlebars';
 import { logger } from './config/logger';
 import { config } from './config/env';
 import { authMiddleware } from './middleware/auth';
-import { FLASH_LOGOUT_COOKIE, FLASH_LOGOUT_VALUE } from './controllers/authController';
+import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
 import { internalRouter } from './routes/internalRoutes';
 import { publicRouter }   from './routes/publicRoutes';
+import { redactTokenPaths } from './lib/redactTokenPaths';
+import { countryFlag } from './services/countryUtils';
 
 /**
  * Factory that returns a configured Express application without
@@ -34,50 +36,6 @@ export function createApp(): express.Application {
   app.use('/media', express.static(config.mediaDir, { maxAge: '7d' }));
 
   // ── View engine ──────────────────────────────────────────────────────────
-  const COUNTRY_FLAGS: Record<string, string> = {
-    'Argentina':        '🇦🇷',
-    'Australia':        '🇦🇺',
-    'Austria':          '🇦🇹',
-    'Belgium':          '🇧🇪',
-    'Brazil':           '🇧🇷',
-    'Bulgaria':         '🇧🇬',
-    'Canada':           '🇨🇦',
-    'Chile':            '🇨🇱',
-    'China':            '🇨🇳',
-    'Colombia':         '🇨🇴',
-    'Czech Republic':   '🇨🇿',
-    'Denmark':          '🇩🇰',
-    'Estonia':          '🇪🇪',
-    'Finland':          '🇫🇮',
-    'France':           '🇫🇷',
-    'Germany':          '🇩🇪',
-    'Hungary':          '🇭🇺',
-    'India':            '🇮🇳',
-    'Ireland':          '🇮🇪',
-    'Japan':            '🇯🇵',
-    'Mexico':           '🇲🇽',
-    'New Zealand':      '🇳🇿',
-    'Nigeria':          '🇳🇬',
-    'Pakistan':         '🇵🇰',
-    'Poland':           '🇵🇱',
-    'Puerto Rico':      '🇵🇷',
-    'Russia':           '🇷🇺',
-    'Slovakia':         '🇸🇰',
-    'Slovenia':         '🇸🇮',
-    'South Africa':     '🇿🇦',
-    'South Korea':      '🇰🇷',
-    'Spain':            '🇪🇸',
-    'Sweden':           '🇸🇪',
-    'Switzerland':      '🇨🇭',
-    'The Netherlands':  '🇳🇱',
-    'Turkey':           '🇹🇷',
-    'Ukraine':          '🇺🇦',
-    'United Kingdom':   '🇬🇧',
-    'USA':              '🇺🇸',
-    'United States':    '🇺🇸',
-    'Venezuela':        '🇻🇪',
-  };
-
   app.engine(
     'hbs',
     engine({
@@ -86,7 +44,7 @@ export function createApp(): express.Application {
       layoutsDir:   path.join(process.cwd(), 'src', 'views', 'layouts'),
       partialsDir:  path.join(process.cwd(), 'src', 'views', 'partials'),
       helpers: {
-        countryFlag: (country: string) => COUNTRY_FLAGS[country] ?? '',
+        countryFlag: (country: string) => countryFlag(country),
         eq:  (a: unknown, b: unknown) => a === b,
         gt:  (a: unknown, b: unknown) => (a as number) > (b as number),
         add: (a: unknown, b: unknown) => (a as number) + (b as number),
@@ -119,7 +77,7 @@ export function createApp(): express.Application {
   // ── Body parsing ─────────────────────────────────────────────────────────
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
-  app.use(cookieParser());
+  app.use(cookieParser(config.sessionSecret));
 
   // ── Auth (JWT session + per-request passwordVersion check) ──────────────
   app.use(authMiddleware());
@@ -153,14 +111,15 @@ export function createApp(): express.Application {
       : '';
     res.locals.isAuthenticated = req.isAuthenticated;
     res.locals.currentUser = req.user;
-    if (req.cookies?.[FLASH_LOGOUT_COOKIE] === FLASH_LOGOUT_VALUE) {
+    const flash = readFlash(req);
+    if (flash?.kind === FLASH_KIND.LOGOUT) {
       res.locals.flashLoggedOut = true;
       // Clear only when the banner actually renders, not on redirects.
       // Otherwise a logout that redirects through an auth-gated page consumes
       // the cookie on the 302 response before the banner ever surfaces.
       const origRender = res.render.bind(res);
       res.render = ((...args: Parameters<typeof origRender>) => {
-        res.clearCookie(FLASH_LOGOUT_COOKIE, { path: '/' });
+        clearFlash(res);
         return origRender(...args);
       }) as typeof res.render;
     }
@@ -169,7 +128,7 @@ export function createApp(): express.Application {
 
   // ── Request logging ──────────────────────────────────────────────────────
   app.use((req, _res, next) => {
-    logger.debug('incoming request', { method: req.method, url: req.url });
+    logger.debug('incoming request', { method: req.method, url: redactTokenPaths(req.url) });
     next();
   });
 
