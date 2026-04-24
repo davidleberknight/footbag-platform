@@ -2450,6 +2450,67 @@ print(f"  Participant rows updated:{_f11_parts_updated}")
 if _f11_skipped_collision:
     print(f"  Collisions skipped:      {_f11_skipped_collision}")
 
+# ── Fix 12: Generic row-level "Open Doubles" → Net rename ─────────────────────
+# Generic rule replacing Fix 11's whitelist: any discipline row with
+# discipline_key='open_doubles' AND discipline_category='net' is a taxonomy-
+# drift artifact — the row is already tagged net at the category level, so
+# the bare key should be normalized to 'open_doubles_net' for consistency.
+# This rule is strictly conservative: rows without discipline_category='net'
+# are never touched. Idempotent: Fix 11 and prior runs leave nothing for
+# Fix 12 to rename; future ingestion of bare net open_doubles is caught
+# automatically.
+# Collision-safe: skip if open_doubles_net already exists in the event.
+
+print("\n[Fix 12] Generic 'Open Doubles' (category=net) → 'Open Doubles Net' rename...")
+
+_f12_existing: dict[str, set[str]] = {}
+for d in disciplines:
+    _f12_existing.setdefault(d["event_key"], set()).add(d["discipline_key"])
+
+_f12_renames: dict[tuple[str, str], str] = {}
+_f12_upgraded = 0
+_f12_skipped_collision = 0
+_f12_skipped_nonnet = 0
+for d in disciplines:
+    if d["discipline_key"] != "open_doubles":
+        continue
+    if d.get("discipline_category", "") != "net":
+        # Conservative: never upgrade bare open_doubles without explicit net tag
+        _f12_skipped_nonnet += 1
+        continue
+    ek = d["event_key"]
+    if "open_doubles_net" in _f12_existing.get(ek, set()):
+        print(f"    SKIP collision: {ek}: open_doubles → open_doubles_net already exists")
+        _f12_skipped_collision += 1
+        continue
+    _f12_renames[(ek, "open_doubles")] = "open_doubles_net"
+    d["discipline_key"]  = "open_doubles_net"
+    d["discipline_name"] = "Open Doubles Net"
+    _f12_upgraded += 1
+    print(f"    {ek}: 'Open Doubles' → 'Open Doubles Net'")
+
+_f12_results_updated = 0
+for r in results:
+    new_dk = _f12_renames.get((r["event_key"], r["discipline_key"]))
+    if new_dk:
+        r["discipline_key"] = new_dk
+        _f12_results_updated += 1
+
+_f12_parts_updated = 0
+for p in participants:
+    new_dk = _f12_renames.get((p["event_key"], p["discipline_key"]))
+    if new_dk:
+        p["discipline_key"] = new_dk
+        _f12_parts_updated += 1
+
+print(f"  Disciplines renamed:      {_f12_upgraded}")
+print(f"  Results rows updated:     {_f12_results_updated}")
+print(f"  Participant rows updated: {_f12_parts_updated}")
+if _f12_skipped_nonnet:
+    print(f"  Non-net rows preserved:   {_f12_skipped_nonnet}")
+if _f12_skipped_collision:
+    print(f"  Collisions skipped:       {_f12_skipped_collision}")
+
 # ── Save ──────────────────────────────────────────────────────────────────────
 
 print("\nSaving...")
@@ -2503,6 +2564,7 @@ print(f"""
 ║ Fix 9  Bare labels → Net                 {_f9_upgraded:>6,} ║
 ║ Fix 10 host_club assigned (NHSA/WFA)     {_f10_assigned:>6,} ║
 ║ Fix 11 Scoped Open Doubles → Net         {_f11_upgraded:>6,} ║
+║ Fix 12 Generic Open Doubles (net) → Net  {_f12_upgraded:>6,} ║
 ║ Pre97  Parse failures repaired           {_pA_fixed:>6,} ║
 ║        Missing placements added          {_pB_results_added:>6,} ║
 ╠══════════════════════════════════════════╣
