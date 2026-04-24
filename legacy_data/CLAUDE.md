@@ -57,3 +57,47 @@ For repo-root/platform tasks, defer to repo-root `CLAUDE.md` and `IMPLEMENTATION
 - All exclusions must be traceable in `overrides/`
 - Prefer one-command workflows defined in skills
 - Never run git commit/push/pull; stage-only changes allowed, human owns commits
+
+## Clubs + classification + bootstrap
+- Extraction: `scripts/extract_clubs.py` parses mirror HTML → `seed/clubs.csv`. Columns include `contact_member_id` (from `members/profile/{id}`) alongside `contact_email`.
+- Classification: `clubs/scripts/02_build_legacy_club_candidates.py` implements MIGRATION_PLAN §9.1 R1–R10. Emits `clubs/out/legacy_club_candidates.csv` with `category` ∈ {pre_populate, onboarding_visible, dormant, junk}. `bootstrap_eligible=1` iff `category='pre_populate'`.
+- Contact signal: R3/R4/R5 use real `contact_member_id` when present, substitute predicate ("any affiliated member active 2020+") when absent. `contact_signal_substitute_applied=1` marks substitute usage.
+- Bootstrap leaders: `clubs/scripts/04_build_club_bootstrap_leaders.py` emits `club_bootstrap_leaders.csv`. Filters `confidence_score >= 0.70` + `bootstrap_eligible=1`.
+- DB load order (pipeline): Phase G `09_load_enrichment_to_sqlite.py` loads candidates + affiliations. Phase H: `06_cutover_pre_populated_clubs.py` writes `mapped_club_id` on eligible candidates and ensures matching `clubs` rows exist; then `07_load_bootstrap_leaders.py` loads `club_bootstrap_leaders` (FK `club_id → clubs.id` via `mapped_club_id`). All loaders use DELETE+INSERT, idempotent.
+- DB tables: `clubs`, `tags`, `legacy_club_candidates`, `legacy_person_club_affiliations`, `club_bootstrap_leaders`.
+
+## Records (freestyle + consecutive kicks)
+- Curated inputs: `inputs/curated/records/records_master.csv` (freestyle trick records) + `inputs/consecutives_records.csv` (consecutive kicks). These are the authoritative source of truth; no pipeline regenerates them.
+- Loaders: `event_results/scripts/10_load_freestyle_records_to_sqlite.py` + `11_load_consecutive_records_to_sqlite.py`. Both run from `scripts/reset-local-db.sh`. Pattern: `DELETE FROM` + `INSERT OR REPLACE` (fully idempotent).
+- DB tables: `freestyle_records` + `consecutive_kicks_records`. Platform consumer: `/records` route via `recordsService`.
+- No `out/records/` CSV export — no downstream consumer; raw curated CSVs and the DB are the two authoritative representations.
+
+## Name variants
+- Generator: `pipeline/identity/build_name_variants.py` reads four upstream sources (`inputs/identity_lock/Person_Display_Names_v1.csv`, `inputs/bap_data_updated.csv`, `out/canonical/persons.csv`, `overrides/person_aliases.csv`) and emits `inputs/name_variants.csv`. Deterministic; runs at Phase 2b of `run_v0_backbone`.
+- `inputs/name_variants.csv` is **generated, not hand-curated**. Manual edits are clobbered on the next pipeline run. To add a pair, modify the upstream source (typically `overrides/person_aliases.csv`).
+- Loader: `scripts/load_name_variants_seed.py`. Scoped `DELETE FROM name_variants WHERE source='mirror_mined'` + INSERT OR IGNORE. Only HIGH-confidence pairs inserted; MEDIUM → `out/name_variants_deferred.csv` (reported, not loaded).
+- Honest counter: uses `conn.total_changes` to report actual inserts (not IGNORE'd rows).
+- DB table: `name_variants` with PK `(canonical_normalized, variant_normalized)`, source `∈ {mirror_mined, admin_added, member_submitted}`.
+
+## Persons layers in historical_persons
+- `source_scope='CANONICAL'`: event-results-derived, owned by `08_load_mvfp_seed_full_to_sqlite.py`. DELETE+INSERT pattern.
+- `source_scope='PROVISIONAL'`: club-only + membership-only cohorts (MIGRATION_PLAN §9.2), owned by `09_load_enrichment_to_sqlite.py`. `source` column distinguishes `CLUB` / `MEMBERSHIP` / `RESULTS`. DELETE WHERE source_scope='PROVISIONAL' + INSERT pattern; CANONICAL rows preserved.
+- Identity locks are patch-toolchain only (`legacy_data/tools/patch_pt_v{N}_*.py`, `patch_placements_v{M}_*.py`). Lock file glob picks lexicographic max version.
+
+## Loader invariants (applies to all DB-load scripts)
+- DELETE+INSERT for pipeline-regenerated tables; never rely on `INSERT OR IGNORE` alone — it silently skips existing rows and does not propagate upstream changes.
+- Scope the DELETE where multiple owners share a table (e.g. `DELETE WHERE source='mirror_mined'`, `DELETE WHERE source_scope='PROVISIONAL'`).
+- Honest counter: `cur = conn.execute(...); inserted += (1 if cur.rowcount else 0)`. Raw `+= 1` after `INSERT OR IGNORE` double-counts IGNORE'd rows.
+- Single transaction spans the DELETE + INSERT loop; commit once at the end.
+- Loaders report counter-mismatch explicitly: every skipped row has a named category (dedup, FK miss, PK collision, bad row).
+
+## MIGRATION_PLAN references (load targeted sections only)
+- §2 + §8 — `legacy_members` structure, claim merge rules.
+- §6 — Auto-link (registration-time tier classifier).
+- §9.1 — Club classification R1–R10 rules.
+- §9.2 — `historical_persons` expansion for club members (~1,600 cohort).
+- §9.3 — Club onboarding flow stages 1–3 (platform Phase 4; not in this subtree).
+- §14 — Required schema changes (club tables + `name_variants`).
+- §14.16 — `name_variants` schema + contract.
+- §18 — Legacy-site data dump requirements.
+- §25 — Persons count baseline (historical figure; current state in IP "Already done").

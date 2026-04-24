@@ -210,6 +210,75 @@ def compute_hosted_events_by_club(events: pd.DataFrame, club_name_keys: pd.Serie
     return out
 
 
+def compute_contact_member_last_year(
+    clubs: pd.DataFrame,
+    affiliations: pd.DataFrame,
+    person_universe: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    For each club row with a non-empty `contact_member_id`, resolve the
+    contact mirror_member_id → matched_person_id (via affiliations MATCHED)
+    → person_universe.last_year, and return the highest last_year.
+
+    Returns a DF with columns (_club_key, contact_member_last_year). Clubs
+    whose contact cannot be matched (contact_member_id empty, or not
+    MATCHED in affiliations, or matched person has no last_year) are
+    absent from the returned DF; the caller merges with how='left' so
+    those rows surface as NaN and `classify_row` can decide whether to
+    fall back to the any-member substitute.
+    """
+    require_columns(
+        affiliations,
+        {"mirror_member_id", "matched_person_id", "match_status"},
+        "legacy_person_club_affiliations.csv",
+    )
+    require_columns(person_universe, {"person_id", "last_year"}, "persons_enriched_for_clubs.csv")
+
+    if "contact_member_id" not in clubs.columns:
+        return pd.DataFrame({"_club_key": [], "contact_member_last_year": []})
+
+    matched = affiliations[affiliations["match_status"].str.upper().eq("MATCHED")].copy()
+    matched["mirror_member_id"] = matched["mirror_member_id"].map(norm_text)
+    matched["matched_person_id"] = matched["matched_person_id"].map(norm_text)
+
+    pu = person_universe[["person_id", "last_year"]].copy()
+    pu["person_id"] = pu["person_id"].map(norm_text)
+    pu["last_year_int"] = pd.to_numeric(pu["last_year"], errors="coerce")
+    pu = pu.dropna(subset=["last_year_int"])
+    pu["last_year_int"] = pu["last_year_int"].astype(int)
+
+    # mirror_member_id → max last_year across any matched appearances
+    mm_to_ly = matched.merge(
+        pu[["person_id", "last_year_int"]],
+        left_on="matched_person_id",
+        right_on="person_id",
+        how="inner",
+    )
+    if mm_to_ly.empty:
+        return pd.DataFrame({"_club_key": [], "contact_member_last_year": []})
+    mm_agg = mm_to_ly.groupby("mirror_member_id").agg(
+        last_year=("last_year_int", "max"),
+    ).reset_index()
+
+    # Join clubs → contact_member_id → last_year
+    cdf = clubs[["_club_key", "contact_member_id"]].copy()
+    cdf["contact_member_id"] = cdf["contact_member_id"].map(norm_text)
+    merged = cdf.merge(
+        mm_agg,
+        left_on="contact_member_id",
+        right_on="mirror_member_id",
+        how="inner",
+    )
+    if merged.empty:
+        return pd.DataFrame({"_club_key": [], "contact_member_last_year": []})
+
+    out = merged[["_club_key", "last_year"]].rename(
+        columns={"last_year": "contact_member_last_year"}
+    )
+    out["contact_member_last_year"] = out["contact_member_last_year"].astype("Int64")
+    return out
+
+
 def compute_max_affiliated_last_year(
     affiliations: pd.DataFrame,
     person_universe: pd.DataFrame,
@@ -290,20 +359,28 @@ def score_club(row: pd.Series) -> float:
 
 def classify_row(row: pd.Series) -> dict:
     """
-    Evaluate §10.1 rules R1–R10 for a single club row and assign a
+    Evaluate §9.1 rules R1–R10 for a single club row and assign a
     category. Rules are evaluated independently; the category is chosen
     by first-match over the grouped pre_populate / onboarding_visible
     predicates.
 
-    Contact-signal substitute:
-      §10.1 R3/R4/R5 ask "did the CLUB CONTACT compete in 2020 or later".
-      extract_clubs.py does not currently capture the contact's mirror
-      member ID (only contact_email), so we cannot isolate the contact
-      from the broader member list. We substitute "any affiliated member
-      with last_year >= 2020" (the same predicate as R8) and flag each
-      affected row via contact_signal_substitute_applied. When real
-      contact-member-ID extraction lands upstream, swap the predicate
-      inside this function without touching callers.
+    Contact-signal resolution:
+      §9.1 R3/R4/R5 ask "did the CLUB CONTACT compete in 2020 or later".
+      Two paths:
+        - **Real signal** — clubs with a non-empty `contact_member_id`
+          (captured by extract_clubs.py from members/profile/{ID}) use
+          `contact_member_last_year` directly. If the contact is
+          present in the mirror but NOT matched to a historical person
+          with a known last_year, contact_competed_2020_plus is False
+          (strict; no fall-through to the broader substitute because we
+          now have real data saying the contact did not compete).
+          `contact_signal_substitute_applied=0` for these rows.
+        - **Substitute** — clubs with empty `contact_member_id` (contact
+          was not captured or page has no contact block) fall back to
+          the any-member predicate (`max_affiliated_member_last_year >=
+          2020`, identical to R8). `contact_signal_substitute_applied=1`
+          iff R3/R4/R5 fired so callers can isolate classification moves
+          that relied on the substitute.
     """
     last_hosted_year = row.get("last_hosted_year")
     max_aff_last_year = row.get("max_affiliated_member_last_year")
@@ -334,8 +411,19 @@ def classify_row(row: pd.Series) -> dict:
     linkable_members = int(row.get("linkable_member_count", 0) or 0)
     has_description = bool(row.get("has_description", False))
 
-    # Contact substitute — see function docstring.
-    contact_competed_2020_plus = any_member_active_2020_plus
+    # Contact signal — real if contact_member_id is populated, else substitute.
+    contact_member_id_raw = row.get("contact_member_id", "")
+    has_contact_id = bool(norm_text(contact_member_id_raw))
+    contact_last_year = row.get("contact_member_last_year")
+    if has_contact_id:
+        contact_competed_2020_plus = (
+            pd.notna(contact_last_year)
+            and int(contact_last_year) >= ACTIVE_PLAYER_YEAR
+        )
+        substitute_path = False
+    else:
+        contact_competed_2020_plus = any_member_active_2020_plus
+        substitute_path = True
 
     # Pre-populate rules (any match → pre_populate).
     R1 = hosted_2020_plus
@@ -352,34 +440,27 @@ def classify_row(row: pd.Series) -> dict:
     R9 = created_2022_plus
     R10 = (unique_members >= LARGE_MEMBER_COUNT) or (linkable_members >= KNOWN_PLAYER_COUNT)
 
-    # Flag whether any pre_populate / onboarding rule that fired here
-    # relied on the contact substitute (so later auditing can isolate
-    # how much the substitute moved the classification).
-    contact_rules_used = (R3 or R4 or R5)
+    # Substitute was actually consulted only when no contact ID existed
+    # AND at least one of the contact-dependent rules fired.
+    contact_rules_fired = (R3 or R4 or R5)
+    contact_signal_substitute_applied = substitute_path and contact_rules_fired
 
     if R1 or R2 or R3 or R4:
         category = "pre_populate"
     elif R5 or R6 or R7 or R8 or R9 or R10:
         category = "onboarding_visible"
     elif has_description:
-        # §10.1: "Has a description (so not junk)".
+        # §9.1: "Has a description (so not junk)".
         category = "dormant"
     else:
-        # Clubs with no description that fail every other rule. §10.1
-        # junk definition lists six AND-ed criteria; four of them
-        # (never hosted, no member competed 2020+, created <2022, no
-        # description) are implied by falling through to this branch.
-        # The remaining two (never edited after creation, contact did
-        # not compete 2020+) are either already enforced via R7 / the
-        # contact substitute or add no new information here, so "no
-        # description + all rules failed" is treated as junk.
+        # Clubs with no description that fail every other rule.
         category = "junk"
 
     return {
         "R1": int(R1), "R2": int(R2), "R3": int(R3), "R4": int(R4), "R5": int(R5),
         "R6": int(R6), "R7": int(R7), "R8": int(R8), "R9": int(R9), "R10": int(R10),
         "category": category,
-        "contact_signal_substitute_applied": int(contact_rules_used),
+        "contact_signal_substitute_applied": int(contact_signal_substitute_applied),
     }
 
 
@@ -440,6 +521,12 @@ def main() -> None:
     df = df.merge(aff_last_year, on="_club_key", how="left")
     df["max_affiliated_member_last_year"] = df["max_affiliated_member_last_year"].astype("Int64")
 
+    # Contact-member activity signal (real §9.1 R3/R4/R5 input where
+    # contact_member_id was captured upstream).
+    contact_ly = compute_contact_member_last_year(df, affiliations, person_universe)
+    df = df.merge(contact_ly, on="_club_key", how="left")
+    df["contact_member_last_year"] = df["contact_member_last_year"].astype("Int64")
+
     # Parse year fields from the mirror CMS timestamp strings.
     df["created_year"] = df["created"].map(extract_year).astype("Int64") if "created" in df.columns else pd.Series([pd.NA] * len(df), dtype="Int64")
     df["last_updated_year"] = df["last_updated"].map(extract_year).astype("Int64") if "last_updated" in df.columns else pd.Series([pd.NA] * len(df), dtype="Int64")
@@ -458,7 +545,7 @@ def main() -> None:
     if "club_id" in df.columns:
         out_cols.append("club_id")
     out_cols += ["_club_key", "name"]
-    for optional in ["city", "country", "contact_email", "external_url", "description", "created", "last_updated"]:
+    for optional in ["city", "country", "contact_email", "contact_member_id", "external_url", "description", "created", "last_updated"]:
         if optional in df.columns:
             out_cols.append(optional)
 
@@ -471,6 +558,7 @@ def main() -> None:
         "ever_hosted",
         "last_hosted_year",
         "max_affiliated_member_last_year",
+        "contact_member_last_year",
         "created_year",
         "last_updated_year",
         "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10",
@@ -498,8 +586,17 @@ def main() -> None:
     for r in [f"R{i}" for i in range(1, 11)]:
         print(f"  {r:<4} {rule_counts[r]:>5}")
     print()
+    if "contact_member_id" in out.columns:
+        has_contact_id = out["contact_member_id"].map(norm_text).ne("").sum()
+        has_contact_last_year = out["contact_member_last_year"].notna().sum()
+    else:
+        has_contact_id = 0
+        has_contact_last_year = 0
+
     print(f"bootstrap_eligible:                      {int(out['bootstrap_eligible'].sum()):,}")
     print(f"contact_signal_substitute_applied:       {int(out['contact_signal_substitute_applied'].sum()):,}")
+    print(f"clubs with contact_member_id:            {int(has_contact_id):,}")
+    print(f"  ↳ resolved to contact_member_last_year:{int(has_contact_last_year):,}")
     print(f"ever_hosted:                             {int(out['ever_hosted'].sum()):,}")
     print()
     print(f"Club key source: {key_source}")

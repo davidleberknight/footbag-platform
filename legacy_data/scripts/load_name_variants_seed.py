@@ -156,14 +156,28 @@ def write_artifact(path: Path, rows: list[dict], fieldnames: list[str]) -> None:
             w.writerow({k: r.get(k, "") for k in fieldnames})
 
 
-def apply_to_db(db_path: Path, production: list[dict], created_at: str) -> tuple[int, int]:
-    """Insert production rows. Returns (inserted, skipped_existing)."""
+def apply_to_db(db_path: Path, production: list[dict], created_at: str) -> tuple[int, int, int]:
+    """Insert production rows. Returns (inserted, skipped_existing, deleted_stale).
+
+    Refreshes the DB against the CSV: deletes all existing `mirror_mined`
+    rows before inserting the current production set. This is required
+    because variant pairs can be removed or retargeted in the curated CSV
+    over time; without the DELETE, the prior INSERT OR IGNORE-only loop
+    left stale pairs stranded in the DB. `admin_added` and
+    `member_submitted` rows are preserved (different source values).
+    """
     if not db_path.exists():
         raise SystemExit(f"ERROR: DB does not exist: {db_path}")
     conn = sqlite3.connect(str(db_path))
     try:
         conn.execute("PRAGMA foreign_keys = ON")
         cur = conn.cursor()
+
+        cur.execute(
+            "DELETE FROM name_variants WHERE source = ?", (DB_SOURCE_TAG,)
+        )
+        deleted = cur.rowcount
+
         inserted = 0
         skipped  = 0
         for r in production:
@@ -181,7 +195,7 @@ def apply_to_db(db_path: Path, production: list[dict], created_at: str) -> tuple
             else:
                 skipped += 1
         conn.commit()
-        return inserted, skipped
+        return inserted, skipped, deleted
     finally:
         conn.close()
 
@@ -236,10 +250,11 @@ def main() -> int:
         print("ERROR: --apply requires --db", file=sys.stderr)
         return 2
 
-    inserted, skipped = apply_to_db(args.db, production, created_at)
+    inserted, skipped, deleted = apply_to_db(args.db, production, created_at)
     print(f"\nApplied to {args.db}:", file=sys.stderr)
+    print(f"  deleted (stale mirror_mined): {deleted}", file=sys.stderr)
     print(f"  inserted: {inserted}", file=sys.stderr)
-    print(f"  skipped:  {skipped}  (already present)", file=sys.stderr)
+    print(f"  skipped:  {skipped}  (already present after delete: admin_added / member_submitted collision)", file=sys.stderr)
     return 0
 
 

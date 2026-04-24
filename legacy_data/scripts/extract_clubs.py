@@ -6,8 +6,8 @@ and writes a CSV. Idempotent: skips if the output CSV already exists and is
 newer than this script.
 
 Output columns:
-  legacy_club_key, name, city, region, country, contact_email, external_url, description,
-  created, last_updated
+  legacy_club_key, name, city, region, country, contact_email, contact_member_id,
+  external_url, description, created, last_updated
 """
 
 import csv
@@ -29,6 +29,7 @@ FIELDNAMES = [
     "region",
     "country",
     "contact_email",
+    "contact_member_id",
     "external_url",
     "description",
     "created",
@@ -85,13 +86,23 @@ def extract_club(html_path, legacy_club_key):
     if country == "Basque Country":
         country = "Spain"
 
-    # Email: find <tt> inside .clubsContacts
+    # Email + contact member ID: both inside .clubsContacts. The contact
+    # block contains <a href="../../../members/profile/{ID}/index.html">
+    # identifying the mirror member ID of the person listed as club contact.
+    # Capture the FIRST profile link; if multiple contacts exist, the first
+    # is the primary contact per the mirror page layout.
     contact_email = ""
+    contact_member_id = ""
     contacts_div = soup.select_one("div.clubsContacts")
     if contacts_div:
         tt = contacts_div.find("tt")
         if tt:
             contact_email = extract_email(tt)
+        profile_link = contacts_div.find("a", href=re.compile(r"members/profile/\d+"))
+        if profile_link:
+            m = re.search(r"members/profile/(\d+)", profile_link.get("href", ""))
+            if m:
+                contact_member_id = m.group(1)
 
     # External URL
     external_url = ""
@@ -129,6 +140,7 @@ def extract_club(html_path, legacy_club_key):
         "region": region,
         "country": country,
         "contact_email": contact_email,
+        "contact_member_id": contact_member_id,
         "external_url": external_url,
         "description": description,
         "created": created,

@@ -224,6 +224,21 @@ def main() -> None:
         # ------------------------------------------------------------------
         print("\nLoading provisional persons → historical_persons...")
 
+        # Refresh PROVISIONAL rows only. CANONICAL rows are owned by script 08
+        # (which DELETE+INSERTs them from the MVFP seed); leaving them intact
+        # is required so this step stays safe when run standalone (e.g.
+        # `run_pipeline.sh enrichment_only`). The prior no-DELETE path silently
+        # dropped updates to existing PROVISIONAL rows when the provisional
+        # persons master CSV was regenerated. DELETE runs BEFORE the dedup
+        # set is built so the set contains only CANONICAL-owned names; otherwise
+        # stale PROVISIONAL names would mask themselves and the insert loop
+        # would produce zero rows on re-invocation.
+        _prov_deleted = conn.execute(
+            "DELETE FROM historical_persons WHERE source_scope = 'PROVISIONAL'"
+        ).rowcount
+        if _prov_deleted:
+            print(f"  Cleared {_prov_deleted:,} prior PROVISIONAL rows (CANONICAL preserved).")
+
         # Build normalized-name index of canonical persons already in DB
         # so we can skip provisional persons that duplicate them.
         _existing_rows = conn.execute(
@@ -259,6 +274,7 @@ def main() -> None:
 
         persons_inserted = 0
         persons_skipped  = 0
+        persons_ignored  = 0
 
         for row in provisional:
             pid = row["master_person_id"].strip()
@@ -267,7 +283,7 @@ def main() -> None:
                 continue
 
             try:
-                conn.execute(
+                cur = conn.execute(
                     """
                     INSERT OR IGNORE INTO historical_persons (
                       person_id, person_name, legacy_member_id,
@@ -293,17 +309,37 @@ def main() -> None:
                         row.get("person_type", "PROVISIONAL").strip(),
                     ),
                 )
-                persons_inserted += 1
+                # cur.rowcount is 1 if the row was inserted, 0 if INSERT OR
+                # IGNORE silently skipped (e.g. PK collision with a CANONICAL
+                # row of the same person_id). Raw `+= 1` would double-count
+                # the ignored case.
+                if cur.rowcount:
+                    persons_inserted += 1
+                else:
+                    persons_ignored += 1
             except sqlite3.IntegrityError as e:
                 print(f"  WARN: person {pid!r} skipped — {e}")
                 persons_skipped += 1
 
-        print(f"  Inserted: {persons_inserted:,}  Skipped/duplicate: {persons_skipped:,}")
+        print(
+            f"  Inserted: {persons_inserted:,}  "
+            f"Ignored (PK collision with CANONICAL): {persons_ignored:,}  "
+            f"Skipped (bad row): {persons_skipped:,}"
+        )
 
         # ------------------------------------------------------------------
         # Step 2 — Legacy club candidates → legacy_club_candidates
         # ------------------------------------------------------------------
         print("\nLoading club candidates → legacy_club_candidates...")
+
+        # Refresh both enrichment tables from the fresh CSV. The prior
+        # INSERT OR IGNORE-only pattern silently skipped every existing
+        # legacy_club_key on re-runs, leaving upstream classifier changes
+        # (e.g. bootstrap_eligible) stranded at stale DB values.
+        # Child first (FK: legacy_person_club_affiliations.legacy_club_candidate_id
+        # → legacy_club_candidates.id), then parent.
+        conn.execute("DELETE FROM legacy_person_club_affiliations")
+        conn.execute("DELETE FROM legacy_club_candidates")
 
         # Build key → id map for use in step 3
         candidate_id_map: dict[str, str] = {}
@@ -321,7 +357,7 @@ def main() -> None:
             candidate_id_map[club_key] = lcc_id
 
             try:
-                conn.execute(
+                cur = conn.execute(
                     """
                     INSERT OR IGNORE INTO legacy_club_candidates (
                       id, created_at, created_by, updated_at, updated_by, version,
@@ -339,12 +375,17 @@ def main() -> None:
                         parse_bool_col(row.get("bootstrap_eligible", "0")),
                     ),
                 )
-                candidates_inserted += 1
+                # cur.rowcount reports actual DB writes; raw += 1 would count
+                # IGNORE'd collisions as inserts (bug would be masked only
+                # because Step 2 now DELETEs the table up front, but kept
+                # for honest accounting in case of future pattern changes).
+                if cur.rowcount:
+                    candidates_inserted += 1
             except sqlite3.IntegrityError as e:
                 print(f"  WARN: candidate {club_key!r} skipped — {e}")
                 candidates_skipped += 1
 
-        print(f"  Inserted: {candidates_inserted:,}  Skipped/duplicate: {candidates_skipped:,}")
+        print(f"  Inserted: {candidates_inserted:,}  Skipped (bad row): {candidates_skipped:,}")
 
         # ------------------------------------------------------------------
         # Step 3 — Person-club affiliations → legacy_person_club_affiliations
@@ -397,7 +438,7 @@ def main() -> None:
             lpca_id  = stable_id("lpca", club_key, lpca_key, inferred_role)
 
             try:
-                conn.execute(
+                cur = conn.execute(
                     """
                     INSERT OR IGNORE INTO legacy_person_club_affiliations (
                       id, created_at, created_by, updated_at, updated_by, version,
@@ -417,13 +458,14 @@ def main() -> None:
                         opt_str(display_name),
                     ),
                 )
-                affiliations_inserted += 1
+                if cur.rowcount:
+                    affiliations_inserted += 1
             except sqlite3.IntegrityError as e:
                 print(f"  WARN: affiliation {lpca_id!r} skipped — {e}")
                 affiliations_skipped += 1
 
         print(f"  Inserted: {affiliations_inserted:,}  "
-              f"Skipped/duplicate: {affiliations_skipped:,}  "
+              f"Skipped (bad row): {affiliations_skipped:,}  "
               f"Missing candidate FK: {affiliations_fk_miss:,}  "
               f"PID fallback (unloaded provisional): {affiliations_pid_fallback:,}")
 
