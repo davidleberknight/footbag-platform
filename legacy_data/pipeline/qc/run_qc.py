@@ -85,7 +85,6 @@ OPTIONAL_CHECKS = [
         "severity": "warn",
         "needs_workbook": False,
     },
-    # Community workbook matters, but qc_spreadsheet_gate.py expects a different workbook shape.
     {
         "name": "workbook_qc",
         "path": "qc_footbag_workbook.py",
