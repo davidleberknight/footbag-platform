@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { health } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
@@ -10,7 +11,33 @@ export interface ReadinessStatus {
     database: {
       isReady: boolean;
     };
+    memory: {
+      isReady: boolean;
+      usedPercent: number | null;
+    };
   };
+}
+
+const MEMORY_PRESSURE_THRESHOLD_PERCENT = 90;
+
+// memory.current includes page cache by design; this matches the value
+// CWAgent emits as mem_used_percent so the readiness gate aligns with the
+// host-side alarm threshold. Do not subtract cache.
+export function readContainerMemoryUsedPercent(): number | null {
+  const override = process.env.FOOTBAG_TEST_MEMORY_PERCENT;
+  if (override !== undefined) {
+    return override === 'null' ? null : Number(override);
+  }
+  try {
+    const max = readFileSync('/sys/fs/cgroup/memory.max', 'utf8').trim();
+    if (max === 'max') return null;
+    const maxBytes = BigInt(max);
+    if (maxBytes === 0n) return null;
+    const current = BigInt(readFileSync('/sys/fs/cgroup/memory.current', 'utf8').trim());
+    return Number((current * 10000n) / maxBytes) / 100;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -48,6 +75,11 @@ export class OperationsPlatformService {
   }
 
   checkReadiness(): ReadinessStatus {
+    const memoryPercent = readContainerMemoryUsedPercent();
+    const memoryReady = memoryPercent === null
+      ? true
+      : memoryPercent < MEMORY_PRESSURE_THRESHOLD_PERCENT;
+
     try {
       const row = runSqliteRead('checkReadiness', () =>
         health.checkReady.get() as { is_ready: number } | undefined,
@@ -56,20 +88,18 @@ export class OperationsPlatformService {
       const databaseReady = row?.is_ready === 1;
 
       return {
-        isReady: databaseReady,
+        isReady: databaseReady && memoryReady,
         checks: {
-          database: {
-            isReady: databaseReady,
-          },
+          database: { isReady: databaseReady },
+          memory: { isReady: memoryReady, usedPercent: memoryPercent },
         },
       };
     } catch {
       return {
         isReady: false,
         checks: {
-          database: {
-            isReady: false,
-          },
+          database: { isReady: false },
+          memory: { isReady: memoryReady, usedPercent: memoryPercent },
         },
       };
     }

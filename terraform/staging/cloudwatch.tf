@@ -25,23 +25,29 @@ resource "aws_cloudwatch_log_group" "worker" {
 # it to push CPU, memory, and disk metrics to the namespace below.
 # Reference: docs/DEVOPS_GUIDE.md §4.4
 
+# Alarm dimensions match what amazon-cloudwatch-agent's telegraf inputs
+# actually emit on this host. The JSON config's append_dimensions block is
+# dropped by fetch-config's translator on this version; until that is fixed,
+# alarms scope by the natural input dims (cpu, path, fstype) rather than a
+# synthesized InstanceId. When a second environment publishes to namespace
+# CWAgent, disambiguate via per-environment namespace, not via dim.
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   count               = var.enable_cwagent_alarms ? 1 : 0
   alarm_name          = "${local.prefix}-high-cpu"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
-  metric_name         = "CPUUtilization"
-  # TODO: Replace with Lightsail/CWAgent namespace once agent is configured
-  namespace         = "CWAgent"
-  period            = 60
-  statistic         = "Average"
-  threshold         = 85
-  alarm_description = "CPU utilization above 85% for 3 consecutive minutes"
-  alarm_actions     = [aws_sns_topic.alarms.arn]
-  ok_actions        = [aws_sns_topic.alarms.arn]
+  metric_name         = "cpu_usage_active"
+  namespace           = "CWAgent"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "CPU utilization above 85% for 3 consecutive minutes"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    InstanceId = aws_lightsail_instance.web.id
+    cpu = "cpu-total"
   }
 }
 
@@ -55,12 +61,33 @@ resource "aws_cloudwatch_metric_alarm" "high_memory" {
   period              = 60
   statistic           = "Average"
   threshold           = 85
+  treat_missing_data  = "notBreaching"
   alarm_description   = "Memory utilization above 85% for 3 consecutive minutes"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# Disk used % on root filesystem. CWAgent config sets drop_device:true so the
+# device dim does not appear; fstype is pinned to xfs (AL2023 default). A
+# future filesystem change here is loud (alarm flips to INSUFFICIENT_DATA).
+resource "aws_cloudwatch_metric_alarm" "high_disk" {
+  count               = var.enable_cwagent_alarms ? 1 : 0
+  alarm_name          = "${local.prefix}-high-disk"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "disk_used_percent"
+  namespace           = "CWAgent"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Root filesystem usage above 85% for 3 consecutive minutes"
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    InstanceId = aws_lightsail_instance.web.id
+    path   = "/"
+    fstype = "xfs"
   }
 }
 
@@ -132,6 +159,48 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["Footbag/${var.environment}", "BackupAgeMinutes"]
           ]
           period = 300
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title  = "CPU utilization (active %)"
+          region = var.aws_region
+          metrics = [
+            ["CWAgent", "cpu_usage_active", "cpu", "cpu-total"]
+          ]
+          period = 60
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Memory used %"
+          region = var.aws_region
+          metrics = [
+            ["CWAgent", "mem_used_percent"]
+          ]
+          period = 60
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Root disk used %"
+          region = var.aws_region
+          metrics = [
+            ["CWAgent", "disk_used_percent", "path", "/", "fstype", "xfs"]
+          ]
+          period = 60
           view   = "timeSeries"
         }
       }

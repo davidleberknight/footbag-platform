@@ -2891,14 +2891,14 @@ Some monitoring exists in concept. Close the full loop with three one-time opera
 
 #### Install CWAgent on the Lightsail host
 
-1. SSH in and install the agent from Amazon's apt repo:
+1. SSH in and install the agent. The repo's `scripts/install-cwagent-staging.sh` runs steps 1–5 idempotently; if running by hand on Amazon Linux 2023, use the rpm:
 
    ```bash
    ssh footbag-staging
    sudo bash -c '
    cd /tmp
-   curl -fsSL https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb -o amazon-cloudwatch-agent.deb
-   dpkg -i amazon-cloudwatch-agent.deb
+   curl -fsSL https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm -o amazon-cloudwatch-agent.rpm
+   dnf install -y ./amazon-cloudwatch-agent.rpm
    '
    ```
 
@@ -2913,9 +2913,12 @@ Some monitoring exists in concept. Close the full loop with three one-time opera
      },
      "metrics": {
        "namespace": "CWAgent",
+       "append_dimensions": {
+         "InstanceId": "footbag-staging-web"
+       },
        "metrics_collected": {
          "cpu": {
-           "measurement": ["usage_idle", "usage_iowait", "usage_user", "usage_system"],
+           "measurement": ["usage_active", "usage_idle", "usage_iowait", "usage_user", "usage_system"],
            "totalcpu": true
          },
          "mem": {
@@ -2923,13 +2926,16 @@ Some monitoring exists in concept. Close the full loop with three one-time opera
          },
          "disk": {
            "measurement": ["used_percent"],
-           "resources": ["/"]
+           "resources": ["/"],
+           "drop_device": true
          }
        }
      }
    }
    EOF
    ```
+
+   The `InstanceId` value is a literal string, not the `${aws:InstanceId}` IMDS template. Lightsail's IMDS instance-id format is undocumented in AWS sources, and `aws_lightsail_instance.web.id` in Terraform is the Lightsail instance name; pinning the literal name here keeps the CWAgent-emitted dim and the alarm-side dim aligned.
 
 3. CWAgent publishes via the host's default AWS profile, which under Path H is the assumed runtime-role chain. Verify:
 
@@ -2939,23 +2945,13 @@ Some monitoring exists in concept. Close the full loop with three one-time opera
 
    Expect the assumed runtime role ARN. If the chain is not in place, CWAgent will fail to publish and its log at `/opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log` will show the credential error.
 
-4. Grant the runtime role `cloudwatch:PutMetricData` on the `CWAgent` namespace. Extend the `app_runtime` inline policy in `terraform/staging/iam.tf`:
+4. Confirm the runtime role's `cloudwatch:PutMetricData` grant is in place. The `aws_iam_role_policy.app_cw_metrics` inline policy ships in `terraform/staging/iam.tf`; a current `terraform apply` is sufficient.
 
-   ```hcl
-   statement {
-     sid       = "CWAgentMetrics"
-     actions   = ["cloudwatch:PutMetricData"]
-     resources = ["*"]
-
-     condition {
-       test     = "StringEquals"
-       variable = "cloudwatch:namespace"
-       values   = ["CWAgent"]
-     }
-   }
+   ```bash
+   aws iam get-role-policy \
+     --role-name footbag-staging-app-runtime \
+     --policy-name footbag-staging-app-runtime-cw-metrics
    ```
-
-   `terraform apply`.
 
 5. Start the agent and confirm metrics arrive:
 
@@ -2975,7 +2971,7 @@ Some monitoring exists in concept. Close the full loop with three one-time opera
    aws cloudwatch list-metrics --namespace CWAgent
    ```
 
-   Expect entries for `cpu_usage_idle`, `mem_used_percent`, and `disk_used_percent`.
+   Expect entries for `cpu_usage_active`, `mem_used_percent`, and `disk_used_percent`, all carrying `InstanceId=footbag-staging-web`.
 
 #### Enable CWAgent alarms
 

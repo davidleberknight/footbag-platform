@@ -13,12 +13,9 @@ export const healthController = {
 
   /**
    * GET /health/ready
-   * Minimal readiness probe. Delegates to OperationsPlatformService which
-   * runs a cheap SQLite query. Returns 200 if ready, 503 if not.
-   *
-   * Current probe is DB-only. Target adds memory-pressure gating and
-   * broader dependency checks (e.g. outbox producer liveness, backup
-   * freshness). Must extend before production cutover.
+   * Readiness probe. Delegates to OperationsPlatformService, which composes
+   * the database probe and the container-memory pressure check. Returns
+   * 200 if ready, 503 if not.
    */
   ready(_req: Request, res: Response): void {
     const status = operationsPlatformService.checkReadiness();

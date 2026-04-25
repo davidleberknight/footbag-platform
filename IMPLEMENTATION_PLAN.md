@@ -21,7 +21,6 @@ Pre-cutover revert / rotation / scrub checklist lives in `docs/MIGRATION_PLAN.md
 
 **In scope (review tasks first, then build):**
 
-- **1-G CloudWatch agent** (S). Per MP §28.2. Unblocks richer `/health/ready` memory-pressure gating (DD §8.4).
 - **Backup/restore workflow** (M). Per MP §28.1. Must land before prod data is at risk.
 
 ### Current gaps vs long-term user stories
@@ -69,14 +68,12 @@ Each has an explicit unblock condition. Long-term docs preserve target design; c
 7. **No closed backup/restore workflow.** Unblock: Dave's Tier 2 sprint / MP §28.1.
 8. **Maintenance mode not production-grade.** Unblock: 1-F / MP §28.3.
 9. **CloudFront hardening incomplete.** Unblock: 1-F / MP §28.3.
-10. **CI/CD partial.** App CI active; operator-driven deploy scripts under `scripts/`. Remaining: 1-F, 1-G.
-11. **Monitoring partial and gated.** Unblock: 1-G / MP §28.2.
-12. **Bootstrap security shortcuts remain.** Operator IAM + SSH use bootstrap posture. Unblock: pre-launch security pass.
-13. **Browser validation manual-only.** Route/integration tests are first verification path.
-14. **`image` container absent.** Docker Compose has `nginx`, `web`, `worker`. Unblock: Phase 3+ media pipeline.
-15. **`/health/ready` is DB-probe only.** DD §8.4 adds memory-pressure gating + broader dependency checks. Unblock: 1-G / MP §28.1 + §28.2.
-16. **`/internal` routes gated at member-level only.** All `/internal/*` routes (persons QC, net QC decision POSTs, candidate approve/reject) use `requireAuth` with no role check. Any registered member can approve/reject QC curation decisions that alter public Net data. Intentional dev/staging shortcut to unblock QC reviewers without a role system. Unblock: admin/operator role gate before go-live. Files: `src/routes/internalRoutes.ts`, `src/middleware/auth.ts`.
-17. **`TRUST_PROXY` implicit in production compose.** `docker/docker-compose.prod.yml` does not set `TRUST_PROXY`; `src/config/env.ts` defaults to 2 under `NODE_ENV=production`. Correct today but invisible to operators. Unblock: set `TRUST_PROXY=2` explicitly in compose env after 1-F origin-bypass hardening closes (re-evaluate integer hop count vs explicit subnet allow-list at that time).
+10. **CI/CD partial.** App CI active; operator-driven deploy scripts under `scripts/`. Remaining: 1-F.
+11. **Bootstrap security shortcuts remain.** Operator IAM + SSH use bootstrap posture. Unblock: pre-launch security pass.
+12. **Browser validation manual-only.** Route/integration tests are first verification path.
+13. **`image` container absent.** Docker Compose has `nginx`, `web`, `worker`. Unblock: Phase 3+ media pipeline.
+14. **`/internal` routes gated at member-level only.** All `/internal/*` routes (persons QC, net QC decision POSTs, candidate approve/reject) use `requireAuth` with no role check. Any registered member can approve/reject QC curation decisions that alter public Net data. Intentional dev/staging shortcut to unblock QC reviewers without a role system. Unblock: admin/operator role gate before go-live. Files: `src/routes/internalRoutes.ts`, `src/middleware/auth.ts`.
+15. **`TRUST_PROXY` implicit in production compose.** `docker/docker-compose.prod.yml` does not set `TRUST_PROXY`; `src/config/env.ts` defaults to 2 under `NODE_ENV=production`. Correct today but invisible to operators. Unblock: set `TRUST_PROXY=2` explicitly in compose env after 1-F origin-bypass hardening closes (re-evaluate integer hop count vs explicit subnet allow-list at that time).
 
 ---
 
@@ -104,7 +101,7 @@ IFPA rules integration planning can continue, but implementation must wait for J
 
 ## Phase roadmap (active/next only)
 
-**Phase 1 — Verification foundation + CI/CD.** Remaining: 1-F security hardening (M), 1-G CloudWatch agent (S).
+**Phase 1 — Verification foundation + CI/CD.** Remaining: 1-F security hardening (M).
 
 **Phase 4 — Auth hardening + email activation.** Remaining:
 

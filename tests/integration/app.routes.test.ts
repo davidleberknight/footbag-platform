@@ -7,7 +7,7 @@
  * that db.ts opens the test database. beforeAll builds the schema and inserts
  * test data via factories. afterAll removes the temp DB and WAL sidecars.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
 import request from 'supertest';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
@@ -310,6 +310,47 @@ describe('GET /health/ready', () => {
     const app = createApp();
     const res = await request(app).get('/health/ready');
     expect(res.status).toBe(200);
+  });
+
+  describe('memory-pressure gating', () => {
+    afterEach(() => {
+      delete process.env.FOOTBAG_TEST_MEMORY_PERCENT;
+    });
+
+    it('returns 200 with memory.isReady true when usage is under 90 percent', async () => {
+      process.env.FOOTBAG_TEST_MEMORY_PERCENT = '50';
+      const app = createApp();
+      const res = await request(app).get('/health/ready');
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.checks.memory).toEqual({ isReady: true, usedPercent: 50 });
+    });
+
+    it('returns 503 at the 90 percent boundary', async () => {
+      process.env.FOOTBAG_TEST_MEMORY_PERCENT = '90';
+      const app = createApp();
+      const res = await request(app).get('/health/ready');
+      expect(res.status).toBe(503);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.checks.memory).toEqual({ isReady: false, usedPercent: 90 });
+    });
+
+    it('returns 503 with memory.isReady false above 90 percent', async () => {
+      process.env.FOOTBAG_TEST_MEMORY_PERCENT = '95';
+      const app = createApp();
+      const res = await request(app).get('/health/ready');
+      expect(res.status).toBe(503);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.checks.memory).toEqual({ isReady: false, usedPercent: 95 });
+    });
+
+    it('treats missing cgroup data as ready', async () => {
+      process.env.FOOTBAG_TEST_MEMORY_PERCENT = 'null';
+      const app = createApp();
+      const res = await request(app).get('/health/ready');
+      expect(res.status).toBe(200);
+      expect(res.body.checks.memory).toEqual({ isReady: true, usedPercent: null });
+    });
   });
 });
 

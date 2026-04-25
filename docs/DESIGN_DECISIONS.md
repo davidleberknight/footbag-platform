@@ -2618,6 +2618,18 @@ Infrastructure Managed by Terraform:
 - SES email identities (sender, plus future bounce and complaint webhook configuration).
 - Budget alerts and SNS topics.
 
+Host-State Boundary:
+
+Terraform manages AWS API resources. Host-side filesystem and systemd state on the Lightsail VM (installed packages, agent config files, daemon lifecycle) are managed by idempotent shell scripts under `scripts/` and by documented procedures in `docs/DEV_ONBOARDING.md`. Terraform `remote-exec` and `local-exec` provisioners are excluded as a canonical pattern.
+
+Constraints driving the split:
+
+- Lightsail provides no `user_data` mechanism, so the EC2 cloud-init bootstrap pattern is unavailable.
+- SSM Hybrid Activation is deferred. Documented CVE history (CVE-2022-29527 sudoers privilege escalation, March 2025 path-traversal RCE-to-root, CVE-2025-21613 go-git dependency); the SSM Agent vends credentials at `/root/.aws/credentials`, widening the host's attack surface; the 30-minute credential refresh has no cached fallback under network disruption. Re-evaluate when a second SSM-driven need amortizes the activation cost.
+- Terraform provisioners couple state to SSH reachability, fail opaquely on partial success, and resist safe re-running. HashiCorp recommends them as last resort.
+
+Canonical pattern: idempotent scripts in `scripts/` are reviewable, version-controlled, and re-runnable; host-state changes share the same git history as the AWS-side declarations. Examples include `scripts/install-cwagent-staging.sh` for the CloudWatch Agent and `scripts/deploy-code.sh` for application code.
+
 Secrets Management:
 
 Terraform creates Parameter Store parameters (paths and metadata) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set manually via AWS CLI or secure deployment pipeline after Terraform creates parameter structure. Terraform references secrets via parameter names; actual values never appear in `.tf` files or state files. JWT signing keys and ballot encryption keys use AWS KMS (non-exportable key material) and are provisioned via Terraform KMS resources; they are never stored in Parameter Store.
@@ -2629,6 +2641,7 @@ Trade-offs:
 - State file management requires multi-operator coordination on the shared S3 backend. Native locking serializes concurrent applies; operators still coordinate before invasive changes.
 - Requires discipline: Manual console changes create drift requiring reconciliation. Manual AWS console changes are prohibited except for emergency troubleshooting. Any permanent changes must be made via Terraform.
 - AWS provider major version is pinned (currently `~> 5.0`). Provider major upgrades require explicit review of the migration guide and a coordinated apply across all workspaces, not a casual `terraform init -upgrade`.
+- Two control surfaces: AWS-side resources land via `terraform apply`, host-side state via on-host script execution. Operators run scripts on each host after the corresponding apply for a full bootstrap. Script-side failures are not visible in `terraform apply` output.
 
 Impact:
 
@@ -2636,6 +2649,7 @@ Impact:
 - Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
 - Workspace layout: `terraform/shared/` for one-time bootstrap (state bucket, account baseline); `terraform/staging/` and `terraform/production/` for per-environment resources, each with its own remote state.
 - Drift reconciliation procedure (`terraform import` flow, plan-clean verification, PR review) lives in DEVOPS_GUIDE §6.5. The design rule above is enforced by the requirement that `terraform plan` returns "No changes" before any further apply.
+- Any agent or daemon needing host-level access (e.g. CloudWatch Agent reading host CPU/memory/disk) is bootstrapped through an idempotent script under `scripts/`, not through Terraform provisioners or AWS Console clicks.
 
 
 ## 9.7 High Availability and Recovery

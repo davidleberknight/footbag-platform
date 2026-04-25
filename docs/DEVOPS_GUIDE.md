@@ -1123,6 +1123,8 @@ Required rules:
 - never log raw secrets, JWTs, reset tokens, webhook secrets, cookies, or full sensitive payloads
 - log enough metadata to diagnose without exposing unnecessary personal data
 - use CloudWatch Insights as the default search/query surface
+- every log surface has bounded growth via rotation, age cap, or external retention; unbounded local logs are not allowed
+- new on-host log producers ship a `/etc/logrotate.d/<name>` config (installed by the producer's bootstrap script in `scripts/`); new CloudWatch log groups set `retention_in_days` in Terraform; container logs use Docker's `json-file` driver size/file caps in `docker/docker-compose.prod.yml`
 
 ### 12.3 Alarm model
 

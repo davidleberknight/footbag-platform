@@ -162,3 +162,42 @@ resource "aws_iam_user_policy" "source_profile_assume_role" {
     }]
   })
 }
+
+# =============================================================================
+# CWAgent publisher IAM user (long-lived static keys).
+# Lightsail does not support EC2 instance profiles, and CWAgent's
+# common-config.toml does not honor source_profile chaining: the agent reads
+# only the static credentials file, not config-file profile chains. This user
+# provides static credentials for CWAgent only, scoped to PutMetricData on
+# the CWAgent namespace.
+#
+# Key creation is out-of-band (aws iam create-access-key) per the source-
+# profile pattern; secret stored in the operator vault and dropped into
+# /root/.aws/credentials on the host. Rotate via "second access key under
+# the same user", never delete-and-recreate.
+# =============================================================================
+
+resource "aws_iam_user" "cwagent_publisher" {
+  name          = "${local.prefix}-cwagent-publisher"
+  force_destroy = false
+}
+
+resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {
+  name = "${local.prefix}-cwagent-publisher-putmetric"
+  user = aws_iam_user.cwagent_publisher.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid      = "CWAgentMetrics"
+      Effect   = "Allow"
+      Action   = "cloudwatch:PutMetricData"
+      Resource = "*"
+      Condition = {
+        StringEquals = {
+          "cloudwatch:namespace" = "CWAgent"
+        }
+      }
+    }]
+  })
+}
