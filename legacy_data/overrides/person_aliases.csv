@@ -903,7 +903,7 @@ Gregoire Stoltz,9ca0a83c-5256-5d2d-aff9-58cc12147a67,Gregoire Stoltz,verified,
 Grégoire Stoltz,9ca0a83c-5256-5d2d-aff9-58cc12147a67,Gregoire Stoltz,verified,
 Grégoire Stolz,9ca0a83c-5256-5d2d-aff9-58cc12147a67,Gregoire Stoltz,verified,
 Gregor Morel,cd054fc0-0dbe-582f-9e04-7b4b1d16cf23,Grega Morel,verified,same person; Gregor in doubles Grega in singles at same events
-Gregory Lima,1c620d29-ca4e-5e52-bbbd-ec2186e8cd23,Gregory Lima,verified,
+Gregory Lima,c7a23f15-f2ed-5f2b-ac50-bb1adb185475,Greg Lima,verified,rebound from prior self-alias; confirmed merge with Greg Lima per user/community knowledge
 Grischa (FRA) Tellenbach,ec1d5118-cd4b-591f-a84a-04bbe20868bc,Grischa Tellenbach,VERIFIED,merge:04642a7e-7902-5116-bdd7-dc5c53a72007; auto
 Grischa Tellebach,ec1d5118-cd4b-591f-a84a-04bbe20868bc,Grischa Tellenbach,verified,
 Grischa Tellenbach,ec1d5118-cd4b-591f-a84a-04bbe20868bc,Grischa Tellenbach,verified,
@@ -2234,7 +2234,7 @@ Steve Cline,6f5650e6-0134-57af-8400-e9c3ce72e333,Steve Cline,verified,
 Steve Dusablon,b946c187-fb73-54fb-bc77-5b2bf8209df8,Steve Dusablon,verified,
 Steve Dusablon -,b946c187-fb73-54fb-bc77-5b2bf8209df8,Steve Dusablon,verified,
 Steve Femmel,fb605451-fa41-5e6d-ad21-1b541b3fc82b,Steve Femmel,verified,
-Steve Goldberg,0ae92001-5680-502c-95fa-500e6a808f14,Steve Goldberg,verified,
+Steve Goldberg,0cf6c5f6-e7d6-5aed-b187-bdaec78b6e78,Steven L. Goldberg,verified,rebound from prior self-alias; confirmed merge with Steven L. Goldberg per user (nickname/short form; no co-event overlap; non-overlapping eras)
 Steve Kuntze,ee71cb5a-4b77-54c2-9bc7-c11165318ba5,Steve Kuntze,verified,
 Steve Richardson,2875a830-e340-5963-a5c7-d9a7a74d1e56,Steve Richardson,verified,
 Steve Smith,6bddaecf-3335-5caf-ab0c-51a97fce26e2,Steve Smith,verified,
@@ -2562,7 +2562,7 @@ J Langis,5141763c-285a-5f50-abd1-c5ef3b16ff0a,Jason Langis,verified,abbreviated_
 J Solonoski,2ec7a35d-e4db-5e12-bd89-107bb277ce07,Joe Solonoski,verified,abbreviated_name:single_match
 K Gates,12862941-97ef-53c3-bafa-8629a52bbb2e,Krishna Gates,verified,abbreviated_name:single_match
 K Schubel,72287a20-7e99-5c83-a70d-1ed4c11d404f,Kathy Schubel,verified,abbreviated_name:single_match
-M Bouchard,f1e2640c-48ae-588d-99bc-7b55713191f0,Manu Bouchard,verified,abbreviated_name:single_match
+M Bouchard,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,Emmanuel Bouchard,verified,abbreviated_name:single_match; rebound after Manu Bouchard → Emmanuel Bouchard merge
 M Demuy,40a3babb-8d9d-522c-8cbf-9f221bbc5903,Marilyn Demuy,verified,abbreviated_name:single_match
 M GARVIN,ed04335c-1a6f-5784-bc6c-bf5c2b7a513c,Matt Garvin,verified,abbreviated_name:single_match
 M Gatewood,7a0b457d-c8fa-5c7f-bc5f-3598f375457d,Mike Gatewood,verified,abbreviated_name:single_match
@@ -2584,7 +2584,7 @@ R Lavign,290519a0-7c5d-5068-98a5-ec9f8847801f,Rober Lavign,verified,abbreviated_
 R McCloskey,6842b20a-a927-5b6b-9501-4fae0e547a1f,Rob McCloskey,verified,abbreviated_name:single_match
 R Mulroney,4cf390be-81e9-586c-95c7-aa90dd752ba8,Ryan Mulroney,verified,abbreviated_name:single_match
 S Durfee,cd035f70-1e6d-5620-b8eb-bf5809c756ab,Scott Durfee,verified,abbreviated_name:single_match
-S Goldberg,0ae92001-5680-502c-95fa-500e6a808f14,Steve Goldberg,verified,abbreviated_name:single_match
+S Goldberg,0cf6c5f6-e7d6-5aed-b187-bdaec78b6e78,Steven L. Goldberg,verified,abbreviated_name:single_match; rebound after Steve Goldberg → Steven L. Goldberg merge
 S Jani,8f15594c-f3f9-53d9-bfe5-409e746b7c29,Sunil Jani,verified,abbreviated_name:single_match
 T Bergamasco,c0bc24e3-dd5f-5ad7-8570-77d685dd5638,Thomas Bergamasco,verified,abbreviated_name:single_match
 Y ARCHAMBAUTL,691f48a0-1dbd-5ef5-99ea-13615a7437d2,Yves Archambault,verified,abbreviated_name:single_match
@@ -2764,3 +2764,7 @@ Jodi Chandler,2224d6ba-5be4-56a5-90e1-aaa61a15bcb0,Jodi Sebastian,verified,name 
 Pawe Nowak,9fccb3a3-3408-518a-aacb-43d9678fcce4,Pawel Nowak,verified,Polish ł-mojibake; Paweł stripped to Pawe by source encoding
 Micha Ostrowski,da3fbe76-ba2d-51ee-a019-97e7ba93089a,Michal Ostrowski,verified,Polish ł-mojibake; Michał stripped to Micha
 Jeremey Mirken,31bd4e75-1a44-56b4-94b3-071cdc8dee82,Jeremy Mirken,verified,typo (extra e); single 2009 entry merges into Jeremy's 2001-2019 career arc
+Toni Fritsch,34055beb-ed72-59a5-9b38-c5ffbac4d70e,Antonio Fritsch,verified,nickname; Toni = German diminutive of Antonio; same German player; year overlap 2007/2010/2012 with zero co-events
+Walter Houston,c6704eb0-91e0-538b-8806-9a43b16e91cb,Walt Houston,verified,nickname; Walt is HoF formal/active form; single 2019 entry under Walter at lakeerie doubles p1 alongside Walt's singles p1 same event — same person across two disciplines
+Corey Current,f1f49edd-da47-536a-b759-de441795fc2f,Cory Current,verified,spelling variant; Corey form only in 1997-98; Cory form spans 1997-2019; co-events at 1997_ultimate_chaos_outdoor and 1998_fighting_illini show both names at same tournament across disciplines (single-player pattern)
+Manu Bouchard,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,Emmanuel Bouchard,verified,confirmed by user/community knowledge; nickname/name variant for Emmanuel Bouchard
