@@ -72,7 +72,7 @@ Alex Dworetzky,337dc937-b022-51ef-8470-99fff306e2c9,Alex Dworetzky,verified,
 Alex Dworetzsky,337dc937-b022-51ef-8470-99fff306e2c9,Alex Dworetzky,verified,
 Alex Faber,16b2083f-d41a-5944-8669-d41494e21159,Alex Faber,verified,
 Alex Frazier,1f2d14aa-31e7-5d1f-a338-9ae43af68af5,Alex Frazier,verified,
-Alex G.,e8b038e3-8023-561f-b4ec-3ba16120dbc5,Alex G.,verified,stub:abbreviated_name
+Alex G.,b3044e91-1827-5e9a-b5da-8468c657c443,Alex G.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 Alex Ibardaloza,be0d9849-db58-5aa2-90cc-df475a8c43bd,Alex Ibardaloza,verified,
 ALEX LOPEZ,0d90bb3c-6c67-5057-9ac2-d85f9f94fa26,ALEX LOPEZ,verified,
 Alex Michalewski,f83826ed-30c2-5608-9dad-50453e899eff,Alex Michelewski,verified,
@@ -434,7 +434,7 @@ Chris �Gator� Routh,b08606fb-8072-5d14-ae24-b1881c22be54,Chris 'Gator' Routh
 Chris Gregory,552a9fb8-e63c-5f87-b431-06f68b0a1323,Chris Gregory,verified,
 Chris Hughes,078f83ff-ffba-5e46-a0e8-2e4a5e6fb1c6,Chris Hughes,verified,
 Chris ÏGatorÓ Routh,b08606fb-8072-5d14-ae24-b1881c22be54,Chris Routh,verified,merged: Last-First format swap or confirmed variant
-Chris J.,22c07f5b-9dcd-5da9-a6cb-f378e8e22f54,Chris J.,verified,stub:abbreviated_name
+Chris J.,4d88e588-7fee-54f6-be7e-e53e322e12de,Chris J.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 Chris James,383f6f61-a855-5091-9d27-f91312e7a7c5,Chris James,verified,
 Chris Kovacs,6469ade8-02a6-5a6f-8b42-c277458d05d7,Chris Kovacs,verified,
 Chris Loew,77077fa3-e070-5728-87d5-88c81b58466a,Chris Loew,verified,
@@ -592,7 +592,7 @@ DAVID JEZEK,ed164484-6327-5287-8693-127ff18394ca,David Jezek,verified,
 David Jezek,ed164484-6327-5287-8693-127ff18394ca,David Jezek,verified,
 David Kaufmann,2cf525b7-ae53-56ff-98f2-0f845d6d998f,David Kaufmann,verified,
 David Kaufmann FCFootstar,2cf525b7-ae53-56ff-98f2-0f845d6d998f,David Kaufmann,verified,
-David P.,336a14ab-1575-5b0e-ac1a-695ba75fa287,David P.,verified,stub:abbreviated_name
+David P.,a07b118a-810a-5673-bcea-2b82e66cee69,David P.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 David Rambaud,9dd1729e-cd7f-5412-93ee-f08166e75fc7,David Rambaud,verified,
 David Rambaud Maël Nantes,9dd1729e-cd7f-5412-93ee-f08166e75fc7,David Rambaud,verified,quarantine_split:redirect_from_concat
 David Robinson,895b0608-34df-509a-853d-684ffa24e824,David Robinson,verified,
@@ -773,7 +773,6 @@ Fernando Moreno Garcia,0327cbbc-8b68-573c-9e55-beb4c6338aa8,Fernando Moreno Garc
 Filip Wójcie,6d948954-90cb-5446-9a60-9d4ca0ef4734,Filip Wojcik,candidate,
 Filip Wojcik,6d948954-90cb-5446-9a60-9d4ca0ef4734,Filip Wojcik,verified,
 Filip Wójcik,6d948954-90cb-5446-9a60-9d4ca0ef4734,Filip Wojcik,candidate,
-Filip Wojciuk,6d948954-90cb-5446-9a60-9d4ca0ef4734,Filip Wojcik,candidate,
 Filip Wojciuk,6d948954-90cb-5446-9a60-9d4ca0ef4734,Filip Wojcik,verified,
 Fine Schwenbeck,93981cd5-55c5-5bc6-a418-3c9984e9cdb7,Fine Schwengbeck,verified,redirected:edb868cb-0fec-5ecb-8390-50456ef60ea0->93981cd5
 Fine Schwengbeck,93981cd5-55c5-5bc6-a418-3c9984e9cdb7,Fine Schwengbeck,verified,
@@ -868,7 +867,6 @@ Gordon Scott Flash Bevier,10573dc4-31ee-5440-9df4-a68d11bd4801,Gordon Bevier,ver
 Gosia Debska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,
 Gosia Dębska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,
 Gosia Dêbska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,
-Gosia Debska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,candidate,
 Gosia Debski,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,candidate,
 Gosia Deska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,candidate,
 Gosia Nyc,07f95465-470d-502b-804d-643380e1385c,Gosia Nycz,verified,truncated_name
@@ -892,7 +890,6 @@ Greg Nelson California,da2cbc95-e09b-5a22-9baf-00e25552c9b6,Greg Nelson,verified
 Greg Nelson-,da2cbc95-e09b-5a22-9baf-00e25552c9b6,Greg Nelson,verified,
 Greg Neuman,cab98078-fdb2-557d-a5c9-799b41eb4f04,Greg Nice Neumann,verified,
 Greg Neumann,cab98078-fdb2-557d-a5c9-799b41eb4f04,Greg Nice Neumann,verified,
-Greg Nice,cab98078-fdb2-557d-a5c9-799b41eb4f04,Greg Nice Neumann,candidate,
 Greg Nice,cab98078-fdb2-557d-a5c9-799b41eb4f04,Greg Nice Neumann,verified,
 Greg Nice Neumann,cab98078-fdb2-557d-a5c9-799b41eb4f04,Greg Nice Neumann,verified,
 Greg Potts,97771593-c865-5ac9-b7bf-c76ba6159476,Greg Potts,verified,
@@ -935,7 +932,6 @@ Heather Thomas,e41184d4-ed7c-53d0-a3be-6b1e92fa5279,Heather Thomas,verified,
 Heather Thomas ?,e41184d4-ed7c-53d0-a3be-6b1e92fa5279,Heather Thomas,verified,
 Hector Köhler,0fcd68e8-1d4d-5759-ad15-f1e2898dd5e1,Heike Koller,candidate,
 Heike Kller,0fcd68e8-1d4d-5759-ad15-f1e2898dd5e1,Heike Köller,verified,encoding_corruption
-Heike Koller,0fcd68e8-1d4d-5759-ad15-f1e2898dd5e1,Heike Koller,candidate,
 Heike Köller,0fcd68e8-1d4d-5759-ad15-f1e2898dd5e1,Heike Koller,candidate,
 Heike Koller,0fcd68e8-1d4d-5759-ad15-f1e2898dd5e1,Heike Koller,verified,
 Hejra Pavel,fb09d2be-a773-5bc1-9da3-60cbabff4338,Pavel Hejra,verified,merged: Last-First format swap or confirmed variant
@@ -1278,7 +1274,6 @@ juan David Palomino Mosquera,3123701a-43bd-5273-8472-ba332dc67fed,Juan Palacios 
 Juan Diaz,4b4509f1-71b3-5289-9da4-66628ec6a889,Juan Diaz,verified,
 Juan Díaz,4b4509f1-71b3-5289-9da4-66628ec6a889,Juan Diaz,verified,
 JUAN PALACIOS,3123701a-43bd-5273-8472-ba332dc67fed,Juan Palacios Lemos,candidate,
-Juan Palacios Lemos,3123701a-43bd-5273-8472-ba332dc67fed,Juan Palacios Lemos,candidate,
 Juan Palacios Lemos,3123701a-43bd-5273-8472-ba332dc67fed,Juan Palacios Lemos,verified,
 Juan Palomino Mosquera,3123701a-43bd-5273-8472-ba332dc67fed,Juan Palacios Lemos,candidate,
 Juan Rangel,6d174e0d-3a6e-5889-89bf-e007a551c430,Juan Rangel,verified,
@@ -1326,7 +1321,7 @@ Jussi Lahtinen,23f60613-fbe8-5442-9981-114fd3cf4c14,Jussi Lahtinen,verified,
 Justin Dale,91dbdc03-080b-5170-a2b4-6fcbc7b4f053,Justin Dale,verified,
 Justin Eichenlaub,c476f406-2f03-5f67-88aa-f90dcc36ac42,Justin Eichenlaub,verified,
 Justin Sexton,092d4205-dbd7-59e7-8ec4-53b306eb83b3,Justin Sexton,verified,
-Justin W.,bdd2f4de-c7ab-5700-a09c-de85e89f0386,Justin W.,verified,stub:abbreviated_name
+Justin W.,dc66a5cd-a64c-587c-800c-1bf682ec4a9d,Justin W.,verified,stub:abbreviated_name; rebound stale pid after alias cleanup
 Juuso Huopalainen,88986418-05a3-5493-81f5-b630b7890c0c,Juuso Huopalainen,verified,
 Jyri Ilama,8769fa9e-200a-505d-b008-889add42a38b,Jyri Ilama,verified,
 K Shults,2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f,"Kenneth ""Kenny"" Shults",verified,
@@ -2206,7 +2201,6 @@ Simon Kittlaus,49500b77-ebae-577c-9614-8003bef5ce8c,Simon Kittlaus,verified,
 Simon Lobmaier,3346d96c-dc55-55fb-a020-a8d37d646d37,Simon Lobmaier,verified,
 Simon Rollmann,0d030fab-ebbd-5ec9-a626-77afe441a35c,Simon Rollmann,verified,
 Simon Voss,04253241-2763-57c5-a946-fa08f4b8d8e0,Simon Voss,verified,
-Slava Sidorin,8781b759-cc12-5efa-bfcd-c2595866382f,Slawa Sidorin,verified,
 Slawa Sidorin,8781b759-cc12-5efa-bfcd-c2595866382f,Slawa Sidorin,verified,
 Smirnov Alexander,9b0f06c8-7ef6-5145-9e2b-e80c48a06615,Alexander Smirnov,verified,merged: Last-First format swap or confirmed variant
 Sophie Andrey,a1eabf86-a8d4-571b-b69a-69bfb73d0685,Sophie Andrey,verified,
@@ -2626,7 +2620,6 @@ K. Somolinos,d1aace44-cd92-5b85-9ed1-fe4afb2cd502,Ken Somolinos,verified,dotted_
 L. W.-Lavallée,206eaac4-f28d-5cad-b334-c0ea07752736,Luka W.-Lavallée,verified,dotted_initial:single_match
 M. Daniels,33e83366-7b1e-5c4a-99a9-8eba0d3988ca,Mark Daniels,verified,dotted_initial:single_match
 M. Payant,df233ab3-492d-5dac-a854-d79a7f53cb76,Mathieu Payant,verified,dotted_initial:single_match
-N. Liukko,9aca54b3-8989-5d9e-8ca3-b5420d233d8f,Ninni Liukko,verified,dotted_initial:single_match
 O. B.-Bergé,8842db90-a28e-52d6-87e1-8466adcc548a,Olivier B.-Bergé,verified,dotted_initial:single_match
 P. Tomecek,3ee1e348-8cd4-57f0-9677-a6c3cdccb466,Pascal Tomecek,verified,dotted_initial:single_match
 S. Johnson,4c16387a-d825-5e9c-a012-317c4b4a16f8,Steve Johnson,verified,dotted_initial:single_match
@@ -2722,10 +2715,7 @@ Garry G. Griggs,1de22070-477b-5209-8f40-561ce8784b7a,Garry Griggs,verified,middl
 Thomas tomtom Jouan,383d34a4-3fcf-5661-96ab-aed75a430d5f,Thomas Jouan,verified,nickname
 Khoa Dao Anh Nguyen,f06b66e5-bc34-5a71-9eec-1a176fec790e,Khoa Nguyen,verified,extra_middle_names
 Jaakko Inkinen 4. Juha-Matti Rytilahti,023c695b-ef02-51dd-89bb-0eb3ef0841c6,Juha-Matti Rytilahti,verified,ranking_artifact
-Adam Greenwood : Sailing Catwalk,de72051a-f92e-5e3c-b161-af9028b11492,Adam Greenwood,verified,colon_trick_suffix
 Erik Chan : Reverse Mailstrom,1bedfc1b-885c-5426-a93f-6fe033fd5f3e,Erik Chang,verified,colon_trick_suffix
-Kevin Regamey : bill,6c912402-7d0e-580d-938c-7c6542c48bb1,Kevin Regamey,verified,colon_trick_suffix
-Kevin Crowley: Food Processor,ad54afe3-3f18-5862-87d1-4e02e4fbf9fd,Kevin Crowley,verified,colon_trick_suffix
 David Kaufmann O,2cf525b7-ae53-56ff-98f2-0f845d6d998f,David Kaufmann,verified,suffix_junk
 Jay Moldenhauer,045862ac-72b8-5b86-bc01-5a4d087b47e0,Jay Moldenhauser,verified,typo
 Jean-Franois Lemieux,184a06bb-be96-5120-9a7c-1676f2b01a2a,Jean-Francois Lemieux,verified,typo
