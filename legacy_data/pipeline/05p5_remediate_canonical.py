@@ -2511,6 +2511,225 @@ if _f12_skipped_nonnet:
 if _f12_skipped_collision:
     print(f"  Collisions skipped:       {_f12_skipped_collision}")
 
+# ── Fix 14: Apply event-merge adjudication decisions ─────────────────────────
+# Reads overrides/event_equivalence_pre1985_worlds_adjudication.csv and applies
+# decisions to canonical rows. Idempotent. Skips pending rows.
+#
+# Branches:
+#   decision_status=auto_ready     → preserve MERGE_CONFLICT note (audit trail);
+#                                    add ADJUDICATED_KEEP_BOTH marker
+#   decision_status=resolved
+#     + recommended_resolution=keep_survivor
+#                                  → preserve MERGE_CONFLICT;
+#                                    add ADJUDICATED_KEEP_SURVIVOR marker
+#     + recommended_resolution=use_doomed
+#                                  → DELETE survivor participants for the slot;
+#                                    INSERT chosen_participants from CSV;
+#                                    preserve MERGE_CONFLICT;
+#                                    add ADJUDICATED_USE_DOOMED + adj_source markers
+#     + recommended_resolution=unresolved
+#                                  → skip (treated as still-pending)
+#   decision_status=pending        → skip
+#
+# Hard guardrails:
+#   - chosen_participants must yield exactly 2 names for team_type=doubles
+#   - chosen_participants must be non-empty for use_doomed
+#   - target survivor row must exist exactly once
+#   - person_id resolution is exact-match only; ambiguity → empty pid + warn
+
+print("\n[Fix 14] Applying event-merge adjudication decisions...")
+
+_F14_CSV_PATH = ROOT / "overrides" / "event_equivalence_pre1985_worlds_adjudication.csv"
+_F14_REQUIRED_COLS = {
+    "survivor", "doomed", "discipline_key", "placement",
+    "chosen_participants", "recommended_resolution", "decision_status",
+    "chosen_source",
+}
+
+_f14_auto_ready_annotated = 0
+_f14_keep_survivor_annotated = 0
+_f14_use_doomed_replaced = 0
+_f14_pending_skipped = 0
+_f14_skipped_missing_slot = 0
+_f14_skipped_malformed = 0
+_f14_pids_unresolved = 0
+_f14_skipped_unknown_resolution = 0
+
+
+def _f14_strip_merge_conflict_about(notes_str: str, loser_key: str) -> str:
+    """Remove the MERGE_CONFLICT note targeting a specific loser key.
+    Currently unused (Fix 14 preserves MERGE_CONFLICT per spec) but kept
+    as a helper in case future adjudication policy changes."""
+    if not notes_str:
+        return ""
+    pattern = f"MERGE_CONFLICT: loser '{loser_key}' had different data at"
+    parts = [p.strip() for p in notes_str.split(";") if p.strip()]
+    parts = [p for p in parts if not p.startswith(pattern)]
+    return "; ".join(parts)
+
+
+def _f14_annotate(notes_str: str, marker: str) -> str:
+    """Idempotently append a marker to a semicolon-separated notes string."""
+    parts = [p.strip() for p in (notes_str or "").split(";") if p.strip()]
+    if marker in parts:
+        return notes_str or ""
+    parts.append(marker)
+    return "; ".join(parts)
+
+
+def _f14_parse_participants(s: str) -> list[str]:
+    """'Alice + Bob' → ['Alice', 'Bob']."""
+    return [n.strip() for n in (s or "").split("+") if n.strip()]
+
+
+if not _F14_CSV_PATH.exists():
+    print(f"  SKIP: adjudication CSV absent at {_F14_CSV_PATH.relative_to(ROOT)}")
+else:
+    # Load adjudication CSV
+    with open(_F14_CSV_PATH, newline="", encoding="utf-8") as _fh:
+        _f14_reader = csv.DictReader(_fh)
+        _f14_cols = set(_f14_reader.fieldnames or [])
+        _f14_missing = _F14_REQUIRED_COLS - _f14_cols
+        if _f14_missing:
+            raise SystemExit(f"[Fix 14] adjudication CSV missing required columns: {sorted(_f14_missing)}")
+        _f14_rows = list(_f14_reader)
+
+    # Index disciplines by (event_key, discipline_key) → team_type
+    _f14_disc_meta = {
+        (d["event_key"], d["discipline_key"]): d.get("team_type", "singles")
+        for d in disciplines
+    }
+
+    # Index persons by display_name → list of person_id (exact match only)
+    _f14_persons_by_name: dict[str, list[str]] = {}
+    for _p in persons:
+        _name = _p.get("person_name", "").strip()
+        _pid = _p.get("person_id", "").strip()
+        if _name and _pid:
+            _f14_persons_by_name.setdefault(_name, []).append(_pid)
+
+    # Build (event_key, discipline_key, placement) → list of result-row indices
+    # for fast lookup and uniqueness check
+    _f14_result_index: dict[tuple[str, str, str], list[int]] = {}
+    for _i, _r in enumerate(results):
+        _f14_result_index.setdefault(
+            (_r["event_key"], _r["discipline_key"], _r["placement"]), []
+        ).append(_i)
+
+    for _row in _f14_rows:
+        _ds = (_row.get("decision_status") or "").strip()
+        _rr = (_row.get("recommended_resolution") or "").strip()
+        _ek = (_row.get("survivor") or "").strip()
+        _dk = (_row.get("discipline_key") or "").strip()
+        _pl = (_row.get("placement") or "").strip()
+        _loser = (_row.get("doomed") or "").strip()
+
+        if _ds == "pending":
+            _f14_pending_skipped += 1
+            continue
+
+        # Locate survivor result row
+        _hits = _f14_result_index.get((_ek, _dk, _pl), [])
+        if len(_hits) != 1:
+            print(f"    WARN: survivor row not found or duplicated: {_ek} {_dk} p{_pl} ({len(_hits)} hits) — skipped")
+            _f14_skipped_missing_slot += 1
+            continue
+        _rrow = results[_hits[0]]
+
+        # ── auto_ready: preserve MERGE_CONFLICT, add ADJUDICATED_KEEP_BOTH ──
+        if _ds == "auto_ready":
+            _rrow["notes"] = _f14_annotate(_rrow.get("notes", ""), "ADJUDICATED_KEEP_BOTH")
+            _f14_auto_ready_annotated += 1
+            continue
+
+        if _ds != "resolved":
+            print(f"    WARN: unexpected decision_status={_ds!r} at {_ek} {_dk} p{_pl} — skipped")
+            _f14_skipped_unknown_resolution += 1
+            continue
+
+        # ── resolved + keep_survivor ──
+        if _rr == "keep_survivor":
+            _rrow["notes"] = _f14_annotate(_rrow.get("notes", ""), "ADJUDICATED_KEEP_SURVIVOR")
+            _f14_keep_survivor_annotated += 1
+            continue
+
+        # ── resolved + use_doomed ──
+        if _rr == "use_doomed":
+            _chosen_str = (_row.get("chosen_participants") or "").strip()
+            _chosen_source = (_row.get("chosen_source") or "").strip() or "unknown"
+            if not _chosen_str:
+                print(f"    WARN: use_doomed with empty chosen_participants at {_ek} {_dk} p{_pl} — skipped")
+                _f14_skipped_malformed += 1
+                continue
+            _chosen = _f14_parse_participants(_chosen_str)
+            if not _chosen:
+                print(f"    WARN: use_doomed parsed to empty participant list at {_ek} {_dk} p{_pl} — skipped")
+                _f14_skipped_malformed += 1
+                continue
+            _team_type = _f14_disc_meta.get((_ek, _dk), "singles")
+            if _team_type == "doubles" and len(_chosen) != 2:
+                print(f"    WARN: use_doomed for doubles requires 2 names, got {len(_chosen)} at {_ek} {_dk} p{_pl} — skipped")
+                _f14_skipped_malformed += 1
+                continue
+
+            # Delete existing participant rows for this slot
+            participants[:] = [
+                _p for _p in participants
+                if not (_p.get("event_key") == _ek
+                        and _p.get("discipline_key") == _dk
+                        and _p.get("placement") == _pl)
+            ]
+            # Insert new participants
+            for _order, _name in enumerate(_chosen, start=1):
+                _pid_candidates = _f14_persons_by_name.get(_name, [])
+                _pid = _pid_candidates[0] if len(_pid_candidates) == 1 else ""
+                if not _pid:
+                    _f14_pids_unresolved += 1
+                    print(f"    WARN: person_id unresolved for {_name!r} at {_ek} {_dk} p{_pl} (candidates={len(_pid_candidates)})")
+                participants.append({
+                    "event_key":         _ek,
+                    "discipline_key":    _dk,
+                    "placement":         _pl,
+                    "participant_order": str(_order),
+                    "display_name":      _name,
+                    "person_id":         _pid,
+                    "notes":             f"adj:from={_chosen_source}",
+                })
+
+            _rrow["notes"] = _f14_annotate(_rrow.get("notes", ""), "ADJUDICATED_USE_DOOMED")
+            _rrow["notes"] = _f14_annotate(_rrow["notes"], f"adj_source={_chosen_source}")
+            _f14_use_doomed_replaced += 1
+            continue
+
+        # ── resolved + unresolved/needs_review/other ──
+        if _rr in ("unresolved", "needs_review", ""):
+            _f14_pending_skipped += 1
+            continue
+
+        print(f"    WARN: unhandled recommended_resolution={_rr!r} at {_ek} {_dk} p{_pl} — skipped")
+        _f14_skipped_unknown_resolution += 1
+
+    _f14_total = (_f14_auto_ready_annotated + _f14_keep_survivor_annotated
+                  + _f14_use_doomed_replaced)
+    print(f"  auto_ready notes annotated:          {_f14_auto_ready_annotated}")
+    print(f"  keep_survivor notes annotated:       {_f14_keep_survivor_annotated}")
+    print(f"  use_doomed participants replaced:    {_f14_use_doomed_replaced}")
+    print(f"  pending skipped:                     {_f14_pending_skipped}")
+    if _f14_skipped_missing_slot:
+        print(f"  rows skipped (missing slot):         {_f14_skipped_missing_slot}")
+    if _f14_skipped_malformed:
+        print(f"  rows skipped (malformed):            {_f14_skipped_malformed}")
+    if _f14_skipped_unknown_resolution:
+        print(f"  rows skipped (unknown resolution):   {_f14_skipped_unknown_resolution}")
+    if _f14_pids_unresolved:
+        print(f"  person_ids unresolved on insert:     {_f14_pids_unresolved}")
+
+# Surface a single counter for the health report regardless of CSV presence
+try:
+    _f14_total
+except NameError:
+    _f14_total = 0
+
 # ── Save ──────────────────────────────────────────────────────────────────────
 
 print("\nSaving...")
@@ -2565,6 +2784,7 @@ print(f"""
 ║ Fix 10 host_club assigned (NHSA/WFA)     {_f10_assigned:>6,} ║
 ║ Fix 11 Scoped Open Doubles → Net         {_f11_upgraded:>6,} ║
 ║ Fix 12 Generic Open Doubles (net) → Net  {_f12_upgraded:>6,} ║
+║ Fix 14 Adjudication notes/participants   {_f14_total:>6,} ║
 ║ Pre97  Parse failures repaired           {_pA_fixed:>6,} ║
 ║        Missing placements added          {_pB_results_added:>6,} ║
 ╠══════════════════════════════════════════╣
