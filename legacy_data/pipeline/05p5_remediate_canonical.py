@@ -1503,7 +1503,7 @@ if _EK1 not in existing_event_keys:
     # are assigned sequential placements (7, 8, 9) with notes documenting the tie.
     _hivernal_doubles = [
         # (placement, p1id, p1name, p2id, p2name, notes)
-        ("1", "f1e2640c-48ae-588d-99bc-7b55713191f0", "Manu Bouchard",
+        ("1", "3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c", "Emmanuel Bouchard",
                "39bc6c51-d2e0-5930-8677-51828c12de14", "Andy Ronald", ""),
         ("2", "c312c02d-8a8c-5c73-8b68-65fc9e3fa453", "Benjamin Rochon",
                "184a06bb-be96-5120-9a7c-1676f2b01a2a", "Jean-Francois Lemieux", ""),
