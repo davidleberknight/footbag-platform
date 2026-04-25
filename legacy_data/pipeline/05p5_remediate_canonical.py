@@ -2730,6 +2730,154 @@ try:
 except NameError:
     _f14_total = 0
 
+# ── Fix 15: Fully-adjudicated-pair cleanup ───────────────────────────────────
+# Runs after Fix 14. For event-equivalence merge pairs where every adjudication
+# row is terminal (auto_ready or resolved), compress per-row MERGE_CONFLICT
+# notes to MERGE_ADJUDICATED:loser=<key> and add a pair-level
+# MERGE_ADJUDICATED:from=<loser> marker on the surviving event row.
+#
+# A pair is "fully_adjudicated" when:
+#   - every adjudication row has decision_status in {auto_ready, resolved}
+#     AND recommended_resolution NOT in {needs_review, unresolved}
+#   - OR the pair is declared in event_equivalence.csv with action=merge
+#     but has zero adjudication rows (zero overlap = nothing to adjudicate)
+#
+# Per-row compression guard (per spec): only compress a MERGE_CONFLICT note
+# when the same notes string already contains an ADJUDICATED_* marker.
+# This is double-safety on top of the pair-level gate — a row missing
+# ADJUDICATED_* signals Fix 14 hasn't processed it (likely pending), so
+# Fix 15 leaves it alone even if its pair is fully adjudicated by absence.
+#
+# Idempotent. Skip-on-CSV-missing. Conservative on edge cases.
+
+print("\n[Fix 15] Fully-adjudicated-pair cleanup...")
+
+_F15_ADJ_PATH    = ROOT / "overrides" / "event_equivalence_pre1985_worlds_adjudication.csv"
+_F15_EQUIV_PATH  = ROOT / "overrides" / "event_equivalence.csv"
+
+_f15_pairs_fully_adjudicated = 0
+_f15_pairs_blocked = 0
+_f15_pairs_skipped_no_survivor = 0
+_f15_result_notes_compressed = 0
+_f15_result_notes_skipped_no_adj_marker = 0
+_f15_events_pair_marker_added = 0
+_f15_events_pair_marker_already_present = 0
+
+if not _F15_ADJ_PATH.exists():
+    print(f"  SKIP: adjudication CSV absent at {_F15_ADJ_PATH.relative_to(ROOT)}")
+elif not _F15_EQUIV_PATH.exists():
+    print(f"  SKIP: equivalence CSV absent at {_F15_EQUIV_PATH.relative_to(ROOT)}")
+else:
+    # Load adjudication rows grouped by (survivor, doomed)
+    _f15_adj_by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    with open(_F15_ADJ_PATH, newline="", encoding="utf-8") as _fh:
+        for _r in csv.DictReader(_fh):
+            _f15_adj_by_pair[(_r["survivor"], _r["doomed"])].append(_r)
+
+    # Load declared merges from event_equivalence.csv
+    _f15_declared_merges: set[tuple[str, str]] = set()
+    with open(_F15_EQUIV_PATH, newline="", encoding="utf-8") as _fh:
+        for _r in csv.DictReader(_fh):
+            _eid = (_r.get("event_id") or "").strip()
+            _can = (_r.get("canonical_event_id") or "").strip()
+            _act = (_r.get("action") or "").strip().lower()
+            if _act == "merge" and _eid and _can and _eid != _can and not _eid.startswith("#"):
+                # (survivor, doomed)
+                _f15_declared_merges.add((_can, _eid))
+
+    # Classify each declared merge as fully_adjudicated or blocked
+    _f15_terminal_status = {"auto_ready", "resolved"}
+    _f15_nonterminal_resolution = {"needs_review", "unresolved"}
+
+    def _f15_is_terminal(row: dict) -> bool:
+        ds = (row.get("decision_status") or "").strip()
+        rr = (row.get("recommended_resolution") or "").strip()
+        if ds not in _f15_terminal_status:
+            return False
+        if ds == "resolved" and rr in _f15_nonterminal_resolution:
+            return False
+        return True
+
+    _f15_fully_adjudicated_pairs: set[tuple[str, str]] = set()
+    for _pair in _f15_declared_merges:
+        _adj_rows = _f15_adj_by_pair.get(_pair, [])
+        if not _adj_rows:
+            # Zero-overlap pair declared in equivalence — fully adjudicated by absence
+            _f15_fully_adjudicated_pairs.add(_pair)
+        elif all(_f15_is_terminal(_r) for _r in _adj_rows):
+            _f15_fully_adjudicated_pairs.add(_pair)
+
+    _f15_pairs_fully_adjudicated = len(_f15_fully_adjudicated_pairs)
+    _f15_pairs_blocked = len(_f15_declared_merges) - _f15_pairs_fully_adjudicated
+
+    # Index for fast survivor lookup
+    _f15_events_by_key = {e["event_key"]: e for e in events}
+
+    for (_survivor, _loser) in sorted(_f15_fully_adjudicated_pairs):
+        # Pair-level marker on events.csv
+        _ev = _f15_events_by_key.get(_survivor)
+        if _ev is None:
+            print(f"    WARN: survivor event_key not found: {_survivor} — skipped")
+            _f15_pairs_skipped_no_survivor += 1
+            continue
+        _marker = f"MERGE_ADJUDICATED:from={_loser}"
+        _ev_notes = (_ev.get("notes") or "").strip()
+        _ev_parts = [p.strip() for p in _ev_notes.split(";") if p.strip()]
+        if _marker in _ev_parts:
+            _f15_events_pair_marker_already_present += 1
+        else:
+            _ev_parts.append(_marker)
+            _ev["notes"] = "; ".join(_ev_parts)
+            _f15_events_pair_marker_added += 1
+
+        # Per-row notes compression on event_results.csv
+        _conflict_prefix = f"MERGE_CONFLICT: loser '{_loser}' had different data at"
+        _replacement     = f"MERGE_ADJUDICATED:loser={_loser}"
+        for _r in results:
+            if _r.get("event_key") != _survivor:
+                continue
+            _notes = _r.get("notes") or ""
+            if "MERGE_CONFLICT" not in _notes:
+                continue
+            if _conflict_prefix not in _notes:
+                continue
+            # Per-row guard: only compress if an ADJUDICATED_* marker is present
+            if "ADJUDICATED_" not in _notes:
+                _f15_result_notes_skipped_no_adj_marker += 1
+                continue
+            # Compress: replace the matching MERGE_CONFLICT note with MERGE_ADJUDICATED
+            _new_parts = []
+            _replaced = False
+            for _p in [s.strip() for s in _notes.split(";") if s.strip()]:
+                if _p.startswith(_conflict_prefix):
+                    if not _replaced:
+                        _new_parts.append(_replacement)
+                        _replaced = True
+                    # subsequent matching MERGE_CONFLICT entries (rare) collapse
+                else:
+                    _new_parts.append(_p)
+            if _replaced:
+                _r["notes"] = "; ".join(_new_parts)
+                _f15_result_notes_compressed += 1
+
+    print(f"  Pairs declared (merge):                    {len(_f15_declared_merges)}")
+    print(f"  Pairs fully adjudicated:                   {_f15_pairs_fully_adjudicated}")
+    print(f"  Pairs blocked (pending rows):              {_f15_pairs_blocked}")
+    if _f15_pairs_skipped_no_survivor:
+        print(f"  Pairs skipped (survivor missing):          {_f15_pairs_skipped_no_survivor}")
+    print(f"  events.csv pair markers added:             {_f15_events_pair_marker_added}")
+    if _f15_events_pair_marker_already_present:
+        print(f"  events.csv pair markers already present:   {_f15_events_pair_marker_already_present}")
+    print(f"  event_results.csv notes compressed:        {_f15_result_notes_compressed}")
+    if _f15_result_notes_skipped_no_adj_marker:
+        print(f"  event_results.csv rows skipped (no ADJ):   {_f15_result_notes_skipped_no_adj_marker}")
+
+# Surface counter for health report
+try:
+    _f15_total = _f15_events_pair_marker_added + _f15_result_notes_compressed
+except NameError:
+    _f15_total = 0
+
 # ── Save ──────────────────────────────────────────────────────────────────────
 
 print("\nSaving...")
@@ -2785,6 +2933,7 @@ print(f"""
 ║ Fix 11 Scoped Open Doubles → Net         {_f11_upgraded:>6,} ║
 ║ Fix 12 Generic Open Doubles (net) → Net  {_f12_upgraded:>6,} ║
 ║ Fix 14 Adjudication notes/participants   {_f14_total:>6,} ║
+║ Fix 15 Adjudicated-pair cleanup          {_f15_total:>6,} ║
 ║ Pre97  Parse failures repaired           {_pA_fixed:>6,} ║
 ║        Missing placements added          {_pB_results_added:>6,} ║
 ╠══════════════════════════════════════════╣
