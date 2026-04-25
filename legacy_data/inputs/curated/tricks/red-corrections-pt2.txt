@@ -1,0 +1,60 @@
+
+Red Husted
+4:23 PM (10 minutes ago)
+to me, Trained
+
+Spyro I believe has been replaced in name by Inspin. I don't hear the name Spyro much anymore, but hear Insprin all the time. Inspin is when you set the bag with a clipper and turn into it, instead of away from it like a normal spin. So basically, you spin the opposite direction. It becomes more like a spin and a half body motion.
+
+Surging is spinning stepping. It is used greatly still, so all of the moves you listed are valid.
+
+Bigwalk (5 ADD) = Surging Butterfly
+- Surge (5 ADD) = Surging Paradox Mirage
+- Surreal (6 ADD) = Surging Paradox Whirl
+- Surgery (6 ADD) = Surging Symposium Reverse Whirl
+- Venom (6 ADD) = Surging Barfly
+
+Also, Pogo does not get an extra ADD. It is a set, unique from stepping, but no extra points are given for the set.
+
+- Toe Blur (3 ADD) = Quantum Mirage
+- Toe Ripwalk (4 ADD) = Quantum Butterfly
+- Backside Symposium Toe Blur (4 ADD) = Quantum Symposium Mirage
+- Toe Blizzard (3 ADD) = Quantum Illusion
+Before we had the word Quantum, we used the word toe. But yes, the toe moves listed above are Quantum moves now.
+
+ Toe Blur (3 ADD) = Quantum Mirage
+- Toe Ripwalk (4 ADD) = Quantum Butterfly
+- Backside Symposium Toe Blur (4 ADD) = Quantum Symposium Mirage
+- Toe Blizzard (3 ADD) = Quantum Illusion
+This is correct. The toe title is the one that is outdated now.
+
+Gyro is spinning and dexing the bag with the same foot you set with. 
+
+- Gyro Butterfly (4 ADD, separate entry)
+- Vortex (4 ADD) = Gyro Drifter
+- Spyro Gyro (5 ADD) = Gyro Butterfly Swirl
+- Mobius (5 ADD) = Gyro Torque
+- Flurricane (5 ADD) = Gyro Flurry
+All of these are Gyro moves. Spyro is the name of only one move and is not a concept like the others.
+
+Gyro is heavily in use in competition and shred.
+
+**Q5.1 — Atomic modifier: is it standardized?**
+
+Several tricks use "Atomic" as a construction element:
+- Eggbeater (3) = Atomic Legover
+- Atom Smasher (3 or 4) = Atomic Mirage
+- Omelette (3) = Atomic Illusion
+- S&M Smasher (4) = Atomic Barrage
+- Legbeater (4) = Atomic Butterfly
+- Flux (4) = Atomic Osis
+- Witchdoctor (4) = Atomic Symposium Mirage
+- Fusion (5) = Atomic Double Over Down
+These are all interchangeable. Atomic Legover is how you explain Eggbeater's components. Same with the others.
+
+Is "Atomic" a defined modifier with a standard ADD contribution (appears to be +1)?
+If so, should we model it as a modifier entry with its own ADD bonus column?
+You can do that.
+
+This is all I have for now, I'll chunk out the next section next :)
+Thanks,
+Red
