@@ -128,6 +128,55 @@ run_preflight_csv_only() {
 }
 
 # =============================================================================
+# PHASE B — Mirror extraction (clubs + club_members seed CSVs)
+#
+# Produces:
+#   seed/clubs.csv         (consumed by load_clubs_seed.py + Phase D)
+#   seed/club_members.csv  (consumed by load_club_members_seed.py + Phase D)
+#
+# Both extract scripts are idempotent: they skip when the output CSV is
+# newer than the source mirror HTML. Safe to re-run on every pipeline
+# invocation.
+# =============================================================================
+run_phase_b_mirror_extract() {
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  PHASE B: MIRROR EXTRACTION                          ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    python scripts/extract_clubs.py
+    python scripts/extract_club_members.py
+    echo ""
+}
+
+# =============================================================================
+# PHASE I — Clubs + club_members DB load (initial mirror-derived seed)
+#
+# Loads seed/clubs.csv and seed/club_members.csv into the platform DB.
+# Idempotent (INSERT OR IGNORE patterns; collision-safe slug allocation).
+#
+# Writes:
+#   clubs                            (new rows)
+#   tags                             (one per club, is_standard=1)
+#   legacy_club_candidates           (mirror-derived initial; later refreshed
+#                                     by Phase G's DELETE+INSERT)
+#   legacy_person_club_affiliations  (mirror-derived initial; later refreshed
+#                                     by Phase G's DELETE+INSERT)
+#
+# Must run AFTER the V0 backbone (which loads canonical historical_persons
+# that load_club_members_seed needs for name-match attempts) and BEFORE
+# Phase H (which FKs club_bootstrap_leaders → clubs.id).
+# =============================================================================
+run_phase_clubs_seed_load() {
+    echo ""
+    echo "╔══════════════════════════════════════════════════════╗"
+    echo "║  PHASE I: CLUBS + CLUB_MEMBERS DB LOAD               ║"
+    echo "╚══════════════════════════════════════════════════════╝"
+    python scripts/load_clubs_seed.py --db "${REPO_ROOT}/database/footbag.db"
+    python scripts/load_club_members_seed.py --db "${REPO_ROOT}/database/footbag.db"
+    echo ""
+}
+
+# =============================================================================
 # DB LOAD (canonical seed only — step 7 of V0 backbone, extracted for reuse)
 # =============================================================================
 run_db_load_canonical() {
@@ -395,7 +444,9 @@ run_alias_registry_preflight
 
 case "$MODE" in
     full)
+        run_phase_b_mirror_extract
         run_v0_backbone
+        run_phase_clubs_seed_load
         run_phase_net
         run_preflight
         run_phase_c
@@ -417,6 +468,7 @@ case "$MODE" in
 
     enrichment_only)
         run_preflight
+        run_phase_clubs_seed_load
         run_phase_c
         run_phase_d
         run_phase_e
@@ -436,6 +488,7 @@ case "$MODE" in
         # and name_variants DB load (V).
         run_preflight_csv_only
         run_db_load_canonical
+        run_phase_clubs_seed_load
         run_phase_c
         run_phase_d
         run_phase_e
