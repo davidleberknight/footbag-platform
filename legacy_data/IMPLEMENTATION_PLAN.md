@@ -33,8 +33,29 @@ Historical pipeline integration sprint. Source of truth for the historical-pipel
     - **Namespace agreement.** The legacy-account export and mirror-derived IDs must use the same `legacy_member_id` namespace (same IDs for same real-world accounts). If they diverge, resolve before loading the export.
     - **MIGRATION_PLAN §2 + §8.** The platform-side doc rewrites (imported rows live in `legacy_members`; claim marks rather than deletes the legacy record) depend on the final dump structure. Coordinate before rewrites land.
     - **Test fixture support.** `tests/fixtures/factories.ts` already has a `legacy_members` factory and auto-creates stub rows on HP insert; additional richer fields in the legacy-account export may warrant factory extensions.
+6. **Audit and clean this file** (top of current sprint; do first). Apply these rules:
+    - IP is AI-facing: delete completed items outright (no "Already done" tombstone log). Architecture facts that still help AI orient go to `legacy_data/CLAUDE.md` if not already there.
+    - Anything narrower than `docs/USER_STORIES.md` / `docs/DESIGN_DECISIONS.md` / `docs/MIGRATION_PLAN.md` is implicit future work; do not enumerate.
+    - Keep only: active work, current substitute mechanisms (with unblock conditions), external blockers, release-readiness criteria.
+    - Cutover-revert items go in `docs/MIGRATION_PLAN.md` §28.8, not here.
+    - No em dashes in prose; no emojis.
+
+    Specific findings already identified (apply each):
+    1. Delete entire "Already done" section (currently 13 bullets). Move any architectural detail still useful for AI orientation to `legacy_data/CLAUDE.md`; most is already there.
+    2. Delete "Deliverables (remaining)". Duplicates "Still to do"; contains stale items (records CSV and extended CLAUDE.md are done).
+    3. Audit "Unblocks". World records page is live with data; club bootstrap is loaded by Phase H of `run_pipeline.sh`; "Members ungating" gating actually uses `hof_member || bap_member` flag per `src/services/historyService.ts:121`, not data-review sign-off. Prune accordingly.
+    4. Consolidate three overlapping work lists ("Still to do" / "Release checklist" / "Known gaps and follow-up items") into one prioritized list.
+    5. Delete L1, L2, L3 in "Known gaps". Pure long-term improvements (canonical_all merge, version stamps, DATA NOTES sheet) with no current substitute mechanism.
+    6. Delete "Low-priority: score_text pass-through" section. Deferred enhancement, no AI-now value.
+    7. Move H1 VISIBLE_PERSON definition into `docs/DESIGN_DECISIONS.md` or `docs/DATA_MODEL.md`; it is a design rule, not a to-do.
+    8. Reframe release-checklist heading: drop "before members ungating" wording (gate is HoF/BAP-flag based per code, not data-review).
+    9. Tighten "Still to do" items 2 and 5. Coordination context can collapse to 1-2 lines plus unblock condition.
+    10. Match root-IP intro style: one line of purpose plus pointer to `legacy_data/CLAUDE.md` for pipeline architecture.
+
+    Workflow: propose changes one at a time, show literal before/after for each, await human approval per change. Never edit docs without explicit human approval. Target: ~60-70 lines (from 185). Delete this item 6 as the final step.
 
 **Dependency order (Still to do):**
+- 6 unblocked; do first (file cleanup precursor that surfaces the real state of the rest).
 - 1 → 3 (legacy identity columns → data review sign-off).
 - 1 blocked on 5 (legacy-site dump).
 - 2 independent.
