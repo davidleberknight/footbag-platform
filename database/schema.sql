@@ -3430,5 +3430,65 @@ CREATE TABLE net_team_correction_candidate (
 CREATE INDEX idx_net_tc_decision ON net_team_correction_candidate(decision);
 
 -- =============================================================================
+-- FREESTYLE MEDIA LINKAGE
+-- Curated reference media (videos/images) attached to tricks, persons, events,
+-- and records. DISTINCT from media_items (member-uploaded gallery content) —
+-- the two systems must never be merged; see GOVERNANCE on layer separation.
+-- Loaders (planned): legacy_data/event_results/scripts/21_load_freestyle_media_sources.py,
+-- 22_load_freestyle_media_assets.py, 23_load_freestyle_media_links.py.
+-- Source CSVs (planned): legacy_data/inputs/curated/media/.
+-- All three tables prefixed `freestyle_media_*` to keep curated freestyle media
+-- visibly separate from member-uploaded media_items / media_flags / media_tags.
+-- =============================================================================
+
+-- Source registry. One row per documented source (DVD, website, channel).
+CREATE TABLE freestyle_media_sources (
+  source_id    TEXT PRIMARY KEY,                -- e.g. 'tt1', 'youtube', 'footbagspot_tutorials'
+  source_name  TEXT NOT NULL,
+  source_type  TEXT NOT NULL,                   -- 'dvd' | 'website' | 'youtube' | 'vimeo' | 'database' (no CHECK; broad)
+  url          TEXT,
+  creator      TEXT
+);
+
+-- Curated media assets. NOT a substitute for media_items (member-uploaded).
+CREATE TABLE freestyle_media_assets (
+  id            TEXT PRIMARY KEY,
+  media_type    TEXT NOT NULL CHECK (media_type IN ('video', 'image')),
+  url           TEXT NOT NULL,
+  title         TEXT,
+  creator       TEXT,
+  source_id     TEXT REFERENCES freestyle_media_sources(source_id),
+  review_status TEXT NOT NULL DEFAULT 'pending'
+                CHECK (review_status IN ('pending', 'curated', 'expert_reviewed')),
+  is_active     INTEGER NOT NULL DEFAULT 0
+);
+
+-- Many-to-many edges: one asset can link to many entities (trick + record + person).
+-- start_seconds / end_seconds support multi-clip-per-source (TT1/TT2 DVDs,
+-- slow-mo segments, multi-section tutorials). end_seconds is load-bearing
+-- for multi-trick sources even when typically NULL on simple full-asset links.
+CREATE TABLE freestyle_media_links (
+  media_id       TEXT NOT NULL REFERENCES freestyle_media_assets(id),
+  entity_type    TEXT NOT NULL CHECK (entity_type IN ('trick', 'person', 'event', 'record')),
+  entity_id      TEXT NOT NULL,                 -- slug | person_id | event_key | freestyle_records.id
+  start_seconds  INTEGER,                       -- NULL = entire asset
+  end_seconds    INTEGER,                       -- NULL = open-ended; load-bearing for multi-trick sources
+  is_primary     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (media_id, entity_type, entity_id)
+);
+
+-- At most one primary per (entity_type, entity_id).
+-- Trick-primary semantics are PROVISIONAL: current bootstrap treats record
+-- clips as trick-primary. Will need refinement when tutorial / slow-mo / demo
+-- content arrives — multiple clips will compete and this index will start
+-- blocking legitimate inserts. Revisit then; do not solve speculatively.
+CREATE UNIQUE INDEX uq_freestyle_media_links_primary
+  ON freestyle_media_links(entity_type, entity_id)
+  WHERE is_primary = 1;
+
+CREATE INDEX idx_freestyle_media_links_entity ON freestyle_media_links(entity_type, entity_id);
+CREATE INDEX idx_freestyle_media_links_media  ON freestyle_media_links(media_id);
+
+-- =============================================================================
 -- END OF SCHEMA v0.1
 -- =============================================================================
