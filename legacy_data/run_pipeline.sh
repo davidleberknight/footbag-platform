@@ -58,10 +58,14 @@ run_full_mode_preflight() {
 
     local missing=()
 
-    # Mirror dir must contain HTML, not just manifest stubs.
-    if [[ ! -d mirror_footbag_org ]] || \
-       [[ -z $(find mirror_footbag_org -maxdepth 3 -name '*.html' -print -quit 2>/dev/null) ]]; then
-        missing+=("mirror_footbag_org/ (no HTML found; obtain from operator handoff or rerun the mirror crawl)")
+    # Mirror dir must contain real crawl content. We test the homepage
+    # index file: a stable structural marker, robust to developer-local
+    # symlinks (mirror_footbag_org -> sibling repo). [[ -f ]] follows
+    # symlinks; find without -L does not, which is why an HTML-scan check
+    # fails on the symlink layout.
+    local mirror_marker="mirror_footbag_org/www.footbag.org/index.html"
+    if [[ ! -d mirror_footbag_org ]] || [[ ! -f "$mirror_marker" ]]; then
+        missing+=("mirror_footbag_org/ (expected ${mirror_marker}; obtain crawl from operator handoff or rerun the mirror crawl)")
     fi
 
     # Curated membership input (committed; expected present on a clean clone).
