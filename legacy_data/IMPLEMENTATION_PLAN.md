@@ -8,18 +8,16 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 Prioritized.
 
-1. **Legacy identity columns on canonical persons.** Add `legacy_user_id` and `legacy_email` to canonical `persons.csv` where mirror provides them. Required by the registration claim flow (three-key coverage). Mirror-derivable `legacy_user_id` can land first; `legacy_email` completeness blocked on the legacy-site dump (see external blockers).
+1. **Event key normalization (1982-1984).** Rule to lock: `event_key = YYYY_city_slug` with explicit overrides in `overrides/`. Source adjudication required for the 1982-1984 cluster (1980-1981 are clean). Risk if deferred past data release: duplicate logical events, broken joins, URL instability.
 
-2. **Event key normalization (1982-1984).** Rule to lock: `event_key = YYYY_city_slug` with explicit overrides in `overrides/`. Source adjudication required for the 1982-1984 cluster (1980-1981 are clean). Risk if deferred past data release: duplicate logical events, broken joins, URL instability.
-
-3. **`legacy_club_candidates.classification` DB column.** Pipeline writes a four-value `category` per row (`pre_populate`, `onboarding_visible`, `dormant`, `junk`); DB load drops it because the schema has no destination column, so registration Stage 2 cannot separate `dormant` from `junk` at runtime. Fix: add `classification TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk'))` to `database/schema.sql`; extend the INSERT in `event_results/scripts/09_load_enrichment_to_sqlite.py`; extend `tests/fixtures/factories.ts::insertLegacyClubCandidate` with an optional override defaulting to `'junk'`; add schema round-trip and CHECK-constraint tests.
+2. **`legacy_club_candidates.classification` DB column.** Pipeline writes a four-value `category` per row (`pre_populate`, `onboarding_visible`, `dormant`, `junk`); DB load drops it because the schema has no destination column, so registration Stage 2 cannot separate `dormant` from `junk` at runtime. Fix: add `classification TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk'))` to `database/schema.sql`; extend the INSERT in `event_results/scripts/09_load_enrichment_to_sqlite.py`; extend `tests/fixtures/factories.ts::insertLegacyClubCandidate` with an optional override defaulting to `'junk'`; add schema round-trip and CHECK-constraint tests.
 
 ---
 
 ## Current substitute mechanisms
 
 - **`legacy_members` population.** Mirror-derived via `legacy_data/scripts/load_legacy_members_seed.py` (2,507 rows; columns limited to PK + `display_name` + `import_source='mirror'`). Unblock: legacy-site data dump received.
-- **`legacy_club_candidates.category` at DB load.** Dropped (no destination column). Unblock: item 3.
+- **`legacy_club_candidates.category` at DB load.** Dropped (no destination column). Unblock: item 2.
 
 ---
 
@@ -56,8 +54,8 @@ Prioritized.
 
 ## Unblocks
 
-- Auto-link coverage for club-only members: requires item 1 (`legacy_user_id` / `legacy_email` in canonical persons).
-- Legacy account claim at registration: requires three-key coverage (item 1 + legacy-site data dump).
+- Auto-link coverage for club-only members: gated on `legacy_email` (blocked on legacy-site data dump). `legacy_user_id` and `legacy_member_id` already in canonical persons.
+- Legacy account claim at registration: gated on `legacy_email` for full three-key coverage (blocked on legacy-site data dump). `legacy_member_id` and `legacy_user_id` already in canonical persons.
 
 ---
 
