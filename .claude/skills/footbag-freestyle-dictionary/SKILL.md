@@ -156,6 +156,30 @@ True combo analysis requires sequence-level data.
 
 ---
 
+## 5b. Media Linkage Layer
+
+Curated reference media (videos and images) attached to tricks, players, events, and records lives in three tables: `freestyle_media_sources`, `freestyle_media_assets`, `freestyle_media_links`. Member-uploaded gallery content (`media_items`, `media_flags`, `media_tags`) is a separate, parallel system — never merge the two.
+
+Rules:
+
+- **Curated trick media stays separate from member `media_items`.** Two parallel layers, never merged. Mixing breaks GOVERNANCE layer separation.
+
+- **`end_seconds` is load-bearing for multi-trick media sources.** May be NULL on simple full-asset clips, but is the only mechanism by which one source asset (TT1/TT2 DVD, multi-section tutorial, slow-mo extract) spawns many distinct clip-links. Snippet timing lives on `freestyle_media_links`, never a separate segments table. Never drop the column.
+
+- **Trick-primary clip logic is provisional.** The partial unique index `(entity_type, entity_id) WHERE is_primary=1` enforces one primary per entity. Current generator picks primary by record `value_numeric` desc, tiebreak by `media_id` asc — biased toward record clips over tutorials. Will need refinement when tutorial / slow-mo / demo clips arrive in volume. Do not solve speculatively.
+
+- **Verify external URLs before reviewer sign-off.** Extrapolated URLs sit in staging with `reviewer` blank; they must be HTTP-confirmed before promotion. Pattern-form-from-a-working-URL is a guess, not verification.
+
+- **Two-lane staging model.** `legacy_data/tools/trick_video_discovery/video_coverage.csv` is the record-clip lane. `legacy_data/tools/trick_video_discovery/snippet_candidates.csv` is the trick-tutorial lane. Generator filters on `reviewed=YES` and `reviewer != ''` respectively; nothing else promotes.
+
+- **`clip_type` is staging-only.** Values `tutorial / demo / record / slow_mo / compilation`. Drives reviewer triage and primary-policy biasing. Not persisted to DB.
+
+### Source URL patterns (verified)
+
+- **FootbagSpot tutorials**: `https://footbagspot.com/tutorials/v/{hash-or-slug}` for individual videos. `/tutorials/{category}` for category landing pages. Speculative `/tutorials/{slug}` URLs all 404 — do not extrapolate.
+
+---
+
 ## 6. Canonical Competition Results Layer
 
 Canonical results remain separate.

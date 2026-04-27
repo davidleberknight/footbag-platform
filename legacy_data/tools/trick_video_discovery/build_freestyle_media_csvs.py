@@ -41,6 +41,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 DB_PATH = REPO_ROOT / "database" / "footbag.db"
 COVERAGE_CSV = REPO_ROOT / "legacy_data" / "tools" / "trick_video_discovery" / "video_coverage.csv"
 SOURCES_CSV = REPO_ROOT / "legacy_data" / "tools" / "trick_video_discovery" / "known_sources.csv"
+CANDIDATES_CSV = REPO_ROOT / "legacy_data" / "tools" / "trick_video_discovery" / "snippet_candidates.csv"
 OUT_DIR = REPO_ROOT / "legacy_data" / "inputs" / "curated" / "media"
 
 NAMESPACE_URL = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # RFC 4122 standard URL namespace
@@ -88,9 +89,22 @@ def main() -> int:
     with open(COVERAGE_CSV, newline="", encoding="utf-8") as f:
         reviewed = [r for r in csv.DictReader(f) if (r.get("reviewed") or "").strip().upper() == "YES"]
 
+    # --- Signed-off rows from snippet_candidates.csv (reviewer != '') ---
+    candidates: list[dict] = []
+    if CANDIDATES_CSV.exists():
+        with open(CANDIDATES_CSV, newline="", encoding="utf-8") as f:
+            candidates = [r for r in csv.DictReader(f) if (r.get("reviewer") or "").strip()]
+
     # --- Asset dedup by URL ---
-    assets: dict[str, dict] = {}  # url → asset row
-    asset_origin: dict[str, list[dict]] = {}  # url → list of source CSV rows that contributed
+    # Two inbound lanes:
+    #   (a) video_coverage.csv reviewed=YES — record-clip lane (existing 38)
+    #   (b) snippet_candidates.csv reviewer != '' — Option-B trick-tutorial lane (new)
+    # Both keyed by URL; same URL appearing in both lanes deduplicates to one asset.
+    assets: dict[str, dict] = {}
+    asset_origin: dict[str, list[dict]] = {}
+    candidate_rows_by_url: dict[str, list[dict]] = {}
+
+    # Lane (a): record clips from video_coverage.csv
     for r in reviewed:
         url = (r.get("url") or "").strip()
         if not url:
@@ -109,24 +123,55 @@ def main() -> int:
             asset_origin[url] = []
         asset_origin[url].append(r)
 
+    # Lane (b): trick tutorials from snippet_candidates.csv
+    for r in candidates:
+        url = (r.get("url") or "").strip()
+        if not url:
+            continue
+        confidence = (r.get("confidence") or "").strip().lower()
+        is_active = 1 if confidence in ("high", "medium") else 0
+        review_status = "curated" if is_active else "pending"
+        # Title: "{trick_slug} {clip_type}" or "{trick_slug} {clip_type} by {player}"
+        clip_type = (r.get("clip_type") or "").strip() or "clip"
+        player_name = (r.get("player_name") or "").strip()
+        title_base = f"{r.get('trick_slug', '').strip()} {clip_type}".strip()
+        title = f"{title_base} by {player_name}" if player_name else title_base
+        if url not in assets:
+            assets[url] = {
+                "id":            media_id_for(url),
+                "media_type":    "video",
+                "url":           url,
+                "title":         title,
+                "creator":       player_name,
+                "source_id":     (r.get("source_id") or "").strip(),
+                "review_status": review_status,
+                "is_active":     is_active,
+            }
+            asset_origin[url] = []
+        candidate_rows_by_url.setdefault(url, []).append(r)
+        asset_origin[url].append(r)
+
     # --- Record-match lookup ---
     con = sqlite3.connect(DB_PATH)
     record_match_buckets: Counter = Counter()
     skipped_no_match: list[tuple[str, str]] = []
     skipped_ambiguous: list[tuple[str, str, int]] = []
 
-    # --- Generate links ---
+    # --- Generate links (two lanes) ---
     links: list[dict] = []
-    for url, asset in assets.items():
-        # one source CSV row per asset (dedup means we pick the first; all share creator+trick)
-        src = asset_origin[url][0]
-        trick_slug = (src.get("trick_slug") or "").strip()
-        creator = (src.get("creator") or "").strip()
-        canon = (src.get("canonical_trick_name") or "").strip()
-        alias = (src.get("matched_alias") or "").strip()
-        start = parse_timestamp(src.get("timestamp", ""))
 
-        # Trick link (created when trick_slug is non-empty)
+    # Lane (a): record-clip links from video_coverage.csv reviewed=YES rows.
+    for r in reviewed:
+        url = (r.get("url") or "").strip()
+        if not url:
+            continue
+        asset = assets[url]
+        trick_slug = (r.get("trick_slug") or "").strip()
+        creator = (r.get("creator") or "").strip()
+        canon = (r.get("canonical_trick_name") or "").strip()
+        alias = (r.get("matched_alias") or "").strip()
+        start = parse_timestamp(r.get("timestamp", ""))
+
         if trick_slug:
             links.append({
                 "media_id":      asset["id"],
@@ -137,7 +182,6 @@ def main() -> int:
                 "is_primary":    1,
             })
 
-        # Record link (created only on exactly-one match)
         cur = con.execute("""
           SELECT id FROM freestyle_records
           WHERE LOWER(display_name) = LOWER(?)
@@ -159,8 +203,29 @@ def main() -> int:
             record_match_buckets["zero"] += 1
             skipped_no_match.append((trick_slug, creator))
         else:
-            record_match_buckets[f"ambiguous"] += 1
+            record_match_buckets["ambiguous"] += 1
             skipped_ambiguous.append((trick_slug, creator, n))
+
+    # Lane (b): trick-tutorial links from snippet_candidates.csv signed-off rows.
+    # Multiple candidates per URL → multiple trick links (supports Option A reels).
+    for r in candidates:
+        url = (r.get("url") or "").strip()
+        if not url or url not in assets:
+            continue
+        asset = assets[url]
+        trick_slug = (r.get("trick_slug") or "").strip()
+        if not trick_slug:
+            continue
+        s = (r.get("start_seconds") or "").strip()
+        e = (r.get("end_seconds") or "").strip()
+        links.append({
+            "media_id":      asset["id"],
+            "entity_type":   "trick",
+            "entity_id":     trick_slug,
+            "start_seconds": s if s else "",
+            "end_seconds":   e if e else "",
+            "is_primary":    1,
+        })
 
     # --- Demote duplicate primaries: at most one is_primary=1 per (entity_type, entity_id) ---
     # The schema enforces this via partial unique index. Deterministic rule:

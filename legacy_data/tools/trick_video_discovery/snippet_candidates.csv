@@ -1,0 +1,23 @@
+source_id,url,trick_slug,start_seconds,end_seconds,player_name,clip_type,confidence,reviewer,notes
+footbagspot_tutorials,https://footbagspot.com/tutorials/clipper,clipper,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; superseded by /tutorials/v/7wgbb9sh5yskgxn25y9jnmgd73ffyf
+footbagspot_tutorials,https://footbagspot.com/tutorials/mirage,mirage,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; no FootbagSpot replacement on index
+footbagspot_tutorials,https://footbagspot.com/tutorials/osis,osis,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; superseded by /tutorials/v/shred-global-osis-by-zac-miley
+footbagspot_tutorials,https://footbagspot.com/tutorials/legover,legover,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; no FootbagSpot replacement on index
+footbagspot_tutorials,https://footbagspot.com/tutorials/butterfly,butterfly,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; replacement via Level 5 BOPs compilation pending segment timing
+footbagspot_tutorials,https://footbagspot.com/tutorials/around-the-world,around-the-world,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; superseded by /tutorials/v/footbag-level-3-around-the-world
+footbagspot_tutorials,https://footbagspot.com/tutorials/pickup,pickup,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; no FootbagSpot replacement on index
+footbagspot_tutorials,https://footbagspot.com/tutorials/illusion,illusion,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; no FootbagSpot replacement on index
+footbagspot_tutorials,https://footbagspot.com/tutorials/whirl,whirl,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; no FootbagSpot replacement on index
+footbagspot_tutorials,https://footbagspot.com/tutorials/swirl,swirl,,,,tutorial,low,,confirmed 404 by WebFetch 2026-04-26; no FootbagSpot replacement on index
+footbagspot_tutorials,https://footbagspot.com/tutorials/v/7wgbb9sh5yskgxn25y9jnmgd73ffyf,clipper,,,,tutorial,medium,JL,index-confirmed; replaces broken /tutorials/clipper
+footbagspot_tutorials,https://footbagspot.com/tutorials/v/yz9ms9sj8lsnfhckrczgggx3yen84t,around-the-world,,,,tutorial,medium,,"index-confirmed (""ATW & Orbit"" page)"
+shred_global,https://footbagspot.com/tutorials/v/shred-global-osis-by-zac-miley,osis,,,Zac Miley,tutorial,medium,JL,index-confirmed; Red noted as canonical osis tutorial; replaces broken /tutorials/osis
+polini_pointers,https://footbagspot.com/tutorials/v/polinis-pointers-osis,osis,,,Nick Polini,tutorial,medium,,index-confirmed; alternate osis (secondary candidate)
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-3-around-the-world,around-the-world,,,,tutorial,medium,JL,index-confirmed; Level 3 page (single trick focus); replaces broken /tutorials/around-the-world
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-2-stalls,toe-stall,,,,tutorial,medium,JL,needs segment timing; compilation once accessible
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-2-stalls,outside-stall,,,,tutorial,medium,JL,needs segment timing; compilation once accessible
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-2-stalls,heel-stall,,,,tutorial,medium,JL,needs segment timing; compilation once accessible
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-5-bops,butterfly,,,,tutorial,medium,,index-confirmed Level 5 BOPs page; segment timing TBD; reclassify clip_type=compilation once start_seconds known
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-5-bops,osis,,,,tutorial,medium,,index-confirmed Level 5 BOPs; segment timing TBD; reclassify clip_type=compilation once start_seconds known
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-5-bops,paradox-mirage,,,,tutorial,medium,JL,index-confirmed Level 5 BOPs; paradox-mirage currently uncovered; segment timing TBD; reclassify clip_type=compilation once start_seconds known
+footbagspot_passback,https://footbagspot.com/tutorials/v/footbag-level-4-clipper-core-toe-tricks,clipper,,,,tutorial,medium,,index-confirmed Level 4 page (multi-trick: Clipper + core toe tricks); segment timing TBD; reclassify clip_type=compilation once start_seconds known

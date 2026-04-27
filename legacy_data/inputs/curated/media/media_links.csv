@@ -9,6 +9,9 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 1122d3e7-e11d-5ca6-b9a9-61dc27ac03d1,trick,smear,,,1
 200662ab-a951-58f4-b9c0-07ba8fdf7d14,record,e1591575-070a-5cae-a28e-843a5d5522f8,,,1
 200662ab-a951-58f4-b9c0-07ba8fdf7d14,trick,butterfly,,,1
+29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,heel-stall,,,1
+29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,outside-stall,,,1
+29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,toe-stall,,,1
 30a1f6ad-fee9-512a-ad11-47072e2d7297,record,de232796-bd1c-5bbc-a25f-11d39d368158,,,1
 30a1f6ad-fee9-512a-ad11-47072e2d7297,trick,ducking-butterfly,,,1
 32fa4bcd-0b23-5dad-b3ee-4b5584a7d7de,record,481678d9-8cb6-5136-b20a-a5fac303ac14,,,1
@@ -22,6 +25,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 380feddf-0b63-5199-bb57-3be4c63da732,record,7439984a-fccf-5d36-bf67-ad765f3f6246,25,,1
 380feddf-0b63-5199-bb57-3be4c63da732,trick,spinning-osis,25,,1
 3a1b9efb-73cc-52a8-bf98-3f74d968d19d,trick,food-processor,31,,1
+42d42f54-c76d-592a-b9d9-fac2590420a8,trick,clipper,,,0
 45634a05-d038-51d3-ac24-b4e70d8bf1c9,record,ce678a3e-c81a-59f3-ab47-51f5a155670e,,,1
 45634a05-d038-51d3-ac24-b4e70d8bf1c9,trick,spinning-butterfly,,,1
 45c6a43d-349d-55ea-9425-eb221aa03e46,record,807c3522-540b-5eb8-bcba-ec97b5f2e086,,,1
@@ -36,10 +40,13 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 60a955f9-cca5-5534-8d7d-f00a1c13ffae,trick,paradox-symposium-whirl,,,1
 68eb33bf-f705-584d-ae93-f601e32be859,record,9de7cbee-b347-5543-a725-8137159f6dc4,33,,1
 68eb33bf-f705-584d-ae93-f601e32be859,trick,eggbeater,33,,1
+750189fa-6795-5f42-927e-4deda4d538cf,trick,osis,,,1
+7649cefd-bc35-536f-a275-b4d957d440ee,trick,paradox-mirage,,,1
 810e5f7d-3802-5318-bf5f-d8968196d72a,trick,around-the-world,9,,1
 81b0e1a7-a2b1-5488-bd0a-f1b174e6cac1,trick,eclipse,29,,1
 9b09d1b8-1ba4-586a-8d4d-40703b59575c,record,e67b5b30-2dec-59ad-bd7f-5333e882d0b4,429,,1
 9b09d1b8-1ba4-586a-8d4d-40703b59575c,trick,spinning-clipper,429,,1
+9ee966d1-6409-5041-b45c-5ab91e71662f,trick,around-the-world,,,0
 9f986da1-d308-5c66-ad63-cb1b45ed2891,record,e6ba40d3-5714-5170-81f1-a51a17cea95d,,,1
 9f986da1-d308-5c66-ad63-cb1b45ed2891,trick,ducking-clipper,,,1
 a225453c-4f9a-5f65-b781-dff1e708d9fb,record,8e57f03d-bde6-51e3-82a6-1b8f27d9fc68,66,,1
@@ -59,7 +66,7 @@ bab24c23-7642-5798-b290-8d5d57578584,record,f5dfbec3-997d-5eb4-80b6-fe449608dcb3
 bab24c23-7642-5798-b290-8d5d57578584,trick,mobius,,,1
 be76d857-cae7-5f12-9efa-cd339e4b137d,record,a0477f34-b7e4-5a05-b7f6-6aca354f9613,,,1
 be76d857-cae7-5f12-9efa-cd339e4b137d,trick,paradox-drifter,,,1
-c23e2c3a-35bd-5f96-b682-872196a1775c,trick,osis,,,1
+c23e2c3a-35bd-5f96-b682-872196a1775c,trick,osis,,,0
 cf1c5235-ed71-52ca-bd76-b7743e190d18,record,9854553c-ca58-5647-9811-3a37d249fca3,,,1
 cf1c5235-ed71-52ca-bd76-b7743e190d18,trick,clipper,,,1
 e0f55da4-5d63-5372-a894-2bb5a6e63575,record,5c0f6df7-d315-5765-b353-5ead95891ceb,,,1

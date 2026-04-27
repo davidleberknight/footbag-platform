@@ -57,6 +57,8 @@ For repo-root/platform tasks, defer to repo-root `CLAUDE.md` and `IMPLEMENTATION
 - All exclusions must be traceable in `overrides/`
 - Prefer one-command workflows defined in skills
 - Never run git commit/push/pull; stage-only changes allowed, human owns commits
+- Verify external URLs before reviewer sign-off; pattern-extrapolation from a known URL form is not verification. Extrapolated URLs may sit in staging with `reviewer` blank, but must be HTTP-confirmed (browser, WebFetch, curl, or source-site index) before promotion. Capture the verification fact in the row's `notes` (e.g. "WebFetch 200 YYYY-MM-DD"). The 10 FootbagSpot 404 incident on 2026-04-26 is the load-bearing precedent.
+- Use `sed -i` for batch edits to wide curated CSVs (`person_aliases.csv`, `snippet_candidates.csv`, etc.); never `csv.DictReader → csv.DictWriter` round-trips. DictReader's `restkey=None` default puts extra columns under a literal `None` key on rows with embedded commas or trailing commas, which then crashes DictWriter mid-stream and leaves the file truncated. The 2026-04-25 person_aliases.csv truncation (2,772 → 333 rows) is the load-bearing precedent. Always `wc -l` before and after.
 
 ## Workbook generation contract
 - The ONLY supported workbook pipeline is:
