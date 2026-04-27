@@ -246,8 +246,8 @@ These files are human-curated or human-maintained. Do NOT regenerate
 blindly.
 
 ### Frozen (patch-toolchain only)
-- `inputs/identity_lock/Persons_Truth_Final_v*.csv`
-- `inputs/identity_lock/Placements_ByPerson_v*.csv`
+- `inputs/identity_lock/Persons_Truth_Final.csv`
+- `inputs/identity_lock/Placements_ByPerson.csv`
 
 ### Append-only
 - `inputs/identity_lock/Person_Display_Names_v1.csv` (add new person rows

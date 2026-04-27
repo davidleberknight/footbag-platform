@@ -8,21 +8,18 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 Prioritized.
 
-1. **Identity-lock filename refactor.** Drop version-number suffixes from `inputs/identity_lock/*.csv` (`Persons_Truth_Final_v62.csv` to `Persons_Truth_Final.csv`, `Placements_ByPerson_v103.csv` to `Placements_ByPerson.csv`, etc.). Today `run_pipeline.sh:209-210` pins `Persons_Truth_Final_v53.csv` + `Placements_ByPerson_v97.csv` while the latest tracked versions are v62 + v103, so canonical outputs derive from stale identity work. After rename the pin disappears and the latest is always consumed. Update every consumer in the same commit: `run_pipeline.sh`, `run_pipeline_reference.sh`, `02p5_player_token_cleanup.py`, `legacy_data/tools/patch_pt_v{N}_*.py`, `patch_placements_v{M}_*.py`, plus anything `grep` finds. Pre-refactor checks: (a) where does the patch toolchain put the version after rename (sidecar `.version` file, frontmatter row, git tag)? (b) what replaces the `legacy_data/CLAUDE.md` "lexicographic max version" glob? (c) any external consumer that hard-codes a versioned filename? Cutover preference: single atomic commit (consumer count is small).
+1. **Legacy identity columns on canonical persons.** Add `legacy_user_id` and `legacy_email` to canonical `persons.csv` where mirror provides them. Required by the registration claim flow (three-key coverage). Mirror-derivable `legacy_user_id` can land first; `legacy_email` completeness blocked on the legacy-site dump (see external blockers).
 
-2. **Legacy identity columns on canonical persons.** Add `legacy_user_id` and `legacy_email` to canonical `persons.csv` where mirror provides them. Required by the registration claim flow (three-key coverage). Mirror-derivable `legacy_user_id` can land first; `legacy_email` completeness blocked on the legacy-site dump (see external blockers).
+2. **Event key normalization (1982-1984).** Rule to lock: `event_key = YYYY_city_slug` with explicit overrides in `overrides/`. Source adjudication required for the 1982-1984 cluster (1980-1981 are clean). Risk if deferred past data release: duplicate logical events, broken joins, URL instability.
 
-3. **Event key normalization (1982-1984).** Rule to lock: `event_key = YYYY_city_slug` with explicit overrides in `overrides/`. Source adjudication required for the 1982-1984 cluster (1980-1981 are clean). Risk if deferred past data release: duplicate logical events, broken joins, URL instability.
-
-4. **`legacy_club_candidates.classification` DB column.** Pipeline writes a four-value `category` per row (`pre_populate`, `onboarding_visible`, `dormant`, `junk`); DB load drops it because the schema has no destination column, so registration Stage 2 cannot separate `dormant` from `junk` at runtime. Fix: add `classification TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk'))` to `database/schema.sql`; extend the INSERT in `event_results/scripts/09_load_enrichment_to_sqlite.py`; extend `tests/fixtures/factories.ts::insertLegacyClubCandidate` with an optional override defaulting to `'junk'`; add schema round-trip and CHECK-constraint tests.
+3. **`legacy_club_candidates.classification` DB column.** Pipeline writes a four-value `category` per row (`pre_populate`, `onboarding_visible`, `dormant`, `junk`); DB load drops it because the schema has no destination column, so registration Stage 2 cannot separate `dormant` from `junk` at runtime. Fix: add `classification TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk'))` to `database/schema.sql`; extend the INSERT in `event_results/scripts/09_load_enrichment_to_sqlite.py`; extend `tests/fixtures/factories.ts::insertLegacyClubCandidate` with an optional override defaulting to `'junk'`; add schema round-trip and CHECK-constraint tests.
 
 ---
 
 ## Current substitute mechanisms
 
-- **Identity-lock pin to v53/v97.** `run_pipeline.sh:209-210` consumes `Persons_Truth_Final_v53.csv` + `Placements_ByPerson_v97.csv` while latest tracked are v62 + v103. Canonical outputs derive from stale identity work. Unblock: item 1.
 - **`legacy_members` population.** Mirror-derived via `legacy_data/scripts/load_legacy_members_seed.py` (2,507 rows; columns limited to PK + `display_name` + `import_source='mirror'`). Unblock: legacy-site data dump received.
-- **`legacy_club_candidates.category` at DB load.** Dropped (no destination column). Unblock: item 4.
+- **`legacy_club_candidates.category` at DB load.** Dropped (no destination column). Unblock: item 3.
 
 ---
 
@@ -59,8 +56,8 @@ Prioritized.
 
 ## Unblocks
 
-- Auto-link coverage for club-only members: requires item 2 (`legacy_user_id` / `legacy_email` in canonical persons).
-- Legacy account claim at registration: requires three-key coverage (item 2 + legacy-site data dump).
+- Auto-link coverage for club-only members: requires item 1 (`legacy_user_id` / `legacy_email` in canonical persons).
+- Legacy account claim at registration: requires three-key coverage (item 1 + legacy-site data dump).
 
 ---
 

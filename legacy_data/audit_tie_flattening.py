@@ -8,7 +8,7 @@ in the frozen identity lock file (e.g., 5,6,7,8).
 
 Inputs:
     out/stage2_canonical_events.csv
-    inputs/identity_lock/Placements_ByPerson_v97.csv
+    inputs/identity_lock/Placements_ByPerson.csv
 
 Outputs:
     out/audit_tie_mismatches_summary.csv
@@ -27,7 +27,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).parent
 STAGE2_CSV  = ROOT / "out" / "stage2_canonical_events.csv"
-LOCK_CSV    = ROOT / "inputs" / "identity_lock" / "Placements_ByPerson_v97.csv"
+LOCK_CSV    = ROOT / "inputs" / "identity_lock" / "Placements_ByPerson.csv"
 OUT_SUMMARY = ROOT / "out" / "audit_tie_mismatches_summary.csv"
 OUT_DETAIL  = ROOT / "out" / "audit_tie_mismatches_detail.csv"
 
@@ -111,7 +111,7 @@ def load_stage2(path: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 def load_lock(path: Path) -> pd.DataFrame:
     """
-    Read Placements_ByPerson_v97.csv.
+    Read Placements_ByPerson.csv.
 
     Returns DataFrame with columns:
         event_id, division_canon, person_id, player_name, place

@@ -7,7 +7,7 @@ events that PBP v97 did not cover.
 
 Background
 ----------
-Placements_Flat.csv is produced by 02p5 directly from Placements_ByPerson_v96.csv
+Placements_Flat.csv is produced by 02p5 directly from Placements_ByPerson.csv
 (the identity-lock file).  PBP v97 covers mirror-era events well but is missing
 many pre-1997 curated events, and it has no entries for "Class B" persons
 (those resolved via Person_Display_Names_v1.csv but never added to PT/PBP).

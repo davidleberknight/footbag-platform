@@ -252,8 +252,8 @@ run_v0_backbone() {
     echo ""
 
     echo "── [1/7] REBUILD ──────────────────────────────────────"
-    local _id_persons="inputs/identity_lock/Persons_Truth_Final_v53.csv"
-    local _id_placements="inputs/identity_lock/Placements_ByPerson_v97.csv"
+    local _id_persons="inputs/identity_lock/Persons_Truth_Final.csv"
+    local _id_placements="inputs/identity_lock/Placements_ByPerson.csv"
     local _id_missing=()
     [[ -f "${_id_persons}"    ]] || _id_missing+=("${_id_persons}")
     [[ -f "${_id_placements}" ]] || _id_missing+=("${_id_placements}")

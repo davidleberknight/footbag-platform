@@ -2,7 +2,7 @@
 # ----------------------------------------------------------------------------
 # WARNING: HISTORICAL V0 BASELINE — NOT THE ACTIVE PIPELINE.
 # This script is preserved verbatim from the V0 era. Identity lock is pinned
-# to Persons_Truth_Final_v52.csv. The active pipeline is run_pipeline.sh
+# to Persons_Truth_Final.csv. The active pipeline is run_pipeline.sh
 # (which uses a newer identity lock and adds enrichment phases C–F/G/H/V/NET).
 # Running this script will produce non-current canonical CSVs.
 # ----------------------------------------------------------------------------
@@ -20,8 +20,8 @@ case "$1" in
     python pipeline/01c_merge_stage1.py
     python pipeline/02_canonicalize_results.py
     python pipeline/02p5_player_token_cleanup.py \
-      --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final_v52.csv \
-      --identity_lock_placements_csv inputs/identity_lock/Placements_ByPerson_v97.csv
+      --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final.csv \
+      --identity_lock_placements_csv inputs/identity_lock/Placements_ByPerson.csv
     python pipeline/02p6_structural_cleanup.py
     ;;
   release)
@@ -56,8 +56,8 @@ case "$1" in
     python pipeline/01c_merge_stage1.py
     python pipeline/02_canonicalize_results.py
     python pipeline/02p5_player_token_cleanup.py \
-      --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final_v52.csv \
-      --identity_lock_placements_csv inputs/identity_lock/Placements_ByPerson_v97.csv
+      --identity_lock_persons_csv inputs/identity_lock/Persons_Truth_Final.csv \
+      --identity_lock_placements_csv inputs/identity_lock/Placements_ByPerson.csv
     python pipeline/02p6_structural_cleanup.py
     echo ""
 

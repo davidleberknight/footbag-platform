@@ -2192,16 +2192,13 @@ _05p5_part_pids = {
 _05p5_missing = _05p5_part_pids - _05p5_written_pids
 
 if _05p5_missing:
-    _lock_files = sorted(
-        (ROOT / "inputs" / "identity_lock").glob("Persons_Truth_Final_v*.csv")
-    )
-    if not _lock_files:
+    _lock_file = ROOT / "inputs" / "identity_lock" / "Persons_Truth_Final.csv"
+    if not _lock_file.exists():
         raise FileNotFoundError(
-            f"Referential closure backfill failed: no Persons_Truth_Final_v*.csv "
-            f"found in {ROOT / 'inputs' / 'identity_lock'}"
+            f"Referential closure backfill failed: {_lock_file} not found"
         )
     _pt51_by_id: dict[str, dict] = {}
-    with open(_lock_files[-1], newline="", encoding="utf-8") as _fpt:
+    with open(_lock_file, newline="", encoding="utf-8") as _fpt:
         for _r in csv.DictReader(_fpt):
             _eid = _r.get("effective_person_id", "").strip()
             if _eid:

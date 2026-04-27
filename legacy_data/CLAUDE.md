@@ -97,7 +97,7 @@ DB mutation safety is enforced as a global rule (`.claude/rules/db-write-safety.
 ## Persons layers in historical_persons
 - `source_scope='CANONICAL'`: event-results-derived, owned by `08_load_mvfp_seed_full_to_sqlite.py`. DELETE+INSERT pattern.
 - `source_scope='PROVISIONAL'`: club-only + membership-only cohorts (MIGRATION_PLAN §9.2), owned by `09_load_enrichment_to_sqlite.py`. `source` column distinguishes `CLUB` / `MEMBERSHIP` / `RESULTS`. DELETE WHERE source_scope='PROVISIONAL' + INSERT pattern; CANONICAL rows preserved.
-- Identity locks are patch-toolchain only (`legacy_data/tools/patch_pt_v{N}_*.py`, `patch_placements_v{M}_*.py`). Lock file glob picks lexicographic max version.
+- Identity locks are patch-toolchain only (`legacy_data/tools/patch_pt_*.py`, `legacy_data/tools/patch_placements_*.py`). Patches mutate `Persons_Truth_Final.csv` / `Placements_ByPerson.csv` in place; git log is the version trail.
 
 ## Loader invariants (applies to all DB-load scripts)
 - DELETE+INSERT for pipeline-regenerated tables; never rely on `INSERT OR IGNORE` alone — it silently skips existing rows and does not propagate upstream changes.

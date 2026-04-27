@@ -96,4 +96,4 @@ See the `promote-curated-source` runbook for full promotion checklist.
 - Never run `02p5b` before release — it depends on `canonical_input/` being populated.
 - Never skip the `rebuild` step before `release` — stale stage2 + fresh release = wrong outputs.
 - Never edit `out/canonical/*.csv` directly — fix at source, then rebuild.
-- Never modify identity lock files directly (`Persons_Truth_Final_v53.csv`, `Placements_ByPerson_v97.csv`).
+- Never modify identity lock files directly (`Persons_Truth_Final.csv`, `Placements_ByPerson.csv`).

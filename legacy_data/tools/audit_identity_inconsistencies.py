@@ -71,11 +71,10 @@ def norm(s: str) -> str:
 
 
 def latest_pt() -> Path:
-    files = sorted(LOCK_DIR.glob("Persons_Truth_Final_v*.csv"),
-                   key=lambda p: int(re.search(r"v(\d+)", p.stem).group(1)))
-    if not files:
-        raise SystemExit("No Persons_Truth_Final_v*.csv found")
-    return files[-1]
+    pt_file = LOCK_DIR / "Persons_Truth_Final.csv"
+    if not pt_file.exists():
+        raise SystemExit(f"{pt_file} not found")
+    return pt_file
 
 
 def load_pt() -> tuple[list[dict], Path]:

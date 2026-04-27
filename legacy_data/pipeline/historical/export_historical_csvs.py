@@ -294,22 +294,17 @@ def _norm_name(s: str) -> str:
 
 # ── Load Persons_Truth — build resolution indexes ─────────────────────────────
 #
-# Source: inputs/identity_lock/Persons_Truth_Final_v*.csv (latest version).
-# The previous out/Persons_Truth.csv producer (04_build_analytics.py) is deprecated
-# and no longer runs in the rebuild stage; the identity-lock file is the same data
-# (04 historically just cp'd it on first run) and is the authoritative source in
-# the new pipeline. A single pass builds both pt_rows and the closure-check set
+# Source: inputs/identity_lock/Persons_Truth_Final.csv. The previous
+# out/Persons_Truth.csv producer (04_build_analytics.py) is deprecated and no
+# longer runs in the rebuild stage; the identity-lock file is the authoritative
+# source. A single pass builds both pt_rows and the closure-check set
 # (_pt51_person_ids), which used to be loaded separately further below.
 
-_pt51_lock_files = sorted(
-    (ROOT / "inputs" / "identity_lock").glob("Persons_Truth_Final_v*.csv")
-)
-if not _pt51_lock_files:
+_pt_source = ROOT / "inputs" / "identity_lock" / "Persons_Truth_Final.csv"
+if not _pt_source.exists():
     raise FileNotFoundError(
-        "No Persons_Truth_Final_v*.csv found in inputs/identity_lock/ — "
-        "cannot build person resolution indexes."
+        f"{_pt_source} not found; cannot build person resolution indexes."
     )
-_pt_source = _pt51_lock_files[-1]
 
 print(f"Loading Persons_Truth from {_pt_source.name}...")
 token_to_person: dict[str, str] = {}   # player_token_uuid → effective_person_id
@@ -434,7 +429,7 @@ def resolve_person_id(player_id: str | None, player_name: str) -> str:
 #
 # Source: out/Placements_ByPerson.csv (produced by 02p5_player_token_cleanup.py,
 # which propagates the coverage_flag column unchanged from the identity-lock file
-# inputs/identity_lock/Placements_ByPerson_v*.csv). The previous standalone
+# inputs/identity_lock/Placements_ByPerson.csv). The previous standalone
 # Coverage_ByEventDivision.csv producer (04_build_analytics.py) is deprecated and
 # no longer runs in the rebuild stage.
 
@@ -1573,15 +1568,11 @@ _participant_pids = {
 _missing_pids = _participant_pids - _persons_written
 
 if _missing_pids:
-    # Locate the latest Persons_Truth_Final_v*.csv in inputs/identity_lock/
-    _lock_dir = ROOT / "inputs" / "identity_lock"
-    _pt_files = sorted(_lock_dir.glob("Persons_Truth_Final_v*.csv"))
-    if not _pt_files:
+    _pt51_path = ROOT / "inputs" / "identity_lock" / "Persons_Truth_Final.csv"
+    if not _pt51_path.exists():
         raise FileNotFoundError(
-            f"Referential closure backfill failed: no Persons_Truth_Final_v*.csv "
-            f"found in {_lock_dir}"
+            f"Referential closure backfill failed: {_pt51_path} not found"
         )
-    _pt51_path = _pt_files[-1]  # highest version by sort order
     print(f"  Referential closure: {len(_missing_pids)} person_ids in participants "
           f"not in persons.csv — backfilling from {_pt51_path.name} ...")
 

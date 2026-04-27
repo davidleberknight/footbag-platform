@@ -174,33 +174,33 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
 
 
 def load_pt51() -> dict[str, str]:
-    """Return {effective_person_id: person_canon} from the latest PT v52 lock file."""
-    files = sorted(LOCK_DIR.glob("Persons_Truth_Final_v*.csv"))
-    if not files:
+    """Return {effective_person_id: person_canon} from the PT lock file."""
+    pt_file = LOCK_DIR / "Persons_Truth_Final.csv"
+    if not pt_file.exists():
         return {}
     result: dict[str, str] = {}
-    with open(files[-1], newline="", encoding="utf-8") as f:
+    with open(pt_file, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             eid   = row.get("effective_person_id", "").strip()
             canon = row.get("person_canon", "").strip()
             if eid and canon:
                 result[eid] = canon
-    print(f"  PT v52 index: {len(result):,} persons ({files[-1].name})")
+    print(f"  PT index: {len(result):,} persons ({pt_file.name})")
     return result
 
 
 def load_pt51_legacyids() -> dict[str, str]:
-    """Return {effective_person_id: member_id} for PT v52 persons that carry a legacyid.
+    """Return {effective_person_id: member_id} for PT persons that carry a legacyid.
 
     Normalises float-formatted IDs ("77534.0" → "77534").
     Used to backfill member_id and to retain persons with an IFPA profile link
     even when they have no surviving participant rows.
     """
-    files = sorted(LOCK_DIR.glob("Persons_Truth_Final_v*.csv"))
-    if not files:
+    pt_file = LOCK_DIR / "Persons_Truth_Final.csv"
+    if not pt_file.exists():
         return {}
     result: dict[str, str] = {}
-    with open(files[-1], newline="", encoding="utf-8") as f:
+    with open(pt_file, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             eid = row.get("effective_person_id", "").strip()
             lid = row.get("legacyid", "").strip()
