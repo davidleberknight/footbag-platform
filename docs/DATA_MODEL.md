@@ -1266,6 +1266,15 @@ PRAGMA journal_mode = WAL;
 
 WAL mode allows concurrent readers during writes and is recommended for web applications. Does not affect schema correctness.
 
+### Prepared statement laziness
+
+Application code calls `db.prepare()` only inside getters or function bodies, never at module top level. The single database module exports statement groups whose properties are getters that compile their SQL on first access against the connection's current schema. Importing the database module against an unmigrated database therefore does not fail at import time; failures surface at the call site of the specific statement.
+
+**Implementation checklist:**
+- [ ] No top-level `db.prepare()` calls in any application module
+- [ ] Statement-group properties are getters; dynamic-SQL helpers prepare inside their function body
+- [ ] A test exercises every statement-group getter against the current schema to recover the boot-time validation that eager prepares used to provide
+
 ### Timestamp format
 
 All timestamp strings written to the database must use:

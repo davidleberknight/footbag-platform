@@ -223,8 +223,19 @@ export interface PublicClubMemberRow {
 
 export const db: SqliteDatabase = openDatabase(DB_FILENAME);
 
+// Statement-group properties below are getters, not pre-compiled statements.
+// Rule: db.prepare() is only ever called inside a getter or a function body,
+// never at module top level. This decouples module load from schema readiness:
+// importing this file against a not-yet-migrated database does not fail at
+// import time. Each consumer call site (e.g. publicEvents.listUpcoming.all(...))
+// reads the getter, which calls db.prepare(SQL) on demand and returns a
+// Statement; the chained .all/.get/.run runs immediately. better-sqlite3's
+// prepare is C-level and no statement is used in a hot loop. Validation that
+// every SQL still parses against the current schema is covered by
+// tests/unit/db-lazy-prepare.test.ts (test D).
+
 export const publicEvents = {
-  listUpcoming: db.prepare(`
+  get listUpcoming() { return db.prepare(`
     SELECT
       e.id AS event_id,
       e.title,
@@ -259,9 +270,9 @@ export const publicEvents = {
       e.end_date ASC,
       e.title COLLATE NOCASE ASC,
       e.id ASC
-  `),
+  `); },
 
-  listArchiveYears: db.prepare(`
+  get listArchiveYears() { return db.prepare(`
     SELECT DISTINCT
       ${ARCHIVE_YEAR_SQL} AS archive_year
     FROM events AS e
@@ -272,9 +283,9 @@ export const publicEvents = {
       AND t.is_standard = 1
       AND t.standard_type = 'event'
     ORDER BY archive_year DESC
-  `),
+  `); },
 
-  countCompletedByYear: db.prepare(`
+  get countCompletedByYear() { return db.prepare(`
     SELECT
       COUNT(*) AS completed_event_count
     FROM events AS e
@@ -287,9 +298,9 @@ export const publicEvents = {
       AND ${ARCHIVE_YEAR_SQL} = ?
       AND t.is_standard = 1
       AND t.standard_type = 'event'
-  `),
+  `); },
 
-  listCompletedByYear: db.prepare(`
+  get listCompletedByYear() { return db.prepare(`
     SELECT
       e.id AS event_id,
       e.title,
@@ -330,9 +341,9 @@ export const publicEvents = {
       e.end_date ASC,
       e.title COLLATE NOCASE ASC,
       e.id ASC
-  `),
+  `); },
 
-  getByStandardTag: db.prepare(`
+  get getByStandardTag() { return db.prepare(`
     SELECT
       e.id AS event_id,
       e.title,
@@ -369,9 +380,9 @@ export const publicEvents = {
       AND t.is_standard = 1
       AND t.standard_type = 'event'
       AND e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL})
-  `),
+  `); },
 
-  listDisciplinesByEventId: db.prepare(`
+  get listDisciplinesByEventId() { return db.prepare(`
     SELECT
       ed.id AS discipline_id,
       ed.event_id,
@@ -389,9 +400,9 @@ export const publicEvents = {
       ed.sort_order ASC,
       ed.name COLLATE NOCASE ASC,
       ed.id ASC
-  `),
+  `); },
 
-  listPublicResultRowsByEventId: db.prepare(`
+  get listPublicResultRowsByEventId() { return db.prepare(`
     SELECT
       ere.event_id,
       ere.id AS result_entry_id,
@@ -432,8 +443,8 @@ export const publicEvents = {
       ere.id ASC,
       erp.participant_order ASC,
       erp.id ASC
-  `),
-} as const;
+  `); },
+};
 
 export interface HistoricalPersonSearchRow {
   person_id: string;
@@ -445,7 +456,7 @@ export interface HistoricalPersonSearchRow {
 }
 
 export const publicPlayers = {
-  searchByName: db.prepare(`
+  get searchByName() { return db.prepare(`
     SELECT
       hp.person_id,
       hp.person_name,
@@ -463,9 +474,9 @@ export const publicPlayers = {
       AND hp.person_name LIKE '%' || ? || '%' ESCAPE '\\'
     ORDER BY hp.person_name COLLATE NOCASE
     LIMIT ?
-  `),
+  `); },
 
-  getById: db.prepare(`
+  get getById() { return db.prepare(`
     SELECT
       hp.person_id,
       hp.person_name,
@@ -487,9 +498,9 @@ export const publicPlayers = {
       hp.person_id, hp.person_name, hp.country,
       hp.bap_member, hp.bap_nickname, hp.bap_induction_year,
       hp.hof_member, hp.hof_induction_year
-  `),
+  `); },
 
-  listResultsByPersonId: db.prepare(`
+  get listResultsByPersonId() { return db.prepare(`
     SELECT
       e.id                        AS event_id,
       e.title                     AS event_title,
@@ -531,33 +542,33 @@ export const publicPlayers = {
       COALESCE(ed.name, '') COLLATE NOCASE ASC,
       ere.placement ASC,
       erp_co.participant_order ASC
-  `),
-  findLinkedMemberSlug: db.prepare(`
+  `); },
+  get findLinkedMemberSlug() { return db.prepare(`
     SELECT m.slug
     FROM members AS m
     WHERE m.deleted_at IS NULL
       AND m.historical_person_id = ?
     LIMIT 1
-  `),
+  `); },
 
-  findLinkedPersonId: db.prepare(`
+  get findLinkedPersonId() { return db.prepare(`
     SELECT erp.historical_person_id AS person_id
     FROM event_result_entry_participants AS erp
     WHERE erp.member_id = ?
       AND erp.historical_person_id IS NOT NULL
     LIMIT 1
-  `),
+  `); },
 
-  findLinkedPersonByLegacyId: db.prepare(`
+  get findLinkedPersonByLegacyId() { return db.prepare(`
     SELECT person_id
     FROM historical_persons
     WHERE legacy_member_id = ?
       AND source_scope = 'CANONICAL'
     LIMIT 1
-  `),
+  `); },
 
   /** Career stats by discipline category for a person. */
-  listCareerStatsByCategory: db.prepare(`
+  get listCareerStatsByCategory() { return db.prepare(`
     SELECT
       ed.discipline_category AS category,
       COUNT(DISTINCT ere.event_id) AS events,
@@ -570,10 +581,10 @@ export const publicPlayers = {
     WHERE erp.historical_person_id = ?
     GROUP BY ed.discipline_category
     ORDER BY appearances DESC
-  `),
+  `); },
 
   /** Top partnerships (doubles) for a person across all disciplines. */
-  listTopPartnersByPersonId: db.prepare(`
+  get listTopPartnersByPersonId() { return db.prepare(`
     SELECT
       hp_partner.person_id   AS partner_person_id,
       hp_partner.person_name AS partner_name,
@@ -602,11 +613,11 @@ export const publicPlayers = {
     GROUP BY hp_partner.person_id, ed.discipline_category, m_partner.slug
     ORDER BY appearances DESC, wins DESC
     LIMIT 15
-  `),
-} as const;
+  `); },
+};
 
 export const clubs = {
-  listOpen: db.prepare(`
+  get listOpen() { return db.prepare(`
     SELECT
       c.id          AS club_id,
       c.name,
@@ -629,9 +640,9 @@ export const clubs = {
       c.region  COLLATE NOCASE ASC,
       c.city    COLLATE NOCASE ASC,
       c.name    COLLATE NOCASE ASC
-  `),
+  `); },
 
-  getByTagNormalized: db.prepare(`
+  get getByTagNormalized() { return db.prepare(`
     SELECT
       c.id          AS club_id,
       c.name,
@@ -649,9 +660,9 @@ export const clubs = {
       t.tag_normalized = ?
       AND t.is_standard = 1
       AND t.standard_type = 'club'
-  `),
+  `); },
 
-  listMembersByClubId: db.prepare(`
+  get listMembersByClubId() { return db.prepare(`
     SELECT
       lpca.historical_person_id AS person_id,
       COALESCE(hp.person_name, lpca.display_name) AS person_name
@@ -664,8 +675,8 @@ export const clubs = {
       lcc.mapped_club_id = ?
       AND lpca.resolution_status IN ('confirmed_current', 'promoted')
     ORDER BY person_name ASC
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // Freestyle records, public read path
@@ -698,7 +709,7 @@ export interface FreestyleRecordRow {
 }
 
 export const freestyleRecords = {
-  listPublic: db.prepare(`
+  get listPublic() { return db.prepare(`
     SELECT
       fr.id,
       fr.record_type,
@@ -725,9 +736,9 @@ export const freestyleRecords = {
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.record_type ASC, fr.value_numeric DESC
-  `),
+  `); },
 
-  countPublicByType: db.prepare(`
+  get countPublicByType() { return db.prepare(`
     SELECT record_type, COUNT(*) AS n
     FROM freestyle_records
     WHERE confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
@@ -735,9 +746,9 @@ export const freestyleRecords = {
       AND (person_id IS NOT NULL OR display_name IS NOT NULL)
     GROUP BY record_type
     ORDER BY record_type ASC
-  `),
+  `); },
 
-  listByPersonId: db.prepare(`
+  get listByPersonId() { return db.prepare(`
     SELECT
       fr.id,
       fr.record_type,
@@ -765,9 +776,9 @@ export const freestyleRecords = {
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.value_numeric DESC
-  `),
+  `); },
 
-  listLeaders: db.prepare(`
+  get listLeaders() { return db.prepare(`
     SELECT
       fr.person_id,
       COALESCE(hp.person_name, fr.display_name) AS holder_name,
@@ -792,9 +803,9 @@ export const freestyleRecords = {
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     GROUP BY fr.person_id, fr.display_name
     ORDER BY record_count DESC, holder_name ASC
-  `),
+  `); },
 
-  listByTrickName: db.prepare(`
+  get listByTrickName() { return db.prepare(`
     SELECT
       fr.id,
       fr.record_type,
@@ -822,9 +833,9 @@ export const freestyleRecords = {
       AND fr.superseded_by IS NULL
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.value_numeric DESC
-  `),
+  `); },
 
-  listAllByTrickName: db.prepare(`
+  get listAllByTrickName() { return db.prepare(`
     SELECT
       fr.id,
       fr.record_type,
@@ -852,9 +863,9 @@ export const freestyleRecords = {
       AND fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.value_numeric DESC
-  `),
+  `); },
 
-  listRecentPublic: db.prepare(`
+  get listRecentPublic() { return db.prepare(`
     SELECT
       fr.id,
       fr.record_type,
@@ -883,8 +894,8 @@ export const freestyleRecords = {
       AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
     ORDER BY fr.achieved_date DESC
     LIMIT 5
-  `),
-} as const;
+  `); },
+};
 
 export interface FreestyleLeaderRow {
   person_id: string | null;
@@ -925,42 +936,42 @@ export interface FreestyleTrickModifierRow {
 }
 
 export const freestyleTricks = {
-  listAll: db.prepare(`
+  get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, sort_order
     FROM freestyle_tricks
     ORDER BY sort_order ASC
-  `),
+  `); },
 
-  getBySlug: db.prepare(`
+  get getBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, sort_order
     FROM freestyle_tricks
     WHERE slug = ?
-  `),
+  `); },
 
-  listByFamily: db.prepare(`
+  get listByFamily() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, sort_order
     FROM freestyle_tricks
     WHERE trick_family = ?
     ORDER BY sort_order ASC
-  `),
-} as const;
+  `); },
+};
 
 export const freestyleTrickModifiers = {
-  listAll: db.prepare(`
+  get listAll() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
     FROM freestyle_trick_modifiers
     ORDER BY modifier_type ASC, modifier_name ASC
-  `),
+  `); },
 
-  getBySlug: db.prepare(`
+  get getBySlug() { return db.prepare(`
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
     FROM freestyle_trick_modifiers
     WHERE slug = ?
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // freestylePartnerships
@@ -989,7 +1000,7 @@ export interface FreestylePartnershipRow {
 export const freestylePartnerships = {
   /** Top freestyle doubles partnerships by appearances.
    *  Excludes trick/shred/circle contests and Unknown placeholders. */
-  listTopPartnerships: db.prepare(`
+  get listTopPartnerships() { return db.prepare(`
     SELECT
       CASE WHEN pa.person_id < pb.person_id THEN pa.person_id ELSE pb.person_id END AS person_id_a,
       CASE WHEN pa.person_id < pb.person_id THEN pa.person_name ELSE pb.person_name END AS person_name_a,
@@ -1038,8 +1049,8 @@ export const freestylePartnerships = {
     HAVING COUNT(*) >= 2
     ORDER BY appearance_count DESC, win_count DESC, last_year DESC
     LIMIT 50
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // freestyleCompetition
@@ -1081,7 +1092,7 @@ export interface FreestyleRecentEventRow {
 
 export const freestyleCompetition = {
   // Top freestyle singles competitors by gold medals, then total podiums
-  listTopCompetitors: db.prepare(`
+  get listTopCompetitors() { return db.prepare(`
     SELECT
       hp.person_id,
       hp.person_name,
@@ -1105,10 +1116,10 @@ export const freestyleCompetition = {
     GROUP BY hp.person_id
     ORDER BY golds DESC, total_podiums DESC
     LIMIT 20
-  `),
+  `); },
 
   // Event counts per era (decade buckets)
-  listEventsByEra: db.prepare(`
+  get listEventsByEra() { return db.prepare(`
     SELECT
       CASE
         WHEN substr(e.start_date,1,4) < '1990' THEN '1980s'
@@ -1125,10 +1136,10 @@ export const freestyleCompetition = {
       AND lower(ed.name) NOT LIKE '%team%'
     GROUP BY era
     ORDER BY era ASC
-  `),
+  `); },
 
   // 10 most recent freestyle events
-  listRecentEvents: db.prepare(`
+  get listRecentEvents() { return db.prepare(`
     SELECT DISTINCT
       e.id         AS event_id,
       e.title      AS event_title,
@@ -1144,8 +1155,8 @@ export const freestyleCompetition = {
       AND lower(ed.name) NOT LIKE '%team%'
     ORDER BY e.start_date DESC
     LIMIT 10
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // consecutiveKicksRecords
@@ -1171,45 +1182,45 @@ export interface ConsecutiveKicksRow {
 }
 
 export const consecutiveKicksRecords = {
-  listWorldRecords: db.prepare(`
+  get listWorldRecords() { return db.prepare(`
     SELECT sort_order, section, subsection, division, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'Official World Records'
     ORDER BY sort_order ASC
-  `),
+  `); },
 
-  listHighestScores: db.prepare(`
+  get listHighestScores() { return db.prepare(`
     SELECT sort_order, section, subsection, division, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'Highest Official Scores'
     ORDER BY sort_order ASC
-  `),
+  `); },
 
-  listProgression: db.prepare(`
+  get listProgression() { return db.prepare(`
     SELECT sort_order, section, subsection, division, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'World Record Progression'
     ORDER BY sort_order ASC
-  `),
+  `); },
 
-  listMilestones: db.prepare(`
+  get listMilestones() { return db.prepare(`
     SELECT sort_order, section, subsection, division, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'Milestone Firsts'
     ORDER BY sort_order ASC
-  `),
+  `); },
 
-  countBySection: db.prepare(`
+  get countBySection() { return db.prepare(`
     SELECT section, COUNT(*) AS n
     FROM consecutive_kicks_records
     GROUP BY section
     ORDER BY MIN(sort_order)
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // netTeams
@@ -1280,7 +1291,7 @@ export interface NetDivisionOptionRow {
 export const netTeams = {
   // STATS FIREWALL: queries net_team_appearance_canonical view (canonical_only enforced at DB layer)
 
-  getById: db.prepare(`
+  get getById() { return db.prepare(`
     SELECT
       t.team_id,
       t.person_id_a,
@@ -1304,9 +1315,9 @@ export const netTeams = {
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     WHERE t.team_id = ?
-  `),
+  `); },
 
-  listAppearancesByTeamId: db.prepare(`
+  get listAppearancesByTeamId() { return db.prepare(`
     SELECT
       a.id            AS appearance_id,
       a.event_id,
@@ -1328,12 +1339,12 @@ export const netTeams = {
     LEFT JOIN net_discipline_group dg ON dg.discipline_id = a.discipline_id
     WHERE a.team_id = ?
     ORDER BY a.event_year DESC, e.start_date DESC, a.placement ASC
-  `),
+  `); },
 
   /** All net teams (with ≥1 canonical appearance), sorted by appearance count desc.
    *  No HAVING threshold and no LIMIT: this is the single public entry for browsing
    *  all teams, with division/search filters handled via queryFilteredTeams. */
-  listAll: db.prepare(`
+  get listAll() { return db.prepare(`
     SELECT
       t.team_id,
       t.person_id_a,
@@ -1362,20 +1373,20 @@ export const netTeams = {
     WHERE pa.person_name != 'Unknown' AND pb.person_name != 'Unknown'
     GROUP BY t.team_id
     ORDER BY appearance_count DESC, win_count DESC, last_year DESC, pa.person_name ASC
-  `),
+  `); },
 
   /** Division filter options, distinct canonical groups with appearance counts. */
-  listDivisionOptions: db.prepare(`
+  get listDivisionOptions() { return db.prepare(`
     SELECT dg.canonical_group, COUNT(DISTINCT a.id) AS appearance_count
     FROM net_discipline_group dg
     JOIN net_team_appearance_canonical a ON a.discipline_id = dg.discipline_id
     WHERE dg.conflict_flag = 0
     GROUP BY dg.canonical_group
     ORDER BY appearance_count DESC
-  `),
+  `); },
 
   /** Wider pool for notable-team buckets, top 100 with >=3 appearances. */
-  listNotablePool: db.prepare(`
+  get listNotablePool() { return db.prepare(`
     SELECT
       t.team_id,
       t.person_id_a,
@@ -1406,8 +1417,8 @@ export const netTeams = {
     HAVING COUNT(*) >= 3
     ORDER BY appearance_count DESC
     LIMIT 100
-  `),
-} as const;
+  `); },
+};
 
 /**
  * Dynamic team query with optional division (canonical_group) and player-search
@@ -1511,7 +1522,7 @@ export interface RecoveryHighValueRow {
 
 export const netRecoverySignals = {
   /** Doubles entries where a known player is partnered with a stub person. */
-  listUnresolvedPartnerRepeats: db.prepare(`
+  get listUnresolvedPartnerRepeats() { return db.prepare(`
     SELECT
       hp_known.person_name AS known_player,
       hp_known.person_id   AS known_pid,
@@ -1538,11 +1549,11 @@ export const netRecoverySignals = {
     GROUP BY hp_known.person_id, hp_stub.person_id
     ORDER BY co_count DESC
     LIMIT 30
-  `),
+  `); },
 
   /** Stub names that share a last name (4+ chars) with a known person.
    *  Initial+lastname abbreviation detection. */
-  listAbbreviationClusters: db.prepare(`
+  get listAbbreviationClusters() { return db.prepare(`
     SELECT
       hp_stub.person_name  AS stub_name,
       hp_stub.person_id    AS stub_pid,
@@ -1569,10 +1580,10 @@ export const netRecoverySignals = {
       AND LOWER(SUBSTR(hp_known.person_name, 1, 1))
           = LOWER(SUBSTR(REPLACE(hp_stub.person_name, '.', ''), 1, 1))
     ORDER BY hp_stub.person_name, hp_known.person_name
-  `),
+  `); },
 
   /** Top stub persons by appearance count. */
-  listHighValueCandidates: db.prepare(`
+  get listHighValueCandidates() { return db.prepare(`
     SELECT
       hp.person_name,
       hp.person_id,
@@ -1588,16 +1599,16 @@ export const netRecoverySignals = {
     GROUP BY hp.person_id
     ORDER BY appearances DESC
     LIMIT 30
-  `),
+  `); },
 
   /** Total stub person count. */
-  countStubs: db.prepare(`
+  get countStubs() { return db.prepare(`
     SELECT COUNT(*) AS stub_count
     FROM historical_persons
     WHERE (event_count IS NULL OR event_count = 0)
       AND person_name NOT IN ('[UNKNOWN PARTNER]', '__UNKNOWN_PARTNER__', '__NON_PERSON__', 'Unknown', '')
-  `),
-} as const;
+  `); },
+};
 
 // ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
@@ -1627,7 +1638,7 @@ export interface RecoveryCandidateFreqRow {
 export const netRecoveryCandidates = {
   /** Unambiguous abbreviation candidates: stub shares last name + first initial
    *  with exactly ONE known person. */
-  listAbbreviationCandidates: db.prepare(`
+  get listAbbreviationCandidates() { return db.prepare(`
     SELECT
       hp_stub.person_name  AS stub_name,
       hp_stub.person_id    AS stub_pid,
@@ -1661,10 +1672,10 @@ export const netRecoveryCandidates = {
                  = LOWER(SUBSTR(REPLACE(hp_stub.person_name, '.', ''), 1, 1))
           ) = 1
     ORDER BY stub_appearances DESC, hp_stub.person_name ASC
-  `),
+  `); },
 
   /** High-frequency stubs (>=3 appearances), likely real persons needing PT entries. */
-  listHighFrequencyStubs: db.prepare(`
+  get listHighFrequencyStubs() { return db.prepare(`
     SELECT
       hp.person_name,
       hp.person_id,
@@ -1680,8 +1691,8 @@ export const netRecoveryCandidates = {
     GROUP BY hp.person_id
     HAVING appearances >= 3
     ORDER BY appearances DESC
-  `),
-} as const;
+  `); },
+};
 
 // ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
@@ -1692,7 +1703,7 @@ export const netRecoveryCandidates = {
 // ---------------------------------------------------------------------------
 
 export const netTeamCorrectionApproval = {
-  upsertCandidate: db.prepare(`
+  get upsertCandidate() { return db.prepare(`
     INSERT INTO net_team_correction_candidate
       (id, event_key, discipline_key, placement, original_display, anomaly_type,
        suggested_player_a, suggested_player_b, created_at)
@@ -1702,11 +1713,11 @@ export const netTeamCorrectionApproval = {
       anomaly_type       = excluded.anomaly_type,
       suggested_player_a = COALESCE(net_team_correction_candidate.suggested_player_a, excluded.suggested_player_a),
       suggested_player_b = COALESCE(net_team_correction_candidate.suggested_player_b, excluded.suggested_player_b)
-  `),
+  `); },
 
-  getById: db.prepare(`SELECT id FROM net_team_correction_candidate WHERE id = ?`),
+  get getById() { return db.prepare(`SELECT id FROM net_team_correction_candidate WHERE id = ?`); },
 
-  updateDecision: db.prepare(`
+  get updateDecision() { return db.prepare(`
     UPDATE net_team_correction_candidate
     SET decision       = ?,
         suggested_player_a = ?,
@@ -1715,18 +1726,18 @@ export const netTeamCorrectionApproval = {
         decided_by     = ?,
         decided_at     = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE id = ?
-  `),
+  `); },
 
-  listAll: db.prepare(`
+  get listAll() { return db.prepare(`
     SELECT id, event_key, discipline_key, placement, original_display, anomaly_type,
            suggested_player_a, suggested_player_b, decision, decision_notes
     FROM net_team_correction_candidate
     ORDER BY
       CASE decision WHEN 'approve' THEN 0 WHEN 'defer' THEN 1 ELSE 2 END,
       event_key, placement
-  `),
+  `); },
 
-  listApproved: db.prepare(`
+  get listApproved() { return db.prepare(`
     SELECT event_key, discipline_key, placement, original_display,
            suggested_player_a, suggested_player_b, anomaly_type, decision_notes
     FROM net_team_correction_candidate
@@ -1734,8 +1745,8 @@ export const netTeamCorrectionApproval = {
       AND suggested_player_a IS NOT NULL AND suggested_player_a != ''
       AND suggested_player_b IS NOT NULL AND suggested_player_b != ''
     ORDER BY event_key, discipline_key, CAST(placement AS INTEGER)
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // netRecoveryApproval
@@ -1761,7 +1772,7 @@ export interface RecoveryAliasCandidateRow {
 }
 
 export const netRecoveryApproval = {
-  listAll: db.prepare(`
+  get listAll() { return db.prepare(`
     SELECT rac.id, rac.stub_name, rac.stub_person_id,
            rac.suggested_person_id, rac.suggested_person_name,
            m_sug.slug AS suggested_member_slug,
@@ -1772,13 +1783,13 @@ export const netRecoveryApproval = {
       ON m_sug.historical_person_id = rac.suggested_person_id
       AND m_sug.deleted_at IS NULL
     ORDER BY rac.appearance_count DESC, rac.stub_name ASC
-  `),
+  `); },
 
-  getById: db.prepare(`
+  get getById() { return db.prepare(`
     SELECT id FROM net_recovery_alias_candidate WHERE id = ?
-  `),
+  `); },
 
-  upsertCandidate: db.prepare(`
+  get upsertCandidate() { return db.prepare(`
     INSERT INTO net_recovery_alias_candidate
       (id, stub_name, stub_person_id, suggested_person_id, suggested_person_name,
        suggestion_type, confidence, appearance_count, created_at)
@@ -1786,25 +1797,25 @@ export const netRecoveryApproval = {
     ON CONFLICT(id) DO UPDATE SET
       appearance_count = excluded.appearance_count,
       suggested_person_name = excluded.suggested_person_name
-  `),
+  `); },
 
-  updateDecision: db.prepare(`
+  get updateDecision() { return db.prepare(`
     UPDATE net_recovery_alias_candidate
     SET operator_decision = ?,
         operator_notes    = ?,
         reviewed_by       = ?,
         reviewed_at       = strftime('%Y-%m-%dT%H:%M:%fZ','now')
     WHERE id = ?
-  `),
+  `); },
 
-  listApproved: db.prepare(`
+  get listApproved() { return db.prepare(`
     SELECT stub_name, suggested_person_id, suggested_person_name,
            suggestion_type, operator_notes
     FROM net_recovery_alias_candidate
     WHERE operator_decision = 'approve'
     ORDER BY stub_name ASC
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // netEvents
@@ -1899,19 +1910,19 @@ const EVENT_SUMMARY_SELECT = `
 export const netEvents = {
   // STATS FIREWALL: all appearance joins use net_team_appearance_canonical view.
 
-  listEvents: db.prepare(
+  get listEvents() { return db.prepare(
     EVENT_SUMMARY_SELECT + `
     GROUP BY e.id
     ORDER BY e.start_date DESC, e.title ASC
-  `),
+  `); },
 
-  getEventSummary: db.prepare(
+  get getEventSummary() { return db.prepare(
     EVENT_SUMMARY_SELECT + `
     WHERE e.id = ?
     GROUP BY e.id
-  `),
+  `); },
 
-  listAppearancesByEventId: db.prepare(`
+  get listAppearancesByEventId() { return db.prepare(`
     -- STATS FIREWALL: uses net_team_appearance_canonical view
     SELECT
       a.id              AS appearance_id,
@@ -1945,8 +1956,8 @@ export const netEvents = {
       AND mb.deleted_at IS NULL
     WHERE a.event_id = ?
     ORDER BY ed.name ASC, a.placement ASC
-  `),
-} as const;
+  `); },
+};
 
 // ---------------------------------------------------------------------------
 // netHome
@@ -2024,7 +2035,7 @@ export interface NetHomeInterestingTeamRow {
 export const netHome = {
   // STATS FIREWALL: all queries use net_team_appearance_canonical view.
 
-  getTopTeams: db.prepare(`
+  get getTopTeams() { return db.prepare(`
     SELECT
       t.team_id,
       t.person_id_a,
@@ -2047,9 +2058,9 @@ export const netHome = {
     GROUP BY t.team_id
     ORDER BY t.appearance_count DESC, t.last_year DESC
     LIMIT 10
-  `),
+  `); },
 
-  getTopPlayersByPartners: db.prepare(`
+  get getTopPlayersByPartners() { return db.prepare(`
     -- STATS FIREWALL: counts partners only from canonical appearances.
     -- Uses team_id count as partner proxy (each team = one unique partner).
     -- Avoids expensive self-join on net_team_member.
@@ -2065,9 +2076,9 @@ export const netHome = {
     GROUP BY hp.person_id
     ORDER BY partner_count DESC, appearance_count DESC
     LIMIT 10
-  `),
+  `); },
 
-  getRecentEvents: db.prepare(`
+  get getRecentEvents() { return db.prepare(`
     -- STATS FIREWALL: only events with canonical appearances
     SELECT
       e.id                                AS event_id,
@@ -2086,9 +2097,9 @@ export const netHome = {
     GROUP BY e.id
     ORDER BY e.start_date DESC
     LIMIT 10
-  `),
+  `); },
 
-  getInterestingTeams: db.prepare(`
+  get getInterestingTeams() { return db.prepare(`
     -- Long-career teams: ordered by year span, then wins.
     -- STATS FIREWALL: uses net_team_appearance_canonical view.
     SELECT
@@ -2114,10 +2125,10 @@ export const netHome = {
     GROUP BY t.team_id
     ORDER BY year_span_length DESC, win_count DESC, best_placement ASC
     LIMIT 10
-  `),
+  `); },
 
   /** Player aggregate pool for notable player buckets, top 100 by appearances. */
-  listNotablePlayerPool: db.prepare(`
+  get listNotablePlayerPool() { return db.prepare(`
     -- STATS FIREWALL: uses net_team_appearance_canonical view.
     -- Uses team_id count as partner proxy — avoids expensive self-join.
     SELECT
@@ -2142,14 +2153,14 @@ export const netHome = {
     HAVING COUNT(a.id) >= 3
     ORDER BY total_appearances DESC
     LIMIT 100
-  `),
-} as const;
+  `); },
+};
 
 export const health = {
-  checkReady: db.prepare(`
+  get checkReady() { return db.prepare(`
     SELECT 1 AS is_ready
-  `),
-} as const;
+  `); },
+};
 
 // ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
@@ -2250,19 +2261,19 @@ export interface NetReviewFilters {
 }
 
 export const netReview = {
-  listReviewSummary: db.prepare(`
+  get listReviewSummary() { return db.prepare(`
     SELECT reason_code, priority, resolution_status, COUNT(*) AS item_count
     FROM net_review_queue
     GROUP BY reason_code, priority, resolution_status
     ORDER BY priority ASC, reason_code ASC, resolution_status ASC
-  `),
+  `); },
 
-  getReviewEventContext: db.prepare(`
+  get getReviewEventContext() { return db.prepare(`
     SELECT id AS event_id, title, start_date, city, country
     FROM events WHERE id = ?
-  `),
+  `); },
 
-  listConflictDisciplines: db.prepare(`
+  get listConflictDisciplines() { return db.prepare(`
     SELECT
       dg.discipline_id,
       ed.name   AS discipline_name,
@@ -2274,46 +2285,46 @@ export const netReview = {
     JOIN event_disciplines ed ON ed.id = dg.discipline_id
     WHERE dg.conflict_flag = 1 OR dg.review_needed = 1
     ORDER BY dg.conflict_flag DESC, dg.review_needed DESC, ed.name ASC
-  `),
+  `); },
 
-  listClassificationSummary: db.prepare(`
+  get listClassificationSummary() { return db.prepare(`
     SELECT classification, COUNT(*) AS item_count
     FROM net_review_queue
     WHERE classification IS NOT NULL
     GROUP BY classification
     ORDER BY item_count DESC
-  `),
+  `); },
 
-  listDecisionSummary: db.prepare(`
+  get listDecisionSummary() { return db.prepare(`
     SELECT decision_status, COUNT(*) AS item_count
     FROM net_review_queue
     WHERE decision_status IS NOT NULL
     GROUP BY decision_status
     ORDER BY item_count DESC
-  `),
+  `); },
 
-  getReviewItemById: db.prepare(`
+  get getReviewItemById() { return db.prepare(`
     SELECT id FROM net_review_queue WHERE id = ?
-  `),
+  `); },
 
-  listFixTypeSummary: db.prepare(`
+  get listFixTypeSummary() { return db.prepare(`
     SELECT proposed_fix_type, COUNT(*) AS item_count
     FROM net_review_queue
     WHERE proposed_fix_type IS NOT NULL
     GROUP BY proposed_fix_type
     ORDER BY item_count DESC
-  `),
+  `); },
 
-  listActionableFixSummary: db.prepare(`
+  get listActionableFixSummary() { return db.prepare(`
     SELECT proposed_fix_type, COUNT(*) AS item_count
     FROM net_review_queue
     WHERE decision_status IN ('fix_encoded', 'fix_active')
       AND proposed_fix_type IS NOT NULL
     GROUP BY proposed_fix_type
     ORDER BY item_count DESC
-  `),
+  `); },
 
-  listTopEventIssues: db.prepare(`
+  get listTopEventIssues() { return db.prepare(`
     SELECT rq.event_id, e.title AS event_title, COUNT(*) AS item_count
     FROM net_review_queue rq
     LEFT JOIN events e ON e.id = rq.event_id
@@ -2321,17 +2332,17 @@ export const netReview = {
     GROUP BY rq.event_id
     ORDER BY item_count DESC
     LIMIT 20
-  `),
+  `); },
 
-  countTotals: db.prepare(`
+  get countTotals() { return db.prepare(`
     SELECT
       COUNT(*)                                              AS total,
       COUNT(classification)                                 AS classified,
       COUNT(CASE WHEN decision_status IS NOT NULL THEN 1 END) AS decided,
       COUNT(CASE WHEN classification IS NULL THEN 1 END)   AS unclassified
     FROM net_review_queue
-  `),
-} as const;
+  `); },
+};
 
 /**
  * Dynamic query for review items with optional filtering.
@@ -2414,7 +2425,7 @@ export interface NetCandidateFilters {
 }
 
 export const netCandidates = {
-  listSummary: db.prepare(`
+  get listSummary() { return db.prepare(`
     SELECT
       review_status,
       SUM(CASE WHEN player_a_person_id IS NOT NULL AND player_b_person_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_count,
@@ -2422,11 +2433,11 @@ export const netCandidates = {
     FROM net_candidate_match
     GROUP BY review_status
     ORDER BY review_status ASC
-  `),
-  getTotalCount: db.prepare(`SELECT COUNT(*) AS cnt FROM net_candidate_match`),
-  getTotalFragmentCount: db.prepare(`SELECT COUNT(*) AS cnt FROM net_raw_fragment`),
+  `); },
+  get getTotalCount() { return db.prepare(`SELECT COUNT(*) AS cnt FROM net_candidate_match`); },
+  get getTotalFragmentCount() { return db.prepare(`SELECT COUNT(*) AS cnt FROM net_raw_fragment`); },
 
-  listSummaryBySource: db.prepare(`
+  get listSummaryBySource() { return db.prepare(`
     SELECT
       f.source_file,
       COUNT(DISTINCT f.id) AS fragment_count,
@@ -2439,9 +2450,9 @@ export const netCandidates = {
     LEFT JOIN net_candidate_match c ON c.fragment_id = f.id
     GROUP BY f.source_file
     ORDER BY candidate_count DESC, fragment_count DESC
-  `),
+  `); },
 
-  listSummaryByEvent: db.prepare(`
+  get listSummaryByEvent() { return db.prepare(`
     SELECT
       c.event_id,
       e.title AS event_title,
@@ -2454,9 +2465,9 @@ export const netCandidates = {
     WHERE c.event_id IS NOT NULL
     GROUP BY c.event_id
     ORDER BY candidate_count DESC, c.event_id ASC
-  `),
+  `); },
 
-  listSummaryByYear: db.prepare(`
+  get listSummaryByYear() { return db.prepare(`
     SELECT
       c.year_hint,
       COUNT(*) AS candidate_count,
@@ -2466,8 +2477,8 @@ export const netCandidates = {
     WHERE c.year_hint IS NOT NULL
     GROUP BY c.year_hint
     ORDER BY c.year_hint ASC
-  `),
-} as const;
+  `); },
+};
 
 /**
  * Dynamic candidate query, filter by review_status, event_id, linked_only.
@@ -2577,7 +2588,7 @@ export interface NetCuratedMatchRow {
 }
 
 export const netCurated = {
-  getCandidateById: db.prepare(`
+  get getCandidateById() { return db.prepare(`
     SELECT
       c.candidate_id, c.fragment_id,
       c.event_id,       e.title       AS event_title,
@@ -2603,15 +2614,15 @@ export const netCurated = {
       ON mb.historical_person_id = c.player_b_person_id
       AND mb.deleted_at IS NULL
     WHERE c.candidate_id = ?
-  `),
+  `); },
 
-  getCuratedByCandidate: db.prepare(`
+  get getCuratedByCandidate() { return db.prepare(`
     SELECT curated_id, candidate_id, curated_status, curator_note, curated_at, curated_by
     FROM net_curated_match
     WHERE candidate_id = ?
-  `),
+  `); },
 
-  insertCuratedMatch: db.prepare(`
+  get insertCuratedMatch() { return db.prepare(`
     INSERT INTO net_curated_match
       (curated_id, candidate_id, curated_status, evidence_class,
        event_id, discipline_id, player_a_person_id, player_b_person_id,
@@ -2619,12 +2630,12 @@ export const netCurated = {
        curated_at, curated_by)
     VALUES (?, ?, ?, 'curated_enrichment', ?, ?, ?, ?, ?, ?, ?,
             strftime('%Y-%m-%dT%H:%M:%fZ','now'), ?)
-  `),
+  `); },
 
-  updateCandidateStatus: db.prepare(`
+  get updateCandidateStatus() { return db.prepare(`
     UPDATE net_candidate_match SET review_status = ? WHERE candidate_id = ?
-  `),
-} as const;
+  `); },
+};
 
 // ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
@@ -2700,21 +2711,21 @@ export interface NetCuratedBrowseFilters {
 }
 
 export const netCuratedBrowse = {
-  getTotalCount: db.prepare(`SELECT COUNT(*) AS cnt FROM net_curated_match`),
+  get getTotalCount() { return db.prepare(`SELECT COUNT(*) AS cnt FROM net_curated_match`); },
 
-  getLinkedCount: db.prepare(`
+  get getLinkedCount() { return db.prepare(`
     SELECT COUNT(*) AS cnt FROM net_curated_match
     WHERE player_a_person_id IS NOT NULL AND player_b_person_id IS NOT NULL
-  `),
+  `); },
 
-  listStatusSummary: db.prepare(`
+  get listStatusSummary() { return db.prepare(`
     SELECT curated_status, COUNT(*) AS item_count
     FROM net_curated_match
     GROUP BY curated_status
     ORDER BY curated_status ASC
-  `),
+  `); },
 
-  listBySource: db.prepare(`
+  get listBySource() { return db.prepare(`
     SELECT
       f.source_file,
       COUNT(*)                                                            AS curated_count,
@@ -2725,9 +2736,9 @@ export const netCuratedBrowse = {
     LEFT JOIN net_raw_fragment f ON f.id          = c.fragment_id
     GROUP BY f.source_file
     ORDER BY curated_count DESC, f.source_file ASC
-  `),
+  `); },
 
-  listByEvent: db.prepare(`
+  get listByEvent() { return db.prepare(`
     SELECT
       cm.event_id,
       e.title                                                             AS event_title,
@@ -2739,9 +2750,9 @@ export const netCuratedBrowse = {
     WHERE cm.event_id IS NOT NULL
     GROUP BY cm.event_id
     ORDER BY curated_count DESC, cm.event_id ASC
-  `),
+  `); },
 
-  listByYear: db.prepare(`
+  get listByYear() { return db.prepare(`
     SELECT
       c.year_hint,
       COUNT(*)                                                            AS curated_count,
@@ -2752,8 +2763,8 @@ export const netCuratedBrowse = {
     WHERE c.year_hint IS NOT NULL
     GROUP BY c.year_hint
     ORDER BY c.year_hint ASC
-  `),
-} as const;
+  `); },
+};
 
 /**
  * Dynamic curated-match browse query, filter by status, source, event, year, linked.
@@ -3018,7 +3029,7 @@ export interface MemberSearchRow {
 }
 
 export const account = {
-  findMemberBySlug: db.prepare(`
+  get findMemberBySlug() { return db.prepare(`
     SELECT
       m.id,
       m.slug,
@@ -3052,9 +3063,9 @@ export const account = {
       AND m.legacy_member_id IS NOT NULL
     WHERE m.slug = ?
       AND m.personal_data_purged_at IS NULL
-  `),
+  `); },
 
-  findMemberById: db.prepare(`
+  get findMemberById() { return db.prepare(`
     SELECT
       m.id,
       m.slug,
@@ -3075,9 +3086,9 @@ export const account = {
       ON mi.id = m.avatar_media_id
     WHERE m.id = ?
       AND m.personal_data_purged_at IS NULL
-  `),
+  `); },
 
-  listResultsByMemberId: db.prepare(`
+  get listResultsByMemberId() { return db.prepare(`
     SELECT
       e.id                        AS event_id,
       e.title                     AS event_title,
@@ -3118,9 +3129,9 @@ export const account = {
       COALESCE(ed.name, '') COLLATE NOCASE ASC,
       ere.placement ASC,
       erp_co.participant_order ASC
-  `),
+  `); },
 
-  listResultsByLegacyMemberId: db.prepare(`
+  get listResultsByLegacyMemberId() { return db.prepare(`
     SELECT
       e.id                        AS event_id,
       e.title                     AS event_title,
@@ -3163,17 +3174,17 @@ export const account = {
       COALESCE(ed.name, '') COLLATE NOCASE ASC,
       ere.placement ASC,
       erp_co.participant_order ASC
-  `),
+  `); },
 
-  searchMembers: db.prepare(`
+  get searchMembers() { return db.prepare(`
     SELECT slug, display_name, country, is_hof, is_bap, is_board
     FROM members_searchable
     WHERE display_name_normalized LIKE '%' || ? || '%' ESCAPE '\\'
     ORDER BY display_name_normalized
     LIMIT ?
-  `),
+  `); },
 
-  updateMemberProfile: db.prepare(`
+  get updateMemberProfile() { return db.prepare(`
     UPDATE members
     SET
       bio                     = ?,
@@ -3188,24 +3199,24 @@ export const account = {
       updated_by              = 'member',
       version                 = version + 1
     WHERE id = ?
-  `),
-} as const;
+  `); },
+};
 
 export const registration = {
-  checkEmailExists: db.prepare(`
+  get checkEmailExists() { return db.prepare(`
     SELECT 1 AS exists_flag
     FROM members
     WHERE login_email_normalized = ?
       AND personal_data_purged_at IS NULL
-  `),
+  `); },
 
-  checkSlugExists: db.prepare(`
+  get checkSlugExists() { return db.prepare(`
     SELECT 1 AS exists_flag
     FROM members
     WHERE slug = ?
-  `),
+  `); },
 
-  insertMember: db.prepare(`
+  get insertMember() { return db.prepare(`
     INSERT INTO members (
       id, slug,
       login_email, login_email_normalized, email_verified_at,
@@ -3214,34 +3225,34 @@ export const registration = {
       searchable,
       created_at, created_by, updated_at, updated_by, version
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'registration', ?, 'registration', 1)
-  `),
-} as const;
+  `); },
+};
 
 export const auth = {
-  findUnverifiedMemberByEmail: db.prepare(`
+  get findUnverifiedMemberByEmail() { return db.prepare(`
     SELECT m.id
     FROM members_active AS m
     WHERE m.login_email_normalized = ?
       AND m.email_verified_at IS NULL
       AND m.is_deceased = 0
-  `),
+  `); },
 
-  markEmailVerified: db.prepare(`
+  get markEmailVerified() { return db.prepare(`
     UPDATE members
     SET email_verified_at = ?,
         updated_at        = ?,
         updated_by        = 'system',
         version           = version + 1
     WHERE id = ? AND email_verified_at IS NULL
-  `),
+  `); },
 
-  findMemberForSessionAfterVerify: db.prepare(`
+  get findMemberForSessionAfterVerify() { return db.prepare(`
     SELECT id, slug, login_email, real_name, password_version, is_admin
     FROM members_active
     WHERE id = ?
-  `),
+  `); },
 
-  findMemberByEmail: db.prepare(`
+  get findMemberByEmail() { return db.prepare(`
     SELECT
       m.id,
       m.slug,
@@ -3254,9 +3265,9 @@ export const auth = {
       m.login_email_normalized = ?
       AND m.email_verified_at IS NOT NULL
       AND m.is_deceased = 0
-  `),
+  `); },
 
-  findMemberForSession: db.prepare(`
+  get findMemberForSession() { return db.prepare(`
     SELECT
       m.id,
       m.slug,
@@ -3266,9 +3277,9 @@ export const auth = {
     FROM members_active AS m
     WHERE m.id = ?
       AND m.email_verified_at IS NOT NULL
-  `),
+  `); },
 
-  updateMemberLastLogin: db.prepare(`
+  get updateMemberLastLogin() { return db.prepare(`
     UPDATE members
     SET
       last_login_at = ?,
@@ -3276,15 +3287,15 @@ export const auth = {
       updated_by    = 'system',
       version       = version + 1
     WHERE id = ?
-  `),
+  `); },
 
-  findMemberForPasswordChange: db.prepare(`
+  get findMemberForPasswordChange() { return db.prepare(`
     SELECT id, password_hash, password_version
     FROM members_active
     WHERE id = ?
-  `),
+  `); },
 
-  updateMemberPassword: db.prepare(`
+  get updateMemberPassword() { return db.prepare(`
     UPDATE members
     SET
       password_hash         = ?,
@@ -3294,16 +3305,16 @@ export const auth = {
       updated_by            = 'member',
       version               = version + 1
     WHERE id = ?
-  `),
-} as const;
+  `); },
+};
 
 export const systemConfig = {
-  getValueByKey: db.prepare(`
+  get getValueByKey() { return db.prepare(`
     SELECT value_json
     FROM system_config_current
     WHERE config_key = ?
-  `),
-} as const;
+  `); },
+};
 
 export interface OutboxRow {
   id: string;
@@ -3325,7 +3336,7 @@ export interface AccountTokenRow {
 }
 
 export const accountTokens = {
-  insert: db.prepare(`
+  get insert() { return db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, target_legacy_member_id, token_type,
@@ -3335,26 +3346,26 @@ export const accountTokens = {
       ?, ?, ?,
       ?, 1,
       ?, ?)
-  `),
+  `); },
 
-  findByHash: db.prepare(`
+  get findByHash() { return db.prepare(`
     SELECT id, member_id, token_type, expires_at, used_at
     FROM account_tokens
     WHERE token_hash = ? AND token_type = ?
-  `),
+  `); },
 
-  consumeIfUnused: db.prepare(`
+  get consumeIfUnused() { return db.prepare(`
     UPDATE account_tokens
     SET used_at    = ?,
         updated_at = ?,
         updated_by = 'system',
         version    = version + 1
     WHERE id = ? AND used_at IS NULL
-  `),
-} as const;
+  `); },
+};
 
 export const auditEntries = {
-  insert: db.prepare(`
+  get insert() { return db.prepare(`
     INSERT INTO audit_entries (
       id, created_at, created_by,
       occurred_at, actor_type, actor_member_id,
@@ -3364,11 +3375,11 @@ export const auditEntries = {
       ?, ?, ?,
       ?, ?, ?,
       ?, ?, ?)
-  `),
-} as const;
+  `); },
+};
 
 export const outbox = {
-  insert: db.prepare(`
+  get insert() { return db.prepare(`
     INSERT INTO outbox_emails (
       id, created_at, created_by, updated_at, updated_by, version,
       idempotency_key,
@@ -3382,9 +3393,9 @@ export const outbox = {
       ?, ?,
       ?, ?,
       'pending', 0, ?)
-  `),
+  `); },
 
-  selectPendingBatch: db.prepare(`
+  get selectPendingBatch() { return db.prepare(`
     SELECT id, recipient_email, recipient_member_id, subject, body_text,
            from_identity, retry_count, idempotency_key
     FROM outbox_emails
@@ -3392,13 +3403,13 @@ export const outbox = {
       AND (scheduled_for IS NULL OR scheduled_for <= ?)
     ORDER BY created_at ASC
     LIMIT ?
-  `),
+  `); },
 
-  findByIdempotencyKey: db.prepare(`
+  get findByIdempotencyKey() { return db.prepare(`
     SELECT id FROM outbox_emails WHERE idempotency_key = ?
-  `),
+  `); },
 
-  markSending: db.prepare(`
+  get markSending() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'sending',
         last_attempt_at = ?,
@@ -3406,9 +3417,9 @@ export const outbox = {
         updated_by = 'system',
         version = version + 1
     WHERE id = ? AND status = 'pending'
-  `),
+  `); },
 
-  markSent: db.prepare(`
+  get markSent() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'sent',
         sent_at = ?,
@@ -3417,9 +3428,9 @@ export const outbox = {
         body_text = NULL,
         version = version + 1
     WHERE id = ?
-  `),
+  `); },
 
-  markFailedRetry: db.prepare(`
+  get markFailedRetry() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'pending',
         retry_count = retry_count + 1,
@@ -3428,9 +3439,9 @@ export const outbox = {
         updated_by = 'system',
         version = version + 1
     WHERE id = ?
-  `),
+  `); },
 
-  markDeadLetter: db.prepare(`
+  get markDeadLetter() { return db.prepare(`
     UPDATE outbox_emails
     SET status = 'dead_letter',
         retry_count = retry_count + 1,
@@ -3439,40 +3450,40 @@ export const outbox = {
         updated_by = 'system',
         version = version + 1
     WHERE id = ?
-  `),
-} as const;
+  `); },
+};
 
 export const media = {
-  insertMediaItem: db.prepare(`
+  get insertMediaItem() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px
     ) VALUES (?, ?, 'member', ?, 'member', 1, ?, NULL, 'photo', 1, NULL, ?, ?, ?, ?, ?)
-  `),
+  `); },
 
-  setMemberAvatar: db.prepare(`
+  get setMemberAvatar() { return db.prepare(`
     UPDATE members
     SET avatar_media_id = ?, updated_at = ?, updated_by = 'member', version = version + 1
     WHERE id = ?
-  `),
+  `); },
 
-  getExistingAvatarMediaId: db.prepare(`
+  get getExistingAvatarMediaId() { return db.prepare(`
     SELECT id, s3_key_thumb, s3_key_display
     FROM media_items
     WHERE uploader_member_id = ? AND is_avatar = 1
-  `),
+  `); },
 
-  deleteMediaItem: db.prepare(`
+  get deleteMediaItem() { return db.prepare(`
     DELETE FROM media_items WHERE id = ?
-  `),
+  `); },
 
-  countRecentAvatarUploads: db.prepare(`
+  get countRecentAvatarUploads() { return db.prepare(`
     SELECT COUNT(*) AS upload_count
     FROM media_items
     WHERE uploader_member_id = ? AND is_avatar = 1 AND uploaded_at > ?
-  `),
-} as const;
+  `); },
+};
 
 export interface ExistingAvatarRow {
   id: string;
@@ -3503,38 +3514,38 @@ export interface HistoricalPersonClaimRow {
 }
 
 export const legacyClaim = {
-  findHistoricalPersonByLegacyId: db.prepare(`
+  get findHistoricalPersonByLegacyId() { return db.prepare(`
     SELECT person_id, person_name, legacy_member_id, country,
            hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
     FROM historical_persons
     WHERE legacy_member_id = ?
     LIMIT 1
-  `),
+  `); },
 
-  findHistoricalPersonById: db.prepare(`
+  get findHistoricalPersonById() { return db.prepare(`
     SELECT person_id, person_name, legacy_member_id, country,
            hof_member, bap_member, hof_induction_year, bap_induction_year, first_year
     FROM historical_persons
     WHERE person_id = ?
     LIMIT 1
-  `),
+  `); },
 
-  checkLegacyIdAlreadyClaimed: db.prepare(`
+  get checkLegacyIdAlreadyClaimed() { return db.prepare(`
     SELECT id
     FROM members
     WHERE legacy_member_id = ?
       AND deleted_at IS NULL
     LIMIT 1
-  `),
+  `); },
 
-  checkAlreadyClaimed: db.prepare(`
+  get checkAlreadyClaimed() { return db.prepare(`
     SELECT legacy_member_id
     FROM members
     WHERE id = ?
       AND legacy_member_id IS NOT NULL
-  `),
+  `); },
 
-  transferLegacyFields: db.prepare(`
+  get transferLegacyFields() { return db.prepare(`
     UPDATE members
     SET
       legacy_member_id = ?,
@@ -3555,14 +3566,14 @@ export const legacyClaim = {
       updated_by       = 'claim_merge',
       version          = version + 1
     WHERE id = ?
-  `),
+  `); },
 
   // Copies identity-defining fields from a linked historical_persons row into
   // the claiming members row. Called in the same transaction as
   // setMemberHistoricalPersonId so search / hero / profile surfaces reflect
   // the HP's country, HoF/BAP status, and induction years on the member row.
   // Fill-if-empty for free-text fields, OR semantics for boolean honors.
-  mergeHistoricalPersonFields: db.prepare(`
+  get mergeHistoricalPersonFields() { return db.prepare(`
     UPDATE members
     SET
       country                = CASE WHEN country IS NULL OR country = '' THEN ? ELSE country END,
@@ -3574,39 +3585,39 @@ export const legacyClaim = {
       updated_by             = 'claim_merge',
       version                = version + 1
     WHERE id = ?
-  `),
+  `); },
 
   // Used by the HP-only claim flow (scenarios D and E): check that no other
   // live member already owns this HP. The partial UNIQUE index on
   // members.historical_person_id ultimately enforces this at write time; this
   // read is for a friendly error rather than a raw constraint failure.
-  findMemberClaimingHp: db.prepare(`
+  get findMemberClaimingHp() { return db.prepare(`
     SELECT id, slug
     FROM members
     WHERE historical_person_id = ?
       AND deleted_at IS NULL
       AND personal_data_purged_at IS NULL
     LIMIT 1
-  `),
+  `); },
 
-  checkMemberHasHp: db.prepare(`
+  get checkMemberHasHp() { return db.prepare(`
     SELECT historical_person_id
     FROM members
     WHERE id = ?
       AND historical_person_id IS NOT NULL
-  `),
+  `); },
 
   // Read the identifying fields needed to evaluate a claim: the member's slug
   // (for post-claim redirect), real_name (for surname reconciliation against
   // the HP or legacy account), and existing linkage state.
-  findClaimingMember: db.prepare(`
+  get findClaimingMember() { return db.prepare(`
     SELECT id, slug, real_name, legacy_member_id, historical_person_id
     FROM members
     WHERE id = ?
       AND deleted_at IS NULL
       AND personal_data_purged_at IS NULL
-  `),
-} as const;
+  `); },
+};
 
 // ── legacy_members ──────────────────────────────────────────────────────────
 //
@@ -3641,7 +3652,7 @@ export interface LegacyMemberRow {
 }
 
 export const legacyMembers = {
-  insert: db.prepare(`
+  get insert() { return db.prepare(`
     INSERT INTO legacy_members (
       legacy_member_id,
       legacy_user_id, legacy_email,
@@ -3655,9 +3666,9 @@ export const legacyMembers = {
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
     )
-  `),
+  `); },
 
-  findByIdentifier: db.prepare(`
+  get findByIdentifier() { return db.prepare(`
     SELECT
       legacy_member_id,
       legacy_user_id, legacy_email,
@@ -3671,11 +3682,11 @@ export const legacyMembers = {
     WHERE claimed_by_member_id IS NULL
       AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ?)
     LIMIT 1
-  `),
+  `); },
 
   // Sibling of findByIdentifier without LIMIT 1 so the service can detect
   // ambiguity (e.g. duplicate legacy_email after the legacy-site data dump).
-  findAllByIdentifier: db.prepare(`
+  get findAllByIdentifier() { return db.prepare(`
     SELECT
       legacy_member_id,
       legacy_user_id, legacy_email,
@@ -3688,9 +3699,9 @@ export const legacyMembers = {
     FROM legacy_members
     WHERE claimed_by_member_id IS NULL
       AND (legacy_member_id = ? OR legacy_user_id = ? OR legacy_email = ?)
-  `),
+  `); },
 
-  findByLegacyMemberId: db.prepare(`
+  get findByLegacyMemberId() { return db.prepare(`
     SELECT
       legacy_member_id,
       legacy_user_id, legacy_email,
@@ -3702,9 +3713,9 @@ export const legacyMembers = {
       claimed_by_member_id, claimed_at
     FROM legacy_members
     WHERE legacy_member_id = ?
-  `),
+  `); },
 
-  markClaimed: db.prepare(`
+  get markClaimed() { return db.prepare(`
     UPDATE legacy_members
     SET
       claimed_by_member_id = ?,
@@ -3712,21 +3723,21 @@ export const legacyMembers = {
       version              = version + 1
     WHERE legacy_member_id = ?
       AND claimed_by_member_id IS NULL
-  `),
+  `); },
 
-  clearClaim: db.prepare(`
+  get clearClaim() { return db.prepare(`
     UPDATE legacy_members
     SET
       claimed_by_member_id = NULL,
       claimed_at           = NULL,
       version              = version + 1
     WHERE legacy_member_id = ?
-  `),
+  `); },
 
   // Written as part of the claim transaction when the claimed legacy_members
   // row has a matching historical_persons.legacy_member_id. Sets the
   // derived member↔HP link.
-  setMemberHistoricalPersonId: db.prepare(`
+  get setMemberHistoricalPersonId() { return db.prepare(`
     UPDATE members
     SET
       historical_person_id = ?,
@@ -3735,8 +3746,8 @@ export const legacyMembers = {
       version              = version + 1
     WHERE id = ?
       AND historical_person_id IS NULL
-  `),
-} as const;
+  `); },
+};
 
 // ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
@@ -3755,13 +3766,13 @@ export interface PersonsQcRow {
 }
 
 export const personsQc = {
-  listAll: db.prepare(`
+  get listAll() { return db.prepare(`
     SELECT person_id, person_name, aliases, source, source_scope, country,
            event_count, placement_count
     FROM historical_persons
     ORDER BY person_name COLLATE NOCASE
-  `),
-} as const;
+  `); },
+};
 
 // Read-only auto-link candidate lookup. Rows in `name_variants` are loaded
 // pre-normalized (NFKC+lower+trim+collapse), by contract of the loader.
@@ -3769,19 +3780,19 @@ export const personsQc = {
 // `person_name` is stored unnormalized; the SQL uses `lower(trim(...))` as a
 // safe approximation for current canonical data (NFC-composed, single-spaced).
 export const nameVariants = {
-  findByEitherColumn: db.prepare(`
+  get findByEitherColumn() { return db.prepare(`
     SELECT canonical_normalized, variant_normalized
     FROM name_variants
     WHERE canonical_normalized = ? OR variant_normalized = ?
-  `),
+  `); },
 
-  findHistoricalPersonsByNormalizedName: db.prepare(`
+  get findHistoricalPersonsByNormalizedName() { return db.prepare(`
     SELECT person_id, person_name
     FROM historical_persons
     WHERE lower(trim(person_name)) = ?
     ORDER BY person_id
-  `),
-} as const;
+  `); },
+};
 
 let helperTransactionOpen = false;
 

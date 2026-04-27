@@ -16,6 +16,10 @@ Local rules for `src/db/` work.
   - `new BetterSqlite3(...)` — the actual connection open
   - startup PRAGMAs only
 
+## Statement laziness
+
+`db.prepare()` is only ever called inside a getter or a function body, never at module top level. Statement-group properties are getters that compile their SQL on first access; dynamic-SQL helpers (`queryFilteredTeams`, `queryCandidateItems`, `queryCuratedItems`, `queryReviewItems`, etc.) build and prepare their SQL inside the function body. This decouples module load from schema readiness, so importing `src/db/db.ts` against a not-yet-migrated database does not fail at import time. SQL validation against the current schema is enforced by `tests/unit/db-lazy-prepare.test.ts`.
+
 ## Do not put this in `db.ts`
 
 - request parsing

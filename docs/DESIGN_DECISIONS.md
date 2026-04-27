@@ -42,6 +42,10 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [3.7 Ballot Encryption with AWS KMS](#37-ballot-encryption-with-aws-kms)
   - [3.8 Account Security Tokens](#38-account-security-tokens)
   - [3.9 Security, Privacy, and Historical Record Governance](#39-security-privacy-and-historical-record-governance)
+  - [3.10 Trust-proxy strategy](#310-trust-proxy-strategy)
+  - [3.11 Origin-verify shared-secret gate](#311-origin-verify-shared-secret-gate)
+  - [3.12 Security header layering](#312-security-header-layering)
+  - [3.13 Host header pinning at nginx](#313-host-header-pinning-at-nginx)
 - [4. Front-End / UI Technology](#4-front-end--ui-technology)
   - [4.1 Server-rendered HTML with Handlebars Templates](#41-server-rendered-html-with-handlebars-templates)
   - [4.2 JavaScript Required for Interactivity](#42-javascript-required-for-interactivity)
@@ -54,6 +58,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [5.3 Dedicated Adapters for External Services](#53-dedicated-adapters-for-external-services)
   - [5.4 Outbox Pattern for Emails](#54-outbox-pattern-for-emails)
   - [5.5 Canonical Email Addresses](#55-canonical-email-addresses)
+  - [5.6 Dev and Staging Email Preview](#56-dev-and-staging-email-preview)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
   - [6.1 Stripe Payments](#61-stripe-payments)
   - [6.2 CloudFront CDN](#62-cloudfront-cdn)
@@ -565,7 +570,7 @@ Impact:
 
 Decision:
 
-All data access occurs through a single database module (db.ts) that exports the database connection, a collection of prepared SQL statements, and a transaction helper function. Services import this module and execute queries by calling the pre-prepared statements with parameters. All SQL statements are prepared once at application startup and reused throughout the application lifetime for maximum performance.
+All data access occurs through a single database module (db.ts) that exports the database connection, a collection of statement-group objects whose properties prepare SQL on first access, and a transaction helper function. Services import this module and execute queries by calling getters that resolve to prepared statements, then invoking `.all/.get/.run` with parameters. `db.prepare()` is only ever called inside a getter or a function body, never at module top level, so importing the database module against an unmigrated database does not fail at import time.
 
 The database module prepares all SQL statements during initialization: member queries (find by email, find by ID, create, update, delete/restore), event queries (find upcoming, find by ID, search by filters), registration queries, media queries, audit log queries, and all other data access operations. Each prepared statement is exported with a descriptive name that clearly indicates its purpose.
 
@@ -580,7 +585,7 @@ Error Handling: better-sqlite3 throws SqliteError with code property matching SQ
 
 Transaction Semantics: Transaction helper uses IMMEDIATE transaction mode (BEGIN IMMEDIATE) to acquire write lock immediately, preventing SQLITE_BUSY errors during transaction execution. Transactions do not span async operations - all database operations within transaction execute synchronously. better-sqlite3 does not support async functions in transactions because transaction would commit before async operations complete. Services structure transactions to batch all database operations, then perform async operations (email, S3 upload) after transaction commits. Transaction timeout is 30 seconds (enforced at application level), after which transaction is rolled back and error thrown.
 
-Statement Reset and Reuse: better-sqlite3 automatically resets prepared statements after execution, making them immediately reusable. Statements remain prepared for application lifetime. If statement throws error, it is automatically reset and remains usable for subsequent calls. This automatic management simplifies code and prevents common SQLite programming errors.
+Statement Reset: better-sqlite3 automatically resets prepared statements after execution. If a statement throws, it is automatically reset and remains usable. Each getter access compiles a fresh statement; statement objects are not retained across requests.
 
 Example: memberByEmail: db.prepare('SELECT \* FROM members WHERE email = ?')
 
@@ -588,7 +593,7 @@ A service uses these prepared statements directly, wrapping multi-step operation
 
 Rationale:
 
-Maximum Performance: Preparing statements once at startup eliminates repeated SQL compilation overhead. SQLite compiles SQL into bytecode, which is expensive. Reusing prepared statements means this cost is paid once, not on every query. This is the official SQLite-recommended pattern for performance. better-sqlite3's automatic statement reset after execution ensures zero overhead for reuse.
+Decoupled Module Load: Lazy preparation decouples application module load from database schema readiness. Tests, migration tooling, and any future code path that imports the database module before applying schema do not crash at import time. The single rule "no top-level `db.prepare()`" is uniformly applied across statement groups and dynamic-SQL helpers, removing the masking that per-test database isolation provided previously.
 
 Simplicity and Transparency: All queries live in one file. Opening db.ts shows every query the application can execute. No hidden abstractions, no magic, no framework complexity. Volunteers can grep for "WHERE email" and immediately find relevant queries. Consistent naming convention makes queries discoverable through IDE autocomplete.
 
@@ -607,6 +612,8 @@ Transaction Safety: BEGIN IMMEDIATE mode prevents common concurrency bugs by acq
 Testing Simplicity: Tests import the same db module. For integration tests, point at test database. For unit tests that need mocking, the module can be mocked at the import level using standard Node.js testing tools.
 
 Trade-offs:
+
+Per-access SQL Compilation: Lazy preparation re-runs `db.prepare(SQL)` on every getter access. better-sqlite3's prepare is a C-level operation and no statement is used in a hot loop, so the per-request cost is small. Boot-time SQL validation that eager prepares provided is recovered by an explicit test that walks every getter against the current schema.
 
 Single File Growth: As the application grows, db.ts could contain 100+ prepared statement definitions. This remains manageable for small projects but would become unwieldy for large applications with 500+ queries. At that scale, splitting into repository modules would be appropriate.
 

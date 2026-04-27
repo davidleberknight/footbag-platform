@@ -888,6 +888,10 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | EX1 | `footbag.org` domain owned by IFPA, DNS pointing to new platform | §22 Phase 4 prereqs | State 3 → State 4 |
 | EX2 | SES production access granted for AWS account | §22 Phase 4 prereqs | State 3 → State 4 |
 | EX3 | `noreply@footbag.org` verified as SES sender identity with DKIM on DNS | §22 Phase 4 prereqs; §28.5 | State 3 → State 4 |
+| EX4 | ACM certificate for `footbag.org` issued in `us-east-1` and attached to CloudFront | §28.9 | State 3 → State 4 |
+| EX5 | Stripe production live API keys + webhook secret in Parameter Store; webhook endpoint configured; one end-to-end webhook delivery confirmed | §28.9 | State 3 → State 4 |
+| EX6 | Cloudflare Email Routing rule for `noreply@footbag.org` active and tested end-to-end | §28.5 | State 3 → State 4 |
+| EX7 | SES bounce/complaint SNS subscription tested with synthetic bounce; hard-bounce suppression confirmed in app | §28.5 | State 3 → State 4 |
 
 ### Legacy-site webmaster coordination
 
@@ -911,6 +915,20 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | OR5 | Email deliverability operations | §28.5 | State 3 → State 4 |
 | OR6 | Scheduled maintenance jobs | §28.6 | State 3 → State 4 |
 | OR7 | Secrets rotation | §28.7 | State 3 → State 4 |
+| OR8 | Production database restore drill completed against a copy of production data | §28.1 | State 3 → State 4 |
+
+### Code governance gates
+
+| ID | Criterion | Section | Blocks |
+|---|---|---|---|
+| GV1 | GitHub `main` branch protection enforced (PR required, status checks must pass, linear history) | §28.10 | State 3 → State 4 |
+| GV2 | At least one administrator account provisioned in production and login-tested | §28.10 | State 3 → State 4 |
+
+### Compliance gates
+
+| ID | Criterion | Section | Blocks |
+|---|---|---|---|
+| LEG1 | Privacy policy, Terms of Service, and cookie banner (if applicable) reviewed and accessible from the production site footer | §28.11 | State 3 → State 4 |
 
 ### Pre-cutover revert and rotation checklist
 
@@ -1118,7 +1136,7 @@ Non-data workstreams that must close before production cutover. Each subsection 
 
 ### 28.1 Data backup and disaster recovery
 
-Gate: host-side SQLite backup producer runs on a schedule, ships to S3, and emits `BackupAgeMinutes`; a full restore drill has been rehearsed end-to-end; the backup-age CloudWatch alarm (`enable_backup_alarm = true`) is enabled and has emitted a non-alarm state; the cross-region DR bucket has Object Lock configured per `docs/DEVOPS_GUIDE.md` §3.6 (Object Lock can only be enabled at bucket creation, so retrofitting requires bucket recreation). Recovery targets: 5–10 min RPO, ~5 min RTO per `docs/DEVOPS_GUIDE.md` §10.1. Procedure: `docs/DEV_ONBOARDING.md` §7.4 (setup); `docs/DEVOPS_GUIDE.md` §10 (runbook).
+Gate: host-side SQLite backup producer runs on a schedule, ships to S3, and emits `BackupAgeMinutes`; a full restore drill has been rehearsed end-to-end on staging; a production-data restore drill has been completed against a copy of production data with recovery time meeting the §10.1 RPO/RTO targets; the backup-age CloudWatch alarm (`enable_backup_alarm = true`) is enabled and has emitted a non-alarm state; the cross-region DR bucket has Object Lock configured per `docs/DEVOPS_GUIDE.md` §10.3 (Object Lock can only be enabled at bucket creation, so retrofitting requires bucket recreation). Recovery targets: 5–10 min RPO, ~5 min RTO per `docs/DEVOPS_GUIDE.md` §10.1. Procedure: `docs/DEV_ONBOARDING.md` §7.4 (setup); `docs/DEVOPS_GUIDE.md` §10 (runbook).
 
 ### 28.2 Observability and monitoring readiness
 
@@ -1134,11 +1152,11 @@ Gate: `footbag-operator` removed from `AdministratorAccess` and moved to a least
 
 ### 28.5 Email deliverability operations
 
-Gate: SES is out of sandbox with production access granted; `noreply@footbag.org` verified as a canonical SES identity with DKIM on DNS; an SNS topic subscribes to SES bounce and complaint events and the application processes those into hard-bounce suppression and complaint tracking; email-delivery smoke (validation gate G10) has passed end-to-end on a pre-cutover release. Procedure: `docs/DEV_ONBOARDING.md` Path I (activation).
+Gate: SES is out of sandbox with production access granted; `noreply@footbag.org` verified as a canonical SES identity with DKIM on DNS; the Cloudflare Email Routing rule for `noreply@footbag.org` is active and tested end-to-end (Cloudflare receives the SES verification email and forwards it to the operator inbox); an SNS topic subscribes to SES bounce and complaint events; the bounce/complaint webhook end-to-end has been tested with a synthetic bounce against `bounce@simulator.amazonses.com` and the resulting suppression-row write confirmed in the app; the application processes those events into hard-bounce suppression and complaint tracking; email-delivery smoke (validation gate G10) has passed end-to-end on a pre-cutover release. Procedure: `docs/DEV_ONBOARDING.md` Path I (activation).
 
 ### 28.6 Scheduled maintenance jobs
 
-Gate: login rate-limit cooldown is wired to the `login_cooldown_minutes` setting (currently unwired; fixed-window only); daily `account_tokens` cleanup job runs on the host and removes expired entries; job execution is observable via standard application logs or CloudWatch. Procedure: in-code + `docs/DEVOPS_GUIDE.md` (runbook to be added).
+Gate: login rate-limit cooldown is wired to the `login_cooldown_minutes` setting; daily `account_tokens` cleanup job runs on the host and removes expired entries; job execution is observable via standard application logs or CloudWatch. Procedure: in-code + `docs/DEVOPS_GUIDE.md`.
 
 ### 28.7 Secrets rotation
 
@@ -1158,6 +1176,18 @@ Before Phase 4 cutover, the following staging-observability-only deviations must
 8. Restore live `mailto:admin@footbag.org` in `/legal`: swap the `.contact-pending` span used in Privacy, Terms, and Copyright contact lines for a live `mailto:admin@footbag.org` once SES sender cutover (item 2) is complete and the canonical mailbox is active. Template-only change; no service or DB work.
 
 Sign-off on this checklist is a prerequisite for §23 State 3 → State 4 transition.
+
+### 28.9 Production-specific prerequisites
+
+Gate: ACM certificate for `footbag.org` issued in `us-east-1` and attached to the production CloudFront distribution; production KMS asymmetric signing key, source-profile IAM user, and runtime role provisioned (production mirror of Path H §8.6–§8.9, per Path I §9.8); Stripe production live API keys and webhook secret stored in Parameter Store at `/footbag/production/stripe/*`; Stripe webhook endpoint URL registered in the Stripe Dashboard against the production domain; one end-to-end Stripe webhook delivery confirmed against the production endpoint before cutover. Procedure: `docs/DEV_ONBOARDING.md` Path I (§9.4 ACM via DNS delegation, §9.8 production KMS / runtime role, §9.13 Stripe production activation).
+
+### 28.10 Code governance
+
+Gate: GitHub `main` branch protection enforced (PR required, status checks must pass, linear history); the required-check job names match the names in `.github/workflows/ci.yml`; at least one administrator account provisioned in the production database and login-tested. Procedure: `docs/DEV_ONBOARDING.md` §7.3 (branch protection).
+
+### 28.11 Compliance
+
+Gate: privacy policy, Terms of Service, and cookie banner (if applicable) reviewed by the IFPA board and accessible from the production site footer. Prepared by IFPA, reviewed by the maintainer; not technical work.
 
 ---
 

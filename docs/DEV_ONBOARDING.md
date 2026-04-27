@@ -10,9 +10,9 @@ This guide helps contributors do different things: understand how the initial pu
 > - **Path B** — I need the architecture mental model, scope boundaries, and workflow rules.
 > - **Path C** — I need the original blank-slate build order, and detailed historical implementation logic, how to get that initial v0,1 setup to work.
 > - **Path D** — I already have the app working locally, and I am continuing the AWS bootstrap deployment.
-> - **Path E** — The first deployment works. I need the transition mental model: what is now complete enough to use staging, what remains intentionally temporary, and where the remaining hardening work has moved.
+> - **Path E** — The first deployment works. I need the transition mental model: the Path E baseline boundaries, and where pre-production hardening lives.
 > - **Path F** — The initial deployment is working. I want the complete repeatable staging deploy workflow, including routine code-only deploys and destructive schema/dev deploys that rebuild and replace the host DB from scratch.
-> - **Path G** — The deploy workflow is established. I need the remaining AWS hardening roadmap before the durable operational guidance moves into `docs/DEVOPS_GUIDE.md`.
+> - **Path G** — The deploy workflow is established. I need the production-readiness hardening checklist before cutover.
 
 ---
 
@@ -56,7 +56,7 @@ This guide helps contributors do different things: understand how the initial pu
 - [5. Path E — From first success to the repeatable staging baseline](#5-path-e--from-first-success-to-the-repeatable-staging-baseline)
   - [5.1 Why this section exists](#51-why-this-section-exists)
   - [5.2 What is complete now](#52-what-is-complete-now)
-  - [5.3 What remains intentionally temporary](#53-what-remains-intentionally-temporary)
+  - [5.3 Path E baseline boundaries](#53-path-e-baseline-boundaries)
   - [5.4 Where the remaining work moved](#54-where-the-remaining-work-moved)
 - [6. Path F — Repeatable staging deploy workflow](#6-path-f--repeatable-staging-deploy-workflow)
   - [6.1 Who this path is for](#61-who-this-path-is-for)
@@ -66,7 +66,7 @@ This guide helps contributors do different things: understand how the initial pu
   - [6.4 Routine deploy workflow](#64-routine-deploy-workflow)
   - [6.5 If something goes wrong on staging](#65-if-something-goes-wrong-on-staging)
   - [6.6 Future: ECR registry and automated image builds](#66-future-ecr-registry-and-automated-image-builds)
-- [7. Path G — Remaining AWS hardening after the deploy workflow is established](#7-path-g--remaining-aws-hardening-after-the-deploy-workflow-is-established)
+- [7. Path G — Production-readiness hardening](#7-path-g--production-readiness-hardening)
   - [7.1 Why this section exists](#71-why-this-section-exists)
   - [7.2 Public edge and delivery hardening](#72-public-edge-and-delivery-hardening)
   - [7.3 GitHub and operator governance hardening](#73-github-and-operator-governance-hardening)
@@ -81,13 +81,16 @@ This guide helps contributors do different things: understand how the initial pu
   - [8.4 Naming convention](#84-naming-convention)
   - [8.5 Supersedes an earlier assumption](#85-supersedes-an-earlier-assumption)
   - [8.6 Step 1 — Create the KMS asymmetric signing key](#86-step-1--create-the-kms-asymmetric-signing-key)
-  - [8.7 Step 2 — Create the app-runtime IAM user](#87-step-2--create-the-app-runtime-iam-user)
+  - [8.7 Step 2 — Create the source-profile IAM user](#87-step-2--create-the-source-profile-iam-user)
   - [8.8 Step 3 — Verify the SES sandbox sender and test recipient](#88-step-3--verify-the-ses-sandbox-sender-and-test-recipient)
-  - [8.9 Step 4 — Attach the least-privilege policy to the IAM user](#89-step-4--attach-the-least-privilege-policy-to-the-iam-user)
-  - [8.10 Step 5 — Update /srv/footbag/env on the staging host](#810-step-5--update-srvfootbagenv-on-the-staging-host)
+  - [8.9 Step 4 — Attach policies and amend the runtime role's trust](#89-step-4--attach-policies-and-amend-the-runtime-roles-trust)
+  - [8.10 Step 5 — Wire credentials, env, and the compose file](#810-step-5--wire-credentials-env-and-the-compose-file)
   - [8.11 Step 6 — Post-setup validation](#811-step-6--post-setup-validation)
   - [8.12 Where rotation lives](#812-where-rotation-lives)
-  - [8.13 Where the remaining AWS work lives](#813-where-the-remaining-aws-work-lives)
+  - [8.13 AWS SDK version pinning](#813-aws-sdk-version-pinning)
+  - [8.14 Where the remaining AWS work lives](#814-where-the-remaining-aws-work-lives)
+  - [8.15 Stripe activation (staging)](#815-stripe-activation-staging)
+  - [8.16 Turnstile activation (staging)](#816-turnstile-activation-staging)
 - [9. Path I — Production activation](#9-path-i--production-activation)
   - [9.1 Why this path exists](#91-why-this-path-exists)
   - [9.2 Scope](#92-scope)
@@ -101,6 +104,8 @@ This guide helps contributors do different things: understand how the initial pu
   - [9.10 SES bounce/complaint webhook subscription](#910-ses-bouncecomplaint-webhook-subscription)
   - [9.11 Host credential wiring on the production Lightsail instance](#911-host-credential-wiring-on-the-production-lightsail-instance)
   - [9.12 Post-setup validation](#912-post-setup-validation)
+  - [9.13 Stripe activation (production)](#913-stripe-activation-production)
+  - [9.14 Turnstile activation (production)](#914-turnstile-activation-production)
 - [10. Appendices](#10-appendices)
   - [10.1 Troubleshooting reference](#101-troubleshooting-reference)
   - [10.2 Deterministic seed-data reference](#102-deterministic-seed-data-reference)
@@ -969,7 +974,7 @@ The fragile parts are:
 - first-apply inputs must be honest
 - unsupported CloudFront origin assumptions must be removed
 - monitoring must be gated to signals that actually exist
-- manual host bootstrap is still required (accepted temporary deviation)
+- host bootstrap (Docker, /srv/footbag, rsync, init DB, systemd) is manual; see §4.7
 - CloudFront maintenance-page behavior is not truly functional yet
 - Lightsail static IPs and instances share a single namespace — they cannot
   have the same name simultaneously; `lightsail.tf` uses
@@ -1594,7 +1599,7 @@ Expected behavior:
 
 - `footbag.service` may show `active (exited)` if it is a `Type=oneshot` unit with `RemainAfterExit=yes`
 - nginx and web containers should be running
-- the worker should exist but be in `Exited (0)` state — no jobs are configured yet (accepted temporary deviation)
+- the worker should exist but be in `Exited (0)` state — the worker container is a stub and runs no scheduled jobs
 - the worker should not be restart-looping
 
 Useful checks:
@@ -1696,7 +1701,7 @@ After first success, these simplifications are still in place:
 - automated DB backup/restore is not yet closed
 - images are built on the operator workstation and shipped to the host via `docker save | docker load` rather than pulled from a registry
 - maintenance-page behavior is not truly production-grade yet
-- CloudFront maintenance is not reliable until OAC, ordered cache behavior, and origin-bypass protection are added (accepted temporary deviation)
+- CloudFront maintenance-page support (S3 + OAC + ordered_cache_behavior for /maintenance.html) is provisioned in Path G §7.2
 
 ## 5. Path E — From first success to the repeatable staging baseline
 
@@ -1706,7 +1711,7 @@ After the first successful AWS deployment, the project sits in an in-between sta
 
 Path F is now the complete repeatable staging deploy workflow.
 
-Path G contains the remaining AWS hardening work that still follows after that deploy baseline is in place.
+Path G covers the production-readiness hardening that follows once the deploy baseline is established.
 
 ### 5.2 What is complete now
 
@@ -1717,24 +1722,20 @@ In practical terms, the team can now do both of the following:
 - deploy routine code changes while preserving the live staging DB
 - deploy schema/dev-data changes by rebuilding and replacing the staging DB from scratch
 
-### 5.3 What remains intentionally temporary
+### 5.3 Path E baseline boundaries
 
-The current staging model still includes accepted temporary shortcuts.
+The Path E staging baseline operates within these boundaries; each item is provisioned by the path or section noted.
 
-Examples:
-
-- `/srv/footbag/env` remains mostly operator-managed (the deploy remote-half auto-syncs `X_ORIGIN_VERIFY_SECRET` and `FOOTBAG_ENV`)
-- workstation builds Docker images and ships them to the host via `docker save | docker load`; no image registry yet (target: ECR per §6.6)
-- staging data remains disposable for the destructive schema/dev deploy path
-- public-edge hardening, durable backup/restore, and mature monitoring are still not complete
-
-These are no longer blockers to routine staging deploys, but they are still unfinished.
+- `/srv/footbag/env` is operator-managed; the deploy remote-half reconciles `X_ORIGIN_VERIFY_SECRET` and `FOOTBAG_ENV` on every run (design state of staging)
+- images are built on the operator workstation and shipped via `docker save | docker load`; registry-backed delivery is provisioned in §6.6
+- staging data is disposable through `scripts/deploy-rebuild.sh`; production schema migrations preserve live data per `docs/DEVOPS_GUIDE.md` §9.3
+- public-edge hardening (Path G §7.2), durable backup/restore (Path G §7.4), and CloudWatch monitoring (Path G §7.6) are provisioned by Path G
 
 ### 5.4 Where the remaining work moved
 
 Use Path F for the operational staging deploy workflow.
 
-Use Path G for the remaining AWS hardening roadmap that still needs to be completed before the durable operational guidance is moved into `docs/DEVOPS_GUIDE.md`.
+Use Path G for the production-readiness hardening roadmap that completes before production cutover.
 
 ## 6. Path F — Repeatable staging deploy workflow
 
@@ -1744,7 +1745,7 @@ Use this path when the initial AWS bootstrap is complete (Path D done), the host
 
 **Do not use this path to recover a broken host bootstrap.** If `/srv/footbag/env`, the service unit, or the `/srv/footbag` layout is missing or broken, recover the host using §4.7 and §4.8 first.
 
-Path F is now operational, not a backlog of one-time setup tasks. The remaining AWS hardening work has moved to Path G.
+Path F is the routine staging deploy workflow. Production-readiness hardening lives in Path G.
 
 Current state entering this path:
 
@@ -1755,7 +1756,7 @@ Current state entering this path:
 - `scripts/deploy-rebuild.sh` exists for destructive staging/dev deploys that rebuild and replace the host DB from scratch
 - `scripts/deploy-migrate.sh` exists as a stub for future non-destructive schema migrations
 - initial GitHub Actions CI exists
-- the remaining AWS hardening work now lives in Path G, not here
+- production-readiness hardening lives in Path G, not here
 
 ### 6.1A Claude Code Plan Mode for iteration
 
@@ -1918,141 +1919,11 @@ The point of this section is not to duplicate shell source. The point is to expl
 
 ### 6.4 Routine deploy workflow
 
-After the deploy baseline is established, the staging deploy cycle is:
-
-1. Make the change locally.
-2. Run the local quality gate.
-3. Push a branch and open a PR.
-4. Let CI run.
-5. Let branch protection block merge until checks pass.
-6. Merge.
-7. Run exactly one deploy command from your local machine against the staging origin.
-8. Verify the origin.
-9. If CloudFront is enabled in staging, verify CloudFront too.
-
-The deploy trigger remains a local manual step by design. GitHub-hosted runners use dynamic IPs, while the Lightsail firewall remains locked to explicit operator CIDRs.
-
-#### Before each deploy: check the env file
-
-The host env file `/srv/footbag/env` is the runtime source of truth. The deploy remote-half writes two keys at every deploy (`X_ORIGIN_VERIFY_SECRET`, mirrored from SSM; `FOOTBAG_ENV`, derived from the deploy target alias). Every other key is operator-managed and untouched by the deploy. Review the operator-managed keys before any deploy that introduces a new required environment variable or changes runtime behavior.
-
-At minimum, the host env file must define:
-
-- `NODE_ENV`
-- `LOG_LEVEL`
-- `FOOTBAG_DB_PATH`
-- `FOOTBAG_DB_DIR`
-- `PUBLIC_BASE_URL`
-- `SESSION_SECRET`
-
-`docker/docker-compose.prod.yml` bind-mounts `${FOOTBAG_DB_DIR}` into `/app/db`, and `footbag.service` starts Docker Compose with `--env-file /srv/footbag/env`. If the env file is wrong, the deploy can succeed mechanically but still fail at runtime.
-
-Warning: do not use `#` in env file values. systemd `EnvironmentFile` parsing treats `#` as an inline comment delimiter.
-
-#### Before each deploy: local quality gate
-
-Always run:
-
-```bash
-npm test
-```
-
-Optionally run Docker parity when the change touches runtime shape, static assets, containerization, or environment handling.
-
-#### Deploy options
-
-**Option A — routine code-only deploy**
-
-Use this when the host DB should remain untouched.
-
-```bash
-bash deploy_to_aws.sh --code-only
-```
-
-This path preserves `/srv/footbag/env` and the live DB.
-
-**Option B — destructive schema/dev deploy**
-
-Use this when the change requires rebuilding and replacing the host DB from scratch and staging/dev data is still disposable.
-
-```bash
-bash deploy_to_aws.sh --with-db --db-only
-```
-
-This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB.
-
-**Option C — non-destructive migration deploy (future)**
-
-Use this once the project reaches the point where host data must be preserved. Not yet implemented.
-
-```bash
-bash deploy_to_aws.sh --migrate
-# `--migrate` mode not yet wired into scripts/deploy-to-aws.sh; see Path G §7.4
-```
-
-Do not document manual `scp` + `ssh sudo cp` DB-replacement procedures. Those manual destructive flows are superseded by `scripts/deploy-rebuild.sh`.
-
-#### After each deploy: verification
-
-Always verify the staging origin first.
-
-```bash
-BASE_URL=http://<staging-origin> bash scripts/smoke-local.sh
-```
-
-Also verify manually in the browser when the change affects routing, rendering, or static assets.
-
-If CloudFront is enabled in staging, also verify CloudFront after the origin is confirmed healthy:
-
-```bash
-BASE_URL=https://<cloudfront-domain> bash scripts/smoke-local.sh
-```
-
-Why origin-first still matters: if the origin fails, CloudFront only obscures the root cause.
+Routine deploys are operational and live in `docs/DEVOPS_GUIDE.md` §7.3 (standard deployment runbook). Schema migrations against non-disposable data live in §9.3.
 
 ### 6.5 If something goes wrong on staging
 
-#### Check logs
-
-```bash
-# Service status
-ssh footbag-staging "sudo systemctl status footbag --no-pager -l"
-
-# Recent journal entries
-ssh footbag-staging "sudo journalctl -u footbag -n 50 --no-pager"
-
-# Extended journal with full context (use for startup failures)
-ssh footbag-staging "sudo journalctl -xeu footbag.service --no-pager | tail -50"
-
-# Running containers
-ssh footbag-staging "docker ps"
-
-# Web container logs via Compose
-ssh footbag-staging "sudo docker compose \
-  -f /srv/footbag/docker/docker-compose.yml \
-  -f /srv/footbag/docker/docker-compose.prod.yml \
-  logs web --tail=30"
-
-# Web container logs directly (useful when Compose context is unavailable)
-ssh footbag-staging "sudo docker logs docker-web-1 2>&1 | tail -30"
-```
-
-> **Note:** Always use `sudo systemctl restart footbag`, not `start`. The `start` command is a no-op if the service is already active.
-
-#### Roll back
-
-Check out the last known-good commit and re-run the deploy script:
-
-```bash
-git checkout <known-good-ref>
-bash deploy_to_aws.sh --code-only
-```
-
-The database is not touched by `scripts/deploy-code.sh`.
-
-Schema-changing staging/dev deploys are currently handled by `scripts/deploy-rebuild.sh`, which destroys and replaces the host DB from a freshly rebuilt local DB. This is a deliberate temporary development workflow, not the future live-data procedure.
-
-Once the project reaches the point where host data must be preserved, replace this destructive workflow with `scripts/deploy-migrate.sh`. That durable operational guidance belongs in the future DevOps guide, not in the current development-phase onboarding workflow.
+Deploy troubleshooting lives in `docs/DEVOPS_GUIDE.md`: §7.4 (rollback), §7.5 (restart), and §15.6 (standard log-collection commands).
 
 ### 6.6 Future: ECR registry and automated image builds
 
@@ -2069,13 +1940,11 @@ After this, the deploy scripts become much faster. The remaining manual trigger 
 
 ---
 
-## 7. Path G — Remaining AWS hardening after the deploy workflow is established
+## 7. Path G — Production-readiness hardening
 
 ### 7.1 Why this section exists
 
-Path F is now the complete repeatable staging deploy workflow. Path G collects the remaining AWS hardening and governance work that still follows after that deploy baseline is in place.
-
-This section is still part of onboarding because the AWS setup story is not fully closed yet, but it is no longer part of the day-to-day staging deploy workflow.
+Path G covers the operational hardening that must complete before production cutover: public-edge security (§7.2), GitHub and operator access governance (§7.3), durable backup and restore (§7.4), runtime configuration maturity (§7.5), monitoring and alerting (§7.6), and registry-backed image delivery (§7.7). Each subsection is a pre-production blocker, not optional follow-up.
 
 ### 7.2 Public edge and delivery hardening
 
@@ -2509,8 +2378,9 @@ Initial CI now exists, but the governance around it still needs to be closed. Th
    - Require a pull request before merging.
    - Require approvals: 1.
    - Require status checks to pass before merging:
-     - `Type-check and test`
-     - `Terraform fmt / validate`
+     - `Type-check`
+     - `Unit tests`
+     - `Integration tests`
    - Require branches to be up to date before merging.
    - Require linear history (optional but recommended).
 4. Save.
@@ -3034,7 +2904,7 @@ Path H is Console-driven in §8.6 through §8.9. Before starting, sign in to the
 
 After sign-in, confirm the Console region selector (top-right) is **US East (N. Virginia) us-east-1**. This check is repeated at the start of §8.6 because a misregioned KMS key is the most common expensive mistake in this path.
 
-For a new volunteer taking over this runbook: you need vault access before you can execute Path H. Arrange handoff with the outgoing maintainer per DEVOPS_GUIDE §3.3 and §17.2 before proceeding.
+For a new volunteer taking over this runbook: you need vault access before you can execute Path H. Arrange handoff with the outgoing maintainer per DEVOPS_GUIDE §3.3 and §4.5 of this guide before proceeding.
 
 ### 8.4 Naming convention
 
@@ -3423,6 +3293,93 @@ This path deliberately does not cover other outstanding AWS hardening. Those ite
 
 Once all Path G items are complete, the durable operational content (including this path, condensed) migrates into `docs/DEVOPS_GUIDE.md`.
 
+### 8.15 Stripe activation (staging)
+
+One-time setup. Run after `terraform/staging` apply has provisioned the Parameter Store paths declared in `terraform/staging/ssm.tf`, and after the Stripe code (adapter, webhook handler, payment service per DD §6.1) is shipped to staging.
+
+Prerequisites:
+
+- Stripe account with test mode enabled and IFPA's billing details configured
+- access to the Parameter Store paths `/footbag/staging/stripe/api_key` and `/footbag/staging/stripe/webhook_secret`
+- staging origin reachable on a public HTTPS URL (CloudFront enabled per §7.2)
+
+Procedure:
+
+1. In the Stripe Dashboard, switch to test mode. Go to **Developers > API keys** and copy the test publishable key and the test secret key.
+2. Store the test secret key in Parameter Store:
+
+   ```bash
+   aws ssm put-parameter \
+     --name /footbag/staging/stripe/api_key \
+     --value <test-secret-key> \
+     --type SecureString \
+     --overwrite
+   ```
+
+3. In the Stripe Dashboard, go to **Developers > Webhooks > Add endpoint**. Set the endpoint URL to the staging webhook route (e.g. `https://<staging-cloudfront-domain>/webhooks/stripe`). Subscribe to the event types listed in DD §6.1 (one-time payment events, subscription lifecycle events, refund events).
+4. Copy the signing secret from the new webhook endpoint and store it:
+
+   ```bash
+   aws ssm put-parameter \
+     --name /footbag/staging/stripe/webhook_secret \
+     --value <signing-secret> \
+     --type SecureString \
+     --overwrite
+   ```
+
+5. Restart the staging app so the new Parameter Store values are loaded at boot:
+
+   ```bash
+   ssh footbag-staging "sudo systemctl restart footbag"
+   ```
+
+6. From the Stripe Dashboard webhook view, click **Send test webhook** for `checkout.session.completed`. Verify in CloudWatch logs that the handler accepted the event, validated the signature, wrote the `stripe_events` row, and applied the state transition.
+7. Configure subscription products, dunning rules, and payout schedule in the Stripe Dashboard per DD §6.1. These are operator-managed in Stripe; the platform does not duplicate them.
+
+Validation gate: one synthetic webhook delivery succeeds end-to-end and a corresponding `stripe_events` row exists in the staging DB.
+
+### 8.16 Turnstile activation (staging)
+
+One-time setup. Run after `terraform/staging` apply has provisioned the Parameter Store paths, and after the Turnstile integration code (client widget on the five protected forms, server-side `siteverify` call before any DB read per DD §8.3) is shipped to staging.
+
+Prerequisites:
+
+- Cloudflare account with permission to manage Turnstile sites
+- access to the Parameter Store paths `/footbag/staging/turnstile/site_key` and `/footbag/staging/turnstile/secret_key`
+- staging origin reachable on a public HTTPS URL
+
+Procedure:
+
+1. In the Cloudflare dashboard, go to **Turnstile > Add site**. Set the hostname to the staging public hostname. Choose Managed mode (the Cloudflare-recommended default per DD §8.3). Save.
+2. Cloudflare displays the site key (public, embedded in HTML) and the secret key (private, used by `siteverify`). Copy both.
+3. Store the values in Parameter Store:
+
+   ```bash
+   aws ssm put-parameter \
+     --name /footbag/staging/turnstile/site_key \
+     --value <site-key> \
+     --type String \
+     --overwrite
+
+   aws ssm put-parameter \
+     --name /footbag/staging/turnstile/secret_key \
+     --value <secret-key> \
+     --type SecureString \
+     --overwrite
+   ```
+
+4. Restart the staging app so the new values are loaded at boot:
+
+   ```bash
+   ssh footbag-staging "sudo systemctl restart footbag"
+   ```
+
+5. Visit each of the five protected forms (login, register, password-reset, claim-lookup, verify-email-resend) on the staging site. Confirm the Turnstile widget renders and a successful submission proceeds.
+6. Submit a form with a known-bad Turnstile token (use Cloudflare's testing-mode site key for failure simulation per Cloudflare documentation). Confirm the server-side `siteverify` call rejects the submission with the expected error before any DB read.
+7. Test fail-open behavior: temporarily block egress to `challenges.cloudflare.com` from the staging host (or set the env override flag the app honors per DD §8.3). Confirm submissions proceed without `siteverify` and an alarm is emitted to CloudWatch.
+
+Validation gate: all five forms gate correctly; fail-open path is tested and emits the expected alarm.
+
 ---
 
 ## 9. Path I — Production activation
@@ -3661,6 +3618,34 @@ Mirror Path H §8.11 against production.
 
 Path I is complete when all five validation steps pass. Production activation is now the canonical state; `docs/DEVOPS_GUIDE.md` covers routine operations from this point.
 
+### 9.13 Stripe activation (production)
+
+One-time setup. Mirrors §8.15 against the production AWS account and the live Stripe environment. Run after staging activation (§8.15) is verified.
+
+Production-specific differences from §8.15:
+
+- live mode in the Stripe Dashboard (not test mode); the live secret key replaces the test secret key
+- live publishable key embedded in production builds
+- production webhook endpoint URL points at the production domain (e.g. `https://footbag.org/webhooks/stripe`)
+- a separate production webhook signing secret (each Stripe webhook endpoint has its own secret)
+- Parameter Store paths under `/footbag/production/stripe/api_key` and `/footbag/production/stripe/webhook_secret`
+- live subscription products configured separately from test-mode products; Stripe does not auto-copy them
+- live payout schedule, dunning rules, and bank account configured in the Stripe Dashboard production view per DD §6.1
+
+Procedure: follow the §8.15 steps replacing `staging` with `production` and `test` with `live` throughout. The validation gate is EX5 in §21.
+
+### 9.14 Turnstile activation (production)
+
+One-time setup. Mirrors §8.16 against the production hostname. Run after staging activation (§8.16) is verified.
+
+Production-specific differences from §8.16:
+
+- a new Cloudflare Turnstile site configured for the production hostname (each hostname requires its own Turnstile site; the staging site key does not work on production)
+- production-scoped site key and secret key
+- Parameter Store paths under `/footbag/production/turnstile/site_key` and `/footbag/production/turnstile/secret_key`
+
+Procedure: follow the §8.16 steps replacing `staging` with `production` throughout.
+
 ---
 
 ## 10. Appendices
@@ -3697,7 +3682,7 @@ Path I is complete when all five validation steps pass. Production activation is
 - Docker parity skipped entirely before AWS work
 - nginx not fronting the web container correctly
 - DB mount path wrong
-- `docker compose pull` used on host instead of the `docker save | docker load` ship path — no registry yet; images are built on the workstation and shipped (accepted temporary deviation, target: ECR per §6.6)
+- `docker compose pull` used on host instead of the `docker save | docker load` ship path — images are built on the workstation and shipped manually (registry-backed delivery is deferred to §6.6)
 
 #### AWS/bootstrap mistakes
 

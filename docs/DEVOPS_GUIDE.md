@@ -35,6 +35,7 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [5.6 JWT and ballot-key controls](#56-jwt-and-ballot-key-controls)
   - [5.7 App-runtime access-key rotation (runbook pending)](#57-app-runtime-access-key-rotation-runbook-pending)
   - [5.8 SESSION_SECRET rotation runbook](#58-session_secret-rotation-runbook)
+  - [5.9 Origin-verify shared-secret rotation runbook](#59-origin-verify-shared-secret-rotation-runbook)
 - [6. Terraform and Infrastructure Change Control](#6-terraform-and-infrastructure-change-control)
   - [6.1 Terraform authority](#61-terraform-authority)
   - [6.1.1 Manual bootstrap boundary](#611-manual-bootstrap-boundary)
@@ -44,6 +45,7 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [6.5 Emergency console changes](#65-emergency-console-changes)
   - [6.6 What not to do](#66-what-not-to-do)
 - [7. CI/CD, Release Promotion, and Deployment Workflow](#7-cicd-release-promotion-and-deployment-workflow)
+  - [7.0 Current state and target](#70-current-state-and-target)
   - [7.1 CI responsibilities](#71-ci-responsibilities)
   - [7.2 Promotion policy](#72-promotion-policy)
   - [7.3 Standard deployment runbook](#73-standard-deployment-runbook)
@@ -83,6 +85,7 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [12.4 Suggested operational thresholds](#124-suggested-operational-thresholds)
   - [12.5 Dashboards and notifications](#125-dashboards-and-notifications)
   - [12.6 Cost control](#126-cost-control)
+  - [12.7 Cost-alarm threshold tuning runbook](#127-cost-alarm-threshold-tuning-runbook)
 - [13. Routine Security and Platform Operations](#13-routine-security-and-platform-operations)
   - [13.1 Monthly routine tasks](#131-monthly-routine-tasks)
   - [13.2 Quarterly routine tasks](#132-quarterly-routine-tasks)
@@ -91,6 +94,8 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [13.5 SES and deliverability maintenance](#135-ses-and-deliverability-maintenance)
   - [13.6 Access reviews and volunteer turnover](#136-access-reviews-and-volunteer-turnover)
   - [13.7 Resource tuning](#137-resource-tuning)
+  - [13.8 Operator-workstation staging readiness smoke test](#138-operator-workstation-staging-readiness-smoke-test)
+  - [13.9 On-call rotation and escalation policy](#139-on-call-rotation-and-escalation-policy)
 - [14. Staging Refresh and Anonymization](#14-staging-refresh-and-anonymization)
   - [14.1 Goal](#141-goal)
   - [14.2 Required workflow](#142-required-workflow)
@@ -102,28 +107,15 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [15.3 Readiness-failure troubleshooting](#153-readiness-failure-troubleshooting)
   - [15.4 Secret/config troubleshooting](#154-secretconfig-troubleshooting)
   - [15.5 SSH access troubleshooting](#155-ssh-access-troubleshooting)
+  - [15.6 Standard log-collection commands](#156-standard-log-collection-commands)
+  - [15.7 Stripe webhook health and incident response](#157-stripe-webhook-health-and-incident-response)
+  - [15.8 Incident postmortem template](#158-incident-postmortem-template)
 - [16. Operator Checklists](#16-operator-checklists)
   - [16.1 Production deployment checklist](#161-production-deployment-checklist)
   - [16.2 Secret rotation checklist](#162-secret-rotation-checklist)
   - [16.3 Snapshot restore checklist](#163-snapshot-restore-checklist)
   - [16.4 Access review checklist](#164-access-review-checklist)
   - [16.5 Backup-drill checklist](#165-backup-drill-checklist)
-- [17. AWS Bootstrap and Initial Deployment](#17-aws-bootstrap-and-initial-deployment)
-  - [17.1 AWS account structure](#171-aws-account-structure)
-  - [17.2 Root account hardening](#172-root-account-hardening)
-  - [17.3 First operator identity](#173-first-operator-identity)
-  - [17.4 AWS CLI configuration (WSL)](#174-aws-cli-configuration-wsl)
-  - [17.5 Terraform remote state bootstrap](#175-terraform-remote-state-bootstrap)
-  - [17.6 Lightsail constraints](#176-lightsail-constraints)
-  - [17.7 Two-pass CloudFront bootstrap](#177-two-pass-cloudfront-bootstrap)
-  - [17.8 Host bootstrap sequence](#178-host-bootstrap-sequence)
-  - [17.9 IAM identity model](#179-iam-identity-model)
-  - [17.10 S3 bucket inventory (staging)](#1710-s3-bucket-inventory-staging)
-  - [17.11 SSM Parameter Store](#1711-ssm-parameter-store)
-  - [17.12 Monitoring](#1712-monitoring)
-  - [17.13 Subsequent deploy procedure](#1713-subsequent-deploy-procedure)
-  - [17.14 Bootstrap confirmation checklist](#1714-bootstrap-confirmation-checklist)
-
 ---
 
 ## 1. Operating Baseline
@@ -208,7 +200,7 @@ The previous DevOps draft had a useful set of System Administrator stories. Thos
 | `SA_Configure_Budgets_And_SNS_Alerting` | configure budgets, notifications, and cost alarms | §12.5 |
 | `SA_Configure_Email_Delivery_Infrastructure` | SES domain verification, SPF, DKIM, DMARC, bounce handling | §4.5, §13.5 |
 | `SA_Configure_Job_Schedules` | define and maintain the scheduler for system jobs | §11 |
-| `SA_Bootstrap_New_Environment` | provision a new environment from scratch: root account hardening, IAM operator user, Terraform state bucket, environment apply, Lightsail host setup, Docker, first deployment, and CloudFront verification | DEV_ONBOARDING.md Path D; DEVOPS_GUIDE.md §17 |
+| `SA_Bootstrap_New_Environment` | provision a new environment from scratch: root account hardening, IAM operator user, Terraform state bucket, environment apply, Lightsail host setup, Docker, first deployment, and CloudFront verification | DEV_ONBOARDING.md Path D |
 
 ---
 
@@ -270,10 +262,10 @@ AWS Console sign-in for any IAM operator user requires three credential elements
 2. IAM user name.
 3. Password and a time-based one-time-password (TOTP) MFA code.
 
-The account ID, password, and TOTP seed for each operator's IAM user are held in the project's operator credential vault (see §17.2), managed in KeePassXC. The vault stores the TOTP seed alongside the password, so the same tool that autofills the password also generates each MFA code.
+The account ID, password, and TOTP seed for each operator's IAM user are held in the project's operator credential vault (see `docs/DEV_ONBOARDING.md` §4.5), managed in KeePassXC. The vault stores the TOTP seed alongside the password, so the same tool that autofills the password also generates each MFA code.
 
 - Vault access is restricted to current project maintainers. Volunteer turnover requires explicit vault handoff through a private, unarchived channel. Never share the vault file or its master key over email, chat, any repository, or any archived medium.
-- Root sign-in is reserved for account recovery and billing. Do not use root for routine operations. See §17.2 for root MFA setup.
+- Root sign-in is reserved for account recovery and billing. Do not use root for routine operations. See `docs/DEV_ONBOARDING.md` §4.5 for root MFA setup.
 - Operator IAM users are per-human. Do not share an operator user's credentials or MFA device across contributors.
 - Revoke operator access per §13.6: remove the IAM user's MFA device, deactivate and delete its access keys, and remove the vault entry. Confirm no other shared resource grants retained access.
 
@@ -622,7 +614,7 @@ The corresponding rotation cadence for production keys will be added when produc
 
 ### 5.9 Origin-verify shared-secret rotation runbook
 
-`X_ORIGIN_VERIFY_SECRET` is the shared secret CloudFront injects on every origin request and nginx compares against to reject direct-to-origin probes (§17.11 / `terraform/{env}/cloudfront.tf` / `docker/nginx/nginx.conf.template`). It is generated by the `random_id.origin_verify_secret` Terraform resource and lives canonically in SSM; the host's `/srv/footbag/env` is a deploy-time mirror. Rotation is Terraform-driven; manual `aws ssm put-parameter --overwrite` would be reverted on the next apply.
+`X_ORIGIN_VERIFY_SECRET` is the shared secret CloudFront injects on every origin request and nginx compares against to reject direct-to-origin probes (§5.2 Parameter Store namespace / `terraform/{env}/cloudfront.tf` / `docker/nginx/nginx.conf.template`). It is generated by the `random_id.origin_verify_secret` Terraform resource and lives canonically in SSM; the host's `/srv/footbag/env` is a deploy-time mirror. Rotation is Terraform-driven; manual `aws ssm put-parameter --overwrite` would be reverted on the next apply.
 
 #### When to run
 
@@ -783,38 +775,114 @@ CI must at minimum:
 
 ### 7.3 Standard deployment runbook
 
+The deploy is operator-driven from the maintainer workstation. CI lints, type-checks, and runs the test suite; the deploy itself is one local script invocation against the target origin. The deploy trigger remains a local manual step by design: GitHub-hosted runners use dynamic IPs, while the Lightsail firewall remains locked to explicit operator CIDRs.
+
 #### Preconditions
 
 - green CI
 - reviewed code and infrastructure diffs
-- if schema changed: migration plan reviewed
+- if schema changed: migration plan reviewed and §9.3 followed for live data
 - if secrets changed: rotation verification plan ready
 - staging validation complete
 - rollback path identified
 
-#### Steps
+#### Workflow
 
-1. Confirm current version, current health, and rollback target.
-2. Confirm Terraform outputs for the target environment.
-3. Connect to the host through SSH using your named operator account.
-4. Confirm host prerequisites exist: Docker, Compose plugin, release directories, mounted SQLite host path, and the documented named-account SSH posture.
-5. Place or update the approved release artifact on the host.
-6. Render or place the environment config for the target release.
-6a. place or refresh the root-owned host AWS shared config/shared credentials source material required for runtime role assumption
-6b. confirm only the intended containers receive the required AWS config/credential mounts, read-only
-6c. confirm each AWS-enabled service selects the intended runtime profile explicitly
-6d. verify effective caller identity for the AWS-enabled service path before declaring deployment success
-6e. confirm `/srv/footbag/env` is owned `root:root` with mode 0600 (the script-based deploy path enforces this; manual deploys must check)
-6f. if using the script-based deploy path, image-digest equality is verified after `docker load`; an ID mismatch aborts the deploy
-6g. if using the script-based deploy path, `X_ORIGIN_VERIFY_SECRET` is fetched from SSM and `FOOTBAG_ENV` is reconciled into `/srv/footbag/env` before the compose restart (§5.9)
-7. Confirm the host SQLite file exists and its parent directory is mounted into the compose stack at `/app/db`, with the DB visible inside the container at `/app/db/footbag.db`.
-8. Start or restart the compose stack through the documented service wrapper.
-9. Verify `/health/live` on the origin directly.
-10. Verify `/health/ready` on the origin directly.
-11. Run origin smoke checks for `/events`, `/events/year/:year`, and `/events/:eventKey`.
-12. Verify worker backup/job logs.
-13. Validate the same route set through CloudFront.
-14. End the change window only after post-deploy verification is clean.
+1. Make the change locally.
+2. Run the local quality gate.
+3. Push a branch and open a PR.
+4. Let CI run.
+5. Let branch protection block merge until checks pass.
+6. Merge.
+7. Run exactly one deploy command from your local machine against the target origin.
+8. Verify the origin.
+9. If CloudFront is enabled, verify CloudFront too.
+
+#### Pre-deploy: check the env file
+
+The host env file `/srv/footbag/env` is the runtime source of truth. The deploy remote-half writes two keys at every deploy: `X_ORIGIN_VERIFY_SECRET` (mirrored from SSM) and `FOOTBAG_ENV` (derived from the deploy target alias). Every other key is operator-managed and untouched by the deploy. Review the operator-managed keys before any deploy that introduces a new required environment variable or changes runtime behavior.
+
+At minimum, the host env file must define:
+
+- `NODE_ENV`
+- `LOG_LEVEL`
+- `FOOTBAG_DB_PATH`
+- `FOOTBAG_DB_DIR`
+- `PUBLIC_BASE_URL`
+- `SESSION_SECRET`
+
+`docker/docker-compose.prod.yml` bind-mounts `${FOOTBAG_DB_DIR}` into `/app/db`, and `footbag.service` starts Docker Compose with `--env-file /srv/footbag/env`. If the env file is wrong, the deploy can succeed mechanically but still fail at runtime.
+
+Warning: do not use `#` in env-file values. systemd `EnvironmentFile` parsing treats `#` as an inline comment delimiter.
+
+#### Pre-deploy: local quality gate
+
+Always run:
+
+```bash
+npm test
+```
+
+Optionally run Docker parity when the change touches runtime shape, static assets, containerization, or environment handling.
+
+#### Deploy options
+
+**Option A — routine code-only deploy**
+
+Use this when the host DB should remain untouched.
+
+```bash
+bash deploy_to_aws.sh --code-only
+```
+
+This path preserves `/srv/footbag/env` and the live DB.
+
+**Option B — destructive schema/dev deploy**
+
+Use this when the change requires rebuilding and replacing the host DB from scratch and the target's data is disposable (staging only).
+
+```bash
+bash deploy_to_aws.sh --with-db --db-only
+```
+
+This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB.
+
+For schema changes against a target with non-disposable data (production), follow the migration runbook in §9.3 instead of Option B.
+
+Do not document manual `scp` + `ssh sudo cp` DB-replacement procedures. Those manual destructive flows are superseded by `scripts/deploy-rebuild.sh`.
+
+#### Operational invariants enforced by the deploy
+
+The script-based deploy path enforces these; manual deploys must check them.
+
+- root-owned host AWS shared config/shared credentials source material is in place for runtime role assumption
+- only the intended containers receive the required AWS config/credential mounts, read-only
+- each AWS-enabled service selects the intended runtime profile explicitly
+- effective caller identity for the AWS-enabled service path is verified before declaring deployment success
+- `/srv/footbag/env` is owned `root:root` with mode 0600
+- image-digest equality is verified after `docker load`; an ID mismatch aborts the deploy
+- `X_ORIGIN_VERIFY_SECRET` is fetched from SSM and `FOOTBAG_ENV` is reconciled into `/srv/footbag/env` before the compose restart (§5.9)
+- the host SQLite file exists and its parent directory is mounted into the compose stack at `/app/db`, with the DB visible inside the container at `/app/db/footbag.db`
+
+#### Post-deploy verification
+
+Always verify the origin first.
+
+```bash
+BASE_URL=http://<origin> bash scripts/smoke-local.sh
+```
+
+Also verify manually in the browser when the change affects routing, rendering, or static assets.
+
+If CloudFront is enabled, also verify CloudFront after the origin is confirmed healthy:
+
+```bash
+BASE_URL=https://<cloudfront-domain> bash scripts/smoke-local.sh
+```
+
+Why origin-first still matters: if the origin fails, CloudFront only obscures the root cause.
+
+Confirm the worker container has logged its job/backup loop activity for the deploy window, then end the change window. End the change window only after post-deploy verification is clean.
 
 ### 7.4 Rollback runbook
 
@@ -826,14 +894,21 @@ Rollback is required when:
 - secret rotation validation fails
 - migration-related behavior is unsafe to continue
 
-Rollback steps:
+#### Procedure
 
-1. stop further rollout activity
-2. restore prior application image/configuration
-3. restart affected containers
-4. verify health endpoints
-5. re-run smoke tests
-6. document the rollback trigger and next action
+1. Stop further rollout activity.
+2. Check out the last known-good commit and re-run the code-only deploy:
+
+```bash
+git checkout <known-good-ref>
+bash deploy_to_aws.sh --code-only
+```
+
+The database is not touched by `scripts/deploy-code.sh`.
+
+3. Verify `/health/live` and `/health/ready` on the origin.
+4. Re-run smoke tests against the origin and (if enabled) CloudFront via `scripts/smoke-local.sh`.
+5. Document the rollback trigger and next action.
 
 If the failure is schema-related, use the migration rollback rules in §9 before serving traffic again.
 
@@ -1019,7 +1094,7 @@ Required behavior:
 
 - copy relevant primary backup state to the DR bucket
 - verify integrity of the copied content
-- enforce DR retention through Object Lock
+- enforce DR retention through Object Lock in COMPLIANCE mode with a 30-day retention period (non-overridable, including by root, for the retention window)
 - log run metadata and failures
 - raise alarms on failure
 
@@ -1027,6 +1102,7 @@ Required behavior:
 
 Required stance:
 
+- the media bucket is WORM (no versioning, no lifecycle expiry); media keys are stable, with cache invalidation handled by query-string cache-bust
 - use S3 replication or the chosen S3-native cross-region backup path
 - verify that replication/backup remains healthy
 - treat media restore as a storage operation, not a SQLite restore operation
@@ -1235,6 +1311,31 @@ Target operational cost remains modest. Operators must:
 - review unexplained spend spikes promptly
 - evaluate any new AWS service against both dollar cost and volunteer support cost
 
+### 12.7 Cost-alarm threshold tuning runbook
+
+When to run:
+
+- alarm fatigue: cost alarms fire frequently on normal usage and the operator has started ignoring them
+- alarm silence: no cost alarm has fired over a full quarter despite known spend variance
+- a new AWS service is added (the threshold model needs a new baseline)
+- a budget change from IFPA shifts the absolute spend envelope
+
+Procedure:
+
+1. In AWS Cost Explorer, pull daily cost for the last 90 days, grouped by service. Export to CSV if needed for offline analysis.
+2. For each service the alarm watches, compute the baseline mean and standard deviation over the 90-day window. Discount any known spike days (e.g. one-time data transfer for a restore drill) before computing.
+3. Set thresholds:
+
+   - warning: `baseline_mean + 1.5 * baseline_stddev`, or `1.5 * baseline_mean` if stddev is small
+   - critical: `baseline_mean + 3 * baseline_stddev`, or `2 * baseline_mean` if stddev is small
+
+4. Update the Terraform variable for the alarm threshold (e.g. `var.cost_alarm_threshold_usd` in `terraform/{env}/cloudwatch.tf`).
+5. `terraform plan` and review the diff; confirm no other alarms move unexpectedly.
+6. `terraform apply` to push the new threshold.
+7. Verify with a synthetic test: temporarily set the threshold to a value below current spend; confirm the alarm fires within the alarm period; restore the real threshold; confirm the alarm clears.
+
+Required verification: the alarm test fires on a known-bad value and clears on restore. Document the new threshold and the rationale (baseline window, computed mean / stddev, any spikes excluded) in the access-review notes for the next §13.6 cycle.
+
 ---
 
 ## 13. Routine Security and Platform Operations
@@ -1342,6 +1443,36 @@ Each assertion has a distinct failure cause. The test file's header comment bloc
 #### On-host alternative
 
 The same suite can run from the staging host using the host's existing `[profile footbag-staging-runtime]` chain configured at `/root/.aws/config`. The host path is operationally heavier (requires SSH plus a Node 22 runtime on the host, which this project does not install by default) and is rarely needed: the workstation path exercises the identical AWS API call paths.
+
+### 13.9 On-call rotation and escalation policy
+
+Current state: single maintainer, implicit on-call. The maintainer subscribes to the operator SNS topic for SEV-1 alarms and reviews SEV-2 / SEV-3 alarms during routine maintenance windows.
+
+Severity definitions:
+
+- **SEV-1**: service is unreachable or actively returning errors to users. Examples: origin returning 5xx for sustained periods, CloudFront serving the maintenance page from origin failure, backup gap exceeds RTO, KMS access lost so login or ballot operations fail.
+- **SEV-2**: service is degraded but reachable. Examples: elevated 5xx rate, slow response times, partial feature failure (Stripe webhook backlog, SES bounce spike), resource pressure approaching alarm threshold.
+- **SEV-3**: warning. Examples: single failed alarm not yet recurring, unexpected cost spike, SES sandbox warning, certificate expiry approaching.
+
+Acknowledgment targets:
+
+- SEV-1: 15 minutes during waking hours; next morning if outside waking hours unless the maintainer is available. Mitigation begins immediately on acknowledgment.
+- SEV-2: 1 hour during waking hours; next business day otherwise.
+- SEV-3: reviewed during the next monthly routine task per §13.1.
+
+Notification routing:
+
+- SEV-1: SMS via the operator SNS topic (subscribed for SEV-1 only) plus email.
+- SEV-2 and SEV-3: email via the operator SNS topic.
+
+Future state when the team grows beyond one maintainer:
+
+- weekly primary plus backup rotation, calendar-tracked
+- both primary and backup subscribed to the SEV-1 SNS topic
+- escalation: backup paged if primary does not acknowledge within the SEV-1 acknowledgment target
+- §13.6 access reviews include a check that the rotation calendar is current and SNS subscriptions match
+
+The severity definitions and acknowledgment targets above are operational policy; the maintainer ratifies them before treating as binding and updates them in this section if the project's reality shifts.
 
 ---
 
@@ -1454,6 +1585,87 @@ If SSH access fails:
 - verify the host account has not been disabled or had `sudo` removed
 - if emergency access requires a temporary firewall change, document the reason and narrow the rule again immediately after recovery
 
+### 15.6 Standard log-collection commands
+
+Run these from the operator workstation (replace `footbag-staging` with the target host SSH alias).
+
+```bash
+# Service status
+ssh footbag-staging "sudo systemctl status footbag --no-pager -l"
+
+# Recent journal entries
+ssh footbag-staging "sudo journalctl -u footbag -n 50 --no-pager"
+
+# Extended journal with full context (use for startup failures)
+ssh footbag-staging "sudo journalctl -xeu footbag.service --no-pager | tail -50"
+
+# Running containers
+ssh footbag-staging "docker ps"
+
+# Web container logs via Compose
+ssh footbag-staging "sudo docker compose \
+  -f /srv/footbag/docker/docker-compose.yml \
+  -f /srv/footbag/docker/docker-compose.prod.yml \
+  logs web --tail=30"
+
+# Web container logs directly (useful when Compose context is unavailable)
+ssh footbag-staging "sudo docker logs docker-web-1 2>&1 | tail -30"
+```
+
+Always use `sudo systemctl restart footbag`, not `start`. The `start` command is a no-op if the service is already active.
+
+### 15.7 Stripe webhook health and incident response
+
+Symptom-to-checks tree:
+
+| Symptom | First checks |
+|---|---|
+| Stripe Dashboard shows webhook delivery failures | webhook endpoint reachable from public internet; CloudFront not blocking the webhook path; nginx X-Origin-Verify header is not breaking the request (Stripe does not send X-Origin-Verify, so the path must be exempt at the edge); CloudFront cache behavior for `/webhooks/*` does not strip the POST body |
+| Signature validation failures in app logs | Parameter Store `/footbag/{env}/stripe/webhook_secret` matches the signing secret in the Stripe Dashboard for that endpoint; recent rotation per §5.5 was completed and the app was restarted afterward; request timestamp skew (Stripe rejects events older than 5 minutes by default; the app should match); raw payload preserved exactly (Express body parsing must capture the raw body before JSON parsing) |
+| Idempotency table grows without corresponding payment progress | the handler is inserting into `stripe_events` but failing in the subsequent transaction; check error logs for the specific `event_id`; verify the state-machine transitions are valid for the incoming event |
+| Stripe retries exhausted (event marked failed in the Dashboard) | use the Stripe Dashboard event view to replay the event manually; if the issue is now fixed, the replay succeeds; if not, fix the root cause and replay |
+
+Resolution order:
+
+1. Confirm the webhook endpoint is reachable: `curl -I https://<domain>/webhooks/stripe` from outside the network. Expect 405 Method Not Allowed (or 200 to OPTIONS), not connection refused or 404.
+2. Verify the signing secret: `aws ssm get-parameter --with-decryption --name /footbag/{env}/stripe/webhook_secret --query Parameter.Value --output text` and compare against the Stripe Dashboard webhook view.
+3. Check app logs for the failing `event_id`; distinguish signature-validation error from handler error.
+4. If the signing secret was recently rotated, confirm the app has restarted since rotation (per §5.5).
+5. If the issue is transient or fixed, replay the failed event from the Stripe Dashboard. If the failure persists, escalate per §13.9.
+
+Related: §5.5 (key and secret rotation), §15.4 (secret/config troubleshooting).
+
+### 15.8 Incident postmortem template
+
+Use after any SEV-1 or SEV-2 incident (per §13.9). Within one week of resolution, capture the following sections:
+
+**Title**: one-line incident name plus severity plus duration (e.g. "SEV-1 origin outage 2026-04-27 14:15 to 15:02 UTC").
+
+**Summary**: one paragraph covering what happened, who noticed, how it was resolved.
+
+**Timeline**: chronological list, each entry `<UTC time>: <event or action>`. Start at first signal (alarm fired, user report) and end at full recovery.
+
+**Impact**: users affected (count or fraction), transactions lost, revenue impact (Stripe webhook gap), data integrity (any rows affected). If unknown, say so explicitly and add a follow-up to investigate.
+
+**Root cause**: the single change or condition that caused the incident. If multiple, identify the primary one and list contributors separately.
+
+**Contributing factors**: anything that made the incident worse than it had to be (slow detection, missing alarm, ambiguous runbook, deferred work).
+
+**Immediate fix**: what was done to recover. Include any temporary workarounds left in place.
+
+**Prevention measures**: concrete actions to prevent recurrence. Each one carries an owner and a due date. Example: "Add CloudWatch alarm on `BackupAgeMinutes` exceeding 10 minutes (owner: maintainer, due: 2026-05-15)".
+
+**Lessons learned**: short list of generalizable insights (not action items, just observations).
+
+Cadence and rules:
+
+- postmortem complete within one week of resolution
+- reviewed at the next monthly routine task per §13.1
+- blameless framing: focus on systems, processes, and decisions; do not name individuals as responsible parties
+- prevention measures are tracked to completion; carry forward each month if not done by the due date
+
+Storage: a `docs/postmortems/` subdirectory committed to the repository, one Markdown file per incident named `YYYY-MM-DD-<short-slug>.md`. Postmortems are part of the operational record and are reviewed during volunteer onboarding per §13.6.
+
 ---
 
 ## 16. Operator Checklists
@@ -1519,589 +1731,3 @@ Per-secret runbooks: §5.5 (Stripe), §5.6 (JWT/KMS), §5.7 (source-profile acce
 - issues logged
 - follow-up actions assigned
 
----
-
-## 17. AWS Bootstrap and Initial Deployment
-
-This section is the authoritative hands-on reference for bootstrapping a blank AWS account
-and completing the first staging deployment. It absorbs the content previously in the
-separate `docs/AWS_GUIDE_V0_1.md` draft (which is not checked in and should be deleted
-locally once this section is confirmed complete).
-
-For the developer-facing step-by-step walkthrough, see `DEV_ONBOARDING.md` Path D.
-This section is the operational reference: it explains what each step controls, what the
-constraints are, and what to do when things go wrong.
-
----
-
-### 17.1 AWS account structure
-
-| Item | Value |
-|------|-------|
-| Account purpose | Footbag Platform — all environments |
-| Environments present | `staging` |
-| Environments planned | `production` |
-| Primary region | `us-east-1` |
-| Terraform state | S3 backend with `use_lockfile = true` |
-| Operator identity | `footbag-operator` IAM user (bootstrap shortcut — scope down after first deploy) |
-
-> **PLACEHOLDER:** When production is added, decide whether it lives in the same AWS account
-> (with strict IAM boundaries) or a separate account. A separate account is the cleaner
-> long-term model but adds management overhead for a small volunteer project.
-
----
-
-### 17.2 Root account hardening
-
-**One-time procedure. Do not reuse root for ongoing work.**
-
-1. Sign in as root at https://console.aws.amazon.com → **Root user**.
-2. Enable MFA: click your account name (top right) → **Security credentials** → scroll to
-   **Multi-factor authentication (MFA)** → **Assign MFA device**. Name it `root-mfa`, choose
-   **Authenticator app**, and on the QR code screen look for the **"show secret key"** link —
-   copy that text string. Store the secret key as a TOTP field in the team KeePassXC vault.
-   Do not store it on a single device. Use KeePassXC to generate two consecutive TOTP codes
-   to complete enrollment.
-3. Confirm no root access keys exist: still on **Security credentials**, scroll to **Access
-   keys**. Delete any that exist.
-4. Sign out of root.
-
-Do not use root again except to complete the next bootstrap step (creating the first operator
-identity), then only in an account-recovery emergency.
-
-**Team secrets vault:** Shared administrative credentials (root sign-in and MFA seed,
-initial operator IAM access keys, and additional shared secrets as they accrue) are kept
-in an encrypted vault managed in KeePassXC. Vault access is restricted to current project
-maintainers. The vault file and its master key are transferred only through a private,
-unarchived channel; never through email, chat, any repository, or any other archived
-medium. To revoke access: remove the departing contributor from the channel used to share
-the vault file, rotate the master password, and rotate every secret the vault contains.
-
----
-
-### 17.3 First operator identity
-
-Sign in as root one more time to create the first IAM user.
-
-1. Search bar → **IAM** → **Users** → **Create user**. User name: `footbag-operator`.
-2. Choose **Attach policies directly** → search for and check **AdministratorAccess** → **Next**
-   → **Create user**.
-
-   > **Bootstrap shortcut:** `AdministratorAccess` is intentionally broad for the bootstrap
-   > phase. Scope it down after first successful deploy — see §17.9.
-
-3. Enable MFA for `footbag-operator`: click `footbag-operator` → **Security credentials** tab
-   → **MFA** → **Assign MFA device**. Name it `footbag-operator-mfa`, choose **Authenticator
-   app**. Scan, enter two codes, click **Add MFA**.
-
-4. Create CLI access keys: still on **Security credentials** → **Access keys** → **Create
-   access key** → use case: **Command Line Interface (CLI)** → check acknowledgement → **Next**
-   → description tag `footbag-operator-bootstrap` → **Create access key**. **Copy both the
-   Access Key ID and Secret Access Key immediately.** Click **Download .csv** and store it
-   securely outside the repo. Click **Done**.
-
-   > AWS shows the Secret Access Key only once. If you lose it, delete the key and create a new one.
-
-5. Sign out of root. Root work is complete.
-
----
-
-### 17.4 AWS CLI configuration (WSL)
-
-All remaining steps run in the **WSL Ubuntu terminal**.
-
-```bash
-# Confirm AWS CLI is installed
-aws --version
-# Expected: aws-cli/2.x.x Python/3.x.x Linux/...
-
-# Configure the operator profile
-aws configure --profile footbag-operator
-# Enter when prompted:
-#   AWS Access Key ID:     <paste from step 17.3>
-#   AWS Secret Access Key: <paste from step 17.3>
-#   Default region name:   us-east-1
-#   Default output format: json
-
-# Activate for this shell session
-export AWS_PROFILE=footbag-operator
-
-# Verify
-aws sts get-caller-identity
-```
-
-Expected output:
-```json
-{
-    "UserId": "AIDAXXXXXXXXXXXXXXXXX",
-    "Account": "123456789012",
-    "Arn": "arn:aws:iam::123456789012:user/footbag-operator"
-}
-```
-
-> `export AWS_PROFILE=footbag-operator` applies only to the current shell session. Re-run
-> this export every time you open a new terminal before any Terraform or AWS CLI command.
-> This is a common source of mid-bootstrap failures.
-
-To make it persistent:
-```bash
-echo 'export AWS_PROFILE=footbag-operator' >> ~/.bashrc
-source ~/.bashrc
-```
-
-**Troubleshooting:**
-
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `InvalidClientTokenId` | Access Key ID wrong | Re-run `aws configure --profile footbag-operator` |
-| `SignatureDoesNotMatch` | Secret Access Key wrong | Re-run `aws configure --profile footbag-operator` |
-| `Could not connect to endpoint` | No internet from WSL | Check WSL network |
-
----
-
-### 17.5 Terraform remote state bootstrap
-
-`terraform/shared` uses local state intentionally — it is the thing that creates the remote
-backend. Apply it before initializing `terraform/staging`.
-
-```bash
-cd terraform/shared
-
-cat > terraform.tfvars <<EOF
-aws_account_id      = "YOUR_AWS_ACCOUNT_ID"
-state_bucket_suffix = "YOUR_UNIQUE_SUFFIX"
-EOF
-
-terraform init
-terraform validate
-terraform apply
-```
-
-After apply, record the state bucket name:
-```bash
-terraform output -raw terraform_state_bucket_name
-# Output format: footbag-terraform-state-<suffix>
-```
-
-Then:
-1. Open `terraform/staging/backend.tf` and replace the `TODO-set-unique-suffix` placeholder
-   with the real bucket name and region.
-2. Back up the shared local state immediately — if this state is ever lost, recreating it
-   against an existing bucket requires careful import to avoid destroying the bucket:
-   ```bash
-   cp terraform/shared/terraform.tfstate ~/footbag-shared-tfstate-backup.json
-   ```
-   Store this backup outside the repo.
-
-**Critical constraints:**
-- `terraform.tfvars` is gitignored via `*.tfvars` in `.gitignore` — never commit it;
-  `*.tfvars.example` files are tracked and safe to commit
-- `use_lockfile = true` requires Terraform >= 1.11 and AWS provider >= 5.x
-- Do not use DynamoDB locking — this project uses S3 native locking
-- AWS provider is pinned to `~> 5.0` — do not upgrade to v6 without reviewing the
-  migration guide (June 2025, breaking changes)
-- `use_lockfile = true` requires `s3:PutObject` and `s3:DeleteObject` on
-  `<bucket>/<key>*.tflock`; confirm the operator IAM policy includes these
-
----
-
-### 17.6 Lightsail constraints
-
-**Namespace collision:** Lightsail static IPs and instances share a single AWS namespace —
-they cannot have the same name. `lightsail.tf` uses `${local.prefix}-web-ip` for the
-static IP (`footbag-staging-web-ip`) and `${local.prefix}-web` for the instance
-(`footbag-staging-web`). Do not change these to the same value or instance creation fails
-with "Some names are already in use."
-
-**No public DNS hostname:** Lightsail does not provide public DNS hostnames. The
-`publicDnsName` field in the Lightsail API always returns `None` (unlike EC2). Construct
-the CloudFront origin hostname from the static IP Terraform output using nip.io (staging)
-or a real DNS A record (production). See §17.7.
-
-**No EC2 instance profiles:** Lightsail does not support EC2 instance profiles. The
-runtime AWS principal is a source-profile IAM user plus an AssumeRole chain to the
-`app-runtime` role declared in `iam.tf`. See §3.4 for the workload IAM model.
-
-**No user_data bootstrap:** `user_data` is intentionally omitted from `lightsail.tf`. All
-host bootstrap (Docker CE install, `/srv/footbag` setup, systemd service) is performed
-manually via SSH after first apply. See §17.8.
-
-**Terraform-managed firewall:** Do not change firewall rules in the Lightsail console —
-console changes are silently overwritten on the next `terraform apply`. To modify SSH
-access at any point, update `operator_cidrs` in `terraform.tfvars` and run `terraform apply`.
-
-**Port model (from `lightsail.tf`):**
-- Port 22: SSH, restricted to `operator_cidrs`
-- Port 2222: SSH alternate, restricted to `operator_cidrs` — use this if your ISP blocks port 22 to AWS EC2 IP ranges
-- Port 80: HTTP, open to `0.0.0.0/0` — CloudFront connects here; nginx proxies to the app container
-- Port 443: closed — TLS terminates at CloudFront, not at the origin
-
----
-
-### 17.7 Two-pass CloudFront bootstrap
-
-CloudFront requires a publicly resolvable DNS hostname as the origin domain — raw IPs are
-not supported. `cloudfront.tf` uses `var.lightsail_origin_dns`. The instance must exist
-before its static IP is known, which creates a chicken-and-egg problem: hence the two-pass
-apply pattern.
-
-**Pass 1:** set `enable_cloudfront = false` in `terraform.tfvars` and apply. This creates
-Lightsail resources only. After it completes:
-
-```bash
-STATIC_IP=$(terraform output -raw lightsail_static_ip)
-echo "${STATIC_IP}.nip.io"
-```
-
-**For staging:** use `<static_ip>.nip.io`. nip.io is a free public DNS service that
-resolves `<ip>.nip.io` to `<ip>`. Verify resolution before proceeding:
-```bash
-dig "${STATIC_IP}.nip.io" +short
-# Must return the static IP
-```
-
-**For production:** use a real DNS A record (e.g. `origin.footbag.org`) pointing to the
-static IP. **Do not use nip.io in production.**
-
-Set in `terraform/staging/terraform.tfvars`:
-```hcl
-lightsail_origin_dns = "34.x.x.x.nip.io"   # use your actual static IP
-enable_cloudfront    = true
-```
-
-**Pass 2:** apply the full stack including CloudFront:
-```bash
-terraform plan -out=tfplan
-terraform apply tfplan
-```
-
-After pass 2, CloudFront takes **15–30 minutes** to propagate globally. The
-`*.cloudfront.net` URL is assigned immediately but returns errors during propagation:
-```bash
-CF_ID=$(terraform output -raw cloudfront_distribution_id)
-aws cloudfront get-distribution \
-  --id "$CF_ID" \
-  --query 'Distribution.Status' \
-  --output text \
-  --profile footbag-operator
-```
-Wait for `Deployed` before testing through the edge.
-
-**CloudFront 5xx alarm:** Gated on `enable_cloudfront` (`count = var.enable_cloudfront ? 1 : 0`
-in `cloudwatch.tf`). Does not exist after pass 1. Created in pass 2 alongside the distribution.
-
-**CloudFront configuration (staging):**
-
-| Item | Value |
-|------|-------|
-| Distribution | `E1SJIAXV0H24H2` (Terraform-managed) |
-| Origin | `34.192.250.246.nip.io` (staging); real DNS A record for production |
-| Domain | `doye1nvv64qep.cloudfront.net` (custom domain attaches when Route 53 + ACM are wired per §17.7) |
-| HTTPS | CloudFront default certificate (ACM cert attaches with the custom domain) |
-| Protocol forwarding | `CloudFront-Forwarded-Proto` forwarded to origin and mapped to `X-Forwarded-Proto` in nginx |
-| Cache behaviors | Default (`Managed-CachingDisabled` — no HTML edge caching), `/css/*` `/js/*` `/img/*` `/fonts/*` (`Managed-CachingOptimized`, long TTL), `/media/*` (custom cache policy with query string in cache key for `?v=` cache-bust), `/health/*` (`Managed-CachingDisabled`) |
-
----
-
-### 17.8 Host bootstrap sequence
-
-After `terraform apply` completes and the static IP is available, bootstrap the host in this order.
-
-#### Step 1 — First SSH login and named operator account
-
-```bash
-LIGHTSAIL_IP=$(terraform output -raw lightsail_static_ip)
-ssh -i ~/.ssh/id_ed25519 -p 2222 ec2-user@$LIGHTSAIL_IP
-```
-
-> If port 2222 times out on a fresh instance, sshd has not yet been configured to listen
-> on it. Use the Lightsail browser SSH console (AWS Console → Lightsail →
-> `footbag-staging-web` → Connect) to log in as `ec2-user` and run:
-> ```bash
-> sudo sed -i 's/^#Port 22/Port 22\nPort 2222/' /etc/ssh/sshd_config && sudo systemctl reload sshd
-> ```
-> Then retry the SSH command.
-
-Once logged in as `ec2-user`, create your named operator account:
-
-```bash
-sudo useradd -m -G wheel yourname
-sudo mkdir -p /home/yourname/.ssh
-sudo bash -c 'echo "<your-ssh-public-key>" > /home/yourname/.ssh/authorized_keys'
-sudo chown -R yourname:yourname /home/yourname/.ssh
-sudo chmod 700 /home/yourname/.ssh
-sudo chmod 600 /home/yourname/.ssh/authorized_keys
-```
-
-> **Do not** use `tee <<< "..."` for the `authorized_keys` line on Amazon Linux 2023.
-> The `<<<` here-string wraps long keys across two lines, breaking SSH auth silently.
-> Use `sudo bash -c 'echo "..." > file'` instead.
-
-Verify from a second terminal **before** leaving `ec2-user`:
-```bash
-ssh -i ~/.ssh/id_ed25519 -p 2222 yourname@$LIGHTSAIL_IP
-sudo whoami   # must return: root
-```
-
-#### Step 2 — Install Docker CE
-
-Amazon Linux 2023 default repos do not include Docker CE. Add the Docker repo first:
-
-```bash
-sudo dnf install -y dnf-plugins-core
-sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
-sudo dnf install -y \
-  docker-ce \
-  docker-ce-cli \
-  containerd.io \
-  docker-buildx-plugin \
-  docker-compose-plugin \
-  sqlite \
-  rsync
-sudo systemctl enable --now docker
-sudo usermod -aG docker yourname
-```
-
-Log out and back in so group membership takes effect. Verify:
-```bash
-docker --version && docker compose version && sqlite3 --version
-```
-
-All three must return version strings.
-
-#### Step 3 — Prepare /srv/footbag and env file
-
-```bash
-sudo mkdir -p /srv/footbag
-sudo tee /srv/footbag/env > /dev/null <<EOF
-NODE_ENV=production
-LOG_LEVEL=info
-FOOTBAG_DB_PATH=/srv/footbag/db/footbag.db
-FOOTBAG_DB_DIR=/srv/footbag/db
-PUBLIC_BASE_URL=https://<cloudfront_domain from terraform output>
-EOF
-sudo chown root:root /srv/footbag/env
-sudo chmod 600 /srv/footbag/env
-```
-
-Required values: `NODE_ENV`, `LOG_LEVEL`, `FOOTBAG_DB_PATH`, `FOOTBAG_DB_DIR`, `PUBLIC_BASE_URL`.
-
-**Do not add runtime AWS credentials to `/srv/footbag/env`.** Runtime credentials live at
-`/root/.aws/credentials` under the source-profile IAM user; this file holds only
-`AWS_PROFILE` and other non-secret runtime config. See §3.4 and §17.9 for the full
-runtime credential model.
-
-#### Step 4 — Rsync application files (from local machine)
-
-```bash
-rsync -av --delete -e "ssh -p 2222" \
-  --exclude=node_modules \
-  --exclude=.git \
-  --exclude=.terraform \
-  --exclude=legacy_data \
-  --exclude=terraform \
-  --exclude=tests \
-  --exclude=docs \
-  --exclude=ifpa \
-  --exclude=.claude \
-  --exclude=aws \
-  --exclude=coverage \
-  --exclude=.env \
-  --exclude='.env.*' \
-  --exclude='*.db' \
-  --exclude='*.db-shm' \
-  --exclude='*.db-wal' \
-  ./ yourname@$LIGHTSAIL_IP:~/footbag-release/
-```
-
-> Adjust `-p 2222` to match your configured SSH port if different.
-
-Then on the host, promote to the runtime path:
-```bash
-sudo rsync -a --delete ~/footbag-release/ /srv/footbag/
-sudo chown -R root:root /srv/footbag
-```
-
-> Promote from a user-owned staging path into `/srv/footbag`. Do not copy directly into
-> the root-owned runtime path from your laptop.
-
-#### Step 5 — Initialize the database (first deploy only)
-
-```bash
-sudo sqlite3 /srv/footbag/db/footbag.db < /srv/footbag/database/schema.sql
-# Then load seed data: run scripts/reset-local-db.sh from the repo root
-sudo chown root:root /srv/footbag/db/footbag.db
-sudo chmod 600 /srv/footbag/db/footbag.db
-```
-
-On later deploys, reuse the existing DB file — do not re-run this step.
-
-#### Step 6 — Install and start footbag.service
-
-```bash
-cd /srv/footbag
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
-sudo cp ops/systemd/footbag.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now footbag
-sudo systemctl status footbag
-docker ps
-```
-
-Expected:
-- `footbag.service` may show `active (exited)` — correct for `Type=oneshot` with `RemainAfterExit=yes`
-- nginx and web containers running
-- worker container runs the email outbox drain (`src/worker.ts`); short `Exited (0)` cycles between polls are normal
-- worker must not be restart-looping
-
----
-
-### 17.9 IAM identity model
-
-| Identity | Type | Permissions | Purpose |
-|----------|------|-------------|---------|
-| Root user | AWS root | Unrestricted | Account recovery only |
-| `footbag-operator` | IAM user | `AdministratorAccess` during bootstrap; scoped down after first deploy | Human operator (Terraform + CLI) |
-| `footbag-<env>-source-profile` | IAM user | `sts:AssumeRole` onto the runtime role only | Long-lived credential host for the AssumeRole chain |
-| `footbag-<env>-app-runtime` | IAM role | KMS Sign, SES Send, SSM read, S3 snapshot write | Runtime principal assumed by the app via the source-profile chain |
-
-**Scope down footbag-operator after first successful deploy:**
-
-The services touched by the current Terraform are: Lightsail, CloudFront, S3 (state bucket
-+ project buckets), SSM, KMS, SNS, CloudWatch, and IAM (to create the app-runtime role).
-Review each `.tf` file to derive the exact actions needed, then replace `AdministratorAccess`
-with a least-privilege custom policy or IAM Identity Center permission set.
-
-In IAM Console: IAM → Users → `footbag-operator` → **Permissions** tab → Detach
-`AdministratorAccess` → Attach the scoped-down policy → Re-run `aws sts get-caller-identity`
-and `terraform plan` to confirm the new permissions are sufficient.
-
-**Remove long-lived access keys** after confirming MFA-backed short-lived credentials or
-IAM Identity Center work: IAM → Users → `footbag-operator` → **Security credentials** →
-**Access keys** → **Deactivate** first (confirm nothing breaks) → **Delete**.
-
-**Retire ec2-user** once your named operator accounts are confirmed working with `sudo`:
-```bash
-sudo passwd -l ec2-user
-# optionally: sudo userdel -r ec2-user
-```
-
----
-
-### 17.10 S3 bucket inventory (staging)
-
-| Bucket | Purpose | Managed by |
-|--------|---------|------------|
-| `footbag-terraform-state-<suffix>` | Terraform remote state | `terraform/shared` |
-| `footbag-staging-snapshots` | SQLite DB backups | `terraform/staging` |
-| `footbag-staging-dr` | Disaster recovery copies | `terraform/staging` |
-| `footbag-staging-maintenance` | Maintenance page HTML | `terraform/staging` |
-| `footbag-staging-media` | Media assets (Phase 3+ media pipeline) | `terraform/staging` |
-
-All project buckets are created by Terraform with versioning and encryption enabled.
-
----
-
-### 17.11 SSM Parameter Store
-
-Provisioned by `terraform/staging/ssm.tf` as reference storage:
-
-```
-/footbag/staging/app/port
-/footbag/staging/app/log_level
-/footbag/staging/app/public_base_url
-/footbag/staging/app/db_path
-```
-
-Additional keys used by later phases of the platform:
-```
-/footbag/staging/app/node_env
-/footbag/staging/secrets/origin_verify_secret
-```
-
-**The running app reads `/srv/footbag/env`, not SSM.** Updating Parameter Store does not change the running app. With one exception: the deploy remote-half (`scripts/internal/deploy-{code,rebuild}-remote.sh`) reads `/footbag/{env}/secrets/origin_verify_secret` from SSM at every deploy and atomically rewrites the `X_ORIGIN_VERIFY_SECRET=` line in `/srv/footbag/env` before restarting the service (§5.9). For all other parameters in this namespace, SSM is reference-only and updating Parameter Store does not change the running app — update `/srv/footbag/env` and restart.
-
----
-
-### 17.12 Monitoring
-
-| Signal | Gate | Rule |
-|--------|------|------|
-| CloudFront 5xx alarm | `enable_cloudfront` | Created only when the CloudFront distribution is created (two-pass bootstrap, §17.7) |
-| SNS email subscription | First apply | Confirm via the link sent to `alarm_email`; alarms do not deliver until confirmed |
-| CWAgent CPU/memory alarms | `enable_cwagent_alarms` | Enable only after CWAgent is installed and emitting metrics |
-| DB backup age alarm | `enable_backup_alarm` | Enable only after the backup producer emits `BackupAgeMinutes` to the `Footbag/{env}` CloudWatch namespace; uses `treat_missing_data = "breaching"`, so enabling before the producer exists fires continuously |
-
-Alarms for signals that do not exist are worse than no alarms, because they train
-operators to ignore monitoring.
-
----
-
-### 17.13 Subsequent deploy procedure
-
-After the first successful deploy, subsequent deploys follow this sequence.
-
-From local machine:
-```bash
-export LIGHTSAIL_IP=$(cd terraform/staging && terraform output -raw lightsail_static_ip)
-
-rsync -av --delete -e "ssh -p 2222" \
-  --exclude=node_modules \
-  --exclude=.git \
-  --exclude=.terraform \
-  --exclude=legacy_data \
-  --exclude=terraform \
-  --exclude=tests \
-  --exclude=docs \
-  --exclude=ifpa \
-  --exclude=.claude \
-  --exclude=aws \
-  --exclude=coverage \
-  --exclude=.env \
-  --exclude='.env.*' \
-  --exclude='*.db' \
-  --exclude='*.db-shm' \
-  --exclude='*.db-wal' \
-  ./ yourname@$LIGHTSAIL_IP:~/footbag-release/
-```
-
-On the host:
-```bash
-sudo rsync -a --delete ~/footbag-release/ /srv/footbag/
-sudo chown -R root:root /srv/footbag
-
-cd /srv/footbag
-docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
-sudo systemctl restart footbag
-sudo systemctl status footbag
-```
-
-Verify:
-```bash
-BASE_URL=http://$LIGHTSAIL_IP ./scripts/smoke-local.sh
-```
-
----
-
-### 17.14 Bootstrap confirmation checklist
-
-Before moving to host bootstrap, confirm all of these:
-
-- [ ] Root MFA enabled; no root access keys exist; root not used for ongoing work
-- [ ] `footbag-operator` IAM user created with `AdministratorAccess`
-- [ ] `footbag-operator` MFA enabled
-- [ ] CLI access keys created and stored in KeePassXC vault (not in repo)
-- [ ] `aws configure --profile footbag-operator` completed
-- [ ] `export AWS_PROFILE=footbag-operator` set in this terminal
-- [ ] `aws sts get-caller-identity` returns correct account and `user/footbag-operator`
-- [ ] `terraform/shared` applied successfully
-- [ ] State bucket name recorded; `terraform/staging/backend.tf` placeholder replaced with real bucket name
-- [ ] Shared local state backed up outside the repo
-- [ ] `terraform/staging` pass 1 applied (`enable_cloudfront = false`)
-- [ ] Static IP captured; nip.io hostname constructed and verified with `dig`
-- [ ] `lightsail_origin_dns` and `enable_cloudfront = true` set in `terraform.tfvars`
-- [ ] `terraform/staging` pass 2 applied (full stack including CloudFront)
-- [ ] SNS email subscription confirmed
-- [ ] CloudFront status `Deployed` confirmed before testing through edge
-- [ ] Host bootstrap complete (§17.8 steps 1–6)
-- [ ] Application smoke checks pass (§4.9 of DEV_ONBOARDING.md)
