@@ -2813,7 +2813,8 @@ CREATE TABLE legacy_club_candidates (
   country          TEXT,
   confidence_score REAL,
   mapped_club_id   TEXT REFERENCES clubs(id),
-  bootstrap_eligible INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_eligible IN (0,1))
+  bootstrap_eligible INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_eligible IN (0,1)),
+  classification     TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk'))
 );
 
 CREATE UNIQUE INDEX ux_legacy_club_candidates_key

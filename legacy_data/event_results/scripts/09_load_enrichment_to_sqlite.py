@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import sys
 try:
     import pysqlite3 as sqlite3
 except ImportError:
@@ -83,6 +84,19 @@ def opt_float(val: str) -> float | None:
 def opt_str(val: str) -> str | None:
     v = val.strip()
     return v if v else None
+
+
+# Allowed values for legacy_club_candidates.classification, matching the
+# CHECK constraint in database/schema.sql. Kept in sync with the CSV producer
+# at clubs/scripts/02_build_legacy_club_candidates.py.
+ALLOWED_CLASSIFICATIONS = frozenset({
+    "pre_populate", "onboarding_visible", "dormant", "junk",
+})
+
+
+def norm_classification(raw: str) -> str:
+    """Normalise a CSV classification value: trim + lowercase. Empty stays empty."""
+    return (raw or "").strip().lower()
 
 
 def parse_bool_col(value: str) -> int:
@@ -214,6 +228,26 @@ def main() -> None:
     print(f"Persons master:       {len(persons_rows):,} rows")
     print(f"Club candidates:      {len(candidates_rows):,} rows")
     print(f"Person affiliations:  {len(affiliations_rows):,} rows")
+
+    # Pre-load validation: every candidate row must carry a recognised
+    # classification. Fail fast before any DB write so a bad CSV does not
+    # blow away the existing legacy_club_candidates table mid-transaction.
+    _bad_classifications: list[tuple[str, str]] = []
+    for _row in candidates_rows:
+        _val = norm_classification(_row.get("category", ""))
+        if _val not in ALLOWED_CLASSIFICATIONS:
+            _bad_classifications.append((_row.get("club_key", "?"), _row.get("category", "")))
+    if _bad_classifications:
+        print(
+            f"ERROR: {len(_bad_classifications)} row(s) in {candidates_csv} have "
+            f"unrecognised category. Allowed: {sorted(ALLOWED_CLASSIFICATIONS)}",
+            file=sys.stderr,
+        )
+        for _key, _val in _bad_classifications[:20]:
+            print(f"  club_key={_key!r}: category={_val!r}", file=sys.stderr)
+        if len(_bad_classifications) > 20:
+            print(f"  ... and {len(_bad_classifications) - 20} more", file=sys.stderr)
+        raise SystemExit(1)
 
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
@@ -356,14 +390,41 @@ def main() -> None:
             lcc_id = stable_id("lcc", club_key)
             candidate_id_map[club_key] = lcc_id
 
+            # Defensive normalisation (pre-load already validated). Empty maps
+            # to None so a missing value surfaces as a clean NOT NULL violation
+            # instead of a silent CHECK failure on empty string. Anything that
+            # somehow slipped past pre-load is logged before the INSERT attempt.
+            _classification_raw = row.get("category", "")
+            _classification = norm_classification(_classification_raw)
+            if not _classification:
+                import sys
+                print(
+                    f"  WARN: candidate {club_key!r} has empty category; "
+                    f"INSERT will fail NOT NULL",
+                    file=sys.stderr,
+                )
+                _classification_to_bind = None
+            elif _classification not in ALLOWED_CLASSIFICATIONS:
+                import sys
+                print(
+                    f"  WARN: candidate {club_key!r} category="
+                    f"{_classification_raw!r} normalised={_classification!r} "
+                    f"not in allowed set; INSERT will fail CHECK",
+                    file=sys.stderr,
+                )
+                _classification_to_bind = _classification
+            else:
+                _classification_to_bind = _classification
+
             try:
                 cur = conn.execute(
                     """
                     INSERT OR IGNORE INTO legacy_club_candidates (
                       id, created_at, created_by, updated_at, updated_by, version,
                       legacy_club_key, display_name, city, country,
-                      confidence_score, mapped_club_id, bootstrap_eligible
-                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NULL, ?)
+                      confidence_score, mapped_club_id, bootstrap_eligible,
+                      classification
+                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NULL, ?, ?)
                     """,
                     (
                         lcc_id, ts, system_user, ts, system_user,
@@ -373,6 +434,7 @@ def main() -> None:
                         opt_str(row.get("country", "")),
                         opt_float(row.get("confidence_score", "")),
                         parse_bool_col(row.get("bootstrap_eligible", "0")),
+                        _classification_to_bind,
                     ),
                 )
                 # cur.rowcount reports actual DB writes; raw += 1 would count

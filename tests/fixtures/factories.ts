@@ -408,25 +408,30 @@ export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): s
 
 // ── Legacy club candidate ─────────────────────────────────────────────────────
 
+export type LegacyClubCandidateClassification =
+  'pre_populate' | 'onboarding_visible' | 'dormant' | 'junk';
+
 export interface LegacyClubCandidateOverrides {
   id?: string;
   legacy_club_key?: string;
   display_name?: string;
   mapped_club_id?: string | null;
+  classification?: LegacyClubCandidateClassification;
 }
 
 export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyClubCandidateOverrides = {}): string {
   const id = o.id ?? `lcc-test-${uid()}`;
   db.prepare(`
     INSERT INTO legacy_club_candidates (
-      id, legacy_club_key, display_name, mapped_club_id,
+      id, legacy_club_key, display_name, mapped_club_id, classification,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id,
     o.legacy_club_key ?? `legacy_club_${uid()}`,
     o.display_name    ?? 'Test Club',
     o.mapped_club_id  !== undefined ? o.mapped_club_id : null,
+    o.classification  ?? 'junk',
     TS, SYS, TS, SYS,
   );
   return id;
