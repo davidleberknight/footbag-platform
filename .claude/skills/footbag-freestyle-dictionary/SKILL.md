@@ -47,6 +47,18 @@ A trick should generally have:
 
 Do not store glossary terms here.
 
+### Direction is structural
+
+Direction changes create new canonical tricks. A direction-reversed movement is its own dictionary entry, not the same trick with a qualifier.
+
+Examples (Red-confirmed):
+
+- mirage ≠ illusion
+- spinning ≠ inspinning
+- ATW ≠ reverse ATW
+
+If two moves differ in spin / dex / movement direction, they get separate dictionary entries even when their structural skeleton is otherwise identical.
+
 ---
 
 ## 2. Modifier Layer

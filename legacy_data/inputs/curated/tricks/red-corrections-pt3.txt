@@ -1,0 +1,50 @@
+Hey James,
+Here is the next chunk. Sorry I have to break it up, it's a lot of information to cover.
+
+
+We see "Double" used in multiple contexts with different meanings:
+- Double Legover (3) = two sequential legover dex elements?
+- Double Fairy (3) = ?
+- Double Blender (5) = ?
+- Double Spinning Osis (5) = ?
+Double is not its own set of moves (like stepping) but only signifies someone has done a double dexterity or double body spin.
+
+Double Leg Over is a Miraging Legover. It gets two dex ADDs and one stall ADD.
+Double Fairy term isn't used much, it is really a Double Illusion. Two dexes and a toe stall.
+Double Blender is a Whirling Blender, so two dexes and an Osis = 5 ADDs.
+Double Spinning Osis is just that, two spins to an Osis, = 5 ADDs.
+
+Double can involve different trick families.
+
+
+**Q5.3 — Inspinning vs Spinning: what's the difference?**
+
+footbag.org lists both "Spinning" tricks (which we have) and "Inspinning" tricks:
+- Inspinning Same Side Mirage (3 ADD)
+- Inspinning Same Side Illusion (3 ADD)
+- Inspinning Butterfly (4 ADD)
+- Inspinning Paradox Mirage (4 ADD)
+- Inspinning Paradox Illusion (4 ADD)
+
+All have alt_name "front" — suggesting the spin direction is inward/forward.
+Is "Inspinning" the same as "Spinning" with a direction qualifier, or a meaningfully different technique?
+Should Inspinning tricks be separate entries or aliases for Spinning variants?
+
+Traditional Spinning is setting the bag from a clipper and spinning away from the bag. So if it is set from a right Clipper, the player would spin counter clockwise.
+Traditional Inspinning is setting the bag from a clipper and spinning toward the bag. So if it is set from a right Clipper, the player would spin clockwise.
+
+Spinning and Inspinning are different and should be treated as such.
+
+
+
+**Q5.4 — Tapping modifier: is it the same as what we call "Stepping"?**
+
+footbag.org lists:
+- Tap (3 ADD) = Tapping Mirage
+- Tapping Illusion (3 ADD)
+- Tapping Legover (3 ADD)
+
+Our dictionary has Stepping Osis (in the Osis family) but "Tapping" is not explicitly in our modifier table.
+Is Tapping the same technique as Stepping? Or is it a distinct body element?
+
+Tapping is not Stepping. Tapping is its own group of moves. Tapping is essentially Atomic set to a same-side dex (dexing again with the same foot).
