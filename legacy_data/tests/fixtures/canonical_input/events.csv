@@ -1,0 +1,6 @@
+event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,region,country,host_club,event_type,status,notes,source
+2020_testfixture_alpha,2020_testfixture_alpha,2020,CI Fixture Alpha Open,testfixture_alpha,2020-06-01,2020-06-03,Alpha City,Region A,United States,Alpha Footbag Club,worlds,completed,CI fixture row — not real event,test_fixture
+2020_testfixture_beta,2020_testfixture_beta,2020,CI Fixture Beta Freestyle,testfixture_beta,2020-08-15,2020-08-15,Beta City,Region B,United States,,freestyle,completed,CI fixture row — not real event,test_fixture
+2021_testfixture_gamma,2021_testfixture_gamma,2021,CI Fixture Gamma Mixed,testfixture_gamma,2021-04-10,2021-04-11,Gamma City,Region G,Canada,,net,completed,CI fixture row — not real event,test_fixture
+2021_testfixture_delta,2021_testfixture_delta,2021,CI Fixture Delta Consecutives,testfixture_delta,2021-09-20,2021-09-20,Delta City,Region D,United States,,consecutives,completed,CI fixture row — not real event,test_fixture
+2022_testfixture_epsilon,2022_testfixture_epsilon,2022,CI Fixture Epsilon Doubles Net,testfixture_epsilon,2022-07-04,2022-07-05,Epsilon City,Region E,Germany,,net,completed,CI fixture row — not real event,test_fixture

@@ -1,0 +1,17 @@
+event_key,discipline_key,placement,score_text,notes,source
+2020_testfixture_alpha,open_singles_freestyle,1,,,test_fixture
+2020_testfixture_alpha,open_singles_freestyle,2,,,test_fixture
+2020_testfixture_alpha,open_doubles_freestyle,1,,,test_fixture
+2020_testfixture_alpha,open_singles_net,1,,,test_fixture
+2020_testfixture_alpha,open_doubles_net,1,,,test_fixture
+2020_testfixture_alpha,open_singles_consecutive,1,(123),,test_fixture
+2020_testfixture_beta,open_singles_freestyle,1,,,test_fixture
+2020_testfixture_beta,open_singles_freestyle,2,,,test_fixture
+2020_testfixture_beta,women_singles_freestyle,1,,,test_fixture
+2021_testfixture_gamma,open_doubles_net,1,,,test_fixture
+2021_testfixture_gamma,open_doubles_net,2,,,test_fixture
+2021_testfixture_gamma,open_singles_net,1,,,test_fixture
+2021_testfixture_delta,open_singles_consecutive,1,(456),,test_fixture
+2021_testfixture_delta,open_doubles_consecutive,1,(789),,test_fixture
+2022_testfixture_epsilon,open_doubles_net,1,,,test_fixture
+2022_testfixture_epsilon,open_doubles_net,2,,,test_fixture

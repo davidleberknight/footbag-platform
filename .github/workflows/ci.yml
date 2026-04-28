@@ -66,9 +66,37 @@ jobs:
       - name: Run integration tests
         run: npm run test:integration
 
+  db-load-smoke:
+    name: DB load smoke (loader regression gate)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sqlite3 CLI
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Stage CI fixtures into pipeline paths
+        run: bash scripts/ci/stage_loader_smoke_fixtures.sh
+
+      - name: Run reset-local-db.sh against fixtures
+        env:
+          FOOTBAG_DB_PATH: ./database/footbag-ci.db
+          FOOTBAG_MIRROR_AGE_ACK: '1'
+          STUB_PASSWORD: ci-not-a-real-password
+        run: bash scripts/reset-local-db.sh
+
+      - name: Assert per-table row counts
+        run: python3 scripts/ci/assert_loader_row_counts.py --db ./database/footbag-ci.db
+
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, unit-tests, integration-tests]
+    needs: [typecheck, unit-tests, integration-tests, db-load-smoke]
     runs-on: ubuntu-latest
     if: always()
 
@@ -77,11 +105,13 @@ jobs:
         run: |
           if [ "${{ needs.typecheck.result }}" != "success" ] || \
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
-             [ "${{ needs.integration-tests.result }}" != "success" ]; then
+             [ "${{ needs.integration-tests.result }}" != "success" ] || \
+             [ "${{ needs.db-load-smoke.result }}" != "success" ]; then
             echo "One or more jobs failed:"
             echo "  typecheck: ${{ needs.typecheck.result }}"
             echo "  unit-tests: ${{ needs.unit-tests.result }}"
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
+            echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
             exit 1
           fi
 

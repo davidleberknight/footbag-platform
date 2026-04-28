@@ -1,0 +1,13 @@
+event_key,discipline_key,discipline_name,discipline_category,team_type,sort_order,coverage_flag,notes
+2020_testfixture_alpha,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,1,full,
+2020_testfixture_alpha,open_doubles_freestyle,Open Doubles Freestyle,freestyle,doubles,2,full,
+2020_testfixture_alpha,open_singles_net,Open Singles Net,net,singles,3,full,
+2020_testfixture_alpha,open_doubles_net,Open Doubles Net,net,doubles,4,full,
+2020_testfixture_alpha,open_singles_consecutive,Open Singles Consecutive,consecutive,singles,5,full,
+2020_testfixture_beta,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,1,full,
+2020_testfixture_beta,women_singles_freestyle,Women Singles Freestyle,freestyle,singles,2,full,
+2021_testfixture_gamma,open_doubles_net,Open Doubles Net,net,doubles,1,full,
+2021_testfixture_gamma,open_singles_net,Open Singles Net,net,singles,2,full,
+2021_testfixture_delta,open_singles_consecutive,Open Singles Consecutive,consecutive,singles,1,full,
+2021_testfixture_delta,open_doubles_consecutive,Open Doubles Consecutive,consecutive,doubles,2,full,
+2022_testfixture_epsilon,open_doubles_net,Open Doubles Net,net,doubles,1,full,

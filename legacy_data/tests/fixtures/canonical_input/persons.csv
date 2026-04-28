@@ -1,0 +1,9 @@
+person_id,person_name,member_id,legacy_user_id,legacy_email,country,first_year,last_year,event_count,placement_count,bap_member,bap_nickname,bap_induction_year,hof_member,hof_induction_year,freestyle_sequences,freestyle_max_add,freestyle_unique_tricks,freestyle_diversity_ratio,signature_trick_1,signature_trick_2,signature_trick_3
+11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa,Alpha Player One,90001,fixt_alpha_one,,United States,2020,2021,2,3,0,,,0,,,,,,,,
+22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb,Alpha Player Two,90002,fixt_alpha_two,,United States,2020,2021,2,3,0,,,0,,,,,,,,
+33333333-cccc-4ccc-8ccc-cccccccccccc,Alpha Player Three,90003,,,United States,2020,2022,2,2,0,,,0,,,,,,,,
+44444444-dddd-4ddd-8ddd-dddddddddddd,Alpha Player Four,,,,United States,2020,2021,2,2,0,,,0,,,,,,,,
+55555555-eeee-4eee-8eee-eeeeeeeeeeee,Beta Player One,,,,United States,2020,2021,2,2,0,,,0,,,,,,,,
+66666666-ffff-4fff-8fff-ffffffffffff,Beta Player Two,,,,United States,2020,2022,2,2,0,,,0,,,,,,,,
+77777777-1111-4111-8111-111111111111,Beta Player Three,,,,United States,2020,2022,2,2,0,,,0,,,,,,,,
+88888888-2222-4222-8222-222222222222,Gamma Player One,,,,Canada,2021,2022,2,2,0,,,0,,,,,,,,

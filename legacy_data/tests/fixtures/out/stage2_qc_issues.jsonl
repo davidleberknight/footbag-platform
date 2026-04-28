@@ -1,0 +1,1 @@
+{"check_id": "ci_fixture_stub", "severity": "INFO", "event_id": "2020_testfixture_alpha", "field": "host_club", "message": "CI fixture stub QC issue (synthetic; not real)", "example_value": "Alpha Footbag Club", "context": {}}
