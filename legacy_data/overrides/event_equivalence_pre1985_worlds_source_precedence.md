@@ -1,9 +1,8 @@
-# Pre-1985 Worlds source-precedence rules — PROPOSED
+# Pre-1985 Worlds source-precedence rules
 
-Status: **PROPOSED** — not approved, not enforced. These rules guide the
-human adjudication of `event_equivalence_pre1985_worlds_adjudication.csv`.
-Final rules will be promoted from this draft once the maintainer signs off
-per-rule.
+Status: **ACTIVE**. These rules govern adjudication of
+`event_equivalence_pre1985_worlds_adjudication.csv` and were applied for the
+2026-04-28 pre-1985 Worlds adjudication closure.
 
 ## Scope
 

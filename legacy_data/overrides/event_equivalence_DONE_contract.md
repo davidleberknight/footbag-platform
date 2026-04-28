@@ -9,7 +9,7 @@ A merge is DONE when:
 
 ---
 
-Status: PROPOSED — promote to authoritative once approved.
+Status: ACTIVE.
 
 Defines when an event-equivalence merge declared in
 `overrides/event_equivalence.csv` (action=merge) is considered DONE / locked,
