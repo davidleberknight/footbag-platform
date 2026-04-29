@@ -2,9 +2,11 @@ import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
   FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
   FreestylePartnershipRow,
+  CuratorSlotMediaRow,
   freestyleRecords, freestyleTricks, freestyleTrickModifiers, freestyleCompetition,
-  freestylePartnerships,
+  freestylePartnerships, media,
 } from '../db/db';
+import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
@@ -46,6 +48,25 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
 
 function labelForType(recordType: string): string {
   return RECORD_TYPE_LABELS[recordType] ?? recordType;
+}
+
+/**
+ * Load the system-account-owned demo loop for a landing-page slot tag.
+ * Returns null if no FH-owned media is tagged for this slot (e.g., before
+ * the curator seed has run).
+ */
+function loadCuratorDemoVideo(slotTag: string): FreestyleDemoVideo | null {
+  const tagNormalized = slotTag.toLowerCase();
+  const row = media.getCuratorSlotMedia.get(tagNormalized) as
+    | CuratorSlotMediaRow
+    | undefined;
+  if (!row || row.media_type !== 'video' || !row.video_id) return null;
+  const adapter = getMediaStorageAdapter();
+  return {
+    mp4Url: `${adapter.constructURL(row.video_id)}?v=${row.id}`,
+    posterUrl: row.thumbnail_url ?? '',
+    caption: row.caption ?? '',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +120,6 @@ export interface FreestyleCompetitionFormat {
 }
 
 export interface FreestyleDemoVideo {
-  webmUrl: string;
   mp4Url: string;
   posterUrl: string;
   caption: string;
@@ -109,7 +129,7 @@ export interface FreestyleLandingContent {
   mascotSrc: string;
   mascotAlt: string;
   intro: FreestyleLandingExplainer;
-  demoVideo: FreestyleDemoVideo;
+  demoVideo: FreestyleDemoVideo | null;
   getStartedTiles: FreestyleGetStartedTile[];
   competitionFormats: FreestyleCompetitionFormat[];
   totalRecords: number;
@@ -1120,12 +1140,7 @@ export const freestyleService = {
             'Practicing freestyle footbag is like having a gym in your pocket! When first learning the basics, all you need is casual clothes, shoes, and a footbag. Once you gain experience and begin to learn more difficult tricks, athletic clothes and a professional footbag with purpose-built shoes will help you play your best.',
           ],
         },
-        demoVideo: {
-          webmUrl: '/media/demo-freestyle.webm',
-          mp4Url: '/media/demo-freestyle.mp4',
-          posterUrl: '/media/demo-freestyle-poster.jpg',
-          caption: 'Demonstration of freestyle footbag',
-        },
+        demoVideo: loadCuratorDemoVideo('#demo_freestyle'),
         getStartedTiles: [
           { label: 'Where to buy footbags', href: '#', comingSoon: true },
           { label: 'Where to buy shoes',    href: '#', comingSoon: true },

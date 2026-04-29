@@ -33,6 +33,7 @@ import {
   insertNetTeam,
   insertNetTeamMember,
   insertNetTeamAppearance,
+  insertCuratorVideo,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3098');
@@ -207,16 +208,34 @@ describe('GET /net — portal landing sections', () => {
     expect(res.text).toContain('What is Footbag Net?');
   });
 
-  it('renders the self-hosted demo video with webm/mp4 sources and poster', async () => {
+  it('omits the demo-video figure when no curator-tagged FH media is seeded', async () => {
+    const app = createApp();
+    const res = await request(app).get('/net');
+    expect(res.text).not.toContain('class="demo-video"');
+  });
+
+  it('renders the curator-owned demo video when an FH-owned #demo_net item is seeded', async () => {
+    const seedDb = new BetterSqlite3(dbPath);
+    try {
+      const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-net' });
+      insertCuratorVideo(seedDb, {
+        uploaderMemberId: fhId,
+        slotTag: '#demo_net',
+        caption: 'Demonstration of footbag net',
+      });
+    } finally {
+      seedDb.close();
+    }
+
     const app = createApp();
     const res = await request(app).get('/net');
     expect(res.text).toContain('class="demo-video"');
-    expect(res.text).toContain('/media/demo-net.webm');
-    expect(res.text).toContain('/media/demo-net.mp4');
-    expect(res.text).toContain('/media/demo-net-poster.jpg');
+    expect(res.text).toMatch(/\/media\/[^"]+-video\.mp4\?v(?:=|&#x3D;)[^"]+/);
+    expect(res.text).toMatch(/\/media\/[^"]+-poster-display\.jpg/);
     expect(res.text).toContain('Demonstration of footbag net');
     expect(res.text).toContain('autoplay');
     expect(res.text).toContain('playsinline');
+    expect(res.text).not.toContain('type="video/webm"');
   });
 
   it('renders Competition Formats with Singles and Doubles cards', async () => {

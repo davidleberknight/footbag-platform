@@ -610,10 +610,11 @@ Two FK-style columns carry person-identity / legacy-account linkage:
 
 #### Credential-state invariant
 
-The `members` table enforces a two-way credential-state invariant via a `CHECK` constraint:
+The `members` table enforces a three-branch credential-state invariant via a `CHECK` constraint:
 
-1. **Live account** — `personal_data_purged_at IS NULL`, all credential fields (`login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`) are non-NULL.
-2. **Purged row** — `personal_data_purged_at IS NOT NULL`, all credential fields are NULL.
+1. **Live non-system account** — `is_system=0`, `personal_data_purged_at IS NULL`, all credential fields (`login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`) are non-NULL.
+2. **Purged non-system row** — `is_system=0`, `personal_data_purged_at IS NOT NULL`, all credential fields are NULL.
+3. **System member account** — `is_system=1`, `personal_data_purged_at IS NULL`, all credential fields are NULL. The system member is unauthenticatable by data shape (no email-lookup query can match) and is single-row enforced by a partial UNIQUE on `members(is_system) WHERE is_system=1`. See DD §2.8.
 
 Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder rows in `members`.
 

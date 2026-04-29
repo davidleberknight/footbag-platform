@@ -15,7 +15,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.2 Backup Strategy](#12-backup-strategy)
   - [1.3 Transaction Model](#13-transaction-model)
   - [1.4 Development Parity](#14-development-parity)
-  - [1.5 Photo Data in S3](#15-photo-data-in-s3)
+  - [1.5 Media Data in S3](#15-media-data-in-s3)
   - [1.6 Single Lightsail Instance behind CloudFront](#16-single-lightsail-instance-behind-cloudfront)
   - [1.7 Docker Containers](#17-docker-containers)
   - [1.8 Container Memory Allocation](#18-container-memory-allocation)
@@ -32,6 +32,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [2.5 Immutable Audit Logs with Privacy-safe Fields](#25-immutable-audit-logs-with-privacy-safe-fields)
   - [2.6 Hashtags and Media](#26-hashtags-and-media)
   - [2.7 Encryption at Rest](#27-encryption-at-rest)
+  - [2.8 System Member Account](#28-system-member-account)
 - [3. Security, Authentication, and Sessions](#3-security-authentication-and-sessions)
   - [3.1 Password Hashing](#31-password-hashing)
   - [3.2 JWT sessions](#32-jwt-sessions)
@@ -203,31 +204,31 @@ The version column on mutable tables supports optimistic lost-update detection f
 
 Local development and deployed environments use the same application code, the same fixed SQLite runtime filename (`footbag.db`), the same prepared statements, and the same Dockerized process boundaries. Docker/Compose mounts the host directory that contains the DB into the application working directory at `/app/db`, so the WAL and SHM sidecar files live on the host alongside the main DB file and are shared across the web and worker containers. Backup jobs may be disabled locally, but backup behavior is validated in staging and production.
 
-## 1.5 Photo Data in S3
+## 1.5 Media Data in S3
 
 Decision:
 
-Photos are stored separately from the SQLite database. The database stores media metadata (gallery name, paths, captions, tags, ownership) in a Photos table. Photo objects (thumbnail and display JPEG variants) are stored in Amazon S3 (production/staging) or local filesystem (development). A PhotoStorageAdapter provides environment abstraction.
+Media is stored separately from the SQLite database. The database stores media metadata (gallery name, paths, captions, tags, ownership) in a `media_items` table. Media objects (photo thumbnail and display variants; system-account video bytes and posters per §2.8) are stored in Amazon S3 (production/staging) or local filesystem (development). The media storage adapter provides environment abstraction.
 
 Rationale:
 
-Photo data is handled separately from application data, in a dedicated AWS S3 bucket (instead of the SQLite database hosted on the main AWS Lightsail container). The photo data is large and will grow over time, and so storing this together with Lightsail would blow out the size, and therefore the cost, and this is why we store photo data in S3. Each uploaded photo generates two variants (thumbnail at 300×300 pixels, display at 800px width) stored as JPEG at 85% quality on S3 (also processed to eliminate possible malware) . Original files are discarded after processing.
+Media data is handled separately from application data, in a dedicated AWS S3 bucket (instead of the SQLite database hosted on the main AWS Lightsail container). Media data is large and will grow over time, and storing it co-located with Lightsail would blow out the host size and therefore the cost; this is why we store media data in S3. Each uploaded photo generates two variants (thumbnail at 300×300 pixels, display at 800px width) stored as JPEG at 85% quality on S3 (also processed to eliminate possible malware). System-account video bytes are stored as-is with no server-side transcoding (see §6.8 for the curator-video pipeline) alongside a Sharp-processed poster image. Original photo files are discarded after processing.
 
 Separates structured metadata (benefits from SQL queries, transactions, referential integrity) from large binary objects (benefits from object storage scalability, CDN delivery, independent backup/replication). SQLite handles relational data well but is not optimized for large binary storage. S3 provides dedicated photo infrastructure (replication, lifecycle policies, CDN integration) without database bloat. Development filesystem maintains parity without AWS credentials.
 
 Paths are stored as data, not calculated at runtime based on the member id and gallery name used at the time of upload.
 
-CloudFront serves photos directly from the primary bucket via the `/s3-photos/*` cache behavior on the single site distribution. The URL prefix is `/s3-photos/` rather than `/media/` so the prefix announces the S3 origin in the URL itself, and so `/media/*` remains available for repo-bundled chrome served from Lightsail. The cache-bust mechanism is URL-versioned via a `?v={media_id}` query string (a fresh UUID per upload), and the cache key includes the query string. S3 PUT sets `Cache-Control: public, max-age=31536000, immutable`. Photos are immutable from any cache's point of view because each emitted URL is unique to its upload; the URL is the cache identity, the S3 key is the storage location, decoupled.
+CloudFront serves media directly from the primary bucket via the `/media/*` cache behavior on the single site distribution. The cache-bust mechanism is URL-versioned via a `?v={media_id}` query string (a fresh UUID per upload), and the cache key includes the query string. S3 PUT sets `Cache-Control: public, max-age=31536000, immutable`. Media objects are immutable from any cache's point of view because each emitted URL is unique to its upload; the URL is the cache identity, the S3 key is the storage location, decoupled.
 
-Scope: only member-uploaded photo objects are stored in S3. The platform does not host video bytes there; member video is YouTube/Vimeo embeds per `M_Submit_Video`, and the legacy mirror at archive.footbag.org is a separate static bucket per §6.4. The narrow exception is webmaster-curated landing-page video shorts (the demo loops on `/freestyle` and `/net`), which are bundled in the Docker image at `src/public/media/` and served from Lightsail under the `/media/*` cache behavior, never from S3.
+Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains embed-only (YouTube/Vimeo per `M_Submit_Video`); only the system member account uploads video bytes (see §2.8 and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per §6.4. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in DEVOPS_GUIDE.
 
-Local filesystem at /data/photos/ mounted as Docker volume mirrors production S3 directory structure exactly. PhotoStorageAdapter reads identical database paths and constructs local URLs. No AWS credentials required for basic photo operations.
+Local filesystem mounted as Docker volume mirrors production S3 directory structure exactly. The media storage adapter reads identical database paths and constructs local URLs. No AWS credentials required for basic media operations in development. Path literals deferred to slice activation alongside the adapter and env-var rename.
 
 Backup and Replication:
 
 Photos are backed up separately from database via S3 cross-region replication. The primary media bucket (us-east-1) replicates automatically to a dedicated media disaster-recovery bucket (us-west-2) using One Zone-IA storage class. Delete markers are replicated so account-erasure deletions propagate. Replication is continuous; per-object propagation typically completes within minutes. S3 Replication Time Control (RTC) is not enabled, so there is no formal RPO SLA. No backup job required; S3 native cross-region replication handles this automatically. Bucket names follow the `<env>-media` (primary) and `<env>-media-dr` (DR) Terraform convention; the SQLite-snapshot DR bucket is a separate `<env>-dr` resource.
 
-Deletion and Retention: No referential integrity concerns from photo deletion because photos are leaf nodes in the data model. When member deletes account: member's photos automatically hard-deleted.
+Deletion and Retention: No referential integrity concerns from media deletion because media items are leaf nodes in the data model. When a member deletes their account, their media is automatically hard-deleted. System-account-owned media is not affected by member-erasure (see §2.8).
 
 Access Control:
 
@@ -235,11 +236,11 @@ The media bucket is private. Viewer reads flow exclusively through CloudFront wi
 
 The application container's IAM grants `s3:PutObject`, `s3:DeleteObject`, `s3:GetObject` on objects, plus `s3:ListBucket` on the bucket. `GetObject` is granted because S3's HeadObject is authorized by `s3:GetObject` per IAM; the application uses HeadObject for existence checks only and never reads object bytes through the SDK. Viewer reads always flow CloudFront → OAC → bucket.
 
-CloudFront OAC is configured with `signing_behavior = always`, which overrides any viewer-supplied `Authorization` header. OAC does not override the `Host` header; for an S3 origin, the cache behavior must omit `origin_request_policy_id` (or use a policy that excludes `Host`) so CloudFront sets `Host` to the S3 origin domain itself. With the wrong `Host`, S3 cannot identify the bucket via virtual-host routing and returns generic `NotFound` before any bucket policy is evaluated. This applies to every cache behavior targeting an S3 origin, not only `/s3-photos/*`.
+CloudFront OAC is configured with `signing_behavior = always`, which overrides any viewer-supplied `Authorization` header. OAC does not override the `Host` header; for an S3 origin, the cache behavior must omit `origin_request_policy_id` (or use a policy that excludes `Host`) so CloudFront sets `Host` to the S3 origin domain itself. With the wrong `Host`, S3 cannot identify the bucket via virtual-host routing and returns generic `NotFound` before any bucket policy is evaluated. This applies to every cache behavior targeting an S3 origin, not only `/media/*`.
 
 Trade-offs:
 
-- Members cannot download original high-resolution photos.
+- Members cannot download original high-resolution photos. (Curator-uploaded video bytes are stored as-is and remain re-downloadable, but the system account is the only uploader of video bytes.)
 
 - S3 dependency in production (mitigated by cross-region backup).
 
@@ -249,11 +250,11 @@ Trade-offs:
 
 Impact:
 
-- PhotoStorageAdapter interface defined with methods: put(key, data), delete(key), constructURL(key), exists(key).
+- The media storage adapter interface defines: `put(key, data)`, `delete(key)`, `constructURL(key)`, `exists(key)`. Content-agnostic; used for photos, system-account video bytes, and posters identically.
 
-- Backup procedures updated to cover photos separately from database.
+- Backup procedures updated to cover media separately from database.
 
-- CloudFront `/s3-photos/*` cache behavior uses OAC with no origin request policy. Operations in DEVOPS_GUIDE.
+- CloudFront `/media/*` cache behavior uses OAC with no origin request policy. Operations in DEVOPS_GUIDE.
 
 Alternative Considered:
 
@@ -857,6 +858,62 @@ Alternative Considered:
 Implementation:
 
 - S3 buckets have default encryption enabled for data backup snapshots. Local SQLite database file on the instance is stored unencrypted as an explicit MVP trade-off; mitigations include restricted instance access, least-privilege IAM, OS hardening/patching, and encrypted S3 backups with defined retention.
+
+## 2.8 System Member Account
+
+Decision:
+
+The platform maintains a single unauthenticatable system member account, distinguished by `members.is_system=1`, used as the owner of platform-published content. The system-member row is a regular `members` row in every other respect: same render path, same hashtag rules, same gallery rules, same moderation flow. There is no parallel "system content" subsystem.
+
+Rationale:
+
+The platform publishes content not attributable to any individual member, including landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items. The same ownership construct extends to future categories such as tutorials and historical content. A regular member account with one distinguishing flag reuses every existing content pathway -- render, search, moderation, hashtag discovery, gallery linkage. A non-member ownership construct would require parallel implementations of all of these for marginal gain.
+
+Single-row enforcement means there is one identity to reason about, not a class of system accounts. Schema-level singularity prevents proliferation of "special" accounts each with custom rules.
+
+Unauthenticatable by data shape: zero credentials. No login flow can produce a session for the system account because no row matches an email-lookup query and there is no password to verify.
+
+The system-member row is brought into existence by operational seeding, not by any web-UI action. The same operational mechanism pre-loads system-account-owned content for go-live. Admin web-UI interaction is required only for post-go-live interactive uploads (see `A_Upload_Curated_Media`). This separation matters: pre-go-live content can be seeded before any admin user exists, and staging reset/rebuild does not require an admin step.
+
+Post-go-live, content the system account owns is written by admins acting on its behalf. Admins log in as themselves; the controller writes `uploader_member_id = system_member`. The admin-actor-of-record is not stored on the resulting `media_items` row, but the audit log records admin actor, timestamp, and affected entity for any subsequent investigation. This matches existing admin-action audit conventions (see `A_Moderate_Media`, `A_Override_Member_Data`).
+
+Requirements:
+
+- Exactly one row in `members` has `is_system=1`. Enforced by partial UNIQUE index on `members(is_system) WHERE is_system=1`.
+
+- The default `display_name` is `Footbag Hacky`. The system-member row is created by operational seeding (`legacy_data/scripts/seed_members.py` or successor); no admin web-UI action is required to instantiate the row.
+
+- The system-member row has all credential fields NULL (`login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`) and `personal_data_purged_at` NULL. Enforced by a third branch on the members credential CHECK.
+
+- The system-member row is exempt from member-erasure flows; the account-deletion service skips `WHERE is_system=1`.
+
+- The system-member row participates in all other public surfaces like any other member: search, member directory, `/hall-of-fame`, `/persons/{slug}`, avatar, gallery ownership.
+
+- Code never references the system account by literal display_name. All lookups go through `is_system=1` or the resolved member id. Display name is mutable via `A_Override_Member_Data`.
+
+Trade-offs:
+
+- The members credential CHECK gains a third branch ("alive without credentials"). The alternative (sentinel email + unrecoverable password hash) leaves more bug surface and does not represent the design intent in the data shape.
+
+- The admin-actor-of-record is not visible on individual `media_items` rows after upload. The audit log is the authoritative record.
+
+- An admin rename of the system account's display_name may break inbound links to the old `/persons/{slug}` URL if the slug regenerates. Volunteer-maintainability trade-off: admin reviews slug stability at rename time. This is a member-system property, not specific to the system account.
+
+- The system account appears in the member directory and on `/hall-of-fame` like any HoF member. This is intentional. Volunteers and visitors do not need to learn a system-account-specific render rule.
+
+Impact:
+
+- New schema: `is_system` column + partial UNIQUE index.
+
+- Members credential CHECK gains a third branch.
+
+- `legacy_data/scripts/seed_members.py` is rewritten so the seeded mascot account (currently Footbag Hacky) carries `is_system=1` with NULL credentials.
+
+- Account-erasure service includes a single guard skipping `is_system=1`.
+
+- A new admin US (`A_Upload_Curated_Media`) describes the interactive admin act-as upload path.
+
+- Bulk seeding of pre-loaded system-account content (operational tooling, documented at slice activation) is written against the same ownership construct.
 
 # 3. Security, Authentication, and Sessions
 
@@ -2026,7 +2083,7 @@ Cache control header strategy:
 
 - Public cacheable HTML / public GET content (for example, public event listings, public galleries, non-personalized pages): origin emits Cache-Control: public, max-age=300, must-revalidate as a hint for browser-side caching. CloudFront's default behavior uses the AWS managed `CachingDisabled` cache policy per §6.2, so the response is not edge-cached. A high-traffic public route that warrants edge caching may receive a dedicated `ordered_cache_behavior` with a cache policy that respects this header.
 
-- API endpoints, authenticated HTML, and any personalized/user-specific content: Cache-Control: private, no-store, set by Express middleware on every authenticated response. CloudFront's default cache behavior uses the AWS managed `CachingDisabled` cache policy for all HTML routes (public, mixed-state, and authenticated alike): the app frequently varies HTML by viewer state across many routes, and rather than per-route classification, all HTML is routed to origin so the middleware is the single mechanism for HTML cache control. Static assets (which never vary by viewer) continue to be edge-cached aggressively per the next bullet. User-uploaded photos (`/s3-photos/*`) are edge-cached via a CloudFront cache policy that includes the query string in the cache key, supporting URL-versioned cache-bust (e.g. `?v={media_id}`).
+- API endpoints, authenticated HTML, and any personalized/user-specific content: Cache-Control: private, no-store, set by Express middleware on every authenticated response. CloudFront's default cache behavior uses the AWS managed `CachingDisabled` cache policy for all HTML routes (public, mixed-state, and authenticated alike): the app frequently varies HTML by viewer state across many routes, and rather than per-route classification, all HTML is routed to origin so the middleware is the single mechanism for HTML cache control. Static assets (which never vary by viewer) continue to be edge-cached aggressively per the next bullet. Member-uploaded photos and system-account-owned media (`/media/*`) are edge-cached via a CloudFront cache policy that includes the query string in the cache key, supporting URL-versioned cache-bust (e.g. `?v={media_id}`).
 
 - Public unauthenticated routes that render a single-use token in HTML (the password-reset form is the canonical example: it embeds the reset token in a hidden form field and in the form `action` URL) MUST also send `Cache-Control: no-store, no-cache, must-revalidate, private` and `Pragma: no-cache`. Without this, a shared HTTP proxy or browser back-button cache could capture an unconsumed token. The app middleware that sets `private, no-store` for authenticated responses does not apply here because the route is anonymous; controllers must set the headers explicitly on both the GET render and any 422 re-render that includes the token.
 
@@ -2066,7 +2123,7 @@ Trade-offs Accepted:
 
 - No animated GIF support (use video embedding instead)
 
-- No video file uploads (YouTube/Vimeo embedding reduces complexity and cost)
+- No video file uploads from members (YouTube/Vimeo embedding reduces complexity and cost). System-account video bytes are accepted via the curator path with full ffmpeg transcode for malware sanitization; see Curator Media Processing below.
 
 - Members cannot download original high-resolution photos (only processed variants available)
 
@@ -2098,7 +2155,56 @@ Error handling: Processing failures return clear user-facing errors ('Image proc
 
 CloudFront cache rules differ by variant (thumbnails cache longer). Error responses: 400 for validation errors, 500 for processing errors, 504 for S3 timeout.
 
-Path Structure: s3://footbag-media/{member-id}/{gallery-name}/{photo-id}-{variant}.jpg
+Curator Media Processing:
+
+Curator-uploaded photos go through the standard Sharp pipeline (the same re-encoding, metadata stripping, and variant generation applied to all uploaded photos). The Sharp-based malware mitigation (pixel-roundtrip re-encoding) applies uniformly regardless of uploader.
+
+Curator-uploaded video (uploaded by the system member account, see §2.8) goes through an ffmpeg full-transcode pipeline that provides the equivalent malware-mitigation property: re-encoding the streams through ffmpeg, with explicit stream selection and metadata stripping, destroys container-, codec-, and metadata-level malware by rebuilding the bytes from the essential signal. Pipeline:
+
+- Input format whitelist: mp4, webm, mov (operator/admin-provided; literal at slice).
+
+- Magic byte verification: file headers must match declared type.
+
+- Size limit: configurable upper bound on input size (literal at slice; nominal target on the order of tens of MB for typical curator content), enforced before any processing.
+
+- ffmpeg full transcode with explicit malware-stripping options:
+    - `-map 0:v -map 0:a?`: select only video and audio streams (drops subtitle, data, and attachment streams that can carry payloads).
+    - `-map_metadata -1`: drop all input metadata.
+    - `-map_chapters -1`: drop chapter markers.
+    - `-c:v libx264 -c:a aac`: re-encode video and audio streams (no `-c copy` shortcuts; re-encoding destroys codec-level malware).
+    - `-pix_fmt yuv420p`: web-safe pixel format.
+    - `-movflags +faststart`: streaming-friendly output.
+    - Encoder-quality knobs (CRF, preset, audio bitrate, frame rate) literal at slice; nominal targets parallel the existing mirror program's first-attempt settings (`legacy_data/create_mirror_footbag_org.py`).
+
+  Operator/admin delivers any reasonable input; platform produces a standardized output with stream selection, metadata, chapters, and codec-level malware all stripped.
+
+- Output: single MP4 rendition (no automatic resolution variants; variant generation for bandwidth-tiered playback is deferred). WebM variant deferred unless browser parity demands it.
+
+- Poster image: a companion image goes through the standard Sharp pipeline to produce thumbnail and display variants. Stored alongside the transcoded video.
+
+Insertion paths: the operator-run curator-content seeding script (acknowledged in §1.5; details in DEVOPS_GUIDE) and the interactive admin act-as upload path (`A_Upload_Curated_Media`). Member upload controllers reject `video_platform='s3'` to enforce this restriction at the controller boundary.
+
+The same malware-stripping pipeline (Sharp for photos, ffmpeg with the options above for video) is applied uniformly to media sourced from any upstream origin: interactive member upload, interactive admin curator upload, operator-run curator seed, and legacy archive ingestion via the mirror program. Implementation consolidates the settings so a single update tightens every source path equivalently.
+
+Trade-offs specific to curator video:
+
+- ffmpeg dependency added to the image-processor container (~50MB; modest growth in the constrained Lightsail nano envelope). Same ffmpeg the historical mirror program already uses for archive ingestion; consolidation via shared utility is plausible at slice.
+
+- Synchronous transcode time: typically 1-2 minutes per video (varies by input size and codec). Acceptable for operator-driven seed runs and infrequent interactive admin uploads. If transcode time becomes a UX issue at admin upload, the path can move to a background job in a follow-on slice without changing this design.
+
+- Small quality loss possible at the chosen output bitrate. Mitigated by selecting reasonable encoder settings.
+
+- Single output rendition for the initial design (no automatic resolution variants). Future variant generation deferred.
+
+Path Structure:
+
+Member or system-account photo, gallery-attached: `s3://footbag-media/{member-id}/{gallery-name}/{media-id}-{variant}.jpg`
+
+Detached photo (no gallery, e.g., avatar): `s3://footbag-media/{member-id}/detached/{media-id}-{variant}.jpg`
+
+Curator video (always system-account-owned; gallery-attached or detached): bytes at `s3://footbag-media/{system-member-id}/{gallery-name-or-detached}/{media-id}-video.{mp4|webm}`; poster at `s3://footbag-media/{system-member-id}/{gallery-name-or-detached}/{media-id}-poster-{variant}.jpg`.
+
+The `detached` path segment is a sentinel for `gallery_id IS NULL`; literal at slice. Path literals (segment names, file extensions) are confirmed at slice activation.
 
 ## 6.9 Voting
 
@@ -2699,7 +2805,7 @@ Photo Backup (S3 replication):
 
 Photos are backed up separately from database due to data volume. Amazon S3 cross-region replication handles photo backup automatically and continuously. The primary media bucket (`<env>-media`, us-east-1) replicates all photo objects to a dedicated DR bucket (`<env>-media-dr`, us-west-2) using S3 One Zone-IA storage class for cost savings on DR storage. Replication is continuous; per-object propagation typically completes within minutes. S3 Replication Time Control (RTC) is not enabled, so there is no formal RPO SLA. No backup job or cron process is required; S3's native cross-region replication feature handles this automatically. Photo backup is completely decoupled from database backup cycle. The DR bucket preserves the primary's S3 key structure exactly (replication preserves keys), so a recovery scenario can restore objects without remapping. Object Lock is intentionally not applied to the photo DR bucket: photo deletion must propagate to the DR side to honor member-account-erasure (§1.5 "When member deletes account: member's photos automatically hard-deleted"). Operator-recovery headroom is provided by S3 Versioning plus 30-day `NoncurrentVersionExpiration` on both buckets.
 
-Recovery procedure: Promote the DR bucket to primary by updating the CloudFront `/s3-photos/*` origin and the `PHOTO_STORAGE_S3_BUCKET` env var, or restore objects from the DR bucket to a new primary bucket (replication-preserved keys make either path mechanical).
+Recovery procedure: Promote the DR bucket to primary by updating the CloudFront `/media/*` origin and the `MEDIA_STORAGE_S3_BUCKET` env var, or restore objects from the DR bucket to a new primary bucket (replication-preserved keys make either path mechanical).
 
 ## 9.5 Failure Modes
 

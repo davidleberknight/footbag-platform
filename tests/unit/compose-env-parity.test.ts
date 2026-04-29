@@ -168,14 +168,14 @@ const STAGING_FIXTURE: Record<string, string> = {
   SES_SANDBOX_MODE: '1',
   IMAGE_PROCESSOR_URL: 'http://image:4000',
   IMAGE_MAX_CONCURRENT: '1',
-  PHOTO_STORAGE_ADAPTER: 'local',
+  MEDIA_STORAGE_ADAPTER: 'local',
 };
 
 /**
  * Production interpolation fixture: same compose-overlay pair as staging,
  * with production-shape values. Sandbox-mode is off, IMAGE_MAX_CONCURRENT
  * is the DD §1.8 production target, PhotoStorage adapter is `s3` with a
- * production bucket name (which exercises the env.ts `PHOTO_STORAGE_S3_BUCKET`
+ * production bucket name (which exercises the env.ts `MEDIA_STORAGE_S3_BUCKET`
  * required-when-s3 guard the staging fixture skips). Values are stub-but-
  * shape-valid; real production values live in the host env file.
  */
@@ -192,8 +192,8 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   SES_SANDBOX_MODE: '0',
   IMAGE_PROCESSOR_URL: 'http://image:4000',
   IMAGE_MAX_CONCURRENT: '2',
-  PHOTO_STORAGE_ADAPTER: 's3',
-  PHOTO_STORAGE_S3_BUCKET: 'footbag-production-media',
+  MEDIA_STORAGE_ADAPTER: 's3',
+  MEDIA_STORAGE_S3_BUCKET: 'footbag-production-media',
 };
 
 async function loadEnvWith(containerEnv: Record<string, string>): Promise<void> {
@@ -313,17 +313,17 @@ describe('compose ↔ env.ts parity (production: base + prod overlay)', () => {
     expect(env.IMAGE_MAX_CONCURRENT).toMatch(/^\d+$/);
   });
 
-  it('PHOTO_STORAGE_S3_BUCKET is present when adapter=s3', () => {
-    // env.ts rejects PHOTO_STORAGE_ADAPTER=s3 without a non-empty
-    // PHOTO_STORAGE_S3_BUCKET. Production uses the s3 adapter; the fixture
+  it('MEDIA_STORAGE_S3_BUCKET is present when adapter=s3', () => {
+    // env.ts rejects MEDIA_STORAGE_ADAPTER=s3 without a non-empty
+    // MEDIA_STORAGE_S3_BUCKET. Production uses the s3 adapter; the fixture
     // and merged compose env must carry the bucket name for the merged env
     // to load, otherwise the web/worker tests above would fail-fast.
     const base = loadCompose('docker/docker-compose.yml');
     const overlay = loadCompose('docker/docker-compose.prod.yml');
     const merged = mergeCompose(base, overlay);
     const env = resolveServiceEnv(merged.services.web, PRODUCTION_FIXTURE);
-    expect(env.PHOTO_STORAGE_ADAPTER).toBe('s3');
-    expect(env.PHOTO_STORAGE_S3_BUCKET).toBe('footbag-production-media');
+    expect(env.MEDIA_STORAGE_ADAPTER).toBe('s3');
+    expect(env.MEDIA_STORAGE_S3_BUCKET).toBe('footbag-production-media');
   });
 });
 

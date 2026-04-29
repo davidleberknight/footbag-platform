@@ -1,7 +1,7 @@
 /**
  * Dev↔staging adapter parity contract.
  *
- * The JwtSigningAdapter, SesAdapter, and PhotoStorageAdapter interfaces are
+ * The JwtSigningAdapter, SesAdapter, and MediaStorageAdapter interfaces are
  * the only seam between dev and staging. Both implementations must produce
  * observable outputs with identical structure so the service layer above is
  * free of environment-specific branching. These tests exercise both sides of
@@ -37,10 +37,10 @@ import {
   type S3Client,
 } from '@aws-sdk/client-s3';
 import {
-  createLocalPhotoStorageAdapter,
-  createS3PhotoStorageAdapter,
-  type PhotoStorageAdapter,
-} from '../../src/adapters/photoStorageAdapter';
+  createLocalMediaStorageAdapter,
+  createS3MediaStorageAdapter,
+  type MediaStorageAdapter,
+} from '../../src/adapters/mediaStorageAdapter';
 import {
   createHttpImageAdapter,
   ImageProcessingError,
@@ -228,7 +228,7 @@ describe('adapter-parity: SesAdapter (Stub vs. Live interface)', () => {
   });
 });
 
-describe('adapter-parity: PhotoStorageAdapter contract', () => {
+describe('adapter-parity: MediaStorageAdapter contract', () => {
   let tmpDir: string;
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'photo-parity-'));
@@ -236,7 +236,7 @@ describe('adapter-parity: PhotoStorageAdapter contract', () => {
   afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
   it('local adapter satisfies put/exists/delete/constructURL', async () => {
-    const adapter: PhotoStorageAdapter = createLocalPhotoStorageAdapter({
+    const adapter: MediaStorageAdapter = createLocalMediaStorageAdapter({
       baseDir: tmpDir,
     });
     const key = 'avatars/parity-test.bin';
@@ -249,7 +249,7 @@ describe('adapter-parity: PhotoStorageAdapter contract', () => {
   });
 
   it('delete is idempotent for a missing key', async () => {
-    const adapter = createLocalPhotoStorageAdapter({ baseDir: tmpDir });
+    const adapter = createLocalMediaStorageAdapter({ baseDir: tmpDir });
     await expect(adapter.delete('never/written.bin')).resolves.toBeUndefined();
   });
 });
@@ -303,10 +303,10 @@ function makeFakeS3Client(): FakeS3State {
   };
 }
 
-describe('adapter-parity: PhotoStorageAdapter S3 contract', () => {
+describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
   it('s3 adapter satisfies put/exists/delete/constructURL round-trip', async () => {
     const fake = makeFakeS3Client();
-    const adapter = createS3PhotoStorageAdapter({
+    const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
     });
@@ -314,14 +314,14 @@ describe('adapter-parity: PhotoStorageAdapter S3 contract', () => {
     expect(await adapter.exists(key)).toBe(false);
     await adapter.put(key, Buffer.from('round-trip-bytes'));
     expect(await adapter.exists(key)).toBe(true);
-    expect(adapter.constructURL(key)).toBe('/s3-photos/avatars/m-1/thumb.jpg');
+    expect(adapter.constructURL(key)).toBe('/media/avatars/m-1/thumb.jpg');
     await adapter.delete(key);
     expect(await adapter.exists(key)).toBe(false);
   });
 
   it('s3 delete is idempotent for a missing key', async () => {
     const fake = makeFakeS3Client();
-    const adapter = createS3PhotoStorageAdapter({
+    const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
     });
@@ -331,7 +331,7 @@ describe('adapter-parity: PhotoStorageAdapter S3 contract', () => {
 
   it('s3 put sends Cache-Control: immutable + ContentType: image/jpeg', async () => {
     const fake = makeFakeS3Client();
-    const adapter = createS3PhotoStorageAdapter({
+    const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
     });
@@ -346,7 +346,7 @@ describe('adapter-parity: PhotoStorageAdapter S3 contract', () => {
 
   it('s3 exists returns false on NotFound', async () => {
     const fake = makeFakeS3Client();
-    const adapter = createS3PhotoStorageAdapter({
+    const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: fake.client,
     });
@@ -362,7 +362,7 @@ describe('adapter-parity: PhotoStorageAdapter S3 contract', () => {
         throw err;
       },
     } as unknown as S3Client;
-    const adapter = createS3PhotoStorageAdapter({
+    const adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: accessDeniedClient,
     });
@@ -371,15 +371,15 @@ describe('adapter-parity: PhotoStorageAdapter S3 contract', () => {
     });
   });
 
-  it('s3 constructURL returns /s3-photos/{key} (parity with local)', () => {
-    const localAdapter = createLocalPhotoStorageAdapter({ baseDir: '/tmp' });
-    const s3Adapter = createS3PhotoStorageAdapter({
+  it('s3 constructURL returns /media/{key} (parity with local)', () => {
+    const localAdapter = createLocalMediaStorageAdapter({ baseDir: '/tmp' });
+    const s3Adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: makeFakeS3Client().client,
     });
     const key = 'avatars/m-3/thumb.jpg';
-    expect(localAdapter.constructURL(key)).toBe('/s3-photos/avatars/m-3/thumb.jpg');
-    expect(s3Adapter.constructURL(key)).toBe('/s3-photos/avatars/m-3/thumb.jpg');
+    expect(localAdapter.constructURL(key)).toBe('/media/avatars/m-3/thumb.jpg');
+    expect(s3Adapter.constructURL(key)).toBe('/media/avatars/m-3/thumb.jpg');
   });
 });
 

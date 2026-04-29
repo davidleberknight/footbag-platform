@@ -70,18 +70,18 @@ export function createApp(): express.Application {
   // process.cwd() resolves correctly from both tsx (dev) and dist/ (prod).
   app.use(express.static(path.join(process.cwd(), 'src', 'public')));
 
-  // ── Member-uploaded photos (avatars, future gallery photos) ────────────
-  // Mounted at `/s3-photos/*` to mirror the production CloudFront cache
+  // ── Media (member photos, system-account video bytes and posters) ─────
+  // Mounted at `/media/*` to mirror the production CloudFront cache
   // behavior. The dev local-FS emulation directory (`config.mediaDir`)
   // stands in for the S3 bucket; the URL prefix is identical in dev and
-  // prod so `photoStorageAdapter.constructURL()` returns one shape.
+  // prod so `mediaStorageAdapter.constructURL()` returns one shape.
   // Cache header matches the production S3 PUT contract
   // (Cache-Control: public, max-age=31536000, immutable). URL-versioning
   // via `?v={media_id}` makes `immutable` semantically correct: each
   // emitted URL is unique to its upload, replacement uploads emit a fresh
   // `?v=` and become a distinct cache entry.
   app.use(
-    '/s3-photos',
+    '/media',
     express.static(config.mediaDir, { maxAge: '1y', immutable: true }),
   );
 

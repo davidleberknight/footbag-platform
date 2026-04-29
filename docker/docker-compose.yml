@@ -75,8 +75,8 @@ services:
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       AWS_REGION: ${AWS_REGION:-}
-      PHOTO_STORAGE_ADAPTER: ${PHOTO_STORAGE_ADAPTER:-local}
-      PHOTO_STORAGE_S3_BUCKET: ${PHOTO_STORAGE_S3_BUCKET:-}
+      MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
+      MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
     volumes:
       # Directory bind mount so SQLite WAL/SHM sidecars live on the host and
       # are shared between web and worker containers. A file bind mount would
@@ -146,8 +146,8 @@ services:
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       AWS_REGION: ${AWS_REGION:-}
-      PHOTO_STORAGE_ADAPTER: ${PHOTO_STORAGE_ADAPTER:-local}
-      PHOTO_STORAGE_S3_BUCKET: ${PHOTO_STORAGE_S3_BUCKET:-}
+      MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
+      MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ../database:/app/db:rw

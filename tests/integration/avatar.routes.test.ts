@@ -221,7 +221,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     // CloudFront do not serve a stale copy from the stable storage key.
     // Handlebars HTML-escapes `=` to `&#x3D;` inside attribute values; the
     // browser decodes it back on request, so both forms are acceptable here.
-    const cacheBustRe = /\/s3-photos\/avatars\/[^"]+\?v(?:=|&#x3D;)[^"]+/;
+    const cacheBustRe = /\/media\/avatars\/[^"]+\?v(?:=|&#x3D;)[^"]+/;
 
     const profileRes = await request(app)
       .get(`/members/${OWN_SLUG}`)
@@ -249,7 +249,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
 
     const extractVersion = (html: string): string | null => {
       // `=` is HTML-escaped by Handlebars inside attribute values; match both.
-      const m = html.match(/\/s3-photos\/avatars\/[^"]+\?v(?:=|&#x3D;)([^"&]+)/);
+      const m = html.match(/\/media\/avatars\/[^"]+\?v(?:=|&#x3D;)([^"&]+)/);
       return m ? m[1] : null;
     };
 
@@ -361,15 +361,15 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
 
 // ── POST /members/:memberKey/avatar via the S3 storage adapter ────────────────
 //
-// The same controller code path runs against `createS3PhotoStorageAdapter`
+// The same controller code path runs against `createS3MediaStorageAdapter`
 // with an injected fake S3Client. This proves the controller contract
-// (?v= cache-bust, /s3-photos/{key} URL shape, two PutObjects per upload) is
+// (?v= cache-bust, /media/{key} URL shape, two PutObjects per upload) is
 // preserved when the storage seam swaps from local fs to S3.
 
 describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
   let s3Puts: PutObjectCommand[];
   let s3Store: Map<string, Buffer>;
-  let resetPhotoStorageAdapterForTests: () => void;
+  let resetMediaStorageAdapterForTests: () => void;
 
   beforeAll(async () => {
     s3Puts = [];
@@ -399,10 +399,10 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
       },
     } as unknown as S3Client;
 
-    const photoMod = await import('../../src/adapters/photoStorageAdapter');
-    resetPhotoStorageAdapterForTests = photoMod.resetPhotoStorageAdapterForTests;
-    photoMod.setPhotoStorageAdapterForTests(
-      photoMod.createS3PhotoStorageAdapter({
+    const photoMod = await import('../../src/adapters/mediaStorageAdapter');
+    resetMediaStorageAdapterForTests = photoMod.resetMediaStorageAdapterForTests;
+    photoMod.setMediaStorageAdapterForTests(
+      photoMod.createS3MediaStorageAdapter({
         bucket: 'test-bucket',
         s3Client: fakeS3,
       }),
@@ -410,7 +410,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
   });
 
   afterAll(() => {
-    resetPhotoStorageAdapterForTests();
+    resetMediaStorageAdapterForTests();
   });
 
   it('valid JPEG upload sends two PutObjectCommands with immutable Cache-Control', async () => {
@@ -437,7 +437,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
     }
   });
 
-  it('rendered avatar URL shape (/s3-photos/{key}?v=) matches the local-adapter contract', async () => {
+  it('rendered avatar URL shape (/media/{key}?v=) matches the local-adapter contract', async () => {
     const app = createApp();
     const validJpeg = await sharp({
       create: { width: 10, height: 10, channels: 3, background: { r: 30, g: 60, b: 90 } },
@@ -454,7 +454,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
       .set('Cookie', ownCookie());
     expect(profileRes.status).toBe(200);
     expect(profileRes.text).toMatch(
-      /\/s3-photos\/avatars\/[^"]+\?v(?:=|&#x3D;)[^"]+/,
+      /\/media\/avatars\/[^"]+\?v(?:=|&#x3D;)[^"]+/,
     );
   });
 
@@ -468,7 +468,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
     }).jpeg().toBuffer();
 
     const extractVersion = (html: string): string | null => {
-      const m = html.match(/\/s3-photos\/avatars\/[^"]+\?v(?:=|&#x3D;)([^"&]+)/);
+      const m = html.match(/\/media\/avatars\/[^"]+\?v(?:=|&#x3D;)([^"&]+)/);
       return m ? m[1] : null;
     };
 

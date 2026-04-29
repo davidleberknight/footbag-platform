@@ -1,15 +1,16 @@
 /**
- * PhotoStorageAdapter: interface + implementations + singleton getter for the
- * adapters layer. Abstracts photo storage between environments. Production
- * uses S3 (`createS3PhotoStorageAdapter`); development and pre-cutover
- * staging use the local filesystem (`createLocalPhotoStorageAdapter`) with
- * identical key structure. Both implementations return relative
- * `/s3-photos/{key}` URLs from `constructURL`; the URL prefix is explicit
- * about the S3 origin and is reserved for member-uploaded photos. The
- * CloudFront `/s3-photos/*` cache behavior routes to the S3 bucket via OAC
- * (with a viewer-request function stripping the prefix so S3 sees the bare
- * key). Services call the interface; the getter returns the configured
- * implementation based on `config.photoStorageAdapter`.
+ * MediaStorageAdapter: interface + implementations + singleton getter for the
+ * adapters layer. Abstracts media storage between environments. Production
+ * uses S3 (`createS3MediaStorageAdapter`); development and pre-cutover
+ * staging use the local filesystem (`createLocalMediaStorageAdapter`) with
+ * identical key structure. Both implementations return relative `/media/{key}`
+ * URLs from `constructURL`. The CloudFront `/media/*` cache behavior routes
+ * to the S3 bucket via OAC (with a viewer-request function stripping the
+ * prefix so S3 sees the bare key). Services call the interface; the getter
+ * returns the configured implementation based on `config.mediaStorageAdapter`.
+ *
+ * Content-agnostic: the adapter handles photos, system-account video bytes,
+ * and posters identically. Per DD §1.5.
  */
 import { mkdir, writeFile, unlink, access } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -21,23 +22,23 @@ import {
 } from '@aws-sdk/client-s3';
 import { config } from '../config/env';
 
-export interface PhotoStorageAdapter {
+export interface MediaStorageAdapter {
   /** Write data to the given storage key, creating directories as needed. */
   put(key: string, data: Buffer): Promise<void>;
 
   /** Delete the object at the given storage key. No-op if it does not exist. */
   delete(key: string): Promise<void>;
 
-  /** Return a URL suitable for use in templates (e.g. `/s3-photos/{key}` or a CloudFront URL). */
+  /** Return a URL suitable for use in templates (e.g. `/media/{key}` or a CloudFront URL). */
   constructURL(key: string): string;
 
   /** Check whether an object exists at the given storage key. */
   exists(key: string): Promise<boolean>;
 }
 
-export function createLocalPhotoStorageAdapter(opts: {
+export function createLocalMediaStorageAdapter(opts: {
   baseDir: string;
-}): PhotoStorageAdapter {
+}): MediaStorageAdapter {
   const { baseDir } = opts;
   return {
     async put(key: string, data: Buffer): Promise<void> {
@@ -54,7 +55,7 @@ export function createLocalPhotoStorageAdapter(opts: {
       }
     },
     constructURL(key: string): string {
-      return `/s3-photos/${key}`;
+      return `/media/${key}`;
     },
     async exists(key: string): Promise<boolean> {
       try {
@@ -67,11 +68,11 @@ export function createLocalPhotoStorageAdapter(opts: {
   };
 }
 
-export function createS3PhotoStorageAdapter(opts: {
+export function createS3MediaStorageAdapter(opts: {
   bucket: string;
   region?: string;
   s3Client?: S3Client;
-}): PhotoStorageAdapter {
+}): MediaStorageAdapter {
   const client =
     opts.s3Client ?? new S3Client(opts.region ? { region: opts.region } : {});
   const bucket = opts.bucket;
@@ -96,7 +97,7 @@ export function createS3PhotoStorageAdapter(opts: {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
     constructURL(key: string): string {
-      return `/s3-photos/${key}`;
+      return `/media/${key}`;
     },
     async exists(key: string): Promise<boolean> {
       try {
@@ -110,25 +111,25 @@ export function createS3PhotoStorageAdapter(opts: {
   };
 }
 
-let singleton: PhotoStorageAdapter | null = null;
+let singleton: MediaStorageAdapter | null = null;
 
-export function getPhotoStorageAdapter(): PhotoStorageAdapter {
+export function getMediaStorageAdapter(): MediaStorageAdapter {
   if (singleton) return singleton;
-  if (config.photoStorageAdapter === 's3') {
-    singleton = createS3PhotoStorageAdapter({
-      bucket: config.photoStorageS3Bucket as string,
+  if (config.mediaStorageAdapter === 's3') {
+    singleton = createS3MediaStorageAdapter({
+      bucket: config.mediaStorageS3Bucket as string,
       region: config.awsRegion,
     });
   } else {
-    singleton = createLocalPhotoStorageAdapter({ baseDir: config.mediaDir });
+    singleton = createLocalMediaStorageAdapter({ baseDir: config.mediaDir });
   }
   return singleton;
 }
 
-export function setPhotoStorageAdapterForTests(adapter: PhotoStorageAdapter): void {
+export function setMediaStorageAdapterForTests(adapter: MediaStorageAdapter): void {
   singleton = adapter;
 }
 
-export function resetPhotoStorageAdapterForTests(): void {
+export function resetMediaStorageAdapterForTests(): void {
   singleton = null;
 }

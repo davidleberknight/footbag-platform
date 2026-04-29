@@ -190,9 +190,13 @@ echo "  → Extracting club member data from mirror..."
 echo "  → Loading club member data into database..."
 "${PYTHON}" legacy_data/scripts/load_club_members_seed.py --db "${DB_FILE}"
 
-# Seed test member accounts (passwords from env vars)
-echo "  → Seeding member accounts..."
-"${PYTHON}" legacy_data/scripts/seed_members.py --db "${DB_FILE}" --allow-missing-passwords
+# Seed system member account (Footbag Hacky; NULL credentials per DD §2.8)
+echo "  → Seeding system member account..."
+"${PYTHON}" legacy_data/scripts/seed_members.py --db "${DB_FILE}"
+
+# Seed curator-owned media (demo loops; broader content adds in follow-on slices)
+echo "  → Seeding curator media..."
+"${PYTHON}" legacy_data/scripts/seed_curator_media.py --db "${DB_FILE}"
 
 # Sanity check
 EVENT_COUNT=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM events;")

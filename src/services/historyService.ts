@@ -3,7 +3,7 @@ import { PublicPlayerResultRow, FreestyleRecordRow, PlayerCareerStatRow, PlayerP
 import { NotFoundError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
-import { getPhotoStorageAdapter } from '../adapters/photoStorageAdapter';
+import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { PageViewModel } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
@@ -130,7 +130,7 @@ export const historyService = {
         account.findMemberBySlug.get(linkedRow.slug),
       ) as { avatar_thumb_key: string | null; avatar_media_id: string | null } | undefined;
       if (memberRow?.avatar_thumb_key) {
-        const base = getPhotoStorageAdapter().constructURL(memberRow.avatar_thumb_key);
+        const base = getMediaStorageAdapter().constructURL(memberRow.avatar_thumb_key);
         avatarThumbUrl = memberRow.avatar_media_id
           ? `${base}?v=${encodeURIComponent(memberRow.avatar_media_id)}`
           : base;

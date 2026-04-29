@@ -32,6 +32,7 @@ export interface MemberOverrides {
   password_hash?: string;
   email_verified_at?: string | null;
   is_admin?: 0 | 1;
+  is_system?: 0 | 1;
   is_hof?: 0 | 1;
   is_bap?: 0 | 1;
   is_deceased?: 0 | 1;
@@ -50,14 +51,17 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
   const slug    = o.slug          ?? `test_user_${uid()}`;
   const name    = o.real_name     ?? 'Test User';
   const display = o.display_name  ?? name;
-  const purged  = o.personal_data_purged_at ?? null;
+  const purged   = o.personal_data_purged_at ?? null;
+  const isSystem = (o.is_system ?? 0) === 1;
 
-  // Two-way credential-state invariant: live OR purged. Purged => all credential fields NULL.
-  const email            = purged ? null : (o.login_email ?? `test-${uid()}@example.com`);
+  // Three-branch credential-state invariant: live, purged, or system-member.
+  // Purged and system-member rows both have all credential fields NULL.
+  const noCredentials    = isSystem || !!purged;
+  const email            = noCredentials ? null : (o.login_email ?? `test-${uid()}@example.com`);
   const emailNormalized  = email ? email.toLowerCase() : null;
-  const emailVerifiedAt  = purged ? null : (o.email_verified_at !== undefined ? o.email_verified_at : TS);
-  const passwordHash     = purged ? null : (o.password_hash ?? '[TEST_HASH]');
-  const passwordChanged  = purged ? null : TS;
+  const emailVerifiedAt  = noCredentials ? null : (o.email_verified_at !== undefined ? o.email_verified_at : TS);
+  const passwordHash     = noCredentials ? null : (o.password_hash ?? '[TEST_HASH]');
+  const passwordChanged  = noCredentials ? null : TS;
 
   if (o.legacy_member_id) {
     const existing = db.prepare(`SELECT 1 FROM legacy_members WHERE legacy_member_id = ?`).get(o.legacy_member_id);
@@ -73,19 +77,19 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       password_hash, password_changed_at, password_version,
       real_name, display_name, display_name_normalized,
       bio, city, country,
-      is_admin, is_hof, is_bap, is_deceased,
+      is_admin, is_system, is_hof, is_bap, is_deceased,
       searchable,
       deleted_at, personal_data_purged_at,
       show_competitive_results, legacy_member_id, first_competition_year,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt,
     passwordHash, passwordChanged, o.password_version ?? 1,
     name, display, display.toLowerCase(),
     o.bio ?? '', o.city === null ? null : (o.city ?? 'Testville'), o.country === null ? null : (o.country ?? 'US'),
-    o.is_admin ?? 0, o.is_hof ?? 0, o.is_bap ?? 0, o.is_deceased ?? 0,
+    o.is_admin ?? 0, o.is_system ?? 0, o.is_hof ?? 0, o.is_bap ?? 0, o.is_deceased ?? 0,
     o.searchable ?? 1,
     o.deleted_at ?? null, purged,
     o.show_competitive_results ?? 1, o.legacy_member_id ?? null, o.first_competition_year ?? null,
@@ -1064,4 +1068,64 @@ export function insertNameVariant(
     o.source     ?? 'mirror_mined',
     o.created_at ?? TS,
   );
+}
+
+// ── Curator media (system-account-owned video tagged for a slot) ─────────────
+
+export interface CuratorVideoOverrides {
+  uploaderMemberId: string;
+  slotTag: string;       // e.g. '#demo_freestyle' (must start with '#')
+  caption?: string;
+  videoKey?: string;     // S3 key stored in video_id (constructURL builds /media/{key})
+  posterUrl?: string;    // already-constructed CDN URL for the poster
+  mediaId?: string;
+}
+
+/**
+ * Insert a system-account-owned video media_items row tagged with the given
+ * slot tag, plus the corresponding tags + media_tags rows. Mirrors the
+ * production curator-seed shape so landing-page render code resolves it.
+ */
+export function insertCuratorVideo(
+  db: BetterSqlite3.Database,
+  o: CuratorVideoOverrides,
+): string {
+  const mediaId = o.mediaId ?? `media-curator-${uid()}`;
+  const videoKey = o.videoKey ?? `${o.uploaderMemberId}/detached/${mediaId}-video.mp4`;
+  const posterUrl = o.posterUrl ?? `/media/${o.uploaderMemberId}/detached/${mediaId}-poster-display.jpg`;
+  const tagDisplay = o.slotTag;
+  const tagNormalized = tagDisplay.toLowerCase();
+  const tagId = `tag-${tagNormalized.replace(/[^a-z0-9]/g, '_')}`;
+
+  db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      moderation_status
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, NULL, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active')
+  `).run(
+    mediaId, TS, TS,
+    o.uploaderMemberId,
+    o.caption ?? 'Curator demo video',
+    TS,
+    videoKey,
+    posterUrl,
+  );
+
+  db.prepare(`
+    INSERT OR IGNORE INTO tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      tag_normalized, tag_display
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?)
+  `).run(tagId, TS, TS, tagNormalized, tagDisplay);
+
+  db.prepare(`
+    INSERT INTO media_tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      media_id, tag_id, tag_display
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?)
+  `).run(`mt-${mediaId}-${tagId}`, TS, TS, mediaId, tagId, tagDisplay);
+
+  return mediaId;
 }

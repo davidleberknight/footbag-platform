@@ -26,7 +26,12 @@ FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
-RUN apk add --no-cache python3 make g++
+# python3/make/g++: native deps for sharp.
+# ffmpeg: curator video full-transcode pipeline (DD §6.8). Re-encodes input
+# bytes through libx264 + aac with explicit malware-stripping options
+# (-map 0:v -map 0:a?, -map_metadata -1, -map_chapters -1, etc.). Used by
+# the curator content seed and the future admin act-as upload path.
+RUN apk add --no-cache python3 make g++ ffmpeg
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev

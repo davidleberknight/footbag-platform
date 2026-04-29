@@ -3483,7 +3483,37 @@ export const media = {
     FROM media_items
     WHERE uploader_member_id = ? AND is_avatar = 1 AND uploaded_at > ?
   `); },
+
+  // Curator slot media: latest FH-owned (system member) media tagged with the
+  // given normalized tag. Used by landing-page render code to find the
+  // current demo loop / illustration for a slot. Member-uploaded media with
+  // the same tag is excluded by the is_system=1 join.
+  get getCuratorSlotMedia() { return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.video_platform, mi.video_id, mi.video_url,
+           mi.thumbnail_url, mi.caption, mi.s3_key_thumb, mi.s3_key_display
+    FROM media_items mi
+    JOIN media_tags mt ON mt.media_id = mi.id
+    JOIN tags t ON t.id = mt.tag_id
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE t.tag_normalized = ?
+      AND m.is_system = 1
+      AND mi.moderation_status = 'active'
+    ORDER BY mi.uploaded_at DESC
+    LIMIT 1
+  `); },
 };
+
+export interface CuratorSlotMediaRow {
+  id: string;
+  media_type: 'photo' | 'video';
+  video_platform: 'youtube' | 'vimeo' | 's3' | null;
+  video_id: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+  caption: string | null;
+  s3_key_thumb: string | null;
+  s3_key_display: string | null;
+}
 
 export interface ExistingAvatarRow {
   id: string;

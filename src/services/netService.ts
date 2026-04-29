@@ -5,7 +5,9 @@ import {
   netEvents,     NetEventSummaryRow,
   netHome,       NetHomeRecentEventRow,
                  NetNotablePlayerRow,
+  CuratorSlotMediaRow, media,
 } from '../db/db';
+import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { NotFoundError } from './serviceErrors';
 import { personHref } from './personLink';
 import { shapePartnershipPair } from './playerShaping';
@@ -66,10 +68,28 @@ interface NetCompetitionFormat {
 }
 
 interface NetDemoVideo {
-  webmUrl:   string;
   mp4Url:    string;
   posterUrl: string;
   caption:   string;
+}
+
+/**
+ * Load the system-account-owned demo loop for a landing-page slot tag.
+ * Returns null if no FH-owned media is tagged for this slot (e.g., before
+ * the curator seed has run).
+ */
+function loadCuratorDemoVideo(slotTag: string): NetDemoVideo | null {
+  const tagNormalized = slotTag.toLowerCase();
+  const row = media.getCuratorSlotMedia.get(tagNormalized) as
+    | CuratorSlotMediaRow
+    | undefined;
+  if (!row || row.media_type !== 'video' || !row.video_id) return null;
+  const adapter = getMediaStorageAdapter();
+  return {
+    mp4Url: `${adapter.constructURL(row.video_id)}?v=${row.id}`,
+    posterUrl: row.thumbnail_url ?? '',
+    caption: row.caption ?? '',
+  };
 }
 
 interface NetExploreCard {
@@ -85,7 +105,7 @@ interface NetHomeContent {
   mascotSrc:             string;
   mascotAlt:             string;
   intro:                 NetLandingExplainer;
-  demoVideo:             NetDemoVideo;
+  demoVideo:             NetDemoVideo | null;
   competitionFormats:    NetCompetitionFormat[];
   exploreCards:          NetExploreCard[];
   recentEvents:          NetHomeRecentEventViewModel[];
@@ -480,12 +500,7 @@ export const netService = {
         mascotSrc:           '/img/net-mascot.svg',
         mascotAlt:           'Footbag net icon',
         intro:               NET_LANDING_INTRO,
-        demoVideo:           {
-          webmUrl:   '/media/demo-net.webm',
-          mp4Url:    '/media/demo-net.mp4',
-          posterUrl: '/media/demo-net-poster.jpg',
-          caption:   'Demonstration of footbag net',
-        },
+        demoVideo:           loadCuratorDemoVideo('#demo_net'),
         competitionFormats:  NET_COMPETITION_FORMATS,
         exploreCards,
         recentEvents:        recentEventRows.map(shapeHomeRecentEvent),

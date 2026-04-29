@@ -48,8 +48,8 @@ function clearAwsWiring(): void {
   delete process.env.IMAGE_MAX_CONCURRENT;
   delete process.env.IMAGE_PORT;
   delete process.env.IMAGE_PROCESS_TIMEOUT_MS;
-  delete process.env.PHOTO_STORAGE_ADAPTER;
-  delete process.env.PHOTO_STORAGE_S3_BUCKET;
+  delete process.env.MEDIA_STORAGE_ADAPTER;
+  delete process.env.MEDIA_STORAGE_S3_BUCKET;
 }
 
 describe('env config: dev defaults apply when NODE_ENV is not production', () => {
@@ -167,7 +167,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:0:key/x';
     process.env.SES_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.PHOTO_STORAGE_ADAPTER = 'local';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /AWS_REGION is required when JWT_SIGNER=kms/,
     );
@@ -180,7 +180,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.PHOTO_STORAGE_ADAPTER = 'local';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.SESSION_SECRET = 'a'.repeat(31);
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SESSION_SECRET must be at least 32 characters in production/,
@@ -194,7 +194,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.PHOTO_STORAGE_ADAPTER = 'local';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.SESSION_SECRET = 'a'.repeat(20) + 'changeme' + 'b'.repeat(20);
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SESSION_SECRET appears to contain the \.env\.example placeholder/,
@@ -212,7 +212,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.SES_FROM_IDENTITY = 'noreply@footbag.org';
     process.env.AWS_REGION = 'us-east-1';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.PHOTO_STORAGE_ADAPTER = 'local';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
     const { config } = await import('../../src/config/env');
     expect(config.jwtSigner).toBe('kms');
     expect(config.jwtKmsKeyId).toBe(
@@ -222,7 +222,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     expect(config.sesFromIdentity).toBe('noreply@footbag.org');
     expect(config.awsRegion).toBe('us-east-1');
     expect(config.imageProcessorUrl).toBe('http://image:4000');
-    expect(config.photoStorageAdapter).toBe('local');
+    expect(config.mediaStorageAdapter).toBe('local');
   });
 
   it('throws when IMAGE_PROCESSOR_URL is unset in production', async () => {
@@ -237,7 +237,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
   });
 });
 
-describe('env config: PHOTO_STORAGE_*', () => {
+describe('env config: MEDIA_STORAGE_*', () => {
   let snap: EnvSnapshot;
   beforeEach(() => {
     snap = snapshotEnv();
@@ -250,11 +250,11 @@ describe('env config: PHOTO_STORAGE_*', () => {
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
     const { config } = await import('../../src/config/env');
-    expect(config.photoStorageAdapter).toBe('local');
-    expect(config.photoStorageS3Bucket).toBeUndefined();
+    expect(config.mediaStorageAdapter).toBe('local');
+    expect(config.mediaStorageS3Bucket).toBeUndefined();
   });
 
-  it('throws when PHOTO_STORAGE_ADAPTER is unset in production', async () => {
+  it('throws when MEDIA_STORAGE_ADAPTER is unset in production', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
@@ -262,39 +262,39 @@ describe('env config: PHOTO_STORAGE_*', () => {
     process.env.SES_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /PHOTO_STORAGE_ADAPTER must be set explicitly in production/,
+      /MEDIA_STORAGE_ADAPTER must be set explicitly in production/,
     );
   });
 
-  it('throws on invalid PHOTO_STORAGE_ADAPTER value', async () => {
+  it('throws on invalid MEDIA_STORAGE_ADAPTER value', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
-    process.env.PHOTO_STORAGE_ADAPTER = 'gcs';
+    process.env.MEDIA_STORAGE_ADAPTER = 'gcs';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /PHOTO_STORAGE_ADAPTER must be 's3' or 'local', got: gcs/,
+      /MEDIA_STORAGE_ADAPTER must be 's3' or 'local', got: gcs/,
     );
   });
 
-  it('throws when PHOTO_STORAGE_ADAPTER=s3 but PHOTO_STORAGE_S3_BUCKET is unset', async () => {
+  it('throws when MEDIA_STORAGE_ADAPTER=s3 but MEDIA_STORAGE_S3_BUCKET is unset', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
-    process.env.PHOTO_STORAGE_ADAPTER = 's3';
+    process.env.MEDIA_STORAGE_ADAPTER = 's3';
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /PHOTO_STORAGE_S3_BUCKET is required when PHOTO_STORAGE_ADAPTER=s3/,
+      /MEDIA_STORAGE_S3_BUCKET is required when MEDIA_STORAGE_ADAPTER=s3/,
     );
   });
 
-  it('throws when PHOTO_STORAGE_ADAPTER=s3 but AWS_REGION is unset', async () => {
+  it('throws when MEDIA_STORAGE_ADAPTER=s3 but AWS_REGION is unset', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
-    process.env.PHOTO_STORAGE_ADAPTER = 's3';
-    process.env.PHOTO_STORAGE_S3_BUCKET = 'media-bucket-1';
+    process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.MEDIA_STORAGE_S3_BUCKET = 'media-bucket-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
-      /AWS_REGION is required.*PHOTO_STORAGE_ADAPTER=s3/,
+      /AWS_REGION is required.*MEDIA_STORAGE_ADAPTER=s3/,
     );
   });
 
@@ -302,10 +302,10 @@ describe('env config: PHOTO_STORAGE_*', () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
-    process.env.PHOTO_STORAGE_ADAPTER = 'local';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
     const { config } = await import('../../src/config/env');
-    expect(config.photoStorageAdapter).toBe('local');
-    expect(config.photoStorageS3Bucket).toBeUndefined();
+    expect(config.mediaStorageAdapter).toBe('local');
+    expect(config.mediaStorageS3Bucket).toBeUndefined();
   });
 
   it('accepts a fully-populated s3 configuration', async () => {
@@ -315,12 +315,12 @@ describe('env config: PHOTO_STORAGE_*', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
-    process.env.PHOTO_STORAGE_ADAPTER = 's3';
-    process.env.PHOTO_STORAGE_S3_BUCKET = 'footbag-staging-media';
+    process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
     process.env.AWS_REGION = 'us-east-1';
     const { config } = await import('../../src/config/env');
-    expect(config.photoStorageAdapter).toBe('s3');
-    expect(config.photoStorageS3Bucket).toBe('footbag-staging-media');
+    expect(config.mediaStorageAdapter).toBe('s3');
+    expect(config.mediaStorageS3Bucket).toBe('footbag-staging-media');
     expect(config.awsRegion).toBe('us-east-1');
   });
 });

@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:image": "IMAGE_PORT=4001 tsx watch src/imageWorker.ts",
+    "dev:all": "bash scripts/dev.sh",
     "compose:dev": "bash scripts/compose-dev.sh",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",

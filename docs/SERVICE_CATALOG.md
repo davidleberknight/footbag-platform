@@ -67,7 +67,7 @@ There is no target-design `publicController` layer. Public controllers/routes st
 **Adapter pattern:** Adapters are the only seam between app code and external services. Interface: `<Purpose>Adapter`; implementations: `<Backend><Purpose>Adapter`. Current adapters:
 - `JwtSigningAdapter` — `LocalJwtSigningAdapter` (dev, HS256 with local secret) / `KmsJwtSigningAdapter` (staging/prod, AWS KMS).
 - `SesAdapter` — `StubSesAdapter` (dev, in-process capture) / `LiveSesAdapter` (staging/prod, real SES).
-- `PhotoStorageAdapter` — local-fs (dev) / S3 (staging/prod).
+- `MediaStorageAdapter` — local-fs (dev) / S3 (staging/prod). Content-agnostic; handles photos, system-account video bytes, and posters identically.
 
 Adapters must fail-fast at boot when required env vars are absent. Integration tests stand up an injected fake client against the adapter interface; tests must never mock the AWS SDK package itself. See `tests/CLAUDE.md` §"Dev↔staging adapter parity" for the required three-test pattern (boot-time, interface parity, staging smoke).
 

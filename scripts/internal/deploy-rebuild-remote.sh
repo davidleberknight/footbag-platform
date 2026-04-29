@@ -286,17 +286,32 @@ compose_cmd down --remove-orphans || true
 if [[ "$KEEP_MEDIA" == "yes" ]]; then
   echo "    --keep-media: skipping S3 media wipe."
 else
-  PHOTO_STORAGE_S3_BUCKET_VAL=$(require_env PHOTO_STORAGE_S3_BUCKET)
-  echo "    Wiping s3://${PHOTO_STORAGE_S3_BUCKET_VAL}/ (staging default; pass --keep-media to skip)..."
+  MEDIA_STORAGE_S3_BUCKET_VAL=$(require_env MEDIA_STORAGE_S3_BUCKET)
+  echo "    Wiping s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ (staging default; pass --keep-media to skip)..."
   AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 rm \
     --region "$AWS_REGION_VAL" \
-    "s3://${PHOTO_STORAGE_S3_BUCKET_VAL}/" \
+    "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/" \
     --recursive
   echo "    S3 wipe complete; delete markers will replicate to DR bucket automatically."
 fi
 
+# Repopulate the bucket with the curator-seeded bytes that the workstation
+# produced via legacy_data/scripts/seed_curator_media.py and rsync'd into
+# RELEASE_DIR/data/media/. Without this, the wipe above leaves S3 empty and
+# the FH avatar + demo-loop URLs render 403/404 (DD §1.5: bytes live in S3,
+# DB rows reference S3 keys; both sides must be in sync).
+if [[ -d "${RELEASE_DIR}/data/media" ]]; then
+  : "${MEDIA_STORAGE_S3_BUCKET_VAL:=$(require_env MEDIA_STORAGE_S3_BUCKET)}"
+  echo "    Syncing curator-seeded media to s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ ..."
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 sync \
+    --region "$AWS_REGION_VAL" \
+    "${RELEASE_DIR}/data/media/" \
+    "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/"
+  echo "    Curator media sync complete."
+fi
+
 echo "    Promoting release into $LIVE_DIR ..."
-rsync -a --delete --exclude=/env --exclude=/db --exclude=/media "$RELEASE_DIR/" "$LIVE_DIR/"
+rsync -a --delete --exclude=/env --exclude=/db --exclude=/media --exclude=/data "$RELEASE_DIR/" "$LIVE_DIR/"
 
 echo "    Replacing live DB..."
 mkdir -p "$(dirname "$DB_PATH")"

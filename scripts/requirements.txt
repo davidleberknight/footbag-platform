@@ -3,3 +3,4 @@ beautifulsoup4
 argon2-cffi
 python-dotenv
 pysqlite3-binary==0.5.4.post2
+Pillow

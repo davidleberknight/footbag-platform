@@ -1108,8 +1108,8 @@ Required stance:
 - Object Lock is intentionally not applied to the media DR bucket: photo deletion must propagate to the DR side to honor member-account-erasure. Operator-recovery headroom comes from versioning plus the 30-day noncurrent expiration on both buckets.
 - verify replication health after any Terraform apply touching the photo path (use `aws s3api get-bucket-replication` and a marker round-trip into the DR bucket).
 - treat media restore as a storage operation, not a SQLite restore operation.
-- the recovery procedure: promote the DR bucket to primary by updating the CloudFront `/s3-photos/*` origin and the `PHOTO_STORAGE_S3_BUCKET` env var together in the same operator step (both must change atomically; if CloudFront points at the new bucket but the env var still names the old one, the app writes to a bucket CloudFront no longer serves; if the env var is updated first, the app writes to S3 keys that CloudFront does not yet serve). Alternatively, restore objects from the DR bucket to a new primary bucket. When updating the origin, confirm the `/s3-photos/*` cache behavior retains no origin request policy.
-- when a photo key does not exist, S3 returns 403 AccessDenied (not 404) because the bucket policy grants only `s3:GetObject` to CloudFront, not `s3:ListBucket`. This is intentional: without ListBucket, S3 cannot confirm whether the key is absent or forbidden, so it returns 403 for both cases, preventing enumeration of bucket contents. A 403 on a `/s3-photos/*` URL is therefore not necessarily a permissions regression; first confirm the key exists in S3 before investigating IAM.
+- the recovery procedure: promote the DR bucket to primary by updating the CloudFront `/media/*` origin and the `MEDIA_STORAGE_S3_BUCKET` env var together in the same operator step (both must change atomically; if CloudFront points at the new bucket but the env var still names the old one, the app writes to a bucket CloudFront no longer serves; if the env var is updated first, the app writes to S3 keys that CloudFront does not yet serve). Alternatively, restore objects from the DR bucket to a new primary bucket. When updating the origin, confirm the `/media/*` cache behavior retains no origin request policy.
+- when a photo key does not exist, S3 returns 403 AccessDenied (not 404) because the bucket policy grants only `s3:GetObject` to CloudFront, not `s3:ListBucket`. This is intentional: without ListBucket, S3 cannot confirm whether the key is absent or forbidden, so it returns 403 for both cases, preventing enumeration of bucket contents. A 403 on a `/media/*` URL is therefore not necessarily a permissions regression; first confirm the key exists in S3 before investigating IAM.
 
 #### Photo storage pipeline operations
 
@@ -1117,8 +1117,8 @@ The avatar/photo pipeline runs on a four-container topology (nginx + web + worke
 
 ##### Required `/srv/footbag/env` variables
 
-- `PHOTO_STORAGE_ADAPTER=s3` (production/staging) or `local` (operator parity check only)
-- `PHOTO_STORAGE_S3_BUCKET=<terraform output media_bucket_name>`
+- `MEDIA_STORAGE_ADAPTER=s3` (production/staging) or `local` (operator parity check only)
+- `MEDIA_STORAGE_S3_BUCKET=<terraform output media_bucket_name>`
 - `IMAGE_PROCESSOR_URL=http://image:4000`
 - `IMAGE_MAX_CONCURRENT=2` (default; tune under observed load)
 
@@ -1134,11 +1134,11 @@ The avatar/photo pipeline runs on a four-container topology (nginx + web + worke
 
 `aws s3api get-bucket-policy --bucket <media>` -- the `Principal` should be `cloudfront.amazonaws.com` and the `Condition.StringEquals."aws:SourceArn"` should match the CloudFront distribution ARN. Any other principal is a misconfiguration.
 
-Also confirm no origin request policy is attached to the `/s3-photos/*` cache behavior: `aws cloudfront get-distribution-config --id <dist-id>` and inspect the `/s3-photos/*` ordered cache behavior's `OriginRequestPolicyId` field, which must be empty or absent. A `Managed-AllViewer` policy (or any policy that forwards `Host`) re-introduces the virtual-host routing bug that causes S3 to return `<Code>NotFound</Code>` before evaluating the bucket policy.
+Also confirm no origin request policy is attached to the `/media/*` cache behavior: `aws cloudfront get-distribution-config --id <dist-id>` and inspect the `/media/*` ordered cache behavior's `OriginRequestPolicyId` field, which must be empty or absent. A `Managed-AllViewer` policy (or any policy that forwards `Host`) re-introduces the virtual-host routing bug that causes S3 to return `<Code>NotFound</Code>` before evaluating the bucket policy.
 
 ##### Smoke trigger
 
-After every `terraform apply` that touches `s3.tf`, `iam.tf`, or `cloudfront.tf` for the photo path, run `npm run test:smoke` from a workstation. The `tests/smoke/photo-storage.smoke.test.ts` cases must be green before declaring the change successful.
+After every `terraform apply` that touches `s3.tf`, `iam.tf`, or `cloudfront.tf` for the media path, run `npm run test:smoke` from a workstation. The `tests/smoke/media-storage.smoke.test.ts` cases must be green before declaring the change successful.
 
 ##### Cutover sequence (one-time, when transitioning a fresh environment from local-fs to S3)
 
@@ -1156,9 +1156,23 @@ If the cutover fails after step 4:
 
 - Revert `/srv/footbag/env`: remove the four lines added in step 4.
 - `systemctl restart footbag.service`.
-- `terraform apply` a revert of `cloudfront.tf` to remove the `/s3-photos/*` cache behavior and its OAC + S3 origin + bucket policy. Required because CloudFront still serves photos from S3 until the TF revert lands; with the env reverted but CloudFront still on S3, displays will 404. (The `/media/*` cache behavior for repo-bundled chrome is unaffected by this rollback.)
+- `terraform apply` a revert of `cloudfront.tf` to restore the prior `/media/*` cache behavior topology (whatever was in place before the slice that migrated `/media/*` to S3 origin via OAC). Required because CloudFront still serves media from S3 until the TF revert lands; with the env reverted but CloudFront still on S3, displays will 404.
 
 A clean rollback requires both an env revert AND a CloudFront TF revert.
+
+#### Curator media seeding
+
+System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`legacy_data/scripts/seed_curator_media.py`) reads source assets from `legacy_data/inputs/curated/media/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member.
+
+Run order in dev: included automatically in `bash scripts/reset-local-db.sh` and incrementally on every `./run_dev.sh` run (catches updated source assets without a full DB reset).
+
+Run order in staging:
+
+1. After staging DB reset (per the staging-tolerates-reset policy), run `python3 legacy_data/scripts/seed_members.py --db <staging-db-path>` followed by `python3 legacy_data/scripts/seed_curator_media.py --db <staging-db-path> --media-dir <local-stage-dir>`.
+2. `aws s3 sync <local-stage-dir>/ s3://<staging-media-bucket>/` to upload the produced bytes.
+3. CloudFront serves the seeded URLs at `/media/{key}` via OAC.
+
+`media_id` is derived from a SHA of the id_seed plus source bytes, so updating a source asset (e.g., swapping the FH avatar) produces a new render URL on the next seed run; browser cache busts naturally without manual invalidation.
 
 ### 10.5 Snapshot restore runbook
 

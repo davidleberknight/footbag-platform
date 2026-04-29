@@ -31,8 +31,8 @@ export interface AppConfig {
   imageMaxConcurrent: number;
   imagePort: number;
   imageProcessTimeoutMs: number;
-  photoStorageAdapter: 's3' | 'local';
-  photoStorageS3Bucket: string | undefined;
+  mediaStorageAdapter: 's3' | 'local';
+  mediaStorageS3Bucket: string | undefined;
   // Value for Express's `trust proxy` setting. Number, boolean, or
   // comma-separated subnet/IP list — anything Express's setting accepts.
   // Default: 2 in production (CloudFront + nginx), 0 elsewhere.
@@ -118,37 +118,37 @@ function loadConfig(): AppConfig {
     imageProcessorUrl = 'http://localhost:4001';
   }
 
-  const rawPhotoStorage = process.env.PHOTO_STORAGE_ADAPTER;
-  let photoStorageAdapter: 's3' | 'local';
-  if (rawPhotoStorage === 's3' || rawPhotoStorage === 'local') {
-    photoStorageAdapter = rawPhotoStorage;
-  } else if (rawPhotoStorage) {
+  const rawMediaStorage = process.env.MEDIA_STORAGE_ADAPTER;
+  let mediaStorageAdapter: 's3' | 'local';
+  if (rawMediaStorage === 's3' || rawMediaStorage === 'local') {
+    mediaStorageAdapter = rawMediaStorage;
+  } else if (rawMediaStorage) {
     throw new Error(
-      `PHOTO_STORAGE_ADAPTER must be 's3' or 'local', got: ${rawPhotoStorage}`,
+      `MEDIA_STORAGE_ADAPTER must be 's3' or 'local', got: ${rawMediaStorage}`,
     );
   } else if (isProd) {
     throw new Error(
-      'PHOTO_STORAGE_ADAPTER must be set explicitly in production (no default)',
+      'MEDIA_STORAGE_ADAPTER must be set explicitly in production (no default)',
     );
   } else {
-    photoStorageAdapter = 'local';
+    mediaStorageAdapter = 'local';
   }
 
-  const photoStorageS3Bucket = process.env.PHOTO_STORAGE_S3_BUCKET || undefined;
-  if (photoStorageAdapter === 's3' && !photoStorageS3Bucket) {
+  const mediaStorageS3Bucket = process.env.MEDIA_STORAGE_S3_BUCKET || undefined;
+  if (mediaStorageAdapter === 's3' && !mediaStorageS3Bucket) {
     throw new Error(
-      'PHOTO_STORAGE_S3_BUCKET is required when PHOTO_STORAGE_ADAPTER=s3',
+      'MEDIA_STORAGE_S3_BUCKET is required when MEDIA_STORAGE_ADAPTER=s3',
     );
   }
 
   if (
     (jwtSigner === 'kms' ||
       sesAdapter === 'live' ||
-      photoStorageAdapter === 's3') &&
+      mediaStorageAdapter === 's3') &&
     !awsRegion
   ) {
     throw new Error(
-      'AWS_REGION is required when JWT_SIGNER=kms, SES_ADAPTER=live, or PHOTO_STORAGE_ADAPTER=s3',
+      'AWS_REGION is required when JWT_SIGNER=kms, SES_ADAPTER=live, or MEDIA_STORAGE_ADAPTER=s3',
     );
   }
 
@@ -214,8 +214,8 @@ function loadConfig(): AppConfig {
     imageMaxConcurrent,
     imagePort,
     imageProcessTimeoutMs,
-    photoStorageAdapter,
-    photoStorageS3Bucket,
+    mediaStorageAdapter,
+    mediaStorageS3Bucket,
     trustProxy,
   };
 }

@@ -189,6 +189,8 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/tsconfig.json' \
   --include='/database/' \
   --include='/database/footbag.db' \
+  --include='/data/' \
+  --include='/data/media/***' \
   --exclude='*' \
   ./ "$REMOTE:$REMOTE_RELEASE_DIR/" </dev/null
 

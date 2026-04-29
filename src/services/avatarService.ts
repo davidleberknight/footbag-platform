@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { media, transaction, ExistingAvatarRow } from '../db/db';
 import { detectImageType } from '../lib/imageProcessing';
-import { PhotoStorageAdapter } from '../adapters/photoStorageAdapter';
+import { MediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import { ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
@@ -9,7 +9,7 @@ import { runSqliteRead } from './sqliteRetry';
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 export interface AvatarServiceDeps {
-  storage: PhotoStorageAdapter;
+  storage: MediaStorageAdapter;
   imageProcessor: ImageProcessingAdapter;
 }
 

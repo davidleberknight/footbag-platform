@@ -133,7 +133,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 ║    transaction(() => { /* all db ops sync; async after */ })        ║
 ║                                                                     ║
 ║  Adapters  (same interface; implementation switches by env):        ║
-║    SesAdapter  ·  PhotoStorageAdapter  ·  PaymentAdapter            ║
+║    SesAdapter  ·  MediaStorageAdapter  ·  PaymentAdapter            ║
 ║    SecretsAdapter  ·  JwtSigningAdapter  ·  LoggingAdapter          ║
 ╚═════════════════════════════════════════════════════════════════════╝
 
@@ -440,7 +440,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 │  Adapter               Production                Development        │
 │  ───────────────────────────────────────────────────────────────────│
 │  SesAdapter           AWS SES (LiveSesAdapter)   StubSesAdapter     │
-│  PhotoStorageAdapter  S3 (future S3 impl)        LocalPhotoStorage  │
+│  MediaStorageAdapter  S3 (staging/prod impl)     LocalMediaStorage  │
 │  PaymentAdapter       Stripe live/test SDK       Configurable mock  │
 │  SecretsAdapter       Parameter Store (SSM)      local .env         │
 │  JwtSigningAdapter    AWS KMS (KmsJwtAdapter)    LocalJwtAdapter    │
@@ -459,7 +459,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 │                                                                     │
 │  Image processing                                                   │
 │    Same image container with Sharp — identical re-encoding.         │
-│    PhotoStorageAdapter routes output to local filesystem in dev.    │
+│    MediaStorageAdapter routes output to local filesystem in dev.    │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐

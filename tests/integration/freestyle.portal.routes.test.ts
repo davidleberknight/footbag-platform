@@ -10,6 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import BetterSqlite3 from 'better-sqlite3';
 import {
   insertHistoricalPerson,
   insertEvent,
@@ -20,6 +21,7 @@ import {
   insertMember,
   insertFreestyleRecord,
   insertFreestyleTrick,
+  insertCuratorVideo,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3111');
@@ -352,16 +354,34 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).not.toMatch(/\d+\s+documented tricks/);
   });
 
-  it('renders the self-hosted demo video with webm/mp4 sources and poster', async () => {
+  it('omits the demo-video figure when no curator-tagged FH media is seeded', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).not.toContain('class="demo-video"');
+  });
+
+  it('renders the curator-owned demo video when an FH-owned #demo_freestyle item is seeded', async () => {
+    const seedDb = new BetterSqlite3(dbPath);
+    try {
+      const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-freestyle' });
+      insertCuratorVideo(seedDb, {
+        uploaderMemberId: fhId,
+        slotTag: '#demo_freestyle',
+        caption: 'Demonstration of freestyle footbag',
+      });
+    } finally {
+      seedDb.close();
+    }
+
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="demo-video"');
-    expect(res.text).toContain('/media/demo-freestyle.webm');
-    expect(res.text).toContain('/media/demo-freestyle.mp4');
-    expect(res.text).toContain('/media/demo-freestyle-poster.jpg');
+    expect(res.text).toMatch(/\/media\/[^"]+-video\.mp4\?v(?:=|&#x3D;)[^"]+/);
+    expect(res.text).toMatch(/\/media\/[^"]+-poster-display\.jpg/);
     expect(res.text).toContain('Demonstration of freestyle footbag');
     expect(res.text).toContain('autoplay');
     expect(res.text).toContain('playsinline');
+    expect(res.text).not.toContain('type="video/webm"');
   });
 
   it('does not show old "About Freestyle Footbag" as standalone section without history context', async () => {

@@ -3,7 +3,7 @@ import Busboy from 'busboy';
 import { memberService, ProfileEditInput } from '../services/memberService';
 import { AVATAR_MAX_BYTES, createAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
-import { getPhotoStorageAdapter } from '../adapters/photoStorageAdapter';
+import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
@@ -232,7 +232,7 @@ export const memberController = {
 
       const fileBuffer = Buffer.concat(chunks);
       const avatarService = createAvatarService({
-        storage: getPhotoStorageAdapter(),
+        storage: getMediaStorageAdapter(),
         imageProcessor: getImageProcessingAdapter(),
       });
 

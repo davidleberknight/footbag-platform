@@ -1231,6 +1231,10 @@ Sign-off on this sequence is a prerequisite for §23 State 3 → State 4 transit
 
 Procedure: `docs/DEV_ONBOARDING.md` Path I (§9.4 ACM via DNS delegation); production cutover runbook in `docs/DEVOPS_GUIDE.md` to be written when the production CloudFront distribution exists.
 
+### 28.13 Curator content seeding
+
+Gate: the system member account (FH; DD §2.8) is seeded into the production DB and its initial curator content (avatar, landing-page demo loops; future items like Japan Worlds 2026 photo, /net cartoons, /footbag-heroes illustrations, tutorials, historical content) is loaded into the production media bucket before public DNS cutover. Landing pages and curator-tagged surfaces must resolve to the production media bucket, not 404. Procedure: run `python3 legacy_data/scripts/seed_members.py --db <prod-db-path>` followed by `python3 legacy_data/scripts/seed_curator_media.py --db <prod-db-path> --media-dir <local-stage-dir>`, then `aws s3 sync <local-stage-dir>/ s3://<prod-media-bucket>/`. Source assets in `legacy_data/inputs/curated/media/` are committed to the repo; expand the manifest in `seed_curator_media.py` to extend the seed list.
+
 ---
 
 ## 29. QC subsystem retirement (go-live gate)

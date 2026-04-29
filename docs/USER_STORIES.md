@@ -112,6 +112,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Review_Auto_Link_Matches](#a_review_auto_link_matches)
   - [6.3 Content Moderation](#63-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
+    - [A_Upload_Curated_Media](#a_upload_curated_media)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
@@ -1740,6 +1741,29 @@ Success Criteria:
 - All actions append to immutable audit log with actor, reason, and affected mediaId.
 - System emails uploader with decision.
 - Administrators can set or unset any flags to maintain consistency; all changes audit-logged.
+
+### A_Upload_Curated_Media
+
+Access: Only admins can upload media on behalf of the system member account (the platform's curator identity, see DD §2.8). Members and visitors do not see these controls.
+
+Story: As an admin, I can upload curated photos and videos that the platform attributes to the system member account, so that I publish curator content (landing-page demo loops, page illustrations, well-known event photos, tutorials, historical content, and similar items) without requiring a member to author them.
+
+Success Criteria:
+
+- Admin upload UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+- Admin can upload photos (JPEG, PNG; same format whitelist as M_Upload_Photo) and videos (formats per DD §6.8 Curator Media Processing). Posters for video are provided as a companion image upload.
+- Uploaded photos go through the standard Sharp pipeline (DD §6.8): re-encode, strip metadata, generate thumb + display variants.
+- Uploaded videos go through the curator video pipeline (DD §6.8): ffmpeg full transcode with explicit malware-stripping options, producing a single standardized output rendition. Companion poster goes through the Sharp pipeline.
+- The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.
+- An audit_log entry is appended for every upload, recording admin actor, timestamp, action type, and affected media_id, parallel to A_Moderate_Media, A_Override_Member_Data, and A_Fix_Event_Results.
+- Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo).
+- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags appear on /tags/{tag} pages.
+- Admin can specify gallery assignment: detached (no gallery) or attached to a system-member-owned gallery. Curator-gallery management is out of scope for this story; for the initial phase, all curator content uploaded via this path is detached.
+- Upload completes synchronously: admin sees success or failure in the request-response cycle. For video, full-transcode adds approximately 1-2 minutes per upload depending on input size. Background-job asynchrony for long transcodes is a future implementation detail and not a US-level commitment.
+- Admin uploads are not rate-limited at the member-tier rate. The audit_log is the accountability surface for admin actions.
+- Curator media is subject to the standard moderation flow per A_Moderate_Media. Curator media is public per §3.8 (the system member is a member for that rule's purpose; FH is treated like any HoF member by every other rule).
+- The system member's display_name (default "Footbag Hacky") is the uploader attribution shown on the resulting media's public render, parallel to how member-uploaded media shows the member's display_name. The display_name is editable by admin via A_Override_Member_Data.
+- The operator-run bulk curator-content seeding mechanism is a parallel path for pre-go-live content; it writes the same media_items row shape and is subject to the same processing pipeline. Operational specifics in DEVOPS_GUIDE.
 
 ### A_Create_News_Item
 

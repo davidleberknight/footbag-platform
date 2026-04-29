@@ -1531,6 +1531,10 @@ CREATE TABLE members (
   avatar_media_id TEXT REFERENCES media_items(id) ON DELETE SET NULL,
 
   is_admin    INTEGER NOT NULL DEFAULT 0 CHECK (is_admin    IN (0,1)),
+  -- Single unauthenticatable system member (Footbag Hacky). Single-row enforced
+  -- by partial UNIQUE index below; alive-without-credentials enforced by the
+  -- third branch on the credential CHECK.
+  is_system   INTEGER NOT NULL DEFAULT 0 CHECK (is_system   IN (0,1)),
   is_board    INTEGER NOT NULL DEFAULT 0 CHECK (is_board    IN (0,1)),
   is_hof      INTEGER NOT NULL DEFAULT 0 CHECK (is_hof      IN (0,1)),
   -- Most recent Hall of Fame nomination year (nullable; application-managed).
@@ -1570,13 +1574,17 @@ CREATE TABLE members (
   -- Partial UNIQUE index below enforces at most one member per HP.
   historical_person_id TEXT REFERENCES historical_persons(person_id) ON DELETE NO ACTION,
 
-  -- Two-way credential-state invariant:
-  -- (1) live account: all credential fields present, not purged
-  -- (2) purged row: all credential fields NULL, personal_data_purged_at set
+  -- Three-branch credential-state invariant:
+  -- (1) live non-system account: is_system=0, all credentials present, not purged
+  -- (2) purged non-system row: is_system=0, all credentials NULL, personal_data_purged_at set
+  -- (3) system-member account: is_system=1, all credentials NULL, not purged
+  -- The is_system gate on branches 1 and 2 ensures a system row can only
+  -- match branch 3 (no live-shape or purged-shape system rows).
   -- Pre-credential placeholder rows live in legacy_members, not members.
   CHECK (
     (
-      personal_data_purged_at IS NULL
+      is_system = 0
+      AND personal_data_purged_at IS NULL
       AND login_email            IS NOT NULL
       AND login_email_normalized IS NOT NULL
       AND password_hash          IS NOT NULL
@@ -1584,7 +1592,17 @@ CREATE TABLE members (
     )
     OR
     (
-      personal_data_purged_at IS NOT NULL
+      is_system = 0
+      AND personal_data_purged_at IS NOT NULL
+      AND login_email            IS NULL
+      AND login_email_normalized IS NULL
+      AND password_hash          IS NULL
+      AND password_changed_at    IS NULL
+    )
+    OR
+    (
+      is_system = 1
+      AND personal_data_purged_at IS NULL
       AND login_email            IS NULL
       AND login_email_normalized IS NULL
       AND password_hash          IS NULL
@@ -1593,6 +1611,9 @@ CREATE TABLE members (
   )
 );
 
+CREATE UNIQUE INDEX ux_members_system
+  ON members(is_system)
+  WHERE is_system = 1;
 CREATE UNIQUE INDEX ux_members_stripe_customer
   ON members(stripe_customer_id)
   WHERE stripe_customer_id IS NOT NULL;
@@ -1866,7 +1887,7 @@ CREATE TABLE media_items (
   height_px      INTEGER,
 
   -- Video fields (required when media_type = 'video')
-  video_platform TEXT CHECK (video_platform IN ('youtube','vimeo')),
+  video_platform TEXT CHECK (video_platform IN ('youtube','vimeo','s3')),
   video_id       TEXT,
   video_url      TEXT,
   thumbnail_url  TEXT,
@@ -1878,7 +1899,8 @@ CREATE TABLE media_items (
   CHECK (media_type <> 'photo'
     OR (s3_key_thumb IS NOT NULL AND s3_key_display IS NOT NULL)),
   CHECK (media_type <> 'video'
-    OR (video_platform IS NOT NULL AND video_id IS NOT NULL AND video_url IS NOT NULL)),
+    OR (video_platform IS NOT NULL AND video_id IS NOT NULL
+        AND (video_url IS NOT NULL OR video_platform = 's3'))),
   -- Avatar integrity: avatars must be photos and cannot be gallery-assigned
   -- (enforces the cascade-safety invariant documented in DM §4.17).
   CHECK (is_avatar = 0 OR media_type = 'photo'),

@@ -78,7 +78,7 @@ When a drift-fix surfaces disagreement between a doc and another source:
 
 Current code includes bootstrap stubs (e.g. `src/middleware/authStub.ts`) that will be replaced. Code-as-it-exists is not the source of truth for design intent. Design intent lives in DD, USER_STORIES, GOVERNANCE, SERVICE_CATALOG, DATA_MODEL. Current-sprint implementation reality lives in IP.
 
-When reviewing DD drift, cite the design sources as evidence. Do NOT cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `PhotoStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
+When reviewing DD drift, cite the design sources as evidence. Do NOT cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
 
 ## Team-member names
 

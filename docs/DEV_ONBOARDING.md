@@ -384,6 +384,8 @@ Do not commit `.env` (make sure it is in your .gitignore)
 
 ### 1.7 Reset the local database
 
+> **Recommended one-shot:** `./run_dev.sh` at repo root installs npm deps + Python venv if missing, resets the DB only if missing or stale (pass `--reset` to force), and launches the dev web server + image worker together with clean Ctrl+C teardown. The rest of §1.7-1.9 is the manual breakdown for diagnostics.
+
 > **Minimal first-boot check (optional).** To confirm that `npm install` and `.env` are healthy before running the full seed pipeline, apply the schema only:
 >
 > ```bash
@@ -420,10 +422,10 @@ Tests should pass before you spend time debugging browser behavior.
 ### 1.9 Run the dev server
 
 ```bash
-npm run dev
+./run_dev.sh
 ```
 
-Leave that terminal running.
+This launches both the web server (port 3000) and the image worker (port 4001). Avatar uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone returns 503 on avatar upload because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
 
 On WSL2, the port is forwarded automatically, so you can use your normal browser on Windows.
 

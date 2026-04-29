@@ -333,7 +333,7 @@ Provides abstractions for External Services making them look identical whether r
 - LoggingAdapter: In production, sends structured application and technical logs to CloudWatch Logs; in development, writes the same structured logs to local files.
 - MetricsAdapter: In production, sends metrics (counters, timers, gauges) to CloudWatch Metrics; in development, records the same metrics in local in-memory or file-based storage.
 - URLValidationAdapter: In production, performs URL validation including format checks and allowed host patterns; in development, uses a deterministic stub that validates syntax and known patterns without making outbound network calls.
-- PhotoStorageAdapter: Abstracts photo storage between environments. `LocalPhotoStorageAdapter` serves both dev and the current production-stub until S3 IAM is wired; future `S3PhotoStorageAdapter` will be the production implementation.
+- MediaStorageAdapter: Abstracts media storage between environments. `LocalMediaStorageAdapter` serves dev; `S3MediaStorageAdapter` is the staging/production implementation. Content-agnostic; handles photos, system-account video bytes, and posters identically.
 - JwtSigningAdapter: `KmsJwtAdapter` signs JWTs via AWS KMS (RS256) in production; `LocalJwtAdapter` signs with a file-based RSA keypair in dev/test.
 
 This layer is the translation service. Services call generic interfaces; infrastructure routes to appropriate implementation based on environment (dev, stage, prod).

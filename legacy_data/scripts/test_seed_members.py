@@ -41,18 +41,13 @@ def test_seed_members_creates_footbag_hacky_against_fresh_schema() -> None:
             check=True,
         )
 
-        # Run seed_members.py with --allow-missing-passwords and STUB_PASSWORD
-        # cleared from env, exercising the placeholder branch reset-local-db.sh
-        # uses on a fresh clone.
-        env = os.environ.copy()
-        env.pop("STUB_PASSWORD", None)
+        # Run seed_members.py against a fresh schema. The system member account
+        # has NULL credentials (DD §2.8), so no password env var is needed.
         result = subprocess.run(
             [
                 str(PYTHON), str(SCRIPT),
                 "--db", str(db_path),
-                "--allow-missing-passwords",
             ],
-            env=env,
             capture_output=True,
             text=True,
         )
@@ -71,17 +66,21 @@ def test_seed_members_creates_footbag_hacky_against_fresh_schema() -> None:
             assert count == 1, f"expected 1 member row after seed, got {count}"
 
             row = con.execute(
-                "SELECT login_email, slug, "
-                "       password_hash IS NOT NULL AS has_pw, "
+                "SELECT login_email IS NULL AS email_null, slug, "
+                "       password_hash IS NULL AS pw_null, "
+                "       is_system, "
+                "       personal_data_purged_at IS NULL AS purged_null, "
                 "       legacy_member_id, "
                 "       historical_person_id IS NULL AS hp_unset "
                 "FROM members WHERE display_name = 'Footbag Hacky'"
             ).fetchone()
             assert row is not None, "Footbag Hacky member row not present"
-            login_email, slug, has_pw, legacy_member_id, hp_unset = row
-            assert login_email == "footbag", f"login_email={login_email!r}"
+            email_null, slug, pw_null, is_system, purged_null, legacy_member_id, hp_unset = row
+            assert email_null == 1, "login_email must be NULL for system member (DD §2.8)"
             assert slug == "footbag_hacky", f"slug={slug!r}"
-            assert has_pw == 1, "password_hash must be populated"
+            assert pw_null == 1, "password_hash must be NULL for system member (DD §2.8)"
+            assert is_system == 1, f"is_system must be 1 for Footbag Hacky; got {is_system}"
+            assert purged_null == 1, "personal_data_purged_at must be NULL (alive, not purged)"
             assert legacy_member_id == "STUB_FOOTBAG_HACKY", (
                 f"legacy_member_id={legacy_member_id!r}"
             )

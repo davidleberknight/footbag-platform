@@ -89,7 +89,7 @@ If the story is unclear, escalate to the human before writing tests that encode 
 
 ## Dev↔staging adapter parity
 
-Adapters (`JwtSigningAdapter`, `SesAdapter`, `PhotoStorageAdapter`) are the only seam between dev and staging. Dev uses `local`/`stub` implementations against in-process fakes; staging uses `kms`/`live` implementations against real AWS. Production (when it exists) will reuse the staging adapters against the production AWS account.
+Adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`) are the only seam between dev and staging. Dev uses `local`/`stub` implementations against in-process fakes; staging uses `kms`/`live` implementations against real AWS. Production (when it exists) will reuse the staging adapters against the production AWS account.
 
 Every new adapter, or change to an existing adapter's contract, requires three tests. These are long-term tests that describe a permanent contract, not one-shot verifications for the sprint that introduced them.
 
