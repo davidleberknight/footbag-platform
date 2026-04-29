@@ -20,9 +20,9 @@ data "aws_cloudfront_origin_request_policy" "cors_s3_origin" {
   name = "Managed-CORS-S3Origin"
 }
 
-resource "aws_cloudfront_cache_policy" "media_assets" {
-  name        = "${local.prefix}-media-assets"
-  comment     = "Edge cache for /media/* with query string in cache key (URL-versioned cache-bust)"
+resource "aws_cloudfront_cache_policy" "s3_photos_assets" {
+  name        = "${local.prefix}-s3-photos-assets"
+  comment     = "Edge cache for /s3-photos/* with query string in cache key (URL-versioned cache-bust)"
   min_ttl     = 0
   default_ttl = 604800   # 7 days; matches express.static maxAge
   max_ttl     = 31536000 # 1 year ceiling
@@ -59,20 +59,21 @@ resource "aws_cloudfront_origin_access_control" "media" {
 }
 
 # =============================================================================
-# CloudFront Function: strip /media/ prefix from viewer-request URI
+# CloudFront Function: strip /s3-photos/ prefix from viewer-request URI
 # DD §1.5 says local-fs and S3 layouts mirror exactly, so S3 keys do NOT have
-# a /media/ prefix. The /media/ on URLs is an Express-route convention. When
-# CloudFront forwards to S3, this function rewrites the URI so the origin sees
-# the actual S3 key. Without it, S3 looks up media/avatars/... and 404s.
+# a /s3-photos/ prefix. The prefix is purely a URL convention to mark the
+# bytes as S3-served. When CloudFront forwards to S3, this function rewrites
+# the URI so the origin sees the actual S3 key. Without it, S3 looks up
+# s3-photos/avatars/... and 404s.
 # =============================================================================
 
-resource "aws_cloudfront_function" "strip_media_prefix" {
+resource "aws_cloudfront_function" "strip_s3_photos_prefix" {
   count   = var.enable_cloudfront ? 1 : 0
-  name    = "${local.prefix}-strip-media-prefix"
+  name    = "${local.prefix}-strip-s3-photos-prefix"
   runtime = "cloudfront-js-2.0"
   publish = true
-  comment = "Strips /media/ from viewer-request URI before forwarding to S3 origin (DD §1.5)"
-  code    = file("${path.module}/cloudfront-functions/strip-media-prefix.js")
+  comment = "Strips /s3-photos/ from viewer-request URI before forwarding to S3 origin (DD §1.5)"
+  code    = file("${path.module}/cloudfront-functions/strip-s3-photos-prefix.js")
 }
 
 # =============================================================================
@@ -211,7 +212,7 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
-  # ── User-uploaded media — query-string in cache key (URL-versioned cache-bust) ─
+  # ── Member-uploaded photos (S3 origin) — query-string in cache key (URL-versioned cache-bust) ─
   # No origin_request_policy: OAC handles SigV4 signing, and forwarding the
   # viewer Host header to an S3 origin breaks virtual-host bucket routing.
   # AllViewer forwarded Host=<cloudfront-domain> to S3, so S3 could not map
@@ -220,19 +221,36 @@ resource "aws_cloudfront_distribution" "main" {
   # policy that forwards no headers/cookies, CloudFront sets Host to the S3
   # origin domain and the OAC signature matches.
   ordered_cache_behavior {
-    path_pattern           = "/media/*"
+    path_pattern           = "/s3-photos/*"
     target_origin_id       = "media-s3-origin"
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id = aws_cloudfront_cache_policy.media_assets.id
+    cache_policy_id = aws_cloudfront_cache_policy.s3_photos_assets.id
 
     function_association {
       event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.strip_media_prefix[0].arn
+      function_arn = aws_cloudfront_function.strip_s3_photos_prefix[0].arn
     }
+  }
+
+  # ── Repo-bundled curated landing-page chrome (Lightsail origin) ──────────
+  # /media/* serves the few curated video shorts and posters that ship in
+  # the Docker image at src/public/media/. Bytes change with deploy, not
+  # per-upload — no URL-versioned cache-bust needed; CachingOptimized is
+  # the right policy here (mirrors /img/*, /css/*).
+  ordered_cache_behavior {
+    path_pattern           = "/media/*"
+    target_origin_id       = "lightsail-origin"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    compress               = true
+
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
   # ── Health probes — pass through uncached ────────────────────────────────

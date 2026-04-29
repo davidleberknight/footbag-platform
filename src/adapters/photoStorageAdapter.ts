@@ -3,11 +3,13 @@
  * adapters layer. Abstracts photo storage between environments. Production
  * uses S3 (`createS3PhotoStorageAdapter`); development and pre-cutover
  * staging use the local filesystem (`createLocalPhotoStorageAdapter`) with
- * identical key structure. Both implementations return relative `/media/{key}`
- * URLs from `constructURL`; routing to S3 vs Lightsail-served local fs is
- * handled by the CloudFront `/media/*` cache behavior. Services call the
- * interface; the getter returns the configured implementation based on
- * `config.photoStorageAdapter`.
+ * identical key structure. Both implementations return relative
+ * `/s3-photos/{key}` URLs from `constructURL`; the URL prefix is explicit
+ * about the S3 origin and is reserved for member-uploaded photos. The
+ * CloudFront `/s3-photos/*` cache behavior routes to the S3 bucket via OAC
+ * (with a viewer-request function stripping the prefix so S3 sees the bare
+ * key). Services call the interface; the getter returns the configured
+ * implementation based on `config.photoStorageAdapter`.
  */
 import { mkdir, writeFile, unlink, access } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -26,7 +28,7 @@ export interface PhotoStorageAdapter {
   /** Delete the object at the given storage key. No-op if it does not exist. */
   delete(key: string): Promise<void>;
 
-  /** Return a URL suitable for use in templates (e.g. `/media/{key}` or a CloudFront URL). */
+  /** Return a URL suitable for use in templates (e.g. `/s3-photos/{key}` or a CloudFront URL). */
   constructURL(key: string): string;
 
   /** Check whether an object exists at the given storage key. */
@@ -52,7 +54,7 @@ export function createLocalPhotoStorageAdapter(opts: {
       }
     },
     constructURL(key: string): string {
-      return `/media/${key}`;
+      return `/s3-photos/${key}`;
     },
     async exists(key: string): Promise<boolean> {
       try {
@@ -94,7 +96,7 @@ export function createS3PhotoStorageAdapter(opts: {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
     constructURL(key: string): string {
-      return `/media/${key}`;
+      return `/s3-photos/${key}`;
     },
     async exists(key: string): Promise<boolean> {
       try {

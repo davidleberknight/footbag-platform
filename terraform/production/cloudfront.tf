@@ -1,7 +1,9 @@
 # =============================================================================
 # Cache & origin-request policies
 # Managed policies (data sources) for HTML and static assets; one custom cache
-# policy for /media/* (query string in cache key, URL-versioned cache-bust).
+# policy for /s3-photos/* (query string in cache key, URL-versioned cache-bust)
+# reserved for the future S3 photo backend (production currently has no S3
+# origin; /media/* serves repo-bundled chrome from Lightsail).
 # =============================================================================
 
 data "aws_cloudfront_cache_policy" "caching_disabled" {
@@ -20,9 +22,9 @@ data "aws_cloudfront_origin_request_policy" "cors_s3_origin" {
   name = "Managed-CORS-S3Origin"
 }
 
-resource "aws_cloudfront_cache_policy" "media_assets" {
-  name        = "${local.prefix}-media-assets"
-  comment     = "Edge cache for /media/* with query string in cache key (URL-versioned cache-bust)"
+resource "aws_cloudfront_cache_policy" "s3_photos_assets" {
+  name        = "${local.prefix}-s3-photos-assets"
+  comment     = "Edge cache for /s3-photos/* with query string in cache key (URL-versioned cache-bust). Reserved for the future production S3 photo backend; not yet attached to any cache behavior."
   min_ttl     = 0
   default_ttl = 604800   # 7 days; matches express.static maxAge
   max_ttl     = 31536000 # 1 year ceiling
@@ -157,7 +159,13 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
-  # ── User-uploaded media — query-string in cache key (URL-versioned cache-bust) ─
+  # ── Repo-bundled curated landing-page chrome (Lightsail origin) ──────────
+  # /media/* serves the curated video shorts and posters that ship in the
+  # Docker image at src/public/media/. Bytes change with deploy, not per
+  # upload — CachingOptimized is correct here (mirrors /img/*, /css/*).
+  # When production migrates to the S3 photo backend, member-uploaded
+  # photos will be served at a separate /s3-photos/* behavior using the
+  # s3_photos_assets cache policy defined above.
   ordered_cache_behavior {
     path_pattern           = "/media/*"
     target_origin_id       = "lightsail-origin"
@@ -166,7 +174,7 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id          = aws_cloudfront_cache_policy.media_assets.id
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
   }
 

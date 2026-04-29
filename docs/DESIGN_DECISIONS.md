@@ -217,7 +217,9 @@ Separates structured metadata (benefits from SQL queries, transactions, referent
 
 Paths are stored as data, not calculated at runtime based on the member id and gallery name used at the time of upload.
 
-CloudFront serves photos directly from the primary bucket via the `/media/*` cache behavior on the single site distribution. The cache-bust mechanism is URL-versioned via a `?v={media_id}` query string (a fresh UUID per upload), and the cache key includes the query string. S3 PUT sets `Cache-Control: public, max-age=31536000, immutable`. Photos are immutable from any cache's point of view because each emitted URL is unique to its upload; the URL is the cache identity, the S3 key is the storage location, decoupled.
+CloudFront serves photos directly from the primary bucket via the `/s3-photos/*` cache behavior on the single site distribution. The URL prefix is `/s3-photos/` rather than `/media/` so the prefix announces the S3 origin in the URL itself, and so `/media/*` remains available for repo-bundled chrome served from Lightsail. The cache-bust mechanism is URL-versioned via a `?v={media_id}` query string (a fresh UUID per upload), and the cache key includes the query string. S3 PUT sets `Cache-Control: public, max-age=31536000, immutable`. Photos are immutable from any cache's point of view because each emitted URL is unique to its upload; the URL is the cache identity, the S3 key is the storage location, decoupled.
+
+Scope: only member-uploaded photo objects are stored in S3. The platform does not host video bytes there; member video is YouTube/Vimeo embeds per `M_Submit_Video`, and the legacy mirror at archive.footbag.org is a separate static bucket per §6.4. The narrow exception is webmaster-curated landing-page video shorts (the demo loops on `/freestyle` and `/net`), which are bundled in the Docker image at `src/public/media/` and served from Lightsail under the `/media/*` cache behavior, never from S3.
 
 Local filesystem at /data/photos/ mounted as Docker volume mirrors production S3 directory structure exactly. PhotoStorageAdapter reads identical database paths and constructs local URLs. No AWS credentials required for basic photo operations.
 
@@ -233,7 +235,7 @@ The media bucket is private. Viewer reads flow exclusively through CloudFront wi
 
 The application container's IAM grants `s3:PutObject`, `s3:DeleteObject`, `s3:GetObject` on objects, plus `s3:ListBucket` on the bucket. `GetObject` is granted because S3's HeadObject is authorized by `s3:GetObject` per IAM; the application uses HeadObject for existence checks only and never reads object bytes through the SDK. Viewer reads always flow CloudFront → OAC → bucket.
 
-CloudFront OAC is configured with `signing_behavior = always`, which overrides any viewer-supplied `Authorization` header. OAC does not override the `Host` header; for an S3 origin, the cache behavior must omit `origin_request_policy_id` (or use a policy that excludes `Host`) so CloudFront sets `Host` to the S3 origin domain itself. With the wrong `Host`, S3 cannot identify the bucket via virtual-host routing and returns generic `NotFound` before any bucket policy is evaluated. This applies to every cache behavior targeting an S3 origin, not only `/media/*`.
+CloudFront OAC is configured with `signing_behavior = always`, which overrides any viewer-supplied `Authorization` header. OAC does not override the `Host` header; for an S3 origin, the cache behavior must omit `origin_request_policy_id` (or use a policy that excludes `Host`) so CloudFront sets `Host` to the S3 origin domain itself. With the wrong `Host`, S3 cannot identify the bucket via virtual-host routing and returns generic `NotFound` before any bucket policy is evaluated. This applies to every cache behavior targeting an S3 origin, not only `/s3-photos/*`.
 
 Trade-offs:
 
@@ -251,7 +253,7 @@ Impact:
 
 - Backup procedures updated to cover photos separately from database.
 
-- CloudFront `/media/*` cache behavior uses OAC with no origin request policy. Operations in DEVOPS_GUIDE.
+- CloudFront `/s3-photos/*` cache behavior uses OAC with no origin request policy. Operations in DEVOPS_GUIDE.
 
 Alternative Considered:
 
@@ -2024,7 +2026,7 @@ Cache control header strategy:
 
 - Public cacheable HTML / public GET content (for example, public event listings, public galleries, non-personalized pages): origin emits Cache-Control: public, max-age=300, must-revalidate as a hint for browser-side caching. CloudFront's default behavior uses the AWS managed `CachingDisabled` cache policy per §6.2, so the response is not edge-cached. A high-traffic public route that warrants edge caching may receive a dedicated `ordered_cache_behavior` with a cache policy that respects this header.
 
-- API endpoints, authenticated HTML, and any personalized/user-specific content: Cache-Control: private, no-store, set by Express middleware on every authenticated response. CloudFront's default cache behavior uses the AWS managed `CachingDisabled` cache policy for all HTML routes (public, mixed-state, and authenticated alike): the app frequently varies HTML by viewer state across many routes, and rather than per-route classification, all HTML is routed to origin so the middleware is the single mechanism for HTML cache control. Static assets (which never vary by viewer) continue to be edge-cached aggressively per the next bullet. User-uploaded media (`/media/*`) is edge-cached via a CloudFront cache policy that includes the query string in the cache key, supporting URL-versioned cache-bust (e.g. `?v={media_id}`).
+- API endpoints, authenticated HTML, and any personalized/user-specific content: Cache-Control: private, no-store, set by Express middleware on every authenticated response. CloudFront's default cache behavior uses the AWS managed `CachingDisabled` cache policy for all HTML routes (public, mixed-state, and authenticated alike): the app frequently varies HTML by viewer state across many routes, and rather than per-route classification, all HTML is routed to origin so the middleware is the single mechanism for HTML cache control. Static assets (which never vary by viewer) continue to be edge-cached aggressively per the next bullet. User-uploaded photos (`/s3-photos/*`) are edge-cached via a CloudFront cache policy that includes the query string in the cache key, supporting URL-versioned cache-bust (e.g. `?v={media_id}`).
 
 - Public unauthenticated routes that render a single-use token in HTML (the password-reset form is the canonical example: it embeds the reset token in a hidden form field and in the form `action` URL) MUST also send `Cache-Control: no-store, no-cache, must-revalidate, private` and `Pragma: no-cache`. Without this, a shared HTTP proxy or browser back-button cache could capture an unconsumed token. The app middleware that sets `private, no-store` for authenticated responses does not apply here because the route is anonymous; controllers must set the headers explicitly on both the GET render and any 422 re-render that includes the token.
 
@@ -2697,7 +2699,7 @@ Photo Backup (S3 replication):
 
 Photos are backed up separately from database due to data volume. Amazon S3 cross-region replication handles photo backup automatically and continuously. The primary media bucket (`<env>-media`, us-east-1) replicates all photo objects to a dedicated DR bucket (`<env>-media-dr`, us-west-2) using S3 One Zone-IA storage class for cost savings on DR storage. Replication is continuous; per-object propagation typically completes within minutes. S3 Replication Time Control (RTC) is not enabled, so there is no formal RPO SLA. No backup job or cron process is required; S3's native cross-region replication feature handles this automatically. Photo backup is completely decoupled from database backup cycle. The DR bucket preserves the primary's S3 key structure exactly (replication preserves keys), so a recovery scenario can restore objects without remapping. Object Lock is intentionally not applied to the photo DR bucket: photo deletion must propagate to the DR side to honor member-account-erasure (§1.5 "When member deletes account: member's photos automatically hard-deleted"). Operator-recovery headroom is provided by S3 Versioning plus 30-day `NoncurrentVersionExpiration` on both buckets.
 
-Recovery procedure: Promote the DR bucket to primary by updating the CloudFront `/media/*` origin and the `PHOTO_STORAGE_S3_BUCKET` env var, or restore objects from the DR bucket to a new primary bucket (replication-preserved keys make either path mechanical).
+Recovery procedure: Promote the DR bucket to primary by updating the CloudFront `/s3-photos/*` origin and the `PHOTO_STORAGE_S3_BUCKET` env var, or restore objects from the DR bucket to a new primary bucket (replication-preserved keys make either path mechanical).
 
 ## 9.5 Failure Modes
 
