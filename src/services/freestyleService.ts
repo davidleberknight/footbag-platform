@@ -1079,6 +1079,29 @@ export const freestyleService = {
     };
   },
 
+  getGlossaryPage(): PageViewModel<Record<string, never>> {
+    return {
+      seo: {
+        title: 'Freestyle Glossary',
+        description:
+          'Glossary of freestyle footbag terminology: the ADD system, run-quality labels, set components, and common abbreviations.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_glossary',
+        title:      'Freestyle Glossary',
+        intro:      'Plain-language definitions for the words and abbreviations players use when talking about freestyle.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Glossary' },
+        ],
+      },
+      content: {},
+    };
+  },
+
   getMovesPage(): PageViewModel<Record<string, never>> {
     return {
       seo: {

@@ -1,0 +1,170 @@
+{{! /freestyle/glossary — editorial freestyle terminology reference }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <section class="content-section">
+    <h2 class="section-heading">The ADD System</h2>
+    <p>
+      ADD stands for &ldquo;Additional Degree of Difficulty.&rdquo; Each ADD is an indivisible
+      unit of difficulty that a move contributes to its total value. A move&rsquo;s ADD count
+      is the sum of its components: the kind of contact, the body action, and any extras
+      stacked into a single trick.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Term</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>ADD</td><td>One indivisible unit of difficulty within a trick.</td></tr>
+          <tr><td>Delay <code>[del]</code></td><td>Stall or catch on any foot or leg surface.</td></tr>
+          <tr><td>Dexterity <code>[dex]</code></td><td>Circling or crossing the bag&rsquo;s path with one leg.</td></tr>
+          <tr><td>Body <code>[bod]</code></td><td>A spin, jump, duck, or double-hip pivot during the trick.</td></tr>
+          <tr><td>Cross Body <code>[xbd]</code></td><td>Kick or delay performed with the legs crossed.</td></tr>
+          <tr><td>Unusual Surface <code>[uns]</code></td><td>Contact on a surface other than toes, insides, outsides, or knees.</td></tr>
+          <tr><td>X-Dex</td><td>An extra dex-type ADD for complete circling motions, such as the second dex of a double around-the-world.</td></tr>
+          <tr><td>BOP</td><td>The fundamental three-ADD trio: Butterfly, Osis, and Paradox-Mirage.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Move Components: Set, Hangtime, Catch</h2>
+    <p>
+      The bag follows a parabolic arc on every trick. That arc splits into three phases.
+      Together, the uptime and midtime components form what modern players call a
+      &ldquo;set.&rdquo;
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Term</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Uptime</td><td>Components performed while the bag is travelling up from the initial set.</td></tr>
+          <tr><td>Midtime / Hangtime</td><td>Components at the apex of the bag&rsquo;s arc.</td></tr>
+          <tr><td>Downtime</td><td>Components while the bag is falling toward the catch or kick.</td></tr>
+          <tr><td>Set (modern)</td><td>The full collection of uptime and midtime components preceding the downtime core.</td></tr>
+          <tr><td>Set (older sense)</td><td>The initial projection only, e.g. a clipper set or toe set.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      For the catalogue of named sets (Pixie, Fairy, Nuclear, Stepping, and so on),
+      see the <a href="/freestyle/moves">Move Sets</a> reference.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Run Quality: ADD Floor Labels</h2>
+    <p>
+      Players label a continuous shred or run by the lowest ADD value it includes.
+      A &ldquo;guiltless&rdquo; run, for example, is one in which every scored move is at
+      least three ADDs. Higher floors are harder to sustain.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Label</th><th>Floor</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Kickless</td><td>Every move is at least 1 ADD.</td></tr>
+          <tr><td>Tiltless</td><td>Every move is at least 2 ADDs.</td></tr>
+          <tr><td>Guiltless</td><td>Every move is at least 3 ADDs.</td></tr>
+          <tr><td>Genuine</td><td>Every move is at least 3 ADDs, excluding BOPs.</td></tr>
+          <tr><td>Tripless</td><td>Every move is at least 4 ADDs.</td></tr>
+          <tr><td>Fearless</td><td>Every move is at least 5 ADDs.</td></tr>
+          <tr><td>Beastly</td><td>Every move is at least 6 ADDs.</td></tr>
+          <tr><td>Godly</td><td>Every move is at least 7 ADDs.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Play Quality</h2>
+    <p>
+      These adjectives describe how a move was executed, not what it contained.
+      They are about clean versus messy, not about ADD count.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Term</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Slurry</td><td>Uptime dex where the dex leg clears the bag before it leaves the setting foot. Not clean, does not count for ADDs.</td></tr>
+          <tr><td>Froggy</td><td>A spin or gyro where the body motion begins before the bag leaves the setting foot. Not clean.</td></tr>
+          <tr><td>Thin</td><td>A dex where it is unclear whether the leg fully circled the bag.</td></tr>
+          <tr><td>Hippy</td><td>A dex motion driven primarily from the hip.</td></tr>
+          <tr><td>Leggy</td><td>A dex motion driven primarily from the lower leg.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Play-Form Concepts</h2>
+    <p>
+      Structural ideas that show up in trick descriptions and combo talk.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Term</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Symposium</td><td>A dex from a one-footed jump, where the dex foot was planted and the other foot was not.</td></tr>
+          <tr><td>Symple</td><td>A one-footed jumping dex with no opposite-foot support until the next contact.</td></tr>
+          <tr><td>Frontside</td><td>The uptime component of a multi-dex trick performed symposium.</td></tr>
+          <tr><td>Backside</td><td>The downtime component of a multi-dex trick performed symposium.</td></tr>
+          <tr><td>Alpine</td><td>A move whose uptime component incorporates a duck, dive, or weave (e.g. an alpine legbeater is an atomic ducking butterfly).</td></tr>
+          <tr><td>Fetish</td><td>When a player slaps or kicks themselves during a run.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">Common Abbreviations</h2>
+    <p>
+      Short forms used in shred-circle talk, trick names, and scoring discussion.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Abbreviation</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>B2B</td><td>Back-to-Back. Hitting a trick twice consecutively.</td></tr>
+          <tr><td>BAP</td><td>Big ADD Posse. An invite-only honorific group of high-ADD players.</td></tr>
+          <tr><td>BS</td><td>Both Sides, or Backside.</td></tr>
+          <tr><td>BSOS</td><td>Both Sides One String. Performing a move on both sides within a single run. Also written BSOR (Both Sides One Run).</td></tr>
+          <tr><td>FS</td><td>Flipside, or Frontside. Flipside or &ldquo;Flip&rdquo; refers to a player&rsquo;s weak side.</td></tr>
+          <tr><td>PDX</td><td>Paradox.</td></tr>
+          <tr><td>PS</td><td>Paradox-Symposium.</td></tr>
+          <tr><td>PWF</td><td>Paradox-Whirl-Free. Used for difficult combos that lack a paradox-whirl element.</td></tr>
+          <tr><td>Rev</td><td>Reverse, e.g. reverse whirl, reverse swirl.</td></tr>
+          <tr><td>SS</td><td>Same Side.</td></tr>
+          <tr><td>Symp / Smp</td><td>Symposium.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>

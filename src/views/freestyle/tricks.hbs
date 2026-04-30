@@ -107,8 +107,10 @@
   {{/if}}
 
   {{! ------------------------------------------------------------------ }}
-  {{! Modifier Reference }}
+  {{! Modifier Reference — render-disabled. content.modifiers is still
+      shaped by the service and is preserved for future reuse. }}
   {{! ------------------------------------------------------------------ }}
+  {{!--
   {{#if content.modifiers.length}}
   <section class="content-section">
     <div class="section-heading">
@@ -141,6 +143,7 @@
     </div>
   </section>
   {{/if}}
+  --}}
 
   <p class="source-note">
     Trick data sourced from community documentation.

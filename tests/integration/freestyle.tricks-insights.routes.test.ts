@@ -230,11 +230,18 @@ describe('public dictionary presentation', () => {
     const res = await request(app).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     // Modifier-category section header must not appear in the page.
-    // (The dedicated "Modifier Reference" section uses a different table.)
     expect(res.text).not.toMatch(/<h2>Modifier<\/h2>/);
     // The modifier-category trick we seeded must not have a row in the
     // category listing. Detail link to that slug should also be absent.
     expect(res.text).not.toContain('href="/freestyle/tricks/ducking"');
+  });
+
+  it('does not render the Modifier Reference section', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Modifier Reference');
+    expect(res.text).not.toContain('+ADD (rotational)');
   });
 
   it('renders the dictionary expansion note', async () => {

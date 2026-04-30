@@ -125,4 +125,14 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/glossary */
+  glossary(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getGlossaryPage();
+      res.render('freestyle/glossary', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
 };

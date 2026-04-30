@@ -276,6 +276,80 @@ describe('GET /freestyle/moves', () => {
 
 // ---------------------------------------------------------------------------
 
+describe('GET /freestyle/glossary', () => {
+  it('returns 200 with page title', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Freestyle Glossary');
+  });
+
+  it('renders breadcrumb back to /freestyle', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('href="/freestyle"');
+  });
+
+  it('contains ADD-system core terms', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('Delay');
+    expect(res.text).toContain('Dexterity');
+    expect(res.text).toContain('BOP');
+  });
+
+  it('contains run-quality floor labels', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('Guiltless');
+    expect(res.text).toContain('Fearless');
+    expect(res.text).toContain('Tiltless');
+    expect(res.text).toContain('Tripless');
+  });
+
+  it('contains play-quality adjectives', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('Slurry');
+    expect(res.text).toContain('Froggy');
+  });
+
+  it('contains play-form concepts', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('Symposium');
+    expect(res.text).toContain('Alpine');
+  });
+
+  it('contains common abbreviations', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('B2B');
+    expect(res.text).toContain('PDX');
+    expect(res.text).toContain('PWF');
+  });
+
+  it('does not expose review-status or source-discussion content', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).not.toContain('Pending Red');
+    expect(res.text).not.toContain('Community-only');
+    expect(res.text).not.toContain('review_status');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /freestyle — glossary link', () => {
+  it('links to /freestyle/glossary on the landing page', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).toContain('/freestyle/glossary');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 describe('GET /freestyle/tricks/:slug', () => {
   it('returns 200 for a known trick slug', async () => {
     const app = createApp();
