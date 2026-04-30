@@ -59,6 +59,20 @@ Examples (Red-confirmed):
 
 If two moves differ in spin / dex / movement direction, they get separate dictionary entries even when their structural skeleton is otherwise identical.
 
+Within-trick CW/CCW or in/out execution variants stay in one canonical row when the community treats them as the same trick. The canonical notation captures the dominant or both-allowed forms (e.g. `around-the-world` notation `TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]`).
+
+### Jobs notation is the structural backbone
+
+Trick names are labels; Jobs notation describes the actual movement. Store as opaque text in `freestyle_tricks.notation`. Do not parse, do not regenerate. Mismatches between description and notation are flagged in QC, never silently rewritten.
+
+When canonical notation is blank and footbag.org has notation, promote it onto canonical (script 20 does this automatically). When canonical and footbag.org disagree on notation, preserve the disagreement in `freestyle_trick_source_links.asserted_notation`; never silently overwrite.
+
+### Description policy
+
+Public-facing trick descriptions are neutral and instructional. No reviewer names ("per Red", "by X", "confirmed by", "Husted"), no internal modifier shorthand ("= 4 ADD", "barraging legover"), no provenance attribution. Reviewer / expert provenance lives in `freestyle_trick_source_links.notes`, source-registry rows, or QC reports — not in `description`.
+
+When ADD math is referenced in a description, it must agree with the row's `adds` value or be removed. Self-contradictions (description says "= 3 ADD" while `adds=4`) are HIGH-severity QC failures.
+
 ---
 
 ## 2. Modifier Layer
@@ -268,6 +282,18 @@ Pending rows:
 - preserve source links
 - include review notes
 - do not surface publicly
+
+### Public-surface invariant
+
+All public queries on `freestyle_tricks` MUST filter `is_active = 1`. This is enforced in `src/db/db.ts` (`freestyleTricks.listAll`, `getBySlug`, `listByFamily`) and covered by regression tests in `tests/integration/freestyle.tricks-insights.routes.test.ts` ("pending row visibility" describe block).
+
+When adding a new public query against the table, copy the pattern. When adding a new public surface (e.g. an admin-only review page), use a separate prepared statement that does NOT have the filter. Do not relax the existing filter to support a new caller.
+
+### Modifier rows are not tricks
+
+`freestyle_tricks` rows with `category='modifier'` (e.g. `paradox`, `gyro`, `barraging`, `blazing`) are excluded from the public category groupings on `/freestyle/tricks`. The dedicated "Modifier Reference" section sources from the proper rules table `freestyle_trick_modifiers`. Do not display modifier rows in both places — that mixes the trick and modifier layers.
+
+The historical reason `freestyle_tricks` carries modifier-category rows is composition — they're FK targets for `freestyle_trick_modifier_links`. They stay in the table; they just don't render as tricks.
 
 ---
 
