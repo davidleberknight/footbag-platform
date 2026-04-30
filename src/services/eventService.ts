@@ -1,4 +1,6 @@
 import {
+  CuratorSlotMediaRow,
+  media,
   PublicCompletedEventSummaryRow,
   PublicEventDetailRow,
   PublicEventDisciplineRow,
@@ -6,10 +8,19 @@ import {
   PublicEventSummaryRow,
   publicEvents,
 } from '../db/db';
+import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
+
+function loadCuratorPhotoUrl(sourceFilename: string): string | undefined {
+  const row = media.getCuratorMediaByFilename.get(sourceFilename) as
+    | CuratorSlotMediaRow
+    | undefined;
+  if (!row || row.media_type !== 'photo' || !row.s3_key_display) return undefined;
+  return `${getMediaStorageAdapter().constructURL(row.s3_key_display)}?v=${row.id}`;
+}
 
 const PUBLIC_EVENT_KEY_PATTERN = /^event_\d{4}_[a-z0-9_]+$/;
 
@@ -433,7 +444,7 @@ export class EventService {
       region: 'Ibaraki',
       country: 'Japan',
       external: true,
-      imageUrl: '/img/footbag-worlds-2026.jpg',
+      imageUrl: loadCuratorPhotoUrl('japan-worlds-2026.jpg'),
       imageAlt: '45th IFPA World Footbag Championships 2026, Tsukuba, Japan official poster',
     };
   }

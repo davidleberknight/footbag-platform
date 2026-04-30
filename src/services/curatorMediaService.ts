@@ -50,6 +50,7 @@ export interface CuratorMediaServiceDeps {
 export interface CuratorPhotoInput {
   adminMemberId: string;
   photoBuffer: Buffer;
+  sourceFilename: string;
   caption: string | null;
   tags: string[];
 }
@@ -58,6 +59,7 @@ export interface CuratorVideoInput {
   adminMemberId: string;
   videoBuffer: Buffer;
   posterBuffer: Buffer;
+  sourceFilename: string;
   caption: string | null;
   tags: string[];
 }
@@ -164,6 +166,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           mediaId, now, now,
           systemMemberId, input.caption, now,
           thumbKey, displayKey, processed.widthPx, processed.heightPx,
+          input.sourceFilename,
         );
         applyTags(mediaId, input.tags, now);
         appendAuditEntry({
@@ -232,6 +235,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           systemMemberId, input.caption, now,
           videoKey, thumbnailUrl,
           processed.widthPx, processed.heightPx,
+          input.sourceFilename,
         );
         applyTags(mediaId, input.tags, now);
         appendAuditEntry({

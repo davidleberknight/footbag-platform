@@ -296,7 +296,7 @@ else
 fi
 
 # Repopulate the bucket with the curator-seeded bytes that the workstation
-# produced via legacy_data/scripts/seed_curator_media.py and rsync'd into
+# produced via scripts/seed_curator_media.py and rsync'd into
 # RELEASE_DIR/data/media/. Without this, the wipe above leaves S3 empty and
 # the FH avatar + demo-loop URLs render 403/404 (DD §1.5: bytes live in S3,
 # DB rows reference S3 keys; both sides must be in sync).

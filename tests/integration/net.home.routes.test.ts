@@ -220,6 +220,7 @@ describe('GET /net — portal landing sections', () => {
       const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-net' });
       insertCuratorVideo(seedDb, {
         uploaderMemberId: fhId,
+        sourceFilename: 'demo-net.mp4',
         slotTag: '#demo_net',
         caption: 'Demonstration of footbag net',
       });

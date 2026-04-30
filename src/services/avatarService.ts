@@ -16,7 +16,7 @@ export interface AvatarServiceDeps {
 export function createAvatarService(deps: AvatarServiceDeps) {
   const { storage, imageProcessor } = deps;
   return {
-    async uploadAvatar(memberId: string, fileBuffer: Buffer): Promise<{ thumbUrl: string }> {
+    async uploadAvatar(memberId: string, fileBuffer: Buffer, sourceFilename: string): Promise<{ thumbUrl: string }> {
       if (fileBuffer.length > AVATAR_MAX_BYTES) {
         throw new ValidationError('File is too large. Maximum size is 5 MB.');
       }
@@ -55,6 +55,7 @@ export function createAvatarService(deps: AvatarServiceDeps) {
           memberId, now,
           thumbKey, displayKey,
           processed.widthPx, processed.heightPx,
+          sourceFilename,
         );
 
         media.setMemberAvatar.run(mediaId, now, memberId);

@@ -19,7 +19,7 @@ Idempotent: re-running rebuilds the same DB state and overwrites the
 same files. Stable IDs derived from the manifest entry name.
 
 Usage:
-  python legacy_data/scripts/seed_curator_media.py [--db PATH] [--media-dir PATH] [--source-dir PATH]
+  python scripts/seed_curator_media.py [--db PATH] [--media-dir PATH] [--source-dir PATH]
 """
 
 import argparse
@@ -39,10 +39,10 @@ from pathlib import Path
 
 from PIL import Image
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = "./database/footbag.db"
 DEFAULT_MEDIA_DIR = "./data/media"
-DEFAULT_SOURCE_DIR = REPO_ROOT / "legacy_data" / "inputs" / "curated" / "media"
+DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
 
 # Hardcoded manifest of curator items seeded for go-live. Append entries here
 # to extend the seed (e.g., Japan Worlds 2026 photo, /net cartoons,
@@ -74,6 +74,13 @@ CURATOR_ITEMS = [
         "poster_source": "demo-net-poster.jpg",
         "caption": "Demonstration of footbag net",
         "tags": ["#demo_net"],
+    },
+    {
+        "id_seed": "japan_worlds_2026",
+        "media_type": "photo",
+        "photo_source": "japan-worlds-2026.jpg",
+        "caption": "Japan Worlds 2026",
+        "tags": ["#event_2026_worlds_japan"],
     },
 ]
 
@@ -168,7 +175,7 @@ def fh_member_id(con: sqlite3.Connection) -> str:
     if row is None:
         raise RuntimeError(
             "No system member row found (is_system=1). Run "
-            "`python legacy_data/scripts/seed_members.py` first."
+            "`python3 legacy_data/scripts/seed_members.py` first."
         )
     return row[0]
 
@@ -238,15 +245,16 @@ def seed_video_item(
             media_type, is_avatar, caption, uploaded_at,
             video_platform, video_id, video_url, thumbnail_url,
             width_px, height_px,
-            moderation_status,
+            moderation_status, source_filename,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, NULL, 'video', 0, ?, ?, 's3', ?, NULL, ?, ?, ?, 'active', ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, NULL, 'video', 0, ?, ?, 's3', ?, NULL, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id,
             item["caption"], ts,
             rel_video, thumbnail_url,
             width_px, height_px,
+            item["video_source"],
             ts, ts,
         ),
     )
@@ -289,15 +297,16 @@ def seed_photo_item(
             media_type, is_avatar, caption, uploaded_at,
             s3_key_thumb, s3_key_display,
             width_px, height_px,
-            moderation_status,
+            moderation_status, source_filename,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, NULL, 'photo', ?, ?, ?, ?, ?, ?, ?, 'active', ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, NULL, 'photo', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id, 1 if is_avatar else 0,
             item.get("caption"), ts,
             rel_thumb, rel_display,
             width_px, height_px,
+            item["photo_source"],
             ts, ts,
         ),
     )

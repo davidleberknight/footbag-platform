@@ -51,13 +51,12 @@ function labelForType(recordType: string): string {
 }
 
 /**
- * Load the system-account-owned demo loop for a landing-page slot tag.
- * Returns null if no FH-owned media is tagged for this slot (e.g., before
+ * Load the system-account-owned demo loop by source filename.
+ * Returns null if no FH-owned media with that filename exists (e.g., before
  * the curator seed has run).
  */
-function loadCuratorDemoVideo(slotTag: string): FreestyleDemoVideo | null {
-  const tagNormalized = slotTag.toLowerCase();
-  const row = media.getCuratorSlotMedia.get(tagNormalized) as
+function loadCuratorDemoVideo(sourceFilename: string): FreestyleDemoVideo | null {
+  const row = media.getCuratorMediaByFilename.get(sourceFilename) as
     | CuratorSlotMediaRow
     | undefined;
   if (!row || row.media_type !== 'video' || !row.video_id) return null;
@@ -1140,7 +1139,7 @@ export const freestyleService = {
             'Practicing freestyle footbag is like having a gym in your pocket! When first learning the basics, all you need is casual clothes, shoes, and a footbag. Once you gain experience and begin to learn more difficult tricks, athletic clothes and a professional footbag with purpose-built shoes will help you play your best.',
           ],
         },
-        demoVideo: loadCuratorDemoVideo('#demo_freestyle'),
+        demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),
         getStartedTiles: [
           { label: 'Where to buy footbags', href: '#', comingSoon: true },
           { label: 'Where to buy shoes',    href: '#', comingSoon: true },

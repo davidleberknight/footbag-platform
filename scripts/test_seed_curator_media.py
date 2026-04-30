@@ -8,7 +8,7 @@ member account (Footbag Hacky) seeded as the uploader.
 Idempotency check: runs the seed twice and asserts the row count stays
 constant and the bytes match.
 
-Run directly: `python3 legacy_data/scripts/test_seed_curator_media.py`.
+Run directly: `python3 scripts/test_seed_curator_media.py`.
 """
 
 import os
@@ -18,10 +18,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = REPO_ROOT / "database" / "schema.sql"
 SEED_MEMBERS = REPO_ROOT / "legacy_data" / "scripts" / "seed_members.py"
-SEED_CURATOR = REPO_ROOT / "legacy_data" / "scripts" / "seed_curator_media.py"
+SEED_CURATOR = REPO_ROOT / "scripts" / "seed_curator_media.py"
 PYTHON = REPO_ROOT / "scripts" / ".venv" / "bin" / "python3"
 
 
@@ -76,7 +76,8 @@ def test_seed_curator_media_against_fresh_schema() -> None:
 
         con = sqlite3.connect(db_path)
         try:
-            # Three curator media items expected: 1 avatar photo + 2 demo videos.
+            # Four curator media items expected: 1 avatar photo + 2 demo videos
+            # + 1 curator photo (Japan Worlds 2026).
             (video_count,) = con.execute(
                 "SELECT COUNT(*) FROM media_items WHERE media_type = 'video'"
             ).fetchone()
@@ -93,8 +94,8 @@ def test_seed_curator_media_against_fresh_schema() -> None:
                 "JOIN members m ON m.id = mi.uploader_member_id "
                 "WHERE m.is_system = 1"
             ).fetchone()
-            assert system_owned == 3, (
-                f"expected 3 system-owned media_items, got {system_owned}"
+            assert system_owned == 4, (
+                f"expected 4 system-owned media_items, got {system_owned}"
             )
 
             # video_platform must be 's3' for curator video.
@@ -144,6 +145,62 @@ def test_seed_curator_media_against_fresh_schema() -> None:
                 f"expected 2 avatar files (thumb + display), got {len(avatar_files)}"
             )
 
+            # Non-avatar photo files: {media-id}-thumb.jpg + {media-id}-display.jpg
+            # under detached/, distinguishable from video posters which carry the
+            # -poster- infix. Japan Worlds 2026 contributes one of each.
+            photo_thumb_files = [
+                p for p in fh_detached.glob("*-thumb.jpg") if "-poster-" not in p.name
+            ]
+            photo_display_files = [
+                p for p in fh_detached.glob("*-display.jpg") if "-poster-" not in p.name
+            ]
+            assert len(photo_thumb_files) == 1, (
+                f"expected 1 non-avatar photo thumb file, got {len(photo_thumb_files)}"
+            )
+            assert len(photo_display_files) == 1, (
+                f"expected 1 non-avatar photo display file, got {len(photo_display_files)}"
+            )
+
+            # Japan Worlds 2026 row shape + tag.
+            japan_row = con.execute(
+                "SELECT id, media_type, is_avatar, caption, s3_key_thumb, s3_key_display "
+                "FROM media_items WHERE caption = 'Japan Worlds 2026'"
+            ).fetchone()
+            assert japan_row is not None, "expected Japan Worlds 2026 photo row"
+            j_id, j_mt, j_is_avatar, _, j_thumb, j_display = japan_row
+            assert j_mt == "photo" and j_is_avatar == 0, (
+                f"Japan row must be photo+non-avatar; got media_type={j_mt!r}, is_avatar={j_is_avatar}"
+            )
+            assert j_thumb and j_display, (
+                "Japan photo must have both s3_key_thumb and s3_key_display"
+            )
+            (japan_tagged,) = con.execute(
+                "SELECT COUNT(*) FROM media_tags mt "
+                "JOIN tags t ON t.id = mt.tag_id "
+                "WHERE mt.media_id = ? AND t.tag_normalized = '#event_2026_worlds_japan'",
+                (j_id,),
+            ).fetchone()
+            assert japan_tagged == 1, (
+                f"Japan photo must carry tag #event_2026_worlds_japan; got count={japan_tagged}"
+            )
+
+            # source_filename round-trip: every seeded row carries the manifest
+            # source filename. Used by landing-page services to query a slot
+            # (filename is the stable identity; tags are gallery membership).
+            filename_rows = dict(con.execute(
+                "SELECT source_filename, media_type FROM media_items"
+            ).fetchall())
+            for expected_name in (
+                "fh-avatar.jpg",
+                "demo-freestyle.mp4",
+                "demo-net.mp4",
+                "japan-worlds-2026.jpg",
+            ):
+                assert expected_name in filename_rows, (
+                    f"expected source_filename={expected_name!r} in media_items; "
+                    f"got {sorted(filename_rows.keys())}"
+                )
+
             # Capture row count + a sample id for idempotency check.
             initial_video_id = con.execute(
                 "SELECT video_id FROM media_items WHERE media_type = 'video' LIMIT 1"
@@ -159,8 +216,8 @@ def test_seed_curator_media_against_fresh_schema() -> None:
             (media_count2,) = con.execute(
                 "SELECT COUNT(*) FROM media_items"
             ).fetchone()
-            assert media_count2 == 3, (
-                f"expected 3 media_items after re-seed (idempotent), got {media_count2}"
+            assert media_count2 == 4, (
+                f"expected 4 media_items after re-seed (idempotent), got {media_count2}"
             )
 
             # video_id (S3 key) must be stable across runs.

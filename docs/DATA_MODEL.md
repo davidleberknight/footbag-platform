@@ -764,6 +764,7 @@ Maximum 5 video embeds per named gallery (US §3.8 M_Organize_Media_Galleries). 
 
 #### Partial UNIQUE indexes
 - `ux_media_avatar_per_member ON media_items(uploader_member_id) WHERE is_avatar = 1`: at most one avatar photo per member (DB-enforced).
+- `ux_media_items_source_filename_per_uploader ON media_items(uploader_member_id, source_filename) WHERE source_filename IS NOT NULL AND moderation_status = 'active'`: among an uploader's active rows, source filename is unique (DB-enforced). System-member-owned rows are queried by source filename to resolve curator slots (landing-page demo loops, headline photos), since gallery membership tags are not unique identifiers.
 - `ux_galleries_default_per_member ON member_galleries(owner_member_id) WHERE is_default = 1`: at most one default gallery per member (DB-enforced).
 
 #### Avatar integrity CHECKs

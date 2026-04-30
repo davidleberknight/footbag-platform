@@ -422,6 +422,111 @@ th.sortable:hover { color: var(--primary); }
   overflow: hidden;
 }
 
+/* ── Gallery ────────────────────────────────────────────────── */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gallery-tile {
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+.gallery-tile:hover,
+.gallery-tile:focus-within {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.gallery-tile-media {
+  display: block;
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--bg-light);
+}
+.gallery-tile-media:hover { text-decoration: none; }
+.gallery-tile-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-tile-play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.gallery-tile-caption {
+  margin: 0;
+  padding: 10px 12px 0;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.gallery-tile-tags {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gallery-tile-tag {
+  list-style: none;
+  background: var(--bg-light);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.gallery-tile-date {
+  margin: 6px 0 0;
+  padding: 0 12px 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.gallery-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+.gallery-pagination-status {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 /* ── Status badge ───────────────────────────────────────────── */
 .badge {
   display: inline-block;

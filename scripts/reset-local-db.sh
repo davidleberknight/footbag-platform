@@ -196,7 +196,7 @@ echo "  → Seeding system member account..."
 
 # Seed curator-owned media (demo loops; broader content adds in follow-on slices)
 echo "  → Seeding curator media..."
-"${PYTHON}" legacy_data/scripts/seed_curator_media.py --db "${DB_FILE}"
+"${PYTHON}" scripts/seed_curator_media.py --db "${DB_FILE}"
 
 # Sanity check
 EVENT_COUNT=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM events;")

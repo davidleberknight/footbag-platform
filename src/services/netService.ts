@@ -74,13 +74,12 @@ interface NetDemoVideo {
 }
 
 /**
- * Load the system-account-owned demo loop for a landing-page slot tag.
- * Returns null if no FH-owned media is tagged for this slot (e.g., before
+ * Load the system-account-owned demo loop by source filename.
+ * Returns null if no FH-owned media with that filename exists (e.g., before
  * the curator seed has run).
  */
-function loadCuratorDemoVideo(slotTag: string): NetDemoVideo | null {
-  const tagNormalized = slotTag.toLowerCase();
-  const row = media.getCuratorSlotMedia.get(tagNormalized) as
+function loadCuratorDemoVideo(sourceFilename: string): NetDemoVideo | null {
+  const row = media.getCuratorMediaByFilename.get(sourceFilename) as
     | CuratorSlotMediaRow
     | undefined;
   if (!row || row.media_type !== 'video' || !row.video_id) return null;
@@ -500,7 +499,7 @@ export const netService = {
         mascotSrc:           '/img/net-mascot.svg',
         mascotAlt:           'Footbag net icon',
         intro:               NET_LANDING_INTRO,
-        demoVideo:           loadCuratorDemoVideo('#demo_net'),
+        demoVideo:           loadCuratorDemoVideo('demo-net.mp4'),
         competitionFormats:  NET_COMPETITION_FORMATS,
         exploreCards,
         recentEvents:        recentEventRows.map(shapeHomeRecentEvent),

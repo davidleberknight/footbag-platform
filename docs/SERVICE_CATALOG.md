@@ -896,8 +896,8 @@ For the current public routes, `EventService` is responsible for:
 **Consumers:** Admin controllers (`/admin/upload-curated-media`)
 
 **Key Methods:**
-- `uploadPhoto({adminMemberId, photoBuffer, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte JPEG/PNG rejection; runs Sharp photo pipeline (aspect-preserving thumb, 800px-wide display, EXIF/ICC stripped); writes `media_items` row with `uploader_member_id = systemMemberId`, `media_type='photo'`, `is_avatar=0`; lookup-or-insert tags; appends audit entry with admin actor
-- `uploadVideo({adminMemberId, videoBuffer, posterBuffer, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte MP4/WebM/MOV rejection; poster JPEG/PNG required; runs ffmpeg curator transcode pipeline (re-encode + metadata strip per DD §6.8); writes `media_items` row with `media_type='video'`, `video_platform='s3'`, `video_id` = relative video key, `thumbnail_url='/media/{posterDisplayKey}'`, `video_url=NULL`; appends audit entry with admin actor
+- `uploadPhoto({adminMemberId, photoBuffer, sourceFilename, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte JPEG/PNG rejection; runs Sharp photo pipeline (aspect-preserving thumb, 800px-wide display, EXIF/ICC stripped); writes `media_items` row with `uploader_member_id = systemMemberId`, `media_type='photo'`, `is_avatar=0`, `source_filename` set to the upload's original filename; lookup-or-insert tags; appends audit entry with admin actor
+- `uploadVideo({adminMemberId, videoBuffer, posterBuffer, sourceFilename, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte MP4/WebM/MOV rejection; poster JPEG/PNG required; runs ffmpeg curator transcode pipeline (re-encode + metadata strip per DD §6.8); writes `media_items` row with `media_type='video'`, `video_platform='s3'`, `video_id` = relative video key, `thumbnail_url='/media/{posterDisplayKey}'`, `video_url=NULL`, `source_filename` set to the upload's original filename; appends audit entry with admin actor
 
 **Authz:** Admin only. `requireAuth` + `requireAdmin` gate the route; service does not re-check.
 

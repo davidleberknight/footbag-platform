@@ -366,6 +366,7 @@ describe('GET /freestyle — onboarding + portal landing', () => {
       const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-freestyle' });
       insertCuratorVideo(seedDb, {
         uploaderMemberId: fhId,
+        sourceFilename: 'demo-freestyle.mp4',
         slotTag: '#demo_freestyle',
         caption: 'Demonstration of freestyle footbag',
       });

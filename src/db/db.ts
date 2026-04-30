@@ -3467,8 +3467,8 @@ export const media = {
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px
-    ) VALUES (?, ?, 'member', ?, 'member', 1, ?, NULL, 'photo', 1, NULL, ?, ?, ?, ?, ?)
+      s3_key_thumb, s3_key_display, width_px, height_px, source_filename
+    ) VALUES (?, ?, 'member', ?, 'member', 1, ?, NULL, 'photo', 1, NULL, ?, ?, ?, ?, ?, ?)
   `); },
 
   get findSystemMemberId() { return db.prepare(`
@@ -3480,11 +3480,11 @@ export const media = {
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px,
-      moderation_status
+      moderation_status, source_filename
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
               ?, NULL, 'photo', 0, ?, ?,
               ?, ?, ?, ?,
-              'active')
+              'active', ?)
   `); },
 
   get insertCuratorVideo() { return db.prepare(`
@@ -3493,12 +3493,12 @@ export const media = {
       uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       width_px, height_px,
-      moderation_status
+      moderation_status, source_filename
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
               ?, NULL, 'video', 0, ?, ?,
               's3', ?, NULL, ?,
               ?, ?,
-              'active')
+              'active', ?)
   `); },
 
   get setMemberAvatar() { return db.prepare(`
@@ -3523,21 +3523,20 @@ export const media = {
     WHERE uploader_member_id = ? AND is_avatar = 1 AND uploaded_at > ?
   `); },
 
-  // Curator slot media: latest FH-owned (system member) media tagged with the
-  // given normalized tag. Used by landing-page render code to find the
-  // current demo loop / illustration for a slot. Member-uploaded media with
-  // the same tag is excluded by the is_system=1 join.
-  get getCuratorSlotMedia() { return db.prepare(`
+  // Curator slot media: the FH-owned (system member) media item whose source
+  // filename matches the given value. Used by landing-page render code to
+  // find the canonical demo loop / headline photo / illustration for a slot.
+  // Filename is the stable identity (tags are gallery membership, not
+  // identity). The unique partial index ux_media_items_source_filename_per_uploader
+  // guarantees at most one active row per (uploader, source_filename).
+  get getCuratorMediaByFilename() { return db.prepare(`
     SELECT mi.id, mi.media_type, mi.video_platform, mi.video_id, mi.video_url,
            mi.thumbnail_url, mi.caption, mi.s3_key_thumb, mi.s3_key_display
     FROM media_items mi
-    JOIN media_tags mt ON mt.media_id = mi.id
-    JOIN tags t ON t.id = mt.tag_id
     JOIN members m ON m.id = mi.uploader_member_id
-    WHERE t.tag_normalized = ?
+    WHERE mi.source_filename = ?
       AND m.is_system = 1
       AND mi.moderation_status = 'active'
-    ORDER BY mi.uploaded_at DESC
     LIMIT 1
   `); },
 

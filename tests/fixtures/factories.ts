@@ -1074,10 +1074,11 @@ export function insertNameVariant(
 
 export interface CuratorVideoOverrides {
   uploaderMemberId: string;
-  slotTag: string;       // e.g. '#demo_freestyle' (must start with '#')
+  sourceFilename: string; // e.g. 'demo-freestyle.mp4' — primary slot identity
+  slotTag: string;        // e.g. '#demo_freestyle' (must start with '#')
   caption?: string;
-  videoKey?: string;     // S3 key stored in video_id (constructURL builds /media/{key})
-  posterUrl?: string;    // already-constructed CDN URL for the poster
+  videoKey?: string;      // S3 key stored in video_id (constructURL builds /media/{key})
+  posterUrl?: string;     // already-constructed CDN URL for the poster
   mediaId?: string;
 }
 
@@ -1102,8 +1103,8 @@ export function insertCuratorVideo(
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
-      moderation_status
-    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, NULL, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active')
+      moderation_status, source_filename
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, NULL, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active', ?)
   `).run(
     mediaId, TS, TS,
     o.uploaderMemberId,
@@ -1111,6 +1112,7 @@ export function insertCuratorVideo(
     TS,
     videoKey,
     posterUrl,
+    o.sourceFilename,
   );
 
   db.prepare(`

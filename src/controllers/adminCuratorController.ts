@@ -51,6 +51,7 @@ export const adminCuratorController = {
 
     const fields: Record<string, string> = {};
     const fileBuffers: Record<string, Buffer> = {};
+    const fileFilenames: Record<string, string> = {};
     let limitExceeded = false;
 
     const busboy = Busboy({
@@ -62,8 +63,11 @@ export const adminCuratorController = {
       fields[name] = val;
     });
 
-    busboy.on('file', (name, stream) => {
+    busboy.on('file', (name, stream, info) => {
       const chunks: Buffer[] = [];
+      if (info && typeof info.filename === 'string' && info.filename.length > 0) {
+        fileFilenames[name] = info.filename;
+      }
       stream.on('data', (chunk: Buffer) => {
         chunks.push(chunk);
       });
@@ -123,13 +127,15 @@ export const adminCuratorController = {
         imageProcessor: getImageProcessingAdapter(),
       });
 
+      const sourceFilename = fileFilenames.mediaFile ?? '';
+
       if (mediaType === 'photo') {
         const photoBuffer = fileBuffers.mediaFile;
         if (!photoBuffer || photoBuffer.length === 0) {
           renderForm(res.status(422), { errorMessage: 'Please select a photo to upload.', formValues });
           return;
         }
-        await svc.uploadPhoto({ adminMemberId, photoBuffer, caption, tags });
+        await svc.uploadPhoto({ adminMemberId, photoBuffer, sourceFilename, caption, tags });
         res.redirect('/admin/curator/upload');
         return;
       }
@@ -145,7 +151,7 @@ export const adminCuratorController = {
         renderForm(res.status(422), { errorMessage: 'Please provide a poster image for the video.', formValues });
         return;
       }
-      await svc.uploadVideo({ adminMemberId, videoBuffer, posterBuffer, caption, tags });
+      await svc.uploadVideo({ adminMemberId, videoBuffer, posterBuffer, sourceFilename, caption, tags });
       res.redirect('/admin/curator/upload');
     }
 

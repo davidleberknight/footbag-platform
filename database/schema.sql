@@ -1896,6 +1896,14 @@ CREATE TABLE media_items (
     CHECK (moderation_status IN ('active','removed_by_admin')),
   moderation_reason TEXT,
 
+  -- Source filename of the uploaded asset. Captured at upload time
+  -- (req.file.originalname for member/curator uploads) or set by the
+  -- curator seeder from the manifest entry (photo_source / video_source).
+  -- Among system-member-owned active rows, this is the stable identifier
+  -- used by landing-page services to find a curator slot photo or video
+  -- (see ux_media_items_curator_filename).
+  source_filename TEXT,
+
   CHECK (media_type <> 'photo'
     OR (s3_key_thumb IS NOT NULL AND s3_key_display IS NOT NULL)),
   CHECK (media_type <> 'video'
@@ -1949,6 +1957,15 @@ CREATE INDEX        idx_media_uploader          ON media_items(uploader_member_i
 CREATE INDEX        idx_media_gallery           ON media_items(gallery_id) WHERE gallery_id IS NOT NULL;
 CREATE INDEX        idx_media_moderation        ON media_items(moderation_status) WHERE moderation_status = 'active';
 CREATE UNIQUE INDEX ux_media_avatar_per_member  ON media_items(uploader_member_id) WHERE is_avatar = 1;
+-- Curator slot identity: among an uploader's active rows, the source filename
+-- is unique. Landing-page services query system-owned rows by source_filename
+-- to find the canonical asset for a slot (e.g. demo loop, headline photo).
+-- Member-uploaded rows are also constrained to one active row per filename
+-- per uploader, which prevents accidental duplicate uploads.
+CREATE UNIQUE INDEX ux_media_items_source_filename_per_uploader
+  ON media_items(uploader_member_id, source_filename)
+  WHERE source_filename IS NOT NULL
+    AND moderation_status = 'active';
 CREATE UNIQUE INDEX ux_galleries_default_per_member ON member_galleries(owner_member_id) WHERE is_default = 1;
 CREATE INDEX        idx_galleries_owner         ON member_galleries(owner_member_id);
 CREATE INDEX        idx_gallery_links_gallery   ON gallery_external_links(gallery_id);

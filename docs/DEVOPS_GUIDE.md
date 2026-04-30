@@ -1162,13 +1162,13 @@ A clean rollback requires both an env revert AND a CloudFront TF revert.
 
 #### Curator media seeding
 
-System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`legacy_data/scripts/seed_curator_media.py`) reads source assets from `legacy_data/inputs/curated/media/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member.
+System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_curator_media.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member.
 
 Run order in dev: included automatically in `bash scripts/reset-local-db.sh` and incrementally on every `./run_dev.sh` run (catches updated source assets without a full DB reset).
 
 Run order in staging:
 
-1. After staging DB reset (per the staging-tolerates-reset policy), run `python3 legacy_data/scripts/seed_members.py --db <staging-db-path>` followed by `python3 legacy_data/scripts/seed_curator_media.py --db <staging-db-path> --media-dir <local-stage-dir>`.
+1. After staging DB reset (per the staging-tolerates-reset policy), run `python3 legacy_data/scripts/seed_members.py --db <staging-db-path>` followed by `python3 scripts/seed_curator_media.py --db <staging-db-path> --media-dir <local-stage-dir>`.
 2. `aws s3 sync <local-stage-dir>/ s3://<staging-media-bucket>/` to upload the produced bytes.
 3. CloudFront serves the seeded URLs at `/media/{key}` via OAC.
 

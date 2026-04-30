@@ -16,6 +16,7 @@ Modernizing footbag.org for the International Footbag Players Association (IFPA)
 database/     Schema and SQLite files
 docker/       Build tooling
 docs/         Project documentation
+curated/      Raw curator-owned media (seed-time inputs to the curator pipeline)
 ifpa/         Governance and official rules
 legacy_data/  Mirror code and migration scripts
 ops/systemd/  Production service units
