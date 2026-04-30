@@ -208,6 +208,7 @@ export interface FreestyleTrickIndexRow {
   adds: string | null;
   category: string | null;
   description: string | null;
+  notation: string | null;      // Jobs notation, opaque text; rendered monospace
   aliases: string[];
   detailHref: string;           // always /freestyle/tricks/:slug for all dict entries
   hasRecords: boolean;          // true when passback records exist (shows record indicator)
@@ -225,6 +226,7 @@ export interface FreestyleTricksIndexContent {
   familyGroups: FreestyleFamilyGroup[];  // compound tricks grouped by family (for family-browsing section)
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
+  dictNote: string;                      // small subtle note rendered above the categories
 }
 
 export interface FreestyleFamilyGroup {
@@ -447,6 +449,7 @@ function shapeTrickIndexRow(row: FreestyleTrickRow, slugsWithRecords: Set<string
     adds:          row.adds,
     category:      row.category,
     description:   row.description,
+    notation:      row.notation,
     aliases,
     detailHref,
     hasRecords,
@@ -914,10 +917,15 @@ export const freestyleService = {
         .map(r => trickNameToSlug(r.trick_name!)),
     );
 
-    // Group by category in display order
-    const categoryOrder = ['dex', 'body', 'set', 'compound', 'modifier'];
+    // Group by category in display order. Modifiers are intentionally excluded
+    // from the category listing — they have their own dedicated "Modifier
+    // Reference" section sourced from freestyle_trick_modifiers (the proper
+    // modifier-rules table). Showing them twice mixes the trick and modifier
+    // layers; once is enough.
+    const categoryOrder = ['dex', 'body', 'set', 'compound'];
     const grouped = new Map<string, FreestyleTrickRow[]>();
     for (const row of allRows) {
+      if (row.category === 'modifier') continue;
       const cat = row.category ?? 'other';
       const bucket = grouped.get(cat) ?? [];
       bucket.push(row);
@@ -932,9 +940,9 @@ export const freestyleService = {
         tricks:   (grouped.get(cat) ?? []).map(r => shapeTrickIndexRow(r, slugsWithRecords)),
       }));
 
-    // Include any categories not in the ordered list
+    // Include any categories not in the ordered list (still excluding modifier).
     for (const [cat, rows] of grouped.entries()) {
-      if (!categoryOrder.includes(cat)) {
+      if (!categoryOrder.includes(cat) && cat !== 'modifier') {
         groups.push({
           category: cat,
           label:    CATEGORY_LABELS[cat] ?? cat,
@@ -1007,7 +1015,10 @@ export const freestyleService = {
         groups,
         familyGroups,
         modifiers,
-        totalTricks: allRows.length,
+        totalTricks: groups.reduce((sum, g) => sum + g.tricks.length, 0),
+        dictNote:
+          'This dictionary is being expanded and aligned with established freestyle notation. ' +
+          'New entries are staged for review before publication.',
       },
     };
   },

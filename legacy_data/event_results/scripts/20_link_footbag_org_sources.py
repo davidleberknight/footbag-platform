@@ -119,11 +119,65 @@ def resolve_scraped_row(row: dict, resolver: dict[str, str]) -> str | None:
     return None
 
 
+def promote_blank_notation(conn: sqlite3.Connection, scraped_csv: Path, resolver: dict[str, str]) -> int:
+    """Promote footbag.org notation onto canonical when canonical is blank.
+
+    Phase 2A: an active trick with no notation gets the scraped notation
+    written into freestyle_tricks.notation, with provenance recorded by the
+    existing source_links join (the trick has a source_link to footbag-org).
+
+    Never overwrites a non-blank canonical notation. Pending rows (is_active=0)
+    are also untouched here — they get notation via the loader that creates
+    them, not via this promotion.
+    """
+    blanks = {
+        slug
+        for slug, notation, is_active in conn.execute(
+            "SELECT slug, notation, is_active FROM freestyle_tricks WHERE is_active = 1"
+        )
+        if not (notation or "").strip()
+    }
+    if not blanks:
+        return 0
+
+    promoted = 0
+    seen_slugs: set[str] = set()
+    with scraped_csv.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            trick_slug = resolve_scraped_row(row, resolver)
+            if trick_slug is None or trick_slug in seen_slugs:
+                continue
+            seen_slugs.add(trick_slug)
+            if trick_slug not in blanks:
+                continue
+            scraped_notation = (row.get("notation") or "").strip()
+            if not scraped_notation:
+                continue
+            conn.execute(
+                """
+                UPDATE freestyle_tricks
+                   SET notation = ?,
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                 WHERE slug = ?
+                   AND (notation IS NULL OR notation = '')
+                """,
+                (scraped_notation, trick_slug),
+            )
+            promoted += 1
+    return promoted
+
+
 def overlay_footbag_sources(conn: sqlite3.Connection, scraped_csv: Path) -> dict:
     if not scraped_csv.exists():
         raise FileNotFoundError(f"Scraped CSV not found: {scraped_csv}")
 
     resolver = build_resolver(conn)
+
+    # Phase 2A: fill blank canonical notation from footbag.org BEFORE the
+    # source_links pass, so the resulting asserted_notation reflects only true
+    # disagreements (canonical non-blank ≠ scraped) rather than blank-vs-have.
+    promoted = promote_blank_notation(conn, scraped_csv, resolver)
 
     # Pull current canonical adds + notation per slug for divergence comparison.
     canonical = {
@@ -204,6 +258,7 @@ def overlay_footbag_sources(conn: sqlite3.Connection, scraped_csv: Path) -> dict
         "matched": len(deduped),
         "unmatched": len(unmatched),
         "divergent": n_divergent,
+        "notation_promoted": promoted,
     }
 
 
@@ -216,6 +271,7 @@ def load(db_path: Path, scraped_csv: Path) -> None:
             stats = overlay_footbag_sources(conn, scraped_csv)
 
         print(f"footbag.org overlay: {stats['matched']} tricks linked")
+        print(f"  notation promoted (canonical was blank): {stats['notation_promoted']}")
         print(f"  divergent (asserted_adds or asserted_notation differs from canonical): {stats['divergent']}")
         print(f"  unmatched (deferred to Red's second-pass review): {stats['unmatched']}")
     finally:

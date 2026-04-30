@@ -874,7 +874,10 @@ export interface FreestyleTrickOverrides {
   category?:       string | null;
   description?:    string | null;
   aliases_json?:   string;
+  notation?:       string | null;
   sort_order?:     number;
+  review_status?:  string;
+  is_active?:      0 | 1;
 }
 
 export function insertFreestyleTrick(
@@ -885,8 +888,8 @@ export function insertFreestyleTrick(
   db.prepare(`
     INSERT INTO freestyle_tricks
       (slug, canonical_name, adds, base_trick, trick_family, category,
-       description, aliases_json, sort_order, loaded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       description, aliases_json, notation, sort_order, review_status, is_active, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -896,7 +899,10 @@ export function insertFreestyleTrick(
     o.category       ?? 'compound',
     o.description    ?? null,
     o.aliases_json   ?? '[]',
+    o.notation       ?? null,
     o.sort_order     ?? 0,
+    o.review_status  ?? 'curated',
+    o.is_active      ?? 1,
     TS,
   );
   return slug;

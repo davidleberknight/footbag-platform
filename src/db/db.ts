@@ -923,6 +923,7 @@ export interface FreestyleTrickRow {
   category:       string | null;
   description:    string | null;
   aliases_json:   string | null;
+  notation:       string | null;
   sort_order:     number;
 }
 
@@ -938,23 +939,24 @@ export interface FreestyleTrickModifierRow {
 export const freestyleTricks = {
   get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-           description, aliases_json, sort_order
+           description, aliases_json, notation, sort_order
     FROM freestyle_tricks
+    WHERE is_active = 1
     ORDER BY sort_order ASC
   `); },
 
   get getBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-           description, aliases_json, sort_order
+           description, aliases_json, notation, sort_order
     FROM freestyle_tricks
-    WHERE slug = ?
+    WHERE slug = ? AND is_active = 1
   `); },
 
   get listByFamily() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-           description, aliases_json, sort_order
+           description, aliases_json, notation, sort_order
     FROM freestyle_tricks
-    WHERE trick_family = ?
+    WHERE trick_family = ? AND is_active = 1
     ORDER BY sort_order ASC
   `); },
 };

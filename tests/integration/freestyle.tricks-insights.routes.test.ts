@@ -41,6 +41,7 @@ beforeAll(async () => {
     category:      'compound',
     description:   'rotational dex trick; most connected trick in the network',
     aliases_json:  '["spinning whirl (with modifier)"]',
+    notation:      'CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL]',
     sort_order:    0,
   });
 
@@ -55,7 +56,7 @@ beforeAll(async () => {
     sort_order:    1,
   });
 
-  // Modifier trick
+  // Modifier trick — must NOT appear in the public category listing.
   insertFreestyleTrick(db, {
     slug:          'ducking',
     canonical_name: 'ducking',
@@ -75,6 +76,45 @@ beforeAll(async () => {
     description:   'basic leg-over dexterity',
     aliases_json:  '["leg over"]',
     sort_order:    3,
+  });
+
+  // Pending standalone trick: must NOT appear publicly (index or direct slug).
+  insertFreestyleTrick(db, {
+    slug:           'pending-zorblax',
+    canonical_name: 'pending zorblax',
+    adds:           '4',
+    category:       'compound',
+    description:    'unverified scraped row.',
+    sort_order:     90,
+    review_status:  'pending',
+    is_active:      0,
+  });
+
+  // Active family member of 'whirl': control row that SHOULD appear in the
+  // whirl family ladder.
+  insertFreestyleTrick(db, {
+    slug:           'spinning-whirl',
+    canonical_name: 'spinning whirl',
+    adds:           '5',
+    base_trick:     'whirl',
+    trick_family:   'whirl',
+    category:       'compound',
+    description:    'spinning + whirl.',
+    sort_order:     10,
+  });
+
+  // Pending family member of 'whirl': must NOT appear in the whirl family ladder.
+  insertFreestyleTrick(db, {
+    slug:           'pending-paradox-whirl',
+    canonical_name: 'pending paradox whirl',
+    adds:           '4',
+    base_trick:     'whirl',
+    trick_family:   'whirl',
+    category:       'compound',
+    description:    'unverified scraped row.',
+    sort_order:     91,
+    review_status:  'pending',
+    is_active:      0,
   });
 
   // Passback record for 'whirl' (links dict entry to record)
@@ -117,13 +157,15 @@ describe('GET /freestyle/tricks', () => {
     expect(res.text).toContain('Trick Dictionary');
   });
 
-  it('shows all inserted tricks', async () => {
+  it('shows all active non-modifier tricks', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.text).toContain('whirl');
     expect(res.text).toContain('blurriest');
-    expect(res.text).toContain('ducking');
     expect(res.text).toContain('legover');
+    // Modifier-category rows live in the dedicated Modifier Reference
+    // section, not the trick categories — see 'public dictionary
+    // presentation' describe block below.
   });
 
   it('shows trick descriptions', async () => {
@@ -138,7 +180,6 @@ describe('GET /freestyle/tricks', () => {
     const res = await request(app).get('/freestyle/tricks');
     expect(res.text).toContain('3');   // whirl
     expect(res.text).toContain('6');   // blurriest
-    expect(res.text).toContain('modifier'); // ducking
   });
 
   it('links all dict tricks to /freestyle/tricks/:slug (not just those with records)', async () => {
@@ -169,6 +210,71 @@ describe('GET /freestyle/tricks', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.text).toContain('tricks');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('public dictionary presentation', () => {
+  it('renders Notation column header and notation text for active tricks', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<th>Notation</th>');
+    // 'whirl' was seeded with a notation; expect it to render in a <code> cell.
+    expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
+  });
+
+  it('does not list modifier rows in the category groups', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    // Modifier-category section header must not appear in the page.
+    // (The dedicated "Modifier Reference" section uses a different table.)
+    expect(res.text).not.toMatch(/<h2>Modifier<\/h2>/);
+    // The modifier-category trick we seeded must not have a row in the
+    // category listing. Detail link to that slug should also be absent.
+    expect(res.text).not.toContain('href="/freestyle/tricks/ducking"');
+  });
+
+  it('renders the dictionary expansion note', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('being expanded and aligned with established freestyle notation');
+  });
+});
+
+describe('pending row visibility', () => {
+  it('pending tricks are absent from the /freestyle/tricks index', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    // Active control still rendered.
+    expect(res.text).toContain('whirl');
+    // Pending standalone must NOT render.
+    expect(res.text).not.toContain('pending zorblax');
+    expect(res.text).not.toContain('pending-zorblax');
+    // Pending family member must NOT render.
+    expect(res.text).not.toContain('pending paradox whirl');
+    expect(res.text).not.toContain('pending-paradox-whirl');
+  });
+
+  it('direct slug to a pending trick (no records) returns 404', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/pending-zorblax');
+    expect(res.status).toBe(404);
+  });
+
+  it('pending family member is absent from a base trick’s family ladder', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.status).toBe(200);
+    // Active family member appears.
+    expect(res.text).toContain('spinning whirl');
+    // Pending family member must NOT appear.
+    expect(res.text).not.toContain('pending paradox whirl');
+    expect(res.text).not.toContain('pending-paradox-whirl');
   });
 });
 

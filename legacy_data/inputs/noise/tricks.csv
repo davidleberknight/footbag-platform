@@ -1,15 +1,15 @@
 trick_canon,adds,base_trick,category,aliases,notes
 clipper,2,clipper,dex,,cross-body inside delay; foundational 2-ADD dex
-mirage,2,mirage,dex,,toe stall back to same toe with opposite leg circling underneath
+mirage,2,mirage,dex,,"Toe-set dex'd outside the supporting leg, recaught on the opposite toe (in-to-out dex)."
 legover,2,legover,dex,leg over,basic leg-over dexterity
 pickup,2,pickup,dex,,pickup dex; bag caught from below
 guay,2,guay,dex,,pickup inside delay variant
-illusion,2,illusion,dex,,inside delay
+illusion,2,illusion,dex,,"Toe-set dex'd from outside back across to the inside, recaught on the opposite toe (out-to-in dex)."
 pixie,2,pixie,set,,leg passes under bag opposite direction; acts as +1 set modifier
 fairy,2,fairy,set,,opposite of pixie direction; acts as +1 set modifier
-around the world,2,atw,body,atw|around-the-world,full leg circle body move
-reverse around the world,2,atw,body,reverse atw|ratw,reverse leg circle
-double around the world,3,atw,body,double atw|datw,two full leg circles
+around the world,2,atw,dex,atw|around-the-world,full leg circle around the bag
+reverse around the world,2,atw,dex,reverse atw|ratw,reverse-direction leg circle around the bag
+double around the world,3,atw,dex,double atw|datw,two consecutive full leg circles
 whirl,3,whirl,dex,,core rotational dex; base of many compound tricks
 butterfly,3,butterfly,compound,,3-ADD compound; base of ripwalk dimwalk parkwalk
 swirl,3,swirl,dex,reverse swirl,reverse swirl motion
@@ -19,13 +19,13 @@ eggbeater,3,legover,compound,illusioning legover|egg beater,illusioning legover 
 drifter,3,clipper,compound,miraging clipper,miraging clipper = 3 ADD
 barfly,4,infinity,compound,double infinity|bar fly,double infinity = 4 ADD
 smear,3,mirage,compound,pixie mirage,pixie mirage = 3 ADD
-flurry,3,legover,compound,barraging legover,barraging legover = 3 ADD
+flurry,3,legover,compound,barraging legover,"Three consecutive dexes from a clipper set, finishing on the same toe."
 dimwalk,4,butterfly,compound,pixie butterfly|dim walk,pixie butterfly = 4 ADD
 parkwalk,4,butterfly,compound,pixie ss butterfly|park walk,pixie same-side butterfly = 4 ADD
 torque,4,osis,compound,,miraging osis = 4 ADD; core of many advanced tricks
 ripwalk,4,butterfly,compound,blurry butterfly,blurry butterfly = 4 ADD
 blur,4,mirage,compound,blurry mirage,blurry mirage = 4 ADD
-atom smasher,4,mirage,compound,atomsmasher|atomic mirage|atom-smasher,atomic mirage = 4 ADD
+atom smasher,4,mirage,compound,atomsmasher|atomic mirage|atom-smasher,"Atomic mirage: outside-then-inside dex sequence, recaught on the opposite toe."
 blender,4,osis,compound,whirling osis,whirling osis = 4 ADD
 ducking clipper,3,clipper,compound,,ducking + clipper = 3 ADD
 spinning clipper,3,clipper,compound,,spinning + clipper = 3 ADD
@@ -36,7 +36,7 @@ ducking whirl,4,whirl,compound,,ducking + whirl = 4 ADD
 stepping whirl,4,whirl,compound,,stepping + whirl = 4 ADD
 paradox whirl,4,whirl,compound,pdx whirl|p-whirl|p. whirl,paradox + whirl = 4 ADD
 paradox drifter,4,drifter,compound,pdx drifter|p. drifter,paradox + drifter = 4 ADD
-paradox mirage,3,mirage,compound,pdx mirage|p. mirage|pdx mirage,paradox + mirage = 3 ADD (confirmed in 3 ADD list)
+paradox mirage,3,mirage,compound,pdx mirage|p. mirage|pdx mirage,Paradox-modified mirage; +1 ADD over the base mirage.
 paradox blender,5,blender,compound,pdx blender|p. blender,paradox + blender = 5 ADD
 paradox torque,5,torque,compound,pdx torque|p torque|p. torque|paradox t,paradox + torque = 5 ADD
 blurry whirl,5,whirl,compound,bw|blurry w,blurry + whirl = 5 ADD (blurry adds +2 to rotational tricks)
@@ -69,6 +69,5 @@ atomic,,atomic,modifier,,set modifier; +1 ADD universally; also standalone = ato
 stepping,,stepping,modifier,,body modifier; +1 ADD universally
 gyro,,gyro,modifier,,body modifier (gyrating); +1 ADD universally
 tapping,,tapping,modifier,,body modifier; +1 ADD universally
-blazing,,blazing,modifier,,body modifier; +1 ADD (confirmed: blazing legover=3 ADD)
-barraging,,barraging,modifier,,body modifier; +1 ADD (confirmed: barraging legover=3 ADD)
-atomsmasher,4,mirage,compound,atom smasher|atomic mirage|atom-smasher,alias for atom smasher; atomic mirage = 4 ADD
+blazing,,blazing,modifier,,Body modifier; +1 ADD universally.
+barraging,,barraging,modifier,,Body modifier; +1 ADD universally.
