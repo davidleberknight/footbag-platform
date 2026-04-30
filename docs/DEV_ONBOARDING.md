@@ -409,6 +409,29 @@ Expected result:
 - the local DB file is rebuilt
 - the app has deterministic baseline data for local testing and optional smoke checks
 
+### 1.7.1 Optional: register yourself as a dev admin
+
+The dev site auto-promotes new registrants to admin if their email is listed in a gitignored file. One-time setup per machine:
+
+1. Create `.local/initial-admins.txt` at the repo root with one email per line. This is the email you'll use when registering on the dev site. `#` line-comments and blank lines are allowed:
+
+   ```
+   # one email per line
+   your-email@example.com
+   ```
+
+   The `.local/` directory is gitignored. Do not commit this file or any other file containing email addresses.
+
+2. Visit `/register`, fill in your name + email + password, submit.
+
+3. On the resulting `/register/check-email` page, the simulated email card shows the verification email (dev `SES_ADAPTER=stub` keeps it in-memory; no real SES). Click the verification link.
+
+4. You're now signed in. The "Admin" link appears in the nav and `/admin` is the dashboard.
+
+The file persists across DB resets. To grant admin to a different email, edit the file and reset the database via `bash scripts/reset-local-db.sh`, then re-register with the new email. When the file is missing or your email is not listed, registration proceeds normally as a non-admin member.
+
+For staging, the same mechanism applies: the file lives at the same gitignored path on the staging host. For production, the helper refuses to read the file when `NODE_ENV=production` per DD §2.9; the production bootstrap procedure will be documented here when production is provisioned.
+
 ### 1.8 Run the test suite
 
 ```bash

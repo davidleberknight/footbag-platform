@@ -94,3 +94,24 @@ describe('ux_members_system partial UNIQUE (DD §2.8)', () => {
     }).toThrowError(/UNIQUE constraint failed/);
   });
 });
+
+describe('FH lookup cardinality (DD §2.8)', () => {
+  it('COUNT(is_system=1) = 1 even when several non-system members coexist', () => {
+    // 'sys-ok' is already present from the credential CHECK describe block.
+    // Insert two well-formed live (non-system) members alongside it.
+    insertSystemMember({
+      id: 'fh-card-live-1',
+      isSystem: 0,
+      loginEmail: 'live1@example.com',
+      passwordHash: '$argon2$live1',
+    });
+    insertSystemMember({
+      id: 'fh-card-live-2',
+      isSystem: 0,
+      loginEmail: 'live2@example.com',
+      passwordHash: '$argon2$live2',
+    });
+    const row = db.prepare(`SELECT COUNT(*) AS n FROM members WHERE is_system = 1`).get() as { n: number };
+    expect(row.n).toBe(1);
+  });
+});

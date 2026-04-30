@@ -101,9 +101,13 @@ export const homeService = {
           href: '/records',
           description: 'Consecutive kicks world records, highest scores, and milestones.',
         },
+        {
+          label: 'Media Gallery',
+          href: '/gallery',
+          description: 'Photos and videos from across the footbag world.',
+        },
       ],
       comingSoonSections: [
-        { heading: 'Media Gallery', body: 'Browse photos and videos by hashtag, member, event, and club galleries.' },
         { heading: 'Sideline Events', body: 'Golf, 2-Square, 4-Square, Consecutive Kicks, and Circle Kicking (old school).' },
         { heading: 'Tutorials', body: 'Rules, how-to guides, and reference material for all levels.' },
       ],

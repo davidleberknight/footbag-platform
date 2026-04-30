@@ -1,0 +1,49 @@
+{{!-- Admin curator upload form --}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+  <p>Upload curated photos or videos. Content is attributed to the system member account (Footbag Hacky).</p>
+
+  {{#if errorMessage}}
+    <div class="error-banner" role="alert">{{errorMessage}}</div>
+  {{/if}}
+
+  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data">
+    <fieldset>
+      <legend>Type</legend>
+      <label><input type="radio" name="mediaType" value="photo" checked> Photo</label>
+      <label><input type="radio" name="mediaType" value="video"> Video</label>
+    </fieldset>
+
+    <p>
+      <label>
+        File:
+        <input type="file" name="mediaFile" required>
+      </label>
+    </p>
+
+    <p>
+      <label>
+        Poster (video only):
+        <input type="file" name="poster">
+      </label>
+    </p>
+
+    <p>
+      <label>
+        Caption (max 500 chars):
+        <input type="text" name="caption" maxlength="500" value="{{formValues.caption}}">
+      </label>
+    </p>
+
+    <p>
+      <label>
+        Tags (space-separated, lowercase, must start with #):
+        <input type="text" name="tags" value="{{formValues.tags}}">
+      </label>
+    </p>
+
+    <p>Uploader: Footbag Hacky (system member). Gallery: detached.</p>
+
+    <p><button type="submit">Upload</button></p>
+  </form>
+</div>

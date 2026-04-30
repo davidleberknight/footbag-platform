@@ -207,9 +207,14 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 ### Content & Discovery
 
 **`MediaGalleryService`**
-- **Owns:** Photo upload and processing, video link submission, gallery management, media tagging, media flag and moderation workflows
-- **Does NOT own:** Tag stats recomputation (HashtagDiscoveryService), S3 lifecycle management (OperationsPlatformService)
+- **Owns:** Member photo upload and processing, member video link submission, gallery management, media tagging, media flag and moderation workflows
+- **Does NOT own:** Curator-attributed (system-member) photo and video upload (CuratorMediaService), tag stats recomputation (HashtagDiscoveryService), S3 lifecycle management (OperationsPlatformService)
 - **Primary tables:** `media_items`, `member_galleries`, `media_tags`, `media_flags`
+
+**`CuratorMediaService`**
+- **Owns:** Admin upload of curator-attributed photos and videos on behalf of the system member account; magic-byte and format validation; ffmpeg curator transcode pipeline; storage key construction matching the curator seed
+- **Does NOT own:** Member-attributed uploads (MediaGalleryService)
+- **Primary tables:** `media_items`, `media_tags`, `tags`, `audit_entries`
 
 **`HashtagDiscoveryService`**
 - **Owns:** Tag creation and validation, tag browse and search, tag stats cache, teaching moments data
@@ -764,7 +769,7 @@ For the current public routes, `EventService` is responsible for:
 
 ### 7.1 `MediaGalleryService`
 
-**Purpose/Boundary:** Owns photo upload and processing, video link submission, gallery management, media tagging, and media flag/moderation workflows. Does NOT own tag stats recomputation (HashtagDiscoveryService) or S3 lifecycle management (OperationsPlatformService).
+**Purpose/Boundary:** Owns member photo upload and processing, member video link submission, gallery management, media tagging, and media flag/moderation workflows. Does NOT own curator-attributed (system-member) photo and video upload (CuratorMediaService), tag stats recomputation (HashtagDiscoveryService), or S3 lifecycle management (OperationsPlatformService).
 
 **Consumers:** Member controllers, AdminGovernanceService
 
@@ -780,6 +785,7 @@ For the current public routes, `EventService` is responsible for:
 - `getTagGallery(tagNormalized) -> {items}` — public; all media items with matching tag
 - `getEventGallery(eventId) -> {items}` — public; scans `media_tags` for event standard hashtag match; result may be cached (gallery auto-linking with ~minutes latency)
 - `getClubGallery(clubId) -> {items}` — public; same scan pattern as event gallery
+- `getPublicGalleryPage(page) -> {PageViewModel<GalleryContent>}` — public; paginated reverse-chronological list of curator-attributed (system-member-uploaded) active media for the `/gallery` route; filters `members.is_system = 1`, `moderation_status = 'active'`, `is_avatar = 0`; includes tag display values per item; backs VIEW_CATALOG §6.20
 
 **Authz:** Upload/submit: Tier 1+. Edit tags/delete own: owner. Flag: Tier 1+. Admin delete: admin. Gallery viewing: public.
 
@@ -880,6 +886,32 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` Operator identity, governing law, and copyright year range are authoritative and require deliberate review when changed
 
 **Async / Side Effects:** none.
+
+---
+
+### 7.5 `CuratorMediaService`
+
+**Purpose/Boundary:** Owns admin upload of curator-attributed photos and videos on behalf of the system member account (the platform's curator identity, see DD §2.8). Distinct from MediaGalleryService because curator content is recorded under the system member id rather than the admin's id, and runs through curator-specific validation (magic-byte rejection of unsupported formats, ffmpeg transcode for video). Does NOT own member-attributed uploads (MediaGalleryService).
+
+**Consumers:** Admin controllers (`/admin/upload-curated-media`)
+
+**Key Methods:**
+- `uploadPhoto({adminMemberId, photoBuffer, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte JPEG/PNG rejection; runs Sharp photo pipeline (aspect-preserving thumb, 800px-wide display, EXIF/ICC stripped); writes `media_items` row with `uploader_member_id = systemMemberId`, `media_type='photo'`, `is_avatar=0`; lookup-or-insert tags; appends audit entry with admin actor
+- `uploadVideo({adminMemberId, videoBuffer, posterBuffer, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte MP4/WebM/MOV rejection; poster JPEG/PNG required; runs ffmpeg curator transcode pipeline (re-encode + metadata strip per DD §6.8); writes `media_items` row with `media_type='video'`, `video_platform='s3'`, `video_id` = relative video key, `thumbnail_url='/media/{posterDisplayKey}'`, `video_url=NULL`; appends audit entry with admin actor
+
+**Authz:** Admin only. `requireAuth` + `requireAdmin` gate the route; service does not re-check.
+
+**Persistence Touchpoints:** `media_items`, `media_tags`, `tags`, `audit_entries`, `members` (read for system-member resolution)
+
+**Key Rules:**
+- `[APP]` `uploader_member_id` is always the system member id (`is_system=1`); admin actor is recorded only in `audit_entries`
+- `[APP]` Curator video bytes use `video_platform='s3'`; member video routes reject `video_platform='s3'` as a defensive boundary
+- `[APP]` Storage keys match the curator-seed layout (`{systemMemberId}/detached/{mediaId}-...`) so the offline seed and the admin upload path produce identical row shape
+- `[DB]` Audit entries are append-only (immutable triggers on `audit_entries`)
+
+**Transaction + Idempotency:** All DB writes for one upload (`media_items` + `media_tags` + `audit_entries`) land in a single transaction. Storage `put` calls happen before the transaction opens; if any storage put fails the transaction never runs.
+
+**Async / Side Effects:** audit append per upload.
 
 ---
 

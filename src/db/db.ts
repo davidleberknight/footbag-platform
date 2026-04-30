@@ -3226,6 +3226,15 @@ export const registration = {
       created_at, created_by, updated_at, updated_by, version
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'registration', ?, 'registration', 1)
   `); },
+
+  get setAdminFlagOnRegister() { return db.prepare(`
+    UPDATE members
+       SET is_admin   = 1,
+           updated_at = ?,
+           updated_by = 'register_admin_bootstrap',
+           version    = version + 1
+     WHERE id = ?
+  `); },
 };
 
 export const auth = {
@@ -3454,12 +3463,42 @@ export const outbox = {
 };
 
 export const media = {
-  get insertMediaItem() { return db.prepare(`
+  get insertAvatarPhoto() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px
     ) VALUES (?, ?, 'member', ?, 'member', 1, ?, NULL, 'photo', 1, NULL, ?, ?, ?, ?, ?)
+  `); },
+
+  get findSystemMemberId() { return db.prepare(`
+    SELECT id FROM members WHERE is_system = 1
+  `); },
+
+  get insertCuratorPhoto() { return db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      s3_key_thumb, s3_key_display, width_px, height_px,
+      moderation_status
+    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
+              ?, NULL, 'photo', 0, ?, ?,
+              ?, ?, ?, ?,
+              'active')
+  `); },
+
+  get insertCuratorVideo() { return db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      width_px, height_px,
+      moderation_status
+    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
+              ?, NULL, 'video', 0, ?, ?,
+              's3', ?, NULL, ?,
+              ?, ?,
+              'active')
   `); },
 
   get setMemberAvatar() { return db.prepare(`
@@ -3501,6 +3540,73 @@ export const media = {
     ORDER BY mi.uploaded_at DESC
     LIMIT 1
   `); },
+
+  // Public curator gallery: paginated reverse-chrono list of all FH-owned
+  // (system member) active media. Excludes avatars (is_avatar=1) defense-in-
+  // depth, even though avatars cannot also be curator uploads under current
+  // bootstrap.
+  get listCuratorMedia() { return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_id, mi.thumbnail_url,
+           mi.width_px, mi.height_px
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE m.is_system = 1
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+    LIMIT ? OFFSET ?
+  `); },
+
+  get countCuratorMedia() { return db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE m.is_system = 1
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+  `); },
+};
+
+// Tag display values for a set of media ids in one round-trip. Built
+// dynamically because better-sqlite3 has no array-binding for IN().
+// Mirrors the queryCuratedItems / queryFilteredTeams pattern.
+export function queryCuratorMediaTags(
+  mediaIds: string[],
+): { media_id: string; tag_display: string }[] {
+  if (mediaIds.length === 0) return [];
+  const placeholders = mediaIds.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT mt.media_id, mt.tag_display
+    FROM media_tags mt
+    WHERE mt.media_id IN (${placeholders})
+    ORDER BY mt.tag_display
+  `).all(...mediaIds) as { media_id: string; tag_display: string }[];
+}
+
+export const mediaTags = {
+  get findTagByNormalized() { return db.prepare(`
+    SELECT id FROM tags WHERE tag_normalized = ?
+  `); },
+
+  get insertTag() { return db.prepare(`
+    INSERT INTO tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      tag_normalized, tag_display,
+      is_standard, standard_type
+    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
+              ?, ?,
+              0, NULL)
+  `); },
+
+  get insertMediaTag() { return db.prepare(`
+    INSERT INTO media_tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      media_id, tag_id, tag_display
+    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
+              ?, ?, ?)
+  `); },
 };
 
 export interface CuratorSlotMediaRow {
@@ -3513,6 +3619,28 @@ export interface CuratorSlotMediaRow {
   caption: string | null;
   s3_key_thumb: string | null;
   s3_key_display: string | null;
+}
+
+// Photo rows have s3_key_thumb / s3_key_display populated and video_id /
+// thumbnail_url NULL. Video rows are the inverse: video_id holds the storage
+// key for the bytes, thumbnail_url is a fully-formed /media/... URL to the
+// poster, and the s3_key_* columns are NULL. Shaping must branch on
+// media_type, not on key presence.
+export interface CuratorGalleryRow {
+  id: string;
+  media_type: 'photo' | 'video';
+  caption: string | null;
+  uploaded_at: string;
+  s3_key_thumb: string | null;
+  s3_key_display: string | null;
+  video_id: string | null;
+  thumbnail_url: string | null;
+  width_px: number | null;
+  height_px: number | null;
+}
+
+export interface CuratorMediaCountRow {
+  n: number;
 }
 
 export interface ExistingAvatarRow {

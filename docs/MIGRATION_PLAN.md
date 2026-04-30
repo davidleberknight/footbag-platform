@@ -615,6 +615,14 @@ Admins can:
 
 Note: At registration time, Tier 3 cases are handled by inline user prompt (no admin involvement).
 
+### Initial-admin bootstrap (SA_Bootstrap_Initial_Admins)
+
+At cutover, the platform has zero `is_admin=1` rows. The initial Application Administrator(s) are granted out-of-band by a System Administrator per DD §2.9. The grant path is reserved for inception and total-admin-loss recovery; all subsequent grants and revocations use `A_Manage_Admin_Role` (US §6.6).
+
+The grants satisfy go-live gate GV2 ("At least one administrator account provisioned in production and login-tested", §21). They are performed after the production DB is live and seeded, and before any admin-only path is opened to volunteers. Operator-facing procedure for the current bootstrap mechanism is documented in DEV_ONBOARDING.
+
+The bootstrap path is exempt from the Tier 2 / Tier 3 status gate that `A_Manage_Admin_Role` enforces, because tier data may not be populated on day one and the gate exists to govern admin-to-admin grants, not the SysAdmin's out-of-band first grant. The in-app gate remains in force for every grant after the first.
+
 ---
 
 ## 13. User stories summary

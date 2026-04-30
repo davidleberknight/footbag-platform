@@ -1,0 +1,45 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{#if content.items.length}}
+    <ul class="gallery-grid">
+      {{#each content.items}}
+        <li class="gallery-tile">
+          <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
+            {{#if (eq mediaType 'video')}}
+              <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator video{{/if}}" loading="lazy" />
+              <span class="gallery-tile-play" aria-hidden="true">▶</span>
+            {{else}}
+              <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator photo{{/if}}" loading="lazy" />
+            {{/if}}
+          </a>
+          {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
+          {{#if tags.length}}
+            <ul class="gallery-tile-tags">
+              {{! Tag chips do not link yet; per-tag pages are deferred to the broader media-browser story. }}
+              {{#each tags}}<li class="gallery-tile-tag">{{this}}</li>{{/each}}
+            </ul>
+          {{/if}}
+          <p class="gallery-tile-date"><time datetime="{{uploadedAtIso}}">{{uploadedAtDisplay}}</time></p>
+        </li>
+      {{/each}}
+    </ul>
+
+    {{#if (gt content.pagination.total content.pagination.pageSize)}}
+      <nav class="gallery-pagination" aria-label="Gallery pagination">
+        {{#if content.pagination.hasPrev}}<a href="{{content.pagination.prevHref}}" class="btn btn-outline">Previous</a>{{/if}}
+        <span class="gallery-pagination-status">Page {{content.pagination.page}}</span>
+        {{#if content.pagination.hasNext}}<a href="{{content.pagination.nextHref}}" class="btn btn-outline">Next</a>{{/if}}
+      </nav>
+    {{/if}}
+  {{else}}
+    <div class="empty-state">No media yet.</div>
+  {{/if}}
+
+</div>

@@ -33,6 +33,12 @@ export interface AppConfig {
   imageProcessTimeoutMs: number;
   mediaStorageAdapter: 's3' | 'local';
   mediaStorageS3Bucket: string | undefined;
+  // Path to the operator-supplied initial-admin email list. Each member
+  // who registers with an email listed here gets `is_admin=1` set on their
+  // newly-inserted row plus a `grant_admin_bootstrap` audit row.
+  // Default: `.local/initial-admins.txt` (gitignored). Production reads of
+  // this file are refused at the helper level regardless of this value.
+  initialAdminFile: string;
   // Value for Express's `trust proxy` setting. Number, boolean, or
   // comma-separated subnet/IP list — anything Express's setting accepts.
   // Default: 2 in production (CloudFront + nginx), 0 elsewhere.
@@ -216,6 +222,7 @@ function loadConfig(): AppConfig {
     imageProcessTimeoutMs,
     mediaStorageAdapter,
     mediaStorageS3Bucket,
+    initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
     trustProxy,
   };
 }

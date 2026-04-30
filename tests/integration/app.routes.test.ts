@@ -576,12 +576,11 @@ describe('GET /', () => {
     expect(res.text).toContain('href="/members"');
   });
 
-  it('shows Media Gallery as coming soon', async () => {
+  it('links Media Gallery card to /gallery', async () => {
     const app = createApp();
     const res = await request(app).get('/');
     expect(res.text).toContain('Media Gallery');
-    expect(res.text).toContain('card-coming-soon');
-    expect(res.text).not.toContain('href="/media"');
+    expect(res.text).toContain('href="/gallery"');
   });
 
   it('does not expose draft events', async () => {

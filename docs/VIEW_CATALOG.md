@@ -38,6 +38,7 @@
   - [6.17 Claim initiation](#617-claim-initiation)
   - [6.18 Claim confirmation](#618-claim-confirmation)
   - [6.19 Legal](#619-legal)
+  - [6.20 Media gallery](#620-media-gallery)
 - [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
   - [7.1 Authorization boundary](#71-authorization-boundary)
   - [7.2 Error behavior](#72-error-behavior)
@@ -489,6 +490,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `POST /history/:personId/claim/confirm` | HP claim execution | Direct HP claim handler; sets `members.historical_person_id` and transitively claims the linked `legacy_members` row when present | Current |
 | `GET /clubs` | Clubs index | Country-grouped clubs directory entry page | Current |
 | `GET /clubs/:key` | Clubs shared handler | Dispatches to country page or club detail | Current |
+| `GET /gallery` | Media gallery | Reverse-chronological list of curator-uploaded photos and videos, paginated | Current |
 | `GET /login` | Login | Member login | Current |
 | `GET /register` | Register | Member registration | Current |
 | `GET /register/check-email` | Check-email landing | Generic post-registration and post-resend landing | Current |
@@ -534,6 +536,7 @@ Visual token baseline (from `src/public/css/style.css`):
 - `POST /history/claim/confirm` is the claim merge confirmation handler.
 - `GET /clubs` is the canonical clubs section entry route.
 - `GET /clubs/:key` is the shared Express handler for both the country page and the club detail page. The controller dispatches by prefix: a key beginning with `club_` routes to the club detail handler; any other key routes to the country page handler. Public country URLs take the form `/clubs/{countryKey}`. Public club URLs take the form `/clubs/{clubKey}` where `clubKey` matches the `club_...` standard form.
+- `GET /gallery` is the canonical public media gallery route. It lists media uploaded by the system member (`is_system = 1`) in reverse-chronological order, paginated by `?page=N`. Filters by hashtag, member, event, or club gallery are not part of this route; those are surfaced on the relevant entity page (event, club, member profile) or via dedicated tag pages. Member-uploaded media does not appear here.
 - `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
 - `GET /register` is the member registration route. `POST /register` is its form-action handler and is not a separate cataloged page.
 - `GET /register/check-email` is the generic post-registration and post-resend landing. It never reveals whether an account exists for a given address.
@@ -1611,6 +1614,72 @@ Not applicable. Legal content is static and always present.
 - Content is static, owned by `legalService.getLegalPage()`; no database dependency
 - The page is unauthenticated and cacheable
 - Operator identity, governing law, and copyright year range are authoritative; changes require substantive review and a `lastUpdated` bump
+
+---
+
+### 6.20 Media gallery
+
+### Purpose
+
+Provide a public, paginated, reverse-chronological list of all curator-attributed (system-member-uploaded) photos and videos.
+
+### Route
+
+`GET /gallery`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Page intent
+
+- expose curator content (photos and videos) that the admin curator account has uploaded
+- give administrators a public-side verification surface for their own uploads
+- avoid replicating filter axes that belong on entity pages (event, club, member profile) or on dedicated tag pages
+
+### Required content
+
+- hero with title and intro
+- card grid: one tile per media item, with thumbnail, optional caption, tag chips, and uploaded-at date
+- pagination block (Previous / Next) when total exceeds page size
+
+### Required view-model fields
+
+- `seo.title = Media Gallery`
+- `page.sectionKey = gallery`
+- `page.pageKey = gallery_index`
+- `page.title`
+- `page.intro`
+- `content.items[]`
+  - `mediaId`
+  - `mediaType` — `photo` or `video`
+  - `caption` — nullable
+  - `thumbnailUrl` — service-computed; for photos this is the `s3_key_thumb` URL via the storage adapter; for videos this is the existing `media_items.thumbnail_url` value
+  - `displayHref` — service-computed; for photos this is the `s3_key_display` URL; for videos this is the `video_id` storage key URL
+  - `uploadedAtIso`, `uploadedAtDisplay`
+  - `tags[]` — `tag_display` values from `media_tags` for the item
+- `content.pagination`
+  - `page`, `pageSize`, `total`
+  - `hasPrev`, `hasNext`
+  - `prevHref`, `nextHref` — service-computed; absent when the corresponding `has*` is false
+
+### Navigation outputs
+
+None at present. Per-tag, per-member, per-event, and per-club drill-downs are deferred and will be surfaced on the relevant entity pages or tag pages.
+
+### Empty state
+
+Render the standard empty state ("No media yet.") when no curator media exists.
+
+### Implementation notes
+
+- Source rows are filtered to `members.is_system = 1`, `media_items.moderation_status = 'active'`, and `media_items.is_avatar = 0`.
+- Page size is fixed; query parameter `?page=N` selects the page (invalid values clamp to 1).
+- Caption text is HTML-escaped at render time; tag chips do not link to per-tag pages in this slice.
 
 ---
 

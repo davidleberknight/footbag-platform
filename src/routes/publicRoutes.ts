@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { homeController } from '../controllers/homeController';
 import { clubController } from '../controllers/clubController';
+import { galleryController } from '../controllers/galleryController';
 import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
@@ -18,6 +19,7 @@ export const publicRouter = Router();
 publicRouter.get('/',      homeController.home);
 publicRouter.get('/clubs',       clubController.index);
 publicRouter.get('/clubs/:key', clubController.byKey);
+publicRouter.get('/gallery',    galleryController.index);
 publicRouter.get('/hof',   hofController.index);
 
 // IMPORTANT: literal sub-routes registered before param routes (/freestyle/tricks/:slug)

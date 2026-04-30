@@ -50,7 +50,7 @@ export function createAvatarService(deps: AvatarServiceDeps) {
           media.deleteMediaItem.run(existing.id);
         }
 
-        media.insertMediaItem.run(
+        media.insertAvatarPhoto.run(
           mediaId, now, now,
           memberId, now,
           thumbKey, displayKey,

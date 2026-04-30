@@ -915,6 +915,44 @@ Impact:
 
 - Bulk seeding of pre-loaded system-account content (operational tooling, documented at slice activation) is written against the same ownership construct.
 
+## 2.9 Administrator Role Lifecycle
+
+Decision:
+
+The administrator role on `members.is_admin` is granted through two paths: the steady-state in-app path (`A_Manage_Admin_Role`) and an out-of-band bootstrap path used only at platform inception or after total admin loss. Both paths share identical per-row DB write and audit shape; they differ in actor identity and the source of the target identity.
+
+Rationale:
+
+- The steady-state path is the lifetime path: an admin selects a member, supplies a reason, the request is gated on Tier 2 Lifetime / Tier 3 status per `A_Manage_Admin_Role`, and the system writes `is_admin=1` plus an `audit_entries` row with `actor_type='admin'`.
+
+- The bootstrap path covers the chicken-and-egg case: no app UI can produce the initial admins because no admin can authorize them. The grant therefore crosses the role boundary in DEVOPS §3.2: a System Administrator with host access acts on behalf of the system to provision initial Application Administrators.
+
+- The audit log is the authoritative grant trail in both cases. Steady-state grants record `actor_type='admin'`; bootstrap grants record `actor_type='system'` with `action_type='grant_admin_bootstrap'`.
+
+Requirements:
+
+- Two grant paths exist: in-app `A_Manage_Admin_Role` (steady state) and out-of-band bootstrap (initial admins only). No third path.
+
+- Bootstrap is exempt from the Tier 2 / Tier 3 gate that `A_Manage_Admin_Role` enforces: tier data may not exist on day one, and the gate exists to govern admin-to-admin grants, not first-admin provisioning.
+
+- Steady-state and bootstrap paths share identical per-row write semantics: `is_admin=1` plus one `audit_entries` row in the same transaction. Steady-state uses `actor_type='admin'`; bootstrap uses `actor_type='system'` with `action_type='grant_admin_bootstrap'`.
+
+- Revocation is steady-state only via `A_Manage_Admin_Role`. There is no bootstrap revocation path.
+
+- The bootstrap mechanism's input is operator-supplied at runtime and is never committed to the repository. Canonical docs, plans, code, and tests refer to the input by role only.
+
+Trade-offs:
+
+- Total admin loss requires SysAdmin re-bootstrap rather than self-service recovery. Acceptable because total admin loss is a recovery scenario and the audit-row mitigation is identical to inception.
+
+Impact:
+
+- `A_Manage_Admin_Role` (US §6.6) covers the steady-state grant flow and is enforced in the app.
+
+- Bootstrap mechanism is operator-facing; current implementation is documented in DEV_ONBOARDING.
+
+- The bootstrap grant satisfies the "could be done also by a System Administrator (a developer role not a user role)" clause in US §6.
+
 # 3. Security, Authentication, and Sessions
 
 ## 3.1 Password Hashing

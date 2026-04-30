@@ -9,6 +9,7 @@ import { authMiddleware } from './middleware/auth';
 import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
 import { internalRouter } from './routes/internalRoutes';
+import { adminRouter }    from './routes/adminRoutes';
 import { publicRouter }   from './routes/publicRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
@@ -154,10 +155,12 @@ export function createApp(): express.Application {
       : req.path.startsWith('/members') ? 'members'
       : req.path.startsWith('/history') ? 'history'
       : req.path.startsWith('/clubs') ? 'clubs'
+      : req.path.startsWith('/gallery') ? 'gallery'
       : req.path.startsWith('/hof') ? 'hof'
       : req.path.startsWith('/freestyle') ? 'freestyle'
       : req.path.startsWith('/records') ? 'records'
       : req.path.startsWith('/net') ? 'net'
+      : req.path.startsWith('/admin') ? 'admin'
       : '';
     res.locals.isAuthenticated = req.isAuthenticated;
     res.locals.currentUser = req.user;
@@ -185,6 +188,7 @@ export function createApp(): express.Application {
   // ── Routes ───────────────────────────────────────────────────────────────
   app.use('/health',   healthRouter);
   app.use('/internal', internalRouter);
+  app.use('/admin',    adminRouter);
   app.use('/',         publicRouter);
 
   // ── 404 handler ──────────────────────────────────────────────────────────

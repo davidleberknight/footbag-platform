@@ -10,6 +10,7 @@ import { config } from '../config/env';
 import { RateLimitedError, ValidationError } from './serviceErrors';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
+import { getInitialAdminEmails } from './initialAdminBootstrap';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
 import type { SimulatedEmailPreview } from './simulatedEmailService';
@@ -294,6 +295,20 @@ async function registerMember(
     now,   // created_at
     now,   // updated_at
   );
+
+  if (getInitialAdminEmails().has(normalizedEmail)) {
+    registration.setAdminFlagOnRegister.run(now, id);
+    appendAuditEntry({
+      actionType: 'grant_admin_bootstrap',
+      category: 'admin',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'member',
+      entityId: id,
+      reasonText: 'Initial-admin via gitignored email-list file at registration',
+      metadata: { via: 'register' },
+    });
+  }
 
   await issueAndEnqueueVerifyEmail(id, trimmedEmail);
 

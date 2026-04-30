@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import sharp from 'sharp';
 import { createImageWorkerApp } from '../../src/imageWorker';
-import { processAvatar } from '../../src/lib/imageProcessing';
+import { processAvatar, processPhoto } from '../../src/lib/imageProcessing';
 
 async function makeJpeg(width = 50, height = 50): Promise<Buffer> {
   return sharp({
@@ -309,5 +309,140 @@ describe('POST /process/avatar', () => {
     const [firstRes, secondRes] = await Promise.all([firstP, secondP]);
     expect(firstRes.status).toBe(500);
     expect(secondRes.status).toBe(200);
+  });
+});
+
+describe('POST /process/photo', () => {
+  it('returns processed thumb + display + dimensions for a valid JPEG', async () => {
+    const app = createImageWorkerApp();
+    const jpeg = await makeJpeg(120, 90);
+
+    const res = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(jpeg);
+
+    expect(res.status).toBe(200);
+    expect(res.body.widthPx).toBe(120);
+    expect(res.body.heightPx).toBe(90);
+    expect(typeof res.body.thumb).toBe('string');
+    expect(typeof res.body.display).toBe('string');
+  });
+
+  it('produces an aspect-preserving thumb (not a cover-crop)', async () => {
+    const app = createImageWorkerApp();
+    // 1000x500 input — a cover-crop thumb would be 300x300; a longest-edge
+    // thumb preserves the 2:1 aspect → 300x150.
+    const jpeg = await makeJpeg(1000, 500);
+    const res = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(jpeg);
+    expect(res.status).toBe(200);
+
+    const thumb = Buffer.from(res.body.thumb, 'base64');
+    const meta = await sharp(thumb).metadata();
+    expect(meta.format).toBe('jpeg');
+    expect(meta.width).toBe(300);
+    expect(meta.height).toBe(150);
+  });
+
+  it('rejects non-image body with 400', async () => {
+    const app = createImageWorkerApp();
+    const res = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(Buffer.from('this is not an image'));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unrecognized image type/);
+  });
+
+  it('rejects empty body with 400', async () => {
+    const app = createImageWorkerApp();
+    const res = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(Buffer.alloc(0));
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 413 for payload over 25 MB', async () => {
+    const app = createImageWorkerApp();
+    const oversized = Buffer.alloc(26 * 1024 * 1024, 0xff);
+    const res = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(oversized);
+    expect(res.status).toBe(413);
+  });
+
+  it('returns 500 when the processing impl throws', async () => {
+    const app = createImageWorkerApp({
+      processPhotoImpl: async () => {
+        throw new Error('sharp blew up');
+      },
+    });
+    const res = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(await makeJpeg());
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/sharp blew up/);
+  });
+
+  it('shares the semaphore with /process/avatar (busy avatar slot blocks photo)', async () => {
+    let firstAcquired!: () => void;
+    const acquired = new Promise<void>((resolve) => {
+      firstAcquired = resolve;
+    });
+    let release!: () => void;
+    const blocker = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const app = createImageWorkerApp({
+      maxConcurrent: 1,
+      semaphoreWaitMs: 100,
+      processAvatarImpl: async (data) => {
+        firstAcquired();
+        await blocker;
+        return processAvatar(data);
+      },
+    });
+
+    const jpeg = await makeJpeg();
+    const avatarP = request(app)
+      .post('/process/avatar')
+      .set('Content-Type', 'application/octet-stream')
+      .send(jpeg)
+      .then((r) => r);
+    await acquired;
+
+    const photoRes = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(jpeg);
+    expect(photoRes.status).toBe(503);
+
+    release();
+    const avatarRes = await avatarP;
+    expect(avatarRes.status).toBe(200);
+  });
+
+  it('processPhotoImpl test seam is honored', async () => {
+    let invoked = false;
+    const app = createImageWorkerApp({
+      processPhotoImpl: async (data) => {
+        invoked = true;
+        return processPhoto(data);
+      },
+    });
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post('/process/photo')
+      .set('Content-Type', 'application/octet-stream')
+      .send(jpeg);
+    expect(res.status).toBe(200);
+    expect(invoked).toBe(true);
   });
 });

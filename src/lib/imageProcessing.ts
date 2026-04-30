@@ -59,3 +59,36 @@ export async function processAvatar(data: Buffer): Promise<ProcessedImage> {
 
   return { thumb, display, widthPx: width, heightPx: height };
 }
+
+/**
+ * Process a raw upload buffer into two JPEG variants for a hero/curator photo.
+ *
+ * Differs from processAvatar in that the thumb is aspect-preserving
+ * (longest-edge 300px, fit:'inside') instead of a 300x300 cover-crop.
+ * Used by the admin curator upload path where preserving the photo's
+ * aspect matters (event photos, illustrations, etc.).
+ */
+export async function processPhoto(data: Buffer): Promise<ProcessedImage> {
+  const metadata = await sharp(data).metadata();
+  const width = metadata.width ?? 0;
+  const height = metadata.height ?? 0;
+  if (width === 0 || height === 0) {
+    throw new Error('Unable to read image dimensions');
+  }
+
+  const [thumb, display] = await Promise.all([
+    sharp(data)
+      .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true })
+      .rotate()
+      .jpeg({ quality: JPEG_QUALITY })
+      .toBuffer(),
+
+    sharp(data)
+      .resize(DISPLAY_WIDTH, undefined, { fit: 'inside', withoutEnlargement: true })
+      .rotate()
+      .jpeg({ quality: JPEG_QUALITY })
+      .toBuffer(),
+  ]);
+
+  return { thumb, display, widthPx: width, heightPx: height };
+}

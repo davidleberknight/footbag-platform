@@ -13,6 +13,7 @@ import type { ProcessedImage } from '../lib/imageProcessing';
 
 export interface ImageProcessingAdapter {
   processAvatar(data: Buffer): Promise<ProcessedImage>;
+  processPhoto(data: Buffer): Promise<ProcessedImage>;
 }
 
 export class ImageProcessingError extends Error {
@@ -22,7 +23,7 @@ export class ImageProcessingError extends Error {
   }
 }
 
-interface ProcessAvatarResponse {
+interface ProcessImageResponse {
   thumb: string;
   display: string;
   widthPx: number;
@@ -37,50 +38,54 @@ export function createHttpImageAdapter(opts: {
   const baseUrl = opts.baseUrl.replace(/\/$/, '');
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 30000;
+
+  async function callWorker(endpoint: '/process/avatar' | '/process/photo', data: Buffer): Promise<ProcessedImage> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Response;
+    try {
+      // Node's fetch accepts Buffer at runtime, but TS lib.dom's BodyInit
+      // omits it. Cast through unknown to keep the call site readable without
+      // copying bytes.
+      res = await fetchImpl(`${baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: data as unknown as BodyInit,
+        signal: controller.signal,
+      });
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name === 'AbortError') {
+        throw new ImageProcessingError(`image worker timed out after ${timeoutMs}ms`);
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new ImageProcessingError(`image worker request failed: ${msg}`);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      if (res.status === 400) {
+        throw new ImageProcessingError(`image worker rejected image type: ${body}`, 400);
+      }
+      throw new ImageProcessingError(
+        `image worker returned ${res.status}: ${body}`,
+        res.status,
+      );
+    }
+
+    const json = (await res.json()) as ProcessImageResponse;
+    return {
+      thumb: Buffer.from(json.thumb, 'base64'),
+      display: Buffer.from(json.display, 'base64'),
+      widthPx: json.widthPx,
+      heightPx: json.heightPx,
+    };
+  }
+
   return {
-    async processAvatar(data: Buffer): Promise<ProcessedImage> {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      let res: Response;
-      try {
-        // Node's fetch accepts Buffer at runtime, but TS lib.dom's BodyInit
-        // omits it. Cast through unknown to keep the call site readable without
-        // copying bytes.
-        res = await fetchImpl(`${baseUrl}/process/avatar`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: data as unknown as BodyInit,
-          signal: controller.signal,
-        });
-      } catch (err: unknown) {
-        if ((err as { name?: string })?.name === 'AbortError') {
-          throw new ImageProcessingError(`image worker timed out after ${timeoutMs}ms`);
-        }
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new ImageProcessingError(`image worker request failed: ${msg}`);
-      } finally {
-        clearTimeout(timer);
-      }
-
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        if (res.status === 400) {
-          throw new ImageProcessingError(`image worker rejected image type: ${body}`, 400);
-        }
-        throw new ImageProcessingError(
-          `image worker returned ${res.status}: ${body}`,
-          res.status,
-        );
-      }
-
-      const json = (await res.json()) as ProcessAvatarResponse;
-      return {
-        thumb: Buffer.from(json.thumb, 'base64'),
-        display: Buffer.from(json.display, 'base64'),
-        widthPx: json.widthPx,
-        heightPx: json.heightPx,
-      };
-    },
+    processAvatar: (data) => callWorker('/process/avatar', data),
+    processPhoto: (data) => callWorker('/process/photo', data),
   };
 }
 

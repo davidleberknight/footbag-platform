@@ -19,9 +19,9 @@ Cross-track changes require explicit human coordination.
 
 ---
 
-## Dave's track: Curator system account + media unification (active)
+## Dave's track: Admin curator upload + bootstrap (active)
 
-Phase one complete. Next session, start Deferred / next session review (below).
+Implements `A_Upload_Curated_Media` end-to-end (US §6.3) plus the first-admin bootstrap mechanism per DD §2.9. Deliverables: admin dashboard at `/admin`, admin curator upload at `/admin/curator/upload` (photo + video through Sharp/ffmpeg), `requireAdmin` middleware, in-app file-based admin grant at registration (`src/services/initialAdminBootstrap.ts` reads gitignored `.local/initial-admins.txt`; `registerMember` flips `is_admin=1` when the new member's email is listed), integration tests at every layer including a regression test for the simulated-email-card flow.
 
 ---
 
@@ -39,7 +39,6 @@ Tracked in `legacy_data/IMPLEMENTATION_PLAN.md`. Load only when working in that 
 
 ## Deferred / next session review
 
-- **Admin act-as upload UI for curator content.** Implements `A_Upload_Curated_Media`. Dependencies: curator slice's system-member infrastructure (is_system flag, FH evolution, ffmpeg pipeline, media adapter rename). Scope: admin route + controller + view that accepts photo or video uploads, runs them through the same Sharp/ffmpeg pipeline used by the curator seed, writes `media_items` with `uploader_member_id = FH` and appends an `audit_log` entry naming the admin actor. Member upload controllers reject `video_platform='s3'` (defensive boundary). Acceptance criteria per the US.
 - **Broader curator content seeding (Japan Worlds 2026 photo, /net cartoons, /footbag-heroes cartoons, future tutorials and historical content).** Uses the seed mechanism delivered in the curator slice; no new design or schema work. Per item: source file in curator-assets directory + entry in seed list + tags. Pages that render new content (`/footbag-heroes`, `/net` cartoon section, event galleries via standardized hashtag auto-link) get DB-query render code in the `freestyleService` / `netService` pattern. Optional: promote the seed list to an external manifest format if categories grow. MIGRATION_PLAN entry for go-live curator-content readiness drafted alongside. DEVOPS_GUIDE entry for the seeding mechanism drafted alongside.
 - **Mirror: scrub all media regardless of source format.** The legacy mirror (`legacy_data/create_mirror_footbag_org.py`) currently re-encodes only formats marked `convertible=True` in MEDIA_FORMATS; native-format MP4, WebM, MP3, JPG, JPEG, PNG, and GIF inputs pass through unchanged with no malware-stripping. Close the gap: re-encode every downloaded media file on the fly during the mirror run, using the same security pipeline as the platform's curator and member upload paths.
   - Images: PIL re-encode with explicit metadata stripping (`exif=b''`, no `icc_profile=` kwarg, no XMP preservation). Native JPG/PNG/GIF inputs included. Format whitelist enforced.

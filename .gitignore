@@ -1,3 +1,9 @@
+# =========================
+# Operator-local-only files (NEVER commit; contains PII and machine-local state)
+# =========================
+/.local/
+.local/**
+
 #=========================
 # Legacy migration data (keep code, ignore generated/mirrored data)
 # =========================

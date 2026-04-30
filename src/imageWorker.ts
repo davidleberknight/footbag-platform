@@ -8,9 +8,11 @@
  * require web-only config (FOOTBAG_DB_PATH, SESSION_SECRET, etc.).
  */
 import express, { Request, Response, NextFunction } from 'express';
-import { detectImageType, processAvatar, type ProcessedImage } from './lib/imageProcessing';
+import { detectImageType, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
+import { Semaphore } from './lib/semaphore';
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const PHOTO_MAX_BYTES = 25 * 1024 * 1024;
 
 function parseIntEnv(name: string, fallback: number, min: number, max: number): number {
   const raw = process.env[name];
@@ -25,44 +27,13 @@ function parseIntEnv(name: string, fallback: number, min: number, max: number): 
   return n;
 }
 
-class Semaphore {
-  private inFlight = 0;
-  private waiters: Array<{ resolve: () => void; reject: (e: Error) => void; timer: NodeJS.Timeout }> = [];
-
-  constructor(private readonly max: number, private readonly waitTimeoutMs: number) {}
-
-  async acquire(): Promise<void> {
-    if (this.inFlight < this.max) {
-      this.inFlight++;
-      return;
-    }
-    return new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        const idx = this.waiters.findIndex((w) => w.timer === timer);
-        if (idx !== -1) this.waiters.splice(idx, 1);
-        reject(new Error('semaphore wait timeout'));
-      }, this.waitTimeoutMs);
-      this.waiters.push({ resolve, reject, timer });
-    });
-  }
-
-  release(): void {
-    const next = this.waiters.shift();
-    if (next) {
-      clearTimeout(next.timer);
-      next.resolve();
-    } else if (this.inFlight > 0) {
-      this.inFlight--;
-    }
-  }
-}
-
 export interface ImageWorkerOptions {
   maxConcurrent?: number;
   semaphoreWaitMs?: number;
   // Test seam: substitute the Sharp pipeline with a slow / failing impl
   // so semaphore-busy and error paths can be exercised without flake.
   processAvatarImpl?: (data: Buffer) => Promise<ProcessedImage>;
+  processPhotoImpl?: (data: Buffer) => Promise<ProcessedImage>;
 }
 
 export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Express {
@@ -70,8 +41,48 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
     opts.maxConcurrent ?? parseIntEnv('IMAGE_MAX_CONCURRENT', 2, 1, 16);
   const semaphoreWaitMs =
     opts.semaphoreWaitMs ?? parseIntEnv('IMAGE_SEMAPHORE_WAIT_MS', 30000, 1, 600000);
-  const processImpl = opts.processAvatarImpl ?? processAvatar;
+  const processAvatarFn = opts.processAvatarImpl ?? processAvatar;
+  const processPhotoFn = opts.processPhotoImpl ?? processPhoto;
   const semaphore = new Semaphore(maxConcurrent, semaphoreWaitMs);
+
+  async function runProcess(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+    impl: (data: Buffer) => Promise<ProcessedImage>,
+  ): Promise<void> {
+    const buf = req.body;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'empty body' });
+      return;
+    }
+    if (!detectImageType(buf)) {
+      res.status(400).json({ error: 'unrecognized image type' });
+      return;
+    }
+
+    try {
+      await semaphore.acquire();
+    } catch {
+      res.set('Retry-After', '1');
+      res.status(503).json({ error: 'image worker busy' });
+      return;
+    }
+
+    try {
+      const processed = await impl(buf);
+      res.status(200).json({
+        thumb: processed.thumb.toString('base64'),
+        display: processed.display.toString('base64'),
+        widthPx: processed.widthPx,
+        heightPx: processed.heightPx,
+      });
+    } catch (err: unknown) {
+      next(err);
+    } finally {
+      semaphore.release();
+    }
+  }
 
   const app = express();
 
@@ -82,39 +93,13 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   app.post(
     '/process/avatar',
     express.raw({ type: 'application/octet-stream', limit: AVATAR_MAX_BYTES }),
-    async (req: Request, res: Response, next: NextFunction) => {
-      const buf = req.body;
-      if (!Buffer.isBuffer(buf) || buf.length === 0) {
-        res.status(400).json({ error: 'empty body' });
-        return;
-      }
-      if (!detectImageType(buf)) {
-        res.status(400).json({ error: 'unrecognized image type' });
-        return;
-      }
+    (req, res, next) => runProcess(req, res, next, processAvatarFn),
+  );
 
-      try {
-        await semaphore.acquire();
-      } catch {
-        res.set('Retry-After', '1');
-        res.status(503).json({ error: 'image worker busy' });
-        return;
-      }
-
-      try {
-        const processed = await processImpl(buf);
-        res.status(200).json({
-          thumb: processed.thumb.toString('base64'),
-          display: processed.display.toString('base64'),
-          widthPx: processed.widthPx,
-          heightPx: processed.heightPx,
-        });
-      } catch (err: unknown) {
-        next(err);
-      } finally {
-        semaphore.release();
-      }
-    },
+  app.post(
+    '/process/photo',
+    express.raw({ type: 'application/octet-stream', limit: PHOTO_MAX_BYTES }),
+    (req, res, next) => runProcess(req, res, next, processPhotoFn),
   );
 
   app.use((err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {

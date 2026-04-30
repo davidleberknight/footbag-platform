@@ -15,9 +15,11 @@ import path from 'path';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
 const TEST_DB_PATH      = path.join(process.cwd(), `test-register-${Date.now()}.db`);
+const TEST_ADMIN_FILE   = path.join(process.cwd(), `test-initial-admins-${Date.now()}.txt`);
 
 // JWT/SES env vars come from tests/setup-env.ts (per-vitest-worker defaults).
 process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
+process.env.FOOTBAG_INITIAL_ADMIN_FILE = TEST_ADMIN_FILE;
 process.env.PORT                     = '3004';
 process.env.NODE_ENV                 = 'test';
 process.env.LOG_LEVEL                = 'error';
@@ -55,7 +57,16 @@ afterAll(() => {
   for (const ext of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
   }
+  try { fs.unlinkSync(TEST_ADMIN_FILE); } catch { /* ignore */ }
 });
+
+function writeAdminFile(contents: string): void {
+  fs.writeFileSync(TEST_ADMIN_FILE, contents, 'utf8');
+}
+
+function clearAdminFile(): void {
+  try { fs.unlinkSync(TEST_ADMIN_FILE); } catch { /* ignore */ }
+}
 
 // ── GET /register ─────────────────────────────────────────────────────────────
 
@@ -333,5 +344,142 @@ describe('POST /register', () => {
       });
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/register/check-email');
+  });
+});
+
+// ── Initial-admin bootstrap (DD §2.9) ────────────────────────────────────────
+//
+// When the operator places `.local/initial-admins.txt` (path injectable via
+// FOOTBAG_INITIAL_ADMIN_FILE) listing one email per line, registering with a
+// listed email auto-grants is_admin=1 on the new row plus a
+// 'grant_admin_bootstrap' audit row. Listed emails not yet registered have no
+// effect; production mode disables the file read entirely (covered by unit
+// tests since this suite runs with NODE_ENV='test').
+
+describe('POST /register — initial-admin bootstrap', () => {
+  it('email listed in admin file → registered with is_admin=1 + audit row', async () => {
+    writeAdminFile('# initial admins\nbootstrap-admin@example.com\n');
+    try {
+      const app = createApp();
+      const res = await request(app)
+        .post('/register')
+        .type('form')
+        .send({
+          realName: 'Bootstrap Admin',
+          email: 'bootstrap-admin@example.com',
+          password: 'securepass123',
+          confirmPassword: 'securepass123',
+        });
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe('/register/check-email');
+
+      const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+      const member = db.prepare(
+        `SELECT id, is_admin FROM members WHERE login_email_normalized = ?`,
+      ).get('bootstrap-admin@example.com') as { id: string; is_admin: number } | undefined;
+      const auditRows = db.prepare(
+        `SELECT action_type, actor_type FROM audit_entries
+           WHERE entity_id = ? AND action_type = 'grant_admin_bootstrap'`,
+      ).all(member!.id) as Array<{ action_type: string; actor_type: string }>;
+      db.close();
+
+      expect(member).toBeDefined();
+      expect(member!.is_admin).toBe(1);
+      expect(auditRows).toHaveLength(1);
+      expect(auditRows[0].actor_type).toBe('system');
+    } finally {
+      clearAdminFile();
+    }
+  });
+
+  it('email NOT in admin file → registered as plain member, no bootstrap audit', async () => {
+    writeAdminFile('someone-else@example.com\n');
+    try {
+      const app = createApp();
+      const res = await request(app)
+        .post('/register')
+        .type('form')
+        .send({
+          realName: 'Plain Member',
+          email: 'plain-member@example.com',
+          password: 'securepass123',
+          confirmPassword: 'securepass123',
+        });
+      expect(res.status).toBe(302);
+
+      const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+      const member = db.prepare(
+        `SELECT id, is_admin FROM members WHERE login_email_normalized = ?`,
+      ).get('plain-member@example.com') as { id: string; is_admin: number } | undefined;
+      const auditCount = db.prepare(
+        `SELECT COUNT(*) AS n FROM audit_entries
+           WHERE entity_id = ? AND action_type = 'grant_admin_bootstrap'`,
+      ).get(member!.id) as { n: number };
+      db.close();
+
+      expect(member!.is_admin).toBe(0);
+      expect(auditCount.n).toBe(0);
+    } finally {
+      clearAdminFile();
+    }
+  });
+
+  it('admin file missing → registered as plain member, no errors', async () => {
+    clearAdminFile();
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'No File',
+        email: 'no-file@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(302);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const member = db.prepare(
+      `SELECT id, is_admin FROM members WHERE login_email_normalized = ?`,
+    ).get('no-file@example.com') as { id: string; is_admin: number } | undefined;
+    const auditCount = db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries
+         WHERE entity_id = ? AND action_type = 'grant_admin_bootstrap'`,
+    ).get(member!.id) as { n: number };
+    db.close();
+
+    expect(member!.is_admin).toBe(0);
+    expect(auditCount.n).toBe(0);
+  });
+});
+
+// ── Simulated-email-card regression (covers the prior pre-seed confusion) ───
+
+describe('POST /register → /register/check-email', () => {
+  it('renders the verification email link via simulated email card (dev SES_ADAPTER=stub)', async () => {
+    const app = createApp();
+    // Use a fresh cookie jar with supertest agent so the redirect stays in-session.
+    const agent = request.agent(app);
+    const post = await agent
+      .post('/register')
+      .type('form')
+      .send({
+        realName: 'Card Test',
+        email: 'card-test@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(post.status).toBe(302);
+    expect(post.headers.location).toBe('/register/check-email');
+
+    const checkEmail = await agent.get('/register/check-email');
+    expect(checkEmail.status).toBe(200);
+    // The simulated email card surfaces the verification URL extracted from the
+    // outbox row body. Asserting the URL pattern guards against the regression
+    // where the registration → simulated-card path silently drops the email
+    // (which is what the operator hit when an admin row was pre-created and
+    // /register hit the silent-duplicate branch).
+    expect(checkEmail.text).toMatch(/\/verify\/[A-Za-z0-9_-]+/);
+    expect(checkEmail.text).toContain('card-test@example.com');
   });
 });
