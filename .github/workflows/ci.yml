@@ -73,8 +73,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install sqlite3 CLI
-        run: sudo apt-get update && sudo apt-get install -y sqlite3
+      - name: Install sqlite3 CLI + ffmpeg
+        # ffmpeg: required by legacy_data/scripts/seed_curator_media.py to
+        # transcode the demo-loop sources through the curator pipeline (DD §6.8).
+        run: sudo apt-get update && sudo apt-get install -y sqlite3 ffmpeg
 
       - name: Set up Python
         uses: actions/setup-python@v5
