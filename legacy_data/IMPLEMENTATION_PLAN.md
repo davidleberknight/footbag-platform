@@ -6,7 +6,7 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 ## Active work
 
-(none)
+- **Cross-track decision: curator content lifecycle vs `freestyle_media_*` no-merge rule.** Dave's curator slice (`A_Upload_Curated_Media`) needs your input on how to reconcile the unified-curator design with the schema's `freestyle_media_*` layer-separation rule. Read `CURATED_MEDIA_PLAN.md` at repo root and answer the eight questions in §"Questions for James" (one per turn, capture answers inline, commit). Blocks: Dave's curator slice cannot resume until your answers land.
 
 ---
 
