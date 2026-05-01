@@ -9,10 +9,10 @@ double spin,2,double spin,body,,,Double rotational body spin.,expert_reviewed,1,
 walk over,2,walk over,body,,,Stepping leg-over motion.,expert_reviewed,1,
 spyro,1,spyro,body,,,Inward rotational body move.,expert_reviewed,1,
 surging,2,surging,compound,spinning stepping,spinning|stepping,spinning + stepping = 2 ADD (1 spin + 1 step),expert_reviewed,1,
-sidewalk,4,butterfly,compound,same-side stepping butterfly|ss stepping butterfly,stepping,same-side stepping butterfly = 4 ADD,expert_reviewed,1,'same-side' qualifier not in modifiers table; capturing via alias only for now
-tombstone,4,drifter,compound,stepping drifter,stepping,stepping drifter = 4 ADD,expert_reviewed,1,
-fury,4,mirage,compound,barraging paradox mirage,paradox|barraging,barraging + paradox + mirage = 4 ADD,expert_reviewed,1,
-vortex,4,drifter,compound,gyro drifter,gyro,gyro + drifter = 4 ADD,expert_reviewed,1,
+sidewalk,4,butterfly,compound,same-side stepping butterfly|ss stepping butterfly,stepping,Stepping-modified same-side butterfly.,expert_reviewed,1,'same-side' qualifier not in modifiers table; capturing via alias only for now
+tombstone,4,drifter,compound,stepping drifter,stepping,Stepping-modified drifter.,expert_reviewed,1,
+fury,4,mirage,compound,barraging paradox mirage,paradox|barraging,Paradox-modified barraging mirage.,expert_reviewed,1,
+vortex,4,drifter,compound,gyro drifter,gyro,Gyro-modified drifter.,expert_reviewed,1,
 quantum,,quantum,,toe blur|toe butterfly,,"newer name for toe blur / toe butterfly; ""quantum mirage"" = miraging mirage",pending,0,Is Quantum a standalone trick or a modifier-like qualifier? What ADD does it carry alone? Toe blur and toe butterfly are not yet in the dictionary as separate entries.
 merkon,,merkon,,,,Standalone trick.,pending,0,ADD count not given by Red
 terrage,,terrage,,,,standalone trick; also acts as modifier (e.g. terraging X),pending,0,ADD count not given as standalone; also need separate freestyle_trick_modifiers row for terraging
