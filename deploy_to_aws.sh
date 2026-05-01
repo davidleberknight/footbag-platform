@@ -108,10 +108,81 @@ fi
 # WAL. lsof is best-effort; we only fail if it's both available and reports
 # active holders.
 if (( DB_REBUILD_INVOLVED == 1 )) && command -v lsof >/dev/null 2>&1; then
-  if [[ -f database/footbag.db ]] && lsof database/footbag.db >/dev/null 2>&1; then
-    echo "ERROR: database/footbag.db is locked by another process." >&2
-    echo "Recommendation: identify with 'lsof database/footbag.db', stop that process, and re-run." >&2
-    exit 1
+  if [[ -f database/footbag.db ]]; then
+    _lock_holders=$(lsof -F pcR database/footbag.db 2>/dev/null || true)
+    if [[ -n "$_lock_holders" ]]; then
+      echo "ERROR: database/footbag.db is locked by another process." >&2
+      echo "Holders:" >&2
+      lsof database/footbag.db >&2 || true
+      # Common case: local dev server (`tsx watch src/server.ts`) is running.
+      _is_dev_server=0
+      if pgrep -af 'tsx watch.*src/server\.ts' >/dev/null 2>&1 \
+         || printf '%s\n' "$_lock_holders" | grep -qE '(tsx|src/server\.ts)'; then
+        _is_dev_server=1
+        echo "" >&2
+        echo "Likely cause: local dev server is running (\`tsx watch src/server.ts\`)." >&2
+      fi
+
+      # Offer to kill the holders. Honors FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS=1
+      # for non-interactive auto-yes (CI / cron). Reads from /dev/tty so the
+      # credential-file stdin pipe at the end of this script is untouched.
+      _do_kill=0
+      if [[ "${FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS:-}" == "1" ]]; then
+        echo "  FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS=1 → auto-killing." >&2
+        _do_kill=1
+      elif [[ -r /dev/tty ]]; then
+        printf "  Kill the lock holder(s) now and continue? [y/N] " >&2
+        read -r _ans </dev/tty || _ans=""
+        [[ "${_ans:-}" =~ ^[Yy]$ ]] && _do_kill=1
+      fi
+
+      if (( _do_kill == 1 )); then
+        echo "  → Killing lock holder(s)..." >&2
+        # 1. Direct holders from lsof (covers any process, dev server or not).
+        _holder_pids=$(lsof -t database/footbag.db 2>/dev/null | sort -u || true)
+        for _pid in $_holder_pids; do
+          kill -TERM "$_pid" 2>/dev/null || true
+        done
+        # 2. Dev watcher parent (regex bounded; matches only this app's watcher).
+        if (( _is_dev_server == 1 )); then
+          pkill -TERM -f 'tsx watch.*src/server\.ts' 2>/dev/null || true
+        fi
+        # Wait up to 5s for clean exit.
+        for _i in 1 2 3 4 5; do
+          sleep 1
+          [[ -z "$(lsof -t database/footbag.db 2>/dev/null || true)" ]] && break
+        done
+        # Escalate if anyone still holds.
+        if [[ -n "$(lsof -t database/footbag.db 2>/dev/null || true)" ]]; then
+          for _pid in $_holder_pids; do
+            kill -KILL "$_pid" 2>/dev/null || true
+          done
+          if (( _is_dev_server == 1 )); then
+            pkill -KILL -f 'tsx watch.*src/server\.ts' 2>/dev/null || true
+          fi
+          sleep 1
+        fi
+        # Clean up stale WAL/SHM left behind by the killed process.
+        rm -f database/footbag.db-wal database/footbag.db-shm
+        # Re-verify before continuing.
+        if [[ -n "$(lsof -t database/footbag.db 2>/dev/null || true)" ]]; then
+          echo "ERROR: database/footbag.db is still locked after kill attempt." >&2
+          lsof database/footbag.db >&2 || true
+          exit 1
+        fi
+        echo "  → Lock cleared; continuing." >&2
+      else
+        echo "" >&2
+        echo "Aborted. Manual fix:" >&2
+        if (( _is_dev_server == 1 )); then
+          echo "  pkill -f 'tsx watch.*src/server\\.ts' && rm -f database/footbag.db-wal database/footbag.db-shm" >&2
+        else
+          echo "  Stop the process(es) listed above, then re-run." >&2
+        fi
+        echo "  Or set FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS=1 to auto-kill on lock conflict." >&2
+        exit 1
+      fi
+    fi
   fi
 fi
 

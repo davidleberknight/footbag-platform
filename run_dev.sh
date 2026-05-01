@@ -59,7 +59,7 @@ if [[ "$RESET" == "1" ]] \
   bash scripts/reset-local-db.sh
 else
   echo "→ DB up to date; refreshing curator media (run with --reset to force a full DB reset)."
-  scripts/.venv/bin/python3 legacy_data/scripts/seed_curator_media.py --db ./database/footbag.db --media-dir ./data/media
+  scripts/.venv/bin/python3 scripts/seed_curator_media.py --db ./database/footbag.db --media-dir ./data/media
 fi
 
 # 4. Launch web + image together; trap-based cleanup is in scripts/dev.sh.

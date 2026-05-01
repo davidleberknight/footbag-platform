@@ -10,6 +10,11 @@
 # does not leave the web server running orphaned.
 
 set -uo pipefail
+# Job control: each `&` child runs in its own process group, so signaling
+# the group leader's negative PID reaches every descendant (tsx watch, node,
+# esbuild). Without this, npm absorbs SIGTERM and orphans its grandchildren,
+# leaving the dev server holding a lock on database/footbag.db.
+set -m
 
 cd "$(dirname "$0")/.."
 
@@ -17,25 +22,32 @@ cd "$(dirname "$0")/.."
 WEB_PID=""
 IMAGE_PID=""
 
+# Signal a child's entire process group. $pid is the group leader (PGID)
+# because it was started under `set -m`.
+kill_group() {
+  local pid=$1 sig=$2
+  [[ -n "$pid" ]] || return 0
+  kill -0 "$pid" 2>/dev/null || return 0
+  kill -"$sig" -- "-$pid" 2>/dev/null || true
+}
+
 cleanup() {
   trap '' INT TERM EXIT  # disarm the trap so a slow shutdown doesn't re-fire
 
-  if [[ -n "${IMAGE_PID}" ]] && kill -0 "${IMAGE_PID}" 2>/dev/null; then
-    kill -TERM "${IMAGE_PID}" 2>/dev/null || true
-  fi
-  if [[ -n "${WEB_PID}" ]] && kill -0 "${WEB_PID}" 2>/dev/null; then
-    kill -TERM "${WEB_PID}" 2>/dev/null || true
-  fi
+  kill_group "$IMAGE_PID" TERM
+  kill_group "$WEB_PID"   TERM
 
   # Give children a moment to exit cleanly, then SIGKILL stragglers.
   for i in 1 2 3 4 5; do
-    if ! kill -0 "${IMAGE_PID}" 2>/dev/null && ! kill -0 "${WEB_PID}" 2>/dev/null; then
+    if ! kill -0 "${IMAGE_PID:-0}" 2>/dev/null \
+       && ! kill -0 "${WEB_PID:-0}" 2>/dev/null; then
       break
     fi
     sleep 0.5
   done
-  [[ -n "${IMAGE_PID}" ]] && kill -KILL "${IMAGE_PID}" 2>/dev/null || true
-  [[ -n "${WEB_PID}" ]]   && kill -KILL "${WEB_PID}"   2>/dev/null || true
+
+  kill_group "$IMAGE_PID" KILL
+  kill_group "$WEB_PID"   KILL
 }
 
 trap cleanup INT TERM EXIT
