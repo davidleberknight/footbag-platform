@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { media, mediaTags as mediaTagsDb, transaction } from '../db/db';
+import { media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction } from '../db/db';
 import { detectImageType } from '../lib/imageProcessing';
 import {
   detectVideoFormat,
@@ -9,7 +9,7 @@ import {
 import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
-import { ValidationError } from './serviceErrors';
+import { NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 
@@ -91,6 +91,11 @@ function validateCaption(caption: string | null): void {
   }
 }
 
+// The single FH/admin uploader marker. Auto-applied by every curator
+// upload + edit path; rejected from caller input so it cannot be set
+// by hand. Stored as a standard tag (is_standard=1, standard_type='curator').
+export const CURATED_TAG = '#curated';
+
 function validateTags(tags: string[]): void {
   for (const tag of tags) {
     if (!tag.startsWith('#')) {
@@ -98,6 +103,11 @@ function validateTags(tags: string[]): void {
     }
     if (tag !== tag.toLowerCase()) {
       throw new ValidationError(`Tag must be lowercase: got "${tag}"`);
+    }
+    if (tag === CURATED_TAG) {
+      throw new ValidationError(
+        `The ${CURATED_TAG} tag is auto-applied by the curator pipeline and must not appear in input.`,
+      );
     }
   }
 }
@@ -121,6 +131,86 @@ function applyTags(mediaId: string, tags: string[], now: string): void {
     }
     mediaTagsDb.insertMediaTag.run(newMediaTagId(), now, now, mediaId, tagId, tag);
   }
+}
+
+// Curator tag application: appends #curated to the user-supplied tags.
+// Caller has already passed userTags through validateTags (which rejects
+// #curated from input). This is the only path that adds #curated to a
+// media item. The tag is stored as freeform (is_standard=0); per US §1.1
+// only `#event_*` and `#club_*` use the standardized hashtag namespace.
+// Auto-application + input-rejection give #curated the protection it
+// needs without requiring a schema change.
+function applyTagsForCurator(mediaId: string, userTags: string[], now: string): void {
+  const canonical = [...userTags, CURATED_TAG];
+  applyTags(mediaId, canonical, now);
+}
+
+export interface CuratorMediaEditInput {
+  adminMemberId: string;
+  mediaId: string;
+  caption?: string | null;
+  tags?: string[];
+}
+
+export interface CuratorMediaEditResult {
+  mediaId: string;
+  updatedAt: string;
+}
+
+export interface CuratorMediaDeleteInput {
+  adminMemberId: string;
+  mediaId: string;
+}
+
+export interface CuratorMediaListInput {
+  tagFilter?: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface CuratorMediaListItem {
+  mediaId: string;
+  mediaType: 'photo' | 'video';
+  caption: string | null;
+  uploadedAt: string;
+  thumbnailUrl: string;
+  tags: string[];
+}
+
+export interface CuratorMediaListResult {
+  items: CuratorMediaListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+interface MediaItemRow {
+  id: string;
+  uploader_member_id: string;
+  media_type: 'photo' | 'video';
+  caption: string | null;
+  s3_key_thumb: string | null;
+  s3_key_display: string | null;
+  video_id: string | null;
+  thumbnail_url: string | null;
+  source_filename: string | null;
+}
+
+interface MediaListRow {
+  id: string;
+  media_type: 'photo' | 'video';
+  caption: string | null;
+  uploaded_at: string;
+  s3_key_thumb: string | null;
+  s3_key_display: string | null;
+  video_id: string | null;
+  thumbnail_url: string | null;
+  width_px: number | null;
+  height_px: number | null;
+}
+
+interface CountRow {
+  n: number;
 }
 
 export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
@@ -168,7 +258,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           thumbKey, displayKey, processed.widthPx, processed.heightPx,
           input.sourceFilename,
         );
-        applyTags(mediaId, input.tags, now);
+        applyTagsForCurator(mediaId, input.tags, now);
         appendAuditEntry({
           actionType: 'upload_curated_media',
           category: 'media',
@@ -237,7 +327,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           processed.widthPx, processed.heightPx,
           input.sourceFilename,
         );
-        applyTags(mediaId, input.tags, now);
+        applyTagsForCurator(mediaId, input.tags, now);
         appendAuditEntry({
           actionType: 'upload_curated_media',
           category: 'media',
@@ -250,6 +340,183 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       });
 
       return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
+    },
+
+    async editMedia(input: CuratorMediaEditInput): Promise<CuratorMediaEditResult> {
+      if (input.caption !== undefined) {
+        validateCaption(input.caption);
+      }
+      if (input.tags !== undefined) {
+        validateTags(input.tags);
+      }
+
+      const row = runSqliteRead('getCuratorMediaItemById', () =>
+        media.getCuratorMediaItemById.get(input.mediaId),
+      ) as MediaItemRow | undefined;
+      if (!row) {
+        throw new NotFoundError(`Curator media not found: ${input.mediaId}`);
+      }
+
+      const now = new Date().toISOString();
+
+      transaction(() => {
+        if (input.caption !== undefined) {
+          media.updateCuratorMediaCaption.run(input.caption, now, input.mediaId);
+        }
+        if (input.tags !== undefined) {
+          mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
+          applyTagsForCurator(input.mediaId, input.tags, now);
+        }
+        appendAuditEntry({
+          actionType: 'edit_curated_media',
+          category: 'media',
+          actorType: 'admin',
+          actorMemberId: input.adminMemberId,
+          entityType: 'media_item',
+          entityId: input.mediaId,
+          metadata: {
+            captionChanged: input.caption !== undefined,
+            tagsChanged: input.tags !== undefined,
+            ...(input.tags !== undefined && { tags: input.tags }),
+          },
+        });
+      });
+
+      return { mediaId: input.mediaId, updatedAt: now };
+    },
+
+    async deleteMedia(input: CuratorMediaDeleteInput): Promise<{ mediaId: string }> {
+      const row = runSqliteRead('getCuratorMediaItemById', () =>
+        media.getCuratorMediaItemById.get(input.mediaId),
+      ) as MediaItemRow | undefined;
+      if (!row) {
+        throw new NotFoundError(`Curator media not found: ${input.mediaId}`);
+      }
+
+      // Collect storage keys to clean up after the DB transaction commits.
+      // For photos: thumb + display. For videos: video file + poster pair.
+      // The poster keys for videos are derived from the thumbnail_url via
+      // the URL-prefix convention (`/media/{key}`); s3_key_thumb/display
+      // hold the poster keys for video rows.
+      const keysToDelete: string[] = [];
+      if (row.s3_key_thumb) keysToDelete.push(row.s3_key_thumb);
+      if (row.s3_key_display) keysToDelete.push(row.s3_key_display);
+      if (row.video_id) keysToDelete.push(row.video_id);
+      if (row.thumbnail_url && row.thumbnail_url.startsWith('/media/')) {
+        keysToDelete.push(row.thumbnail_url.slice('/media/'.length));
+      }
+
+      transaction(() => {
+        // media_tags cascades via FK ON DELETE CASCADE; explicit delete here
+        // is redundant for media_tags but kept defensive against schema drift.
+        mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
+        media.deleteMediaItem.run(input.mediaId);
+        appendAuditEntry({
+          actionType: 'delete_curated_media',
+          category: 'media',
+          actorType: 'admin',
+          actorMemberId: input.adminMemberId,
+          entityType: 'media_item',
+          entityId: input.mediaId,
+          metadata: { mediaType: row.media_type, sourceFilename: row.source_filename },
+        });
+      });
+
+      // Storage deletes after the transaction commits. A failed delete
+      // leaves orphan S3 keys (hidden behind URL versioning); operators
+      // can sweep periodically. We do not roll back the DB transaction
+      // for storage failures because the row is already gone.
+      const seen = new Set<string>();
+      for (const key of keysToDelete) {
+        if (seen.has(key)) continue;
+        seen.add(key);
+        try {
+          await storage.delete(key);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(`curatorMediaService.deleteMedia: storage.delete(${key}) failed: ${(err as Error).message}`);
+        }
+      }
+
+      return { mediaId: input.mediaId };
+    },
+
+    getMediaItem(mediaId: string): CuratorMediaListItem | null {
+      const row = runSqliteRead('getCuratorMediaItemById', () =>
+        media.getCuratorMediaItemById.get(mediaId),
+      ) as MediaItemRow | undefined;
+      if (!row) return null;
+      const tagPairs = queryCuratorMediaTags([mediaId]);
+      const thumbnailUrl =
+        row.media_type === 'photo'
+          ? storage.constructURL(row.s3_key_thumb ?? '')
+          : (row.thumbnail_url ?? '');
+      // listCuratorMedia query also drives uploaded_at; here we don't have
+      // it cheaply without another query. The list/edit consumers don't
+      // currently render uploaded_at on the edit page, so leaving it as an
+      // empty string is acceptable. If that changes, extend
+      // getCuratorMediaItemById to SELECT uploaded_at as well.
+      return {
+        mediaId: row.id,
+        mediaType: row.media_type,
+        caption: row.caption,
+        uploadedAt: '',
+        thumbnailUrl,
+        tags: tagPairs.map((p) => p.tag_display),
+      };
+    },
+
+    listMedia(input: CuratorMediaListInput): CuratorMediaListResult {
+      const page = Math.max(1, Math.floor(input.page));
+      const pageSize = Math.max(1, Math.min(200, Math.floor(input.pageSize)));
+      const offset = (page - 1) * pageSize;
+
+      let rows: MediaListRow[];
+      let total: number;
+      if (input.tagFilter) {
+        const tagFilter = input.tagFilter.toLowerCase();
+        if (!tagFilter.startsWith('#')) {
+          throw new ValidationError(`tagFilter must start with '#': got "${input.tagFilter}"`);
+        }
+        rows = runSqliteRead('listCuratorMediaByTag', () =>
+          media.listCuratorMediaByTag.all(tagFilter, pageSize, offset),
+        ) as MediaListRow[];
+        const cnt = runSqliteRead('countCuratorMediaByTag', () =>
+          media.countCuratorMediaByTag.get(tagFilter),
+        ) as CountRow | undefined;
+        total = cnt?.n ?? 0;
+      } else {
+        rows = runSqliteRead('listCuratorMedia', () =>
+          media.listCuratorMedia.all(pageSize, offset),
+        ) as MediaListRow[];
+        const cnt = runSqliteRead('countCuratorMedia', () =>
+          media.countCuratorMedia.get(),
+        ) as CountRow | undefined;
+        total = cnt?.n ?? 0;
+      }
+
+      const ids = rows.map((r) => r.id);
+      const tagPairs = queryCuratorMediaTags(ids);
+      const tagsById = new Map<string, string[]>();
+      for (const id of ids) tagsById.set(id, []);
+      for (const pair of tagPairs) {
+        const arr = tagsById.get(pair.media_id);
+        if (arr) arr.push(pair.tag_display);
+      }
+
+      const items: CuratorMediaListItem[] = rows.map((r) => ({
+        mediaId: r.id,
+        mediaType: r.media_type,
+        caption: r.caption,
+        uploadedAt: r.uploaded_at,
+        thumbnailUrl:
+          r.media_type === 'photo'
+            ? storage.constructURL(r.s3_key_thumb ?? '')
+            : (r.thumbnail_url ?? ''),
+        tags: tagsById.get(r.id) ?? [],
+      }));
+
+      return { items, total, page, pageSize };
     },
   };
 }

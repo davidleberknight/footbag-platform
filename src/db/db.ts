@@ -3568,6 +3568,59 @@ export const media = {
       AND mi.moderation_status = 'active'
       AND mi.is_avatar = 0
   `); },
+
+  // Curator media lookup by id. Used by edit/delete paths to load existing
+  // media for ownership check + S3-key resolution. Filters by FH ownership
+  // defense-in-depth: this service only edits/deletes its own content.
+  get getCuratorMediaItemById() { return db.prepare(`
+    SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
+           mi.s3_key_thumb, mi.s3_key_display, mi.video_id, mi.thumbnail_url,
+           mi.source_filename
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE mi.id = ?
+      AND m.is_system = 1
+      AND mi.moderation_status = 'active'
+  `); },
+
+  // Caption-only update for curator media. Tags are rewritten via the
+  // media_tags helpers (delete + reinsert in a transaction).
+  get updateCuratorMediaCaption() { return db.prepare(`
+    UPDATE media_items
+    SET caption = ?, updated_at = ?, updated_by = 'admin-act-as', version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Tag-filtered curator media list. Joins through media_tags + tags to
+  // filter by tag_normalized. Mirrors listCuratorMedia ordering.
+  get listCuratorMediaByTag() { return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_id, mi.thumbnail_url,
+           mi.width_px, mi.height_px
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    JOIN media_tags mt ON mt.media_id = mi.id
+    JOIN tags t ON t.id = mt.tag_id
+    WHERE m.is_system = 1
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND t.tag_normalized = ?
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+    LIMIT ? OFFSET ?
+  `); },
+
+  get countCuratorMediaByTag() { return db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    JOIN media_tags mt ON mt.media_id = mi.id
+    JOIN tags t ON t.id = mt.tag_id
+    WHERE m.is_system = 1
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND t.tag_normalized = ?
+  `); },
 };
 
 // Tag display values for a set of media ids in one round-trip. Built
@@ -3607,6 +3660,12 @@ export const mediaTags = {
       media_id, tag_id, tag_display
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
               ?, ?, ?)
+  `); },
+
+  // Replace a media item's tag set: delete-then-insert pattern for
+  // editMedia. Caller wraps in a transaction with the matching reinsert.
+  get deleteMediaTagsByMediaId() { return db.prepare(`
+    DELETE FROM media_tags WHERE media_id = ?
   `); },
 };
 

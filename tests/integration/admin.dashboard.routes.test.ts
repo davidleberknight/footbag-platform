@@ -76,13 +76,15 @@ describe('GET /admin', () => {
     expect(res.status).toBe(403);
   });
 
-  it('admin authenticated -> 200 with dashboard heading and link to curator upload', async () => {
+  it('admin authenticated -> 200 with dashboard heading and link to curator media', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/admin')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('<h1>Admin Dashboard</h1>');
-    expect(res.text).toContain('href="/admin/curator/upload"');
+    // Dashboard now links to the curator media list (entry point for the
+    // full lifecycle); upload is a secondary CTA reachable from the list page.
+    expect(res.text).toContain('href="/admin/curator/media"');
   });
 });

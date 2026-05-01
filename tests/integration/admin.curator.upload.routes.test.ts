@@ -218,8 +218,13 @@ describe('POST /admin/curator/upload — photo', () => {
     expect(mediaRow.created_by).toBe('admin-act-as');
     expect(mediaRow.updated_by).toBe('admin-act-as');
 
-    const tagRow = db.prepare(`SELECT mt.tag_display FROM media_tags mt WHERE mt.media_id = ?`).get(mediaRow.id) as { tag_display: string };
-    expect(tagRow.tag_display).toBe(uniqueTag);
+    // Both the uploader-supplied tag and the auto-applied #curated marker
+    // should be present; assert each independently rather than relying on
+    // row ordering across the join.
+    const tagRows = db.prepare(`SELECT mt.tag_display FROM media_tags mt WHERE mt.media_id = ? ORDER BY mt.tag_display`).all(mediaRow.id) as { tag_display: string }[];
+    const tagDisplays = tagRows.map((r) => r.tag_display);
+    expect(tagDisplays).toContain(uniqueTag);
+    expect(tagDisplays).toContain('#curated');
 
     const auditRow = db.prepare(`SELECT actor_type, actor_member_id, action_type, entity_type FROM audit_entries WHERE entity_id = ?`).get(mediaRow.id) as Record<string, string>;
     expect(auditRow.actor_type).toBe('admin');

@@ -275,39 +275,51 @@ systemctl stop footbag || true
 echo "    Ensuring compose stack is fully down..."
 compose_cmd down --remove-orphans || true
 
-# S3 media wipe (staging default; opt-out via --keep-media). Avatar S3
-# keys are stable per member ID; on a fresh DB seed those IDs map to
-# different people, so leaving old objects in place would serve the wrong
-# person's photo at the new identity. Wipe the entire bucket so the
-# rebuild is a true clean slate. The DR bucket auto-receives the delete
-# markers via replication. CloudFront edge cache may continue serving
-# previously-cached objects for up to 7 days under the /media/* TTL,
-# which is acceptable on staging.
-if [[ "$KEEP_MEDIA" == "yes" ]]; then
-  echo "    --keep-media: skipping S3 media wipe."
+# S3 media cycle (wipe + repopulate) is gated on the --with-curated opt-in
+# threaded as WITH_CURATED env from the workstation's orchestrator. Without
+# the opt-in, S3 is fully preserved across this deploy (no wipe, no sync,
+# no aws-s3 calls). With the opt-in, the existing wipe semantics apply:
+# auto-wipe on staging by default; --keep-media to skip the wipe but still
+# rsync new bytes (incremental ETag-based sync).
+#
+# Avatar S3 keys are stable per member ID; on a fresh DB seed those IDs map
+# to different people, so leaving old objects in place would serve the wrong
+# person's photo at the new identity. The wipe ensures the rebuild is a true
+# clean slate. The DR bucket auto-receives delete markers via replication.
+# CloudFront edge cache may continue serving previously-cached objects for
+# up to 7 days under the /media/* TTL, which is acceptable on staging.
+: "${WITH_CURATED:?must be set by deploy-rebuild.sh via cat-pipe}"
+if [[ "$WITH_CURATED" != "yes" ]]; then
+  echo "    --with-curated not set: skipping S3 wipe + sync; live media untouched."
 else
-  MEDIA_STORAGE_S3_BUCKET_VAL=$(require_env MEDIA_STORAGE_S3_BUCKET)
-  echo "    Wiping s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ (staging default; pass --keep-media to skip)..."
-  AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 rm \
-    --region "$AWS_REGION_VAL" \
-    "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/" \
-    --recursive
-  echo "    S3 wipe complete; delete markers will replicate to DR bucket automatically."
-fi
+  if [[ "$KEEP_MEDIA" == "yes" ]]; then
+    echo "    --keep-media: skipping S3 media wipe."
+  else
+    MEDIA_STORAGE_S3_BUCKET_VAL=$(require_env MEDIA_STORAGE_S3_BUCKET)
+    echo "    Wiping s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ (staging default; pass --keep-media to skip)..."
+    AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 rm \
+      --region "$AWS_REGION_VAL" \
+      "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/" \
+      --recursive
+    echo "    S3 wipe complete; delete markers will replicate to DR bucket automatically."
+  fi
 
-# Repopulate the bucket with the curator-seeded bytes that the workstation
-# produced via scripts/seed_curator_media.py and rsync'd into
-# RELEASE_DIR/data/media/. Without this, the wipe above leaves S3 empty and
-# the FH avatar + demo-loop URLs render 403/404 (DD §1.5: bytes live in S3,
-# DB rows reference S3 keys; both sides must be in sync).
-if [[ -d "${RELEASE_DIR}/data/media" ]]; then
-  : "${MEDIA_STORAGE_S3_BUCKET_VAL:=$(require_env MEDIA_STORAGE_S3_BUCKET)}"
-  echo "    Syncing curator-seeded media to s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ ..."
-  AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 sync \
-    --region "$AWS_REGION_VAL" \
-    "${RELEASE_DIR}/data/media/" \
-    "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/"
-  echo "    Curator media sync complete."
+  # Repopulate the bucket with the curator-seeded bytes that the workstation
+  # produced via scripts/seed_curator_media.py and rsync'd into
+  # RELEASE_DIR/data/media/. Without this, the wipe above leaves S3 empty and
+  # the FH avatar + demo-loop URLs render 403/404 (DD §1.5: bytes live in S3,
+  # DB rows reference S3 keys; both sides must be in sync).
+  if [[ -d "${RELEASE_DIR}/data/media" ]]; then
+    : "${MEDIA_STORAGE_S3_BUCKET_VAL:=$(require_env MEDIA_STORAGE_S3_BUCKET)}"
+    echo "    Syncing curator-seeded media to s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/ ..."
+    AWS_PROFILE="$AWS_PROFILE_VAL" aws s3 sync \
+      --region "$AWS_REGION_VAL" \
+      "${RELEASE_DIR}/data/media/" \
+      "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/"
+    echo "    Curator media sync complete."
+  else
+    echo "    WARNING: --with-curated set but RELEASE_DIR/data/media does not exist; skipping S3 sync."
+  fi
 fi
 
 echo "    Promoting release into $LIVE_DIR ..."

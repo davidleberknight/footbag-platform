@@ -1,0 +1,51 @@
+{{!-- Admin curator media edit form --}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+
+  {{#if notFound}}
+    <p class="error-banner" role="alert">
+      No curator media item with id <code>{{mediaId}}</code> exists.
+    </p>
+    <p><a href="/admin/curator/media">Back to list</a></p>
+  {{else}}
+    {{#if errorMessage}}
+      <div class="error-banner" role="alert">{{errorMessage}}</div>
+    {{/if}}
+
+    {{#if media.thumbnailUrl}}
+      <p>
+        <img src="{{media.thumbnailUrl}}" alt="" class="curator-thumb" width="200">
+      </p>
+    {{/if}}
+
+    <p>
+      Type: <strong>{{media.mediaType}}</strong> &middot;
+      Media id: <code>{{media.mediaId}}</code>
+    </p>
+    <p class="hint">
+      The <code>#curated</code> tag is auto-applied and not editable here.
+      File replacement is not supported in-place; delete and re-upload to change the file.
+    </p>
+
+    <form action="/admin/curator/media/{{media.mediaId}}/edit" method="POST">
+      <p>
+        <label>
+          Caption (max 500 chars):
+          <input type="text" name="caption" maxlength="500" value="{{media.caption}}">
+        </label>
+      </p>
+
+      <p>
+        <label>
+          Tags (space-separated, lowercase, must start with #):
+          <input type="text" name="tags" value="{{media.tagsString}}">
+        </label>
+      </p>
+
+      <p>
+        <button type="submit">Save changes</button>
+        <a href="/admin/curator/media">Cancel</a>
+      </p>
+    </form>
+  {{/if}}
+</div>

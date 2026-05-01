@@ -11,3 +11,7 @@ adminRouter.use(requireAuth, requireAdmin);
 adminRouter.get('/', adminController.index);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
+adminRouter.get('/curator/media', adminCuratorController.getList);
+adminRouter.get('/curator/media/:id/edit', adminCuratorController.getEdit);
+adminRouter.post('/curator/media/:id/edit', adminCuratorController.postEdit);
+adminRouter.post('/curator/media/:id/delete', adminCuratorController.postDelete);

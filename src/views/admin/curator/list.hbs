@@ -1,0 +1,78 @@
+{{!-- Admin curator media list (paginated, optional tag filter) --}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+  <p>
+    Curated media uploaded by the FH/curator system account.
+    Total: {{total}} item{{#unless (eq total 1)}}s{{/unless}}.
+    <a href="/admin/curator/upload">Upload new</a>.
+  </p>
+
+  <form method="GET" action="/admin/curator/media" class="curator-list-filter">
+    <label>
+      Filter by tag:
+      <input type="text" name="tag" value="{{tagFilter}}" placeholder="#example_tag">
+    </label>
+    <button type="submit">Apply</button>
+    {{#if tagFilter}}
+      <a href="/admin/curator/media">Clear filter</a>
+    {{/if}}
+  </form>
+
+  {{#if emptyState}}
+    <p class="empty-state">
+      {{#if tagFilter}}
+        No curated media match the tag <code>{{tagFilter}}</code>.
+      {{else}}
+        No curated media yet. <a href="/admin/curator/upload">Upload the first one</a>.
+      {{/if}}
+    </p>
+  {{else}}
+    <table class="curator-list">
+      <thead>
+        <tr>
+          <th>Thumbnail</th>
+          <th>Type</th>
+          <th>Caption</th>
+          <th>Tags</th>
+          <th>Uploaded</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+          <tr>
+            <td>
+              {{#if thumbnailUrl}}
+                <img src="{{thumbnailUrl}}" alt="" class="curator-thumb" width="80" height="80">
+              {{/if}}
+            </td>
+            <td>{{mediaType}}</td>
+            <td>{{caption}}</td>
+            <td>
+              {{#each tags}}
+                <code class="tag-chip">{{this}}</code>
+              {{/each}}
+            </td>
+            <td>{{uploadedAt}}</td>
+            <td>
+              <a href="/admin/curator/media/{{mediaId}}/edit">Edit</a>
+              <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" style="display:inline" onsubmit="return confirm('Permanently delete this curated media item? This cannot be undone.');">
+                <button type="submit" class="delete-button">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <nav class="curator-pagination">
+      Page {{currentPage}} of {{totalPages}}
+      {{#if prevPageHref}}
+        <a href="{{prevPageHref}}">&lsaquo; Previous</a>
+      {{/if}}
+      {{#if nextPageHref}}
+        <a href="{{nextPageHref}}">Next &rsaquo;</a>
+      {{/if}}
+    </nav>
+  {{/if}}
+</div>

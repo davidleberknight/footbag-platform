@@ -29,6 +29,7 @@ This catalog is the target-design reference for the platform's service layer: me
   - [7.1 `MediaGalleryService`](#71-mediagalleryservice)
   - [7.2 `HashtagDiscoveryService`](#72-hashtagdiscoveryservice)
   - [7.3 `NewsService`](#73-newsservice)
+  - [7.6 `CuratorSeedService`](#76-curatorseedservice)
 - [8. Communication](#8-communication)
   - [8.1 `CommunicationService`](#81-communicationservice)
   - [8.2 `SimulatedEmailService`](#82-simulatedemailservice)
@@ -212,9 +213,14 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Primary tables:** `media_items`, `member_galleries`, `media_tags`, `media_flags`
 
 **`CuratorMediaService`**
-- **Owns:** Admin upload of curator-attributed photos and videos on behalf of the system member account; magic-byte and format validation; ffmpeg curator transcode pipeline; storage key construction matching the curator seed
+- **Owns:** Admin upload, edit, delete, list of curator-attributed photos and videos on behalf of the system member account; magic-byte and format validation; ffmpeg curator transcode pipeline; storage key construction matching the curator seed; auto-application of the `#curated` uploader marker
 - **Does NOT own:** Member-attributed uploads (MediaGalleryService)
 - **Primary tables:** `media_items`, `media_tags`, `tags`, `audit_entries`
+
+**`CuratorSeedService`**
+- **Owns:** Reconciliation of curator media against a `/curated/`-style source directory paired with sidecar `.meta.json` siblings; classification of files as new/updated/unchanged/orphan; delegation of lifecycle actions to `CuratorMediaService`
+- **Does NOT own:** Direct DB or storage writes — all mutations go through `CuratorMediaService`
+- **Primary tables:** none directly; reads `media_items` for orphan enumeration
 
 **`HashtagDiscoveryService`**
 - **Owns:** Tag creation and validation, tag browse and search, tag stats cache, teaching moments data
@@ -896,8 +902,12 @@ For the current public routes, `EventService` is responsible for:
 **Consumers:** Admin controllers (`/admin/upload-curated-media`)
 
 **Key Methods:**
-- `uploadPhoto({adminMemberId, photoBuffer, sourceFilename, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte JPEG/PNG rejection; runs Sharp photo pipeline (aspect-preserving thumb, 800px-wide display, EXIF/ICC stripped); writes `media_items` row with `uploader_member_id = systemMemberId`, `media_type='photo'`, `is_avatar=0`, `source_filename` set to the upload's original filename; lookup-or-insert tags; appends audit entry with admin actor
-- `uploadVideo({adminMemberId, videoBuffer, posterBuffer, sourceFilename, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte MP4/WebM/MOV rejection; poster JPEG/PNG required; runs ffmpeg curator transcode pipeline (re-encode + metadata strip per DD §6.8); writes `media_items` row with `media_type='video'`, `video_platform='s3'`, `video_id` = relative video key, `thumbnail_url='/media/{posterDisplayKey}'`, `video_url=NULL`, `source_filename` set to the upload's original filename; appends audit entry with admin actor
+- `uploadPhoto({adminMemberId, photoBuffer, sourceFilename, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte JPEG/PNG rejection; runs Sharp photo pipeline (aspect-preserving thumb, 800px-wide display, EXIF/ICC stripped); writes `media_items` row with `uploader_member_id = systemMemberId`, `media_type='photo'`, `is_avatar=0`, `source_filename` set to the upload's original filename; lookup-or-insert tags; auto-applies `#curated` (the FH/admin uploader marker; rejected if supplied in the tags input); appends audit entry with admin actor
+- `uploadVideo({adminMemberId, videoBuffer, posterBuffer, sourceFilename, caption, tags}) -> {mediaId, displayUrl}` — admin only; magic-byte MP4/WebM/MOV rejection; poster JPEG/PNG required; runs ffmpeg curator transcode pipeline (re-encode + metadata strip per DD §6.8); writes `media_items` row with `media_type='video'`, `video_platform='s3'`, `video_id` = relative video key, `thumbnail_url='/media/{posterDisplayKey}'`, `video_url=NULL`, `source_filename` set to the upload's original filename; auto-applies `#curated`; appends audit entry with admin actor
+- `editMedia({adminMemberId, mediaId, caption?, tags?}) -> {mediaId, updatedAt}` — admin only; updates caption and/or rewrites tag set in a single transaction; `#curated` is auto-re-applied and rejected from input; throws NotFoundError if mediaId is not an FH-owned active row; appends `edit_curated_media` audit entry
+- `deleteMedia({adminMemberId, mediaId}) -> {mediaId}` — admin only; hard delete; reads S3 keys; transaction removes media_tags + media_items + audit entry; after commit, deletes S3 variants + poster (storage failures logged, do not roll back the DB delete); throws NotFoundError if mediaId is not an FH-owned active row
+- `listMedia({tagFilter?, page, pageSize}) -> {items, total, page, pageSize}` — paginated reverse-chrono list of FH-owned active media; optional `tagFilter` narrows by `tag_normalized`; returned items carry `mediaId, mediaType, caption, uploadedAt, thumbnailUrl, tags`
+- `getMediaItem(mediaId) -> CuratorMediaListItem | null` — single-item fetch by id; same shape as `listMedia` items; uploaded_at is empty string in this fetch path
 
 **Authz:** Admin only. `requireAuth` + `requireAdmin` gate the route; service does not re-check.
 
@@ -912,6 +922,30 @@ For the current public routes, `EventService` is responsible for:
 **Transaction + Idempotency:** All DB writes for one upload (`media_items` + `media_tags` + `audit_entries`) land in a single transaction. Storage `put` calls happen before the transaction opens; if any storage put fails the transaction never runs.
 
 **Async / Side Effects:** audit append per upload.
+
+---
+
+### 7.6 `CuratorSeedService`
+
+**Purpose/Boundary:** Walks a directory of curator source files paired with sidecar `.meta.json` siblings, drives the curator media lifecycle through `CuratorMediaService` to insert/update/delete `media_items` + `media_tags` rows so the persisted state matches the directory's current contents. Used by the `--with-curated` deploy path and by local-dev incremental seeds.
+
+**Consumers:** Deploy scripts (via `scripts/seed_curator_media.py` for the existing path; the TS service is the canonical replacement).
+
+**Key Methods:**
+- `reconcile({sourceDir, actorMemberId}) -> {created, updated, unchanged, deleted, errors}` — enumerates media files in `sourceDir` (skipping sidecar `.json` files and `*.poster.*` siblings), pairs each with `{slug}.meta.json`, classifies vs current DB state by `source_filename`, calls `uploadPhoto`/`uploadVideo` for new files, `editMedia` for caption/tag diffs, `deleteMedia` for orphans (rows whose `source_filename` is no longer in `sourceDir`). Reports per-file outcomes; per-file errors (missing sidecar, malformed JSON, missing video poster) do not abort the run.
+
+**Authz:** Internal service; no HTTP route. The deploy operator and local dev are the only callers. The `actorMemberId` is recorded on each audit entry written by the underlying `CuratorMediaService` calls.
+
+**Persistence Touchpoints:** Inherits from `CuratorMediaService`: `media_items`, `media_tags`, `tags`, `audit_entries`. Reads `media_items` directly to enumerate existing rows for orphan detection.
+
+**Key Rules:**
+- `[APP]` Source bytes are not re-checked for content drift; existing rows' caption + tags are reconciled against sidecar values, but file replacement requires explicit delete + new upload.
+- `[APP]` Orphan detection is scoped to system-uploader rows with non-NULL `source_filename`; member-uploaded rows are never touched by the seed pass.
+- `[APP]` Video sidecars must specify a `poster` filename pointing at a sibling poster image; missing poster is reported as a per-file error.
+
+**Transaction + Idempotency:** Each per-file upload/edit/delete uses a single transaction (delegated to `CuratorMediaService`). Re-running `reconcile` against unchanged inputs produces zero DB writes and zero S3 calls.
+
+**Async / Side Effects:** S3 PUT for variants on new uploads; S3 DELETE for orphans. No emails or webhooks.
 
 ---
 

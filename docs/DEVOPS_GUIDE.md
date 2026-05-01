@@ -1162,17 +1162,21 @@ A clean rollback requires both an env revert AND a CloudFront TF revert.
 
 #### Curator media seeding
 
-System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_curator_media.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member.
+System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_curator_media.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member. Auto-applies the `#curated` tag on every row.
 
-Run order in dev: included automatically in `bash scripts/reset-local-db.sh` and incrementally on every `./run_dev.sh` run (catches updated source assets without a full DB reset).
+Operationally, the curator media cycle is opt-in via the `--with-curated` flag on `bash deploy_to_aws.sh`. Without the flag, the deploy preserves the live S3 media bucket and skips the seed; with the flag, the deploy re-runs the seed against the rebuilt local DB, ships `data/media/` to the host, wipes the S3 bucket (staging default; pass `--keep-media` to skip), and rsyncs media to S3. `--with-curated` requires `--with-db`; it is rejected with `--code-only`.
+
+Run order in dev: included automatically in `bash scripts/reset-local-db.sh` (the seed step is gated on `WITH_CURATED`, which defaults to yes when `reset-local-db.sh` is invoked outside the deploy orchestrator).
 
 Run order in staging:
 
-1. After staging DB reset (per the staging-tolerates-reset policy), run `python3 legacy_data/scripts/seed_members.py --db <staging-db-path>` followed by `python3 scripts/seed_curator_media.py --db <staging-db-path> --media-dir <local-stage-dir>`.
-2. `aws s3 sync <local-stage-dir>/ s3://<staging-media-bucket>/` to upload the produced bytes.
+1. `bash deploy_to_aws.sh --with-db --from-csv --with-curated` (default DB rebuild + curator cycle).
+2. The remote-half wipes the staging S3 bucket and rsyncs `RELEASE_DIR/data/media/` to it. Pass `--keep-media` to skip the wipe.
 3. CloudFront serves the seeded URLs at `/media/{key}` via OAC.
 
 `media_id` is derived from a SHA of the id_seed plus source bytes, so updating a source asset (e.g., swapping the FH avatar) produces a new render URL on the next seed run; browser cache busts naturally without manual invalidation.
+
+For ad-hoc lifecycle work that does not require a deploy (e.g., fixing a caption or tag on already-published content), use the admin UI at `/admin/curator/media` (see USER_STORIES `A_Edit_Curated_Media` and `A_Delete_Curated_Media`). Edit/delete via the admin UI mutate the live DB + S3 directly without a deploy cycle.
 
 ### 10.5 Snapshot restore runbook
 

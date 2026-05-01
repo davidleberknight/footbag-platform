@@ -113,6 +113,8 @@ This document is the Source of Truth for Functional Requirements, defining all U
   - [6.3 Content Moderation](#63-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
+    - [A_Edit_Curated_Media](#a_edit_curated_media)
+    - [A_Delete_Curated_Media](#a_delete_curated_media)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
@@ -1757,13 +1759,43 @@ Success Criteria:
 - The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.
 - An audit_log entry is appended for every upload, recording admin actor, timestamp, action type, and affected media_id, parallel to A_Moderate_Media, A_Override_Member_Data, and A_Fix_Event_Results.
 - Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo).
-- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags appear on /tags/{tag} pages.
+- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags appear on /tags/{tag} pages. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Filtering by `#curated` returns the all-FH gallery.
 - Admin can specify gallery assignment: detached (no gallery) or attached to a system-member-owned gallery. Curator-gallery management is out of scope for this story; for the initial phase, all curator content uploaded via this path is detached.
 - Upload completes synchronously: admin sees success or failure in the request-response cycle. For video, full-transcode adds approximately 1-2 minutes per upload depending on input size. Background-job asynchrony for long transcodes is a future implementation detail and not a US-level commitment.
 - Admin uploads are not rate-limited at the member-tier rate. The audit_log is the accountability surface for admin actions.
 - Curator media is subject to the standard moderation flow per A_Moderate_Media. Curator media is public per §3.8 (the system member is a member for that rule's purpose; FH is treated like any HoF member by every other rule).
 - The system member's display_name (default "Footbag Hacky") is the uploader attribution shown on the resulting media's public render, parallel to how member-uploaded media shows the member's display_name. The display_name is editable by admin via A_Override_Member_Data.
 - The operator-run bulk curator-content seeding mechanism is a parallel path for pre-go-live content; it writes the same media_items row shape and is subject to the same processing pipeline. Operational specifics in DEVOPS_GUIDE.
+
+### A_Edit_Curated_Media
+
+Access: Only admins can edit curated media attributed to the system member account. Members and visitors do not see these controls.
+
+Story: As an admin, I can update the caption and tags on a curator-attributed media item so that I correct mistakes, refine attribution, or relink to different events/clubs without re-uploading.
+
+Success Criteria:
+
+- Admin edit UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+- Editable fields are caption (plain text, max 500 characters; same security validation as upload) and tags (space-separated; same shape rules as upload).
+- File replacement is not supported in-place. To change the file bytes, admin deletes the existing item and uploads a new one.
+- The `#curated` tag is auto-applied on every save and rejected if supplied in the tags input; consistent with A_Upload_Curated_Media.
+- Tags are rewritten atomically: the existing tag set is replaced by the new set in a single transaction. The auto-applied `#curated` is preserved across edits.
+- An audit_log entry is appended for every edit, recording admin actor, timestamp, action type, and affected media_id.
+- Editing a media item that does not exist (or is not FH-owned) returns 404.
+
+### A_Delete_Curated_Media
+
+Access: Only admins can delete curator-attributed media. Members and visitors do not see these controls.
+
+Story: As an admin, I can permanently delete a curator-attributed media item so that I remove obsolete or incorrect content from the public site.
+
+Success Criteria:
+
+- Admin delete UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
+- Deletion is hard delete (per DD §2.3 hard-delete rule for media): the media_items row is removed, all associated media_tags rows are cascaded, and the underlying S3 keys (variants and poster) are removed.
+- Deletion is permanent. There is no soft-delete or restore. The admin sees a confirmation gate before the operation runs.
+- An audit_log entry is appended for every delete, recording admin actor, timestamp, action type, source filename, and affected media_id.
+- Deleting a media item that does not exist (or is not FH-owned) returns 404.
 
 ### A_Create_News_Item
 

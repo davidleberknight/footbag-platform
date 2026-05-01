@@ -42,23 +42,33 @@ function openDb(): BetterSqlite3.Database {
 
 interface StubStorage extends MediaStorageAdapter {
   puts: Array<{ key: string; bytes: number }>;
+  deletes: string[];
   failOnNthPut: number | null;
+  failOnDelete: boolean;
 }
 
 function makeStubStorage(): StubStorage {
   const puts: Array<{ key: string; bytes: number }> = [];
+  const deletes: string[] = [];
   let failOn: number | null = null;
+  let failDelete = false;
   const stub: StubStorage = {
     puts,
+    deletes,
     get failOnNthPut() { return failOn; },
     set failOnNthPut(v: number | null) { failOn = v; },
+    get failOnDelete() { return failDelete; },
+    set failOnDelete(v: boolean) { failDelete = v; },
     async put(key, data) {
       if (failOn !== null && puts.length === failOn) {
         throw new Error('stub storage failure');
       }
       puts.push({ key, bytes: data.length });
     },
-    async delete() { /* not used */ },
+    async delete(key) {
+      if (failDelete) throw new Error('stub storage delete failure');
+      deletes.push(key);
+    },
     constructURL(key) { return `/media/${key}`; },
     async exists() { return false; },
   };
@@ -131,7 +141,10 @@ describe('curatorMediaService.uploadPhoto', () => {
     expect(mediaRow.moderation_status).toBe('active');
 
     const tags = db.prepare(`SELECT t.tag_normalized FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_normalized`).all(result.mediaId);
+    // #curated is auto-applied by curatorMediaService for every upload
+    // (the FH/admin uploader marker; not hand-written by callers).
     expect(tags).toEqual([
+      { tag_normalized: '#curated' },
       { tag_normalized: '#event_2026_worlds_japan' },
       { tag_normalized: '#illustration' },
     ]);
@@ -197,9 +210,10 @@ describe('curatorMediaService.uploadPhoto', () => {
 
     const db = openDb();
     const tagCount = db.prepare(`SELECT COUNT(*) AS n FROM tags WHERE tag_normalized = ?`).get(sharedTag) as { n: number };
-    const mediaTagCount = db.prepare(`SELECT COUNT(*) AS n FROM media_tags WHERE media_id IN (?, ?)`).get(r1.mediaId, r2.mediaId) as { n: number };
+    // Per-tag rows: one for sharedTag (across both uploads), one for #curated (auto-applied across both).
+    const mediaTagSharedCount = db.prepare(`SELECT COUNT(*) AS n FROM media_tags WHERE media_id IN (?, ?) AND tag_id IN (SELECT id FROM tags WHERE tag_normalized = ?)`).get(r1.mediaId, r2.mediaId, sharedTag) as { n: number };
     expect(tagCount.n).toBe(1);
-    expect(mediaTagCount.n).toBe(2);
+    expect(mediaTagSharedCount.n).toBe(2);
     db.close();
   });
 
@@ -364,5 +378,277 @@ describe('curatorMediaService.uploadVideo', () => {
     await Promise.all([firstP, secondP]);
 
     expect(order).toEqual(['start:first', 'finish:first', 'start:second', 'finish:second']);
+  });
+});
+
+// ── #curated tag rules ─────────────────────────────────────────────────────
+
+describe('curatorMediaService #curated rejection', () => {
+  it('uploadPhoto rejects #curated in caller-supplied tags', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    await expect(svc.uploadPhoto({
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#curated'],
+    })).rejects.toThrow(/#curated.*auto-applied/);
+  });
+
+  it('uploadVideo rejects #curated in caller-supplied tags', async () => {
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const poster = await makeJpegBuffer();
+    await expect(svc.uploadVideo({
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster,
+      caption: null, tags: ['#curated'],
+    })).rejects.toThrow(/#curated.*auto-applied/);
+  });
+});
+
+// ── editMedia ──────────────────────────────────────────────────────────────
+
+describe('curatorMediaService.editMedia', () => {
+  it('updates caption only (no tag changes, no S3 traffic)', async () => {
+    const storage = makeStubStorage();
+    const svc = svcModule.createCuratorMediaService({ storage, imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const initialCaption = `EDIT_CAPTION_INITIAL_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: initialCaption, tags: ['#alpha'] });
+    storage.puts.length = 0;
+    storage.deletes.length = 0;
+
+    const updatedCaption = `EDIT_CAPTION_UPDATED_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const result = await svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, caption: updatedCaption });
+    expect(result.mediaId).toBe(r.mediaId);
+    expect(storage.puts).toHaveLength(0);
+    expect(storage.deletes).toHaveLength(0);
+
+    const db = openDb();
+    const row = db.prepare(`SELECT caption FROM media_items WHERE id = ?`).get(r.mediaId) as { caption: string };
+    expect(row.caption).toBe(updatedCaption);
+    const tags = db.prepare(`SELECT t.tag_normalized FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_normalized`).all(r.mediaId);
+    expect(tags).toEqual([{ tag_normalized: '#alpha' }, { tag_normalized: '#curated' }]);
+    db.close();
+  });
+
+  it('rewrites tags atomically when tags-only edit is supplied', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: ['#initial_a', '#initial_b'] });
+
+    await svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, tags: ['#replaced_x', '#replaced_y'] });
+
+    const db = openDb();
+    const tags = db.prepare(`SELECT t.tag_normalized FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_normalized`).all(r.mediaId);
+    // Old tag rows should be gone for THIS media; #curated re-applied.
+    expect(tags).toEqual([
+      { tag_normalized: '#curated' },
+      { tag_normalized: '#replaced_x' },
+      { tag_normalized: '#replaced_y' },
+    ]);
+    db.close();
+  });
+
+  it('writes audit entry with edit_curated_media action_type', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'before', tags: [] });
+
+    await svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, caption: 'after' });
+
+    const db = openDb();
+    const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'edit_curated_media'`).get(r.mediaId) as Record<string, unknown>;
+    expect(audit).toBeDefined();
+    expect(audit.actor_member_id).toBe(ADMIN_ID);
+    db.close();
+  });
+
+  it('throws NotFoundError when mediaId is unknown', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    await expect(svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: 'media_does_not_exist', caption: 'x' }))
+      .rejects.toThrow(/not found/i);
+  });
+
+  it('rejects #curated in caller-supplied tags', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    await expect(svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, tags: ['#curated', '#another'] }))
+      .rejects.toThrow(/#curated.*auto-applied/);
+  });
+
+  it('rejects oversized caption', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    await expect(svc.editMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId, caption: 'x'.repeat(501) }))
+      .rejects.toThrow(/Caption must be 500/);
+  });
+});
+
+// ── deleteMedia ────────────────────────────────────────────────────────────
+
+describe('curatorMediaService.deleteMedia', () => {
+  it('cascades DB rows + deletes S3 keys for a photo', async () => {
+    const storage = makeStubStorage();
+    const svc = svcModule.createCuratorMediaService({ storage, imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'will be deleted', tags: ['#del'] });
+    storage.deletes.length = 0;
+
+    await svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId });
+
+    const db = openDb();
+    const row = db.prepare(`SELECT id FROM media_items WHERE id = ?`).get(r.mediaId);
+    expect(row).toBeUndefined();
+    const tagRows = db.prepare(`SELECT id FROM media_tags WHERE media_id = ?`).all(r.mediaId);
+    expect(tagRows).toEqual([]);
+    db.close();
+
+    expect(storage.deletes.length).toBeGreaterThanOrEqual(2); // thumb + display
+    expect(storage.deletes.some((k) => k.endsWith('-thumb.jpg'))).toBe(true);
+    expect(storage.deletes.some((k) => k.endsWith('-display.jpg'))).toBe(true);
+  });
+
+  it('cascades DB rows + deletes S3 keys for a video (video + 2 poster variants)', async () => {
+    const storage = makeStubStorage();
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const poster = await makeJpegBuffer();
+    const r = await svc.uploadVideo({
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster,
+      caption: null, tags: ['#vid_delete'],
+    });
+    storage.deletes.length = 0;
+
+    await svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId });
+
+    expect(storage.deletes.some((k) => k.endsWith('-video.mp4'))).toBe(true);
+    expect(storage.deletes.some((k) => k.endsWith('-poster-display.jpg'))).toBe(true);
+  });
+
+  it('writes audit entry with delete_curated_media action_type', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    await svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId });
+
+    const db = openDb();
+    const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'delete_curated_media'`).get(r.mediaId) as Record<string, unknown>;
+    expect(audit).toBeDefined();
+    expect(audit.actor_member_id).toBe(ADMIN_ID);
+    db.close();
+  });
+
+  it('throws NotFoundError when mediaId is unknown', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    await expect(svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: 'media_nope_xyz' }))
+      .rejects.toThrow(/not found/i);
+  });
+
+  it('still removes DB row when storage.delete fails (logs warning, does not throw)', async () => {
+    const storage = makeStubStorage();
+    const svc = svcModule.createCuratorMediaService({ storage, imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: null, tags: [] });
+    storage.failOnDelete = true;
+
+    await expect(svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId: r.mediaId })).resolves.toEqual({ mediaId: r.mediaId });
+
+    const db = openDb();
+    const row = db.prepare(`SELECT id FROM media_items WHERE id = ?`).get(r.mediaId);
+    expect(row).toBeUndefined();
+    db.close();
+  });
+});
+
+// ── getMediaItem ───────────────────────────────────────────────────────────
+
+describe('curatorMediaService.getMediaItem', () => {
+  it('returns null for an unknown media id', () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    expect(svc.getMediaItem('media_does_not_exist_xyz')).toBeNull();
+  });
+
+  it('returns CuratorMediaListItem shape for a known FH-owned photo', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const caption = `GET_ITEM_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const tag = `#getitem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption, tags: [tag] });
+
+    const item = svc.getMediaItem(r.mediaId);
+    expect(item).not.toBeNull();
+    expect(item!.mediaId).toBe(r.mediaId);
+    expect(item!.mediaType).toBe('photo');
+    expect(item!.caption).toBe(caption);
+    expect(item!.thumbnailUrl).toMatch(/^\/media\/.*-thumb\.jpg$/);
+    expect(item!.tags.sort()).toEqual([tag, '#curated'].sort());
+  });
+
+  it('returns thumbnail_url field for a video item (uses stored thumbnail_url, not s3_key_thumb)', async () => {
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const poster = await makeJpegBuffer();
+    const r = await svc.uploadVideo({
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster,
+      caption: null, tags: [],
+    });
+    const item = svc.getMediaItem(r.mediaId);
+    expect(item).not.toBeNull();
+    expect(item!.mediaType).toBe('video');
+    expect(item!.thumbnailUrl).toMatch(/^\/media\/.*-poster-display\.jpg$/);
+  });
+});
+
+// ── listMedia ──────────────────────────────────────────────────────────────
+
+describe('curatorMediaService.listMedia', () => {
+  it('returns paginated reverse-chrono list with tags joined', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const uniqueTagA = `#listalpha_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const uniqueTagB = `#listbeta_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const r1 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'first', tags: [uniqueTagA] });
+    await new Promise((r) => setTimeout(r, 5));
+    const r2 = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'second', tags: [uniqueTagA, uniqueTagB] });
+
+    const result = svc.listMedia({ page: 1, pageSize: 100 });
+    const idsInOrder = result.items.map((i) => i.mediaId);
+    const idxR1 = idsInOrder.indexOf(r1.mediaId);
+    const idxR2 = idsInOrder.indexOf(r2.mediaId);
+    expect(idxR2).toBeLessThan(idxR1); // r2 uploaded after r1, should appear first
+    expect(result.total).toBeGreaterThanOrEqual(2);
+
+    const r2Item = result.items.find((i) => i.mediaId === r2.mediaId);
+    expect(r2Item?.tags.sort()).toEqual([uniqueTagA, uniqueTagB, '#curated'].sort());
+  });
+
+  it('filters by tag when tagFilter is supplied', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const filterTag = `#filter_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'unrelated', tags: ['#unrelated'] });
+    const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption: 'matched', tags: [filterTag] });
+
+    const result = svc.listMedia({ page: 1, pageSize: 100, tagFilter: filterTag });
+    const ids = result.items.map((i) => i.mediaId);
+    expect(ids).toContain(r.mediaId);
+    for (const item of result.items) {
+      expect(item.tags).toContain(filterTag);
+    }
+  });
+
+  it('rejects malformed tagFilter (must start with #)', () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    expect(() => svc.listMedia({ page: 1, pageSize: 10, tagFilter: 'no-hash' }))
+      .toThrow(/must start with '#'/);
+  });
+
+  it('returns empty items when page is past the end', () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const result = svc.listMedia({ page: 9999, pageSize: 100 });
+    expect(result.items).toEqual([]);
   });
 });

@@ -80,6 +80,14 @@ OPTIONS
   --no-staleness-check         Silence "canonical CSVs older than pipeline
                                code" WARNING (gate is warn-only since
                                2026-04-27; flag still useful for clean output).
+  --with-curated               Opt in to the full curator-media cycle:
+                               re-runs scripts/seed_curator_media.py against
+                               the local DB, ships ./data/media to the host,
+                               wipes S3 (staging default; --keep-media to
+                               skip), and rsyncs media to S3. Without this
+                               flag, S3 media is fully preserved across
+                               deploys (DB rebuild does not touch S3).
+                               Requires --with-db; not valid with --code-only.
   --help, -h                   Show this message.
 
 ENV OVERRIDES
@@ -129,6 +137,7 @@ DB_SOURCE=""
 SKIP_TESTS_FLAG="no"
 DRY_RUN="no"
 STALENESS_CHECK="yes"
+WITH_CURATED_FLAG="no"
 
 for arg in "$@"; do
   case "$arg" in
@@ -157,6 +166,9 @@ for arg in "$@"; do
     --no-staleness-check)
       STALENESS_CHECK="no"
       ;;
+    --with-curated)
+      WITH_CURATED_FLAG="yes"
+      ;;
     -*)
       echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
@@ -171,6 +183,21 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+# --with-curated requires --with-db. The seed step writes media_items rows to
+# the workstation DB; only --with-db ships that DB to the host. Without
+# --with-db the rows would never reach the host and S3 would diverge from the
+# host DB. Reject the unsupported combination explicitly.
+if [[ "$WITH_CURATED_FLAG" == "yes" && "$DEPLOY_MODE" == "--code-only" ]]; then
+  echo "ERROR: --with-curated requires --with-db (not valid with --code-only)" >&2
+  echo "       Curator seed writes media_items rows that --code-only does not ship." >&2
+  exit 1
+fi
+
+# Always export WITH_CURATED with an explicit yes/no value so downstream
+# scripts can distinguish "deploy did not opt in" (no) from "running outside
+# the deploy orchestrator" (unset → local dev default behavior).
+export WITH_CURATED="$WITH_CURATED_FLAG"
 
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2

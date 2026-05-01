@@ -51,6 +51,33 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(r.status).toBe(0);
   });
 
+  it('--help mentions --with-curated and its semantics', () => {
+    const r = run('bash', ['deploy_to_aws.sh', '--help']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('--with-curated');
+    expect(r.stdout).toMatch(/preserved across|seed.*curator|opt in/i);
+  });
+
+  it('--code-only --with-curated exits 1 with rejection message', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--code-only', '--with-curated'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(1);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/--with-curated requires --with-db/);
+  });
+
+  it('--with-db --from-csv --with-curated --dry-run accepts the flag and shows the plan', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--with-db', '--from-csv', '--with-curated', '--dry-run', '--no-staleness-check'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/mode=--with-db/);
+    expect(combined).toMatch(/source=--from-csv/);
+    expect(combined).toMatch(/dry-run=yes/);
+  });
+
   it.skipIf(!HAS_DOCKER)(
     '--code-only with missing AWS_OPERATOR_FILE exits 1 with generic Recommendation (no path leak)',
     () => {

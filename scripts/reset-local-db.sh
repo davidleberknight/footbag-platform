@@ -194,9 +194,17 @@ echo "  → Loading club member data into database..."
 echo "  → Seeding system member account..."
 "${PYTHON}" legacy_data/scripts/seed_members.py --db "${DB_FILE}"
 
-# Seed curator-owned media (demo loops; broader content adds in follow-on slices)
-echo "  → Seeding curator media..."
-"${PYTHON}" scripts/seed_curator_media.py --db "${DB_FILE}"
+# Seed curator-owned media (demo loops; broader content adds in follow-on slices).
+# Gated by the deploy orchestrator's --with-curated flag, threaded as
+# WITH_CURATED env. The orchestrator always exports WITH_CURATED=yes or no;
+# unset means this script is being run outside the orchestrator (local dev),
+# in which case unconditional seed is correct. Skip only on explicit no.
+if [[ "${WITH_CURATED:-yes}" != "no" ]]; then
+  echo "  → Seeding curator media..."
+  "${PYTHON}" scripts/seed_curator_media.py --db "${DB_FILE}"
+else
+  echo "  → Skipping curator media seed (WITH_CURATED=no; pass --with-curated to enable)."
+fi
 
 # Sanity check
 EVENT_COUNT=$(sqlite3 "${DB_FILE}" "SELECT COUNT(*) FROM events;")

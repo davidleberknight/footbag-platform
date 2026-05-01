@@ -179,18 +179,29 @@ echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf $REMOTE_RELEASE_DIR && mkdir -p $REMOTE_RELEASE_DIR" </dev/null
 
 echo "==> Rsyncing source to host..."
+# /data/media/*** is conditional on the --with-curated opt-in (threaded as
+# WITH_CURATED env from the orchestrator). Without the opt-in, RELEASE_DIR
+# does not contain /data/media and the remote-half's S3 sync block becomes
+# a no-op, leaving the live S3 bucket fully preserved across this deploy.
+RSYNC_INCLUDES=(
+  --include='/.dockerignore'
+  --include='/docker/***'
+  --include='/src/***'
+  --include='/ops/***'
+  --include='/package.json'
+  --include='/package-lock.json'
+  --include='/tsconfig.json'
+  --include='/database/'
+  --include='/database/footbag.db'
+)
+if [[ "${WITH_CURATED:-no}" == "yes" ]]; then
+  RSYNC_INCLUDES+=(
+    --include='/data/'
+    --include='/data/media/***'
+  )
+fi
 rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
-  --include='/.dockerignore' \
-  --include='/docker/***' \
-  --include='/src/***' \
-  --include='/ops/***' \
-  --include='/package.json' \
-  --include='/package-lock.json' \
-  --include='/tsconfig.json' \
-  --include='/database/' \
-  --include='/database/footbag.db' \
-  --include='/data/' \
-  --include='/data/media/***' \
+  "${RSYNC_INCLUDES[@]}" \
   --exclude='*' \
   ./ "$REMOTE:$REMOTE_RELEASE_DIR/" </dev/null
 
@@ -261,6 +272,7 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"
   printf 'FOOTBAG_ENV=%q\n'                  "$FOOTBAG_ENV"
   printf 'KEEP_MEDIA=%q\n'                   "$KEEP_MEDIA"
+  printf 'WITH_CURATED=%q\n'                 "${WITH_CURATED:-no}"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
