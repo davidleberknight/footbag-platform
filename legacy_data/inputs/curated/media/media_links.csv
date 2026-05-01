@@ -9,9 +9,9 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 1122d3e7-e11d-5ca6-b9a9-61dc27ac03d1,trick,smear,,,1
 200662ab-a951-58f4-b9c0-07ba8fdf7d14,record,e1591575-070a-5cae-a28e-843a5d5522f8,,,1
 200662ab-a951-58f4-b9c0-07ba8fdf7d14,trick,butterfly,,,1
-29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,heel-stall,,,1
-29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,outside-stall,,,1
-29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,toe-stall,,,1
+29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,heel-stall,,,0
+29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,outside-stall,,,0
+29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,toe-stall,,,0
 30a1f6ad-fee9-512a-ad11-47072e2d7297,record,de232796-bd1c-5bbc-a25f-11d39d368158,,,1
 30a1f6ad-fee9-512a-ad11-47072e2d7297,trick,ducking-butterfly,,,1
 32fa4bcd-0b23-5dad-b3ee-4b5584a7d7de,record,481678d9-8cb6-5136-b20a-a5fac303ac14,,,1
@@ -19,7 +19,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 33485890-1f93-5f22-9741-6d09cd3a00a0,record,c4f03114-bf3d-50aa-9cfe-79f3ec0b24ce,,,1
 33485890-1f93-5f22-9741-6d09cd3a00a0,trick,torque,,,1
 339cd9b5-ced6-58ea-b64f-6c39c01832c3,record,5d8e4871-7417-56b5-a5b3-60e65457e1a1,7,,1
-339cd9b5-ced6-58ea-b64f-6c39c01832c3,trick,whirl,7,,1
+339cd9b5-ced6-58ea-b64f-6c39c01832c3,trick,whirl,7,,0
 37cba70b-33c3-5e04-854e-2cf0b4e24088,record,20edf4bd-c501-5fab-a4a7-16cc9f93b329,,,1
 37cba70b-33c3-5e04-854e-2cf0b4e24088,trick,mirage,,,1
 380feddf-0b63-5199-bb57-3be4c63da732,record,7439984a-fccf-5d36-bf67-ad765f3f6246,25,,1
@@ -39,7 +39,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 60a955f9-cca5-5534-8d7d-f00a1c13ffae,record,adaf9efa-0a4b-5c7c-9d68-43a489536e4c,,,1
 60a955f9-cca5-5534-8d7d-f00a1c13ffae,trick,paradox-symposium-whirl,,,1
 68eb33bf-f705-584d-ae93-f601e32be859,record,9de7cbee-b347-5543-a725-8137159f6dc4,33,,1
-68eb33bf-f705-584d-ae93-f601e32be859,trick,eggbeater,33,,1
+68eb33bf-f705-584d-ae93-f601e32be859,trick,eggbeater,33,,0
 750189fa-6795-5f42-927e-4deda4d538cf,trick,osis,,,1
 7649cefd-bc35-536f-a275-b4d957d440ee,trick,paradox-mirage,,,1
 810e5f7d-3802-5318-bf5f-d8968196d72a,trick,around-the-world,9,,1
@@ -61,7 +61,7 @@ ad8310e6-e0be-59e4-9ba5-8d9d90ccf7cb,trick,ripwalk,,,1
 b8be2e51-a09f-5715-9adc-9599c7cda8fd,record,5885e373-78ef-588a-9d69-8e7320843927,6,,1
 b8be2e51-a09f-5715-9adc-9599c7cda8fd,trick,swirl,6,,1
 ba47855e-28de-5694-8e8d-0bc2358ecd9e,record,a82dbe45-8e6a-55de-a09e-9b705783721c,29,,1
-ba47855e-28de-5694-8e8d-0bc2358ecd9e,trick,drifter,29,,1
+ba47855e-28de-5694-8e8d-0bc2358ecd9e,trick,drifter,29,,0
 bab24c23-7642-5798-b290-8d5d57578584,record,f5dfbec3-997d-5eb4-80b6-fe449608dcb3,,,1
 bab24c23-7642-5798-b290-8d5d57578584,trick,mobius,,,1
 be76d857-cae7-5f12-9efa-cd339e4b137d,record,a0477f34-b7e4-5a05-b7f6-6aca354f9613,,,1
@@ -77,3 +77,9 @@ ec9dd014-2535-59f7-bd5b-71f17f3ed0ab,record,d9b3dc27-ca5e-5836-b54c-ff79b2cf6154
 ec9dd014-2535-59f7-bd5b-71f17f3ed0ab,trick,spinning-symposium-whirl,,,1
 f5ed2fb5-11dd-58c6-947e-c21cd20d7537,record,fc8e3f46-4d97-5326-819f-93c75e4189b9,,,1
 f5ed2fb5-11dd-58c6-947e-c21cd20d7537,trick,ducking-osis,,,1
+045eabc7-ea4f-579a-871a-05784f7e6220,trick,drifter,,,1
+0935bb82-6c71-54d7-a3a2-b9fcba177e7e,trick,heel-stall,,,1
+0935bb82-6c71-54d7-a3a2-b9fcba177e7e,trick,outside-stall,,,1
+0935bb82-6c71-54d7-a3a2-b9fcba177e7e,trick,toe-stall,,,1
+48a1464e-1068-5161-8268-e19970d911a2,trick,eggbeater,,,1
+daa91d53-ae5a-505d-a684-efd21e8133f2,trick,whirl,,,1
