@@ -229,6 +229,58 @@ Rules:
 
 ---
 
+## 5c. Navigation Layer (trick detail page)
+
+The trick detail page (`/freestyle/tricks/:slug`) ships three navigation sections plus the family ladder, all driven by the active dictionary alone (no new tables, no new queries — the helpers run against the in-memory `allDictRows` already loaded for composition shaping).
+
+Helpers live in `src/services/freestyleRelatedTricks.ts`. All three exclude `category='modifier'` and the current trick. Display order on the page: **Related Tricks → Previous Tricks → Next Tricks → Trick Family ladder.**
+
+### Hashtag identity vs. family navigation (load-bearing UX rule)
+
+Two visually-similar surfaces have **different semantics**. Do not collapse them:
+
+- **Hashtag** = identity link. `#spinningwhirl` always links to `/freestyle/tricks/spinning-whirl` (its own detail page). Each trick has a unique hashtag derived from its slug via `slugToHashtag(slug)` in `freestyleRecordShaping.ts` (`'#' + slug.replace(/-/g, '')`).
+- **Family navigation** = separate UI element. A small `family-badge` in the trick-detail hero links to `/freestyle/tricks?family={trick_family}`. Family-card titles on the dictionary index also link there. The filter pill at the top of a filtered index includes a clear-filter link.
+
+Forbidden:
+- Hashtags must NOT trigger family filtering.
+- Slug-prefix matching for filtering (e.g. "tricks starting with `paradox-`") is NOT used. Filter narrows on `trick_family` only.
+- Family selection must NOT be derived from a hashtag.
+
+### `buildRelatedTricks` — broad navigation, cap = 8
+
+Three rules in priority order. Within each rule's candidate set, ADD-bucket round-robin sampling (slug ASC tiebreak) ensures a low/mid/high mix; display order is concatenation R1 picks → R2 picks → R3 picks.
+
+- **R1 same-family**: `trick_family = current.trick_family`. Strongest relationship.
+- **R2 modifier-prefix**: slug starts with `{first-hyphen-segment}-` AND `trick_family != current.trick_family`. Yields nothing for single-segment slugs (base tricks). Captures cross-family modifier siblings (e.g. `paradox-mirage` ↔ `paradox-torque`).
+- **R3 grandparent**: `current.base_trick → that row's base_trick → if active, non-modifier, family differs → include`. Gated: fires only when **R1 + R2 < 6** and the candidate is not already included. Yields at most 1 result. Captures structural ancestors (e.g. `atomic-torque → torque → osis`).
+
+### `buildNextTricks` — family-scoped progression by ADD, cap = 5
+
+Strict same-family. `adds > current.adds`. Group by ADD, slug ASC within bucket, **take ≤2 per bucket**, flatten ASC. The per-bucket cap is load-bearing — without it, a heavily-populated 4-ADD bucket (whirl family has five) would fill the cap and bury 5+ ADD tiers entirely. With per-bucket-2, `spinning-symposium-whirl` (6 ADD) stays visible.
+
+**Cross-family progression is intentionally out of scope.** ADD comparisons across families would imply real-world difficulty equivalence we cannot guarantee. Cross-family exploration belongs in `buildRelatedTricks`.
+
+### `buildPreviousTricks` — family-scoped regression by ADD, cap = 5
+
+Mirror of Next Tricks. `adds < current.adds`. Same per-bucket-2 sampling, but flattened **DESC** (closest easier first).
+
+**Family-base tiebreaker** (only on Previous Tricks): within each bucket, the row whose `slug == current.trick_family` is sorted first, then alphabetical for the rest. This guarantees foundational base tricks like `whirl` surface in their compounds' Previous Tricks lists. Without it, `spinning-whirl`'s 3-ADD bucket would alphabetically yield `rev-up, rev-whirl` and bury `whirl` (the family base, also 3 ADD) entirely.
+
+The tiebreaker is intentionally **not** applied to Next Tricks — base tricks have the lowest ADD in their family by definition and are never eligible as "next" candidates.
+
+### Adding a new navigation surface
+
+Default to extending `freestyleRelatedTricks.ts` rather than spawning new files. The existing helpers share a common shape (filter → bucket-by-ADD → sort within bucket → flatten with cap) and live well together.
+
+When in doubt about scope:
+- "What's structurally similar to this trick?" → Related Tricks (rule extension).
+- "What's a harder trick in the same family?" → Next Tricks.
+- "What's an easier trick in the same family?" → Previous Tricks.
+- "Show me all whirl tricks in one place" → family filter on `/freestyle/tricks?family=`.
+
+---
+
 ## 6. Canonical Competition Results Layer
 
 Canonical results remain separate.
