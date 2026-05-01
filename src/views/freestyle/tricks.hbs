@@ -19,6 +19,13 @@
 
 <div class="wrapper">
 
+  {{#if content.activeFamily}}
+  <p class="family-filter-pill">
+    Filtering by family: <strong>{{content.activeFamily}}</strong>
+    &nbsp;<a href="/freestyle/tricks">Clear filter</a>
+  </p>
+  {{/if}}
+
   {{#if content.dictNote}}
   <p class="detail-muted dict-note"><em>{{content.dictNote}}</em></p>
   {{/if}}
@@ -48,7 +55,7 @@
             <td class="col-trick">
               <a href="{{detailHref}}">{{canonicalName}}</a>
               {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
-              <span class="trick-hashtag">{{hashtag}}</span>
+              <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
             </td>
             <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
             <td>{{#if description}}{{description}}{{else}}<em class="detail-muted">—</em>{{/if}}</td>
@@ -81,7 +88,7 @@
     <div class="family-grid">
       {{#each content.familyGroups}}
       <div class="family-card">
-        <h3 class="family-card-title">{{familyName}} Family</h3>
+        <h3 class="family-card-title"><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} Family</a></h3>
         <table class="records-table records-table-sm family-table">
           <thead>
             <tr>
@@ -95,7 +102,7 @@
               <td class="col-trick">
                 <a href="{{detailHref}}">{{canonicalName}}</a>
                 {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
-                <span class="trick-hashtag">{{hashtag}}</span>
+                <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
               </td>
               <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
             </tr>

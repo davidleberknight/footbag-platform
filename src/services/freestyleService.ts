@@ -18,6 +18,7 @@ import {
   slugToHashtag,
   trickNameToSlug,
 } from './freestyleRecordShaping';
+import { FreestyleRelatedTrick, buildRelatedTricks } from './freestyleRelatedTricks';
 import {
   InsightsTrick,
   InsightsTransition,
@@ -154,6 +155,9 @@ export interface FreestyleTrickContent {
   // Family members: siblings or derivatives, sorted by ADD value
   familyMembers: FreestyleFamilyMember[];   // empty when family has only one member
   hasFamilyMembers: boolean;
+  // Related Tricks (R1 same-family → R2 modifier-prefix → R3 grandparent),
+  // ADD-bucket sampled within each rule, capped at 8. Empty when no dict entry.
+  relatedTricks: FreestyleRelatedTrick[];
 }
 
 export interface FreestyleTrickDictEntry {
@@ -207,6 +211,7 @@ export interface FreestyleTrickIndexRow {
   slug: string;
   canonicalName: string;
   hashtag: string;              // derived presentation token: '#' + slug with hyphens stripped
+  trickFamily: string | null;   // family slug; used as the target of the hashtag-filter link
   adds: string | null;
   category: string | null;
   description: string | null;
@@ -229,6 +234,7 @@ export interface FreestyleTricksIndexContent {
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
   dictNote: string;                      // small subtle note rendered above the categories
+  activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
 }
 
 export interface FreestyleFamilyGroup {
@@ -449,6 +455,7 @@ function shapeTrickIndexRow(row: FreestyleTrickRow, slugsWithRecords: Set<string
     slug:          row.slug,
     canonicalName: row.canonical_name,
     hashtag:       slugToHashtag(row.slug),
+    trickFamily:   row.trick_family,
     adds:          row.adds,
     category:      row.category,
     description:   row.description,
@@ -726,6 +733,7 @@ export const freestyleService = {
         dictEntry,
         familyMembers,
         hasFamilyMembers: familyMembers.length > 1,
+        relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
       },
     };
   },
@@ -905,10 +913,19 @@ export const freestyleService = {
     };
   },
 
-  getFreestyleTricksIndexPage(): PageViewModel<FreestyleTricksIndexContent> {
-    const allRows = runSqliteRead('freestyleTricks.listAll', () =>
+  getFreestyleTricksIndexPage(family?: string): PageViewModel<FreestyleTricksIndexContent> {
+    const allRowsUnfiltered = runSqliteRead('freestyleTricks.listAll', () =>
       freestyleTricks.listAll.all() as FreestyleTrickRow[],
     );
+
+    // Apply optional family filter (driven by ?family= hashtag click). Filter
+    // by trick_family only — no slug-substring matching, no compound heuristics.
+    const activeFamily = family && allRowsUnfiltered.some(r => r.trick_family === family)
+      ? family
+      : null;
+    const allRows = activeFamily
+      ? allRowsUnfiltered.filter(r => r.trick_family === activeFamily)
+      : allRowsUnfiltered;
 
     // Build set of slugs that have passback records (for linking)
     const publicRows = runSqliteRead('freestyleRecords.listPublic', () =>
@@ -921,10 +938,7 @@ export const freestyleService = {
     );
 
     // Group by category in display order. Modifiers are intentionally excluded
-    // from the category listing — they have their own dedicated "Modifier
-    // Reference" section sourced from freestyle_trick_modifiers (the proper
-    // modifier-rules table). Showing them twice mixes the trick and modifier
-    // layers; once is enough.
+    // from the category listing.
     const categoryOrder = ['dex', 'body', 'set', 'compound'];
     const grouped = new Map<string, FreestyleTrickRow[]>();
     for (const row of allRows) {
@@ -1018,6 +1032,7 @@ export const freestyleService = {
         groups,
         familyGroups,
         modifiers,
+        activeFamily,
         totalTricks: groups.reduce((sum, g) => sum + g.tricks.length, 0),
         dictNote:
           'This dictionary is being expanded and aligned with established freestyle notation. ' +

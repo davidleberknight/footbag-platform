@@ -73,6 +73,29 @@ Public-facing trick descriptions are neutral and instructional. No reviewer name
 
 When ADD math is referenced in a description, it must agree with the row's `adds` value or be removed. Self-contradictions (description says "= 3 ADD" while `adds=4`) are HIGH-severity QC failures.
 
+Aliases never appear in the description text. Aliases live in the row's `aliases` column or in `trick_aliases.csv`. Mentioning an alias in the description (e.g. `"atomic butterfly = leg beater = 4 ADD"`) is a policy violation — strip on sight.
+
+#### Established description templates (Phases 1-3, 2026-04-30)
+
+The active dictionary descriptions follow these templates. Apply the same templates when adding new active rows or normalizing future ones:
+
+- **Compound = modifier + base:** `"{Modifier}-modified {base}."` — e.g. `Paradox-modified torque.`, `Blurry-modified mirage.`, `Whirl-modified osis.`
+- **Multi-modifier compound:** nest by treating the innermost named compound as the base — `"{Outer}-modified {Inner} {base}."` — e.g. `Paradox-modified symposium whirl.` (= paradox + symposium-whirl), `Ducking-modified paradox whirl.` (= ducking + paradox-whirl), `Paradox-modified barraging mirage.` (= paradox + barraging-mirage).
+- **Modifier noun-form rule:** when a modifier shares its name with a trick (mirage, whirl, swirl), drop the gerund `-ing` for descriptions: `miraging→mirage`, `whirling→whirl`. Other gerund modifiers stay as-is (`Ducking-`, `Spinning-`, `Stepping-`, `Tapping-`, `Barraging-`, `Symposium-`).
+- **Stalls / delay surfaces:** `"X-based delay surface."` — e.g. `Toe-based delay surface.`, `Heel-based delay surface.`, `Outside-of-foot delay surface.`
+- **Body primitives:** short mechanical motion sentence — e.g. `Inside-leg jumping motion.`, `Jumping leg-over motion.`, `Double rotational body spin.`, `Inward rotational body move.`
+- **Base tricks (irreducible):** terse mechanical sentence — e.g. `Cross-body inside delay.` (clipper), `Rotational dexterity move.` (whirl), `Inside-to-outside delay combination.` (osis).
+- **Sentence form:** capitalized first word, terminating period. One sentence.
+
+#### Write surfaces for active descriptions
+
+The active dictionary descriptions live in two CSVs, both loaded into `freestyle_tricks.description`:
+
+- `legacy_data/inputs/noise/tricks.csv` — canonical baseline, loaded by `event_results/scripts/17_load_trick_dictionary.py`. Holds most active tricks. Rows with notes containing commas must be CSV-quoted.
+- `legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv` — Red Husted overlays, loaded by `event_results/scripts/19_load_red_additions.py`. Holds body primitives (`flying-inside`, `flying-outside`, `hop-over`, `walk-over`, `double-spin`, `spyro`), set primitives (`toe-stall`, `heel-stall`, `outside-stall`), and a handful of compounds (`sidewalk`, `tombstone`, `fury`, `vortex`, `surging`).
+
+**Never write descriptions directly to `database/footbag.db`** — `scripts/reset-local-db.sh` wipes them on next reload. Edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable.
+
 ---
 
 ## 2. Modifier Layer
@@ -291,9 +314,11 @@ When adding a new public query against the table, copy the pattern. When adding 
 
 ### Modifier rows are not tricks
 
-`freestyle_tricks` rows with `category='modifier'` (e.g. `paradox`, `gyro`, `barraging`, `blazing`) are excluded from the public category groupings on `/freestyle/tricks`. The dedicated "Modifier Reference" section sources from the proper rules table `freestyle_trick_modifiers`. Do not display modifier rows in both places — that mixes the trick and modifier layers.
+`freestyle_tricks` rows with `category='modifier'` (e.g. `paradox`, `gyro`, `barraging`, `blazing`) are excluded from the public category groupings on `/freestyle/tricks`. The historical reason `freestyle_tricks` carries modifier-category rows is composition — they're FK targets for `freestyle_trick_modifier_links`. They stay in the table; they just don't render as tricks.
 
-The historical reason `freestyle_tricks` carries modifier-category rows is composition — they're FK targets for `freestyle_trick_modifier_links`. They stay in the table; they just don't render as tricks.
+The proper rules table for modifier ADD bonuses is `freestyle_trick_modifiers` (modifier_name, add_bonus, add_bonus_rotational, modifier_type). Do not derive modifier ADD math from `freestyle_tricks` rows; use this table.
+
+**Modifier Reference rendering is currently disabled on the public surface.** The `/freestyle/tricks` template's "Modifier Reference" section is wrapped in a Handlebars block comment (editorial decision: advanced/internal, conflicts with the public glossary, pending/uncertain content weakens presentation). The service still shapes `content.modifiers` for future reuse, and the markup is preserved as inline reference. Do not re-enable the section without explicit human approval. See memory entry `feedback_modifier_public_visibility.md` for the load-bearing context. Modifier-related editorial content for the public belongs on `/freestyle/glossary` only and must stay plain-language.
 
 ---
 

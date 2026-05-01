@@ -1787,7 +1787,46 @@ section.home-media { padding-top: 0; }
   font-size: 0.75rem;
   color: var(--text-secondary, #999);
   margin-top: 2px;
+  text-decoration: none;
 }
+.trick-hashtag:hover { text-decoration: underline; }
+
+.related-tricks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.related-tricks-list li {
+  display: flex;
+  flex-direction: column;
+}
+.related-tricks-list li > a { font-weight: 500; }
+
+.family-filter-pill {
+  display: inline-block;
+  font-size: 0.85rem;
+  background: #f4f4f4;
+  border: 1px solid #e0e0e0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  margin: 0 0 12px 0;
+}
+
+.family-badge {
+  display: inline-block;
+  font-size: 0.85rem;
+  background: #eef4f8;
+  border: 1px solid #d0e0ec;
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin: 4px 0 0 0;
+  text-decoration: none;
+  color: var(--text-primary, #333);
+}
+.family-badge:hover { background: #dde9f3; }
 
 /* Rows backed by probable (not fully verified) records */
 .record-probable td { color: #444; }

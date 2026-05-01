@@ -38,6 +38,8 @@ beforeAll(async () => {
     slug:          'whirl',
     canonical_name: 'whirl',
     adds:          '3',
+    base_trick:    'whirl',
+    trick_family:  'whirl',
     category:      'compound',
     description:   'rotational dex trick; most connected trick in the network',
     aliases_json:  '["spinning whirl (with modifier)"]',
@@ -50,6 +52,8 @@ beforeAll(async () => {
     slug:          'blurriest',
     canonical_name: 'blurriest',
     adds:          '6',
+    base_trick:    'blurriest',
+    trick_family:  'blurriest',
     category:      'compound',
     description:   'maximum documented base ADD',
     aliases_json:  '[]',
@@ -72,6 +76,8 @@ beforeAll(async () => {
     slug:          'legover',
     canonical_name: 'legover',
     adds:          '2',
+    base_trick:    'legover',
+    trick_family:  'legover',
     category:      'dex',
     description:   'basic leg-over dexterity',
     aliases_json:  '["leg over"]',
@@ -244,19 +250,28 @@ describe('public dictionary presentation', () => {
     expect(res.text).not.toContain('+ADD (rotational)');
   });
 
-  it('renders a hashtag under each trick name', async () => {
+  it('renders a hashtag under each trick name as an identity link to that trick', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="trick-hashtag">#whirl<');
-    expect(res.text).toContain('class="trick-hashtag">#legover<');
+    // Hashtag is now an identity link: #whirl → /freestyle/tricks/whirl
+    expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/whirl"[^>]*>#whirl</);
+    expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/legover"[^>]*>#legover</);
   });
 
-  it('strips hyphens from compound slugs in the family ladder hashtag', async () => {
+  it('strips hyphens from compound slugs and links the hashtag to the trick itself', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // 'spinning-whirl' is a whirl-family member; hashtag must be #spinningwhirl
-    expect(res.text).toContain('class="trick-hashtag">#spinningwhirl<');
+    // 'spinning-whirl' renders #spinningwhirl linking to /freestyle/tricks/spinning-whirl
+    expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/spinning-whirl"[^>]*>#spinningwhirl</);
+  });
+
+  it('makes family-card titles clickable as family-filter links', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    // Family-card titles wrap in an <a> pointing to the filter
+    expect(res.text).toMatch(/<h3 class="family-card-title"><a href="\/freestyle\/tricks\?family=whirl">/);
   });
 
   it('renders the dictionary expansion note', async () => {
@@ -264,6 +279,90 @@ describe('public dictionary presentation', () => {
     const res = await request(app).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     expect(res.text).toContain('being expanded and aligned with established freestyle notation');
+  });
+});
+
+describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
+  it('narrows the dictionary to a single family and shows the filter pill', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks?family=whirl');
+    expect(res.status).toBe(200);
+    // Pill renders with the family name and a clear-filter link
+    expect(res.text).toContain('family-filter-pill');
+    expect(res.text).toContain('Filtering by family:');
+    expect(res.text).toMatch(/<strong>whirl<\/strong>/);
+    expect(res.text).toMatch(/href="\/freestyle\/tricks"[^>]*>Clear filter</);
+    // Whirl-family rows still render
+    expect(res.text).toContain('/freestyle/tricks/whirl');
+    expect(res.text).toContain('/freestyle/tricks/spinning-whirl');
+    // Out-of-family rows are dropped
+    expect(res.text).not.toContain('/freestyle/tricks/legover');
+    expect(res.text).not.toContain('/freestyle/tricks/blurriest');
+  });
+
+  it('ignores unknown family values (no rows match → no filter applied)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks?family=does-not-exist');
+    expect(res.status).toBe(200);
+    // Falls through to unfiltered dictionary; pill must NOT render
+    expect(res.text).not.toContain('family-filter-pill');
+    // All families still visible
+    expect(res.text).toContain('/freestyle/tricks/whirl');
+    expect(res.text).toContain('/freestyle/tricks/legover');
+  });
+});
+
+describe('GET /freestyle/tricks/:slug — family badge in hero', () => {
+  it('renders a family badge linking to the family filter', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/class="family-badge"[^>]*href="\/freestyle\/tricks\?family=whirl"[^>]*>whirl family</);
+  });
+
+  it('Related Tricks hashtags are identity links (not family links)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    const relatedSection = res.text.split('Related Tricks')[1]?.split('Family')[0] ?? '';
+    // The hashtag link in Related Tricks must point to the related trick itself
+    expect(relatedSection).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/spinning-whirl"[^>]*>#spinningwhirl</);
+    // It must NOT be a family-filter link
+    expect(relatedSection).not.toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\?family=/);
+  });
+});
+
+describe('GET /freestyle/tricks/:slug — Related Tricks section', () => {
+  it('renders the Related Tricks section when family peers exist', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.status).toBe(200);
+    // Section heading + list class
+    expect(res.text).toContain('Related Tricks');
+    expect(res.text).toContain('related-tricks-list');
+    // The whirl-family peer 'spinning-whirl' appears as a related-trick link
+    // (separate from the family-ladder section, which also renders it)
+    const relatedSection = res.text.split('Related Tricks')[1] ?? '';
+    expect(relatedSection).toContain('/freestyle/tricks/spinning-whirl');
+  });
+
+  it('Related Tricks does NOT include the current trick or pending rows', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    const relatedSection = res.text.split('Related Tricks')[1]?.split('Family')[0] ?? '';
+    // Current trick must not appear in its own related list
+    expect(relatedSection).not.toContain('/freestyle/tricks/whirl"');
+    // Pending rows must not surface
+    expect(relatedSection).not.toContain('pending-zorblax');
+    expect(relatedSection).not.toContain('pending-paradox-whirl');
+  });
+
+  it('Related Tricks section is omitted when no peers exist', async () => {
+    const app = createApp();
+    // 'legover' is in the dictionary but has no family siblings in this fixture
+    const res = await request(app).get('/freestyle/tricks/legover');
+    expect(res.status).toBe(200);
+    // No related-tricks section heading
+    expect(res.text).not.toContain('Related Tricks');
   });
 });
 
