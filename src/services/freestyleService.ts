@@ -18,7 +18,14 @@ import {
   slugToHashtag,
   trickNameToSlug,
 } from './freestyleRecordShaping';
-import { FreestyleRelatedTrick, buildRelatedTricks } from './freestyleRelatedTricks';
+import {
+  FreestyleRelatedTrick,
+  FreestyleNextTrick,
+  FreestylePreviousTrick,
+  buildRelatedTricks,
+  buildNextTricks,
+  buildPreviousTricks,
+} from './freestyleRelatedTricks';
 import {
   InsightsTrick,
   InsightsTransition,
@@ -158,6 +165,12 @@ export interface FreestyleTrickContent {
   // Related Tricks (R1 same-family → R2 modifier-prefix → R3 grandparent),
   // ADD-bucket sampled within each rule, capped at 8. Empty when no dict entry.
   relatedTricks: FreestyleRelatedTrick[];
+  // Next Tricks: same family + higher ADD; per-bucket-2 sampling, capped at 5.
+  // Family-scoped progression; cross-family progression intentionally excluded.
+  nextTricks: FreestyleNextTrick[];
+  // Previous Tricks: same family + lower ADD; per-bucket-2 sampling, capped at 5.
+  // Family base trick (slug == trick_family) is preferred first within its bucket.
+  previousTricks: FreestylePreviousTrick[];
 }
 
 export interface FreestyleTrickDictEntry {
@@ -734,6 +747,8 @@ export const freestyleService = {
         familyMembers,
         hasFamilyMembers: familyMembers.length > 1,
         relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
+        previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
+        nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
       },
     };
   },

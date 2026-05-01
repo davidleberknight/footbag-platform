@@ -138,3 +138,142 @@ export function buildRelatedTricks(
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// Next Tricks — family-scoped progression by ADD
+// ---------------------------------------------------------------------------
+//
+// Strict same-family progression: tricks in the same `trick_family` whose
+// numeric ADD value is strictly greater than the current trick's ADD.
+//
+// Cross-family progression is intentionally OUT OF SCOPE for this section —
+// ADD comparisons across families would imply real-world difficulty
+// equivalence we cannot guarantee. Cross-family exploration is the job of
+// `buildRelatedTricks` (R1+R2+R3), not Next Tricks.
+//
+// Sampling (Option b): bucket candidates by ADD, sort each bucket by slug
+// ASC, take up to 2 per bucket, flatten in ascending ADD order, cap total
+// at 5. Guarantees that higher ADD tiers stay visible in dense families.
+
+export interface FreestyleNextTrick {
+  slug:          string;
+  canonicalName: string;
+  hashtag:       string;
+  adds:          string | null;
+  detailHref:    string;
+}
+
+const NEXT_MAX_RESULTS  = 5;
+const NEXT_PER_BUCKET   = 2;
+
+export function buildNextTricks(
+  current: FreestyleTrickRow,
+  allRows: readonly FreestyleTrickRow[],
+): FreestyleNextTrick[] {
+  const currentAdds = current.adds == null ? Number.NaN : Number.parseInt(current.adds, 10);
+  if (!Number.isFinite(currentAdds)) return [];
+
+  const eligible = allRows.filter(r => {
+    if (r.slug === current.slug) return false;
+    if (r.category === 'modifier') return false;
+    if (r.trick_family !== current.trick_family) return false;
+    const n = r.adds == null ? Number.NaN : Number.parseInt(r.adds, 10);
+    return Number.isFinite(n) && n > currentAdds;
+  });
+
+  const buckets = new Map<number, FreestyleTrickRow[]>();
+  for (const r of eligible) {
+    const n = Number.parseInt(r.adds!, 10);
+    if (!buckets.has(n)) buckets.set(n, []);
+    buckets.get(n)!.push(r);
+  }
+
+  const ordered = Array.from(buckets.keys()).sort((a, b) => a - b);
+  const out: FreestyleNextTrick[] = [];
+  for (const k of ordered) {
+    if (out.length >= NEXT_MAX_RESULTS) break;
+    const sorted = buckets.get(k)!.sort((a, b) => a.slug.localeCompare(b.slug));
+    const take = Math.min(NEXT_PER_BUCKET, sorted.length, NEXT_MAX_RESULTS - out.length);
+    for (let i = 0; i < take; i++) {
+      const row = sorted[i]!;
+      out.push({
+        slug:          row.slug,
+        canonicalName: row.canonical_name,
+        hashtag:       slugToHashtag(row.slug),
+        adds:          row.adds,
+        detailHref:    `/freestyle/tricks/${row.slug}`,
+      });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Previous Tricks — family-scoped regression by ADD
+// ---------------------------------------------------------------------------
+//
+// Mirror of buildNextTricks: same trick_family + lower numeric ADD. Same
+// per-bucket cap of 2, total cap of 5, but flattened in DESCENDING ADD
+// order (closest easier first). Cross-family progression is intentionally
+// out of scope; structural ancestors (e.g. atomic-torque → osis) are
+// surfaced by buildRelatedTricks' R3 rule, not here.
+//
+// Per-bucket sort tiebreaker: tricks whose `slug` matches the family base
+// (`slug == trick_family`) are placed first within their bucket, then the
+// remainder by slug ASC. This guarantees foundational base tricks like
+// `whirl` are never crowded out of the easier-tier bucket by direction-
+// reversed siblings (`rev-whirl`, `rev-up`) or other compounds that happen
+// to sort earlier alphabetically.
+
+export type FreestylePreviousTrick = FreestyleNextTrick;
+
+const PREV_MAX_RESULTS = 5;
+const PREV_PER_BUCKET  = 2;
+
+export function buildPreviousTricks(
+  current: FreestyleTrickRow,
+  allRows: readonly FreestyleTrickRow[],
+): FreestylePreviousTrick[] {
+  const currentAdds = current.adds == null ? Number.NaN : Number.parseInt(current.adds, 10);
+  if (!Number.isFinite(currentAdds)) return [];
+
+  const eligible = allRows.filter(r => {
+    if (r.slug === current.slug) return false;
+    if (r.category === 'modifier') return false;
+    if (r.trick_family !== current.trick_family) return false;
+    const n = r.adds == null ? Number.NaN : Number.parseInt(r.adds, 10);
+    return Number.isFinite(n) && n < currentAdds;
+  });
+
+  const buckets = new Map<number, FreestyleTrickRow[]>();
+  for (const r of eligible) {
+    const n = Number.parseInt(r.adds!, 10);
+    if (!buckets.has(n)) buckets.set(n, []);
+    buckets.get(n)!.push(r);
+  }
+
+  // Flatten in DESCENDING ADD order — closest easier first.
+  const ordered = Array.from(buckets.keys()).sort((a, b) => b - a);
+  const out: FreestylePreviousTrick[] = [];
+  for (const k of ordered) {
+    if (out.length >= PREV_MAX_RESULTS) break;
+    const sorted = buckets.get(k)!.sort((a, b) => {
+      const aIsBase = a.slug === current.trick_family ? 0 : 1;
+      const bIsBase = b.slug === current.trick_family ? 0 : 1;
+      if (aIsBase !== bIsBase) return aIsBase - bIsBase;
+      return a.slug.localeCompare(b.slug);
+    });
+    const take = Math.min(PREV_PER_BUCKET, sorted.length, PREV_MAX_RESULTS - out.length);
+    for (let i = 0; i < take; i++) {
+      const row = sorted[i]!;
+      out.push({
+        slug:          row.slug,
+        canonicalName: row.canonical_name,
+        hashtag:       slugToHashtag(row.slug),
+        adds:          row.adds,
+        detailHref:    `/freestyle/tricks/${row.slug}`,
+      });
+    }
+  }
+  return out;
+}

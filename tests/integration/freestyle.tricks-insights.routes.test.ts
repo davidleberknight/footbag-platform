@@ -331,6 +331,87 @@ describe('GET /freestyle/tricks/:slug — family badge in hero', () => {
   });
 });
 
+describe('GET /freestyle/tricks/:slug — Previous Tricks section', () => {
+  it('renders the Previous Tricks section when lower-ADD family peers exist', async () => {
+    const app = createApp();
+    // 'spinning-whirl' (5 ADD) has whirl(3) as a lower-ADD family peer
+    const res = await request(app).get('/freestyle/tricks/spinning-whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Previous Tricks');
+    expect(res.text).toContain('Lower-ADD variations in the same family');
+    // Previous Tricks must appear before Trick Family ladder (template order)
+    const prevIdx = res.text.indexOf('Previous Tricks');
+    const familyIdx = res.text.indexOf('Family</h2>');
+    expect(prevIdx).toBeGreaterThan(0);
+    expect(familyIdx).toBeGreaterThan(prevIdx);
+  });
+
+  it('Previous Tricks links the family base trick (whirl) for spinning-whirl', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/spinning-whirl');
+    const prevSection = res.text.split('Previous Tricks')[1]?.split('Next Tricks')[0] ?? '';
+    // The family-base tiebreaker promotes 'whirl' to the front of its ADD bucket
+    expect(prevSection).toContain('/freestyle/tricks/whirl');
+    expect(prevSection).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/whirl"[^>]*>#whirl</);
+    expect(prevSection).toMatch(/class="next-tricks-adds">3 ADD</);
+  });
+
+  it('Previous Tricks does NOT include current, higher-ADD, or out-of-family rows', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/spinning-whirl');
+    const prevSection = res.text.split('Previous Tricks')[1]?.split('Next Tricks')[0] ?? '';
+    // Current trick must not appear in its own previous list
+    expect(prevSection).not.toContain('href="/freestyle/tricks/spinning-whirl"');
+    // Out-of-family rows must not appear
+    expect(prevSection).not.toContain('/freestyle/tricks/legover');
+    expect(prevSection).not.toContain('/freestyle/tricks/blurriest');
+  });
+
+  it('Previous Tricks section is omitted when current trick has no lower-ADD family peers', async () => {
+    const app = createApp();
+    // 'legover' (2 ADD) is the lowest in the legover family in this fixture
+    const res = await request(app).get('/freestyle/tricks/legover');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Previous Tricks');
+  });
+});
+
+describe('GET /freestyle/tricks/:slug — Next Tricks section', () => {
+  it('renders the Next Tricks section when higher-ADD family peers exist', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Next Tricks');
+    expect(res.text).toContain('next-tricks-list');
+    // spinning-whirl has adds=5 > whirl(3); same family. Must appear.
+    const nextSection = res.text.split('Next Tricks')[1]?.split('Family')[0] ?? '';
+    expect(nextSection).toContain('/freestyle/tricks/spinning-whirl');
+    // ADD pill rendered next to the trick
+    expect(nextSection).toMatch(/class="next-tricks-adds">5 ADD</);
+    // Hashtag identity link in the same row
+    expect(nextSection).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/spinning-whirl"[^>]*>#spinningwhirl</);
+  });
+
+  it('Next Tricks does NOT include lower or equal ADD rows or out-of-family tricks', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    const nextSection = res.text.split('Next Tricks')[1]?.split('Family')[0] ?? '';
+    // The current trick must not appear
+    expect(nextSection).not.toContain('href="/freestyle/tricks/whirl"');
+    // Out-of-family rows (mirage, legover, blurriest) must not appear
+    expect(nextSection).not.toContain('/freestyle/tricks/legover');
+    expect(nextSection).not.toContain('/freestyle/tricks/blurriest');
+  });
+
+  it('Next Tricks section is omitted when current trick has no higher-ADD family peers', async () => {
+    const app = createApp();
+    // 'blurriest' (6 ADD) is the only blurriest-family entry in this fixture
+    const res = await request(app).get('/freestyle/tricks/blurriest');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Next Tricks');
+  });
+});
+
 describe('GET /freestyle/tricks/:slug — Related Tricks section', () => {
   it('renders the Related Tricks section when family peers exist', async () => {
     const app = createApp();
