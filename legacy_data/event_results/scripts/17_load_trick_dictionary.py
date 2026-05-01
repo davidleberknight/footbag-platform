@@ -47,7 +47,7 @@ from pathlib import Path
 
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT = SCRIPT_DIR.parents[3]  # scripts/ → event_results/ → legacy_data/ → repo root
+REPO_ROOT = SCRIPT_DIR.parents[2]  # scripts/ → event_results/ → legacy_data/ → repo root
 TRICKS_CSV = SCRIPT_DIR.parents[1] / "inputs" / "noise" / "tricks.csv"
 MODIFIERS_CSV = SCRIPT_DIR.parents[1] / "inputs" / "noise" / "trick_modifiers.csv"
 ALIASES_CSV = SCRIPT_DIR.parents[1] / "inputs" / "noise" / "trick_aliases.csv"
@@ -322,6 +322,16 @@ def load(db_path: Path, tricks_csv: Path, modifiers_csv: Path, aliases_csv: Path
     conn.execute("PRAGMA foreign_keys = ON")
     try:
         with conn:
+            # Children-first DELETE ordering. load_tricks() and load_modifiers()
+            # do wholesale DELETE FROM their parent tables; the FK-dependent
+            # tables below have no ON DELETE CASCADE, so they must be cleared
+            # before the parents to avoid IntegrityError on a populated DB.
+            # Pattern matches 21_load_footbag_org_pending_tricks.py:159–178.
+            conn.execute("DELETE FROM freestyle_trick_relations")
+            conn.execute("DELETE FROM freestyle_trick_modifier_links")
+            conn.execute("DELETE FROM freestyle_trick_source_links")
+            conn.execute("DELETE FROM freestyle_trick_aliases")
+
             n_tricks, inline_aliases = load_tricks(conn, tricks_csv, loaded_at)
             n_modifiers = load_modifiers(conn, modifiers_csv, loaded_at)
             upsert_curated_v1_source(conn)

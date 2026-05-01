@@ -24,7 +24,7 @@ import urllib.request
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent
-REPO_ROOT  = SCRIPT_DIR.parents[3]
+REPO_ROOT  = SCRIPT_DIR.parents[2]
 TRICKS_CSV = SCRIPT_DIR.parents[1] / "inputs" / "noise" / "tricks.csv"
 OUT_DIR    = SCRIPT_DIR.parents[1] / "out"
 OUT_CSV    = OUT_DIR / "scraped_footbag_moves.csv"
