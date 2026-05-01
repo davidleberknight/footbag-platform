@@ -244,6 +244,21 @@ describe('public dictionary presentation', () => {
     expect(res.text).not.toContain('+ADD (rotational)');
   });
 
+  it('renders a hashtag under each trick name', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="trick-hashtag">#whirl<');
+    expect(res.text).toContain('class="trick-hashtag">#legover<');
+  });
+
+  it('strips hyphens from compound slugs in the family ladder hashtag', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // 'spinning-whirl' is a whirl-family member; hashtag must be #spinningwhirl
+    expect(res.text).toContain('class="trick-hashtag">#spinningwhirl<');
+  });
+
   it('renders the dictionary expansion note', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');

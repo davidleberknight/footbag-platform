@@ -8,6 +8,10 @@ export function trickNameToSlug(name: string): string {
     .replace(/^-|-$/g, '');
 }
 
+export function slugToHashtag(slug: string): string {
+  return '#' + slug.toLowerCase().replace(/-/g, '');
+}
+
 export interface FreestyleRecordViewModel {
   id: string;
   holderName: string;

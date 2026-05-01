@@ -15,6 +15,7 @@ import { shapePartnershipPair } from './playerShaping';
 import {
   FreestyleRecordViewModel,
   shapeFreestyleRecord,
+  slugToHashtag,
   trickNameToSlug,
 } from './freestyleRecordShaping';
 import {
@@ -205,6 +206,7 @@ export interface FreestyleModifierEntry {
 export interface FreestyleTrickIndexRow {
   slug: string;
   canonicalName: string;
+  hashtag: string;              // derived presentation token: '#' + slug with hyphens stripped
   adds: string | null;
   category: string | null;
   description: string | null;
@@ -446,6 +448,7 @@ function shapeTrickIndexRow(row: FreestyleTrickRow, slugsWithRecords: Set<string
   return {
     slug:          row.slug,
     canonicalName: row.canonical_name,
+    hashtag:       slugToHashtag(row.slug),
     adds:          row.adds,
     category:      row.category,
     description:   row.description,

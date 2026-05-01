@@ -48,6 +48,7 @@
             <td class="col-trick">
               <a href="{{detailHref}}">{{canonicalName}}</a>
               {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+              <span class="trick-hashtag">{{hashtag}}</span>
             </td>
             <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
             <td>{{#if description}}{{description}}{{else}}<em class="detail-muted">—</em>{{/if}}</td>
@@ -94,6 +95,7 @@
               <td class="col-trick">
                 <a href="{{detailHref}}">{{canonicalName}}</a>
                 {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+                <span class="trick-hashtag">{{hashtag}}</span>
               </td>
               <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
             </tr>
