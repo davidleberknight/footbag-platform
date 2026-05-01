@@ -255,21 +255,78 @@ When all questions are answered, post a one-sentence summary at the bottom of th
 ### Q1. Why was the no-merge rule introduced?
 What's the original rationale for the strict separation between `freestyle_media_*` and `media_items`? Hard constraint (privacy/compliance/architecture) or convention?
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+The no-merge rule between `freestyle_media_*` and `media_items` is an architectural separation, not just a convention. It exists to preserve two fundamentally different classes of media with different guarantees, lifecycles, and constraints.
+
+**Core rationale (authoritative):**
+
+1. **Reference vs User-Generated Media (hard boundary)**
+   - `freestyle_media_*` = curated, canonical, reference-quality media tied to the historical record (like a textbook)
+   - `media_items` = user-generated content (like a social platform)
+   - These serve different purposes and must not be conflated.
+
+2. **Identity / PII isolation (hard constraint)**
+   - `media_items` includes `uploader_member_id` → subject to deletion, GDPR-style concerns
+   - `freestyle_media_*` has no user ownership, no deletion cascade
+   - Mixing them creates data integrity and compliance risk
+
+3. **Lifecycle differences (hard constraint)**
+   - Curated media: persistent, versioned, editorially controlled
+   - User media: mutable, deletable, moderation-driven
+   - A shared table would force incompatible lifecycle rules
+
+4. **Query correctness and guarantees (hard constraint)**
+   - When querying trick reference media, results must be 100% curated, high-confidence
+   - No filtering logic should be required to exclude user uploads
+   - This is a data contract, not just convenience
+
+5. **Data model specialization (strong design driver)**
+   - `freestyle_media_*` supports:
+     - multi-entity linking (trick, person, event)
+     - clip ranges (start/end timestamps)
+     - per-entity primary designation
+   - These are core features, not extensions
+
+6. **Provenance clarity (design driver)**
+   - Curated media tracks structured sources (DVDs, official tutorials, known channels)
+   - This is different from user uploads and should remain explicit and queryable
+
+7. **Schema stability and evolution (design driver)**
+   - The two systems evolve independently:
+     - curator/reference system → editorial + historical correctness
+     - `media_items` → product features, moderation, UX
+   - Coupling them increases risk and slows both
 
 ---
 
 ### Q2. Confirm `freestyle_media_*` is actively loaded today.
 The grep shows `legacy_data/event_results/scripts/22_load_freestyle_media_assets.py` and the QC scripts under `legacy_data/pipeline/qc/` depend on these tables. Is this still the active path, or are these scripts deprecated?
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+Confirmed active. Loaders `21_load_freestyle_media_sources.py` / `22_load_freestyle_media_assets.py` / `23_load_freestyle_media_links.py` are all wired into `scripts/reset-local-db.sh` and run on every fresh DB rebuild. Curated CSVs at `legacy_data/inputs/curated/media/{media_sources,media_assets,media_links}.csv` are the source of truth. QC at `legacy_data/pipeline/qc/check_media_coverage.py` and `check_snippet_candidates.py` reference these tables. Current DB state: 47 assets / 84 links / 40 active tricks with primary video. Not deprecated.
 
 ---
 
 ### Q3. What's the source mix for `freestyle_media_*` today vs planned?
 Today: which sources populate (DVDs, YouTube, archived web, other)? Planned: what's coming next (more DVD clips, member-contributed snippets, other)?
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+**Today** (sources with assets):
+
+| source_id | source_type | asset count |
+|---|---|---:|
+| `passback_records` | database (YouTube clips of competition records) | 38 |
+| `anz_trikz` | YouTube tutorials (Anssi Sundberg) | 4 |
+| `footbagspot_passback` | website | 3 |
+| `footbagspot_tutorials` | website | 1 |
+| `shred_global` | YouTube | 1 |
+
+Sources registered with zero assets (configured but unused): `tt1`, `tt2`, `everything_footbag`, `polini_pointers`, `footbag_foundations`.
+
+**Planned: open.** Many resources are candidates, including AnzTrikz (more tutorials beyond the four loaded), and hopefully TT1 and TT2 if obtained. At this point the goal is to assemble the best sources, not to commit to a sequence.
 
 ---
 
@@ -282,35 +339,50 @@ The three options are described in detail in §"Three options for resolving the 
 
 Or a different option you'd propose.
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+**Option A.** Reference media should remain a separate curated/canonical subsystem. The platform curator workflow can create and manage broader `media_items`, but it should not replace or absorb `freestyle_media_*`. The bridge should be semantic linking, not table unification.
 
 ---
 
 ### Q5. Are clip ranges (`start_seconds` / `end_seconds`) load-bearing?
 Several sources you load (DVDs, multi-trick segments) need clip-range semantics. If we move toward option B or C, can clip ranges be carried by adding columns to `media_items`, or do they fundamentally need a separate join table?
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+At this point, do not use `start_seconds` / `end_seconds`. Use the entire video clip. The columns stay in the schema (Option A keeps `freestyle_media_links` unchanged), but the curator workflow does not need to populate them right now. Existing populated values may remain; new entries leave them NULL.
 
 ---
 
 ### Q6. Is `is_primary` per (entity_type, entity_id) load-bearing?
 Trick pages need a featured video. The partial UNIQUE index on `freestyle_media_links` enforces this. If we merge layers, where should `is_primary` enforcement live?
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+Yes, load-bearing. Enforcement stays in `freestyle_media_links` via the partial UNIQUE index `uq_freestyle_media_links_primary ON (entity_type, entity_id) WHERE is_primary = 1`. No change needed under Option A; no migration required.
 
 ---
 
 ### Q7. Source provenance: does `freestyle_media_sources` survive any of these options?
 DVD title / channel name / creator metadata is rich. If we keep it (option A or partial C), no problem. If we drop it (option B), where does provenance go?
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+`freestyle_media_sources` survives intact under Option A. The 10 currently-registered sources (`anz_trikz`, `tt1`, `tt2`, `passback_records`, `footbagspot_passback`, `footbagspot_tutorials`, `shred_global`, `everything_footbag`, `polini_pointers`, `footbag_foundations`) and any future entries continue to be the canonical provenance registry for reference media.
 
 ---
 
 ### Q8. Who owns the implementation work for the option you pick?
 Option A: Dave's track only (new `freestyleMediaService` on the platform side; your pipeline unchanged). Option B or C: cross-track work; you rewrite loaders, Dave rewrites the platform side. Either way, what's the right sequence and who blocks whom?
 
-**James's answer**: _<to be filled by James>_
+**James's answer**:
+
+Two-stage workflow under Option A:
+
+1. **Curator-side intake (Dave's track):** I support adding structured curator-side organization such as `curated/freestyle_tricks/`. That is an intake / review / source-management structure, not a requirement to merge storage tables. Dave owns this directory layout, the admin UI for it, and the review process.
+2. **Reference-layer publish (James's track):** Curator-managed freestyle trick media lives in the intake structure first, then publishes into the `freestyle_media_*` reference layer after review. The historical-pipeline maintainer owns the publish step and the loaders that populate `freestyle_media_assets` + `freestyle_media_links`.
+
+Yes to structured curated folders / workflow; no to collapsing `freestyle_media_*` into `media_items`. Dave's curator slice is not blocked by my pipeline; my pipeline is not blocked by his slice. The two systems coexist and exchange media via the intake → publish handoff.
 
 ---
 
@@ -337,3 +409,9 @@ To insert under James's "Active work" or "External blockers" section:
 ## Plan file reference
 
 Full pre-conflict plan: `~/.claude/plans/vast-wishing-tulip.md` (gitignored / per-machine).
+
+---
+
+## James's direction (closing summary, 2026-05-01)
+
+**Option A.** `freestyle_media_*` remains a separate curated/canonical reference subsystem; do not merge into `media_items`. Bridge via semantic linking, not table unification. A curator-side intake structure (e.g. `curated/freestyle_tricks/`) is welcome as a review/source-management layer that publishes into `freestyle_media_*` after review. Clip-range columns stay in schema but new entries leave `start_seconds` / `end_seconds` NULL for now. No follow-ups blocking Dave's curator slice from resuming.
