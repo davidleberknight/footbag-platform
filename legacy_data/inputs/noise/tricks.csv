@@ -15,9 +15,9 @@ butterfly,3,butterfly,compound,,"Compound dex; base for ripwalk, dimwalk, and pa
 swirl,3,swirl,dex,reverse swirl,reverse swirl motion
 osis,3,osis,compound,,Inside-to-outside delay combination.
 eclipse,3,eclipse,compound,catwalk,3-ADD named compound
-eggbeater,3,legover,compound,illusioning legover|egg beater,illusioning legover = 3 ADD
+eggbeater,3,legover,compound,illusioning legover|egg beater,Illusion-modified legover.
 drifter,3,clipper,compound,miraging clipper,Mirage-modified clipper.
-barfly,4,infinity,compound,double infinity|bar fly,double infinity = 4 ADD
+barfly,4,infinity,compound,double infinity|bar fly,Double infinity.
 smear,3,mirage,compound,pixie mirage,Pixie-modified mirage.
 flurry,3,legover,compound,barraging legover,"Three consecutive dexes from a clipper set, finishing on the same toe."
 dimwalk,4,butterfly,compound,pixie butterfly|dim walk,Pixie-modified butterfly.
@@ -35,20 +35,20 @@ symposium whirl,4,whirl,compound,symposium wirl,Symposium-modified whirl.
 ducking whirl,4,whirl,compound,,Ducking-modified whirl.
 stepping whirl,4,whirl,compound,,Stepping-modified whirl.
 paradox whirl,4,whirl,compound,pdx whirl|p-whirl|p. whirl,Paradox-modified whirl.
-paradox drifter,4,drifter,compound,pdx drifter|p. drifter,paradox + drifter = 4 ADD
+paradox drifter,4,drifter,compound,pdx drifter|p. drifter,Paradox-modified drifter.
 paradox mirage,3,mirage,compound,pdx mirage|p. mirage|pdx mirage,Paradox-modified mirage.
-paradox blender,5,blender,compound,pdx blender|p. blender,paradox + blender = 5 ADD
+paradox blender,5,blender,compound,pdx blender|p. blender,Paradox-modified blender.
 paradox torque,5,torque,compound,pdx torque|p torque|p. torque|paradox t,Paradox-modified torque.
 blurry whirl,5,whirl,compound,bw|blurry w,Blurry-modified whirl.
-blurriest,5,barfly,compound,blurry barfly|blurr-iest,blurry barfly = 5 ADD
-fog,5,legover,compound,blurry dlo|blurry dim walk,blurry DLO = 5 ADD
-mobius,5,torque,compound,gyro torque|möbius|moebius,gyro torque = 5 ADD
-fusion,5,dod,compound,atomic dod|atomic down-over-down,atomic DOD = 5 ADD
+blurriest,5,barfly,compound,blurry barfly|blurr-iest,Blurry-modified barfly.
+fog,5,legover,compound,blurry dlo|blurry dim walk,Blurry-modified eggbeater.
+mobius,5,torque,compound,gyro torque|möbius|moebius,Gyro-modified torque.
+fusion,5,dod,compound,atomic dod|atomic down-over-down,Atomic-modified down-over-down.
 tomahawk,5,whirl,compound,ducking paradox whirl,Ducking-modified paradox whirl.
-superfly,5,barfly,compound,super fly|symposium barfly|superfly,symposium barfly = 5 ADD
+superfly,5,barfly,compound,super fly|symposium barfly|superfly,Symposium-modified barfly.
 spinning whirl,5,whirl,compound,,Spinning-modified whirl.
 paradox symposium whirl,5,whirl,compound,ps whirl|pdx symposium whirl,Paradox-modified symposium whirl.
-food processor,6,blender,compound,blurry blender|foot processor,blurry blender = 6 ADD
+food processor,6,blender,compound,blurry blender|foot processor,Blurry-modified blender.
 blurry torque,6,torque,compound,,Blurry-modified torque.
 atomic torque,6,torque,compound,silo,Atomic-modified torque.
 spinning torque,6,torque,compound,marius,Spinning-modified torque.
