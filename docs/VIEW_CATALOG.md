@@ -505,7 +505,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /freestyle/about` | Freestyle about | Freestyle discipline overview | Current |
 | `GET /freestyle/moves` | Freestyle moves | Freestyle moves reference | Current |
 | `GET /freestyle/tricks` | Freestyle tricks index | Trick dictionary browse, all tricks with optional record counts | Current |
-| `GET /freestyle/tricks/:slug` | Freestyle trick detail | Detail page for a single freestyle trick | Current |
+| `GET /freestyle/tricks/:slug` | Freestyle trick detail | Detail page for a single freestyle trick: dictionary entry, ADD composition, family ladder, related/previous/next tricks, passback records, and a gallery of curator-tagged reference videos. Browser-tab title format `Footbag Trick #{slug}`. | Current |
 | `GET /freestyle/competition` | Freestyle competition | Results-derived competition analytics: top competitors, eras, recent events | Current |
 | `GET /freestyle/partnerships` | Freestyle partnerships | Doubles partnerships extracted from competition results | Current |
 | `GET /freestyle/history` | Freestyle history | Editorial history + pioneers + eras (static curated content) | Current |

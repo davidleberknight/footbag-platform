@@ -1,417 +1,242 @@
 # CURATED_MEDIA_PLAN.md
 
-Status: **PAUSED**. Cross-track decision needed with the legacy-data maintainer (James) before implementation can resume.
+**Active direction (locked 2026-05-02): unify freestyle reference media into the `media_items` family.**
 
-This document is the full handoff: origin context, the design as agreed, the schema-rule conflict that surfaced, analysis of why the rule exists, the three options with pros/cons, and the questions James needs to answer. Once James answers, the platform maintainer (Dave) decides direction and resumes implementation.
+This doc is the curator media unification plan. It is self-contained: read top to bottom and you have everything needed.
 
----
+**Operating model (locked 2026-05-02):**
+
+- James owns slice 2 end to end. Concrete task list under §"Items for James".
+- Both maintainers commit directly to `main`. No feature branches, no separate PR, no atomic cross-track merge.
+- No coordination required. The end-state design in this doc (schema, sidecars, tag rules, column mapping) is the contract; James executes against it.
+- Dave's slice-2 role is empty. Dave's next active work is slice 3 (trick page gallery rendering); see root `IMPLEMENTATION_PLAN.md`.
 
 ## How to read this doc
 
-- **If you're Dave or his Claude resuming this work**: read top to bottom; the answers James provides at §"Questions for James" determine which option moves forward.
-- **If you're James or his Claude (directed here from a todo in `legacy_data/IMPLEMENTATION_PLAN.md`)**: skip to §"For James's Claude" then §"Questions for James". Ask one question per turn. Capture answers inline (commit them back to this file). Do not make schema or code decisions; just gather James's answers + rationale.
+- **If you're James or his Claude (directed here from `legacy_data/IMPLEMENTATION_PLAN.md`)**: read top to bottom. End-state design + concrete task list are in §"Items for James". Execute against the contract; no permission needed.
+- **If you're Dave or his Claude**: this is the design James is building against. Dave's slice-2 role is empty; next active work is slice 3 (see root `IMPLEMENTATION_PLAN.md`).
 
 ---
 
-## Origin
+## Design rationale
 
-The platform-side maintainer is implementing `A_Upload_Curated_Media` (US §6.3) before go-live. The current admin panel at `/admin/curator/upload` ships only photo + video upload that lands in the `media_items` table (the member-uploaded gallery layer). Missing: list, edit, delete, a unified storage chain, a sustainable sync strategy, an opt-in deploy flag, per-trick tag identity, named galleries, and uploader-as-tag unification.
+The canonical platform documentation describes ONE unified media architecture: `media_items` + `media_tags` + `member_galleries` + `#curated` + system-member uploader account (DD §2.6 Hashtags and Media, DD §2.8 System Member Account, USER_STORIES §A_Upload_Curated_Media, DATA_MODEL §4.17). There is no documented sibling subsystem for curated reference media. The unification work folds `freestyle_media_*` into this canonical architecture, eliminating the parallel system.
 
-Dave's vision: one unified admin curator workflow handling upload + edit + delete + sync; `/curated/` is a git-tracked tree of source files plus per-file sidecar metadata; James and Dave both contribute snippets to `/curated/` via git; the maintainer deploys; deploy-time seed pass propagates to S3 via per-file PUT; never bulk re-upload.
+Why this works cleanly:
 
-Approved design lives in `~/.claude/plans/vast-wishing-tulip.md`. It is reproduced in §"Approved design" below for self-contained handoff.
+1. **`media_items` already supports the use case natively.** `video_platform IN ('youtube','vimeo','s3')` + `video_id`, `video_url`, `thumbnail_url` covers James's YouTube and Vimeo assets with three new columns (`source_id`, `start_seconds`, `end_seconds`). Curator reference media is restricted to YouTube and Vimeo embeds (plus admin-uploaded MP4s on S3); non-embed external URLs are not supported, so any of James's assets pointing at footbagspot, footbagfoundations, or other non-YouTube/Vimeo URLs are excluded from migration.
+2. **Privacy / lifecycle / query-correctness concerns are addressed by the system-member uploader account.** `media_items` rows attributed to system-member have no real-person PII subject to GDPR purge, no member-flag moderation pipeline, no member-controlled deletion. Curator content remains a distinct logical layer; it just lives in the same physical tables as member content, distinguished by uploader and the `#curated` tag.
+3. **Provenance survives.** `freestyle_media_sources` becomes `media_sources` (renamed, same columns, same data). DVD title / channel name / creator metadata stays structured and queryable.
+4. **Existing-code dependency footprint is small.** Only TWO files in `legacy_data/` outside the loaders depend on `freestyle_media_*` (verified by grep): `pipeline/qc/check_media_coverage.py` and `pipeline/qc/check_snippet_candidates.py`.
 
----
+### Stability commitments
 
-## Decisions made so far
+- **Trick names are stable.** No trick rename mechanism exists; a trick's slug at creation is its canonical identity for life (parallel to member slug stability). This is the foundation that makes hashtag-based gallery coupling safe without an FK or rename cascade. Reword/synonym handling lives in `freestyle_trick_aliases`.
+- **Gallery ordering: chronological for v1.** The trick page reference video gallery renders curator-tagged videos by `media_items.uploaded_at DESC`. A curator pin / featured marker is deferred to a future slice.
 
-1. **`/curated/` is git-tracked** at the repo root. Sidecar `.meta.json` per source file (sibling in the same directory) holds tags + caption + per-file metadata. Atomic per-file commits; no merge conflicts when contributors add files in parallel.
-2. **Per-file sidecar format chosen over a single manifest** because of the multi-contributor parallel-add workflow (James adds many snippets; manifest would conflict).
-3. **Videos are short snippets** (long-form goes to YouTube/Vimeo). No git-LFS needed.
-4. **Admin UI scope (option A from earlier discussion)**: local-dev runs upload + edit + delete; prod admin UI runs only edit + delete. Upload action writes file + sidecar to local `/curated/`; contributor commits both. Prod's only durable home for curated content is git.
-5. **`#curated` is admin-only and equals the FH/admin uploader marker.** Auto-applied by `curatorMediaService` for every admin upload. Rejected as input from any non-system uploader. Two enforcement points (auto-add + reject).
-6. **Tag namespace rules per US §1.1 line 245**: only `#event_*` and `#club_*` use the strict namespaced format. Members use bare slug as tag (`#david_leberknight`). Tricks use bare slug (`#ripwalk`). This is THE existing rule, not new.
-7. **Per-trick identity**: each freestyle dictionary entry gets a canonical `hashtag` field equal to its bare slug. Pipeline validates: tricklike sidecar tags matching a known dictionary slug auto-link; tricklike tags not in the dictionary emit a warning but do not abort.
-8. **Standard tag stack for trick videos**: sidecar `tags` carries `#freestyle #trick #ripwalk`; pipeline auto-prepends `#curated`; final `media_tags` row set: `#curated #freestyle #trick #ripwalk`.
-9. **Named galleries**: bookmarkable URLs at `/galleries/{slug}`. Implemented as a `galleries` table + `galleries_media` bridge for explicit ordering. NOT a tag namespace. Distinct from tag-collection galleries.
-10. **Filename-referenced slots**: hardcoded landing-page slots reference media by `source_filename` (column already in `media_items`).
-11. **Uploader as tag unification**: `#curated` IS the uploader filter for FH content. When member uploads exist later, they auto-apply `#{member_slug}` per the bare-slug rule. One query path for all gallery types.
-12. **Deploy: opt-in `--with-curated` flag**. Without it, S3 media and `media_items` rows are untouched. With it, `/curated/***` is rsynced and `curatorSeedService.reconcile()` runs on the host (per-file PUT for diffs, or full upload after S3 wipe). The existing `aws s3 sync RELEASE_DIR/data/media/ → s3://` block (lines 298-310 of `scripts/internal/deploy-rebuild-remote.sh`) is removed unconditionally; the workstation `python scripts/seed_curator_media.py` is no longer invoked before deploy. Composes with all existing flags (`--code-only`, `--with-db`, `--from-csv`, `--keep-media`, etc.).
-13. **Edit semantics**: caption + tags edits are pure DB writes + sidecar JSON rewrite; no S3 traffic, no re-encode. File replacement = delete-old + upload-new (content-hashed `media_id` makes in-place replacement meaningless).
-14. **Delete semantics**: hard delete; cascades DB rows + S3 variant keys + (on prod) emits a `git rm` snippet for the operator. Audit row written. No soft delete for curator content (soft delete is for the separate member-moderation flow).
-15. **Inheritance from prior plans**: inherits `~/.claude/plans/snappy-wondering-trinket.md` (canonical admin-upload + bootstrap design, ratified, partially executed). Adopts the `media_items.source_filename` column from `~/.claude/plans/lazy-soaring-emerson.md` (column already in schema). Supersedes that plan's directory-relocation half (`/curated/` stays at repo root).
+### Tag namespace
 
----
+Curator hashtags for domain entities follow these rules (DD §2.6):
 
-## Approved design
+- **Tricks**: freeform tag = trick slug (e.g. `#ripwalk`). Uniqueness inherited from `freestyle_tricks.slug PRIMARY KEY`; no-rename per the stability commitment above. Stored as `tags.is_standard=0`.
+- **Persons**: freeform tag = member slug. Reuses the existing member slug namespace; no new identifier.
+- **Records**: no record hashtag namespace. Record-attributed media is reachable via its parent trick's gallery (every record is bound to a trick). The slice-2 migration script derives the parent trick's tag for any asset whose only domain link is `entity_type='record'`. No `#rec_*` tags are materialized.
+- **Events / Clubs**: standardized hashtags (`tags.is_standard=1`, `tags.standard_type IN ('event','club')`); existing convention from §2.6, unchanged.
 
-(Verbatim from `~/.claude/plans/vast-wishing-tulip.md` for self-contained handoff. The plan file remains the single source of truth; this section is a snapshot for cross-session readability.)
+`tags.standard_type` is not widened; trick and person hashtags remain freeform and rely on upstream entity-table uniqueness.
 
-### Storage chain
+### Trick alias canonicalization
+
+Trick aliases (`freestyle_trick_aliases`, e.g. `barraging paradox mirage` → `fury`) canonicalize to the parent trick's slug at write time on every curator path:
+
+- Slice-2 migration script: looks up each alias-shaped tag in `freestyle_trick_aliases` and rewrites to the canonical slug before generating the sidecar `tags` array.
+- Slice-2 curator seeder: applies the same lookup when reading sidecars and writing `media_tags` rows.
+- Slice-4 admin UI: applies the same lookup on user-typed input. Tag autocomplete is sourced from `freestyle_tricks.slug` only; aliases are not autocomplete candidates.
+
+`tags` and `media_tags` contain canonical slugs only; the trick gallery query stays canonical-only with no JOIN against `freestyle_trick_aliases`. Read-side handling for `/tags/{alias}` URLs is a 301 redirect to `/tags/{canonical-slug}`, scoped to its own slice.
+
+### Final database schema (3 tables for media; no legacy, no parallel state)
+
+After slice 2 lands, the schema has zero `freestyle_media_*` references. End state:
+
+- **`media_items`** (existing, lightly extended). One row per asset. Curator content has `uploader_member_id = system_member_id`. Additions:
+  - `source_id TEXT NULL REFERENCES media_sources(source_id)`: provenance attribution.
+  - `start_seconds INTEGER NULL`: optional clip start.
+  - `end_seconds INTEGER NULL`: optional clip end.
+  - `video_platform` CHECK is unchanged: `('youtube','vimeo','s3')`. Curator reference media must be YouTube or Vimeo embeds, or admin-uploaded MP4s on S3.
+- **`media_sources`** (new; renamed from `freestyle_media_sources`). Provenance lookup with identical columns: `source_id` (PK), `source_name`, `source_type`, `url`, `creator`. The 10 existing rows copy directly. James's source registry is preserved unchanged.
+- **`media_tags`** (existing, unchanged). All entity association is tag-driven. An asset tagged `#freestyle #trick #ripwalk` is associated with the ripwalk trick. An asset tagged `#rec_2018_dlc_ripwalk_64` is associated with that record. No bridge table. No primary marker.
+
+Tables that vanish completely:
+
+- `freestyle_media_assets` (folded into `media_items`).
+- `freestyle_media_links` (replaced by tags. Multi-entity linkage via the asset having multiple tags. No "primary" concept; trick pages render a gallery of all matching curator-tagged videos).
+- `freestyle_media_sources` (renamed to `media_sources`; data copies over).
+
+### Filesystem layout: `/curated/{category}/{file}` (5 categories)
 
 ```
-admin uploads via /admin/curator/upload (local dev)  OR  git commit /curated/{file} + {file}.meta.json
-   │
-   ▼
-/curated/{slug}.{ext}   +   /curated/{slug}.meta.json   ← git-tracked source of truth
-   │
-   ▼ (re-encoded by curatorSeedService.reconcile() on host during --with-curated deploy)
-data/media/{system_member_id}/detached/   ← derived variants (thumb, display, video, poster)
-   │
-   ▼ (per-file PUT via MediaStorageAdapter)
-S3 + CloudFront                          ← served at /media/{key}, immutable cache
-   │
-DB: media_items + media_tags              ← metadata cache (sidecar is authoritative)
+/curated/
+  freestyle_tricks/    ← all of James's 47 assets (record-clips + trick-tutorials together)
+                       ← future curator-uploaded trick reference content
+  demos/               ← landing-page demo loops
+    demo-freestyle.mp4              ← moved from /curated/demo-freestyle.mp4
+    demo-freestyle.meta.json        ← new sidecar
+    demo-freestyle.poster.jpg       ← moved from /curated/demo-freestyle-poster.jpg
+    demo-net.mp4                    ← moved from /curated/demo-net.mp4
+    demo-net.meta.json              ← new sidecar
+    demo-net.poster.jpg             ← moved from /curated/demo-net-poster.jpg
+  promos/              ← promotional content for upcoming events / featured items
+    japan-worlds-2026.jpg           ← moved from /curated/japan-worlds-2026.jpg
+    japan-worlds-2026.meta.json     ← new sidecar
+  heros/               ← Footbag Heroes content (placeholder for upcoming /footbag-heroes slice)
+  admin/               ← system-account avatars, mascots, admin-only assets
+    fh-avatar.jpg                   ← moved from /curated/fh-avatar.jpg
+    fh-avatar.meta.json             ← new sidecar
 ```
 
-### Sidecar `.meta.json` schema
+Other categories (`tutorials/`, `events/`, `persons/`, `clubs/`, `news/`) are NOT pre-created. The admin panel creates them on demand when the curator first uploads to a new category. Filesystem-driven; any subdir under `/curated/` is a valid category. No code-side whitelist.
+
+### Sidecar schema (`.meta.json`)
+
+Each entry in `/curated/{category}/` has a `.meta.json` sidecar carrying its metadata. For URL-reference entries (no source binary), `videoUrl` and `videoPlatform` are populated. For file-backed entries (binary present alongside sidecar), the sidecar describes the binary.
 
 ```json
 {
-  "caption": "Ripwalk single-leg setup, slow motion",
-  "tags": ["#freestyle", "#trick", "#ripwalk"],
-  "isAvatar": false,
-  "poster": "ripwalk.poster.jpg"
+  "videoUrl": "https://youtu.be/aYV562tQDBM?t=360",
+  "videoPlatform": "youtube",
+  "title": "Ripwalk demo, ANZ Trikz",
+  "creator": "Anssi Sundberg",
+  "caption": "Single-leg ripwalk setup, slow motion",
+  "sourceId": "anz_trikz",
+  "tags": ["#freestyle", "#trick", "#ripwalk", "#demo"],
+  "startSeconds": 12,
+  "endSeconds": 24
 }
 ```
 
-`#curated` is auto-applied by the pipeline; never hand-written. `poster` is optional (video only). `isAvatar` (optional, defaults false) marks images that should also update `members.avatar_media_id` for the curator system account.
+`#curated` is auto-prepended by the seeder; never hand-written. Rejected from input. Per-category default tag stacks also auto-applied:
 
-### Unified processing pipeline
+- `freestyle_tricks/` → `#curated #freestyle #trick` plus admin-selected trick-slug.
+- `demos/` → `#curated #demo` plus section tag (`#freestyle` / `#net`).
+- `promos/` → `#curated #promo` plus admin-selected tags.
+- `heros/` → `#curated #hero` plus admin-selected tags.
+- `admin/` → `#curated #admin` plus admin-selected tags.
+- New on-demand category `{name}/` → `#curated #{name}` plus admin-selected tags.
 
-One pipeline used by every entry path (deploy seed, local-dev admin UI upload, prod admin UI edit/delete). Implemented in `curatorMediaService` so all paths share validation, scrubbing, transcode parameters, and DB write semantics:
+### Migration of James's existing 47 assets
 
-1. Resolve sidecar; validate schema.
-2. Compute `media_id` as content-hash of source bytes plus deterministic slug seed.
-3. Detect format; reject non-whitelisted formats early.
-4. Re-encode + strip metadata via existing `imageProcessor.processPhoto()` / `transcodeCuratorVideo()`.
-5. Write variants via `MediaStorageAdapter.put()`.
-6. Compute canonical tag set (sidecar tags + `#curated` auto-applied).
-7. Reject `#curated` from non-system entry paths.
-8. Validate trick tags against freestyle dictionary; warn (not abort) on tricklike-but-unknown.
-9. Insert/upsert `media_items` row (key on `media_id`); insert/replace `media_tags` rows.
-10. Append audit row.
+One-time conversion script `scripts/migrate-freestyle-media-to-curated.ts` (or `.py`). Whoever picks up the task runs it and commits the output to `main`; James may run it himself if useful for his unblock.
 
-Idempotency: re-running against unchanged `/curated/` produces zero DB writes and zero S3 PUTs.
+1. Reads `legacy_data/inputs/curated/media/{media_sources,media_assets,media_links}.csv` (the existing source-of-truth CSVs).
+2. For each asset, generates `/curated/freestyle_tricks/{slug-or-asset-id}.meta.json` with all fields populated from the CSV row(s). Assets whose URLs are not YouTube or Vimeo embeds (e.g. footbagspot, footbagfoundations) are skipped; the script reports them in a warning summary. James decides whether to re-host as YouTube/Vimeo or drop.
+3. Tag derivation: link rows produce entity tags. `entity_type='trick'` → `#freestyle #trick #{slug}`. `entity_type='person'` → bare-slug person tag. `entity_type='event'` → `#event_{id}`. `entity_type='record'` derives the parent trick's tag (via `freestyle_records.trick_name → freestyle_tricks.slug`) when the asset has no other trick link, so every asset is reachable via its trick's gallery. No `#rec_*` tags materialize. Deduplicated and sorted.
+4. Author commits the generated sidecars to `main`. James decides what to do with the non-YouTube/Vimeo skip rows (re-host on YouTube/Vimeo, or drop) before the legacy CSVs are deleted.
+5. The migration script is then deleted (one-time job).
+6. The legacy CSVs at `legacy_data/inputs/curated/media/*.csv` are deleted.
+7. `legacy_data/event_results/scripts/21_load_freestyle_media_sources.py`, `22_load_freestyle_media_assets.py`, `23_load_freestyle_media_links.py` are deleted.
+8. `scripts/reset-local-db.sh` edited to remove the three loader entries. The curator seeder (extended in slice 2) replaces them.
 
-### Admin UI actions
+End state: James's 47 assets live in `media_items` + `media_tags` + `media_sources`, owned by the system-member account, all tagged `#curated #freestyle #trick #{slug}` plus their record/person/event tags. Trick pages render a gallery of all curator-tagged videos for each trick.
 
-`/admin/curator/` (gated by `requireAdmin`):
+### `A_Upload_Curated_Media` user story expansion
 
-1. **List** at `/admin/curator/media`. Paginated; thumbnail + filename + caption + tag chips + edit/delete actions; filter by tag.
-2. **Upload** at `/admin/curator/upload`. Local-dev only; returns 404 on prod. Surfaces dictionary-backed autocomplete chips for trick tags.
-3. **Edit** at `/admin/curator/media/:id/edit`. Caption + tags only. Writes sidecar + DB. Available on local-dev and prod.
-4. **Delete** at `/admin/curator/media/:id/delete`. Hard delete; cascades DB + S3; emits `git rm` snippet on prod.
+Per maintainer direction, this user story in `docs/USER_STORIES.md` is expanded into ONE collapsed US covering the full curator lifecycle:
 
-### Deploy flag
+- **Upload**: admin uploads file (MP4 / image) or URL reference to a category.
+- **Edit**: admin edits caption, tags, clip range, source attribution.
+- **Delete**: admin hard-deletes a curated item.
+- **Category creation**: admin enters a new category name during upload; seeder creates `/curated/{name}/` on next deploy.
+- **Tag autocomplete and validation**: per-category. `freestyle_tricks/` autocompletes trick-slug from `freestyle_tricks.slug`; warn-but-don't-abort on unknown slugs. Auto-applies `#curated` and category-default tags. Rejects `#curated` from input.
 
-`--with-curated` opt-in. See §"Decisions made so far" item 12.
-
-### Behavior matrix
-
-| Invocation | Rsync /curated? | Seed pass? | S3 touch? | DB rebuild? |
-|---|---|---|---|---|
-| `--code-only` | No | No | None | No |
-| `--code-only --with-curated` | Yes | Yes | Per-file PUT for diffs | No |
-| (default = `--with-db --from-csv`) | No | No | None | Yes |
-| `--with-db --with-curated` | Yes | Yes | Per-file PUT (or full upload after wipe) | Yes |
-| `--with-db --keep-media` | No | No | None | Yes |
-| `--with-db --keep-media --with-curated` | Yes | Yes | Per-file PUT for diffs | Yes |
-
-### Galleries
-
-Three query patterns:
-
-1. **Tag-collection** (existing `media_tags` index): event/club/trick/uploader filters.
-2. **Named** (new `galleries` + `galleries_media` bridge tables): bookmarkable `/galleries/{slug}` with explicit ordering.
-3. **Filename-referenced** (existing `media_items.source_filename`): hardcoded landing-page slots like the home hero.
+The admin UI extensions for this expanded scope land in slice 4. Slices 2 and 3 still ship with the existing admin curator UI; the new category-aware flows come later.
 
 ---
 
-## The new problem: schema's "no merge" layer-separation rule
+## Items for James
 
-`database/schema.sql` lines 3473-3493 declares a separate table family for curated freestyle reference media:
+James owns slice 2 end to end. Full task list:
 
-- `freestyle_media_sources` — registry of provenance (DVD, website, YouTube channel, creator)
-- `freestyle_media_assets` — one row per documented media asset (video/image, url, title, creator, source_id, review_status, is_active)
-- `freestyle_media_links` — many-to-many edges (entity_type ∈ {trick, person, event, record}, entity_id, start_seconds, end_seconds, is_primary)
+1. **Schema rewrite in `database/schema.sql`.**
+   - Drop tables: `freestyle_media_assets`, `freestyle_media_links`, `freestyle_media_sources`.
+   - Add `media_sources` (renamed from `freestyle_media_sources`, identical columns: `source_id` PK, `source_name`, `source_type`, `url`, `creator`).
+   - Extend `media_items` with: `source_id TEXT NULL REFERENCES media_sources(source_id)`, `start_seconds INTEGER NULL`, `end_seconds INTEGER NULL`.
+2. **Migration script `scripts/migrate-freestyle-media-to-curated.ts` (or `.py`).** Per §"Migration of James's existing 47 assets" above. Reads legacy CSVs; generates `/curated/freestyle_tricks/*.meta.json` sidecars; applies trick-alias canonicalization at write time; surfaces the 5 footbagspot.com skip rows in a warning summary. Run it; commit the 47 sidecars.
+3. **Decide on the 5 footbagspot.com skip rows** (re-host on YouTube/Vimeo, or drop). Decision is yours.
+4. **Extend the curator seeder** to load `/curated/freestyle_tricks/*.meta.json` into `media_items` + `media_tags` + `media_sources`. Apply trick-alias canonicalization at write time per §"Trick alias canonicalization".
+5. **Delete legacy artifacts:**
+   - `legacy_data/event_results/scripts/21_load_freestyle_media_sources.py`
+   - `legacy_data/event_results/scripts/22_load_freestyle_media_assets.py`
+   - `legacy_data/event_results/scripts/23_load_freestyle_media_links.py`
+   - `legacy_data/inputs/curated/media/{media_sources,media_assets,media_links}.csv`
+   - `scripts/migrate-freestyle-media-to-curated.ts` (after migration completes; one-time job).
+6. **Edit `scripts/reset-local-db.sh`:** remove the three loader entries (21/22/23).
+7. **Retarget the 2 QC scripts** per the column mapping below:
+   - `legacy_data/pipeline/qc/check_media_coverage.py`
+   - `legacy_data/pipeline/qc/check_snippet_candidates.py`
 
-The schema comment is unambiguous: **"Curated media assets. NOT a substitute for media_items (member-uploaded). The two systems must never be merged; see GOVERNANCE on layer separation."**
+### Workflow
 
-Per `database/CLAUDE.md`: schema.sql is authoritative; do not invent or override relationships.
+- Commit directly to `main`. No branches, no separate PR, no coordination required.
+- Order is yours; complete the list before slice 3 starts (Dave's UI work depends on the new schema being live).
+- The QC column mapping below is mechanical; new QC vocabulary is open for you to define.
 
-The plan as approved would write trick reference videos like `ripwalk.mp4` into `media_items` with tags `#curated #freestyle #trick #ripwalk`. That violates the rule.
+### James QC retargeting, column mapping
 
-### Confirmed state of `freestyle_media_*` (not just planned)
+| Old | New |
+|---|---|
+| `SELECT source_id FROM freestyle_media_sources` | `SELECT source_id FROM media_sources` |
+| `SELECT * FROM freestyle_media_assets` | `SELECT * FROM media_items WHERE uploader_member_id = <system-member-id>` |
+| `SELECT * FROM freestyle_media_assets WHERE is_active = 1` | `SELECT * FROM media_items WHERE uploader_member_id = <system-member-id> AND moderation_status = 'active'` |
+| `SELECT * FROM freestyle_media_links WHERE entity_type='trick'` | tag query: assets tagged `#trick` AND `#curated` |
+| `SELECT * FROM freestyle_media_links WHERE entity_type='record'` | record-coverage QC must join records to their parent trick (`freestyle_records.trick_name → freestyle_tricks.slug`) and query for trick-tagged curator media; no `#rec_*` tags exist in the new schema |
+| `SELECT * FROM freestyle_media_links WHERE entity_type='person'` | tag query: assets tagged with bare-slug person tag AND `#curated` |
+| `SELECT * FROM freestyle_media_links WHERE entity_type='event'` | tag query: assets tagged `#event_*` AND `#curated` |
+| `SELECT * FROM freestyle_media_assets a LEFT JOIN freestyle_media_links l ON l.media_id = a.id` | `SELECT * FROM media_items mi JOIN media_tags mt ON mt.media_id = mi.id WHERE mi.uploader_member_id = <system-member-id>` |
 
-Despite the schema comment saying "Loaders (planned)", these tables ARE actively loaded today by the legacy-data pipeline:
+Column equivalences (per-row):
 
-- `legacy_data/event_results/scripts/22_load_freestyle_media_assets.py` — loads assets + links
-- `legacy_data/pipeline/qc/check_media_coverage.py` — QC over `freestyle_media_assets`, `freestyle_media_links`, `freestyle_media_sources`
-- `legacy_data/pipeline/qc/check_snippet_candidates.py` — references `freestyle_media_sources` for slug + source_id validation
+- `freestyle_media_assets.id` = `media_items.id`
+- `freestyle_media_assets.media_type` = `media_items.media_type`
+- `freestyle_media_assets.url` = `media_items.video_url`
+- `freestyle_media_assets.title` = `media_items.caption` (closest existing column; `caption` carries the human-readable description)
+- `freestyle_media_assets.creator` = no direct column. For sourced content, use `media_sources.creator` via join on `source_id`
+- `freestyle_media_assets.source_id` = `media_items.source_id`
+- `freestyle_media_assets.review_status` = no equivalent. Curator content is curated by definition; QC for review_status is dropped
+- `freestyle_media_assets.is_active` = `media_items.moderation_status = 'active'`
+- `freestyle_media_links.start_seconds` / `end_seconds` = `media_items.start_seconds` / `end_seconds`
+- `freestyle_media_links.is_primary` = no equivalent (gallery model; QC for is_primary is dropped or replaced by "at-least-one-curator-tagged-video-per-trick" semantic)
 
-So the schema's `(planned)` comment is stale; the system is real and load-bearing for the historical pipeline. James's track depends on it.
+QC vocabulary may need slight rewording (e.g. "tricks with primary video" becomes "tricks with at least one curator-tagged video"). The column mapping is mechanical; the new QC vocabulary is open for you to define.
 
----
+### Note on existing data
 
-## Why does the no-merge rule exist?
+Of 49 rows in `legacy_data/inputs/curated/media/media_assets.csv`, 5 reference non-YouTube/Vimeo URLs (all footbagspot.com tutorials). Curator reference media is restricted to YouTube/Vimeo embeds plus admin-uploaded MP4s; the migration script skips those rows and reports a warning summary. James decides what to do with them (re-host on YouTube/Vimeo, or drop).
 
-The schema doesn't spell out the rationale (the GOVERNANCE pointer in the schema comment did not return matches in `docs/GOVERNANCE.md` on grep). Best inferences from schema shape and pipeline use:
+### Impact on James's existing code
 
-1. **Provenance richness**. `freestyle_media_sources` (DVD title, channel name, creator, source_type) captures reference-archive provenance that doesn't apply to member uploads. Mixing them would force `NULL`-heavy provenance columns on every `media_items` row.
+After slice 2 lands on `main`:
 
-2. **Multi-entity linkage with clip ranges**. `freestyle_media_links` supports one asset linked to many entities (a TT1 DVD clip referenced by a trick + a record + a person at specific timestamps). `media_items` has no equivalent: one media item belongs to one uploader and gets aggregated via tags, with no native clip-range or multi-entity-with-time-windows semantics.
+- `legacy_data/event_results/scripts/21_load_freestyle_media_sources.py`: **deleted** (curator seeder writes `media_sources`).
+- `legacy_data/event_results/scripts/22_load_freestyle_media_assets.py`: **deleted**.
+- `legacy_data/event_results/scripts/23_load_freestyle_media_links.py`: **deleted**.
+- `legacy_data/inputs/curated/media/{media_sources,media_assets,media_links}.csv`: **deleted** (data migrates into `/curated/freestyle_tricks/` sidecars; sidecars are the new source of truth).
+- `legacy_data/pipeline/qc/check_media_coverage.py`: **edited** (column retargeting per mapping above).
+- `legacy_data/pipeline/qc/check_snippet_candidates.py`: **edited** (column retargeting).
+- `scripts/reset-local-db.sh`: **edited** to remove the three loader entries.
+- `database/schema.sql`: **edited** (drop `freestyle_media_*`, add `media_sources`, extend `media_items` with `source_id` / `start_seconds` / `end_seconds`).
 
-3. **`is_primary` per entity**. Trick pages need a featured video; `freestyle_media_links` has a partial UNIQUE index enforcing at most one primary per (entity_type, entity_id). `media_items` + tags has no equivalent enforcement.
-
-4. **Privacy boundary**. `media_items` rows reference `uploader_member_id` (PII; subject to GDPR purge on member deletion). Curated reference media has no individual uploader from the public site's perspective; it shouldn't share a column whose semantics include member-PII purge cascades.
-
-5. **Moderation pipeline**. Member uploads use `moderation_status` + `moderation_reason` + member-flag rate limits. Curated reference media is admin-curated by definition; doesn't need that pipeline. Mixing them would mean every reference asset carries unused moderation columns and gets exposed to member-flag handling code.
-
-6. **Lifecycle differences**. Member uploads can be deleted by the uploader at any time. Curated reference is permanent unless explicitly retired (`is_active = 0`). Mixing them risks one falling under the other's deletion rules.
-
-7. **Schema evolution stability**. Changes to the member-upload model (e.g. adding tier-gated upload limits) shouldn't ripple through reference-media loaders. Vice versa.
-
-8. **Query clarity**. When joining trick → reference media, you know the result set is curated only. When listing a member's gallery, no reference content leaks in. Mixing requires a discriminator everywhere or risks subtle bugs.
-
-The rule is defensible. Probably introduced specifically to keep the historical pipeline (which feeds DVD-era archival material) cleanly separated from the user-generated content layer.
-
----
-
-## Three options for resolving the conflict
-
-### A. Honor the layer separation. Two parallel admin upload paths.
-
-- General curated content (FH avatar, banners, demos that aren't trick-specific) continues to land in `media_items` via the existing `curatorMediaService`.
-- Trick reference media (the `ripwalk.mp4` case) lands in `freestyle_media_assets` + `freestyle_media_links` via a new `freestyleMediaService`.
-- Admin dashboard exposes two upload paths (or one upload form with a `mediaKind` selector that routes).
-- `/curated/` tree gets sub-routing or a `mediaKind` field in the sidecar that determines which table the seed pass writes to.
-
-**Pros**: schema rule preserved; James's pipeline continues unchanged; provenance + clip-range + is_primary + moderation semantics all stay where they belong; clear separation of concerns.
-
-**Cons**: contradicts Dave's "unified curator workflow" intent; two admin UI surfaces (more code); operator has to think about which kind they're uploading; per-file sidecar grows a `mediaKind` field; `freestyle_media_assets.url` mismatches the local `/curated/` filesystem source-of-truth model unless we resolve how URLs and local files relate.
-
-### B. Drop `freestyle_media_*`. Route everything through `media_items` + tags.
-
-- `freestyle_media_assets` is dropped from schema.
-- `freestyle_media_links` is either dropped or rewritten (`media_id` retargets to `media_items.id`; or replaced entirely by tag-based linkage).
-- `freestyle_media_sources` is either dropped or kept as a provenance-only reference table.
-- All curated content lives in `media_items`; trick linkage is via `media_tags` + tag-query.
-
-**Pros**: simplest, matches Dave's unified vision; one storage layer; one admin UI; one pipeline.
-
-**Cons**: BREAKS James's pipeline (`load_freestyle_media_assets.py` and the QC scripts depend on these tables); loses clip-range semantics (`start_seconds`/`end_seconds`) — tag-based linkage cannot express "this 10-second segment of this video belongs to this trick"; loses `is_primary` enforcement; loses provenance richness; significant doc-sync (DD, GOVERNANCE, DATA_MODEL); requires James's full agreement and his pipeline's rewrite.
-
-### C. Hybrid: `media_items` for storage; `freestyle_media_links` retargeted as the trick-membership join.
-
-- Curated source files + variants live in `media_items` (one storage chain, one admin UI for upload/edit/delete; matches Dave's vision).
-- When a media item carries a trick tag matching a dictionary slug, the seed pass also writes a row into `freestyle_media_links` (entity_type='trick', entity_id=slug, media_id=media_items.id) so trick pages can query the rich linkage with clip ranges + is_primary.
-- `freestyle_media_assets` is either dropped (its url + title + creator fields move to `media_items` columns) OR kept as a thin pre-asset registry that points at `media_items` (denormalized).
-- `freestyle_media_sources` stays for archival provenance.
-
-**Pros**: keeps Dave's unified upload+edit+delete flow; preserves trick-linkage richness; bounded schema rewrite (drop one table, retarget one FK).
-
-**Cons**: BREAKS James's `load_freestyle_media_assets.py` because it expects `freestyle_media_assets` to exist as the asset table; requires James to rewrite his loader to write `media_items` rows for assets with provenance metadata; the privacy-boundary concern (5 above) reappears (member-uploader PII columns adjacent to reference-media rows); the moderation-pipeline concern (5) reappears; introduces a discriminator (a `kind` column on `media_items` or implicit-via-tags); the layer-separation rule's underlying concerns are partially re-introduced.
+No other historical-pipeline code is affected. James's other loaders, QC scripts, identity pipeline, workbook builders, etc. are all unaffected.
 
 ---
 
-## Recommendation (subject to James's input)
+## Sequencing: slice timeline
 
-Earlier in the design dialogue Dave's working recommendation was C. After confirming `freestyle_media_*` is actively loaded today (not deferred), C looks weaker because it forces James's pipeline to rewrite. A may be the better answer despite contradicting the unified-flow ideal — it preserves James's working system and respects the layer-separation rule.
+The unification work is split into 4 slices.
 
-**Final call lives with the maintainer pair after James answers the questions below.**
+1. **Slice 1 (doc edits only).** Platform maintainer's solo work. Updates this file, `docs/DESIGN_DECISIONS.md` §2.6 + §2.8, `docs/USER_STORIES.md` §A_Upload_Curated_Media (collapsed expansion), `docs/DATA_MODEL.md` §4.17, `docs/VIEW_CATALOG.md`, `docs/SERVICE_CATALOG.md` §4.4, `legacy_data/IMPLEMENTATION_PLAN.md` (your active-work entry pointing here), root `IMPLEMENTATION_PLAN.md` (active-slice block), and `database/schema.sql` (forward-pointer comment near `freestyle_media_*`). No code or schema changes. James not involved.
+2. **Slice 2 (schema rewrite + filesystem reorg + migration).** Schema rewrite, drop `freestyle_media_*` tables, add `media_sources` + new `media_items` columns, convert legacy CSVs into `/curated/freestyle_tricks/` sidecars, extend curator seeder to handle the `freestyle_tricks/` category, delete loaders 21/22/23, edit `scripts/reset-local-db.sh`, retarget the 2 QC scripts. James self-directs to unblock himself, with no coordination required; Dave handles whatever James doesn't take. All commits land on `main`; no atomic merge.
+3. **Slice 3 (trick page reference video gallery).** Platform-side only. Extends `freestyleService.getTrickDetailPage` and `src/views/freestyle/trick.hbs` to render a gallery of curator-tagged videos. James not involved.
+4. **Slice 4 (admin panel category extensions).** Platform-side only. Implements the expanded `A_Upload_Curated_Media` US (upload + edit + delete + category creation in one collapsed UI). James not involved.
 
----
-
-## Cons of the unified-storage approach (B and partially C), spelled out
-
-For the maintainer's later evaluation:
-
-1. **Privacy column adjacency**. `media_items.uploader_member_id` is PII subject to GDPR-purge cascades. Curated reference rows would carry this column populated with the curator system account, which is fine, but the same query paths that touch member uploads would touch reference rows; a privacy-purge bug in member-upload code could accidentally affect reference content (though the system account isn't a real member and isn't subject to purge).
-2. **Moderation pipeline noise**. `moderation_status` exists for member-flag handling. Curator content would carry `moderation_status='active'` permanently. Member-flagging UI would need to special-case curator content to never expose flag actions, OR risk members flagging FH content and triggering admin review queues for content the admin curated themselves.
-3. **Loss of clip-range semantics in option B**. A DVD clip at `[start_seconds=42, end_seconds=58]` cannot be expressed by media_items + tags alone. Either `media_items` grows clip-range columns (which only matter for reference media), or DVD imports lose the ability to point at sub-clips, or we reintroduce a join table (which is essentially `freestyle_media_links` in disguise).
-4. **Loss of `is_primary` enforcement in option B**. Trick pages need to pick a featured video. Tag-based queries would need an external "featured" tag (`#trick_primary_ripwalk`?) and an enforcement check at write time, which duplicates what `freestyle_media_links`'s partial UNIQUE index does for free.
-5. **Loss of `freestyle_media_sources` registry** in option B. Provenance for archival sources (DVD title, channel name, creator) becomes free-text on media_items rows or a parallel side table.
-6. **Doc-sync surface**. GOVERNANCE rule, DD entries, DATA_MODEL all need rewrite for B and partially for C.
-7. **Pipeline coordination**. James's loaders need to rewrite for B and C. Cross-track work; can't ship platform side without his side moving in lockstep.
-8. **Test coverage gap**. The current `tests/` may rely on `freestyle_media_*` rows existing for trick-page rendering. Any merge would need to not break those.
-
----
-
-## For James's Claude
-
-You're being directed to this file from a todo entry in `legacy_data/IMPLEMENTATION_PLAN.md`. Read this whole file first.
-
-Background: Dave is implementing the admin curator content lifecycle on the platform side and needs cross-track input from you (the historical-pipeline maintainer) before resuming. The schema's `freestyle_media_*` layer-separation rule conflicts with Dave's unified-curator design. You own that layer and its loaders; Dave needs your call on how to reconcile.
-
-Your job: ask James the questions in §"Questions for James" below. **One question per turn.** Capture each answer inline in this file (write his answer immediately under the question), commit, then move to the next. Do not propose schema or code changes; do not pick options. Just gather his answers + rationale.
-
-When all questions are answered, post a one-sentence summary at the bottom of this doc indicating James's preferred direction and any open follow-ups.
-
----
-
-## Questions for James
-
-### Q1. Why was the no-merge rule introduced?
-What's the original rationale for the strict separation between `freestyle_media_*` and `media_items`? Hard constraint (privacy/compliance/architecture) or convention?
-
-**James's answer**:
-
-The no-merge rule between `freestyle_media_*` and `media_items` is an architectural separation, not just a convention. It exists to preserve two fundamentally different classes of media with different guarantees, lifecycles, and constraints.
-
-**Core rationale (authoritative):**
-
-1. **Reference vs User-Generated Media (hard boundary)**
-   - `freestyle_media_*` = curated, canonical, reference-quality media tied to the historical record (like a textbook)
-   - `media_items` = user-generated content (like a social platform)
-   - These serve different purposes and must not be conflated.
-
-2. **Identity / PII isolation (hard constraint)**
-   - `media_items` includes `uploader_member_id` → subject to deletion, GDPR-style concerns
-   - `freestyle_media_*` has no user ownership, no deletion cascade
-   - Mixing them creates data integrity and compliance risk
-
-3. **Lifecycle differences (hard constraint)**
-   - Curated media: persistent, versioned, editorially controlled
-   - User media: mutable, deletable, moderation-driven
-   - A shared table would force incompatible lifecycle rules
-
-4. **Query correctness and guarantees (hard constraint)**
-   - When querying trick reference media, results must be 100% curated, high-confidence
-   - No filtering logic should be required to exclude user uploads
-   - This is a data contract, not just convenience
-
-5. **Data model specialization (strong design driver)**
-   - `freestyle_media_*` supports:
-     - multi-entity linking (trick, person, event)
-     - clip ranges (start/end timestamps)
-     - per-entity primary designation
-   - These are core features, not extensions
-
-6. **Provenance clarity (design driver)**
-   - Curated media tracks structured sources (DVDs, official tutorials, known channels)
-   - This is different from user uploads and should remain explicit and queryable
-
-7. **Schema stability and evolution (design driver)**
-   - The two systems evolve independently:
-     - curator/reference system → editorial + historical correctness
-     - `media_items` → product features, moderation, UX
-   - Coupling them increases risk and slows both
-
----
-
-### Q2. Confirm `freestyle_media_*` is actively loaded today.
-The grep shows `legacy_data/event_results/scripts/22_load_freestyle_media_assets.py` and the QC scripts under `legacy_data/pipeline/qc/` depend on these tables. Is this still the active path, or are these scripts deprecated?
-
-**James's answer**:
-
-Confirmed active. Loaders `21_load_freestyle_media_sources.py` / `22_load_freestyle_media_assets.py` / `23_load_freestyle_media_links.py` are all wired into `scripts/reset-local-db.sh` and run on every fresh DB rebuild. Curated CSVs at `legacy_data/inputs/curated/media/{media_sources,media_assets,media_links}.csv` are the source of truth. QC at `legacy_data/pipeline/qc/check_media_coverage.py` and `check_snippet_candidates.py` reference these tables. Current DB state: 47 assets / 84 links / 40 active tricks with primary video. Not deprecated.
-
----
-
-### Q3. What's the source mix for `freestyle_media_*` today vs planned?
-Today: which sources populate (DVDs, YouTube, archived web, other)? Planned: what's coming next (more DVD clips, member-contributed snippets, other)?
-
-**James's answer**:
-
-**Today** (sources with assets):
-
-| source_id | source_type | asset count |
-|---|---|---:|
-| `passback_records` | database (YouTube clips of competition records) | 38 |
-| `anz_trikz` | YouTube tutorials (Anssi Sundberg) | 4 |
-| `footbagspot_passback` | website | 3 |
-| `footbagspot_tutorials` | website | 1 |
-| `shred_global` | YouTube | 1 |
-
-Sources registered with zero assets (configured but unused): `tt1`, `tt2`, `everything_footbag`, `polini_pointers`, `footbag_foundations`.
-
-**Planned: open.** Many resources are candidates, including AnzTrikz (more tutorials beyond the four loaded), and hopefully TT1 and TT2 if obtained. At this point the goal is to assemble the best sources, not to commit to a sequence.
-
----
-
-### Q4. Which option matches your view of the right path forward?
-The three options are described in detail in §"Three options for resolving the conflict" above. In short:
-
-- **A. Honor separation**. Trick reference videos go into `freestyle_media_assets`; general curated stays in `media_items`; two admin UI flows.
-- **B. Drop `freestyle_media_*`**. Everything in `media_items` + tags; your loaders rewrite to write `media_items` rows.
-- **C. Hybrid**. Storage in `media_items`; `freestyle_media_links` retargeted to point at `media_items.id` for trick-membership; your loaders rewrite to drop the asset row and use the new linkage.
-
-Or a different option you'd propose.
-
-**James's answer**:
-
-**Option A.** Reference media should remain a separate curated/canonical subsystem. The platform curator workflow can create and manage broader `media_items`, but it should not replace or absorb `freestyle_media_*`. The bridge should be semantic linking, not table unification.
-
----
-
-### Q5. Are clip ranges (`start_seconds` / `end_seconds`) load-bearing?
-Several sources you load (DVDs, multi-trick segments) need clip-range semantics. If we move toward option B or C, can clip ranges be carried by adding columns to `media_items`, or do they fundamentally need a separate join table?
-
-**James's answer**:
-
-At this point, do not use `start_seconds` / `end_seconds`. Use the entire video clip. The columns stay in the schema (Option A keeps `freestyle_media_links` unchanged), but the curator workflow does not need to populate them right now. Existing populated values may remain; new entries leave them NULL.
-
----
-
-### Q6. Is `is_primary` per (entity_type, entity_id) load-bearing?
-Trick pages need a featured video. The partial UNIQUE index on `freestyle_media_links` enforces this. If we merge layers, where should `is_primary` enforcement live?
-
-**James's answer**:
-
-Yes, load-bearing. Enforcement stays in `freestyle_media_links` via the partial UNIQUE index `uq_freestyle_media_links_primary ON (entity_type, entity_id) WHERE is_primary = 1`. No change needed under Option A; no migration required.
-
----
-
-### Q7. Source provenance: does `freestyle_media_sources` survive any of these options?
-DVD title / channel name / creator metadata is rich. If we keep it (option A or partial C), no problem. If we drop it (option B), where does provenance go?
-
-**James's answer**:
-
-`freestyle_media_sources` survives intact under Option A. The 10 currently-registered sources (`anz_trikz`, `tt1`, `tt2`, `passback_records`, `footbagspot_passback`, `footbagspot_tutorials`, `shred_global`, `everything_footbag`, `polini_pointers`, `footbag_foundations`) and any future entries continue to be the canonical provenance registry for reference media.
-
----
-
-### Q8. Who owns the implementation work for the option you pick?
-Option A: Dave's track only (new `freestyleMediaService` on the platform side; your pipeline unchanged). Option B or C: cross-track work; you rewrite loaders, Dave rewrites the platform side. Either way, what's the right sequence and who blocks whom?
-
-**James's answer**:
-
-Two-stage workflow under Option A:
-
-1. **Curator-side intake (Dave's track):** I support adding structured curator-side organization such as `curated/freestyle_tricks/`. That is an intake / review / source-management structure, not a requirement to merge storage tables. Dave owns this directory layout, the admin UI for it, and the review process.
-2. **Reference-layer publish (James's track):** Curator-managed freestyle trick media lives in the intake structure first, then publishes into the `freestyle_media_*` reference layer after review. The historical-pipeline maintainer owns the publish step and the loaders that populate `freestyle_media_assets` + `freestyle_media_links`.
-
-Yes to structured curated folders / workflow; no to collapsing `freestyle_media_*` into `media_items`. Dave's curator slice is not blocked by my pipeline; my pipeline is not blocked by his slice. The two systems coexist and exchange media via the intake → publish handoff.
-
----
-
-## How to resume
-
-Once James answers above:
-
-1. James (or his Claude) commits this file with the answers.
-2. Dave's next session reads §"Questions for James" answers, picks the direction, and updates `~/.claude/plans/vast-wishing-tulip.md` to reflect the chosen option.
-3. The 5 task batches in Dave's task list resume execution from Batch 1 against the revised plan.
-
----
-
-## Suggested todo line for `legacy_data/IMPLEMENTATION_PLAN.md`
-
-To insert under James's "Active work" or "External blockers" section:
-
-```
-- **Cross-track decision needed: curator content lifecycle vs `freestyle_media_*` layer separation.** Dave's curator slice (`A_Upload_Curated_Media`) needs your input on how to reconcile the unified-curator design with the schema's `freestyle_media_*` no-merge rule. Read `CURATED_MEDIA_PLAN.md` at repo root and answer the questions in §"Questions for James". Blocks: Dave's curator slice cannot resume until your answers land.
-```
-
----
-
-## Plan file reference
-
-Full pre-conflict plan: `~/.claude/plans/vast-wishing-tulip.md` (gitignored / per-machine).
-
----
-
-## James's direction (closing summary, 2026-05-01)
-
-**Option A.** `freestyle_media_*` remains a separate curated/canonical reference subsystem; do not merge into `media_items`. Bridge via semantic linking, not table unification. A curator-side intake structure (e.g. `curated/freestyle_tricks/`) is welcome as a review/source-management layer that publishes into `freestyle_media_*` after review. Clip-range columns stay in schema but new entries leave `start_seconds` / `end_seconds` NULL for now. No follow-ups blocking Dave's curator slice from resuming.
+Slice 1 lands first. Slice 2 is the only cross-track slice; James self-directs and Dave fills in. Slices 3 and 4 are platform-side (Dave).

@@ -163,7 +163,7 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 **`FreestyleService`**
 - **Owns:** All public freestyle section page reads: landing, records, leaders, about, moves, and trick detail pages
 - **Does NOT own:** Event lifecycle, canonical result ingestion, or net/consecutive domain reads
-- **Primary tables:** `freestyle_records` (read-only)
+- **Primary tables:** `freestyle_records`, `freestyle_tricks`, `freestyle_competition`, `freestyle_partnerships`, `media_items`, `media_tags`, `media_sources` (all read-only)
 
 **`RecordsService`**
 - **Owns:** Public cross-sport records page read for `GET /records`; aggregates consecutive kicks + freestyle passback records into one view-model
@@ -565,11 +565,12 @@ For the current public routes, `EventService` is responsible for:
 - `getAboutPage() -> PageViewModel` — about freestyle
 - `getMovesPage() -> PageViewModel` — moves reference
 
-**Persistence Touchpoints:** `freestyle_records` (read-only)
+**Persistence Touchpoints:** `freestyle_records`, `freestyle_tricks`, `freestyle_trick_modifiers`, `freestyle_competition`, `freestyle_partnerships`, `media_items`, `media_tags`, `media_sources` (all read-only)
 
 **Key Rules:**
 - `[APP]` All reads are read-only against canonical tables; no writes
 - `[APP]` `NotFoundError` on unknown trick slug → controller renders 404
+- `[APP]` Trick detail page reference video gallery filters to curator-uploaded media (`#curated` + `#freestyle` + `#trick` + slug tag) joined to `media_sources` for provenance
 
 ---
 

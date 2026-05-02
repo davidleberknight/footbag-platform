@@ -1176,7 +1176,7 @@ Run order in staging:
 
 `media_id` is derived from a SHA of the id_seed plus source bytes, so updating a source asset (e.g., swapping the FH avatar) produces a new render URL on the next seed run; browser cache busts naturally without manual invalidation.
 
-For ad-hoc lifecycle work that does not require a deploy (e.g., fixing a caption or tag on already-published content), use the admin UI at `/admin/curator/media` (see USER_STORIES `A_Edit_Curated_Media` and `A_Delete_Curated_Media`). Edit/delete via the admin UI mutate the live DB + S3 directly without a deploy cycle.
+For ad-hoc lifecycle work that does not require a deploy (e.g., fixing a caption or tag on already-published content), use the admin UI at `/admin/curator/media` (see USER_STORIES `A_Upload_Curated_Media`, which covers the full curator lifecycle: upload, edit, delete, and category creation). Edit/delete via the admin UI mutate the live DB + S3 directly without a deploy cycle.
 
 ### 10.5 Snapshot restore runbook
 

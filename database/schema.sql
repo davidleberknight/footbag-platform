@@ -3471,14 +3471,15 @@ CREATE INDEX idx_net_tc_decision ON net_team_correction_candidate(decision);
 
 -- =============================================================================
 -- FREESTYLE MEDIA LINKAGE
--- Curated reference media (videos/images) attached to tricks, persons, events,
--- and records. DISTINCT from media_items (member-uploaded gallery content) —
--- the two systems must never be merged; see GOVERNANCE on layer separation.
--- Loaders (planned): legacy_data/event_results/scripts/21_load_freestyle_media_sources.py,
--- 22_load_freestyle_media_assets.py, 23_load_freestyle_media_links.py.
--- Source CSVs (planned): legacy_data/inputs/curated/media/.
--- All three tables prefixed `freestyle_media_*` to keep curated freestyle media
--- visibly separate from member-uploaded media_items / media_flags / media_tags.
+-- Current state: these three tables (freestyle_media_sources / _assets / _links)
+-- hold curator reference media (provenance registry, asset metadata, and
+-- multi-entity links) populated by legacy_data loaders 21/22/23 from CSVs
+-- at legacy_data/inputs/curated/media/.
+-- Target state: removed. Curator reference media unifies into the
+-- media_items + media_sources + media_tags family. Entity association
+-- becomes hashtag-driven (no link table); per-asset clip ranges live as
+-- start_seconds / end_seconds columns on media_items; provenance lives in
+-- media_sources (the renamed registry, identical column shape).
 -- =============================================================================
 
 -- Source registry. One row per documented source (DVD, website, channel).

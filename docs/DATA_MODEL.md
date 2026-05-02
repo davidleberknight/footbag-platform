@@ -771,6 +771,18 @@ Maximum 5 video embeds per named gallery (US §3.8 M_Organize_Media_Galleries). 
 - `CHECK (is_avatar = 0 OR media_type = 'photo')`: avatars must be photos (DB-enforced).
 - `CHECK (is_avatar = 0 OR gallery_id IS NULL)`: avatars cannot be gallery-assigned (DB-enforced). This ensures gallery `CASCADE` delete cannot accidentally remove avatar content.
 
+#### Provenance and clip ranges (curator reference media)
+
+Curator-uploaded reference media (videos/images attributed to the system-member account) shares `media_items` with member-uploaded content, distinguished by `uploader_member_id = system_member_id` and the auto-applied `#curated` tag. Three additional columns on `media_items` carry curator-specific metadata:
+
+- `source_id TEXT NULL REFERENCES media_sources(source_id)`: provenance attribution (DVD title, channel name, creator). NULL for member uploads.
+- `start_seconds INTEGER NULL`: optional clip start within the source video.
+- `end_seconds INTEGER NULL`: optional clip end within the source video.
+
+**Table:** `media_sources`, provenance lookup. Columns: `source_id` (PK), `source_name`, `source_type` (e.g. `'dvd'`, `'website'`, `'youtube'`, `'vimeo'`), `url`, `creator`. `media_items.source_id ON DELETE NO ACTION` (sources are reference data, not deleted in normal flow).
+
+Entity association is hashtag-driven via `media_tags`. An asset tagged `#curated #freestyle #trick #ripwalk` is the canonical trick reference media for the ripwalk trick. The trick page renders a gallery of all matching curator-tagged videos.
+
 ### 4.18 Club Leaders & Event Organizers
 
 **Tables:** `club_leaders`, `event_organizers`

@@ -18,6 +18,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [V_View_News_Feed](#v_view_news_feed)
     - [V_View_Tutorials](#v_view_tutorials)
     - [V_View_Gallery](#v_view_gallery)
+    - [V_View_Trick_Reference_Videos](#v_view_trick_reference_videos)
     - [V_Browse_Hashtags](#v_browse_hashtags)
     - [V_Access_Denied](#v_access_denied)
     - [V_Not_Found](#v_not_found)
@@ -113,8 +114,6 @@ This document is the Source of Truth for Functional Requirements, defining all U
   - [6.3 Content Moderation](#63-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
-    - [A_Edit_Curated_Media](#a_edit_curated_media)
-    - [A_Delete_Curated_Media](#a_delete_curated_media)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
@@ -407,6 +406,22 @@ Success Criteria:
 - Each gallery item displays thumbnail, caption excerpt, all clickable tags, upload date.
 - Empty state displays "No photos or videos found with this tag" with suggestions of 5 popular tags platform-wide (a teachable moment).
 - Media galleries are pubic, but only logged-in members will see details about the personal information of the member who uploaded the media (uploaded_by).
+
+### V_View_Trick_Reference_Videos
+
+Access: Any visitor can view freestyle trick reference videos. No authentication required.
+
+Story: As a visitor browsing a freestyle trick page, I see a gallery of curator-uploaded reference videos for that trick so that I can watch demonstrations, tutorials, and competition record clips relevant to the trick.
+
+Success Criteria:
+
+- The trick detail page at `/freestyle/tricks/{slug}` renders a "Reference Videos" section showing all curator-tagged videos for the trick (assets in `media_items` carrying `#curated`, `#freestyle`, `#trick`, and the trick's bare-slug tag).
+- For YouTube and Vimeo videos, the page renders an embedded player (iframe via `youtube-nocookie` for YouTube; equivalent for Vimeo).
+- For S3-hosted MP4 videos, the page renders an HTML5 `<video>` player.
+- Each video displays its title, creator, and source attribution (source name, with link to source URL when available).
+- When the trick has no curator-tagged videos, the Reference Videos section is omitted (no empty section).
+- The page browser-tab title follows the convention `Footbag Trick #{slug}` (e.g. `Footbag Trick #ripwalk`), parallel to the event-page title convention.
+- Member-uploaded videos tagged with the trick's slug do NOT appear in this section; only curator-tagged videos (`#curated`) do. Member-uploaded content with the trick tag remains discoverable via the trick's tag page.
 
 ### V_Browse_Hashtags
 
@@ -1746,20 +1761,21 @@ Success Criteria:
 
 ### A_Upload_Curated_Media
 
-Access: Only admins can upload media on behalf of the system member account (the platform's curator identity, see DD §2.8). Members and visitors do not see these controls.
+Access: Only admins can upload, edit, delete, or organize curated media on behalf of the system member account (the platform's curator identity, see DD §2.8). Members and visitors do not see these controls.
 
-Story: As an admin, I can upload curated photos and videos that the platform attributes to the system member account, so that I publish curator content (landing-page demo loops, page illustrations, well-known event photos, tutorials, historical content, and similar items) without requiring a member to author them.
+Story: As an admin, I can manage curated photos and videos that the platform attributes to the system member account, uploading, editing, deleting, and organizing them into category subdirectories, so that I publish and maintain curator content (landing-page demo loops, page illustrations, well-known event photos, freestyle trick reference videos, hero features, promotional assets, and similar items) without requiring a member to author them.
 
-Success Criteria:
+Success Criteria, Upload:
 
 - Admin upload UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
-- Admin can upload photos (JPEG, PNG; same format whitelist as M_Upload_Photo) and videos (formats per DD §6.8 Curator Media Processing). Posters for video are provided as a companion image upload.
+- Admin can upload photos (JPEG, PNG; same format whitelist as M_Upload_Photo) and videos (formats per DD §6.8 Curator Media Processing). MP4 binary upload is admin-only; members cannot upload MP4. URL-only video references (YouTube, Vimeo) are also supported: admin pastes the video URL, the system extracts platform and video_id, and no binary upload is required. sourceId and clip ranges (startSeconds, endSeconds) are optional for URL-only references. Posters for video are provided as a companion image upload.
 - Uploaded photos go through the standard Sharp pipeline (DD §6.8): re-encode, strip metadata, generate thumb + display variants.
 - Uploaded videos go through the curator video pipeline (DD §6.8): ffmpeg full transcode with explicit malware-stripping options, producing a single standardized output rendition. Companion poster goes through the Sharp pipeline.
 - The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.
-- An audit_log entry is appended for every upload, recording admin actor, timestamp, action type, and affected media_id, parallel to A_Moderate_Media, A_Override_Member_Data, and A_Fix_Event_Results.
-- Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo).
-- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags appear on /tags/{tag} pages. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Filtering by `#curated` returns the all-FH gallery.
+- Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo), source attribution (sourceId referencing an existing media_sources row, or a new source created inline by the admin), and clip ranges (startSeconds, endSeconds) for video reference media.
+- Admin assigns the upload to a category subdirectory under /curated/. The admin UI accepts an existing category or a new category name; entering a name not yet used creates the subdirectory on next deploy. Filesystem-driven; any /curated/{name}/ subdirectory is a valid category.
+- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags appear on /tags/{tag} pages. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Per-category default tag stacks are also auto-applied (e.g. /curated/freestyle_tricks/ adds `#freestyle #trick`; /curated/demos/ adds `#demo`). Filtering by `#curated` returns the all-FH gallery.
+- Tag autocomplete is category-aware: /curated/freestyle_tricks/ uploads autocomplete trick-slugs from the freestyle dictionary (`freestyle_tricks.slug`); admin sees a warning if a tricklike tag matches no known dictionary slug, but the upload still completes. Alias-shaped trick tags (matching `freestyle_trick_aliases.alias_slug`) are canonicalized to the parent trick's slug before insertion; the saved tag set shows the canonical form.
 - Admin can specify gallery assignment: detached (no gallery) or attached to a system-member-owned gallery. Curator-gallery management is out of scope for this story; for the initial phase, all curator content uploaded via this path is detached.
 - Upload completes synchronously: admin sees success or failure in the request-response cycle. For video, full-transcode adds approximately 1-2 minutes per upload depending on input size. Background-job asynchrony for long transcodes is a future implementation detail and not a US-level commitment.
 - Admin uploads are not rate-limited at the member-tier rate. The audit_log is the accountability surface for admin actions.
@@ -1767,35 +1783,31 @@ Success Criteria:
 - The system member's display_name (default "Footbag Hacky") is the uploader attribution shown on the resulting media's public render, parallel to how member-uploaded media shows the member's display_name. The display_name is editable by admin via A_Override_Member_Data.
 - The operator-run bulk curator-content seeding mechanism is a parallel path for pre-go-live content; it writes the same media_items row shape and is subject to the same processing pipeline. Operational specifics in DEVOPS_GUIDE.
 
-### A_Edit_Curated_Media
-
-Access: Only admins can edit curated media attributed to the system member account. Members and visitors do not see these controls.
-
-Story: As an admin, I can update the caption and tags on a curator-attributed media item so that I correct mistakes, refine attribution, or relink to different events/clubs without re-uploading.
-
-Success Criteria:
+Success Criteria, Edit:
 
 - Admin edit UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
-- Editable fields are caption (plain text, max 500 characters; same security validation as upload) and tags (space-separated; same shape rules as upload).
+- Editable fields are caption, tags, source attribution (sourceId), and clip ranges (startSeconds, endSeconds). Same validation rules as upload.
 - File replacement is not supported in-place. To change the file bytes, admin deletes the existing item and uploads a new one.
-- The `#curated` tag is auto-applied on every save and rejected if supplied in the tags input; consistent with A_Upload_Curated_Media.
-- Tags are rewritten atomically: the existing tag set is replaced by the new set in a single transaction. The auto-applied `#curated` is preserved across edits.
-- An audit_log entry is appended for every edit, recording admin actor, timestamp, action type, and affected media_id.
+- The `#curated` tag is auto-applied on every save and rejected if supplied in the tags input. Per-category default tags are preserved across edits.
+- Tags are rewritten atomically: the existing tag set is replaced by the new set in a single transaction. The auto-applied tags are preserved across edits.
 - Editing a media item that does not exist (or is not FH-owned) returns 404.
 
-### A_Delete_Curated_Media
-
-Access: Only admins can delete curator-attributed media. Members and visitors do not see these controls.
-
-Story: As an admin, I can permanently delete a curator-attributed media item so that I remove obsolete or incorrect content from the public site.
-
-Success Criteria:
+Success Criteria, Delete:
 
 - Admin delete UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
 - Deletion is hard delete (per DD §2.3 hard-delete rule for media): the media_items row is removed, all associated media_tags rows are cascaded, and the underlying S3 keys (variants and poster) are removed.
 - Deletion is permanent. There is no soft-delete or restore. The admin sees a confirmation gate before the operation runs.
-- An audit_log entry is appended for every delete, recording admin actor, timestamp, action type, source filename, and affected media_id.
 - Deleting a media item that does not exist (or is not FH-owned) returns 404.
+
+Success Criteria, Category creation:
+
+- Admin enters a new category name during upload (e.g. `tutorials`, `news`); the seeder creates `/curated/{name}/` on next deploy.
+- Filesystem is the source of truth for category existence; no code-side whitelist of valid categories. Category names follow a slug convention (lowercase, alphanumeric plus underscore or hyphen).
+- The new category's default tag stack is `#curated #{name}` plus admin-selected tags. Per-category tag-autocomplete dictionaries are configured separately as new categories require them; the default fallback is no autocomplete.
+
+Audit:
+
+- An audit_log entry is appended for every upload, edit, and delete, recording admin actor, timestamp, action type, source filename (delete only), and affected media_id, parallel to A_Moderate_Media, A_Override_Member_Data, and A_Fix_Event_Results.
 
 ### A_Create_News_Item
 

@@ -6,7 +6,16 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 ## Active work
 
-- **Cross-track decision: curator content lifecycle vs `freestyle_media_*` no-merge rule.** Dave's curator slice (`A_Upload_Curated_Media`) needs your input on how to reconcile the unified-curator design with the schema's `freestyle_media_*` layer-separation rule. Read `CURATED_MEDIA_PLAN.md` at repo root and answer the eight questions in §"Questions for James" (one per turn, capture answers inline, commit). Blocks: Dave's curator slice cannot resume until your answers land.
+- **Cross-track schema unification: `freestyle_media_*` → `media_items` family (slice 2, James owns end to end).** Read `CURATED_MEDIA_PLAN.md` top to bottom; full task list in §"Items for James". Concrete tasks:
+  1. Schema rewrite in `database/schema.sql`: drop `freestyle_media_*`, add `media_sources` (renamed from `freestyle_media_sources`, identical columns), extend `media_items` with `source_id` / `start_seconds` / `end_seconds`.
+  2. Author + run `scripts/migrate-freestyle-media-to-curated.ts` (or `.py`) to convert `legacy_data/inputs/curated/media/*.csv` into `/curated/freestyle_tricks/*.meta.json` sidecars; apply trick-alias canonicalization; surface 5 footbagspot.com skip rows in a warning summary.
+  3. Decide on the 5 footbagspot.com skip rows (re-host on YouTube/Vimeo, or drop). Decision is yours.
+  4. Extend the curator seeder for the `freestyle_tricks/` category, applying trick-alias canonicalization at write time.
+  5. Delete loaders 21/22/23, the legacy curated-media CSVs at `legacy_data/inputs/curated/media/*.csv`, and the migration script (one-time job).
+  6. Edit `scripts/reset-local-db.sh` to drop the three loader entries.
+  7. Retarget `pipeline/qc/check_media_coverage.py` and `pipeline/qc/check_snippet_candidates.py` per the column mapping in CMP.
+
+  Commit directly to `main`; no branches, no separate PR, no coordination required. Order is yours; complete the list before Dave starts slice 3.
 
 ---
 

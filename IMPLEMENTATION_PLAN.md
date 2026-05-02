@@ -4,9 +4,22 @@ This file tracks the current build: active sprint, accepted dev shortcuts, and e
 
 ## Active slice now
 
-(none on the platform side currently)
+**Curator media unification -- slice 1 of 4 (doc edits).** Slice-1 doc edits complete; pending check-in. Full design: `CURATED_MEDIA_PLAN.md`.
 
-Historical-pipeline work is tracked in `legacy_data/IMPLEMENTATION_PLAN.md`. Load only when working in that subtree. Cross-track changes require explicit human coordination.
+Subsequent slices:
+
+- **Slice 2 (James-owned).** Schema rewrite + migration + curator seeder extension + loader deletes + QC retargets. James owns slice 2 end to end (locked 2026-05-02); full task list in `CURATED_MEDIA_PLAN.md` §"Items for James" and `legacy_data/IMPLEMENTATION_PLAN.md`. No Dave action required. All commits land directly on `main`.
+- **Slice 3 (Dave-owned; queued behind slice 2).** Trick page reference video gallery rendering:
+  - Extend `freestyleService.getTrickDetailPage` to fetch curator-tagged videos for the trick (`media_items` filtered by `#curated` + trick slug tag, ordered `uploaded_at DESC`).
+  - Update `src/views/freestyle/trick.hbs` to render the gallery section.
+- **Slice 4 (Dave-owned; queued behind slice 3).** Admin panel category extensions, collapsed `A_Upload_Curated_Media` US (`docs/USER_STORIES.md`):
+  - Upload form: file (MP4/image) or URL reference, per category.
+  - Edit form: caption, tags, clip range (`start_seconds` / `end_seconds`), source attribution (`source_id`).
+  - Delete: hard-delete a curated item.
+  - Category creation: free-text input on upload form; seeder auto-creates `/curated/{name}/` on next deploy. No code-side whitelist.
+  - Per-category tag autocomplete + validation: `freestyle_tricks/` autocompletes trick-slug from `freestyle_tricks.slug` (warn-but-don't-abort on unknown slugs); auto-applies `#curated` + category-default tags; rejects user-supplied `#curated`.
+
+Historical-pipeline work tracked in `legacy_data/IMPLEMENTATION_PLAN.md`.
 
 ---
 
@@ -21,13 +34,6 @@ Historical-pipeline work is tracked in `legacy_data/IMPLEMENTATION_PLAN.md`. Loa
 ## Deferred / next session review
 
 - **Broader curator content for `/net`, `/footbag-heroes`, tutorials, historical content.** Curator lifecycle (upload, edit, delete via `/admin/curator/media`; `--with-curated` deploy flag) is shipped. Remaining work per content surface: drop source files into `/curated/` with sidecar metadata, deploy with `--with-curated`, add DB-query render code in the relevant service if the surface needs a new gallery/page (`freestyleService` / `netService` pattern). No new mechanism work.
-- **Trick page rendering of `freestyle_media_*` reference media.**
-  - **Problem (user-visible):** Visitors browsing `/freestyle/dictionary/{slug}` see no video for tricks even when curated reference media exists for that trick. Per James's pipeline (loaders `21_load_freestyle_media_sources.py`, `22_load_freestyle_media_assets.py`, `23_load_freestyle_media_links.py`, all wired into `scripts/reset-local-db.sh`), the DB currently holds 47 assets / 84 links / 40 distinct tricks with a `is_primary=1` reference video. None of it reaches the page.
-  - **Cause:** Zero `src/` code reads `freestyle_media_assets`, `freestyle_media_links`, or `freestyle_media_sources`. The trick view-model produced by `freestyleService` does not include any reference-media slot, and `src/views/freestyle/trick.hbs` has no video element.
-  - **Architectural context:** Per `CURATED_MEDIA_PLAN.md` (cross-track resolution with the historical-pipeline maintainer, Option A), curator content (`media_items` populated by the curator slice) and trick reference media (`freestyle_media_*` populated by the historical pipeline) intentionally stay in separate table families. Rendering must read from both layers but they are not merged. This entry is about adding the read path on the trick page, not about merging.
-  - **Deferred solution:** Extend `freestyleService` with a method that, for a given trick slug, joins `freestyle_media_links` (entity_type='trick', entity_id=slug) → `freestyle_media_assets` → `freestyle_media_sources` and returns the primary video (`is_primary=1`) plus title, creator, and source provenance. Inject into the trick page view-model. Add a video element to `src/views/freestyle/trick.hbs`. Tests: render assertions for tricks with vs without reference media; primary-only filter; provenance display.
-  - **Why deferred (not active now):** Out of scope of the just-completed curator content lifecycle slice. Single-slice scope keeps that slice reviewable. This rendering work is its own focused slice with no dependency on more cross-track coordination — James's data is already in place.
-  - **Unblock:** No external blocker. Ready to start whenever the platform maintainer picks it up.
 - **Mirror: scrub all media regardless of source format.** The legacy mirror (`legacy_data/create_mirror_footbag_org.py`) currently re-encodes only formats marked `convertible=True` in MEDIA_FORMATS; native-format MP4, WebM, MP3, JPG, JPEG, PNG, and GIF inputs pass through unchanged with no malware-stripping. Close the gap: re-encode every downloaded media file on the fly during the mirror run, using the same security pipeline as the platform's curator and member upload paths.
   - Images: PIL re-encode with explicit metadata stripping (`exif=b''`, no `icc_profile=` kwarg, no XMP preservation). Native JPG/PNG/GIF inputs included. Format whitelist enforced.
   - Videos: ffmpeg with `-map 0:v -map 0:a?`, `-map_metadata -1`, `-map_chapters -1`, `-c:v libx264 -c:a aac`, `-pix_fmt yuv420p`, `-movflags +faststart`. Native MP4/WebM inputs included.

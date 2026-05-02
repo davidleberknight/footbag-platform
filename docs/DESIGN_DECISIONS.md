@@ -801,6 +801,10 @@ Decision:
 
 Events and clubs must define unique, standardized hashtags. These are validated at creation to prevent collisions. Member-uploaded media tagged with a standard hashtag auto-links to corresponding event/club galleries on page load, leveraging this convention. Users may also invent new hashtags, and these may be discoverable by other members. Also, the \#tutorial hashtag will receive special attention for member-created educational media. The User Stories document provides the rest of the detail for these use cases.
 
+Hashtag-driven coupling extends to freestyle tricks and persons in addition to events and clubs. Trick slugs (e.g. `#ripwalk`) are stored as freeform tags (`tags.is_standard=0`); uniqueness is inherited from `freestyle_tricks.slug PRIMARY KEY` and the no-rename commitment makes the slug a stable canonical identity for life. Person hashtags reuse the member slug. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
+
+Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only. Read-side surfaces that expose alias slugs (e.g. `/tags/{alias}`) 301-redirect to the canonical slug. `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
+
 Rationale:
 
 - Unique hashtags provide unambiguous linking between media and entities.
@@ -867,7 +871,7 @@ The platform maintains a single unauthenticatable system member account, disting
 
 Rationale:
 
-The platform publishes content not attributable to any individual member, including landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items. The same ownership construct extends to future categories such as tutorials and historical content. A regular member account with one distinguishing flag reuses every existing content pathway -- render, search, moderation, hashtag discovery, gallery linkage. A non-member ownership construct would require parallel implementations of all of these for marginal gain.
+The platform publishes content not attributable to any individual member, including landing-page demo loops, page illustrations and cartoon images, well-known event photos, freestyle trick reference videos, record clips, and similar curator items. The same ownership construct extends to future categories such as tutorials and historical content. There is no parallel curator subsystem; all curator-attributed media reuses the unified `media_items` family, distinguished from member content only by `uploader_member_id = system_member_id` and the auto-applied `#curated` tag. A regular member account with one distinguishing flag reuses every existing content pathway -- render, search, moderation, hashtag discovery, gallery linkage. A non-member ownership construct would require parallel implementations of all of these for marginal gain.
 
 Single-row enforcement means there is one identity to reason about, not a class of system accounts. Schema-level singularity prevents proliferation of "special" accounts each with custom rules.
 
