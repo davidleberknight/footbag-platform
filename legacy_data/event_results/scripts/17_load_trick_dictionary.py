@@ -1,3 +1,8 @@
+# WARNING:
+# This loader performs a wholesale reset of freestyle_tricks and related child tables.
+# Running this script standalone will remove entries from other sources (red, footbag.org).
+# To restore full state, re-run scripts 19, 20, 21 in canonical order.
+
 """
 Script 17: Load freestyle trick dictionary, modifier reference, aliases, and
 curated-v1 provenance into SQLite (schema v2.1).
