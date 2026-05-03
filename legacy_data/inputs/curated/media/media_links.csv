@@ -8,7 +8,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 1122d3e7-e11d-5ca6-b9a9-61dc27ac03d1,record,3626a3e6-e9bc-5e0d-8562-298cb695b645,,,1
 1122d3e7-e11d-5ca6-b9a9-61dc27ac03d1,trick,smear,,,1
 200662ab-a951-58f4-b9c0-07ba8fdf7d14,record,e1591575-070a-5cae-a28e-843a5d5522f8,,,1
-200662ab-a951-58f4-b9c0-07ba8fdf7d14,trick,butterfly,,,1
+200662ab-a951-58f4-b9c0-07ba8fdf7d14,trick,butterfly,,,0
 29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,heel-stall,,,0
 29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,outside-stall,,,0
 29f5d518-34ac-5c52-94da-e77e3b3a7403,trick,toe-stall,,,0
@@ -33,7 +33,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 48c97298-781b-5f4c-9d71-0e946dabcef6,record,bfe2120b-25aa-58ff-9641-100e712f35f9,,,1
 48c97298-781b-5f4c-9d71-0e946dabcef6,trick,paradox-blender,,,1
 511ab98d-9198-5b6d-9b20-4b47b56fe561,record,d286fb4e-af76-5ea1-b52c-546880cb51a9,10,,1
-511ab98d-9198-5b6d-9b20-4b47b56fe561,trick,legover,10,,1
+511ab98d-9198-5b6d-9b20-4b47b56fe561,trick,legover,10,,0
 56a45843-1dbd-5627-be02-709d9f97dcbe,record,9bde019f-9a5c-5ebc-b95d-d7e84dc0125c,,,1
 56a45843-1dbd-5627-be02-709d9f97dcbe,trick,atom-smasher,,,1
 60a955f9-cca5-5534-8d7d-f00a1c13ffae,record,adaf9efa-0a4b-5c7c-9d68-43a489536e4c,,,1
@@ -106,3 +106,5 @@ ea270368-ba7a-55ed-a10f-44cd6bccda66,trick,flying-clipper,,,0
 0c659c3c-fa2f-5879-9e51-a4fc64bbf057,trick,flying-clipper,,,0
 28e381e0-8fe4-5be9-81e8-6ede84544eda,trick,dragonfly,,,0
 60c8879f-e6fc-578a-a961-c6f6cc04ecab,trick,dada-curve,,,0
+4ac2d2bc-6c7a-56df-8d4f-114c60e72b79,trick,butterfly,,,1
+3bd0a24a-e4d7-51fa-a350-4aab09c92f20,trick,legover,,,1
