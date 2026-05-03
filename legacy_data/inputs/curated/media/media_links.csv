@@ -24,7 +24,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 37cba70b-33c3-5e04-854e-2cf0b4e24088,trick,mirage,,,0
 380feddf-0b63-5199-bb57-3be4c63da732,record,7439984a-fccf-5d36-bf67-ad765f3f6246,25,,1
 380feddf-0b63-5199-bb57-3be4c63da732,trick,spinning-osis,25,,0
-3a1b9efb-73cc-52a8-bf98-3f74d968d19d,trick,food-processor,31,,1
+3a1b9efb-73cc-52a8-bf98-3f74d968d19d,trick,food-processor,31,,0
 42d42f54-c76d-592a-b9d9-fac2590420a8,trick,clipper,,,0
 45634a05-d038-51d3-ac24-b4e70d8bf1c9,record,ce678a3e-c81a-59f3-ab47-51f5a155670e,,,1
 45634a05-d038-51d3-ac24-b4e70d8bf1c9,trick,spinning-butterfly,,,0
@@ -72,7 +72,7 @@ cf1c5235-ed71-52ca-bd76-b7743e190d18,trick,clipper,,,0
 e0f55da4-5d63-5372-a894-2bb5a6e63575,record,5c0f6df7-d315-5765-b353-5ead95891ceb,,,1
 e0f55da4-5d63-5372-a894-2bb5a6e63575,trick,double-around-the-world,,,0
 ea1aabad-47e9-56c9-b503-6808f0c4b5d3,record,c51ceb1c-b861-501e-a5e4-323a919c6cb7,92,,1
-ea1aabad-47e9-56c9-b503-6808f0c4b5d3,trick,superfly,92,,1
+ea1aabad-47e9-56c9-b503-6808f0c4b5d3,trick,superfly,92,,0
 ec9dd014-2535-59f7-bd5b-71f17f3ed0ab,record,d9b3dc27-ca5e-5836-b54c-ff79b2cf6154,,,1
 ec9dd014-2535-59f7-bd5b-71f17f3ed0ab,trick,spinning-symposium-whirl,,,1
 f5ed2fb5-11dd-58c6-947e-c21cd20d7537,record,fc8e3f46-4d97-5326-819f-93c75e4189b9,,,1
@@ -132,3 +132,11 @@ d050ccdd-9c82-5599-926a-51d332f47652,trick,pickup,,,1
 b6a1c3c2-3cd3-557f-8bdb-1cea2d24151a,trick,pickup,,,0
 6103b7b8-01e2-5c5c-ba18-dadf714734f4,trick,barfly,,,1
 b362cef2-e69b-5075-8400-4ffa895491b9,trick,blurriest,,,1
+e4a64a60-fd2a-52da-b5e3-0d015142aaee,trick,superfly,,,1
+052423fa-a7ea-5744-9cf0-c519be0712d3,trick,dimwalk,,,1
+ee86b6d4-4f7a-572e-b01d-65c3936c70d2,trick,parkwalk,,,1
+94ee3e56-0b94-54b2-b76d-2820226806db,trick,sidewalk,,,1
+4643f9f0-53fb-5fdd-8b73-c8b9aae8e5bf,trick,tombstone,,,1
+f896c0bd-e54b-56fe-aa1e-d47902a9127f,trick,vortex,,,1
+449ffcc0-b9d4-510c-87a9-2e7b8fd4574c,trick,food-processor,,,1
+a950f391-f007-5b40-8230-c77e450233ce,trick,dimwalk,,,0
