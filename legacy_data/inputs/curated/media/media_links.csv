@@ -35,7 +35,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 511ab98d-9198-5b6d-9b20-4b47b56fe561,record,d286fb4e-af76-5ea1-b52c-546880cb51a9,10,,1
 511ab98d-9198-5b6d-9b20-4b47b56fe561,trick,legover,10,,1
 56a45843-1dbd-5627-be02-709d9f97dcbe,record,9bde019f-9a5c-5ebc-b95d-d7e84dc0125c,,,1
-56a45843-1dbd-5627-be02-709d9f97dcbe,trick,atomsmasher,,,1
+56a45843-1dbd-5627-be02-709d9f97dcbe,trick,atom-smasher,,,1
 60a955f9-cca5-5534-8d7d-f00a1c13ffae,record,adaf9efa-0a4b-5c7c-9d68-43a489536e4c,,,1
 60a955f9-cca5-5534-8d7d-f00a1c13ffae,trick,paradox-symposium-whirl,,,1
 68eb33bf-f705-584d-ae93-f601e32be859,record,9de7cbee-b347-5543-a725-8137159f6dc4,33,,1

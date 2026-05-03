@@ -11,13 +11,13 @@ spyro,1,spyro,body,,,Inward rotational body move.,expert_reviewed,1,
 surging,2,surging,compound,spinning stepping,spinning|stepping,spinning + stepping = 2 ADD (1 spin + 1 step),expert_reviewed,1,
 sidewalk,4,butterfly,compound,same-side stepping butterfly|ss stepping butterfly,stepping,Stepping-modified same-side butterfly.,expert_reviewed,1,'same-side' qualifier not in modifiers table; capturing via alias only for now
 tombstone,4,drifter,compound,stepping drifter,stepping,Stepping-modified drifter.,expert_reviewed,1,
-fury,4,mirage,compound,barraging paradox mirage,paradox|barraging,Paradox-modified barraging mirage.,expert_reviewed,1,
+fury,5,mirage,compound,barraging paradox mirage,paradox|barraging,Paradox-modified barraging mirage.,expert_reviewed,1,Red pt4 2026-05-02: Fury is 5 ADDs (was 4 ADD per pt1)
 vortex,4,drifter,compound,gyro drifter,gyro,Gyro-modified drifter.,expert_reviewed,1,
 quantum,,quantum,,toe blur|toe butterfly,,"newer name for toe blur / toe butterfly; ""quantum mirage"" = miraging mirage",pending,0,Is Quantum a standalone trick or a modifier-like qualifier? What ADD does it carry alone? Toe blur and toe butterfly are not yet in the dictionary as separate entries.
-merkon,,merkon,,,,Standalone trick.,pending,0,ADD count not given by Red
-terrage,,terrage,,,,standalone trick; also acts as modifier (e.g. terraging X),pending,0,ADD count not given as standalone; also need separate freestyle_trick_modifiers row for terraging
-barrage,,barrage,,,,standalone trick distinct from existing 'barraging' modifier; barraging paradox mirage = Fury,pending,0,ADD count as standalone not given
+merkon,3,merkon,,,,Standalone trick.,expert_reviewed,1,Red pt4 2026-05-02: 3 ADDs
+terrage,4,terrage,,,,standalone trick; also acts as modifier (e.g. terraging X),expert_reviewed,1,"Red pt4 2026-05-02: 4 ADDs; terraging modifier row still pending"
+barrage,3,barrage,,,,"standalone trick distinct from existing 'barraging' modifier; barraging paradox mirage = Fury",expert_reviewed,1,Red pt4 2026-05-02: 3 ADDs
 royale,,,compound,,,Popular freestyle trick.,pending,0,ADD count and base trick not given
-ripstein,,,compound,,,Popular freestyle trick.,pending,0,ADD count and base trick not given
+ripstein,4,,compound,,,Popular freestyle trick.,expert_reviewed,1,Red pt4 2026-05-02: 4 ADDs (base trick still unspecified)
 flail,,,,,,Common-name trick (canonical mapping pending review).,pending,0,Which existing canonical trick is Flail a common name for?
 omelette,,,,,,Common-name trick (canonical mapping pending review).,pending,0,Which existing canonical trick is Omelette a common name for?
