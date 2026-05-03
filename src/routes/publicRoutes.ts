@@ -8,6 +8,7 @@ import { memberController } from '../controllers/memberController';
 import { claimController } from '../controllers/claimController';
 import { authController } from '../controllers/authController';
 import { hofController } from '../controllers/hofController';
+import { bapController } from '../controllers/bapController';
 import { freestyleController } from '../controllers/freestyleController';
 import { recordsController } from '../controllers/recordsController';
 import { netController } from '../controllers/netController';
@@ -23,6 +24,7 @@ publicRouter.get('/clubs',       clubController.index);
 publicRouter.get('/clubs/:key', clubController.byKey);
 publicRouter.get('/gallery',    galleryController.index);
 publicRouter.get('/hof',   hofController.index);
+publicRouter.get('/bap',   bapController.index);
 
 // IMPORTANT: literal sub-routes registered before param routes (/freestyle/tricks/:slug)
 // and before /freestyle itself.

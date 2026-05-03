@@ -62,6 +62,7 @@ body {
   line-height: 1.6;
   color: var(--text);
   background: var(--bg);
+  overflow-x: hidden;
 }
 
 a { color: var(--primary); text-decoration: none; }
@@ -103,9 +104,7 @@ section + section { border-top: 1px solid var(--border); }
   position: sticky;
   top: 0;
   z-index: 100;
-  height: 64px;
-  display: flex;
-  align-items: center;
+  padding: 8px 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -113,8 +112,9 @@ section + section { border-top: 1px solid var(--border); }
 
 .site-header .wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   width: 100%;
 }
 
@@ -123,21 +123,46 @@ section + section { border-top: 1px solid var(--border); }
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.02em;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .site-logo:hover { color: var(--primary); text-decoration: none; }
 .site-logo span { color: var(--primary); }
 
-.main-nav { display: flex; gap: 8px; align-items: center; }
-.main-nav a {
-  padding: 6px 14px;
+.main-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+}
+
+.nav-primary,
+.nav-auth {
+  display: contents;
+}
+
+.nav-primary a,
+.nav-auth a,
+.nav-auth .nav-logout-btn {
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   font-weight: 500;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--text);
+  white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
-.main-nav a:hover { background: var(--bg-light); color: var(--primary); text-decoration: none; }
-.main-nav a.active { color: var(--primary); }
+.nav-primary a:hover,
+.nav-auth a:hover,
+.nav-auth .nav-logout-btn:hover {
+  background: var(--bg-light);
+  color: var(--primary);
+  text-decoration: none;
+}
+.nav-primary a.active,
+.nav-auth a.active { color: var(--primary); }
 
 /* ── Hero ───────────────────────────────────────────────────── */
 .hero {
@@ -967,8 +992,8 @@ section.home-media { padding-top: 0; }
 .footer-brand { color: #fff; font-weight: 600; font-size: 1rem; margin-bottom: 6px; }
 .footer-logo { width: 175px; height: 68px; display: block; background: transparent; border-radius: 0; }
 .footer-tagline { color: #777; font-size: 0.8rem; }
-.footer-links { display: flex; flex-direction: column; gap: 6px; }
-.footer-links a { color: #aaa; }
+.footer-links { column-count: 3; column-gap: 32px; }
+.footer-links a { color: #aaa; display: block; margin-bottom: 6px; break-inside: avoid; }
 .footer-links a:hover { color: #fff; }
 .footer-legal {
   border-top: 1px solid #222;
@@ -1666,8 +1691,8 @@ section.home-media { padding-top: 0; }
   .card-grid-2col { grid-template-columns: 1fr; }
   .card-grid-3col { grid-template-columns: 1fr; }
   .site-footer .wrapper { flex-direction: column; }
+  .footer-links { column-count: 1; }
   .footer-legal-links { flex-wrap: wrap; justify-content: center; }
-  .main-nav a { padding: 6px 10px; font-size: 0.875rem; }
   #clubs-map { display: none; }
   .profile-layout { grid-template-columns: 1fr; gap: 24px; }
   .profile-sidebar { position: static; }
@@ -1693,11 +1718,6 @@ section.home-media { padding-top: 0; }
   .profile-identity-block { padding: 16px; }
   .avatar-edit-row { flex-direction: column; align-items: flex-start; gap: 12px; }
   .results-table th, .results-table td { padding: 8px 6px; }
-
-  /* Nav: wrap below logo on small screens */
-  .site-header { height: auto; padding: 8px 0; }
-  .site-header .wrapper { flex-wrap: wrap; gap: 6px; justify-content: center; }
-  .main-nav { flex-wrap: wrap; justify-content: center; }
 
   /* Event list: stack title above meta on mobile */
   .event-list-row { grid-template-columns: 1fr; gap: 2px; }

@@ -6,7 +6,11 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 ## Active work
 
-- **Cross-track schema unification: `freestyle_media_*` → `media_items` family (slice 2, James owns end to end).** Read `CURATED_MEDIA_PLAN.md` top to bottom; full task list in §"Items for James". Concrete tasks:
+- **Cross-track schema unification: `freestyle_media_*` → `media_items` family (slice 2, James owns end to end).** Read `CURATED_MEDIA_PLAN.md` top to bottom; full task list in §"Items for James".
+
+  **Priority: ASAP -- complete this slice as soon as possible.** Slice 3 (Dave-owned) is fully blocked on it. Progress check 2026-05-03: none of the seven tasks below have started -- legacy `freestyle_media_*` triad still in `database/schema.sql`, `media_items` lacks `source_id` / `start_seconds` / `end_seconds`, migration script absent, loaders 21/22/23 still wired into `scripts/reset-local-db.sh`.
+
+  Concrete tasks:
   1. Schema rewrite in `database/schema.sql`: drop `freestyle_media_*`, add `media_sources` (renamed from `freestyle_media_sources`, identical columns), extend `media_items` with `source_id` / `start_seconds` / `end_seconds`.
   2. Author + run `scripts/migrate-freestyle-media-to-curated.ts` (or `.py`) to convert `legacy_data/inputs/curated/media/*.csv` into `/curated/freestyle_tricks/*.meta.json` sidecars; apply trick-alias canonicalization; surface 5 footbagspot.com skip rows in a warning summary.
   3. Decide on the 5 footbagspot.com skip rows (re-host on YouTube/Vimeo, or drop). Decision is yours.
@@ -83,3 +87,15 @@ Kept for visibility only; not part of active work or release gating. No current 
 - **Canonical vs canonical_all unification.** Long-term: merge post-1997 + pre-1997 into a single `canonical` and retire `canonical_all`. Simplifies reasoning about the dataset.
 - **Version stamps in outputs.** Add `build_version`, `build_date`, `identity_lock_version` to workbook and canonical CSVs. Eases diffing across builds.
 - **DATA NOTES sheet in workbook.** Document excluded events (sparse), sources used, and the meaning of "unknown" in placement columns.
+
+- **Tu Vu identity collapsed into Tuan Vu in canonical persons.csv. Root cause: identity-lock alt_alias curation error.** bigaddposse.com lists two distinct BAP members: "Tuan Vu" (1995, Disco Ninja) and "Tu Vu" (1997, Huge). `inputs/bap_data_updated.csv` has both as separate rows. Both also exist as distinct rows in `inputs/identity_lock/Persons_Truth_Final.csv`: Tuan Vu at `28565dd0-2196-5404-bf23-6cf0617ce79b`, Tu Vu at `c50fb80d-aa35-5154-be01-19817c3b84d2` (with main_aliases `Tu Vu | Tu Huge`). The merge is caused by Tuan Vu's `alt_aliases` column listing `Tu Vu` (alongside legitimate aliases `T Vu | T. Vu | Tuan DiscoNinja Vu | Tuan Vu*`). AliasResolver therefore funnels every "Tu Vu" event participation into `28565dd0-…`, leaving Tu Vu with zero events in canonical. Net effect: `out/canonical/persons.csv` row `28565dd0-…` carries Tu Vu's attributes — BAP `nickname=Huge, induction_year=1997`, HoF `induction_year=2007`, 97 events spanning 1985–2025 across two distinct careers (~50 Freestyle 1985–2005 with Eric Wulff / Greg Nelson = Tuan Vu / Disco Ninja; ~130 Net 2007–2025 with Kenny Shults / Carlos Marquez / Emmanuel Bouchard / Tuomas Karki = Tu Vu / Huge).
+
+  The override `overrides/person_aliases.csv` has three related lines that compound the merge: line 2374 (`Tu Vu,28565dd0-…,Tuan Vu,verified`) is definitively wrong; lines 2262 (`T Vu,28565dd0-…,Tuan Vu`) and 2264 (`T. Vu,28565dd0-…,Tuan Vu`) are ambiguous (both abbreviations could belong to either person, needs placement-evidence review). Override fixes alone will not split canonical because AliasResolver reads identity-lock authoritatively.
+
+  Remediation steps:
+  1. Edit `legacy_data/overrides/person_aliases.csv` (sed -i per project rule, wc -l before/after = 2762): replace line 2374 → `Tu Vu,c50fb80d-aa35-5154-be01-19817c3b84d2,Tu Vu,verified,`. Review lines 2262 / 2264 against `Placements_ByPerson.csv` to determine whether `T Vu` / `T. Vu` belong to Tuan or Tu and update accordingly.
+  2. Author `legacy_data/tools/patch_pt_v63_split_tuan_tu_vu.py` to remove `Tu Vu` from Tuan Vu's `alt_aliases` column in `Persons_Truth_Final.csv`.
+  3. Author `patch_placements_v104_split_tuan_tu_vu.py` to reassign placements currently under `28565dd0-…` that belong to Tu Vu (Net career, ~130 events 2007–2025) → `c50fb80d-…`. Tuan Vu retains the Freestyle career (~50 events 1985–2005).
+  4. Verify HoF 2007 attribution. The merged row carries `fbhof_member=1, fbhof_induction_year=2007`; reassign to whichever person was actually inducted (cross-reference IFPA HoF records).
+  5. Rerun `run_pipeline.sh`; expected outcome is two distinct rows in `out/canonical/persons.csv` with their respective BAP nicknames (Disco Ninja / Huge), induction years (1995 / 1997), HoF attribution, and event participation correctly partitioned.
+  Surfaces on `/history/28565dd0-…` profile (currently renders `Tuan Vu "Huge"` with BAP 1997 / HoF 2007 hero and 97 mixed events spanning two distinct careers). The freestyle pioneers editorial Tuan Vu entry (`src/content/freestyleEditorial.ts` HISTORY_PIONEERS) links to that UUID and inherits the wrong-merged display until canonical resolves.

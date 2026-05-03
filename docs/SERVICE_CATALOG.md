@@ -25,6 +25,7 @@ This catalog is the target-design reference for the platform's service layer: me
 - [6. Voting & Recognition](#6-voting--recognition)
   - [6.1 `VotingElectionService`](#61-votingelectionservice)
   - [6.2 `HallOfFameService`](#62-halloffameservice)
+  - [6.3 `BigAddPosseService`](#63-bigaddposseservice)
 - [7. Content & Discovery](#7-content--discovery)
   - [7.1 `MediaGalleryService`](#71-mediagalleryservice)
   - [7.2 `HashtagDiscoveryService`](#72-hashtagdiscoveryservice)
@@ -202,6 +203,11 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Owns:** HoF landing page read for `GET /hof`; in-site HoF inductee display and historical record reads
 - **Does NOT own:** HoF tier promotion or `is_hof` flag writes (MembershipTieringService), nomination/affidavit/election lifecycle (VotingElectionService)
 - **Primary tables:** none (read-only rollup view of HoF-flagged rows owned by other services)
+
+**`BigAddPosseService`**
+- **Owns:** BAP landing page read for `GET /bap`; in-site BAP roster display and historical record reads
+- **Does NOT own:** BAP tier promotion or `is_bap` flag writes (MembershipTieringService)
+- **Primary tables:** none (read-only rollup view of BAP-flagged rows owned by other services)
 
 ---
 
@@ -806,6 +812,27 @@ For the current public routes, `EventService` is responsible for:
 **Key Rules:**
 - `[APP]` This service is read-only and does not issue DB queries
 - `[APP]` Templates must not construct the standalone HoF URL; service provides the `content.externalLink` object
+
+**Async / Side Effects:** none
+
+---
+
+### 6.3 `BigAddPosseService`
+
+**Purpose/Boundary:** Owns the current-slice BAP landing page read for `GET /bap` — service-shaped, no DB queries required. Does NOT own BAP tier promotion or `is_bap` flag writes (MembershipTieringService). Future in-site BAP roster pages, induction-year pages, and historical-record surfaces are deferred out of scope.
+
+**Consumers:** Public BAP controller
+
+**Key Methods:**
+- `getBapLandingPage() -> { seo, page, content }` — shapes the current-slice editorial landing page model; no DB reads
+
+**Authz:** public (no login required)
+
+**Persistence Touchpoints:** none
+
+**Key Rules:**
+- `[APP]` This service is read-only and does not issue DB queries
+- `[APP]` Templates must not construct the standalone BAP URL; service provides the `content.externalLink` object
 
 **Async / Side Effects:** none
 

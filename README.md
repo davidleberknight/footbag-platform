@@ -22,9 +22,8 @@ Some functionality is done and deployed on AWS. This is the baseline for ongoing
 
 Sneak Preview: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
 
-- Some legacy migration tooling is done, including a full mirror of the current live footbag.org.
-- Historical data processing scripts under development. Legacy event-results data cleanup is done, club data processing is underway.
-- The current implemented slice is evolving. For the authoritative current scope, implemented routes, and known accepted gaps, see `IMPLEMENTATION_PLAN.md`.
+- The legacy-data pipeline under `legacy_data/` is reproducible. It mirrors the live site, loads canonical events and results, populates the freestyle trick dictionary and curated media links, builds the net enrichment layer (teams, appearances, review queue), loads freestyle and consecutive-kicks records, runs QC gates, and supports staging deploy orchestration. Club, person, and member data cleanup is multi-step and partly registration-driven; see `docs/MIGRATION_PLAN.md` §9.
+- Active sprint scope, accepted shortcuts, and known temporary deviations are tracked in `IMPLEMENTATION_PLAN.md`.
 - Official rule/policy simplification proposals approved by IFPA Board Decision; awaiting final IFPA language.
 
 ## Contributing

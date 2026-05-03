@@ -12,29 +12,24 @@
     <div class="wrapper">
       <a href="/" class="site-logo">IFPA <span>Footbag Worldwide</span></a>
       <nav class="main-nav" aria-label="Main navigation">
-        <a href="/" {{#if (eq currentSection 'home')}}class="active"{{/if}}>Home</a>
-        <a href="/events" {{#if (eq currentSection 'events')}}class="active"{{/if}}>Events</a>
-        <a href="/members" {{#if (eq currentSection 'members')}}class="active"{{/if}}>Members</a>
-        <a href="/clubs" {{#if (eq currentSection 'clubs')}}class="active"{{/if}}>Clubs</a>
-        <a href="/net" {{#if (eq currentSection 'net')}}class="active"{{/if}}>Net</a>
-        <a href="/freestyle" {{#if (eq currentSection 'freestyle')}}class="active"{{/if}}>Freestyle</a>
-        <a href="/sideline" {{#if (eq currentSection 'sideline')}}class="active"{{/if}}>Sideline</a>
-        <a href="/rules" {{#if (eq currentSection 'rules')}}class="active"{{/if}}>Rules</a>
-        <a href="/records" {{#if (eq currentSection 'records')}}class="active"{{/if}}>Records</a>
-        <a href="/hof" {{#if (eq currentSection 'hof')}}class="active"{{/if}}>HoF</a>
-        {{#if isAuthenticated}}
-          <a href="/members/{{currentUser.slug}}" {{#if (eq currentSection 'members')}}class="active"{{/if}}>
-            {{#if currentUser.displayName}}{{currentUser.displayName}}{{else}}My Profile{{/if}}
-          </a>
-          {{#if (eq currentUser.role 'admin')}}
-            <a href="/admin" {{#if (eq currentSection 'admin')}}class="active"{{/if}}>Admin</a>
+        <div class="nav-primary">
+          {{> nav-links navLinks}}
+        </div>
+        <div class="nav-auth">
+          {{#if isAuthenticated}}
+            <a href="/members/{{currentUser.slug}}" {{#if (eq currentSection 'members')}}class="active"{{/if}}>
+              {{#if currentUser.displayName}}{{currentUser.displayName}}{{else}}My Profile{{/if}}
+            </a>
+            {{#if (eq currentUser.role 'admin')}}
+              <a href="/admin" {{#if (eq currentSection 'admin')}}class="active"{{/if}}>Admin</a>
+            {{/if}}
+            <form method="POST" action="/logout" class="nav-logout">
+              <button type="submit" class="nav-logout-btn">Logout</button>
+            </form>
+          {{else}}
+            <a href="/login">Login</a>
           {{/if}}
-          <form method="POST" action="/logout" class="nav-logout">
-            <button type="submit" class="nav-logout-btn">Logout</button>
-          </form>
-        {{else}}
-          <a href="/login">Login</a>
-        {{/if}}
+        </div>
       </nav>
     </div>
   </header>
@@ -53,16 +48,7 @@
         <div class="footer-tagline">International Footbag Players Association</div>
       </div>
       <div class="footer-links">
-        <a href="/">Home</a>
-        <a href="/events">Events</a>
-        <a href="/members">Members</a>
-        <a href="/clubs">Clubs</a>
-        <a href="/net">Net</a>
-        <a href="/freestyle">Freestyle</a>
-        <a href="/sideline">Sideline</a>
-        <a href="/rules">Rules</a>
-        <a href="/records">Records</a>
-        <a href="/hof">HoF</a>
+        {{> nav-links navLinks}}
       </div>
     </div>
     <div class="wrapper">

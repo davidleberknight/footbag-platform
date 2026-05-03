@@ -259,44 +259,64 @@ export const INSIGHTS_NARRATIVES: string[] = [
 
 export const HISTORY_PIONEERS: FreestyleHistoryPioneer[] = [
   {
-    name: 'Kenny Shults',
+    name: 'Kenny Shults (The Enforcer)',
     note: 'Early clipper-based vocabulary; helped establish whirl as a competition element. 11 freestyle singles wins across multiple eras.',
     profileHref: '/history/2a6a7c9e-1d8a-4f9a-a8f5-6f3a3c1e9b0f',
   },
   {
     name: 'Rick Reese (Rippin\')',
     note: 'Foundational movement-trick vocabulary; early ripwalk variants. Namesake of one of the most-used transition tricks in competitive freestyle.',
-    profileHref: null,
+    profileHref: '/history/0858e74f-3f58-51c5-8d9b-4a6f2333c08c',
   },
   {
-    name: 'Eric Wulff',
+    name: 'Eric Wulff (Iron Man)',
     note: 'Butterfly-based freestyle style; among the first to demonstrate butterfly combinations in competition. 25 podium finishes spanning multiple decades.',
     profileHref: '/history/e8b82661-4428-5e51-a786-29bf7a23728f',
   },
   {
-    name: 'Tuan Vu',
+    name: 'Tuan Vu (Disco Ninja)',
     note: 'Influential technical freestyler; widely cited by peers as an early innovator of difficult sequences in the pre-ADD era.',
-    profileHref: null,
+    profileHref: '/history/28565dd0-2196-5404-bf23-6cf0617ce79b',
   },
   {
-    name: 'Scott Davidson',
+    name: 'Scott Davidson (Enlightener)',
     note: 'Early innovator; helped shape the pre-ADD competitive culture. 6 gold medals, active across the formative period.',
     profileHref: '/history/274d2f51-e2d5-5458-be40-6b9211ff813e',
   },
   {
-    name: 'Daryl Genz',
+    name: 'Daryl Genz (Genzu Blades)',
     note: 'Early innovator and longtime competition contributor across the formative 1980s and 1990s.',
-    profileHref: null,
+    profileHref: '/history/bd97ebe2-5ecd-5854-9d2e-b877a27ac527',
   },
   {
-    name: 'Peter Irish',
+    name: 'Peter Irish (The Executioner)',
     note: '13 freestyle singles golds; dominant competitor from the late 1980s into the 1990s.',
     profileHref: '/history/542be6a9-3b5a-5374-961b-9de19c0def7a',
   },
   {
-    name: 'Carol Wedemeyer',
+    name: 'Carol Wedemeyer (She blade)',
     note: "9 gold medals in women's freestyle; dominant in the 1980s–1990s transition period.",
     profileHref: '/history/b63b58da-fe12-59da-92d6-15726472e38b',
+  },
+  {
+    name: 'Tim Kelley (Stikman)',
+    note: 'Minnesota freestyler; huge combos with double dexterities on both sides.',
+    profileHref: '/history/044b9080-ec21-5ca5-a8b0-e85ab5fb1c0b',
+  },
+  {
+    name: 'Dimitri Kavouras (Celsone)',
+    note: 'Bay Area innovator; co-developed the San Francisco freestyle scene with Dennis Jones through intensive training.',
+    profileHref: '/history/56d03794-1837-5abc-b35c-48bfc50ea8ae',
+  },
+  {
+    name: 'Dennis Jones (D-Money)',
+    note: 'Co-built the San Francisco Bay Area freestyle scene through relentless training and cutting-edge combinations.',
+    profileHref: '/history/075d8a18-efd4-531c-a9cd-493213bb8382',
+  },
+  {
+    name: 'Joey Schaeffer (Za Za)',
+    note: 'Originated the BAP\'s "Stand Clear of the Blades" branding at the 1992 Worlds; conceptualized the symposium modifier.',
+    profileHref: '/history/50799219-0327-5a7e-9542-53c37b63ce66',
   },
 ];
 
@@ -312,7 +332,7 @@ export const HISTORY_ERAS: FreestyleHistoryEra[] = [
     period: '1990–1999',
     label: 'ADD System & Expansion',
     summary:
-      'The ADD (Additional Degree of Difficulty) system codified what players had already been doing for a decade. The BAP (Bag Arts Pioneer) recognition program, begun in 1992, acknowledged the foundational cohort who had built the sport. The Sick3 format emerged as a pure-difficulty side event. 49 documented freestyle events expanded geographic reach.',
+      'The ADD (Additional Degree of Difficulty) system codified what players had already been doing for a decade. The BAP (Big ADD Posse) recognition program, begun in 1992, acknowledged the foundational cohort who had built the sport. The Sick3 format emerged as a pure-difficulty side event. 49 documented freestyle events expanded geographic reach.',
     keyFigures: ['Peter Irish', 'Ryan Mulroney', 'Serge Kaldany', 'Rick Reese', 'Tuan Vu', 'John Schneider', 'Ken Somolinos'],
   },
   {

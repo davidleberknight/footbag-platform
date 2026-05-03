@@ -14,6 +14,20 @@ import { publicRouter }   from './routes/publicRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
 
+const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
+  { href: '/',          section: 'home',      label: 'Home' },
+  { href: '/events',    section: 'events',    label: 'Events' },
+  { href: '/members',   section: 'members',   label: 'Members' },
+  { href: '/clubs',     section: 'clubs',     label: 'Clubs' },
+  { href: '/net',       section: 'net',       label: 'Net' },
+  { href: '/freestyle', section: 'freestyle', label: 'Freestyle' },
+  { href: '/sideline',  section: 'sideline',  label: 'Sideline' },
+  { href: '/rules',     section: 'rules',     label: 'Rules' },
+  { href: '/records',   section: 'records',   label: 'Records' },
+  { href: '/hof',       section: 'hof',       label: 'HoF' },
+  { href: '/bap',       section: 'bap',       label: 'BAP' },
+];
+
 /**
  * Factory that returns a configured Express application without
  * binding to a port. Keeping this as a factory (not a module singleton)
@@ -157,6 +171,7 @@ export function createApp(): express.Application {
       : req.path.startsWith('/clubs') ? 'clubs'
       : req.path.startsWith('/gallery') ? 'gallery'
       : req.path.startsWith('/hof') ? 'hof'
+      : req.path.startsWith('/bap') ? 'bap'
       : req.path.startsWith('/freestyle') ? 'freestyle'
       : req.path.startsWith('/records') ? 'records'
       : req.path.startsWith('/net') ? 'net'
@@ -164,6 +179,10 @@ export function createApp(): express.Application {
       : req.path.startsWith('/rules') ? 'rules'
       : req.path.startsWith('/admin') ? 'admin'
       : '';
+    res.locals.navLinks = NAV_SECTIONS.map(item => ({
+      ...item,
+      isActive: item.section === res.locals.currentSection,
+    }));
     res.locals.isAuthenticated = req.isAuthenticated;
     res.locals.currentUser = req.user;
     const flash = readFlash(req);

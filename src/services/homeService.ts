@@ -112,6 +112,16 @@ export const homeService = {
           description: 'Consecutive kicks world records, highest scores, and milestones.',
         },
         {
+          label: 'Hall of Fame',
+          href: '/hof',
+          description: 'Honouring the pioneers, champions, and promoters of footbag sports.',
+        },
+        {
+          label: 'Big Add Posse',
+          href: '/bap',
+          description: 'Elite invite-only posse of top freestyle shredders.',
+        },
+        {
           label: 'Media Gallery',
           href: '/gallery',
           description: 'Photos and videos from across the footbag world.',

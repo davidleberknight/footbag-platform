@@ -1,0 +1,7 @@
+{{! Partial: nav-links
+    Context: an array of { href, section, label, isActive } objects.
+    Used by: layouts/main.hbs (header and footer). }}
+
+{{#each this}}
+  <a href="{{href}}"{{#if isActive}} class="active"{{/if}}>{{label}}</a>
+{{/each}}

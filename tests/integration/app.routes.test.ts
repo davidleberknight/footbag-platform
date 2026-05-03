@@ -589,12 +589,13 @@ describe('GET /', () => {
     expect(res.text).not.toContain('2026 Draft Event');
   });
 
-  it('includes navigation links to events, clubs, and hof', async () => {
+  it('includes navigation links to events, clubs, hof, and bap', async () => {
     const app = createApp();
     const res = await request(app).get('/');
     expect(res.text).toContain('href="/events"');
     expect(res.text).toContain('href="/clubs"');
     expect(res.text).toContain('href="/hof"');
+    expect(res.text).toContain('href="/bap"');
   });
 
   it('includes promoted Sideline card linking to /sideline', async () => {
@@ -913,6 +914,48 @@ describe('GET /hof', () => {
     expect(res.text).toContain('A Bit of History');
     expect(res.text).toContain('Hacky Sack');
     expect(res.text).toContain('Stalberger');
+  });
+});
+
+// ── BAP landing page ──────────────────────────────────────────────────────────
+
+describe('GET /bap', () => {
+  it('returns 200', async () => {
+    const app = createApp();
+    const res = await request(app).get('/bap');
+    expect(res.status).toBe(200);
+  });
+
+  it('includes Big Add Posse heading', async () => {
+    const app = createApp();
+    const res = await request(app).get('/bap');
+    expect(res.text).toContain('Big Add Posse');
+  });
+
+  it('includes link to external BAP site', async () => {
+    const app = createApp();
+    const res = await request(app).get('/bap');
+    expect(res.text).toContain('bigaddposse.com');
+  });
+
+  it('includes BAP nav link', async () => {
+    const app = createApp();
+    const res = await request(app).get('/bap');
+    expect(res.text).toContain('href="/bap"');
+  });
+
+  it('includes navigation links to home and events', async () => {
+    const app = createApp();
+    const res = await request(app).get('/bap');
+    expect(res.text).toContain('href="/"');
+    expect(res.text).toContain('href="/events"');
+  });
+
+  it('renders BAP history section with key content', async () => {
+    const app = createApp();
+    const res = await request(app).get('/bap');
+    expect(res.text).toContain('History of the BAP');
+    expect(res.text).toContain('Additional Degree of Difficulty');
   });
 });
 

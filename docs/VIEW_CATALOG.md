@@ -33,12 +33,13 @@
   - [6.12 Clubs country page](#612-clubs-country-page)
   - [6.13 Club detail](#613-club-detail)
   - [6.14 HoF landing](#614-hof-landing)
-  - [6.15 Login](#615-login)
-  - [6.16 Register](#616-register)
-  - [6.17 Claim initiation](#617-claim-initiation)
-  - [6.18 Claim confirmation](#618-claim-confirmation)
-  - [6.19 Legal](#619-legal)
-  - [6.20 Media gallery](#620-media-gallery)
+  - [6.15 BAP landing](#615-bap-landing)
+  - [6.16 Login](#616-login)
+  - [6.17 Register](#617-register)
+  - [6.18 Claim initiation](#618-claim-initiation)
+  - [6.19 Claim confirmation](#619-claim-confirmation)
+  - [6.20 Legal](#620-legal)
+  - [6.21 Media gallery](#621-media-gallery)
 - [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
   - [7.1 Authorization boundary](#71-authorization-boundary)
   - [7.2 Error behavior](#72-error-behavior)
@@ -163,7 +164,7 @@ Every public page except Home (see §3.5) must render from the same top-level co
   - `title` — tab suffix (e.g. `"Events"`, `"2025 Events"`, `"Alice Footbag"`); the layout renders `Footbag {seo.title}` in the `<title>` tag; never include the word "Footbag" in this value
   - optional `description` — meta description for future SEO use
 - `page`
-  - `sectionKey` — nav section identifier (`'events'`, `'members'`, `'clubs'`, `'hof'`, `'freestyle'`, `'records'`, `'net'`, or `''` for login/error pages)
+  - `sectionKey` — nav section identifier (`'events'`, `'members'`, `'clubs'`, `'hof'`, `'bap'`, `'freestyle'`, `'records'`, `'net'`, or `''` for login/error pages)
   - `pageKey` — unique page identifier (`'events_index'`, `'event_detail'`, `'member_history_detail'`, etc.)
   - `title` — displayed h1 text
   - optional `eyebrow` — small label rendered above h1
@@ -499,6 +500,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /password/reset/:token` | Password reset | Form to set a new password from an email link | Current |
 | `GET /members/:memberKey/edit/password` | Member password edit | Own-profile change-password form | Current |
 | `GET /hof` | HoF landing | Footbag Hall of Fame editorial/informational landing page | Current stub |
+| `GET /bap` | BAP landing | Big Add Posse editorial/informational landing page | Current stub |
 | `GET /freestyle` | Freestyle landing | Freestyle section entry page | Current |
 | `GET /freestyle/records` | Freestyle records | Freestyle world records (authoritative list) | Current |
 | `GET /freestyle/leaders` | Freestyle leaders | Freestyle leaders list | Current |
@@ -1355,7 +1357,70 @@ This page has editorial content in the current slice and does not use a generic 
 
 ---
 
-### 6.15 Login
+### 6.15 BAP landing
+
+### Purpose
+
+Provide the public Big Add Posse landing page as a first-class route in the main site. In the current slice this is a service-shaped editorial landing page that links to the existing standalone BAP site. Future BAP roster pages, induction-year pages, and member-linked BAP records remain future scope.
+
+### Route
+
+`GET /bap`
+
+### Audience
+
+Public visitor.
+
+### Standard relationship
+
+This page consumes the generic public rendering standard and the §4.2 page contract.
+
+### Page intent
+
+- establish the Big Add Posse as a first-class section in the site navigation, peer to the Hall of Fame
+- provide a credible current landing page now
+- link visitors to the existing standalone BAP site
+- leave a clean expansion path for future BAP roster/history pages inside footbag.org
+
+### Required content
+
+- hero for the BAP section
+- external call-to-action to the current standalone BAP site
+- editorial sections framing ADD scoring and BAP's relationship to it
+
+### Required view-model fields
+
+- `seo.title = Big Add Posse`
+- `page.sectionKey = bap`
+- `page.pageKey = bap_index`
+- `page.title`
+- optional `page.eyebrow`
+- `page.intro`
+- optional `page.notice`
+- optional `content.externalLink`
+  - `href`
+  - `label`
+- optional `content.sections[]`
+  - `heading`
+  - `paragraphs: string[]`
+
+### Navigation outputs
+
+No service-provided navigation outputs. Global nav (`currentSection`) is set by middleware.
+
+### Empty state
+
+This page has editorial content in the current slice and does not use a generic empty-state treatment.
+
+### Implementation notes
+
+- No DB queries required for the current slice; service shapes the page model directly.
+- Templates must not construct the standalone BAP URL.
+- Future BAP roster/induction-year/member routes are intentionally out of scope here and will be cataloged separately when implemented.
+
+---
+
+### 6.16 Login
 
 ### Purpose
 
@@ -1412,7 +1477,7 @@ Not applicable. The form always renders.
 
 ---
 
-### 6.16 Register
+### 6.17 Register
 
 ### Purpose
 
@@ -1456,7 +1521,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 ---
 
-### 6.17 Claim initiation
+### 6.18 Claim initiation
 
 ### Purpose
 
@@ -1507,7 +1572,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 ---
 
-### 6.18 Claim confirmation
+### 6.19 Claim confirmation
 
 ### Purpose
 
@@ -1558,7 +1623,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 ---
 
-### 6.19 Legal
+### 6.20 Legal
 
 ### Purpose
 
@@ -1622,7 +1687,7 @@ Not applicable. Legal content is static and always present.
 
 ---
 
-### 6.20 Media gallery
+### 6.21 Media gallery
 
 ### Purpose
 
