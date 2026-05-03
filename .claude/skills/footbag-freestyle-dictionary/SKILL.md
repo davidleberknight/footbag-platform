@@ -227,6 +227,65 @@ Rules:
 
 - **FootbagSpot tutorials**: `https://footbagspot.com/tutorials/v/{hash-or-slug}` for individual videos. `/tutorials/{category}` for category landing pages. Speculative `/tutorials/{slug}` URLs all 404 — do not extrapolate.
 
+- **YouTube oembed verification**: `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={id}&format=json` returns title + author_name in JSON; HTTP 400 if id is malformed (YouTube IDs are exactly 11 chars; 12-char inputs are typos). Use this to confirm any new YouTube URL before append.
+
+- **WorldFootbag channel inventory recipe**: `yt-dlp --flat-playlist --dump-json https://www.youtube.com/@WorldFootbag/videos` is the authoritative way to enumerate the Tricks-of-the-Trade lesson series (42 lessons #1-#42, no gaps). See memory `reference_worldfootbag_channel.md`. Google web search returns ~10-15 of the 42 only.
+
+### Source registry (`media_sources.csv`) and tutorial-tier classification
+
+The `tutorial-tier` set in `legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py` `TUTORIAL_SOURCES` is load-bearing for the coverage dashboard: a primary link counts as `STRONG_TUTORIAL` only if its `source_id` is in this set. Update both `media_sources.csv` and the script's set when registering a new trusted-tutorial source.
+
+Currently registered (2026-05-03): `anz_trikz`, `tt_youtube`, `footbagspot_passback`, `footbagspot_tutorials`, `shred_global`, `footbag_foundations`, `polini_pointers`, `everything_footbag`, `flipsider_footbag`, `footbag_finland`. Record / performance source: `passback_records` (classified `WEAK_RECORD`).
+
+Source priority for primary selection:
+1. AnzTrikz single/double-trick tutorial (`anz_trikz`)
+2. TT / Tricks of the Trade single-trick lesson (`tt_youtube`)
+3. PassBack tutorial (`footbagspot_passback`)
+4. Other verified tutorial source (`shred_global`, `footbagspot_tutorials`, `flipsider_footbag`, `footbag_finland`, etc.)
+5. Clear demo (named-trick demos from community channels — currently classified as tutorial-tier when registered)
+6. Record / performance clip (`passback_records`) — never primary if a tutorial alternative exists
+
+### Primary-promotion rules (load-bearing — applied before every media-link write)
+
+A media row may be promoted to `is_primary=1` only if all five hold:
+
+1. The target trick is **active** (`is_active=1`).
+2. The video clearly teaches or demonstrates that specific trick.
+3. The source is in the `TUTORIAL_SOURCES` tier above.
+4. The current primary is missing OR is a record / demo / performance clip.
+5. Promotion creates no duplicate primary (partial unique index enforces, but plan around it).
+
+Do NOT promote if:
+- Target trick is pending (`is_active=0`); use `is_primary=0` only.
+- Video is a montage, drill, record, or shred run.
+- Title is generic (e.g., "Double Dexes" — does not name a specific trick).
+- Target trick is not explicitly central to the video.
+- Current primary is already a strong tutorial.
+
+Multi-trick tutorials: promote only when each target trick is **explicitly named in the title** (e.g., "Mirage & Illusion" → primary for both; "Pixie & Fairy" → primary for both; "DLO & Eggbeater" → primary for both). Generic titles like "Double Dexes" stay secondary regardless of source.
+
+### Reset-compatibility classification (HOLD / STAGED / SAFE)
+
+Before appending any `media_links.csv` row, classify the target slug against a fresh-reset load (scripts 17 + 19 + 21-media + 22 + 23 — note `script 21_load_footbag_org_pending_tricks.py` is **not** in `reset-local-db.sh`):
+
+- **SAFE**: target slug active in `freestyle_tricks` after reset (loaded via 17 or 19). Append immediately; primary or secondary per the promotion rules.
+- **STAGED**: target slug exists as pending after reset (`is_active=0`). Append only with `is_primary=0`; loader allows pending links; public UI hides via the `is_active=1` filter on `freestyleTricks.listAll/getBySlug/listByFamily`.
+- **HOLD**: target slug does NOT exist after reset. Do NOT append yet. First add the canonical row to `red_additions_2026_04_20.csv` (or `tricks.csv` for curated baseline) so it loads via 17/19; only then is the link SAFE or STAGED.
+
+The 193 footbag.org pending rows (loaded historically by `21_load_footbag_org_pending_tricks.py`) survive in live prod DB but vanish on any reset. Do not assume their slugs exist; check via the dashboard.
+
+### Coverage dashboard
+
+`legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py` — read-only dashboard generator. Default mode builds a fresh schema-only temp DB and runs the reset-compatible loader chain; `--db <path>` runs against an existing DB. Outputs `legacy_data/reports/freestyle_media_coverage.csv` (one row per `freestyle_tricks` slug; 17 columns including `primary_strength`, `status`, `priority_bucket`) and a markdown summary on stdout.
+
+Four validation checks (non-zero exit if any fail) — run before every media commit:
+1. No duplicate primary per `(entity_type='trick', entity_id)`.
+2. No `media_links.entity_id` points to a missing trick slug after reset (catches orphans from HOLD-tier targets).
+3. Pending tricks with media all have `is_primary=0`.
+4. Report row count == `freestyle_tricks` total.
+
+Status values: `ACTIVE_STRONG_PRIMARY`, `ACTIVE_WEAK_PRIMARY`, `ACTIVE_NO_PRIMARY`, `PENDING_WITH_MEDIA`, `PENDING_NO_MEDIA`. Priority buckets: `COMPLETE`, `CORE_GAP` (core trick with no primary), `WEAK_CORE` (core with record-only), `PENDING_REVIEW`, `LOW_PRIORITY`. Core-trick set is a load-bearing constant in the script; update there when the editorial definition shifts.
+
 ---
 
 ## 5c. Navigation Layer (trick detail page)
