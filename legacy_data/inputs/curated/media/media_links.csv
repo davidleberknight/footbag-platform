@@ -17,11 +17,11 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 32fa4bcd-0b23-5dad-b3ee-4b5584a7d7de,record,481678d9-8cb6-5136-b20a-a5fac303ac14,,,1
 32fa4bcd-0b23-5dad-b3ee-4b5584a7d7de,trick,swirl,,,0
 33485890-1f93-5f22-9741-6d09cd3a00a0,record,c4f03114-bf3d-50aa-9cfe-79f3ec0b24ce,,,1
-33485890-1f93-5f22-9741-6d09cd3a00a0,trick,torque,,,1
+33485890-1f93-5f22-9741-6d09cd3a00a0,trick,torque,,,0
 339cd9b5-ced6-58ea-b64f-6c39c01832c3,record,5d8e4871-7417-56b5-a5b3-60e65457e1a1,7,,1
 339cd9b5-ced6-58ea-b64f-6c39c01832c3,trick,whirl,7,,0
 37cba70b-33c3-5e04-854e-2cf0b4e24088,record,20edf4bd-c501-5fab-a4a7-16cc9f93b329,,,1
-37cba70b-33c3-5e04-854e-2cf0b4e24088,trick,mirage,,,1
+37cba70b-33c3-5e04-854e-2cf0b4e24088,trick,mirage,,,0
 380feddf-0b63-5199-bb57-3be4c63da732,record,7439984a-fccf-5d36-bf67-ad765f3f6246,25,,1
 380feddf-0b63-5199-bb57-3be4c63da732,trick,spinning-osis,25,,1
 3a1b9efb-73cc-52a8-bf98-3f74d968d19d,trick,food-processor,31,,1
@@ -87,3 +87,6 @@ daa91d53-ae5a-505d-a684-efd21e8133f2,trick,whirl,,,1
 3cdaf967-4d86-5eef-a0c3-356c238b3fb3,trick,fairy,,,1
 3cdaf967-4d86-5eef-a0c3-356c238b3fb3,trick,pixie,,,1
 daa91d53-ae5a-505d-a684-efd21e8133f2,trick,rev-whirl,,,1
+a1715eac-47e2-5be9-87eb-cbdaa86b4979,trick,mirage,,,1
+a1715eac-47e2-5be9-87eb-cbdaa86b4979,trick,illusion,,,1
+8e443876-9d3d-5cfc-81f0-2ecaa53a030f,trick,torque,,,1
