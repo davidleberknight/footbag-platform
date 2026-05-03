@@ -1,0 +1,10 @@
+source,external_name,normalized_external_name,external_adds,canonical_slug,match_type,confidence,notes
+footbag.org,Toe Delay,toe delay,1,toe-stall,alias,HIGH,fb.org's surface-delay naming convention; our canonical uses *-stall
+footbag.org,Inside Delay,inside delay,1,inside-stall,alias,HIGH,fb.org's surface-delay naming convention; our canonical uses *-stall
+footbag.org,Outside Delay,outside delay,1,outside-stall,alias,HIGH,fb.org's surface-delay naming convention; our canonical uses *-stall
+footbag.org,Heel Delay,heel delay,1,heel-stall,alias,HIGH,"fb.org's surface-delay naming convention; per universal 'delay = 1 ADD' rule (corrected from fb.org's scraped value of 2 - likely a typo on fb.org's end)"
+footbag.org,Knee Delay,knee delay,1,knee-stall,alias,HIGH,fb.org's surface-delay naming convention; our canonical uses *-stall
+footbag.org,Pincher (Squeeze),pincher squeeze,2,squeeze,alias,HIGH,"fb.org's parenthetical-alias naming pattern; alt_name 'Squeeze' is our canonical (Red pt4 reversed the priority)"
+footbag.org,Legbeater,legbeater,4,atomic-butterfly,alias,HIGH,community alt-name for atomic-butterfly; per Red pt2 'Legbeater (4) = Atomic Butterfly'
+footbag.org,PS Whirl,ps whirl,4,paradox-symposium-whirl,alias,HIGH,abbreviation expansion (PS = Paradox Symposium)
+footbag.org,Toe Blur,toe blur,3,quantum,related,MED,"fb.org's 3-ADD 'Toe Blur' likely captures launch+double-dex+catch (= quantum-mirage compound); our quantum=2 captures the launch action alone. Do NOT auto-resolve as alias - the relationship is structural, not equivalence. Per user 2026-05-03: Toe Blur ≈ quantum + delay (compound)."

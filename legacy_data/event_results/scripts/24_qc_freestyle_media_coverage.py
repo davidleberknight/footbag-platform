@@ -42,9 +42,17 @@ SCRIPT_DIR = Path(__file__).parent
 LEGACY_DATA_DIR = SCRIPT_DIR.parents[1]
 REPO_ROOT = SCRIPT_DIR.parents[2]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
+MEDIA_ASSETS_CSV = LEGACY_DATA_DIR / "inputs" / "curated" / "media" / "media_assets.csv"
 REPORT_DIR = LEGACY_DATA_DIR / "reports"
 REPORT_PATH = REPORT_DIR / "freestyle_media_coverage.csv"
 REPORT_MD_PATH = REPORT_DIR / "freestyle_media_coverage.md"
+
+# Per-asset tier values. CANONICAL_TUTORIAL and HIGH_QUALITY_DEMO both count
+# toward strong coverage (is_strong=True); SUPPORTING_DEMO and RECORD do not.
+# UNKNOWN is a hard validation failure — every asset must have a real tier
+# assigned in media_assets.csv.
+VALID_TIERS = {"CANONICAL_TUTORIAL", "HIGH_QUALITY_DEMO", "SUPPORTING_DEMO", "RECORD", "UNKNOWN"}
+STRONG_TIERS = {"CANONICAL_TUTORIAL", "HIGH_QUALITY_DEMO"}
 
 LOADERS_IN_ORDER = [
     "17_load_trick_dictionary.py",
@@ -54,25 +62,9 @@ LOADERS_IN_ORDER = [
     "23_load_freestyle_media_links.py",
 ]
 
-TUTORIAL_SOURCES = {
-    # Explicit instruction-style content (channel-titled or lesson-numbered).
-    "anz_trikz",
-    "tt_youtube",
-    "footbagspot_passback",
-    "footbagspot_tutorials",
-    "shred_global",
-    "footbag_foundations",
-    "polini_pointers",
-    "everything_footbag",
-}
-HIGH_QUALITY_DEMO_SOURCES = {
-    # Single-trick clean demonstration channels (slow, isolated, high-quality
-    # but not narrated as instruction). Counts toward strong coverage but is
-    # tagged separately for editorial visibility.
-    "footbag_finland",
-    "flipsider_footbag",
-}
-RECORD_SOURCES = {"passback_records"}
+  # Source-tier sets retained as fallback only — used by classify_primary_strength
+# when an asset row is missing its tier value. Tier in media_assets.csv is the
+# source of truth post-migration.
 
 CORE_TRICKS = {
     "mirage", "illusion", "pickup", "legover", "butterfly", "clipper",
@@ -110,16 +102,52 @@ def build_temp_db() -> Path:
     return db_path
 
 
-def classify_primary_strength(source_id: str | None) -> str:
-    if source_id is None:
+def load_asset_tiers() -> dict[str, str]:
+    """Load asset_id → tier from the curated CSV (source of truth).
+
+    The DB schema does not yet carry the tier column, so we read it from the
+    CSV directly. When DB schema migration lands (deferred commit M+1), this
+    helper can be replaced with a SQL JOIN.
+    """
+    tiers: dict[str, str] = {}
+    if not MEDIA_ASSETS_CSV.exists():
+        return tiers
+    with MEDIA_ASSETS_CSV.open(newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            tier = (row.get("tier") or "").strip()
+            tiers[row["id"].strip()] = tier or "UNKNOWN"
+    return tiers
+
+
+def classify_primary_strength(asset_id: str | None, source_id: str | None,
+                              asset_tier: str | None) -> str:
+    """Tier-first; source-id fallback for backward compatibility.
+
+    Returns one of: STRONG_TUTORIAL, HIGH_QUALITY_DEMO, SUPPORTING_DEMO,
+    WEAK_RECORD, NONE. Maps tier values onto the strength labels the rest of
+    the dashboard already uses.
+    """
+    if asset_id is None or source_id is None:
         return "NONE"
-    if source_id in TUTORIAL_SOURCES:
+
+    # Tier-first (post-migration)
+    if asset_tier == "CANONICAL_TUTORIAL":
         return "STRONG_TUTORIAL"
-    if source_id in HIGH_QUALITY_DEMO_SOURCES:
+    if asset_tier == "HIGH_QUALITY_DEMO":
         return "HIGH_QUALITY_DEMO"
-    if source_id in RECORD_SOURCES:
+    if asset_tier == "SUPPORTING_DEMO":
+        return "SUPPORTING_DEMO"
+    if asset_tier == "RECORD":
         return "WEAK_RECORD"
-    # Unknown sources fall to weak; surface in the report rather than crashing.
+
+    # Fallback (asset_tier blank or UNKNOWN — flagged by validation but the
+    # dashboard still renders so reviewers can see the bad data).
+    if source_id in {"anz_trikz","tt_youtube","footbagspot_passback","footbagspot_tutorials","shred_global","footbag_foundations","polini_pointers","everything_footbag"}:
+        return "STRONG_TUTORIAL"
+    if source_id in {"footbag_finland","flipsider_footbag"}:
+        return "HIGH_QUALITY_DEMO"
+    if source_id == "passback_records":
+        return "WEAK_RECORD"
     return "WEAK_RECORD"
 
 
@@ -174,14 +202,22 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
             "title": r[3], "source_id": r[4],
         })
 
+    asset_tiers = load_asset_tiers()
+
     rows = []
     for slug, name, cat, adds, is_active, status, base, family in tricks:
         links = by_slug.get(slug, [])
         primaries = [l for l in links if l["is_primary"] == 1]
         primary = primaries[0] if primaries else None
-        primary_strength = classify_primary_strength(primary["source_id"] if primary else None)
+        primary_tier = asset_tiers.get(primary["media_id"]) if primary else None
+        primary_strength = classify_primary_strength(
+            primary["media_id"] if primary else None,
+            primary["source_id"] if primary else None,
+            primary_tier,
+        )
         row_status = classify_status(is_active, primary_strength, len(links))
         priority = classify_priority(slug, row_status)
+        is_strong = primary_tier in STRONG_TIERS if primary else False
 
         sources = {l["source_id"] for l in links}
         rows.append({
@@ -197,6 +233,8 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
             "primary_title": (primary["title"] if primary else "") or "",
             "primary_source_id": primary["source_id"] if primary else "",
             "primary_strength": primary_strength,
+            "primary_tier": primary_tier or "",
+            "is_strong": int(is_strong),
             "total_media_links": len(links),
             "has_anztrikz": int("anz_trikz" in sources),
             "has_tt": int("tt_youtube" in sources),
@@ -243,6 +281,15 @@ def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
     if len(rows) != n_tricks:
         errors.append(f"row count mismatch: report={len(rows)} tricks_table={n_tricks}")
 
+    # 5. asset tier validation (FAIL on UNKNOWN or invalid tier — Tweak #3)
+    asset_tiers = load_asset_tiers()
+    unknown_tier_assets = [aid for aid, t in asset_tiers.items() if t == "UNKNOWN" or not t]
+    invalid_tier_assets = [(aid, t) for aid, t in asset_tiers.items() if t and t != "UNKNOWN" and t not in VALID_TIERS]
+    if unknown_tier_assets:
+        errors.append(f"assets with UNKNOWN tier (must be classified): {unknown_tier_assets[:10]}{'...' if len(unknown_tier_assets) > 10 else ''}")
+    if invalid_tier_assets:
+        errors.append(f"assets with invalid tier value: {invalid_tier_assets[:10]}")
+
     return errors
 
 
@@ -252,6 +299,7 @@ def write_csv(rows: list[dict]) -> None:
         "slug", "canonical_name", "category", "base_trick", "trick_family", "adds",
         "is_active", "review_status",
         "primary_media_id", "primary_title", "primary_source_id", "primary_strength",
+        "primary_tier", "is_strong",
         "total_media_links", "has_anztrikz", "has_tt", "has_passback", "has_record",
         "status", "priority_bucket",
     ]
@@ -343,9 +391,9 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     pending_nomedia = by_status.get("PENDING_NO_MEDIA", 0)
     pct = (strong / total_active * 100) if total_active else 0
 
-    # Subcounts within ACTIVE_STRONG_PRIMARY, by primary_strength
-    strong_tutorial = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_strength"] == "STRONG_TUTORIAL")
-    strong_demo = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_strength"] == "HIGH_QUALITY_DEMO")
+    # Subcounts within ACTIVE_STRONG_PRIMARY, by per-asset tier
+    strong_tutorial = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_tier"] == "CANONICAL_TUTORIAL")
+    strong_demo = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_tier"] == "HIGH_QUALITY_DEMO")
 
     push("# Freestyle media coverage")
     push("")
@@ -421,6 +469,12 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     miss = link_health["missing_source_ids"]
     miss_detail = "-" if not miss else "; ".join(f"{a[0]} ({a[2] or 'NULL'})" for a in miss[:5]) + (f" ... +{len(miss)-5}" if len(miss) > 5 else "")
     push(f"| missing_source_ids | {len(miss)} | {miss_detail} |")
+    # Tier validation (Tweak #3)
+    asset_tiers = load_asset_tiers()
+    unknown_assets = [aid for aid, t in asset_tiers.items() if t == "UNKNOWN" or not t]
+    invalid_assets = [(aid, t) for aid, t in asset_tiers.items() if t and t != "UNKNOWN" and t not in VALID_TIERS]
+    push(f"| assets_unknown_tier | {len(unknown_assets)} | {unknown_assets[:5] or '-'} |")
+    push(f"| assets_invalid_tier | {len(invalid_assets)} | {invalid_assets[:5] or '-'} |")
     push("")
 
     return "\n".join(out)
@@ -469,7 +523,7 @@ def main() -> None:
                 print(f"  - {e}", file=sys.stderr)
             sys.exit(2)
         else:
-            print(f"Validation: 4/4 checks passed.")
+            print(f"Validation: 5/5 checks passed (incl. asset tier integrity).")
             print(f"Markdown report: {REPORT_MD_PATH.relative_to(REPO_ROOT)}")
     finally:
         if owns_db:

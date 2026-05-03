@@ -66,7 +66,7 @@ ducking,,ducking,modifier,,body modifier; +1 ADD per occurrence (see trick_modif
 spinning,,spinning,modifier,,body modifier; +1 ADD non-rotational / +2 ADD rotational base tricks
 paradox,,paradox,modifier,,body modifier (hip pivot); +1 ADD universally
 symposium,,symposium,modifier,,body modifier; +1 ADD universally
-atomic,,atomic,modifier,,set modifier; +1 ADD universally; also standalone = atomic butterfly (4 ADD)
+atomic,2,atomic,set,,"Atomic set: rising-bag double-tap launch; standalone 2 ADD. Acts as +1 (non-rotational) / +2 (rotational) modifier when prefixing a base trick - see trick_modifiers."
 stepping,,stepping,modifier,,body modifier; +1 ADD universally
 gyro,,gyro,modifier,,body modifier (gyrating); +1 ADD universally
 tapping,,tapping,modifier,,body modifier; +1 ADD universally
