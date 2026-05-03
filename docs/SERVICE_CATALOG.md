@@ -613,6 +613,47 @@ For the current public routes, `EventService` is responsible for:
 
 ---
 
+### 4.7 `SidelineService`
+
+**Purpose/Boundary:** Owns the public sideline section page read for `GET /sideline` (the "Sideline" portal landing). Shapes a static page view-model: hero with mascot, brief explainer, and a fixed list of casual-game sections (Circle Kicking / Hacky Sack, 2-Square, 4-Square, Consecutive Kicks, Footbag Golf), each with optional cartoon icon, optional demo video, and optional internal rules links. No DB reads. Does not own competitive event lifecycle, results ingestion, or any record aggregation.
+
+**Consumers:** Public sideline controller
+
+**Key Methods:**
+- `getSidelineLandingPage() -> PageViewModel<SidelineLandingContent>` — sideline section entry; returns a static view-model with `mascotSrc/Alt`, intro narrative, and the canonical list of game sections with their assets and links
+
+**Persistence Touchpoints:** none (purely static content)
+
+**Key Rules:**
+- `[APP]` Game list, copy, asset paths, and links are fixed in code; no DB or admin surface
+- `[APP]` Demo videos are static `.webm` assets served from `src/public/video/sideline/`; missing assets render the section without the video element
+- `[APP]` All `moreInfo` links carry `external: false`. 2-Square and 4-Square link to `/rules/sideline/2-square` and `/rules/sideline/4-square` respectively; Footbag Golf links to `/rules/golf/footbag-golf` (Article IV); Consecutive Kicks links to `/records`. The page contains zero offsite links.
+
+---
+
+### 4.8 `RulesService`
+
+**Purpose/Boundary:** Owns the public rules section page reads for `GET /rules` (index) and `GET /rules/:disciplineSlug/:ruleSlug` (detail). Renders verbatim IFPA rule content from markdown files in `ifpa/rules/{discipline}.md`. The MD loader splits each discipline file by H1 heading; each H1 becomes one rule page with a slug derived from the heading text. Throws `NotFoundError` for unknown discipline or rule slugs. No DB reads. Does not own competitive event lifecycle, results ingestion, governance editing, or any record aggregation.
+
+**Consumers:** Public rules controller
+
+**Key Methods:**
+- `getRulesIndexPage() -> PageViewModel<RulesIndexContent>` — index of rule pages grouped by discipline, ordered `sideline → net → golf → freestyle`
+- `getRulePage(disciplineSlug, ruleSlug) -> PageViewModel<RulesDetailContent>` — single rule page with discipline-level metadata (authority, effective date, parent-section back-link, optional cross-language alternate href + label) and pre-rendered `bodyHtml`; throws `NotFoundError` for unknown slugs
+
+**Persistence Touchpoints:** none (filesystem-backed; `fs.readFileSync` on `ifpa/rules/*.md` at module load, parsed via `marked` and cached in memory)
+
+**Key Rules:**
+- `[APP]` Rule text is the source of truth in `ifpa/rules/{discipline}.md`; the rendered HTML is derived. No paraphrasing — verbatim from the canonical IFPA source (Google Doc, legacy mirror chapter HTML, or the live IFPA rules system at `http://www.footbag.org/rules/chapter/{n}`).
+- `[APP]` Each MD file carries YAML frontmatter (`discipline`, `disciplineLabel`, `authority`, `effective`, `parentHref`, `parentLabel`, optional `alternateLanguageLabel` + `alternateLanguageHref`) applied to every rule page split out of that file. When the alternate-language pair is set, the detail template renders a prominent toggle button to the cross-language version (e.g. English ↔ French Article III).
+- `[APP]` H1 headings become rule pages; their slug is `slugify(headingText)` (lowercased, non-alphanumerics → hyphen). H2 headings receive matching `id` attributes for in-page anchor linking via the on-this-page TOC.
+- `[APP]` Markdown is rendered with `marked` v14 by a small pure-function loader (`src/lib/rulesLoader.ts`); HTML entities are escaped by marked (e.g. `it&#39;s`). The MD source is repo-authored, not user input, so no DOMPurify or external sanitizer is needed.
+- `[APP]` Cache is process-lifetime; restart picks up MD edits. A `_resetRulesCache()` test hook is exported for unit-test isolation.
+- `[APP]` Rule pages render zero offsite hyperlinks. All cross-references are internal app routes.
+- `[APP]` `NotFoundError` on unknown discipline or slug → controller renders 404.
+
+---
+
 ## 5. Payments & Membership
 
 ---

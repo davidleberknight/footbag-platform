@@ -1,0 +1,38 @@
+{{! /rules/:discipline/:rule — single rule page rendered from markdown }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{content.page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper rules-detail">
+
+  {{#if content.page.alternateLanguageHref}}
+  <p class="rules-language-toggle">
+    <a href="{{content.page.alternateLanguageHref}}" class="btn btn-outline">{{content.page.alternateLanguageLabel}} &rarr;</a>
+  </p>
+  {{/if}}
+
+  <p class="rules-meta">{{content.page.authority}}{{#if content.page.effective}}, {{content.page.effective}}{{/if}}</p>
+
+  {{#if content.page.headings.length}}
+  <nav class="rules-toc" aria-label="On this page">
+    <strong>On this page</strong>
+    <ul>
+      {{#each content.page.headings}}
+      <li><a href="#{{id}}">{{text}}</a></li>
+      {{/each}}
+    </ul>
+  </nav>
+  {{/if}}
+
+  <article class="markdown-body">
+    {{{content.page.bodyHtml}}}
+  </article>
+
+  <section class="content-section rules-footer-back">
+    <p><a href="{{content.page.parentHref}}" class="btn btn-outline">&larr; Back to {{content.page.parentLabel}}</a></p>
+  </section>
+
+</div>

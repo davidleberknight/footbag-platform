@@ -36,6 +36,7 @@
     "express": "^4.19.2",
     "express-handlebars": "^7.1.2",
     "helmet": "^8.1.0",
+    "marked": "^14.1.4",
     "sharp": "^0.34.5"
   },
   "devDependencies": {

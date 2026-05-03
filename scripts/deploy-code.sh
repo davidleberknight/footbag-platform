@@ -114,6 +114,7 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/.dockerignore' \
   --include='/docker/***' \
   --include='/src/***' \
+  --include='/ifpa/***' \
   --include='/ops/***' \
   --include='/package.json' \
   --include='/package-lock.json' \

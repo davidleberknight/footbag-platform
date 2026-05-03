@@ -596,6 +596,109 @@ describe('GET /', () => {
     expect(res.text).toContain('href="/clubs"');
     expect(res.text).toContain('href="/hof"');
   });
+
+  it('includes promoted Sideline card linking to /sideline', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).toContain('href="/sideline"');
+    expect(res.text).toContain('Sideline');
+  });
+
+  it('includes a Rules card linking to /rules', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    expect(res.text).toContain('href="/rules"');
+    expect(res.text).toMatch(/<div class="card-title">Rules<\/div>/);
+  });
+
+  it('does not list Sideline as a coming-soon section', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    // The promoted card replaces the "Coming soon" entry; "Sideline Events"
+    // should no longer appear paired with the coming-soon badge.
+    expect(res.text).not.toMatch(/Sideline Events[\s\S]{0,400}badge-coming-soon/);
+  });
+});
+
+// ── Sideline (Sideline) landing ───────────────────────────────────────────
+
+describe('GET /sideline', () => {
+  it('returns 200', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.status).toBe(200);
+  });
+
+  it('renders the Sideline page title', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).toContain('<h1>Sideline</h1>');
+  });
+
+  it('renders the hero mascot SVG', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
+    expect(res.text).toContain('class="hero-mascot"');
+  });
+
+  it('shows all five game sections', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).toContain('Circle Kicking (Hacky Sack)');
+    expect(res.text).toContain('2-Square');
+    expect(res.text).toContain('4-Square');
+    expect(res.text).toContain('Consecutive Kicks');
+    expect(res.text).toContain('Footbag Golf');
+  });
+
+  it('embeds the three demo .webm clips', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).toContain('/video/sideline/hackysack.webm');
+    expect(res.text).toContain('/video/sideline/foursquare.webm');
+    expect(res.text).toContain('/video/sideline/golf.webm');
+    expect(res.text).toContain('type="video/webm"');
+    expect(res.text).toContain('autoplay');
+    expect(res.text).toContain('playsinline');
+    expect(res.text).toContain('muted');
+  });
+
+  it('links 2-Square and 4-Square to internal MD-backed rule pages', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).toContain('/rules/sideline/2-square');
+    expect(res.text).toContain('/rules/sideline/4-square');
+  });
+
+  it('contains no offsite rules links (no Google Docs, no YouTube tutorial, no footbag.org/rules)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).not.toContain('docs.google.com');
+    expect(res.text).not.toContain('youtube.com/watch');
+    expect(res.text).not.toContain('footbag.org/rules');
+    expect(res.text).not.toContain('target="_blank"');
+  });
+
+  it('links Consecutive Kicks to /records (no rules link in this batch)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).toMatch(/<a href="\/records"/);
+    expect(res.text).not.toContain('/rules/sideline/consecutive-kicks');
+  });
+
+  it('highlights the Sideline entry in the main nav as active', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    expect(res.text).toMatch(/<a href="\/sideline" class="active">Sideline<\/a>/);
+  });
+
+  it('uses two-square icon for both 2-Square and 4-Square sections', async () => {
+    const app = createApp();
+    const res = await request(app).get('/sideline');
+    const occurrences = res.text.split('/img/sideline-icon-twosquare.svg').length - 1;
+    expect(occurrences).toBeGreaterThanOrEqual(2);
+  });
 });
 
 // ── Clubs index ────────────────────────────────────────────────────────────────

@@ -160,6 +160,8 @@ export function createApp(): express.Application {
       : req.path.startsWith('/freestyle') ? 'freestyle'
       : req.path.startsWith('/records') ? 'records'
       : req.path.startsWith('/net') ? 'net'
+      : req.path.startsWith('/sideline') ? 'sideline'
+      : req.path.startsWith('/rules') ? 'rules'
       : req.path.startsWith('/admin') ? 'admin'
       : '';
     res.locals.isAuthenticated = req.isAuthenticated;

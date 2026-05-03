@@ -186,6 +186,7 @@ echo "==> Rsyncing source to host..."
 RSYNC_INCLUDES=(
   --include='/.dockerignore'
   --include='/docker/***'
+  --include='/ifpa/***'
   --include='/src/***'
   --include='/ops/***'
   --include='/package.json'

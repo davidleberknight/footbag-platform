@@ -1,0 +1,26 @@
+{{! /rules — index of all rule pages, grouped by discipline }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper rules-index">
+
+  {{#each content.groups}}
+  <section class="content-section rules-group" id="{{discipline}}">
+    <h2>{{label}}</h2>
+    <ul class="rules-link-list">
+      {{#each links}}
+      <li>
+        <a href="{{href}}"><strong>{{shortTitle}}</strong></a>
+        <span class="rules-authority">{{authority}}{{#if effective}}, {{effective}}{{/if}}</span>
+      </li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/each}}
+
+</div>

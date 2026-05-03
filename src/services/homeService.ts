@@ -97,6 +97,16 @@ export const homeService = {
           description: 'Fast-paced foot volleyball over a 5-foot net.',
         },
         {
+          label: 'Sideline',
+          href: '/sideline',
+          description: 'Casual, social, and community footbag — Hacky Sack, 2/4 Square, Consecutive Kicks, and Footbag Golf.',
+        },
+        {
+          label: 'Rules',
+          href: '/rules',
+          description: 'Official IFPA rules for Sideline games, Footbag Net, Footbag Golf, and Freestyle.',
+        },
+        {
           label: 'Records',
           href: '/records',
           description: 'Consecutive kicks world records, highest scores, and milestones.',
@@ -108,7 +118,6 @@ export const homeService = {
         },
       ],
       comingSoonSections: [
-        { heading: 'Sideline Events', body: 'Golf, 2-Square, 4-Square, Consecutive Kicks, and Circle Kicking (old school).' },
         { heading: 'Tutorials', body: 'Rules, how-to guides, and reference material for all levels.' },
       ],
     };

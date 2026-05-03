@@ -11,6 +11,8 @@ import { hofController } from '../controllers/hofController';
 import { freestyleController } from '../controllers/freestyleController';
 import { recordsController } from '../controllers/recordsController';
 import { netController } from '../controllers/netController';
+import { sidelineController } from '../controllers/sidelineController';
+import { rulesController } from '../controllers/rulesController';
 import { legalController } from '../controllers/legalController';
 import { requireAuth } from '../middleware/auth';
 
@@ -46,6 +48,11 @@ publicRouter.get('/net/events', netController.eventsPage);
 
 publicRouter.get('/net/teams',             netController.teamsPage);
 publicRouter.get('/net/teams/:teamId',    netController.teamDetail);
+
+publicRouter.get('/sideline',              sidelineController.landing);
+
+publicRouter.get('/rules',                                          rulesController.index);
+publicRouter.get('/rules/:disciplineSlug/:ruleSlug',                rulesController.detail);
 
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.
 // Express matches routes in registration order. Without this ordering,

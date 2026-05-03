@@ -1,0 +1,55 @@
+{{! /sideline — Sideline landing page }}
+
+<div class="hero hero-sm hero-with-mascot">
+  <div class="hero-text">
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+  <img class="hero-mascot" src="{{content.mascotSrc}}" alt="{{content.mascotAlt}}" width="150" height="150">
+</div>
+
+<div class="wrapper sideline-landing">
+
+  <section class="content-section">
+    <h2>{{content.intro.heading}}</h2>
+    {{#each content.intro.paragraphs}}
+    <p>{{this}}</p>
+    {{/each}}
+  </section>
+
+  {{#each content.games}}
+  <section class="content-section sideline-game" id="{{slug}}">
+    <div class="sideline-game-header">
+      {{#if iconSrc}}
+      <img class="sideline-game-icon" src="{{iconSrc}}" alt="{{iconAlt}}" width="120" height="120">
+      {{/if}}
+      <h2>{{title}}</h2>
+    </div>
+    {{#each paragraphs}}
+    <p>{{this}}</p>
+    {{/each}}
+    {{#if demoVideo}}
+    <figure class="demo-video">
+      <video autoplay loop muted playsinline preload="metadata">
+        <source src="{{demoVideo.webmUrl}}" type="video/webm">
+        <p>{{demoVideo.caption}}</p>
+      </video>
+      <figcaption>{{demoVideo.caption}}</figcaption>
+    </figure>
+    {{/if}}
+    {{#if moreInfo.length}}
+    <div class="sideline-more-info">
+      <strong>More info</strong>
+      <ul>
+        {{#each moreInfo}}
+        <li>
+          <a href="{{href}}"{{#if external}} target="_blank" rel="noopener noreferrer"{{/if}}>{{label}}</a>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+  </section>
+  {{/each}}
+
+</div>

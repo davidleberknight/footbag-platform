@@ -515,6 +515,9 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /net/teams` | Net teams list | League-table view of all net doubles teams, filterable by division and player search | Current |
 | `GET /net/teams/:teamId` | Net team detail | Team detail with summary stats, competitive timeline, and year-grouped competition history | Current |
 | `GET /net/events` | Net events list | Net events ordered by recency, with team/appearance counts | Current |
+| `GET /sideline` | Sideline landing | Casual / social footbag games portal (Circle Kicking, 2-Square, 4-Square, Consecutive Kicks, Footbag Golf), with hero mascot and per-game demo videos. Static content; no DB reads. | Current |
+| `GET /rules` | Rules index | Top-level index of all in-codebase rule pages, grouped by discipline. Static; no DB reads. | Current |
+| `GET /rules/:disciplineSlug/:ruleSlug` | Rule detail | Single rule page: title hero, optional cross-language toggle button, italic authority + effective-date meta line, optional on-this-page TOC, then markdown-rendered body from `ifpa/rules/{discipline}.md`. Static; no DB reads. Returns 404 for unknown discipline or slug. | Current |
 | `GET /legal` | Legal | Privacy, Terms of Use, and Copyright & Trademarks on a single page with anchored sections | Current |
 | `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
 | `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
@@ -549,6 +552,8 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /freestyle` is the canonical freestyle section entry route. Sub-routes `/freestyle/records`, `/freestyle/leaders`, `/freestyle/about`, `/freestyle/moves`, and `/freestyle/tricks/:slug` are all public and unauthenticated.
 - `GET /records` is the canonical records section entry route and the single page in the records section.
 - `GET /net` is the canonical net section entry route; a portal landing with hero, mascot, "What is Footbag Net?" narrative, Singles/Doubles competition-format cards, and pathways into the data sub-routes. `GET /net/teams` lists doubles teams ordered by appearance count; `GET /net/teams/:teamId` is the team detail route, returning 404 for unknown team IDs. All team-data pages render the disclaimer: "Team identities are algorithmically constructed from placement data and may not reflect official partnerships."
+- `GET /sideline` is the canonical sideline section entry route. The page has no sub-routes and no DB reads; it renders a static hero plus per-game sections (Circle Kicking, 2-Square, 4-Square, Consecutive Kicks, Footbag Golf) with cartoon icons and per-game demo `.webm` clips. All "MORE INFO" links route internally to `/rules/sideline/{slug}`; the page contains no offsite hyperlinks.
+- `GET /rules` is the canonical rules section entry route. The index lists every rule page grouped by discipline. `GET /rules/:disciplineSlug/:ruleSlug` is the canonical rule-detail route, returning 404 for unknown discipline or slug. All rule content is in-codebase as markdown files under `ifpa/rules/{discipline}.md`, rendered with `marked`. Rule pages render no offsite hyperlinks; cross-language alternates (e.g. English / bilingual French versions of Article III) are exposed via a frontmatter-driven internal toggle button.
 - `GET /legal` is the canonical legal page. It is a public, unauthenticated single page that composes Privacy, Terms of Use, and Copyright & Trademarks as three anchored sections (`#privacy`, `#terms`, `#copyright`). Footer links across the site deep-link to these anchors.
 - health routes are operational and are outside the cataloged page system.
 

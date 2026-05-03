@@ -43,8 +43,10 @@ COPY --from=builder /app/dist ./dist
 # IMPORTANT: these must be explicitly copied — tsc only emits .js files.
 # Views path: process.cwd()/src/views  → /app/src/views
 # Static path: process.cwd()/src/public → /app/src/public
+# Rules content: process.cwd()/ifpa/rules → /app/ifpa/rules (loaded by rulesLoader)
 COPY src/views  ./src/views
 COPY src/public ./src/public
+COPY ifpa       ./ifpa
 
 # Runtime environment — all sensitive values must be injected at deploy time,
 # not baked into the image.
