@@ -42,7 +42,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 68eb33bf-f705-584d-ae93-f601e32be859,trick,eggbeater,33,,0
 750189fa-6795-5f42-927e-4deda4d538cf,trick,osis,,,1
 7649cefd-bc35-536f-a275-b4d957d440ee,trick,paradox-mirage,,,1
-810e5f7d-3802-5318-bf5f-d8968196d72a,trick,around-the-world,9,,1
+810e5f7d-3802-5318-bf5f-d8968196d72a,trick,around-the-world,9,,0
 81b0e1a7-a2b1-5488-bd0a-f1b174e6cac1,trick,eclipse,29,,1
 9b09d1b8-1ba4-586a-8d4d-40703b59575c,record,e67b5b30-2dec-59ad-bd7f-5333e882d0b4,429,,1
 9b09d1b8-1ba4-586a-8d4d-40703b59575c,trick,spinning-clipper,429,,1
@@ -68,7 +68,7 @@ be76d857-cae7-5f12-9efa-cd339e4b137d,record,a0477f34-b7e4-5a05-b7f6-6aca354f9613
 be76d857-cae7-5f12-9efa-cd339e4b137d,trick,paradox-drifter,,,1
 c23e2c3a-35bd-5f96-b682-872196a1775c,trick,osis,,,0
 cf1c5235-ed71-52ca-bd76-b7743e190d18,record,9854553c-ca58-5647-9811-3a37d249fca3,,,1
-cf1c5235-ed71-52ca-bd76-b7743e190d18,trick,clipper,,,1
+cf1c5235-ed71-52ca-bd76-b7743e190d18,trick,clipper,,,0
 e0f55da4-5d63-5372-a894-2bb5a6e63575,record,5c0f6df7-d315-5765-b353-5ead95891ceb,,,1
 e0f55da4-5d63-5372-a894-2bb5a6e63575,trick,double-around-the-world,,,1
 ea1aabad-47e9-56c9-b503-6808f0c4b5d3,record,c51ceb1c-b861-501e-a5e4-323a919c6cb7,92,,1
@@ -90,3 +90,19 @@ daa91d53-ae5a-505d-a684-efd21e8133f2,trick,rev-whirl,,,1
 a1715eac-47e2-5be9-87eb-cbdaa86b4979,trick,mirage,,,1
 a1715eac-47e2-5be9-87eb-cbdaa86b4979,trick,illusion,,,1
 8e443876-9d3d-5cfc-81f0-2ecaa53a030f,trick,torque,,,1
+037d1575-35f8-5e64-86b8-d859e3d16edc,trick,around-the-world,,,1
+4a3508ee-f82a-59a8-9d07-07c0671b8db4,trick,clipper,,,1
+773c09cf-0d68-5b81-b96b-f9effb5e779a,trick,flying-outside,,,1
+75edc1a7-738b-5445-8e7a-fb5ac5955dcb,trick,symposium-whirl,,,1
+f102624d-727d-5d67-aab6-e2060855eff9,trick,inside-stall,,,1
+5d3c9c9b-4424-52dc-a167-7515f9d646ad,trick,clipper-stall,,,1
+48a1464e-1068-5161-8268-e19970d911a2,trick,double-leg-over,,,1
+0dcda60f-fcd1-5d9e-b594-ff5036a69c6b,trick,double-around-the-world,,,0
+4de01909-cab9-5cd1-91d3-4eb21a1e39be,trick,around-the-world,,,0
+baeadaa0-c3c4-53cd-a8df-e76c965b8ae6,trick,double-leg-over,,,0
+e89670df-9d36-50e0-a6c7-c39508e78beb,trick,toe-stall,,,0
+2d260db0-ee0b-5ece-babd-bdc775505710,trick,quantum,,,0
+ea270368-ba7a-55ed-a10f-44cd6bccda66,trick,flying-clipper,,,0
+0c659c3c-fa2f-5879-9e51-a4fc64bbf057,trick,flying-clipper,,,0
+28e381e0-8fe4-5be9-81e8-6ede84544eda,trick,dragonfly,,,0
+60c8879f-e6fc-578a-a961-c6f6cc04ecab,trick,dada-curve,,,0
