@@ -1,0 +1,73 @@
+pt,date,topic_type,subject,claim,disposition
+pt1,2026-04-23,SCOPE,general,"All tricks listed in the curator's review set are still used in competition and shred play today.",informational
+pt1,2026-04-23,ADD_LOCK,atom-smasher,"Atom Smasher is a 4 ADD move; the X-Dex element contributes the +1 over the dex pair.",applied
+pt1,2026-04-23,ADD_LOCK,flurry,"Flurry is 4 ADD: three dexes + one stall ADD.",applied
+pt1,2026-04-23,NEW_TRICK,sidewalk,"Sidewalk is same-side stepping butterfly (4 ADD); should be added.",applied
+pt1,2026-04-23,NEW_TRICK,tombstone,"Tombstone is stepping drifter; should be added.",applied
+pt1,2026-04-23,NEW_TRICK,flail,"Flail is a common-name trick that should be added.",pending
+pt1,2026-04-23,NEW_TRICK,omelette,"Omelette is a common-name trick that should be added.",pending
+pt1,2026-04-23,NEW_TRICK,merkon,"Merkon is a standalone trick.",applied
+pt1,2026-04-23,NEW_TRICK,terrage,"Terrage is a standalone trick and also acts as a modifier (e.g. terraging X).",applied
+pt1,2026-04-23,NEW_TRICK,barrage,"Barrage is a standalone trick distinct from the existing 'barraging' modifier; barraging paradox mirage = Fury.",applied
+pt1,2026-04-23,NEW_TRICK,royale,"Royale is a primary / popular freestyle trick.",pending
+pt1,2026-04-23,NEW_TRICK,ripstein,"Ripstein is a primary / popular freestyle trick.",applied
+pt1,2026-04-23,ADD_LOCK,eclipse,"Eclipse is 3 ADD; the hop-over portion counts as a scored body element.",applied
+pt1,2026-04-23,SCOPE,general,"1-ADD delay surfaces (toe stall, heel stall, outside stall, etc.) should be included as dictionary entries.",applied
+pt1,2026-04-23,SCOPE,general,"1-2 ADD body tricks (Flying Inside, Flying Outside, Hop Over, Double Spin, Walk Over) should be included.",applied
+pt1,2026-04-23,SCOPE,general,"All popular 4-5 ADD tricks should be added; do not subjectively narrow to a top-15.",deferred
+pt1,2026-04-23,ADD_LOCK,spyro,"Spyro is 1 ADD by itself.",applied
+pt1,2026-04-23,CONSTRUCTION,surging,"Surging = spinning + stepping = 2 ADDs.",applied
+pt1,2026-04-23,NAMING,quantum,"Quantum is the newer name for what used to be called 'toe blur' / 'toe butterfly'; e.g. Quantum Mirage = miraging mirage.",pending
+pt1,2026-04-23,MODIFIER_RULE,gyro,"Gyro is spinning where the foot that sets the bag also dexes the bag after the spin (e.g. Gyro Drifter = Vortex).",applied
+pt1,2026-04-23,INFORMATIONAL,spyro,"Spyro is a specific trick, not a general concept like Gyro.",applied
+pt2,2026-04-23,NAMING,spyro,"In modern community usage, Spyro has largely been replaced by 'Inspin'.",informational
+pt2,2026-04-23,MODIFIER_RULE,inspinning,"Inspinning sets the bag with a clipper and spins toward the bag (right clipper -> CW); behaves like a spin-and-a-half body motion.",informational
+pt2,2026-04-23,EQUIVALENCE,bigwalk,"Bigwalk (5 ADD) = Surging Butterfly.",pending
+pt2,2026-04-23,EQUIVALENCE,surge,"Surge (5 ADD) = Surging Paradox Mirage.",pending
+pt2,2026-04-23,EQUIVALENCE,surreal,"Surreal (6 ADD) = Surging Paradox Whirl.",pending
+pt2,2026-04-23,EQUIVALENCE,surgery,"Surgery (6 ADD) = Surging Symposium Reverse Whirl.",pending
+pt2,2026-04-23,EQUIVALENCE,venom,"Venom (6 ADD) = Surging Barfly.",pending
+pt2,2026-04-23,MODIFIER_RULE,pogo,"Pogo is a set, distinct from stepping, but does NOT contribute an extra ADD.",applied
+pt2,2026-04-23,EQUIVALENCE,toe-blur,"Toe Blur (3 ADD) = Quantum Mirage.",pending
+pt2,2026-04-23,EQUIVALENCE,toe-ripwalk,"Toe Ripwalk (4 ADD) = Quantum Butterfly.",pending
+pt2,2026-04-23,EQUIVALENCE,backside-symposium-toe-blur,"Backside Symposium Toe Blur (4 ADD) = Quantum Symposium Mirage.",pending
+pt2,2026-04-23,EQUIVALENCE,toe-blizzard,"Toe Blizzard (3 ADD) = Quantum Illusion.",pending
+pt2,2026-04-23,MODIFIER_RULE,gyro,"Gyro is its own modifier concept (set foot also dexes after spin).",applied
+pt2,2026-04-23,EQUIVALENCE,gyro-butterfly,"Gyro Butterfly (4 ADD) is a separate entry.",pending
+pt2,2026-04-23,EQUIVALENCE,vortex,"Vortex (4 ADD) = Gyro Drifter.",applied
+pt2,2026-04-23,EQUIVALENCE,spyro-gyro,"Spyro Gyro (5 ADD) = Gyro Butterfly Swirl.",pending
+pt2,2026-04-23,EQUIVALENCE,mobius,"Mobius (5 ADD) = Gyro Torque.",applied
+pt2,2026-04-23,EQUIVALENCE,flurricane,"Flurricane (5 ADD) = Gyro Flurry.",pending
+pt2,2026-04-23,MODIFIER_RULE,atomic,"Atomic is standardized as a +1 modifier.",applied
+pt2,2026-04-23,EQUIVALENCE,eggbeater,"Eggbeater (3 ADD) = Atomic Legover.",applied
+pt2,2026-04-23,EQUIVALENCE,atom-smasher,"Atom Smasher (3 or 4 ADD) = Atomic Mirage; locked at 4 in pt4.",applied
+pt2,2026-04-23,EQUIVALENCE,omelette,"Omelette (3 ADD) = Atomic Illusion.",pending
+pt2,2026-04-23,EQUIVALENCE,s-m-smasher,"S&M Smasher (4 ADD) = Atomic Barrage.",pending
+pt2,2026-04-23,EQUIVALENCE,legbeater,"Legbeater (4 ADD) = Atomic Butterfly.",applied
+pt2,2026-04-23,EQUIVALENCE,flux,"Flux (4 ADD) = Atomic Osis.",pending
+pt2,2026-04-23,EQUIVALENCE,witchdoctor,"Witchdoctor (4 ADD) = Atomic Symposium Mirage.",applied
+pt2,2026-04-23,EQUIVALENCE,fusion,"Fusion (5 ADD) = Atomic Double Over Down.",applied
+pt2,2026-04-23,MODIFIER_RULE,atomic,"Model 'atomic' as a modifier with its own ADD bonus column.",deferred
+pt3,2026-04-28,MODIFIER_RULE,double,"'Double' is not its own set (unlike stepping); it signifies a double dexterity or double body spin and can span trick families.",informational
+pt3,2026-04-28,CONSTRUCTION,double-leg-over,"Double Leg Over = Miraging Legover (2 dex ADDs + 1 stall ADD = 3 ADD).",applied
+pt3,2026-04-28,EQUIVALENCE,double-fairy,"Double Fairy is rarely used; it is really a Double Illusion (two dexes + toe stall).",pending
+pt3,2026-04-28,CONSTRUCTION,double-blender,"Double Blender = Whirling Blender (two dexes + osis = 5 ADD).",pending
+pt3,2026-04-28,CONSTRUCTION,double-spinning-osis,"Double Spinning Osis = two spins to an osis = 5 ADD.",pending
+pt3,2026-04-28,MODIFIER_RULE,inspinning,"Spinning and Inspinning are different techniques and should be treated as distinct dictionary families.",applied
+pt3,2026-04-28,MODIFIER_RULE,spinning,"Spinning sets the bag from a clipper and spins AWAY from the bag (right clipper -> CCW).",informational
+pt3,2026-04-28,MODIFIER_RULE,inspinning,"Inspinning sets the bag from a clipper and spins TOWARD the bag (right clipper -> CW).",informational
+pt3,2026-04-28,MODIFIER_RULE,tapping,"Tapping is its own modifier group, distinct from Stepping.",applied
+pt3,2026-04-28,MODIFIER_RULE,tapping,"Tapping is essentially Atomic set to a same-side dex (dexing again with the same foot).",informational
+pt4,2026-05-02,ADD_VALUE,barrage,"Barrage is 3 ADDs.",applied
+pt4,2026-05-02,ADD_VALUE,merkon,"Merkon is 3 ADDs.",applied
+pt4,2026-05-02,ADD_VALUE,terrage,"Terrage is 4 ADDs.",applied
+pt4,2026-05-02,ADD_VALUE,royale,"Royale ADD value not yet given (will look into).",pending
+pt4,2026-05-02,ADD_VALUE,ripstein,"Ripstein is 4 ADDs.",applied
+pt4,2026-05-02,ADD_LOCK,atom-smasher,"Lock Atom Smasher at 4 ADD (vs footbag.org 3): YES.",applied
+pt4,2026-05-02,ADD_LOCK,flurry,"Lock Flurry at 4 ADD: YES.",applied
+pt4,2026-05-02,ADD_VALUE,fury,"Fury is 5 ADDs (corrects local 4 ADD).",applied
+pt4,2026-05-02,MODIFIER_RULE,x-dex,"X-Dex applies only in specific named tricks (e.g. Atom Smasher); it is NOT a broad modifier.",applied
+pt4,2026-05-02,NAMING,double-leg-over,"Preferred primary name is 'Double Leg Over'; 'DLO' is an alias; 'Miraging Legover' is an alias.",applied
+pt4,2026-05-02,NEW_TRICK,sumo,"Sumo (Nuclear Mirage) is a worthy named compound to include.",applied
+pt4,2026-05-02,NEW_TRICK,baroque,"Baroque (Barraging Osis) is a worthy named compound to include.",applied
+pt4,2026-05-02,NEW_TRICK,silo,"Silo (Atomic Torque) is a worthy named compound to include.",applied

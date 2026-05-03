@@ -1,0 +1,96 @@
+# Freestyle Dictionary -- Open Questions
+
+Scope: outstanding questions and current state for the freestyle trick dictionary, alias system, and curated media after the expert reviewer's pt4 reply (2026-05-02) and the alias-policy cleanup. Companion to `red-corrections-pt1.txt` ... `pt4.txt` and to `red_corrections_consolidated.csv`. AI-facing.
+
+## 1. Expert pt4 integrated
+
+| Slug / item | State |
+|---|---|
+| barrage | adds=3, expert_reviewed, active |
+| merkon | adds=3, expert_reviewed, active |
+| terrage | adds=4, expert_reviewed, active (terraging modifier row still pending) |
+| ripstein | adds=4, expert_reviewed, active (base trick still unspecified) |
+| fury | adds=5, expert_reviewed, active (corrected from 4) |
+| atom-smasher | adds=4, locked (X-Dex contributes the +1) |
+| flurry | adds=4, locked (3 dexes + 1 stall) |
+| double-leg-over | adds=3, curated, active. Canonical: "Double Leg Over". Aliases: dlo, miraging legover |
+| sumo | canonical slug; pending (no ADD given yet by the expert reviewer); alias: nuclear mirage |
+| baroque | alias on `barraging-osis` (canonical) |
+| silo | alias on `atomic-torque` (canonical) |
+| barroque | typo absorbed via alias to `barraging-osis` |
+| X-Dex | only fires in specific named tricks (atom-smasher); not a broad modifier |
+| illusioning legover | alias rejected (expert pt2: eggbeater = atomic legover, not illusioning) |
+| atomsmasher (no hyphen) | media link renamed to canonical `atom-smasher` |
+
+## 2. Remaining dictionary questions
+
+### HIGH (blocks correctness)
+
+- `royale` ADD value. Expert pt4: "?" (will look into). Currently pending, not active.
+- Eggbeater construction. Expert pt2 says "Eggbeater = Atomic Legover". Current canonical row description says "Illusion-modified legover". Either the description is wrong, or "atomic" and "illusioning" are interchangeable in the legover branch. Needs expert confirmation.
+- `flail` and `omelette` canonical mappings. Expert pt1 said both "should be added". footbag.org suggests Symposium Illusion (flail) and Atomic Illusion (omelette). Expert pt4 silent. Re-ask.
+
+### MED (improves system)
+
+- Inspinning family activation. Expert pt3 confirmed Inspinning is distinct from Spinning (clipper-set spin direction). All `inspinning-*` rows in dictionary are pending; need ADD values to activate.
+- `pendulum` (TT #25), `dragonfly` (TT #21), `da-da-curve` (TT #40 Dada Curve) activation. All currently pending. Slug `da-da-curve` may need rename to `dada-curve` to match expert pt4 / TT title spelling.
+- Missing surface-delay slugs: `inside-stall`, `clipper-stall`, `knee-stall`. Held media rows reference these (TT #3, TT #18, TT #5). Expert pt1 endorsed surface delays as 1-ADD entries.
+- `barroque` (typo) pending row in DB. Currently absorbed via alias; pending row will be wiped on next script-17 reset and skipped on future script-21 runs by the alias.
+
+### LOW (nice-to-have)
+
+- Pogo set handling. Expert pt2: Pogo is a set, no ADD bonus. Many `pogo-*` rows are pending; decide whether to mark non-scoring set entries or leave pending.
+- Glossary floor labels: guiltless, tiltless, fearless, tripless, beastly, godly, shoutless. Expert pt4 silent on followup §C. Belongs in glossary layer, not trick dictionary. Re-ask the expert reviewer on which terms are still in active use.
+- "Toe" and "outside" inline aliases on `toe-stall` and `outside-stall` rows. Per the alias-policy cleanup (Commit 3), these are borderline conceptual terms mapping to a single trick. Decision pending: demote, remove, or keep.
+
+## 3. Media coverage status
+
+Post-reset state (Commits 1, 2, 3 applied):
+
+| Metric | Count |
+|---|---|
+| Active tricks | 91 |
+| Strong tutorial primary | 12 |
+| Weak primary (record clip only) | 32 |
+| No primary | 47 |
+
+### Strong primary (12)
+
+toe-stall, heel-stall, outside-stall (Anz' Trikz Basic Stalls); whirl, rev-whirl (Anz Whirl & Whip); swirl (Anz Swirl & Reverse); drifter (Anz Drifter & Grifter); eggbeater (Anz DLO & Eggbeater); pixie, fairy (Anz Pixie & Fairy / Open & Shut); osis (Shred Global, Zac Miley); paradox-mirage (FootbagSpot Level 5 BOPs).
+
+### Top missing-primary targets
+
+illusion, pickup, guay, flying-inside, flying-outside, rev-up, sidewalk, tombstone, vortex, surging, symposium-whirl, hop-over, walk-over, double-spin, double-leg-over, fury, barrage, merkon, terrage, ripstein, atomic, atomic-butterfly, atomic-torque.
+
+### Top weak-primary upgrade targets (record-only primary)
+
+mirage, torque, blender, around-the-world, clipper, legover, butterfly, atom-smasher, paradox-torque, paradox-blender, paradox-symposium-whirl, paradox-drifter, double-around-the-world, eclipse, mobius, smear, food-processor, ripwalk, blurriest, blurry-whirl, ducking-butterfly, ducking-clipper, ducking-osis, spinning-butterfly, spinning-clipper, spinning-osis, spinning-symposium-whirl, spinning-whirl, stepping-osis, superfly, tomahawk, barfly.
+
+## 4. Held media rows / dictionary candidates
+
+Verified YouTube URLs (oembed-confirmed) on hold pending dictionary decisions. Source: WorldFootbag channel (Tricks of the Trade, "tt_youtube").
+
+| Slug (proposed) | TT lesson | YouTube ID | ADD | Hold reason |
+|---|---|---|---|---|
+| inside-stall | TT #3 Inside Stall | MGZWuP7WlQ0 | 1 | Surface-delay slug not yet in dictionary |
+| clipper-stall | TT #18 Clipper Stall (2 add) | FEiAC9wfin8 | 1 | Surface-delay slug not yet in dictionary |
+| knee-stall | TT #5 Knee Stall | (URL not surfaced) | 1 | Surface-delay slug not yet in dictionary AND no verified URL |
+| dragonfly | TT #21 Dragonfly (2 add) | FK2PLG-rlQ0 | 2 | Trick slug not in dictionary; review pending |
+| dada-curve | TT #40 Dada Curve (4 add) | GFUjH3p2l0c | 4 | Slug exists as `da-da-curve` (pending); rename + activate decision pending |
+| pendulum | TT #25 Pendulum (2 add) | (URL not surfaced) | 2 | Slug pending; URL still missing |
+
+Also previously-drafted-but-unappended rows from the 2026-05-02 batch (still held; user declined the bulk append): TT #2 Toe Stall, TT #6 Spin (dropped per user), TT #7 Flying Outside, TT #9 Clipper, TT #14 ATW, TT #15 ATW Toe Stall, TT #30 DLO Stall, TT #42 Symposium Whirl; Anz' Trikz Atomic & Quantum, Double Dexes, Flying (Jester); plus the safe existing-asset reuse link `48a1464e... -> double-leg-over (is_primary=0)`.
+
+## 5. Rules now in force
+
+1. **Slug = canonical trick or set name only.** Do not encode mechanics (direction, set type, delay) in slugs.
+2. **Direction is structural, not a qualifier.** mirage != illusion, spinning != inspinning, ATW != reverse-ATW. Each gets its own slug.
+3. **Recognized named compounds become slugs.** Sumo, Baroque, Silo (and similar) are canonical entries. Their alt-construction names (Nuclear Mirage, Barraging Osis, Atomic Torque) live as aliases or as the aliased canonical, depending on which form the community uses.
+4. **Surface delays keep "stall".** toe-stall, heel-stall, outside-stall, inside-stall, clipper-stall, knee-stall. These are 1-ADD canonical rows, not categories.
+5. **Categories are not aliases.** "double dex", "dex", and similar tag-shape terms stay out of the alias table.
+6. **Instructional phrases are not slugs.** "ATW Toe Stall (2 add)", "Mirage Stall (2 add)", "Clipper Stall (2 add)" map to their base trick or to their surface delay; they do not generate `*-2add` slugs.
+7. **Aliases must map to exactly one canonical slug.** Otherwise reject, or store as informal/teaching only (not used for automatic mapping). Ambiguous shorthand (e.g. "open", "shut") is informal; not added until the alias schema supports tiers.
+8. **Alias targets must resolve.** A row in `trick_aliases.csv` whose `trick_canon` is not a canonical name in `freestyle_tricks` is logged as unresolved and dropped. Run `script 17` after adding aliases; broken targets surface there.
+9. **Pending rows do not surface publicly.** `is_active=0` is enforced by `freestyleTricks.listAll/getBySlug/listByFamily`. Pending rows preserve provenance via `freestyle_trick_source_links`.
+10. **Curated media stays separate from member uploads.** `freestyle_media_*` and `media_items` are parallel layers; never merged.
+11. **Verify external media URLs before promotion.** Pattern-extrapolation is not verification. Use HTTP fetch (or oembed for YouTube) and capture the verification fact in row notes.

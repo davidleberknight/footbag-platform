@@ -1,7 +1,7 @@
 canonical_name,adds,base_trick,category,aliases,modifier_links,description,review_status,is_active,review_note
 toe stall,1,toe stall,set,toe,,Toe-based delay surface.,expert_reviewed,1,
 heel stall,1,heel stall,set,,,Heel-based delay surface.,expert_reviewed,1,
-outside stall,1,outside stall,set,outside,,Outside-of-foot delay surface.,expert_reviewed,1,
+outside stall,1,outside stall,set,,,Outside-of-foot delay surface.,expert_reviewed,1,"'outside' inline alias removed 2026-05-02 per alias-policy cleanup (Commit 4): conceptual term, not a one-to-one canonical mapping"
 flying inside,1,flying inside,body,,,Inside-leg jumping motion.,expert_reviewed,1,
 flying outside,1,flying outside,body,,,Outside-leg jumping motion.,expert_reviewed,1,
 hop over,2,hop over,body,,,Jumping leg-over motion.,expert_reviewed,1,
