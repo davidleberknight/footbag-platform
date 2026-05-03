@@ -2,7 +2,7 @@ media_id,entity_type,entity_id,start_seconds,end_seconds,is_primary
 08006bfd-9431-5c74-9215-b289fccc43ab,record,b26c417a-0a25-5a17-bbf6-0d4def4db97e,360,,1
 08006bfd-9431-5c74-9215-b289fccc43ab,trick,spinning-whirl,360,,1
 0897437c-2780-5976-b50c-62082af28021,record,4683cd55-15ed-58df-af79-058e2c1fffc8,,,1
-0897437c-2780-5976-b50c-62082af28021,trick,barfly,,,1
+0897437c-2780-5976-b50c-62082af28021,trick,barfly,,,0
 0e626bfc-3950-5945-a4df-ca5218b5ceab,record,3b5f76d0-7bc8-58b3-a36b-c4fd8c1adf9b,,,1
 0e626bfc-3950-5945-a4df-ca5218b5ceab,trick,tomahawk,,,1
 1122d3e7-e11d-5ca6-b9a9-61dc27ac03d1,record,3626a3e6-e9bc-5e0d-8562-298cb695b645,,,1
@@ -55,7 +55,7 @@ a4331f8f-d795-58fd-ae53-bf54b9b639cb,trick,paradox-torque,,,1
 a593611f-92ca-504e-8fe3-a691d02b5a89,record,ffcbf04a-8995-56f3-abf2-35def9629fab,,,1
 a593611f-92ca-504e-8fe3-a691d02b5a89,trick,blurry-whirl,,,1
 abb0b1ef-b8f0-5e0f-b7c7-0915b64a91ea,record,818276b9-502d-5cdc-b294-089794fad2b0,539,,1
-abb0b1ef-b8f0-5e0f-b7c7-0915b64a91ea,trick,blurriest,539,,1
+abb0b1ef-b8f0-5e0f-b7c7-0915b64a91ea,trick,blurriest,539,,0
 ad8310e6-e0be-59e4-9ba5-8d9d90ccf7cb,record,07aa66da-c00c-58a6-84ed-a7bd68161a55,,,1
 ad8310e6-e0be-59e4-9ba5-8d9d90ccf7cb,trick,ripwalk,,,0
 b8be2e51-a09f-5715-9adc-9599c7cda8fd,record,5885e373-78ef-588a-9d69-8e7320843927,6,,1
@@ -130,3 +130,5 @@ a6872814-a77c-5421-8f84-9a91ce758694,trick,pendulum,,,0
 4dd3acf0-5ca7-5f31-938f-85eceb627037,trick,smear,,,1
 d050ccdd-9c82-5599-926a-51d332f47652,trick,pickup,,,1
 b6a1c3c2-3cd3-557f-8bdb-1cea2d24151a,trick,pickup,,,0
+6103b7b8-01e2-5c5c-ba18-dadf714734f4,trick,barfly,,,1
+b362cef2-e69b-5075-8400-4ffa895491b9,trick,blurriest,,,1
