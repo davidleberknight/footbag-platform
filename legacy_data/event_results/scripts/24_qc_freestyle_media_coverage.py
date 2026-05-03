@@ -55,6 +55,7 @@ LOADERS_IN_ORDER = [
 ]
 
 TUTORIAL_SOURCES = {
+    # Explicit instruction-style content (channel-titled or lesson-numbered).
     "anz_trikz",
     "tt_youtube",
     "footbagspot_passback",
@@ -63,8 +64,13 @@ TUTORIAL_SOURCES = {
     "footbag_foundations",
     "polini_pointers",
     "everything_footbag",
-    "flipsider_footbag",
+}
+HIGH_QUALITY_DEMO_SOURCES = {
+    # Single-trick clean demonstration channels (slow, isolated, high-quality
+    # but not narrated as instruction). Counts toward strong coverage but is
+    # tagged separately for editorial visibility.
     "footbag_finland",
+    "flipsider_footbag",
 }
 RECORD_SOURCES = {"passback_records"}
 
@@ -109,6 +115,8 @@ def classify_primary_strength(source_id: str | None) -> str:
         return "NONE"
     if source_id in TUTORIAL_SOURCES:
         return "STRONG_TUTORIAL"
+    if source_id in HIGH_QUALITY_DEMO_SOURCES:
+        return "HIGH_QUALITY_DEMO"
     if source_id in RECORD_SOURCES:
         return "WEAK_RECORD"
     # Unknown sources fall to weak; surface in the report rather than crashing.
@@ -117,7 +125,9 @@ def classify_primary_strength(source_id: str | None) -> str:
 
 def classify_status(is_active: int, primary_strength: str, total_links: int) -> str:
     if is_active == 1:
-        if primary_strength == "STRONG_TUTORIAL":
+        # STRONG_TUTORIAL and HIGH_QUALITY_DEMO both count as strong primary
+        # for coverage; the distinction is preserved in primary_strength.
+        if primary_strength in ("STRONG_TUTORIAL", "HIGH_QUALITY_DEMO"):
             return "ACTIVE_STRONG_PRIMARY"
         if primary_strength == "WEAK_RECORD":
             return "ACTIVE_WEAK_PRIMARY"
@@ -333,6 +343,10 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     pending_nomedia = by_status.get("PENDING_NO_MEDIA", 0)
     pct = (strong / total_active * 100) if total_active else 0
 
+    # Subcounts within ACTIVE_STRONG_PRIMARY, by primary_strength
+    strong_tutorial = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_strength"] == "STRONG_TUTORIAL")
+    strong_demo = sum(1 for r in rows if r["status"] == "ACTIVE_STRONG_PRIMARY" and r["primary_strength"] == "HIGH_QUALITY_DEMO")
+
     push("# Freestyle media coverage")
     push("")
     push(f"CSV: `{REPORT_PATH.relative_to(REPO_ROOT)}`")
@@ -343,6 +357,8 @@ def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
     push("|---|---|")
     push(f"| active_tricks | {total_active} |")
     push(f"| strong_primary | {strong} |")
+    push(f"| &nbsp;&nbsp;&nbsp;strong_tutorial | {strong_tutorial} |")
+    push(f"| &nbsp;&nbsp;&nbsp;high_quality_demo | {strong_demo} |")
     push(f"| weak_primary | {weak} |")
     push(f"| no_primary | {no_prim} |")
     push(f"| pending_with_media | {pending_media} |")
