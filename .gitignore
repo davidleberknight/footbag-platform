@@ -201,3 +201,4 @@ legacy_data/persons/provisional/out/
 # Local design mockups (never commit)
 mockups/
 database/*.bak.*
+legacy_data/reports/
