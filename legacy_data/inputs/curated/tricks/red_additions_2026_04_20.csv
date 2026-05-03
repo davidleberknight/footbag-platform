@@ -35,3 +35,6 @@ neck stall,,neck stall,surface,neck delay|neck catch,,Neck-based delay surface.,
 cross-body sole stall,,cross-body sole stall,surface,,,Cross-body sole delay surface.,pending,0,"TT #24 (SQLHKL2kdGU 'Cross-Body Sole (2 add)'); pending expert review"
 symposium mirage,,mirage,compound,,,Symposium-modified mirage.,pending,0,"TT #31 (BEOXOHzJx68 'Symposium Mirage Stall (3 add)'); slug distinct from existing pending 'paradox-symposium-mirage'; ADD pending expert review"
 squeeze,,squeeze,,pincher|pincher squeeze,,Squeeze trick.,pending,0,"TT #23 (N1XWDydpTkk 'Squeeze (2 add)'); supersedes footbag.org pending 'pincher-squeeze' (canonical_name 'Pincher (Squeeze)'); ADD and base pending expert review"
+spin,1,spin,body,,,Single rotational body spin.,pending,0,"TT #6 (fF9aC-RtLWU 'Spin') verified; ADD=1 per body-element pattern (Red pt1 spyro=1 ADD analogue); structurally distinct from the 'spinning' modifier"
+pendulum,2,,,,,Pending dictionary candidate; media-verified.,pending,0,"TT #25 (-0ew-S_xazc 'Pendulum (2 add)') title gives '(2 add)'; base trick and category pending expert review; supersedes footbag.org pending row"
+whirling swirl,4,swirl,compound,,,Whirl-modified swirl.,pending,0,"TT #41 (BGYrrhG-zag 'Whirling Swirl Stall (4 add)') title gives '(4 add)'; base=swirl with whirling modifier; pending expert review; supersedes footbag.org pending row"
