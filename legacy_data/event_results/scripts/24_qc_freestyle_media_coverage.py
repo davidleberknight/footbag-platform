@@ -44,6 +44,7 @@ REPO_ROOT = SCRIPT_DIR.parents[2]
 SCHEMA_SQL = REPO_ROOT / "database" / "schema.sql"
 REPORT_DIR = LEGACY_DATA_DIR / "reports"
 REPORT_PATH = REPORT_DIR / "freestyle_media_coverage.csv"
+REPORT_MD_PATH = REPORT_DIR / "freestyle_media_coverage.md"
 
 LOADERS_IN_ORDER = [
     "17_load_trick_dictionary.py",
@@ -142,7 +143,8 @@ def classify_priority(slug: str, status: str) -> str:
 def build_rows(conn: sqlite3.Connection) -> list[dict]:
     """One row per freestyle_tricks slug."""
     tricks = list(conn.execute("""
-        SELECT slug, canonical_name, category, adds, is_active, review_status
+        SELECT slug, canonical_name, category, adds, is_active, review_status,
+               base_trick, trick_family
         FROM freestyle_tricks ORDER BY slug
     """))
 
@@ -163,7 +165,7 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
         })
 
     rows = []
-    for slug, name, cat, adds, is_active, status in tricks:
+    for slug, name, cat, adds, is_active, status, base, family in tricks:
         links = by_slug.get(slug, [])
         primaries = [l for l in links if l["is_primary"] == 1]
         primary = primaries[0] if primaries else None
@@ -176,6 +178,8 @@ def build_rows(conn: sqlite3.Connection) -> list[dict]:
             "slug": slug,
             "canonical_name": name,
             "category": cat or "",
+            "base_trick": base or "",
+            "trick_family": family or "",
             "adds": adds if adds is not None else "",
             "is_active": is_active,
             "review_status": status,
@@ -235,7 +239,8 @@ def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
 def write_csv(rows: list[dict]) -> None:
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     fields = [
-        "slug", "canonical_name", "category", "adds", "is_active", "review_status",
+        "slug", "canonical_name", "category", "base_trick", "trick_family", "adds",
+        "is_active", "review_status",
         "primary_media_id", "primary_title", "primary_source_id", "primary_strength",
         "total_media_links", "has_anztrikz", "has_tt", "has_passback", "has_record",
         "status", "priority_bucket",
@@ -246,9 +251,78 @@ def write_csv(rows: list[dict]) -> None:
         w.writerows(rows)
 
 
-def print_summary(rows: list[dict]) -> None:
+def family_key(row: dict) -> str:
+    """Group label for the Family Coverage section.
+
+    Surface delays and modifier rows take precedence over trick_family because
+    they are taxonomically distinct from regular trick families.
+    """
+    if row["category"] == "surface":
+        return "surface delays"
+    if row["category"] == "modifier":
+        return "sets/modifiers"
+    if row["category"] == "set":
+        return "sets/modifiers"
+    if row["category"] == "body":
+        return "body primitives"
+    fam = row["trick_family"]
+    if fam:
+        return f"{fam} family"
+    return "other"
+
+
+def build_family_coverage(rows: list[dict]) -> dict:
+    out: dict[str, dict] = {}
+    for r in rows:
+        fam = family_key(r)
+        b = out.setdefault(fam, {"total": 0, "strong": 0, "weak": 0, "none": 0, "pending": 0, "members": []})
+        b["total"] += 1
+        b["members"].append(r["slug"])
+        s = r["status"]
+        if s == "ACTIVE_STRONG_PRIMARY": b["strong"] += 1
+        elif s == "ACTIVE_WEAK_PRIMARY": b["weak"] += 1
+        elif s == "ACTIVE_NO_PRIMARY":   b["none"] += 1
+        else:                            b["pending"] += 1   # PENDING_*
+    return out
+
+
+def build_link_health(conn: sqlite3.Connection) -> dict:
+    """4 link-health metrics for the dashboard."""
+    dup = list(conn.execute("""
+        SELECT entity_id, COUNT(*) FROM freestyle_media_links
+        WHERE entity_type='trick' AND is_primary=1
+        GROUP BY entity_id HAVING COUNT(*) > 1
+    """))
+    orphans = [r[0] for r in conn.execute("""
+        SELECT DISTINCT l.entity_id FROM freestyle_media_links l
+        LEFT JOIN freestyle_tricks t ON l.entity_id = t.slug
+        WHERE l.entity_type='trick' AND t.slug IS NULL
+    """)]
+    pending_primary = list(conn.execute("""
+        SELECT l.entity_id FROM freestyle_media_links l
+        JOIN freestyle_tricks t ON l.entity_id = t.slug
+        WHERE l.entity_type='trick' AND t.is_active = 0 AND l.is_primary = 1
+    """))
+    missing_src = list(conn.execute("""
+        SELECT a.id, a.url, a.source_id FROM freestyle_media_assets a
+        LEFT JOIN freestyle_media_sources s ON a.source_id = s.source_id
+        WHERE a.source_id IS NULL OR a.source_id = '' OR s.source_id IS NULL
+    """))
+    return {
+        "duplicate_primaries": dup,
+        "orphan_media_links":  orphans,
+        "pending_links_marked_primary": [r[0] for r in pending_primary],
+        "missing_source_ids": [(r[0], r[1], r[2]) for r in missing_src],
+    }
+
+
+def render_report(rows: list[dict], family_cov: dict, link_health: dict) -> str:
+    """Render the 4-section markdown report. Used both for stdout and the .md artifact."""
+    out: list[str] = []
+    push = out.append
+
+    # 1. Coverage summary
     total_active = sum(1 for r in rows if r["is_active"] == 1)
-    total_pending = sum(1 for r in rows if r["is_active"] == 0)
     by_status: dict[str, int] = {}
     for r in rows:
         by_status[r["status"]] = by_status.get(r["status"], 0) + 1
@@ -259,41 +333,90 @@ def print_summary(rows: list[dict]) -> None:
     pending_nomedia = by_status.get("PENDING_NO_MEDIA", 0)
     pct = (strong / total_active * 100) if total_active else 0
 
-    print(f"\n# Freestyle media coverage")
-    print()
-    print(f"Report: {REPORT_PATH.relative_to(REPO_ROOT)}")
-    print()
-    print(f"## Summary")
-    print()
-    print(f"| Metric | Count |")
-    print(f"|---|---|")
-    print(f"| Active tricks | {total_active} |")
-    print(f"| Active strong primary (tutorial) | {strong} |")
-    print(f"| Active weak primary (record-only) | {weak} |")
-    print(f"| Active no primary | {no_prim} |")
-    print(f"| Pending with media | {pending_media} |")
-    print(f"| Pending no media | {pending_nomedia} |")
-    print(f"| Strong coverage % of active | **{pct:.1f}%** |")
-    print()
+    push("# Freestyle media coverage")
+    push("")
+    push(f"CSV: `{REPORT_PATH.relative_to(REPO_ROOT)}`")
+    push("")
+    push("## 1. Coverage summary")
+    push("")
+    push("| Metric | Count |")
+    push("|---|---|")
+    push(f"| active_tricks | {total_active} |")
+    push(f"| strong_primary | {strong} |")
+    push(f"| weak_primary | {weak} |")
+    push(f"| no_primary | {no_prim} |")
+    push(f"| pending_with_media | {pending_media} |")
+    push(f"| pending_no_media | {pending_nomedia} |")
+    push(f"| strong_coverage_pct | **{pct:.1f}%** |")
+    push("")
 
-    # Top 20 priority targets: CORE_GAP first, then WEAK_CORE, then LOW_PRIORITY-no-primary
-    rank = {"CORE_GAP": 0, "WEAK_CORE": 1, "LOW_PRIORITY": 2, "PENDING_REVIEW": 3, "COMPLETE": 9}
-    targets = sorted(
-        [r for r in rows if r["priority_bucket"] in ("CORE_GAP", "WEAK_CORE", "LOW_PRIORITY")
-         and r["status"] != "ACTIVE_STRONG_PRIMARY"],
-        key=lambda r: (rank[r["priority_bucket"]], r["status"], r["slug"]),
-    )[:20]
+    # 2. Top action list — sort by user-specified priority order
+    bucket_rank = {"CORE_GAP": 0, "WEAK_CORE": 1, "PENDING_REVIEW": 4, "COMPLETE": 9, "LOW_PRIORITY": 5}
+    status_rank = {"ACTIVE_NO_PRIMARY": 2, "ACTIVE_WEAK_PRIMARY": 3, "PENDING_WITH_MEDIA": 4,
+                   "PENDING_NO_MEDIA": 4, "ACTIVE_STRONG_PRIMARY": 9}
 
-    print(f"## Top 20 priority targets")
-    print()
-    print(f"| # | Slug | Bucket | Status | Current primary |")
-    print(f"|---|---|---|---|---|")
-    for i, r in enumerate(targets, 1):
-        cur = r["primary_title"] if r["primary_title"] else "(none)"
-        if len(cur) > 60:
-            cur = cur[:57] + "..."
-        print(f"| {i} | `{r['slug']}` | {r['priority_bucket']} | {r['status']} | {cur} |")
-    print()
+    def action_key(r: dict) -> tuple:
+        # CORE_GAP and WEAK_CORE come first regardless of status; then sort by status rank for the rest.
+        if r["priority_bucket"] == "CORE_GAP":  return (0, r["slug"])
+        if r["priority_bucket"] == "WEAK_CORE": return (1, r["slug"])
+        return (status_rank.get(r["status"], 99), r["slug"])
+
+    actions = sorted([r for r in rows if r["priority_bucket"] != "COMPLETE"], key=action_key)[:25]
+    push("## 2. Top action list")
+    push("")
+    push("Sorted: CORE_GAP → WEAK_CORE → ACTIVE_NO_PRIMARY → ACTIVE_WEAK_PRIMARY → PENDING_REVIEW.")
+    push("")
+    push("| # | Slug | Family | Status | Bucket | Current primary |")
+    push("|---|---|---|---|---|---|")
+    for i, r in enumerate(actions, 1):
+        cur = r["primary_title"] or "(none)"
+        if len(cur) > 50:
+            cur = cur[:47] + "..."
+        push(f"| {i} | `{r['slug']}` | {r['trick_family'] or r['category'] or '-'} | {r['status']} | {r['priority_bucket']} | {cur} |")
+    push("")
+
+    # 3. Family coverage — sorted by lowest completion first
+    push("## 3. Family coverage")
+    push("")
+    push("`family_completion_pct = strong_primary / total`. Sorted ascending (least-covered families first); ties broken by larger family size first.")
+    push("")
+    push("| Family | total | strong | weak | none | pending | completion % |")
+    push("|---|---|---|---|---|---|---|")
+
+    def completion_key(fam: str) -> tuple:
+        b = family_cov[fam]
+        pct = (b["strong"] / b["total"] * 100) if b["total"] else 0.0
+        return (pct, -b["total"], fam)
+
+    for fam in sorted(family_cov.keys(), key=completion_key):
+        b = family_cov[fam]
+        pct = (b["strong"] / b["total"] * 100) if b["total"] else 0.0
+        push(f"| {fam} | {b['total']} | {b['strong']} | {b['weak']} | {b['none']} | {b['pending']} | {pct:.0f}% |")
+    push("")
+
+    # 4. Link health
+    push("## 4. Link health")
+    push("")
+    push("| Check | Count | Detail |")
+    push("|---|---|---|")
+    push(f"| duplicate_primaries | {len(link_health['duplicate_primaries'])} | {link_health['duplicate_primaries'] or '-'} |")
+    push(f"| orphan_media_links | {len(link_health['orphan_media_links'])} | {link_health['orphan_media_links'] or '-'} |")
+    push(f"| pending_links_marked_primary | {len(link_health['pending_links_marked_primary'])} | {link_health['pending_links_marked_primary'] or '-'} |")
+    miss = link_health["missing_source_ids"]
+    miss_detail = "-" if not miss else "; ".join(f"{a[0]} ({a[2] or 'NULL'})" for a in miss[:5]) + (f" ... +{len(miss)-5}" if len(miss) > 5 else "")
+    push(f"| missing_source_ids | {len(miss)} | {miss_detail} |")
+    push("")
+
+    return "\n".join(out)
+
+
+def write_markdown(report_text: str) -> None:
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_MD_PATH.write_text(report_text + "\n", encoding="utf-8")
+
+
+def print_report(report_text: str) -> None:
+    print(report_text)
 
 
 def main() -> None:
@@ -313,12 +436,16 @@ def main() -> None:
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             rows = build_rows(conn)
+            family_cov = build_family_coverage(rows)
+            link_health = build_link_health(conn)
             errors = validate(conn, rows)
         finally:
             conn.close()
 
         write_csv(rows)
-        print_summary(rows)
+        report_text = render_report(rows, family_cov, link_health)
+        write_markdown(report_text)
+        print_report(report_text)
 
         if errors:
             print("## Validation errors", file=sys.stderr)
@@ -327,6 +454,7 @@ def main() -> None:
             sys.exit(2)
         else:
             print(f"Validation: 4/4 checks passed.")
+            print(f"Markdown report: {REPORT_MD_PATH.relative_to(REPO_ROOT)}")
     finally:
         if owns_db:
             db_path.unlink(missing_ok=True)
