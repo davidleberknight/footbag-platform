@@ -22,11 +22,11 @@ pt1,2026-04-23,MODIFIER_RULE,gyro,"Gyro is spinning where the foot that sets the
 pt1,2026-04-23,INFORMATIONAL,spyro,"Spyro is a specific trick, not a general concept like Gyro.",applied
 pt2,2026-04-23,NAMING,spyro,"In modern community usage, Spyro has largely been replaced by 'Inspin'.",informational
 pt2,2026-04-23,MODIFIER_RULE,inspinning,"Inspinning sets the bag with a clipper and spins toward the bag (right clipper -> CW); behaves like a spin-and-a-half body motion.",informational
-pt2,2026-04-23,EQUIVALENCE,bigwalk,"Bigwalk (5 ADD) = Surging Butterfly.",pending
-pt2,2026-04-23,EQUIVALENCE,surge,"Surge (5 ADD) = Surging Paradox Mirage.",pending
-pt2,2026-04-23,EQUIVALENCE,surreal,"Surreal (6 ADD) = Surging Paradox Whirl.",pending
-pt2,2026-04-23,EQUIVALENCE,surgery,"Surgery (6 ADD) = Surging Symposium Reverse Whirl.",pending
-pt2,2026-04-23,EQUIVALENCE,venom,"Venom (6 ADD) = Surging Barfly.",pending
+pt2,2026-04-23,EQUIVALENCE,bigwalk,"Bigwalk (5 ADD) = Surging Butterfly.",applied
+pt2,2026-04-23,EQUIVALENCE,surge,"Surge (5 ADD) = Surging Paradox Mirage.",applied
+pt2,2026-04-23,EQUIVALENCE,surreal,"Surreal (6 ADD) = Surging Paradox Whirl.",applied
+pt2,2026-04-23,EQUIVALENCE,surgery,"Surgery (6 ADD) = Surging Symposium Reverse Whirl.",applied
+pt2,2026-04-23,EQUIVALENCE,venom,"Venom (6 ADD) = Surging Barfly.",applied
 pt2,2026-04-23,MODIFIER_RULE,pogo,"Pogo is a set, distinct from stepping, but does NOT contribute an extra ADD.",applied
 pt2,2026-04-23,EQUIVALENCE,toe-blur,"Toe Blur (3 ADD) = Quantum Mirage.",pending
 pt2,2026-04-23,EQUIVALENCE,toe-ripwalk,"Toe Ripwalk (4 ADD) = Quantum Butterfly.",pending
