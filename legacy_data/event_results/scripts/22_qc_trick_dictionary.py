@@ -33,6 +33,12 @@ Conflict types detected:
   REVIEWER_NAME_LEAK             — description references a reviewer name
   DIRECTION_AMBIGUITY            — known direction-pair flagged for review
   NEW_FROM_SOURCE                — footbag.org trick not present in canonical or aliases
+  COMPOSITIONAL_REVIEW (WARN)    — active compound row whose slug fits a pure
+                                   modifier-chain pattern AND whose ADD math
+                                   decomposes cleanly AND lacks both curated
+                                   provenance and any community alias. Flagged
+                                   for human review against the canonical-vs-
+                                   compositional skill rule. Never hard-fails.
 
 Usage (from legacy_data/ with venv active, or from repo root):
   python legacy_data/event_results/scripts/22_qc_trick_dictionary.py
@@ -80,6 +86,19 @@ DIRECTION_PAIRS = [
     ("mirage",   "illusion"),                       # in-to-out vs out-to-in dex
     ("spinning", "inspinning"),
 ]
+
+# Compositional-review constants (canonical-vs-compositional WARN check).
+# Source IDs whose presence on a row exempts it from compositional-review:
+# provenance is sufficient signal of intentional curation.
+CURATED_SOURCE_IDS: frozenset[str] = frozenset({
+    "curated-v1",
+    "red-husted-2026-04-20",
+})
+
+# Named-identity exemptions: slugs that fit the (mod-)*base pattern but are
+# explicit canonical names rather than mere modifier-chains. Populate as
+# false-positive evidence accumulates. Keep small and justified per entry.
+ALLOWLIST_COMPOSITIONAL_NAMED: frozenset[str] = frozenset()
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +191,28 @@ def load_source_links(conn: sqlite3.Connection) -> list[dict]:
             "asserted_category": row[7] or "",
             "notes": row[8] or "",
         })
+    return out
+
+
+def load_modifier_table(conn: sqlite3.Connection) -> tuple[set[str], dict[str, tuple[int | None, int | None]]]:
+    """Return (modifier_slugs_set, {slug: (add_bonus, add_bonus_rotational)})."""
+    slugs: set[str] = set()
+    bonuses: dict[str, tuple[int | None, int | None]] = {}
+    for row in conn.execute(
+        "SELECT slug, add_bonus, add_bonus_rotational FROM freestyle_trick_modifiers"
+    ):
+        slugs.add(row[0])
+        bonuses[row[0]] = (row[1], row[2])
+    return slugs, bonuses
+
+
+def load_modifier_links(conn: sqlite3.Connection) -> dict[str, list[str]]:
+    """Return {trick_slug: [modifier_slug, ...] in apply_order}."""
+    out: dict[str, list[str]] = {}
+    for row in conn.execute(
+        "SELECT trick_slug, modifier_slug FROM freestyle_trick_modifier_links ORDER BY trick_slug, apply_order"
+    ):
+        out.setdefault(row[0], []).append(row[1])
     return out
 
 
@@ -555,6 +596,132 @@ def detect_conflicts(curated: dict[str, dict],
     return out
 
 
+def detect_compositional_review(
+    curated: dict[str, dict],
+    modifier_slugs: set[str],
+    modifier_bonuses: dict[str, tuple[int | None, int | None]],
+    modifier_links_per_trick: dict[str, list[str]],
+    aliases: list[tuple[str, str, str, str]],
+    source_links: list[dict],
+) -> list[dict]:
+    """WARN-only canonical-vs-compositional review (skill rule, Section 1).
+
+    Flags an active compound row only when ALL of the following are true:
+      1. Slug fits (modifier-)*base pattern: every leading hyphen-token is a
+         known modifier; trailing token is a known non-modifier base.
+      2. ADD math decomposes cleanly: sum(modifier add_bonus) + base.adds == row.adds
+         (tries non-rotational first, then rotational fallback).
+      3. No curated/expert source_link (no source_id in CURATED_SOURCE_IDS).
+      4. No aliases attached to this trick (no community-name evidence).
+      5. Slug is not in ALLOWLIST_COMPOSITIONAL_NAMED.
+
+    Severity: WARN. This is a discovery filter for human review, NOT a hard
+    gate. Named-identity detection is heuristic and false positives are
+    expected at the margin. Reviewer decides whether to add an allowlist
+    entry (with rationale), attach a curated source_link, add a community
+    alias, or collapse the row to an alias on the structural composition.
+
+    Scope: active (is_active=1) compound (category='compound') rows only.
+    Modifier rows and pending/inactive rows are exempt by design.
+    """
+    # Per-trick indexes
+    aliases_per_trick: dict[str, list[str]] = {}
+    for alias_slug, _alias_text, trick_slug, _alias_type in aliases:
+        aliases_per_trick.setdefault(trick_slug, []).append(alias_slug)
+    source_ids_per_trick: dict[str, set[str]] = {}
+    for link in source_links:
+        source_ids_per_trick.setdefault(link["trick_slug"], set()).add(link["source_id"])
+
+    # Base-trick set for slug-pattern check: any non-modifier curated slug
+    # qualifies as a potential base token.
+    base_slugs = {s for s, t in curated.items() if t.get("category") != "modifier"}
+
+    out: list[dict] = []
+    for slug, t in curated.items():
+        # Scope: active compound rows only
+        if t.get("category") != "compound":
+            continue
+        if int(t.get("is_active") or 0) != 1:
+            continue
+        if slug in ALLOWLIST_COMPOSITIONAL_NAMED:
+            continue
+
+        adds = adds_to_int(t.get("adds"))
+        if adds is None:
+            continue
+
+        # Criterion 1: slug fits (mod-)*base pattern
+        tokens = slug.split("-")
+        if len(tokens) < 2:
+            continue  # single-token = named identity by definition; not flagged
+        base_token = tokens[-1]
+        leading = tokens[:-1]
+        if base_token not in base_slugs:
+            continue
+        if not all(tok in modifier_slugs for tok in leading):
+            continue
+        # → criterion 1 satisfied (slug looks compositional)
+
+        # Criterion 2: ADD math decomposes cleanly
+        base_row = curated.get(base_token, {})
+        base_adds = adds_to_int(base_row.get("adds"))
+        if base_adds is None:
+            continue
+        row_mods = modifier_links_per_trick.get(slug, [])
+        if not row_mods:
+            # No modifier_links declared -> structural-decomposition cannot be
+            # validated programmatically. Don't flag without that evidence.
+            continue
+        bonus_nr = sum(
+            (modifier_bonuses.get(m, (None, None))[0] or 0) for m in row_mods
+        )
+        bonus_rot = sum(
+            (modifier_bonuses.get(m, (None, None))[1]
+             if modifier_bonuses.get(m, (None, None))[1] is not None
+             else (modifier_bonuses.get(m, (None, None))[0] or 0))
+            for m in row_mods
+        )
+        if (base_adds + bonus_nr) != adds and (base_adds + bonus_rot) != adds:
+            continue
+        # → criterion 2 satisfied (decomposable)
+
+        # Criterion 3: no curated/expert source_link
+        sids = source_ids_per_trick.get(slug, set())
+        if sids & CURATED_SOURCE_IDS:
+            continue
+        # → criterion 3 satisfied (no curated provenance)
+
+        # Criterion 4: no aliases attached
+        if aliases_per_trick.get(slug):
+            continue
+        # → criterion 4 satisfied (no community-name evidence)
+
+        # All criteria fail. Emit WARN.
+        out.append({
+            "conflict_id": conflict_id(slug, "internal_qc", "COMPOSITIONAL_REVIEW"),
+            "trick_slug": slug,
+            "canonical_name": t["canonical_name"],
+            "conflict_type": "COMPOSITIONAL_REVIEW",
+            "canonical_value": f"{base_token}({base_adds}) + {'+'.join(row_mods)} = {adds}",
+            "asserted_value": (
+                f"slug fits ({'-'.join(leading)})-{base_token} pattern; "
+                f"ADD math decomposes; no curated source; no aliases"
+            ),
+            "source_id": "internal_qc",
+            "external_url": "",
+            "severity": "WARN",
+            "suggested_resolution": "review_named_identity_or_collapse_to_alias",
+            "notes": (
+                "Compositional-review candidate per canonical-vs-compositional "
+                "rule. Either confirm named identity (add to "
+                "ALLOWLIST_COMPOSITIONAL_NAMED with rationale, or attach a "
+                "curated source_link / community alias), or collapse to an "
+                "alias on the structural composition."
+            ),
+        })
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Notation coverage
 # ---------------------------------------------------------------------------
@@ -632,6 +799,8 @@ def run(db_path: Path, scrape_path: Path) -> dict:
         curated = load_curated(conn)
         aliases = load_aliases(conn)
         source_links = load_source_links(conn)
+        modifier_slugs, modifier_bonuses = load_modifier_table(conn)
+        modifier_links_per_trick = load_modifier_links(conn)
     finally:
         conn.close()
 
@@ -639,12 +808,16 @@ def run(db_path: Path, scrape_path: Path) -> dict:
 
     comparison_rows = build_comparison_rows(curated, aliases, scrape_rows)
     conflict_rows = detect_conflicts(curated, source_links, comparison_rows)
+    conflict_rows.extend(detect_compositional_review(
+        curated, modifier_slugs, modifier_bonuses,
+        modifier_links_per_trick, aliases, source_links,
+    ))
     notation_rows = build_notation_coverage(curated, comparison_rows)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     write_csv(OUT_COMPARISON, comparison_rows, COMPARISON_FIELDS)
     write_csv(OUT_CONFLICTS, sorted(conflict_rows, key=lambda r: (
-        {"HIGH": 0, "MED": 1, "LOW": 2}.get(r["severity"], 3),
+        {"HIGH": 0, "MED": 1, "LOW": 2, "WARN": 3}.get(r["severity"], 4),
         r["conflict_type"],
         r["canonical_name"] or "",
     )), CONFLICT_FIELDS)
@@ -663,6 +836,7 @@ def run(db_path: Path, scrape_path: Path) -> dict:
         "high": sum(1 for r in conflict_rows if r["severity"] == "HIGH"),
         "med": sum(1 for r in conflict_rows if r["severity"] == "MED"),
         "low": sum(1 for r in conflict_rows if r["severity"] == "LOW"),
+        "warn": sum(1 for r in conflict_rows if r["severity"] == "WARN"),
         "by_type": _count_by(conflict_rows, "conflict_type"),
     }
 
@@ -695,7 +869,7 @@ def main() -> None:
     print(f"  curated tricks            : {stats['curated_total']}")
     print(f"  footbag.org scraped rows  : {stats['scrape_total']}")
     print(f"  comparison rows emitted   : {stats['comparison_rows']}")
-    print(f"  conflicts total           : {stats['conflicts_total']}  (HIGH {stats['high']} / MED {stats['med']} / LOW {stats['low']})")
+    print(f"  conflicts total           : {stats['conflicts_total']}  (HIGH {stats['high']} / MED {stats['med']} / LOW {stats['low']} / WARN {stats['warn']})")
     print("  by type:")
     for kind, n in sorted(stats["by_type"].items(), key=lambda kv: -kv[1]):
         print(f"    {kind:34s} {n}")
