@@ -1644,13 +1644,6 @@ section.home-media { padding-top: 0; }
   margin: 1rem 0;
 }
 
-/* ── Profile BAP nickname caption (history detail) ────────────── */
-.profile-bap-caption {
-  text-align: center;
-  margin-top: -1rem;
-  margin-bottom: 1rem;
-}
-
 /* ── Simulated email card (dev/sandbox only; production renders nothing) ── */
 .sec-card { border: 1px solid #d0d7de; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; background: #f6f8fa; }
 .sec-card-dev { border-left: 4px solid #1f883d; }

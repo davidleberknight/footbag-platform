@@ -927,7 +927,7 @@ The administrator role on `members.is_admin` is granted through two paths: the s
 
 Rationale:
 
-- The steady-state path is the lifetime path: an admin selects a member, supplies a reason, the request is gated on Tier 2 Lifetime / Tier 3 status per `A_Manage_Admin_Role`, and the system writes `is_admin=1` plus an `audit_entries` row with `actor_type='admin'`.
+- The steady-state path is the lifetime path: an admin selects a member, supplies a reason, the request is gated on Tier 2 / Tier 3 status per `A_Manage_Admin_Role`, and the system writes `is_admin=1` plus an `audit_entries` row with `actor_type='admin'`.
 
 - The bootstrap path covers the chicken-and-egg case: no app UI can produce the initial admins because no admin can authorize them. The grant therefore crosses the role boundary in DEVOPS §3.2: a System Administrator with host access acts on behalf of the system to provision initial Application Administrators.
 
@@ -1029,7 +1029,7 @@ Impact:
 
 - Per-Request Validation Flow: Middleware extracts JWT from HttpOnly cookie, validates JWT signature, calls AuthService.getCurrentMember which extracts memberId and passwordVersion from JWT claims, reads Member entity, compares member.passwordVersion with JWT claim, and returns member object if match or isValid=false if mismatch. If valid, request proceeds. If invalid, returns 401 Unauthorized.
 
-- Authorization from database, not JWT claims: While JWTs contain tier and role claims for routing efficiency, authorization middleware queries the member table on every authenticated request to retrieve current tier, tier_expires_at, passwordVersion, and flags. This ensures tier expiration, permission changes, and password resets take effect immediately on the next request. JWT claims serve as performance hints, not authoritative access control data.
+- Authorization from database, not JWT claims: While JWTs contain tier and role claims for routing efficiency, authorization middleware queries the member table and current-state views on every authenticated request to retrieve current membership tier, Active Player status, passwordVersion, and flags. This ensures Active Player expiration, permission changes, and password resets take effect immediately on the next request. JWT claims serve as performance hints, not authoritative access control data.
 
 ## 3.3 CSRF Protection via SameSite Cookies
 

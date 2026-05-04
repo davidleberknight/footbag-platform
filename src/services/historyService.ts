@@ -47,7 +47,6 @@ export interface HistoryDetailContent {
   displayName: string;
   hofMember: boolean;
   bapMember: boolean;
-  bapNickname: string | null;
   avatarThumbUrl: string | null;
   heroData: PlayerHeroData;
   careerStats: CareerCategoryStat[];
@@ -223,7 +222,6 @@ export const historyService = {
           displayName:   player.personName,
           hofMember:     player.hofMember,
           bapMember:     player.bapMember,
-          bapNickname:   player.bapNickname,
           avatarThumbUrl,
           heroData,
           careerStats,

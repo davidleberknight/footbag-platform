@@ -1238,7 +1238,7 @@ Minimum drill expectations:
 | Job | Cadence | Purpose | Operator concern |
 |---|---|---|---|
 | `SYS_Send_Email` | every `outbox_poll_interval_seconds` | send queued mail from `outbox_emails` via `LiveSesAdapter` | dead-letter growth, bounce/complaint alarms, worker container crash-loop on missing shared-config env vars (see §15.4) |
-| `SYS_Check_Tier_Expiry` | daily | expire or remind annual tiers | missed runs or unusual reminder spikes |
+| `SYS_Check_Active_Player_Expiry` | daily | expire or remind Active Player status (Tier 0 only) | missed runs or unusual reminder spikes |
 | `SYS_Open_Vote` | at least hourly | open scheduled votes | failed openings, admin-alerts flow |
 | `SYS_Close_Vote` | at least hourly | close scheduled votes | failed closures, tally readiness |
 | `SYS_Reconcile_Payments_Nightly` | nightly | reconciliation and digest generation | payment mismatches, digest failures |

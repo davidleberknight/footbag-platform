@@ -183,37 +183,52 @@ CREATE TABLE event_disciplines (
 CREATE UNIQUE INDEX ux_event_discipline_name ON event_disciplines(event_id, name);
 
 -- =============================================================================
--- SECTION 4: TIER 1 VOUCH REQUESTS
+-- SECTION 4: ACTIVE PLAYER VOUCHES
 -- =============================================================================
 
--- Pending and decided requests to grant a member Tier 1 status via admin approval
--- (Pathway B vouching). Stores the requester, target member, rationale, and admin
--- decision. reason_text is the required brief rationale on all requests; notes_text
--- is optional elaboration available only for Pathway B submissions.
--- A DB CHECK prevents structurally malformed self-vouch rows as defense-in-depth.
-CREATE TABLE tier1_vouch_requests (
+-- Append-only ledger of vouch actions taken by Tier 2 or Tier 3 members for
+-- Tier 0 members. A vouch grants or extends Active Player status only; it never
+-- changes membership tier. Vouches against Tier 1, Tier 2, or Tier 3 targets are
+-- a no-op at the application layer and must not produce a row here. Each row
+-- points (via active_player_grants.related_vouch_id) to the resulting Active
+-- Player ledger row when the vouch had effect. UPDATE and DELETE are blocked by
+-- triggers. A DB CHECK prevents structurally malformed self-vouch rows.
+CREATE TABLE active_player_vouches (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
   created_by TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  updated_by TEXT NOT NULL,
-  version    INTEGER NOT NULL DEFAULT 1,
 
-  requested_by_member_id     TEXT NOT NULL REFERENCES members(id),
-  target_member_id           TEXT NOT NULL REFERENCES members(id),
-  reason_text                TEXT NOT NULL,
-  notes_text                 TEXT,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','denied')),
-  decided_by_admin_member_id TEXT REFERENCES members(id),
-  decided_at                 TEXT,
-  decision_reason            TEXT,
+  voucher_member_id TEXT NOT NULL REFERENCES members(id),
+  target_member_id  TEXT NOT NULL REFERENCES members(id),
+
+  vouched_at  TEXT NOT NULL,
+  reason_text TEXT,
+
+  old_active_player_expires_at TEXT,
+  new_active_player_expires_at TEXT,
 
   -- Structural integrity: a member cannot vouch for themselves.
-  -- App also validates this; DB provides defense-in-depth.
-  CHECK (requested_by_member_id <> target_member_id)
+  CHECK (voucher_member_id <> target_member_id)
 );
 
-CREATE INDEX idx_vouch_requests_status ON tier1_vouch_requests(status);
+CREATE TRIGGER trg_active_player_vouches_no_update
+BEFORE UPDATE ON active_player_vouches
+BEGIN
+  SELECT RAISE(ABORT,
+    'active_player_vouches is append-only: UPDATE not permitted');
+END;
+
+CREATE TRIGGER trg_active_player_vouches_no_delete
+BEFORE DELETE ON active_player_vouches
+BEGIN
+  SELECT RAISE(ABORT,
+    'active_player_vouches is append-only: DELETE not permitted');
+END;
+
+CREATE INDEX idx_active_player_vouches_target
+  ON active_player_vouches(target_member_id, vouched_at);
+CREATE INDEX idx_active_player_vouches_voucher
+  ON active_player_vouches(voucher_member_id, vouched_at);
 
 -- =============================================================================
 -- SECTION 5: VOTES & ELECTIONS
@@ -223,8 +238,10 @@ CREATE INDEX idx_vouch_requests_status ON tier1_vouch_requests(status);
 -- (nomination phase, voting phase, options visibility), eligibility rules,
 -- and lifecycle status. DB CHECK constraints enforce ordering invariants
 -- across nomination and voting windows to protect election integrity.
--- vote_eligibility_snapshot is frozen at vote-open time; tier expiry
--- during an open vote does NOT revoke eligibility — the snapshot is authoritative.
+-- vote_eligibility_snapshot is frozen at vote-open time. Membership tier
+-- changes (admin override, governance grant/removal) and Active Player changes
+-- during an open vote do NOT revoke eligibility, because the snapshot is
+-- authoritative.
 -- options_visible_at: when set, options are visible before vote_open_at
 -- (application enforces options_visible_at <= vote_open_at).
 CREATE TABLE votes (
@@ -730,8 +747,8 @@ CREATE INDEX idx_work_queue_entity ON work_queue_items(entity_type, entity_id);
 -- explaining the system origin.
 --
 -- config_key vocabulary: see data model §4.9 for full key reference.
--- Pricing keys: tier1_lifetime_price_cents, tier2_annual_price_cents,
---   tier2_lifetime_price_cents (stored as integer cents, not USD decimals).
+-- Pricing keys: tier1_price_cents, tier2_price_cents (stored as integer cents,
+--   not USD decimals).
 CREATE TABLE system_config (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -1078,7 +1095,7 @@ CREATE TABLE payments (
 
   -- Inlined membership detail (NULL for non-membership payments)
   purchased_tier_status TEXT
-    CHECK (purchased_tier_status IN ('tier1_annual','tier1_lifetime','tier2_annual','tier2_lifetime')),
+    CHECK (purchased_tier_status IN ('tier1','tier2')),
 
   metadata_json TEXT NOT NULL DEFAULT '{}',
 
@@ -1202,9 +1219,8 @@ CREATE INDEX idx_recon_status ON reconciliation_issues(status);
 -- SECTION 11: MEMBERSHIP PRICING (stored in system_config)
 -- =============================================================================
 -- Membership pricing is stored as config keys in system_config:
---   tier1_lifetime_price_cents   (integer cents, e.g., 1000 = $10.00)
---   tier2_annual_price_cents     (integer cents, e.g., 2500 = $25.00)
---   tier2_lifetime_price_cents   (integer cents, e.g., 15000 = $150.00)
+--   tier1_price_cents   (integer cents, e.g., 1000 = $10.00)
+--   tier2_price_cents   (integer cents, e.g., 5000 = $50.00)
 -- Values are stored as integer cents consistent with all payment tables.
 -- UI layers convert cents to USD for display.
 -- Like all config, pricing is changed by inserting a new row with a new
@@ -1213,41 +1229,41 @@ CREATE INDEX idx_recon_status ON reconciliation_issues(status);
 -- =============================================================================
 -- SECTION 12: MEMBER TIER GRANTS
 -- =============================================================================
--- Append-only ledger of all membership tier changes (grants, extensions, revocations,
--- expirations). Each row is a full before/after snapshot: old_* columns capture
--- state before the change; new_* columns capture state after. The view
--- member_tier_current reads the latest row's new_* values as the authoritative
--- current tier. UPDATE and DELETE are blocked by triggers.
+-- Append-only ledger of lifetime membership tier changes only. Each row is a
+-- full before/after snapshot: old_* columns capture state before the change;
+-- new_* columns capture state after. The view member_tier_current reads the
+-- latest row's new_* values as the authoritative current tier. UPDATE and
+-- DELETE are blocked by triggers.
+--
+-- This ledger MUST NOT carry Active Player, event-attendance, vouch, or
+-- club-join provenance; those write to active_player_grants instead. The only
+-- source FK retained here is related_payment_id (purchase-origin grants).
 --
 -- change_type values:
---   grant  — new tier awarded (purchase, vouch, admin override, board flag, HoF/BAP grant)
---   extend — annual tier expiry extended
---   revoke — tier removed by admin
---   expire — system-detected tier expiry
+--   grant              new lifetime tier awarded (purchase, HoF/BAP grant, legacy claim)
+--   revoke             lifetime tier removed by admin (does not run on refund; see APP-006)
+--   correct            admin correction of an erroneous prior row
+--   governance_set     Tier 3 governance status assigned; new_underlying_tier_status captures
+--                      the underlying tier the member returns to when governance ends
+--   governance_removed Tier 3 governance status removed; new_tier_status reverts to
+--                      old_underlying_tier_status (which must be set on this row)
 --
--- No 'reinstate' change_type: there is no reinstatement flow.
--- Admin error correction and board-flag reversion use 'grant' + reason_code 'admin.override'.
--- Refunds do not alter tier (completed payments are not retroactively altered).
+-- Underlying tier (old_/new_underlying_tier_status) is the membership tier a
+-- Tier 3 member returns to when governance ends. It is only ever 'tier1' or
+-- 'tier2' (Tier 0 → Tier 3 sets underlying to Tier 1; Tier 0 is never an
+-- underlying tier).
 --
--- Source linkage (all nullable): the combination of non-null FKs encodes the pathway.
--- At most one source FK may be non-NULL (enforced by CHECK).
---   related_payment_id IS NOT NULL                              → purchase-origin
---   related_vouch_request_id IS NOT NULL                       → admin-approved vouch (Pathway B)
---   related_event_id IS NOT NULL, vouch_request_id IS NULL     → direct roster vouch (Pathway A)
---   all NULL                                                   → admin override or system-driven
---
--- Source FKs for vouch/event origin are only valid on positive application rows.
--- revoke and expire rows always have NULL for related_vouch_request_id and
--- related_event_id (DB-enforced by CHECK; app convention must match).
---
--- reason_code is a namespaced free-text vocabulary (no DB CHECK — extensible without
--- migration). Documented values: 'purchase.dues', 'vouch.direct', 'vouch.admin',
--- 'admin.override', 'admin.hof_bap_grant', 'board.flag_set', 'board.flag_removed',
--- 'system.tier_expired', 'system.tier2_fallback'.
---   system.tier_expired   — Tier 1 Annual expired → tier0
---   system.tier2_fallback — Tier 2 Annual expired → tier1_lifetime
---   admin.hof_bap_grant   — HoF/BAP badge assigned → tier2_lifetime auto-upgrade
---   board.flag_removed    — Board flag removed → revert to fallback paid tier (change_type='grant')
+-- reason_code is a namespaced free-text vocabulary (no DB CHECK; extensible
+-- without migration). Documented values:
+--   purchase.tier1               Tier 1 IFPA Member purchase
+--   purchase.tier2               Tier 2 IFPA Organizer Member purchase
+--   honor.hof_tier2_grant        Hall of Fame induction grants Tier 2
+--   honor.bap_tier2_grant        Big Add Posse induction grants Tier 2
+--   governance.tier3_set         Tier 3 governance assigned
+--   governance.tier3_removed     Tier 3 governance removed (reverts to underlying tier)
+--   admin.override               Admin manual change (correction, exceptional remediation)
+--   admin.correction             Admin correction of a prior data error
+--   legacy.claim_tier_grant      Legacy migration claim resolved to a tier assignment
 --
 -- UPDATE and DELETE are blocked by triggers.
 
@@ -1260,35 +1276,36 @@ CREATE TABLE member_tier_grants (
   actor_member_id TEXT REFERENCES members(id),
 
   change_type TEXT NOT NULL
-    CHECK (change_type IN ('grant','extend','revoke','expire')),
+    CHECK (change_type IN ('grant','revoke','correct','governance_set','governance_removed')),
 
-  old_tier_status          TEXT,
-  old_tier_expires_at      TEXT,
-  old_fallback_tier_status TEXT,
-  new_tier_status          TEXT NOT NULL,
-  new_tier_expires_at      TEXT,
-  new_fallback_tier_status TEXT,
+  old_tier_status TEXT
+    CHECK (old_tier_status IS NULL OR old_tier_status IN ('tier0','tier1','tier2','tier3')),
+  new_tier_status TEXT NOT NULL
+    CHECK (new_tier_status IN ('tier0','tier1','tier2','tier3')),
+
+  -- Underlying tier is the lifetime tier a Tier 3 governance member returns to
+  -- when governance ends. Restricted to 'tier1' or 'tier2' (never tier0/tier3).
+  old_underlying_tier_status TEXT
+    CHECK (old_underlying_tier_status IS NULL OR old_underlying_tier_status IN ('tier1','tier2')),
+  new_underlying_tier_status TEXT
+    CHECK (new_underlying_tier_status IS NULL OR new_underlying_tier_status IN ('tier1','tier2')),
 
   reason_code TEXT NOT NULL,
   reason_text TEXT,
 
-  related_payment_id       TEXT REFERENCES payments(id),
-  related_vouch_request_id TEXT REFERENCES tier1_vouch_requests(id),
-  related_event_id         TEXT REFERENCES events(id),
+  related_payment_id TEXT REFERENCES payments(id),
 
-  -- At most one source FK may be non-NULL (structural provenance guard;
-  -- app is primary validator of pathway consistency).
+  -- governance_set rows must capture the underlying tier so a later
+  -- governance_removed row can revert correctly.
   CHECK (
-    (CASE WHEN related_payment_id       IS NOT NULL THEN 1 ELSE 0 END) +
-    (CASE WHEN related_vouch_request_id IS NOT NULL THEN 1 ELSE 0 END) +
-    (CASE WHEN related_event_id         IS NOT NULL THEN 1 ELSE 0 END)
-    <= 1
+    change_type <> 'governance_set'
+    OR new_underlying_tier_status IS NOT NULL
   ),
-  -- Source FKs for vouch/event origin are only valid on positive application rows.
-  -- revoke and expire rows are admin/system actions with no originating source FK.
+  -- governance_removed rows must reference the underlying tier being
+  -- reverted to.
   CHECK (
-    change_type IN ('grant','extend')
-    OR (related_vouch_request_id IS NULL AND related_event_id IS NULL)
+    change_type <> 'governance_removed'
+    OR old_underlying_tier_status IS NOT NULL
   )
 );
 
@@ -1306,81 +1323,152 @@ BEGIN
     'member_tier_grants is append-only: DELETE not permitted');
 END;
 
--- idx_tier_grants_member dropped (left-prefix redundant with idx_tier_grants_member_type
--- and idx_tier_grants_member_created_id, both of which lead with member_id)
 CREATE INDEX idx_tier_grants_member_type
   ON member_tier_grants(member_id, change_type);
 CREATE INDEX idx_tier_grants_payment
   ON member_tier_grants(related_payment_id)
   WHERE related_payment_id IS NOT NULL;
--- Safety-net idempotency guard: at most one ledger row per approved vouch request.
--- related_vouch_request_id is only ever populated on the initial application row
--- (grant or extend); revoke/expire rows never carry this FK (DB-enforced by CHECK).
--- App is the primary idempotency controller; this index is the last-line safety net.
-CREATE UNIQUE INDEX ux_tier_grants_vouch_once
-  ON member_tier_grants(related_vouch_request_id)
-  WHERE related_vouch_request_id IS NOT NULL;
--- Safety-net idempotency guard: at most one ledger row per member-event pair.
--- related_event_id is only ever populated on the attendance/vouch application row;
--- revoke/expire rows never carry this FK (DB-enforced by CHECK).
--- Enforces the rule that a unique member may not be listed on the roster more than once.
-CREATE UNIQUE INDEX ux_tier_grants_event_once
-  ON member_tier_grants(member_id, related_event_id)
-  WHERE related_event_id IS NOT NULL;
 -- Performance: supports the latest_ledger NOT EXISTS correlated subquery in
 -- member_tier_current (latest row per member lookup).
 CREATE INDEX idx_tier_grants_member_created_id
   ON member_tier_grants(member_id, created_at, id);
-CREATE INDEX idx_tier_grants_event
-  ON member_tier_grants(related_event_id)
-  WHERE related_event_id IS NOT NULL;
 CREATE INDEX idx_tier_grants_created
   ON member_tier_grants(created_at);
 
 -- =============================================================================
+-- SECTION 12B: ACTIVE PLAYER GRANTS
+-- =============================================================================
+-- Append-only ledger of Active Player lifecycle changes for Tier 0 members.
+-- Active Player is a temporary status that gives a Tier 0 member Tier 1
+-- benefits while current. It does not change membership tier. Each row is a
+-- full before/after snapshot of Active Player expiry. UPDATE and DELETE are
+-- blocked by triggers.
+--
+-- change_type values:
+--   grant     new Active Player period from event attendance, vouch, or one-time club-join
+--   extend    Active Player extended by a later qualifying source (no-shorten rule applies)
+--   expire    daily expiry job marks Active Player as expired (system-driven)
+--   end       Active Player ended because the member became Tier 1, Tier 2, or Tier 3
+--   correct   admin correction of an Active Player row
+--
+-- Source linkage (all nullable) records provenance. At most one of
+-- related_registration_id, related_club_affiliation_id, related_vouch_id may
+-- be non-NULL on any given row (the others are NULL). related_event_id may
+-- accompany related_registration_id for convenience/reporting; rely on
+-- related_registration_id as the primary attendance provenance.
+--
+-- reason_code is a namespaced free-text vocabulary. Documented values:
+--   official_event_attendance                Marked-attended at an officially registered event
+--   tier2_vouch_active_player                Tier 2 or Tier 3 member vouch
+--   club_join_one_time_active_player_grant   First-club-join one-time grant for never-AP Tier 0
+--   active_player_expired                    SYS_Check_Active_Player_Expiry expiry write
+--   membership_upgrade_ended_active_player   Buyer reached Tier 1 or Tier 2; AP ends
+--   tier3_grant_ended_active_player          Tier 0 AP became Tier 3; AP ends
+--   admin.override                           Admin manual grant or change
+--   admin.correction                         Admin correction of a prior data error
+--
+-- Idempotency guards:
+--   ux_active_player_grants_registration_once  one official_event_attendance grant per registration
+--   ux_active_player_grants_vouch_once         one grant per vouch action
+--   ux_active_player_club_join_once            one club-join grant per member (lifetime)
+
+CREATE TABLE active_player_grants (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+
+  member_id       TEXT NOT NULL REFERENCES members(id),
+  actor_member_id TEXT REFERENCES members(id),
+
+  change_type TEXT NOT NULL
+    CHECK (change_type IN ('grant','extend','expire','end','correct')),
+
+  old_active_player_expires_at TEXT,
+  new_active_player_expires_at TEXT,
+
+  reason_code TEXT NOT NULL,
+  reason_text TEXT,
+
+  related_event_id            TEXT REFERENCES events(id),
+  related_registration_id     TEXT REFERENCES registrations(id),
+  related_club_id             TEXT REFERENCES clubs(id),
+  related_club_affiliation_id TEXT REFERENCES member_club_affiliations(id),
+  related_vouch_id            TEXT REFERENCES active_player_vouches(id),
+
+  -- At most one of registration / club-affiliation / vouch may be non-NULL
+  -- (structural provenance guard; app is primary validator of pathway consistency).
+  CHECK (
+    (CASE WHEN related_registration_id     IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN related_club_affiliation_id IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN related_vouch_id            IS NOT NULL THEN 1 ELSE 0 END)
+    <= 1
+  )
+);
+
+CREATE TRIGGER trg_active_player_grants_no_update
+BEFORE UPDATE ON active_player_grants
+BEGIN
+  SELECT RAISE(ABORT,
+    'active_player_grants is append-only: UPDATE not permitted');
+END;
+
+CREATE TRIGGER trg_active_player_grants_no_delete
+BEFORE DELETE ON active_player_grants
+BEGIN
+  SELECT RAISE(ABORT,
+    'active_player_grants is append-only: DELETE not permitted');
+END;
+
+CREATE INDEX idx_active_player_grants_member_created
+  ON active_player_grants(member_id, created_at, id);
+CREATE INDEX idx_active_player_grants_registration
+  ON active_player_grants(related_registration_id)
+  WHERE related_registration_id IS NOT NULL;
+CREATE INDEX idx_active_player_grants_vouch
+  ON active_player_grants(related_vouch_id)
+  WHERE related_vouch_id IS NOT NULL;
+CREATE INDEX idx_active_player_grants_club_affiliation
+  ON active_player_grants(related_club_affiliation_id)
+  WHERE related_club_affiliation_id IS NOT NULL;
+
+-- Idempotency: one official_event_attendance grant per registration.
+CREATE UNIQUE INDEX ux_active_player_grants_registration_once
+  ON active_player_grants(related_registration_id)
+  WHERE related_registration_id IS NOT NULL
+    AND reason_code = 'official_event_attendance';
+
+-- Idempotency: one grant row per vouch action.
+CREATE UNIQUE INDEX ux_active_player_grants_vouch_once
+  ON active_player_grants(related_vouch_id)
+  WHERE related_vouch_id IS NOT NULL;
+
+-- Idempotency: one lifetime club-join grant per member. The service must
+-- additionally verify the member has never previously been an Active Player
+-- (no prior grant rows of any kind), since the rule is "never previously
+-- Active Player," not just "never used the club grant."
+CREATE UNIQUE INDEX ux_active_player_club_join_once
+  ON active_player_grants(member_id)
+  WHERE reason_code = 'club_join_one_time_active_player_grant';
+
+-- =============================================================================
 -- SECTION 13: MEMBER TIER CURRENT VIEW
 -- =============================================================================
--- Computed view: derives the effective current tier for every member from the
--- latest member_tier_grants snapshot row, applies an in-view expiry safety
--- net for annual tiers not yet processed by the daily job, and overlays the
--- "ever paid dues → Tier 1 Lifetime" rule for all members who have completed
--- a dues payment. Includes all members; those with no ledger entry return tier0.
--- This is the authoritative read model for tier data.
+-- Computed view: derives the current lifetime membership tier for every member
+-- from the latest member_tier_grants snapshot row. Membership tiers do not
+-- expire; there is no in-view expiry logic and no purchase overlay. Active
+-- Player status is a separate concept tracked by member_active_player_current.
+-- This is the authoritative read model for membership tier data.
 --
--- Latest-row approach: reads new_tier_status / new_tier_expires_at /
--- new_fallback_tier_status from the most recent member_tier_grants row
--- (ties broken by id). Revoke and expire rows are therefore respected because
--- they become the latest row and their new_* snapshot values are authoritative.
+-- Output columns:
+--   member_id
+--   tier_status              one of 'tier0', 'tier1', 'tier2', 'tier3'
+--   underlying_tier_status   for Tier 3 governance members, the membership tier
+--                            they revert to when governance ends. NULL otherwise.
 --
--- In-view expiry safety net: if the latest row is an annual tier whose
--- new_tier_expires_at has passed (i.e., the daily SYS_Check_Tier_Expiry job
--- has not yet written an expire row), the view falls back to the stored
--- new_fallback_tier_status inline. This eliminates the up-to-24-hour gap
--- between a tier technically expiring and the batch job writing the expire row.
---
--- Purchase overlay: any member who has ever had a purchase-origin grant
--- (change_type IN ('grant','extend') AND reason_code LIKE 'purchase.%')
--- receives an implicit Tier 1 Lifetime that persists regardless of later
--- revoke/expire rows. Unconditional — no refund exception.
---
--- Output columns: member_id, tier_status, tier_expires_at, fallback_tier_status
--- Output scope: all members. Tier 1+ members are derived from the ledger; members
--- with no ledger entry are included via UNION ALL with tier_status = 'tier0'.
+-- Members with no ledger entry default to 'tier0' with NULL underlying tier.
 
 CREATE VIEW member_tier_current AS
-WITH
-dues_members AS (
-  -- Members who have ever completed a dues payment (purchase-origin positive row).
-  -- Intentionally historical: includes members whose latest row is a revoke.
-  -- Includes 'extend' defensively: purchases should produce 'grant' rows, but
-  -- including 'extend' ensures no dues-paying member is silently excluded if the
-  -- app convention is ever not followed exactly.
-  SELECT DISTINCT member_id
-  FROM member_tier_grants
-  WHERE change_type IN ('grant','extend')
-    AND reason_code LIKE 'purchase.%'
-),
-latest_ledger AS (
+WITH latest_ledger AS (
   -- Most recent ledger row per member (latest created_at; id breaks ties).
   SELECT g.*
   FROM member_tier_grants g
@@ -1393,76 +1481,138 @@ latest_ledger AS (
         OR (g2.created_at = g.created_at AND g2.id > g.id)
       )
   )
-),
-latest_state AS (
-  -- Resolve the effective tier from the latest snapshot, applying the
-  -- in-view expiry safety net for annual tiers not yet processed by the job.
-  SELECT
-    l.member_id,
-    l.new_tier_status,
-    l.new_tier_expires_at,
-    CASE
-      WHEN l.new_fallback_tier_status = 'tier0' THEN NULL
-      ELSE l.new_fallback_tier_status
-    END AS fallback_tier_status,
-    CASE
-      WHEN l.new_tier_status IN ('tier1_annual','tier2_annual')
-       AND l.new_tier_expires_at IS NOT NULL
-       AND l.new_tier_expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')
-      THEN CASE
-        WHEN l.new_fallback_tier_status IN ('tier1_annual','tier1_lifetime','tier2_annual','tier2_lifetime')
-        THEN l.new_fallback_tier_status
-        ELSE 'tier0'
-      END
-      ELSE l.new_tier_status
-    END AS effective_tier_status,
-    CASE
-      WHEN l.new_tier_status IN ('tier1_annual','tier2_annual')
-       AND l.new_tier_expires_at IS NOT NULL
-       AND l.new_tier_expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')
-      THEN NULL
-      ELSE l.new_tier_expires_at
-    END AS effective_tier_expires_at
-  FROM latest_ledger l
-),
-resolved AS (
-  -- Apply purchase overlay: dues-paying members are never below tier1_lifetime.
-  SELECT
-    ls.member_id,
-    CASE
-      WHEN dm.member_id IS NOT NULL
-       AND ls.effective_tier_status IN ('tier0','tier1_annual')
-      THEN 'tier1_lifetime'
-      ELSE ls.effective_tier_status
-    END AS tier_status,
-    CASE
-      WHEN dm.member_id IS NOT NULL
-       AND ls.effective_tier_status IN ('tier0','tier1_annual')
-      THEN NULL
-      ELSE ls.effective_tier_expires_at
-    END AS tier_expires_at,
-    COALESCE(
-      ls.fallback_tier_status,
-      CASE WHEN dm.member_id IS NOT NULL THEN 'tier1_lifetime' END
-    ) AS fallback_tier_status
-  FROM latest_state ls
-  LEFT JOIN dues_members dm ON dm.member_id = ls.member_id
 )
-SELECT member_id, tier_status, tier_expires_at, fallback_tier_status
-FROM resolved
-WHERE tier_status IS NOT NULL
-
-UNION ALL
-
 SELECT
-  m.id    AS member_id,
-  'tier0' AS tier_status,
-  NULL    AS tier_expires_at,
-  NULL    AS fallback_tier_status
+  m.id AS member_id,
+  COALESCE(l.new_tier_status, 'tier0') AS tier_status,
+  l.new_underlying_tier_status         AS underlying_tier_status
 FROM members m
-WHERE NOT EXISTS (
-  SELECT 1 FROM resolved r WHERE r.member_id = m.id
-);
+LEFT JOIN latest_ledger l ON l.member_id = m.id;
+
+-- =============================================================================
+-- SECTION 13B: MEMBER ACTIVE PLAYER CURRENT VIEW
+-- =============================================================================
+-- Computed view: derives the current Active Player state for every member from
+-- the latest active_player_grants snapshot row plus the member's current
+-- membership tier. Active Player applies only to Tier 0 members; for Tier 1+
+-- members this view returns is_active_player = 0 even if old AP ledger rows
+-- exist (a downgrade back to Tier 0 would resurrect AP from the ledger only if
+-- the prior expiry is still in the future).
+--
+-- Output columns:
+--   member_id
+--   is_active_player                  1 iff tier_status = 'tier0' AND
+--                                     latest AP expiry is in the future
+--   active_player_expires_at          latest AP expiry for Tier 0 members; NULL
+--                                     for Tier 1+
+--   latest_active_player_reason_code  reason_code from the latest AP ledger row
+--                                     (informational; useful for display)
+
+CREATE VIEW member_active_player_current AS
+WITH latest_ap AS (
+  -- Most recent AP ledger row per member (latest created_at; id breaks ties).
+  SELECT g.*
+  FROM active_player_grants g
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM active_player_grants g2
+    WHERE g2.member_id = g.member_id
+      AND (
+        g2.created_at > g.created_at
+        OR (g2.created_at = g.created_at AND g2.id > g.id)
+      )
+  )
+)
+SELECT
+  m.id AS member_id,
+  CASE
+    WHEN mt.tier_status = 'tier0'
+     AND l.new_active_player_expires_at IS NOT NULL
+     AND l.new_active_player_expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')
+    THEN 1
+    ELSE 0
+  END AS is_active_player,
+  CASE
+    WHEN mt.tier_status = 'tier0' THEN l.new_active_player_expires_at
+    ELSE NULL
+  END AS active_player_expires_at,
+  l.reason_code AS latest_active_player_reason_code
+FROM members m
+JOIN member_tier_current mt ON mt.member_id = m.id
+LEFT JOIN latest_ap l        ON l.member_id  = m.id;
+
+-- =============================================================================
+-- SECTION 13C: MEMBER MEMBERSHIP STATUS CURRENT VIEW
+-- =============================================================================
+-- Combined authorization/read model. Single source of truth for the two
+-- application gates the platform cares about:
+--
+--   has_tier1_benefits        feature-gate shorthand for "Tier 1 IFPA Member or
+--                             above, OR Tier 0 with current Active Player."
+--   is_official_roster_member governance/reporting set: "Tier 1, Tier 2, Tier 3,
+--                             or Tier 0 with current Active Player."
+--
+-- Under current IFPA rules these two predicates are byte-identical. They are
+-- retained as separate columns because user stories distinguish the two
+-- concepts ("Tier 1 benefits" is the feature-gate label; "Official IFPA Roster"
+-- is the governance/reporting label) and they may diverge under a future rule.
+-- Do NOT collapse them into one column.
+
+CREATE VIEW member_membership_status_current AS
+SELECT
+  m.id                       AS member_id,
+  mt.tier_status             AS tier_status,
+  mt.underlying_tier_status  AS underlying_tier_status,
+  ap.is_active_player        AS is_active_player,
+  ap.active_player_expires_at AS active_player_expires_at,
+  CASE
+    WHEN mt.tier_status IN ('tier1','tier2','tier3') THEN 1
+    WHEN mt.tier_status = 'tier0' AND ap.is_active_player = 1 THEN 1
+    ELSE 0
+  END AS has_tier1_benefits,
+  CASE
+    WHEN mt.tier_status IN ('tier1','tier2','tier3') THEN 1
+    WHEN mt.tier_status = 'tier0' AND ap.is_active_player = 1 THEN 1
+    ELSE 0
+  END AS is_official_roster_member
+FROM members m
+JOIN member_tier_current mt          ON mt.member_id = m.id
+LEFT JOIN member_active_player_current ap ON ap.member_id = m.id;
+
+-- =============================================================================
+-- SECTION 13D: OFFICIAL IFPA ROSTER CURRENT VIEW
+-- =============================================================================
+-- Operational roster surface for A_View_Official_Roster_Reports. Includes:
+--   - Tier 1, Tier 2, Tier 3 members
+--   - Tier 0 members with current Active Player status
+-- Excludes:
+--   - Soft-deleted members (via members_active)
+--   - Deceased members (operational roster; HoF/BAP memorial visibility is
+--     handled separately at the profile layer)
+--   - Tier 0 members without current Active Player status
+--
+-- This view is not public. Service-layer access is restricted to admin and
+-- admin-provisioned Tier 2 / Tier 3 organizers per US §A_View_Official_Roster_Reports.
+-- All access and exports must be audit-logged via audit_entries.
+
+CREATE VIEW official_ifpa_roster_current AS
+SELECT
+  m.id                        AS member_id,
+  m.display_name              AS display_name,
+  m.city                      AS city,
+  m.region                    AS region,
+  m.country                   AS country,
+  s.tier_status               AS tier_status,
+  s.underlying_tier_status    AS underlying_tier_status,
+  s.is_active_player          AS is_active_player,
+  s.active_player_expires_at  AS active_player_expires_at,
+  m.is_hof                    AS is_hof,
+  m.is_bap                    AS is_bap,
+  m.is_board                  AS is_board
+FROM members_active m
+JOIN member_membership_status_current s ON s.member_id = m.id
+WHERE s.is_official_roster_member = 1
+  AND m.is_deceased = 0;
 
 -- =============================================================================
 -- SECTION 14: MEMBERS & AUTHENTICATION
@@ -2063,30 +2213,6 @@ CREATE INDEX idx_registrations_attended
   ON registrations(event_id, attended_at)
   WHERE attended_at IS NOT NULL;
 
--- Temporary roster-access windows granted to Tier 2+ event organizers after
--- uploading results for a sanctioned event (Pathway A vouching). expires_at is
--- set by the application at creation (granted_at + vouch_window_days config value).
--- A DB CHECK enforces that the access window is a valid positive interval.
-CREATE TABLE roster_access_grants (
-  id         TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL,
-  created_by TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  updated_by TEXT NOT NULL,
-  version    INTEGER NOT NULL DEFAULT 1,
-  event_id   TEXT NOT NULL REFERENCES events(id),
-  member_id  TEXT NOT NULL REFERENCES members(id),
-  granted_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  -- Enforce a valid positive access window (app sets expires_at = granted_at + config duration).
-  CHECK (expires_at > granted_at)
-);
-
-CREATE UNIQUE INDEX ux_roster_access           ON roster_access_grants(event_id, member_id);
-CREATE INDEX        idx_roster_access_event    ON roster_access_grants(event_id);
-CREATE INDEX        idx_roster_access_member   ON roster_access_grants(member_id);
-CREATE INDEX        idx_roster_access_expires  ON roster_access_grants(expires_at);
-
 -- =============================================================================
 -- SECTION 19: ACCOUNT TOKENS
 -- =============================================================================
@@ -2310,19 +2436,20 @@ VALUES
 -- Seed INSERTs below are idempotent via INSERT OR IGNORE on stable string IDs; the full schema file is not rerunnable on an existing DB.
 --
 -- Key reference:
---   vouch_window_days               Pathway A roster-access window after results upload
 --   ballot_retention_days           Ballot retention window before policy cleanup allowed
 --   audit_retention_days            Audit log retention window
 --   reconciliation_expiry_days      Resolved reconciliation issue TTL
 --   email_outbox_paused             0=outbox worker draining, 1=paused (admin toggle; DD §5.4)
---   tier_expiry_grace_days          Grace days before tier-expiry job fires after expires_at
 --   event_registration_reminder_days Days before event start to send registration reminder
 --   member_cleanup_grace_days       Grace days after soft-delete before PII purge job runs
 --   payment_retention_days          Payment record compliance retention window
 --   password_reset_expiry_hours     Password reset token TTL (hours)
 --   email_verify_expiry_hours       Email verification token TTL (hours)
---   tier_expiry_reminder_days_1     First tier-expiry reminder offset (days before expiry)
---   tier_expiry_reminder_days_2     Second tier-expiry reminder offset (days before expiry)
+--   active_player_duration_days            Active Player grant duration (IFPA-rule-derived)
+--   active_player_expiry_reminder_days_1   First Active Player expiry reminder offset (days)
+--   active_player_expiry_reminder_days_2   Second Active Player expiry reminder offset (days)
+--   vouch_rate_limit_max_per_hour          Max vouch submissions per voucher per window
+--   vouch_rate_limit_window_minutes        Sliding window (minutes) for vouch rate limiting
 --   outbox_max_retry_attempts       Max email retries before dead-letter queue
 --   outbox_poll_interval_seconds    Outbox worker polling interval (seconds)
 --   token_cleanup_threshold_days    Age threshold (days) for expired/consumed token cleanup
@@ -2347,22 +2474,12 @@ VALUES
 --   cross_region_backup_retention_days Object Lock retention for DR bucket
 --   continuous_backup_interval_minutes Interval between SQLite backup runs
 -- Pricing keys:
---   tier1_lifetime_price_cents      Tier 1 Lifetime dues (integer cents; $10.00 = 1000)
---   tier2_annual_price_cents        Tier 2 Annual dues (integer cents; $25.00 = 2500)
---   tier2_lifetime_price_cents      Tier 2 Lifetime dues (integer cents; $150.00 = 15000)
+--   tier1_price_cents               Tier 1 IFPA Member dues (integer cents; $10.00 = 1000)
+--   tier2_price_cents               Tier 2 IFPA Organizer Member dues (integer cents; $50.00 = 5000)
 -- ---------------------------------------------------------------------------
 INSERT OR IGNORE INTO system_config
   (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
 VALUES
-  (
-   'seed-vouch-window-days',
-   '2000-01-01T00:00:00.000Z',
-   'vouch_window_days', '14',
-   '2000-01-01T00:00:00.000Z',
-   'Default Pathway A roster-access window (14 days after results upload).',
-   NULL
-  ),
-
   (
    'seed-ballot-retention-days',
    '2000-01-01T00:00:00.000Z',
@@ -2387,15 +2504,6 @@ VALUES
    'reconciliation_expiry_days', '90',
    '2000-01-01T00:00:00.000Z',
    'Resolved reconciliation issues expire after 90 days.',
-   NULL
-  ),
-
-  (
-   'seed-tier-expiry-grace-days',
-   '2000-01-01T00:00:00.000Z',
-   'tier_expiry_grace_days', '0',
-   '2000-01-01T00:00:00.000Z',
-   'Grace period before tier-expiry job fires after expires_at (0 = immediate).',
    NULL
   ),
 
@@ -2441,24 +2549,6 @@ VALUES
    'email_verify_expiry_hours', '24',
    '2000-01-01T00:00:00.000Z',
    'Email verification token TTL in hours (default: 24 hours).',
-   NULL
-  ),
-
-  (
-   'seed-tier-expiry-reminder-days-1',
-   '2000-01-01T00:00:00.000Z',
-   'tier_expiry_reminder_days_1', '30',
-   '2000-01-01T00:00:00.000Z',
-   'First tier-expiry reminder email offset in days before expiry (default: 30 days).',
-   NULL
-  ),
-
-  (
-   'seed-tier-expiry-reminder-days-2',
-   '2000-01-01T00:00:00.000Z',
-   'tier_expiry_reminder_days_2', '7',
-   '2000-01-01T00:00:00.000Z',
-   'Second tier-expiry reminder email offset in days before expiry (default: 7 days).',
    NULL
   ),
 
@@ -2695,29 +2785,84 @@ INSERT OR IGNORE INTO system_config
   (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
 VALUES
   (
-   'seed-tier1-lifetime-price',
+   'seed-tier1-price',
    '2000-01-01T00:00:00.000Z',
-   'tier1_lifetime_price_cents', '1000',
+   'tier1_price_cents', '1000',
    '2000-01-01T00:00:00.000Z',
-   'Tier 1 Lifetime dues: $10.00 USD (IFPA default; stored as integer cents). Update before launch.',
+   'Tier 1 IFPA Member dues: $10.00 USD (IFPA default; stored as integer cents).',
    NULL
   ),
 
   (
-   'seed-tier2-annual-price',
+   'seed-tier2-price',
    '2000-01-01T00:00:00.000Z',
-   'tier2_annual_price_cents', '2500',
+   'tier2_price_cents', '5000',
    '2000-01-01T00:00:00.000Z',
-   'Tier 2 Annual dues: $25.00 USD (IFPA default; stored as integer cents). Update before launch.',
+   'Tier 2 IFPA Organizer Member dues: $50.00 USD (IFPA default; stored as integer cents).',
+   NULL
+  );
+
+-- ---------------------------------------------------------------------------
+-- SYSTEM CONFIG — ACTIVE PLAYER KEYS
+-- Active Player is a temporary status for Tier 0 members. Duration and reminder
+-- offsets follow the IFPA Membership Rules (730-day grant; 30-day and 7-day
+-- pre-expiry reminder defaults; the day-of expiry notification is built in and
+-- not separately configurable).
+-- ---------------------------------------------------------------------------
+INSERT OR IGNORE INTO system_config
+  (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+VALUES
+  (
+   'seed-active-player-duration-days',
+   '2000-01-01T00:00:00.000Z',
+   'active_player_duration_days', '730',
+   '2000-01-01T00:00:00.000Z',
+   'Active Player duration in days from qualifying event attendance, vouch, or one-time club-join grant.',
    NULL
   ),
 
   (
-   'seed-tier2-lifetime-price',
+   'seed-active-player-expiry-reminder-days-1',
    '2000-01-01T00:00:00.000Z',
-   'tier2_lifetime_price_cents', '15000',
+   'active_player_expiry_reminder_days_1', '30',
    '2000-01-01T00:00:00.000Z',
-   'Tier 2 Lifetime dues: $150.00 USD (IFPA default; stored as integer cents). Update before launch.',
+   'First Active Player expiry reminder offset in days before expiry (default: 30 days).',
+   NULL
+  ),
+
+  (
+   'seed-active-player-expiry-reminder-days-2',
+   '2000-01-01T00:00:00.000Z',
+   'active_player_expiry_reminder_days_2', '7',
+   '2000-01-01T00:00:00.000Z',
+   'Second Active Player expiry reminder offset in days before expiry (default: 7 days).',
+   NULL
+  );
+
+-- ---------------------------------------------------------------------------
+-- SYSTEM CONFIG — VOUCH RATE-LIMIT KEYS
+-- Per US §M_Vouch_For_Active_Player vouching submissions are rate-limited per
+-- voucher to prevent abuse. Defaults are conservative; admins may tune via
+-- AdminGovernanceService.
+-- ---------------------------------------------------------------------------
+INSERT OR IGNORE INTO system_config
+  (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+VALUES
+  (
+   'seed-vouch-rate-limit-max-per-hour',
+   '2000-01-01T00:00:00.000Z',
+   'vouch_rate_limit_max_per_hour', '5',
+   '2000-01-01T00:00:00.000Z',
+   'Max vouch submissions per voucher per window (default: 5).',
+   NULL
+  ),
+
+  (
+   'seed-vouch-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'vouch_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for counting vouch submissions per voucher (default: 60).',
    NULL
   );
 
@@ -2761,14 +2906,11 @@ CREATE UNIQUE INDEX ux_member_club_affiliations_one_current
 -- purge of the claiming member clears both claim fields so the legacy account
 -- becomes claimable again. See DD §2.4.
 --
--- DEFERRED EXTENSION (not yet in schema): three tier-state fields
---   legacy_tier_state, legacy_tier_expires_at, legacy_tier_ever_paid_tier2
--- are planned additions gated on test-load validation of tier semantics from
--- Steve's export. Current state: fields absent; tier mapping at claim time
--- falls back to honors-only (is_hof/is_bap) and cannot represent Tier 2 annual
--- expiry. Target state: add the three columns once the test-load confirms
--- source semantics match the planned mapping, then switch claim-time tier
--- grant to read these fields.
+-- Tier mapping at claim time: legacy honors (is_hof, is_bap) and any other
+-- evidence from the legacy record are evaluated by claim-time service logic,
+-- which writes a single member_tier_grants row with reason_code
+-- 'legacy.claim_tier_grant'. No permanent legacy-tier columns are retained on
+-- this table; the canonical lifetime tier lives in member_tier_grants.
 CREATE TABLE legacy_members (
   legacy_member_id TEXT PRIMARY KEY,
 

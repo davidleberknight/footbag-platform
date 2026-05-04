@@ -4012,6 +4012,260 @@ export const nameVariants = {
   `); },
 };
 
+// ── Membership tier ledger (member_tier_grants / member_tier_current) ──
+// Append-only ledger; UPDATE/DELETE blocked by triggers.
+
+export interface MemberTierCurrentRow {
+  member_id: string;
+  tier_status: 'tier0' | 'tier1' | 'tier2' | 'tier3';
+  underlying_tier_status: 'tier1' | 'tier2' | null;
+}
+
+export interface MemberTierGrantLatestRow {
+  id: string;
+  change_type: string;
+  old_tier_status: string | null;
+  new_tier_status: string;
+  old_underlying_tier_status: 'tier1' | 'tier2' | null;
+  new_underlying_tier_status: 'tier1' | 'tier2' | null;
+  reason_code: string;
+  related_payment_id: string | null;
+  created_at: string;
+}
+
+export const memberTier = {
+  get insertGrant() { return db.prepare(`
+    INSERT INTO member_tier_grants (
+      id, created_at, created_by,
+      member_id, actor_member_id,
+      change_type,
+      old_tier_status, new_tier_status,
+      old_underlying_tier_status, new_underlying_tier_status,
+      reason_code, reason_text,
+      related_payment_id
+    ) VALUES (?, ?, 'system',
+      ?, ?,
+      ?,
+      ?, ?,
+      ?, ?,
+      ?, ?,
+      ?)
+  `); },
+
+  get getCurrent() { return db.prepare(`
+    SELECT member_id, tier_status, underlying_tier_status
+    FROM member_tier_current
+    WHERE member_id = ?
+  `); },
+
+  // Most recent governance_set row for this member, used by removeGovernanceTier3
+  // to read old_underlying_tier_status when writing the paired governance_removed row.
+  get getLatestGovernanceSet() { return db.prepare(`
+    SELECT id, change_type,
+           old_tier_status, new_tier_status,
+           old_underlying_tier_status, new_underlying_tier_status,
+           reason_code, related_payment_id, created_at
+    FROM member_tier_grants
+    WHERE member_id = ? AND change_type = 'governance_set'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
+};
+
+// ── Active Player ledger (active_player_grants / member_active_player_current) ──
+// Append-only ledger; UPDATE/DELETE blocked by triggers.
+
+export interface MemberActivePlayerCurrentRow {
+  member_id: string;
+  is_active_player: 0 | 1;
+  active_player_expires_at: string | null;
+  latest_active_player_reason_code: string | null;
+}
+
+export interface ActivePlayerGrantLatestRow {
+  id: string;
+  change_type: 'grant' | 'extend' | 'expire' | 'end' | 'correct';
+  old_active_player_expires_at: string | null;
+  new_active_player_expires_at: string | null;
+  reason_code: string;
+  created_at: string;
+}
+
+export const activePlayer = {
+  get insertGrant() { return db.prepare(`
+    INSERT INTO active_player_grants (
+      id, created_at, created_by,
+      member_id, actor_member_id,
+      change_type,
+      old_active_player_expires_at, new_active_player_expires_at,
+      reason_code, reason_text,
+      related_event_id, related_registration_id,
+      related_club_id, related_club_affiliation_id,
+      related_vouch_id
+    ) VALUES (?, ?, 'system',
+      ?, ?,
+      ?,
+      ?, ?,
+      ?, ?,
+      ?, ?,
+      ?, ?,
+      ?)
+  `); },
+
+  get getCurrent() { return db.prepare(`
+    SELECT member_id, is_active_player,
+           active_player_expires_at, latest_active_player_reason_code
+    FROM member_active_player_current
+    WHERE member_id = ?
+  `); },
+
+  // Most recent AP ledger row for this member. Drives the no-shorten rule
+  // (compare against new_active_player_expires_at) and the expiry crossing job
+  // (skip when the latest row is already change_type='expire').
+  get getLatestGrant() { return db.prepare(`
+    SELECT id, change_type,
+           old_active_player_expires_at, new_active_player_expires_at,
+           reason_code, created_at
+    FROM active_player_grants
+    WHERE member_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
+
+  // Lifetime "ever been an Active Player" probe for the club-join one-time grant.
+  // Returns 1 if any prior row of any change_type exists, 0 otherwise.
+  get hasAnyPriorGrant() { return db.prepare(`
+    SELECT EXISTS (
+      SELECT 1 FROM active_player_grants WHERE member_id = ?
+    ) AS exists_flag
+  `); },
+
+  // Auxiliary FK lookups for AP grant provenance. Kept here because the AP
+  // service is the only consumer in Phase A; promote to a dedicated
+  // statement group if other services start reading these rows.
+  get getRegistrationEventId() { return db.prepare(`
+    SELECT event_id, member_id
+    FROM registrations
+    WHERE id = ?
+  `); },
+
+  get getClubAffiliationClubId() { return db.prepare(`
+    SELECT club_id, member_id
+    FROM member_club_affiliations
+    WHERE id = ?
+  `); },
+};
+
+export const activePlayerVouches = {
+  get insertVouch() { return db.prepare(`
+    INSERT INTO active_player_vouches (
+      id, created_at, created_by,
+      voucher_member_id, target_member_id,
+      vouched_at, reason_text,
+      old_active_player_expires_at, new_active_player_expires_at
+    ) VALUES (?, ?, 'system',
+      ?, ?,
+      ?, ?,
+      ?, ?)
+  `); },
+
+  // Counts vouches issued by a single voucher since the cutoff (inclusive),
+  // for the per-voucher rate limit (vouch_rate_limit_max_per_hour /
+  // vouch_rate_limit_window_minutes).
+  get countByVoucherSince() { return db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM active_player_vouches
+    WHERE voucher_member_id = ? AND vouched_at >= ?
+  `); },
+};
+
+export interface OfficialRosterRow {
+  member_id: string;
+  display_name: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  tier_status: 'tier0' | 'tier1' | 'tier2' | 'tier3';
+  underlying_tier_status: 'tier1' | 'tier2' | null;
+  is_active_player: 0 | 1;
+  active_player_expires_at: string | null;
+  is_hof: 0 | 1;
+  is_bap: 0 | 1;
+  is_board: 0 | 1;
+}
+
+export interface OfficialRosterExportRow extends OfficialRosterRow {
+  login_email: string | null;
+  email_visibility: 'private' | 'members' | 'public';
+}
+
+export interface OfficialRosterSummaryRow {
+  total: number;
+  tier0_count: number;
+  tier1_count: number;
+  tier2_count: number;
+  tier3_count: number;
+  hof_count: number;
+  bap_count: number;
+  board_count: number;
+  active_player_count: number;
+}
+
+export const officialRoster = {
+  get selectAll() { return db.prepare(`
+    SELECT member_id, display_name, city, region, country,
+           tier_status, underlying_tier_status,
+           is_active_player, active_player_expires_at,
+           is_hof, is_bap, is_board
+    FROM official_ifpa_roster_current
+    ORDER BY display_name COLLATE NOCASE, member_id
+  `); },
+
+  // CSV-export read. Joins members so the export pipeline can apply the
+  // email opt-in redaction (US A_View_Official_Roster_Reports: "email
+  // (opt-in only)") at the service layer instead of in SQL.
+  get selectAllForExport() { return db.prepare(`
+    SELECT r.member_id, r.display_name, r.city, r.region, r.country,
+           r.tier_status, r.underlying_tier_status,
+           r.is_active_player, r.active_player_expires_at,
+           r.is_hof, r.is_bap, r.is_board,
+           m.login_email, m.email_visibility
+    FROM official_ifpa_roster_current r
+    JOIN members m ON m.id = r.member_id
+    ORDER BY r.display_name COLLATE NOCASE, r.member_id
+  `); },
+
+  // Aggregate breakdown for A_View_Official_Roster_Reports dashboard.
+  // Returns one row with totals by tier and honor flag.
+  get summary() { return db.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN tier_status = 'tier0' THEN 1 ELSE 0 END) AS tier0_count,
+      SUM(CASE WHEN tier_status = 'tier1' THEN 1 ELSE 0 END) AS tier1_count,
+      SUM(CASE WHEN tier_status = 'tier2' THEN 1 ELSE 0 END) AS tier2_count,
+      SUM(CASE WHEN tier_status = 'tier3' THEN 1 ELSE 0 END) AS tier3_count,
+      SUM(CASE WHEN is_hof   = 1 THEN 1 ELSE 0 END) AS hof_count,
+      SUM(CASE WHEN is_bap   = 1 THEN 1 ELSE 0 END) AS bap_count,
+      SUM(CASE WHEN is_board = 1 THEN 1 ELSE 0 END) AS board_count,
+      SUM(CASE WHEN is_active_player = 1 THEN 1 ELSE 0 END) AS active_player_count
+    FROM official_ifpa_roster_current
+  `); },
+
+  // "Total Registered Accounts" comparison count for the dashboard. Includes
+  // Tier 0 members without current Active Player status, which are excluded
+  // from the roster view itself. Excludes purged accounts.
+  get totalRegisteredAccounts() { return db.prepare(`
+    SELECT COUNT(*) AS n
+    FROM members_active
+    WHERE personal_data_purged_at IS NULL
+  `); },
+
+  // Display-name lookup for the CSV header comment ("Generated ... by <name>").
+  get findDisplayNameById() { return db.prepare(`
+    SELECT display_name FROM members WHERE id = ?
+  `); },
+};
+
 let helperTransactionOpen = false;
 
 function rollbackHelperTransaction(): void {

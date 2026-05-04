@@ -1137,3 +1137,278 @@ export function insertCuratorVideo(
 
   return mediaId;
 }
+
+// ── Event registration ────────────────────────────────────────────────────────
+//
+// Row in the registrations table (event-attendee registration, not member
+// account registration). Required as an FK target for AP grants whose
+// provenance is `official_event_attendance`.
+
+export interface RegistrationOverrides {
+  id?: string;
+  registration_type?: 'competitor' | 'attendee_supporter';
+  status?: 'pending' | 'confirmed' | 'canceled' | 'rejected';
+  attended_at?: string | null;
+}
+
+export function insertRegistration(
+  db: BetterSqlite3.Database,
+  eventId: string,
+  memberId: string,
+  o: RegistrationOverrides = {},
+): string {
+  const id = o.id ?? `reg-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO registrations (
+      id, created_at, created_by, updated_at, updated_by, version,
+      event_id, member_id, registered_at, registration_type, status,
+      attended_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS, TS, SYS,
+    eventId, memberId, TS,
+    o.registration_type ?? 'competitor',
+    o.status ?? 'confirmed',
+    o.attended_at ?? null,
+  );
+  return id;
+}
+
+// ── Member club affiliation ───────────────────────────────────────────────────
+//
+// Row in member_club_affiliations. Required as an FK target for AP grants
+// whose provenance is `club_join_one_time_active_player_grant`.
+
+export interface MemberClubAffiliationOverrides {
+  id?: string;
+  is_current?: 0 | 1;
+  is_contact?: 0 | 1;
+  source?: 'legacy_claim' | 'admin' | 'member_self_service';
+}
+
+export function insertMemberClubAffiliation(
+  db: BetterSqlite3.Database,
+  memberId: string,
+  clubId: string,
+  o: MemberClubAffiliationOverrides = {},
+): string {
+  const id = o.id ?? `mca-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO member_club_affiliations (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, club_id, is_current, is_contact, source
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS, TS, SYS,
+    memberId, clubId,
+    o.is_current ?? 1,
+    o.is_contact ?? 0,
+    o.source ?? 'member_self_service',
+  );
+  return id;
+}
+
+// ── Payment ───────────────────────────────────────────────────────────────────
+//
+// Minimal `payments` row factory. Sufficient for tests that need a real FK
+// target (e.g. member_tier_grants.related_payment_id). Phase B will add the
+// full payment lifecycle (status transitions, Stripe identifiers, refund
+// handling); this factory covers the Phase A test surface.
+
+export interface PaymentOverrides {
+  id?: string;
+  member_id?: string | null;
+  payment_type?: 'donation' | 'membership' | 'event_registration';
+  amount_cents?: number;
+  currency?: string;
+  status?: 'pending' | 'succeeded' | 'failed' | 'canceled' | 'refunded';
+  descriptor?: string;
+  purchased_tier_status?: 'tier1' | 'tier2' | null;
+}
+
+export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = {}): string {
+  const id = o.id ?? `pay-test-${uid()}`;
+  const paymentType = o.payment_type ?? 'membership';
+  const purchasedTier =
+    paymentType === 'membership'
+      ? (o.purchased_tier_status ?? 'tier1')
+      : (o.purchased_tier_status ?? null);
+  db.prepare(`
+    INSERT INTO payments (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id,
+      payment_type, amount_cents, currency,
+      status, descriptor,
+      purchased_tier_status
+    ) VALUES (?, ?, 'system', ?, 'system', 1, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, TS,
+    o.member_id ?? null,
+    paymentType,
+    o.amount_cents ?? 1000,
+    o.currency ?? 'USD',
+    o.status ?? 'succeeded',
+    o.descriptor ?? 'Test payment',
+    purchasedTier,
+  );
+  return id;
+}
+
+// ── Member tier grant ─────────────────────────────────────────────────────────
+//
+// Append-only ledger row in member_tier_grants. UPDATE/DELETE blocked by triggers.
+// `created_at` overrides are honored so tests can build deterministic ordering;
+// the latest-row-per-member computation in member_tier_current uses
+// (created_at DESC, id DESC).
+
+export type MemberTierString = 'tier0' | 'tier1' | 'tier2' | 'tier3';
+export type MemberTierChangeType =
+  | 'grant' | 'revoke' | 'correct' | 'governance_set' | 'governance_removed';
+
+export interface MemberTierGrantOverrides {
+  id?: string;
+  created_at?: string;
+  member_id: string;
+  actor_member_id?: string | null;
+  change_type?: MemberTierChangeType;
+  old_tier_status?: MemberTierString | null;
+  new_tier_status?: MemberTierString;
+  old_underlying_tier_status?: 'tier1' | 'tier2' | null;
+  new_underlying_tier_status?: 'tier1' | 'tier2' | null;
+  reason_code?: string;
+  reason_text?: string | null;
+  related_payment_id?: string | null;
+}
+
+export function insertMemberTierGrant(
+  db: BetterSqlite3.Database,
+  o: MemberTierGrantOverrides,
+): string {
+  const id = o.id ?? `mtg-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO member_tier_grants (
+      id, created_at, created_by,
+      member_id, actor_member_id,
+      change_type,
+      old_tier_status, new_tier_status,
+      old_underlying_tier_status, new_underlying_tier_status,
+      reason_code, reason_text,
+      related_payment_id
+    ) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    o.created_at ?? TS,
+    o.member_id,
+    o.actor_member_id ?? null,
+    o.change_type ?? 'grant',
+    o.old_tier_status ?? null,
+    o.new_tier_status ?? 'tier1',
+    o.old_underlying_tier_status ?? null,
+    o.new_underlying_tier_status ?? null,
+    o.reason_code ?? 'purchase.tier1',
+    o.reason_text ?? null,
+    o.related_payment_id ?? null,
+  );
+  return id;
+}
+
+// ── Active Player grant ───────────────────────────────────────────────────────
+//
+// Append-only ledger row in active_player_grants. UPDATE/DELETE blocked by triggers.
+// At most one of related_registration_id / related_club_affiliation_id /
+// related_vouch_id may be non-NULL (DB CHECK).
+
+export type ActivePlayerChangeType = 'grant' | 'extend' | 'expire' | 'end' | 'correct';
+
+export interface ActivePlayerGrantOverrides {
+  id?: string;
+  created_at?: string;
+  member_id: string;
+  actor_member_id?: string | null;
+  change_type?: ActivePlayerChangeType;
+  old_active_player_expires_at?: string | null;
+  new_active_player_expires_at?: string | null;
+  reason_code?: string;
+  reason_text?: string | null;
+  related_event_id?: string | null;
+  related_registration_id?: string | null;
+  related_club_id?: string | null;
+  related_club_affiliation_id?: string | null;
+  related_vouch_id?: string | null;
+}
+
+export function insertActivePlayerGrant(
+  db: BetterSqlite3.Database,
+  o: ActivePlayerGrantOverrides,
+): string {
+  const id = o.id ?? `apg-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO active_player_grants (
+      id, created_at, created_by,
+      member_id, actor_member_id,
+      change_type,
+      old_active_player_expires_at, new_active_player_expires_at,
+      reason_code, reason_text,
+      related_event_id, related_registration_id,
+      related_club_id, related_club_affiliation_id,
+      related_vouch_id
+    ) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    o.created_at ?? TS,
+    o.member_id,
+    o.actor_member_id ?? null,
+    o.change_type ?? 'grant',
+    o.old_active_player_expires_at ?? null,
+    o.new_active_player_expires_at ?? null,
+    o.reason_code ?? 'official_event_attendance',
+    o.reason_text ?? null,
+    o.related_event_id ?? null,
+    o.related_registration_id ?? null,
+    o.related_club_id ?? null,
+    o.related_club_affiliation_id ?? null,
+    o.related_vouch_id ?? null,
+  );
+  return id;
+}
+
+// ── Active Player vouch ───────────────────────────────────────────────────────
+//
+// Append-only direct vouch action by Tier 2 / Tier 3 for a Tier 0 target.
+// DB CHECK rejects self-vouch (voucher_member_id = target_member_id).
+
+export interface ActivePlayerVouchOverrides {
+  id?: string;
+  created_at?: string;
+  voucher_member_id: string;
+  target_member_id: string;
+  vouched_at?: string;
+  reason_text?: string | null;
+  old_active_player_expires_at?: string | null;
+  new_active_player_expires_at?: string | null;
+}
+
+export function insertActivePlayerVouch(
+  db: BetterSqlite3.Database,
+  o: ActivePlayerVouchOverrides,
+): string {
+  const id = o.id ?? `apv-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO active_player_vouches (
+      id, created_at, created_by,
+      voucher_member_id, target_member_id,
+      vouched_at, reason_text,
+      old_active_player_expires_at, new_active_player_expires_at
+    ) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    o.created_at ?? TS,
+    o.voucher_member_id,
+    o.target_member_id,
+    o.vouched_at ?? TS,
+    o.reason_text ?? null,
+    o.old_active_player_expires_at ?? null,
+    o.new_active_player_expires_at ?? null,
+  );
+  return id;
+}

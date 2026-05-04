@@ -157,9 +157,9 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Primary tables:** `events`, `event_disciplines`, `event_organizers`, `event_results_uploads`, `event_result_entries`
 
 **`CompetitionParticipationService`**
-- **Owns:** Event registration, discipline selections, participant list management, roster-access vouch grants (Pathway A)
-- **Does NOT own:** Event creation, payment processing, official IFPA roster reporting/export (AdminGovernanceService)
-- **Primary tables:** `registrations`, `registration_discipline_selections`, `roster_access_grants`, `tier1_vouch_requests`
+- **Owns:** Event registration, discipline selections, attendance marking, participant list management
+- **Does NOT own:** Event creation, payment processing, vouching (`ActivePlayerService`), official IFPA roster reporting/export (`OfficialRosterService` / `AdminGovernanceService`)
+- **Primary tables:** `registrations`, `registration_discipline_selections`
 
 **`FreestyleService`**
 - **Owns:** All public freestyle section page reads: landing, records, leaders, about, moves, and trick detail pages
@@ -186,9 +186,9 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Primary tables:** `payments`, `payment_status_transitions`, `recurring_donation_subscriptions`, `recurring_donation_subscription_transitions`, `stripe_events`, `reconciliation_issues`
 
 **`MembershipTieringService`**
-- **Owns:** All tier grant writes, tier expiry processing, HoF/BAP/board flag management, admin role grants; `calculateTierStatus` is the sole authoritative tier-read path
-- **Does NOT own:** Payment processing, registration
-- **Primary tables:** `member_tier_grants`, `member_tier_current`, `members` (flag and role fields only; no tier cache columns)
+- **Owns:** Membership-tier ledger writes (`member_tier_grants`), HoF/BAP Tier 2 grants, Tier 3 governance set/remove, admin tier corrections, admin-role grants; `getTierStatus(memberId)` is the sole authoritative membership-tier read path
+- **Does NOT own:** Payment processing, registration, Active Player lifecycle (`ActivePlayerService`), official roster read/export (`OfficialRosterService`)
+- **Primary tables:** `member_tier_grants`, `member_tier_current`, `members` (flag and role fields only)
 
 ---
 
@@ -523,37 +523,30 @@ For the current public routes, `EventService` is responsible for:
 
 ### 4.3 `CompetitionParticipationService`
 
-**Purpose/Boundary:** Owns event registration, discipline selections, participant list management, and roster-access vouch grants used by Pathway A vouching. Does NOT own event creation, payment processing, or official IFPA roster reporting/export — that belongs to `AdminGovernanceService`.
+**Purpose/Boundary:** Owns event registration, discipline selections, attendance marking, and participant list management. Does NOT own event creation, payment processing, vouching (`ActivePlayerService`), or official IFPA roster reporting/export (`OfficialRosterService` for read paths; `AdminGovernanceService` for admin orchestration).
 
-**Consumers:** Member controllers, EventService (roster access grants, attendance confirmation), AdminGovernanceService
+**Consumers:** Member controllers, EventService (attendance marking, results-upload auto-attendance), AdminGovernanceService
 
 **Key Methods:**
 - `registerForEvent(memberId, eventId, input) -> {registrationId}` — validates capacity; free events: writes `confirmed` immediately; paid events: writes `pending` and delegates to PaymentService; enforces discipline-selection completeness for competitors (APP-013); enqueues confirmation email; if capacity reached: updates event status to `registration_full`; audit-logs
 - `confirmRegistration(registrationId) -> {ok}` — called by PaymentService webhook handler post-payment-success; atomically with `payments.status = 'succeeded'` write; validates discipline completeness for competitors (APP-013)
-- `getParticipants(actorId, eventId) -> {participants}` — organizer: full list with tier, registration type, categories, partner, payment status; member: limited view
-- `exportParticipants(actorId, eventId) -> {csv}` — organizer; confirmed participants only; CSV with name, email (opt-in), city, country, date, tier, payment status, type, categories, partner
+- `markAttendance(actorId, eventId, memberIds[]) -> {ok}` — organizer or co-organizer; sets `registrations.attended_at` + `attended_marked_by_member_id`; for each marked attendance, delegates Active Player effect to `ActivePlayerService.applyAttendance()` (Tier 0 grant or extend; Tier 1+ no-op); idempotent via `ux_active_player_grants_registration_once`; audit-logs
+- `getParticipants(actorId, eventId) -> {participants}` — organizer: full list with membership tier, Active Player status where applicable, registration type, categories, partner, payment status; member: limited view
+- `exportParticipants(actorId, eventId) -> {csv}` — organizer; confirmed participants only; CSV with name, email (opt-in), city, country, date, membership tier, Active Player status, payment status, type, categories, partner
 - `emailParticipants(actorId, eventId, subject, body) -> {ok}` — organizer; rate-limited (1 email/event/day); enqueues via CommunicationService outbox; archives in `email_archives`; audit-logs recipient count
-- `grantRosterAccess(actorId, eventId) -> {grantId}` — called by EventService after results upload for sanctioned events; writes `roster_access_grants` row; expiry = `vouch_window_days` from now
-- `vouchMemberDirect(actorId, eventId, targetMemberId) -> {ok}` — Pathway A; validates active roster grant; delegates tier logic to `MembershipTieringService.applyVouchGrant()`; audit-logs
-- `submitVouchRequest(requesterId, targetMemberId, reason, notes) -> {requestId}` — Pathway B; writes `tier1_vouch_requests`; inserts work-queue item → admin-alerts notification; self-vouch rejected `[DB+APP]`
-- `processVouchRequest(adminId, requestId, decision, reason) -> {ok}` — admin; approve: delegates to `MembershipTieringService.applyVouchGrant()`; deny: enqueues denial email to requester (not target); audit-logs
 
-**Authz:** Register: Tier 0+. View participants: organizer scope. Vouch direct (Pathway A): Tier 2+ with active roster grant. Submit vouch request (Pathway B): Tier 2+. `processVouchRequest`: admin only.
+**Authz:** Register: Tier 0+. Mark attendance, view/export participants, email participants: organizer or co-organizer scope.
 
-**Persistence Touchpoints:** `registrations`, `registration_discipline_selections`, `roster_access_grants`, `tier1_vouch_requests`, `events`, `member_tier_current`, `members`, `email_archives`, `audit_entries`, `outbox_emails`, `work_queue_items`
+**Persistence Touchpoints:** `registrations`, `registration_discipline_selections`, `events`, `member_membership_status_current`, `members`, `email_archives`, `audit_entries`, `outbox_emails`
 
 **Key Rules:**
-- `[APP]` Official IFPA roster reporting/export is owned by `AdminGovernanceService` — this service does not expose roster report or export methods
+- `[APP]` Official IFPA roster read paths belong to `OfficialRosterService`; admin orchestration belongs to `AdminGovernanceService` — this service does not expose roster report or export methods
 - `[APP]` Competitor registration requires ≥1 discipline selection before `status = 'confirmed'` (APP-013)
-- `[APP]` Pathway A: `related_event_id` non-null, `related_vouch_request_id` null in tier grant ledger row
-- `[APP]` Pathway B: `related_vouch_request_id` non-null, `related_event_id` null in tier grant ledger row
-- `[APP]` Self-vouch rejected at application layer; `[DB]` CHECK as defense-in-depth
-- `[DB]` `ux_tier_grants_vouch_once` — one ledger row per vouch request
-- `[DB]` `ux_tier_grants_event_once` — one grant per (member, event)
+- `[APP]` Attendance marking delegates Active Player effect to `ActivePlayerService.applyAttendance()`; this service never writes to `member_tier_grants` or `active_player_grants` directly
 - `[APP]` Capacity enforcement: event status → `registration_full` when reached
 - `[APP]` Participant email: rate-limited 1/event/day
 
-**Async / Side Effects:** outbox enqueue (registration confirmation, reminder, vouch notifications, participant emails) · audit append · work queue insert (vouch request Pathway B) → admin-alerts notification
+**Async / Side Effects:** outbox enqueue (registration confirmation, reminder, participant emails) · audit append
 
 ---
 
@@ -711,41 +704,38 @@ For the current public routes, `EventService` is responsible for:
 
 ### 5.2 `MembershipTieringService`
 
-**Purpose/Boundary:** Owns all tier grant writes to `member_tier_grants`, tier expiry processing, HoF/BAP/board flag management, and admin role grants. `calculateTierStatus(memberId)` is the sole authoritative tier-read path; it derives from the ledger via `member_tier_current` — no tier cache columns exist on `members`. Does NOT own payment processing or registration.
+**Purpose/Boundary:** Owns the membership-tier ledger (`member_tier_grants`) and admin-role grants. `getTierStatus(memberId)` is the sole authoritative membership-tier read path; it derives from the ledger via `member_tier_current`. Does NOT own payment processing, registration, or Active Player lifecycle (`ActivePlayerService`).
 
-**Consumers:** PaymentService, CompetitionParticipationService, EventService, AdminGovernanceService, OperationsPlatformService (expiry job)
+**Consumers:** PaymentService, AdminGovernanceService, `ActivePlayerService` (calls back for tier checks)
 
 **Key Methods:**
-- `applyTierGrant(actor, memberId, grantParams) -> {ok}` — writes ledger row; `member_tier_current` is the authoritative read source; call `calculateTierStatus(memberId)` for current tier after any grant write
-- `applyAttendanceTier(actorId, memberId, eventId, eventDate) -> {ok}` — called by EventService on attendance mark; Tier 0 → `tier1_annual` expiry = eventDate + 365d; existing Tier 1 Annual < eventDate + 365d → extend; existing ≥ eventDate + 365d → no-op; Tier 1 Lifetime+ → no-op; `reason_code = 'attendance.event'`, `related_event_id` set; `[DB]` `ux_tier_grants_event_once` prevents duplicate; audit-logs
-- `applyVouchGrant(actorId, memberId, pathway, sourceRef) -> {ok}` — called by CompetitionParticipationService; same no-op/extend logic as attendance; Pathway A: `related_event_id`, `reason_code = 'vouch.direct'`; Pathway B: `related_vouch_request_id`, `reason_code = 'vouch.admin'`; enqueues email to vouched member
-- `applyPurchaseGrant(memberId, paymentId, tierProduct) -> {ok}` — called by PaymentService on payment success; `reason_code = 'purchase.dues'`; `related_payment_id` set; Tier 2 purchase permanently sets `fallback_tier_status = 'tier1_lifetime'` on the ledger row; Tier 2 Annual expiry = max(today, current expiry) + 365d; audit-logs
-- `processExpiry(memberId) -> {ok}` — called only by `OperationsPlatformService.runTierExpiryCheck()`; Tier 1 Annual expired → `expire` row, `new_tier_status = 'tier0'`, `reason_code = 'system.tier_expired'`; Tier 2 Annual expired → `expire` row, `new_tier_status = 'tier1_lifetime'`, `reason_code = 'system.tier2_fallback'`; enqueues notification
-- `adminOverrideTier(adminId, memberId, newTier, expiryDate, reason) -> {ok}` — `reason_code = 'admin.override'`, `change_type = 'grant'`; cannot reduce dues-paying member below Tier 1 Lifetime (`member_tier_current` purchase overlay would ignore it anyway, but reject early with a clear error); audit-logs; enqueues member notification
-- `grantHoFBAPStatus(adminId, memberId, badge, reason) -> {ok}` — sets `is_hof` or `is_bap`; unless already Tier 3: writes tier grant to Tier 2 Lifetime (`reason_code = 'admin.hof_bap_grant'`), updates `fallback_tier_status`; emits `member_honor` news item via NewsService; enqueues congratulatory email; audit-logs
-- `setBoardFlag(adminId, memberId, action, reason) -> {ok}` — `flag_set`: snapshot current paid tier in `new_fallback_tier_status` of the `board.flag_set` ledger row → write grant to Tier 3; `flag_removed`: **read `new_fallback_tier_status` from most recent `board.flag_set` ledger row** → write `board.flag_removed` grant reverting to that captured tier; emits `member_honor` news item via NewsService; audit-logs
-- `calculateTierStatus(memberId) -> {tierData}` — sole authoritative tier-read path; derives from `member_tier_current` (ledger-backed); never reads tier fields directly from `members`.
-- `adminManageRole(adminId, targetMemberId, action, reason) -> {ok}` — grant: target must be `tier2_lifetime` or `tier3` (APP-015); anti-lockout: last admin cannot be revoked (APP-015); updates `is_admin`; atomically updates admin-alerts mailing list subscription via CommunicationService (APP-015); audit-logs; enqueues email
+- `getTierStatus(memberId) -> { tier_status, underlying_tier_status }` — sole authoritative membership-tier read path; reads `member_tier_current`. `tier_status` ∈ `{tier0, tier1, tier2, tier3}`. `underlying_tier_status` ∈ `{tier1, tier2}` and is non-null only when `tier_status = 'tier3'`.
+- `applyPurchaseGrant(actorId, memberId, paymentId, tier) -> {ok}` — called by PaymentService on payment success; `tier ∈ {'tier1','tier2'}`; writes `member_tier_grants` row with `change_type = 'grant'`, `reason_code ∈ {'purchase.tier1','purchase.tier2'}`, `related_payment_id` set; if member was Tier 0 with current Active Player, also calls `ActivePlayerService.endOnTierUpgrade()` in the same transaction; audit-logs
+- `applyHonorGrant(actorId, memberId, honor) -> {ok}` — admin only; `honor ∈ {'hof','bap'}`; sets `is_hof` or `is_bap`; writes Tier 2 grant with `reason_code ∈ {'honor.hof_tier2_grant','honor.bap_tier2_grant'}`; if current tier is Tier 3, writes `governance_set` row preserving Tier 3 with `new_underlying_tier_status = 'tier2'`; emits `member_honor` news item via NewsService; enqueues congratulatory email; audit-logs
+- `setGovernanceTier3(actorId, memberId) -> {ok}` — admin only; writes `governance_set` row with `new_tier_status = 'tier3'`; `new_underlying_tier_status` mapping: Tier 0 / Tier 1 source → `tier1`; Tier 2 source → `tier2`; if Tier 0 Active Player was current, calls `ActivePlayerService.endOnTier3Grant()` in the same transaction; emits `member_honor` news item via NewsService; audit-logs
+- `removeGovernanceTier3(actorId, memberId) -> {ok}` — admin only; reads `old_underlying_tier_status` from latest `governance_set` row; writes `governance_removed` with `new_tier_status = old_underlying_tier_status`; audit-logs
+- `adminOverride(actorId, memberId, newTier, reason) -> {ok}` — admin only; writes `member_tier_grants` row with `change_type = 'correct'`, `reason_code ∈ {'admin.correction','admin.override'}`; mandatory `reason_text`; audit-logs; enqueues member notification
+- `adminManageRole(adminId, targetMemberId, action, reason) -> {ok}` — grant: target must be Tier 2 or Tier 3 (APP-015); anti-lockout: last admin cannot be revoked (APP-015); updates `is_admin`; atomically updates admin-alerts mailing list subscription via CommunicationService (APP-015); audit-logs; enqueues email
 
-**Authz:** `applyAttendanceTier`, `applyVouchGrant` (Pathway A): Tier 2+ with active roster grant. `applyVouchGrant` (Pathway B approval), `adminOverrideTier`, `grantHoFBAPStatus`, `setBoardFlag`, `adminManageRole`: admin only. `calculateTierStatus`: any authenticated.
+**Authz:** `getTierStatus`: any authenticated. `applyPurchaseGrant`: invoked by PaymentService only. All other methods: admin only.
 
-**Persistence Touchpoints:** `member_tier_grants`, `member_tier_current`, `members`, `system_config_current`, `mailing_list_subscriptions`, `news_items`, `audit_entries`, `outbox_emails`
+**Persistence Touchpoints:** `member_tier_grants`, `member_tier_current`, `members` (flag and role fields), `mailing_list_subscriptions`, `news_items`, `audit_entries`, `outbox_emails`
 
 **Key Rules:**
 - `[DB]` Append-only: `member_tier_grants` UPDATE/DELETE blocked by triggers
-- `[APP]` `calculateTierStatus(memberId)` is the sole authoritative tier-read path; derives from `member_tier_current` via the ledger; no tier cache columns exist on `members`
-- `[APP]` Source linkage discipline: at most one of `related_payment_id`, `related_vouch_request_id`, `related_event_id` non-NULL; `revoke`/`expire` rows have all source FKs NULL (APP-016)
-- `[DB]` `ux_tier_grants_event_once` — one grant per (member, event)
-- `[APP]` Board flag revert: reads `new_fallback_tier_status` from most recent `board.flag_set` ledger row in `member_tier_grants` — not from current `members` cache (which may have been updated by subsequent grants)
-- `[APP]` HoF/BAP grant auto-promotes to Tier 2 Lifetime unless member is Tier 3 (board); fallback tier also updated
-- `[APP]` Admin role prerequisites (APP-015): Tier 2 Lifetime or Tier 3 required; anti-lockout enforced
+- `[APP]` `getTierStatus(memberId)` is the sole authoritative membership-tier read path; derives from `member_tier_current` via the ledger
+- `[APP]` Source linkage discipline (APP-016): membership-tier grants may link only to `related_payment_id`, admin overrides, HoF/BAP grants, Tier 3 governance changes, or legacy migration. No event/vouch/club source FK on `member_tier_grants`.
+- `[DB]` `governance_set` requires `new_underlying_tier_status` non-null
+- `[DB]` `governance_removed` requires `old_underlying_tier_status` non-null
+- `[APP]` HoF/BAP grant: if member is currently Tier 3, write `governance_set` updating `new_underlying_tier_status` to `tier2`; otherwise write a plain Tier 2 grant
+- `[APP]` Refund does NOT write a `revoke` row (APP-006); tier purchases are preserved on refund
+- `[APP]` Admin role prerequisites (APP-015): Tier 2 or Tier 3 required; anti-lockout enforced
 - `[APP]` Admin-alerts mailing list subscription updated atomically with `is_admin` change (APP-015)
-- `[APP]` Membership pricing is read from `system_config_current` using integer-cents keys (`tier1_lifetime_price_cents`, `tier2_annual_price_cents`, `tier2_lifetime_price_cents`); convert cents to display currency in UI layer
 - `[APP]` News items emitted via `NewsService.emitNewsItem()` — MembershipTieringService does not write to `news_items` directly
 
-**Transaction + Idempotency:** Every ledger write in one transaction. `applyAttendanceTier` and `applyVouchGrant` are idempotent via DB unique indexes as safety net; app is primary controller.
+**Transaction + Idempotency:** Every ledger write in one transaction. Tier 0 Active Player ending on purchase or Tier 3 grant must be in the same transaction as the membership-tier write.
 
-**Async / Side Effects:** outbox enqueue (tier change notifications, vouching emails, congratulatory HoF/BAP) · news emission (`member_honor`) · audit append
+**Async / Side Effects:** outbox enqueue (tier change notifications, congratulatory HoF/BAP) · news emission (`member_honor`) · audit append
 
 ---
 

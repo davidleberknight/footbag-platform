@@ -8,7 +8,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
 
 - [1. Global Behaviors](#1-global-behaviors)
   - [1.1 Hashtags](#11-hashtags)
-  - [1.2 Official Rules for Member Tiers](#12-official-rules-for-member-tiers)
+  - [1.2 IFPA Membership Rules Reference and Terminology](#12-ifpa-membership-rules-reference-and-terminology)
 - [2. Visitor Stories](#2-visitor-stories)
   - [2.1 Content Discovery](#21-content-discovery)
     - [V_Browse_Static_Content](#v_browse_static_content)
@@ -55,8 +55,8 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_Purchase_Tier_1](#m_purchase_tier_1)
     - [M_Purchase_Tier_2](#m_purchase_tier_2)
     - [M_View_Tier_Status](#m_view_tier_status)
-    - [M_Tier_Expiry_During_Active_Period](#m_tier_expiry_during_active_period)
-    - [M_Vouch_For_Tier1_Member](#m_vouch_for_tier1_member)
+    - [M_Active_Player_Expiry](#m_active_player_expiry)
+    - [M_Vouch_For_Active_Player](#m_vouch_for_active_player)
   - [3.7 Voting](#37-voting)
     - [M_View_Vote_Options](#m_view_vote_options)
     - [M_Vote](#m_vote)
@@ -104,7 +104,6 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Grant_HoF_BAP_Board_Status](#a_grant_hof_bap_board_status)
     - [A_View_Member_History](#a_view_member_history)
     - [A_View_Official_Roster_Reports](#a_view_official_roster_reports)
-    - [A_Process_Tier1_Recognition_Requests](#a_process_tier1_recognition_requests)
     - [A_Reassign_Club_Leader](#a_reassign_club_leader)
     - [A_Reassign_Event_Organizer](#a_reassign_event_organizer)
     - [A_Fix_Event_Results](#a_fix_event_results)
@@ -130,7 +129,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Manage_Admin_Role](#a_manage_admin_role)
   - [6.7 Configurable Parameters](#67-configurable-parameters)
     - [Membership Pricing / Dues (IFPA-derived)](#membership-pricing-dues-ifpa-derived)
-    - [Membership Windows / Lifecycle](#membership-windows-lifecycle)
+    - [Active Player Windows / Lifecycle](#active-player-windows-lifecycle)
     - [Email / Notifications / Outbox](#email-notifications-outbox)
     - [Auth / Security Tokens](#auth-security-tokens)
     - [Retention / Cleanup](#retention-cleanup)
@@ -140,7 +139,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_View_Audit_Logs](#a_view_audit_logs)
     - [A_Acknowledge_Alarm](#a_acknowledge_alarm)
 - [7. Background System Jobs](#7-background-system-jobs)
-    - [SYS_Check_Tier_Expiry](#sys_check_tier_expiry)
+    - [SYS_Check_Active_Player_Expiry](#sys_check_active_player_expiry)
     - [SYS_Send_Email](#sys_send_email)
     - [SYS_Open_Vote](#sys_open_vote)
     - [SYS_Close_Vote](#sys_close_vote)
@@ -161,7 +160,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
 
 The following are general rules for all User Stories, where applicable.
 
-Authentication, roles, and sessions: All stories for Members, Event Organizers, Club Leaders, and Administrators roles assume the user is logged in, has a valid session cookie, and holds the required role(s), membership tier, or special flags. Visitor stories always represent unauthenticated users with no session. System background stories represent automated processes, not logged-in users.
+Authentication, roles, and sessions: All stories for Members, Event Organizers, Club Leaders, and Administrators roles assume the user is logged in, has a valid session cookie, and holds the required role(s), membership tier, Active Player status where applicable, or special flags. Visitor stories always represent unauthenticated users with no session. System background stories represent automated processes, not logged-in users.
 
 Security and sessions: Authentication uses an HttpOnly, Secure, SameSite=Lax session cookie (JWT). Authenticated state-changing requests must be protected against CSRF and must not perform state changes over GET. The specific CSRF mechanism and request validation rules are defined in the Design Decisions document and must be applied consistently.
 
@@ -229,7 +228,7 @@ Content Ownership and Control: Event pages link to galleries showing all photos 
 
 Members own their content completely. They can delete photos, videos and named galleries at any time without approval (permanently, no soft delete). A user can nuke an entire named gallery + all media in it in one click (with a UI confirmation given this is permanent). Deletion removes all the content immediately (but requires some minutes to be visibly changed in the UI due to AWS CloudFront CDN caching, and possibly a page refresh click).
 
-If a member uploads inappropriate content, any Tier 1+ member can flag it, triggering admin review. The admin can delete the content if it violates policies. Deletion is the only removal mechanism, logged as an admin decision with a reason. No shadow banning. No selective visibility. This creates accountability: admins must justify deletions, and members know their content is either fully public or fully removed.
+If a member uploads inappropriate content, any member with Tier 1 benefits can flag it, triggering admin review. The admin can delete the content if it violates policies. Deletion is the only removal mechanism, logged as an admin decision with a reason. No shadow banning. No selective visibility. This creates accountability: admins must justify deletions, and members know their content is either fully public or fully removed.
 
 Members can edit tags after upload. Adding #event_2025_Beaver_Open to a photo three days after initial upload causes that photo to appear in the event gallery. Removing a tag removes the photo from that gallery. These changes typically propagate quickly, but may take a few minutes to appear due to caching.
 
@@ -251,56 +250,35 @@ Both photos and video links support:
 - Identical problematic content flagging and admin review workflows.
 - Members can organize photos and videos into multiple named galleries for custom content organization, as well as using hashtags.
 
-## 1.2 Official Rules for Member Tiers
+## 1.2 IFPA Membership Rules Reference and Terminology
 
-The following is the single source of truth for tier meanings, eligibility, expiry/extension rules, roster authority, and dues. Membership-related user stories must implement these rules and should avoid re-stating tier definitions except where needed for UI behavior, validations, side effects, or audit requirements. These rules are re-stated from official IFPA documents.
+The authoritative IFPA membership policy is defined in the ifpa's IFPAMembershipStructure_2026.md doc. Membership-related user stories below must implement that policy. This section does not restate the policy; it defines the terminology used by the stories below so that "Tier 1 benefits", "Active Player", "Official IFPA Roster", and similar terms have a single meaning across the document.
 
-IFPA Membership Rules (Normative):
+Glossary:
 
-Tier 0 (non-voting member at large):
+- **Tier 0 (Registered Member):** Free lifetime registered footbag.org account.
+- **Tier 1 (IFPA Member):** Purchased lifetime IFPA membership.
+- **Tier 2 (IFPA Organizer Member):** Purchased lifetime IFPA organizer membership. Includes all Tier 1 benefits plus organizer privileges.
+- **Tier 3 (IFPA Director):** Governance status assigned by IFPA governance. Includes all Tier 2 privileges while active. Reverts to the member's underlying membership tier when governance status ends.
+- **Underlying membership tier:** The membership tier a Tier 3 member returns to when governance status ends. A Tier 0 member who becomes Tier 3 has Tier 1 set as the underlying membership tier and never reverts to Tier 0 from Tier 3.
+- **Active Player:** Temporary status for Tier 0 members only. While current, gives the Tier 0 member Tier 1 benefits. Active Player does not change membership tier.
+- **Qualifying event attendance:** Attendance at any event officially registered through the IFPA website. Grants or extends Active Player for Tier 0 targets only.
+- **Vouch:** A Tier 2 or Tier 3 member granting or extending Active Player for a Tier 0 member. No-op against any Tier 1, Tier 2, or Tier 3 target.
+- **One-time club-join grant:** A single Active Player period granted when a Tier 0 member who has never previously been Active Player joins their first IFPA club. Not regranted on subsequent joins.
+- **No-shorten rule:** An older qualifying event, club-join grant, or vouch must not shorten an existing later Active Player expiry date.
+- **Tier 1 benefits:** Shorthand for "Tier 1, Tier 2, or Tier 3 member, or Tier 0 member with current Active Player status." Used in Access lines below where the gate is the Tier 1 capability set rather than strict Tier 1, Tier 2, or Tier 3 membership.
+- **Official IFPA Roster:** Tier 1 members, Tier 2 members, Tier 3 members, and Tier 0 members with current Active Player status. Excludes Tier 0 members without current Active Player status. Not public. Tier 2 or Tier 3 members may access it for official IFPA event and organizer purposes.
+- **Hall of Fame (HoF) and Big Add Posse (BAP):** Separate permanent honor badges. Each induction grants Tier 2 membership.
+- **IFPA Board / Tier 3 governance status:** Set at the start of board service and removed at end of board service.
 
-- Members of footbag.org are automatically Tier 0 members and can access footbag.org member-only areas (e.g., member search, adding/editing clubs on the club list, member forum, etc.).
-- Tier 0 members cannot vote in IFPA elections, run for IFPA offices, sit on IFPA committees, or be counted in the official IFPA member roster.
-- Anyone can become Tier 0 by registering a free footbag.org account. Tier 0 does not expire (members may request account cancellation).
+Implementation notes used by stories below:
 
-Tier 1 (basic IFPA membership):
-
-- Tier 1 members may vote in IFPA elections, participate on IFPA committees, and access IFPA-member-only areas of footbag.org (e.g., video/photo upload service, create/participate in online groups/committees, etc.).
-- Tier 1 can be attained free of charge by: (a) attending any IFPA-sanctioned tournament or festival (automatically extends Tier 1 Annual for 365 days from event date when organizer marks attendance), or (b) receiving vouching/recognition from a Tier 2+ member. Vouching pathway (b) is explicitly available to non-competitors and does not require event attendance. Tier 2+ members can vouch for their own club members, and community volunteers. Vouching is available either through direct roster access (after uploading results for sanctioned events) or via request to Administrators at any time.
-
-Tier 2 (IFPA organizer membership):
-
-- Tier 2 members receive all Tier 1 benefits plus organizer privileges: ability to apply for event sanctioning, event sponsorship, send emails to [announce@footbag.org](mailto:announce@footbag.org), add events to the event list, and access organizer-only areas of footbag.org.
-- Direct roster access for Tier 2 is normally available only for a limited window after uploading results for a sanctioned event they are organizing (default: 14 days after results upload, Administrator-configurable). All other times, Tier 2 members must request updates from the Membership Director (or an empowered official), who may deny frivolous/abusive requests.
-- Becoming Tier 2 requires paying either an annual membership fee or a lifetime membership fee.
-- Tier 2 members have limited access to update the IFPA membership roster by designating other members as Tier 1 members via two mechanisms: (a) Direct roster access: Available automatically after uploading results for sanctioned events they are organizing. Access remains open for an Administrator-configurable duration (default: 14 days after results upload) to allow organizers to mark attendance and vouch for participants. During this window, the organizer can use a web-based roster tool to recognize members as Tier 1 Annual. (b) Request to Administrators: Available at any time outside direct roster access periods. Tier 2+ members submit recognition requests via the platform. Administrators review and approve/deny requests acting with offline consent from the Membership Director (external to platform). Administrators have discretion to deny requests that appear frivolous or abusive. All requests, approvals, and denials are audit-logged.
-
-Tier 3 (IFPA director):
-
-- Tier 3 members have all Tier 2 privileges plus direct access to the IFPA membership roster and board-level voting privileges (per IFPA By-Laws). Tier 3 is assigned via elected/appointed offices (not purchasable).
-
-Membership dues and lifecycle (as currently adopted):
-
-- Tier 0: free; no expiry.
-- Tier 1: Annual is free; Lifetime is paid (default 10).
-- Tier 2: Annual is paid (default 25); Lifetime is paid (default 150).
-- Tier 3: (flag set by Admin only); not dues-based.
-- Tier 1 Annual (free) eligibility + extension: a unique member may not be listed on the roster more than once; attending any IFPA-sanctioned footbag event extends Tier 1 membership for 365 days from the date of the event.
-- Tier 1 Annual via recognition: a Tier 2+ member may recognize ("vouch for") a Tier 1 Annual member for a period not to exceed one year from the date of recognition. Recognition extends the member's Tier 1 Annual expiry to a maximum of 365 days from the recognition date; it cannot extend beyond this one-year limit. Clarification (IFPA-aligned): Tier 1 Annual membership is a free status, attained via sanctioned-event attendance or Tier 2+ recognition or vouching, and is not a purchasable product. The paid Tier 1 option is Tier 1 Lifetime only, cost default (normative): $10.
-- Ever-paid dues ⇒ Tier 1 for life: if anyone ever paid membership dues to IFPA (including Tier 2 dues), they become a Tier 1 lifetime member immediately. If Tier 2 lapses, the member remains Tier 1.
-
-Implementation Notes:
-
-- Annual tiers track expiry using tierExpiryDate; lifetime tiers have no expiry.
-- “Official IFPA roster” views/counts must filter to Tier 1+; Tier 0 accounts are not counted in the official roster.
-- Dues amounts are stored as admin configuration with audit trail and effective dates, updated only when official rules change (see Admin configuration story). Completed payments are not retroactively altered.
-- Feature access is controlled by membership tiers and contextual roles / flags (Event Organizer, Club Leader, Administrator, HoF, BAP). Access lines on each story state which tiers and roles may use that feature. These values can be fetched from the database on any authenticated request to check authorization rules. JWT tier or flag claims are cached for routing performance but are never authoritative for access control decisions.
-- Hall of Fame (HoF): Permanent honor badge.
-- Big Add Posse (BAP): Permanent honor badge.
-- Board Members: Tier 3 status (IFPA directors) while serving on the board. When Board flag is active, member is Tier 3; when Board flag is removed, member reverts to their underlying paid tier.
-- Site Administrators: Must be IFPA members (Tier 2 Lifetime or Tier 3).
-- Official IFPA Roster is defined as the count and listing of members with Tier 1+ status only. Tier 0 accounts are excluded from all official roster views, counts, reports, and exports. Administrator dashboards and reports that display "official roster count" must filter to Tier 1+ members only. Member counts displayed to the public (if any) must clearly indicate whether they represent "all registered accounts" (including Tier 0) or "official IFPA members" (Tier 1+ only).
-- Canonical tier status database string values (used in code and SQL; display names are separate): `tier0`, `tier1_annual`, `tier1_lifetime`, `tier2_annual`, `tier2_lifetime`, `tier3`. These exact strings must be used consistently in all database queries, success criteria, and service-layer comparisons. Display text ("Tier 1 Annual", "Tier 2 Lifetime", etc.) is formatted separately in UI templates.
+- Membership tier and Active Player status are separate concepts; both must be queryable independently and shown distinguishably in any roster, report, or profile surface.
+- Membership tiers do not expire. Only Active Player status expires. Numeric defaults (price, duration, reminder offsets) live in §6.7 Configurable Parameters.
+- Canonical membership-tier database string values used in code and SQL: `tier0`, `tier1`, `tier2`, `tier3`. Display text ("Tier 1 IFPA Member", etc.) is formatted separately in UI templates. Active Player is represented by separate fields, not by a tier string.
+- Site Administrators (the platform admin role) must hold Tier 2 or Tier 3 status.
+- Feature access is controlled by membership tier, Active Player status where applicable, and contextual roles or flags (Event Organizer, Club Leader, Administrator, HoF, BAP). These values are fetched from the database on any authenticated request to check authorization rules; JWT tier or flag claims are cached for routing performance but are never authoritative for access control decisions.
+- Member counts displayed to the public, where any exist, must clearly indicate whether they represent "all registered accounts" (including Tier 0 without Active Player status) or the "Official IFPA Roster."
 
 # 2. Visitor Stories
 
@@ -440,7 +418,7 @@ Access: Any user. This is an exceptional error user story. It should only happen
 
 Story: As a user, if I attempt an action I’m not permitted to perform, I see a clear Access Denied page so I understand what happened and recover.
 
-Example authorization flags are: Tier0, Tier1, Tier2, Tier3 (equivalent to IFPA_Board semantically), Admin, Event_Organizer, Club_Leader, HoF, BAP. This list is not exclusive, as other User Stories may define other critera for accessing content.
+Example authorization flags are: Tier0, Tier1, Tier2, Tier3, Admin, Event_Organizer, Club_Leader, HoF, BAP. This list is not exclusive, as other User Stories may define other critera for accessing content.
 
 Success Criteria:
 
@@ -492,10 +470,10 @@ Success Criteria:
 - New members automatically assigned Tier 0 (free lifetime) status.
 - **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported placeholder row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (Tier 1 exact name match, Tier 2 known variant match), the prompt defaults to yes (pre-checked). For low-confidence matches (Tier 3 email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
 - **Club onboarding flow:** During onboarding, the member goes through a three-stage club flow:
-  - **Stage 1 (direct matches):** If the registrant matches a club contact or affiliated member from the legacy mirror data, those clubs are shown first. For each club, the member chooses: "This is my club and it's still active" (affiliates, offered leadership if membership Tier 1+ and no active leader), "I was involved but the club is no longer active" (former affiliation, club flagged as reported-inactive), "This club still exists but I'm no longer involved" (former affiliation), or "I don't recognize this club" (rejected, club flagged for admin review). If the member confirms as contact of an active club, follow-up questions are shown: "Is the contact info still correct?", "Would you like to update the description?", "Is the website still active?"
+  - **Stage 1 (direct matches):** If the registrant matches a club contact or affiliated member from the legacy mirror data, those clubs are shown first. For each club, the member chooses: "This is my club and it's still active" (affiliates, offered leadership if Tier 1 benefits and no active leader), "I was involved but the club is no longer active" (former affiliation, club flagged as reported-inactive), "This club still exists but I'm no longer involved" (former affiliation), or "I don't recognize this club" (rejected, club flagged for admin review). If the member confirms as contact of an active club, follow-up questions are shown: "Is the contact info still correct?", "Would you like to update the description?", "Is the website still active?"
   - **Stage 2 (regional suggestions):** Clubs near the registrant's location are shown (pre-populated and onboarding-eligible clubs in the same country/region). For each, the member can: "I'm part of this club" (same affiliation flow as Stage 1), "I know this club but I'm not a member" (positive existence signal, no affiliation), "I've never heard of this club" (negative signal), or skip. Dormant and junk clubs are not shown in regional suggestions.
   - **Stage 3 (no clubs nearby):** If no direct matches and no regional suggestions apply (or the member skipped all), the member is offered: "Would you like to start a club in [City]?" or skip.
-  - When a member confirms affiliation with a club that is not yet in the live `clubs` table, the club is created on demand from legacy seed data and the member is offered leadership (if membership Tier 1+). Clubs may have multiple leaders. Leadership acceptance is immediate with no admin confirmation.
+  - When a member confirms affiliation with a club that is not yet in the live `clubs` table, the club is created on demand from legacy seed data and the member is offered leadership (if Tier 1 benefits). Clubs may have multiple leaders. Leadership acceptance is immediate with no admin confirmation.
 - **First competition year:** During onboarding, the member is asked to optionally confirm their first competition year. This field is editable later on the profile edit page (see M_Edit_Profile).
 - Member sees a clear success message after registration: "Registration successful! Please check your email to verify your account."
 - Member sees clear error messages for validation failures with hints about what to fix.
@@ -506,7 +484,7 @@ Success Criteria:
 
 # 3. Member Stories
 
-Members are authenticated users who have completed email verification. All new members start at Tier 0 (free, lifetime). Members can upgrade to Tier 1 or Tier 2 to unlock additional features. Members can hold multiple contextual roles simultaneously: a member can organize events (Event Organizer) and lead a club (Club Leader) without separate accounts. Tier 3 is reserved for Board Members only.
+Members are authenticated users who have completed email verification. All new members start at Tier 0 (free, lifetime). Members can upgrade to Tier 1 or Tier 2 to unlock additional features. Members can hold multiple contextual roles simultaneously: a member can organize events (Event Organizer) and lead a club (Club Leader) without separate accounts. Tier 3 is governance status assigned by IFPA governance.
 
 Important note: All stories below (except for M_Login) assume that the member has an active authenticated session for access.
 
@@ -648,10 +626,10 @@ Story: As a member, I can download all my personal data as JSON so that I can ex
 Success Criteria:
 
 - Member can request a personal data export from their profile page.
-- The system generates a JSON export that includes: Member profile data (identity, contact, membership tier, etc.). Payment history associated with the member. Event registrations and participation data. Media metadata uploaded by the member (e.g., file names, timestamps, captions, tags). Audit log entries where the member is the actor.
+- The system generates a JSON export that includes: Member profile data (identity, contact, membership tier, Active Player status, etc.). Payment history associated with the member. Event registrations and participation data. Media metadata uploaded by the member (e.g., file names, timestamps, captions, tags). Audit log entries where the member is the actor.
 - Vote data in the export: Indicates which votes the member participated in and relevant metadata (vote title, vote ID, submission timestamp). Does not include raw ballot content, receipt tokens, or receipt token hashes. Members who need to verify a ballot must use the receipt information from their original vote-confirmation email; the system does not store plaintext receipt tokens.
 - The data export is delivered as a human-readable JSON file with a documented structure.
-- Export contents include: member profile, tier status, email subscription settings, club memberships/roles, event registrations, uploaded media metadata owned by the member (including tags/captions/links), payment history entries that reference the member, and vote participation records (but never vote selections).
+- Export contents include: member profile, membership tier and Active Player status, email subscription settings, club memberships/roles, event registrations, uploaded media metadata owned by the member (including tags/captions/links), payment history entries that reference the member, and vote participation records (but never vote selections).
 - Delivery: Member clicks an Export My Data link from their dashboard page, and the system generates a file and provides a time-limited download link (expires after the configured duration, default 72 hours, keyed by `data_export_link_expiry_hours`), and also emails the same link to the member's verified email address.
 
 ### M_Browse_Legacy_Archive
@@ -707,7 +685,7 @@ Success Criteria:
 - When club affiliation or leadership suggestions exist for the claimant's legacy identity, the claim flow (or onboarding flow) presents them before the final merge confirmation.
 - Each suggestion shows the club name, city, country, and the member's inferred role (contact, member).
 - For each suggestion, the member chooses one of:
-  - **"This is my club and it's still active"**: confirms current affiliation, writes to `member_club_affiliations`. If the member already has a current club affiliation, the previous one is converted to former in the same transaction. Leadership offered if membership Tier 1+ and no active leader exists (acceptance is immediate, no admin confirmation). If the member is the listed contact, follow-up questions: "Is the contact info still correct?", "Would you like to update the description?", "Is the website still active?" Updated data is written to the club record.
+  - **"This is my club and it's still active"**: confirms current affiliation, writes to `member_club_affiliations`. If the member already has a current club affiliation, the previous one is converted to former in the same transaction. Leadership offered if Tier 1 benefits and no active leader exists (acceptance is immediate, no admin confirmation). If the member is the listed contact, follow-up questions: "Is the contact info still correct?", "Would you like to update the description?", "Is the website still active?" Updated data is written to the club record.
   - **"I was involved but the club is no longer active"**: marks as former affiliation, flags club as reported-inactive. Optional follow-up: "When did it become inactive?" and "Do you know if any other clubs are active in [region]?"
   - **"This club still exists but I'm no longer involved"**: marks as former affiliation, club stays as-is.
   - **"I don't recognize this club"**: rejects affiliation, flags club for admin review. Strong signal when the listed contact does not recognize the club.
@@ -732,12 +710,12 @@ Success Criteria:
 - **Competition history fields:**
   - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
   - `show_competitive_results` (default on): toggle controlling whether competition results appear on the member's public profile. The member's own profile view always shows their results regardless of toggle state.
-- Member search is authenticated members only (Tier 0+), never public. Search results show display name and country only; email and contact fields are never exposed in search results.
+- Member search is authenticated members only, never public. Search results show display name and country only; email and contact fields are never exposed in search results.
 - Public visibility (visible to all including visitors): Events list, news feed, public galleries (if explicitly marked public).
 - Members-only visibility (visible to logged-in members): Member profiles, club rosters, event participant lists, member search results.
 - Private visibility (visible only to owner or admins): Email addresses (unless member opts in), payment history, audit records.
-- Tier badges visible to logged-in members on: profiles, club rosters, event participant lists, search results, media author info.
-- Tier badges NOT visible to anonymous visitors.
+- Membership tier badges and current Active Player badges visible to logged-in members on: profiles, club rosters, event participant lists, search results, media author info.
+- Membership tier badges and Active Player badges NOT visible to anonymous visitors.
 - External URLs on profiles (maximum 3) are validated before publication and presented safely (e.g., clearly labeled and protected against malicious links).
 - Key actions are recorded in the audit log.
 - Member profile will automatically show club affiliation, media galleries, and links to event results, if participated.
@@ -772,9 +750,9 @@ Success Criteria:
 - **Historical name:** When a member has a linked historical person whose name differs from the member's current display name, the historical name is shown on the profile (e.g., "Also known as {historical name} in competition records").
 - **Competition history:** If `first_competition_year` is set, display "Competing since {year}" on the profile. If `show_competitive_results` is on (or the viewer is the profile owner), display the member's competition results section. Results section includes the caveat text: "Published event results only. Historical records may be incomplete."
 - Email address shown only if: (viewer is profile owner) OR (profile owner opted in to email visibility).
-- Tier badges visible to logged-in members only on profiles, club rosters, event participant lists, search results, media author info. Honor badges such as Hall of Fame (HoF), Big Add Posse (BAP), and Board Member are visible to all users (including visitors) wherever the member appears.
+- Membership tier badges and current Active Player badges visible to logged-in members only on profiles, club rosters, event participant lists, search results, media author info. Honor badges such as Hall of Fame (HoF), Big Add Posse (BAP), and Board Member are visible to all users (including visitors) wherever the member appears.
 - Profile shows member's uploaded photos and videos in thumbnail grid.
-- When viewing own profile: link to edit profile, clear indication of current tier status and expiry date (if applicable).
+- When viewing own profile: link to edit profile, clear indication of current membership tier and Active Player status with expiry date (if applicable).
 - When viewing other profile: no access to private information (payment history, audit logs).
 
 ## 3.3 Club Membership
@@ -790,9 +768,13 @@ Success Criteria:
 - Only one club membership allowed at a time. If member joins a new (second) club, the system automatically removes member from old club. In this case the UI will have a clear message to the user.
 - Club roster retrieved by aggregating members where clubId matches.
 - Club member roster visible to all logged-in members (not visitors).
-- Roster shows member display name, tier badge, any special flags (HoF, BAP, Board), and city/country.
+- Roster shows member display name, membership tier badge, current Active Player badge where applicable, any special flags (HoF, BAP, Board), and city/country.
 - Roster does NOT show member email addresses unless member has opted in to email visibility.
 - Joining sends an email notification to the member, and all Club Leaders. If the member was automatically removed from a previous club, then this will be noted in the email.
+- If the joining member is Tier 0 and has never previously been an Active Player, the first IFPA club join grants one 730-day Active Player period.
+- The one-time club-join Active Player grant does not change membership tier.
+- Joining additional clubs does not grant additional Active Player periods.
+- The club-join Active Player grant is audit-logged with member ID, club ID, grant date, old Active Player expiry if any, new Active Player expiry, and reason `club_join_one_time_active_player_grant`.
 
 ### M_Leave_Club
 
@@ -815,7 +797,7 @@ Success Criteria:
 - Club page displays: club name, logo, description, city, country, contact email(s) for leader(s), external URL (if provided), standardized hashtag.
 - Club page shows club member count.
 - Member roster shows all members where clubId matches the club.
-- Roster displays: member display name, tier badge, city, country.
+- Roster displays: member display name, membership tier badge, current Active Player badge where applicable, city, country.
 - Email addresses shown only if member has opted in to email visibility.
 - Roster sorted alphabetically by display name.
 - Club detail page includes a link to the club media gallery (for example, "View Club Gallery") when at least one media item exists, without showing image or video counts in the link text.
@@ -891,133 +873,110 @@ Story: As a member, I can see a history of all my payments to IFPA (donations, m
 Success Criteria:
 
 - From my account area, I can open a Payment History page that lists my payments in reverse chronological order.
-- The history includes at least: date, type (Donation, Membership, Event Registration, etc.), amount, payment status (succeeded, pending, etc.), and a concise descriptor (for example “Membership: Tier 2 Lifetime”, “Donation: HoF Fund”, “Event Registration: Worlds 2027 – Singles”).
+- The history includes at least: date, type (Donation, Membership, Event Registration, etc.), amount, payment status (succeeded, pending, etc.), and a concise descriptor (for example “Membership: Tier 2 IFPA Organizer Member”, “Donation: HoF Fund”, “Event Registration: Worlds 2027 – Singles”).
 - For donation entries, any comment I provided in the donation flow is visible to me as a “Note” or similar field in the history, so I can confirm that the note was recorded correctly.
 - Each payment entry includes a stable payment reference (for example a truncated Stripe payment intent ID or a friendly reference) so that support or admins can correlate my view with internal reconciliation tools.
 - Recurring donations are clearly labeled as such, and it is straightforward to distinguish the original subscription setup from subsequent annual renewal charges. Active recurring donations show a Cancel Recurring Donation action. canceled or past_due subscriptions are clearly indicated with their status. The Payment History page does not allow me to edit historical payments, but provides links or obvious instructions for how to get support if I find a problem.
 
 ## 3.6 Membership Tiers and Flags
 
-Refer to Official Rules for Member Tiers in section 1.2 above, as all those rules must be enforced in all User Stories given below.
+Refer to IFPA Membership Rules Reference and Terminology in section 1.2 above, as all those rules must be enforced in all User Stories given below.
 
 In user stories below, "Access: Tier X+" means the authenticated member's current tier is X or higher. Tier 1 includes all Tier 0 privileges. Tier 2 includes all Tier 1 privileges. Tier 3 includes all Tier 2 privileges.
 
 ### M_Purchase_Tier_1
 
-Access: Logged-in members at Tier 0 can use this flow to purchase Tier 1 Lifetime membership. Members who are already Tier 1+ do not see this option.
+Access: Logged-in members at Tier 0 can use this flow to purchase Tier 1 IFPA Member lifetime membership. Members who are already Tier 1, Tier 2, or Tier 3 do not see this option.
 
-Story: As a Member, I can upgrade to Tier 1 Lifetime membership by paying 10 through Stripe Checkout so that my account reflects my upgraded status.
+Story: As a Tier 0 Member, I can upgrade to Tier 1 IFPA Member lifetime membership by paying the configured Tier 1 price through Stripe Checkout so that my account reflects my lifetime IFPA membership.
 
 Success Criteria:
 
 - Member must be logged in (Tier 0 members can purchase, visitors must register first).
-- Member sees a clear "Upgrade to Tier 1 Lifetime" option from their account/dashboard when eligible.
+- Member sees a clear "Upgrade to Tier 1 IFPA Member" option from their account/dashboard when eligible.
 - System creates Stripe Checkout Session with configurable amount.
 - Member redirects to Stripe-hosted payment page.
-- After successful payment confirmation via Stripe webhook, the account tierStatus changes and this is visible in the profile and dashboard. Tier changes are applied only after webhook-confirmed success.
+- After successful payment confirmation via Stripe webhook, the account membership tier changes to Tier 1 and this is visible in the profile and dashboard. Tier changes are applied only after webhook-confirmed success. If the buyer was a Tier 0 Active Player, Active Player status ends because Active Player applies only to Tier 0 members.
 - If payment fails or is canceled, tier does not change and member sees a clear error message explaining that the upgrade did not complete.
 - Payment confirmation email sent to member.
 - Payment appears in member's payment history with note to explain.
 - All payment events are audit-logged.
-- Member sees a clear success message when the action completes successfully, including next steps: Tier 1 Lifetime activated! You can now vote in IFPA elections, participate on IFPA committees, and access IFPA-member-only areas of footbag.org.
+- Member sees a clear success message when the action completes successfully, including next steps: Tier 1 IFPA Member activated! You can now vote in IFPA elections, participate on IFPA committees, and access IFPA-member-only areas of footbag.org.
 - Member sees a clear error message when the action fails.
 
 ### M_Purchase_Tier_2
 
-Access: Members (Tier 0+) can purchase Tier 2 Annual or Tier 2 Lifetime membership. Visitors must register for an account to become a Tier 0 member before purchasing.
+Access: Logged-in members at Tier 0 or Tier 1 can purchase Tier 2 IFPA Organizer Member lifetime membership. Visitors must register for an account before purchasing. Members who are already Tier 2 or Tier 3 do not see this option.
 
-Story: As a Member, I can purchase Tier 2 membership (defaults to annual for 25/year or lifetime for 150) so that I can access Tier 2 benefits.
+Story: As a Tier 0 or Tier 1 member, I can purchase Tier 2 IFPA Organizer Member lifetime membership through Stripe Checkout so that I can access Tier 2 organizer benefits.
 
 Success Criteria:
 
 - Member must be logged in (Tier 0 or Tier 1 members can purchase, visitors must register first).
-- Member can select Tier 2 Annual (default 25/year) or Tier 2 Lifetime (default 150).
-- System creates Stripe Checkout Session with appropriate amount.
+- Eligible members see a clear "Upgrade to Tier 2 IFPA Organizer Member" option.
+- System creates Stripe Checkout Session using the configured Tier 2 price.
 - Member redirects to Stripe-hosted payment page.
-- After successful payment confirmation via Stripe webhook: For Tier 2 Annual: tierStatus becomes `tier2_annual`, tierExpiryDate set to max(today, current tierExpiryDate) + 365 days. This means early renewals extend from the current expiry date, not the purchase date. If the member has no active Tier 2 Annual (i.e., their tier has already expired), the new expiry is 365 days from today.
-Tier changes are applied only after webhook-confirmed success.
-- In all cases, a successful Tier 2 payment (Annual or Lifetime) permanently establishes Tier 1 Lifetime as the fallback tier for that member. This means if Tier 2 Annual later expires, the member falls back to Tier 1 Lifetime without gap (not Tier 0). The fallback transition occurs atomically during the SYS_Check_Tier_Expiry job; there is no period where the member has neither Tier 2 nor Tier 1 status.
-- If the member already holds Tier 1 Lifetime, Tier 1 remains as a fallback tier: when Tier 2 Annual expires, Tier 1 Lifetime status remains in effect and visible (else the fallback is Tier 0).
-- Tier 2 status becomes active immediately, with visible start date and expiry date (for annual).
-- If payment fails or is canceled, Tier 2 tier does not change and a clear error message is shown.
+- Tier changes are applied only after webhook-confirmed payment success.
+- After successful payment confirmation via Stripe webhook, the account membership tier changes to Tier 2 and this is visible in the profile and dashboard. If the buyer was a Tier 0 Active Player, Active Player status ends because Active Player applies only to Tier 0 members.
+- Tier 2 status is lifetime and has no expiry date.
+- If payment fails or is canceled, membership tier does not change and a clear error message is shown.
 - Payment confirmation email sent to member.
-- Payment appears in member's payment history labeled "Membership: Tier 2 Annual" or "Membership: Tier 2 Lifetime".
+- Payment appears in member's payment history labeled "Membership: Tier 2 IFPA Organizer Member".
 - All payment events are audit-logged.
-- Member sees a clear success message when the action completes successfully, including next steps: Tier 2 activated! You can now access organizer features, including applying for event sanctioning, requesting sponsorship, sending community announcements to [announce@footbag.org](mailto:announce@footbag.org), and accessing organizer-only areas of footbag.org.
+- Member sees a clear success message when the action completes successfully, including next steps: Tier 2 IFPA Organizer Member activated! You can now access organizer features, including applying for event sanctioning, requesting sponsorship, sending community announcements to [announce@footbag.org](mailto:announce@footbag.org), and accessing organizer-only areas of footbag.org.
 - Member sees a clear error message when the action fails.
 
 ### M_View_Tier_Status
 
-Access: Members can view their current tier and relevant dates (such as Tier 2 Annual expiry).
+Access: Members can view their current membership tier, Active Player status if applicable, and Active Player expiry date.
 
-Story: As a Member, I can view my current membership tier, my tier-related benefits, and any expiry dates in one place so that I understand my status.
-
-Success Criteria:
-
-- Page shows current tier with tier badge display ("Tier 0", "Tier 1", "Tier 2" text labels).
-- Page shows any fallback tier (for example, Tier 1 Lifetime acting as fallback under Tier 2 Annual).
-- Page describes, at a high level, the benefits associated with the current tier.
-- Page shows expiry date for Tier 1 or 2 Annual and clearly indicates renewal options, benefits of upgrading, with pricing.
-- Page provides clear "Upgrade Now" or "Renew Now" buttons (if applicable, as Tier 1 Annual cannot be renewed) that initiate Stripe Checkout flow.
-- Tier badges visible to logged-in members on: profiles, club rosters, event participant lists, search results, media author info.
-- Tier badges NOT visible to anonymous visitors.
-
-### M_Tier_Expiry_During_Active_Period
-
-Access: Members with Tier 2 Annual whose tier expires during an active event registration period or vote.
-
-Story: As a member whose Tier 1 or 2 Annual expires during a an active vote, event organization or other such case, I am notified of my tier expiry and/or my access to tier-dependent features. Tier expiry during a vote does NOT revoke eligibility.
+Story: As a Member, I can view my current lifetime membership tier, Active Player status if applicable, tier-related benefits, and any upgrade options in one place so that I understand my IFPA status.
 
 Success Criteria:
 
-- If member tier expires during an active event registration period where they have already registered, their registration remains valid for that event.
-- Member receives email notification at Administrator-configurable offset(s) before tier expiry (defaults: 30 and 7 days) reminding them to renew to maintain access to tier-dependent features.
-- Member receives a built-in day-of expiry notification (T+0; not separately administrator-configurable) confirming their tier has changed and explaining which features are now restricted.
-- System audit logs all tier expiry events with member ID, old tier, new tier, and timestamp.
-- The actual downgrade of Tier 2 Annual (including fallback to Tier 1 Lifetime) is performed automatically by the SYS_Check_Tier_Expiry system job; no manual admin action is required.
-- For Tier 2 Annual members with Tier 1 Lifetime fallback: When Tier 2 Annual expires (tierExpiryDate = today), the SYS_Check_Tier_Expiry job atomically downgrades tierStatus to 'Tier 1_lifetime' and clears tierExpiryDate, ensuring there is no gap where the member has neither Tier 2 nor Tier 1 status. Member receives email notification explaining the fallback and confirming their Tier 1 Lifetime status remains active.
-- Event Organizer continuity: If the member is serving as an Event Organizer for events in `published`, `registration_full`, `closed`, or `completed` status when their tier expires, they retain their Event Organizer role permissions for those specific events until each event reaches `completed` status. This prevents organizers from being locked out of managing active events mid-lifecycle. 
+- Page shows current membership tier with badge display: "Tier 0 Registered Member", "Tier 1 IFPA Member", "Tier 2 IFPA Organizer Member", or "Tier 3 IFPA Director".
+- Page shows whether the member currently has Active Player status. If current, the page shows the Active Player expiry date and explains that Active Player gives a Tier 0 member Tier 1 benefits while current. If expired, the page indicates that Tier 1 benefits and Official IFPA Roster inclusion have ended.
+- Page describes, at a high level, the benefits associated with the current membership tier and, separately, Active Player status.
+- Page provides a clear "Upgrade Now" button (where applicable) that initiates Stripe Checkout flow. Tier 0 members see upgrade options for Tier 1 and Tier 2; Tier 1 members see an upgrade option for Tier 2; Tier 2 and Tier 3 members do not see upgrade prompts.
+- Membership tiers have no expiry date.
+- Tier 3 members see their underlying membership tier, which is the tier they will revert to when Tier 3 governance status ends.
+- Membership tier badges and current Active Player badges visible to logged-in members on: profiles, club rosters, event participant lists, search results, media author info.
+- Membership tier badges and Active Player badges NOT visible to anonymous visitors.
 
-### M_Vouch_For_Tier1_Member
+### M_Active_Player_Expiry
 
-Access: Tier 2+ members can vouch for other members (competitors or non-competitors) to receive Tier 1 Annual status via two pathways:  
+Access: Tier 0 members with current or recently expired Active Player status.
 
-Pathway A (Direct Roster Access): Available automatically for a configurable duration (default: 14 days) after the Tier 2+ member (Event Organizer) uploads results for a sanctioned event they are organizing. During this window, the EO has direct UI access to vouch for any member (not limited to event participants).  
+Story: As a Tier 0 Active Player, I can understand when my Active Player status expires and what access changes when it expires, so that I know whether I still have Tier 1 benefits and Official IFPA Roster inclusion.
 
-Pathway B (Request to Administrators): Available at any time outside direct roster access windows. Tier 2+ member submits a vouching request via the platform identifying the member and providing brief reason (e.g., "club member", "community volunteer"). Request is routed to Administrators who process it with offline consent from the Membership Director (external to platform). Administrators can approve or deny with audit logging.  
+Success Criteria:
 
-Story: As a Tier 2+ member, I can vouch for another member (including non-competitors such as club members or community volunteers) to receive Tier 1 Annual status so that they gain basic IFPA membership without paying, for a period not exceeding one year from the vouching date. Vouching is available either via direct roster access after uploading sanctioned event results, or via request to Administrators at any time.  
+- Active Player expiry affects only Tier 0 members; membership tier is never changed by Active Player expiry.
+- When Active Player status expires, the member remains Tier 0, loses Tier 1 benefits, and is no longer included in the Official IFPA Roster.
+- Existing event registrations remain valid for that event regardless of Active Player expiry timing.
+- Member receives email notification at Administrator-configurable offset(s) before Active Player expiry (defaults: 30 and 7 days) reminding them how to regain Active Player status (later qualifying event attendance, vouch from a Tier 2 or Tier 3 member, or, if not previously used, a one-time first-club-join grant).
+- Member receives a built-in day-of expiry notification (T+0; not separately administrator-configurable) confirming Active Player status has ended and explaining which features are now restricted.
+- The one-time club-join Active Player grant cannot be repeated after Active Player expiry; it is consumed by first use.
+- Active Player expiry events are audit-logged with member ID, previous Active Player expiry date, expiry processing date, and reason `active_player_expired`.
+- The actual expiry processing is performed automatically by the SYS_Check_Active_Player_Expiry system job; no manual admin action is required.
+- Event Organizer continuity: If the member is serving as an Event Organizer for events in `published`, `registration_full`, `closed`, or `completed` status when Active Player status expires, the member retains Event Organizer role permissions for those specific events until each event reaches `completed` status. This prevents organizers from being locked out of managing active events mid-lifecycle.
 
-Success Criteria:  
-Pathway A (Direct Roster Access after event results upload):
+### M_Vouch_For_Active_Player
 
-- When a Tier 2+ member Event Organizer uploads results for a sanctioned event via EO_Upload_Results, the system automatically grants direct roster access for a configurable duration (default: 14 days from results upload timestamp).
-- During this access window, the UI displays a "Vouch for Tier 1 Members" tool with member search and vouching action.
-- System validates that the authenticated member is an organizer (or co-organizer) for the sanctioned event whose results were just uploaded.
-- Organizer can vouch for any member (not limited to event participants listed in uploaded results). This enables vouching for club members, volunteers, spectators, or other community members who supported the event.
-- After the configurable window expires (default: 14 days), direct roster access is automatically revoked and UI no longer displays the vouching tool.
-- Outside this window, the vouching UI is hidden and replaced with message: "Direct vouching access is available for 14 days after uploading results for your sanctioned events. To vouch for members at other times, submit a request to Administrators."
+Access: Tier 2 or Tier 3 members can vouch for Tier 0 members to receive or extend Active Player status.
 
-Pathway B (Request to Administrators outside windows):
+Story: As a Tier 2 or Tier 3 member, I can vouch for a Tier 0 member so that they receive or extend Active Player status and gain Tier 1 benefits while Active Player status is current.
 
-- UI provides a "Request Tier 1 Vouching" form available to all Tier 2+ members at any time.
-- Form fields: member to be vouched for, brief reason (required, max 200 chars: e.g., "club member", "community volunteer", "long-time supporter"), optional notes.
-- On submit, system creates a Tier1VouchingRequest entity with status 'pending' and sends email notification to Administrator work queue.
-- Request appears in A_Process_Tier1_Recognition_Requests Admin story work queue.
-- On Admin approval (with offline MD consent): same tier logic as Pathway A is applied; requester and vouched member both receive email confirmation.
-- On Admin denial: requester receives email with denial reason; vouched member is not notified.
-- All requests, approvals, and denials are audit-logged with: requester ID, vouched member ID, reason, decision, timestamp.
+Success Criteria:
 
-Vouching logic (applies to both pathways):
-- If vouched member is currently Tier 0, upgrade to Tier 1 Annual with tierExpiryDate = today + 365 days.
-- If vouched member already has Tier 1 Annual with tierExpiryDate < today + 365 days, extend tierExpiryDate to today + 365 days.
-- If vouched member already has Tier 1 Annual with tierExpiryDate >= today + 365 days (already at or beyond one year from today), no change; UI displays "No change needed — member already has Tier 1 Annual extending to or beyond one year from today" and prevents vouching action.
-- If vouched member already has Tier 1 Lifetime or higher tier, the action is a no-op; UI displays "No change needed - member already has Tier 1 Lifetime or higher."
-- Vouching cannot extend Tier 1 Annual beyond 365 days from the vouching date, regardless of pathway used.
-- Repeated vouching within the same 365-day period does not stack beyond 365 days from the most recent vouching action.
-- Vouching action is logged with: voucher member ID, vouched member ID, old tier/expiry, new tier/expiry, timestamp, reason/pathway ("direct_roster_after_event" or "admin_approved_request"), persisted in the database with a new row in the Entitlements Ledger table.
-- Vouched member receives email notification: "You have been vouched for Tier 1 Annual by Voucher Name. Your Tier 1 Annual status is now active until expiry date. Brief explanation of Tier 1 benefits"
-- Email notification clearly indicates whether vouching occurred via direct access (after event results upload) or via Administrator approval.
+- Vouching action is available to Tier 2 and Tier 3 members at any time. There is no time-windowed direct-roster-access mechanism and no admin-approval workflow.
+- The target member must be Tier 0. If the target is Tier 1, Tier 2, or Tier 3, the action is a no-op and the UI displays "No change needed - Active Player status applies only to Tier 0 members."
+- If the target is Tier 0 with no current Active Player status, vouching grants Active Player for the configured duration (default: 730 days from the vouch date).
+- If the target is Tier 0 with current Active Player status, vouching extends Active Player only if the new expiry date (vouch date + 730 days) would be later than the existing expiry date. An older vouch must not shorten an existing later Active Player expiry date.
+- Vouching never changes membership tier.
+- Vouching action is audit-logged with: voucher member ID, target member ID, target tier at vouch time, old Active Player expiry, new Active Player expiry, timestamp, reason `tier2_vouch_active_player`.
+- Vouched member receives an email notification: "You have received Active Player status from Voucher Name. Your Active Player status is now active until expiry date. As an Active Player you have Tier 1 benefits while current."
+- Vouching submissions are rate-limited per voucher to prevent abuse (Administrator-configurable; safe defaults).
 
 ## 3.7 Voting
 
@@ -1102,7 +1061,7 @@ All member-published media is public unless an Administrator removes it via mode
 
 ### M_Upload_Photo
 
-Access: Members (Tier 1+) can upload photos to personally named galleries.
+Access: Members with Tier 1 benefits can upload photos to personally named galleries.
 
 Story: As a member, I can upload photos so that I share visual content.
 
@@ -1118,7 +1077,7 @@ Success Criteria:
 - Static tag suggestions are shown near the tag field using standardized event and club hashtags and popular community freeform tags. Clicking a suggested tag inserts it into the tag field; suggestions are not shown per keystroke as autocomplete (but can be added in phase two).
 - Teaching moments displayed on My Content page empty state: show recent example photos with their hashtags and popular community tags, all clickable to insert into the tag field, and highlight aggregated hashtag statistics.
 - Photo upload rate limited to 10 uploads per hour per member to prevent abuse.
-- Photo upload controls are only rendered for Tier 1+ members.
+- Photo upload controls are only rendered for members with Tier 1 benefits.
 - Visitors (not logged in) never see upload controls.
 - See photo immediately after upload (synchronous processing).
 - Photo tagged with event hashtag appears in that event's media gallery.
@@ -1129,7 +1088,7 @@ Success Criteria:
 
 ### M_Submit_Video
 
-Access: Members (Tier 1+) can submit video links for inclusion in media galleries.
+Access: Members with Tier 1 benefits can submit video links for inclusion in media galleries.
 
 Story: As a member, I can submit YouTube or Vimeo video links so that I share video content.
 
@@ -1145,12 +1104,12 @@ Success Criteria:
 - Static tag suggestions are shown near the tag field using standardized event and club hashtags and popular community freeform tags. Clicking a suggested tag inserts it into the tag field; suggestions are not shown per keystroke as autocomplete (but can be added in phase two).
 - Teaching moments displayed on My Content page empty state: show recent example photos with their hashtags and popular community tags, all clickable to insert into the tag field, and highlight aggregated hashtag statistics.
 - Videos and photos can be mixed in named galleries.
-- Video upload/link submission controls are only rendered for Tier 1 and Tier 2 members; Tier 0 members never see any video upload or submission controls.
+- Video upload/link submission controls are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see any video upload or submission controls.
 - Visitors (not logged in) never see video upload or submission controls.
 
 ### M_Organize_Media_Galleries
 
-Access: Members (Tier 1+) can organize their own media into named galleries and adjust gallery-level settings.
+Access: Members with Tier 1 benefits can organize their own media into named galleries and adjust gallery-level settings.
 
 Story: As a member, I can organize photos and videos into named galleries with hashtags, captions, and optional external web page URLs.
 
@@ -1164,23 +1123,23 @@ Success Criteria:
 - Personal gallery retrieves media where uploaderId matches AND isAvatar equals false (excludes avatar photo).
 - Club and Event galleries aggregate both content types by hashtag matching.
 - Maximum 5 video embeds per named gallery to maintain performance.
-- Gallery creation and rename controls are only rendered for Tier 1 and Tier 2 members; Tier 0 members never see gallery creation or rearrangement controls.
+- Gallery creation and rename controls are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see gallery creation or rearrangement controls.
 
 ### M_Delete_Own_Media
 
-Access: Members (Tier 1+) can delete media items they originally uploaded.
+Access: Members with Tier 1 benefits can delete media items they originally uploaded.
 
 Story: As a member, I can delete my own photo, video link, or named gallery so that I control my content.
 
 Success Criteria:
 
 - Uploader can delete own media anytime, with immediate permanent effect (no soft delete for media).
-- Delete controls for user-owned media are only rendered for Tier 1 and Tier 2 members; Tier 0 members never see delete controls because they cannot upload media.
+- Delete controls for user-owned media are only rendered for members with Tier 1 benefits; Tier 0 members without current Active Player status never see delete controls because they cannot upload media.
 - When deleting a media item, the deletion is permanent and has a cascading deletion of all the associated tags.
 
 ### M_Flag_Media
 
-Access: Members (Tier 1+) can flag media they believe violates community guidelines. Visitors cannot flag content.
+Access: Members with Tier 1 benefits can flag media they believe violates community guidelines. Visitors cannot flag content.
 
 Story: As a member, I can flag photos or videos so that harmful/low-quality content is reviewed.
 
@@ -1192,7 +1151,7 @@ Success Criteria:
 - Uploader can remove own media anytime without admin approval.
 - Multiple flags from same user for same media not counted separately.
 - Flagging is rate-limited to prevent abuse; limit is admin-configurable via `media_flag_rate_limit_per_hour` (default: 10 flags per member per hour).
-- Flagging is available to membership tiers Tier 1+.
+- Flagging is available to members with Tier 1 benefits.
 
 ## 3.9 Email
 
@@ -1213,9 +1172,9 @@ Success Criteria:
 - Subscription changes logged to audit trail.
 
 ### M_Send_Announce_Email
-Access: Tier 2+ members.
+Access: Tier 2 or Tier 3 members.
 
-Story: As a Tier 2+ member, I can send an email to the IFPA announce mailing list so that I can create community announcements.
+Story: As a Tier 2 or Tier 3 member, I can send an email to the IFPA announce mailing list so that I can create community announcements.
 
 Success Criteria:  
 - Email form includes: subject, message body, preview.  
@@ -1227,7 +1186,7 @@ Success Criteria:
 
 Event Organizers are members who create events. Organizers can invite up to 4 co-organizers who share identical event management permissions. Members can organize multiple events simultaneously. Organizer permissions are event-scoped, meaning that being an organizer (or co-organizer) for one event grants permissions only for that event. Any EO can send bulk emails to registered participants, upload results, and the other functionality specified below.
 
-Tier 1 can create basic/local events; Tier 2 active required for sanctioned and paid events.
+Members with Tier 1 benefits can create basic/local events; Tier 2 or Tier 3 required for sanctioned and paid events.
 
 ## 4.1 Event Lifecycle
 
@@ -1247,18 +1206,18 @@ No other status values are valid. All queries and conditional logic must use onl
 
 ### M_Create_Event
 
-Access: Members (Tier 1+) can create events. This is how a member becomes an Event Organizer.
+Access: Members with Tier 1 benefits can create events. This is how a member becomes an Event Organizer.
 
 Story: As a member, I can create an event with all necessary details and optionally configure payment, so that I can become an Event Organizer, and host tournaments and gatherings.
 
 Success Criteria:
 
-- Tier 1 members can create basic free events; Tier 2 active members can request sanctioned events and enable paid registration.
+- Members with Tier 1 benefits can create basic free events; Tier 2 or Tier 3 members can request sanctioned events and enable paid registration.
 
-Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, capacity limit (optional), competitor registration fee (optional, requires Tier 2 active and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional). Organizer defines a flexible list of event disciplines (freeform names such as shred-30 or ruler-of-the-court). For each discipline, organizer specifies whether it requires single/doubles/mixed doubles designation, and category (net, freestyle, golf, sideline). Sideline includes formats such as 2-square, 4-square, consecutive variants, one-pass, and social.
+Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, capacity limit (optional), competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional). Organizer defines a flexible list of event disciplines (freeform names such as shred-30 or ruler-of-the-court). For each discipline, organizer specifies whether it requires single/doubles/mixed doubles designation, and category (net, freestyle, golf, sideline). Sideline includes formats such as 2-square, 4-square, consecutive variants, one-pass, and social.
 
-- Tier 1 members can create basic/local events without fees.
-- Tier 2 active members can request sanctioned events and configure paid registration (subject to admin approval). Payment configuration (if enabled): competitor registration fee, (optional) spectator fee.
+- Members with Tier 1 benefits can create basic/local events without fees.
+- Tier 2 or Tier 3 members can request sanctioned events and configure paid registration (subject to admin approval). Payment configuration (if enabled): competitor registration fee, (optional) spectator fee.
 - Sanction request sends notification to admins for review, and such events are only published upon approval.
 - Organizer sees a clear success message when event is created.
 - Organizer sees clear error messages for validation failures with hints about what to fix.
@@ -1266,9 +1225,9 @@ Event creation form includes: title, description, start date, end date, location
 - An Event Organizer may organize more than one event at a time.
 - For free events, event status changes to published, Email sent to all event organizers to confirm. News item is created. Event will appear in Upcoming Events list. For paid events, these actions must wait for Admin approval.
 
-As an event organizer with active Tier 2, I can select the sanctioned option for my event so that it gains credibility and access to paid features (upon admin approval).
+As an event organizer with Tier 2 or Tier 3 membership, I can select the sanctioned option for my event so that it gains credibility and access to paid features (upon admin approval).
 
-- Only Tier 2 active organizers can request sanction.
+- Only Tier 2 or Tier 3 organizers can request sanction.
 - Sanction request form includes: fee justification.
 - Organizer receives email confirmation that request is pending.
 - Sanction status visible on event detail page: pending, approved, rejected.
@@ -1335,23 +1294,23 @@ Story: As an event organizer, I can view the list of registered participants so 
 
 Success Criteria:
 
-- Participant list shows: member name, registration date, tier status, city, country, email (if opted in).
+- Participant list shows: member name, registration date, membership tier and Active Player status, city, country, email (if opted in).
 - List sortable by registration date or name.
 - Total participant count displayed.
 - Payment status visible if event has fees.
 - Participant list and exports include registration type (Competitor/Attendee-Supporter), selected categories (if competitor), and partner/team fields (if applicable).
 
-Impact: For sanctioned events (sanction status = approved), the participant list supports marking confirmed participants as "Attended" after the event ends. Organizers can mark individual participants or use bulk-select to mark multiple participants at once. All attendance marks and any resulting tier changes are audit-logged with: actor member ID, affected member ID, event ID, old tier/expiry, new tier/expiry, timestamp, reason "sanctioned_event_attendance".
+Impact: For events officially registered through the IFPA website (including sanctioned events), the participant list supports marking confirmed participants as "Attended" after the event ends. Organizers can mark individual participants or use bulk-select to mark multiple participants at once. All attendance marks and any resulting Active Player grants or extensions are audit-logged with: actor member ID, affected member ID, event ID, old Active Player expiry, new Active Player expiry, timestamp, reason "official_event_attendance".
 
-When a participant is marked Attended for a sanctioned event:
+When a participant is marked Attended:
 
-- If the member's current tier is Tier 0, upgrade to Tier 1 Annual with expiry = event startDate + 365 days.
+- If the member is Tier 0 with no current Active Player status, grant Active Player for 730 days from the event end date. For a single-day event, the event date is used. If the event end date is unknown, the event start date is used.
 
-- If the member already has Tier 1 Annual with expiry  event startDate + 365 days, extend expiry to event startDate + 365 days.
+- If the member is Tier 0 with current Active Player status, extend Active Player only if the new expiry date (computed as above) would be later than the existing expiry date. An older event must not shorten an existing later Active Player expiry date.
 
-- If the member already has Tier 1 Annual with expiry = event startDate + 365 days, no change (do not shorten existing expiry).
+- If the member is Tier 1, Tier 2, or Tier 3, the action is a no-op for membership and Active Player; attendance is recorded but no Active Player grant occurs because Active Player applies only to Tier 0.
 
-- If the member has Tier 1 Lifetime or higher tier, no change (no-op).
+- Attendance marking never changes membership tier.
 
 ### EO_Close_Registration
 
@@ -1374,7 +1333,7 @@ Story: As an event organizer, I can export the participant list so that I can us
 
 Success Criteria:
 
-- Export generates CSV file with: member name, email (if opted in), city, country, registration date, tier status, payment status.
+- Export generates CSV file with: member name, email (if opted in), city, country, registration date, membership tier and Active Player status, payment status.
 - Export includes only confirmed participants (not pending or rejected).
 - Export filename: eventname_participants_YYYYMMDD.csv
 - Participant list and exports include registration type (Competitor/Attendee-Supporter), selected categories (if competitor), and partner/team fields (if applicable).
@@ -1417,13 +1376,9 @@ Success Criteria:
 - Only organizers can upload results.
 - Results upload audit-logged.
 - Results can be uploaded for any event (sanctioned status does not affect results posting).
-- Each results upload resets the direct roster access window (for vouching) to `vouch_window_days` days from the most recent upload timestamp. Only the most recent upload timestamp is used for vouching window calculation. Admins can view the roster access window status and expiry date per event in the admin dashboard.
-
 Impact:
 
-For sanctioned events, uploading results triggers a two-step attendance confirmation process: Step 1: Automatic attendance for winners: Any member accounts appearing in the uploaded results are automatically marked as "Attended" and receive Tier 1 Annual extension automatically. Step 2: Attendance confirmation for non-placing participants: After results upload completes, the system displays an attendance confirmation screen showing all registered participants (confirmed registrations) who do NOT appear in the uploaded results with checkboxes. The goal is to verify attendance, which triggers automatic Tier 1 Annual status and/or adjust the expiry date to be exactly one year from the tournament date. All attendance confirmations (both automatic for winners and manual for non-placing participants) and resulting tier changes are audit-logged with: organizer member ID, affected member ID, event ID, old tier/expiry, new tier/expiry, timestamp, reason "sanctioned_event_attendance". Members who receive tier upgrades or extensions are sent a notification email explaining they received Tier 1 Annual (or extension) for participating in Event Name, including new expiry date and brief explanation of Tier 1 benefits.
-
-Roster Access Trigger (for sanctioned events only): Upon successful results upload for a sanctioned event, the system automatically grants the organizer (and all co-organizers) direct roster access for a configurable duration (default: 14 days after results upload, parameter key: vouch_window_days). This roster access enables the event organizer to use the M_Vouch_For_Tier1_Member workflow (Pathway A: Direct Roster Access) to vouch for any member, including event participants, club members, volunteers, and community supporters. The roster access window is tracked per organizer-event pair and automatically expires after the configured duration. System sends email notification to organizer(s) when roster access is granted: "Results uploaded for Event Name. You now have direct roster access to vouch for Tier 1 members for the next 14 days."
+For events officially registered through the IFPA website (including sanctioned events), uploading results triggers a two-step attendance confirmation process: Step 1: Automatic attendance for winners: any member accounts appearing in the uploaded results are automatically marked as "Attended". Step 2: Attendance confirmation for non-placing participants: after results upload completes, the system displays an attendance confirmation screen showing all registered participants (confirmed registrations) who do NOT appear in the uploaded results with checkboxes, allowing the organizer to verify additional attendees. For each confirmed Tier 0 attendee, the system grants or extends Active Player status for 730 days from the event end date (single-day event: event date; unknown end date: event start date). An older event must not shorten an existing later Active Player expiry date. For Tier 1, Tier 2, or Tier 3 attendees, attendance is recorded but no Active Player grant occurs because Active Player applies only to Tier 0; attendance never changes membership tier. All attendance confirmations and resulting Active Player grants/extensions are audit-logged with: organizer member ID, affected member ID, event ID, old Active Player expiry, new Active Player expiry, timestamp, reason "official_event_attendance". Tier 0 members who receive or extend Active Player status are sent a notification email explaining they received Active Player status for participating in Event Name, including the new expiry date and a brief explanation of Tier 1 benefits while Active Player status is current.
 
 # 5. Club Leader Stories
 
@@ -1435,7 +1390,7 @@ Club operability rule: A club is considered non-operable if it has no current le
 
 ### M_Create_Club
 
-Access: Members (Tier 1+) who are not already a Club Leader can create a new club.
+Access: Members with Tier 1 benefits who are not already a Club Leader can create a new club.
 
 Story: As an eligible member, I can create a club so that I can become a Club Leader, and organize a local footbag community.
 
@@ -1444,7 +1399,7 @@ Success Criteria:
 - Club creation form includes: club name, description, city, country, contact email (required for all new clubs). A club with no contact email is treated as non-operable and flagged for admin remediation.
 
 - Standardized hashtag follows pattern club_{location_slug}.
-- Only Tier 1 or Tier 2 members can create clubs.
+- Only members with Tier 1 benefits can create clubs.
 - Leader sees a clear success message when club is created.
 - Leader sees clear error messages for validation failures.
 - Member gains Club Leader status for this club. A member may lead only one club at a time.
@@ -1517,7 +1472,7 @@ Success Criteria:
 
 # 6. Administrator Stories
 
-Administrators are member volunteers with elevated privileges for platform operations, content moderation, and system configuration. Administrators are assigned manually and must be IFPA members with Tier 2 Lifetime or Tier 3 status. All admin actions that modify data are audit-logged with admin ID, action type, reason, and timestamp. There is no UI for becoming an Admin, as this is done usually by another Admin, but could be done also by a System Administrator (a developer role not a user role) in order to grant system privileges.
+Administrators are member volunteers with elevated privileges for platform operations, content moderation, and system configuration. Administrators are assigned manually and must be IFPA members with Tier 2 or Tier 3 status. All admin actions that modify data are audit-logged with admin ID, action type, reason, and timestamp. There is no UI for becoming an Admin, as this is done usually by another Admin, but could be done also by a System Administrator (a developer role not a user role) in order to grant system privileges.
 
 ## 6.1 Event and Payments
 
@@ -1539,7 +1494,7 @@ Success Criteria:
 - Admin can see: event details, organizer history, fee amount, organizer tier status.
 - Approval simultaneously: marks event as sanctioned AND enables paid registration.
 - All approval/rejection decisions audit-logged with admin ID, decision, reason, timestamp.
-- Admin cannot approve sanction if organizer lacks active Tier 2 status.
+- Admin cannot approve sanction if organizer lacks Tier 2 or Tier 3 status.
 - Admin sees a clear success message when approval/rejection completes successfully.
 - Admin sees a clear error message when action fails, including a short explanation.
 - The actual payment of funds to the Event Organizer’s bank account happens outside of this system by the IFPA Treasurer.
@@ -1572,13 +1527,13 @@ Admin can delete member accounts that violate registration rules (real full name
 Success Criteria:
 
 - Admin can access member profile from admin member management interface.
-- Admin can change tierStatus to any valid state: `tier0`, `tier1_annual`, `tier1_lifetime`, `tier2_annual`, `tier2_lifetime`, `tier3` (using canonical database string values).
-- For annual memberships, admin can set or modify tierExpiryDate.
+- Admin can change membership tier to any valid state: `tier0`, `tier1`, `tier2`, `tier3` (using canonical database string values). Active Player status is managed separately from membership tier.
+- Admin can correct the Active Player expiry date when needed for exceptional remediation, with mandatory reason and audit logging.
 - Admin should not edit member-editable fields (email, city, country, club affiliation) via this interface; members must edit these themselves, except in the case of a member death. Display name corrections require admin action (contact IFPA).
 - Event results and other data fields that could be buggy can also be edited via this interface, but will require additional UI support.
 - Mandatory reason field for manual adjustment (typically: payment issue resolution, complimentary access, error correction).
 - Confirmation dialog before applying with member name, old tier, new tier, and reason.
-- Member receives email notification of tier change with key points: new tier, expiry (if applicable), reason.
+- Member receives email notification of membership-status change with key points: new membership tier, Active Player status or expiry where changed, reason.
 - All manual data overrides audit-logged with admin ID, member ID, old values, new values, reason, timestamp.
 - Admin sees a clear success message when adjustment completes successfully.
 - Admin sees a clear error message when adjustment fails, including a short explanation.
@@ -1591,8 +1546,8 @@ Story: As an admin, I can grant special status badges to a member if they qualif
 
 Success Criteria:
 
-- Admin can select member and grant Hall of Fame (HoF) or Big Add Posse (BAP) status flags (assuming they qualify per IFPA criteria). HoF and BAP badges are permanent lifetime honors that persist indefinitely. The act of assigning these badges automatically changes the membership tier (and fallback tier) to Tier 2 Lifetime, unless the member is a Board Member (Tier 3), in which case only the fallback tier is modified. Granting these badges sends a congratulatory email to the member.
-- The IFPA Board flag is temporary and applies only while the member is an active board member. When the IFPA Board flag is set active, the system automatically sets the member's tierStatus to Tier 3 (IFPA director). When the IFPA Board flag is removed (member no longer on board), tierStatus reverts to the member's previous tier (typically Tier 2 or Tier 1, depending on their paid membership status). All Board flag changes and resulting tier changes are audit-logged.
+- Admin can select member and grant Hall of Fame (HoF) or Big Add Posse (BAP) status flags (assuming they qualify per IFPA criteria). HoF and BAP badges are permanent lifetime honors that persist indefinitely. The act of assigning either badge automatically grants Tier 2 membership. If the member is currently Tier 3, the member remains Tier 3 while governance status is active and the underlying membership tier is set to Tier 2 for later reversion. Granting these badges sends a congratulatory email to the member.
+- The IFPA Board flag (Tier 3 governance status) is temporary and applies only while the member is an active board member. When the IFPA Board flag is set active, the system sets the member's membership tier to Tier 3 (IFPA director) and records the underlying membership tier for later reversion. If a Tier 0 member becomes Tier 3, the underlying membership tier is set to Tier 1 and any current Active Player status ends. When the IFPA Board flag is removed (member no longer on board), membership tier reverts to the underlying tier: Tier 1 if the member entered Tier 3 from Tier 0 or Tier 1, or Tier 2 if the member entered from Tier 2, Hall of Fame, or BAP. All Board flag changes and resulting tier changes are audit-logged.
 - Badges are visible on member profile and anywhere member tier is displayed.
 - The IFPA Board flag is temporary, as long as the member is an active board member only.
 - All status grants audit-logged with admin ID, member ID, reason, timestamp.
@@ -1608,37 +1563,23 @@ Success Criteria:
 - Admin can view audit log for specific member showing all tier changes, HoF grants, BAP grants, manual overrides.
 - History displays: timestamp, action type, old values, new values, admin who performed action, reason.
 - History sortable by timestamp (newest first by default).
-- History includes system-initiated changes (automatic Tier 2 expiry, payment-triggered upgrades).
+- History includes system-initiated and event-triggered changes: payment-triggered membership upgrades, Active Player grants/extensions/expiry, HoF and BAP grants, Tier 3 governance changes, and underlying-tier changes.
 
 ### A_View_Official_Roster_Reports
 
-Access: Only admins can view official IFPA roster reports and exports.  
+Access: Only admins can view Official IFPA Roster reports and exports.
 
-Story: As an admin, I can view the official IFPA roster count and membership breakdowns so that I can report accurate membership statistics to the IFPA Board and external stakeholders, excluding Tier 0 non-voting members per official IFPA rules.  
+Story: As an admin, I can view the Official IFPA Roster count and membership breakdowns so that I can report accurate membership statistics to the IFPA Board and authorized IFPA organizers, distinguishing membership tier from Active Player status.
 
-Success Criteria:  
-- Admin dashboard includes an "Official Roster" section displaying: Total official IFPA members (count of members where tierStatus in 'Tier 1_annual', 'Tier 1_lifetime', 'Tier 2_annual', 'Tier 2_lifetime', 'Tier 3'). Breakdown by tier: Tier 1 Annual count, Tier 1 Lifetime count, Tier 2 Annual count, Tier 2 Lifetime count, Tier 3 count. Breakdown by special flags: HoF count, BAP count, Board Member count (these may overlap with tier counts). Total registered accounts (including Tier 0) for comparison, with clear label: "Total Registered Accounts (including Tier 0 non-voting)". Counts update via SQL query on demand.
-
-- Admin can export official roster as CSV with columns: member ID, display name, tier status, tier expiry date (if applicable), special flags (HoF/BAP/Board), email (opt-in only), city, country.  
-- Export filename: official_roster_YYYYMMDD.csv  
-- Export explicitly excludes Tier 0 members per IFPA rules.  
-- Export includes a header comment line: "# Official IFPA Roster - Tier 1+ members only - Generated YYYY-MM-DD by admin name"  
+Success Criteria:
+- Admin dashboard includes an "Official IFPA Roster" section. The Official IFPA Roster includes Tier 1 members, Tier 2 members, Tier 3 members, and Tier 0 members with current Active Player status. Tier 0 members without current Active Player status are excluded.
+- Dashboard shows total Official IFPA Roster count and a breakdown by membership state: Tier 0 Active Player count, Tier 1 count, Tier 2 count, Tier 3 count. Breakdown by special flags: HoF count, BAP count, Board / Tier 3 governance count (these may overlap with tier counts). Total registered accounts (including Tier 0 members without Active Player status) for comparison, with clear label: "Total Registered Accounts (including Tier 0 without current Active Player status)". Counts update via SQL query on demand.
+- Admin can export the Official IFPA Roster as CSV with columns: member ID, display name, membership tier, Active Player status, Active Player expiry date (if applicable), special flags (HoF/BAP/Board), email (opt-in only), city, country.
+- Export filename: official_roster_YYYYMMDD.csv.
+- Export explicitly excludes Tier 0 members without current Active Player status.
+- Export includes a header comment line: "# Official IFPA Roster - Tier 1, Tier 2, Tier 3, and Tier 0 Active Player members - Generated YYYY-MM-DD by admin name".
+- The Official IFPA Roster is not public. Tier 2 or Tier 3 members may access it for official IFPA event and organizer purposes through admin-provisioned access; the platform does not expose roster data to general member queries.
 - All roster report views and exports are audit-logged with admin ID, export type, member count, timestamp.
-
-### A_Process_Tier1_Recognition_Requests
-
-Access: Only Admins can review and approve/deny Tier 1 vouching requests submitted by Tier 2+ members outside direct roster access windows.  
-
-Story: As an Administrator, I can review pending Tier 1 vouching requests submitted by Tier 2+ members, and approve or deny each request with a reason, acting with offline consent from the Membership Director (external to platform), so that roster updates outside direct-access windows are controlled while preventing frivolous or abusive requests.  
-
-Success Criteria:  
-- Admin sees a work queue showing all pending Tier1VouchingRequest entities where status = 'pending'.  
-- Each request displays: requester name and member ID, target member name and member ID, reason provided by requester, request submission timestamp, target member's current tier status.  
-- Admin can take two actions per request: Approve: Applies the same Tier 1 Annual vouching logic as direct roster access (extend to today + 365 days or upgrade from Tier 0), sends confirmation emails to requester and vouched member, sets request status = 'approved', audit-logs with approval reason (optional, defaults to "approved by Admin with MD consent"). Deny: Sets request status = 'denied', sends email to requester with denial reason (mandatory text field, max 500 chars), does not notify target member, audit-logs with denial reason.  
-- Admin approval/denial actions presume offline consultation with or consent from the Membership Director (external workflow, not tracked in platform). Platform does not enforce or verify MD consent; it is the Admin's responsibility to obtain appropriate authorization before acting.  
-- Approved and denied requests remain in the system permanently for audit purposes and are viewable in a separate "Processed Requests" view.
-- All approve/deny actions are persisted as a new row in the tier_grants_base table (which tracks all tier-related grants and associated qualifying actions, such as vouching from a Tier 2+ member, or by other actions such as a purchase).  
-- This Admin workflow represents the platform implementation of IFPA rules requiring "Membership Director discretion"; the actual Membership Director authority remains external to the platform.
 
 ### A_Reassign_Club_Leader
 
@@ -1919,14 +1860,14 @@ Success Criteria:
 
 ### A_Send_Mailing_List_Email
 
-Access: Only Admins and Event Organizers can send email to general mailing lists from the platform. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2+ member, as defined in M_Send_Announce_Email.
+Access: Only Admins and Event Organizers can send email to general mailing lists from the platform. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member, as defined in M_Send_Announce_Email.
 
 Story: As an admin, I can send announcements to a platform-configured mailing list so that I communicate with the community.
 
 Success Criteria:
 
 - Admin composes email and selects target list (newsletter, announcements, board-updates).
-- Organization-wide announce list is retained; only Admins may send to general mailing lists through this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2+ member via M_Send_Announce_Email; the Admin-only rule applies to all other mailing lists managed through this story.
+- Organization-wide announce list is retained; only Admins may send to general mailing lists through this story. Exception: the IFPA announce list (announce@footbag.org) may be sent to by any Tier 2 or Tier 3 member via M_Send_Announce_Email; the Admin-only rule applies to all other mailing lists managed through this story.
 - System enumerates recipients from MailingListSubscription records for the chosen MailingList, applying subscription status.
 - Sends to all subscribed members via outbox pattern.
 - Email delivery respects bounce list.
@@ -1980,12 +1921,12 @@ Success Criteria:
 
 - There is a single System Parameters admin view that shows all supported configuration settings grouped into clear sections (for example: Membership and Pricing, Donations and Payments, Email and Notifications, Data Retention and Cleanup, Grace Periods, System Health and Alarms, Session Timeout).
 - All Administrator-configurable system parameters have normative default values defined in the Configurable Parameters subsection of this document. The initial database creation process must load those defaults into the corresponding tables. Defaults reflect IFPA rules where applicable, and otherwise reflect privacy, security, and legal-retention requirements.
-- The Membership and Pricing section allows an admin to view and adjust: Tier 1 Lifetime price (USD). Tier 2 Annual price (USD). Tier 2 Lifetime price (USD).
-- The Email and Notifications section allows an admin to view and adjust: Maximum email retry attempts for the outbox / notification sender (default: 5 attempts with exponential backoff; after max attempts the item is moved to a dead-letter queue/folder visible to admins). Time between outbox scans / notification runs (for example every 5 minutes) for SYS_Send_Email. "Pause sending" emergency toggle (default: off) that stops the worker from sending new outbox items while keeping newly enqueued items pending. Days-before-event for registration reminder emails in M_Register_For_Event (default: 7 days before event start). Two administrator-configurable days-before-tier-expiry reminder offsets (defaults: 30 and 7 days). Day-of expiry notification (T+0) is built in and not separately configurable.
+- The Membership and Pricing section allows an admin to view and adjust: Tier 1 IFPA Member price (USD). Tier 2 IFPA Organizer Member price (USD).
+- The Email and Notifications section allows an admin to view and adjust: Maximum email retry attempts for the outbox / notification sender (default: 5 attempts with exponential backoff; after max attempts the item is moved to a dead-letter queue/folder visible to admins). Time between outbox scans / notification runs (for example every 5 minutes) for SYS_Send_Email. "Pause sending" emergency toggle (default: off) that stops the worker from sending new outbox items while keeping newly enqueued items pending. Days-before-event for registration reminder emails in M_Register_For_Event (default: 7 days before event start). Two administrator-configurable days-before-Active-Player-expiry reminder offsets (defaults: 30 and 7 days). Day-of Active Player expiry notification (T+0) is built in and not separately configurable.
 - All parameters on this screen: Show current values and defaults, with short helper text explaining how each value is used (for example “Used by recurring donations job; do not set below X days without board approval”). Enforce safe ranges and validation so that admins cannot set obviously invalid values (for example negative days, zero retry count, or unparseable expressions). Are audit-logged when changed, including old value, new value, admin ID, and timestamp, and these changes appear in A_View_Audit_Logs / A_View_System_Health where appropriate.
 - Changing any of these parameters does not require code deployment: the updated values are read from the SystemConfig data store and automatically picked up by the relevant jobs, flows, and admin views the next time they run.
 - The Data Retention Configuration section allows an admin to view and adjust entity-specific retention periods enforced by SYS_Cleanup_Soft_Deleted_Records background job: Member account deletion grace period, Payment record compliance retention, Audit log retention, Ballot retention.
-- Admin can create a new dues schedule entry with: tier product (eg: Tier 1 Lifetime), amount, currency, effectiveStartDate, and required reason (“official rule change”, “board decision”, etc.).
+- Admin can create a new dues schedule entry with: tier product (eg: Tier 1 IFPA Member), amount, currency, effectiveStartDate, and required reason (“official rule change”, “board decision”, etc.).
 - Only one schedule entry per tier product may be active for a given effectiveStartDate.
 - Price schedule changes are audit-logged with admin ID, old active price, new price, effectiveStartDate, reason, timestamp.
 - Past entries are immutable/read-only (no edit/delete); admins can only supersede by adding a new entry.
@@ -1999,7 +1940,7 @@ Story: As an admin, I can grant or revoke admin privileges so that I manage the 
 Success Criteria:
 
 - Admin can select member and grant/revoke admin role.
-- Granting admin requires: member has Tier 2 Lifetime or Tier 3 status, confirmation dialog, mandatory reason.
+- Granting admin requires: member has Tier 2 or Tier 3 status, confirmation dialog, mandatory reason.
 - Revoking admin requires: confirmation dialog, mandatory reason.
 - Admin cannot revoke their own admin status (ensures there is always at least one admin).
 - All role changes send email notification to affected member.
@@ -2013,16 +1954,14 @@ Seed these defaults into the database-backed configuration store during initial 
 
 ### Membership Pricing / Dues (IFPA-derived)
 
-- `tier1_lifetime_price_cents = 1000` (Tier 1 Lifetime dues; integer cents; valid `> 0`)
-- `tier2_annual_price_cents = 2500` (Tier 2 Annual dues; integer cents; valid `> 0`)
-- `tier2_lifetime_price_cents = 15000` (Tier 2 Lifetime dues; integer cents; valid `> 0`)
+- `tier1_price_cents = 1000` (Tier 1 IFPA Member dues; integer cents; valid `> 0`)
+- `tier2_price_cents = 5000` (Tier 2 IFPA Organizer Member dues; integer cents; valid `> 0`)
 
-### Membership Windows / Lifecycle
+### Active Player Windows / Lifecycle (IFPA-derived)
 
-- `vouch_window_days = 14 days` (valid `>= 1`)
-- `tier_expiry_reminder_days_1 = 30 days` (valid `>= 1`)
-- `tier_expiry_reminder_days_2 = 7 days` (valid `>= 1` and `< tier_expiry_reminder_days_1`)
-- `tier_expiry_grace_days = 0 days` (valid `>= 0`)
+- `active_player_duration_days = 730 days` (Active Player grant duration; IFPA-rule-derived; changes only when IFPA adopts a later rule)
+- `active_player_expiry_reminder_days_1 = 30 days` (valid `>= 1`)
+- `active_player_expiry_reminder_days_2 = 7 days` (valid `>= 1` and `< active_player_expiry_reminder_days_1`)
 
 ### Email / Notifications / Outbox
 
@@ -2126,22 +2065,23 @@ Success Criteria:
 
 System jobs are not User Stories. Instead they represent automated processes that execute on schedules (a DevOps concern), or in response to system events (webhooks). All system job actions are logged so that they can be viewed via the admin dashboard. These jobs are required in order to ensure the success criteria for the User Stories given above are met.
 
-### SYS_Check_Tier_Expiry
+### SYS_Check_Active_Player_Expiry
 
 Access: This scheduled process runs under the system role.
 
-Story: The system automatically checks membership tier expiry every day, and sends any required renewal or downgrade notifications, so that Tier 1 or 2 Annual stay in sync with their rules without manual admin work.
+Story: The system automatically checks Active Player expiry every day so that Tier 0 members' temporary Tier 1 benefits and Official IFPA Roster inclusion stay in sync with the IFPA membership rules.
 
 Success Criteria:
 
-- System runs a daily job that evaluates all Tier 1 and 2 Annual memberships (and any other expiring tiers configured in System Parameters) for upcoming and past expiry, using two configured pre-expiry reminder offsets and grace-period settings (for example T-30 and T-7), plus a built-in day-of expiry notification (T+0).
-- For each member with an expiring tier, the job determines whether a reminder is due today based on those configured offsets and whether a reminder for that offset has already been sent; if due, it enqueues a renewal reminder email via the notification outbox.
-- Reminder emails include a clear call-to-action with current tier, expiry date, and a renewal link, and are never sent more than once per day per member or more than once per configured offset.
-- Reminders are not sent for members whose expiring tier has already been renewed or downgraded, and the job respects member email preferences and unsubscribes for the relevant reminder category.
-- When an Tier 1 Annual membership has passed its expiry date, the job automatically adjusts the member’s tier to Tier 0.
-- Each automatic downgrade writes an audit-log entry including member ID, old tier, new tier, reason "tier1_annual_expired", and timestamp, and enqueues (or updates) a tier-expiry notification email for that day so that members are informed once, without duplicate messages.
-- Tier 2 Annual fallback logic: When a Tier 2 Annual membership expires (tierExpiryDate = today), the job performs an atomic update, setting tierStatus = 'tier1_lifetime'. Fallback transitions are audit-logged with: member ID, old tier (`tier2_annual`), old expiry date, new tier (`tier1_lifetime`), reason `tier2_annual_expired`, timestamp.
-- All reminder sending and automatic tier-expiry processing performed by this job are logged to CloudWatch (or equivalent monitoring), including counts and failure metrics.
+- System runs a daily job that evaluates Active Player expiry dates for Tier 0 members, using two configured pre-expiry reminder offsets (for example T-30 and T-7), plus a built-in day-of expiry notification (T+0).
+- For each Tier 0 Active Player with an upcoming expiry, the job determines whether a reminder is due today based on those configured offsets and whether a reminder for that offset has already been sent; if due, it enqueues an Active Player expiry reminder email via the notification outbox.
+- Reminder emails describe Active Player expiry and ways to regain Active Player status (later qualifying event attendance, vouch from a Tier 2 or Tier 3 member, or, if not previously used, a one-time first-club-join grant). They must not describe membership-tier expiry or renewal. Reminders are never sent more than once per day per member or more than once per configured offset.
+- Reminders are not sent for members whose Active Player status has already been extended past the offset window, and the job respects member email preferences and unsubscribes for the relevant reminder category.
+- Membership tiers are never downgraded by this job because membership tiers are lifetime.
+- When a Tier 0 member's Active Player expiry date has passed, the member remains Tier 0 and Active Player status is marked expired or treated as no longer current. Expired Active Player status ends Tier 1 benefits and Official IFPA Roster inclusion.
+- The job does not affect Tier 1, Tier 2, or Tier 3 members because Active Player applies only to Tier 0.
+- Each Active Player expiry action writes an audit-log entry including member ID, previous Active Player expiry date, processing date, reason `active_player_expired`, and timestamp.
+- All reminder sending and automatic Active Player expiry processing performed by this job are logged to CloudWatch (or equivalent monitoring), including counts and failure metrics.
 
 ### SYS_Send_Email
 
@@ -2151,7 +2091,7 @@ Story: The system automatically sends transactional emails so that members stay 
 
 Success Criteria:
 
-- System sends emails for: account registration, email verification, password reset, tier upgrade, tier expiry, payment receipt, event registration confirmation, club membership changes, co-organizer/co-leader additions, and other cases. As this is a flexible list, it is not necessary to hard-code all cases now.
+- System sends emails for: account registration, email verification, password reset, membership purchase or upgrade, Active Player grant/extension/expiry, payment receipt, event registration confirmation, club membership changes, co-organizer/co-leader additions, and other cases. As this is a flexible list, it is not necessary to hard-code all cases now.
 - All emails sent via SES with proper headers, unsubscribe links, and deliverability tracking.
 - Worker respects the admin Pause Sending toggle: when enabled, the worker does not attempt new sends, but enqueued items remain pending.
 - Emails are sent only via the outbox pattern: request-time controllers enqueue outbox entries and never call SES directly; a background worker polls the outbox on a configurable interval (default: every 5 minutes), sends via SES, and records sent/failed status.
