@@ -25,6 +25,7 @@ Usage:
 import argparse
 import hashlib
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -36,13 +37,25 @@ except ImportError:
     import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
+
+# Slice 2: shared trick-slug canonicalization helper. Same import path used
+# by scripts/migrate-freestyle-media-to-curated.py (one-shot migration);
+# single source of truth for alias resolution prevents migration-time and
+# seed-time canonicalization drift.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _trick_canonicalization import canonicalize_slug, load_alias_map  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = "./database/footbag.db"
 DEFAULT_MEDIA_DIR = "./data/media"
 DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
+
+# Slice 2: URL-reference freestyle media — embed-eligible hosts only.
+YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
+VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 
 # Hardcoded manifest of curator items seeded for go-live. Append entries here
 # to extend the seed (e.g., Japan Worlds 2026 photo, /net cartoons,
@@ -403,6 +416,192 @@ def seed_item(
     print(f"  → Seeded {item['id_seed']} (media_id={media_id}, tags={item['tags']})")
 
 
+# ── Slice 2: URL-reference freestyle trick reference media ─────────────────
+# The hardcoded CURATOR_ITEMS pipeline above handles file-backed binary
+# (member-uploaded MP4/photos transcoded into the local-FS adapter). The
+# helpers below handle URL-reference YouTube/Vimeo embeds owned by the
+# system member account, sourced from /curated/freestyle_tricks/*.meta.json
+# sidecars produced by scripts/migrate-freestyle-media-to-curated.py.
+#
+# Two pipelines coexist during the Slice 2 cutover. Phase E removes the
+# legacy freestyle_media_* tables + loaders; this branch then becomes the
+# only path for curator reference videos.
+
+def _detect_platform(url: str) -> str | None:
+    """Return 'youtube' / 'vimeo' / None for non-embed-eligible hosts."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except Exception:
+        return None
+    if host in YOUTUBE_HOSTS:
+        return "youtube"
+    if host in VIMEO_HOSTS:
+        return "vimeo"
+    return None
+
+
+def _parse_video_id(url: str, platform: str) -> str | None:
+    """Extract the platform's native video id from the URL.
+
+    YouTube: /watch?v=ID  OR  youtu.be/ID  (preserve ID; ignore ?t=N suffix).
+    Vimeo:   vimeo.com/ID OR player.vimeo.com/video/ID (last numeric path segment).
+    """
+    parsed = urlparse(url)
+    if platform == "youtube":
+        if parsed.hostname == "youtu.be":
+            return parsed.path.lstrip("/").split("/")[0] or None
+        qs = parse_qs(parsed.query)
+        if "v" in qs and qs["v"]:
+            return qs["v"][0]
+        return None
+    if platform == "vimeo":
+        for part in reversed([p for p in parsed.path.strip("/").split("/") if p]):
+            if part.isdigit():
+                return part
+        return None
+    return None
+
+
+def _url_ref_media_id(url: str, platform: str) -> str:
+    """Stable media_id keyed on (platform, url). Re-runs against unchanged
+    sidecars produce identical ids → INSERT OR REPLACE is a no-op write."""
+    raw = f"{platform}|{url}"
+    return f"media_{hashlib.sha1(raw.encode('utf-8')).hexdigest()[:24]}"
+
+
+def _bootstrap_media_sources(con: sqlite3.Connection) -> int:
+    """Copy freestyle_media_sources -> media_sources (FK target for sidecar
+    sourceId references). INSERT OR IGNORE so re-runs are idempotent.
+
+    Phase E will remove freestyle_media_sources; that change replaces this
+    bootstrap with a sidecar-driven (or admin-UI-driven) population path.
+    For Phase C parallel-run, this is the simplest atomic copy.
+    """
+    cur = con.execute(
+        "INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator) "
+        "SELECT source_id, source_name, source_type, url, creator FROM freestyle_media_sources"
+    )
+    return cur.rowcount
+
+
+def _seed_one_sidecar(
+    con: sqlite3.Connection,
+    sidecar_path: Path,
+    fh_id: str,
+    ts: str,
+    alias_map: dict[str, str],
+) -> tuple[str, list[str]]:
+    """Read one sidecar, INSERT OR REPLACE its media_items row + media_tags.
+    Returns (media_id, final_tags_list_with_curated_prepended)."""
+    with sidecar_path.open(encoding="utf-8") as f:
+        sidecar = json.load(f)
+
+    url = sidecar["videoUrl"]
+    platform = sidecar["videoPlatform"]
+    if platform not in ("youtube", "vimeo"):
+        raise ValueError(
+            f"{sidecar_path.name}: unsupported videoPlatform={platform!r} "
+            "(URL-ref curator content must be youtube or vimeo)"
+        )
+    video_id = _parse_video_id(url, platform)
+    if not video_id:
+        raise ValueError(
+            f"{sidecar_path.name}: cannot parse video_id from URL={url!r}"
+        )
+
+    media_id = _url_ref_media_id(url, platform)
+    # Per CMP §"Migration of James's existing 47 assets" item 3: title is
+    # the closest existing column for the legacy media_assets.title field.
+    # Sidecar.creator is preserved on disk for future re-import but is not
+    # written here (no equivalent column; per-asset creator info for record
+    # clips is currently dropped at seed time per CMP §"Column equivalences").
+    caption = sidecar.get("title") or None
+    source_id = sidecar.get("sourceId") or None
+    start_seconds = sidecar.get("startSeconds")
+    end_seconds   = sidecar.get("endSeconds")
+
+    # ── #curated auto-prepend at write time (CMP enforcement) ─────────────
+    raw_tags: list[str] = list(sidecar.get("tags", []))
+    if any(t.lower() == "#curated" for t in raw_tags):
+        raise ValueError(
+            f"{sidecar_path.name}: '#curated' must NOT appear in sidecar tags; "
+            "the seeder auto-prepends it at write time"
+        )
+    # Defense-in-depth: re-canonicalize each trick-slug tag through the
+    # shared helper. Migration already canonicalized, but if a sidecar is
+    # hand-written or imported from elsewhere this guarantees the same
+    # canonical-only-tags invariant the gallery query relies on.
+    canon_tags: list[str] = []
+    for t in raw_tags:
+        if not t.startswith("#"):
+            raise ValueError(f"{sidecar_path.name}: tag {t!r} missing '#' prefix")
+        slug = t[1:]
+        canon_tags.append("#" + canonicalize_slug(slug, alias_map))
+    final_tags = sorted({"#curated", *canon_tags})
+
+    # INSERT OR REPLACE: ON DELETE CASCADE on media_tags.media_id wipes
+    # prior tag rows for this media_id; we re-insert below.
+    con.execute(
+        """
+        INSERT OR REPLACE INTO media_items (
+            id, uploader_member_id, gallery_id,
+            media_type, is_avatar, caption, uploaded_at,
+            video_platform, video_id, video_url, thumbnail_url,
+            source_id, start_seconds, end_seconds,
+            moderation_status, source_filename,
+            created_at, created_by, updated_at, updated_by, version
+        ) VALUES (?, ?, NULL, 'video', 0, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'active', NULL, ?, 'seed', ?, 'seed', 1)
+        """,
+        (
+            media_id, fh_id,
+            caption, ts,
+            platform, video_id, url,
+            source_id, start_seconds, end_seconds,
+            ts, ts,
+        ),
+    )
+
+    for tag_display in final_tags:
+        tid = tag_id_for(con, tag_display, ts)
+        media_tag_id = stable_id("media_tag", media_id, tag_display)
+        con.execute(
+            """
+            INSERT INTO media_tags (id, media_id, tag_id, tag_display, created_at, created_by, updated_at, updated_by, version)
+            VALUES (?, ?, ?, ?, ?, 'seed', ?, 'seed', 1)
+            """,
+            (media_tag_id, media_id, tid, tag_display, ts, ts),
+        )
+
+    return media_id, final_tags
+
+
+def seed_freestyle_tricks_sidecars(
+    con: sqlite3.Connection, fh_id: str, source_dir: Path, ts: str
+) -> int:
+    """Seed every /curated/freestyle_tricks/*.meta.json sidecar into
+    media_items + media_tags + media_sources. Returns count of sidecars seeded.
+    """
+    sidecar_dir = source_dir / "freestyle_tricks"
+    if not sidecar_dir.is_dir():
+        return 0
+    files = sorted(sidecar_dir.glob("*.meta.json"))
+    if not files:
+        return 0
+
+    sources_added = _bootstrap_media_sources(con)
+    if sources_added:
+        print(f"  → Bootstrapped media_sources: {sources_added} row(s) copied from freestyle_media_sources")
+
+    alias_map = load_alias_map(con)
+
+    n = 0
+    for path in files:
+        _seed_one_sidecar(con, path, fh_id, ts, alias_map)
+        n += 1
+    print(f"  → Seeded {n} freestyle reference video(s) from /curated/freestyle_tricks/")
+    return n
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--db", default=None, help="Path to SQLite database")
@@ -424,8 +623,9 @@ def main() -> None:
         fh_id = fh_member_id(con)
         for item in CURATOR_ITEMS:
             seed_item(con, item, fh_id, source_dir, media_dir, ts)
+        n_sidecars = seed_freestyle_tricks_sidecars(con, fh_id, source_dir, ts)
         con.commit()
-        print(f"  → Curator media seed complete: {len(CURATOR_ITEMS)} items.")
+        print(f"  → Curator media seed complete: {len(CURATOR_ITEMS)} legacy items + {n_sidecars} reference videos.")
     finally:
         con.close()
 

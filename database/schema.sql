@@ -2011,6 +2011,19 @@ CREATE INDEX idx_result_participants_person ON event_result_entry_participants(h
 -- s3_key_display) are required for photos; video fields (video_platform, video_id,
 -- video_url) are required for videos. Avatars are always photos and are never
 -- gallery-assigned (enforced by CHECK constraints).
+-- Source registry for curator reference media (DVDs, websites, channels).
+-- Provenance attribution for media_items: e.g. tt1, tt_youtube, anz_trikz.
+-- Identical column shape to the legacy freestyle_media_sources table; the
+-- two coexist during the Slice 2 cutover and freestyle_media_sources is
+-- removed in Phase E. New curator-content sources land here only.
+CREATE TABLE media_sources (
+  source_id    TEXT PRIMARY KEY,
+  source_name  TEXT NOT NULL,
+  source_type  TEXT NOT NULL,                   -- 'dvd' | 'website' | 'youtube' | 'vimeo' | 'database' (no CHECK; broad)
+  url          TEXT,
+  creator      TEXT
+);
+
 CREATE TABLE media_items (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -2054,6 +2067,15 @@ CREATE TABLE media_items (
   -- (see ux_media_items_curator_filename).
   source_filename TEXT,
 
+  -- Slice 2 additions for curator reference media (DD §2.6 / §2.8).
+  -- Provenance attribution and per-asset clip range; populated by the
+  -- curator seeder from /curated/{category}/*.meta.json sidecars. NULL on
+  -- member-uploaded rows. Replaces the freestyle_media_links.start_seconds /
+  -- end_seconds and freestyle_media_assets.source_id columns.
+  source_id      TEXT REFERENCES media_sources(source_id),
+  start_seconds  INTEGER,
+  end_seconds    INTEGER,
+
   CHECK (media_type <> 'photo'
     OR (s3_key_thumb IS NOT NULL AND s3_key_display IS NOT NULL)),
   CHECK (media_type <> 'video'
@@ -2062,7 +2084,12 @@ CREATE TABLE media_items (
   -- Avatar integrity: avatars must be photos and cannot be gallery-assigned
   -- (enforces the cascade-safety invariant documented in DM §4.17).
   CHECK (is_avatar = 0 OR media_type = 'photo'),
-  CHECK (is_avatar = 0 OR gallery_id IS NULL)
+  CHECK (is_avatar = 0 OR gallery_id IS NULL),
+  -- Clip-range integrity: when both bounds are set, start must precede end;
+  -- negative bounds are rejected. NULL bounds are valid (full asset).
+  CHECK (start_seconds IS NULL OR start_seconds >= 0),
+  CHECK (end_seconds   IS NULL OR end_seconds   >= 0),
+  CHECK (start_seconds IS NULL OR end_seconds IS NULL OR start_seconds < end_seconds)
 );
 
 -- Named collections of media items owned by a member. Each member may have
