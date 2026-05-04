@@ -1,5 +1,5 @@
 alias,person_id,person_canon,status,notes
-'Red' Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Husted,verified,
+'Red' Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Red Husted,verified,
 ?. Chris Cleaver,ae007583-9bf0-520a-ba7c-b2e6f52b12ef,Chris Cleaver,verified,
 ?Boy-Skaut? Skrabal,8062aff3-a243-594f-b347-8f5e60cbf435,Boy-Skaut Skrabal,verified,
 ?Crazy? Mike Craig,f8221498-f0fb-5598-b251-b5b12fccdcab,Crazy Mike Craig,verified,
@@ -732,8 +732,8 @@ Erroll Stryker,c256196e-aeb4-5011-9dce-81719a307619,Erroll Stryker,verified,
 Estéban Restrepo,bccd6d14-b132-5b0c-83bd-8eb8299409a2,Esteban Restrepo,verified,redirected:71912612-776a-5f0c-9acd-270370a442e4->bccd6d14
 Esteban Restrepo,bccd6d14-b132-5b0c-83bd-8eb8299409a2,Esteban Restrepo,verified,
 ESTEBAN RESTRPO,bccd6d14-b132-5b0c-83bd-8eb8299409a2,Esteban Restrepo,verified,redirected:71912612-776a-5f0c-9acd-270370a442e4->bccd6d14
-Ethan Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Husted,verified,
-Ethan Red Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Husted,verified,
+Ethan Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Red Husted,verified,
+Ethan Red Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Red Husted,verified,
 Etienne Ruggeri,31fe03cd-4b0b-5eb3-b674-86bf4a5e876d,Etienne Ruggeri,verified,
 Eurik Linder,fc767e35-5ca6-5aec-9080-269c6846e7fb,Eurik Liundner,verified,
 Eurik Lindner,fc767e35-5ca6-5aec-9080-269c6846e7fb,Eurik Liundner,verified,
@@ -2011,9 +2011,9 @@ Randy Mulder,c2da6bcd-ccc4-5ecf-8e49-d1c4ef4260b9,Randy Mulder,verified,
 Randy Pace,d97bdb08-5caa-51bc-8f26-aca27accb727,Randy Pace,verified,
 Rasmus Rendsvig,b1dbcec6-2d10-55c9-878c-df0104ad5d2a,Rasmus Rendsvig,verified,
 Rebattu Yohann,93df01b3-35be-5b3b-9ce6-19c010c4474f,Yohann Rebattu,verified,merged: Last-First format swap or confirmed variant
-Red Fred Husted,a67698e9-2dd8-5853-b75a-3c6e535d7610,Red Fred Husted,verified,
-Red Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Husted,verified,
-red usted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Husted,verified,
+Red Fred Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Red Husted,verified,
+Red Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Red Husted,verified,
+red usted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Red Husted,verified,
 Reed Gray,b5d49246-d1b4-5540-a92d-72d26e6b1d0b,Reed Gray,verified,
 Regimbald Ianek,8fdea8f1-79bd-51a1-ab3f-04270d90e5af,Ianek Regimbald,verified,merged: Last-First format swap or confirmed variant
 Reid Hargrove,1b07552f-0f87-5fb7-82e8-44937656a640,Reid Hargrove,verified,
@@ -2760,3 +2760,4 @@ Corey Current,f1f49edd-da47-536a-b759-de441795fc2f,Cory Current,verified,spellin
 Manu Bouchard,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,Emmanuel Bouchard,verified,confirmed by user/community knowledge; nickname/name variant for Emmanuel Bouchard
 Dave Butcher,c1f6d696-5444-5cd0-919f-9dd06ca54bea,David Butcher,verified,classic English nickname (Dave = David); single 2000_emeraldcity co-event with discipline split (alias=open_doubles_net p2, canon=mixed_doubles_net + open_singles_net) — single-player interpretation
 Phil Lessard,87216aed-3048-50f7-8c54-d7e9e7bb52f3,Philippe Lessard,verified,English/French form — Quebec player using both Phil (anglicized) and Philippe; single 2012_worlds_warsaw co-event with discipline split — single-player interpretation
+Fred Husted,10854ae3-60d7-51a7-ad9a-36033b541bd9,Ethan Red Husted,verified,

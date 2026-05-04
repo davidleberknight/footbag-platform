@@ -2898,7 +2898,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1096318324,2004,Sick 3,freestyle,4,player,4d04edec-6cd0-582d-b4e1-e8ead070a8c8,,Jim Penske,,complete,,jim penske,
 1096318324,2004,Sick 3,freestyle,4,player,ab216b72-e80d-526e-ba50-e8dd93866623,,Ricky Moran,,complete,,ricky moran,
 1096318324,2004,Sick 3,freestyle,5,player,bd97ebe2-5ecd-5854-9d2e-b877a27ac527,,Daryl Genz,,complete,,daryl genz,
-1096318324,2004,Sick 3,freestyle,5,player,a67698e9-2dd8-5853-b75a-3c6e535d7610,,Red Fred Husted,,complete,,red fred husted,
+1096318324,2004,Sick 3,freestyle,5,player,10854ae3-60d7-51a7-ad9a-36033b541bd9,,Ethan Red Husted,,complete,,red fred husted,
 1096318324,2004,Sick 3,freestyle,6,player,11d957ec-ccf4-5fe5-b749-e80806fc0e3a,,Nate Linscott,,complete,,nate linscott,
 1096318324,2004,Sick 3,freestyle,6,player,ab216b72-e80d-526e-ba50-e8dd93866623,,Ricky Moran,,complete,,ricky moran,
 1096695238,2004,Intermediate Endurance,freestyle,1,player,12822c75-7863-540c-a01f-b9cb108a8dee,,Joe Kulacz,,complete,,joe kulacz,
@@ -24503,7 +24503,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 876356874,1998,Open Singles Freestyle,freestyle,4,player,bd97ebe2-5ecd-5854-9d2e-b877a27ac527,,Daryl Genz,,complete,,daryl genz,
 876356874,1998,Open Singles Freestyle,freestyle,5,player,2824a5fd-45b1-5923-9bcc-a35d9a475770,,Adrian Verhoef,,complete,,adrian verhoef,
 876356874,1998,Open Singles Freestyle,freestyle,6,player,bfad7157-6d44-5f09-b10f-8d83aa9456c1,,Ryan Sanders,,complete,,ryan sanders,
-876356874,1998,Open Singles Freestyle,freestyle,7,player,a67698e9-2dd8-5853-b75a-3c6e535d7610,,Red Fred Husted,,complete,,red fred husted,
+876356874,1998,Open Singles Freestyle,freestyle,7,player,10854ae3-60d7-51a7-ad9a-36033b541bd9,,Ethan Red Husted,,complete,,red fred husted,
 876356874,1998,Open Singles Freestyle,freestyle,8,player,92d46e52-ae22-54a4-a848-fe8cdb118f30,,Richard Abshire,,complete,,richard abshire,
 876356874,1998,Open Singles Net,net,1,player,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,,Emmanuel Bouchard,,complete,,emmanuel bouchard,
 876356874,1998,Open Singles Net,net,2,player,4f763ef4-fb7b-5fcb-9883-988370e20b2e,,Alexis Deschenes,,complete,,alexis deschenes,
@@ -27704,7 +27704,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 859923755,1997,Intermediate Doubles,net,8,team,c51c1328-bb7f-53ca-ad7c-2d17cc60bd87,,Brian Jones,Rob Sorenson / Brian Jones,mostly_complete,,brian jones,
 859923755,1997,Novice Doubles,net,1,team,,85a9e145-57a5-5990-a48b-366ee91a9163|8476c27f-4384-55da-8866-bc1e32487930,__NON_PERSON__,Marc Weber / Bob Silva,mostly_complete,,,
 859923755,1997,Novice Doubles,net,2,team,ae007583-9bf0-520a-ba7c-b2e6f52b12ef,,Chris Cleaver,Doug Toth / Chris Cleaver,mostly_complete,,chris cleaver,
-859923755,1997,Novice Doubles,net,3,team,,8f15594c-f3f9-53d9-bfe5-409e746b7c29|a67698e9-2dd8-5853-b75a-3c6e535d7610,__NON_PERSON__,Sunil Jani / Red Fred Husted,mostly_complete,,,
+859923755,1997,Novice Doubles,net,3,team,,8f15594c-f3f9-53d9-bfe5-409e746b7c29|10854ae3-60d7-51a7-ad9a-36033b541bd9,__NON_PERSON__,Sunil Jani / Red Fred Husted,mostly_complete,,,
 1267718326,2010,Intermediates Singles,freestyle,1,player,8904d5de-3a3f-5eec-9898-3b1881fa1a2e,,Ben Appold,,complete,,ben appold,Intermediates Singles
 1267718326,2010,Intermediates Singles,freestyle,2,player,2875a830-e340-5963-a5c7-d9a7a74d1e56,,Steve Richardson,,complete,,steve richardson,Intermediates Singles
 1267718326,2010,Intermediates Singles,freestyle,3,player,7e637083-6f7a-5837-a6b6-0ddd540a78d3,,Ronnie Rodriguez,,complete,,ronnie rodriguez,Intermediates Singles
