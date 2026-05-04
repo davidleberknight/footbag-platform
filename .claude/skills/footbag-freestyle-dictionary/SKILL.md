@@ -47,6 +47,23 @@ A trick should generally have:
 
 Do not store glossary terms here.
 
+### Canonical vs compositional row rule
+
+A trick deserves its own row in `freestyle_tricks` only when at least one of:
+
+1. **Named identity persistence.** The name is used independently of its decomposition (e.g. `dyno`, `paradon`, `bigwalk`, `surreal` — each known by community name in competition / tutorials, not as "spinning stepping butterfly").
+2. **Not losslessly decomposable.** Base + modifiers do not fully describe it. If they do, model via `modifier_links` on a compound row instead of creating a new canonical.
+3. **Historical / competitive significance.** Appears in competition results, widely-recognized tutorials, or community canonical lists. Records-only appearance is weak signal; competition / TT lesson / Red's curated set is strong signal.
+4. **Structural ambiguity resolver.** Multiple valid decompositions exist for the same physical move; the name is the canonical anchor that resolves the ambiguity.
+5. **Alias collapse check.** Before creating a new row, check whether the name maps to an existing canonical slug. If so, it's an alias on the existing row, NOT a new row.
+
+Do NOT create canonical rows for:
+
+- **Pure modifier chains** (e.g. `spinning paradox mirage`). Model via `modifier_links` on the base or on an existing compound canonical such as `paradox-mirage`.
+- **Surface-only variants** (e.g. `kick` vs `stall` for the same motion). Pick one canonical surface; the other is alias-only.
+- **Direction-only variants** — unless direction is globally structural per the "Direction is structural" rule below, in which case the reversed form is its own canonical.
+- **Combinatorial expansions.** Every (modifier × base) tuple does NOT deserve a row. Only the named / significant subset does.
+
 ### Direction is structural
 
 Direction changes create new canonical tricks. A direction-reversed movement is its own dictionary entry, not the same trick with a qualifier.
@@ -60,6 +77,20 @@ Examples (Red-confirmed):
 If two moves differ in spin / dex / movement direction, they get separate dictionary entries even when their structural skeleton is otherwise identical.
 
 Within-trick CW/CCW or in/out execution variants stay in one canonical row when the community treats them as the same trick. The canonical notation captures the dominant or both-allowed forms (e.g. `around-the-world` notation `TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]`).
+
+### Stall ontology rule (Red pt5 clarification)
+
+Stalls — toe-stall, inside-stall, clipper-stall, osis, and similar delay surfaces — are **common anchor positions** used in many tricks. This is descriptive, not prescriptive. Red pt5's "base set of tricks such as toe stall, inside stall, clipper stall, and osis" comment names specific frequent anchors; it does not generalize to a universal rule.
+
+The ontology must also support:
+
+- **Non-stall tricks**: kick-based moves (`flying-clipper`, `dragonfly-kick`), surface-less compounds (`double-knee`), dexterity-only sequences with no stall anchor.
+- **Body tricks**: `spin`, `double-spin`, `hop-over`, `walk-over`, `flying-inside`, `flying-outside`, `spyro` — pure body motion primitives.
+- **Sets**: `pixie`, `fairy`, `atomic`, `quantum` — bag-launch primitives that precede a trick rather than serving as a stall anchor.
+- **Modifiers**: `paradox`, `ducking`, `symposium`, etc. — applied on top of any base, stall-or-not.
+- **Standalone compounds without explicit stall base**: `drifter`, `ripwalk`, `butterfly`, etc. — the structural skeleton may include stall delays internally but the canonical row stands on its own.
+
+Do NOT force tricks into stall-based decomposition during classification or QC. When a trick's base is unclear, defer rather than invent a stall ancestor.
 
 ### Jobs notation is the structural backbone
 
@@ -119,6 +150,19 @@ Important:
 - Some concepts can exist both as a trick and a modifier form. Example: Barrage can be a standalone trick, while barraging can modify another trick.
 
 Do not enforce ADD math globally unless expert-reviewed.
+
+### Surging modeling rule
+
+`surging` is NOT a primitive modifier. Always decompose:
+
+    surging = spinning + stepping
+
+Apply this rule everywhere `surging` appears in a trick name or composition:
+
+- **Modifier table:** do NOT add a `surging` row to `freestyle_trick_modifiers`. Only `spinning` and `stepping` belong there.
+- **Compound rows:** when a trick is named "Surging X" (e.g. `bigwalk`, `surge`, `surreal`, `surgery`, `venom`), set `modifier_links=spinning|stepping|...` on the compound row. The "surging X" form lives in the `aliases` column.
+- **Description templates:** "Surging-modified {base}" is acceptable prose shorthand, but the structural decomposition (spinning + stepping) must appear in the row's note field for ADD-math validation.
+- **The `surging` row in the dictionary** remains a standalone compound (`spinning + stepping = 2 ADD`, no base trick); it is NOT a modifier. This preserves the named-trick identity while keeping the modifier table strict.
 
 ---
 
