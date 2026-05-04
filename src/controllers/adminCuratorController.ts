@@ -7,6 +7,8 @@ import {
   createCuratorMediaService,
   VIDEO_MAX_BYTES,
   POSTER_MAX_BYTES,
+  isValidCategoryName,
+  type CuratorMediaEditInput,
 } from '../services/curatorMediaService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
@@ -32,24 +34,47 @@ interface FormValues {
   mediaType?: string;
   caption?: string;
   tags?: string;
+  category?: string;
+  newCategory?: string;
+  videoUrl?: string;
+  videoPlatform?: string;
+  primarySlug?: string;
+  title?: string;
+  creator?: string;
+  sourceId?: string;
+  tier?: string;
 }
 
 function renderForm(
   res: Response,
-  opts: { errorMessage?: string; formValues?: FormValues } = {},
+  opts: {
+    errorMessage?: string;
+    formValues?: FormValues;
+    existingCategories?: string[];
+    savedFlag?: 'upload' | null;
+  } = {},
 ): void {
   res.render('admin/curator/upload', {
     seo: { title: 'Upload Curated Media' },
     page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media' },
     errorMessage: opts.errorMessage,
     formValues: opts.formValues ?? {},
+    existingCategories: opts.existingCategories ?? [],
+    savedFlag: opts.savedFlag ?? null,
   });
 }
 
 export const adminCuratorController = {
   /** GET /admin/curator/upload — render the upload form. */
-  getUpload(_req: Request, res: Response): void {
-    renderForm(res);
+  async getUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const svc = buildSvc();
+      const existingCategories = await svc.listExistingCategories();
+      const savedFlag = req.query.saved === 'upload' ? 'upload' : null;
+      renderForm(res, { existingCategories, savedFlag });
+    } catch (err) {
+      next(err);
+    }
   },
 
   /**
@@ -122,30 +147,137 @@ export const adminCuratorController = {
         .split(/\s+/)
         .filter((t) => t.length > 0);
       const formValues: FormValues = {
-        mediaType, caption: fields.caption ?? '', tags: fields.tags ?? '',
+        mediaType,
+        caption: fields.caption ?? '',
+        tags: fields.tags ?? '',
+        category: fields.category ?? '',
+        newCategory: fields.newCategory ?? '',
+        videoUrl: fields.videoUrl ?? '',
+        videoPlatform: fields.videoPlatform ?? '',
+        primarySlug: fields.primarySlug ?? '',
+        title: fields.title ?? '',
+        creator: fields.creator ?? '',
+        sourceId: fields.sourceId ?? '',
+        tier: fields.tier ?? '',
       };
-
-      if (limitExceeded) {
-        renderForm(res.status(422), { errorMessage: 'File exceeded the maximum allowed size.', formValues });
-        return;
-      }
-
-      if (mediaType !== 'photo' && mediaType !== 'video') {
-        renderForm(res.status(422), { errorMessage: 'Choose a media type (photo or video).', formValues });
-        return;
-      }
 
       const svc = createCuratorMediaService({
         storage: getMediaStorageAdapter(),
         imageProcessor: getImageProcessingAdapter(),
       });
+      const existingCategories = await svc.listExistingCategories();
+
+      if (limitExceeded) {
+        renderForm(res.status(422), {
+          errorMessage: 'File exceeded the maximum allowed size.',
+          formValues,
+          existingCategories,
+        });
+        return;
+      }
+
+      if (mediaType !== 'photo' && mediaType !== 'video' && mediaType !== 'url_reference') {
+        renderForm(res.status(422), {
+          errorMessage: 'Choose a media type (photo, video, or url_reference).',
+          formValues,
+          existingCategories,
+        });
+        return;
+      }
+
+      if (mediaType === 'url_reference') {
+        // URL-reference upload writes a sidecar JSON file under
+        // /curated/{category}/. The seeder regenerates the platform DB
+        // from sidecars. No DB row written here.
+        const videoUrl = (fields.videoUrl ?? '').trim();
+        const videoPlatformRaw = (fields.videoPlatform ?? '').trim();
+        const primarySlug = (fields.primarySlug ?? '').trim().toLowerCase();
+        const titleRaw = (fields.title ?? '').trim();
+        const title = titleRaw.length === 0 ? null : titleRaw;
+        const creatorRaw = (fields.creator ?? '').trim();
+        const creator = creatorRaw.length === 0 ? null : creatorRaw;
+        const sourceIdRaw = (fields.sourceId ?? '').trim();
+        const sourceId = sourceIdRaw.length === 0 ? null : sourceIdRaw;
+        const tierRaw = (fields.tier ?? '').trim();
+        const tier = tierRaw.length === 0 ? null : tierRaw;
+        // Category resolution: admin either ticks exactly one existing
+        // category checkbox (`category` field) OR types a new category
+        // name (`newCategory` text). Mutually exclusive. The server is the
+        // trust boundary; the form should also block both cases client-side.
+        const existingCategory = (fields.category ?? '').trim();
+        const newCategory = (fields.newCategory ?? '').trim();
+
+        if (videoPlatformRaw !== 'youtube' && videoPlatformRaw !== 'vimeo') {
+          renderForm(res.status(422), { errorMessage: 'Choose YouTube or Vimeo.', formValues, existingCategories });
+          return;
+        }
+        if (videoUrl.length === 0) {
+          renderForm(res.status(422), { errorMessage: 'Paste a YouTube or Vimeo URL.', formValues, existingCategories });
+          return;
+        }
+        if (primarySlug.length === 0) {
+          renderForm(res.status(422), { errorMessage: 'Provide a primary slug for the sidecar filename.', formValues, existingCategories });
+          return;
+        }
+        if (existingCategory.length > 0 && newCategory.length > 0) {
+          renderForm(res.status(422), {
+            errorMessage: 'Tick an existing category OR type a new category name, not both.',
+            formValues,
+            existingCategories,
+          });
+          return;
+        }
+        if (existingCategory.length === 0 && newCategory.length === 0) {
+          renderForm(res.status(422), {
+            errorMessage: 'Tick a category or type a new category name.',
+            formValues,
+            existingCategories,
+          });
+          return;
+        }
+        const resolvedCategory = existingCategory.length > 0 ? existingCategory : newCategory;
+        if (!isValidCategoryName(resolvedCategory)) {
+          renderForm(res.status(422), {
+            errorMessage:
+              'Category name must be lowercase letters, digits, or underscores.',
+            formValues,
+            existingCategories,
+          });
+          return;
+        }
+
+        try {
+          await svc.uploadUrlReference({
+            adminMemberId,
+            category: resolvedCategory,
+            videoUrl,
+            videoPlatform: videoPlatformRaw,
+            primarySlug,
+            title,
+            creator,
+            sourceId,
+            tier,
+            startSeconds: null,
+            endSeconds: null,
+            tags,
+          });
+        } catch (err) {
+          if (err instanceof ValidationError) {
+            renderForm(res.status(422), { errorMessage: err.message, formValues, existingCategories });
+            return;
+          }
+          throw err;
+        }
+        res.redirect('/admin/curator/upload?saved=upload');
+        return;
+      }
 
       const sourceFilename = fileFilenames.mediaFile ?? '';
 
       if (mediaType === 'photo') {
         const photoBuffer = fileBuffers.mediaFile;
         if (!photoBuffer || photoBuffer.length === 0) {
-          renderForm(res.status(422), { errorMessage: 'Please select a photo to upload.', formValues });
+          renderForm(res.status(422), { errorMessage: 'Please select a photo to upload.', formValues, existingCategories });
           return;
         }
         await svc.uploadPhoto({ adminMemberId, photoBuffer, sourceFilename, caption, tags });
@@ -157,11 +289,11 @@ export const adminCuratorController = {
       const videoBuffer = fileBuffers.mediaFile;
       const posterBuffer = fileBuffers.poster;
       if (!videoBuffer || videoBuffer.length === 0) {
-        renderForm(res.status(422), { errorMessage: 'Please select a video to upload.', formValues });
+        renderForm(res.status(422), { errorMessage: 'Please select a video to upload.', formValues, existingCategories });
         return;
       }
       if (!posterBuffer || posterBuffer.length === 0) {
-        renderForm(res.status(422), { errorMessage: 'Please provide a poster image for the video.', formValues });
+        renderForm(res.status(422), { errorMessage: 'Please provide a poster image for the video.', formValues, existingCategories });
         return;
       }
       await svc.uploadVideo({ adminMemberId, videoBuffer, posterBuffer, sourceFilename, caption, tags });
@@ -178,6 +310,10 @@ export const adminCuratorController = {
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
       const tagFilterRaw = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
       const tagFilter = tagFilterRaw.length > 0 ? tagFilterRaw : undefined;
+      const savedFlag =
+        req.query.saved === 'edit' ? 'edit'
+          : req.query.saved === 'delete' ? 'delete'
+            : null;
 
       const svc = buildSvc();
       const result = svc.listMedia({ page, pageSize: LIST_PAGE_SIZE, tagFilter });
@@ -201,6 +337,7 @@ export const adminCuratorController = {
         prevPageHref,
         nextPageHref,
         emptyState: result.items.length === 0,
+        savedFlag,
       });
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -212,11 +349,11 @@ export const adminCuratorController = {
   },
 
   /** GET /admin/curator/media/:id/edit — render edit form for one media item. */
-  getEdit(req: Request, res: Response, next: NextFunction): void {
+  async getEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const mediaId = req.params.id;
       const svc = buildSvc();
-      const item = svc.getMediaItem(mediaId);
+      const item = await svc.getMediaItem(mediaId);
       if (!item) {
         res.status(404).render('admin/curator/edit', {
           seo: { title: 'Curated Media — Not Found' },
@@ -229,6 +366,7 @@ export const adminCuratorController = {
       // Filter #curated from the editable tag display since it is auto-applied
       // and cannot be edited; show user-meaningful tags only.
       const editableTags = item.tags.filter((t) => t !== '#curated');
+      const isSidecarBacked = item.videoPlatform === 'youtube' || item.videoPlatform === 'vimeo';
       res.render('admin/curator/edit', {
         seo: { title: 'Edit Curated Media' },
         page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title: 'Edit Curated Media' },
@@ -238,6 +376,14 @@ export const adminCuratorController = {
           caption: item.caption ?? '',
           tagsString: editableTags.join(' '),
           thumbnailUrl: item.thumbnailUrl,
+          isSidecarBacked,
+          videoPlatform: item.videoPlatform,
+          videoUrl: item.videoUrl,
+          creator: item.creator ?? '',
+          sourceId: item.sourceId ?? '',
+          tier: item.tier ?? '',
+          startSeconds: item.startSeconds ?? '',
+          endSeconds: item.endSeconds ?? '',
         },
       });
     } catch (err) {
@@ -254,9 +400,32 @@ export const adminCuratorController = {
       const caption = captionRaw.length === 0 ? null : captionRaw;
       const tags = parseTagsField(req.body?.tags);
 
+      // URL-ref sidecar fields. Sent as form inputs from the edit page;
+      // empty string is treated as null (clears the sidecar field).
+      // Service ignores these on DB-direct rows.
+      const editInput: CuratorMediaEditInput = { adminMemberId, mediaId, caption, tags };
+      const trimToNull = (v: unknown): string | null => {
+        if (typeof v !== 'string') return null;
+        const t = v.trim();
+        return t.length === 0 ? null : t;
+      };
+      const parseIntOrNull = (v: unknown): number | null => {
+        if (typeof v !== 'string') return null;
+        const t = v.trim();
+        if (t.length === 0) return null;
+        const n = parseInt(t, 10);
+        return Number.isFinite(n) ? n : null;
+      };
+      if (req.body?.creator !== undefined) editInput.creator = trimToNull(req.body.creator);
+      if (req.body?.sourceId !== undefined) editInput.sourceId = trimToNull(req.body.sourceId);
+      if (req.body?.tier !== undefined) editInput.tier = trimToNull(req.body.tier);
+      if (req.body?.thumbnailUrl !== undefined) editInput.thumbnailUrl = trimToNull(req.body.thumbnailUrl);
+      if (req.body?.startSeconds !== undefined) editInput.startSeconds = parseIntOrNull(req.body.startSeconds);
+      if (req.body?.endSeconds !== undefined) editInput.endSeconds = parseIntOrNull(req.body.endSeconds);
+
       const svc = buildSvc();
       try {
-        await svc.editMedia({ adminMemberId, mediaId, caption, tags });
+        await svc.editMedia(editInput);
       } catch (err) {
         if (err instanceof NotFoundError) {
           res.status(404).render('admin/curator/edit', {
@@ -284,7 +453,7 @@ export const adminCuratorController = {
         }
         throw err;
       }
-      res.redirect('/admin/curator/media');
+      res.redirect('/admin/curator/media?saved=edit');
     } catch (err) {
       next(err);
     }
@@ -305,7 +474,7 @@ export const adminCuratorController = {
         }
         throw err;
       }
-      res.redirect('/admin/curator/media');
+      res.redirect('/admin/curator/media?saved=delete');
     } catch (err) {
       next(err);
     }

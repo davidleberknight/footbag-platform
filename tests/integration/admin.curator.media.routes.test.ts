@@ -37,7 +37,7 @@ import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertCuratorUrlReference } from '../fixtures/factories';
 
 let resetImageProcessingAdapterForTests: () => void;
 
@@ -249,7 +249,7 @@ describe('POST /admin/curator/media/:id/edit', () => {
       .send({ caption: updatedCaption, tags: newTag });
 
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/media');
+    expect(res.headers.location).toBe('/admin/curator/media?saved=edit');
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     const row = db.prepare(`SELECT caption FROM media_items WHERE id = ?`).get(mediaId) as { caption: string };
@@ -328,7 +328,7 @@ describe('POST /admin/curator/media/:id/delete', () => {
       .send({});
 
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/media');
+    expect(res.headers.location).toBe('/admin/curator/media?saved=delete');
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     const row = db.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
@@ -346,5 +346,158 @@ describe('POST /admin/curator/media/:id/delete', () => {
       .type('form')
       .send({});
     expect(res.status).toBe(404);
+  });
+});
+
+// ── Sidecar-backed URL-reference routes ──────────────────────────────────
+//
+// Exercises the runtime sidecar-resolution branch for getEdit / postEdit /
+// postDelete. The service factory's curatedRootDir is overridden to a temp
+// dir per-suite so the repo's real /curated/ stays untouched.
+
+describe('admin curator media routes — sidecar-backed (URL reference)', () => {
+  let curatedRoot: string;
+  let resetCuratedRootDirForTests: () => void;
+
+  beforeAll(async () => {
+    curatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-curator-routes-curated-'));
+    const svcMod = await import('../../src/services/curatorMediaService');
+    svcMod.setCuratedRootDirForTests(curatedRoot);
+    resetCuratedRootDirForTests = svcMod.resetCuratedRootDirForTests;
+  });
+
+  afterAll(() => {
+    resetCuratedRootDirForTests?.();
+    try { fs.rmSync(curatedRoot, { recursive: true, force: true }); } catch { /* ignore */ }
+  });
+
+  function seedSidecarRow(slug: string): { mediaId: string; sidecarPath: string; sidecarFilename: string; videoUrl: string } {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const videoUrl = `https://www.youtube.com/watch?v=ROUTE_${slug}`;
+    const result = insertCuratorUrlReference(db, {
+      uploaderMemberId: SYSTEM_ID,
+      curatedRoot,
+      category: 'freestyle_tricks',
+      primarySlug: slug,
+      videoUrl,
+      videoPlatform: 'youtube',
+      videoId: `ROUTE_${slug}`,
+      caption: `Title for ${slug}`,
+      creator: 'Original Creator',
+      sourceId: 'src_route',
+      tier: 'CANONICAL_TUTORIAL',
+      tags: ['#freestyle', '#trick', `#${slug}`],
+    });
+    db.close();
+    return { ...result, videoUrl };
+  }
+
+  it('GET edit form for a sidecar-backed item shows URL-reference fields prefilled', async () => {
+    const slug = `gete_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const { mediaId, videoUrl } = seedSidecarRow(slug);
+
+    const app = createApp();
+    const res = await request(app)
+      .get(`/admin/curator/media/${mediaId}/edit`)
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('URL reference fields');
+    expect(res.text).toContain(`value="Title for ${slug}"`);
+    expect(res.text).toContain('value="Original Creator"');
+    expect(res.text).toContain('value="src_route"');
+    expect(res.text).toContain('value="CANONICAL_TUTORIAL"');
+    // The URL is rendered inside <code>; Handlebars HTML-escapes `=` to
+    // `&#x3D;`. Match on the unique YouTube id portion instead.
+    expect(res.text).toContain(`ROUTE_${slug}`);
+    // YouTube: thumbnailUrl input is not rendered (Vimeo-only).
+    expect(res.text).not.toContain('name="thumbnailUrl"');
+  });
+
+  it('GET edit form for a DB-direct photo does NOT show URL-reference fields', async () => {
+    const caption = `GETED_DBDIRECT_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const mediaId = await uploadPhotoViaRoute(caption, []);
+    const app = createApp();
+    const res = await request(app)
+      .get(`/admin/curator/media/${mediaId}/edit`)
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('URL reference fields');
+    expect(res.text).not.toContain('name="creator"');
+  });
+
+  it('POST edit on sidecar-backed item rewrites sidecar (caption + creator) and redirects to ?saved=edit', async () => {
+    const slug = `poste_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const { mediaId, sidecarPath } = seedSidecarRow(slug);
+
+    const newCaption = `Edited title ${slug}`;
+    const newCreator = 'Edited Creator';
+    const app = createApp();
+    const res = await request(app)
+      .post(`/admin/curator/media/${mediaId}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        caption: newCaption,
+        tags: `#freestyle #trick #${slug}`,
+        creator: newCreator,
+        sourceId: 'src_route_edited',
+        tier: 'HIGH_QUALITY_DEMO',
+      });
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/admin/curator/media?saved=edit');
+
+    const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf-8'));
+    expect(sidecar.title).toBe(newCaption);
+    expect(sidecar.creator).toBe(newCreator);
+    expect(sidecar.sourceId).toBe('src_route_edited');
+    expect(sidecar.tier).toBe('HIGH_QUALITY_DEMO');
+  });
+
+  it('POST delete on sidecar-backed item unlinks sidecar and redirects to ?saved=delete', async () => {
+    const slug = `postd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const { mediaId, sidecarPath } = seedSidecarRow(slug);
+
+    const app = createApp();
+    const res = await request(app)
+      .post(`/admin/curator/media/${mediaId}/delete`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/admin/curator/media?saved=delete');
+    expect(fs.existsSync(sidecarPath)).toBe(false);
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const row = db.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
+    expect(row).toBeUndefined();
+    db.close();
+  });
+
+  it('GET list with ?saved=edit renders the success banner', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/curator/media?saved=edit')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Saved.');
+    expect(res.text).toContain('seed_curator_media.py');
+  });
+
+  it('GET list with ?saved=delete renders the success banner', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/curator/media?saved=delete')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Deleted.');
+  });
+
+  it('GET list without saved query param does NOT render banner', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/curator/media')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('seed_curator_media.py');
   });
 });

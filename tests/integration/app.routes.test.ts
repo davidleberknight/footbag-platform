@@ -576,11 +576,11 @@ describe('GET /', () => {
     expect(res.text).toContain('href="/members"');
   });
 
-  it('links Media Gallery card to /gallery', async () => {
+  it('links Media Galleries card to /media', async () => {
     const app = createApp();
     const res = await request(app).get('/');
-    expect(res.text).toContain('Media Gallery');
-    expect(res.text).toContain('href="/gallery"');
+    expect(res.text).toContain('Media Galleries');
+    expect(res.text).toContain('href="/media"');
   });
 
   it('does not expose draft events', async () => {
@@ -596,6 +596,17 @@ describe('GET /', () => {
     expect(res.text).toContain('href="/clubs"');
     expect(res.text).toContain('href="/hof"');
     expect(res.text).toContain('href="/bap"');
+  });
+
+  it('includes a Media nav link in the main nav', async () => {
+    const app = createApp();
+    const res = await request(app).get('/');
+    const navOpen = res.text.indexOf('class="main-nav"');
+    const navClose = res.text.indexOf('</nav>', navOpen);
+    expect(navOpen).toBeGreaterThan(-1);
+    const nav = res.text.slice(navOpen, navClose);
+    expect(nav).toContain('href="/media"');
+    expect(nav).toMatch(/>Media</);
   });
 
   it('includes promoted Sideline card linking to /sideline', async () => {

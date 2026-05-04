@@ -4,11 +4,14 @@
  * worker + video transcoder so tests run hermetically (no S3, no Sharp,
  * no ffmpeg).
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertCuratorUrlReference } from '../fixtures/factories';
 import sharp from 'sharp';
+import { promises as fsp } from 'fs';
+import path from 'path';
+import os from 'os';
 import type { MediaStorageAdapter } from '../../src/adapters/mediaStorageAdapter';
 import type { ImageProcessingAdapter } from '../../src/adapters/imageProcessingAdapter';
 import type { TranscodedVideo } from '../../src/lib/videoProcessing';
@@ -485,6 +488,127 @@ describe('curatorMediaService.editMedia', () => {
   });
 });
 
+// ── editMedia: sidecar-backed (URL-reference) ──────────────────────────────
+
+describe('curatorMediaService.editMedia — sidecar-backed', () => {
+  let curatedRoot: string;
+
+  beforeEach(async () => {
+    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'curator-edit-sidecar-'));
+  });
+
+  afterEach(async () => {
+    await fsp.rm(curatedRoot, { recursive: true, force: true });
+  });
+
+  it('caption edit rewrites sidecar.title AND updates DB row inline', async () => {
+    const db = openDb();
+    const slug = `urledit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const url = `https://www.youtube.com/watch?v=YT_${slug}`;
+    const { mediaId, sidecarPath, sidecarFilename } = insertCuratorUrlReference(db, {
+      uploaderMemberId: SYSTEM_ID,
+      curatedRoot,
+      category: 'freestyle_tricks',
+      primarySlug: slug,
+      videoUrl: url,
+      videoPlatform: 'youtube',
+      videoId: `YT_${slug}`,
+      caption: 'Original title',
+      tier: 'CANONICAL_TUTORIAL',
+      tags: ['#freestyle', '#trick', `#${slug}`],
+    });
+    db.close();
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
+      curatedRootDir: curatedRoot,
+    });
+    const newCaption = 'Edited title';
+    await svc.editMedia({ adminMemberId: ADMIN_ID, mediaId, caption: newCaption });
+
+    const sidecar = JSON.parse(await fsp.readFile(sidecarPath, 'utf-8'));
+    expect(sidecar.title).toBe(newCaption);
+    expect(sidecar.videoUrl).toBe(url);
+    expect(sidecar.tags).not.toContain('#curated');
+
+    const db2 = openDb();
+    const row = db2.prepare(`SELECT caption FROM media_items WHERE id = ?`).get(mediaId) as { caption: string };
+    expect(row.caption).toBe(newCaption);
+    const audit = db2.prepare(
+      `SELECT entity_id, entity_type, action_type FROM audit_entries WHERE entity_id = ? AND action_type = 'edit_curated_url_reference'`,
+    ).get(sidecarFilename) as Record<string, string>;
+    expect(audit).toBeDefined();
+    expect(audit.entity_type).toBe('curated_sidecar');
+    db2.close();
+  });
+
+  it('tag edit rewrites sidecar.tags (sorted, deduped, #curated filtered)', async () => {
+    const db = openDb();
+    const slug = `urltags_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const url = `https://www.youtube.com/watch?v=TAGS_${slug}`;
+    const { mediaId, sidecarPath } = insertCuratorUrlReference(db, {
+      uploaderMemberId: SYSTEM_ID,
+      curatedRoot,
+      category: 'freestyle_tricks',
+      primarySlug: slug,
+      videoUrl: url,
+      videoPlatform: 'youtube',
+      videoId: `TAGS_${slug}`,
+      caption: 'tags only',
+      tags: ['#freestyle', '#trick', `#${slug}`],
+    });
+    db.close();
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
+      curatedRootDir: curatedRoot,
+    });
+    await svc.editMedia({
+      adminMemberId: ADMIN_ID, mediaId,
+      tags: [`#${slug}`, '#freestyle', '#trick', `#${slug}`, '#new'],
+    });
+
+    const sidecar = JSON.parse(await fsp.readFile(sidecarPath, 'utf-8'));
+    expect(sidecar.tags).toEqual(['#freestyle', '#new', '#trick', `#${slug}`].sort());
+    expect(sidecar.tags).not.toContain('#curated');
+
+    const db2 = openDb();
+    const dbTags = db2.prepare(
+      `SELECT t.tag_normalized FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_normalized`,
+    ).all(mediaId);
+    expect(dbTags.map((r: { tag_normalized: string }) => r.tag_normalized).sort()).toEqual(
+      ['#curated', '#freestyle', '#new', '#trick', `#${slug}`].sort(),
+    );
+    db2.close();
+  });
+
+  it('throws when sidecar file is missing on disk (corruption guard)', async () => {
+    const db = openDb();
+    const slug = `nofile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const url = `https://www.youtube.com/watch?v=NOFILE_${slug}`;
+    const { mediaId, sidecarPath } = insertCuratorUrlReference(db, {
+      uploaderMemberId: SYSTEM_ID,
+      curatedRoot,
+      category: 'freestyle_tricks',
+      primarySlug: slug,
+      videoUrl: url,
+      videoPlatform: 'youtube',
+      videoId: `NOFILE_${slug}`,
+      caption: 'will lose its sidecar',
+      tags: ['#freestyle', '#trick', `#${slug}`],
+    });
+    db.close();
+    await fsp.unlink(sidecarPath);
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
+      curatedRootDir: curatedRoot,
+    });
+    await expect(svc.editMedia({ adminMemberId: ADMIN_ID, mediaId, caption: 'x' }))
+      .rejects.toThrow(/sidecar file not found/);
+  });
+});
+
 // ── deleteMedia ────────────────────────────────────────────────────────────
 
 describe('curatorMediaService.deleteMedia', () => {
@@ -562,12 +686,95 @@ describe('curatorMediaService.deleteMedia', () => {
   });
 });
 
+// ── deleteMedia: sidecar-backed (URL-reference) ────────────────────────────
+
+describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
+  let curatedRoot: string;
+
+  beforeEach(async () => {
+    curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'curator-del-sidecar-'));
+  });
+
+  afterEach(async () => {
+    await fsp.rm(curatedRoot, { recursive: true, force: true });
+  });
+
+  it('removes sidecar file + DB row + audit-logs (no S3 traffic)', async () => {
+    const db = openDb();
+    const slug = `urldel_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const url = `https://www.youtube.com/watch?v=DEL_${slug}`;
+    const { mediaId, sidecarPath, sidecarFilename } = insertCuratorUrlReference(db, {
+      uploaderMemberId: SYSTEM_ID,
+      curatedRoot,
+      category: 'freestyle_tricks',
+      primarySlug: slug,
+      videoUrl: url,
+      videoPlatform: 'youtube',
+      videoId: `DEL_${slug}`,
+      caption: 'doomed',
+      tags: ['#freestyle', '#trick', `#${slug}`],
+    });
+    db.close();
+    expect(await fsp.access(sidecarPath).then(() => true).catch(() => false)).toBe(true);
+
+    const storage = makeStubStorage();
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(),
+      curatedRootDir: curatedRoot,
+    });
+    await svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId });
+
+    expect(await fsp.access(sidecarPath).then(() => true).catch(() => false)).toBe(false);
+    expect(storage.deletes).toHaveLength(0);
+
+    const db2 = openDb();
+    const row = db2.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
+    expect(row).toBeUndefined();
+    const audit = db2.prepare(
+      `SELECT entity_id, entity_type, action_type FROM audit_entries WHERE entity_id = ? AND action_type = 'delete_curated_url_reference'`,
+    ).get(sidecarFilename) as Record<string, string>;
+    expect(audit).toBeDefined();
+    expect(audit.entity_type).toBe('curated_sidecar');
+    db2.close();
+  });
+
+  it('still removes DB row + audit-logs when sidecar file is missing on disk (graceful)', async () => {
+    const db = openDb();
+    const slug = `delnofile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const url = `https://www.youtube.com/watch?v=DELNOFILE_${slug}`;
+    const { mediaId, sidecarPath } = insertCuratorUrlReference(db, {
+      uploaderMemberId: SYSTEM_ID,
+      curatedRoot,
+      category: 'freestyle_tricks',
+      primarySlug: slug,
+      videoUrl: url,
+      videoPlatform: 'youtube',
+      videoId: `DELNOFILE_${slug}`,
+      caption: null,
+      tags: ['#freestyle', '#trick', `#${slug}`],
+    });
+    db.close();
+    await fsp.unlink(sidecarPath);
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
+      curatedRootDir: curatedRoot,
+    });
+    await expect(svc.deleteMedia({ adminMemberId: ADMIN_ID, mediaId })).resolves.toEqual({ mediaId });
+
+    const db2 = openDb();
+    const row = db2.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
+    expect(row).toBeUndefined();
+    db2.close();
+  });
+});
+
 // ── getMediaItem ───────────────────────────────────────────────────────────
 
 describe('curatorMediaService.getMediaItem', () => {
-  it('returns null for an unknown media id', () => {
+  it('returns null for an unknown media id', async () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    expect(svc.getMediaItem('media_does_not_exist_xyz')).toBeNull();
+    expect(await svc.getMediaItem('media_does_not_exist_xyz')).toBeNull();
   });
 
   it('returns CuratorMediaListItem shape for a known FH-owned photo', async () => {
@@ -577,7 +784,7 @@ describe('curatorMediaService.getMediaItem', () => {
     const tag = `#getitem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const r = await svc.uploadPhoto({ adminMemberId: ADMIN_ID, photoBuffer: jpeg, caption, tags: [tag] });
 
-    const item = svc.getMediaItem(r.mediaId);
+    const item = await svc.getMediaItem(r.mediaId);
     expect(item).not.toBeNull();
     expect(item!.mediaId).toBe(r.mediaId);
     expect(item!.mediaType).toBe('photo');
@@ -595,10 +802,89 @@ describe('curatorMediaService.getMediaItem', () => {
       adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: poster,
       caption: null, tags: [],
     });
-    const item = svc.getMediaItem(r.mediaId);
+    const item = await svc.getMediaItem(r.mediaId);
     expect(item).not.toBeNull();
     expect(item!.mediaType).toBe('video');
     expect(item!.thumbnailUrl).toMatch(/^\/media\/.*-poster-display\.jpg$/);
+  });
+
+  it('photo upload: videoPlatform/videoId/videoUrl are all null in the shape', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const jpeg = await makeJpegBuffer();
+    const r = await svc.uploadPhoto({
+      adminMemberId: ADMIN_ID, photoBuffer: jpeg,
+      caption: `VPLAT_NULL_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      tags: [`#vplat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`],
+    });
+    const item = await svc.getMediaItem(r.mediaId);
+    expect(item).not.toBeNull();
+    expect(item!.videoPlatform).toBeNull();
+    expect(item!.videoId).toBeNull();
+    expect(item!.videoUrl).toBeNull();
+  });
+
+  it('s3 video upload: videoPlatform="s3", videoId is the S3 key, videoUrl is null', async () => {
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const r = await svc.uploadVideo({
+      adminMemberId: ADMIN_ID, videoBuffer: makeFakeMp4(), posterBuffer: await makeJpegBuffer(),
+      caption: null, tags: [],
+    });
+    const item = await svc.getMediaItem(r.mediaId);
+    expect(item).not.toBeNull();
+    expect(item!.videoPlatform).toBe('s3');
+    expect(item!.videoId).toBeTruthy();
+    expect(item!.videoUrl).toBeNull();
+  });
+
+  // YouTube URL-ref rows are written by the seeder, not by any service
+  // method. Insert one directly via SQL to exercise the thumbnail
+  // derivation in deriveListThumbnail (DD §6.8: render-time derivation
+  // when thumbnail_url IS NULL).
+  it('youtube row with NULL thumbnail_url: thumbnailUrl is derived as i.ytimg.com/vi/{video_id}/hqdefault.jpg', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const db = openDb();
+    const now = new Date().toISOString();
+    const mediaId = `media_yt_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const ytVideoId = 'abc12345xyz';
+    db.prepare(`
+      INSERT INTO media_items (
+        id, created_at, created_by, updated_at, updated_by, version,
+        uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+        video_platform, video_id, video_url, thumbnail_url,
+        moderation_status
+      ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, NULL, ?, 'youtube', ?, ?, NULL, 'active')
+    `).run(mediaId, now, now, SYSTEM_ID, now, ytVideoId, `https://www.youtube.com/watch?v=${ytVideoId}`);
+    db.close();
+
+    const item = await svc.getMediaItem(mediaId);
+    expect(item).not.toBeNull();
+    expect(item!.videoPlatform).toBe('youtube');
+    expect(item!.videoId).toBe(ytVideoId);
+    expect(item!.videoUrl).toBe(`https://www.youtube.com/watch?v=${ytVideoId}`);
+    expect(item!.thumbnailUrl).toBe(`https://i.ytimg.com/vi/${ytVideoId}/hqdefault.jpg`);
+  });
+
+  it('vimeo row with sidecar-supplied thumbnail_url: thumbnailUrl uses the stored value (not derived)', async () => {
+    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
+    const db = openDb();
+    const now = new Date().toISOString();
+    const mediaId = `media_vimeo_thumb_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const stored = 'https://i.vimeocdn.com/video/777_640.jpg';
+    db.prepare(`
+      INSERT INTO media_items (
+        id, created_at, created_by, updated_at, updated_by, version,
+        uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+        video_platform, video_id, video_url, thumbnail_url,
+        moderation_status
+      ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, NULL, ?, 'vimeo', '777', 'https://vimeo.com/777', ?, 'active')
+    `).run(mediaId, now, now, SYSTEM_ID, now, stored);
+    db.close();
+
+    const item = await svc.getMediaItem(mediaId);
+    expect(item).not.toBeNull();
+    expect(item!.thumbnailUrl).toBe(stored);
   });
 });
 
@@ -650,5 +936,359 @@ describe('curatorMediaService.listMedia', () => {
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     const result = svc.listMedia({ page: 9999, pageSize: 100 });
     expect(result.items).toEqual([]);
+  });
+});
+
+// ── uploadUrlReference: writes sidecar files to /curated/{category}/ ──────
+//
+// URL-reference uploads are sidecar-first: no DB row written by the
+// service. The seeder regenerates DB rows from sidecars on each run.
+// Tests assert: oEmbed verification gating, sidecar file content,
+// idempotent re-uploads, dynamic category dir creation.
+
+import { mkdtempSync, rmSync, mkdirSync, existsSync, readFileSync, readdirSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+function makeUrlVerifierStub(opts: {
+  ok: boolean;
+  status: number;
+  body?: Record<string, unknown>;
+}) {
+  let calls = 0;
+  return {
+    impl: async (_url: string, _platform: 'youtube' | 'vimeo') => {
+      calls++;
+      const out: { ok: boolean; status: number; body?: Record<string, unknown> } = {
+        ok: opts.ok,
+        status: opts.status,
+      };
+      if (opts.body) out.body = opts.body;
+      return out;
+    },
+    callCount: () => calls,
+  };
+}
+
+describe('curatorMediaService.uploadUrlReference', () => {
+  let curatedRoot: string;
+
+  beforeEach(() => {
+    // Mirrors repo state: only `freestyle_tricks/` pre-exists. Other
+    // categories are created on demand by the auto-mkdir contract.
+    curatedRoot = mkdtempSync(join(tmpdir(), 'url-ref-curated-'));
+    mkdirSync(join(curatedRoot, 'freestyle_tricks'), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(curatedRoot, { recursive: true, force: true });
+  });
+
+  it('YouTube happy path: writes sidecar without thumbnailUrl, oEmbed verifier called, audit row written', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'Demo' } });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+
+    const result = await svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
+      videoPlatform: 'youtube',
+      primarySlug: 'around-the-world',
+      title: 'Around the world tutorial',
+      creator: 'Kenny Shults',
+      sourceId: 'tt_youtube',
+      tier: 'CANONICAL_TUTORIAL',
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#trick', '#around-the-world'],
+    });
+
+    expect(verifier.callCount()).toBe(1);
+    expect(result.category).toBe('freestyle_tricks');
+    expect(result.filename).toMatch(/^around-the-world_[0-9a-f]{8}\.meta\.json$/);
+    expect(result.overwritten).toBe(false);
+    expect(existsSync(result.filePath)).toBe(true);
+
+    const sidecar = JSON.parse(readFileSync(result.filePath, 'utf-8'));
+    expect(sidecar).toMatchObject({
+      videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
+      videoPlatform: 'youtube',
+      title: 'Around the world tutorial',
+      creator: 'Kenny Shults',
+      sourceId: 'tt_youtube',
+      tier: 'CANONICAL_TUTORIAL',
+    });
+    expect(sidecar.thumbnailUrl).toBeUndefined();
+    expect(sidecar.tags).toEqual(['#around-the-world', '#freestyle', '#trick']);
+
+    const db = openDb();
+    const audit = db.prepare(
+      `SELECT * FROM audit_entries WHERE entity_id = ? AND action_type = 'upload_curated_url_reference'`,
+    ).get(result.filename) as Record<string, unknown> | undefined;
+    expect(audit).toBeDefined();
+    expect(audit!.actor_member_id).toBe(ADMIN_ID);
+    db.close();
+  });
+
+  it('Vimeo happy path: pulls thumbnail_url from oEmbed body and writes it into sidecar', async () => {
+    const verifier = makeUrlVerifierStub({
+      ok: true,
+      status: 200,
+      body: { title: 'Demo', thumbnail_url: 'https://i.vimeocdn.com/video/abc_640.jpg' },
+    });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+
+    const result = await svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://vimeo.com/123456',
+      videoPlatform: 'vimeo',
+      primarySlug: 'blender',
+      title: 'Vimeo demo',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#trick', '#blender'],
+    });
+
+    const sidecar = JSON.parse(readFileSync(result.filePath, 'utf-8'));
+    expect(sidecar.thumbnailUrl).toBe('https://i.vimeocdn.com/video/abc_640.jpg');
+    expect(sidecar.videoPlatform).toBe('vimeo');
+  });
+
+  it('Dead URL (oEmbed returns 404): throws ValidationError, NO sidecar file written', async () => {
+    const verifier = makeUrlVerifierStub({ ok: false, status: 404 });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+
+    await expect(svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
+      videoPlatform: 'youtube',
+      primarySlug: 'legover',
+      title: 'Legover Variation',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#trick', '#legover'],
+    })).rejects.toThrow(/oEmbed status 404/);
+
+    const dirContents = readdirSync(join(curatedRoot, 'freestyle_tricks'));
+    expect(dirContents.some((f) => f.startsWith('legover_'))).toBe(false);
+  });
+
+  it('Re-uploading the same URL is idempotent (overwritten=true, content matches)', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'X' } });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+    const input = {
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://www.youtube.com/watch?v=ZZZ12345678',
+      videoPlatform: 'youtube' as const,
+      primarySlug: 'mobius',
+      title: 'first title',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#trick', '#mobius'],
+    };
+
+    const r1 = await svc.uploadUrlReference(input);
+    expect(r1.overwritten).toBe(false);
+
+    const r2 = await svc.uploadUrlReference({ ...input, title: 'second title' });
+    expect(r2.overwritten).toBe(true);
+    expect(r2.filename).toBe(r1.filename);
+    const sidecar = JSON.parse(readFileSync(r2.filePath, 'utf-8'));
+    expect(sidecar.title).toBe('second title');
+  });
+
+  it('New category (dir not yet exists): auto-mkdirs the dir and writes the sidecar', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'New cat' } });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+
+    expect(existsSync(join(curatedRoot, 'demos_2026'))).toBe(false);
+
+    const result = await svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'demos_2026',
+      videoUrl: 'https://www.youtube.com/watch?v=NEWCAT12345',
+      videoPlatform: 'youtube',
+      primarySlug: 'pickup',
+      title: 'Pickup demo',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#demo', '#pickup'],
+    });
+
+    expect(result.category).toBe('demos_2026');
+    expect(existsSync(join(curatedRoot, 'demos_2026'))).toBe(true);
+    expect(existsSync(result.filePath)).toBe(true);
+  });
+
+  it('Bad category name (slash, dot, uppercase): ValidationError, no fs write', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'X' } });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+    await expect(svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: '..ev/il',
+      videoUrl: 'https://www.youtube.com/watch?v=AAA12345678',
+      videoPlatform: 'youtube',
+      primarySlug: 'quantum',
+      title: 'X',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#trick', '#quantum'],
+    })).rejects.toThrow(/Category name must be lowercase letters, digits, or underscores/);
+    expect(verifier.callCount()).toBe(0);
+  });
+
+  it('Vimeo with missing thumbnail_url in oEmbed body: ValidationError', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'X' } });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+    await expect(svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://vimeo.com/9999999',
+      videoPlatform: 'vimeo',
+      primarySlug: 'mirage',
+      title: 'X',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#trick', '#mirage'],
+    })).rejects.toThrow(/thumbnail_url/);
+  });
+
+  it('Invalid videoPlatform: ValidationError, verifier not called', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'X' } });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+    await expect(svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://example.com/x',
+      // @ts-expect-error testing runtime validation of bad platform
+      videoPlatform: 'tiktok',
+      primarySlug: 'illusion',
+      title: 'X',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#trick', '#illusion'],
+    })).rejects.toThrow(/YouTube or Vimeo/);
+    expect(verifier.callCount()).toBe(0);
+  });
+
+  it('Tags with #curated: ValidationError (auto-prepended at seed time)', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'X' } });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+    await expect(svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
+      videoPlatform: 'youtube',
+      primarySlug: 'drifter',
+      title: 'X',
+      creator: null,
+      sourceId: null,
+      tier: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#curated', '#freestyle', '#trick', '#drifter'],
+    })).rejects.toThrow(/#curated.*auto-applied/);
+  });
+});
+
+describe('curatorMediaService.listExistingCategories', () => {
+  it('returns sorted list of subdirectory names under the curated root', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'list-cat-test-'));
+    try {
+      mkdirSync(join(tmp, 'freestyle_tricks'));
+      mkdirSync(join(tmp, 'demos_2026'));
+      mkdirSync(join(tmp, 'admin'));
+      // A file at the top level should NOT appear in the listing.
+      require('fs').writeFileSync(join(tmp, 'top-level.jpg'), 'x');
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: tmp,
+      });
+      const list = await svc.listExistingCategories();
+      expect(list).toEqual(['admin', 'demos_2026', 'freestyle_tricks']);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('returns empty list when the curated root does not exist', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'list-cat-empty-'));
+    rmSync(tmp, { recursive: true, force: true });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      curatedRootDir: tmp,
+    });
+    expect(await svc.listExistingCategories()).toEqual([]);
   });
 });

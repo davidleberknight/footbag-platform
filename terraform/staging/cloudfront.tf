@@ -222,6 +222,24 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   # ── Member photos and system-account media (S3 origin) — query-string in cache key (URL-versioned cache-bust) ─
+  # Named-gallery URL bookmarks render as dynamic HTML from the app, not
+  # bytes from S3. Pattern is `/media/gallery_*` (the `gallery_<slug>`
+  # convention used by member_galleries.id for FH-owned bookmarks). Must
+  # precede the `/media/*` → S3 behavior because CloudFront evaluates
+  # ordered behaviors in list order; the more-specific prefix wins. The
+  # existing S3-keyed paths under /media all start with `/media/member_…`,
+  # so the `gallery_` and `member_` prefixes do not collide.
+  ordered_cache_behavior {
+    path_pattern           = "/media/gallery_*"
+    target_origin_id       = "lightsail-origin"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
+  }
+
   # No origin_request_policy: OAC handles SigV4 signing, and forwarding the
   # viewer Host header to an S3 origin breaks virtual-host bucket routing.
   # AllViewer forwarded Host=<cloudfront-domain> to S3, so S3 could not map

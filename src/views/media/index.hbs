@@ -1,0 +1,40 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper">
+
+  {{#if content.galleries.length}}
+    <ul class="gallery-grid">
+      {{#each content.galleries}}
+        <li class="hub-card">
+          <a href="{{href}}" class="hub-card-link">
+            <div class="hub-card-accent" aria-hidden="true"></div>
+            <div class="hub-card-body">
+              <div class="hub-card-head">
+                <h2 class="hub-card-name">{{name}}</h2>
+                <span class="hub-card-count">
+                  <strong>{{itemCount}}</strong>
+                  <span>{{#if (eq itemCount 1)}}item{{else}}items{{/if}}</span>
+                </span>
+              </div>
+              {{#if description}}<p class="hub-card-description">{{description}}</p>{{/if}}
+            </div>
+            {{#if criteriaTags.length}}
+              <ul class="hub-card-tags">
+                {{#each criteriaTags}}<li class="hub-card-tag">{{this}}</li>{{/each}}
+                <li class="hub-card-arrow" aria-hidden="true">&rarr;</li>
+              </ul>
+            {{/if}}
+          </a>
+        </li>
+      {{/each}}
+    </ul>
+  {{else}}
+    <div class="empty-state">No galleries yet.</div>
+  {{/if}}
+
+</div>

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { homeController } from '../controllers/homeController';
 import { clubController } from '../controllers/clubController';
-import { galleryController } from '../controllers/galleryController';
+import { mediaController } from '../controllers/mediaController';
 import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
@@ -22,7 +22,8 @@ export const publicRouter = Router();
 publicRouter.get('/',      homeController.home);
 publicRouter.get('/clubs',       clubController.index);
 publicRouter.get('/clubs/:key', clubController.byKey);
-publicRouter.get('/gallery',    galleryController.index);
+publicRouter.get('/media',              mediaController.hub);
+publicRouter.get('/media/:galleryId',    mediaController.namedGallery);
 publicRouter.get('/hof',   hofController.index);
 publicRouter.get('/bap',   bapController.index);
 

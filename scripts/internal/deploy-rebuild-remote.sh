@@ -275,8 +275,8 @@ systemctl stop footbag || true
 echo "    Ensuring compose stack is fully down..."
 compose_cmd down --remove-orphans || true
 
-# S3 media cycle (wipe + repopulate) is gated on the --with-curated opt-in
-# threaded as WITH_CURATED env from the workstation's orchestrator. Without
+# S3 media cycle (wipe + repopulate) is gated on the --sync-media opt-in
+# threaded as SYNC_MEDIA env from the workstation's orchestrator. Without
 # the opt-in, S3 is fully preserved across this deploy (no wipe, no sync,
 # no aws-s3 calls). With the opt-in, the existing wipe semantics apply:
 # auto-wipe on staging by default; --keep-media to skip the wipe but still
@@ -288,9 +288,9 @@ compose_cmd down --remove-orphans || true
 # clean slate. The DR bucket auto-receives delete markers via replication.
 # CloudFront edge cache may continue serving previously-cached objects for
 # up to 7 days under the /media/* TTL, which is acceptable on staging.
-: "${WITH_CURATED:?must be set by deploy-rebuild.sh via cat-pipe}"
-if [[ "$WITH_CURATED" != "yes" ]]; then
-  echo "    --with-curated not set: skipping S3 wipe + sync; live media untouched."
+: "${SYNC_MEDIA:?must be set by deploy-rebuild.sh via cat-pipe}"
+if [[ "$SYNC_MEDIA" != "yes" ]]; then
+  echo "    --sync-media not set: skipping S3 wipe + sync; live media untouched."
 else
   if [[ "$KEEP_MEDIA" == "yes" ]]; then
     echo "    --keep-media: skipping S3 media wipe."
@@ -318,7 +318,7 @@ else
       "s3://${MEDIA_STORAGE_S3_BUCKET_VAL}/"
     echo "    Curator media sync complete."
   else
-    echo "    WARNING: --with-curated set but RELEASE_DIR/data/media does not exist; skipping S3 sync."
+    echo "    WARNING: --sync-media set but RELEASE_DIR/data/media does not exist; skipping S3 sync."
   fi
 fi
 

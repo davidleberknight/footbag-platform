@@ -2112,6 +2112,22 @@ CREATE TABLE member_galleries (
   UNIQUE(owner_member_id, name)
 );
 
+-- Tag criteria for a named-gallery URL bookmark. The set of tag rows
+-- linked to a gallery_id is the AND-criteria for that bookmark: an item
+-- matches the bookmark iff it carries every linked tag (per
+-- USER_STORIES.md §V_View_Gallery "Gallery built dynamically based on
+-- tag matching"). Empty set = bookmark with no criteria; renders empty.
+-- Cascade-delete with the parent member_galleries row. tag_id is a
+-- foreign key into the existing tags table; the same tags surface that
+-- backs media_tags.
+CREATE TABLE member_gallery_tags (
+  gallery_id TEXT NOT NULL REFERENCES member_galleries(id) ON DELETE CASCADE,
+  tag_id     TEXT NOT NULL REFERENCES tags(id),
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  PRIMARY KEY (gallery_id, tag_id)
+);
+
 -- External URLs associated with a gallery (e.g., links to off-platform albums).
 -- Cascade-deleted when the parent gallery is deleted.
 CREATE TABLE gallery_external_links (

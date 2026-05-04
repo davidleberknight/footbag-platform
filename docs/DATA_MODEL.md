@@ -837,7 +837,7 @@ If a future version introduces a distinct result-publication workflow, that beha
 
 ### 4.17 Media & Galleries
 
-**Tables:** `media_items`, `member_galleries`, `gallery_external_links`
+**Tables:** `media_items`, `member_galleries`, `member_gallery_tags`, `gallery_external_links`
 
 #### Hard-delete
 Both `media_items` and `member_galleries` use **hard-delete only** (no `deleted_at`). Members own their content and can delete it immediately without leaving orphaned rows.
@@ -881,6 +881,16 @@ Curator-uploaded reference media (videos/images attributed to the system-member 
 **Table:** `media_sources`, provenance lookup. Columns: `source_id` (PK), `source_name`, `source_type` (e.g. `'dvd'`, `'website'`, `'youtube'`, `'vimeo'`), `url`, `creator`. `media_items.source_id ON DELETE NO ACTION` (sources are reference data, not deleted in normal flow).
 
 Entity association is hashtag-driven via `media_tags`. An asset tagged `#curated #freestyle #trick #ripwalk` is the canonical trick reference media for the ripwalk trick. The trick page renders a gallery of all matching curator-tagged videos.
+
+#### Named-gallery URL bookmarks (`member_gallery_tags`)
+
+A "named gallery" is a stable URL bookmark, not a content bucket. The `member_galleries` row provides the slug, name, description, and owner; the row itself does not carry a list of member IDs. Content membership is computed at request time by tag-AND match against `member_gallery_tags`, the join table that links a gallery to the set of tags that defines it.
+
+**Table:** `member_gallery_tags(gallery_id, tag_id, created_at, created_by)` with composite primary key `(gallery_id, tag_id)`. `gallery_id ON DELETE CASCADE`: criteria rows disappear when the parent gallery is deleted. `tag_id ON DELETE NO ACTION`: tags are reference data shared with `media_tags`.
+
+**Semantics:** items appear in a named gallery iff they carry every tag linked to that gallery (tag-AND-of-N, not OR). Empty criteria → empty gallery. The same `tags` table backs both `media_tags` (per-item tagging) and `member_gallery_tags` (per-gallery criteria), so a curator who tags media with `#freestyle` automatically affects every gallery whose criteria include `#freestyle`.
+
+**Detached vs attached content:** the `media_items.gallery_id` FK is for member-uploaded content that lives in a personal organizational bucket. Curator URL-reference content (YouTube/Vimeo) is uploaded as detached (`gallery_id IS NULL`) and surfaces in named galleries purely via tag matching. The two mechanisms coexist on the same `member_galleries` table.
 
 ### 4.18 Club Leaders & Event Organizers
 

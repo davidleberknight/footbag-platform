@@ -3549,7 +3549,7 @@ export const media = {
   get listCuratorMedia() { return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
-           mi.video_id, mi.thumbnail_url,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
            mi.width_px, mi.height_px
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
@@ -3574,7 +3574,8 @@ export const media = {
   // defense-in-depth: this service only edits/deletes its own content.
   get getCuratorMediaItemById() { return db.prepare(`
     SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
-           mi.s3_key_thumb, mi.s3_key_display, mi.video_id, mi.thumbnail_url,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
            mi.source_filename
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
@@ -3596,7 +3597,7 @@ export const media = {
   get listCuratorMediaByTag() { return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
-           mi.video_id, mi.thumbnail_url,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
            mi.width_px, mi.height_px
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
@@ -3621,6 +3622,40 @@ export const media = {
       AND mi.is_avatar = 0
       AND t.tag_normalized = ?
   `); },
+
+  // Named-gallery URL bookmarks: a member_galleries row anchors a stable
+  // /media/<gallery_id> URL; its content is the tag-AND view defined by
+  // member_gallery_tags. Per USER_STORIES.md §V_View_Gallery: "Gallery
+  // built dynamically based on tag matching". The hub at /media lists
+  // FH-owned bookmarks. Item counts are computed in the service layer
+  // via countGalleryItemsByCriteria so this query stays simple.
+  get listFhNamedGalleries() { return db.prepare(`
+    SELECT g.id, g.name, g.description
+    FROM member_galleries g
+    JOIN members m ON m.id = g.owner_member_id
+    WHERE m.is_system = 1
+    ORDER BY g.name
+  `); },
+
+  // Anti-enumeration: filter by FH ownership at the SQL level so a
+  // member-owned gallery returns 404 rather than leaking existence.
+  get getFhNamedGalleryById() { return db.prepare(`
+    SELECT g.id, g.name, g.description
+    FROM member_galleries g
+    JOIN members m ON m.id = g.owner_member_id
+    WHERE g.id = ? AND m.is_system = 1
+  `); },
+
+  // Criteria-tag list for a named-gallery row, used to render the tag
+  // pills on the gallery hero and the hub-card tags. Returned in
+  // alphabetical order for deterministic rendering.
+  get listFhNamedGalleryTags() { return db.prepare(`
+    SELECT t.id, t.tag_display
+    FROM member_gallery_tags mgt
+    JOIN tags t ON t.id = mgt.tag_id
+    WHERE mgt.gallery_id = ?
+    ORDER BY t.tag_display
+  `); },
 };
 
 // Tag display values for a set of media ids in one round-trip. Built
@@ -3637,6 +3672,54 @@ export function queryCuratorMediaTags(
     WHERE mt.media_id IN (${placeholders})
     ORDER BY mt.tag_display
   `).all(...mediaIds) as { media_id: string; tag_display: string }[];
+}
+
+// Tag-AND-of-N gallery query. Items appear iff they carry every one of
+// the given tag ids. Standard SQLite GROUP BY / HAVING COUNT(DISTINCT)
+// pattern. Built dynamically because better-sqlite3 has no array-bind
+// for IN(). Empty criteria → empty result (not "match everything"); the
+// caller must treat zero-criteria galleries as empty per
+// schema.sql:member_gallery_tags doc-comment.
+export function queryGalleryItemsByCriteria(
+  tagIds: string[],
+  limit: number,
+  offset: number,
+): CuratorGalleryRow[] {
+  if (tagIds.length === 0) return [];
+  const placeholders = tagIds.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.width_px, mi.height_px
+    FROM media_items mi
+    JOIN media_tags mt ON mt.media_id = mi.id
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND mt.tag_id IN (${placeholders})
+    GROUP BY mi.id
+    HAVING COUNT(DISTINCT mt.tag_id) = ?
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+    LIMIT ? OFFSET ?
+  `).all(...tagIds, tagIds.length, limit, offset) as CuratorGalleryRow[];
+}
+
+export function countGalleryItemsByCriteria(tagIds: string[]): number {
+  if (tagIds.length === 0) return 0;
+  const placeholders = tagIds.map(() => '?').join(',');
+  const row = db.prepare(`
+    SELECT COUNT(*) AS n FROM (
+      SELECT mi.id
+      FROM media_items mi
+      JOIN media_tags mt ON mt.media_id = mi.id
+      WHERE mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+        AND mt.tag_id IN (${placeholders})
+      GROUP BY mi.id
+      HAVING COUNT(DISTINCT mt.tag_id) = ?
+    )
+  `).get(...tagIds, tagIds.length) as { n: number };
+  return row.n;
 }
 
 export const mediaTags = {
@@ -3681,11 +3764,20 @@ export interface CuratorSlotMediaRow {
   s3_key_display: string | null;
 }
 
-// Photo rows have s3_key_thumb / s3_key_display populated and video_id /
-// thumbnail_url NULL. Video rows are the inverse: video_id holds the storage
-// key for the bytes, thumbnail_url is a fully-formed /media/... URL to the
-// poster, and the s3_key_* columns are NULL. Shaping must branch on
-// media_type, not on key presence.
+// Photo rows have s3_key_thumb / s3_key_display populated and the video_*
+// columns NULL. Video rows are platform-shaped:
+//   's3'      → video_id holds the S3 key for the bytes; thumbnail_url is a
+//               /media/... URL to the seeded poster; video_url is NULL.
+//   'youtube' → video_id holds the YouTube video id; video_url holds the full
+//               youtube.com URL; thumbnail_url is NULL (the gallery service
+//               derives https://i.ytimg.com/vi/{id}/hqdefault.jpg at render
+//               time, since YouTube thumbnails are a deterministic function
+//               of the video id).
+//   'vimeo'   → video_id holds the Vimeo video id; video_url holds the full
+//               vimeo.com URL; thumbnail_url holds the sidecar-supplied
+//               i.vimeocdn.com poster URL (Vimeo thumbnails are NOT derivable
+//               from the video id).
+// Shaping must branch on media_type and, for videos, on video_platform.
 export interface CuratorGalleryRow {
   id: string;
   media_type: 'photo' | 'video';
@@ -3693,7 +3785,9 @@ export interface CuratorGalleryRow {
   uploaded_at: string;
   s3_key_thumb: string | null;
   s3_key_display: string | null;
+  video_platform: 'youtube' | 'vimeo' | 's3' | null;
   video_id: string | null;
+  video_url: string | null;
   thumbnail_url: string | null;
   width_px: number | null;
   height_px: number | null;
@@ -3701,6 +3795,20 @@ export interface CuratorGalleryRow {
 
 export interface CuratorMediaCountRow {
   n: number;
+}
+
+// Row shapes for named-gallery URL bookmarks (member_galleries +
+// member_gallery_tags). FH-owned rows back the public hub at /media; the
+// criteria-tag list defines the tag-AND view rendered at /media/<id>.
+export interface FhNamedGalleryRow {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface FhNamedGalleryTagRow {
+  id: string;
+  tag_display: string;
 }
 
 export interface ExistingAvatarRow {

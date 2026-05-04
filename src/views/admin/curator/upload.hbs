@@ -1,10 +1,17 @@
 {{!-- Admin curator upload form --}}
 <div class="wrapper">
   <h1>{{page.title}}</h1>
-  <p>Upload curated photos or videos. Content is attributed to the system member account (Footbag Hacky).</p>
+  <p>Upload curated photos, videos, or URL references (YouTube / Vimeo). Content is attributed to the system member account (Footbag Hacky).</p>
 
   {{#if errorMessage}}
     <div class="error-banner" role="alert">{{errorMessage}}</div>
+  {{/if}}
+
+  {{#if savedFlag}}
+    <div class="success-banner" role="status">
+      Sidecar saved under <code>/curated/</code>. Run the curator seeder
+      (<code>python scripts/seed_curator_media.py</code>) to update the platform DB.
+    </div>
   {{/if}}
 
   <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data">
@@ -12,35 +19,110 @@
       <legend>Type</legend>
       <label><input type="radio" name="mediaType" value="photo" checked> Photo</label>
       <label><input type="radio" name="mediaType" value="video"> Video</label>
+      <label><input type="radio" name="mediaType" value="url_reference"> URL reference (YouTube / Vimeo)</label>
     </fieldset>
 
-    <p>
-      <label>
-        File:
-        <input type="file" name="mediaFile" required>
-      </label>
-    </p>
+    <fieldset>
+      <legend>Category (URL reference only)</legend>
+      <p>Determines which subdirectory of <code>/curated/</code> the sidecar JSON lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
+      {{#if existingCategories.length}}
+        {{#each existingCategories}}
+          <label><input type="checkbox" name="category" value="{{this}}"> {{this}}</label>
+        {{/each}}
+      {{else}}
+        <p><em>No existing curated category subdirectories found.</em></p>
+      {{/if}}
+      <p>
+        <label>
+          Or new category name (lowercase letters, digits, underscores):
+          <input type="text" name="newCategory" value="{{formValues.newCategory}}" placeholder="e.g. demos_2026">
+        </label>
+      </p>
+    </fieldset>
 
-    <p>
-      <label>
-        Poster (video only):
-        <input type="file" name="poster">
-      </label>
-    </p>
+    <fieldset>
+      <legend>File upload (photo / video only)</legend>
+      <p>
+        <label>
+          File:
+          <input type="file" name="mediaFile">
+        </label>
+      </p>
 
-    <p>
-      <label>
-        Caption (max 500 chars):
-        <input type="text" name="caption" maxlength="500" value="{{formValues.caption}}">
-      </label>
-    </p>
+      <p>
+        <label>
+          Poster (video only):
+          <input type="file" name="poster">
+        </label>
+      </p>
+    </fieldset>
 
-    <p>
-      <label>
-        Tags (space-separated, lowercase, must start with #):
-        <input type="text" name="tags" value="{{formValues.tags}}">
-      </label>
-    </p>
+    <fieldset>
+      <legend>URL reference (URL reference only)</legend>
+      <p>
+        <label>
+          Platform:
+          <select name="videoPlatform">
+            <option value="">--</option>
+            <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
+            <option value="vimeo" {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
+          </select>
+        </label>
+      </p>
+      <p>
+        <label>
+          Video URL:
+          <input type="url" name="videoUrl" value="{{formValues.videoUrl}}" placeholder="https://www.youtube.com/watch?v=...">
+        </label>
+      </p>
+      <p>
+        <label>
+          Primary slug (filename prefix, lowercase letters/digits/hyphens):
+          <input type="text" name="primarySlug" value="{{formValues.primarySlug}}" placeholder="around-the-world">
+        </label>
+      </p>
+      <p>
+        <label>
+          Title (used as caption in the gallery):
+          <input type="text" name="title" maxlength="500" value="{{formValues.title}}">
+        </label>
+      </p>
+      <p>
+        <label>
+          Creator (e.g. video author; optional):
+          <input type="text" name="creator" value="{{formValues.creator}}">
+        </label>
+      </p>
+      <p>
+        <label>
+          Source id (FK into <code>media_sources</code>; optional):
+          <input type="text" name="sourceId" value="{{formValues.sourceId}}">
+        </label>
+      </p>
+      <p>
+        <label>
+          Tier (e.g. <code>CANONICAL_TUTORIAL</code>, <code>HIGH_QUALITY_DEMO</code>; optional):
+          <input type="text" name="tier" value="{{formValues.tier}}">
+        </label>
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Caption + tags (all media types)</legend>
+      <p>
+        <label>
+          Caption (max 500 chars; ignored for URL reference, use Title above):
+          <input type="text" name="caption" maxlength="500" value="{{formValues.caption}}">
+        </label>
+      </p>
+
+      <p>
+        <label>
+          Tags (space-separated, lowercase, must start with #; do NOT include #curated):
+          <input type="text" name="tags" value="{{formValues.tags}}" placeholder="#freestyle #trick #around-the-world">
+        </label>
+      </p>
+    </fieldset>
 
     <p>Uploader: Footbag Hacky (system member). Gallery: detached.</p>
 

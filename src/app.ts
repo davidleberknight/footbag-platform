@@ -26,6 +26,7 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/records',   section: 'records',   label: 'Records' },
   { href: '/hof',       section: 'hof',       label: 'HoF' },
   { href: '/bap',       section: 'bap',       label: 'BAP' },
+  { href: '/media',     section: 'media',     label: 'Media' },
 ];
 
 /**
@@ -51,12 +52,13 @@ export function createApp(): express.Application {
 
   // Strict Content-Security-Policy: 'self' for scripts and styles, no inline
   // execution, no inline event handlers, no framing. Third-party origins are
-  // added only when a template references them — currently i.ytimg.com (YouTube
-  // thumbnail CDN, served as the <img> placeholder before the user clicks the
-  // facade) and www.youtube-nocookie.com (the privacy-friendly embed iframe
-  // loaded after the click). data: is allowed in img-src as a future allowance
-  // for small inline SVG icons (no current consumer). HSTS preload stays off
-  // until the custom domain lands.
+  // added only when a template references them — currently i.ytimg.com and
+  // i.vimeocdn.com (YouTube/Vimeo thumbnail CDNs used by the curator gallery
+  // tiles for external-platform reference videos) and www.youtube-nocookie.com
+  // (the privacy-friendly embed iframe loaded after the user clicks a facade).
+  // data: is allowed in img-src as a future allowance for small inline SVG
+  // icons (no current consumer). HSTS preload stays off until the custom
+  // domain lands.
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: false,
@@ -65,7 +67,7 @@ export function createApp(): express.Application {
         scriptSrc:      ["'self'"],
         scriptSrcAttr:  ["'none'"],
         styleSrc:       ["'self'"],
-        imgSrc:         ["'self'", 'data:', 'https://i.ytimg.com'],
+        imgSrc:         ["'self'", 'data:', 'https://i.ytimg.com', 'https://i.vimeocdn.com'],
         fontSrc:        ["'self'"],
         connectSrc:     ["'self'"],
         frameSrc:       ['https://www.youtube-nocookie.com'],
@@ -95,9 +97,19 @@ export function createApp(): express.Application {
   // via `?v={media_id}` makes `immutable` semantically correct: each
   // emitted URL is unique to its upload, replacement uploads emit a fresh
   // `?v=` and become a distinct cache entry.
+  // index: false + redirect: false ensure a request for /media or
+  // /media/<no-such-key> falls through to the public router (where the
+  // /media hub and named-gallery routes live). Without redirect: false,
+  // express.static issues 301 /media → /media/ on the bare path because
+  // it sees a directory; that hijacks our hub route.
   app.use(
     '/media',
-    express.static(config.mediaDir, { maxAge: '1y', immutable: true }),
+    express.static(config.mediaDir, {
+      maxAge: '1y',
+      immutable: true,
+      index: false,
+      redirect: false,
+    }),
   );
 
   // ── View engine ──────────────────────────────────────────────────────────
@@ -169,7 +181,7 @@ export function createApp(): express.Application {
       : req.path.startsWith('/members') ? 'members'
       : req.path.startsWith('/history') ? 'history'
       : req.path.startsWith('/clubs') ? 'clubs'
-      : req.path.startsWith('/gallery') ? 'gallery'
+      : req.path.startsWith('/media') ? 'media'
       : req.path.startsWith('/hof') ? 'hof'
       : req.path.startsWith('/bap') ? 'bap'
       : req.path.startsWith('/freestyle') ? 'freestyle'

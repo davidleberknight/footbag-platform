@@ -384,6 +384,10 @@ Success Criteria:
 - Each gallery item displays thumbnail, caption excerpt, all clickable tags, upload date.
 - Empty state displays "No photos or videos found with this tag" with suggestions of 5 popular tags platform-wide (a teachable moment).
 - Media galleries are pubic, but only logged-in members will see details about the personal information of the member who uploaded the media (uploaded_by).
+- Public hub at `/media` lists every named-gallery URL bookmark owned by the FH system member; each card shows the gallery name, description, item count, and the criteria-tag pills.
+- Named-gallery URL bookmarks live at `/media/{gallery_id}` (e.g., `/media/gallery_curated_freestyle_tricks`). The `gallery_id` is the slug; the `member_galleries` row anchors a stable URL plus human-readable name, description, and owner. Content membership is computed at request time by tag-AND match against the gallery's `member_gallery_tags` set, so an item appears iff it carries every criteria tag.
+- Bookmark slug convention: `gallery_{descriptive_snake_case}`. The slug pattern keeps `/media/gallery_*` URLs distinguishable from S3-keyed media paths under `/media/{member-id}/...`, which matters at the CDN cache-behavior layer.
+- Curator URL-reference content (YouTube/Vimeo) is stored detached (`media_items.gallery_id IS NULL`) and surfaces in named galleries purely via tag matching; only direct member uploads use the `gallery_id` FK as a personal organizational bucket.
 
 ### V_View_Trick_Reference_Videos
 
@@ -1731,12 +1735,14 @@ Success Criteria, Edit:
 - File replacement is not supported in-place. To change the file bytes, admin deletes the existing item and uploads a new one.
 - The `#curated` tag is auto-applied on every save and rejected if supplied in the tags input. Per-category default tags are preserved across edits.
 - Tags are rewritten atomically: the existing tag set is replaced by the new set in a single transaction. The auto-applied tags are preserved across edits.
+- For URL-reference items (YouTube, Vimeo), edit writes through to the source-of-truth sidecar JSON under `/curated/` (DD §1.13). Caption maps to `sidecar.title`; URL-reference fields (creator, sourceId, tier, startSeconds, endSeconds, Vimeo thumbnailUrl) merge into the sidecar. The platform DB is updated inline so the change reflects on read paths immediately; re-running the curator seeder against the new sidecar state produces the same DB result.
 - Editing a media item that does not exist (or is not FH-owned) returns 404.
 
 Success Criteria, Delete:
 
 - Admin delete UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
 - Deletion is hard delete (per DD §2.3 hard-delete rule for media): the media_items row is removed, all associated media_tags rows are cascaded, and the underlying S3 keys (variants and poster) are removed.
+- For URL-reference items (YouTube, Vimeo), delete also unlinks the sidecar JSON under `/curated/` (DD §1.13). The seeder's orphan-cleanup pass on the next run keeps the DB consistent for environments where the inline DB delete did not run.
 - Deletion is permanent. There is no soft-delete or restore. The admin sees a confirmation gate before the operation runs.
 - Deleting a media item that does not exist (or is not FH-owned) returns 404.
 

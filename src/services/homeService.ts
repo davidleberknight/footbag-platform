@@ -122,9 +122,9 @@ export const homeService = {
           description: 'Elite invite-only posse of top freestyle shredders.',
         },
         {
-          label: 'Media Gallery',
-          href: '/gallery',
-          description: 'Photos and videos from across the footbag world.',
+          label: 'Media Galleries',
+          href: '/media',
+          description: 'Curated photos and videos, organized into named galleries.',
         },
       ],
       comingSoonSections: [

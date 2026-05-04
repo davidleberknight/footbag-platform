@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import path from 'path';
 import { media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction } from '../db/db';
 import { detectImageType } from '../lib/imageProcessing';
 import {
@@ -9,6 +10,23 @@ import {
 import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import {
+  verifyExternalVideoUrl,
+  type VideoVerifyResult,
+  type VideoPlatform,
+} from '../lib/videoUrlVerifier';
+import {
+  validateUrlSidecarData,
+  deriveUrlSidecarFilename,
+  formatUrlSidecarJson,
+  writeUrlSidecarFile,
+  readUrlSidecarFile,
+  deleteUrlSidecarFile,
+  resolveSidecarForRow,
+  UrlSidecarValidationError,
+  type UrlSidecarData,
+  type WriteUrlSidecarResult,
+} from '../lib/curatorUrlSidecar';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
@@ -39,12 +57,77 @@ export function resetVideoTranscoderForTests(): void {
   transcoderOverrideForTests = null;
 }
 
+// Test seam: integration tests inject a fake URL verifier so the suite
+// runs without hitting real youtube.com/vimeo.com oEmbed endpoints.
+type VideoUrlVerifier = (
+  url: string,
+  platform: VideoPlatform,
+) => Promise<VideoVerifyResult>;
+let videoUrlVerifierOverrideForTests: VideoUrlVerifier | null = null;
+export function setVideoUrlVerifierForTests(impl: VideoUrlVerifier): void {
+  videoUrlVerifierOverrideForTests = impl;
+}
+export function resetVideoUrlVerifierForTests(): void {
+  videoUrlVerifierOverrideForTests = null;
+}
+
+// Test seam: integration tests inject a temp `/curated/` directory so
+// sidecar writes don't pollute the repo. Controllers construct the
+// service without passing `curatedRootDir`; in production it falls
+// through to `<repo-root>/curated`.
+let curatedRootDirOverrideForTests: string | null = null;
+export function setCuratedRootDirForTests(dir: string): void {
+  curatedRootDirOverrideForTests = dir;
+}
+export function resetCuratedRootDirForTests(): void {
+  curatedRootDirOverrideForTests = null;
+}
+
+// Curator URL-ref categories map 1:1 to subdirectories under /curated/.
+// The set is discovered at runtime (no allowlist) so admins can introduce
+// new categories by creating a new subdirectory or by typing a new name in
+// the upload form. Category names must be filesystem-safe and consistent
+// with the existing `freestyle_tricks` convention: lowercase letters,
+// digits, underscores. (No hyphens to avoid collision with hyphenated
+// trick slugs in the same namespace; no slashes/dots to avoid path traps.)
+const CATEGORY_NAME_PATTERN = /^[a-z0-9_]+$/;
+
+export function isValidCategoryName(value: string): boolean {
+  return CATEGORY_NAME_PATTERN.test(value);
+}
+
+// Lists subdirectories under the curated root, sorted, for the admin UI's
+// "tick an existing category" picker. Used by `getUpload` in the controller
+// at form-render time. Returns an empty array if the dir is missing.
+export async function listExistingCuratorCategories(curatedRootDir: string): Promise<string[]> {
+  const fsp = await import('fs/promises');
+  let entries;
+  try {
+    entries = await fsp.readdir(curatedRootDir, { withFileTypes: true });
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code === 'ENOENT') return [];
+    throw err;
+  }
+  return entries
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name)
+    .sort();
+}
+
 export interface CuratorMediaServiceDeps {
   storage: MediaStorageAdapter;
   imageProcessor: ImageProcessingAdapter;
   videoTranscoder?: (buf: Buffer) => Promise<TranscodedVideo>;
   // Test seam: override system-member resolution. Default reads from DB.
   findSystemMemberId?: () => string | null;
+  // Test seam: override the URL verifier. Defaults to the live oEmbed
+  // verifier for production. Tests can also use the module-level
+  // `setVideoUrlVerifierForTests` setter if they cannot pass deps.
+  videoUrlVerifier?: VideoUrlVerifier;
+  // Test seam: override the curated-files root. Defaults to
+  // `<process.cwd()>/curated`, matching the operator-run seeder.
+  curatedRootDir?: string;
 }
 
 export interface CuratorPhotoInput {
@@ -62,6 +145,30 @@ export interface CuratorVideoInput {
   sourceFilename: string;
   caption: string | null;
   tags: string[];
+}
+
+export interface CuratorUrlReferenceInput {
+  adminMemberId: string;
+  category: string;
+  videoUrl: string;
+  videoPlatform: 'youtube' | 'vimeo';
+  primarySlug: string;
+  title: string | null;
+  creator: string | null;
+  sourceId: string | null;
+  tier: string | null;
+  startSeconds: number | null;
+  endSeconds: number | null;
+  // User-supplied tags. Must NOT include #curated (auto-prepended by the
+  // seeder). Trick-slug, #freestyle, #trick, #demo, #net, etc. all live here.
+  tags: string[];
+}
+
+export interface CuratorUrlReferenceResult {
+  filename: string;
+  filePath: string;
+  overwritten: boolean;
+  category: string;
 }
 
 export interface CuratorUploadResult {
@@ -150,6 +257,18 @@ export interface CuratorMediaEditInput {
   mediaId: string;
   caption?: string | null;
   tags?: string[];
+  // URL-ref sidecar fields (only honored when the row is sidecar-backed,
+  // i.e. video_platform IN ('youtube','vimeo')). The service merges these
+  // into the sidecar JSON; ignored on DB-direct rows. `creator`/`sourceId`/
+  // `tier` accept null to clear the field; absent (undefined) leaves the
+  // existing sidecar value alone. `startSeconds`/`endSeconds` follow the
+  // same rule.
+  creator?: string | null;
+  sourceId?: string | null;
+  tier?: string | null;
+  startSeconds?: number | null;
+  endSeconds?: number | null;
+  thumbnailUrl?: string | null;
 }
 
 export interface CuratorMediaEditResult {
@@ -175,6 +294,19 @@ export interface CuratorMediaListItem {
   uploadedAt: string;
   thumbnailUrl: string;
   tags: string[];
+  videoPlatform: string | null;
+  videoId: string | null;
+  videoUrl: string | null;
+  // Sidecar-only fields. Populated by getMediaItem when the row is
+  // URL-reference-backed (videoPlatform IN ('youtube','vimeo')) and the
+  // sidecar file is present on disk; null otherwise. listMedia leaves
+  // these null to avoid 94+ filesystem reads per page render — the edit
+  // form is the only consumer that needs them.
+  creator: string | null;
+  sourceId: string | null;
+  tier: string | null;
+  startSeconds: number | null;
+  endSeconds: number | null;
 }
 
 export interface CuratorMediaListResult {
@@ -191,7 +323,9 @@ interface MediaItemRow {
   caption: string | null;
   s3_key_thumb: string | null;
   s3_key_display: string | null;
+  video_platform: string | null;
   video_id: string | null;
+  video_url: string | null;
   thumbnail_url: string | null;
   source_filename: string | null;
 }
@@ -203,7 +337,9 @@ interface MediaListRow {
   uploaded_at: string;
   s3_key_thumb: string | null;
   s3_key_display: string | null;
+  video_platform: string | null;
   video_id: string | null;
+  video_url: string | null;
   thumbnail_url: string | null;
   width_px: number | null;
   height_px: number | null;
@@ -218,6 +354,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   const videoTranscoder =
     deps.videoTranscoder ?? transcoderOverrideForTests ?? transcodeCuratorVideo;
   const findSystemMemberId = deps.findSystemMemberId ?? defaultFindSystemMemberId;
+  const videoUrlVerifier =
+    deps.videoUrlVerifier ?? videoUrlVerifierOverrideForTests ?? verifyExternalVideoUrl;
+  const curatedRootDir =
+    deps.curatedRootDir ??
+    curatedRootDirOverrideForTests ??
+    path.resolve(process.cwd(), 'curated');
 
   function resolveSystemMemberIdOrThrow(): string {
     const id = findSystemMemberId();
@@ -227,7 +369,40 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     return id;
   }
 
+  // Single source of truth for list/edit thumbnail URL resolution.
+  // YouTube URL-ref items are stored with thumbnail_url=NULL because the
+  // thumbnail is derivable from the video id at render time (DD §6.8);
+  // the seeder rejects any sidecar that supplies one. Without this branch
+  // the list view would render an empty <img src=""> for the 94 freestyle
+  // tricks corpus.
+  function deriveListThumbnail(row: {
+    media_type: 'photo' | 'video';
+    s3_key_thumb: string | null;
+    video_platform: string | null;
+    video_id: string | null;
+    thumbnail_url: string | null;
+  }): string {
+    if (row.media_type === 'photo') {
+      return storage.constructURL(row.s3_key_thumb ?? '');
+    }
+    if (
+      row.video_platform === 'youtube' &&
+      row.video_id &&
+      (!row.thumbnail_url || row.thumbnail_url === '')
+    ) {
+      return `https://i.ytimg.com/vi/${row.video_id}/hqdefault.jpg`;
+    }
+    return row.thumbnail_url ?? '';
+  }
+
   return {
+    // Lists existing /curated/{category}/ subdirectories for the admin
+    // upload form's category picker. Sorted, ENOENT-tolerant. Lives on the
+    // service so the controller doesn't need filesystem layout knowledge.
+    listExistingCategories(): Promise<string[]> {
+      return listExistingCuratorCategories(curatedRootDir);
+    },
+
     async uploadPhoto(input: CuratorPhotoInput): Promise<CuratorUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
@@ -342,6 +517,120 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
     },
 
+    async uploadUrlReference(
+      input: CuratorUrlReferenceInput,
+    ): Promise<CuratorUrlReferenceResult> {
+      validateCaption(input.title);
+      validateTags(input.tags);
+
+      if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
+        throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
+      }
+      if (!isValidCategoryName(input.category)) {
+        throw new ValidationError(
+          `Category name must be lowercase letters, digits, or underscores: got ${JSON.stringify(input.category)}.`,
+        );
+      }
+      if (!input.videoUrl || !/^https?:\/\//.test(input.videoUrl)) {
+        throw new ValidationError('Video URL must start with http:// or https://.');
+      }
+
+      // Authoritative availability check (DD §6.8). YouTube and Vimeo
+      // both serve HTTP 200 HTML for removed/private videos; oEmbed
+      // returns non-200 for the same and is the only reliable signal.
+      const verify = await videoUrlVerifier(input.videoUrl, input.videoPlatform);
+      if (!verify.ok) {
+        throw new ValidationError(
+          `Video is not available at the platform (oEmbed status ${verify.status}). Drop or rehost the URL.`,
+        );
+      }
+
+      // Vimeo: thumbnail not derivable from video id, so we pull it
+      // from the oEmbed body and persist on the sidecar.
+      // YouTube: thumbnail is derived at render time from the video id;
+      // sidecars MUST omit thumbnailUrl.
+      let thumbnailUrl: string | null = null;
+      if (input.videoPlatform === 'vimeo') {
+        const t = (verify.body as { thumbnail_url?: unknown } | undefined)?.thumbnail_url;
+        if (typeof t === 'string' && t.startsWith('https://')) {
+          thumbnailUrl = t;
+        } else {
+          throw new ValidationError(
+            'Vimeo oEmbed did not return a usable thumbnail_url. Cannot persist sidecar.',
+          );
+        }
+      }
+
+      const sidecarData: UrlSidecarData = {
+        videoUrl: input.videoUrl,
+        videoPlatform: input.videoPlatform,
+        title: input.title,
+        creator: input.creator,
+        sourceId: input.sourceId,
+        tier: input.tier,
+        thumbnailUrl,
+        startSeconds: input.startSeconds,
+        endSeconds: input.endSeconds,
+        // Tags are written verbatim (sorted, deduplicated) so a future
+        // edit operates on the same set the user submitted. The seeder
+        // prepends `#curated` at DB-load time, not at sidecar-write time.
+        tags: Array.from(new Set(input.tags)).sort(),
+      };
+      try {
+        validateUrlSidecarData(sidecarData);
+      } catch (err) {
+        if (err instanceof UrlSidecarValidationError) {
+          throw new ValidationError(err.message);
+        }
+        throw err;
+      }
+
+      let filename: string;
+      try {
+        filename = deriveUrlSidecarFilename(input.primarySlug, input.videoUrl);
+      } catch (err) {
+        if (err instanceof UrlSidecarValidationError) {
+          throw new ValidationError(err.message);
+        }
+        throw err;
+      }
+
+      const categoryDir = path.join(curatedRootDir, input.category);
+      // Auto-create the category dir on first use. The admin form lets
+      // operators type a new category name; the directory is created at
+      // first upload to that name. Existing categories are no-op (recursive
+      // mkdir tolerates already-present dirs).
+      const fsp = await import('fs/promises');
+      await fsp.mkdir(categoryDir, { recursive: true });
+      const json = formatUrlSidecarJson(sidecarData);
+      const result: WriteUrlSidecarResult = await writeUrlSidecarFile(categoryDir, filename, json);
+
+      // Audit-only side effect (no DB row written here). The seeder is
+      // the only path that writes media_items; running the seeder after
+      // a sidecar write surfaces the new entry in the platform DB.
+      appendAuditEntry({
+        actionType: 'upload_curated_url_reference',
+        category: 'media',
+        actorType: 'admin',
+        actorMemberId: input.adminMemberId,
+        entityType: 'curated_sidecar',
+        entityId: filename,
+        metadata: {
+          category: input.category,
+          videoPlatform: input.videoPlatform,
+          videoUrl: input.videoUrl,
+          overwritten: result.overwritten,
+        },
+      });
+
+      return {
+        filename: result.filename,
+        filePath: result.filePath,
+        overwritten: result.overwritten,
+        category: input.category,
+      };
+    },
+
     async editMedia(input: CuratorMediaEditInput): Promise<CuratorMediaEditResult> {
       if (input.caption !== undefined) {
         validateCaption(input.caption);
@@ -358,23 +647,91 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       const now = new Date().toISOString();
+      const isSidecarBacked = row.video_platform === 'youtube' || row.video_platform === 'vimeo';
+
+      // Sidecar-backed branch: rewrite the JSON under /curated/ first, then
+      // update the DB inline so the list view reflects the change without
+      // waiting for the next seeder run. /curated/ is the source of truth;
+      // the DB write is a UX optimization that produces the same state the
+      // seeder would on its next run.
+      let auditEntityId = input.mediaId;
+      let auditActionType: 'edit_curated_media' | 'edit_curated_url_reference' = 'edit_curated_media';
+      if (isSidecarBacked) {
+        const sidecarFilePath = await resolveSidecarForRow(curatedRootDir, row);
+        if (!sidecarFilePath) {
+          throw new Error(
+            `editMedia: sidecar file not found for media ${input.mediaId} ` +
+            `(video_platform=${row.video_platform}, video_url=${row.video_url}). ` +
+            `The DB row is sidecar-backed but no matching file under ${curatedRootDir}.`,
+          );
+        }
+
+        const existing = await readUrlSidecarFile(sidecarFilePath);
+        const updated: UrlSidecarData = { ...existing };
+        if (input.caption !== undefined) {
+          // Caption is the user-facing equivalent of sidecar.title for
+          // URL-ref items. Store empty string as null to keep the seeder
+          // happy (it accepts null/missing title; an empty string round-trip
+          // would write `"title": ""` and re-import as null anyway).
+          updated.title = input.caption && input.caption.length > 0 ? input.caption : null;
+        }
+        if (input.tags !== undefined) {
+          // Sidecars never carry #curated; the seeder auto-prepends it on
+          // each run. Filter defensively in case a caller passes it through
+          // (validateTags already rejects, but keep the branch explicit).
+          const filtered = input.tags.filter((t) => t.toLowerCase() !== '#curated');
+          updated.tags = Array.from(new Set(filtered)).sort();
+        }
+        // URL-ref-only fields. `undefined` leaves the existing value alone;
+        // `null` clears the field (seeder + validateUrlSidecarData treat
+        // missing and null equivalently for optional fields, so the round-
+        // trip via formatUrlSidecarJson omits cleared keys).
+        if (input.creator !== undefined) updated.creator = input.creator;
+        if (input.sourceId !== undefined) updated.sourceId = input.sourceId;
+        if (input.tier !== undefined) updated.tier = input.tier;
+        if (input.startSeconds !== undefined) updated.startSeconds = input.startSeconds;
+        if (input.endSeconds !== undefined) updated.endSeconds = input.endSeconds;
+        if (input.thumbnailUrl !== undefined) updated.thumbnailUrl = input.thumbnailUrl;
+
+        try {
+          validateUrlSidecarData(updated);
+        } catch (err) {
+          if (err instanceof UrlSidecarValidationError) {
+            throw new ValidationError(err.message);
+          }
+          throw err;
+        }
+
+        const sidecarDir = path.dirname(sidecarFilePath);
+        const sidecarFilename = path.basename(sidecarFilePath);
+        await writeUrlSidecarFile(sidecarDir, sidecarFilename, formatUrlSidecarJson(updated));
+
+        auditActionType = 'edit_curated_url_reference';
+        auditEntityId = sidecarFilename;
+      }
+
+      // Dedupe before re-inserting so a caller passing the same tag twice
+      // doesn't trip the UNIQUE(media_id, tag_id) constraint on media_tags.
+      const dedupedTags =
+        input.tags !== undefined ? Array.from(new Set(input.tags)) : undefined;
 
       transaction(() => {
         if (input.caption !== undefined) {
           media.updateCuratorMediaCaption.run(input.caption, now, input.mediaId);
         }
-        if (input.tags !== undefined) {
+        if (dedupedTags !== undefined) {
           mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
-          applyTagsForCurator(input.mediaId, input.tags, now);
+          applyTagsForCurator(input.mediaId, dedupedTags, now);
         }
         appendAuditEntry({
-          actionType: 'edit_curated_media',
+          actionType: auditActionType,
           category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
-          entityType: 'media_item',
-          entityId: input.mediaId,
+          entityType: isSidecarBacked ? 'curated_sidecar' : 'media_item',
+          entityId: auditEntityId,
           metadata: {
+            mediaId: input.mediaId,
             captionChanged: input.caption !== undefined,
             tagsChanged: input.tags !== undefined,
             ...(input.tags !== undefined && { tags: input.tags }),
@@ -393,17 +750,27 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         throw new NotFoundError(`Curator media not found: ${input.mediaId}`);
       }
 
-      // Collect storage keys to clean up after the DB transaction commits.
-      // For photos: thumb + display. For videos: video file + poster pair.
-      // The poster keys for videos are derived from the thumbnail_url via
-      // the URL-prefix convention (`/media/{key}`); s3_key_thumb/display
-      // hold the poster keys for video rows.
+      const isSidecarBacked = row.video_platform === 'youtube' || row.video_platform === 'vimeo';
+
+      // For sidecar-backed rows (URL-ref): no S3 keys to clean up; resolve
+      // the sidecar path now so we can unlink the file after the DB
+      // transaction commits.
+      // For DB-direct rows (photo, s3 video): collect storage keys.
+      let sidecarFilePath: string | null = null;
+      let sidecarFilename: string | null = null;
       const keysToDelete: string[] = [];
-      if (row.s3_key_thumb) keysToDelete.push(row.s3_key_thumb);
-      if (row.s3_key_display) keysToDelete.push(row.s3_key_display);
-      if (row.video_id) keysToDelete.push(row.video_id);
-      if (row.thumbnail_url && row.thumbnail_url.startsWith('/media/')) {
-        keysToDelete.push(row.thumbnail_url.slice('/media/'.length));
+      if (isSidecarBacked) {
+        sidecarFilePath = await resolveSidecarForRow(curatedRootDir, row);
+        if (sidecarFilePath) {
+          sidecarFilename = path.basename(sidecarFilePath);
+        }
+      } else {
+        if (row.s3_key_thumb) keysToDelete.push(row.s3_key_thumb);
+        if (row.s3_key_display) keysToDelete.push(row.s3_key_display);
+        if (row.video_id) keysToDelete.push(row.video_id);
+        if (row.thumbnail_url && row.thumbnail_url.startsWith('/media/')) {
+          keysToDelete.push(row.thumbnail_url.slice('/media/'.length));
+        }
       }
 
       transaction(() => {
@@ -412,20 +779,34 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
         media.deleteMediaItem.run(input.mediaId);
         appendAuditEntry({
-          actionType: 'delete_curated_media',
+          actionType: isSidecarBacked ? 'delete_curated_url_reference' : 'delete_curated_media',
           category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
-          entityType: 'media_item',
-          entityId: input.mediaId,
-          metadata: { mediaType: row.media_type, sourceFilename: row.source_filename },
+          entityType: isSidecarBacked ? 'curated_sidecar' : 'media_item',
+          entityId: isSidecarBacked && sidecarFilename ? sidecarFilename : input.mediaId,
+          metadata: {
+            mediaId: input.mediaId,
+            mediaType: row.media_type,
+            sourceFilename: row.source_filename,
+            videoPlatform: row.video_platform,
+            videoUrl: row.video_url,
+          },
         });
       });
 
-      // Storage deletes after the transaction commits. A failed delete
-      // leaves orphan S3 keys (hidden behind URL versioning); operators
-      // can sweep periodically. We do not roll back the DB transaction
-      // for storage failures because the row is already gone.
+      // Filesystem + storage cleanup after the DB transaction commits.
+      // Best-effort: a failed unlink/delete leaves an orphan but does not
+      // roll back the DB. The row is already gone; operators can sweep.
+      if (isSidecarBacked && sidecarFilePath) {
+        try {
+          await deleteUrlSidecarFile(sidecarFilePath);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn(`curatorMediaService.deleteMedia: sidecar unlink(${sidecarFilePath}) failed: ${(err as Error).message}`);
+        }
+      }
+
       const seen = new Set<string>();
       for (const key of keysToDelete) {
         if (seen.has(key)) continue;
@@ -441,16 +822,39 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       return { mediaId: input.mediaId };
     },
 
-    getMediaItem(mediaId: string): CuratorMediaListItem | null {
+    async getMediaItem(mediaId: string): Promise<CuratorMediaListItem | null> {
       const row = runSqliteRead('getCuratorMediaItemById', () =>
         media.getCuratorMediaItemById.get(mediaId),
       ) as MediaItemRow | undefined;
       if (!row) return null;
       const tagPairs = queryCuratorMediaTags([mediaId]);
-      const thumbnailUrl =
-        row.media_type === 'photo'
-          ? storage.constructURL(row.s3_key_thumb ?? '')
-          : (row.thumbnail_url ?? '');
+
+      // For sidecar-backed rows, read the sidecar file to surface the
+      // URL-ref-only fields (creator/sourceId/tier/clip range) for the
+      // edit form. Best-effort: a missing or malformed sidecar leaves the
+      // fields null — the controller can still render the form with
+      // caption + tags, and the operator can re-upload to repair.
+      let creator: string | null = null;
+      let sourceId: string | null = null;
+      let tier: string | null = null;
+      let startSeconds: number | null = null;
+      let endSeconds: number | null = null;
+      if (row.video_platform === 'youtube' || row.video_platform === 'vimeo') {
+        const sidecarFilePath = await resolveSidecarForRow(curatedRootDir, row);
+        if (sidecarFilePath) {
+          try {
+            const sidecar = await readUrlSidecarFile(sidecarFilePath);
+            creator = sidecar.creator ?? null;
+            sourceId = sidecar.sourceId ?? null;
+            tier = sidecar.tier ?? null;
+            startSeconds = sidecar.startSeconds ?? null;
+            endSeconds = sidecar.endSeconds ?? null;
+          } catch {
+            // Malformed sidecar; leave fields null.
+          }
+        }
+      }
+
       // listCuratorMedia query also drives uploaded_at; here we don't have
       // it cheaply without another query. The list/edit consumers don't
       // currently render uploaded_at on the edit page, so leaving it as an
@@ -461,8 +865,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         mediaType: row.media_type,
         caption: row.caption,
         uploadedAt: '',
-        thumbnailUrl,
+        thumbnailUrl: deriveListThumbnail(row),
         tags: tagPairs.map((p) => p.tag_display),
+        videoPlatform: row.video_platform,
+        videoId: row.video_id,
+        videoUrl: row.video_url,
+        creator,
+        sourceId,
+        tier,
+        startSeconds,
+        endSeconds,
       };
     },
 
@@ -509,11 +921,19 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         mediaType: r.media_type,
         caption: r.caption,
         uploadedAt: r.uploaded_at,
-        thumbnailUrl:
-          r.media_type === 'photo'
-            ? storage.constructURL(r.s3_key_thumb ?? '')
-            : (r.thumbnail_url ?? ''),
+        thumbnailUrl: deriveListThumbnail(r),
         tags: tagsById.get(r.id) ?? [],
+        videoPlatform: r.video_platform,
+        videoId: r.video_id,
+        videoUrl: r.video_url,
+        // Sidecar-only fields are not populated for list rendering; only
+        // getMediaItem reads the sidecar (one row, edit form). Bulk reads
+        // would otherwise re-parse 94+ JSON files per page.
+        creator: null,
+        sourceId: null,
+        tier: null,
+        startSeconds: null,
+        endSeconds: null,
       }));
 
       return { items, total, page, pageSize };

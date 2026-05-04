@@ -23,6 +23,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.10 Catalog-governed Page and Service Contracts](#110-catalog-governed-page-and-service-contracts)
   - [1.11 Configuration Model](#111-configuration-model)
   - [1.12 Internal-only Subtrees](#112-internal-only-subtrees)
+  - [1.13 Curator Content Source of Truth](#113-curator-content-source-of-truth)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -47,6 +48,10 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [3.11 Origin-verify shared-secret gate](#311-origin-verify-shared-secret-gate)
   - [3.12 Security header layering](#312-security-header-layering)
   - [3.13 Host header pinning at nginx](#313-host-header-pinning-at-nginx)
+  - [3.14 Input Validation Strategy](#314-input-validation-strategy)
+  - [3.15 Text Sanitization Pipeline](#315-text-sanitization-pipeline)
+  - [3.16 Display Name Homograph Protection](#316-display-name-homograph-protection)
+  - [3.17 External URL Validation](#317-external-url-validation)
 - [4. Front-End / UI Technology](#4-front-end--ui-technology)
   - [4.1 Server-rendered HTML with Handlebars Templates](#41-server-rendered-html-with-handlebars-templates)
   - [4.2 JavaScript Required for Interactivity](#42-javascript-required-for-interactivity)
@@ -552,6 +557,46 @@ Impact:
 - `src/services/`, `src/controllers/`, `src/views/` hold permanent product code only. New internal-only code must land under the appropriate `src/internal-<purpose>/**` subtree on first commit. Do not merge an internal-only addition into the main trees with intent to move later.
 - Integration tests for internal-only routes continue to live in `tests/integration/` alongside other route tests. Test-file paths do not mirror the src-layer separation today; if a convention for that is adopted later, it is a test-layout decision, not a change to this rule.
 - `docs/SERVICE_CATALOG.md` §1 documents the catalog-scope consequence: internal-only subtrees are out of catalog scope. Permanent product services (including dev-mode shaping services such as `SimulatedEmailService` at SC §8.2) remain in-catalog.
+
+## 1.13 Curator Content Source of Truth
+
+Decision:
+
+Curator content is sourced from `/curated/`, a directory tree in the application repository, with one JSON sidecar per item. The seeder (`scripts/seed_curator_media.py`) is the only path from `/curated/` to the platform DB and S3. The DB and S3 are derived materializations: either can be wiped and rebuilt from `/curated/` by re-running the seeder. The DB schema carries no filesystem coupling; admin edit and delete locate the sidecar that produced a given `media_items` row at runtime by matching the row's `(video_platform, video_url)` against sidecars on disk.
+
+Rationale:
+
+- Curators must be able to author and review curator content before any platform DB instance exists, and against any future DB rebuild. Sidecars in git decouple the editorial process from the DB lifecycle.
+
+- Binary assets (photo bytes, video bytes) cannot live in git or in the DB. The sidecar holds metadata; S3 holds the bytes; the DB row is the index that joins them at render time. The seeder uploads bytes to S3 and writes the row.
+
+- Treating `/curated/` as the source of truth means curator changes are versioned, diffable, and reviewable in git. A bad edit is recoverable by `git revert`; a lost DB is recoverable by replay.
+
+- Admin UI write paths (upload, edit, delete) operate on `/curated/` first. The DB is updated inline by the service so read paths reflect changes immediately, but the inline update is a UX optimization, not a contract: re-running the seeder against the new sidecar state produces the same result.
+
+- Sidecar identity for URL-reference items is `(videoPlatform, videoUrl)`. The seeder's filename rule is `<primarySlug>_<sha1(videoUrl)[:8]>.meta.json`, which lets the service locate a sidecar from a row by globbing for the hash suffix and verifying the URL match. No schema column duplicates this filesystem layout.
+
+Requirements:
+
+- `/curated/{category}/*.meta.json` is the canonical write target for URL-reference content. File-paired sidecars (`<source-stem>.meta.json` siblings of photo/video binaries) carry the same role for the file-paired curator items.
+
+- The seeder is idempotent. Re-running against unchanged inputs produces zero net DB writes; orphan rows (whose sidecar was removed from `/curated/`) are deleted on the next run.
+
+- Admin edit and delete on a sidecar-backed row resolve the sidecar at runtime; if the sidecar is missing on disk, edit fails (corruption guard) and delete proceeds best-effort with the DB row removal logged in audit.
+
+- Read paths must not assume sidecar reads are cheap. List-view shaping reads only DB-resident fields; per-item sidecar reads happen only at the edit form (one row).
+
+Trade-offs:
+
+- Edit and delete pay an O(n) filesystem cost (a directory glob plus one to a few JSON parses) for sidecar resolution. Negligible at the corpus scale (hundreds of sidecars at most); the alternative of a schema column would couple the DB to filesystem layout and risk staleness when sidecars are moved or renamed outside the seeder.
+
+- Operator must re-run the seeder after committing curator changes to see the full DB state on systems where the inline update did not run (for example, a freshly cloned environment, a different host). The admin UI surfaces this with a banner.
+
+- Two sidecar shapes coexist: file-paired sidecars (sibling of a photo or video binary) and URL-reference sidecars (standalone, no binary). Both are validated by the seeder; the application library `src/lib/curatorUrlSidecar.ts` owns URL-reference I/O.
+
+Impact:
+
+The admin UI, the seeder, and the gallery render paths share a single mental model: `/curated/` is authoritative; everything else is derived. New curator content types follow the same pattern (sidecar JSON in git, seeder writes the row, admin UI mutates the sidecar).
 
 # 2. Data Model
 
@@ -1438,6 +1483,228 @@ Impact:
 - `req.hostname` is always the canonical value. Password-reset, email-verify, and canonical-redirect URL builders can use it directly without external Host-header validation.
 - Viewer-supplied `Host` (via the CDN default domain or any alias mapped to this distribution) is normalized at the perimeter, not rejected.
 
+## 3.14 Input Validation Strategy
+
+Decision:
+
+All incoming request data is validated at the controller boundary before reaching services. A schema-validation library (Zod or equivalent) defines the input contract for each route: required fields, type correctness, allowed value ranges, string lengths, format patterns. Validation failures return HTTP 422 with field-level error details (JSON for API clients, HTML form re-render with inline messages for browser submissions). Excessively long inputs are capped at 10x the normal maximum for the field and rejected before reaching the schema validator, to prevent DoS by oversized payload.
+
+Representative validation contracts:
+
+- Registration: `{email: string (email format), password: string (min 8 chars), displayName: string (max 50 chars)}`.
+- Event creation: `{title: string (max 200 chars), startDate: ISO8601, city: string, country: string, disciplines: array of strings}`.
+- Media caption: `{caption: string (max 500 chars), tags: array of strings (max 20 tags, each max 50 chars)}`.
+
+Failure response shape:
+
+- HTTP 422 Unprocessable Entity.
+- JSON: `{error: {code: "VALIDATION_ERROR", fields: {displayName: "Display name exceeds maximum length"}}}`.
+- HTML form re-render with inline error messages for no-JS flows.
+
+Prohibited input patterns rejected at the boundary:
+
+- HTML tags in text fields (stripped during sanitization per §3.15).
+- Control characters except newlines and tabs in multi-line fields.
+- Excessively long inputs (hard limit 10x the normal maximum to prevent DoS).
+
+Rationale:
+
+- The controller boundary is the trust boundary. Catching malformed input before it reaches services keeps business logic free of defensive validation noise.
+- Schema-first contracts prevent inconsistent ad-hoc validation drift across routes.
+- 422 communicates semantic-level rejection (the request was syntactically valid but failed the contract); error monitoring can therefore distinguish protocol bugs from input bugs.
+
+Requirements:
+
+- Every controller route validates body, query parameters, and route parameters against a schema before invoking the service layer.
+- Schemas live alongside the route handler so the contract and the consumer stay in sync.
+- HTML form re-renders preserve the user's submitted values on validation failure so a single typo does not erase a long form.
+
+Trade-offs:
+
+- Schema definitions add boilerplate for simple GET routes with no body.
+- Service-layer redundant checks may still exist as defense-in-depth for invariants the schema cannot express (cross-field consistency, DB-state-dependent validity).
+
+Impact:
+
+- Services can assume well-shaped input.
+- Error response shape is centralized: a new field-level error appears the same way across every route.
+- Test surface: every controller has both happy-path and validation-failure tests.
+
+## 3.15 Text Sanitization Pipeline
+
+Decision:
+
+User-generated text is sanitized at write time at the service boundary. The pipeline applies to all human-authored text fields: member bio, display name, profile contact info, event title and description, club name and description, media captions, election candidate statements, comments, reasons, and notes. Sanitization runs at write time only; reading sanitized text does not re-run the pipeline. Template-engine output encoding is the second layer of defense for any text that leaks through.
+
+Sanitization steps (in order):
+
+1. UTF-8 validation: reject input with invalid UTF-8 byte sequences.
+2. Unicode normalization: apply NFC (Canonical Composition) to prevent homograph attacks and to keep equality comparisons stable.
+3. HTML stripping: remove all HTML tags and entities (no `<tag>` patterns retained).
+4. Control character filtering: remove characters U+0000 to U+001F and U+007F to U+009F, except newlines (`\n`) and tabs (`\t`) where the field is multi-line.
+5. Length enforcement: truncate or reject based on the field-specific maximum from the route's validation contract (§3.14).
+6. Whitespace normalization: collapse consecutive whitespace and newline runs to a single instance.
+
+Output encoding:
+
+- All user text is HTML-encoded by the template engine at render time. Handlebars escapes by default.
+- No "unescaped" placeholders for user content. Triple-mustache or `SafeString` is reserved for trusted admin-controlled content (release notes, official announcements).
+- The two-layer defense (sanitize at write, escape at read) means a missed escape in one template does not leak stored XSS, and a missed sanitize at one route does not leak via templates.
+
+International content preservation:
+
+- All Unicode scripts supported (Latin, Cyrillic, Arabic, CJK, emoji, and the rest).
+- No ASCII-only restrictions on any user text field.
+- Right-to-left text supported (Arabic, Hebrew).
+- Combining diacritical marks preserved.
+
+Rationale:
+
+- Stored XSS is the primary risk: an attacker who can inject `<script>` into a stored field exploits every reader. Stripping at write time eliminates the vector at the source.
+- NFC normalization at write time keeps DB equality comparisons stable across input methods (precomposed vs decomposed Unicode).
+- Internationalization is not optional. The platform's audience is global and any ASCII restriction would exclude legitimate users.
+
+Requirements:
+
+- A single sanitization helper module exports the pipeline functions. Controllers and services call the helpers, not ad-hoc string operations.
+- Template engine configuration enforces escape-by-default. An integration test asserts that a known XSS payload appears HTML-encoded in rendered output.
+- Sanitization-pipeline unit tests cover each step's edge cases (invalid UTF-8, decomposed Unicode, embedded HTML, control characters, oversized inputs, RTL, combining diacriticals).
+
+Trade-offs:
+
+- HTML stripping rejects legitimate angle brackets in technical writing (code snippets, math notation). Multi-line fields that need such content require an explicit code-block markup convention or per-field opt-in.
+- NFC normalization changes byte-level identity of input. Round-tripping the user's exact bytes is not guaranteed; the canonical form is.
+- Whitespace collapsing flattens deliberate formatting (ASCII art, double-newline paragraph separators). Multi-line fields treat newline runs as paragraph separators where appropriate.
+
+Impact:
+
+- Stored values are safe to render without per-template escaping vigilance.
+- Search and equality comparisons benefit from NFC normalization (one canonical form per logical string).
+- Adding a new user-text field requires invoking the sanitization helper at the service boundary and confirming the template renders the value via escape-by-default placeholders.
+
+## 3.16 Display Name Homograph Protection
+
+Decision:
+
+Display names are restricted to prevent impersonation and spoofing via visually similar characters from different scripts. The validator runs at registration, profile edit, and any subsequent rename.
+
+Restrictions enforced:
+
+1. Single-script requirement: characters primarily from one Unicode script (all Latin, all Cyrillic, all CJK, etc.). Allowed mixing: primary script plus the Common and Inherited script categories (spaces, digits, basic punctuation). Forbidden mixing: Latin and Cyrillic, Latin and Greek, and other cross-script combinations.
+2. Reserved name protection: reject names matching reserved words case-insensitively. The reserved set includes role-claim words ("admin", "administrator", "system", "support", "moderator", "staff") and platform-claim words ("IFPA", "footbag", "official"). Common substitutions are checked (`adm1n`, `supp0rt`, `m0derator`).
+3. Confusable character detection: compare the candidate against existing member display names using the Unicode confusables mapping (TR39). Reject if the normalized form is confusably similar to an existing member.
+4. Invisible character prohibition: reject names containing zero-width characters (U+200B, U+200C, U+200D), bidirectional formatting (U+202A through U+202E, U+2066 through U+2069), and the byte-order mark (U+FEFF).
+5. Length: minimum 2 characters, maximum 50 characters, measured after normalization.
+
+Validation flow (in order):
+
+1. Normalize input to NFC.
+2. Reject if matched against the reserved-names list (with substitution variants).
+3. Detect the primary Unicode script of the normalized form.
+4. Verify the single-script requirement holds.
+5. Scan for forbidden invisible characters.
+6. Compare against existing member display names for confusability.
+7. Accept if all checks pass; otherwise reject with a specific error explaining which check failed.
+
+Rationale:
+
+- Display names are identity claims. Spoofing must be rejected at the registration boundary because once a confusable name is admitted, every subsequent interaction risks misattribution.
+- Cross-script homograph attacks (e.g. Latin "John" vs Greek-omicron "Jοhn") enable phishing within the platform that no rate limit or per-user filter can catch.
+- Reserved-name protection prevents users from claiming role authority through their display name.
+- Invisible character bans close a class of attacks where two visually identical names are stored as distinct strings.
+
+Requirements:
+
+- The display-name validator is a single helper module invoked by every code path that creates or renames a member.
+- The reserved-names list and the substitution-variant generator live alongside the validator.
+- The confusables mapping uses the standard Unicode TR39 dataset, refreshed when the project upgrades its Unicode data dependency.
+- Rejection messages name the specific check that failed (so a user with a Cyrillic name knows it is the cross-script rule, not a typo).
+
+Trade-offs:
+
+- Some legitimate names with mixed scripts (transliterated forms, hybrid given-name plus surname) are rejected. Affected users use a single-script form.
+- The confusability comparison is O(N) over existing display names. Mitigation: indexed normalized form on the members table; the comparison runs against the indexed column.
+- Maintaining the reserved-names list and the substitution-variant generator is ongoing work as new role words appear in the product.
+
+Impact:
+
+- Display name space is the platform's primary identity surface. Rules are stricter than other text fields.
+- Affects authentication-time messages, admin tooling, member search, and audit log presentation (the rendered display name is the user's identity in every UI).
+- A rename flow inherits the same validator unchanged.
+
+## 3.17 External URL Validation
+
+Decision:
+
+User-supplied external URLs are validated at the controller boundary at every ingestion path. The validation contract applies to all user-supplied external URL fields: member profile external links (maximum three per profile), club URL, event URL, gallery URL. YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
+
+Scheme allowlist:
+
+- Only `http://` and `https://` accepted.
+- Rejected: `javascript:`, `data:`, `file:`, `ftp:`, custom schemes.
+
+Domain validation:
+
+- Reject private IP ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16.
+- Reject loopback addresses: 127.0.0.0/8.
+- Reject link-local addresses: 169.254.0.0/16.
+- Resolution runs at submit time. The check is a snapshot, not an ongoing guarantee against later DNS changes.
+
+Reachability check (optional, configurable):
+
+- HTTP HEAD request with 10-second timeout.
+- Follow up to 5 redirects. The IP-block check above is re-applied at each redirect hop; a redirect that resolves to a private, loopback, or link-local IP rejects the URL even if the original host did not.
+- Accept 2xx status codes.
+- Warn on 3xx, 4xx, or 5xx but allow (the URL may be temporarily unavailable).
+- Validation results cached for 24 hours keyed by URL hash.
+
+Safe Browsing lookup:
+
+- Each candidate URL is checked against a Safe Browsing dataset before acceptance.
+- A positive match is rejected with a generic "URL is not allowed" message; the matched threat category is logged for operator review.
+
+Error responses:
+
+- "URL could not be reached. Please verify the link." for HEAD failures when the reachability check is enabled.
+- "This URL appears to use a disallowed protocol." for scheme rejections.
+- "This URL is not allowed." for private-IP, loopback, link-local, or Safe Browsing rejections.
+- A retry option is presented in the UI alongside the error.
+
+Display attributes:
+
+- All external links rendered with `target="_blank" rel="nofollow noopener noreferrer"`.
+- A small external-link icon indicates click-out.
+- The full URL is shown via the `title` attribute when JavaScript is enabled.
+
+Rationale:
+
+- Scheme allowlist prevents `javascript:` and `data:` injection in href attributes that would otherwise execute in the viewer's browser.
+- Private-IP and loopback rejection prevents trivial SSRF via cloud metadata endpoints (169.254.169.254) and internal services.
+- Re-applying the IP block at each redirect hop closes the DNS-rebinding and redirect-to-private-IP attack class that a one-shot resolution misses.
+- The reachability check catches dead links at submit time so users do not save mistakes that lead to 404s for every reader. The optional flag exists because some deployments prefer no outbound HTTP at all.
+- Safe Browsing prevents the platform from becoming a phishing or malware redistribution vector.
+- `rel="noopener noreferrer"` prevents tabnabbing (the linked page's access to `window.opener`) and Referer leakage. `nofollow` declines to pass SEO authority to user-submitted links.
+
+Requirements:
+
+- A single URL-validator helper module exports the validation pipeline. Controllers call the helper, not ad-hoc URL inspection.
+- The validator distinguishes platform URLs (YouTube, Vimeo) from generic external URLs and routes platform URLs to the §6.8 oEmbed check.
+- The redirect-follow guard is implemented as a re-resolution at each hop, not a one-time check on the original host.
+- A template helper renders external links with the safe attribute set. Direct `<a href="{{url}}">` markup that bypasses the helper is rejected at code review.
+- Safe Browsing integration uses the deterministic dev stub in non-production environments and the live API in production; the adapter contract follows §5.3.
+
+Trade-offs:
+
+- Some legitimate URLs are rejected: intranet wikis, corporate VPN-reachable services, and IPv6 link-local addresses that have a legitimate use case for some operators.
+- Without a reachability check, dead links at submit time enter the system and users see broken links at click-through. The configurable flag lets a deployment choose this trade-off explicitly.
+- Safe Browsing has a non-zero false-positive rate; an operator-review override path exists out of scope for this section.
+- The 24-hour cache means a URL that becomes valid (or becomes invalid) takes up to 24 hours to reflect in the validation result.
+
+Impact:
+
+- Adding a new external-URL field requires invoking the validator helper at the service boundary and rendering output via the safe-attributes template helper.
+- §6.8 (oEmbed for YouTube and Vimeo) and §3.17 (for all other external URLs) are the two complementary external-URL contracts.
+
 # 4. Front-End / UI Technology
 
 ## 4.1 Server-rendered HTML with Handlebars Templates
@@ -1703,8 +1970,6 @@ Impact:
 - There is a clear "adapter" layer in the codebase; any new external integration must add an adapter.
 
 - Service-level tests can mock adapters; integration tests validate adapter + SDK behavior end-to-end.
-
-- For URL Validation, no server-side fetching; validate https-only + block private/reserved + Safe Browsing lookup; deterministic dev stub.
 
 ## 5.4 Outbox Pattern for Emails
 
@@ -2247,6 +2512,12 @@ Detached photo (no gallery, e.g., avatar): `s3://footbag-media/{member-id}/detac
 Curator video (always system-account-owned; gallery-attached or detached): bytes at `s3://footbag-media/{system-member-id}/{gallery-name-or-detached}/{media-id}-video.{mp4|webm}`; poster at `s3://footbag-media/{system-member-id}/{gallery-name-or-detached}/{media-id}-poster-{variant}.jpg`.
 
 The `detached` path segment is a sentinel for `gallery_id IS NULL`; literal at slice. Path literals (segment names, file extensions) are confirmed at slice activation.
+
+Named galleries are URL bookmarks, not buckets. A `member_galleries` row provides a stable URL slug, owner, name, and description; content membership is computed at request time by tag-AND match against the gallery's `member_gallery_tags` set (per `docs/DATA_MODEL.md` §4.17 and `docs/USER_STORIES.md` §V_View_Gallery). Curator URL-reference content (YouTube/Vimeo) is uploaded as detached and surfaces in named galleries purely via tag matching. The hub at `/media` lists FH-owned bookmarks; per-bookmark URLs follow the `gallery_<descriptive_slug>` convention (parallel to `event_{year}_{slug}`). The CDN cache-behavior layer routes `/media/gallery_*` to the app origin and `/media/member_*/...` to the S3 origin so the same URL prefix carries both the dynamic-HTML and the static-bytes traffic without collision.
+
+External-platform reference videos (YouTube and Vimeo) are linked rather than embedded on the gallery list view: tile thumbnails are fetched directly from the platform CDN (`i.ytimg.com` for YouTube, derivable from the video id; `i.vimeocdn.com` for Vimeo, supplied per-asset because Vimeo thumbnails are not derivable). The CSP `img-src` allowlist permits both CDNs. Click-through opens the platform page in a new tab; embedded inline players remain reserved for the trick detail page (`/freestyle/tricks/{slug}`).
+
+Availability of external-platform reference URLs is verified via the platform oEmbed endpoint (`https://www.youtube.com/oembed?url=...&format=json` for YouTube; `https://vimeo.com/api/oembed.json?url=...` for Vimeo) at every ingestion path (operator-run curator seed, admin act-as upload, one-shot migration scripts). Page-URL HEAD checks are insufficient because both platforms serve HTTP 200 for removed, private, or unavailable videos, and YouTube serves a generic placeholder for the derived `i.ytimg.com/vi/{video_id}/hqdefault.jpg` thumbnail of some removed videos. Sidecars whose oEmbed call fails are rejected at ingestion. Verification runs at ingest only; stale URLs that decay post-ingest surface as broken thumbnails and are corrected by removing or rehosting the affected sidecar.
 
 ## 6.9 Voting
 

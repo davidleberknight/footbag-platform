@@ -80,14 +80,21 @@ OPTIONS
   --no-staleness-check         Silence "canonical CSVs older than pipeline
                                code" WARNING (gate is warn-only since
                                2026-04-27; flag still useful for clean output).
-  --with-curated               Opt in to the full curator-media cycle:
-                               re-runs scripts/seed_curator_media.py against
-                               the local DB, ships ./data/media to the host,
-                               wipes S3 (staging default; --keep-media to
-                               skip), and rsyncs media to S3. Without this
+  --sync-media                 Opt in to the destructive S3 media cycle:
+                               ships ./data/media to the host, wipes S3
+                               (staging default; --keep-media to skip the
+                               wipe), and rsyncs media to S3. Without this
                                flag, S3 media is fully preserved across
-                               deploys (DB rebuild does not touch S3).
+                               deploys. The curator seed (sidecar -> DB rows)
+                               runs on every deploy by default regardless,
+                               so URL-reference content (YouTube/Vimeo) is
+                               always up to date without --sync-media.
                                Requires --with-db; not valid with --code-only.
+  --no-curator-seed            Skip the curator seed step. Rare; use only
+                               when sidecars are known broken and the operator
+                               wants the existing DB curator rows preserved.
+  --with-curated               Deprecated alias for --sync-media. Prints a
+                               deprecation hint; otherwise behaves identically.
   --help, -h                   Show this message.
 
 ENV OVERRIDES
@@ -137,7 +144,8 @@ DB_SOURCE=""
 SKIP_TESTS_FLAG="no"
 DRY_RUN="no"
 STALENESS_CHECK="yes"
-WITH_CURATED_FLAG="no"
+SYNC_MEDIA_FLAG="no"
+CURATOR_SEED_FLAG="yes"
 
 for arg in "$@"; do
   case "$arg" in
@@ -166,8 +174,15 @@ for arg in "$@"; do
     --no-staleness-check)
       STALENESS_CHECK="no"
       ;;
+    --sync-media)
+      SYNC_MEDIA_FLAG="yes"
+      ;;
+    --no-curator-seed)
+      CURATOR_SEED_FLAG="no"
+      ;;
     --with-curated)
-      WITH_CURATED_FLAG="yes"
+      echo "WARNING: --with-curated is deprecated; use --sync-media instead." >&2
+      SYNC_MEDIA_FLAG="yes"
       ;;
     -*)
       echo "ERROR: unknown flag '$arg'" >&2
@@ -184,20 +199,23 @@ for arg in "$@"; do
   esac
 done
 
-# --with-curated requires --with-db. The seed step writes media_items rows to
-# the workstation DB; only --with-db ships that DB to the host. Without
-# --with-db the rows would never reach the host and S3 would diverge from the
-# host DB. Reject the unsupported combination explicitly.
-if [[ "$WITH_CURATED_FLAG" == "yes" && "$DEPLOY_MODE" == "--code-only" ]]; then
-  echo "ERROR: --with-curated requires --with-db (not valid with --code-only)" >&2
-  echo "       Curator seed writes media_items rows that --code-only does not ship." >&2
+# --sync-media requires --with-db. The S3 cycle ships data/media bytes whose
+# keys must match the media_items rows in the deployed DB; only --with-db
+# ships that DB. Without --with-db the bytes and DB diverge. Reject the
+# unsupported combination explicitly.
+if [[ "$SYNC_MEDIA_FLAG" == "yes" && "$DEPLOY_MODE" == "--code-only" ]]; then
+  echo "ERROR: --sync-media requires --with-db (not valid with --code-only)" >&2
+  echo "       The S3 media cycle must ship alongside the DB rows that reference S3 keys." >&2
   exit 1
 fi
 
-# Always export WITH_CURATED with an explicit yes/no value so downstream
-# scripts can distinguish "deploy did not opt in" (no) from "running outside
-# the deploy orchestrator" (unset → local dev default behavior).
-export WITH_CURATED="$WITH_CURATED_FLAG"
+# Export the two split env vars so downstream scripts (deploy-rebuild.sh,
+# reset-local-db.sh, deploy-rebuild-remote.sh) gate the seed step and the S3
+# cycle independently. Defaults: seed=yes (sidecar files are the source of
+# truth for media_items rows; default deploys keep the DB in sync), sync=no
+# (the S3 wipe + rsync is destructive and stays opt-in).
+export CURATOR_SEED="$CURATOR_SEED_FLAG"
+export SYNC_MEDIA="$SYNC_MEDIA_FLAG"
 
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2

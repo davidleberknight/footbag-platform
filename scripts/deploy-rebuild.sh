@@ -179,10 +179,12 @@ echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf $REMOTE_RELEASE_DIR && mkdir -p $REMOTE_RELEASE_DIR" </dev/null
 
 echo "==> Rsyncing source to host..."
-# /data/media/*** is conditional on the --with-curated opt-in (threaded as
-# WITH_CURATED env from the orchestrator). Without the opt-in, RELEASE_DIR
+# /data/media/*** is conditional on the --sync-media opt-in (threaded as
+# SYNC_MEDIA env from the orchestrator). Without the opt-in, RELEASE_DIR
 # does not contain /data/media and the remote-half's S3 sync block becomes
 # a no-op, leaving the live S3 bucket fully preserved across this deploy.
+# The curator seed step (sidecar -> media_items rows) is governed separately
+# by CURATOR_SEED and ships with the DB regardless of SYNC_MEDIA.
 RSYNC_INCLUDES=(
   --include='/.dockerignore'
   --include='/docker/***'
@@ -195,7 +197,7 @@ RSYNC_INCLUDES=(
   --include='/database/'
   --include='/database/footbag.db'
 )
-if [[ "${WITH_CURATED:-no}" == "yes" ]]; then
+if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
   RSYNC_INCLUDES+=(
     --include='/data/'
     --include='/data/media/***'
@@ -273,7 +275,8 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"
   printf 'FOOTBAG_ENV=%q\n'                  "$FOOTBAG_ENV"
   printf 'KEEP_MEDIA=%q\n'                   "$KEEP_MEDIA"
-  printf 'WITH_CURATED=%q\n'                 "${WITH_CURATED:-no}"
+  printf 'SYNC_MEDIA=%q\n'                   "${SYNC_MEDIA:-no}"
+  printf 'CURATOR_SEED=%q\n'                 "${CURATOR_SEED:-yes}"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'

@@ -161,6 +161,26 @@ describe('GET /admin/curator/upload', () => {
     expect(res.text).toContain('name="poster"');
     expect(res.text).toContain('name="caption"');
     expect(res.text).toContain('name="tags"');
+    expect(res.text).not.toContain('Sidecar saved under');
+  });
+
+  it('admin authenticated, ?saved=upload -> 200 with sidecar-saved banner', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/curator/upload?saved=upload')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Sidecar saved under');
+    expect(res.text).toContain('seed_curator_media.py');
+  });
+
+  it('admin authenticated, ?saved=bogus -> 200 without banner (unknown values ignored)', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/curator/upload?saved=bogus')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Sidecar saved under');
   });
 });
 
@@ -397,7 +417,7 @@ describe('POST /admin/curator/upload — mediaType', () => {
     expect(res.text).toContain('media type');
   });
 
-  it('mediaType not in [photo,video] -> 422', async () => {
+  it('mediaType not in [photo,video,url_reference] -> 422', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
     const res = await request(app)
@@ -407,5 +427,291 @@ describe('POST /admin/curator/upload — mediaType', () => {
       .attach('mediaFile', jpeg, 'thing.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('media type');
+  });
+});
+
+// ── /admin/curator/upload — URL reference ─────────────────────────────────
+//
+// URL-reference uploads write a sidecar JSON file under
+// /curated/{category}/. No DB row is written by the route — the seeder
+// regenerates DB rows from sidecars on each run. Tests inject:
+//   - a stub URL verifier (so we don't hit youtube.com / vimeo.com)
+//   - a temp /curated/ root (so writes don't pollute the repo)
+// via the module-level `setVideoUrlVerifierForTests` /
+// `setCuratedRootDirForTests` seams on curatorMediaService.
+//
+// Test temp dir mirrors repo state: only `freestyle_tricks/` pre-exists.
+// Auto-mkdir creates other category dirs on demand.
+
+describe('/admin/curator/upload — URL reference', () => {
+  let curatedRoot: string;
+
+  beforeAll(async () => {
+    const svcMod = await import('../../src/services/curatorMediaService');
+    curatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-url-ref-curated-'));
+    fs.mkdirSync(path.join(curatedRoot, 'freestyle_tricks'), { recursive: true });
+    svcMod.setCuratedRootDirForTests(curatedRoot);
+  });
+
+  afterAll(async () => {
+    const svcMod = await import('../../src/services/curatorMediaService');
+    svcMod.resetCuratedRootDirForTests();
+    svcMod.resetVideoUrlVerifierForTests();
+    fs.rmSync(curatedRoot, { recursive: true, force: true });
+  });
+
+  async function setVerifierToOk(body: Record<string, unknown>): Promise<void> {
+    const svcMod = await import('../../src/services/curatorMediaService');
+    svcMod.setVideoUrlVerifierForTests(async () => ({ ok: true, status: 200, body }));
+  }
+
+  async function setVerifierToFail(status: number): Promise<void> {
+    const svcMod = await import('../../src/services/curatorMediaService');
+    svcMod.setVideoUrlVerifierForTests(async () => ({ ok: false, status }));
+  }
+
+  it('GET form shows existing curated categories as checkboxes', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get('/admin/curator/upload')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="category"');
+    expect(res.text).toContain('value="freestyle_tricks"');
+    expect(res.text).toContain('name="newCategory"');
+  });
+
+  it('happy path YouTube (existing freestyle_tricks): 302 redirect, sidecar written, NO DB row created', async () => {
+    await setVerifierToOk({ title: 'Clipper tutorial' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=CLIPPER12345')
+      .field('primarySlug', 'clipper')
+      .field('title', 'Clipper tutorial')
+      .field('tags', '#freestyle #trick #clipper');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/admin/curator/upload?saved=upload');
+
+    const dirContents = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'));
+    const matching = dirContents.find((f) => f.startsWith('clipper_'));
+    expect(matching).toBeDefined();
+    const sidecar = JSON.parse(
+      fs.readFileSync(path.join(curatedRoot, 'freestyle_tricks', matching!), 'utf-8'),
+    );
+    expect(sidecar.videoPlatform).toBe('youtube');
+    expect(sidecar.videoUrl).toBe('https://www.youtube.com/watch?v=CLIPPER12345');
+    expect(sidecar.thumbnailUrl).toBeUndefined();
+
+    const db = openDb();
+    const mediaRow = db.prepare(
+      `SELECT id FROM media_items WHERE video_url = ?`,
+    ).get('https://www.youtube.com/watch?v=CLIPPER12345');
+    expect(mediaRow).toBeUndefined();
+    db.close();
+  });
+
+  it('happy path Vimeo (existing freestyle_tricks): sidecar carries thumbnailUrl from oEmbed body', async () => {
+    await setVerifierToOk({
+      title: 'Eggbeater demo',
+      thumbnail_url: 'https://i.vimeocdn.com/video/zzz_640.jpg',
+    });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoPlatform', 'vimeo')
+      .field('videoUrl', 'https://vimeo.com/55667788')
+      .field('primarySlug', 'eggbeater')
+      .field('title', 'Eggbeater demo')
+      .field('tags', '#freestyle #trick #eggbeater');
+    expect(res.status).toBe(302);
+    const matching = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'))
+      .find((f) => f.startsWith('eggbeater_'));
+    const sidecar = JSON.parse(
+      fs.readFileSync(path.join(curatedRoot, 'freestyle_tricks', matching!), 'utf-8'),
+    );
+    expect(sidecar.thumbnailUrl).toBe('https://i.vimeocdn.com/video/zzz_640.jpg');
+  });
+
+  it('happy path: new category via newCategory text auto-mkdirs the dir and writes the sidecar', async () => {
+    await setVerifierToOk({ title: 'Food processor demo' });
+    const app = createApp();
+    expect(fs.existsSync(path.join(curatedRoot, 'promos_test'))).toBe(false);
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('newCategory', 'promos_test')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=NEWCAT00001')
+      .field('primarySlug', 'food-processor')
+      .field('title', 'Food processor demo')
+      .field('tags', '#freestyle #demo #food-processor');
+    expect(res.status).toBe(302);
+    expect(fs.existsSync(path.join(curatedRoot, 'promos_test'))).toBe(true);
+    const matching = fs.readdirSync(path.join(curatedRoot, 'promos_test'))
+      .find((f) => f.startsWith('food-processor_'));
+    expect(matching).toBeDefined();
+  });
+
+  it('dead URL (oEmbed 404) -> 422 with status in error, NO sidecar file written', async () => {
+    await setVerifierToFail(404);
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=Dmr7zj_c7cY')
+      .field('primarySlug', 'dimwalk')
+      .field('title', 'Dead URL test')
+      .field('tags', '#freestyle #trick #dimwalk');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('oEmbed status 404');
+    const dirContents = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'));
+    expect(dirContents.some((f) => f.startsWith('dimwalk_'))).toBe(false);
+  });
+
+  it('missing platform -> 422', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=AAA12345678')
+      .field('primarySlug', 'spin')
+      .field('title', 'X')
+      .field('tags', '#freestyle #trick #spin');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('YouTube or Vimeo');
+  });
+
+  it('missing URL -> 422', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoPlatform', 'youtube')
+      .field('primarySlug', 'swirl')
+      .field('title', 'X')
+      .field('tags', '#freestyle #trick #swirl');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('YouTube or Vimeo URL');
+  });
+
+  it('missing primarySlug -> 422', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=AAA12345678')
+      .field('title', 'X')
+      .field('tags', '#freestyle #trick #vortex');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('primary slug');
+  });
+
+  it('both checkbox AND newCategory set -> 422 (mutually exclusive)', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('newCategory', 'duplicate_intent')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=BBB12345678')
+      .field('primarySlug', 'whirl')
+      .field('title', 'X')
+      .field('tags', '#freestyle #trick #whirl');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('not both');
+  });
+
+  it('neither checkbox NOR newCategory -> 422', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=CCC12345678')
+      .field('primarySlug', 'tomahawk')
+      .field('title', 'X')
+      .field('tags', '#freestyle #trick #tomahawk');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Tick a category or type a new');
+  });
+
+  it('bad newCategory name (uppercase, spaces, punctuation) -> 422', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('newCategory', 'Bad Name!')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=DDD12345678')
+      .field('primarySlug', 'vortex')
+      .field('title', 'X')
+      .field('tags', '#freestyle #trick #vortex');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('lowercase letters, digits, or underscores');
+  });
+
+  it('unauth (no cookie) -> 302 to /login (no sidecar leak)', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=ZZZ12345678')
+      .field('primarySlug', 'superfly')
+      .field('title', 'superfly')
+      .field('tags', '#freestyle #trick #superfly');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toContain('/login');
+    const dirContents = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'));
+    expect(dirContents.some((f) => f.startsWith('superfly_'))).toBe(false);
+  });
+
+  it('non-admin authenticated -> 403 (no sidecar leak)', async () => {
+    await setVerifierToOk({ title: 'X' });
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', memberCookie())
+      .field('mediaType', 'url_reference')
+      .field('category', 'freestyle_tricks')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=YYY12345678')
+      .field('primarySlug', 'pendulum')
+      .field('title', 'pendulum')
+      .field('tags', '#freestyle #trick #pendulum');
+    expect(res.status).toBe(403);
+    const dirContents = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'));
+    expect(dirContents.some((f) => f.startsWith('pendulum_'))).toBe(false);
   });
 });

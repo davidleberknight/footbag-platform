@@ -19,18 +19,27 @@
     {{/if}}
 
     <p>
-      Type: <strong>{{media.mediaType}}</strong> &middot;
+      Type: <strong>{{media.mediaType}}</strong>
+      {{#if media.isSidecarBacked}}
+        ({{media.videoPlatform}} URL reference, sidecar-backed)
+      {{/if}}
+      &middot;
       Media id: <code>{{media.mediaId}}</code>
     </p>
     <p class="hint">
       The <code>#curated</code> tag is auto-applied and not editable here.
-      File replacement is not supported in-place; delete and re-upload to change the file.
+      {{#if media.isSidecarBacked}}
+        Edits write through to the sidecar JSON under <code>/curated/</code>;
+        the platform DB updates inline. Run the curator seeder to fully resync.
+      {{else}}
+        File replacement is not supported in-place; delete and re-upload to change the file.
+      {{/if}}
     </p>
 
     <form action="/admin/curator/media/{{media.mediaId}}/edit" method="POST">
       <p>
         <label>
-          Caption (max 500 chars):
+          Caption (max 500 chars){{#if media.isSidecarBacked}} (writes to sidecar.title){{/if}}:
           <input type="text" name="caption" maxlength="500" value="{{media.caption}}">
         </label>
       </p>
@@ -41,6 +50,55 @@
           <input type="text" name="tags" value="{{media.tagsString}}">
         </label>
       </p>
+
+      {{#if media.isSidecarBacked}}
+        <fieldset>
+          <legend>URL reference fields</legend>
+          <p class="hint">
+            Read-only:
+            <code>videoUrl</code> = <code>{{media.videoUrl}}</code>,
+            <code>videoPlatform</code> = <code>{{media.videoPlatform}}</code>.
+            Changing them implies a filename rename; not supported here, delete and re-upload.
+          </p>
+          <p>
+            <label>
+              Creator:
+              <input type="text" name="creator" value="{{media.creator}}">
+            </label>
+          </p>
+          <p>
+            <label>
+              Source id (must exist in <code>media_sources.source_id</code>):
+              <input type="text" name="sourceId" value="{{media.sourceId}}">
+            </label>
+          </p>
+          <p>
+            <label>
+              Tier:
+              <input type="text" name="tier" value="{{media.tier}}" placeholder="CANONICAL_TUTORIAL | HIGH_QUALITY_DEMO | RECORD">
+            </label>
+          </p>
+          <p>
+            <label>
+              Start (seconds):
+              <input type="number" name="startSeconds" min="0" value="{{media.startSeconds}}">
+            </label>
+            &middot;
+            <label>
+              End (seconds):
+              <input type="number" name="endSeconds" min="0" value="{{media.endSeconds}}">
+            </label>
+          </p>
+          {{#if (eq media.videoPlatform "vimeo")}}
+            <p>
+              <label>
+                Thumbnail URL (Vimeo only, must be https://):
+                <input type="url" name="thumbnailUrl" value="{{media.thumbnailUrl}}">
+              </label>
+            </p>
+          {{/if}}
+        </fieldset>
+      {{/if}}
 
       <p>
         <button type="submit">Save changes</button>

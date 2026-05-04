@@ -1138,6 +1138,108 @@ export function insertCuratorVideo(
   return mediaId;
 }
 
+/**
+ * Insert a sidecar-backed URL-reference curator media row AND write the
+ * matching sidecar JSON file under `<curatedRoot>/<category>/`. Mirrors
+ * the seeder's shape so the service's resolveSidecarForRow can find it
+ * at edit/delete time. media_id is computed the same way the seeder
+ * does (sha1("platform|url")[:24]) so re-running the seeder against the
+ * same sidecar produces the same row id.
+ */
+export interface CuratorUrlReferenceOverrides {
+  uploaderMemberId: string;
+  curatedRoot: string;
+  category: string;
+  primarySlug: string;
+  videoUrl: string;
+  videoPlatform: 'youtube' | 'vimeo';
+  videoId: string;
+  caption?: string | null;
+  thumbnailUrl?: string | null;
+  creator?: string | null;
+  sourceId?: string | null;
+  tier?: string | null;
+  tags?: string[];
+}
+
+export function insertCuratorUrlReference(
+  db: BetterSqlite3.Database,
+  o: CuratorUrlReferenceOverrides,
+): { mediaId: string; sidecarPath: string; sidecarFilename: string } {
+  const tags = o.tags ?? ['#freestyle', '#trick', `#${o.primarySlug}`];
+  const userTags = tags.filter((t) => t !== '#curated');
+
+  const fs = require('fs') as typeof import('fs');
+  const path = require('path') as typeof import('path');
+  const { createHash } = require('crypto') as typeof import('crypto');
+
+  const mediaIdHash = createHash('sha1').update(`${o.videoPlatform}|${o.videoUrl}`).digest('hex').slice(0, 24);
+  const mediaId = `media_${mediaIdHash}`;
+  const filenameHash = createHash('sha1').update(o.videoUrl).digest('hex').slice(0, 8);
+  const sidecarFilename = `${o.primarySlug}_${filenameHash}.meta.json`;
+
+  const categoryDir = path.join(o.curatedRoot, o.category);
+  fs.mkdirSync(categoryDir, { recursive: true });
+  const sidecarPath = path.join(categoryDir, sidecarFilename);
+  const sidecarBody: Record<string, unknown> = {
+    videoUrl: o.videoUrl,
+    videoPlatform: o.videoPlatform,
+  };
+  if (o.caption != null) sidecarBody.title = o.caption;
+  if (o.creator != null) sidecarBody.creator = o.creator;
+  if (o.sourceId != null) sidecarBody.sourceId = o.sourceId;
+  if (o.tier != null) sidecarBody.tier = o.tier;
+  if (o.thumbnailUrl != null && o.videoPlatform === 'vimeo') {
+    sidecarBody.thumbnailUrl = o.thumbnailUrl;
+  }
+  sidecarBody.tags = userTags;
+  fs.writeFileSync(sidecarPath, JSON.stringify(sidecarBody, null, 2) + '\n', 'utf-8');
+
+  db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      moderation_status
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, NULL, 'video', 0, ?, ?, ?, ?, ?, ?, 'active')
+  `).run(
+    mediaId, TS, TS,
+    o.uploaderMemberId,
+    o.caption ?? null,
+    TS,
+    o.videoPlatform,
+    o.videoId,
+    o.videoUrl,
+    o.videoPlatform === 'youtube' ? null : (o.thumbnailUrl ?? null),
+  );
+
+  // Tags including #curated (seeder auto-prepends).
+  const finalTags = Array.from(new Set([...userTags, '#curated'])).sort();
+  const insertTag = db.prepare(`
+    INSERT OR IGNORE INTO tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      tag_normalized, tag_display
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?)
+  `);
+  const selectTagId = db.prepare(`SELECT id FROM tags WHERE tag_normalized = ?`);
+  const insertMediaTag = db.prepare(`
+    INSERT INTO media_tags (
+      id, created_at, created_by, updated_at, updated_by, version,
+      media_id, tag_id, tag_display
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?)
+  `);
+  for (const tagDisplay of finalTags) {
+    const tagNormalized = tagDisplay.toLowerCase();
+    const candidateId = `tag-${tagNormalized.replace(/[^a-z0-9]/g, '_')}-${uid()}`;
+    insertTag.run(candidateId, TS, TS, tagNormalized, tagDisplay);
+    const existing = selectTagId.get(tagNormalized) as { id: string };
+    const tagId = existing.id;
+    insertMediaTag.run(`mt-${mediaId}-${tagId}-${uid()}`, TS, TS, mediaId, tagId, tagDisplay);
+  }
+
+  return { mediaId, sidecarPath, sidecarFilename };
+}
+
 // ── Event registration ────────────────────────────────────────────────────────
 //
 // Row in the registrations table (event-attendee registration, not member

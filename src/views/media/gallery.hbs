@@ -1,24 +1,41 @@
 <div class="hero hero-sm">
   <div>
-    <h1>{{page.title}}</h1>
-    {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
+    <h1>{{content.gallery.name}}</h1>
+    {{#if content.gallery.description}}<p>{{content.gallery.description}}</p>{{/if}}
   </div>
 </div>
 
 <div class="wrapper">
 
+  {{#if content.gallery.criteriaTags.length}}
+    <section class="gallery-criteria" aria-label="Gallery criteria">
+      <span class="gallery-criteria-label">Showing items tagged</span>
+      <ul class="gallery-criteria-tags">
+        {{#each content.gallery.criteriaTags}}<li class="gallery-criteria-tag">{{this}}</li>{{/each}}
+      </ul>
+      <span class="gallery-criteria-count">{{content.pagination.total}} {{#if (eq content.pagination.total 1)}}item{{else}}items{{/if}}</span>
+    </section>
+  {{/if}}
+
   {{#if content.items.length}}
     <ul class="gallery-grid">
       {{#each content.items}}
         <li class="gallery-tile">
-          <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
-            {{#if (eq mediaType 'video')}}
+          {{#if (eq mediaType 'video')}}
+            <a href="{{displayHref}}" class="gallery-tile-media video-facade"
+               data-platform="{{videoPlatform}}"
+               {{#if videoEmbedUrl}}data-embed-url="{{videoEmbedUrl}}"{{/if}}
+               {{#if (eq videoPlatform 's3')}}data-video-src="{{displayHref}}"{{/if}}
+               target="_blank" rel="noopener noreferrer"
+               aria-label="Play video: {{#if caption}}{{caption}}{{else}}Curator video{{/if}}">
               <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator video{{/if}}" loading="lazy" />
               <span class="gallery-tile-play" aria-hidden="true">▶</span>
-            {{else}}
+            </a>
+          {{else}}
+            <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
               <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator photo{{/if}}" loading="lazy" />
-            {{/if}}
-          </a>
+            </a>
+          {{/if}}
           {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
           {{#if tags.length}}
             <ul class="gallery-tile-tags">

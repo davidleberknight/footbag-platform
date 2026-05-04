@@ -39,7 +39,7 @@
   - [6.18 Claim initiation](#618-claim-initiation)
   - [6.19 Claim confirmation](#619-claim-confirmation)
   - [6.20 Legal](#620-legal)
-  - [6.21 Media gallery](#621-media-gallery)
+  - [6.21 Media galleries](#621-media-galleries)
 - [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
   - [7.1 Authorization boundary](#71-authorization-boundary)
   - [7.2 Error behavior](#72-error-behavior)
@@ -491,7 +491,8 @@ Visual token baseline (from `src/public/css/style.css`):
 | `POST /history/:personId/claim/confirm` | HP claim execution | Direct HP claim handler; sets `members.historical_person_id` and transitively claims the linked `legacy_members` row when present | Current |
 | `GET /clubs` | Clubs index | Country-grouped clubs directory entry page | Current |
 | `GET /clubs/:key` | Clubs shared handler | Dispatches to country page or club detail | Current |
-| `GET /gallery` | Media gallery | Reverse-chronological list of curator-uploaded photos and videos, paginated | Current |
+| `GET /media` | Media hub | Public hub listing FH-owned named-gallery URL bookmarks, with name, description, item count, and criteria-tag pills per card | Current |
+| `GET /media/:galleryId` | Named gallery | Single named-gallery page, items computed at request time by tag-AND match against the gallery's criteria-tag set, paginated reverse-chronologically | Current |
 | `GET /login` | Login | Member login | Current |
 | `GET /register` | Register | Member registration | Current |
 | `GET /register/check-email` | Check-email landing | Generic post-registration and post-resend landing | Current |
@@ -541,7 +542,8 @@ Visual token baseline (from `src/public/css/style.css`):
 - `POST /history/claim/confirm` is the claim merge confirmation handler.
 - `GET /clubs` is the canonical clubs section entry route.
 - `GET /clubs/:key` is the shared Express handler for both the country page and the club detail page. The controller dispatches by prefix: a key beginning with `club_` routes to the club detail handler; any other key routes to the country page handler. Public country URLs take the form `/clubs/{countryKey}`. Public club URLs take the form `/clubs/{clubKey}` where `clubKey` matches the `club_...` standard form.
-- `GET /gallery` is the canonical public media gallery route. It lists media uploaded by the system member (`is_system = 1`) in reverse-chronological order, paginated by `?page=N`. Filters by hashtag, member, event, or club gallery are not part of this route; those are surfaced on the relevant entity page (event, club, member profile) or via dedicated tag pages. Member-uploaded media does not appear here.
+- `GET /media` is the canonical public media hub. It lists named-gallery URL bookmarks owned by the system member (`is_system = 1`); each card shows the gallery name, description, item count, and the gallery's criteria-tag pills. Member-owned galleries do not appear on the hub.
+- `GET /media/:galleryId` is the canonical named-gallery page. Items are computed at request time by tag-AND match against `member_gallery_tags`, filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`, ordered reverse-chronologically, paginated by `?page=N` (invalid values clamp to 1). Unknown or member-owned `galleryId` values return 404 (anti-enumeration).
 - `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
 - `GET /register` is the member registration route. `POST /register` is its form-action handler and is not a separate cataloged page.
 - `GET /register/check-email` is the generic post-registration and post-resend landing. It never reveals whether an account exists for a given address.
@@ -1687,15 +1689,9 @@ Not applicable. Legal content is static and always present.
 
 ---
 
-### 6.21 Media gallery
+### 6.21 Media galleries
 
-### Purpose
-
-Provide a public, paginated, reverse-chronological list of all curator-attributed (system-member-uploaded) photos and videos.
-
-### Route
-
-`GET /gallery`
+The public media surface is a two-page composition: a hub at `/media` that lists FH-owned named-gallery URL bookmarks, and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set. Named-gallery bookmarks are `member_galleries` rows owned by the system member; per-bookmark URLs follow the `gallery_<descriptive_slug>` convention.
 
 ### Audience
 
@@ -1703,33 +1699,75 @@ Public visitor.
 
 ### Standard relationship
 
-This page consumes the generic public rendering standard and the §4.2 page contract.
+Both pages consume the generic public rendering standard and the §4.2 page contract.
 
-### Page intent
+#### Hub at `GET /media`
 
-- expose curator content (photos and videos) that the admin curator account has uploaded
-- give administrators a public-side verification surface for their own uploads
-- avoid replicating filter axes that belong on entity pages (event, club, member profile) or on dedicated tag pages
+**Page intent**
 
-### Required content
+- surface every FH-owned named-gallery URL bookmark as an entry point
+- communicate each bookmark's identity (name, description) and scope (criteria-tag set, item count)
+- exclude member-owned galleries from the public hub
+
+**Required content**
 
 - hero with title and intro
-- card grid: one tile per media item, with thumbnail, optional caption, tag chips, and uploaded-at date
-- pagination block (Previous / Next) when total exceeds page size
+- card grid: one tile per gallery, with name, description, item count badge, criteria-tag pills, and a link to the named-gallery page
 
-### Required view-model fields
+**Required view-model fields**
 
-- `seo.title = Media Gallery`
-- `page.sectionKey = gallery`
-- `page.pageKey = gallery_index`
+- `seo.title = Media Galleries`
+- `page.sectionKey = media`
+- `page.pageKey = media_hub`
 - `page.title`
 - `page.intro`
+- `content.galleries[]`
+  - `id` — bookmark slug (e.g., `gallery_curated_freestyle_tricks`)
+  - `name`
+  - `description`
+  - `itemCount` — service-computed via tag-AND match against `member_gallery_tags`
+  - `criteriaTags[]` — `tag_display` values from `member_gallery_tags`
+  - `href` — `/media/{id}`
+
+**Navigation outputs**
+
+Each card links to the corresponding `/media/{id}` named-gallery page.
+
+**Empty state**
+
+Render the standard empty state ("No galleries yet.") when no FH-owned bookmarks exist.
+
+#### Named gallery at `GET /media/:galleryId`
+
+**Page intent**
+
+- render a single named-gallery bookmark with its identity (name, description) and the items currently matching its criteria-tag set
+- surface the criteria tags themselves so visitors understand the membership rule
+- avoid replicating filter axes that belong on entity pages (event, club, member profile) or on dedicated tag pages
+
+**Required content**
+
+- hero with gallery name and description
+- criteria strip: the gallery's criteria-tag pills with a count of matching items
+- card grid: one tile per item, with thumbnail, optional caption, item-level tag chips, and uploaded-at date
+- pagination block (Previous / Next) when total exceeds page size
+
+**Required view-model fields**
+
+- `seo.title` — gallery name
+- `page.sectionKey = media`
+- `page.pageKey = media_named_gallery`
+- `page.title` — gallery name
+- `page.intro` — gallery description (when present)
+- `content.gallery`
+  - `id`, `name`, `description`
+  - `criteriaTags[]` — `tag_display` values from `member_gallery_tags`
 - `content.items[]`
   - `mediaId`
   - `mediaType` — `photo` or `video`
   - `caption` — nullable
-  - `thumbnailUrl` — service-computed; for photos this is the `s3_key_thumb` URL via the storage adapter; for videos this is the existing `media_items.thumbnail_url` value
-  - `displayHref` — service-computed; for photos this is the `s3_key_display` URL; for videos this is the `video_id` storage key URL
+  - `thumbnailUrl` — service-computed; branches by `media_items.video_platform`: `youtube` derives `https://i.ytimg.com/vi/{video_id}/hqdefault.jpg`; `vimeo` uses the persisted `thumbnail_url`; `s3` (and legacy `NULL`) uses the `s3_key_thumb` URL via the storage adapter for photos and the existing `thumbnail_url` for videos
+  - `displayHref` — service-computed; branches by `media_items.video_platform`: `youtube` and `vimeo` link to the platform `video_url`; `s3` returns the `video_id` storage key URL for videos and the `s3_key_display` URL for photos
   - `uploadedAtIso`, `uploadedAtDisplay`
   - `tags[]` — `tag_display` values from `media_tags` for the item
 - `content.pagination`
@@ -1737,19 +1775,20 @@ This page consumes the generic public rendering standard and the §4.2 page cont
   - `hasPrev`, `hasNext`
   - `prevHref`, `nextHref` — service-computed; absent when the corresponding `has*` is false
 
-### Navigation outputs
+**Navigation outputs**
 
-None at present. Per-tag, per-member, per-event, and per-club drill-downs are deferred and will be surfaced on the relevant entity pages or tag pages.
+None at present. Per-tag, per-member, per-event, and per-club drill-downs are surfaced on the relevant entity pages or on dedicated tag pages.
 
-### Empty state
+**Empty state**
 
-Render the standard empty state ("No media yet.") when no curator media exists.
+Render the standard empty state ("No media yet.") when the criteria-tag set matches no items.
 
-### Implementation notes
+**Implementation notes**
 
-- Source rows are filtered to `members.is_system = 1`, `media_items.moderation_status = 'active'`, and `media_items.is_avatar = 0`.
-- Page size is fixed; query parameter `?page=N` selects the page (invalid values clamp to 1).
-- Caption text is HTML-escaped at render time; tag chips do not link to per-tag pages in this slice.
+- Source rows are filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`. Curator URL-reference content is detached (`gallery_id IS NULL`) and surfaces in named galleries purely via tag-AND match.
+- Unknown or member-owned `galleryId` values return 404 (anti-enumeration); the public hub never lists member-owned galleries.
+- Query parameter `?page=N` selects the page (invalid values clamp to 1).
+- Caption text is HTML-escaped at render time; item tag chips do not link to per-tag pages in this slice.
 
 ---
 

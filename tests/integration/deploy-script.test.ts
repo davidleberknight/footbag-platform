@@ -51,24 +51,36 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(r.status).toBe(0);
   });
 
-  it('--help mentions --with-curated and its semantics', () => {
+  it('--help mentions --sync-media, --no-curator-seed, and the deprecated --with-curated alias', () => {
     const r = run('bash', ['deploy_to_aws.sh', '--help']);
     expect(r.status).toBe(0);
+    expect(r.stdout).toContain('--sync-media');
+    expect(r.stdout).toContain('--no-curator-seed');
     expect(r.stdout).toContain('--with-curated');
-    expect(r.stdout).toMatch(/preserved across|seed.*curator|opt in/i);
+    expect(r.stdout).toMatch(/Deprecated alias/i);
   });
 
-  it('--code-only --with-curated exits 1 with rejection message', () => {
+  it('--code-only --sync-media exits 1 with rejection message', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--code-only', '--sync-media'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(1);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/--sync-media requires --with-db/);
+  });
+
+  it('--code-only --with-curated (deprecated alias) prints a deprecation warning and rejects without --with-db', () => {
     const r = run('bash', ['scripts/deploy-to-aws.sh', '--code-only', '--with-curated'], {
       input: 'fake-pw\n',
     });
     expect(r.status).toBe(1);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
-    expect(combined).toMatch(/--with-curated requires --with-db/);
+    expect(combined).toMatch(/--with-curated is deprecated/);
+    expect(combined).toMatch(/--sync-media requires --with-db/);
   });
 
-  it('--with-db --from-csv --with-curated --dry-run accepts the flag and shows the plan', () => {
-    const r = run('bash', ['scripts/deploy-to-aws.sh', '--with-db', '--from-csv', '--with-curated', '--dry-run', '--no-staleness-check'], {
+  it('--with-db --from-csv --sync-media --dry-run accepts the flag and shows the plan', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--with-db', '--from-csv', '--sync-media', '--dry-run', '--no-staleness-check'], {
       input: 'fake-pw\n',
     });
     expect(r.status).toBe(0);
@@ -76,6 +88,15 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(combined).toMatch(/mode=--with-db/);
     expect(combined).toMatch(/source=--from-csv/);
     expect(combined).toMatch(/dry-run=yes/);
+  });
+
+  it('--with-db --from-csv --no-curator-seed --dry-run accepts the seed-skip flag', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--with-db', '--from-csv', '--no-curator-seed', '--dry-run', '--no-staleness-check'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/mode=--with-db/);
   });
 
   it.skipIf(!HAS_DOCKER)(

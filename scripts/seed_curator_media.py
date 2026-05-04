@@ -57,6 +57,19 @@ DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 
+# Public named gallery for the /curated/freestyle_tricks/ corpus. The id is
+# the URL slug under /media/ (matches the gallery_<descriptive_slug> pattern,
+# parallel to event_{year}_{slug} for events). Owned by the FH system member.
+# The criteria-tag list is the AND-set: items appearing in this named gallery
+# must carry every one of these tags. Membership is computed at query time
+# against media_tags; the seeder writes the criteria into member_gallery_tags.
+FREESTYLE_TRICKS_GALLERY_ID = "gallery_curated_freestyle_tricks"
+FREESTYLE_TRICKS_GALLERY_NAME = "Curated Freestyle Tricks"
+FREESTYLE_TRICKS_GALLERY_DESCRIPTION = (
+    "Reference videos for freestyle footbag tricks, curated by the IFPA."
+)
+FREESTYLE_TRICKS_GALLERY_CRITERIA_TAGS = ("#curated", "#freestyle", "#trick")
+
 # Hardcoded manifest of curator items seeded for go-live. Append entries here
 # to extend the seed (e.g., Japan Worlds 2026 photo, /net cartoons,
 # /footbag-heroes cartoons, tutorials, historical content). Each entry maps
@@ -490,9 +503,12 @@ def _seed_one_sidecar(
     fh_id: str,
     ts: str,
     alias_map: dict[str, str],
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[str], str, str]:
     """Read one sidecar, INSERT OR REPLACE its media_items row + media_tags.
-    Returns (media_id, final_tags_list_with_curated_prepended)."""
+    Returns (media_id, final_tags_list_with_curated_prepended, platform, url).
+    The (platform, url) pair is the seeder's stable identity for the row;
+    the outer orphan-cleanup pass uses it to delete DB rows whose sidecar
+    is no longer on disk."""
     with sidecar_path.open(encoding="utf-8") as f:
         sidecar = json.load(f)
 
@@ -508,6 +524,36 @@ def _seed_one_sidecar(
         raise ValueError(
             f"{sidecar_path.name}: cannot parse video_id from URL={url!r}"
         )
+
+    # Platform-conditional thumbnailUrl rule.
+    #
+    # YouTube thumbnails are derivable from the video id at render time
+    # (https://i.ytimg.com/vi/{id}/hqdefault.jpg), so the gallery service
+    # constructs them rather than reading thumbnail_url from the DB. We
+    # reject any thumbnailUrl in a YouTube sidecar to keep that derivation
+    # single-sourced; otherwise an out-of-sync sidecar value would silently
+    # win at render time.
+    #
+    # Vimeo thumbnails are NOT derivable from the video id (the CDN id is
+    # separate), so the sidecar must supply the public thumbnail URL. The
+    # seeder stays offline-deterministic — no Vimeo oEmbed call at seed.
+    sidecar_thumb = sidecar.get("thumbnailUrl")
+    if platform == "youtube":
+        if sidecar_thumb is not None:
+            raise ValueError(
+                f"{sidecar_path.name}: thumbnailUrl must NOT appear in a "
+                "youtube sidecar; the gallery service derives the thumbnail "
+                "from the video id at render time"
+            )
+        thumbnail_url = None
+    else:  # vimeo
+        if not isinstance(sidecar_thumb, str) or not sidecar_thumb.startswith("https://"):
+            raise ValueError(
+                f"{sidecar_path.name}: vimeo sidecars must include "
+                "thumbnailUrl as an https:// URL (Vimeo thumbnails are not "
+                "derivable from the video id)"
+            )
+        thumbnail_url = sidecar_thumb
 
     media_id = _url_ref_media_id(url, platform)
     # Per CMP §"Migration of James's existing 47 assets" item 3: title is
@@ -541,6 +587,12 @@ def _seed_one_sidecar(
 
     # INSERT OR REPLACE: ON DELETE CASCADE on media_tags.media_id wipes
     # prior tag rows for this media_id; we re-insert below.
+    # Curator URL-ref content is uploaded as DETACHED per USER_STORIES.md
+    # §A_Upload_Curated_Media (gallery_id = NULL). The named gallery
+    # row at gallery_curated_freestyle_tricks is a URL bookmark; the
+    # content that appears on that page is computed dynamically by
+    # hashtag-AND match (per DATA_MODEL.md §"hashtag-driven coupling"
+    # and USER_STORIES.md §V_View_Gallery), not by direct gallery_id FK.
     con.execute(
         """
         INSERT OR REPLACE INTO media_items (
@@ -550,12 +602,12 @@ def _seed_one_sidecar(
             source_id, start_seconds, end_seconds,
             moderation_status, source_filename,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, NULL, 'video', 0, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'active', NULL, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, NULL, 'video', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id,
             caption, ts,
-            platform, video_id, url,
+            platform, video_id, url, thumbnail_url,
             source_id, start_seconds, end_seconds,
             ts, ts,
         ),
@@ -572,7 +624,53 @@ def _seed_one_sidecar(
             (media_tag_id, media_id, tid, tag_display, ts, ts),
         )
 
-    return media_id, final_tags
+    return media_id, final_tags, platform, url
+
+
+def ensure_freestyle_tricks_gallery(
+    con: sqlite3.Connection, fh_id: str, ts: str
+) -> None:
+    """Ensure the public-named gallery row exists for the
+    /curated/freestyle_tricks/ corpus AND its criteria tags are populated
+    in member_gallery_tags. INSERT OR REPLACE on the parent row so re-runs
+    pick up any name/description tweaks; DELETE-then-INSERT on the criteria
+    rows so a tag-set change in this file propagates cleanly without
+    leaving orphan criteria.
+    """
+    con.execute(
+        """
+        INSERT OR REPLACE INTO member_galleries (
+            id, owner_member_id, name, description, is_default,
+            created_at, created_by, updated_at, updated_by, version
+        ) VALUES (?, ?, ?, ?, 0, ?, 'seed', ?, 'seed', 1)
+        """,
+        (
+            FREESTYLE_TRICKS_GALLERY_ID,
+            fh_id,
+            FREESTYLE_TRICKS_GALLERY_NAME,
+            FREESTYLE_TRICKS_GALLERY_DESCRIPTION,
+            ts,
+            ts,
+        ),
+    )
+
+    # Reset and repopulate the criteria-tag set. Removes any tags previously
+    # written by this seeder that have since been dropped from
+    # FREESTYLE_TRICKS_GALLERY_CRITERIA_TAGS.
+    con.execute(
+        "DELETE FROM member_gallery_tags WHERE gallery_id = ?",
+        (FREESTYLE_TRICKS_GALLERY_ID,),
+    )
+    for tag_display in FREESTYLE_TRICKS_GALLERY_CRITERIA_TAGS:
+        tid = tag_id_for(con, tag_display, ts)
+        con.execute(
+            """
+            INSERT INTO member_gallery_tags (
+                gallery_id, tag_id, created_at, created_by
+            ) VALUES (?, ?, ?, 'seed')
+            """,
+            (FREESTYLE_TRICKS_GALLERY_ID, tid, ts),
+        )
 
 
 def seed_freestyle_tricks_sidecars(
@@ -592,13 +690,36 @@ def seed_freestyle_tricks_sidecars(
     if sources_added:
         print(f"  → Bootstrapped media_sources: {sources_added} row(s) copied from freestyle_media_sources")
 
+    ensure_freestyle_tricks_gallery(con, fh_id, ts)
+
     alias_map = load_alias_map(con)
 
+    seen_pairs: set[tuple[str, str]] = set()
     n = 0
     for path in files:
-        _seed_one_sidecar(con, path, fh_id, ts, alias_map)
+        _, _, platform, url = _seed_one_sidecar(con, path, fh_id, ts, alias_map)
+        seen_pairs.add((platform, url))
         n += 1
     print(f"  → Seeded {n} freestyle reference video(s) from /curated/freestyle_tricks/")
+
+    # Orphan cleanup: delete URL-ref rows whose sidecar is no longer on
+    # disk. /curated/ is the source of truth; this is what makes admin
+    # deletes (which unlink the sidecar) survive the next seeder run.
+    # SQLite has no tuple-IN; concat (platform || '|' || url) is the
+    # standard workaround. Identity matches _url_ref_media_id().
+    placeholders = ",".join(["?"] * len(seen_pairs)) if seen_pairs else "''"
+    seen_keys = [f"{p}|{u}" for (p, u) in seen_pairs]
+    cur = con.execute(
+        f"""
+        DELETE FROM media_items
+        WHERE video_platform IN ('youtube','vimeo')
+          AND (video_platform || '|' || video_url) NOT IN ({placeholders})
+        """,
+        seen_keys,
+    )
+    if cur.rowcount:
+        print(f"  → Removed {cur.rowcount} orphaned URL-ref row(s) (sidecar deleted from /curated/)")
+
     return n
 
 
