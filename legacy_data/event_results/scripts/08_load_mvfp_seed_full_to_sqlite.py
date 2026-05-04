@@ -151,7 +151,6 @@ def main() -> None:
         conn.execute("DELETE FROM event_results_uploads")
         conn.execute("DELETE FROM event_disciplines")
         conn.execute("DELETE FROM event_organizers")
-        conn.execute("DELETE FROM roster_access_grants")
         conn.execute("DELETE FROM registrations")
         conn.execute("DELETE FROM events")
 
