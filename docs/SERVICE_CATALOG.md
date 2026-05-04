@@ -22,6 +22,8 @@ This catalog is the target-design reference for the platform's service layer: me
 - [5. Payments & Membership](#5-payments--membership)
   - [5.1 `PaymentService`](#51-paymentservice)
   - [5.2 `MembershipTieringService`](#52-membershiptieringservice)
+  - [5.3 `ActivePlayerService`](#53-activeplayerservice)
+  - [5.4 `OfficialRosterService`](#54-officialrosterservice)
 - [6. Voting & Recognition](#6-voting--recognition)
   - [6.1 `VotingElectionService`](#61-votingelectionservice)
   - [6.2 `HallOfFameService`](#62-halloffameservice)
@@ -86,7 +88,7 @@ Four organizational tiers the catalog-scope rule recognizes:
 **Anti-enumeration invariant:** Any endpoint that could leak account existence (login, register, password-reset request, email-verify/resend, member lookup, legacy claim) must return identical UX and identical timing for "exists" vs "does not exist." Services enforce this by running the same code path in both cases (e.g., always hitting the hash-compare, always running the rate-limit bucket); controllers must not short-circuit around an earlier existence check. Controllers MAY perform request-level gating that does not depend on account existence (Turnstile CAPTCHA verification per DD §8.3, basic input validation) before invoking the service; such gating returns identical UX for both "exists" and "does not exist" paths and therefore does not violate the no-short-circuit rule. Implemented by `IdentityAccessService` for account endpoints and by `MemberService.searchMembers` for member lookup.
 
 **Read model conventions:**
-- `member_tier_current` — **authoritative tier projection**; no tier cache columns exist on `members`. Use `calculateTierStatus(memberId)` as the sole authoritative tier-read path; never derive tier from `members` directly.
+- `member_tier_current` — **authoritative membership-tier projection**; no tier cache columns exist on `members`. Use `MembershipTieringService.getTierStatus(memberId)` as the sole authoritative membership-tier read path; never derive tier from `members` directly. Active Player status reads via `ActivePlayerService.getStatus(memberId)`. Combined gate: `member_membership_status_current`.
 - `system_config_current` — computed view returning the latest effective row per `config_key` where `effective_start_at <= now`. Authoritative read surface for all runtime config lookups; never query the `system_config` table directly for operational use.
 - `members_searchable` — member search **must** use this view; applies five exclusion conditions: soft-deleted, deceased, opted-out, PII-purged, and unverified (`email_verified_at IS NULL`). The last condition is the primary mechanism preventing imported legacy placeholder rows from appearing in search results.
 - `members_active` — filters `deleted_at IS NULL`; use for general member lookups.
@@ -189,6 +191,16 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 - **Owns:** Membership-tier ledger writes (`member_tier_grants`), HoF/BAP Tier 2 grants, Tier 3 governance set/remove, admin tier corrections, admin-role grants; `getTierStatus(memberId)` is the sole authoritative membership-tier read path
 - **Does NOT own:** Payment processing, registration, Active Player lifecycle (`ActivePlayerService`), official roster read/export (`OfficialRosterService`)
 - **Primary tables:** `member_tier_grants`, `member_tier_current`, `members` (flag and role fields only)
+
+**`ActivePlayerService`**
+- **Owns:** Active Player lifecycle ledger (`active_player_grants`), direct vouch action table (`active_player_vouches`); `getStatus(memberId)` is the sole authoritative Active Player read path
+- **Does NOT own:** Membership-tier writes (`MembershipTieringService`), event registration (`CompetitionParticipationService`), club affiliations (`ClubService`)
+- **Primary tables:** `active_player_grants`, `active_player_vouches`, `member_active_player_current`
+
+**`OfficialRosterService`**
+- **Owns:** Official IFPA Roster read paths (`list`, `summary`, `exportCsv`); the roster is not public
+- **Does NOT own:** Membership-tier writes, Active Player lifecycle, admin orchestration
+- **Primary tables:** `official_ifpa_roster_current` (read-only view)
 
 ---
 
@@ -471,8 +483,7 @@ For the current public routes, `EventService` is responsible for:
 - `removeCoOrganizer(actorId, eventId, targetMemberId) -> {ok}` — anti-self-removal; audit-logs
 - `requestSanction(actorId, eventId, justification) -> {ok}` — Tier 2 active required; inserts work-queue item → admin-alerts notification; enqueues confirmation to organizer; audit-logs
 - `approveSanctionRequest(adminId, eventId, decision, reason) -> {ok}` — admin only; approve: event → `published`, payment enabled, enqueues organizer email, emits `event_published` news item via NewsService, audit-logs; reject: event stays `draft`, outbox notification to organizer; admin cannot approve if organizer lacks active Tier 2
-- `uploadResults(actorId, eventId, csvData) -> {attendanceConfirmationData}` — organizer; parses CSV; writes `event_results_uploads` + `event_result_entries` + `event_result_entry_participants`; calls `CompetitionParticipationService.grantRosterAccess()` to reset window to `vouch_window_days` from now; for sanctioned events: auto-marks result-appearing members as attended via `MembershipTieringService.applyAttendanceTier()`; emits `event_results` news item via NewsService; audit-logs
-- `confirmAttendance(actorId, eventId, memberIds[]) -> {ok}` — sanctioned events; bulk or individual; delegates tier logic to `MembershipTieringService.applyAttendanceTier()`; audit-logs
+- `uploadResults(actorId, eventId, csvData) -> {attendanceConfirmationData}` — organizer; parses CSV; writes `event_results_uploads` + `event_result_entries` + `event_result_entry_participants`; for sanctioned events: auto-marks result-appearing members as attended via `CompetitionParticipationService.markAttendance()` (which delegates Active Player effect to `ActivePlayerService.applyAttendance()`); emits `event_results` news item via NewsService; audit-logs
 - `correctResults(adminId, eventId, corrections, reason) -> {ok}` — admin only; mandatory reason; audit-logs before/after values
 - `reassignOrganizer(adminId, eventId, newOrganizerId, reason) -> {ok}` — admin only; resolves "Needs Organizer" work-queue item; audit-logs
 
@@ -488,7 +499,7 @@ For the current public routes, `EventService` is responsible for:
 
 **Authz:** Create: Tier 1+. Edit/manage: event organizer or co-organizer scope. Sanction approval, result correction, reassign: admin only.
 
-**Persistence Touchpoints:** `events`, `event_disciplines`, `event_organizers`, `roster_access_grants`, `event_results_uploads`, `event_result_entries`, `event_result_entry_participants`, `tags`, `news_items`, `audit_entries`, `outbox_emails`, `work_queue_items`
+**Persistence Touchpoints:** `events`, `event_disciplines`, `event_organizers`, `event_results_uploads`, `event_result_entries`, `event_result_entry_participants`, `tags`, `news_items`, `audit_entries`, `outbox_emails`, `work_queue_items`
 
 **Key Rules:**
 - `[APP]` Hard-delete guard: events with public result rows are preserved permanently; draft/canceled → HD immediately
@@ -499,7 +510,6 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` Max 5 organizers per event (APP-011)
 - `[DB]` `ux_one_organizer_per_event` — one `role='organizer'` per event
 - `[APP]` Standard hashtag reserved via `HashtagDiscoveryService.reserveStandardTag()` at creation; permanent (APP-024)
-- `[APP]` Roster access window reset via `CompetitionParticipationService.grantRosterAccess()` on every results upload; window length from `vouch_window_days` (read from `system_config_current`)
 - `[APP]` News items emitted via `NewsService.emitNewsItem()` — EventService does not write to `news_items` directly
 
 - `[APP]` Public event detail visibility is limited to statuses `published`, `registration_full`, `closed`, and `completed`
@@ -515,9 +525,9 @@ For the current public routes, `EventService` is responsible for:
 - `[APP]` If a historical event has no result rows yet, the canonical event page renders the event and includes an explicit no-results state; the year page shows the event summary regardless of result availability
 - `[APP]` The canonical public event page is one route and one template; render emphasis is expressed through page-model fields such as `primarySection`, not through alternate public URLs
 
-**Transaction + Idempotency:** Results upload is idempotent per upload; re-upload resets roster access window.
+**Transaction + Idempotency:** Results upload is idempotent per upload.
 
-**Async / Side Effects:** outbox enqueue (organizer confirmations, participant cancellation notices, sanction decisions, roster-access grants) · news emission (`event_published`, `event_results`) · audit append · work queue insert (sanction request, no-organizer guard) → admin-alerts notification
+**Async / Side Effects:** outbox enqueue (organizer confirmations, participant cancellation notices, sanction decisions) · news emission (`event_published`, `event_results`) · audit append · work queue insert (sanction request, no-organizer guard) → admin-alerts notification
 
 ---
 
@@ -668,7 +678,7 @@ For the current public routes, `EventService` is responsible for:
 - `createRecurringDonationSubscription(memberId, amount, currency, comment) -> {subscriptionId}` — creates/reuses Stripe Customer (canonical `stripe_customer_id` on `members`); creates Stripe Subscription; writes `recurring_donation_subscriptions` with `status = 'active'`; stores comment in Stripe metadata and local record; dual-write `recurring_donation_subscription_transitions` with `lifecycle_event_code = 'activated'`; audit-logs
 - `cancelRecurringDonation(memberId, subscriptionId) -> {ok}` — member-initiated; sets Stripe Subscription `is_cancel_at_period_end = true`; writes `lifecycle_event_code = 'cancel_requested'` transition; enqueues confirmation email; does not update local `status` until `customer.subscription.deleted` webhook received; audit-logs
 - `handleStripeWebhook(stripePayload, signature) -> {ok}` — called by `OperationsPlatformService.runPaymentWebhookProcessor()`; validates signature; deduplicates via `stripe_events` keyed on `event_id`; idempotent — duplicate events return 200 without reprocessing
-- `processPaymentIntentSucceeded(eventData) -> {ok}` — dual-write: `payments.status = 'succeeded'` + `payment_status_transitions` INSERT atomically; calls `MembershipTieringService.applyPurchaseGrant()` or `CompetitionParticipationService.confirmRegistration()` as appropriate; enqueues receipt email
+- `processPaymentIntentSucceeded(eventData) -> {ok}` — dual-write: `payments.status = 'succeeded'` + `payment_status_transitions` INSERT atomically; calls `MembershipTieringService.applyPurchaseGrant(actorId, memberId, paymentId, tier)` for membership purchases (tier ∈ {'tier1','tier2'}) or `CompetitionParticipationService.confirmRegistration()` for event registration payments, in the same transaction as the dual-write; enqueues receipt email
 - `processPaymentIntentFailed(eventData) -> {ok}` — dual-write: `payments.status = 'failed'` + transition; enqueues failure email
 - `processChargeRefunded(eventData) -> {ok}` — dual-write: `payments.status = 'refunded'` + transition; no automatic tier changes — admin handles via `AdminGovernanceService`
 - `processSubscriptionInvoiceSucceeded(eventData) -> {ok}` — creates new `payments` row linked via `stripe_subscription_id`; dual-write subscription transition `charge_succeeded`; enqueues receipt email; audit-logs
@@ -736,6 +746,69 @@ For the current public routes, `EventService` is responsible for:
 **Transaction + Idempotency:** Every ledger write in one transaction. Tier 0 Active Player ending on purchase or Tier 3 grant must be in the same transaction as the membership-tier write.
 
 **Async / Side Effects:** outbox enqueue (tier change notifications, congratulatory HoF/BAP) · news emission (`member_honor`) · audit append
+
+---
+
+### 5.3 `ActivePlayerService`
+
+**Purpose/Boundary:** Owns the Active Player lifecycle ledger (`active_player_grants`) and the direct vouch action table (`active_player_vouches`). `getStatus(memberId)` is the sole authoritative Active Player read path; it derives from the ledger via `member_active_player_current`. Active Player is a temporary status for Tier 0 members only; Tier 1+ members never accrue Active Player rows. Does NOT own membership-tier writes (`MembershipTieringService`), event registration (`CompetitionParticipationService`), or club affiliations (`ClubService`).
+
+**Consumers:** `CompetitionParticipationService` (attendance marking), `ClubService` (first club-join), member controllers (vouch form), `MembershipTieringService` (calls `endOnTierUpgrade` and `endOnTier3Grant` from inside `applyPurchaseGrant` / `setGovernanceTier3`), `OperationsPlatformService` (expiry job)
+
+**Key Methods:**
+- `getStatus(memberId) -> { is_active_player, active_player_expires_at, latest_active_player_reason_code }` — sole authoritative Active Player read path; reads `member_active_player_current`. Returns `is_active_player = 0` for any non-Tier-0 member regardless of historical ledger rows.
+- `applyAttendance(actorId, memberId, registrationId, eventEndDate) -> { ok | noop }` — called by `CompetitionParticipationService.markAttendance()` on attendance mark; for Tier 0 target: writes `active_player_grants` row (`change_type = 'grant'` or `'extend'`) with `reason_code = 'official_event_attendance'`, `related_registration_id` set, computed `new_active_player_expires_at = eventEndDate + active_player_duration_days`; applies the no-shorten rule (compares against latest `new_active_player_expires_at`); for Tier 1+ target: no-op (audit-log only); idempotent via `ux_active_player_grants_registration_once`; audit-logs
+- `applyVouch(voucherId, targetId, reasonText) -> { ok | noop }` — Tier 2 or Tier 3 voucher only; rate-limited via `vouch_rate_limit_max_per_hour` and `vouch_rate_limit_window_minutes` from `system_config_current` (throws `RateLimitedError` on exceed); writes `active_player_vouches` row, then `active_player_grants` row with `reason_code = 'tier2_vouch_active_player'`, `related_vouch_id` set; for Tier 1+ target: no-op (audit-log only, no ledger row); applies the no-shorten rule; rejects self-vouch (`[DB+APP]`); audit-logs
+- `applyClubJoin(actorId, memberId, clubAffiliationId) -> { ok | noop }` — called by `ClubService` on first IFPA club join; for Tier 0 target with no prior `active_player_grants` row of any kind: writes `active_player_grants` row with `reason_code = 'club_join_one_time_active_player_grant'`, `related_club_affiliation_id` set; otherwise no-op; idempotent via `ux_active_player_club_join_once`; audit-logs
+- `endOnTierUpgrade(memberId, newTier) -> { ok }` — internal helper invoked by `MembershipTieringService.applyPurchaseGrant()` in the same transaction; `newTier ∈ {'tier1','tier2'}`; writes `active_player_grants` row with `change_type = 'end'`, `reason_code = 'membership_upgrade_ended_active_player'`, `new_active_player_expires_at = NULL`; no-op when no current Active Player exists
+- `endOnTier3Grant(memberId) -> { ok }` — internal helper invoked by `MembershipTieringService.setGovernanceTier3()` in the same transaction; writes `active_player_grants` row with `change_type = 'end'`, `reason_code = 'tier3_grant_ended_active_player'`, `new_active_player_expires_at = NULL`; no-op when no current Active Player exists
+- `applyExpiry(memberId) -> { ok }` — internal helper invoked by `OperationsPlatformService.runActivePlayerExpiryCheck()`; writes `active_player_grants` row with `change_type = 'expire'`, `reason_code = 'active_player_expired'`, `new_active_player_expires_at = NULL`
+- `adminCorrectExpiry(adminId, memberId, newExpiresAt, reason) -> { ok }` — admin only; writes `active_player_grants` row with `change_type = 'correct'`; mandatory `reason_text`; audit-logs
+
+**Authz:** `getStatus`: any authenticated. `applyAttendance`: invoked by `CompetitionParticipationService.markAttendance()` (organizer scope). `applyVouch`: Tier 2 or Tier 3 voucher. `applyClubJoin`: invoked by `ClubService`. `endOnTierUpgrade` / `endOnTier3Grant`: internal-only (invoked by `MembershipTieringService` inside its own transaction). `applyExpiry`: system role only (invoked by `OperationsPlatformService`). `adminCorrectExpiry`: admin only.
+
+**Persistence Touchpoints:** `active_player_grants`, `active_player_vouches`, `member_active_player_current`, `member_membership_status_current`, `members`, `system_config_current`, `audit_entries`, `outbox_emails`
+
+**Key Rules:**
+- `[DB]` Append-only: `active_player_grants` and `active_player_vouches` UPDATE/DELETE blocked by triggers
+- `[APP]` `getStatus(memberId)` is the sole authoritative Active Player read path; derives from `member_active_player_current`
+- `[APP]` Active Player applies only to Tier 0 members; Tier 1+ vouches and attendances are no-ops with audit-log only
+- `[APP]` No-shorten rule: an older event, vouch, or club-join must not shorten an existing later expiry date
+- `[DB]` `ux_active_player_grants_registration_once` — at most one grant per `related_registration_id` with `reason_code = 'official_event_attendance'`
+- `[DB]` `ux_active_player_grants_vouch_once` — at most one grant per `related_vouch_id`
+- `[DB]` `ux_active_player_club_join_once` — at most one grant per member with `reason_code = 'club_join_one_time_active_player_grant'`
+- `[APP]` Club-join one-time idempotency at lifetime scope: blocked even after expiry, vouch, or attendance, per `applyClubJoin` precondition
+- `[DB]` `active_player_vouches.voucher_member_id <> target_member_id` (CHECK)
+- `[APP]` Vouch rate limit: throws `RateLimitedError` when voucher exceeds `vouch_rate_limit_max_per_hour` per `vouch_rate_limit_window_minutes`
+
+**Transaction + Idempotency:** Every ledger write in one transaction. `endOnTierUpgrade` and `endOnTier3Grant` must execute in the same transaction as the corresponding `member_tier_grants` write. `applyAttendance`, `applyVouch`, `applyClubJoin` are idempotent via DB unique indexes as safety net; app is primary controller.
+
+**Async / Side Effects:** outbox enqueue (vouch confirmations, expiry reminders) · audit append
+
+---
+
+### 5.4 `OfficialRosterService`
+
+**Purpose/Boundary:** Owns the Official IFPA Roster read paths (`list`, `summary`, `exportCsv`). The roster includes Tier 1, Tier 2, Tier 3 members plus Tier 0 members with current Active Player status; deceased members are excluded. The roster is not public. Does NOT own membership-tier writes, Active Player lifecycle, or admin orchestration.
+
+**Consumers:** `AdminGovernanceService` (admin dashboard, CSV export route), admin controllers
+
+**Key Methods:**
+- `list(actorId, filter?) -> rows` — admin or admin-provisioned-roster-access only; reads `official_ifpa_roster_current`; optional `filter.tier` narrows to a subset of `{tier0, tier1, tier2, tier3}`; audit-logs every call with `category = 'roster_access'`
+- `summary(actorId) -> { total, byTier, byHonor, totalRegistered }` — admin only; aggregate breakdown for `A_View_Official_Roster_Reports`; counts by tier; counts by honor (HoF, BAP, Tier 3 governance); `totalRegistered` comparator across all account states
+- `exportCsv(actorId) -> { csv, filename }` — admin only; CSV with header comment line per US `A_View_Official_Roster_Reports`; filename pattern `official_roster_YYYYMMDD.csv`; deceased members excluded; audit-logs `category = 'roster_access'` with row count
+
+**Authz:** All methods admin only (or admin-provisioned roster access where modeled).
+
+**Persistence Touchpoints:** `official_ifpa_roster_current` (read-only view), `members_active`, `audit_entries`
+
+**Key Rules:**
+- `[APP]` Roster read paths are the sole surface for accessing membership roster data; controllers must not bypass this service to read the underlying view directly
+- `[APP]` Deceased members excluded from `list`, `summary`, and `exportCsv` per `official_ifpa_roster_current` view definition
+- `[APP]` Tier 0 members without current Active Player are excluded from the roster
+- `[APP]` All access (view + export) audit-logged with `category = 'roster_access'`
+
+**Async / Side Effects:** audit append
 
 ---
 
@@ -1100,24 +1173,24 @@ Dev-mode shaping only. Does NOT enqueue, send, or mutate `outbox_emails`. The `d
 - `acknowledgeAlarm(adminId, alarmId, note) -> {ok}` — writes `acknowledged_at`, `acknowledgment_note`; acknowledges alarms raised by `OperationsPlatformService.raiseAlarm()`; audit-logs
 - `getSystemConfig(adminId) -> {params}` — admin UI read path only; returns all `system_config_current` values grouped by section; do not route runtime config reads through this method
 - `setConfigValue(adminId, key, value, reason) -> {ok}` — inserts a new `system_config` row with `value_json`, `effective_start_at = now`, and `changed_by_member_id = adminId`; validates range/type before write; `system_config_current` picks up new value immediately; audit-logs old/new; **never UPDATEs existing rows** — `system_config` is append-only
-- `updateMembershipPricing(adminId, key, centsAmount, reason, effectiveStartAt = now) -> {ok}` — inserts a new `system_config` row for one approved pricing key (`tier1_lifetime_price_cents`, `tier2_annual_price_cents`, `tier2_lifetime_price_cents`); maps `effectiveStartAt` directly to `system_config.effective_start_at` (optional; defaults to current timestamp when omitted); validates integer cents amount > 0; duplicate `(config_key, effective_start_at)` entries fail via the DB UNIQUE path; audit-logs old/new plus effective date; values are integer cents (e.g., 1000 = $10.00)
-- `getOfficialRosterReport(adminId, filters) -> {report}` — admin only; reads authoritative membership roster projection from `member_tier_current` plus member profile/flag fields; Tier 1+ members only; returns counts by tier and special flags plus total registered accounts comparator; audit-logs report access
-- `exportOfficialRoster(adminId, format, filters) -> {export}` — admin only; v1.5 supports `format = 'csv'` only; Tier 1+ members only; uses canonical DB literal values in any machine-readable fields; audit-logs with export count and format
+- `updateMembershipPricing(adminId, key, centsAmount, reason, effectiveStartAt = now) -> {ok}` — inserts a new `system_config` row for one approved pricing key (`tier1_price_cents`, `tier2_price_cents`); maps `effectiveStartAt` directly to `system_config.effective_start_at` (optional; defaults to current timestamp when omitted); validates integer cents amount > 0; duplicate `(config_key, effective_start_at)` entries fail via the DB UNIQUE path; audit-logs old/new plus effective date; values are integer cents (e.g., 1000 = $10.00)
+- `getOfficialRosterReport(adminId, filters) -> {report}` — admin only; delegates roster reads to `OfficialRosterService.list()` and `OfficialRosterService.summary()`; the roster includes Tier 1, Tier 2, Tier 3 members plus Tier 0 members with current Active Player status; deceased members excluded; returns counts by tier, by honor, plus total registered accounts comparator; audit-logs report access via `OfficialRosterService` with `category = 'roster_access'`
+- `exportOfficialRoster(adminId, format, filters) -> {export}` — admin only; v1.5 supports `format = 'csv'` only; delegates to `OfficialRosterService.exportCsv()`; the roster includes Tier 1, Tier 2, Tier 3 members plus Tier 0 members with current Active Player status; deceased members excluded; uses canonical DB literal values in any machine-readable fields; filename pattern `official_roster_YYYYMMDD.csv`; audit-logs with export count and format
 - `getReconciliationIssues(adminId, statusFilter) -> {issues}` — Outstanding/Resolved/All; resolved items show resolver, timestamp, note
 - `buildReconciliationDigestData(actorContext) -> {digest}` — admin or system role; read-only digest payload assembly (summary counts + issue highlights); does NOT send email — enqueue is handled by `OperationsPlatformService.runNightlyReconciliation()`
 
 **Authz:** All methods admin-only **except** `buildReconciliationDigestData`, which may be called by admin or system role (scheduled orchestration via `OperationsPlatformService`).
 
-**Persistence Touchpoints:** `work_queue_items`, `audit_entries`, `system_config`, `system_config_current`, `system_alarm_events`, `reconciliation_issues`, `member_tier_current`, `members`, `members_all`
+**Persistence Touchpoints:** `work_queue_items`, `audit_entries`, `system_config`, `system_config_current`, `system_alarm_events`, `reconciliation_issues`, `members`, `members_all`
 
 **Key Rules:**
 - `[DB]` Audit log append-only: UPDATE/DELETE blocked
 - `[DB]` `system_config` is append-only: UPDATE/DELETE blocked by triggers
 - `[APP]` `setConfigValue` and `updateMembershipPricing` INSERT new rows; they never UPDATE or DELETE existing rows
 - `[APP]` `getSystemConfig` is the admin UI read path only — runtime config reads by jobs and services go directly to `system_config_current`, not through this service
-- `[APP]` Pricing keys are integer cents (`tier1_lifetime_price_cents`, `tier2_annual_price_cents`, `tier2_lifetime_price_cents`); UI layer converts to display currency
+- `[APP]` Pricing keys are integer cents (`tier1_price_cents`, `tier2_price_cents`); UI layer converts to display currency
 - `[APP]` Work queue items: visible post-resolution with status, resolver, timestamp, decision, reason
-- `[APP]` Official roster report/export ownership belongs here, not in `CompetitionParticipationService`; roster rows derived from `member_tier_current` + member profile/flag fields; Tier 0 excluded from official export
+- `[APP]` Official roster report/export read paths are owned by `OfficialRosterService`; admin orchestration belongs here; roster rows derived from `official_ifpa_roster_current` (Tier 1+ plus Tier 0 with current Active Player; deceased excluded)
 
 **Async / Side Effects:** audit append
 
@@ -1130,7 +1203,7 @@ Dev-mode shaping only. Does NOT enqueue, send, or mutate `outbox_emails`. The `d
 **Consumers:** Job scheduler, system role processes
 
 **Key Methods:**
-- `runTierExpiryCheck() -> {ok}` — SYS_Check_Tier_Expiry; daily; evaluates all Tier 1/2 Annual memberships; sends reminders at `tier_expiry_reminder_days_1` and `tier_expiry_reminder_days_2` offsets (never more than once per day per member per offset); delegates all tier writes to `MembershipTieringService.processExpiry()`; logs counts and failure metrics to CloudWatch
+- `runActivePlayerExpiryCheck() -> {ok}` — SYS_Check_Active_Player_Expiry; daily; evaluates all Tier 0 members with current or recently-expired Active Player; sends reminders at `active_player_expiry_reminder_days_1` (default 30) and `active_player_expiry_reminder_days_2` (default 7) offsets plus a built-in T+0 day-of expiry notification (never more than once per day per member per offset); delegates all Active Player writes to `ActivePlayerService.applyExpiry()`; Tier 1+ members are skipped; logs counts and failure metrics to CloudWatch
 - `runEmailWorker() -> {ok}` — SYS_Send_Email; polls outbox every `outbox_poll_interval_seconds`; delegates to `CommunicationService.processSendQueue()`
 - `openPendingVotes() -> {ok}` — SYS_Open_Vote; at minimum hourly; delegates to `VotingElectionService.openVote()`; sends admin-alerts email per opened vote; audit-logs
 - `closePendingVotes() -> {ok}` — SYS_Close_Vote; at minimum hourly; delegates to `VotingElectionService.closeVote()`; sends admin-alerts email per closed vote; audit-logs
@@ -1157,7 +1230,6 @@ Dev-mode shaping only. Does NOT enqueue, send, or mutate `outbox_emails`. The `d
 - `[APP]` All webhook handlers idempotent
 - `[APP]` Continuous backup success/failure is surfaced through logs, job-run history, and alarms, not through `/health/ready`
 - `[APP]` All SYS jobs write `system_job_runs` via `recordJobRun()` on every run for admin visibility
-- `[APP]` Tier expiry: Tier 2 Annual fallback to Tier 1 Lifetime must be atomic (no gap between tier states); atomicity enforced inside `MembershipTieringService.processExpiry()`
 - `[APP]` PII purge job has distinct member branches: soft-deleted accounts use `member_cleanup_grace_days`; deceased members use `deceased_cleanup_grace_days`; these are separate grace rules and must not be collapsed
 - `[APP]` PII purge: events with published results preserved permanently; clubs preserved permanently; payment records: `payment_retention_days`; ballots: `ballot_retention_days`
 - `[APP]` Resolved reconciliation issue rows deleted by `runNightlyReconciliation()` after `expires_at` (set at INSERT per APP-018)
@@ -1181,7 +1253,7 @@ Dev-mode shaping only. Does NOT enqueue, send, or mutate `outbox_emails`. The `d
 
 **Key Methods:**
 - `initiateAccountClaim(activeMemberId, identifier) -> {ok}` — classifies identifier type (legacy email, legacy username, or legacy member ID); looks up the matching `legacy_members` row; if exactly one eligible (unclaimed) row is found, creates an `account_claim` token bound to `activeMemberId` and the target `legacy_member_id`; applies rate limiting per requesting account, per target row, and per session/IP; queues claim email to `legacy_email`; writes audit event `legacy_claim_email_sent`; returns a generic non-revealing response regardless of outcome (does not distinguish zero matches, multiple matches, ineligible rows, or blocked rows).
-- `consumeAccountClaim(token, activeMemberId) -> {claimData}` — validates token (exists, unconsumed, unexpired, `token_type = 'account_claim'`, `member_id` matches `activeMemberId`); validates target `legacy_members` row still exists and is unclaimed; returns confirmation data including the active account identity and any club-affiliation or bootstrap-leader suggestions for review; on member confirmation, runs merge transaction: sets `members.legacy_member_id` to the target legacy_member_id, copies editable fields from `legacy_members` to the member row per MIGRATION_PLAN §8 merge rules (COALESCE / OR-merge / fill-if-empty), if the target `legacy_members.legacy_member_id` matches a `historical_persons.legacy_member_id` also sets `members.historical_person_id` to that HP's `person_id` and runs the HP-sourced field merge (country fill-if-empty; is_hof/is_bap OR; hof_inducted_year/first_competition_year fill-if-empty), sets `legacy_members.claimed_by_member_id` + `claimed_at` (the row is NOT deleted), writes tier reconciliation grant via MembershipTieringService if imported tier exceeds current, writes confirmed club affiliations to `member_club_affiliations`, processes bootstrap-leader confirmations, and marks all outstanding `account_claim` tokens targeting this `legacy_members` row as consumed; writes audit event `legacy_claim_completed` with full merge summary.
+- `consumeAccountClaim(token, activeMemberId) -> {claimData}` — validates token (exists, unconsumed, unexpired, `token_type = 'account_claim'`, `member_id` matches `activeMemberId`); validates target `legacy_members` row still exists and is unclaimed; returns confirmation data including the active account identity and any club-affiliation or bootstrap-leader suggestions for review; on member confirmation, runs merge transaction: sets `members.legacy_member_id` to the target legacy_member_id, copies editable fields from `legacy_members` to the member row per MIGRATION_PLAN §8 merge rules (COALESCE / OR-merge / fill-if-empty), if the target `legacy_members.legacy_member_id` matches a `historical_persons.legacy_member_id` also sets `members.historical_person_id` to that HP's `person_id` and runs the HP-sourced field merge (country fill-if-empty; is_hof/is_bap OR; hof_inducted_year/first_competition_year fill-if-empty), sets `legacy_members.claimed_by_member_id` + `claimed_at` (the row is NOT deleted), writes a single tier grant via MembershipTieringService applying the blanket mapping in MIGRATION_PLAN §3 (`reason_code = 'legacy.claim_tier_grant'`), writes confirmed club affiliations to `member_club_affiliations`, processes bootstrap-leader confirmations, and marks all outstanding `account_claim` tokens targeting this `legacy_members` row as consumed; writes audit event `legacy_claim_completed` with full merge summary.
 - `lookupHistoricalPersonForClaim(activeMemberId, personId) -> {claimPreview} | null` — read-only eligibility preview for the direct historical-person claim flow (scenarios D and E per MIGRATION_PLAN §7). Validates that the viewer has not already claimed an HP, the target HP exists and is unclaimed, surname of `real_name` matches surname of `historical_persons.person_name`, and no conflicting legacy-account state exists. Returns the HP identity (name, country, HoF/BAP flags) plus a `firstNameWarning` flag when the first names differ (variant like Dave/David). Throws a ValidationError with a user-safe message on ineligibility. Controllers render the claim confirmation page from this result.
 - `claimHistoricalPerson(activeMemberId, personId) -> {ok}` — executes the direct-HP claim atomically. Revalidates eligibility inside a transaction, then: if the HP carries an unclaimed `legacy_member_id` back-link, marks that `legacy_members` row claimed and runs the legacy-field merge (same as `consumeAccountClaim`); sets `members.historical_person_id` (the partial UNIQUE index enforces one live member per HP); runs the HP-sourced field merge. Writes audit event `hp_claim_completed`.
 - `manualLegacyClaimRecovery(adminId, targetLegacyMemberId, activeMemberId, reason, verificationNote) -> {ok}` — admin-initiated merge for cases where self-serve claim is unavailable; runs the same merge transaction as `consumeAccountClaim` against the `legacy_members` row identified by `targetLegacyMemberId`; requires non-empty `reason` and `verificationNote`; writes audit event `legacy_claim_manual_recovery` with actor, target, reason, and verification note; never auto-promotes `legacy_is_admin` to live admin role
@@ -1197,7 +1269,7 @@ Dev-mode shaping only. Does NOT enqueue, send, or mutate `outbox_emails`. The `d
 - `[APP]` Merge transaction is atomic. The target `legacy_members` row is MARKED CLAIMED (`claimed_by_member_id` + `claimed_at` set); the row is NOT deleted and persists as the permanent archival record. Member-editable fields copy to the claiming `members` row per MIGRATION_PLAN §8. If the target's `legacy_member_id` matches a `historical_persons.legacy_member_id`, `members.historical_person_id` is set to that HP's `person_id` in the same transaction. All outstanding `account_claim` tokens targeting the claimed `legacy_members` row are marked consumed in the same transaction.
 - `[APP]` Rate limiting applies to claim initiation and resend per requesting account, per target row, and per session/IP
 - `[APP]` A token may only be consumed by the same `member_id` that initiated the request; consuming while authenticated as a different account is rejected
-- `[APP]` Tier reconciliation grant is written only if the imported effective tier exceeds the current effective tier; uses `reason_code = 'migration.legacy_claim_reconcile'`
+- `[APP]` Tier grant at claim writes a single `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` applying the blanket mapping in `MIGRATION_PLAN.md` §3 "Tier handling at claim"; no conditional "exceeds current" logic
 - `[APP]` `legacy_is_admin` metadata is never auto-promoted to live admin role in any flow
 - `[APP]` One-current-club invariant: when writing a confirmed current affiliation to `member_club_affiliations`, any existing current row for that member is converted to `is_current = 0` in the same transaction
 - `[APP]` Bootstrap leadership promotion is only attempted when no conflicting live `club_leaders` row exists for the club; conflicts leave the bootstrap row provisional and create an admin work queue item

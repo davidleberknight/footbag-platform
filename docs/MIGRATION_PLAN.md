@@ -182,23 +182,37 @@ The three-table design (DD §2.4) means imported rows never occupy the `members`
 
 #### Tier handling at claim
 
-Under the three-table design, `member_tier_grants` is a ledger keyed by `member_id` — so no ledger row exists for an unclaimed legacy account (there is no member yet). The mapping below is applied at **claim time**: when M_Claim_Legacy_Account completes for a given `legacy_members` row, the claim transaction writes one `member_tier_grants` row with `reason_code = 'migration.legacy_import'` using the legacy tier state captured on `legacy_members`. Legacy tier state fields (`legacy_tier_state`, `legacy_tier_expires_at`, `legacy_tier_ever_paid_tier2`) are a deferred schema extension gated on test-load validation of the dump — if the extension does not land, tier mapping falls back to the honors-only rules (HoF/BAP give `tier2_lifetime`; absence of legacy tier info gives `tier0`).
+Under the three-table design, `member_tier_grants` is a ledger keyed by `member_id` — so no ledger row exists for an unclaimed legacy account (there is no member yet). The mapping below is applied at **claim time**: when `M_Claim_Legacy_Account` (or the direct-historical-person claim, or admin manual recovery) completes for a given `legacy_members` row, the claim transaction writes one `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` using the legacy state captured on `legacy_members`. No `active_player_grants` row is written at migration; Active Player is earned post-cutover via the new sources (IFPA-website event attendance, vouching, or first IFPA club join).
 
-Tier mapping rules:
+The mapping is a single blanket policy approved by IFPA: any legacy state that was active or paid at cutover maps to its lifetime equivalent under the 2026 rules (annual to lifetime); honors override paid history; default is `tier0`.
 
-| Legacy state | New effective tier |
-|---|---|
-| No valid legacy tier | `tier0` |
-| Tier 1 annual, active | `tier1_annual` with expiry |
-| Tier 1 annual, expired | `tier0` |
-| Tier 1 lifetime | `tier1_lifetime` |
-| Tier 2 annual, active | `tier2_annual` with expiry + `tier1_lifetime` fallback |
-| Tier 2 annual, expired (ever held Tier 2 paid status) | `tier1_lifetime` |
-| Tier 2 lifetime | `tier2_lifetime` |
-| HoF member | minimum `tier2_lifetime` |
-| BAP member | minimum `tier2_lifetime` |
+Tier mapping rules (apply in precedence order; first match wins):
 
-The Tier 2 annual expired mapping requires the export to include enough membership history to determine "ever held Tier 2 paid status." This is a test-load validation gate.
+| Precedence | Legacy state at cutover | New `tier_status` | `underlying_tier_status` |
+|---:|---|---|---|
+| 1 | HoF or BAP (regardless of paid history) | `tier2` | n/a |
+| 2 | Was Tier 3 / board at cutover | `tier3` | derived (see below) |
+| 3 | Ever paid Tier 2 (annual or lifetime, any state) | `tier2` | n/a |
+| 4 | Paid Tier 1 Lifetime (no Tier 2 history) | `tier1` | n/a |
+| 5 | Tier 1 Annual currently active at cutover (last attendance or vouch ≤ 365 days before cutover) | `tier1` | n/a |
+| 6 | All other legacy states (including expired Tier 1 Annual and members with no IFPA history) | `tier0` | n/a |
+
+Tier 3 underlying derivation (precedence 2 only):
+
+- Old fallback paid tier was Tier 1 (any kind), undefined, or Tier 0 → `underlying_tier_status = 'tier1'` (per IFPA rule §1: a Tier 0 to Tier 3 upgrade gives `tier1` underlying).
+- Old fallback paid tier was Tier 2 (any kind), HoF, or BAP → `underlying_tier_status = 'tier2'`.
+
+Required inputs on `legacy_members` (or a migration-only staging table joined to it):
+
+| Field | Type | Purpose |
+|---|---|---|
+| `legacy_ever_paid_tier2` | INTEGER 0/1 | True if member ever paid any Tier 2 dues. Drives precedence 3. |
+| `legacy_ever_paid_tier1_lifetime` | INTEGER 0/1 | True if member explicitly bought Tier 1 Lifetime. Drives precedence 4. |
+| `legacy_tier1_annual_active_at_cutover` | INTEGER 0/1 | True if free-earned Tier 1 Annual was active at cutover. Drives precedence 5. |
+| `legacy_was_board_at_cutover` | INTEGER 0/1 | True if Tier 3 / board at cutover. Drives precedence 2. |
+| `legacy_board_underlying_paid_tier` | TEXT NULL | For board members only: `'none'`, `'tier1'`, or `'tier2'`. Drives underlying derivation. |
+
+These fields are a deferred schema extension on `legacy_members` (or staging), gated on test-load validation of the legacy export. If the extension does not land, the mapping falls back to the **honors-only path** using `legacy_members.is_hof` and `legacy_members.is_bap` (which already exist): HoF/BAP grants `tier2`; everything else grants `tier0`. The honors-only fallback degrades gracefully and remains correct under the 2026 rules.
 
 ---
 
@@ -388,7 +402,7 @@ The active modern account always survives. The `legacy_members` row is MARKED CL
 | `historical_persons`-sourced fields | Whenever `members.historical_person_id` is being set, the same transaction also runs the HP merge: `country` fill-if-empty from `historical_persons.country`; `is_hof` / `is_bap` OR semantics from `hof_member` / `bap_member`; `hof_inducted_year` fill-if-empty from `hof_induction_year`; `first_competition_year` COALESCE from `first_year`. This ensures honors and country propagate onto the member row from whichever archival table carries the authoritative value. |
 | `announce_opt_in` | Carry forward only if the validated export contains this field and its semantics are confirmed; unclaimed `legacy_members` rows are never treated as active mail recipients |
 | Legacy admin metadata (`legacy_is_admin`) | Copied to `members.legacy_is_admin` as audit/history context only; never auto-promotes live admin role |
-| Tier | Write new `member_tier_grants` row with `reason_code = 'migration.legacy_claim_reconcile'` only if imported effective tier exceeds current effective tier. Tier mapping uses legacy tier state fields on `legacy_members` (deferred schema extension, gated on test-load validation — see §2 Tier handling at claim). |
+| Tier | Write a single `member_tier_grants` row with `reason_code = 'legacy.claim_tier_grant'` applying the blanket mapping defined in §3 "Tier handling at claim". The mapping uses legacy state fields on `legacy_members` (deferred schema extension, gated on test-load validation); honors-only fallback applies if the extension is absent. No conditional "exceeds current" logic. |
 | Confirmed club affiliations | Write/update `member_club_affiliations` |
 | Confirmed bootstrap leadership | May promote to `club_leaders` if safe; otherwise remains provisional |
 | Discarded conflicting imported values | Preserved in audit metadata |
@@ -649,8 +663,8 @@ Two-way CHECK on `members`: live account or purged row. Imported legacy accounts
 ### 14.2 Location field nullability
 `city` and `country` are nullable. `region` was already nullable.
 
-### 14.3 Remove tier cache columns from `members`
-`tier_status`, `tier_expires_at`, `fallback_tier_status` removed from `members`. All current-tier reads derive from `member_tier_grants` via `member_tier_current`.
+### 14.3 Membership tier and Active Player are read-model-only
+Current membership tier reads from `member_tier_current`. Active Player status reads from `member_active_player_current`. Combined gate: `member_membership_status_current`. No cached tier or status columns exist on `members`.
 
 ### 14.4 New migration fields on `members`
 Added: `legacy_user_id`, `legacy_email`, `ifpa_join_date`, `birth_date`, `street_address`, `postal_code`, `legacy_is_admin`.

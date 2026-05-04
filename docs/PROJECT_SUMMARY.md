@@ -160,28 +160,43 @@ Members upload photos and share links to videos into named galleries, and then u
 
 Photo data is handled separately from application data, in a dedicated AWS S3 bucket (not the SQLite database). The photo data is large and will grow over time, and so storing this together with Lightsail would blow out the size, and therefore the cost, and this is why we store photo data in S3. Uploaded photos are processed into standardized display variants, security-processed before storage, and stored in S3. Original files are discarded after processing. 
 
-## 3.2 Membership Tiers
+## 3.2 Membership Tiers and Active Player Status
 
-The platform supports four IFPA membership tiers with clear capabilities. The following bullets summarize tier capabilities; the detailed member, administrator, event organizer, and club leader user stories define the exact behavior.
+The platform supports four lifetime IFPA membership tiers plus a temporary Active Player status for Tier 0 members. The following bullets summarize capabilities; the detailed member, administrator, event organizer, and club leader user stories define the exact behavior. The authoritative IFPA membership policy lives in `ifpa/IFPAMembershipStructure_2026.md`.
 
-- **Tier 0:** Can log in, manage profile, use authenticated member search (anti-enumeration, non-directory), join one club, view and register for events, read news feed, access historical archive, and manage email subscriptions. Tier 0 is free and non-expiring, but is non-voting and not counted in the official IFPA roster.
-- **Tier 1:** All Tier 0 privileges plus upload photos and video links, flag questionable media content, create a club, vote, create basic (free) events. Tier 1 includes Annual and Lifetime variants. Tier 1 Annual is earned by attending IFPA-sanctioned events or via Tier 2+ recognition vouching; each sanctioned event attended extends Tier 1 Annual for 365 days from event date.
-- **Tier 2:** All Tier 1 privileges plus the ability to apply for event sanctioning/sponsorship, create paid events, send emails to the IFPA announce mailing list, access organizer-only areas, and recognize other members as Tier 1 Annual. Tier 2 members have limited roster access (by IFPA rules). Tier 2 includes Annual and Lifetime variants. Any Tier 2 dues payment permanently grants Tier 1 Lifetime.
-- **Tier 3:** IFPA directors (elected/appointed per By-Laws). Includes Tier 2 privileges plus board-level voting privileges and direct roster access.
+- **Tier 0 (Registered Member):** Free registered account; lifetime. Can log in, manage profile, use authenticated member search (anti-enumeration, non-directory), join one club, view and register for events, read news feed, access historical archive, and manage email subscriptions. Tier 0 is non-voting and is not counted in the Official IFPA Roster unless the member holds current Active Player status.
+- **Tier 1 (IFPA Member):** Purchased lifetime membership (default USD $10). All Tier 0 privileges plus upload photos and video links, flag questionable media content, create a club, vote, create basic (free) events.
+- **Tier 2 (IFPA Organizer Member):** Purchased lifetime organizer membership (default USD $50). All Tier 1 privileges plus the ability to apply for event sanctioning/sponsorship, create paid events, send emails to the IFPA announce mailing list, access organizer-only areas, and vouch for Tier 0 members to grant or extend their Active Player status.
+- **Tier 3 (IFPA Director):** Governance status assigned by IFPA (elected/appointed per By-Laws). Includes Tier 2 privileges plus board-level voting privileges and direct roster access. Tier 3 carries an underlying membership tier (Tier 1 or Tier 2); when Tier 3 status ends, the member returns to that underlying tier. A Tier 0 member who becomes Tier 3 receives Tier 1 as their underlying tier.
 
-**Tier Lifecycle Rules:**
+**Active Player Status:**
 
-- Tier 1 Annual expires after 365 days unless extended by attending an IFPA-sanctioned event or via Tier 2+ vouching recognition. Upon expiry, the member falls back to Tier 0.
-- If Tier 2 Annual expires after one year, the member falls back to Tier 1 Lifetime without gap because any Tier 2 dues payment permanently grants Tier 1 Lifetime. Renewal notifications use two Administrator-configurable pre-expiry offsets (defaults: T-30 days and T-7 days) plus a built-in day-of expiry notification (T+0, not separately configurable). Early renewals stack from current expiry date, not purchase date.
+- Active Player is a temporary status available to Tier 0 members only. While current, it gives the Tier 0 member Tier 1 benefits but does not change their membership tier.
+- Active Player lasts 730 days from the most recent qualifying event attendance, vouch, or one-time club-join grant.
+- Sources: (a) attending any event officially registered through the IFPA website, (b) being vouched for by a Tier 2 or Tier 3 member, (c) one-time grant on first IFPA club join (only if the Tier 0 member has never previously been Active Player).
+- A later qualifying source extends Active Player; an older source must not shorten an existing later expiry date.
+- If a Tier 0 Active Player purchases Tier 1 or Tier 2, Active Player status ends because Active Player applies only to Tier 0.
+- If a Tier 0 Active Player becomes Tier 3, Active Player status ends and the underlying tier is set to Tier 1.
+- Active Player expiry reminders use two Administrator-configurable pre-expiry offsets (defaults: T-30 days and T-7 days) plus a built-in day-of expiry notification (T+0, not separately configurable).
+
+**Membership Tier Lifecycle:**
+
+- Membership tiers do not expire. Only Active Player status expires.
 
 **Special Designations:**
 
-- Hall of Fame (HoF): Permanent honor that automatically confers Tier 2 Lifetime.
-- Big Add Posse (BAP): Permanent honor that automatically confers Tier 2 Lifetime.
-- Board Members: Tier 3 while serving, with fallback to prior tier when boardMember flag removed.
-- Site Administrators: Must be IFPA members (Tier 2 Lifetime or Tier 3) to be assigned the role.
+- Hall of Fame (HoF): Permanent honor; induction grants Tier 2.
+- Big Add Posse (BAP): Permanent honor; induction grants Tier 2.
+- Board Members: Tier 3 while serving (governance status).
+- Site Administrators: Must be Tier 2 or Tier 3 to be assigned the role.
 
-Standardized Flags for members: boardMember (Tier 3), clubLeader (per club), eventOrganizer (per event), HoF (Hall of Fame), BAP (Big Add Posse), tierStatus (with date obtained and expiry for annual tiers).
+**Official IFPA Roster:**
+
+- Includes Tier 1, Tier 2, Tier 3 members, plus Tier 0 members with current Active Player status.
+- Excludes Tier 0 members without current Active Player status; excludes deceased members.
+- Not public. Tier 2 or Tier 3 members may access it for official IFPA event and organizer purposes.
+
+Standardized member attributes: membership tier (Tier 0, Tier 1, Tier 2, or Tier 3), Active Player status (where applicable), clubLeader (per club), eventOrganizer (per event), HoF (Hall of Fame), BAP (Big Add Posse), is_admin (Site Administrator).
 
 ## 3.3 Voting
 
