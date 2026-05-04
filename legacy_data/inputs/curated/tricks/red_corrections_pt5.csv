@@ -1,0 +1,11 @@
+pt,date,topic_type,subject,claim,disposition
+pt5,2026-05-03,ADD_VALUE,royale,"Royale is 4 ADDs (resolves pt4 pending).",applied
+pt5,2026-05-03,CONSTRUCTION,royale,"Royale = paradox + reverse drifter; Red also calls it 'Paradox Grifter'. base_trick deferred — reverse-drifter is not yet a canonical row (direction-is-structural rule). 'Paradox Grifter' alias not adopted without confirmation.",deferred
+pt5,2026-05-03,INFORMATIONAL,stalls,"Toe stall, inside stall, clipper stall, and osis are common base/anchor stalls used in many tricks. The ontology must also support non-stall primitives — kick/body tricks, sets, modifiers, and standalone compounds (e.g. flying-clipper, dragonfly, double-knee) — so this is not a universal decomposition rule.",informational
+pt5,2026-05-03,CONSTRUCTION,ripstein,"Ripstein = double swirl, 4 ADDs (pt4 confirmed). base_trick still unresolved: double-swirl is not itself canonical, and inventing one would force structure Red did not give.",deferred
+pt5,2026-05-03,CONSTRUCTION,merkon,"Merkon = spinning legover, 3 ADDs. category=compound, base_trick=legover, modifier=spinning.",applied
+pt5,2026-05-03,NAMING,terrage,"Terrage is its own mechanical family/category (parallel to barrage), not dex or compound. Few terraging moves exist (e.g. Terraging Leg Over).",applied
+pt5,2026-05-03,NAMING,barrage,"Barrage is its own mechanical family/category (parallel to terrage), not dex or compound. Barraging Leg Over is Flurry.",applied
+pt5,2026-05-03,NEW_TRICK,furious,"Furious is a related variant that turns Barrage into a set. Insufficient definition to add — needs follow-up question round before dictionary entry.",pending
+pt5,2026-05-03,NAMING,fog,"'Fog' is the correct canonical name.",applied
+pt5,2026-05-03,CONSTRUCTION,fog,"Red pt5 says Fog = stepping + paradox + double leg over (= stepping + paradox + miraging legover). Current dictionary says Fog = blurry + eggbeater (= blurry + illusion-modified legover). Same 5-ADD count but structurally different base (legover via mirage vs legover via illusion) and different modifier stack. Defer pending Red's explicit reconciliation; do not silently reconcile.",deferred

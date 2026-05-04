@@ -14,10 +14,10 @@ tombstone,4,drifter,compound,stepping drifter,stepping,Stepping-modified drifter
 fury,5,mirage,compound,barraging paradox mirage,paradox|barraging,Paradox-modified barraging mirage.,expert_reviewed,1,Red pt4 2026-05-02: Fury is 5 ADDs (was 4 ADD per pt1)
 vortex,4,drifter,compound,gyro drifter,gyro,Gyro-modified drifter.,expert_reviewed,1,
 quantum,2,quantum,set,toe blur|toe butterfly,,"Quantum set: upward double-dex launch (modern name for what was historically called 'toe blur' / 'toe butterfly'). Standalone 2 ADD, parallel to atomic.",expert_reviewed,1,"Per user 2026-05-03: quantum=set, ADD=2, upward double dex, parallel to atomic launch mechanic. Modifier behavior per trick_modifiers.csv."
-merkon,3,merkon,,,,Standalone trick.,expert_reviewed,1,Red pt4 2026-05-02: 3 ADDs
-terrage,4,terrage,,,,standalone trick; also acts as modifier (e.g. terraging X),expert_reviewed,1,"Red pt4 2026-05-02: 4 ADDs; terraging modifier row still pending"
-barrage,3,barrage,,,,"standalone trick distinct from existing 'barraging' modifier; barraging paradox mirage = Fury",expert_reviewed,1,Red pt4 2026-05-02: 3 ADDs
-royale,,,compound,,,Popular freestyle trick.,pending,0,ADD count and base trick not given
+merkon,3,legover,compound,,spinning,Spinning-modified legover.,expert_reviewed,1,"Red pt4 2026-05-02: 3 ADDs. Red pt5 2026-05-03: merkon = spinning legover; category=compound, base=legover, modifier=spinning."
+terrage,4,terrage,,,,"Standalone trick; terrage is its own mechanical family parallel to barrage (e.g. Terraging Leg Over).",expert_reviewed,1,"Red pt4 2026-05-02: 4 ADDs. Red pt5 2026-05-03: terrage is its own category, not dex/compound; few terraging moves exist."
+barrage,3,barrage,,,,"Standalone trick distinct from the existing 'barraging' modifier; barrage is its own mechanical family. Barraging Paradox Mirage = Fury; Barraging Leg Over = Flurry.",expert_reviewed,1,"Red pt4 2026-05-02: 3 ADDs. Red pt5 2026-05-03: barrage is its own category, not dex/compound. Furious mentioned as related variant (turns Barrage into a set); pending more definition before adding."
+royale,4,,compound,,,Popular freestyle trick.,pending,0,"Red pt5 2026-05-03: 4 ADDs. Structurally paradox + reverse drifter (Red also calls it 'Paradox Grifter'); base_trick deferred — reverse-drifter is not yet canonical. Alias not adopted without confirmation."
 ripstein,4,,compound,,,Popular freestyle trick.,expert_reviewed,1,Red pt4 2026-05-02: 4 ADDs (base trick still unspecified)
 flail,,,,,,Common-name trick (canonical mapping pending review).,pending,0,Which existing canonical trick is Flail a common name for?
 omelette,,,,,,Common-name trick (canonical mapping pending review).,pending,0,Which existing canonical trick is Omelette a common name for?
