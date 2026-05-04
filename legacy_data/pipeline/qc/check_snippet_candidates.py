@@ -1,15 +1,18 @@
 """
 QC: snippet_candidates.csv staging integrity.
 
-Read-only checks against the staging CSV (and freestyle_tricks /
-freestyle_media_sources from the DB for slug + source_id validation).
-Designed to run before any promotion attempt by the generator.
+Read-only checks against the staging CSV (and freestyle_tricks / media_sources
+from the DB for slug + source_id validation). Designed to run before any
+promotion attempt by the generator.
+
+Slice 2 retarget: source_id validation reads media_sources (the new source
+registry). All CSV-side checks unchanged.
 
 Checks:
   1. missing_trick_slug                — trick_slug empty or not in freestyle_tricks
   2. invalid_timestamp                  — negative seconds or start_seconds >= end_seconds
   3. duplicate_candidate                — same (url, trick_slug, start_seconds) appears more than once
-  4. unclear_source                     — source_id not in freestyle_media_sources
+  4. unclear_source                     — source_id not in media_sources
   5. signed_off_no_confidence           — reviewer populated but confidence empty
   6. compilation_missing_timestamp      — clip_type='compilation' without start_seconds
   7. unknown_clip_type                  — clip_type non-empty and not in the allowed set
@@ -78,7 +81,7 @@ def main() -> int:
 
     con = sqlite3.connect(db_path)
     valid_slugs = {r[0] for r in con.execute("SELECT slug FROM freestyle_tricks").fetchall()}
-    valid_sources = {r[0] for r in con.execute("SELECT source_id FROM freestyle_media_sources").fetchall()}
+    valid_sources = {r[0] for r in con.execute("SELECT source_id FROM media_sources").fetchall()}
     con.close()
 
     with csv_path.open(newline="", encoding="utf-8") as f:
