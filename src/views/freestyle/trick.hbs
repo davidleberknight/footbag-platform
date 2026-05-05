@@ -131,6 +131,38 @@
   </section>
   {{/if}}
 
+  {{! ── Reference Media — curator videos tagged with this trick's slug ─── }}
+  {{#if content.referenceMedia.length}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Reference Media</h2>
+      <p class="section-intro">Curated videos referencing {{content.trickName}}.</p>
+    </div>
+    <ul class="reference-media-grid">
+      {{#each content.referenceMedia}}
+        <li class="reference-media-tile{{#if isTtLesson}} reference-media-tt{{/if}}">
+          {{#if videoUrl}}
+            <a class="reference-media-link video-facade"
+               href="{{videoUrl}}"
+               target="_blank" rel="noopener noreferrer"
+               data-platform="{{videoPlatform}}"
+               {{#if videoEmbedUrl}}data-embed-url="{{videoEmbedUrl}}"{{/if}}
+               aria-label="Play: {{#if caption}}{{caption}}{{else}}reference video{{/if}}">
+              {{#if thumbnailUrl}}<img src="{{thumbnailUrl}}" alt="" loading="lazy" />{{/if}}
+              <span class="reference-media-play" aria-hidden="true">&#9654;</span>
+            </a>
+          {{/if}}
+          {{#if caption}}<p class="reference-media-caption">{{caption}}</p>{{/if}}
+          <p class="reference-media-source">
+            {{#if sourceLabel}}<span class="reference-media-source-label">{{sourceLabel}}</span>{{/if}}
+            {{#if isTtLesson}}<a class="reference-media-tt-link" href="{{ttSeriesHref}}">View in TT series &rarr;</a>{{/if}}
+          </p>
+        </li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
   {{! ── Next Tricks — same-family ADD progression ─────────────────────────── }}
   {{#if content.nextTricks.length}}
   <section class="content-section">

@@ -2,10 +2,12 @@ import {
   CuratorGalleryRow,
   FhNamedGalleryRow,
   FhNamedGalleryTagRow,
+  NamedGalleryGroupedRow,
   countGalleryItemsByCriteria,
   media,
   queryCuratorMediaTags,
   queryGalleryItemsByCriteria,
+  queryGalleryItemsByCriteriaGrouped,
 } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
@@ -54,8 +56,10 @@ export interface MediaHubContent {
   galleries: MediaHubGallerySummary[];
 }
 
-// Named-gallery page at /media/<id>: hero + paginated items computed by
-// tag-AND match against the gallery's criteria tags.
+// Named-gallery page at /media/<id>: hero + items grouped by canonical
+// trick tag. Items where source_id='tt_youtube' are excluded and counted
+// separately so the page can route users to /freestyle/tt-series for that
+// cluster. Per-trick groups render in alphabetical order.
 export interface NamedGalleryHero {
   id: string;
   name: string;
@@ -63,11 +67,24 @@ export interface NamedGalleryHero {
   criteriaTags: string[];
 }
 
+export interface NamedGalleryGroup {
+  tagSlug: string;            // canonical without leading '#', e.g. 'butterfly'
+  tagDisplay: string;         // '#butterfly'
+  trickHref: string;          // '/freestyle/tricks/<slug>' deep-link
+  itemCount: number;
+  items: GalleryItem[];
+}
+
 export interface NamedGalleryContent {
   gallery: NamedGalleryHero;
-  items: GalleryItem[];
-  pagination: GalleryPagination;
+  groups: NamedGalleryGroup[];
+  totalItems: number;
+  excludedTtCount: number;
+  ttSeriesHref: string;
 }
+
+/** Tags that describe gallery membership rather than trick identity. Skipped during grouping. */
+const META_TAGS = new Set(['#freestyle', '#trick', '#curated']);
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -185,10 +202,8 @@ export const mediaService = {
 
   getNamedGalleryPage(
     galleryId: string,
-    rawPage: unknown,
+    _rawPage: unknown,
   ): PageViewModel<NamedGalleryContent> {
-    const page = sanitizePage(rawPage);
-
     return runSqliteRead('mediaService.getNamedGalleryPage', () => {
       const gallery = media.getFhNamedGalleryById.get(galleryId) as
         | FhNamedGalleryRow
@@ -201,10 +216,13 @@ export const mediaService = {
       const tagIds = tagRows.map((t) => t.id);
       const criteriaTagDisplays = tagRows.map((t) => t.tag_display);
 
-      const total = countGalleryItemsByCriteria(tagIds);
-      const offset = (page - 1) * PAGE_SIZE;
-      const rows = queryGalleryItemsByCriteria(tagIds, PAGE_SIZE, offset);
+      // Total includes TT items so the page can report how many were routed
+      // away to /freestyle/tt-series; the rendered set excludes them.
+      const totalAll = countGalleryItemsByCriteria(tagIds);
+      const rows = queryGalleryItemsByCriteriaGrouped(tagIds);
 
+      // Fetch tags for each rendered item so we can pick the canonical trick
+      // tag for grouping. queryCuratorMediaTags returns [{ media_id, tag_display }].
       const tagsByMediaId = new Map<string, string[]>();
       if (rows.length > 0) {
         const tagDisplays = queryCuratorMediaTags(rows.map((r) => r.id));
@@ -216,12 +234,29 @@ export const mediaService = {
       }
 
       const adapter = getMediaStorageAdapter();
-      const items = rows.map((r) =>
-        shapeItem(r, tagsByMediaId.get(r.id) ?? [], (k) => adapter.constructURL(k)),
-      );
+      const groupsByTag = new Map<string, GalleryItem[]>();
+      for (const row of rows as NamedGalleryGroupedRow[]) {
+        const tags = tagsByMediaId.get(row.id) ?? [];
+        const primaryTag = pickPrimaryTrickTag(tags);
+        const key = primaryTag ?? '(uncategorized)';
+        const item = shapeItem(row, tags, (k) => adapter.constructURL(k));
+        const list = groupsByTag.get(key);
+        if (list) list.push(item);
+        else groupsByTag.set(key, [item]);
+      }
 
-      const hasPrev = page > 1;
-      const hasNext = offset + rows.length < total;
+      const groups: NamedGalleryGroup[] = [...groupsByTag.entries()]
+        .map(([tagDisplay, items]) => {
+          const slug = tagDisplay.replace(/^#/, '');
+          return {
+            tagSlug: slug,
+            tagDisplay,
+            trickHref: `/freestyle/tricks/${slug}`,
+            itemCount: items.length,
+            items,
+          };
+        })
+        .sort((a, b) => a.tagDisplay.localeCompare(b.tagDisplay, undefined, { sensitivity: 'base' }));
 
       return {
         seo: { title: gallery.name },
@@ -238,18 +273,25 @@ export const mediaService = {
             description: gallery.description,
             criteriaTags: criteriaTagDisplays,
           },
-          items,
-          pagination: {
-            page,
-            pageSize: PAGE_SIZE,
-            total,
-            hasPrev,
-            hasNext,
-            prevHref: hasPrev ? buildHref(galleryId, page - 1) : undefined,
-            nextHref: hasNext ? buildHref(galleryId, page + 1) : undefined,
-          },
+          groups,
+          totalItems: rows.length,
+          excludedTtCount: Math.max(0, totalAll - rows.length),
+          ttSeriesHref: '/freestyle/tt-series',
         },
       };
     });
   },
 };
+
+/**
+ * Pick the first non-meta tag from a media_items row's tag set. Returns the
+ * tag display form (e.g. '#butterfly') or null if the row has only meta tags.
+ * Tag order in `tagsByMediaId` mirrors `queryCuratorMediaTags` ordering
+ * (alphabetical by tag_display) — deterministic for grouping stability.
+ */
+function pickPrimaryTrickTag(tags: string[]): string | null {
+  for (const t of tags) {
+    if (!META_TAGS.has(t.toLowerCase())) return t;
+  }
+  return null;
+}

@@ -77,6 +77,7 @@ interface VideoOverrides {
   video_url?: string | null;
   thumbnail_url?: string | null;
   moderation_status?: 'active' | 'removed_by_admin';
+  source_id?: string | null;
 }
 
 function insertVideo(db: BetterSqlite3.Database, o: VideoOverrides = {}): string {
@@ -99,24 +100,32 @@ function insertVideo(db: BetterSqlite3.Database, o: VideoOverrides = {}): string
     videoUrl = o.video_url ?? `https://vimeo.com/${videoId}`;
     thumbUrl = o.thumbnail_url ?? `https://i.vimeocdn.com/video/${videoId}_640.jpg`;
   }
+  // If source_id is set, ensure the parent media_sources row exists (FK).
+  if (o.source_id) {
+    db.prepare(`
+      INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator)
+      VALUES (?, ?, 'youtube', NULL, NULL)
+    `).run(o.source_id, o.source_id);
+  }
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       width_px, height_px,
-      moderation_status
+      moderation_status, source_id
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
               ?, NULL, 'video', 0, ?, ?,
               ?, ?, ?, ?,
               1280, 720,
-              ?)
+              ?, ?)
   `).run(
     id, TS, TS,
     uploader, o.caption === undefined ? null : o.caption,
     o.uploaded_at ?? TS,
     platform, videoId, videoUrl, thumbUrl,
     o.moderation_status ?? 'active',
+    o.source_id ?? null,
   );
   return id;
 }
@@ -462,8 +471,8 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.text).not.toContain('removed-by-admin-marker');
   });
 
-  it('paginates: page 1 caps at 24 items, page 2 shows the overflow', async () => {
-    const suffix = 'pagination-marker-901';
+  it('renders all items on a single page (grouped, no pagination)', async () => {
+    const suffix = 'grouping-marker-901';
     const db = openDb();
     for (let i = 0; i < 25; i++) {
       const seq = String(i).padStart(2, '0');
@@ -479,32 +488,21 @@ describe('GET /media/:galleryId (named gallery)', () => {
     db.close();
 
     const app = createApp();
-    const page1 = await request(app).get(`/media/${FH_GALLERY_ID}`);
-    const page2 = await request(app).get(`/media/${FH_GALLERY_ID}?page=2`);
-
-    expect(page1.text).toContain(`href="/media/${FH_GALLERY_ID}?page&#x3D;2"`);
-    expect(page1.text).not.toContain('Previous');
-    expect(page1.text).toContain(`${suffix}-24`);
-
-    expect(page2.text).toContain(`${suffix}-00`);
-    expect(page2.text).toContain(`href="/media/${FH_GALLERY_ID}"`);
-    expect(page2.text).toContain('Previous');
-    expect(page2.text).not.toContain(`${suffix}-24`);
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    // Grouped mode renders all items in one render; no per-page navigation.
+    expect(res.text).not.toContain('class="gallery-pagination"');
+    expect(res.text).not.toContain('?page&#x3D;2');
+    expect(res.text).toContain(`${suffix}-24`);
+    expect(res.text).toContain(`${suffix}-00`);
   });
 
-  it('clamps invalid ?page values to page 1', async () => {
+  it('ignores ?page query in grouped mode (no crash, still 200)', async () => {
     const app = createApp();
-    for (const bad of ['abc', '-5', '0', '0.5']) {
+    for (const bad of ['abc', '-5', '0', '0.5', '999']) {
       const res = await request(app).get(`/media/${FH_GALLERY_ID}?page=${bad}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain('Curated Freestyle Tricks');
     }
-  });
-
-  it('renders a beyond-total page as an empty list (no crash)', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}?page=999`);
-    expect(res.status).toBe(200);
   });
 
   it('returns 404 for an unknown gallery id', async () => {
@@ -551,6 +549,97 @@ describe('GET /media/:galleryId (named gallery)', () => {
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.text).not.toContain('<script>alert("xss-marker-44321")</script>');
     expect(res.text).toContain('&lt;script&gt;');
+  });
+
+  it('groups items by canonical trick tag, ignoring #freestyle/#trick utility tags', async () => {
+    // Two items each on butterfly + whirl; canonical tag is the non-meta hashtag.
+    const db = openDb();
+    const tagsToInsert = [
+      { norm: '#butterfly', display: '#butterfly' },
+      { norm: '#whirl',     display: '#whirl' },
+    ];
+    for (const t of tagsToInsert) {
+      db.prepare(`
+        INSERT OR IGNORE INTO tags (
+          id, created_at, created_by, updated_at, updated_by, version,
+          tag_normalized, tag_display
+        ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?)
+      `).run(`tag-trick-${t.norm.slice(1)}`, TS, TS, t.norm, t.display);
+    }
+    for (const slug of ['butterfly', 'whirl']) {
+      for (let i = 0; i < 2; i++) {
+        const id = insertVideo(db, {
+          id: `media_grp_${slug}_${i}`,
+          caption: `${slug}-grouping-${i}`,
+          platform: 'youtube',
+          video_id: `grp${slug}${i}`,
+          uploaded_at: `2027-01-${String(i + 10).padStart(2, '0')}T12:00:00.000Z`,
+        });
+        tagAsCuratedFreestyleTrick(db, id);
+        attachTag(db, id, `tag-trick-${slug}`, `#${slug}`);
+      }
+    }
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+
+    // Both group headers render; deep-link goes to /freestyle/tricks/<slug>.
+    expect(res.text).toMatch(/<h2 class="gallery-group-heading"[^>]*id="group-butterfly"/);
+    expect(res.text).toMatch(/<h2 class="gallery-group-heading"[^>]*id="group-whirl"/);
+    expect(res.text).toContain('href="/freestyle/tricks/butterfly"');
+    expect(res.text).toContain('href="/freestyle/tricks/whirl"');
+
+    // Alphabetical order: butterfly section appears before whirl section.
+    const idxB = res.text.indexOf('id="group-butterfly"');
+    const idxW = res.text.indexOf('id="group-whirl"');
+    expect(idxB).toBeGreaterThan(-1);
+    expect(idxW).toBeGreaterThan(-1);
+    expect(idxB).toBeLessThan(idxW);
+  });
+
+  it('excludes source_id="tt_youtube" rows from the gallery and shows a banner with TT count', async () => {
+    const db = openDb();
+    db.prepare(`
+      INSERT OR IGNORE INTO tags (
+        id, created_at, created_by, updated_at, updated_by, version,
+        tag_normalized, tag_display
+      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?)
+    `).run('tag-trick-foo', TS, TS, '#foo', '#foo');
+    // Non-TT row: should appear in gallery.
+    const nonTt = insertVideo(db, {
+      id: 'media_excl_keep',
+      caption: 'gallery-excl-keep',
+      platform: 'youtube',
+      video_id: 'KEEPYTID01',
+      uploaded_at: '2027-02-01T12:00:00.000Z',
+    });
+    tagAsCuratedFreestyleTrick(db, nonTt);
+    attachTag(db, nonTt, 'tag-trick-foo', '#foo');
+
+    // TT row: same criteria tags but source_id='tt_youtube' → excluded.
+    const ttRow = insertVideo(db, {
+      id: 'media_excl_drop',
+      caption: 'gallery-excl-drop',
+      platform: 'youtube',
+      video_id: 'TTYTID01',
+      uploaded_at: '2027-02-02T12:00:00.000Z',
+      source_id: 'tt_youtube',
+    });
+    tagAsCuratedFreestyleTrick(db, ttRow);
+    attachTag(db, ttRow, 'tag-trick-foo', '#foo');
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('gallery-excl-keep');
+    expect(res.text).not.toContain('gallery-excl-drop');
+
+    // TT-exclusion banner renders with count >= 1 and a link to /freestyle/tt-series.
+    expect(res.text).toContain('class="gallery-tt-banner"');
+    expect(res.text).toContain('href="/freestyle/tt-series"');
   });
 });
 
