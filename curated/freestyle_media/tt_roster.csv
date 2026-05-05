@@ -1,0 +1,43 @@
+tt_number,lesson_title,is_meta,expected_trick_slug,expected_video_id,notes
+1,Shoes,1,,,Meta lesson; introductory content; not a trick.
+2,Toe Stall,0,toe-stall,,
+3,Inside Stall,0,inside-stall,,
+4,Outside Stall,0,outside-stall,,
+5,Knee Stall,0,knee-stall,kFxOvEo15Kg,
+6,Spin,0,spin,,Dictionary entry pending Red review.
+7,Flying Outside,0,flying-outside,,
+8,Flying Inside,0,flying-inside,,
+9,Clipper,0,clipper,,
+10,Sole,0,,,Channel cross-check pending; possibly the intro lesson for sole; mapping deferred.
+11,Cloud,0,cloud-stall,qEjsigE0_FA,
+12,Forehead Stall,0,forehead-stall,kUFtmVV38n4,
+13,Neck Catch,0,neck-stall,k0JwpNMVmVo,Lesson title is Neck Catch; canonical is neck-stall (alias resolves).
+14,Around The World,0,around-the-world,,
+15,Around The World Toe Stall,0,around-the-world,,Compound demonstration; tag resolves to dominant component (around-the-world); see spec §10.2.
+16,Leg-Over Stall,0,legover,,
+17,Mirage Stall,0,mirage,,
+18,Clipper Stall,0,clipper-stall,,
+19,Hop-Over,0,hop-over,,
+20,Flying Clipper,0,flying-clipper,,Dictionary entry pending Red review.
+21,Dragonfly,0,dragonfly-kick,,Dictionary entry pending Red review.
+22,Sole Stall,0,sole-stall,7ownDplKWkc,
+23,Squeeze,0,squeeze,,
+24,Cross-Body Sole,0,cross-body-sole-stall,SQLHKL2kdGU,Title says 2 ADD; canonical is 3 ADD per FB.org.
+25,Pendulum,0,pendulum,,
+26,Butterfly Stall,0,butterfly,,
+27,Whirl Stall,0,whirl,,
+28,Osis Stall,0,osis,,
+29,Double Around the World,0,double-around-the-world,,
+30,Double Leg-Over Stall,0,double-leg-over,,
+31,Symposium Mirage Stall,0,symposium-mirage,BEOXOHzJx68,
+32,Paradox Mirage Stall,0,paradox-mirage,,
+33,Drifter Stall,0,drifter,,
+34,unconfirmed,0,,,Channel cross-check pending; lesson title and video ID unconfirmed; renders MISSING until confirmed.
+35,Torque Stall,0,torque,,
+36,Spinning Osis Stall,0,spinning-osis,,
+37,Swirl Stall,0,swirl,,
+38,Spinning Butterfly,0,spinning-butterfly,,
+39,Blur Stall,0,blur,,
+40,Dada Curve,0,da-da-curve,,Dictionary entry pending Red review.
+41,Whirling Swirl Stall,0,whirling-swirl,,Dictionary entry pending Red review.
+42,Symposium Whirl,0,symposium-whirl,,

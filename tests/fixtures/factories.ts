@@ -508,6 +508,91 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
   return id;
 }
 
+// ── TT lesson media ──────────────────────────────────────────────────────────
+
+export interface TtLessonOverrides {
+  uploader_member_id: string;
+  ttNumber: number;
+  trickSlug: string;       // first non-meta tag attached to the lesson
+  videoId: string;         // YouTube ID
+  lessonTitle?: string;    // "Knee Stall", etc.; defaults derived from slug
+  source_id?: string;      // 'tt_youtube' by default
+  caption?: string;        // overrides the auto-generated TT caption
+  id?: string;
+}
+
+/**
+ * Insert a YouTube URL-reference media_items row matching the TT-lesson sidecar
+ * shape: caption "Footbag Lessons - Tricks of the Trade #{N} - {title}",
+ * video_platform='youtube', source_id='tt_youtube'. Tags: #<slug>, #freestyle, #trick.
+ */
+export function insertTtLesson(db: BetterSqlite3.Database, o: TtLessonOverrides): string {
+  const id = o.id ?? `media-tt-${o.ttNumber}-${uid()}`;
+  const lessonTitle = o.lessonTitle ?? o.trickSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const caption = o.caption ?? `Footbag Lessons - Tricks of the Trade #${o.ttNumber} - ${lessonTitle}`;
+  const sourceId = o.source_id ?? 'tt_youtube';
+
+  // Ensure the source row exists (FK to media_sources).
+  db.prepare(`
+    INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator)
+    VALUES (?, ?, 'youtube', NULL, NULL)
+  `).run(sourceId, sourceId);
+
+  db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      source_id, moderation_status
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, NULL, 'video', 0, ?, ?,
+              'youtube', ?, ?, NULL, ?, 'active')
+  `).run(
+    id, TS, TS,
+    o.uploader_member_id,
+    caption, TS,
+    o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`,
+    sourceId,
+  );
+
+  // Tag rows: trick slug + #freestyle + #trick (matches sidecar shape).
+  for (const tagDisplay of [`#${o.trickSlug}`, '#freestyle', '#trick']) {
+    const tagNormalized = tagDisplay.toLowerCase();
+    const tagId = `tag-${tagNormalized.replace(/[^a-z0-9]/g, '_')}`;
+    db.prepare(`
+      INSERT OR IGNORE INTO tags (
+        id, created_at, created_by, updated_at, updated_by, version,
+        tag_normalized, tag_display
+      ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?)
+    `).run(tagId, TS, TS, tagNormalized, tagDisplay);
+
+    db.prepare(`
+      INSERT INTO media_tags (
+        id, created_at, created_by, updated_at, updated_by, version,
+        media_id, tag_id, tag_display
+      ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
+    `).run(`mt-${id}-${tagId}`, TS, TS, id, tagId, tagDisplay);
+  }
+
+  return id;
+}
+
+/**
+ * Insert a freestyle_trick_aliases row (alias_slug → trick_slug). Used by TT-view
+ * tests to verify alias resolution (e.g. 'neck-catch' → 'neck-stall').
+ */
+export function insertFreestyleTrickAlias(
+  db: BetterSqlite3.Database,
+  alias_slug: string,
+  trick_slug: string,
+  alias_text?: string,
+): void {
+  db.prepare(`
+    INSERT INTO freestyle_trick_aliases (
+      alias_slug, alias_text, trick_slug, alias_type, source_id, notes, created_at
+    ) VALUES (?, ?, ?, 'common', NULL, NULL, ?)
+  `).run(alias_slug, alias_text ?? alias_slug.replace(/-/g, ' '), trick_slug, TS);
+}
+
 // ── Historical person ─────────────────────────────────────────────────────────
 
 export interface HistoricalPersonOverrides {

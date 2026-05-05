@@ -959,6 +959,25 @@ export const freestyleTricks = {
     WHERE trick_family = ? AND is_active = 1
     ORDER BY sort_order ASC
   `); },
+
+  // TT Series view needs to distinguish "trick exists but pending" from
+  // "trick not in dictionary at all". listAll / getBySlug filter is_active=1
+  // so pending rows are invisible to them; this getter exposes the row
+  // including is_active so the TT view can render PENDING vs MISSING.
+  get getAnyStatusBySlug() { return db.prepare(`
+    SELECT slug, canonical_name, is_active
+    FROM freestyle_tricks
+    WHERE slug = ?
+  `); },
+};
+
+export const freestyleTrickAliases = {
+  // alias_slug -> canonical trick_slug (single row or undefined). Used by the
+  // TT Series view to resolve sidecar tags whose first non-meta tag is an
+  // alias rather than a canonical slug (e.g., 'neck-catch' -> 'neck-stall').
+  get getCanonicalForAlias() { return db.prepare(`
+    SELECT trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?
+  `); },
 };
 
 export const freestyleTrickModifiers = {
@@ -3567,6 +3586,20 @@ export const media = {
     WHERE m.is_system = 1
       AND mi.moderation_status = 'active'
       AND mi.is_avatar = 0
+  `); },
+
+  // TT Series view: every active YouTube media item that came from the
+  // Tricks-of-the-Trade source. Match on source_id OR a TT-bearing caption
+  // so rows seeded with a different source_id (legacy migration, manual
+  // sidecar edits) still resolve when the title carries the TT marker.
+  get listTtLessons() { return db.prepare(`
+    SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
+           mi.uploaded_at, mi.source_id
+    FROM media_items mi
+    WHERE mi.video_platform = 'youtube'
+      AND mi.moderation_status = 'active'
+      AND (mi.source_id = 'tt_youtube' OR mi.caption LIKE '%Tricks of the Trade%')
+    ORDER BY mi.uploaded_at ASC, mi.id ASC
   `); },
 
   // Curator media lookup by id. Used by edit/delete paths to load existing
