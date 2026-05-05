@@ -151,8 +151,27 @@ def is_approved(row: dict) -> bool:
     return True
 
 
+_TT_NOTE_RE = re.compile(r"TT\s*#(\d+)\s+([^;()]+?)(?:\s*\(([^)]*)\))?(?:[;\.]|$)", re.IGNORECASE)
+
 def make_title(row: dict) -> str:
+    """Construct a sidecar title.
+
+    Special-case: when source_id is `tt_youtube`, parse the row's notes for
+    a "TT #N <Lesson>" stem and emit the canonical TT title format
+    "Footbag Lessons - Tricks of the Trade #N - <Lesson>". Falls back to
+    notes verbatim, then to a slug-derived placeholder.
+    """
     notes = (row.get("notes") or "").strip()
+    if (row.get("source_id") or "").strip() == "tt_youtube" and notes:
+        m = _TT_NOTE_RE.search(notes)
+        if m:
+            num = m.group(1)
+            stem = m.group(2).strip()
+            paren = (m.group(3) or "").strip()
+            return (
+                f"Footbag Lessons - Tricks of the Trade #{num} - {stem}"
+                + (f" ({paren})" if paren else "")
+            )
     if notes:
         return notes
     slug = (row.get("trick_slug") or "").strip()

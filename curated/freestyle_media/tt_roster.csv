@@ -8,7 +8,7 @@ tt_number,lesson_title,is_meta,expected_trick_slug,expected_video_id,notes
 7,Flying Outside,0,flying-outside,,
 8,Flying Inside,0,flying-inside,,
 9,Clipper,0,clipper,,
-10,Sole,0,,,Channel cross-check pending; possibly the intro lesson for sole; mapping deferred.
+10,Sole,0,sole-kick,r-G4qBrQSN0,1 ADD sole-kick lesson; distinct from TT #22 sole-stall. sole-kick not yet in dict; lesson renders PENDING until dict entry lands.
 11,Cloud,0,cloud-stall,qEjsigE0_FA,
 12,Forehead Stall,0,forehead-stall,kUFtmVV38n4,
 13,Neck Catch,0,neck-stall,k0JwpNMVmVo,Lesson title is Neck Catch; canonical is neck-stall (alias resolves).
@@ -21,7 +21,7 @@ tt_number,lesson_title,is_meta,expected_trick_slug,expected_video_id,notes
 20,Flying Clipper,0,flying-clipper,,Dictionary entry pending Red review.
 21,Dragonfly,0,dragonfly-kick,,Dictionary entry pending Red review.
 22,Sole Stall,0,sole-stall,7ownDplKWkc,
-23,Squeeze,0,squeeze,,
+23,Squeeze,0,squeeze,N1XWDydpTkk,
 24,Cross-Body Sole,0,cross-body-sole-stall,SQLHKL2kdGU,Title says 2 ADD; canonical is 3 ADD per FB.org.
 25,Pendulum,0,pendulum,,
 26,Butterfly Stall,0,butterfly,,
