@@ -1,65 +1,36 @@
 <div class="hero hero-sm">
   <div>
-    <h1>{{content.gallery.name}}</h1>
-    {{#if content.gallery.description}}<p>{{content.gallery.description}}</p>{{/if}}
+    <h1>Named Gallery: {{content.gallery.name}}</h1>
+    {{#if content.gallery.criteriaTags.length}}
+      <p class="hero-subtitle">
+        Showing {{content.totalItems}} {{#if (eq content.totalItems 1)}}item{{else}}items{{/if}} tagged: {{#each content.gallery.criteriaTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{#if content.gallery.excludeTags.length}} - Excluding {{#if (eq content.gallery.excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each content.gallery.excludeTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
+      </p>
+    {{/if}}
   </div>
 </div>
 
 <div class="wrapper">
 
-  {{#if content.gallery.criteriaTags.length}}
-    <section class="gallery-criteria" aria-label="Gallery criteria">
-      <span class="gallery-criteria-label">Showing items tagged</span>
-      <ul class="gallery-criteria-tags">
-        {{#each content.gallery.criteriaTags}}<li class="gallery-criteria-tag">{{this}}</li>{{/each}}
-      </ul>
-      <span class="gallery-criteria-count">{{content.totalItems}} {{#if (eq content.totalItems 1)}}item{{else}}items{{/if}}, grouped by trick</span>
-    </section>
+  {{#if content.gallery.description}}
+    <p class="gallery-description">{{content.gallery.description}}</p>
   {{/if}}
 
-  {{#if content.excludedTtCount}}
-    <aside class="gallery-tt-banner" aria-label="Tricks of the Trade routing">
-      <p>
-        <strong>{{content.excludedTtCount}}</strong> Tricks of the Trade
-        {{#if (eq content.excludedTtCount 1)}}lesson is{{else}}lessons are{{/if}}
-        organized separately as an ordered series.
-        <a href="{{content.ttSeriesHref}}">View Tricks of the Trade &rarr;</a>
-      </p>
-    </aside>
-  {{/if}}
-
-  {{#if content.groups.length}}
-    {{#each content.groups}}
-      <section class="gallery-group" aria-labelledby="group-{{tagSlug}}">
-        <h2 class="gallery-group-heading" id="group-{{tagSlug}}">
-          <a href="{{trickHref}}">{{tagDisplay}}</a>
-          <span class="gallery-group-count">{{itemCount}} {{#if (eq itemCount 1)}}item{{else}}items{{/if}}</span>
-        </h2>
-        <ul class="gallery-grid">
-          {{#each items}}
-            <li class="gallery-tile">
-              {{#if (eq mediaType 'video')}}
-                <a href="{{displayHref}}" class="gallery-tile-media video-facade"
-                   data-platform="{{videoPlatform}}"
-                   {{#if videoEmbedUrl}}data-embed-url="{{videoEmbedUrl}}"{{/if}}
-                   {{#if (eq videoPlatform 's3')}}data-video-src="{{displayHref}}"{{/if}}
-                   target="_blank" rel="noopener noreferrer"
-                   aria-label="Play video: {{#if caption}}{{caption}}{{else}}Curator video{{/if}}">
-                  <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator video{{/if}}" loading="lazy" />
-                  <span class="gallery-tile-play" aria-hidden="true">▶</span>
-                </a>
-              {{else}}
-                <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
-                  <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator photo{{/if}}" loading="lazy" />
-                </a>
-              {{/if}}
-              {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
-              <p class="gallery-tile-date"><time datetime="{{uploadedAtIso}}">{{uploadedAtDisplay}}</time></p>
-            </li>
-          {{/each}}
-        </ul>
-      </section>
-    {{/each}}
+  {{#if content.items.length}}
+    <ul class="gallery-grid">
+      {{#each content.items}}
+        <li class="gallery-tile">
+          {{#if media}}
+            {{> video-facade media=media}}
+          {{else}}
+            <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
+              <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator photo{{/if}}" loading="lazy" />
+            </a>
+          {{/if}}
+          {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
+          <p class="gallery-tile-date"><time datetime="{{uploadedAtIso}}">{{uploadedAtDisplay}}</time></p>
+        </li>
+      {{/each}}
+    </ul>
   {{else}}
     <div class="empty-state">No media yet.</div>
   {{/if}}

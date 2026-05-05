@@ -75,7 +75,7 @@ EXPECTATIONS: list[Expectation] = [
     # Step 19: load_club_members_seed.py — THE REGRESSION-PRECEDENT TABLE
     Expectation("legacy_club_candidates", 3, "5 unique mirror_member_ids in showmembers fixture; floor at 3 to catch IGNORE skips"),
     Expectation("legacy_person_club_affiliations", 3, "5 club_members rows in fixture; floor at 3"),
-    # Step 20: seed_members.py
+    # Step 20: seed_fh_curator.py (FH member creation)
     Expectation("members", 1, "exactly 1 seeded account: Footbag Hacky"),
 ]
 

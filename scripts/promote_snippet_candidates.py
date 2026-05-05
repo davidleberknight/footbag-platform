@@ -45,7 +45,7 @@ and `tools/emit_tt_sidecars.py` for Phase R1.
     python scripts/promote_snippet_candidates.py --dry-run   # report only
 
 After a successful apply, run:
-    python scripts/seed_curator_media.py
+    python scripts/seed_fh_curator.py
     .venv/bin/python legacy_data/event_results/scripts/22_qc_trick_dictionary.py --db database/footbag.db
 """
 from __future__ import annotations
@@ -304,7 +304,7 @@ def main() -> int:
             print("(dry-run; no files written. Re-run without --dry-run to apply.)")
         else:
             print("Next steps:")
-            print("  python scripts/seed_curator_media.py")
+            print("  python scripts/seed_fh_curator.py")
             print("  .venv/bin/python legacy_data/event_results/scripts/22_qc_trick_dictionary.py --db database/footbag.db")
 
     return 0

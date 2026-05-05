@@ -136,14 +136,4 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/tt-series */
-  ttSeries(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleService.getTtSeriesPage();
-      res.render('freestyle/tt_series', vm);
-    } catch (err) {
-      handleControllerError(err, res, next, 'freestyle controller');
-    }
-  },
-
 };

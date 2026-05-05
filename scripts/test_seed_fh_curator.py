@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Integration test for seed_curator_media.py.
+"""Integration test for seed_fh_curator.py.
 
-Asserts that the curator media seed produces the expected media_items,
-media_tags, and on-disk artifacts against a fresh schema, with the system
-member account (Footbag Hacky) seeded as the uploader.
+Asserts that the consolidated FH/curator seed produces:
+  - The Footbag Hacky system member row (is_system=1, NULL credentials)
+  - Expected curator media_items, media_tags, and on-disk artifacts
+  - FH-owned named gallery rows + their criteria-tag sets
 
-Idempotency check: runs the seed twice and asserts the row count stays
+Idempotency check: runs the seed twice and asserts row counts stay
 constant and the bytes match.
 
-Run directly: `python3 scripts/test_seed_curator_media.py`.
+Run directly: `python3 scripts/test_seed_fh_curator.py`.
 """
 
 import os
@@ -20,40 +21,30 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = REPO_ROOT / "database" / "schema.sql"
-SEED_MEMBERS = REPO_ROOT / "legacy_data" / "scripts" / "seed_members.py"
-SEED_CURATOR = REPO_ROOT / "scripts" / "seed_curator_media.py"
+SEED_FH_CURATOR = REPO_ROOT / "scripts" / "seed_fh_curator.py"
 PYTHON = REPO_ROOT / "scripts" / ".venv" / "bin" / "python3"
 
 
 def run_seeds(db_path: Path, media_dir: Path, source_dir: Path | None = None) -> None:
-    """Run seed_members + seed_curator_media. If source_dir is supplied,
-    pass it via --source-dir so the seeder reads sidecars from that dir
-    instead of the repo's real /curated/ tree.
+    """Run seed_fh_curator (FH member + curator media + galleries). If
+    source_dir is supplied, pass via --source-dir so the seeder reads from
+    that dir instead of the repo's real /curated/ tree.
     """
-    members_result = subprocess.run(
-        [str(PYTHON), str(SEED_MEMBERS), "--db", str(db_path)],
-        capture_output=True,
-        text=True,
-    )
-    assert members_result.returncode == 0, (
-        f"seed_members.py failed: {members_result.returncode}\n"
-        f"stderr: {members_result.stderr}"
-    )
     cmd = [
-        str(PYTHON), str(SEED_CURATOR),
+        str(PYTHON), str(SEED_FH_CURATOR),
         "--db", str(db_path),
         "--media-dir", str(media_dir),
     ]
     if source_dir is not None:
         cmd += ["--source-dir", str(source_dir)]
-    curator_result = subprocess.run(cmd, capture_output=True, text=True)
-    assert curator_result.returncode == 0, (
-        f"seed_curator_media.py failed: {curator_result.returncode}\n"
-        f"stderr: {curator_result.stderr}"
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    assert result.returncode == 0, (
+        f"seed_fh_curator.py failed: {result.returncode}\n"
+        f"stderr: {result.stderr}"
     )
 
 
-def test_seed_curator_media_against_fresh_schema() -> None:
+def test_seed_fh_curator_against_fresh_schema() -> None:
     if not PYTHON.exists():
         raise RuntimeError(
             f"venv python missing at {PYTHON}; run `bash scripts/reset-local-db.sh` "
@@ -263,23 +254,14 @@ def test_seed_curator_media_against_fresh_schema() -> None:
 
 
 def _seed_with_source_dir(db_path: Path, media_dir: Path, source_dir: Path) -> tuple[int, str]:
-    """Run seed_members.py + seed_curator_media.py with an explicit
-    --source-dir. Returns (returncode, stderr) of the curator seed.
-    Used by the freestyle-tricks-sidecar tests to drop fixture sidecars
-    in a temp dir without touching the real /curated/ tree.
+    """Run seed_fh_curator.py with an explicit --source-dir. Returns
+    (returncode, stderr). Used by the freestyle-tricks-sidecar tests to
+    drop fixture sidecars in a temp dir without touching the real
+    /curated/ tree.
     """
-    members_result = subprocess.run(
-        [str(PYTHON), str(SEED_MEMBERS), "--db", str(db_path)],
-        capture_output=True,
-        text=True,
-    )
-    assert members_result.returncode == 0, (
-        f"seed_members.py failed: {members_result.returncode}\n"
-        f"stderr: {members_result.stderr}"
-    )
     curator_result = subprocess.run(
         [
-            str(PYTHON), str(SEED_CURATOR),
+            str(PYTHON), str(SEED_FH_CURATOR),
             "--db", str(db_path),
             "--media-dir", str(media_dir),
             "--source-dir", str(source_dir),
@@ -649,8 +631,8 @@ def test_seeder_rejects_youtube_sidecar_with_thumbnail_url() -> None:
 
 
 if __name__ == "__main__":
-    test_seed_curator_media_against_fresh_schema()
-    print("OK: seed_curator_media.py produces expected rows + on-disk artifacts; idempotent on re-run")
+    test_seed_fh_curator_against_fresh_schema()
+    print("OK: seed_fh_curator.py produces expected rows + on-disk artifacts; idempotent on re-run")
     test_freestyle_tricks_seeder_creates_named_gallery_and_criteria_tags()
     print("OK: freestyle_tricks seeder creates FH-owned named gallery + tag-AND criteria; idempotent")
     test_seeder_orphan_cleanup_removes_db_rows_for_deleted_sidecars()

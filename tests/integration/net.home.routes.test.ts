@@ -247,12 +247,28 @@ describe('GET /net — portal landing sections', () => {
     expect(res.text).toContain('>Doubles<');
   });
 
-  it('embeds YouTube videos in competition-format cards', async () => {
+  it('lazy-loads YouTube videos in competition-format cards via the video-facade partial', async () => {
     const app = createApp();
     const res = await request(app).get('/net');
-    expect(res.text).toContain('https://www.youtube-nocookie.com/embed/Rep-1rQbX-o');
-    expect(res.text).toContain('https://www.youtube-nocookie.com/embed/lcDP3JGvkP0');
-    // Iframe src must satisfy CSP frame-src (youtube-nocookie.com only).
-    expect(res.text).not.toMatch(/src="https:\/\/www\.youtube\.com\/embed\//);
+
+    // No eager YouTube iframe is rendered on initial load. The facade
+    // partial (src/views/partials/video-facade.hbs) renders a static
+    // thumbnail anchor; video-facade.js swaps in the iframe on click.
+    // Without JS, the anchor href takes the user to youtube.com.
+    expect(res.text).not.toMatch(/<iframe[^>]+src=["']https:\/\/www\.youtube(-nocookie)?\.com\/embed\//);
+
+    // Per format card (Singles, Doubles): platform watch href,
+    // embed-url data attribute, and platform thumbnail.
+    for (const videoId of ['Rep-1rQbX-o', 'lcDP3JGvkP0']) {
+      expect(res.text).toContain(`href="https://www.youtube.com/watch?v&#x3D;${videoId}"`);
+      expect(res.text).toContain(`data-embed-url="https://www.youtube-nocookie.com/embed/${videoId}?rel&#x3D;0"`);
+      expect(res.text).toContain(`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
+    }
+
+    // Partial markup + no-JS fallback open YouTube in a new tab safely.
+    expect(res.text).toContain('class="video-facade"');
+    expect(res.text).toContain('data-platform="youtube"');
+    expect(res.text).toContain('target="_blank"');
+    expect(res.text).toContain('rel="noopener noreferrer"');
   });
 });

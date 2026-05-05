@@ -13,6 +13,7 @@ import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 
 export const PAGE_SIZE = 24;
 
@@ -20,16 +21,14 @@ export interface GalleryItem {
   mediaId: string;
   mediaType: 'photo' | 'video';
   caption: string | null;
-  thumbnailUrl: string;
-  displayHref: string;
+  thumbnailUrl: string;     // photo thumb; video tiles read media.thumbnailUrl via the partial
+  displayHref: string;      // photo full-size; videos use media.videoUrl via the partial
   uploadedAtIso: string;
   uploadedAtDisplay: string;
   tags: string[];
-  // Inline-play support: video tiles render a click-to-play facade that swaps
-  // the thumbnail for the platform iframe (YouTube/Vimeo) or a native HTML5
-  // <video> element (s3). Photos leave both fields null.
-  videoPlatform: 'youtube' | 'vimeo' | 's3' | null;
-  videoEmbedUrl: string | null;
+  // Video tiles render a click-to-play facade via partials/video-facade.hbs
+  // fed by this canonical shape. Null for photos.
+  media: VideoMedia | null;
 }
 
 export interface GalleryPagination {
@@ -49,6 +48,7 @@ export interface MediaHubGallerySummary {
   description: string;
   itemCount: number;
   criteriaTags: string[];
+  excludeTags: string[];
   href: string;
 }
 
@@ -56,35 +56,22 @@ export interface MediaHubContent {
   galleries: MediaHubGallerySummary[];
 }
 
-// Named-gallery page at /media/<id>: hero + items grouped by canonical
-// trick tag. Items where source_id='tt_youtube' are excluded and counted
-// separately so the page can route users to /freestyle/tt-series for that
-// cluster. Per-trick groups render in alphabetical order.
+// Named-gallery page at /media/<id>: hero with "Named Gallery: <name>"
+// + criteria/exclude pill strip, description as a caption paragraph
+// below the hero, then a flat item grid in the gallery's sort_order.
 export interface NamedGalleryHero {
   id: string;
   name: string;
   description: string;
   criteriaTags: string[];
-}
-
-export interface NamedGalleryGroup {
-  tagSlug: string;            // canonical without leading '#', e.g. 'butterfly'
-  tagDisplay: string;         // '#butterfly'
-  trickHref: string;          // '/freestyle/tricks/<slug>' deep-link
-  itemCount: number;
-  items: GalleryItem[];
+  excludeTags: string[];
 }
 
 export interface NamedGalleryContent {
   gallery: NamedGalleryHero;
-  groups: NamedGalleryGroup[];
+  items: GalleryItem[];
   totalItems: number;
-  excludedTtCount: number;
-  ttSeriesHref: string;
 }
-
-/** Tags that describe gallery membership rather than trick identity. Skipped during grouping. */
-const META_TAGS = new Set(['#freestyle', '#trick', '#curated']);
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -120,36 +107,15 @@ function shapeItem(
 ): GalleryItem {
   let thumbnailUrl: string;
   let displayHref: string;
-  let videoPlatform: GalleryItem['videoPlatform'] = null;
-  let videoEmbedUrl: string | null = null;
+  let media: VideoMedia | null = null;
 
   if (row.media_type === 'video') {
-    // Branch on video_platform. The 's3' branch keeps the legacy shape
-    // (video_id is an S3 key passed through the storage adapter); the
-    // 'youtube' / 'vimeo' branches link out to the platform and use
-    // platform-CDN thumbnails. NULL platform falls through to 's3' for
-    // legacy/in-flight rows.
-    if (row.video_platform === 'youtube') {
-      thumbnailUrl = row.video_id
-        ? `https://i.ytimg.com/vi/${row.video_id}/hqdefault.jpg`
-        : '';
-      displayHref = row.video_url ?? '';
-      videoPlatform = 'youtube';
-      videoEmbedUrl = row.video_id
-        ? `https://www.youtube-nocookie.com/embed/${encodeURIComponent(row.video_id)}?rel=0`
-        : null;
-    } else if (row.video_platform === 'vimeo') {
-      thumbnailUrl = row.thumbnail_url ?? '';
-      displayHref = row.video_url ?? '';
-      videoPlatform = 'vimeo';
-      videoEmbedUrl = row.video_id
-        ? `https://player.vimeo.com/video/${encodeURIComponent(row.video_id)}`
-        : null;
-    } else {
-      thumbnailUrl = row.thumbnail_url ?? '';
-      displayHref = row.video_id ? constructURL(row.video_id) : '';
-      videoPlatform = 's3';
-    }
+    media = expandVideoFromMediaItem(row, {
+      constructURL,
+      videoTitle: row.caption ?? '',
+    });
+    thumbnailUrl = media?.thumbnailUrl ?? '';
+    displayHref = media?.videoUrl ?? '';
   } else {
     thumbnailUrl = row.s3_key_thumb ? constructURL(row.s3_key_thumb) : '';
     displayHref = row.s3_key_display ? constructURL(row.s3_key_display) : '';
@@ -164,8 +130,7 @@ function shapeItem(
     uploadedAtIso: row.uploaded_at,
     uploadedAtDisplay: formatUploadedAt(row.uploaded_at),
     tags,
-    videoPlatform,
-    videoEmbedUrl,
+    media,
   };
 }
 
@@ -176,13 +141,16 @@ export const mediaService = {
 
       const summaries: MediaHubGallerySummary[] = galleries.map((g) => {
         const tagRows = media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[];
+        const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[];
         const tagIds = tagRows.map((t) => t.id);
+        const excludeTagIds = excludeTagRows.map((t) => t.id);
         return {
           id: g.id,
           name: g.name,
           description: g.description,
-          itemCount: countGalleryItemsByCriteria(tagIds),
+          itemCount: countGalleryItemsByCriteria(tagIds, excludeTagIds),
           criteriaTags: tagRows.map((t) => t.tag_display),
+          excludeTags: excludeTagRows.map((t) => t.tag_display),
           href: `/media/${g.id}`,
         };
       });
@@ -193,7 +161,7 @@ export const mediaService = {
           sectionKey: 'media',
           pageKey: 'media_hub',
           title: 'Media Galleries',
-          intro: 'Curated photos and videos, organized into named galleries.',
+          intro: 'Photos and videos organized into named galleries.',
         },
         content: { galleries: summaries },
       };
@@ -216,13 +184,13 @@ export const mediaService = {
       const tagIds = tagRows.map((t) => t.id);
       const criteriaTagDisplays = tagRows.map((t) => t.tag_display);
 
-      // Total includes TT items so the page can report how many were routed
-      // away to /freestyle/tt-series; the rendered set excludes them.
-      const totalAll = countGalleryItemsByCriteria(tagIds);
-      const rows = queryGalleryItemsByCriteriaGrouped(tagIds);
+      const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(galleryId) as FhNamedGalleryTagRow[];
+      const excludeTagIds = excludeTagRows.map((t) => t.id);
 
-      // Fetch tags for each rendered item so we can pick the canonical trick
-      // tag for grouping. queryCuratorMediaTags returns [{ media_id, tag_display }].
+      const rows = queryGalleryItemsByCriteriaGrouped(tagIds, gallery.sort_order, excludeTagIds);
+
+      // Per-item tag displays for tile-level chip rendering (no per-trick
+      // grouping; items render flat in the gallery's sort_order).
       const tagsByMediaId = new Map<string, string[]>();
       if (rows.length > 0) {
         const tagDisplays = queryCuratorMediaTags(rows.map((r) => r.id));
@@ -234,29 +202,9 @@ export const mediaService = {
       }
 
       const adapter = getMediaStorageAdapter();
-      const groupsByTag = new Map<string, GalleryItem[]>();
-      for (const row of rows as NamedGalleryGroupedRow[]) {
-        const tags = tagsByMediaId.get(row.id) ?? [];
-        const primaryTag = pickPrimaryTrickTag(tags);
-        const key = primaryTag ?? '(uncategorized)';
-        const item = shapeItem(row, tags, (k) => adapter.constructURL(k));
-        const list = groupsByTag.get(key);
-        if (list) list.push(item);
-        else groupsByTag.set(key, [item]);
-      }
-
-      const groups: NamedGalleryGroup[] = [...groupsByTag.entries()]
-        .map(([tagDisplay, items]) => {
-          const slug = tagDisplay.replace(/^#/, '');
-          return {
-            tagSlug: slug,
-            tagDisplay,
-            trickHref: `/freestyle/tricks/${slug}`,
-            itemCount: items.length,
-            items,
-          };
-        })
-        .sort((a, b) => a.tagDisplay.localeCompare(b.tagDisplay, undefined, { sensitivity: 'base' }));
+      const items: GalleryItem[] = rows.map((row) =>
+        shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k)),
+      );
 
       return {
         seo: { title: gallery.name },
@@ -272,26 +220,12 @@ export const mediaService = {
             name: gallery.name,
             description: gallery.description,
             criteriaTags: criteriaTagDisplays,
+            excludeTags: excludeTagRows.map((t) => t.tag_display),
           },
-          groups,
+          items,
           totalItems: rows.length,
-          excludedTtCount: Math.max(0, totalAll - rows.length),
-          ttSeriesHref: '/freestyle/tt-series',
         },
       };
     });
   },
 };
-
-/**
- * Pick the first non-meta tag from a media_items row's tag set. Returns the
- * tag display form (e.g. '#butterfly') or null if the row has only meta tags.
- * Tag order in `tagsByMediaId` mirrors `queryCuratorMediaTags` ordering
- * (alphabetical by tag_display) — deterministic for grouping stability.
- */
-function pickPrimaryTrickTag(tags: string[]): string | null {
-  for (const t of tags) {
-    if (!META_TAGS.has(t.toLowerCase())) return t;
-  }
-  return null;
-}

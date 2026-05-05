@@ -316,15 +316,29 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('Shred 30');
   });
 
-  it('embeds the four reference competition-format videos', async () => {
+  it('lazy-loads the four reference competition-format videos via the video-facade partial', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('https://www.youtube-nocookie.com/embed/Z-KkyOpoBhM');
-    expect(res.text).toContain('https://www.youtube-nocookie.com/embed/aMr5e5wlgeE');
-    expect(res.text).toContain('https://www.youtube-nocookie.com/embed/h6F0aPIpC1o');
-    expect(res.text).toContain('https://www.youtube-nocookie.com/embed/wb75xzvAs68');
-    // Iframe src must satisfy CSP frame-src (youtube-nocookie.com only).
-    expect(res.text).not.toMatch(/src="https:\/\/www\.youtube\.com\/embed\//);
+
+    // No eager YouTube iframe is rendered on initial load. The facade
+    // partial (src/views/partials/video-facade.hbs) renders a static
+    // thumbnail anchor; video-facade.js swaps in the iframe on click.
+    // Without JS, the anchor href takes the user to youtube.com.
+    expect(res.text).not.toMatch(/<iframe[^>]+src=["']https:\/\/www\.youtube(-nocookie)?\.com\/embed\//);
+
+    // Per format card (Routine, Circle, Sick 3, Shred 30): platform
+    // watch href, embed-url data attribute, and platform thumbnail.
+    for (const videoId of ['Z-KkyOpoBhM', 'aMr5e5wlgeE', 'h6F0aPIpC1o', 'wb75xzvAs68']) {
+      expect(res.text).toContain(`href="https://www.youtube.com/watch?v&#x3D;${videoId}"`);
+      expect(res.text).toContain(`data-embed-url="https://www.youtube-nocookie.com/embed/${videoId}?rel&#x3D;0"`);
+      expect(res.text).toContain(`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
+    }
+
+    // Partial markup + no-JS fallback open YouTube in a new tab safely.
+    expect(res.text).toContain('class="video-facade"');
+    expect(res.text).toContain('data-platform="youtube"');
+    expect(res.text).toContain('target="_blank"');
+    expect(res.text).toContain('rel="noopener noreferrer"');
   });
 
   it('shows portal cards including new History & ADD System card', async () => {

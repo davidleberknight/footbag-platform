@@ -489,22 +489,6 @@ th.sortable:hover { color: var(--primary); }
   object-fit: cover;
 }
 
-.gallery-tile-play {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
 .gallery-tile-caption {
   margin: 0;
   padding: 10px 12px 0;
@@ -581,34 +565,10 @@ th.sortable:hover { color: var(--primary); }
 .hub-card-body {
   padding: 16px 16px 12px;
 }
-.hub-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
 .hub-card-name {
   margin: 0;
   font-size: 1.15rem;
   line-height: 1.25;
-}
-.hub-card-count {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: var(--bg-light);
-  border-radius: var(--radius-sm);
-  padding: 4px 10px;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.hub-card-count strong {
-  font-size: 1.1rem;
-  color: var(--text);
-  line-height: 1;
 }
 .hub-card-description {
   margin: 8px 0 0;
@@ -617,27 +577,22 @@ th.sortable:hover { color: var(--primary); }
   line-height: 1.4;
 }
 
-.hub-card-tags {
-  list-style: none;
-  margin: 0;
-  padding: 10px 16px 14px;
+.hub-card-foot {
   border-top: 1px solid var(--border);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  padding: 10px 16px 14px;
+  padding-right: 36px;
+  position: relative;
 }
-.hub-card-tag {
-  list-style: none;
-  background: var(--bg-light);
+.hub-card-summary {
+  margin: 0;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  font-size: 0.75rem;
+  line-height: 1.5;
 }
 .hub-card-arrow {
-  list-style: none;
-  margin-left: auto;
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
   color: var(--primary);
   font-size: 1.1rem;
   font-weight: 600;
@@ -645,48 +600,12 @@ th.sortable:hover { color: var(--primary); }
 }
 .hub-card:hover .hub-card-arrow { transform: translateX(3px); }
 
-/* ── Gallery criteria strip ─────────────────────────────────── */
-.gallery-criteria {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  margin-bottom: 20px;
-  background: var(--bg-light);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-.gallery-criteria-label {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-.gallery-criteria-tags {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.gallery-criteria-tag {
-  list-style: none;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--primary);
-  border-radius: var(--radius-sm);
-  padding: 3px 10px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-.gallery-criteria-count {
-  margin-left: auto;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-weight: 500;
+/* Gallery description renders as a caption paragraph below the hero. */
+.gallery-description {
+  margin: 24px 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 /* ── Status badge ───────────────────────────────────────────── */
@@ -780,30 +699,28 @@ th.sortable:hover { color: var(--primary); }
 .btn-white { background: #fff; color: var(--secondary); }
 .btn-white:hover { background: rgba(255,255,255,0.9); color: var(--secondary); }
 
-/* ── Home media (YouTube facade) ───────────────────────────── */
+/* ── Video facade (click-to-play; partials/video-facade.hbs) ───── */
 section.home-media { padding-top: 0; }
 .home-media { margin: 0; }
-.yt-facade-wrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
-  background: #000;
+.home-media-caption {
+  text-align: center;
+  color: var(--text-muted, #666);
+  font-size: 0.95rem;
+  margin-top: 12px;
 }
-.yt-facade {
-  position: absolute;
-  inset: 0;
+
+/* Pre-click anchor + thumbnail + play overlay (rendered by the partial). */
+.video-facade {
+  position: relative;
+  display: block;
   width: 100%;
   height: 100%;
-  padding: 0;
-  border: 0;
   cursor: pointer;
-  background: transparent;
-  display: block;
+  overflow: hidden;
+  background: #000;
+  text-decoration: none;
 }
-.yt-facade-thumb {
+.video-facade-thumb {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -811,41 +728,64 @@ section.home-media { padding-top: 0; }
   transition: transform 0.4s ease, filter 0.3s ease;
   filter: brightness(0.85);
 }
-.yt-facade:hover .yt-facade-thumb { transform: scale(1.03); filter: brightness(1); }
-.yt-facade-play {
+.video-facade:hover .video-facade-thumb { transform: scale(1.03); filter: brightness(1); }
+.video-facade-play {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  color: #fff;
   filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
   transition: transform 0.2s ease;
 }
-.yt-facade:hover .yt-facade-play { transform: translate(-50%, -50%) scale(1.08); }
+.video-facade:hover .video-facade-play { transform: translate(-50%, -50%) scale(1.08); }
+
+/* Post-click iframe / native video (rendered by video-facade.js) */
 .video-facade-iframe,
-.yt-facade-iframe {
+.video-facade-video {
   width: 100%;
-  aspect-ratio: 16 / 9;
   border: 0;
+  display: block;
+  background: #000;
+}
+
+/* Context: home hero standalone (no aspect wrapper) */
+.home-media .video-facade,
+.home-media .video-facade-iframe,
+.home-media .video-facade-video {
+  aspect-ratio: 16 / 9;
   border-radius: 12px;
   box-shadow: 0 6px 24px rgba(0,0,0,0.18);
 }
+
+/* Context: competition-format card (.video-embed wrapper supplies 16:9) */
+.video-embed > .video-facade,
+.video-embed > .video-facade-iframe,
+.video-embed > .video-facade-video {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  border-radius: inherit;
+  box-shadow: none;
+}
+
+/* Context: gallery tile — 1:1, drop card chrome since the tile owns it */
+.gallery-tile > .video-facade,
 .gallery-tile > .video-facade-iframe,
 .gallery-tile > .video-facade-video {
-  display: block;
-  width: 100%;
   aspect-ratio: 1 / 1;
-  border: 0;
   border-radius: 0;
   box-shadow: none;
-  background: #000;
   object-fit: contain;
 }
-.home-media-caption {
-  text-align: center;
-  color: var(--text-muted, #666);
-  font-size: 0.95rem;
-  margin-top: 12px;
+
+/* Context: reference-media tile (16:9 within trick detail) */
+.reference-media-tile > .video-facade,
+.reference-media-tile > .video-facade-iframe,
+.reference-media-tile > .video-facade-video {
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
 }
 
 /* ── Coming-soon discipline cards ──────────────────────────── */

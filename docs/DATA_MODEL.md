@@ -837,7 +837,7 @@ If a future version introduces a distinct result-publication workflow, that beha
 
 ### 4.17 Media & Galleries
 
-**Tables:** `media_items`, `member_galleries`, `member_gallery_tags`, `gallery_external_links`
+**Tables:** `media_items`, `member_galleries`, `member_gallery_tags`, `member_gallery_exclude_tags`, `gallery_external_links`
 
 #### Hard-delete
 Both `media_items` and `member_galleries` use **hard-delete only** (no `deleted_at`). Members own their content and can delete it immediately without leaving orphaned rows.
@@ -882,13 +882,17 @@ Curator-uploaded reference media (videos/images attributed to the system-member 
 
 Entity association is hashtag-driven via `media_tags`. An asset tagged `#curated #freestyle #trick #ripwalk` is the canonical trick reference media for the ripwalk trick. The trick page renders a gallery of all matching curator-tagged videos.
 
-#### Named-gallery URL bookmarks (`member_gallery_tags`)
+#### Named-gallery URL bookmarks (`member_gallery_tags`, `member_gallery_exclude_tags`)
 
-A "named gallery" is a stable URL bookmark, not a content bucket. The `member_galleries` row provides the slug, name, description, and owner; the row itself does not carry a list of member IDs. Content membership is computed at request time by tag-AND match against `member_gallery_tags`, the join table that links a gallery to the set of tags that defines it.
+A "named gallery" is a stable URL bookmark, not a content bucket. The `member_galleries` row provides the slug, name, description, owner, and item ordering (`sort_order`); the row itself does not carry a list of member IDs. Content membership is computed at request time by tag-AND match against `member_gallery_tags`, minus any item that carries a tag in `member_gallery_exclude_tags`.
+
+**`member_galleries.sort_order`:** controls how items render on `/media/{gallery_id}`. Allowed values: `upload_desc` (default; newest upload first), `upload_asc` (oldest first), `caption_asc` (alphabetical by caption, used for ordered series whose captions encode the position with a zero-padded prefix). DB-enforced via `CHECK (sort_order IN (...))`.
 
 **Table:** `member_gallery_tags(gallery_id, tag_id, created_at, created_by)` with composite primary key `(gallery_id, tag_id)`. `gallery_id ON DELETE CASCADE`: criteria rows disappear when the parent gallery is deleted. `tag_id ON DELETE NO ACTION`: tags are reference data shared with `media_tags`.
 
-**Semantics:** items appear in a named gallery iff they carry every tag linked to that gallery (tag-AND-of-N, not OR). Empty criteria → empty gallery. The same `tags` table backs both `media_tags` (per-item tagging) and `member_gallery_tags` (per-gallery criteria), so a curator who tags media with `#freestyle` automatically affects every gallery whose criteria include `#freestyle`.
+**Table:** `member_gallery_exclude_tags(gallery_id, tag_id, created_at, created_by)`, same shape and FK behaviour. Carries the gallery's exclude-tag set: items carrying any of these tags are filtered out even when they otherwise match every criteria tag.
+
+**Semantics:** items appear in a named gallery iff they carry every tag linked via `member_gallery_tags` AND no tag linked via `member_gallery_exclude_tags`. Empty criteria → empty gallery. The same `tags` table backs both per-item tagging (`media_tags`) and per-gallery criteria/exclude sets, so a curator who tags media with `#freestyle` automatically affects every gallery whose criteria include `#freestyle`.
 
 **Detached vs attached content:** the `media_items.gallery_id` FK is for member-uploaded content that lives in a personal organizational bucket. Curator URL-reference content (YouTube/Vimeo) is uploaded as detached (`gallery_id IS NULL`) and surfaces in named galleries purely via tag matching. The two mechanisms coexist on the same `member_galleries` table.
 

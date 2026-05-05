@@ -2,7 +2,7 @@
 
 Single source of truth for trick-alias resolution. Both
 `scripts/migrate-freestyle-media-to-curated.py` (one-shot Slice 2 migration)
-and `scripts/seed_curator_media.py` (extended in Slice 2 to read sidecars)
+and `scripts/seed_fh_curator.py` (reads /curated/freestyle_tricks/ sidecars)
 import this module. Keeping the lookup in one file prevents drift between
 migration-time tag derivation and seed-time tag insertion — without that
 guarantee, the same alias could canonicalize differently on each side and

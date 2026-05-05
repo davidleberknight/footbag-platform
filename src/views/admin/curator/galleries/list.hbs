@@ -1,0 +1,65 @@
+{{!-- Admin curator named-gallery list. FH-owned named galleries; one row per gallery. --}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+  <p>
+    Public named galleries owned by the FH/curator system account. Membership is computed
+    at request time by tag-AND match against each gallery's criteria-tag set, minus any
+    item that carries an exclude tag. Edit the metadata, sort order, or tag sets below.
+  </p>
+  <p>
+    New galleries are added via <code>scripts/seed_fh_curator.py</code> (FH_NAMED_GALLERIES);
+    deletion is not currently supported through this UX.
+  </p>
+
+  {{#if savedFlag}}
+    <div class="success-banner" role="status">
+      Saved.
+    </div>
+  {{/if}}
+
+  {{#if emptyState}}
+    <p class="empty-state">No FH-owned named galleries yet. Run <code>python scripts/seed_fh_curator.py</code> to bootstrap.</p>
+  {{else}}
+    <table class="curator-list">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Sort order</th>
+          <th>Criteria tags</th>
+          <th>Exclude tags</th>
+          <th>Items</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+          <tr>
+            <td><code>{{id}}</code></td>
+            <td>{{name}}</td>
+            <td>{{description}}</td>
+            <td><code>{{sortOrder}}</code></td>
+            <td>
+              {{#each criteriaTags}}
+                <code class="tag-chip">{{this}}</code>
+              {{/each}}
+            </td>
+            <td>
+              {{#each excludeTags}}
+                <code class="tag-chip">{{this}}</code>
+              {{else}}
+                <span class="text-muted">(none)</span>
+              {{/each}}
+            </td>
+            <td>{{itemCount}}</td>
+            <td>
+              <a href="/admin/curator/galleries/{{id}}/edit">Edit</a>
+              <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{/if}}
+</div>

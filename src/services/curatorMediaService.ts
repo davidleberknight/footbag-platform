@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction } from '../db/db';
+import { countGalleryItemsByCriteria, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction } from '../db/db';
 import { detectImageType } from '../lib/imageProcessing';
 import {
   detectVideoFormat,
@@ -219,6 +219,20 @@ function validateTags(tags: string[]): void {
   }
 }
 
+// Gallery-editing tag pattern (per docs/USER_STORIES.md §1.1): leading '#'
+// then alphanumeric + underscores only, max 100 chars. Unlike validateTags
+// this DOES allow `#curated` (the existing curated-freestyle-tricks gallery
+// uses it as a criteria tag).
+const GALLERY_TAG_PATTERN = /^#[a-z0-9_]{1,99}$/;
+
+function validateGalleryTag(tag: string, role: 'criteria' | 'exclude'): void {
+  if (!GALLERY_TAG_PATTERN.test(tag)) {
+    throw new ValidationError(
+      `${role} tag must be lowercase '#' + alphanumeric/underscore (max 100 chars): got "${tag}"`,
+    );
+  }
+}
+
 function defaultFindSystemMemberId(): string | null {
   const row = runSqliteRead('findSystemMemberId', () =>
     media.findSystemMemberId.get(),
@@ -314,6 +328,47 @@ export interface CuratorMediaListResult {
   total: number;
   page: number;
   pageSize: number;
+}
+
+// FH-owned named gallery, for the admin gallery list/edit UX
+// (/admin/curator/galleries and /admin/curator/galleries/:id/edit).
+
+export type GallerySortOrderValue = 'upload_desc' | 'upload_asc' | 'caption_asc';
+
+export const GALLERY_SORT_ORDER_VALUES: readonly GallerySortOrderValue[] =
+  ['upload_desc', 'upload_asc', 'caption_asc'] as const;
+
+export const GALLERY_NAME_MAX_LEN = 150;
+export const GALLERY_DESCRIPTION_MAX_LEN = 1000;
+
+export interface CuratorGalleryEditView {
+  id: string;
+  name: string;
+  description: string;
+  sortOrder: GallerySortOrderValue;
+  criteriaTags: string[];   // tag-display strings e.g. '#curated'
+  excludeTags: string[];
+}
+
+export interface CuratorGallerySummary extends CuratorGalleryEditView {
+  itemCount: number;
+}
+
+export interface CuratorGalleryUpdates {
+  name: string;
+  description: string;
+  // Accepted as a free-form string from HTTP forms; the service validates
+  // it against GALLERY_SORT_ORDER_VALUES and throws ValidationError on a
+  // bad value. Controllers should pass form input through as-is.
+  sortOrder: string;
+  criteriaTags: string[];
+  excludeTags: string[];
+}
+
+export interface CuratorGalleryUpdateInput {
+  adminMemberId: string;
+  galleryId: string;
+  updates: CuratorGalleryUpdates;
 }
 
 interface MediaItemRow {
@@ -937,6 +992,186 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }));
 
       return { items, total, page, pageSize };
+    },
+
+    // ── Admin gallery-edit surface ──────────────────────────────────────
+    // Lists every FH-owned named gallery with its criteria + exclude tag
+    // sets and item count. Drives the /admin/curator/galleries index.
+    listOwnedGalleries(): CuratorGallerySummary[] {
+      return runSqliteRead('listOwnedGalleries', () => {
+        const rows = media.listFhNamedGalleries.all() as Array<{
+          id: string;
+          name: string;
+          description: string;
+          sort_order: GallerySortOrderValue;
+        }>;
+        return rows.map((g) => {
+          const criteriaTagRows = media.listFhNamedGalleryTags.all(g.id) as Array<{
+            id: string;
+            tag_display: string;
+          }>;
+          const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(g.id) as Array<{
+            id: string;
+            tag_display: string;
+          }>;
+          const criteriaTagIds = criteriaTagRows.map((t) => t.id);
+          const excludeTagIds = excludeTagRows.map((t) => t.id);
+          return {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            sortOrder: g.sort_order,
+            criteriaTags: criteriaTagRows.map((t) => t.tag_display),
+            excludeTags: excludeTagRows.map((t) => t.tag_display),
+            itemCount: countGalleryItemsByCriteria(criteriaTagIds, excludeTagIds),
+          };
+        });
+      });
+    },
+
+    // Loads a single FH-owned gallery's editable fields. Returns the
+    // current name, description, sort_order, criteria tags, and exclude
+    // tags. Throws NotFoundError if the gallery does not exist or is not
+    // FH-owned (per the SQL filter in getFhNamedGalleryById, this also
+    // guards against member-owned galleries leaking into the admin UX).
+    getGalleryForEdit(galleryId: string): CuratorGalleryEditView {
+      return runSqliteRead('getGalleryForEdit', () => {
+        const g = media.getFhNamedGalleryById.get(galleryId) as
+          | { id: string; name: string; description: string; sort_order: GallerySortOrderValue }
+          | undefined;
+        if (!g) {
+          throw new NotFoundError(`gallery ${galleryId} not found`);
+        }
+        const criteriaTagRows = media.listFhNamedGalleryTags.all(galleryId) as Array<{
+          id: string;
+          tag_display: string;
+        }>;
+        const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(galleryId) as Array<{
+          id: string;
+          tag_display: string;
+        }>;
+        return {
+          id: g.id,
+          name: g.name,
+          description: g.description,
+          sortOrder: g.sort_order,
+          criteriaTags: criteriaTagRows.map((t) => t.tag_display),
+          excludeTags: excludeTagRows.map((t) => t.tag_display),
+        };
+      });
+    },
+
+    // Applies an update to an FH-owned gallery in a single transaction:
+    // metadata UPDATE plus DELETE-then-INSERT on both criteria-tag and
+    // exclude-tag sets. Idempotent on no-op updates. Throws
+    // ValidationError on bad input (empty name, oversize fields, invalid
+    // sort_order, invalid tag pattern, empty criteria-tag set, or
+    // criteria/exclude overlap). Throws NotFoundError if the gallery
+    // does not exist or is not FH-owned.
+    updateGallery(input: CuratorGalleryUpdateInput): void {
+      const { adminMemberId, galleryId, updates } = input;
+
+      // Validate up front so a bad input never opens a transaction.
+      const name = updates.name.trim();
+      if (!name) {
+        throw new ValidationError('Gallery name is required.');
+      }
+      if (name.length > GALLERY_NAME_MAX_LEN) {
+        throw new ValidationError(
+          `Gallery name must be ${GALLERY_NAME_MAX_LEN} characters or fewer.`,
+        );
+      }
+      const description = (updates.description ?? '').trim();
+      if (description.length > GALLERY_DESCRIPTION_MAX_LEN) {
+        throw new ValidationError(
+          `Gallery description must be ${GALLERY_DESCRIPTION_MAX_LEN} characters or fewer.`,
+        );
+      }
+      const validSortOrders: readonly string[] = GALLERY_SORT_ORDER_VALUES;
+      if (!validSortOrders.includes(updates.sortOrder)) {
+        throw new ValidationError(
+          `Gallery sort order must be one of: ${GALLERY_SORT_ORDER_VALUES.join(', ')}.`,
+        );
+      }
+      const sortOrder = updates.sortOrder as GallerySortOrderValue;
+      if (updates.criteriaTags.length === 0) {
+        throw new ValidationError(
+          'A gallery must declare at least one criteria tag (otherwise it would render empty).',
+        );
+      }
+      const seenCriteria = new Set<string>();
+      for (const tag of updates.criteriaTags) {
+        validateGalleryTag(tag, 'criteria');
+        if (seenCriteria.has(tag)) {
+          throw new ValidationError(`Duplicate criteria tag: ${tag}`);
+        }
+        seenCriteria.add(tag);
+      }
+      const seenExclude = new Set<string>();
+      for (const tag of updates.excludeTags) {
+        validateGalleryTag(tag, 'exclude');
+        if (seenExclude.has(tag)) {
+          throw new ValidationError(`Duplicate exclude tag: ${tag}`);
+        }
+        if (seenCriteria.has(tag)) {
+          throw new ValidationError(
+            `Tag "${tag}" cannot be both a criteria tag and an exclude tag.`,
+          );
+        }
+        seenExclude.add(tag);
+      }
+
+      // Confirm the gallery exists and is FH-owned before writing. The
+      // getFhNamedGalleryById prepared statement filters on is_system=1.
+      const existing = media.getFhNamedGalleryById.get(galleryId) as
+        | { id: string }
+        | undefined;
+      if (!existing) {
+        throw new NotFoundError(`gallery ${galleryId} not found`);
+      }
+
+      const now = new Date().toISOString();
+
+      transaction(() => {
+        media.updateMemberGalleryMetadata.run(
+          name,
+          description,
+          sortOrder,
+          now,
+          adminMemberId,
+          galleryId,
+        );
+
+        media.deleteAllMemberGalleryTags.run(galleryId);
+        for (const tag of updates.criteriaTags) {
+          const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
+            | { id: string }
+            | undefined;
+          let tagId: string;
+          if (existingTag) {
+            tagId = existingTag.id;
+          } else {
+            tagId = newTagId();
+            mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+          }
+          media.insertMemberGalleryTag.run(galleryId, tagId, now, adminMemberId);
+        }
+
+        media.deleteAllMemberGalleryExcludeTags.run(galleryId);
+        for (const tag of updates.excludeTags) {
+          const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
+            | { id: string }
+            | undefined;
+          let tagId: string;
+          if (existingTag) {
+            tagId = existingTag.id;
+          } else {
+            tagId = newTagId();
+            mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+          }
+          media.insertMemberGalleryExcludeTag.run(galleryId, tagId, now, adminMemberId);
+        }
+      });
     },
   };
 }

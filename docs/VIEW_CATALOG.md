@@ -369,7 +369,7 @@ The CSS vocabulary is split into two tiers.
 - Landing wrapper scope: `.freestyle-landing`
 - Hero with mascot: `.hero-with-mascot`, `.hero-mascot`
 - Get-started tiles and format cards: `.card-tile`, `.format-card`
-- Embedded video wrapper (16:9 responsive iframe): `.video-embed`
+- Embedded video wrapper (16:9 responsive container for click-to-play YouTube facade): `.video-embed`
 - Stats strip (standalone hero-stats outside the hero): `.stats-strip`
 
 **Internal QC tooling — required within `/internal/*` pages only:**
@@ -543,7 +543,7 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /clubs` is the canonical clubs section entry route.
 - `GET /clubs/:key` is the shared Express handler for both the country page and the club detail page. The controller dispatches by prefix: a key beginning with `club_` routes to the club detail handler; any other key routes to the country page handler. Public country URLs take the form `/clubs/{countryKey}`. Public club URLs take the form `/clubs/{clubKey}` where `clubKey` matches the `club_...` standard form.
 - `GET /media` is the canonical public media hub. It lists named-gallery URL bookmarks owned by the system member (`is_system = 1`); each card shows the gallery name, description, item count, and the gallery's criteria-tag pills. Member-owned galleries do not appear on the hub.
-- `GET /media/:galleryId` is the canonical named-gallery page. Items are computed at request time by tag-AND match against `member_gallery_tags`, filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`, ordered reverse-chronologically, paginated by `?page=N` (invalid values clamp to 1). Unknown or member-owned `galleryId` values return 404 (anti-enumeration).
+- `GET /media/:galleryId` is the canonical named-gallery page. Items are computed at request time by tag-AND match against `member_gallery_tags` minus any item carrying a tag in `member_gallery_exclude_tags`, filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`, ordered per the gallery's `sort_order` (default `upload_desc`), paginated by `?page=N` (invalid values clamp to 1). Unknown or member-owned `galleryId` values return 404 (anti-enumeration).
 - `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
 - `GET /register` is the member registration route. `POST /register` is its form-action handler and is not a separate cataloged page.
 - `GET /register/check-email` is the generic post-registration and post-resend landing. It never reveals whether an account exists for a given address.
@@ -1691,7 +1691,7 @@ Not applicable. Legal content is static and always present.
 
 ### 6.21 Media galleries
 
-The public media surface is a two-page composition: a hub at `/media` that lists FH-owned named-gallery URL bookmarks, and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set. Named-gallery bookmarks are `member_galleries` rows owned by the system member; per-bookmark URLs follow the `gallery_<descriptive_slug>` convention.
+The public media surface is a two-page composition: a hub at `/media` that lists FH-owned named-gallery URL bookmarks, and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set, minus any item carrying a tag in the gallery's exclude-tag set. Named-gallery bookmarks are `member_galleries` rows owned by the system member; per-bookmark URLs follow the `gallery_<descriptive_slug>` convention. Item ordering follows the gallery's `sort_order` field.
 
 ### Audience
 
@@ -1725,7 +1725,7 @@ Both pages consume the generic public rendering standard and the §4.2 page cont
   - `id` — bookmark slug (e.g., `gallery_curated_freestyle_tricks`)
   - `name`
   - `description`
-  - `itemCount` — service-computed via tag-AND match against `member_gallery_tags`
+  - `itemCount` — service-computed via tag-AND match against `member_gallery_tags` minus items carrying any tag in `member_gallery_exclude_tags`
   - `criteriaTags[]` — `tag_display` values from `member_gallery_tags`
   - `href` — `/media/{id}`
 
@@ -1766,8 +1766,9 @@ Render the standard empty state ("No galleries yet.") when no FH-owned bookmarks
   - `mediaId`
   - `mediaType` — `photo` or `video`
   - `caption` — nullable
-  - `thumbnailUrl` — service-computed; branches by `media_items.video_platform`: `youtube` derives `https://i.ytimg.com/vi/{video_id}/hqdefault.jpg`; `vimeo` uses the persisted `thumbnail_url`; `s3` (and legacy `NULL`) uses the `s3_key_thumb` URL via the storage adapter for photos and the existing `thumbnail_url` for videos
-  - `displayHref` — service-computed; branches by `media_items.video_platform`: `youtube` and `vimeo` link to the platform `video_url`; `s3` returns the `video_id` storage key URL for videos and the `s3_key_display` URL for photos
+  - `thumbnailUrl` — service-computed; for photos uses the `s3_key_thumb` URL via the storage adapter
+  - `displayHref` — service-computed; for photos returns the `s3_key_display` URL via the storage adapter
+  - `media` — canonical `VideoMedia` shape for video items (null for photos): `{ videoPlatform, videoId, videoUrl, videoEmbedUrl, thumbnailUrl, videoTitle }`. Produced by `expandVideoFromMediaItem`. Consumed by `src/views/partials/video-facade.hbs` to render the click-to-play facade (anchor with platform watch href, thumbnail img, play overlay, and platform/embed-url data attributes that drive `src/public/js/video-facade.js`)
   - `uploadedAtIso`, `uploadedAtDisplay`
   - `tags[]` — `tag_display` values from `media_tags` for the item
 - `content.pagination`

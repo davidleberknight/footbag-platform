@@ -31,6 +31,7 @@ const TS = '2026-04-29T12:00:00.000Z';
 let CURATED_TAG_ID = '';
 let FREESTYLE_TAG_ID = '';
 let TRICK_TAG_ID = '';
+let UNRANKED_TAG_ID = '';
 
 interface PhotoOverrides {
   id?: string;
@@ -198,9 +199,10 @@ beforeAll(async () => {
   CURATED_TAG_ID   = insertFreeformTag('#curated');
   FREESTYLE_TAG_ID = insertFreeformTag('#freestyle');
   TRICK_TAG_ID     = insertFreeformTag('#trick');
+  UNRANKED_TAG_ID  = insertFreeformTag('#unranked');
 
   // FH-owned named gallery — the URL bookmark for the curated freestyle
-  // tricks corpus. Mirrors what scripts/seed_curator_media.py creates in
+  // tricks corpus. Mirrors what scripts/seed_fh_curator.py creates in
   // production.
   insertNamedGallery(db, {
     id: FH_GALLERY_ID,
@@ -209,6 +211,10 @@ beforeAll(async () => {
     description: 'Reference videos for freestyle footbag tricks, curated by the IFPA.',
   });
   insertGalleryCriteria(db, FH_GALLERY_ID, [CURATED_TAG_ID, FREESTYLE_TAG_ID, TRICK_TAG_ID]);
+  db.prepare(`
+    INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
+    VALUES (?, ?, ?, 'admin-act-as')
+  `).run(FH_GALLERY_ID, UNRANKED_TAG_ID, TS);
 
   // Member-owned gallery with same criteria. Used to verify the hub +
   // detail anti-enumeration filter (FH-only).
@@ -227,7 +233,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /media (hub)', () => {
-  it('renders the FH-owned named gallery with item count and criteria pills', async () => {
+  it('renders the FH-owned named gallery with the prose summary line', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
     expect(res.status).toBe(200);
@@ -235,9 +241,11 @@ describe('GET /media (hub)', () => {
     expect(res.text).toContain('Curated Freestyle Tricks');
     expect(res.text).toContain('Reference videos for freestyle footbag tricks');
     expect(res.text).toContain(`href="/media/${FH_GALLERY_ID}"`);
-    expect(res.text).toContain('#curated');
-    expect(res.text).toContain('#freestyle');
-    expect(res.text).toContain('#trick');
+    expect(res.text).toContain('class="hub-card-summary"');
+    // Prose summary mirrors the gallery hero copy: "Showing N items
+    // tagged: #a #b #c - Excluding tag(s): #x".
+    expect(res.text).toMatch(/Showing 0 items tagged:\s*#curated\s+#freestyle\s+#trick/);
+    expect(res.text).toMatch(/-\s*Excluding tag:\s*#unranked/);
   });
 
   it('does not list member-owned galleries on the public hub', async () => {
@@ -249,26 +257,32 @@ describe('GET /media (hub)', () => {
 });
 
 describe('GET /media/:galleryId (named gallery)', () => {
-  it('renders the gallery hero with name, description, and criteria pills', async () => {
+  it('renders the gallery hero with the "Named Gallery: <name>" prefix and the description as a caption below', async () => {
     const app = createApp();
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Curated Freestyle Tricks');
+    expect(res.text).toContain('Named Gallery: Curated Freestyle Tricks');
     expect(res.text).toContain('Reference videos for freestyle footbag tricks');
-  });
-
-  it('renders criteria pills in a dedicated strip below the hero, not inside it', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="gallery-criteria"');
-    expect(res.text).toContain('class="gallery-criteria-tag"');
-    const heroOpen = res.text.indexOf('class="hero hero-sm"');
+    expect(res.text).toContain('class="gallery-description"');
+    // Description is below the hero, not inside it.
+    const heroOpen = res.text.search(/class="hero hero-sm[^"]*"/);
     const heroClose = res.text.indexOf('</div>\n</div>', heroOpen);
     expect(heroOpen).toBeGreaterThan(-1);
     const heroBlock = res.text.slice(heroOpen, heroClose);
-    expect(heroBlock).not.toContain('gallery-criteria');
-    expect(heroBlock).not.toContain('#curated');
+    expect(heroBlock).not.toContain('Reference videos for freestyle footbag tricks');
+  });
+
+  it('renders the criteria summary as a hero-subtitle line inside the hero block', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="hero-subtitle"');
+    const heroOpen = res.text.search(/class="hero hero-sm[^"]*"/);
+    const heroClose = res.text.indexOf('</div>\n</div>', heroOpen);
+    expect(heroOpen).toBeGreaterThan(-1);
+    const heroBlock = res.text.slice(heroOpen, heroClose);
+    expect(heroBlock).toContain('items tagged');
+    expect(heroBlock).toContain('#curated');
   });
 
   it('renders YouTube tiles with the i.ytimg.com derived thumbnail and youtube.com href', async () => {
@@ -339,7 +353,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     const app = createApp();
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="gallery-tile-media video-facade"');
+    expect(res.text).toContain('class="video-facade"');
     expect(res.text).toContain('data-platform="youtube"');
     expect(res.text).toContain('data-embed-url="https://www.youtube-nocookie.com/embed/FACADE_YT_ID?rel&#x3D;0"');
   });
@@ -551,84 +565,52 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.text).toContain('&lt;script&gt;');
   });
 
-  it('groups items by canonical trick tag, ignoring #freestyle/#trick utility tags', async () => {
-    // Two items each on butterfly + whirl; canonical tag is the non-meta hashtag.
+  it('honors the gallery\'s exclude-tag set by filtering matching items out', async () => {
     const db = openDb();
-    const tagsToInsert = [
-      { norm: '#butterfly', display: '#butterfly' },
-      { norm: '#whirl',     display: '#whirl' },
-    ];
-    for (const t of tagsToInsert) {
-      db.prepare(`
-        INSERT OR IGNORE INTO tags (
-          id, created_at, created_by, updated_at, updated_by, version,
-          tag_normalized, tag_display
-        ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?)
-      `).run(`tag-trick-${t.norm.slice(1)}`, TS, TS, t.norm, t.display);
-    }
-    for (const slug of ['butterfly', 'whirl']) {
-      for (let i = 0; i < 2; i++) {
-        const id = insertVideo(db, {
-          id: `media_grp_${slug}_${i}`,
-          caption: `${slug}-grouping-${i}`,
-          platform: 'youtube',
-          video_id: `grp${slug}${i}`,
-          uploaded_at: `2027-01-${String(i + 10).padStart(2, '0')}T12:00:00.000Z`,
-        });
-        tagAsCuratedFreestyleTrick(db, id);
-        attachTag(db, id, `tag-trick-${slug}`, `#${slug}`);
-      }
-    }
-    db.close();
-
-    const app = createApp();
-    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
-    expect(res.status).toBe(200);
-
-    // Both group headers render; deep-link goes to /freestyle/tricks/<slug>.
-    expect(res.text).toMatch(/<h2 class="gallery-group-heading"[^>]*id="group-butterfly"/);
-    expect(res.text).toMatch(/<h2 class="gallery-group-heading"[^>]*id="group-whirl"/);
-    expect(res.text).toContain('href="/freestyle/tricks/butterfly"');
-    expect(res.text).toContain('href="/freestyle/tricks/whirl"');
-
-    // Alphabetical order: butterfly section appears before whirl section.
-    const idxB = res.text.indexOf('id="group-butterfly"');
-    const idxW = res.text.indexOf('id="group-whirl"');
-    expect(idxB).toBeGreaterThan(-1);
-    expect(idxW).toBeGreaterThan(-1);
-    expect(idxB).toBeLessThan(idxW);
-  });
-
-  it('excludes source_id="tt_youtube" rows from the gallery and shows a banner with TT count', async () => {
-    const db = openDb();
+    // Create the exclude tag and a per-trick criteria tag.
+    db.prepare(`
+      INSERT OR IGNORE INTO tags (
+        id, created_at, created_by, updated_at, updated_by, version,
+        tag_normalized, tag_display
+      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?)
+    `).run('tag-test-excl', TS, TS, '#excluded_subset', '#excluded_subset');
     db.prepare(`
       INSERT OR IGNORE INTO tags (
         id, created_at, created_by, updated_at, updated_by, version,
         tag_normalized, tag_display
       ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?)
     `).run('tag-trick-foo', TS, TS, '#foo', '#foo');
-    // Non-TT row: should appear in gallery.
-    const nonTt = insertVideo(db, {
+
+    // Configure the FH-owned gallery to exclude items tagged
+    // #excluded_subset. Items carrying every criteria tag AND any
+    // exclude tag must be filtered out.
+    db.prepare(`
+      INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
+      VALUES (?, ?, ?, 'admin-act-as')
+    `).run(FH_GALLERY_ID, 'tag-test-excl', TS);
+
+    // Non-excluded row: carries criteria tags only, appears in gallery.
+    const keepId = insertVideo(db, {
       id: 'media_excl_keep',
       caption: 'gallery-excl-keep',
       platform: 'youtube',
       video_id: 'KEEPYTID01',
       uploaded_at: '2027-02-01T12:00:00.000Z',
     });
-    tagAsCuratedFreestyleTrick(db, nonTt);
-    attachTag(db, nonTt, 'tag-trick-foo', '#foo');
+    tagAsCuratedFreestyleTrick(db, keepId);
+    attachTag(db, keepId, 'tag-trick-foo', '#foo');
 
-    // TT row: same criteria tags but source_id='tt_youtube' → excluded.
-    const ttRow = insertVideo(db, {
+    // Excluded row: same criteria tags PLUS the exclude tag, filtered out.
+    const dropId = insertVideo(db, {
       id: 'media_excl_drop',
       caption: 'gallery-excl-drop',
       platform: 'youtube',
-      video_id: 'TTYTID01',
+      video_id: 'DROPYTID01',
       uploaded_at: '2027-02-02T12:00:00.000Z',
-      source_id: 'tt_youtube',
     });
-    tagAsCuratedFreestyleTrick(db, ttRow);
-    attachTag(db, ttRow, 'tag-trick-foo', '#foo');
+    tagAsCuratedFreestyleTrick(db, dropId);
+    attachTag(db, dropId, 'tag-trick-foo', '#foo');
+    attachTag(db, dropId, 'tag-test-excl', '#excluded_subset');
     db.close();
 
     const app = createApp();
@@ -636,10 +618,6 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('gallery-excl-keep');
     expect(res.text).not.toContain('gallery-excl-drop');
-
-    // TT-exclusion banner renders with count >= 1 and a link to /freestyle/tt-series.
-    expect(res.text).toContain('class="gallery-tt-banner"');
-    expect(res.text).toContain('href="/freestyle/tt-series"');
   });
 });
 

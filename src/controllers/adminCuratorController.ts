@@ -459,6 +459,112 @@ export const adminCuratorController = {
     }
   },
 
+  /** GET /admin/curator/galleries — list FH-owned named galleries. */
+  getGalleryList(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const savedFlag = req.query.saved === 'edit' ? 'edit' : null;
+      const svc = buildSvc();
+      const items = svc.listOwnedGalleries();
+      res.render('admin/curator/galleries/list', {
+        seo: { title: 'Curator Galleries' },
+        page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_list', title: 'Curator Galleries' },
+        items,
+        emptyState: items.length === 0,
+        savedFlag,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /admin/curator/galleries/:id/edit — render the gallery edit form. */
+  getGalleryEdit(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const galleryId = req.params.id;
+      const svc = buildSvc();
+      try {
+        const g = svc.getGalleryForEdit(galleryId);
+        res.render('admin/curator/galleries/edit', {
+          seo: { title: 'Edit Curator Gallery' },
+          page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
+          gallery: {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            sortOrder: g.sortOrder,
+            criteriaTagsString: g.criteriaTags.join(' '),
+            excludeTagsString: g.excludeTags.join(' '),
+          },
+        });
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          res.status(404).render('admin/curator/galleries/edit', {
+            seo: { title: 'Curator Gallery — Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+            notFound: true,
+            galleryId,
+          });
+          return;
+        }
+        throw err;
+      }
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** POST /admin/curator/galleries/:id/edit — apply gallery edit. */
+  postGalleryEdit(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const galleryId = req.params.id;
+      const adminMemberId = req.user!.userId;
+      const name = String(req.body?.name ?? '');
+      const description = String(req.body?.description ?? '');
+      const sortOrderRaw = String(req.body?.sortOrder ?? '');
+      const criteriaTags = parseTagsField(req.body?.criteriaTags);
+      const excludeTags = parseTagsField(req.body?.excludeTags);
+
+      const svc = buildSvc();
+      try {
+        svc.updateGallery({
+          adminMemberId,
+          galleryId,
+          updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
+        });
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          res.status(404).render('admin/curator/galleries/edit', {
+            seo: { title: 'Curator Gallery — Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+            notFound: true,
+            galleryId,
+          });
+          return;
+        }
+        if (err instanceof ValidationError) {
+          res.status(422).render('admin/curator/galleries/edit', {
+            seo: { title: 'Edit Curator Gallery' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
+            errorMessage: err.message,
+            gallery: {
+              id: galleryId,
+              name,
+              description,
+              sortOrder: sortOrderRaw,
+              criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
+              excludeTagsString: (req.body?.excludeTags ?? '') as string,
+            },
+          });
+          return;
+        }
+        throw err;
+      }
+      res.redirect('/admin/curator/galleries?saved=edit');
+    } catch (err) {
+      next(err);
+    }
+  },
+
   /** POST /admin/curator/media/:id/delete — hard delete + S3 cleanup. */
   async postDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {

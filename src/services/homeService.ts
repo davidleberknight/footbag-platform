@@ -1,18 +1,12 @@
 import { PublicEventSummary } from './eventService';
 import { SeoMeta } from '../types/page';
-
-interface HomeHeroMedia {
-  kind: 'image' | 'video' | 'youtube';
-  src: string;
-  alt?: string;
-  posterSrc?: string;
-  caption?: string;
-}
+import { VideoMedia, expandYouTubeVideo } from './videoMedia';
 
 interface HomeHero {
   heading: string;
   subheading?: string;
-  media?: HomeHeroMedia;
+  videoMedia?: VideoMedia;
+  videoCaption?: string;
 }
 
 interface HomePrimaryLink {
@@ -63,12 +57,11 @@ export const homeService = {
       hero: {
         heading: 'Footbag Worldwide',
         subheading: 'The home of footbag sports and recreational "Hacky Sack."',
-        media: {
-          kind: 'youtube',
-          src: 'euLrL1zCvVQ',
-          alt: '43rd IFPA World Footbag Championships, Montréal 2024, official video',
-          caption: '43rd IFPA World Footbag Championships, Montréal 2024 (official video).',
-        },
+        videoMedia: expandYouTubeVideo(
+          'euLrL1zCvVQ',
+          '43rd IFPA World Footbag Championships, Montréal 2024, official video',
+        ),
+        videoCaption: '43rd IFPA World Footbag Championships, Montréal 2024 (official video).',
       },
       primaryLinks: [
         {
@@ -99,7 +92,7 @@ export const homeService = {
         {
           label: 'Sideline',
           href: '/sideline',
-          description: 'Casual, social, and community footbag — Hacky Sack, 2/4 Square, Consecutive Kicks, and Footbag Golf.',
+          description: 'Casual and social kicking, including Hacky Sack, 2 Square, 4 Square, Consecutives, and Golf.',
         },
         {
           label: 'Rules',
@@ -124,7 +117,7 @@ export const homeService = {
         {
           label: 'Media Galleries',
           href: '/media',
-          description: 'Curated photos and videos, organized into named galleries.',
+          description: 'Photos and videos organized into named galleries.',
         },
       ],
       comingSoonSections: [

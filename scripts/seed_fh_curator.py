@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
-"""Seed curator-owned media into the platform SQLite database + media dir.
+"""Seed Footbag Hacky (FH) and all FH/admin-curated content.
 
-Curator items (DD §2.8) live as `media_items` rows owned by the system
-member (Footbag Hacky), with bytes stored in the media adapter's local-FS
-or S3 backend. This script handles the local-FS path; a separate
-`aws s3 sync` step (operational, in deploy scripts) uploads the directory
-to S3 for staging/prod.
+This is the single home for everything FH owns or the admin curates. One
+script, one place to look. It does, in order:
 
-For each item in MANIFEST:
-  - Re-encode the video through ffmpeg with the canonical malware-stripping
-    options (DD §6.8 Curator Media Processing).
-  - Re-encode the poster through PIL with explicit metadata stripping.
-  - Write outputs to FOOTBAG_MEDIA_DIR under the path-structure keys.
-  - INSERT OR REPLACE the media_items row with uploader_member_id = FH.
-  - DELETE existing media_tags + INSERT fresh tags.
+  1. Inserts the FH system member row (DD §2.8): is_system=1, NULL
+     credentials, anchored at /members/footbag_hacky. Idempotent.
+  2. Links FH to its historical_persons row (FK-based redirect under
+     Phase 4+ read paths). Tolerant of cold-start: emits a notice when
+     the matching historical row is not yet loaded.
+  3. Inserts each entry from CURATOR_ITEMS (FH-owned media): demo loops,
+     the FH avatar, event-pinned curator photos. Re-encodes video through
+     ffmpeg + PIL with metadata stripping (DD §6.8). INSERT OR REPLACE on
+     media_items so re-runs rebuild the same DB state.
+  4. Seeds the /curated/freestyle_tricks/ corpus of URL-reference video
+     sidecars into media_items + media_tags + media_sources.
+  5. Ensures every FH-owned named gallery (member_galleries +
+     member_gallery_tags) exists with its canonical metadata and
+     criteria-tag set.
 
-Idempotent: re-running rebuilds the same DB state and overwrites the
-same files. Stable IDs derived from the manifest entry name.
+Idempotent: every step is INSERT OR REPLACE / DELETE-then-INSERT, so
+re-running this script restores the canonical FH state without manual
+cleanup.
 
 Usage:
-  python scripts/seed_curator_media.py [--db PATH] [--media-dir PATH] [--source-dir PATH]
+  python scripts/seed_fh_curator.py [--db PATH] [--media-dir PATH] [--source-dir PATH]
 """
 
 import argparse
@@ -57,25 +62,51 @@ DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 
-# Public named gallery for the /curated/freestyle_tricks/ corpus. The id is
-# the URL slug under /media/ (matches the gallery_<descriptive_slug> pattern,
-# parallel to event_{year}_{slug} for events). Owned by the FH system member.
-# The criteria-tag list is the AND-set: items appearing in this named gallery
-# must carry every one of these tags. Membership is computed at query time
-# against media_tags; the seeder writes the criteria into member_gallery_tags.
-FREESTYLE_TRICKS_GALLERY_ID = "gallery_curated_freestyle_tricks"
-FREESTYLE_TRICKS_GALLERY_NAME = "Curated Freestyle Tricks"
-FREESTYLE_TRICKS_GALLERY_DESCRIPTION = (
-    "Reference videos for freestyle footbag tricks, curated by the IFPA."
-)
-FREESTYLE_TRICKS_GALLERY_CRITERIA_TAGS = ("#curated", "#freestyle", "#trick")
+# Public named galleries owned by the FH system member. Each entry below
+# becomes one row in member_galleries plus N rows in member_gallery_tags
+# (one per criteria tag). The gallery_id is the URL slug under /media/,
+# matching the gallery_<descriptive_slug> pattern (parallel to
+# event_{year}_{slug} for events). Membership is computed at query time
+# against media_tags as a tag-AND match; an item appears in the gallery
+# only if it carries every criteria tag.
+#
+# sort_order controls /media/{id} item ordering: 'upload_desc' (default),
+# 'upload_asc', or 'caption_asc'. Use 'caption_asc' for ordered series
+# whose captions encode the position with a zero-padded prefix
+# (e.g. "01 - Title", "02 - Title").
+FH_NAMED_GALLERIES = [
+    {
+        "id":             "gallery_curated_freestyle_tricks",
+        "name":           "Curated Freestyle Tricks",
+        "description":    "Reference videos for freestyle footbag tricks, curated by the IFPA.",
+        "sort_order":     "upload_desc",
+        "criteria_tags":  ("#curated", "#freestyle", "#trick"),
+        # TT lessons live in their own dedicated gallery; suppress the
+        # duplicate listing here.
+        "exclude_tags":   ("#tricks_of_the_trade",),
+    },
+    {
+        "id":             "gallery_tricks_of_the_trade",
+        "name":           "Tricks of the Trade",
+        "description":    (
+            "Kenny Shults' 42-lesson WorldFootbag video series. "
+            "Each video teaches one freestyle footbag trick."
+        ),
+        "sort_order":     "caption_asc",
+        # `#curated` narrows membership to FH/admin-uploaded TT content,
+        # so a hypothetical member upload tagged `#tricks_of_the_trade`
+        # would not surface in this gallery.
+        "criteria_tags":  ("#curated", "#tricks_of_the_trade"),
+        "exclude_tags":   (),
+    },
+]
 
 # Hardcoded manifest of curator items seeded for go-live. Append entries here
-# to extend the seed (e.g., Japan Worlds 2026 photo, /net cartoons,
-# /footbag-heroes cartoons, tutorials, historical content). Each entry maps
-# to one media_items row. video items have a poster companion; photo items
-# have variants generated from the source image; avatar items also update
-# members.avatar_media_id on the system member row.
+# to extend the seed (e.g. event-pinned photos, /net cartoons, tutorials,
+# historical content). Each entry maps to one media_items row. video items
+# have a poster companion; photo items have variants generated from the
+# source image; avatar items also update members.avatar_media_id on the
+# system member row.
 CURATOR_ITEMS = [
     {
         "id_seed": "fh_avatar",
@@ -107,6 +138,13 @@ CURATOR_ITEMS = [
         "photo_source": "japan-worlds-2026.jpg",
         "caption": "Japan Worlds 2026",
         "tags": ["#event_2026_worlds_japan"],
+    },
+    {
+        "id_seed": "beaver_open_2025",
+        "media_type": "photo",
+        "photo_source": "beaver-open-2025.jpg",
+        "caption": "Beaver Open 2025",
+        "tags": ["#event_2025_beaver_open"],
     },
 ]
 
@@ -196,12 +234,102 @@ def process_thumb(input_path: Path, output_path: Path, size: int) -> None:
         thumbnail.save(output_path, "JPEG", quality=JPEG_QUALITY)
 
 
+def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
+    """Insert the FH (Footbag Hacky) system member row if missing, then link
+    to the matching historical_persons row. Returns the FH members.id.
+
+    Idempotent: re-runs are no-ops on the row insert (INSERT OR IGNORE) and
+    the historical-person link is guarded by IS NULL conditions. The link
+    is best-effort: if no matching historical_persons row exists yet (cold
+    start), we skip with a notice and let later loaders pick it up.
+    """
+    member_id = stable_id("member", "footbag-hacky")
+    slug = "footbag_hacky"
+
+    con.execute(
+        """
+        INSERT OR IGNORE INTO members (
+            id, slug,
+            login_email, login_email_normalized, email_verified_at,
+            password_hash, password_changed_at,
+            real_name, display_name, display_name_normalized,
+            city, region, country, first_competition_year,
+            searchable, is_admin, is_system, is_hof, hof_inducted_year,
+            created_at, created_by, updated_at, updated_by, version
+        ) VALUES (
+            :id, :slug,
+            NULL, NULL, NULL,
+            NULL, NULL,
+            :real_name, :display_name, :display_name_norm,
+            :city, :region, :country, :first_comp_year,
+            1, 0, 1, 1, 2025,
+            :ts, 'seed', :ts, 'seed', 1
+        )
+        """,
+        {
+            "id": member_id,
+            "slug": slug,
+            "ts": ts,
+            "real_name": "Footbag Hacky",
+            "display_name": "Footbag Hacky",
+            "display_name_norm": "footbag hacky",
+            "city": "Oregon City",
+            "region": "OR",
+            "country": "USA",
+            "first_comp_year": 1972,
+        },
+    )
+    print("  → Ensured system member account: Footbag Hacky (is_system=1, NULL credentials)")
+
+    # Identity-link Footbag Hacky to its historical_persons row. Under the
+    # three-table identity model (DD §2.4), the canonical member↔HP link is
+    # members.historical_person_id (direct FK). legacy_member_id on both
+    # tables is still set for legacy_account-claim traceability, but slug
+    # resolution uses the FK.
+    hacky_legacy_id = "STUB_FOOTBAG_HACKY"
+    con.execute(
+        """INSERT OR IGNORE INTO legacy_members
+             (legacy_member_id, real_name, display_name, display_name_normalized,
+              country, is_hof, is_bap, imported_at, version)
+           VALUES
+             (:lid, 'Footbag Hacky', 'Footbag Hacky', 'footbag hacky',
+              'USA', 1, 0, :ts, 1)""",
+        {"lid": hacky_legacy_id, "ts": ts},
+    )
+    con.execute(
+        "UPDATE members SET legacy_member_id = :lid WHERE id = :mid AND legacy_member_id IS NULL",
+        {"lid": hacky_legacy_id, "mid": member_id},
+    )
+    cur = con.execute(
+        """UPDATE historical_persons SET legacy_member_id = :lid
+           WHERE person_name = 'Footbag Hacky' AND legacy_member_id IS NULL""",
+        {"lid": hacky_legacy_id},
+    )
+    linked_hp = cur.rowcount
+    con.execute(
+        """UPDATE members
+           SET historical_person_id = (
+             SELECT person_id FROM historical_persons
+             WHERE person_name = 'Footbag Hacky'
+             LIMIT 1
+           )
+           WHERE id = :mid AND historical_person_id IS NULL""",
+        {"mid": member_id},
+    )
+    if linked_hp:
+        print(f"  → Linked Footbag Hacky member to historical person (legacy_member_id={hacky_legacy_id}, historical_person_id FK set)")
+    else:
+        print("  → No matching historical person found for Footbag Hacky (will link when results are loaded)")
+
+    return member_id
+
+
 def fh_member_id(con: sqlite3.Connection) -> str:
     row = con.execute("SELECT id FROM members WHERE is_system = 1").fetchone()
     if row is None:
         raise RuntimeError(
-            "No system member row found (is_system=1). Run "
-            "`python3 legacy_data/scripts/seed_members.py` first."
+            "No system member row found (is_system=1). "
+            "ensure_fh_member() should have been called first."
         )
     return row[0]
 
@@ -389,6 +517,26 @@ def seed_item(
     media_dir: Path,
     ts: str,
 ) -> None:
+    # Skip entries whose source bytes are not yet in /curated/. Lets the
+    # manifest carry a row before its asset arrives (e.g. a freshly
+    # registered event-pinned photo). Subsequent runs pick it up
+    # automatically once the file lands.
+    if item["media_type"] == "video":
+        required = [source_dir / item["video_source"], source_dir / item["poster_source"]]
+    elif item["media_type"] == "photo":
+        required = [source_dir / item["photo_source"]]
+    else:
+        raise NotImplementedError(
+            f"unsupported media_type {item['media_type']!r} for {item['id_seed']!r}"
+        )
+    missing = [p for p in required if not p.exists()]
+    if missing:
+        print(
+            f"  → Skipping {item['id_seed']}: source asset(s) not yet in /curated/ "
+            f"({', '.join(str(p.relative_to(source_dir)) for p in missing)})"
+        )
+        return
+
     # Compute content-aware media_id so a changed source file produces a new
     # id (and hence a new render URL, busting browser cache naturally).
     if item["media_type"] == "video":
@@ -397,13 +545,9 @@ def seed_item(
             source_dir / item["video_source"],
             source_dir / item["poster_source"],
         )
-    elif item["media_type"] == "photo":
+    else:
         media_id = media_id_for_item(
             item["id_seed"], source_dir / item["photo_source"]
-        )
-    else:
-        raise NotImplementedError(
-            f"unsupported media_type {item['media_type']!r} for {item['id_seed']!r}"
         )
 
     cleanup_prior_for_item(con, item, fh_id)
@@ -627,41 +771,42 @@ def _seed_one_sidecar(
     return media_id, final_tags, platform, url
 
 
-def ensure_freestyle_tricks_gallery(
-    con: sqlite3.Connection, fh_id: str, ts: str
+def ensure_named_gallery(
+    con: sqlite3.Connection,
+    fh_id: str,
+    ts: str,
+    *,
+    gallery_id: str,
+    name: str,
+    description: str,
+    sort_order: str,
+    criteria_tags: tuple,
+    exclude_tags: tuple = (),
 ) -> None:
-    """Ensure the public-named gallery row exists for the
-    /curated/freestyle_tricks/ corpus AND its criteria tags are populated
-    in member_gallery_tags. INSERT OR REPLACE on the parent row so re-runs
-    pick up any name/description tweaks; DELETE-then-INSERT on the criteria
-    rows so a tag-set change in this file propagates cleanly without
-    leaving orphan criteria.
+    """Ensure an FH-owned named gallery row exists in member_galleries with
+    the given metadata, AND its criteria-tag and exclude-tag sets match
+    `criteria_tags` / `exclude_tags` exactly. An item appears in the
+    gallery iff it carries every criteria tag AND no exclude tag.
+
+    INSERT OR REPLACE on the parent so re-runs pick up metadata tweaks;
+    DELETE-then-INSERT on the tag rows so set changes in this file
+    propagate cleanly without leaving orphan rows.
     """
     con.execute(
         """
         INSERT OR REPLACE INTO member_galleries (
-            id, owner_member_id, name, description, is_default,
+            id, owner_member_id, name, description, is_default, sort_order,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, ?, ?, 0, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, ?, ?, 0, ?, ?, 'seed', ?, 'seed', 1)
         """,
-        (
-            FREESTYLE_TRICKS_GALLERY_ID,
-            fh_id,
-            FREESTYLE_TRICKS_GALLERY_NAME,
-            FREESTYLE_TRICKS_GALLERY_DESCRIPTION,
-            ts,
-            ts,
-        ),
+        (gallery_id, fh_id, name, description, sort_order, ts, ts),
     )
 
-    # Reset and repopulate the criteria-tag set. Removes any tags previously
-    # written by this seeder that have since been dropped from
-    # FREESTYLE_TRICKS_GALLERY_CRITERIA_TAGS.
     con.execute(
         "DELETE FROM member_gallery_tags WHERE gallery_id = ?",
-        (FREESTYLE_TRICKS_GALLERY_ID,),
+        (gallery_id,),
     )
-    for tag_display in FREESTYLE_TRICKS_GALLERY_CRITERIA_TAGS:
+    for tag_display in criteria_tags:
         tid = tag_id_for(con, tag_display, ts)
         con.execute(
             """
@@ -669,8 +814,43 @@ def ensure_freestyle_tricks_gallery(
                 gallery_id, tag_id, created_at, created_by
             ) VALUES (?, ?, ?, 'seed')
             """,
-            (FREESTYLE_TRICKS_GALLERY_ID, tid, ts),
+            (gallery_id, tid, ts),
         )
+
+    con.execute(
+        "DELETE FROM member_gallery_exclude_tags WHERE gallery_id = ?",
+        (gallery_id,),
+    )
+    for tag_display in exclude_tags:
+        tid = tag_id_for(con, tag_display, ts)
+        con.execute(
+            """
+            INSERT INTO member_gallery_exclude_tags (
+                gallery_id, tag_id, created_at, created_by
+            ) VALUES (?, ?, ?, 'seed')
+            """,
+            (gallery_id, tid, ts),
+        )
+
+
+def ensure_fh_named_galleries(
+    con: sqlite3.Connection, fh_id: str, ts: str
+) -> None:
+    """Ensure every gallery declared in FH_NAMED_GALLERIES exists. One call
+    per declared gallery; helper handles the parent + criteria-tag rows
+    + exclude-tag rows.
+    """
+    for g in FH_NAMED_GALLERIES:
+        ensure_named_gallery(
+            con, fh_id, ts,
+            gallery_id=g["id"],
+            name=g["name"],
+            description=g["description"],
+            sort_order=g["sort_order"],
+            criteria_tags=g["criteria_tags"],
+            exclude_tags=g.get("exclude_tags", ()),
+        )
+    print(f"  → Ensured {len(FH_NAMED_GALLERIES)} FH-owned named gallery row(s).")
 
 
 def seed_freestyle_tricks_sidecars(
@@ -689,8 +869,6 @@ def seed_freestyle_tricks_sidecars(
     sources_added = _bootstrap_media_sources(con)
     if sources_added:
         print(f"  → Bootstrapped media_sources: {sources_added} row(s) copied from freestyle_media_sources")
-
-    ensure_freestyle_tricks_gallery(con, fh_id, ts)
 
     alias_map = load_alias_map(con)
 
@@ -739,14 +917,19 @@ def main() -> None:
         sys.exit(f"ERROR: source-dir {source_dir} does not exist")
 
     con = sqlite3.connect(db_path)
+    con.execute("PRAGMA journal_mode = WAL")
     con.execute("PRAGMA foreign_keys = ON")
     try:
-        fh_id = fh_member_id(con)
+        fh_id = ensure_fh_member(con, ts)
         for item in CURATOR_ITEMS:
             seed_item(con, item, fh_id, source_dir, media_dir, ts)
         n_sidecars = seed_freestyle_tricks_sidecars(con, fh_id, source_dir, ts)
+        ensure_fh_named_galleries(con, fh_id, ts)
         con.commit()
-        print(f"  → Curator media seed complete: {len(CURATOR_ITEMS)} legacy items + {n_sidecars} reference videos.")
+        print(
+            f"  → FH curator seed complete: FH member, {len(CURATOR_ITEMS)} curator items, "
+            f"{n_sidecars} reference videos, {len(FH_NAMED_GALLERIES)} named galleries."
+        )
     finally:
         con.close()
 

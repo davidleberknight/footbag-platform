@@ -190,22 +190,20 @@ echo "  → Extracting club member data from mirror..."
 echo "  → Loading club member data into database..."
 "${PYTHON}" legacy_data/scripts/load_club_members_seed.py --db "${DB_FILE}"
 
-# Seed system member account (Footbag Hacky; NULL credentials per DD §2.8)
-echo "  → Seeding system member account..."
-"${PYTHON}" legacy_data/scripts/seed_members.py --db "${DB_FILE}"
-
-# Seed curator-owned media from /curated/ sidecars into media_items rows.
-# Gated by CURATOR_SEED (default yes). The deploy orchestrator exports
-# CURATOR_SEED=yes by default and CURATOR_SEED=no when --no-curator-seed is
-# passed. Local dev with the env unset also defaults to yes. The S3 cycle
-# (wipe + rsync) is governed independently by SYNC_MEDIA; URL-reference
-# sidecars (YouTube/Vimeo) need no S3 bytes and reach the live site on every
-# default deploy.
+# Seed Footbag Hacky (FH) and all FH-owned curator content: FH member row,
+# FH avatar, demo loops, event-pinned curator photos, /curated/freestyle_tricks/
+# sidecars, and FH-owned named galleries. Single home for everything FH owns
+# (DD §2.8). Gated by CURATOR_SEED (default yes). The deploy orchestrator
+# exports CURATOR_SEED=yes by default and CURATOR_SEED=no when
+# --no-curator-seed is passed. Local dev with the env unset also defaults to
+# yes. The S3 cycle (wipe + rsync) is governed independently by SYNC_MEDIA;
+# URL-reference sidecars (YouTube/Vimeo) need no S3 bytes and reach the live
+# site on every default deploy.
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
-  echo "  → Seeding curator media..."
-  "${PYTHON}" scripts/seed_curator_media.py --db "${DB_FILE}"
+  echo "  → Seeding FH (Footbag Hacky) and curator content..."
+  "${PYTHON}" scripts/seed_fh_curator.py --db "${DB_FILE}"
 else
-  echo "  → Skipping curator media seed (CURATOR_SEED=no; --no-curator-seed was passed)."
+  echo "  → Skipping FH/curator seed (CURATOR_SEED=no; --no-curator-seed was passed)."
 fi
 
 # Sanity check

@@ -2108,6 +2108,13 @@ CREATE TABLE member_galleries (
   description     TEXT NOT NULL DEFAULT '',
   is_default      INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0,1)),
 
+  -- Item ordering on /media/{gallery_id}. 'upload_desc' (default) preserves
+  -- legacy behavior; 'upload_asc' and 'caption_asc' enable ordered series
+  -- (e.g. tutorial collections numbered in captions). Editable via the admin
+  -- curator gallery UX.
+  sort_order      TEXT NOT NULL DEFAULT 'upload_desc'
+                  CHECK (sort_order IN ('upload_desc','upload_asc','caption_asc')),
+
   -- Hard-delete frees the name immediately, so no partial UNIQUE needed.
   UNIQUE(owner_member_id, name)
 );
@@ -2121,6 +2128,20 @@ CREATE TABLE member_galleries (
 -- foreign key into the existing tags table; the same tags surface that
 -- backs media_tags.
 CREATE TABLE member_gallery_tags (
+  gallery_id TEXT NOT NULL REFERENCES member_galleries(id) ON DELETE CASCADE,
+  tag_id     TEXT NOT NULL REFERENCES tags(id),
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  PRIMARY KEY (gallery_id, tag_id)
+);
+
+-- Tags that EXCLUDE an item from the gallery. An item appears iff it
+-- carries every tag in member_gallery_tags AND none of the tags in
+-- member_gallery_exclude_tags. Use case: "all curated freestyle tricks
+-- EXCEPT the dedicated Tricks-of-the-Trade subset, which has its own
+-- gallery and would otherwise appear in both."
+-- Cascade-deleted with the parent member_galleries row.
+CREATE TABLE member_gallery_exclude_tags (
   gallery_id TEXT NOT NULL REFERENCES member_galleries(id) ON DELETE CASCADE,
   tag_id     TEXT NOT NULL REFERENCES tags(id),
   created_at TEXT NOT NULL,

@@ -2,7 +2,7 @@
 // Vimeo). Distinct from the file-paired sidecar schema in
 // `curatorSidecar.ts`: URL-ref sidecars are standalone (no source
 // binary), and carry platform metadata used by the seeder
-// (`scripts/seed_curator_media.py::_seed_one_sidecar`) to populate
+// (`scripts/seed_fh_curator.py::_seed_one_sidecar`) to populate
 // `media_items` rows.
 //
 // The 94 existing sidecars in `/curated/freestyle_tricks/` are the

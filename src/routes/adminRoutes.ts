@@ -15,3 +15,6 @@ adminRouter.get('/curator/media', adminCuratorController.getList);
 adminRouter.get('/curator/media/:id/edit', adminCuratorController.getEdit);
 adminRouter.post('/curator/media/:id/edit', adminCuratorController.postEdit);
 adminRouter.post('/curator/media/:id/delete', adminCuratorController.postDelete);
+adminRouter.get('/curator/galleries', adminCuratorController.getGalleryList);
+adminRouter.get('/curator/galleries/:id/edit', adminCuratorController.getGalleryEdit);
+adminRouter.post('/curator/galleries/:id/edit', adminCuratorController.postGalleryEdit);

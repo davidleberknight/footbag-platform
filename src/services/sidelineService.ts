@@ -139,7 +139,7 @@ export const sidelineService = {
         sectionKey: 'sideline',
         pageKey: 'sideline_home',
         title: 'Sideline',
-        intro: 'Casual, social, and community footbag — Hacky Sack, 2/4 Square, Consecutive Kicks, and Footbag Golf.',
+        intro: 'Casual and social kicking, including Hacky Sack, 2 Square, 4 Square, Consecutives, and Golf.',
       },
       content: {
         mascotSrc: '/img/sideline-hackysack-hero.svg',

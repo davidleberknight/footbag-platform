@@ -7,12 +7,12 @@ import {
   freestyleCompetition, freestylePartnerships, media,
   queryCuratorMediaTags,
 } from '../db/db';
-import { readTtRoster, TtRosterRow } from './ttRoster';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { personHref } from './personLink';
+import { VideoMedia, expandYouTubeVideo, expandVideoFromMediaItem } from './videoMedia';
 import { shapePartnershipPair } from './playerShaping';
 import {
   FreestyleRecordViewModel,
@@ -125,8 +125,7 @@ export interface FreestyleCompetitionFormat {
   slug: string;
   title: string;
   paragraph: string;
-  videoEmbedUrl: string;
-  videoTitle: string;
+  media: VideoMedia;
 }
 
 export interface FreestyleDemoVideo {
@@ -148,121 +147,6 @@ export interface FreestyleLandingContent {
   recentRecords: FreestyleRecordViewModel[];
   totalTricks: number;    // count of tricks in dictionary
   totalEvents: number;    // count of freestyle events from canonical results
-}
-
-export type TtStatus = 'ACTIVE' | 'PENDING' | 'MISSING' | 'META';
-
-export interface TtItem {
-  ttNumber: number;
-  lessonTitle: string;
-  status: TtStatus;
-  trickSlug?: string;
-  trickHref?: string;
-  videoUrl?: string;
-  videoEmbedUrl?: string;
-  thumbnailUrl?: string;
-  creator?: string;
-  duplicateCount?: number;
-  notes?: string;
-}
-
-export interface TtSeriesContent {
-  total: number;
-  counts: { active: number; pending: number; missing: number; meta: number };
-  items: TtItem[];
-}
-
-interface TtLessonRow {
-  id: string;
-  video_id: string | null;
-  video_url: string | null;
-  thumbnail_url: string | null;
-  caption: string | null;
-  uploaded_at: string;
-  source_id: string | null;
-}
-
-const TT_NUMBER_RE = /Tricks of the Trade\s*#(\d+)/i;
-const TT_META_TAGS = new Set(['#freestyle', '#trick', '#curated']);
-
-function extractTtNumber(caption: string): number | null {
-  const m = TT_NUMBER_RE.exec(caption);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  return Number.isFinite(n) && n >= 1 && n <= 42 ? n : null;
-}
-
-function buildTtItem(
-  roster: TtRosterRow,
-  matched: TtLessonRow[],
-  tagsByMediaId: Map<string, string[]>,
-): TtItem {
-  if (roster.isMeta) {
-    return {
-      ttNumber: roster.ttNumber,
-      lessonTitle: roster.lessonTitle,
-      status: 'META',
-      ...(roster.notes ? { notes: roster.notes } : {}),
-    };
-  }
-
-  if (matched.length === 0) {
-    // No sidecar emitted yet. The dictionary may already be active for the
-    // expected trick; this is a pure sidecar-curation gap.
-    const out: TtItem = {
-      ttNumber: roster.ttNumber,
-      lessonTitle: roster.lessonTitle || 'unconfirmed',
-      status: 'MISSING',
-    };
-    if (roster.expectedTrickSlug) {
-      const resolved = resolveTrickSlug(roster.expectedTrickSlug);
-      if (resolved) {
-        out.trickSlug = resolved;
-        out.trickHref = `/freestyle/tricks/${resolved}`;
-      }
-    }
-    if (roster.notes) out.notes = roster.notes;
-    return out;
-  }
-
-  const primary = matched[0];
-  const tags = tagsByMediaId.get(primary.id) ?? [];
-  const trickSlugFromTags = tags
-    .filter((t) => !TT_META_TAGS.has(t.toLowerCase()))
-    .map((t) => t.replace(/^#/, ''))
-    .find(() => true);
-
-  // Prefer the sidecar's tag-derived slug; fall back to the roster's
-  // expected slug if the sidecar tags are missing or off.
-  const candidate = trickSlugFromTags ?? roster.expectedTrickSlug ?? null;
-  const resolved = candidate ? resolveTrickSlug(candidate) : null;
-  const dictStatus = candidate ? lookupDictStatus(candidate) : 'unknown';
-
-  let status: TtStatus;
-  if (dictStatus === 'active') status = 'ACTIVE';
-  else status = 'PENDING'; // sidecar exists; dict gating
-
-  const item: TtItem = {
-    ttNumber: roster.ttNumber,
-    lessonTitle: roster.lessonTitle || roster.expectedTrickSlug || 'unconfirmed',
-    status,
-    videoUrl: primary.video_url ?? undefined,
-    thumbnailUrl: primary.video_id
-      ? `https://i.ytimg.com/vi/${primary.video_id}/hqdefault.jpg`
-      : undefined,
-    creator: 'Kenny Shults',
-  };
-  if (primary.video_id) {
-    item.videoEmbedUrl =
-      `https://www.youtube-nocookie.com/embed/${encodeURIComponent(primary.video_id)}?rel=0`;
-  }
-  if (resolved) {
-    item.trickSlug = resolved;
-    item.trickHref = `/freestyle/tricks/${resolved}`;
-  }
-  if (matched.length > 1) item.duplicateCount = matched.length;
-  if (roster.notes) item.notes = roster.notes;
-  return item;
 }
 
 interface TrickRefMediaRow {
@@ -288,32 +172,17 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
-  let embedUrl: string | null = null;
-  if (row.video_platform === 'youtube' && row.video_id) {
-    embedUrl = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(row.video_id)}?rel=0`;
-  } else if (row.video_platform === 'vimeo' && row.video_id) {
-    embedUrl = `https://player.vimeo.com/video/${encodeURIComponent(row.video_id)}`;
-  }
-  let thumb: string | null = row.thumbnail_url ?? null;
-  if (!thumb && row.video_platform === 'youtube' && row.video_id) {
-    thumb = `https://i.ytimg.com/vi/${row.video_id}/hqdefault.jpg`;
-  }
-  const platform = (row.video_platform === 'youtube' || row.video_platform === 'vimeo' || row.video_platform === 's3')
-    ? row.video_platform
-    : null;
-  const isTt = row.source_id === 'tt_youtube';
-  const item: TrickReferenceMediaItem = {
+  const adapter = getMediaStorageAdapter();
+  const media = expandVideoFromMediaItem(row, {
+    constructURL: (key) => adapter.constructURL(key),
+    videoTitle: row.caption ?? '',
+  });
+  return {
     mediaId: row.id,
-    videoUrl: row.video_url ?? null,
-    videoEmbedUrl: embedUrl,
-    thumbnailUrl: thumb,
+    media,
     caption: row.caption ?? null,
-    videoPlatform: platform,
     sourceLabel: row.source_id ? (SOURCE_LABELS[row.source_id] ?? row.source_id) : null,
-    isTtLesson: isTt,
   };
-  if (isTt) item.ttSeriesHref = '/freestyle/tt-series';
-  return item;
 }
 
 /** Returns the canonical trick slug (or null if no row exists). Walks aliases once. */
@@ -382,14 +251,9 @@ export interface FreestyleTrickContent {
 
 export interface TrickReferenceMediaItem {
   mediaId: string;
-  videoUrl: string | null;
-  videoEmbedUrl: string | null;       // youtube-nocookie / vimeo player URL when video_id known
-  thumbnailUrl: string | null;
+  media: VideoMedia | null;
   caption: string | null;
-  videoPlatform: 'youtube' | 'vimeo' | 's3' | null;
   sourceLabel: string | null;         // human-friendly source label, e.g. 'Tricks of the Trade'
-  isTtLesson: boolean;                // true when this row also appears on /freestyle/tt-series
-  ttSeriesHref?: string;              // present on TT lessons; deep-link to series anchor
 }
 
 export interface FreestyleTrickDictEntry {
@@ -1358,79 +1222,6 @@ export const freestyleService = {
     };
   },
 
-  getTtSeriesPage(): PageViewModel<TtSeriesContent> {
-    return runSqliteRead('freestyleService.getTtSeriesPage', () => {
-      const roster = readTtRoster();
-      const lessons = (media as unknown as { listTtLessons: { all: () => unknown } })
-        .listTtLessons.all() as TtLessonRow[];
-
-      // Group media_items by extracted TT number. Multiple rows for the same
-      // number land in a duplicate-flagged bucket; the view renders the
-      // first row and surfaces the duplicate count.
-      const byTt = new Map<number, TtLessonRow[]>();
-      for (const row of lessons) {
-        const num = extractTtNumber(row.caption ?? '');
-        if (num === null) continue;
-        const existing = byTt.get(num);
-        if (existing) existing.push(row);
-        else byTt.set(num, [row]);
-      }
-
-      // Tag fetch for resolving each lesson's primary trick slug. Skip when
-      // there are no media rows (cold-start / fresh DB).
-      const allMediaIds = lessons.map((l) => l.id);
-      const tagsByMediaId = new Map<string, string[]>();
-      if (allMediaIds.length > 0) {
-        const tagRows = queryCuratorMediaTags(allMediaIds);
-        for (const tr of tagRows) {
-          const list = tagsByMediaId.get(tr.media_id);
-          if (list) list.push(tr.tag_display);
-          else tagsByMediaId.set(tr.media_id, [tr.tag_display]);
-        }
-      }
-
-      const items: TtItem[] = [];
-      let active = 0, pending = 0, missing = 0, meta = 0;
-
-      for (const row of roster) {
-        const item = buildTtItem(row, byTt.get(row.ttNumber) ?? [], tagsByMediaId);
-        items.push(item);
-        switch (item.status) {
-          case 'ACTIVE': active++; break;
-          case 'PENDING': pending++; break;
-          case 'MISSING': missing++; break;
-          case 'META': meta++; break;
-        }
-      }
-
-      return {
-        seo: {
-          title: 'Tricks of the Trade',
-          description:
-            'The WorldFootbag Tricks of the Trade lesson series, ordered by lesson number with curation status.',
-        },
-        page: {
-          sectionKey: 'freestyle',
-          pageKey: 'freestyle_tt_series',
-          title: 'Tricks of the Trade',
-          intro:
-            'Kenny Shults’ 42-lesson WorldFootbag video series, surfaced in lesson order. Each row shows whether the lesson is wired into the dictionary, awaiting review, or still missing a video reference.',
-        },
-        navigation: {
-          breadcrumbs: [
-            { label: 'Freestyle', href: '/freestyle' },
-            { label: 'Tricks of the Trade' },
-          ],
-        },
-        content: {
-          total: roster.length,
-          counts: { active, pending, missing, meta },
-          items,
-        },
-      };
-    });
-  },
-
   getMovesPage(): PageViewModel<Record<string, never>> {
     return {
       seo: {
@@ -1513,29 +1304,25 @@ export const freestyleService = {
             slug: 'routine',
             title: 'Routine',
             paragraph: 'Routine is a timed event in which players choreograph a freestyle footbag performance to music. Competitors are judged on both their artistic and technical abilities.',
-            videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/Z-KkyOpoBhM',
-            videoTitle: 'Yoshihito Yamamoto — Worlds Online 2020 Qualification Routine',
+            media: expandYouTubeVideo('Z-KkyOpoBhM', 'Yoshihito Yamamoto — Worlds Online 2020 Qualification Routine'),
           },
           {
             slug: 'circle',
             title: 'Circle',
             paragraph: 'Circle takes traditional freestyle footbag and puts a competitive spin on it. Players take turns with the bag to show off their technical skills.',
-            videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/aMr5e5wlgeE',
-            videoTitle: 'Worlds 2017 Open Circle Finals',
+            media: expandYouTubeVideo('aMr5e5wlgeE', 'Worlds 2017 Open Circle Finals'),
           },
           {
             slug: 'sick3',
             title: 'Sick 3',
             paragraph: "Sick 3 is freestyle footbag's version of a best-trick competition. Players combine their three best tricks and are judged on difficulty, variety, and execution.",
-            videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/h6F0aPIpC1o',
-            videoTitle: 'World Footbag Championships 2022 — Sick 3',
+            media: expandYouTubeVideo('h6F0aPIpC1o', 'World Footbag Championships 2022 — Sick 3'),
           },
           {
             slug: 'shred30',
             title: 'Shred 30',
             paragraph: "Shred 30 is a short, timed, scored event which tests competitors' abilities to quickly link together as many difficult tricks as they can before their time is up.",
-            videoEmbedUrl: 'https://www.youtube-nocookie.com/embed/wb75xzvAs68',
-            videoTitle: 'Taishi Ishida — World Footbag Championships 2020 Shred 30',
+            media: expandYouTubeVideo('wb75xzvAs68', 'Taishi Ishida — World Footbag Championships 2020 Shred 30'),
           },
         ],
         totalRecords,

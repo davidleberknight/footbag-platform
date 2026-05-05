@@ -171,7 +171,7 @@ describe('GET /admin/curator/upload', () => {
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Sidecar saved under');
-    expect(res.text).toContain('seed_curator_media.py');
+    expect(res.text).toContain('seed_fh_curator.py');
   });
 
   it('admin authenticated, ?saved=bogus -> 200 without banner (unknown values ignored)', async () => {

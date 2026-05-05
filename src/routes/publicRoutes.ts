@@ -37,7 +37,6 @@ publicRouter.get('/freestyle/history',     freestyleController.history);
 publicRouter.get('/freestyle/about',       freestyleController.about);
 publicRouter.get('/freestyle/moves',       freestyleController.moves);
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);
-publicRouter.get('/freestyle/tt-series',   freestyleController.ttSeries);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/insights',    freestyleController.insights);
 publicRouter.get('/freestyle/tricks/:slug', freestyleController.trick);

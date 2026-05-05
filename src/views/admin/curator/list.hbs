@@ -11,11 +11,11 @@
     <div class="success-banner" role="status">
       {{#if (eq savedFlag "edit")}}
         Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
-        run <code>python scripts/seed_curator_media.py</code> to fully resync the platform DB.
+        run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
       {{/if}}
       {{#if (eq savedFlag "delete")}}
         Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
-        run <code>python scripts/seed_curator_media.py</code> to fully resync the platform DB.
+        run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
       {{/if}}
     </div>
   {{/if}}

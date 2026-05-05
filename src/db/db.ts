@@ -3588,20 +3588,6 @@ export const media = {
       AND mi.is_avatar = 0
   `); },
 
-  // TT Series view: every active YouTube media item that came from the
-  // Tricks-of-the-Trade source. Match on source_id OR a TT-bearing caption
-  // so rows seeded with a different source_id (legacy migration, manual
-  // sidecar edits) still resolve when the title carries the TT marker.
-  get listTtLessons() { return db.prepare(`
-    SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
-           mi.uploaded_at, mi.source_id
-    FROM media_items mi
-    WHERE mi.video_platform = 'youtube'
-      AND mi.moderation_status = 'active'
-      AND (mi.source_id = 'tt_youtube' OR mi.caption LIKE '%Tricks of the Trade%')
-    ORDER BY mi.uploaded_at ASC, mi.id ASC
-  `); },
-
   // Trick detail "Reference Media" block: every active video media item
   // tagged with the trick's canonical slug hashtag (e.g. '#butterfly').
   // Returns most-recent first. The caller filters per their policy
@@ -3679,7 +3665,7 @@ export const media = {
   // FH-owned bookmarks. Item counts are computed in the service layer
   // via countGalleryItemsByCriteria so this query stays simple.
   get listFhNamedGalleries() { return db.prepare(`
-    SELECT g.id, g.name, g.description
+    SELECT g.id, g.name, g.description, g.sort_order
     FROM member_galleries g
     JOIN members m ON m.id = g.owner_member_id
     WHERE m.is_system = 1
@@ -3689,7 +3675,7 @@ export const media = {
   // Anti-enumeration: filter by FH ownership at the SQL level so a
   // member-owned gallery returns 404 rather than leaking existence.
   get getFhNamedGalleryById() { return db.prepare(`
-    SELECT g.id, g.name, g.description
+    SELECT g.id, g.name, g.description, g.sort_order
     FROM member_galleries g
     JOIN members m ON m.id = g.owner_member_id
     WHERE g.id = ? AND m.is_system = 1
@@ -3704,6 +3690,50 @@ export const media = {
     JOIN tags t ON t.id = mgt.tag_id
     WHERE mgt.gallery_id = ?
     ORDER BY t.tag_display
+  `); },
+
+  // Exclude-tag list for a named-gallery row. An item appears iff it
+  // carries every criteria tag AND no exclude tag. Returned in
+  // alphabetical order for deterministic rendering.
+  get listFhNamedGalleryExcludeTags() { return db.prepare(`
+    SELECT t.id, t.tag_display
+    FROM member_gallery_exclude_tags mget
+    JOIN tags t ON t.id = mget.tag_id
+    WHERE mget.gallery_id = ?
+    ORDER BY t.tag_display
+  `); },
+
+  // Admin gallery edit: UPDATE the metadata fields of an FH-owned
+  // member_galleries row. Caller wraps in a transaction with the
+  // matching tag-set rewrites.
+  get updateMemberGalleryMetadata() { return db.prepare(`
+    UPDATE member_galleries
+    SET name = ?, description = ?, sort_order = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Admin gallery edit: replace a gallery's criteria-tag set.
+  // DELETE-then-INSERT pattern; caller wraps in a transaction.
+  get deleteAllMemberGalleryTags() { return db.prepare(`
+    DELETE FROM member_gallery_tags WHERE gallery_id = ?
+  `); },
+
+  get insertMemberGalleryTag() { return db.prepare(`
+    INSERT INTO member_gallery_tags (
+      gallery_id, tag_id, created_at, created_by
+    ) VALUES (?, ?, ?, ?)
+  `); },
+
+  // Admin gallery edit: replace a gallery's exclude-tag set.
+  get deleteAllMemberGalleryExcludeTags() { return db.prepare(`
+    DELETE FROM member_gallery_exclude_tags WHERE gallery_id = ?
+  `); },
+
+  get insertMemberGalleryExcludeTag() { return db.prepare(`
+    INSERT INTO member_gallery_exclude_tags (
+      gallery_id, tag_id, created_at, created_by
+    ) VALUES (?, ?, ?, ?)
   `); },
 };
 
@@ -3754,21 +3784,37 @@ export function queryGalleryItemsByCriteria(
 }
 
 /**
- * Tag-AND-of-N gallery query with source_id projected and TT lessons excluded.
- * Drives the grouped /media/<id> view: items appear grouped by their canonical
- * trick tag, and TT lessons (`source_id = 'tt_youtube'`) are routed to
- * /freestyle/tt-series instead. No LIMIT/OFFSET; the grouped view renders
- * all results on one page (corpus is small, ~60 items at scale).
+ * Tag-AND-of-N gallery query for the grouped /media/<id> view. Items appear
+ * grouped by their canonical trick tag. Ordering is controlled by the
+ * gallery's `sort_order` column: 'upload_desc' (default), 'upload_asc',
+ * 'caption_asc'. No LIMIT/OFFSET; the grouped view renders all results on
+ * one page (corpus is small, ~60 items at scale).
  */
 export interface NamedGalleryGroupedRow extends CuratorGalleryRow {
   source_id: string | null;
 }
 
+const GALLERY_ORDER_CLAUSE: Record<GallerySortOrder, string> = {
+  upload_desc: 'mi.uploaded_at DESC, mi.id DESC',
+  upload_asc:  'mi.uploaded_at ASC, mi.id ASC',
+  caption_asc: 'mi.caption ASC, mi.id ASC',
+};
+
 export function queryGalleryItemsByCriteriaGrouped(
   tagIds: string[],
+  sortOrder: GallerySortOrder = 'upload_desc',
+  excludeTagIds: string[] = [],
 ): NamedGalleryGroupedRow[] {
   if (tagIds.length === 0) return [];
   const placeholders = tagIds.map(() => '?').join(',');
+  const orderBy = GALLERY_ORDER_CLAUSE[sortOrder];
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         WHERE mtex.media_id = mi.id
+           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
+       )`;
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
@@ -3780,16 +3826,26 @@ export function queryGalleryItemsByCriteriaGrouped(
     WHERE mi.moderation_status = 'active'
       AND mi.is_avatar = 0
       AND mt.tag_id IN (${placeholders})
-      AND (mi.source_id IS NULL OR mi.source_id != 'tt_youtube')
+      ${excludeClause}
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
-    ORDER BY mi.uploaded_at DESC, mi.id DESC
-  `).all(...tagIds, tagIds.length) as NamedGalleryGroupedRow[];
+    ORDER BY ${orderBy}
+  `).all(...tagIds, ...excludeTagIds, tagIds.length) as NamedGalleryGroupedRow[];
 }
 
-export function countGalleryItemsByCriteria(tagIds: string[]): number {
+export function countGalleryItemsByCriteria(
+  tagIds: string[],
+  excludeTagIds: string[] = [],
+): number {
   if (tagIds.length === 0) return 0;
   const placeholders = tagIds.map(() => '?').join(',');
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         WHERE mtex.media_id = mi.id
+           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
+       )`;
   const row = db.prepare(`
     SELECT COUNT(*) AS n FROM (
       SELECT mi.id
@@ -3798,10 +3854,11 @@ export function countGalleryItemsByCriteria(tagIds: string[]): number {
       WHERE mi.moderation_status = 'active'
         AND mi.is_avatar = 0
         AND mt.tag_id IN (${placeholders})
+        ${excludeClause}
       GROUP BY mi.id
       HAVING COUNT(DISTINCT mt.tag_id) = ?
     )
-  `).get(...tagIds, tagIds.length) as { n: number };
+  `).get(...tagIds, ...excludeTagIds, tagIds.length) as { n: number };
   return row.n;
 }
 
@@ -3887,7 +3944,10 @@ export interface FhNamedGalleryRow {
   id: string;
   name: string;
   description: string;
+  sort_order: 'upload_desc' | 'upload_asc' | 'caption_asc';
 }
+
+export type GallerySortOrder = FhNamedGalleryRow['sort_order'];
 
 export interface FhNamedGalleryTagRow {
   id: string;

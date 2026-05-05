@@ -480,7 +480,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Saved.');
-    expect(res.text).toContain('seed_curator_media.py');
+    expect(res.text).toContain('seed_fh_curator.py');
   });
 
   it('GET list with ?saved=delete renders the success banner', async () => {
@@ -498,6 +498,6 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .get('/admin/curator/media')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('seed_curator_media.py');
+    expect(res.text).not.toContain('seed_fh_curator.py');
   });
 });

@@ -36,9 +36,7 @@
         <div class="card-title">{{title}}</div>
         <p>{{paragraph}}</p>
         <div class="video-embed">
-          <iframe src="{{videoEmbedUrl}}" title="{{videoTitle}}" loading="lazy"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          {{> video-facade media=media}}
         </div>
       </div>
       {{/each}}

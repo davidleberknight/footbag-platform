@@ -7,34 +7,32 @@
 
 <div class="wrapper">
 
-  {{#if content.galleries.length}}
-    <ul class="gallery-grid">
-      {{#each content.galleries}}
-        <li class="hub-card">
-          <a href="{{href}}" class="hub-card-link">
-            <div class="hub-card-accent" aria-hidden="true"></div>
-            <div class="hub-card-body">
-              <div class="hub-card-head">
+  <section>
+    {{#if content.galleries.length}}
+      <ul class="gallery-grid">
+        {{#each content.galleries}}
+          <li class="hub-card">
+            <a href="{{href}}" class="hub-card-link">
+              <div class="hub-card-accent" aria-hidden="true"></div>
+              <div class="hub-card-body">
                 <h2 class="hub-card-name">{{name}}</h2>
-                <span class="hub-card-count">
-                  <strong>{{itemCount}}</strong>
-                  <span>{{#if (eq itemCount 1)}}item{{else}}items{{/if}}</span>
-                </span>
+                {{#if description}}<p class="hub-card-description">{{description}}</p>{{/if}}
               </div>
-              {{#if description}}<p class="hub-card-description">{{description}}</p>{{/if}}
-            </div>
-            {{#if criteriaTags.length}}
-              <ul class="hub-card-tags">
-                {{#each criteriaTags}}<li class="hub-card-tag">{{this}}</li>{{/each}}
-                <li class="hub-card-arrow" aria-hidden="true">&rarr;</li>
-              </ul>
-            {{/if}}
-          </a>
-        </li>
-      {{/each}}
-    </ul>
-  {{else}}
-    <div class="empty-state">No galleries yet.</div>
-  {{/if}}
+              {{#if criteriaTags.length}}
+                <div class="hub-card-foot">
+                  <p class="hub-card-summary">
+                    Showing {{itemCount}} {{#if (eq itemCount 1)}}item{{else}}items{{/if}} tagged: {{#each criteriaTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{#if excludeTags.length}} - Excluding {{#if (eq excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each excludeTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
+                  </p>
+                  <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
+                </div>
+              {{/if}}
+            </a>
+          </li>
+        {{/each}}
+      </ul>
+    {{else}}
+      <div class="empty-state">No galleries yet.</div>
+    {{/if}}
+  </section>
 
 </div>
