@@ -6,21 +6,17 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 ## Active work
 
-- **Cross-track schema unification: `freestyle_media_*` → `media_items` family (slice 2, James owns end to end).** Read `CURATED_MEDIA_PLAN.md` top to bottom; full task list in §"Items for James".
+- **Curator media unification, slice 2 cleanup (Phase E destructive cleanup).** Phases A through D shipped. Residual tasks tracked in root `IMPLEMENTATION_PLAN.md` §"Active slice now"; cross-track entries here for visibility:
+  1. Drop `freestyle_media_*` table definitions from `database/schema.sql`.
+  2. Delete legacy loaders 21 / 22 / 23 (the `freestyle_media_*` loaders, not script `21_load_footbag_org_pending_tricks.py` or `22_qc_trick_dictionary.py`).
+  3. Delete `legacy_data/inputs/curated/media/*.csv`.
+  4. Delete `scripts/migrate-freestyle-media-to-curated.py`.
+  5. Edit `scripts/reset-local-db.sh` (David-owned; needs approval).
+  6. Run oEmbed `verifyExternalVideoUrl` over `curated/freestyle_tricks/` sidecars before deleting `media_assets.csv`.
 
-  **Priority: ASAP -- complete this slice as soon as possible.** Slice 3 (Dave-owned) is fully blocked on it. Progress check 2026-05-03: none of the seven tasks below have started -- legacy `freestyle_media_*` triad still in `database/schema.sql`, `media_items` lacks `source_id` / `start_seconds` / `end_seconds`, migration script absent, loaders 21/22/23 still wired into `scripts/reset-local-db.sh`.
+- **Red Husted dictionary review, ongoing.** pt1 through pt6 integrated. pt7 / pt8 question batches drafted and waiting to send. Open questions span: pattern-level modifier resolution (Shooting / Inside / Rooted / Symp / Spinning prefixes), pt6 ADD-confirmation backlog (cloud / squeeze / head / peak / shoulder stall, avalanche, scrambled eggbeater, voodoo), bullwhip / nemesis / gauntlet base tricks, terraging / illusioning ADD contributions, surging set/compound flip authorization, PassBack vocabulary triage (53 set names yes/no), bedwetter ADD + structure. Memory entry `project_passback_open_questions.md` carries the 8 PassBack-side questions; pt8 draft consolidates these with tier-3 backlog.
 
-  Concrete tasks:
-  1. Schema rewrite in `database/schema.sql`: drop `freestyle_media_*`, add `media_sources` (renamed from `freestyle_media_sources`, identical columns), extend `media_items` with `source_id` / `start_seconds` / `end_seconds`.
-  2. Author + run `scripts/migrate-freestyle-media-to-curated.ts` (or `.py`) to convert `legacy_data/inputs/curated/media/*.csv` into `/curated/freestyle_tricks/*.meta.json` sidecars; apply trick-alias canonicalization; surface 5 footbagspot.com skip rows in a warning summary.
-  3. Decide on the 5 footbagspot.com skip rows (re-host on YouTube/Vimeo, or drop). Decision is yours.
-  4. Extend the curator seeder for the `freestyle_tricks/` category, applying trick-alias canonicalization at write time.
-  5. Delete loaders 21/22/23, the legacy curated-media CSVs at `legacy_data/inputs/curated/media/*.csv`, and the migration script (one-time job).
-  6. Edit `scripts/reset-local-db.sh` to drop the three loader entries.
-  7. Retarget `pipeline/qc/check_media_coverage.py` and `pipeline/qc/check_snippet_candidates.py` per the column mapping in CMP.
-  8. **Apply the "Verify external URLs" rule (legacy_data/CLAUDE.md) to `legacy_data/inputs/curated/media/media_assets.csv`, using oEmbed per DD §6.8.** The original migration asserted only platform-pattern match (youtube/vimeo), not availability. Two confirmed dead URLs surfaced via this gap: `https://vimeo.com/25019188` (page-URL HTTP 404, found 2026-05-04, sidecar `curated/freestyle_tricks/ducking-osis_f5ed2fb5.meta.json` deleted same day, corpus 95 → 94); and YouTube `Dmr7zj_c7cY` ("Passback record by David Clavens", thumbnail `i.ytimg.com/vi/Dmr7zj_c7cY/hqdefault.jpg` returns 404 while the page URL still serves 200, found 2026-05-05). A page-URL HEAD check would have missed the YouTube case; oEmbed catches both classes because YouTube and Vimeo both return non-200 from oEmbed for removed, private, or unavailable videos. Use `verifyExternalVideoUrl` from `src/lib/videoUrlVerifier.ts` (the shared oEmbed util used by the admin URL-reference upload path and by this migration script); drop or rehost any non-200; re-run `scripts/migrate-freestyle-media-to-curated.py`; recommit `/curated/freestyle_tricks/`. Then extend the migration script with a fail-fast oEmbed check (importing the same util) so future re-runs cannot regenerate dead links. The admin act-as URL-reference upload path uses the same util to reject dead URLs at form submit time.
-
-  Commit directly to `main`; no branches, no separate PR, no coordination required. Order is yours; complete the list before Dave starts slice 3.
+- **PassBack intake lane outputs, awaiting Red triage.** Staging CSVs at `curated/freestyle_media/video_term_inventory.csv`, `curated/freestyle_media/video_snippet_candidates.csv`, `curated/freestyle_sets/set_candidates.csv`, `curated/freestyle_tricks/trick_alias_candidates.csv`. Generator: `legacy_data/tools/build_passback_intake.py`. Promotion to dictionary blocked on Red answers.
 
 ---
 
@@ -34,7 +30,7 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **Legacy-site data dump (legacy-site webmaster coordination).** Final source for `legacy_members`; supplies `real_name`, `legacy_email`, `legacy_user_id`, `country`, `city`, `region`, `bio`, `birth_date`, `ifpa_join_date`, `first_competition_year`, `is_hof`, `is_bap`, `legacy_is_admin`, and flips `import_source` to `'legacy_site_data'`. Open coordination: namespace agreement (export IDs and mirror-derived IDs must share the same `legacy_member_id` namespace); MIGRATION_PLAN §2 + §8 platform-side rewrites depend on the final dump structure; `tests/fixtures/factories.ts` may need extensions for the richer fields.
 - **Freestyle rules content (IFPA).** Wording for Routine, Circle, Sick 3, Shred 30. Re-enables the "Rules" buttons dropped from `/freestyle` competition-format cards.
-- **Freestyle trick dictionary expansion.** Gated on Red Husted second-pass corrections.
+- **Freestyle trick dictionary expansion.** Gated on Red Husted second-pass corrections (pt7 / pt8 round outstanding).
 - **Data review sign-off.** Confirmation that legacy data is complete and member-list presentation is reviewed. Required before removing the `requireAuth` gate from member-list pages.
 
 ---
@@ -89,21 +85,9 @@ Kept for visibility only; not part of active work or release gating. No current 
 - **Version stamps in outputs.** Add `build_version`, `build_date`, `identity_lock_version` to workbook and canonical CSVs. Eases diffing across builds.
 - **DATA NOTES sheet in workbook.** Document excluded events (sparse), sources used, and the meaning of "unknown" in placement columns.
 
-- **Mirror-local MP4 trick snippets — separate ingestion path needed.** Slice 2 sidecar migration (`scripts/migrate-freestyle-media-to-curated.py`, completed 2026-05-03) only handles YouTube/Vimeo URL-reference media. The sidecar schema and curator seeder both reject other `videoPlatform` values; non-embed URLs already go to `legacy_data/inputs/curated/media/footbagspot_pending_rehost.csv`. The legacy mirror under `legacy_data/mirror_footbag_org/` may contain local MP4 trick snippets that the Slice 2 surface cannot ingest as-is. Do not force them into the YouTube/Vimeo sidecar model. A future design needs to decide which path mirror MP4s take:
-  1. file-backed curator `media_items` (parallel to existing demo loops in `CURATOR_ITEMS` — re-encoded through the seeder's ffmpeg pipeline, stored in the media adapter's local-FS / S3 backend, indexed via `video_platform='s3'`);
-  2. upload-managed `media_items` via the Slice 4 admin curator UI (admin uploads each MP4; same shape as #1 but operator-driven);
+- **Mirror-local MP4 trick snippets, separate ingestion path needed.** Slice 2 sidecar migration only handles YouTube/Vimeo URL-reference media. The sidecar schema and curator seeder both reject other `videoPlatform` values; non-embed URLs already go to `legacy_data/inputs/curated/media/footbagspot_pending_rehost.csv`. The legacy mirror under `legacy_data/mirror_footbag_org/` may contain local MP4 trick snippets that the Slice 2 surface cannot ingest as-is. Do not force them into the YouTube/Vimeo sidecar model. A future design needs to decide which path mirror MP4s take:
+  1. file-backed curator `media_items` (parallel to existing demo loops in `CURATOR_ITEMS`, re-encoded through the seeder's ffmpeg pipeline, stored in the media adapter's local-FS / S3 backend, indexed via `video_platform='s3'`);
+  2. upload-managed `media_items` via the slice 4 admin curator UI (admin uploads each MP4; same shape as #1 but operator-driven);
   3. staging candidates for re-hosting on YouTube/Vimeo (then re-ingest as URL-reference sidecars; matches the `footbagspot_pending_rehost.csv` pattern from Phase B);
   4. a separate snippet-discovery pipeline (extract from mirror into `tools/trick_video_discovery/snippet_candidates.csv` for reviewer triage before promotion).
-  Out of scope for Slice 2; flagged here so the gap doesn't get lost when the legacy `freestyle_media_*` tables are removed in Phase E.
-
-- **Tu Vu identity collapsed into Tuan Vu in canonical persons.csv. Root cause: identity-lock alt_alias curation error.** bigaddposse.com lists two distinct BAP members: "Tuan Vu" (1995, Disco Ninja) and "Tu Vu" (1997, Huge). `inputs/bap_data_updated.csv` has both as separate rows. Both also exist as distinct rows in `inputs/identity_lock/Persons_Truth_Final.csv`: Tuan Vu at `28565dd0-2196-5404-bf23-6cf0617ce79b`, Tu Vu at `c50fb80d-aa35-5154-be01-19817c3b84d2` (with main_aliases `Tu Vu | Tu Huge`). The merge is caused by Tuan Vu's `alt_aliases` column listing `Tu Vu` (alongside legitimate aliases `T Vu | T. Vu | Tuan DiscoNinja Vu | Tuan Vu*`). AliasResolver therefore funnels every "Tu Vu" event participation into `28565dd0-…`, leaving Tu Vu with zero events in canonical. Net effect: `out/canonical/persons.csv` row `28565dd0-…` carries Tu Vu's attributes — BAP `nickname=Huge, induction_year=1997`, HoF `induction_year=2007`, 97 events spanning 1985–2025 across two distinct careers (~50 Freestyle 1985–2005 with Eric Wulff / Greg Nelson = Tuan Vu / Disco Ninja; ~130 Net 2007–2025 with Kenny Shults / Carlos Marquez / Emmanuel Bouchard / Tuomas Karki = Tu Vu / Huge).
-
-  The override `overrides/person_aliases.csv` has three related lines that compound the merge: line 2374 (`Tu Vu,28565dd0-…,Tuan Vu,verified`) is definitively wrong; lines 2262 (`T Vu,28565dd0-…,Tuan Vu`) and 2264 (`T. Vu,28565dd0-…,Tuan Vu`) are ambiguous (both abbreviations could belong to either person, needs placement-evidence review). Override fixes alone will not split canonical because AliasResolver reads identity-lock authoritatively.
-
-  Remediation steps:
-  1. Edit `legacy_data/overrides/person_aliases.csv` (sed -i per project rule, wc -l before/after = 2762): replace line 2374 → `Tu Vu,c50fb80d-aa35-5154-be01-19817c3b84d2,Tu Vu,verified,`. Review lines 2262 / 2264 against `Placements_ByPerson.csv` to determine whether `T Vu` / `T. Vu` belong to Tuan or Tu and update accordingly.
-  2. Author `legacy_data/tools/patch_pt_v63_split_tuan_tu_vu.py` to remove `Tu Vu` from Tuan Vu's `alt_aliases` column in `Persons_Truth_Final.csv`.
-  3. Author `patch_placements_v104_split_tuan_tu_vu.py` to reassign placements currently under `28565dd0-…` that belong to Tu Vu (Net career, ~130 events 2007–2025) → `c50fb80d-…`. Tuan Vu retains the Freestyle career (~50 events 1985–2005).
-  4. Verify HoF 2007 attribution. The merged row carries `fbhof_member=1, fbhof_induction_year=2007`; reassign to whichever person was actually inducted (cross-reference IFPA HoF records).
-  5. Rerun `run_pipeline.sh`; expected outcome is two distinct rows in `out/canonical/persons.csv` with their respective BAP nicknames (Disco Ninja / Huge), induction years (1995 / 1997), HoF attribution, and event participation correctly partitioned.
-  Surfaces on `/history/28565dd0-…` profile (currently renders `Tuan Vu "Huge"` with BAP 1997 / HoF 2007 hero and 97 mixed events spanning two distinct careers). The freestyle pioneers editorial Tuan Vu entry (`src/content/freestyleEditorial.ts` HISTORY_PIONEERS) links to that UUID and inherits the wrong-merged display until canonical resolves.
+  Out of scope for slice 2; flagged here so the gap doesn't get lost when the legacy `freestyle_media_*` tables are removed in Phase E.
