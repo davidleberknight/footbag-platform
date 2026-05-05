@@ -1,0 +1,125 @@
+
+Red Husted
+3:28 PM (2 hours ago)
+to me
+
+Hi James,
+Here are my answers below :)
+
+On Mon, May 4, 2026 at 2:33 AM James Leberknight <jeleberknight@gmail.com> wrote:
+update --we figured out the one-add anomalies and flapper == x-body sole... I will have another batch of tricks for your review after this but I don't want to overwhelm  you with questions. thanks again mate
+
+On Sun, May 3, 2026 at 11:30 PM James Leberknight <jeleberknight@gmail.com> wrote:
+clarification:
+
+Fog:
+
+conflict:
+your definition: stepping + paradox + double leg over
+current dictionary: blurry-modified eggbeater
+one trick with multiple decompositions, or two distinct tricks?
+Fog does not have an eggbeater in it. Bedwetter has an eggbeater in it :) 
+
+On Sun, May 3, 2026 at 11:19 PM James Leberknight <jeleberknight@gmail.com> wrote:
+Subject: Consolidated follow-ups (pt6–pt7) REVISED
+
+Hi Red,
+
+We’ve integrated pt1–pt5 and rerun the full comparison. The system is now stable; below is a small set of remaining edge cases.
+
+Quick inline answers are perfect (e.g., “yes, 2 ADD, X + Y”).
+
+1) ADD anomalies (stall baseline = 1 ADD)
+
+Cloud Stall — FB.org says 2. Real exception or typo?
+
+Not sure on this one, will ask. 
+Sole Stall — FB.org says 2; TT #22 (“Sole Stall (2 add)”) agrees. Real exception?
+
+Sole Stall: 2 ADDs 
+Squeeze / Pincher — FB.org says 2. Confirm ADD?
+
+2) Stall / body edge cases
+
+Head Stall, Peak Delay, Shoulder Delay — confirm standard 1-ADD surface stalls?
+(For “Peak,” what surface is intended?)
+
+1 ADD stalls, but will check on this too. 
+Flapper / Flapper Delay (FB.org 3 ADD) — what is this structurally?
+
+ Flapper Stall: 3 ADDs
+3) Modeling decisions
+
+Pogo — better treated as:
+
+a set (no ADD), or
+
+A set
+a modifier (ADD = 0)?
+
+Terraging —
+
+modifier (like barraging), or not?
+
+Modifier 
+if yes: ADD contribution?
+
+Reverse drifter —
+
+separate canonical, or not?
+
+Separate canonical 
+Double swirl —
+
+canonical base, or descriptive only?
+
+Descriptive only 
+4) Specific unresolved tricks
+
+Avalanche (5 ADD) — real named trick, or just compositional?
+
+Will check 
+Refraction (3 ADD) — dex or compound?
+
+Dex. 
+Fog —
+
+one trick with multiple decompositions, or
+
+two distinct tricks sharing the name?
+
+Furious — ADD + structure; how it differs from Fury? Fury is a move (Furious Paradox Mirage). Furious is a set.
+
+Flail / Omelette — FB.org gives 3 ADD; what canonical do they map to?
+
+Flail is Symposium Illusion, so it could be mapped to Illusion. Omelette is 3 ADDs, it is Illusioning Pick Up. 
+5) Candidate named tricks (validation)
+
+For each: canonical yes/no; if yes → ADD + structure.
+
+Scrambled Eggbeater (3 ADD, legover family) I will have to check on this one.
+
+Frigidosis (1 ADD, osis family — seems anomalous) 3 ADDs, just like a regular Osis.
+
+Gauntlet (7 ADD, torque family) Gauntlet is part of the Alpine family, (Stepping Ducking).
+
+Knee Clipper (2 ADD, clipper family — surface vs compound?)
+
+Surface. Knee Clipper Kick is a flyer.
+Voodoo (5 ADD)
+
+Bullwhip (5 ADD)
+
+Yes, 5 ADDs, part of the Giro family.
+Nemesis (6 ADD)
+
+Yes, 6 ADDs, part of the Furious family. 
+This is the next batch as we work through the remaining edge cases.
+
+Thanks again — this has been hugely helpful.
+
+James
+
+I'd say when all of this is done, before it launches, we should review what is listed on the page. Then we can track any errors before it goes out to the public.
+Thanks for all the work!
+Red 

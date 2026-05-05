@@ -314,19 +314,29 @@ describe('GET /freestyle/glossary', () => {
     expect(res.text).toContain('Froggy');
   });
 
-  it('contains play-form concepts', async () => {
+  it('contains run / combo / style vocabulary', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('Symposium');
-    expect(res.text).toContain('Alpine');
+    expect(res.text).toContain('Connector Trick');
+    expect(res.text).toContain('Shred Circle');
+    expect(res.text).toContain('Density');
   });
 
   it('contains common abbreviations', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('B2B');
     expect(res.text).toContain('PDX');
-    expect(res.text).toContain('PWF');
+    expect(res.text).toContain('PS Whirl');
+    expect(res.text).toContain('SS');
+  });
+
+  it('contains Jobs notation and foundational trick concepts', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('Jobs Notation');
+    expect(res.text).toContain('Foundational Tricks');
+    expect(res.text).toContain('clipper');
+    expect(res.text).toContain('butterfly');
   });
 
   it('does not expose review-status or source-discussion content', async () => {
