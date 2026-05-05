@@ -3602,6 +3602,22 @@ export const media = {
     ORDER BY mi.uploaded_at ASC, mi.id ASC
   `); },
 
+  // Trick detail "Reference Media" block: every active video media item
+  // tagged with the trick's canonical slug hashtag (e.g. '#butterfly').
+  // Returns most-recent first. The caller filters per their policy
+  // (e.g. /freestyle/tricks/:slug includes TT items; the public gallery
+  // grouping path excludes them).
+  get listMediaByTrickTag() { return db.prepare(`
+    SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
+           mi.video_platform, mi.uploaded_at, mi.source_id
+    FROM media_items mi
+    JOIN media_tags mt ON mt.media_id = mi.id
+    WHERE mt.tag_display = ?
+      AND mi.media_type = 'video'
+      AND mi.moderation_status = 'active'
+    ORDER BY mi.uploaded_at DESC, mi.id ASC
+  `); },
+
   // Curator media lookup by id. Used by edit/delete paths to load existing
   // media for ownership check + S3-key resolution. Filters by FH ownership
   // defense-in-depth: this service only edits/deletes its own content.
@@ -3735,6 +3751,40 @@ export function queryGalleryItemsByCriteria(
     ORDER BY mi.uploaded_at DESC, mi.id DESC
     LIMIT ? OFFSET ?
   `).all(...tagIds, tagIds.length, limit, offset) as CuratorGalleryRow[];
+}
+
+/**
+ * Tag-AND-of-N gallery query with source_id projected and TT lessons excluded.
+ * Drives the grouped /media/<id> view: items appear grouped by their canonical
+ * trick tag, and TT lessons (`source_id = 'tt_youtube'`) are routed to
+ * /freestyle/tt-series instead. No LIMIT/OFFSET; the grouped view renders
+ * all results on one page (corpus is small, ~60 items at scale).
+ */
+export interface NamedGalleryGroupedRow extends CuratorGalleryRow {
+  source_id: string | null;
+}
+
+export function queryGalleryItemsByCriteriaGrouped(
+  tagIds: string[],
+): NamedGalleryGroupedRow[] {
+  if (tagIds.length === 0) return [];
+  const placeholders = tagIds.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.width_px, mi.height_px,
+           mi.source_id
+    FROM media_items mi
+    JOIN media_tags mt ON mt.media_id = mi.id
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND mt.tag_id IN (${placeholders})
+      AND (mi.source_id IS NULL OR mi.source_id != 'tt_youtube')
+    GROUP BY mi.id
+    HAVING COUNT(DISTINCT mt.tag_id) = ?
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+  `).all(...tagIds, tagIds.length) as NamedGalleryGroupedRow[];
 }
 
 export function countGalleryItemsByCriteria(tagIds: string[]): number {

@@ -265,6 +265,57 @@ function buildTtItem(
   return item;
 }
 
+interface TrickRefMediaRow {
+  id: string;
+  video_id: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+  caption: string | null;
+  video_platform: string | null;
+  uploaded_at: string;
+  source_id: string | null;
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  tt_youtube:           'Tricks of the Trade',
+  passback_records:     'Passback record',
+  anz_trikz:            "Anz' Trikz",
+  footbag_finland:      'Footbag Finland',
+  shred_global:         'Shred Global',
+  flipsider_footbag:    'Flipsider',
+  footbagspot_passback: 'FootbagSpot',
+  footbagspot_tutorials:'FootbagSpot Tutorials',
+};
+
+function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
+  let embedUrl: string | null = null;
+  if (row.video_platform === 'youtube' && row.video_id) {
+    embedUrl = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(row.video_id)}?rel=0`;
+  } else if (row.video_platform === 'vimeo' && row.video_id) {
+    embedUrl = `https://player.vimeo.com/video/${encodeURIComponent(row.video_id)}`;
+  }
+  let thumb: string | null = row.thumbnail_url ?? null;
+  if (!thumb && row.video_platform === 'youtube' && row.video_id) {
+    thumb = `https://i.ytimg.com/vi/${row.video_id}/hqdefault.jpg`;
+  }
+  const platform = (row.video_platform === 'youtube' || row.video_platform === 'vimeo' || row.video_platform === 's3')
+    ? row.video_platform
+    : null;
+  const isTt = row.source_id === 'tt_youtube';
+  const item: TrickReferenceMediaItem = {
+    mediaId: row.id,
+    videoUrl: row.video_url ?? null,
+    videoEmbedUrl: embedUrl,
+    thumbnailUrl: thumb,
+    caption: row.caption ?? null,
+    videoPlatform: platform,
+    sourceLabel: row.source_id ? (SOURCE_LABELS[row.source_id] ?? row.source_id) : null,
+    isTtLesson: isTt,
+  };
+  if (isTt) item.ttSeriesHref = '/freestyle/tt-series';
+  return item;
+}
+
 /** Returns the canonical trick slug (or null if no row exists). Walks aliases once. */
 function resolveTrickSlug(slug: string): string | null {
   const direct = freestyleTricks.getAnyStatusBySlug.get(slug) as
@@ -323,6 +374,22 @@ export interface FreestyleTrickContent {
   // Previous Tricks: same family + lower ADD; per-bucket-2 sampling, capped at 5.
   // Family base trick (slug == trick_family) is preferred first within its bucket.
   previousTricks: FreestylePreviousTrick[];
+  // Reference Media: curated videos tagged with this trick's slug. Includes
+  // TT lessons, passback records, and source-tutorials together; surfaced as a
+  // single block on the detail page. Most-recent first.
+  referenceMedia: TrickReferenceMediaItem[];
+}
+
+export interface TrickReferenceMediaItem {
+  mediaId: string;
+  videoUrl: string | null;
+  videoEmbedUrl: string | null;       // youtube-nocookie / vimeo player URL when video_id known
+  thumbnailUrl: string | null;
+  caption: string | null;
+  videoPlatform: 'youtube' | 'vimeo' | 's3' | null;
+  sourceLabel: string | null;         // human-friendly source label, e.g. 'Tricks of the Trade'
+  isTtLesson: boolean;                // true when this row also appears on /freestyle/tt-series
+  ttSeriesHref?: string;              // present on TT lessons; deep-link to series anchor
 }
 
 export interface FreestyleTrickDictEntry {
@@ -901,6 +968,10 @@ export const freestyleService = {
         relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
         previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
         nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
+        referenceMedia:   runSqliteRead('media.listMediaByTrickTag', () =>
+          (media as unknown as { listMediaByTrickTag: { all: (tag: string) => unknown[] } })
+            .listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
+        ).map(shapeReferenceMedia),
       },
     };
   },
