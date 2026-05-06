@@ -237,11 +237,41 @@ function newMediaTagId(): string {
   return `mtag_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 }
 
-// 12-char hex id for member-owned galleries. Distinct prefix from
-// `gallery_<descriptive_slug>` so member-owned ids never collide with
-// FH-owned (curator-named) ids in the shared `gallery_*` namespace.
-function newMemberGalleryId(): string {
-  return `gallery_m_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+// Human-readable id for member-owned galleries: `gallery_<owner_slug>_<name_slug>`
+// (e.g. `gallery_david_leberknight_funky_footbags`). Owner-prefixed so two
+// members can both have a gallery named "Photos" without colliding. Stable
+// across renames: callers re-use the existing id rather than regenerating.
+// Conforms to the shared `^gallery_[a-z0-9_]+$` pattern used by FH-owned ids,
+// so existing route + sidecar id validators accept it unchanged.
+//
+// `attempt` is the disambiguation counter used by createGallery's retry loop
+// when the base id collides with an existing PK; attempt=0 yields the base
+// form, attempt>=1 appends `_<attempt+1>` (e.g. `..._funky_footbags_2`).
+function buildMemberGalleryId(
+  ownerSlug: string,
+  galleryName: string,
+  attempt: number,
+): string {
+  const ownerNorm = ownerSlug.toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+  const nameSlug = slugifyGalleryName(galleryName);
+  const suffix = attempt > 0 ? `_${attempt + 1}` : '';
+  return `gallery_${ownerNorm}_${nameSlug}${suffix}`;
+}
+
+// Lowercase alphanumeric, runs of other chars collapse to a single `_`.
+// Truncated so the full id stays comfortably under typical URL limits even
+// after the `gallery_<owner_slug>_` prefix and any collision suffix. Falls
+// back to a short hex token if the input has no usable characters
+// (pure-emoji name, etc.) so the id remains a valid `gallery_…` slug.
+function slugifyGalleryName(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+  return slug.length > 0
+    ? slug
+    : `g${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
 function validateCaption(caption: string | null): void {
@@ -384,7 +414,10 @@ function ensureDefaultPersonalGalleryTx(
   if (existing) {
     return existing.id;
   }
-  const galleryId = newMemberGalleryId();
+  // Default-personal-gallery has a fixed name per member, so the base id is
+  // unique by construction (UNIQUE(owner_member_id, name) ensures we hit this
+  // branch at most once per member). No collision retry needed here.
+  const galleryId = buildMemberGalleryId(slug, PERSONAL_GALLERY_NAME, 0);
   media.insertMemberGallery.run(
     galleryId, now, memberId, now, memberId,
     memberId, PERSONAL_GALLERY_NAME, PERSONAL_GALLERY_DESCRIPTION, 'upload_desc',
@@ -525,9 +558,15 @@ export interface CuratorGalleryCreateInput {
   // (member creating their own). Authz: actorIsAdmin OR actor === owner.
   ownerMemberId: string;
   // For FH-owned galleries the caller supplies a stable id matching
-  // `gallery_<descriptive_slug>`; for member-owned the service generates
-  // `gallery_m_<random>` and the field is ignored.
+  // `gallery_<descriptive_slug>`; for member-owned the service derives a
+  // human-readable id from `ownerSlug` + the gallery name and the field
+  // is ignored.
   suggestedId?: string;
+  // Owner's member slug (e.g. `david_leberknight`). Required for member-owned
+  // creates so the service can derive the human-readable gallery id
+  // `gallery_<owner_slug>_<name_slug>`. Ignored for FH-owned (suggestedId
+  // path). Sourced from `req.user.slug` at the controller.
+  ownerSlug?: string;
   updates: CuratorGalleryUpdates;
 }
 
@@ -1348,7 +1387,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async createGallery(
       input: CuratorGalleryCreateInput,
     ): Promise<CuratorGalleryCreateResult> {
-      const { actorMemberId, actorIsAdmin, ownerMemberId, suggestedId, updates } = input;
+      const { actorMemberId, actorIsAdmin, ownerMemberId, suggestedId, ownerSlug, updates } = input;
 
       const validated = validateGalleryUpdates(updates);
 
@@ -1381,27 +1420,59 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
         galleryId = suggestedId;
       } else {
-        galleryId = newMemberGalleryId();
+        if (!ownerSlug) {
+          throw new ValidationError(
+            'Member-owned gallery requires ownerSlug.',
+          );
+        }
+        galleryId = buildMemberGalleryId(ownerSlug, validated.name, 0);
       }
 
       const now = new Date().toISOString();
 
-      try {
-        transaction(() => {
-          media.insertMemberGallery.run(
-            galleryId, now, actorMemberId, now, actorMemberId,
-            ownerMemberId, validated.name, validated.description, validated.sortOrder,
-          );
-          rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
-        });
-      } catch (err) {
-        const msg = (err as Error).message ?? '';
-        if (msg.includes('UNIQUE') && msg.includes('member_galleries')) {
-          throw new ConflictError(
-            `A gallery named "${validated.name}" already exists for this owner.`,
-          );
+      // Insert + tag-set rewrite share one transaction. Two distinct UNIQUE
+      // constraints on member_galleries can fire here:
+      //   - PRIMARY KEY id  → distinct slug-id collision (member-owned only;
+      //     two different gallery names that slugify to the same form).
+      //     Recovered by appending `_2`, `_3`, … to the id and retrying.
+      //   - UNIQUE(owner_member_id, name) → same-owner duplicate name.
+      //     User-visible ConflictError (no retry; caller must rename).
+      // SQLite distinguishes them by including the constraint columns in
+      // the error message (`member_galleries.id` vs `…owner_member_id, …name`).
+      const MAX_ID_ATTEMPTS = 100;
+      let attempt = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        try {
+          transaction(() => {
+            media.insertMemberGallery.run(
+              galleryId, now, actorMemberId, now, actorMemberId,
+              ownerMemberId, validated.name, validated.description, validated.sortOrder,
+            );
+            rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
+          });
+          break;
+        } catch (err) {
+          const msg = (err as Error).message ?? '';
+          const isUnique = msg.includes('UNIQUE');
+          const isIdCollision = isUnique && msg.includes('member_galleries.id');
+          if (isIdCollision && !isFhOwned) {
+            attempt += 1;
+            if (attempt >= MAX_ID_ATTEMPTS) {
+              throw new Error(
+                `Could not generate a unique gallery id for "${validated.name}" after ${MAX_ID_ATTEMPTS} attempts.`,
+              );
+            }
+            galleryId = buildMemberGalleryId(ownerSlug as string, validated.name, attempt);
+            continue;
+          }
+          if (isUnique && msg.includes('member_galleries')) {
+            throw new ConflictError(
+              `A gallery named "${validated.name}" already exists for this owner.`,
+            );
+          }
+          throw err;
         }
-        throw err;
       }
 
       if (isFhOwned) {

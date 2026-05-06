@@ -1697,7 +1697,7 @@ Not applicable. Legal content is static and always present.
 
 ### 6.21 Media galleries
 
-The public media surface is a two-page composition: a hub at `/media` that lists every named-gallery URL bookmark (FH-owned and member-owned), and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set, minus any item carrying a tag in the gallery's exclude-tag set. Named-gallery bookmarks are `member_galleries` rows; FH-owned bookmarks (system member) keep the `gallery_<descriptive_slug>` URL convention, member-owned use `gallery_m_<random>`. Each surface (hub card, gallery hero) renders owner attribution. Item ordering follows the gallery's `sort_order` field.
+The public media surface is a two-page composition: a hub at `/media` that lists every named-gallery URL bookmark (FH-owned and member-owned), and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set, minus any item carrying a tag in the gallery's exclude-tag set. Named-gallery bookmarks are `member_galleries` rows; FH-owned bookmarks (system member) keep the `gallery_<descriptive_slug>` URL convention, member-owned derive `gallery_<owner_slug>_<gallery_name_slug>` from the owner's member slug and the gallery name (with `_2`, `_3` suffixes on collision). Each surface (hub card, gallery hero) renders owner attribution. Item ordering follows the gallery's `sort_order` field.
 
 ### Audience
 
@@ -1728,7 +1728,7 @@ Both pages consume the generic public rendering standard and the §4.2 page cont
 - `page.title`
 - `page.intro`
 - `content.galleries[]`
-  - `id` — bookmark slug (e.g., `gallery_curated_freestyle_tricks` for FH-owned, `gallery_m_<random>` for member-owned)
+  - `id` — bookmark slug (e.g., `gallery_curated_freestyle_tricks` for FH-owned, `gallery_<owner_slug>_<gallery_name_slug>` for member-owned)
   - `name`
   - `description`
   - `itemCount` — service-computed via tag-AND match against `member_gallery_tags` minus items carrying any tag in `member_gallery_exclude_tags`
@@ -1879,6 +1879,7 @@ Render "You haven't created any galleries yet." when `content.galleries[]` is em
 **Required content**
 
 - the shared `gallery-edit-form` partial with current values
+- a link to the member's upload page so the owner can add new photos or videos and return to the edit form to attach them
 - a "your existing uploads" picker fieldset (checkbox grid); checked items receive the gallery's post-edit criteria tags. The fieldset renders nothing when the owner has no prior uploads. Items are added to the gallery via tag application; removing an item from a gallery is a per-item tag-edit flow (out of scope for the gallery edit form).
 
 **Required view-model fields**
@@ -1888,6 +1889,7 @@ Render "You haven't created any galleries yet." when `content.galleries[]` is em
 - `formAction` — `/members/{memberKey}/galleries/{id}/edit`
 - `gallery` — `{ id, name, description, sortOrder, criteriaTagsString, excludeTagsString }`
 - `cancelHref` — `/members/{memberKey}/galleries`
+- `uploadMediaHref` — `/members/{memberKey}/media/upload`
 - `pickerItems[]` — same shape as on the new form.
 
 #### Upload at `GET /members/:memberKey/media/upload`

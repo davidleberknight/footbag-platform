@@ -1499,11 +1499,11 @@ describe('curatorMediaService.updateGallery', () => {
 });
 
 describe('curatorMediaService.createGallery', () => {
-  it('member-owned: inserts row with owner=actor, id matches gallery_m_*, no sidecar written', async () => {
+  it('member-owned: inserts row with owner=actor, id derived from owner+name slug, no sidecar written', async () => {
     const ts = '2026-04-02T00:00:00Z';
     const memberId = 'member-gal-create-m';
     const db = openDb();
-    insertMember(db, { id: memberId, slug: 'gal-create-m', login_email: 'gal-create-m@example.com' });
+    insertMember(db, { id: memberId, slug: 'gal_create_m', login_email: 'gal-create-m@example.com' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-m-'));
@@ -1517,9 +1517,10 @@ describe('curatorMediaService.createGallery', () => {
         actorMemberId: memberId,
         actorIsAdmin: false,
         ownerMemberId: memberId,
+        ownerSlug: 'gal_create_m',
         updates: { name: 'My First', description: 'hi', sortOrder: 'upload_desc', criteriaTags: ['#mine'], excludeTags: [] },
       });
-      expect(result.id).toMatch(/^gallery_m_[a-f0-9]{12}$/);
+      expect(result.id).toBe('gallery_gal_create_m_my_first');
 
       const db2 = openDb();
       const row = db2.prepare(`SELECT owner_member_id, name FROM member_galleries WHERE id = ?`).get(result.id) as Record<string, unknown>;
@@ -1677,7 +1678,7 @@ describe('curatorMediaService.createGallery', () => {
     const ts = '2026-04-02T04:00:00Z';
     const memberId = 'member-gal-conflict';
     const db = openDb();
-    insertMember(db, { id: memberId, slug: 'gal-conflict', login_email: 'gal-conflict@example.com' });
+    insertMember(db, { id: memberId, slug: 'gal_conflict', login_email: 'gal-conflict@example.com' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-conflict-'));
@@ -1689,13 +1690,86 @@ describe('curatorMediaService.createGallery', () => {
       });
       const first = await svc.createGallery({
         actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        ownerSlug: 'gal_conflict',
         updates: { name: 'Same Name', description: '', sortOrder: 'upload_desc', criteriaTags: ['#a'], excludeTags: [] },
       });
-      expect(first.id).toMatch(/^gallery_m_/);
+      expect(first.id).toBe('gallery_gal_conflict_same_name');
       await expect(svc.createGallery({
         actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        ownerSlug: 'gal_conflict',
         updates: { name: 'Same Name', description: '', sortOrder: 'upload_desc', criteriaTags: ['#b'], excludeTags: [] },
       })).rejects.toThrow(/already exists for this owner/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('member-owned: derives slug-id from owner+name; differently-cased and punctuated names that slugify identically get _2, _3 suffixes', async () => {
+    // Two distinct names that slugify to the same form trigger an id-PK
+    // collision. The retry loop is expected to recover by suffixing _2
+    // while still surfacing the (owner, name) UNIQUE conflict on a true
+    // duplicate name.
+    const ownerA = 'member-gal-slug-A';
+    const ownerB = 'member-gal-slug-B';
+    const db = openDb();
+    insertMember(db, { id: ownerA, slug: 'gal_slug_a', login_email: 'gsa@example.com' });
+    insertMember(db, { id: ownerB, slug: 'gal_slug_b', login_email: 'gsb@example.com' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-slug-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+
+      const a1 = await svc.createGallery({
+        actorMemberId: ownerA, actorIsAdmin: false, ownerMemberId: ownerA,
+        ownerSlug: 'gal_slug_a',
+        updates: { name: 'Funky Footbags', description: '', sortOrder: 'upload_desc', criteriaTags: ['#a'], excludeTags: [] },
+      });
+      expect(a1.id).toBe('gallery_gal_slug_a_funky_footbags');
+
+      // "Funky-Footbags!" slugifies to the same `funky_footbags` form;
+      // (owner, name) UNIQUE accepts it (different name), but id PK collides
+      // and the retry loop appends _2.
+      const a2 = await svc.createGallery({
+        actorMemberId: ownerA, actorIsAdmin: false, ownerMemberId: ownerA,
+        ownerSlug: 'gal_slug_a',
+        updates: { name: 'Funky-Footbags!', description: '', sortOrder: 'upload_desc', criteriaTags: ['#b'], excludeTags: [] },
+      });
+      expect(a2.id).toBe('gallery_gal_slug_a_funky_footbags_2');
+
+      // Owner-prefixed: a different owner with the same name does NOT collide.
+      const b1 = await svc.createGallery({
+        actorMemberId: ownerB, actorIsAdmin: false, ownerMemberId: ownerB,
+        ownerSlug: 'gal_slug_b',
+        updates: { name: 'Funky Footbags', description: '', sortOrder: 'upload_desc', criteriaTags: ['#c'], excludeTags: [] },
+      });
+      expect(b1.id).toBe('gallery_gal_slug_b_funky_footbags');
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('member-owned: rejects creation when ownerSlug is missing', async () => {
+    const memberId = 'member-gal-noslug';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal_noslug', login_email: 'gns@example.com' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-noslug-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.createGallery({
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        updates: { name: 'No Slug', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+      })).rejects.toThrow(/Member-owned gallery requires ownerSlug/);
     } finally {
       await fsp.rm(curatedRoot, { recursive: true, force: true });
     }

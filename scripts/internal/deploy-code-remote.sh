@@ -89,6 +89,20 @@ elif [[ "$EXISTING_FOOTBAG_ENV" != "$FOOTBAG_ENV" ]]; then
   exit 1
 fi
 
+# One-shot migration: MEDIA_STORAGE_ADAPTER seed. Mirrors deploy-rebuild-remote.sh
+# so a code-only deploy onto a host whose env predates this var still gets it.
+# docker-compose.prod.yml fails fast if the var is unset, so this seed is
+# load-bearing for stack startup. Operator-set values are preserved.
+if ! grep -q '^MEDIA_STORAGE_ADAPTER=' "$ENV_PATH"; then
+  echo "==> Seeding MEDIA_STORAGE_ADAPTER=s3 into $ENV_PATH (staging/prod default)..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  cp "$ENV_PATH" "$env_tmp"
+  printf 'MEDIA_STORAGE_ADAPTER=%s\n' 's3' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+fi
+
 echo "==> Promoting release (preserving env, DB, media)..."
 rsync -a --delete \
   --exclude=/env --exclude=/db --exclude=/media \

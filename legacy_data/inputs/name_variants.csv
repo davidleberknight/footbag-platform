@@ -15,6 +15,7 @@ Alexander Martinez,Alexander Martínez,high,manual
 Alexandre Belanger,Alexandre Bélanger,high,manual
 Alexandre Kegle,Alexandre Kègle,high,manual
 Alexis Canas,Alexis Cańas,high,manual
+Al Petersen,Allan Petersen,high,display_name
 Allen Petersen,Allan Petersen,high,display_name
 Álvaro Alfinger,Alvaro Manzanero Alfinger,medium,alias
 Amelie Beck,Amélie Beck,high,manual
@@ -63,10 +64,9 @@ Cezary Smigulski,Cezary Śmigulski,high,manual
 Chris Low,Chris Löw,high,manual
 Chris Gator Routh,Chris Routh,medium,alias
 Chris ÏGatorÓ Routh,Chris Routh,medium,alias
+Christopher Siebert,Chris Siebert,high,display_name
 Christian Low,Christian Löw,high,manual
 Christian Lowe,Christian Löwe,high,manual
-Chris Siebert,Christopher Michael Siebert,high,display_name
-Christopher Siebert,Christopher Michael Siebert,high,display_name
 Cory D. Current,Cory Current,medium,alias
 Cristian Garcia,Cristian García,high,manual
 Dan Schlapfer,Dan Schläpfer,high,manual
@@ -313,6 +313,8 @@ Repasi Csaba,Répási Csaba,high,manual
 Rog Michał,Róg Michał,high,manual
 Sam Conlon,Samantha Conlon,high,display_name
 Scott Enlightener Davidson,Scott Davidson,medium,alias
+Mag Hughes,Scott-Mag Hughes,medium,alias
+Scott Hughes,Scott-Mag Hughes,medium,alias
 Sebastian Ceballos Columbia,Sebastian Ceballos,medium,alias
 Sébastien Duchesne,Sebastien Duchesne,high,display_name
 Silvan Lotscher,Silvan Lötscher,high,manual
@@ -344,6 +346,7 @@ T Fritsch,Theodore Fritsch,high,display_name
 Ted Fritsch,Theodore Fritsch,high,display_name
 Theodore J Fritsch,Theodore Fritsch,medium,alias
 Thomas Forster,Thomas Förster,high,manual
+Thomas Forsterson,Thomas Försterson,high,manual
 Thomas tomtom Jouan,Thomas Jouan,medium,alias
 Thomas Koneeny,Thomas Koneèný,high,manual
 Thorsten Kunzel,Thorsten Künzel,high,manual

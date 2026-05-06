@@ -171,8 +171,8 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Trip Photos');
     expect(res.text).toContain('Demo Reel');
-    expect(res.text).toMatch(/href="\/members\/mg_owner\/galleries\/gallery_m_[a-f0-9]{12}\/edit"/);
-    expect(res.text).toMatch(/action="\/members\/mg_owner\/galleries\/gallery_m_[a-f0-9]{12}\/delete"/);
+    expect(res.text).toMatch(/href="\/members\/mg_owner\/galleries\/gallery_mg_owner_[a-z0-9_]+\/edit"/);
+    expect(res.text).toMatch(/action="\/members\/mg_owner\/galleries\/gallery_mg_owner_[a-z0-9_]+\/delete"/);
   });
 
   it('redirects unauthenticated requests to /login', async () => {
@@ -224,7 +224,7 @@ describe('POST /members/:memberKey/galleries', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=create`);
     const id = findGalleryIdByName('Fresh Gallery');
-    expect(id).toMatch(/^gallery_m_[a-f0-9]{12}$/);
+    expect(id).toBe('gallery_mg_owner_fresh_gallery');
   });
 
   it('auto-applies #<slug> when criteriaTags is empty (My Photos default)', async () => {
@@ -235,7 +235,7 @@ describe('POST /members/:memberKey/galleries', () => {
       .send({ name: 'My Photos', description: '', sortOrder: 'upload_desc', criteriaTags: '', excludeTags: '' });
     expect(res.status).toBe(302);
     const id = findGalleryIdByName('My Photos')!;
-    expect(id).toMatch(/^gallery_m_/);
+    expect(id).toBe('gallery_mg_owner_my_photos');
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const tags = db.prepare(
@@ -277,7 +277,7 @@ describe('POST /members/:memberKey/galleries', () => {
       });
     expect(res.status).toBe(302);
     const id = findGalleryIdByName('Forge Attempt');
-    expect(id).toMatch(/^gallery_m_/);
+    expect(id).toBe('gallery_mg_owner_forge_attempt');
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const row = db.prepare('SELECT owner_member_id FROM member_galleries WHERE id = ?').get(id!) as { owner_member_id: string };

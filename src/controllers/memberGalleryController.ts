@@ -190,6 +190,7 @@ export const memberGalleryController = {
           actorMemberId,
           actorIsAdmin,
           ownerMemberId: actorMemberId,
+          ownerSlug: req.user!.slug,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
         });
         if (mediaIds.length > 0) {
@@ -256,6 +257,7 @@ export const memberGalleryController = {
             excludeTagsString: g.excludeTags.join(' '),
           },
           cancelHref: listHref(memberKey),
+          uploadMediaHref: `/members/${memberKey}/media/upload`,
           pickerItems: picker.items,
         });
       } catch (err) {
@@ -328,6 +330,7 @@ export const memberGalleryController = {
               excludeTagsString: (req.body?.excludeTags ?? '') as string,
             },
             cancelHref: listHref(memberKey),
+            uploadMediaHref: `/members/${memberKey}/media/upload`,
             pickerItems: picker.items,
           });
           return;
@@ -534,6 +537,7 @@ async function executeMultipartCreate(args: {
       actorMemberId,
       actorIsAdmin,
       ownerMemberId: actorMemberId,
+      ownerSlug: slug,
       updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
     });
     galleryId = created.id;

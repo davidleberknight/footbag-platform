@@ -53,15 +53,34 @@ interface ComposeFile {
 }
 
 /**
- * Resolve compose `${VAR}` and `${VAR:-default}` interpolation against a
- * supplied source map. Mirrors Docker Compose's substitution rules narrowly
- * enough to cover the syntax used in this repo's compose files.
+ * Resolve compose `${VAR}`, `${VAR:-default}`, and `${VAR:?error}` interpolation
+ * against a supplied source map. Mirrors Docker Compose's substitution rules
+ * narrowly enough to cover the syntax used in this repo's compose files.
+ *
+ * `${VAR:?msg}` mirrors real compose behavior: if VAR is unset or empty the
+ * test throws (real compose refuses to start the service), otherwise the
+ * value is substituted in.
  */
 function interpolate(value: string, source: Record<string, string>): string {
-  return value.replace(/\$\{([A-Z_][A-Z0-9_]*)(?::-([^}]*))?\}/g, (_, name, dflt) => {
-    const v = source[name];
-    return v !== undefined && v !== '' ? v : (dflt ?? '');
-  });
+  return value.replace(
+    /\$\{([A-Z_][A-Z0-9_]*)(?::([-?])([^}]*))?\}/g,
+    (_, name, op, rest) => {
+      const v = source[name];
+      const present = v !== undefined && v !== '';
+      if (op === '-') {
+        return present ? v : (rest ?? '');
+      }
+      if (op === '?') {
+        if (!present) {
+          throw new Error(
+            `Required compose variable ${name} is unset or empty (${rest})`,
+          );
+        }
+        return v;
+      }
+      return present ? v : '';
+    },
+  );
 }
 
 /**

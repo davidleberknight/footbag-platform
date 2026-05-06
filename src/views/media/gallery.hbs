@@ -23,7 +23,7 @@
             {{> video-facade media=media}}
           {{else}}
             <a href="{{displayHref}}" class="gallery-tile-media" target="_blank" rel="noopener noreferrer">
-              <img src="{{thumbnailUrl}}" alt="{{#if caption}}{{caption}}{{else}}Curator photo{{/if}}" loading="lazy" />
+              <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
             </a>
           {{/if}}
           {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}

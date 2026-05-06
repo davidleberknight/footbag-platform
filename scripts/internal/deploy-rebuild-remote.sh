@@ -179,6 +179,19 @@ if ! grep -q '^SES_SANDBOX_MODE=' "$ENV_PATH"; then
   echo 'SES_SANDBOX_MODE=1' >> "$ENV_PATH"
 fi
 
+# One-shot migration: MEDIA_STORAGE_ADAPTER seed. Both staging and production
+# read/write member uploads through the S3 media bucket via the runtime
+# adapter; without this, docker-compose.prod.yml's fail-fast on the var
+# stops the stack from starting (and prior to that gate, runtime member
+# uploads silently landed on the container's local filesystem instead of S3,
+# producing 403s through CloudFront/OAC). Operator can override by setting
+# MEDIA_STORAGE_ADAPTER=local in $ENV_PATH before deploy if they want to
+# exercise the dev-parity local adapter on a staging host.
+if ! grep -q '^MEDIA_STORAGE_ADAPTER=' "$ENV_PATH"; then
+  echo "    Seeding MEDIA_STORAGE_ADAPTER=s3 into env file (staging/prod default)..."
+  echo 'MEDIA_STORAGE_ADAPTER=s3' >> "$ENV_PATH"
+fi
+
 NODE_ENV_VAL=$(require_env NODE_ENV)
 LOG_LEVEL_VAL=$(require_env LOG_LEVEL)
 DB_PATH=$(require_env FOOTBAG_DB_PATH)
