@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Script 25: QC the media-tag invariant. READ-ONLY hard fail.
 
-Invariant: if a media_items row carries any trick-shaped tag, every
-trick-shaped tag must resolve to an active or pending freestyle_tricks.slug.
-Alias-only matches fail. Unknown tags fail. Items with no trick-shaped tags
-are exempt (non-trick media: FH avatars, demo loops, event photos).
+Invariant (per scripts/_trick_tag_invariant.py):
+  1. Every media_items row must carry ≥1 semantic tag.
+  2. Semantic domains: TRICK (kebab-case slug, active or pending),
+     EVENT (event_*), SYSTEM (demo_*, fh_*), FUTURE (player_*, club_*, set_*).
+  3. Trick-shaped tags must resolve; alias-only or unknown bodies fail.
+  4. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
+     through but do NOT count toward the semantic-tag requirement.
+  5. Items with zero semantic tags fail.
 
 Tripwire for any ingestion path (curator seeder, sidecar promotion, member
 uploads). Run after a fresh DB reset.

@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
-"""Trick-tag invariant validator for curator media.
+"""Media-tag invariant validator for curator media.
 
-Hard invariant: if a media item carries any trick-shaped tag, every
-trick-shaped tag must resolve to an active or pending freestyle_tricks.slug.
-Alias-only matches fail. Unknown tags fail. Items with no trick-shaped tags
-are exempt (non-trick media: FH avatars, demo loops, event photos).
+Rules:
+  1. Every media item MUST carry at least one semantic tag.
+  2. Semantic tag domains:
+     - TRICK  — kebab-case body matching freestyle_tricks.slug (active or pending)
+     - EVENT  — body starting with 'event_'
+     - SYSTEM — body starting with 'demo_' or 'fh_'
+     - FUTURE — body starting with 'player_', 'club_', or 'set_'
+  3. Trick-shaped tags (kebab-case, non-utility, non-domain-prefix) MUST
+     resolve to an active or pending slug; alias-only or unknown bodies fail.
+  4. Utility tags (freestyle, trick, curated, tricks_of_the_trade) pass
+     through but do NOT count toward the semantic-tag requirement.
+  5. Items with zero semantic tags fail.
+  6. Hard fail (raises MediaTagInvariantError); no auto-fix; no warnings.
 
 Used by:
   - scripts/promote_snippet_candidates.py (pre-write sidecar validation)
   - legacy_data/event_results/scripts/25_qc_media_tag_invariant.py (post-load QC)
 
-Pure: no DB calls in the validator. Two convenience loaders are provided
-(load_slug_sets_from_db, load_slug_sets_from_csvs) so callers can pick the
-source of truth appropriate to their context.
+Pure: no DB calls in the validator. Convenience loaders provided for both
+DB and CSV sources of truth.
 """
 from __future__ import annotations
 
@@ -24,28 +32,30 @@ from typing import Iterable
 
 _SLUG_SHAPE_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
-META_EXACT: frozenset[str] = frozenset({
-    "freestyle", "trick", "curated",
-    "tricks_of_the_trade", "demo_freestyle", "demo_net",
+UTILITY_EXACT: frozenset[str] = frozenset({
+    "freestyle", "trick", "curated", "tricks_of_the_trade",
 })
 
-META_PREFIX: tuple[str, ...] = ("event_", "club_", "member_", "fh_")
+SEMANTIC_PREFIXES: tuple[str, ...] = (
+    "event_", "demo_", "fh_",
+    "player_", "club_", "set_",
+)
 
 
 class MediaTagInvariantError(ValueError):
-    """Raised when a media item violates the trick-tag invariant."""
+    """Raised when a media item violates the media-tag invariant."""
 
 
 def is_trick_shaped(tag: str) -> bool:
     """Return True if a tag (with or without leading '#') is a kebab-case
-    slug-form tag, i.e. neither an exact-match meta tag nor a META_PREFIX tag.
+    slug-form tag — neither a utility tag nor a recognized domain prefix.
     """
     if not tag:
         return False
     body = tag.lstrip("#")
     if not body or body != body.lower():
         return False
-    if body in META_EXACT or body.startswith(META_PREFIX):
+    if body in UTILITY_EXACT or body.startswith(SEMANTIC_PREFIXES):
         return False
     return bool(_SLUG_SHAPE_RE.match(body))
 
@@ -59,16 +69,15 @@ def validate_media_tags(
     alias_slugs: dict[str, str],
 ) -> None:
     """Validate a media item's tag list. Raise MediaTagInvariantError on the
-    first violation. No auto-fix.
+    first per-tag violation, or after the loop if no semantic tag is found.
 
     label:         human-readable identifier surfaced in the error message.
     tags:          iterable of tag strings; each MUST start with '#'.
     active_slugs:  freestyle_tricks.slug values where is_active=1.
     pending_slugs: freestyle_tricks.slug values where is_active=0.
-    alias_slugs:   alias_slug -> canonical trick_slug map (used for error
-                   clarity when an alias is supplied where canonical is
-                   required; alias-only tags still fail).
+    alias_slugs:   alias_slug -> canonical trick_slug map (for error clarity).
     """
+    has_semantic = False
     for raw_tag in tags:
         if not isinstance(raw_tag, str):
             raise MediaTagInvariantError(
@@ -87,14 +96,19 @@ def validate_media_tags(
             raise MediaTagInvariantError(
                 f"{label}: tag {raw_tag!r} must be lowercase"
             )
-        if body in META_EXACT or body.startswith(META_PREFIX):
+        if body in UTILITY_EXACT:
+            continue
+        if body.startswith(SEMANTIC_PREFIXES):
+            has_semantic = True
             continue
         if not _SLUG_SHAPE_RE.match(body):
             raise MediaTagInvariantError(
-                f"{label}: tag {raw_tag!r} is neither a recognized meta tag "
-                f"nor a kebab-case slug (must match {_SLUG_SHAPE_RE.pattern})"
+                f"{label}: tag {raw_tag!r} is neither a utility tag, a "
+                f"recognized domain prefix ({', '.join(SEMANTIC_PREFIXES)}), "
+                f"nor a kebab-case slug"
             )
         if body in active_slugs or body in pending_slugs:
+            has_semantic = True
             continue
         if body in alias_slugs:
             raise MediaTagInvariantError(
@@ -104,6 +118,12 @@ def validate_media_tags(
         raise MediaTagInvariantError(
             f"{label}: tag {raw_tag!r} does not resolve to any active or "
             f"pending freestyle_tricks.slug"
+        )
+    if not has_semantic:
+        raise MediaTagInvariantError(
+            f"{label}: no semantic tag — every media item must carry at "
+            f"least one trick or domain-prefix tag "
+            f"({', '.join(SEMANTIC_PREFIXES)})"
         )
 
 
