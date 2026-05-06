@@ -6,23 +6,28 @@ import { config } from '../config/env';
  * normalized emails. Used by `registerMember` to auto-grant `is_admin=1`
  * on registration when the new member's email is listed.
  *
- * The file is plain text, one email per line. `#` introduces a line comment.
- * Blank lines and comment-only lines are ignored. Emails are trimmed and
- * lowercased to match `login_email_normalized`.
+ * Two sources, in precedence order:
  *
- * Returns an empty Set in any of these cases:
- *  - `NODE_ENV === 'production'` (defense-in-depth; production must use the
- *    canonical bootstrap mechanism, not this dev-grade file)
- *  - the file does not exist or is unreadable
- *  - the file is empty or contains only blanks/comments
+ * 1. `FOOTBAG_INITIAL_ADMIN_EMAILS` env var (comma-separated). Populated by
+ *    the deploy script on staging from `.local/initial-admins.txt` content.
+ *    When present and non-blank, this is the source. Bypasses the NODE_ENV
+ *    gate; setting the env var is the explicit operator opt-in.
  *
- * Read on every call: the operator may edit the file between registrations
- * and expect the next registration to pick up the change. Registrations are
- * rare enough that disk I/O cost is negligible.
+ * 2. The file at `config.initialAdminFile` (default `.local/initial-admins.txt`).
+ *    Plain text, one email per line. `#` introduces a line comment. Used on
+ *    local dev where the file is reachable from process CWD. Returns empty
+ *    Set under `NODE_ENV === 'production'` for defense-in-depth, in case
+ *    `.local/` ever lands on a real prod host.
+ *
+ * In both sources, emails are trimmed and lowercased to match
+ * `login_email_normalized`. Read on every call: the operator may edit the
+ * source between registrations and expect the next registration to pick up
+ * the change.
  */
 export interface InitialAdminBootstrapOptions {
   nodeEnv?: string;
   filePath?: string;
+  envEmails?: string;
 }
 
 export function getInitialAdminEmails(
@@ -30,6 +35,16 @@ export function getInitialAdminEmails(
 ): Set<string> {
   const nodeEnv = opts.nodeEnv ?? config.nodeEnv;
   const filePath = opts.filePath ?? config.initialAdminFile;
+  const envEmails = opts.envEmails ?? process.env.FOOTBAG_INITIAL_ADMIN_EMAILS;
+
+  if (envEmails && envEmails.trim()) {
+    const emails = new Set<string>();
+    for (const item of envEmails.split(',')) {
+      const stripped = item.trim().toLowerCase();
+      if (stripped) emails.add(stripped);
+    }
+    return emails;
+  }
 
   if (nodeEnv === 'production') {
     return new Set();

@@ -77,6 +77,7 @@ services:
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      FOOTBAG_INITIAL_ADMIN_EMAILS: ${FOOTBAG_INITIAL_ADMIN_EMAILS:-}
     volumes:
       # Directory bind mount so SQLite WAL/SHM sidecars live on the host and
       # are shared between web and worker containers. A file bind mount would

@@ -263,6 +263,21 @@ else
     | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" docker load'
 fi
 
+# Parse .local/initial-admins.txt -> CSV for FOOTBAG_INITIAL_ADMIN_EMAILS env
+# var. Same parsing rules as src/services/initialAdminBootstrap.ts. Mirrors
+# scripts/deploy-code.sh.
+INITIAL_ADMIN_EMAILS_CSV=""
+LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
+if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
+  INITIAL_ADMIN_EMAILS_CSV=$(awk '
+    {
+      sub(/#.*$/, "")
+      gsub(/^[ \t]+|[ \t]+$/, "")
+      if (length($0) > 0) print tolower($0)
+    }
+  ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
+fi
+
 echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
 # printf emits the password line; the EXPECTED_*_IMAGE_LAYERS assignments give
 # the remote-half the layer DiffIDs to verify against the docker-loaded images;
@@ -278,6 +293,7 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'SYNC_MEDIA=%q\n'                   "${SYNC_MEDIA:-no}"
   printf 'CURATOR_SEED=%q\n'                 "${CURATOR_SEED:-yes}"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
+  printf 'FOOTBAG_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 

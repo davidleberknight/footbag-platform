@@ -195,6 +195,23 @@ fi
 # root. Argv on every hop stays free of secrets. Layer DiffIDs are
 # space-separated sha256:[0-9a-f]{64} tokens and contain no shell metacharacters.
 
+# Parse .local/initial-admins.txt -> CSV for FOOTBAG_INITIAL_ADMIN_EMAILS env
+# var. Same parsing rules as src/services/initialAdminBootstrap.ts: strip '#'
+# comments, trim, lowercase, skip blank lines. Empty/missing file produces an
+# empty value, which clears the env var on staging so a stale list cannot
+# persist after the operator empties the file.
+INITIAL_ADMIN_EMAILS_CSV=""
+LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
+if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
+  INITIAL_ADMIN_EMAILS_CSV=$(awk '
+    {
+      sub(/#.*$/, "")
+      gsub(/^[ \t]+|[ \t]+$/, "")
+      if (length($0) > 0) print tolower($0)
+    }
+  ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
+fi
+
 echo "==> Running remote-as-root deploy (promote, restart)..."
 {
   printf '%s\n' "$SUDO_PASS"
@@ -203,6 +220,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"
   printf 'FOOTBAG_ENV=%q\n'                  "$FOOTBAG_ENV"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
+  printf 'FOOTBAG_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 

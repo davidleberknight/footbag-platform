@@ -246,6 +246,21 @@ chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 unset ORIGIN_VERIFY_SECRET_VAL
 
+# Update FOOTBAG_INITIAL_ADMIN_EMAILS from the workstation's
+# .local/initial-admins.txt content (passed via cat-pipe). Empty value clears
+# the var so removing an email from the file and redeploying correctly drops
+# admin from a future registration.
+: "${FOOTBAG_INITIAL_ADMIN_EMAILS=}"
+echo "    Updating FOOTBAG_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
+env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+chmod 600 "$env_tmp"
+chown root:root "$env_tmp"
+grep -v '^FOOTBAG_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
+printf 'FOOTBAG_INITIAL_ADMIN_EMAILS=%s\n' "$FOOTBAG_INITIAL_ADMIN_EMAILS" >> "$env_tmp"
+mv "$env_tmp" "$ENV_PATH"
+chmod 600 "$ENV_PATH"
+chown root:root "$ENV_PATH"
+
 if [[ "$SESSION_SECRET_VAL" == *'#'* ]]; then
   echo "SESSION_SECRET contains '#' which breaks systemd EnvironmentFile parsing" >&2
   exit 1
