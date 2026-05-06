@@ -3735,6 +3735,63 @@ export const media = {
       gallery_id, tag_id, created_at, created_by
     ) VALUES (?, ?, ?, ?)
   `); },
+
+  // Lookup a named gallery by id without filtering on owner. Returns
+  // owner_member_id, the system-member flag, and the owner's display
+  // identity so the service layer can render owner attribution and
+  // dispatch on cohort (FH vs member-owned) for authorization and
+  // post-commit sidecar I/O.
+  get getNamedGalleryById() { return db.prepare(`
+    SELECT g.id, g.name, g.description, g.sort_order,
+           g.owner_member_id, m.is_system,
+           m.display_name AS owner_display_name,
+           m.slug         AS owner_slug
+    FROM member_galleries g
+    JOIN members m ON m.id = g.owner_member_id
+    WHERE g.id = ?
+  `); },
+
+  // Public-hub listing across BOTH FH-owned and member-owned galleries
+  // with owner attribution joined in. Sort FH first (system rows lead),
+  // then by name. The hub uses this; the existing FH-only
+  // `listFhNamedGalleries` is retained for any caller that needs to
+  // filter to the curator cohort only.
+  get listAllNamedGalleries() { return db.prepare(`
+    SELECT g.id, g.name, g.description, g.sort_order,
+           g.owner_member_id, m.is_system,
+           m.display_name AS owner_display_name,
+           m.slug         AS owner_slug
+    FROM member_galleries g
+    JOIN members m ON m.id = g.owner_member_id
+    ORDER BY m.is_system DESC, g.name
+  `); },
+
+  // Insert a new member_galleries row. Caller wraps in a transaction
+  // with the matching tag-set inserts. UNIQUE(owner_member_id, name)
+  // enforces per-owner name uniqueness; service layer maps the
+  // SqliteError UNIQUE constraint failure to ConflictError.
+  get insertMemberGallery() { return db.prepare(`
+    INSERT INTO member_galleries (
+      id, created_at, created_by, updated_at, updated_by, version,
+      owner_member_id, name, description, sort_order
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+  `); },
+
+  // Hard-delete a gallery row. Tag rows in member_gallery_tags and
+  // member_gallery_exclude_tags cascade via ON DELETE CASCADE.
+  get deleteMemberGalleryById() { return db.prepare(`
+    DELETE FROM member_galleries WHERE id = ?
+  `); },
+
+  // List every gallery owned by a given member. Used by the member
+  // profile "Galleries" surface (slice 2b) and by tests asserting
+  // member-owned gallery state.
+  get listMemberGalleriesByOwner() { return db.prepare(`
+    SELECT g.id, g.name, g.description, g.sort_order
+    FROM member_galleries g
+    WHERE g.owner_member_id = ?
+    ORDER BY g.name
+  `); },
 };
 
 // Tag display values for a set of media ids in one round-trip. Built

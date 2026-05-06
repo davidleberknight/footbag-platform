@@ -41,7 +41,18 @@ export interface GalleryPagination {
   prevHref?: string;
 }
 
-// Hub at /media: list of FH-owned named-gallery URL bookmarks.
+// Owner attribution surfaced on hub cards and gallery hero blocks so
+// readers can tell who curated each gallery. `isSystem` lets the
+// template render "Footbag Hacky" without linking to a member profile
+// for the curator account.
+export interface GalleryOwner {
+  displayName: string;
+  slug: string;
+  isSystem: boolean;
+}
+
+// Hub at /media: list of named-gallery URL bookmarks (FH-owned first,
+// member-owned after). Each card carries the owner attribution.
 export interface MediaHubGallerySummary {
   id: string;
   name: string;
@@ -50,6 +61,7 @@ export interface MediaHubGallerySummary {
   criteriaTags: string[];
   excludeTags: string[];
   href: string;
+  owner: GalleryOwner;
 }
 
 export interface MediaHubContent {
@@ -59,12 +71,14 @@ export interface MediaHubContent {
 // Named-gallery page at /media/<id>: hero with "Named Gallery: <name>"
 // + criteria/exclude pill strip, description as a caption paragraph
 // below the hero, then a flat item grid in the gallery's sort_order.
+// Owner attribution renders in the hero block.
 export interface NamedGalleryHero {
   id: string;
   name: string;
   description: string;
   criteriaTags: string[];
   excludeTags: string[];
+  owner: GalleryOwner;
 }
 
 export interface NamedGalleryContent {
@@ -134,10 +148,29 @@ function shapeItem(
   };
 }
 
+interface NamedGalleryWithOwnerRow {
+  id: string;
+  name: string;
+  description: string;
+  sort_order: 'upload_desc' | 'upload_asc' | 'caption_asc';
+  owner_member_id: string;
+  is_system: number;
+  owner_display_name: string | null;
+  owner_slug: string | null;
+}
+
+function shapeOwner(row: NamedGalleryWithOwnerRow): GalleryOwner {
+  return {
+    displayName: row.owner_display_name ?? 'Unknown',
+    slug: row.owner_slug ?? '',
+    isSystem: row.is_system === 1,
+  };
+}
+
 export const mediaService = {
   getMediaHubPage(): PageViewModel<MediaHubContent> {
     return runSqliteRead('mediaService.getMediaHubPage', () => {
-      const galleries = media.listFhNamedGalleries.all() as FhNamedGalleryRow[];
+      const galleries = media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[];
 
       const summaries: MediaHubGallerySummary[] = galleries.map((g) => {
         const tagRows = media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[];
@@ -152,6 +185,7 @@ export const mediaService = {
           criteriaTags: tagRows.map((t) => t.tag_display),
           excludeTags: excludeTagRows.map((t) => t.tag_display),
           href: `/media/${g.id}`,
+          owner: shapeOwner(g),
         };
       });
 
@@ -173,8 +207,8 @@ export const mediaService = {
     _rawPage: unknown,
   ): PageViewModel<NamedGalleryContent> {
     return runSqliteRead('mediaService.getNamedGalleryPage', () => {
-      const gallery = media.getFhNamedGalleryById.get(galleryId) as
-        | FhNamedGalleryRow
+      const gallery = media.getNamedGalleryById.get(galleryId) as
+        | NamedGalleryWithOwnerRow
         | undefined;
       if (!gallery) {
         throw new NotFoundError(`gallery ${galleryId} not found`);
@@ -221,6 +255,7 @@ export const mediaService = {
             description: gallery.description,
             criteriaTags: criteriaTagDisplays,
             excludeTags: excludeTagRows.map((t) => t.tag_display),
+            owner: shapeOwner(gallery),
           },
           items,
           totalItems: rows.length,

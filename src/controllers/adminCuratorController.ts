@@ -10,7 +10,7 @@ import {
   isValidCategoryName,
   type CuratorMediaEditInput,
 } from '../services/curatorMediaService';
-import { NotFoundError, ValidationError } from '../services/serviceErrors';
+import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 
 const LIST_PAGE_SIZE = 50;
 
@@ -462,7 +462,10 @@ export const adminCuratorController = {
   /** GET /admin/curator/galleries — list FH-owned named galleries. */
   getGalleryList(req: Request, res: Response, next: NextFunction): void {
     try {
-      const savedFlag = req.query.saved === 'edit' ? 'edit' : null;
+      const savedFlag =
+        req.query.saved === 'edit'   ? 'edit'   :
+        req.query.saved === 'create' ? 'create' :
+        req.query.saved === 'delete' ? 'delete' : null;
       const svc = buildSvc();
       const items = svc.listOwnedGalleries();
       res.render('admin/curator/galleries/list', {
@@ -472,6 +475,64 @@ export const adminCuratorController = {
         emptyState: items.length === 0,
         savedFlag,
       });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /admin/curator/galleries/new — render new-gallery form. */
+  getGalleryNew(req: Request, res: Response): void {
+    res.render('admin/curator/galleries/new', {
+      seo: { title: 'New Curator Gallery' },
+      page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_new', title: 'New Curator Gallery' },
+      formAction: '/admin/curator/galleries',
+      gallery: { idSlug: '', name: '', description: '', sortOrder: 'upload_desc', criteriaTagsString: '', excludeTagsString: '' },
+    });
+  },
+
+  /** POST /admin/curator/galleries — create FH-owned gallery. */
+  async postGalleryCreate(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const actorMemberId = req.user!.userId;
+      const slug = String(req.body?.idSlug ?? '').trim();
+      const suggestedId = slug ? `gallery_${slug}` : '';
+      const name = String(req.body?.name ?? '');
+      const description = String(req.body?.description ?? '');
+      const sortOrderRaw = String(req.body?.sortOrder ?? '');
+      const criteriaTags = parseTagsField(req.body?.criteriaTags);
+      const excludeTags = parseTagsField(req.body?.excludeTags);
+
+      const svc = buildSvc();
+      try {
+        await svc.createGallery({
+          actorMemberId,
+          actorIsAdmin: true,
+          ownerMemberId: svc.getSystemMemberId(),
+          suggestedId,
+          updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
+        });
+        res.redirect('/admin/curator/galleries?saved=create');
+        return;
+      } catch (err) {
+        if (err instanceof ValidationError || err instanceof ConflictError) {
+          res.status(422).render('admin/curator/galleries/new', {
+            seo: { title: 'New Curator Gallery' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_new', title: 'New Curator Gallery' },
+            formAction: '/admin/curator/galleries',
+            errorMessage: err.message,
+            gallery: {
+              idSlug: slug,
+              name,
+              description,
+              sortOrder: sortOrderRaw,
+              criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
+              excludeTagsString: (req.body?.excludeTags ?? '') as string,
+            },
+          });
+          return;
+        }
+        throw err;
+      }
     } catch (err) {
       next(err);
     }
@@ -487,6 +548,7 @@ export const adminCuratorController = {
         res.render('admin/curator/galleries/edit', {
           seo: { title: 'Edit Curator Gallery' },
           page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
+          formAction: `/admin/curator/galleries/${galleryId}/edit`,
           gallery: {
             id: g.id,
             name: g.name,
@@ -514,10 +576,10 @@ export const adminCuratorController = {
   },
 
   /** POST /admin/curator/galleries/:id/edit — apply gallery edit. */
-  postGalleryEdit(req: Request, res: Response, next: NextFunction): void {
+  async postGalleryEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const galleryId = req.params.id;
-      const adminMemberId = req.user!.userId;
+      const actorMemberId = req.user!.userId;
       const name = String(req.body?.name ?? '');
       const description = String(req.body?.description ?? '');
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
@@ -526,8 +588,9 @@ export const adminCuratorController = {
 
       const svc = buildSvc();
       try {
-        svc.updateGallery({
-          adminMemberId,
+        await svc.updateGallery({
+          actorMemberId,
+          actorIsAdmin: true,
           galleryId,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
         });
@@ -545,6 +608,7 @@ export const adminCuratorController = {
           res.status(422).render('admin/curator/galleries/edit', {
             seo: { title: 'Edit Curator Gallery' },
             page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
+            formAction: `/admin/curator/galleries/${galleryId}/edit`,
             errorMessage: err.message,
             gallery: {
               id: galleryId,
@@ -560,6 +624,37 @@ export const adminCuratorController = {
         throw err;
       }
       res.redirect('/admin/curator/galleries?saved=edit');
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** POST /admin/curator/galleries/:id/delete — hard-delete FH gallery + sidecar. */
+  async postGalleryDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const galleryId = req.params.id;
+      const actorMemberId = req.user!.userId;
+      const svc = buildSvc();
+      try {
+        await svc.deleteGallery({
+          actorMemberId,
+          actorIsAdmin: true,
+          galleryId,
+        });
+        res.redirect('/admin/curator/galleries?saved=delete');
+        return;
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          res.status(404).render('admin/curator/galleries/edit', {
+            seo: { title: 'Curator Gallery — Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+            notFound: true,
+            galleryId,
+          });
+          return;
+        }
+        throw err;
+      }
     } catch (err) {
       next(err);
     }

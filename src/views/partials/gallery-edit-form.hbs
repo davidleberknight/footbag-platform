@@ -1,0 +1,57 @@
+{{!--
+  Shared named-gallery edit form. Used by:
+    - admin curator gallery edit (FH-owned, /admin/curator/galleries/:id/edit)
+    - member-owned gallery create (/members/:memberKey/galleries)
+    - member-owned gallery edit   (/members/:memberKey/galleries/:id/edit)
+  Caller passes:
+    formAction   POST URL the form submits to
+    gallery      { name, description, sortOrder, criteriaTagsString, excludeTagsString }
+                 (omit or use empty values for the create flow)
+    errorMessage optional validation error to render at the top of the form
+    submitLabel  optional ("Save changes" by default)
+    cancelHref   URL the cancel link points to
+
+  CSRF protection: per DD §3.3, the platform relies on SameSite=Lax
+  session cookies + POST-only state changes; no synchronizer tokens.
+--}}
+<form method="POST" action="{{formAction}}" class="curator-edit-form">
+  {{#if errorMessage}}
+    <div class="form-error-banner" role="alert">{{errorMessage}}</div>
+  {{/if}}
+
+  <label class="form-row">
+    <span class="form-label">Name</span>
+    <input type="text" name="name" value="{{gallery.name}}" maxlength="150" required>
+  </label>
+
+  <label class="form-row">
+    <span class="form-label">Description</span>
+    <textarea name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
+  </label>
+
+  <label class="form-row">
+    <span class="form-label">Sort order</span>
+    <select name="sortOrder">
+      <option value="upload_desc" {{#if (eq gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
+      <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
+      <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
+    </select>
+  </label>
+
+  <label class="form-row">
+    <span class="form-label">Criteria tags</span>
+    <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{gallery.criteriaTagsString}}</textarea>
+    <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
+  </label>
+
+  <label class="form-row">
+    <span class="form-label">Exclude tags</span>
+    <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
+    <small class="form-help">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
+  </label>
+
+  <div class="form-actions">
+    <button type="submit">{{#if submitLabel}}{{submitLabel}}{{else}}Save changes{{/if}}</button>
+    <a href="{{cancelHref}}">Cancel</a>
+  </div>
+</form>

@@ -40,6 +40,7 @@
   - [6.19 Claim confirmation](#619-claim-confirmation)
   - [6.20 Legal](#620-legal)
   - [6.21 Media galleries](#621-media-galleries)
+  - [6.22 Member gallery management](#622-member-gallery-management)
 - [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
   - [7.1 Authorization boundary](#71-authorization-boundary)
   - [7.2 Error behavior](#72-error-behavior)
@@ -481,6 +482,9 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /members/:memberKey` | Member profile | Own profile or public HoF/BAP read-only view | Current |
 | `GET /members/:memberKey/edit` | Member profile edit | Own-profile edit form | Current |
 | `POST /members/:memberKey/avatar` | Member avatar upload | Multipart upload endpoint (inline on edit page, no GET route) | Current |
+| `GET /members/:memberKey/galleries` | Member galleries list | Owner-only list of the member's named galleries with create/edit/delete actions | Current |
+| `GET /members/:memberKey/galleries/new` | Member gallery create | Owner-only new-gallery form | Current |
+| `GET /members/:memberKey/galleries/:id/edit` | Member gallery edit | Owner-only edit form for a member-owned gallery | Current |
 | `GET /members/:memberKey/:section` | Member account stub | Placeholder pages for future account subsections | Current |
 | `GET /history` | Historical players redirect | 301 redirect to `/members` | Current |
 | `GET /history/:personId` | Historical player detail | Historical person competitive record detail | Current |
@@ -491,7 +495,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `POST /history/:personId/claim/confirm` | HP claim execution | Direct HP claim handler; sets `members.historical_person_id` and transitively claims the linked `legacy_members` row when present | Current |
 | `GET /clubs` | Clubs index | Country-grouped clubs directory entry page | Current |
 | `GET /clubs/:key` | Clubs shared handler | Dispatches to country page or club detail | Current |
-| `GET /media` | Media hub | Public hub listing FH-owned named-gallery URL bookmarks, with name, description, item count, and criteria-tag pills per card | Current |
+| `GET /media` | Media hub | Public hub listing every named-gallery URL bookmark with owner attribution, name, description, item count, and criteria-tag pills per card | Current |
 | `GET /media/:galleryId` | Named gallery | Single named-gallery page, items computed at request time by tag-AND match against the gallery's criteria-tag set, paginated reverse-chronologically | Current |
 | `GET /login` | Login | Member login | Current |
 | `GET /register` | Register | Member registration | Current |
@@ -534,6 +538,7 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /members/:memberKey` is the canonical current-slice member profile route. It serves the owner's profile when authenticated as that member, and it may serve a limited public read-only profile for HoF/BAP members.
 - `GET /members/:memberKey/edit` is the current-slice member profile edit page.
 - `POST /members/:memberKey/avatar` is the multipart avatar upload endpoint; there is no GET route (upload is inline on the edit page).
+- `GET /members/:memberKey/galleries` is the owner-only list of the member's named galleries (create / edit / delete actions). Slug mismatch returns 404 (anti-enumeration), matching the rest of the `/members/:memberKey/` block. `GET /members/:memberKey/galleries/new` and `GET /members/:memberKey/galleries/:id/edit` render the create and edit forms; `POST /members/:memberKey/galleries`, `POST /members/:memberKey/galleries/:id/edit`, and `POST /members/:memberKey/galleries/:id/delete` are form-action handlers and are not cataloged separately. Service-layer authz (admin OR owner) is the source of truth for write authorization; the route layer's slug check exists for anti-enumeration parity.
 - `GET /members/:memberKey/:section` is the current-slice account stub-page route for explicitly supported account sections.
 - `GET /history` permanently redirects to `/members`.
 - `GET /history/:personId` is the historical person detail route.
@@ -542,8 +547,8 @@ Visual token baseline (from `src/public/css/style.css`):
 - `POST /history/claim/confirm` is the claim merge confirmation handler.
 - `GET /clubs` is the canonical clubs section entry route.
 - `GET /clubs/:key` is the shared Express handler for both the country page and the club detail page. The controller dispatches by prefix: a key beginning with `club_` routes to the club detail handler; any other key routes to the country page handler. Public country URLs take the form `/clubs/{countryKey}`. Public club URLs take the form `/clubs/{clubKey}` where `clubKey` matches the `club_...` standard form.
-- `GET /media` is the canonical public media hub. It lists named-gallery URL bookmarks owned by the system member (`is_system = 1`); each card shows the gallery name, description, item count, and the gallery's criteria-tag pills. Member-owned galleries do not appear on the hub.
-- `GET /media/:galleryId` is the canonical named-gallery page. Items are computed at request time by tag-AND match against `member_gallery_tags` minus any item carrying a tag in `member_gallery_exclude_tags`, filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`, ordered per the gallery's `sort_order` (default `upload_desc`), paginated by `?page=N` (invalid values clamp to 1). Unknown or member-owned `galleryId` values return 404 (anti-enumeration).
+- `GET /media` is the canonical public media hub. It lists every named-gallery URL bookmark (FH-owned and member-owned), ordered FH first then alphabetically by name; each card shows the gallery name, description, item count, the gallery's criteria-tag pills, and the owner's display name. FH-owned cards render the owner as plain text ("Curated by Footbag Hacky"); member-owned cards render the owner display name (no link inside the card to avoid nesting anchors).
+- `GET /media/:galleryId` is the canonical named-gallery page. Items are computed at request time by tag-AND match against `member_gallery_tags` minus any item carrying a tag in `member_gallery_exclude_tags`, filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`, ordered per the gallery's `sort_order` (default `upload_desc`), paginated by `?page=N` (invalid values clamp to 1). The hero renders owner attribution; for member-owned galleries the owner display name links to `/members/{owner.slug}`. Unknown `galleryId` values return 404.
 - `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
 - `GET /register` is the member registration route. `POST /register` is its form-action handler and is not a separate cataloged page.
 - `GET /register/check-email` is the generic post-registration and post-resend landing. It never reveals whether an account exists for a given address.
@@ -1691,7 +1696,7 @@ Not applicable. Legal content is static and always present.
 
 ### 6.21 Media galleries
 
-The public media surface is a two-page composition: a hub at `/media` that lists FH-owned named-gallery URL bookmarks, and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set, minus any item carrying a tag in the gallery's exclude-tag set. Named-gallery bookmarks are `member_galleries` rows owned by the system member; per-bookmark URLs follow the `gallery_<descriptive_slug>` convention. Item ordering follows the gallery's `sort_order` field.
+The public media surface is a two-page composition: a hub at `/media` that lists every named-gallery URL bookmark (FH-owned and member-owned), and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set, minus any item carrying a tag in the gallery's exclude-tag set. Named-gallery bookmarks are `member_galleries` rows; FH-owned bookmarks (system member) keep the `gallery_<descriptive_slug>` URL convention, member-owned use `gallery_m_<random>`. Each surface (hub card, gallery hero) renders owner attribution. Item ordering follows the gallery's `sort_order` field.
 
 ### Audience
 
@@ -1705,9 +1710,9 @@ Both pages consume the generic public rendering standard and the §4.2 page cont
 
 **Page intent**
 
-- surface every FH-owned named-gallery URL bookmark as an entry point
-- communicate each bookmark's identity (name, description) and scope (criteria-tag set, item count)
-- exclude member-owned galleries from the public hub
+- surface every named-gallery URL bookmark (FH-owned and member-owned) as an entry point
+- communicate each bookmark's identity (name, description, owner) and scope (criteria-tag set, item count)
+- order FH-owned bookmarks before member-owned, then alphabetically by name within each cohort
 
 **Required content**
 
@@ -1722,12 +1727,13 @@ Both pages consume the generic public rendering standard and the §4.2 page cont
 - `page.title`
 - `page.intro`
 - `content.galleries[]`
-  - `id` — bookmark slug (e.g., `gallery_curated_freestyle_tricks`)
+  - `id` — bookmark slug (e.g., `gallery_curated_freestyle_tricks` for FH-owned, `gallery_m_<random>` for member-owned)
   - `name`
   - `description`
   - `itemCount` — service-computed via tag-AND match against `member_gallery_tags` minus items carrying any tag in `member_gallery_exclude_tags`
   - `criteriaTags[]` — `tag_display` values from `member_gallery_tags`
   - `href` — `/media/{id}`
+  - `owner` — `{ displayName, slug, isSystem }`; `isSystem = true` for FH-owned, false for member-owned
 
 **Navigation outputs**
 
@@ -1735,7 +1741,7 @@ Each card links to the corresponding `/media/{id}` named-gallery page.
 
 **Empty state**
 
-Render the standard empty state ("No galleries yet.") when no FH-owned bookmarks exist.
+Render the standard empty state ("No galleries yet.") when no bookmarks exist.
 
 #### Named gallery at `GET /media/:galleryId`
 
@@ -1762,6 +1768,7 @@ Render the standard empty state ("No galleries yet.") when no FH-owned bookmarks
 - `content.gallery`
   - `id`, `name`, `description`
   - `criteriaTags[]` — `tag_display` values from `member_gallery_tags`
+  - `owner` — `{ displayName, slug, isSystem }`; the hero links to `/members/{owner.slug}` for member-owned galleries and renders plain text for FH-owned
 - `content.items[]`
   - `mediaId`
   - `mediaType` — `photo` or `video`
@@ -1787,9 +1794,101 @@ Render the standard empty state ("No media yet.") when the criteria-tag set matc
 **Implementation notes**
 
 - Source rows are filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`. Curator URL-reference content is detached (`gallery_id IS NULL`) and surfaces in named galleries purely via tag-AND match.
-- Unknown or member-owned `galleryId` values return 404 (anti-enumeration); the public hub never lists member-owned galleries.
+- Unknown `galleryId` values return 404. Member-owned galleries are public; the hub lists them with owner attribution alongside FH-owned bookmarks.
 - Query parameter `?page=N` selects the page (invalid values clamp to 1).
 - Caption text is HTML-escaped at render time; item tag chips do not link to per-tag pages in this slice.
+
+---
+
+### 6.22 Member gallery management
+
+The owner-only surface for managing a member's own named galleries. Distinct from §6.21 (the public read surface): these pages are auth-gated and render only when `req.user.slug === req.params.memberKey`. Slug mismatch returns 404 (anti-enumeration), matching the rest of the `/members/:memberKey/` block.
+
+### Audience
+
+Authenticated owner of the profile.
+
+### Standard relationship
+
+The list, new, and edit pages consume the generic public rendering standard and the §4.2 page contract. The new and edit forms reuse the shared `partials/gallery-edit-form.hbs` partial used by the admin curator gallery edit page; the partial takes a controller-supplied `formAction` so the same fields back both surfaces.
+
+#### List at `GET /members/:memberKey/galleries`
+
+**Page intent**
+
+- show the member their own gallery inventory with name, description, sort order, criteria-tag set, exclude-tag set, and item count
+- offer per-row Edit / View / Delete affordances and a top-level "Create new gallery" link
+- 404 (anti-enumeration) when the authenticated user is not the profile owner
+
+**Required content**
+
+- title and intro
+- "Create new gallery" link
+- table of galleries (or empty state) with name, description, sort order, criteria tags, exclude tags, item count, and per-row Edit / View / Delete
+
+**Required view-model fields**
+
+- `seo.title = My Galleries`
+- `page.sectionKey = members`
+- `page.pageKey = member_galleries_list`
+- `page.title`
+- `content.galleries[]`
+  - `id`, `name`, `description`, `sortOrder`
+  - `criteriaTags[]`, `excludeTags[]`
+  - `itemCount`
+  - `editHref` — `/members/{memberKey}/galleries/{id}/edit`
+  - `deleteHref` — `/members/{memberKey}/galleries/{id}/delete`
+- `content.newGalleryHref` — `/members/{memberKey}/galleries/new`
+- `content.savedFlag` — `'create' | 'edit' | 'delete' | null` (drives the success banner)
+
+**Empty state**
+
+Render "You haven't created any galleries yet." when `content.galleries[]` is empty.
+
+#### New at `GET /members/:memberKey/galleries/new`
+
+**Page intent**
+
+- render an empty form for a new gallery owned by the authenticated member
+- form posts to `POST /members/:memberKey/galleries`
+
+**Required content**
+
+- the shared `gallery-edit-form` partial with empty fields and submit label "Create gallery"
+
+**Required view-model fields**
+
+- `seo.title = Create Gallery`
+- `page.sectionKey = members`, `page.pageKey = member_galleries_new`
+- `formAction` — `/members/{memberKey}/galleries`
+- `gallery` — empty placeholders (`name=''`, `description=''`, `sortOrder='upload_desc'`, `criteriaTagsString=''`, `excludeTagsString=''`)
+- `cancelHref` — `/members/{memberKey}/galleries`
+
+#### Edit at `GET /members/:memberKey/galleries/:id/edit`
+
+**Page intent**
+
+- render the shared edit form pre-populated with the current gallery's fields
+- form posts to `POST /members/:memberKey/galleries/:id/edit`
+- 404 when the gallery does not exist OR is not owned by the authenticated member (anti-enumeration parity with the list page)
+
+**Required content**
+
+- the shared `gallery-edit-form` partial with current values
+
+**Required view-model fields**
+
+- `seo.title = Edit Gallery`
+- `page.sectionKey = members`, `page.pageKey = member_galleries_edit`
+- `formAction` — `/members/{memberKey}/galleries/{id}/edit`
+- `gallery` — `{ id, name, description, sortOrder, criteriaTagsString, excludeTagsString }`
+- `cancelHref` — `/members/{memberKey}/galleries`
+
+**Implementation notes**
+
+- The state-changing verbs are `POST /members/:memberKey/galleries`, `POST /members/:memberKey/galleries/:id/edit`, and `POST /members/:memberKey/galleries/:id/delete`. They are form-action handlers and are not cataloged separately; CSRF protection comes from the SameSite=Lax session cookie + `requireAuth`, not from a per-form token.
+- Service-layer authorization (admin OR owner) is the source of truth for write authorization; the route's slug check exists for anti-enumeration parity. A forged `ownerMemberId` in the request body is ignored: the controller takes the owner from the session.
+- A `ValidationError` (including authz failures and shape violations) renders the form re-populated with the user's input and a 422 status. `ConflictError` (UNIQUE owner+name on create) renders the form with the conflict message at 422.
 
 ---
 

@@ -1,0 +1,64 @@
+{{!-- Member's own named-gallery list. Owner-only view. --}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+  <p>
+    Named galleries you've created. Each gallery is a tag-criteria URL bookmark on
+    <code>/media/&lt;id&gt;</code>; an item appears in the gallery iff it carries every
+    criteria tag you specify and no exclude tag.
+  </p>
+
+  <p>
+    <a href="{{content.newGalleryHref}}" class="btn btn-primary">Create new gallery</a>
+  </p>
+
+  {{#if content.savedFlag}}
+    <div class="form-success-banner" role="status">Saved.</div>
+  {{/if}}
+
+  {{#if content.galleries.length}}
+    <table class="curator-list">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Sort order</th>
+          <th>Criteria tags</th>
+          <th>Exclude tags</th>
+          <th>Items</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.galleries}}
+          <tr>
+            <td>{{name}}</td>
+            <td>{{description}}</td>
+            <td><code>{{sortOrder}}</code></td>
+            <td>
+              {{#each criteriaTags}}
+                <code class="tag-chip">{{this}}</code>
+              {{/each}}
+            </td>
+            <td>
+              {{#each excludeTags}}
+                <code class="tag-chip">{{this}}</code>
+              {{else}}
+                <span class="text-muted">(none)</span>
+              {{/each}}
+            </td>
+            <td>{{itemCount}}</td>
+            <td>
+              <a href="{{editHref}}">Edit</a>
+              <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
+              <form method="POST" action="{{deleteHref}}" class="inline-form" onsubmit="return confirm('Delete this gallery? This cannot be undone.');">
+                <button type="submit" class="btn-link-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  {{else}}
+    <p class="empty-state">You haven't created any galleries yet.</p>
+  {{/if}}
+</div>

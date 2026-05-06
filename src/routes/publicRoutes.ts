@@ -5,6 +5,7 @@ import { mediaController } from '../controllers/mediaController';
 import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
+import { memberGalleryController } from '../controllers/memberGalleryController';
 import { claimController } from '../controllers/claimController';
 import { authController } from '../controllers/authController';
 import { hofController } from '../controllers/hofController';
@@ -83,7 +84,8 @@ publicRouter.get('/history/:personId',   historyController.detail);
 
 // IMPORTANT: /members/:memberKey/edit and /members/:memberKey/avatar must be
 // registered before /members/:memberKey/:section so literal segments are not
-// captured as :section.
+// captured as :section. The /members/:memberKey/galleries/* tree must
+// also precede the catch-all so "galleries" is not captured as :section.
 publicRouter.get('/members',                       memberController.landing);
 publicRouter.get('/members/:memberKey',             memberController.getProfile);
 publicRouter.get('/members/:memberKey/edit',          requireAuth, memberController.getProfileEdit);
@@ -91,6 +93,19 @@ publicRouter.post('/members/:memberKey/edit',         requireAuth, memberControl
 publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
+
+// Owner-only named-gallery management. Order matters: literal `new`
+// must precede `:id`; literal `edit`/`delete` sub-paths sit at a deeper
+// level than `:id` so are unambiguous, but registering them explicitly
+// keeps intent clear. All routes 404 (anti-enumeration) when the
+// authenticated user's slug does not match :memberKey.
+publicRouter.get('/members/:memberKey/galleries',                requireAuth, memberGalleryController.getList);
+publicRouter.get('/members/:memberKey/galleries/new',            requireAuth, memberGalleryController.getNew);
+publicRouter.post('/members/:memberKey/galleries',               requireAuth, memberGalleryController.postCreate);
+publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireAuth, memberGalleryController.getEdit);
+publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireAuth, memberGalleryController.postUpdate);
+publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, memberGalleryController.postDelete);
+
 publicRouter.get('/members/:memberKey/:section',      requireAuth, memberController.getStub);
 
 publicRouter.get('/legal',      legalController.index);

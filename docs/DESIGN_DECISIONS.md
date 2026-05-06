@@ -592,7 +592,7 @@ Trade-offs:
 
 - Operator must re-run the seeder after committing curator changes to see the full DB state on systems where the inline update did not run (for example, a freshly cloned environment, a different host). The admin UI surfaces this with a banner.
 
-- Two sidecar shapes coexist: file-paired sidecars (sibling of a photo or video binary) and URL-reference sidecars (standalone, no binary). Both are validated by the seeder; the application library `src/lib/curatorUrlSidecar.ts` owns URL-reference I/O.
+- Three sidecar shapes coexist: file-paired sidecars (sibling of a photo or video binary), URL-reference sidecars (standalone, no binary), and gallery sidecars (standalone, declare a `member_galleries` row plus its criteria-tag and exclude-tag sets, one file per gallery under `/curated/galleries/`). All three are validated by the seeder; `src/lib/curatorUrlSidecar.ts` owns URL-reference sidecar I/O and `src/lib/curatorGallerySidecar.ts` owns gallery sidecar I/O.
 
 Impact:
 

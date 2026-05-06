@@ -1,0 +1,14 @@
+{
+  "id": "gallery_curated_freestyle_tricks",
+  "name": "Curated Freestyle Tricks",
+  "description": "Reference videos for freestyle footbag tricks, curated by the IFPA.",
+  "sortOrder": "upload_desc",
+  "criteriaTags": [
+    "#curated",
+    "#freestyle",
+    "#trick"
+  ],
+  "excludeTags": [
+    "#tricks_of_the_trade"
+  ]
+}

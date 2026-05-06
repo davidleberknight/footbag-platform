@@ -1,18 +1,22 @@
 /**
- * Integration tests for the admin curator named-gallery list/edit routes.
+ * Integration tests for the admin curator named-gallery list/edit/create/delete routes.
  *
  * Covers:
  *   GET    /admin/curator/galleries              (list FH-owned galleries)
+ *   GET    /admin/curator/galleries/new          (new-gallery form)
+ *   POST   /admin/curator/galleries              (create FH-owned gallery + sidecar)
  *   GET    /admin/curator/galleries/:id/edit     (render edit form)
  *   POST   /admin/curator/galleries/:id/edit     (apply name/description/
  *                                                  sort_order/criteria/exclude)
+ *   POST   /admin/curator/galleries/:id/delete   (delete FH-owned gallery + sidecar)
  *
  * Auth: admin only. Member or unauthenticated requests redirect to /login or
  * receive 403 (matches the existing /admin/curator/media gates).
  *
- * Validation lives in the service (curatorMediaService.updateGallery). The
- * controller is HTTP glue: it parses the body, calls the service, and
- * translates ValidationError to 422 / NotFoundError to 404.
+ * Validation lives in the service (curatorMediaService.updateGallery /
+ * createGallery / deleteGallery). The controller is HTTP glue: it parses
+ * the body, calls the service, and translates ValidationError/ConflictError
+ * to 422, NotFoundError to 404.
  */
 import fs from 'fs';
 import path from 'path';
@@ -34,6 +38,12 @@ import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+
+// FH-owned gallery edits via POST /admin/curator/galleries/:id/edit now
+// write a JSON sidecar to /curated/galleries/<slug>.json after the DB
+// transaction commits. Redirect that write to a per-run temp dir so
+// the suite never mutates the repo's real /curated/ tree.
+let CURATED_TMP_ROOT: string;
 
 const ADMIN_ID    = 'admin-galleries-001';
 const ADMIN_SLUG  = 'galleries_admin';
@@ -114,9 +124,18 @@ beforeAll(async () => {
 
   const mod = await import('../../src/app');
   createApp = mod.createApp;
+
+  CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-galleries-routes-'));
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.setCuratedRootDirForTests(CURATED_TMP_ROOT);
 });
 
-afterAll(() => {
+afterAll(async () => {
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.resetCuratedRootDirForTests();
+  if (CURATED_TMP_ROOT) {
+    fs.rmSync(CURATED_TMP_ROOT, { recursive: true, force: true });
+  }
   for (const ext of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
   }
@@ -333,6 +352,234 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
         criteriaTags: '#curated',
         excludeTags: '',
       });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('GET /admin/curator/galleries/new', () => {
+  it('renders the new-gallery form with the slug prefix and an empty body', async () => {
+    const res = await request(createApp())
+      .get('/admin/curator/galleries/new')
+      .set('Cookie', adminCookie());
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('name="idSlug"');
+    expect(res.text).toContain('gallery_');
+    expect(res.text).toContain('name="name"');
+    expect(res.text).toContain('name="criteriaTags"');
+    expect(res.text).toMatch(/action="\/admin\/curator\/galleries"/);
+  });
+
+  it('redirects unauthenticated requests to login', async () => {
+    const res = await request(createApp()).get('/admin/curator/galleries/new');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/login/);
+  });
+
+  it('rejects authed-but-not-admin requests with 403', async () => {
+    const res = await request(createApp())
+      .get('/admin/curator/galleries/new')
+      .set('Cookie', memberCookie());
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /admin/curator/galleries (create)', () => {
+  it('creates an FH-owned gallery, redirects to ?saved=create, and writes the JSON sidecar', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'created_via_admin_ui',
+        name: 'Created Via Admin UI',
+        description: 'Smoke test gallery',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle #created',
+        excludeTags: '',
+      });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/admin/curator/galleries?saved=create');
+
+    const list = await request(app)
+      .get('/admin/curator/galleries')
+      .set('Cookie', adminCookie());
+    expect(list.text).toContain('gallery_created_via_admin_ui');
+    expect(list.text).toContain('Created Via Admin UI');
+
+    const sidecarPath = path.join(CURATED_TMP_ROOT, 'galleries', 'created_via_admin_ui.json');
+    expect(fs.existsSync(sidecarPath)).toBe(true);
+    const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'));
+    expect(sidecar).toMatchObject({
+      id: 'gallery_created_via_admin_ui',
+      name: 'Created Via Admin UI',
+      description: 'Smoke test gallery',
+      sortOrder: 'upload_desc',
+      criteriaTags: ['#freestyle', '#created'],
+      excludeTags: [],
+    });
+  });
+
+  it('rejects empty slug with 422 (suggestedId fails service-side regex)', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: '',
+        name: 'Whatever',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/suggestedId|gallery_\[a-z0-9_\]\+/);
+  });
+
+  it('rejects empty name with 422', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'name_check',
+        name: '   ',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/name is required/i);
+  });
+
+  it('rejects empty criteria-tag set with 422', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'no_tags',
+        name: 'No Tags',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '   ',
+        excludeTags: '',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/at least one criteria tag/i);
+  });
+
+  it('rejects invalid sortOrder with 422', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'bad_sort',
+        name: 'Bad Sort',
+        description: '',
+        sortOrder: 'random_garbage',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/sort order/i);
+  });
+
+  it('rejects duplicate gallery id with 422 (ConflictError)', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'test_alpha',
+        name: 'Alpha Duplicate Attempt',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    expect(res.status).toBe(422);
+  });
+
+  it('redirects unauthenticated requests to login', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries')
+      .type('form')
+      .send({ idSlug: 'unauth', name: 'X', sortOrder: 'upload_desc', criteriaTags: '#x' });
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/login/);
+  });
+
+  it('rejects authed-but-not-admin POSTs with 403', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send({ idSlug: 'member_attempt', name: 'X', sortOrder: 'upload_desc', criteriaTags: '#x' });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /admin/curator/galleries/:id/delete', () => {
+  it('deletes the gallery + sidecar and redirects to ?saved=delete', async () => {
+    const app = createApp();
+
+    // Create a one-shot target so this test is independent of the others.
+    const create = await request(app)
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'delete_target',
+        name: 'Delete Target',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    expect(create.status).toBe(302);
+
+    const sidecarPath = path.join(CURATED_TMP_ROOT, 'galleries', 'delete_target.json');
+    expect(fs.existsSync(sidecarPath)).toBe(true);
+
+    const del = await request(app)
+      .post('/admin/curator/galleries/gallery_delete_target/delete')
+      .set('Cookie', adminCookie());
+    expect(del.status).toBe(302);
+    expect(del.headers.location).toBe('/admin/curator/galleries?saved=delete');
+
+    expect(fs.existsSync(sidecarPath)).toBe(false);
+
+    const list = await request(app)
+      .get('/admin/curator/galleries')
+      .set('Cookie', adminCookie());
+    expect(list.text).not.toContain('gallery_delete_target');
+  });
+
+  it('returns 404 for an unknown gallery id', async () => {
+    const res = await request(createApp())
+      .post('/admin/curator/galleries/gallery_does_not_exist/delete')
+      .set('Cookie', adminCookie());
+    expect(res.status).toBe(404);
+  });
+
+  it('redirects unauthenticated requests to login', async () => {
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${GALLERY_A}/delete`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/\/login/);
+  });
+
+  it('rejects authed-but-not-admin POSTs with 403', async () => {
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${GALLERY_A}/delete`)
+      .set('Cookie', memberCookie());
     expect(res.status).toBe(403);
   });
 });

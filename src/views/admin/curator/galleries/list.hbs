@@ -4,21 +4,26 @@
   <p>
     Public named galleries owned by the FH/curator system account. Membership is computed
     at request time by tag-AND match against each gallery's criteria-tag set, minus any
-    item that carries an exclude tag. Edit the metadata, sort order, or tag sets below.
+    item that carries an exclude tag.
   </p>
   <p>
-    New galleries are added via <code>scripts/seed_fh_curator.py</code> (FH_NAMED_GALLERIES);
-    deletion is not currently supported through this UX.
+    Edit metadata, sort order, or tag sets below. Use the Create button to add a new
+    gallery; the Delete action in the row removes both the DB row and the JSON sidecar
+    at <code>/curated/galleries/&lt;slug&gt;.json</code>.
+  </p>
+
+  <p>
+    <a href="/admin/curator/galleries/new" class="btn btn-primary">Create new gallery</a>
   </p>
 
   {{#if savedFlag}}
-    <div class="success-banner" role="status">
+    <div class="form-success-banner" role="status">
       Saved.
     </div>
   {{/if}}
 
   {{#if emptyState}}
-    <p class="empty-state">No FH-owned named galleries yet. Run <code>python scripts/seed_fh_curator.py</code> to bootstrap.</p>
+    <p class="empty-state">No FH-owned named galleries yet. Use the Create button above, or run <code>python scripts/seed_fh_curator.py</code> to bootstrap from <code>/curated/galleries/*.json</code>.</p>
   {{else}}
     <table class="curator-list">
       <thead>
@@ -56,6 +61,9 @@
             <td>
               <a href="/admin/curator/galleries/{{id}}/edit">Edit</a>
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
+              <form method="POST" action="/admin/curator/galleries/{{id}}/delete" class="inline-form" onsubmit="return confirm('Delete gallery {{id}}? This removes both the DB row and the JSON sidecar at /curated/galleries/&lt;slug&gt;.json on disk.');">
+                <button type="submit" class="btn-link-danger">Delete</button>
+              </form>
             </td>
           </tr>
         {{/each}}

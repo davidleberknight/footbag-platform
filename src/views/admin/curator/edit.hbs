@@ -3,13 +3,13 @@
   <h1>{{page.title}}</h1>
 
   {{#if notFound}}
-    <p class="error-banner" role="alert">
+    <p class="form-error-banner" role="alert">
       No curator media item with id <code>{{mediaId}}</code> exists.
     </p>
     <p><a href="/admin/curator/media">Back to list</a></p>
   {{else}}
     {{#if errorMessage}}
-      <div class="error-banner" role="alert">{{errorMessage}}</div>
+      <div class="form-error-banner" role="alert">{{errorMessage}}</div>
     {{/if}}
 
     {{#if media.thumbnailUrl}}

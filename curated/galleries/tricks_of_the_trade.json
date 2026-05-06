@@ -1,0 +1,11 @@
+{
+  "id": "gallery_tricks_of_the_trade",
+  "name": "Tricks of the Trade",
+  "description": "Tricks of the Trade was a smash hit back in the day: Kenny Shults' Tutorial video series. Each video teaches one freestyle footbag trick.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#tricks_of_the_trade"
+  ],
+  "excludeTags": []
+}

@@ -15,6 +15,7 @@ import os from 'os';
 import type { MediaStorageAdapter } from '../../src/adapters/mediaStorageAdapter';
 import type { ImageProcessingAdapter } from '../../src/adapters/imageProcessingAdapter';
 import type { TranscodedVideo } from '../../src/lib/videoProcessing';
+import { formatGallerySidecarJson } from '../../src/lib/curatorGallerySidecar';
 
 const { dbPath } = setTestEnv('3091');
 
@@ -1290,5 +1291,580 @@ describe('curatorMediaService.listExistingCategories', () => {
       curatedRootDir: tmp,
     });
     expect(await svc.listExistingCategories()).toEqual([]);
+  });
+});
+
+// ── Gallery CRUD tests ──────────────────────────────────────────────────────
+//
+// These exercise the slice 2a service contract: updateGallery generalized
+// for both FH-owned (system member) and member-owned galleries with
+// JSON sidecar write-through for the FH cohort, plus new createGallery/
+// deleteGallery/listGalleriesForOwner methods. The sidecar I/O is
+// redirected to a per-test temp dir so the suite never mutates the
+// repo's real /curated/ tree.
+
+describe('curatorMediaService.updateGallery', () => {
+  it('FH-owned: writes DB metadata + tag sets AND writes a JSON sidecar at /curated/galleries/<slug>.json', async () => {
+    const ts = '2026-04-01T00:00:00Z';
+    const galleryId = 'gallery_upd_fh';
+    const db = openDb();
+    db.prepare(
+      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                     created_at, created_by, updated_at, updated_by, version)
+       VALUES (?, ?, 'Pre Edit', '', 'upload_desc', ?, 'seed', ?, 'seed', 1)`,
+    ).run(galleryId, SYSTEM_ID, ts, ts);
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-fh-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await svc.updateGallery({
+        actorMemberId: ADMIN_ID,
+        actorIsAdmin: true,
+        galleryId,
+        updates: {
+          name: 'After Edit',
+          description: 'Edited description',
+          sortOrder: 'caption_asc',
+          criteriaTags: ['#freestyle', '#trick'],
+          excludeTags: ['#tricks_of_the_trade'],
+        },
+      });
+
+      const db2 = openDb();
+      const row = db2.prepare(`SELECT name, description, sort_order, updated_by FROM member_galleries WHERE id = ?`).get(galleryId) as Record<string, unknown>;
+      expect(row.name).toBe('After Edit');
+      expect(row.description).toBe('Edited description');
+      expect(row.sort_order).toBe('caption_asc');
+      expect(row.updated_by).toBe(ADMIN_ID);
+      const tagRows = db2.prepare(
+        `SELECT t.tag_display FROM member_gallery_tags mgt
+         JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ? ORDER BY t.tag_display`,
+      ).all(galleryId);
+      expect(tagRows).toEqual([{ tag_display: '#freestyle' }, { tag_display: '#trick' }]);
+      db2.close();
+
+      const sidecarPath = path.join(curatedRoot, 'galleries', 'upd_fh.json');
+      const onDisk = await fsp.readFile(sidecarPath, 'utf-8');
+      expect(onDisk).toBe(formatGallerySidecarJson({
+        id: galleryId,
+        name: 'After Edit',
+        description: 'Edited description',
+        sortOrder: 'caption_asc',
+        criteriaTags: ['#freestyle', '#trick'],
+        excludeTags: ['#tricks_of_the_trade'],
+      } as never));
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('member-owned: writes DB only; no sidecar created on disk', async () => {
+    const ts = '2026-04-01T01:00:00Z';
+    const memberId = 'member-gal-upd-m';
+    const galleryId = 'gallery_m_updmember01';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal-upd-m', login_email: 'gal-upd-m@example.com' });
+    db.prepare(
+      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                     created_at, created_by, updated_at, updated_by, version)
+       VALUES (?, ?, 'My Gallery', '', 'upload_desc', ?, ?, ?, ?, 1)`,
+    ).run(galleryId, memberId, ts, memberId, ts, memberId);
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-m-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await svc.updateGallery({
+        actorMemberId: memberId,
+        actorIsAdmin: false,
+        galleryId,
+        updates: {
+          name: 'Renamed',
+          description: '',
+          sortOrder: 'upload_desc',
+          criteriaTags: ['#hashtag1'],
+          excludeTags: [],
+        },
+      });
+
+      const db2 = openDb();
+      const row = db2.prepare(`SELECT name FROM member_galleries WHERE id = ?`).get(galleryId) as Record<string, unknown>;
+      expect(row.name).toBe('Renamed');
+      db2.close();
+
+      // No sidecar written: galleries/ subdir should not exist.
+      await expect(fsp.access(path.join(curatedRoot, 'galleries'))).rejects.toThrow();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a non-admin actor who is not the owner', async () => {
+    const ts = '2026-04-01T02:00:00Z';
+    const ownerId = 'member-gal-upd-owner';
+    const otherId = 'member-gal-upd-other';
+    const galleryId = 'gallery_m_updauthz01';
+    const db = openDb();
+    for (const [id, slug] of [[ownerId, 'gal-upd-own'], [otherId, 'gal-upd-other']] as const) {
+      insertMember(db, { id, slug, login_email: `${slug}@example.com` });
+    }
+    db.prepare(
+      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                     created_at, created_by, updated_at, updated_by, version)
+       VALUES (?, ?, 'Locked', '', 'upload_desc', ?, ?, ?, ?, 1)`,
+    ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-authz-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.updateGallery({
+        actorMemberId: otherId,
+        actorIsAdmin: false,
+        galleryId,
+        updates: { name: 'Hijack', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+      })).rejects.toThrow(/Not authorized/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('admin can edit a member-owned gallery (moderation path)', async () => {
+    const ts = '2026-04-01T03:00:00Z';
+    const ownerId = 'member-gal-upd-admin-mod';
+    const galleryId = 'gallery_m_updmod01';
+    const db = openDb();
+    insertMember(db, { id: ownerId, slug: 'gal-upd-mod', login_email: 'gal-upd-mod@example.com' });
+    db.prepare(
+      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                     created_at, created_by, updated_at, updated_by, version)
+       VALUES (?, ?, 'Member Gallery', '', 'upload_desc', ?, ?, ?, ?, 1)`,
+    ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-admin-mod-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await svc.updateGallery({
+        actorMemberId: ADMIN_ID,
+        actorIsAdmin: true,
+        galleryId,
+        updates: { name: 'Moderated', description: '', sortOrder: 'upload_desc', criteriaTags: ['#m'], excludeTags: [] },
+      });
+      const db2 = openDb();
+      const row = db2.prepare(`SELECT name FROM member_galleries WHERE id = ?`).get(galleryId) as Record<string, unknown>;
+      expect(row.name).toBe('Moderated');
+      db2.close();
+      // Member-owned: no sidecar even when admin is the actor.
+      await expect(fsp.access(path.join(curatedRoot, 'galleries'))).rejects.toThrow();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unknown galleryId with NotFoundError', async () => {
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-upd-404-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.updateGallery({
+        actorMemberId: ADMIN_ID,
+        actorIsAdmin: true,
+        galleryId: 'gallery_does_not_exist_z9',
+        updates: { name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+      })).rejects.toThrow(/not found/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('curatorMediaService.createGallery', () => {
+  it('member-owned: inserts row with owner=actor, id matches gallery_m_*, no sidecar written', async () => {
+    const ts = '2026-04-02T00:00:00Z';
+    const memberId = 'member-gal-create-m';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal-create-m', login_email: 'gal-create-m@example.com' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-m-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      const result = await svc.createGallery({
+        actorMemberId: memberId,
+        actorIsAdmin: false,
+        ownerMemberId: memberId,
+        updates: { name: 'My First', description: 'hi', sortOrder: 'upload_desc', criteriaTags: ['#mine'], excludeTags: [] },
+      });
+      expect(result.id).toMatch(/^gallery_m_[a-f0-9]{12}$/);
+
+      const db2 = openDb();
+      const row = db2.prepare(`SELECT owner_member_id, name FROM member_galleries WHERE id = ?`).get(result.id) as Record<string, unknown>;
+      expect(row.owner_member_id).toBe(memberId);
+      expect(row.name).toBe('My First');
+      db2.close();
+
+      await expect(fsp.access(path.join(curatedRoot, 'galleries'))).rejects.toThrow();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('FH-owned: requires actorIsAdmin, requires suggestedId, writes sidecar', async () => {
+    const galleryId = 'gallery_create_fh';
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-fh-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      const result = await svc.createGallery({
+        actorMemberId: ADMIN_ID,
+        actorIsAdmin: true,
+        ownerMemberId: SYSTEM_ID,
+        suggestedId: galleryId,
+        updates: {
+          name: 'New FH Gallery',
+          description: '',
+          sortOrder: 'upload_desc',
+          criteriaTags: ['#curated', '#x'],
+          excludeTags: [],
+        },
+      });
+      expect(result.id).toBe(galleryId);
+
+      const sidecarPath = path.join(curatedRoot, 'galleries', 'create_fh.json');
+      const onDisk = await fsp.readFile(sidecarPath, 'utf-8');
+      const reformatted = formatGallerySidecarJson({
+        id: galleryId,
+        name: 'New FH Gallery',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: ['#curated', '#x'],
+        excludeTags: [],
+      } as never);
+      expect(onDisk).toBe(reformatted);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects non-admin trying to create FH-owned', async () => {
+    const ts = '2026-04-02T01:00:00Z';
+    const memberId = 'member-gal-create-fh-deny';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal-fh-deny', login_email: 'gal-fh-deny@example.com' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-fh-deny-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.createGallery({
+        actorMemberId: memberId,
+        actorIsAdmin: false,
+        ownerMemberId: SYSTEM_ID,
+        suggestedId: 'gallery_x_y',
+        updates: { name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+      })).rejects.toThrow(/Not authorized to create a gallery for this owner/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects member trying to create on behalf of another member (forged ownerMemberId)', async () => {
+    const ts = '2026-04-02T02:00:00Z';
+    const memberA = 'member-gal-forge-A';
+    const memberB = 'member-gal-forge-B';
+    const db = openDb();
+    for (const [id, slug] of [[memberA, 'gal-fA'], [memberB, 'gal-fB']] as const) {
+      insertMember(db, { id, slug, login_email: `${slug}@example.com` });
+    }
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-forge-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.createGallery({
+        actorMemberId: memberA,
+        actorIsAdmin: false,
+        ownerMemberId: memberB,
+        updates: { name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+      })).rejects.toThrow(/Not authorized/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects FH-owned creation without suggestedId', async () => {
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-fh-noid-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.createGallery({
+        actorMemberId: ADMIN_ID,
+        actorIsAdmin: true,
+        ownerMemberId: SYSTEM_ID,
+        updates: { name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: ['#x'], excludeTags: [] },
+      })).rejects.toThrow(/suggestedId/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses validateGalleryUpdates: rejects empty criteria, oversize name, etc.', async () => {
+    const ts = '2026-04-02T03:00:00Z';
+    const memberId = 'member-gal-create-validate';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal-validate', login_email: 'gal-validate@example.com' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-validate-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.createGallery({
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        updates: { name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: [], excludeTags: [] },
+      })).rejects.toThrow(/at least one criteria tag/);
+      await expect(svc.createGallery({
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        updates: { name: 'x'.repeat(151), description: '', sortOrder: 'upload_desc', criteriaTags: ['#a'], excludeTags: [] },
+      })).rejects.toThrow(/Gallery name must be 150/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('maps UNIQUE(owner, name) violation to ConflictError', async () => {
+    const ts = '2026-04-02T04:00:00Z';
+    const memberId = 'member-gal-conflict';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal-conflict', login_email: 'gal-conflict@example.com' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-conflict-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      const first = await svc.createGallery({
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        updates: { name: 'Same Name', description: '', sortOrder: 'upload_desc', criteriaTags: ['#a'], excludeTags: [] },
+      });
+      expect(first.id).toMatch(/^gallery_m_/);
+      await expect(svc.createGallery({
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        updates: { name: 'Same Name', description: '', sortOrder: 'upload_desc', criteriaTags: ['#b'], excludeTags: [] },
+      })).rejects.toThrow(/already exists for this owner/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('curatorMediaService.deleteGallery', () => {
+  it('FH-owned: deletes DB row, cascades tag rows, removes JSON sidecar', async () => {
+    const ts = '2026-04-03T00:00:00Z';
+    const galleryId = 'gallery_del_fh';
+    const db = openDb();
+    db.prepare(
+      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                     created_at, created_by, updated_at, updated_by, version)
+       VALUES (?, ?, 'Del FH', '', 'upload_desc', ?, 'seed', ?, 'seed', 1)`,
+    ).run(galleryId, SYSTEM_ID, ts, ts);
+    // Seed a tag link to verify cascade.
+    const tagId = `tag_del_fh_${Date.now()}`;
+    db.prepare(
+      `INSERT INTO tags (id, created_at, created_by, updated_at, updated_by, version,
+                         tag_normalized, tag_display, is_standard, standard_type)
+       VALUES (?, ?, 'seed', ?, 'seed', 1, '#del_fh', '#del_fh', 0, NULL)`,
+    ).run(tagId, ts, ts);
+    db.prepare(
+      `INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by) VALUES (?, ?, ?, 'seed')`,
+    ).run(galleryId, tagId, ts);
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-fh-'));
+    // Pre-create a sidecar to verify it gets unlinked.
+    await fsp.mkdir(path.join(curatedRoot, 'galleries'), { recursive: true });
+    await fsp.writeFile(path.join(curatedRoot, 'galleries', 'del_fh.json'), '{}');
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await svc.deleteGallery({ actorMemberId: ADMIN_ID, actorIsAdmin: true, galleryId });
+
+      const db2 = openDb();
+      expect(db2.prepare(`SELECT id FROM member_galleries WHERE id = ?`).get(galleryId)).toBeUndefined();
+      expect(db2.prepare(`SELECT gallery_id FROM member_gallery_tags WHERE gallery_id = ?`).get(galleryId)).toBeUndefined();
+      db2.close();
+
+      await expect(fsp.access(path.join(curatedRoot, 'galleries', 'del_fh.json'))).rejects.toThrow();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('member-owned: deletes DB row, cascades tags, does not touch disk', async () => {
+    const ts = '2026-04-03T01:00:00Z';
+    const memberId = 'member-gal-del-m';
+    const galleryId = 'gallery_m_delmember01';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal-del-m', login_email: 'gal-del-m@example.com' });
+    db.prepare(
+      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                     created_at, created_by, updated_at, updated_by, version)
+       VALUES (?, ?, 'Del Mine', '', 'upload_desc', ?, ?, ?, ?, 1)`,
+    ).run(galleryId, memberId, ts, memberId, ts, memberId);
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-m-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await svc.deleteGallery({ actorMemberId: memberId, actorIsAdmin: false, galleryId });
+
+      const db2 = openDb();
+      expect(db2.prepare(`SELECT id FROM member_galleries WHERE id = ?`).get(galleryId)).toBeUndefined();
+      db2.close();
+
+      await expect(fsp.access(path.join(curatedRoot, 'galleries'))).rejects.toThrow();
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects unknown gallery with NotFoundError', async () => {
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-404-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.deleteGallery({
+        actorMemberId: ADMIN_ID, actorIsAdmin: true, galleryId: 'gallery_does_not_exist_z9_del',
+      })).rejects.toThrow(/not found/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects non-admin non-owner', async () => {
+    const ts = '2026-04-03T02:00:00Z';
+    const ownerId = 'member-gal-del-authz-owner';
+    const otherId = 'member-gal-del-authz-other';
+    const galleryId = 'gallery_m_delauthz01';
+    const db = openDb();
+    for (const [id, slug] of [[ownerId, 'gal-del-own'], [otherId, 'gal-del-other']] as const) {
+      insertMember(db, { id, slug, login_email: `${slug}@example.com` });
+    }
+    db.prepare(
+      `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                     created_at, created_by, updated_at, updated_by, version)
+       VALUES (?, ?, 'Locked', '', 'upload_desc', ?, ?, ?, ?, 1)`,
+    ).run(galleryId, ownerId, ts, ownerId, ts, ownerId);
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-del-authz-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      await expect(svc.deleteGallery({
+        actorMemberId: otherId, actorIsAdmin: false, galleryId,
+      })).rejects.toThrow(/Not authorized/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('curatorMediaService.listGalleriesForOwner', () => {
+  it('returns only the requested member\'s galleries with itemCount', async () => {
+    const ts = '2026-04-04T00:00:00Z';
+    const memberId = 'member-gal-list-owner';
+    const galleryId = 'gallery_m_listowner01';
+    const otherGalleryId = 'gallery_m_listowner02';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal-list-owner', login_email: 'gal-list-owner@example.com' });
+    for (const [id, name] of [[galleryId, 'Bravo'], [otherGalleryId, 'Alpha']] as const) {
+      db.prepare(
+        `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
+                                       created_at, created_by, updated_at, updated_by, version)
+         VALUES (?, ?, ?, '', 'upload_desc', ?, ?, ?, ?, 1)`,
+      ).run(id, memberId, name, ts, memberId, ts, memberId);
+    }
+    db.close();
+
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+    });
+    const out = svc.listGalleriesForOwner(memberId);
+    expect(out).toHaveLength(2);
+    // Sorted by name.
+    expect(out[0].name).toBe('Alpha');
+    expect(out[1].name).toBe('Bravo');
+    for (const g of out) {
+      expect(g.itemCount).toBe(0);
+      expect(g.criteriaTags).toEqual([]);
+    }
+  });
+
+  it('returns [] for a member with no galleries', async () => {
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+    });
+    expect(svc.listGalleriesForOwner('nobody-with-galleries')).toEqual([]);
   });
 });

@@ -248,11 +248,24 @@ describe('GET /media (hub)', () => {
     expect(res.text).toMatch(/-\s*Excluding tag:\s*#unranked/);
   });
 
-  it('does not list member-owned galleries on the public hub', async () => {
+  it('lists member-owned galleries on the public hub with owner attribution', async () => {
     const app = createApp();
     const res = await request(app).get('/media');
-    expect(res.text).not.toContain('Personal Vacation 2026');
-    expect(res.text).not.toContain(`href="/media/${MEMBER_GALLERY_ID}"`);
+    expect(res.text).toContain('Personal Vacation 2026');
+    expect(res.text).toContain(`href="/media/${MEMBER_GALLERY_ID}"`);
+    // Owner attribution is rendered on every card.
+    expect(res.text).toContain('Curated by Footbag Hacky');
+    expect(res.text).toContain('Curated by Regular Member');
+  });
+
+  it('orders FH-owned galleries before member-owned galleries on the hub', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media');
+    const fhIdx = res.text.indexOf('Curated Freestyle Tricks');
+    const memberIdx = res.text.indexOf('Personal Vacation 2026');
+    expect(fhIdx).toBeGreaterThan(-1);
+    expect(memberIdx).toBeGreaterThan(-1);
+    expect(fhIdx).toBeLessThan(memberIdx);
   });
 });
 
@@ -525,12 +538,29 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for a member-owned gallery (anti-enumeration)', async () => {
+  it('renders a member-owned gallery publicly with owner-link attribution in the hero', async () => {
     const app = createApp();
     const res = await request(app).get(`/media/${MEMBER_GALLERY_ID}`);
-    expect(res.status).toBe(404);
-    // The member-owned name must not leak in the body.
-    expect(res.text).not.toContain('Personal Vacation 2026');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Named Gallery: Personal Vacation 2026');
+    // Member attribution links to the owner's profile.
+    expect(res.text).toContain('href="/members/media_regular"');
+    expect(res.text).toContain('Regular Member');
+  });
+
+  it('renders FH-owned attribution as plain text (no link) in the hero', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    // Find the hero block and verify the owner attribution is plain
+    // text (not a link to /members/<system slug>).
+    const heroOpen = res.text.search(/class="hero hero-sm[^"]*"/);
+    expect(heroOpen).toBeGreaterThan(-1);
+    const heroClose = res.text.indexOf('</div>\n</div>', heroOpen);
+    const heroBlock = res.text.slice(heroOpen, heroClose);
+    expect(heroBlock).toContain('Curated by');
+    expect(heroBlock).toContain('Footbag Hacky');
+    expect(heroBlock).not.toMatch(/href="\/members\/media_system"/);
   });
 
   it('treats SQL-injection attempts in :galleryId as a normal 404', async () => {

@@ -15,9 +15,12 @@ script, one place to look. It does, in order:
      media_items so re-runs rebuild the same DB state.
   4. Seeds the /curated/freestyle_tricks/ corpus of URL-reference video
      sidecars into media_items + media_tags + media_sources.
-  5. Ensures every FH-owned named gallery (member_galleries +
-     member_gallery_tags) exists with its canonical metadata and
-     criteria-tag set.
+  5. Loads each gallery JSON sidecar from /curated/galleries/ and
+     ensures FH-owned named gallery rows (member_galleries +
+     member_gallery_tags + member_gallery_exclude_tags) match.
+     Galleries on disk are the source of truth: FH-owned rows whose
+     sidecar was deleted are removed at this step. Member-owned
+     gallery rows (owner_member_id != FH) are never touched here.
 
 Idempotent: every step is INSERT OR REPLACE / DELETE-then-INSERT, so
 re-running this script restores the canonical FH state without manual
@@ -32,6 +35,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -62,44 +66,34 @@ DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 
-# Public named galleries owned by the FH system member. Each entry below
-# becomes one row in member_galleries plus N rows in member_gallery_tags
-# (one per criteria tag). The gallery_id is the URL slug under /media/,
-# matching the gallery_<descriptive_slug> pattern (parallel to
-# event_{year}_{slug} for events). Membership is computed at query time
-# against media_tags as a tag-AND match; an item appears in the gallery
-# only if it carries every criteria tag.
+# Public named galleries owned by the FH system member are defined as
+# JSON sidecars under /curated/galleries/<slug>.json (one file per
+# gallery). The seeder reads them via _load_named_gallery_sidecars()
+# during the gallery-seed step. /curated/galleries/ is the source of
+# truth: an FH gallery row whose sidecar is deleted is removed from
+# the DB on the next seed (see ensure_fh_named_galleries).
 #
-# sort_order controls /media/{id} item ordering: 'upload_desc' (default),
-# 'upload_asc', or 'caption_asc'. Use 'caption_asc' for ordered series
-# whose captions encode the position with a zero-padded prefix
-# (e.g. "01 - Title", "02 - Title").
-FH_NAMED_GALLERIES = [
-    {
-        "id":             "gallery_curated_freestyle_tricks",
-        "name":           "Curated Freestyle Tricks",
-        "description":    "Reference videos for freestyle footbag tricks, curated by the IFPA.",
-        "sort_order":     "upload_desc",
-        "criteria_tags":  ("#curated", "#freestyle", "#trick"),
-        # TT lessons live in their own dedicated gallery; suppress the
-        # duplicate listing here.
-        "exclude_tags":   ("#tricks_of_the_trade",),
-    },
-    {
-        "id":             "gallery_tricks_of_the_trade",
-        "name":           "Tricks of the Trade",
-        "description":    (
-            "Kenny Shults' 42-lesson WorldFootbag video series. "
-            "Each video teaches one freestyle footbag trick."
-        ),
-        "sort_order":     "caption_asc",
-        # `#curated` narrows membership to FH/admin-uploaded TT content,
-        # so a hypothetical member upload tagged `#tricks_of_the_trade`
-        # would not surface in this gallery.
-        "criteria_tags":  ("#curated", "#tricks_of_the_trade"),
-        "exclude_tags":   (),
-    },
-]
+# Sidecar schema (camelCase, matching /curated/freestyle_tricks/*.meta.json):
+#   id            "gallery_<descriptive_slug>" — public URL under /media/
+#   name          1..150 chars
+#   description   0..1000 chars
+#   sortOrder     'upload_desc' | 'upload_asc' | 'caption_asc'
+#                 ('caption_asc' for ordered series whose captions encode
+#                  the position with a zero-padded prefix)
+#   criteriaTags  non-empty list of '#'-prefixed lowercase tag strings
+#                 (an item appears in the gallery iff it carries every
+#                  criteria tag)
+#   excludeTags   list of '#'-prefixed lowercase tag strings, disjoint
+#                 from criteriaTags (an item carrying any of these is
+#                  filtered out)
+#
+# Filename rule: <slug>.json where <slug> = id with the 'gallery_'
+# prefix stripped. So id 'gallery_curated_freestyle_tricks' lives in
+# /curated/galleries/curated_freestyle_tricks.json.
+GALLERY_ID_RE = re.compile(r"^gallery_[a-z0-9_]+$")
+GALLERY_SORT_ORDERS = ("upload_desc", "upload_asc", "caption_asc")
+GALLERY_NAME_MAX = 150
+GALLERY_DESCRIPTION_MAX = 1000
 
 # Hardcoded manifest of curator items seeded for go-live. Append entries here
 # to extend the seed (e.g. event-pinned photos, /net cartoons, tutorials,
@@ -771,6 +765,114 @@ def _seed_one_sidecar(
     return media_id, final_tags, platform, url
 
 
+def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
+    """Load every gallery JSON sidecar from /curated/galleries/, validate
+    each, and return a list of dicts in the shape ensure_named_gallery
+    expects (gallery_id, name, description, sort_order, criteria_tags,
+    exclude_tags). Sidecars are read in lexical filename order so the
+    seed log is stable.
+
+    Validation mirrors the rules enforced by curatorMediaService.updateGallery
+    on the TS side; a sidecar accepted here is loadable end-to-end and a
+    sidecar accepted there is loadable here. Cross-language drift in this
+    contract would silently corrupt the gallery seed.
+    """
+    galleries_dir = source_dir / "galleries"
+    if not galleries_dir.is_dir():
+        sys.exit(
+            f"ERROR: {galleries_dir} does not exist. "
+            "FH gallery definitions live there as JSON sidecars."
+        )
+
+    files = sorted(galleries_dir.glob("*.json"))
+    loaded: list[dict] = []
+
+    for path in files:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as err:
+            sys.exit(f"ERROR: {path}: malformed JSON: {err}")
+        if not isinstance(data, dict):
+            sys.exit(f"ERROR: {path}: top-level value must be a JSON object")
+
+        gallery_id = data.get("id")
+        if not isinstance(gallery_id, str) or not GALLERY_ID_RE.match(gallery_id):
+            sys.exit(
+                f"ERROR: {path}: id must match {GALLERY_ID_RE.pattern}; "
+                f"got {gallery_id!r}"
+            )
+        expected_stem = gallery_id[len("gallery_"):]
+        if path.stem != expected_stem:
+            sys.exit(
+                f"ERROR: {path}: filename stem {path.stem!r} must match "
+                f"id-with-'gallery_'-stripped ({expected_stem!r})"
+            )
+
+        name = data.get("name")
+        if not isinstance(name, str) or not name.strip():
+            sys.exit(f"ERROR: {path}: name is required and must be non-empty")
+        if len(name) > GALLERY_NAME_MAX:
+            sys.exit(
+                f"ERROR: {path}: name must be {GALLERY_NAME_MAX} characters or fewer"
+            )
+
+        description = data.get("description", "")
+        if not isinstance(description, str):
+            sys.exit(f"ERROR: {path}: description must be a string")
+        if len(description) > GALLERY_DESCRIPTION_MAX:
+            sys.exit(
+                f"ERROR: {path}: description must be "
+                f"{GALLERY_DESCRIPTION_MAX} characters or fewer"
+            )
+
+        sort_order = data.get("sortOrder")
+        if sort_order not in GALLERY_SORT_ORDERS:
+            sys.exit(
+                f"ERROR: {path}: sortOrder must be one of "
+                f"{list(GALLERY_SORT_ORDERS)}; got {sort_order!r}"
+            )
+
+        criteria_tags = data.get("criteriaTags")
+        if not isinstance(criteria_tags, list) or not criteria_tags:
+            sys.exit(f"ERROR: {path}: criteriaTags must be a non-empty list")
+        exclude_tags = data.get("excludeTags", [])
+        if not isinstance(exclude_tags, list):
+            sys.exit(f"ERROR: {path}: excludeTags must be a list")
+
+        for label, tags in (("criteriaTags", criteria_tags), ("excludeTags", exclude_tags)):
+            seen: set[str] = set()
+            for tag in tags:
+                if not isinstance(tag, str) or not tag.startswith("#"):
+                    sys.exit(
+                        f"ERROR: {path}: every {label} entry must be a "
+                        f"'#'-prefixed string; got {tag!r}"
+                    )
+                if tag != tag.lower():
+                    sys.exit(
+                        f"ERROR: {path}: tag {tag!r} in {label} must be lowercase"
+                    )
+                if tag in seen:
+                    sys.exit(f"ERROR: {path}: duplicate {label} entry {tag!r}")
+                seen.add(tag)
+        overlap = set(criteria_tags) & set(exclude_tags)
+        if overlap:
+            sys.exit(
+                f"ERROR: {path}: tag(s) appear in both criteriaTags and "
+                f"excludeTags: {sorted(overlap)}"
+            )
+
+        loaded.append({
+            "id": gallery_id,
+            "name": name,
+            "description": description,
+            "sort_order": sort_order,
+            "criteria_tags": tuple(criteria_tags),
+            "exclude_tags": tuple(exclude_tags),
+        })
+
+    return loaded
+
+
 def ensure_named_gallery(
     con: sqlite3.Connection,
     fh_id: str,
@@ -834,13 +936,17 @@ def ensure_named_gallery(
 
 
 def ensure_fh_named_galleries(
-    con: sqlite3.Connection, fh_id: str, ts: str
+    con: sqlite3.Connection,
+    fh_id: str,
+    ts: str,
+    galleries: list[dict],
 ) -> None:
-    """Ensure every gallery declared in FH_NAMED_GALLERIES exists. One call
-    per declared gallery; helper handles the parent + criteria-tag rows
-    + exclude-tag rows.
+    """Ensure every gallery loaded from /curated/galleries/*.json exists.
+    FH-owned gallery rows whose sidecar is no longer on disk are removed
+    (orphan cleanup, scoped to owner_member_id = fh_id so member-owned
+    galleries are not touched). Tag rows cascade via ON DELETE CASCADE.
     """
-    for g in FH_NAMED_GALLERIES:
+    for g in galleries:
         ensure_named_gallery(
             con, fh_id, ts,
             gallery_id=g["id"],
@@ -848,9 +954,32 @@ def ensure_fh_named_galleries(
             description=g["description"],
             sort_order=g["sort_order"],
             criteria_tags=g["criteria_tags"],
-            exclude_tags=g.get("exclude_tags", ()),
+            exclude_tags=g["exclude_tags"],
         )
-    print(f"  → Ensured {len(FH_NAMED_GALLERIES)} FH-owned named gallery row(s).")
+
+    kept_ids = [g["id"] for g in galleries]
+    if kept_ids:
+        placeholders = ",".join(["?"] * len(kept_ids))
+        cur = con.execute(
+            f"""
+            DELETE FROM member_galleries
+            WHERE owner_member_id = ?
+              AND id NOT IN ({placeholders})
+            """,
+            (fh_id, *kept_ids),
+        )
+    else:
+        cur = con.execute(
+            "DELETE FROM member_galleries WHERE owner_member_id = ?",
+            (fh_id,),
+        )
+    if cur.rowcount:
+        print(
+            f"  → Removed {cur.rowcount} orphaned FH gallery row(s) "
+            "(sidecar deleted from /curated/galleries/)"
+        )
+
+    print(f"  → Ensured {len(galleries)} FH-owned named gallery row(s).")
 
 
 def seed_freestyle_tricks_sidecars(
@@ -924,11 +1053,12 @@ def main() -> None:
         for item in CURATOR_ITEMS:
             seed_item(con, item, fh_id, source_dir, media_dir, ts)
         n_sidecars = seed_freestyle_tricks_sidecars(con, fh_id, source_dir, ts)
-        ensure_fh_named_galleries(con, fh_id, ts)
+        named_galleries = _load_named_gallery_sidecars(source_dir)
+        ensure_fh_named_galleries(con, fh_id, ts, named_galleries)
         con.commit()
         print(
             f"  → FH curator seed complete: FH member, {len(CURATOR_ITEMS)} curator items, "
-            f"{n_sidecars} reference videos, {len(FH_NAMED_GALLERIES)} named galleries."
+            f"{n_sidecars} reference videos, {len(named_galleries)} named galleries."
         )
     finally:
         con.close()

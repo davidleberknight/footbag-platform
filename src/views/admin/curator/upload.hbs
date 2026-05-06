@@ -4,11 +4,11 @@
   <p>Upload curated photos, videos, or URL references (YouTube / Vimeo). Content is attributed to the system member account (Footbag Hacky).</p>
 
   {{#if errorMessage}}
-    <div class="error-banner" role="alert">{{errorMessage}}</div>
+    <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
 
   {{#if savedFlag}}
-    <div class="success-banner" role="status">
+    <div class="form-success-banner" role="status">
       Sidecar saved under <code>/curated/</code>. Run the curator seeder
       (<code>python scripts/seed_fh_curator.py</code>) to update the platform DB.
     </div>

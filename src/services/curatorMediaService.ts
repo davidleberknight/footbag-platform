@@ -27,7 +27,20 @@ import {
   type UrlSidecarData,
   type WriteUrlSidecarResult,
 } from '../lib/curatorUrlSidecar';
-import { NotFoundError, ValidationError } from './serviceErrors';
+import {
+  GALLERY_SORT_ORDER_VALUES,
+  GALLERY_NAME_MAX_LEN,
+  GALLERY_DESCRIPTION_MAX_LEN,
+  type GallerySortOrderValue,
+  validateGallerySidecarData,
+  formatGallerySidecarJson,
+  writeGallerySidecarFile,
+  deleteGallerySidecarFile,
+  deriveGallerySidecarPath,
+  GallerySidecarValidationError,
+  type GallerySidecarData,
+} from '../lib/curatorGallerySidecar';
+import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 
@@ -192,6 +205,13 @@ function newMediaTagId(): string {
   return `mtag_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 }
 
+// 12-char hex id for member-owned galleries. Distinct prefix from
+// `gallery_<descriptive_slug>` so member-owned ids never collide with
+// FH-owned (curator-named) ids in the shared `gallery_*` namespace.
+function newMemberGalleryId(): string {
+  return `gallery_m_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+}
+
 function validateCaption(caption: string | null): void {
   if (caption !== null && caption.length > CAPTION_MAX_LEN) {
     throw new ValidationError(`Caption must be ${CAPTION_MAX_LEN} characters or fewer.`);
@@ -333,13 +353,16 @@ export interface CuratorMediaListResult {
 // FH-owned named gallery, for the admin gallery list/edit UX
 // (/admin/curator/galleries and /admin/curator/galleries/:id/edit).
 
-export type GallerySortOrderValue = 'upload_desc' | 'upload_asc' | 'caption_asc';
-
-export const GALLERY_SORT_ORDER_VALUES: readonly GallerySortOrderValue[] =
-  ['upload_desc', 'upload_asc', 'caption_asc'] as const;
-
-export const GALLERY_NAME_MAX_LEN = 150;
-export const GALLERY_DESCRIPTION_MAX_LEN = 1000;
+// Gallery shape constants live in `curatorGallerySidecar` (the
+// validator that owns the cross-language contract with the Python
+// seeder); imported above and re-exported here so existing
+// service-layer consumers do not need to know which file owns them.
+export {
+  GALLERY_SORT_ORDER_VALUES,
+  GALLERY_NAME_MAX_LEN,
+  GALLERY_DESCRIPTION_MAX_LEN,
+};
+export type { GallerySortOrderValue };
 
 export interface CuratorGalleryEditView {
   id: string;
@@ -366,9 +389,37 @@ export interface CuratorGalleryUpdates {
 }
 
 export interface CuratorGalleryUpdateInput {
-  adminMemberId: string;
+  actorMemberId: string;
+  // Set true when the actor holds the admin role (req.user.role === 'admin'
+  // at the controller). Service authz is `actorIsAdmin || actor === owner`;
+  // the controller is the source of truth for the role flag.
+  actorIsAdmin: boolean;
   galleryId: string;
   updates: CuratorGalleryUpdates;
+}
+
+export interface CuratorGalleryCreateInput {
+  actorMemberId: string;
+  actorIsAdmin: boolean;
+  // Owner-on-write: explicit so the controller decides whether the
+  // gallery is FH-owned (admin acting as system member) or member-owned
+  // (member creating their own). Authz: actorIsAdmin OR actor === owner.
+  ownerMemberId: string;
+  // For FH-owned galleries the caller supplies a stable id matching
+  // `gallery_<descriptive_slug>`; for member-owned the service generates
+  // `gallery_m_<random>` and the field is ignored.
+  suggestedId?: string;
+  updates: CuratorGalleryUpdates;
+}
+
+export interface CuratorGalleryCreateResult {
+  id: string;
+}
+
+export interface CuratorGalleryDeleteInput {
+  actorMemberId: string;
+  actorIsAdmin: boolean;
+  galleryId: string;
 }
 
 interface MediaItemRow {
@@ -451,6 +502,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   }
 
   return {
+    // Returns the system (FH) member id, or throws if no is_system=1 row
+    // exists. Exposed for admin controllers that need to call createGallery
+    // with ownerMemberId set to the system member without re-implementing
+    // the lookup.
+    getSystemMemberId(): string {
+      return resolveSystemMemberIdOrThrow();
+    },
+
     // Lists existing /curated/{category}/ subdirectories for the admin
     // upload form's category picker. Sorted, ENOENT-tolerant. Lives on the
     // service so the controller doesn't need filesystem layout knowledge.
@@ -1029,17 +1088,23 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       });
     },
 
-    // Loads a single FH-owned gallery's editable fields. Returns the
-    // current name, description, sort_order, criteria tags, and exclude
-    // tags. Throws NotFoundError if the gallery does not exist or is not
-    // FH-owned (per the SQL filter in getFhNamedGalleryById, this also
-    // guards against member-owned galleries leaking into the admin UX).
-    getGalleryForEdit(galleryId: string): CuratorGalleryEditView {
+    // Loads a single gallery's editable fields. Returns the current
+    // name, description, sort_order, criteria tags, and exclude tags.
+    // When `restrictToOwnerId` is supplied, throws NotFoundError if the
+    // gallery's owner does not match (used by member routes so a member
+    // sees a 404 rather than a 403 for a gallery they don't own —
+    // matches the existing isOwnProfile/renderNotFound convention).
+    // Without the restriction, returns any gallery (admin moderation +
+    // public read paths use this).
+    getGalleryForEdit(galleryId: string, restrictToOwnerId?: string): CuratorGalleryEditView {
       return runSqliteRead('getGalleryForEdit', () => {
-        const g = media.getFhNamedGalleryById.get(galleryId) as
-          | { id: string; name: string; description: string; sort_order: GallerySortOrderValue }
+        const g = media.getNamedGalleryById.get(galleryId) as
+          | { id: string; name: string; description: string; sort_order: GallerySortOrderValue; owner_member_id: string }
           | undefined;
         if (!g) {
+          throw new NotFoundError(`gallery ${galleryId} not found`);
+        }
+        if (restrictToOwnerId && g.owner_member_id !== restrictToOwnerId) {
           throw new NotFoundError(`gallery ${galleryId} not found`);
         }
         const criteriaTagRows = media.listFhNamedGalleryTags.all(galleryId) as Array<{
@@ -1061,117 +1126,344 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       });
     },
 
-    // Applies an update to an FH-owned gallery in a single transaction:
-    // metadata UPDATE plus DELETE-then-INSERT on both criteria-tag and
-    // exclude-tag sets. Idempotent on no-op updates. Throws
-    // ValidationError on bad input (empty name, oversize fields, invalid
-    // sort_order, invalid tag pattern, empty criteria-tag set, or
-    // criteria/exclude overlap). Throws NotFoundError if the gallery
-    // does not exist or is not FH-owned.
-    updateGallery(input: CuratorGalleryUpdateInput): void {
-      const { adminMemberId, galleryId, updates } = input;
+    // Applies an update in a single transaction: metadata UPDATE plus
+    // DELETE-then-INSERT on both criteria-tag and exclude-tag sets.
+    // Idempotent on no-op updates. Authorizes the actor against the
+    // gallery's owner (admin OR owner-self). For FH-owned galleries,
+    // writes the JSON sidecar at /curated/galleries/<slug>.json AFTER
+    // the DB transaction commits. Sidecar I/O failure does not roll
+    // back the DB: the sidecar is reproducible from DB state on the
+    // next save, while a rollback after a successful DB write would
+    // corrupt the user's apparent edit. Throws ValidationError on
+    // bad input or unauthorized actor; NotFoundError on unknown
+    // gallery.
+    async updateGallery(input: CuratorGalleryUpdateInput): Promise<void> {
+      const { actorMemberId, actorIsAdmin, galleryId, updates } = input;
 
-      // Validate up front so a bad input never opens a transaction.
-      const name = updates.name.trim();
-      if (!name) {
-        throw new ValidationError('Gallery name is required.');
-      }
-      if (name.length > GALLERY_NAME_MAX_LEN) {
-        throw new ValidationError(
-          `Gallery name must be ${GALLERY_NAME_MAX_LEN} characters or fewer.`,
-        );
-      }
-      const description = (updates.description ?? '').trim();
-      if (description.length > GALLERY_DESCRIPTION_MAX_LEN) {
-        throw new ValidationError(
-          `Gallery description must be ${GALLERY_DESCRIPTION_MAX_LEN} characters or fewer.`,
-        );
-      }
-      const validSortOrders: readonly string[] = GALLERY_SORT_ORDER_VALUES;
-      if (!validSortOrders.includes(updates.sortOrder)) {
-        throw new ValidationError(
-          `Gallery sort order must be one of: ${GALLERY_SORT_ORDER_VALUES.join(', ')}.`,
-        );
-      }
-      const sortOrder = updates.sortOrder as GallerySortOrderValue;
-      if (updates.criteriaTags.length === 0) {
-        throw new ValidationError(
-          'A gallery must declare at least one criteria tag (otherwise it would render empty).',
-        );
-      }
-      const seenCriteria = new Set<string>();
-      for (const tag of updates.criteriaTags) {
-        validateGalleryTag(tag, 'criteria');
-        if (seenCriteria.has(tag)) {
-          throw new ValidationError(`Duplicate criteria tag: ${tag}`);
-        }
-        seenCriteria.add(tag);
-      }
-      const seenExclude = new Set<string>();
-      for (const tag of updates.excludeTags) {
-        validateGalleryTag(tag, 'exclude');
-        if (seenExclude.has(tag)) {
-          throw new ValidationError(`Duplicate exclude tag: ${tag}`);
-        }
-        if (seenCriteria.has(tag)) {
-          throw new ValidationError(
-            `Tag "${tag}" cannot be both a criteria tag and an exclude tag.`,
-          );
-        }
-        seenExclude.add(tag);
-      }
+      const validated = validateGalleryUpdates(updates);
 
-      // Confirm the gallery exists and is FH-owned before writing. The
-      // getFhNamedGalleryById prepared statement filters on is_system=1.
-      const existing = media.getFhNamedGalleryById.get(galleryId) as
-        | { id: string }
+      const existing = media.getNamedGalleryById.get(galleryId) as
+        | { id: string; owner_member_id: string; is_system: number }
         | undefined;
       if (!existing) {
         throw new NotFoundError(`gallery ${galleryId} not found`);
       }
 
+      authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
       const now = new Date().toISOString();
 
       transaction(() => {
         media.updateMemberGalleryMetadata.run(
-          name,
-          description,
-          sortOrder,
+          validated.name,
+          validated.description,
+          validated.sortOrder,
           now,
-          adminMemberId,
+          actorMemberId,
           galleryId,
         );
+        rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
+      });
 
-        media.deleteAllMemberGalleryTags.run(galleryId);
-        for (const tag of updates.criteriaTags) {
-          const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
-            | { id: string }
-            | undefined;
-          let tagId: string;
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            tagId = newTagId();
-            mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
-          }
-          media.insertMemberGalleryTag.run(galleryId, tagId, now, adminMemberId);
-        }
+      if (existing.is_system === 1) {
+        await writeFhGallerySidecar({
+          id: galleryId,
+          name: validated.name,
+          description: validated.description,
+          sortOrder: validated.sortOrder,
+          criteriaTags: validated.criteriaTags,
+          excludeTags: validated.excludeTags,
+        });
+      }
+    },
 
-        media.deleteAllMemberGalleryExcludeTags.run(galleryId);
-        for (const tag of updates.excludeTags) {
-          const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
-            | { id: string }
-            | undefined;
-          let tagId: string;
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            tagId = newTagId();
-            mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
-          }
-          media.insertMemberGalleryExcludeTag.run(galleryId, tagId, now, adminMemberId);
+    // Creates a new gallery row and its tag sets in a single transaction.
+    // Owner is set explicitly: FH-owned (admin acting as system member,
+    // suggestedId required) or member-owned (owner === actor, id auto-
+    // generated). For FH-owned, writes the JSON sidecar after commit.
+    // Throws ValidationError on bad input or unauthorized actor;
+    // ConflictError when UNIQUE(owner, name) is already taken.
+    async createGallery(
+      input: CuratorGalleryCreateInput,
+    ): Promise<CuratorGalleryCreateResult> {
+      const { actorMemberId, actorIsAdmin, ownerMemberId, suggestedId, updates } = input;
+
+      const validated = validateGalleryUpdates(updates);
+
+      const systemMemberId = resolveSystemMemberIdOrThrow();
+      const isFhOwned = ownerMemberId === systemMemberId;
+
+      // Authorization: admin can create on behalf of anyone (in practice
+      // FH-owned curator galleries); a non-admin actor can only create
+      // galleries owned by themselves.
+      // DEVIATION: today, any authenticated member is allowed to be the
+      // actor for `actorMemberId === ownerMemberId` (the route layer in
+      // slice 2b applies only `requireAuth`, no tier gate). Target:
+      // re-narrow to a tier-eligible cohort once the tier feature
+      // lands. The tier ledger (`member_tier_grants` /
+      // `member_tier_current`) exists in schema; no tier-required
+      // middleware or service-level tier check exists yet.
+      if (!actorIsAdmin && actorMemberId !== ownerMemberId) {
+        throw new ValidationError('Not authorized to create a gallery for this owner.');
+      }
+      if (isFhOwned && !actorIsAdmin) {
+        throw new ValidationError('Only admins may create FH-owned galleries.');
+      }
+
+      let galleryId: string;
+      if (isFhOwned) {
+        if (!suggestedId || !/^gallery_[a-z0-9_]+$/.test(suggestedId)) {
+          throw new ValidationError(
+            'FH-owned gallery requires suggestedId matching gallery_[a-z0-9_]+.',
+          );
         }
+        galleryId = suggestedId;
+      } else {
+        galleryId = newMemberGalleryId();
+      }
+
+      const now = new Date().toISOString();
+
+      try {
+        transaction(() => {
+          media.insertMemberGallery.run(
+            galleryId, now, actorMemberId, now, actorMemberId,
+            ownerMemberId, validated.name, validated.description, validated.sortOrder,
+          );
+          rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
+        });
+      } catch (err) {
+        const msg = (err as Error).message ?? '';
+        if (msg.includes('UNIQUE') && msg.includes('member_galleries')) {
+          throw new ConflictError(
+            `A gallery named "${validated.name}" already exists for this owner.`,
+          );
+        }
+        throw err;
+      }
+
+      if (isFhOwned) {
+        await writeFhGallerySidecar({
+          id: galleryId,
+          name: validated.name,
+          description: validated.description,
+          sortOrder: validated.sortOrder,
+          criteriaTags: validated.criteriaTags,
+          excludeTags: validated.excludeTags,
+        });
+      }
+
+      return { id: galleryId };
+    },
+
+    // Hard-deletes a gallery row. Tag rows in member_gallery_tags and
+    // member_gallery_exclude_tags cascade via ON DELETE CASCADE. For
+    // FH-owned galleries, removes the JSON sidecar after commit
+    // (best-effort, ENOENT-tolerant). Throws ValidationError on
+    // unauthorized actor; NotFoundError on unknown gallery.
+    async deleteGallery(input: CuratorGalleryDeleteInput): Promise<void> {
+      const { actorMemberId, actorIsAdmin, galleryId } = input;
+
+      const existing = media.getNamedGalleryById.get(galleryId) as
+        | { id: string; owner_member_id: string; is_system: number }
+        | undefined;
+      if (!existing) {
+        throw new NotFoundError(`gallery ${galleryId} not found`);
+      }
+
+      authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
+      media.deleteMemberGalleryById.run(galleryId);
+
+      if (existing.is_system === 1) {
+        const sidecarPath = deriveGallerySidecarPath(curatedRootDir, galleryId);
+        try {
+          await deleteGallerySidecarFile(sidecarPath);
+        } catch (err) {
+          // Sidecar I/O failures are logged but do not roll back the
+          // DB delete: the next seeder run will reconcile, and the
+          // gallery is already gone from the live read paths.
+          console.warn(
+            `[curatorMediaService] sidecar unlink failed for ${galleryId}: ${(err as Error).message}`,
+          );
+        }
+      }
+    },
+
+    // Lists every gallery owned by a given member, including item count.
+    // Public read; no authz gate. Used by the member profile "Galleries"
+    // section (slice 2b consumer) and tests.
+    listGalleriesForOwner(memberId: string): CuratorGallerySummary[] {
+      return runSqliteRead('listGalleriesForOwner', () => {
+        const rows = media.listMemberGalleriesByOwner.all(memberId) as Array<{
+          id: string;
+          name: string;
+          description: string;
+          sort_order: GallerySortOrderValue;
+        }>;
+        return rows.map((g) => {
+          const criteriaTagRows = media.listFhNamedGalleryTags.all(g.id) as Array<{
+            id: string;
+            tag_display: string;
+          }>;
+          const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(g.id) as Array<{
+            id: string;
+            tag_display: string;
+          }>;
+          const criteriaTagIds = criteriaTagRows.map((t) => t.id);
+          const excludeTagIds = excludeTagRows.map((t) => t.id);
+          return {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            sortOrder: g.sort_order,
+            criteriaTags: criteriaTagRows.map((t) => t.tag_display),
+            excludeTags: excludeTagRows.map((t) => t.tag_display),
+            itemCount: countGalleryItemsByCriteria(criteriaTagIds, excludeTagIds),
+          };
+        });
       });
     },
   };
+
+  // ── Gallery helpers (closure-scoped) ──────────────────────────────
+
+  // Validates a CuratorGalleryUpdates payload and returns a normalized
+  // shape (trimmed strings, narrowed sortOrder type). Shared between
+  // updateGallery and createGallery.
+  function validateGalleryUpdates(updates: CuratorGalleryUpdates): {
+    name: string;
+    description: string;
+    sortOrder: GallerySortOrderValue;
+    criteriaTags: string[];
+    excludeTags: string[];
+  } {
+    const name = updates.name.trim();
+    if (!name) {
+      throw new ValidationError('Gallery name is required.');
+    }
+    if (name.length > GALLERY_NAME_MAX_LEN) {
+      throw new ValidationError(
+        `Gallery name must be ${GALLERY_NAME_MAX_LEN} characters or fewer.`,
+      );
+    }
+    const description = (updates.description ?? '').trim();
+    if (description.length > GALLERY_DESCRIPTION_MAX_LEN) {
+      throw new ValidationError(
+        `Gallery description must be ${GALLERY_DESCRIPTION_MAX_LEN} characters or fewer.`,
+      );
+    }
+    const validSortOrders: readonly string[] = GALLERY_SORT_ORDER_VALUES;
+    if (!validSortOrders.includes(updates.sortOrder)) {
+      throw new ValidationError(
+        `Gallery sort order must be one of: ${GALLERY_SORT_ORDER_VALUES.join(', ')}.`,
+      );
+    }
+    const sortOrder = updates.sortOrder as GallerySortOrderValue;
+    if (updates.criteriaTags.length === 0) {
+      throw new ValidationError(
+        'A gallery must declare at least one criteria tag (otherwise it would render empty).',
+      );
+    }
+    const seenCriteria = new Set<string>();
+    for (const tag of updates.criteriaTags) {
+      validateGalleryTag(tag, 'criteria');
+      if (seenCriteria.has(tag)) {
+        throw new ValidationError(`Duplicate criteria tag: ${tag}`);
+      }
+      seenCriteria.add(tag);
+    }
+    const seenExclude = new Set<string>();
+    for (const tag of updates.excludeTags) {
+      validateGalleryTag(tag, 'exclude');
+      if (seenExclude.has(tag)) {
+        throw new ValidationError(`Duplicate exclude tag: ${tag}`);
+      }
+      if (seenCriteria.has(tag)) {
+        throw new ValidationError(
+          `Tag "${tag}" cannot be both a criteria tag and an exclude tag.`,
+        );
+      }
+      seenExclude.add(tag);
+    }
+    return {
+      name,
+      description,
+      sortOrder,
+      criteriaTags: updates.criteriaTags,
+      excludeTags: updates.excludeTags,
+    };
+  }
+
+  // Authz primitive used by updateGallery/deleteGallery: either the
+  // actor holds the admin role (controller-attested) OR the actor is
+  // the gallery's own owner. Throws ValidationError on rejection
+  // (no AuthorizationError class exists in serviceErrors.ts; reusing
+  // ValidationError matches the existing convention for actor-permission
+  // failures in this service file).
+  function authorizeGalleryActor(
+    actorMemberId: string,
+    actorIsAdmin: boolean,
+    ownerMemberId: string,
+  ): void {
+    if (actorIsAdmin) return;
+    if (actorMemberId === ownerMemberId) return;
+    throw new ValidationError('Not authorized to modify this gallery.');
+  }
+
+  // Replaces the criteria-tag and exclude-tag sets for a gallery.
+  // DELETE-then-INSERT pattern, executed inside a caller's transaction.
+  // Auto-creates `tags` rows for tags not yet seen platform-wide.
+  function rewriteGalleryTagSets(
+    galleryId: string,
+    validated: { criteriaTags: string[]; excludeTags: string[] },
+    now: string,
+    actorMemberId: string,
+  ): void {
+    media.deleteAllMemberGalleryTags.run(galleryId);
+    for (const tag of validated.criteriaTags) {
+      const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
+        | { id: string }
+        | undefined;
+      let tagId: string;
+      if (existingTag) {
+        tagId = existingTag.id;
+      } else {
+        tagId = newTagId();
+        mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+      }
+      media.insertMemberGalleryTag.run(galleryId, tagId, now, actorMemberId);
+    }
+
+    media.deleteAllMemberGalleryExcludeTags.run(galleryId);
+    for (const tag of validated.excludeTags) {
+      const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as
+        | { id: string }
+        | undefined;
+      let tagId: string;
+      if (existingTag) {
+        tagId = existingTag.id;
+      } else {
+        tagId = newTagId();
+        mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+      }
+      media.insertMemberGalleryExcludeTag.run(galleryId, tagId, now, actorMemberId);
+    }
+  }
+
+  // Writes (or rewrites) the JSON sidecar for an FH-owned gallery.
+  // Sidecar I/O happens AFTER the DB transaction commits; failure here
+  // is logged but does not propagate, so a transient FS error never
+  // corrupts a successful DB-side edit. The seeder reconciles on next
+  // run.
+  async function writeFhGallerySidecar(data: GallerySidecarData): Promise<void> {
+    try {
+      validateGallerySidecarData(data);
+      await writeGallerySidecarFile(curatedRootDir, data);
+    } catch (err) {
+      console.warn(
+        `[curatorMediaService] sidecar write failed for ${data.id}: ${(err as Error).message}`,
+      );
+    }
+  }
 }

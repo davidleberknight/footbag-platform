@@ -1535,6 +1535,36 @@ section.home-media { padding-top: 0; }
   margin-bottom: 24px;
 }
 
+.form-input-with-prefix {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+}
+.form-input-with-prefix > input {
+  border: none;
+  border-radius: 0;
+  padding: 8px 12px;
+  flex: 1;
+  min-width: 0;
+}
+.form-input-with-prefix > input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.form-input-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--bg-light);
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: "SFMono-Regular", Menlo, monospace;
+  font-size: 0.95rem;
+}
+
 .form-fieldset {
   border: none;
   padding: 0;

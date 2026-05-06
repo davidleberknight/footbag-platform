@@ -1,4 +1,4 @@
-{{!-- Admin curator named-gallery edit form. --}}
+{{!-- Admin curator named-gallery edit form (FH-owned only). --}}
 <div class="wrapper">
   <h1>{{page.title}}</h1>
 
@@ -11,48 +11,11 @@
       it carries every <strong>criteria tag</strong> AND no <strong>exclude tag</strong>.
     </p>
 
-    {{#if errorMessage}}
-      <div class="error-banner" role="alert">{{errorMessage}}</div>
-    {{/if}}
-
-    <form method="POST" action="/admin/curator/galleries/{{gallery.id}}/edit" class="curator-edit-form">
-      <input type="hidden" name="_csrf" value="{{csrfToken}}">
-
-      <label class="form-row">
-        <span class="form-label">Name</span>
-        <input type="text" name="name" value="{{gallery.name}}" maxlength="150" required>
-      </label>
-
-      <label class="form-row">
-        <span class="form-label">Description</span>
-        <textarea name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
-      </label>
-
-      <label class="form-row">
-        <span class="form-label">Sort order</span>
-        <select name="sortOrder">
-          <option value="upload_desc" {{#if (eq gallery.sortOrder "upload_desc")}}selected{{/if}}>Upload date, newest first (default)</option>
-          <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
-          <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
-        </select>
-      </label>
-
-      <label class="form-row">
-        <span class="form-label">Criteria tags</span>
-        <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick #curated">{{gallery.criteriaTagsString}}</textarea>
-        <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
-      </label>
-
-      <label class="form-row">
-        <span class="form-label">Exclude tags</span>
-        <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
-        <small class="form-help">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
-      </label>
-
-      <div class="form-actions">
-        <button type="submit">Save changes</button>
-        <a href="/admin/curator/galleries">Cancel</a>
-      </div>
-    </form>
+    {{> gallery-edit-form
+        formAction=formAction
+        gallery=gallery
+        errorMessage=errorMessage
+        cancelHref="/admin/curator/galleries"
+    }}
   {{/if}}
 </div>
