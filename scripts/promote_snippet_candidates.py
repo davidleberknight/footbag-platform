@@ -215,14 +215,18 @@ def emit_sidecar(
         print(f"  SKIP: row has no trick_slug; url={row.get('url')!r}", file=sys.stderr)
         return None
 
+    source_id = (row.get("source_id") or "").strip()
+    tags = [f"#{slug}", "#freestyle", "#trick"]
+    if source_id == "passback_records":
+        tags.append("#passback_records")
     sidecar = {
         "videoUrl":      row["url"].strip(),
         "videoPlatform": platform,
         "title":         make_title(row),
         "creator":       make_creator(row),
-        "sourceId":      (row.get("source_id") or "").strip(),
+        "sourceId":      source_id,
         "tier":          make_tier(row),
-        "tags":          [f"#{slug}", "#freestyle", "#trick"],
+        "tags":          tags,
     }
     start = (row.get("start_seconds") or "").strip()
     end   = (row.get("end_seconds") or "").strip()
