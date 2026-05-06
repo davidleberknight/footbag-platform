@@ -218,6 +218,52 @@ def main() -> None:
             else:
                 skipped += 1
 
+    # Resolve events.host_club_id from canonical events.csv host_club text.
+    # Step 08 inserts events with host_club_id=NULL; clubs are in the DB now,
+    # so the FK can be set. Match on normalized club name; unmatched values
+    # (federation hosts NHSA/WFA, hosts not in seed/clubs.csv) stay NULL.
+    events_csv = Path(__file__).parent.parent / "event_results" / "canonical_input" / "events.csv"
+    if events_csv.exists():
+        def normalize_name(s: str) -> str:
+            s = unicodedata.normalize("NFKD", s or "")
+            s = "".join(c for c in s if not unicodedata.combining(c))
+            s = s.lower()
+            s = re.sub(r"^\d+\.\s*", "", s)
+            s = re.sub(r"[^a-z0-9]+", " ", s)
+            return re.sub(r"\s+", " ", s).strip()
+
+        name_to_club_id = {
+            normalize_name(name): club_id
+            for club_id, name in con.execute("SELECT id, name FROM clubs")
+        }
+        with events_csv.open("r", encoding="utf-8", newline="") as f:
+            events_rows = list(csv.DictReader(f))
+
+        host_matched = 0
+        host_unmatched: set[str] = set()
+        with con:
+            for row in events_rows:
+                host = (row.get("host_club") or "").strip()
+                if not host:
+                    continue
+                club_id = name_to_club_id.get(normalize_name(host))
+                if not club_id:
+                    host_unmatched.add(host)
+                    continue
+                cur = con.execute(
+                    "UPDATE events SET host_club_id = ?, updated_at = ?, updated_by = 'seed' "
+                    "WHERE id = ?",
+                    (club_id, ts, row["event_key"]),
+                )
+                if cur.rowcount:
+                    host_matched += 1
+        print(
+            f"Resolved host_club_id on {host_matched} events; "
+            f"{len(host_unmatched)} distinct host_club values unmatched."
+        )
+    else:
+        print(f"WARN: events CSV not found at {events_csv}; skipping host_club_id resolution.")
+
     con.close()
 
     print(
