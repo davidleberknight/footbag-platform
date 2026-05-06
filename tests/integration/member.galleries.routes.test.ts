@@ -684,4 +684,37 @@ describe('member-media picker', () => {
     // The picked item now carries the new gallery's criteria tag too.
     expect(findMediaTags(sunset).sort()).toEqual([`#${OWNER_SLUG}`, '#trip2024', '#trip2024_reborn'].sort());
   });
+
+  it('Bug 3 regression: multipart submit with picker-only (empty file input) creates the gallery', async () => {
+    // Browsers always submit the new-gallery form as multipart/form-data
+    // (the form has enctype set unconditionally for create). When the user
+    // attaches no files and only checks picker items, the browser still
+    // sends an empty multipart part for <input type="file" name="photoFiles">.
+    // Pre-fix, busboy's file-event handler pushed that empty part into
+    // photoFiles[], pre-validation ran detectImageType() on a zero-byte
+    // buffer, and the request was rejected with "Only JPEG and PNG photos
+    // are accepted." This test reproduces that exact shape.
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    db.pragma('foreign_keys = ON');
+    const picked = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'fb_182c.jpg', caption: null });
+    db.close();
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie())
+      .field('name', 'Funky Footbags')
+      .field('description', 'footbags')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', '#footbags')
+      .field('excludeTags', '')
+      .field('mediaIds', picked)
+      .attach('photoFiles', Buffer.alloc(0), '');
+
+    expect(res.status).toBe(302);
+    expect(res.text).not.toContain('Only JPEG and PNG');
+
+    const g = findGalleryIdByName('Funky Footbags')!;
+    expect(g).toBeTruthy();
+    expect(findMediaTags(picked)).toEqual(['#footbags', `#${OWNER_SLUG}`]);
+  });
 });

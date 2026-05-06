@@ -436,10 +436,13 @@ function handleMultipartCreate(
       limitExceeded = true;
     });
     stream.on('end', () => {
-      if (!limitExceeded) {
+      const filename = info?.filename ?? '';
+      // Browsers submit an empty multipart part for an unfilled file input;
+      // busboy fires `file` for it. Treat zero-length filename as "no upload".
+      if (!limitExceeded && filename.length > 0) {
         photoFiles.push({
           buffer: Buffer.concat(chunks),
-          filename: info?.filename ?? '',
+          filename,
         });
       }
     });
