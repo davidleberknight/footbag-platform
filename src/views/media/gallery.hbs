@@ -1,14 +1,6 @@
 <div class="hero hero-sm">
   <div>
     <h1>Named Gallery: {{content.gallery.name}}</h1>
-    <p class="hero-attribution text-muted">
-      Curated by
-      {{#if content.gallery.owner.isSystem}}
-        {{content.gallery.owner.displayName}}
-      {{else}}
-        <a href="/members/{{content.gallery.owner.slug}}">{{content.gallery.owner.displayName}}</a>
-      {{/if}}
-    </p>
     {{#if content.gallery.criteriaTags.length}}
       <p class="hero-subtitle">
         Showing {{content.totalItems}} {{#if (eq content.totalItems 1)}}item{{else}}items{{/if}} tagged: {{#each content.gallery.criteriaTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{#if content.gallery.excludeTags.length}} - Excluding {{#if (eq content.gallery.excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each content.gallery.excludeTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
