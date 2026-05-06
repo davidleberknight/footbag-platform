@@ -63,6 +63,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SNIPPETS_CSV = REPO_ROOT / "legacy_data" / "tools" / "trick_video_discovery" / "snippet_candidates.csv"
 SIDECAR_DIR  = REPO_ROOT / "curated" / "freestyle_tricks"
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _trick_tag_invariant import (  # noqa: E402
+    MediaTagInvariantError,
+    load_slug_sets_from_csvs,
+    validate_media_tags,
+)
+
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 
@@ -193,7 +200,16 @@ def short_id(video_id: str) -> str:
     return hashlib.sha1(video_id.encode()).hexdigest()[:8]
 
 
-def emit_sidecar(row: dict, platform: str, video_id: str, dry_run: bool) -> Path | None:
+def emit_sidecar(
+    row: dict,
+    platform: str,
+    video_id: str,
+    dry_run: bool,
+    *,
+    active_slugs: set[str],
+    pending_slugs: set[str],
+    alias_slugs: dict[str, str],
+) -> Path | None:
     slug = (row.get("trick_slug") or "").strip()
     if not slug:
         print(f"  SKIP: row has no trick_slug; url={row.get('url')!r}", file=sys.stderr)
@@ -222,6 +238,14 @@ def emit_sidecar(row: dict, platform: str, video_id: str, dry_run: bool) -> Path
         print(f"  SKIP: filename already exists ({out_path.name})", file=sys.stderr)
         return None
 
+    validate_media_tags(
+        out_path.name,
+        sidecar["tags"],
+        active_slugs=active_slugs,
+        pending_slugs=pending_slugs,
+        alias_slugs=alias_slugs,
+    )
+
     if dry_run:
         return out_path
 
@@ -238,6 +262,8 @@ def main() -> int:
     if not SNIPPETS_CSV.exists():
         print(f"ERROR: {SNIPPETS_CSV} not found", file=sys.stderr)
         return 2
+
+    active_slugs, pending_slugs, alias_slugs = load_slug_sets_from_csvs(REPO_ROOT)
 
     already_emitted = existing_video_ids()
     print(f"Existing sidecars on disk: {len(already_emitted)} unique (platform, video_id) pairs")
@@ -271,7 +297,16 @@ def main() -> int:
                 skipped_already_have_sidecar.append((slug, platform, video_id))
                 continue
 
-            path = emit_sidecar(row, platform, video_id, args.dry_run)
+            try:
+                path = emit_sidecar(
+                    row, platform, video_id, args.dry_run,
+                    active_slugs=active_slugs,
+                    pending_slugs=pending_slugs,
+                    alias_slugs=alias_slugs,
+                )
+            except MediaTagInvariantError as e:
+                print(f"ERROR: media-tag invariant violation: {e}", file=sys.stderr)
+                return 1
             if path:
                 emitted.append(path)
                 already_emitted.add((platform, video_id))
