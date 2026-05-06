@@ -165,11 +165,15 @@ def make_title(row: dict) -> str:
 
     Special-case: when source_id is `tt_youtube`, parse the row's notes for
     a "TT #N <Lesson>" stem and emit the canonical TT title format
-    "Footbag Lessons - Tricks of the Trade #N - <Lesson>". Falls back to
-    notes verbatim, then to a slug-derived placeholder.
+    "Footbag Lessons - Tricks of the Trade #N - <Lesson>".
+
+    Special-case: when source_id is `passback_records`, prepend the
+    trick display name so gallery tile captions identify the trick.
+    Falls back to notes verbatim, then to a slug-derived placeholder.
     """
+    source_id = (row.get("source_id") or "").strip()
     notes = (row.get("notes") or "").strip()
-    if (row.get("source_id") or "").strip() == "tt_youtube" and notes:
+    if source_id == "tt_youtube" and notes:
         m = _TT_NOTE_RE.search(notes)
         if m:
             num = m.group(1)
@@ -179,6 +183,17 @@ def make_title(row: dict) -> str:
                 f"Footbag Lessons - Tricks of the Trade #{num} - {stem}"
                 + (f" ({paren})" if paren else "")
             )
+    if source_id == "passback_records":
+        slug = (row.get("trick_slug") or "").strip()
+        trick = slug.replace("-", " ").title() if slug else ""
+        player = (row.get("player_name") or "").strip()
+        if trick and player:
+            return f"{trick} — Passback record by {player}"
+        if trick:
+            return f"{trick} — Passback record"
+        if player:
+            return f"Passback record by {player}"
+        return "Passback record"
     if notes:
         return notes
     slug = (row.get("trick_slug") or "").strip()
