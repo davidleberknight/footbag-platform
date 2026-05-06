@@ -1,0 +1,235 @@
+---
+name: footbag-curated-media
+description: Use when adding, modifying, validating, or troubleshooting curated freestyle media intake for the footbag-platform project — Tricks of the Trade lessons, PassBack Records, AnzTrikz tutorials, Shred Global, FootbagSpot, or any future tutorial / record / expert-review source. Enforces the established curated-source pipeline (snippet_candidates → promote → sidecars → media_items → tag-based gallery), the trick-tag invariant, and the strict separation between data prep (James-owned) and gallery management (Dave-owned).
+---
+
+# Footbag Curated Media Skill
+
+Use this skill when the task is **curated freestyle media intake** — staging, validating, promoting, tagging, or backfilling reference media that links to a freestyle trick, record, or category. Do **not** use this skill for member-uploaded media, the gallery editor / admin UI, or the named-gallery JSON sidecar files in `curated/galleries/` (all Dave-owned).
+
+## 1. Core pipeline
+
+The pipeline is fixed. Do not invent parallel systems.
+
+```
+raw source (e.g., legacy_data/inputs/curated/records/passback_raw_input.txt,
+            yt-dlp inventory, FootbagSpot index, expert reply)
+   ↓  manual + scripted classification
+legacy_data/tools/trick_video_discovery/snippet_candidates.csv
+   (rows with reviewer column blank are "staged but unapproved";
+    rows with reviewer set to a non-empty value are "approved";
+    rows with reviewer starting "promoted_*" are already done)
+   ↓  scripts/promote_snippet_candidates.py  (URL-reference only;
+       never downloads videos; never writes MP4s)
+curated/freestyle_tricks/{trick-slug}_{sha1(video_id)[:8]}.meta.json
+   (one sidecar per (trick_slug, video_id); shape is fixed —
+    see §3 and §10 examples)
+   ↓  scripts/seed_fh_curator.py (Dave-owned)
+DB: media_items + media_tags
+   ↓  named gallery filter via member_gallery_tags (tag-AND match)
+public gallery page at /media/<gallery_id>
+```
+
+The `snippet_candidates.csv` schema is `source_id,url,trick_slug,start_seconds,end_seconds,player_name,clip_type,confidence,reviewer,notes`. New rows must conform exactly.
+
+For record-categories that have no canonical `freestyle_tricks.slug`, see §4 — those go to a **separate** staging file (`passback_record_categories.csv`), not into `snippet_candidates.csv`.
+
+## 2. Hard rules
+
+1. **No direct DB writes for media intake.** All media must enter via `seed_fh_curator.py` reading sidecars. Manual `INSERT INTO media_items` is forbidden for curated content.
+2. **No fake trick slugs.** A sidecar's `trick_slug` (and the `#<slug>` tag) must reference a real row in `freestyle_tricks` (active or pending). If the source name has no canonical slug, route to RECORD_CATEGORY (§5) — never invent a placeholder slug.
+3. **Do not drop legitimate source items silently.** Every source row gets classified into one of the 7 buckets in §5. REJECT is **not** a bucket; non-trick record categories are preserved in their own staging file.
+4. **Duplicate trick coverage is allowed.** The same `trick_slug` may have a TT tutorial sidecar AND a PassBack record sidecar AND an AnzTrikz tutorial sidecar. They are not duplicates of each other.
+5. **Duplicate media rows are not allowed.** A "true duplicate" is `(source_id, video_url)` already present as a sidecar or already in `snippet_candidates.csv`. Skip those.
+6. **Review-needed items go to a separate queue file**, not into `snippet_candidates.csv` with empty `trick_slug`. The promote script requires `trick_slug` to be set, and the validator rejects empty / unresolved slugs.
+7. **Idempotency.** Backfill scripts (e.g., add a missing tag to existing sidecars) must produce zero changes on a second run. Always include a "pass 2" check when writing one.
+
+## 3. Tag rules
+
+Every trick-media sidecar **must** have, at minimum:
+
+```
+"#<canonical-trick-slug>"   ← matches freestyle_tricks.slug; e.g. "#double-leg-over"
+"#freestyle"                ← utility marker
+"#trick"                    ← utility marker
+```
+
+Source/gallery tags **may** be added to mark the curated source the sidecar came from:
+
+```
+"#tricks_of_the_trade"      ← TT lessons (Kenny Shults / WorldFootbag)
+"#passback_records"         ← PassBack record clips
+```
+
+A future source (`shred_global`, `anz_trikz`, `footbag_finland`, `flipsider_footbag`, etc.) may want its own gallery — when introducing that, add the source tag to the **whitelist** in `scripts/_trick_tag_invariant.py` (`UTILITY_EXACT` frozenset, alongside `tricks_of_the_trade` and `passback_records`). The validator otherwise rejects snake_case tags that aren't kebab-case slugs.
+
+Tag-shape rules (enforced by `scripts/_trick_tag_invariant.py:validate_media_tags`):
+
+- All tags must start with `#` and be lowercase.
+- Trick-shaped tags (kebab-case alphanumeric, not in `UTILITY_EXACT`, not a recognized domain prefix) MUST resolve to an active or pending `freestyle_tricks.slug`. Alias-only matches fail.
+- Items with zero semantic tags (only utility tags, no trick or domain-prefix tag) fail.
+- Recognized domain prefixes (snake_case): `event_`, `demo_`, `fh_`, `player_`, `club_`, `set_`. Anything else needs to be in `UTILITY_EXACT`.
+
+## 4. PassBack-specific lessons (worked examples — do not re-litigate)
+
+- **PassBack Records is record/performance evidence, not tutorial.** `tier=RECORD` in sidecars; never promoted to `STRONG_TUTORIAL` for primary-clip selection (rules in `legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py`).
+- **Same trick can have TT tutorial AND PassBack record media** — that is not a duplicate. The two complement each other (how-to vs. proof). Do not skip a PassBack row because the trick already has a TT sidecar.
+- **`#passback_records` was added to the source tag whitelist on 2026-05-06**, after the gallery-readiness audit found that existing PassBack sidecars lacked it. A backfill script appended `#passback_records` to the 37 pre-existing PassBack sidecars; the `promote_snippet_candidates.py` change ensures new ones include it. Both changes were idempotent.
+- **RECORD_CATEGORY rows must be preserved.** The PassBack source has rows like `2-Bag Juggle`, `Unique 3-Dex`, `Unique Beastly`, `Unique Fearless` (the `Unique N-ADD` runs). These are legitimate PassBack record categories but are NOT freestyle-tricks (per the freestyle-dictionary skill's strict layer separation — glossary terms don't go in `freestyle_tricks`). Stage them in `legacy_data/tools/trick_video_discovery/passback_record_categories.csv` (separate from `snippet_candidates.csv`) so they're preserved for a later surfacing decision. Do not coerce them into the trick pipeline with placeholder slugs.
+
+## 5. Review buckets
+
+Every source row goes into exactly one of these buckets:
+
+| Bucket | Meaning | Where it goes | Confidence |
+|---|---|---|---|
+| **CANONICAL_TRICK** | Source name normalizes directly to an active `freestyle_tricks.slug` | `snippet_candidates.csv` | high |
+| **ALIAS_TRICK** | Resolves through `trick_aliases.csv` or red_additions inline aliases | `snippet_candidates.csv` | high |
+| **STRUCTURAL_TRICK** | Resolves through accepted modifier/shorthand expansion (e.g., Pdx→paradox, Symp→symposium, Gyro→spinning, BS→blurry symposium, PS→paradox symposium) | `snippet_candidates.csv` | medium |
+| **RECORD_CATEGORY** | Legitimate source record category that does not map to `freestyle_tricks` (e.g., `2-Bag Juggle`, `Unique Fearless`) | `<source>_record_categories.csv` (separate file) | n/a |
+| **REVIEW_NEEDED** | Unclear mapping — named compound, ambiguous canonical, encoding-corrupted name, novel construction | `<source>_review_queue.csv` (separate file) | n/a |
+| **TRUE_DUPLICATE** | Same `(source_id, video_url)` already present as a sidecar or in `snippet_candidates.csv` | skipped (no write) | n/a |
+| **MALFORMED** | No usable URL, broken source row, or line-wrap noise (no real record content) | discarded silently OR flagged for source cleanup | n/a |
+
+Do **not** force matches. If a name doesn't resolve cleanly, it goes to REVIEW_NEEDED — never to STRUCTURAL_TRICK with a guessed base slug.
+
+## 6. Required dry-run behavior
+
+Always dry-run before writing. The dry-run output must include:
+
+1. Total rows parsed
+2. Bucket counts (all 7)
+3. First N examples per `*_TRICK` bucket
+4. Full REVIEW_NEEDED list (unique names, sorted)
+5. Full RECORD_CATEGORY list (unique names + URL availability)
+6. TRUE_DUPLICATE count + sample
+7. MALFORMED rows + raw-line excerpt
+8. Any ambiguities surfacing operator decision
+
+No writes without explicit operator approval. After approval, the implementation phase produces only the files explicitly named in the plan; never silently expand to additional outputs.
+
+## 7. QC commands
+
+```bash
+# Dry-run promotion (read-only): shows what would be emitted
+python3 scripts/promote_snippet_candidates.py --dry-run
+
+# Apply: emits sidecars under curated/freestyle_tricks/ from approved rows
+python3 scripts/promote_snippet_candidates.py
+
+# Tag-invariant library (sanity-only when run directly; the actual validator
+# is invoked at sidecar-emit time and at QC time)
+python3 scripts/_trick_tag_invariant.py
+
+# Post-load QC: validates every active media_items row's tag shape against
+# the dictionary; hard-fails on misroute, alias-only resolution, missing
+# semantic tag, etc.
+python3 legacy_data/event_results/scripts/25_qc_media_tag_invariant.py
+
+# Coverage dashboard: per-trick primary-strength + priority bucketing
+python3 legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py
+
+# Full DB rebuild — required for sidecar changes to land in media_items
+bash scripts/reset-local-db.sh
+```
+
+Order of operations after staging new sidecars:
+
+1. `promote_snippet_candidates.py --dry-run` → review what would be emitted
+2. `promote_snippet_candidates.py` → emit sidecars
+3. `bash scripts/reset-local-db.sh` → reseed DB so `media_items` picks them up
+4. `25_qc_media_tag_invariant.py` → confirm zero invariant violations
+5. (optional) `24_qc_freestyle_media_coverage.py` → coverage delta
+
+## 8. Gallery readiness
+
+Named-gallery membership is computed at request time by **tag-AND match** against `member_gallery_tags` (and `member_gallery_exclude_tags`) on each `media_items` row. For a new source/gallery to populate correctly:
+
+1. **Every intended sidecar must carry the source tag.** If you introduce `#<new_source>`, ensure both new emissions AND any pre-existing sidecars from that source carry the tag. Backfill is one-shot, idempotent, and limited to the `tags` array — never modify other sidecar fields.
+2. **Whitelist the source tag** in `scripts/_trick_tag_invariant.py:UTILITY_EXACT` before introducing it. Otherwise the validator rejects sidecar emissions and post-load QC fails.
+3. **Admin UI gallery creation is operator-driven, not code.** James (or any operator with admin) creates the named gallery in the admin UI, sets its criteria tag(s), and the data prep is finished from this skill's perspective. Do not attempt to create `curated/galleries/<name>.json` from this skill — that is Dave's surface.
+
+## 9. Safety boundaries
+
+| Boundary | Rule |
+|---|---|
+| `scripts/seed_fh_curator.py` | Dave-owned. Do not modify unless explicitly approved. |
+| `curated/galleries/*.json` | Dave-owned. Do not create or modify. Gallery rows are created via admin UI. |
+| `src/controllers/adminCuratorController.ts`, `src/services/curatorMediaService.ts`, `src/views/admin/curator/**` | Dave-owned (gallery editor + member upload). |
+| `src/db/db.ts` schema (member_galleries, member_gallery_tags, media_items, media_tags) | Schema changes need Dave coordination. |
+| `legacy_data/tools/trick_video_discovery/snippet_candidates.csv` | James-track. Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
+| `curated/freestyle_tricks/*.meta.json` | James-track for promotion + backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. |
+| `scripts/promote_snippet_candidates.py` | James-track. |
+| `scripts/_trick_tag_invariant.py` | James-track. Add new source tags to `UTILITY_EXACT` here. |
+| `legacy_data/event_results/scripts/{24,25,28}_qc_*.py` | James-track. |
+
+When in doubt about whether a change crosses Dave's boundary, ask. The cost of pausing is low; reverting an unwanted change to his territory is high.
+
+## 10. Examples
+
+### TT tutorial example (canonical)
+
+```jsonc
+{
+  "videoUrl":      "https://www.youtube.com/watch?v=kUFtmVV38n4",
+  "videoPlatform": "youtube",
+  "title":         "Footbag Lessons - Tricks of the Trade #12 - Forehead Stall",
+  "creator":       "Kenny Shults",
+  "sourceId":      "tt_youtube",
+  "tier":          "CANONICAL_TUTORIAL",
+  "tags":          ["#forehead-stall", "#freestyle", "#trick", "#tricks_of_the_trade"]
+}
+```
+
+Filename: `curated/freestyle_tricks/forehead-stall_<sha1[:8]>.meta.json`. Promoted via reviewer marking on a `tt_youtube` snippet-candidate row.
+
+### PassBack record example
+
+```jsonc
+{
+  "videoUrl":      "https://www.youtube.com/watch?v=Zmv5ydko6gk",
+  "videoPlatform": "youtube",
+  "title":         "Passback record by Norek",
+  "creator":       "Norek",
+  "sourceId":      "passback_records",
+  "tier":          "RECORD",
+  "tags":          ["#blurry-whirl", "#freestyle", "#trick", "#passback_records"]
+}
+```
+
+Filename: `curated/freestyle_tricks/blurry-whirl_<sha1[:8]>.meta.json`.
+
+### Same trick, distinct media (NOT a duplicate)
+
+The two sidecars below coexist legitimately:
+
+```jsonc
+// TT tutorial — how to do DLO
+{ "sourceId": "tt_youtube", "tier": "CANONICAL_TUTORIAL",
+  "tags": ["#double-leg-over", "#freestyle", "#trick", "#tricks_of_the_trade"], ... }
+
+// PassBack record — proof of N consecutive DLO reps
+{ "sourceId": "passback_records", "tier": "RECORD",
+  "tags": ["#double-leg-over", "#freestyle", "#trick", "#passback_records"], ... }
+```
+
+Same `trick_slug` (`double-leg-over`), distinct `(source_id, video_url)` → distinct sidecars → not a duplicate. Both render in the trick-detail page's reference media; each renders in its own source-specific gallery.
+
+### Record-category example (no canonical trick slug)
+
+`Unique Fearless` is a PassBack record category for runs where every trick is 5+ ADD. It is not a trick. Stage in `legacy_data/tools/trick_video_discovery/passback_record_categories.csv`:
+
+```csv
+category,url,start_seconds,player_name,date_recorded,record_count,place,adds,sort_friendly,notes
+Unique Fearless,https://www.youtube.com/watch?v=uSBHfyY5tOE,,Jim Penske,7/23/2023,25,1,5,Unique 5-ADD,
+Unique Fearless,,,Vasek Klouda,6/1/2005,19,5,5,Unique 5-ADD,DVD: Feet on Fire (released 2007 — predates record date)
+```
+
+No `trick_slug` column. No sidecar emission. Surfacing decision deferred — the file is preservation, not auto-import.
+
+## Cross-references
+
+- `footbag-freestyle-dictionary` skill — trick / alias / glossary layer separation rules; the canonical source for what counts as a trick.
+- `feedback_gallery_dave_track.md` (memory) — gallery management is Dave's track during his gallery-edit-tool build; only tagging hygiene + sidecar work + QC is allowed.
+- `feedback_admin_post_rebuild_backfill.md` (memory) — DB rebuilds wipe member rows including `is_admin`; not directly about media but the same operational lesson: rebuilds don't reapply per-row state.
+- `project_gallery_organization.md` (memory) — historical context on TT Series view + cluster candidates (passback_records, anz_trikz, footbag_finland, shred_global, flipsider_footbag) — note that the original TT view code was removed in commit `23a4bae` and replaced by named-gallery sidecars.
