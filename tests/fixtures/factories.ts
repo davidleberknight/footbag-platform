@@ -485,6 +485,8 @@ export interface MediaItemOverrides {
   s3_key_display?: string;
   width_px?: number;
   height_px?: number;
+  source_filename?: string | null;
+  caption?: string | null;
 }
 
 export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverrides): string {
@@ -492,18 +494,20 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
-      s3_key_thumb, s3_key_display, width_px, height_px
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, NULL, 'photo', ?, NULL, ?, ?, ?, ?, ?)
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
+      s3_key_thumb, s3_key_display, width_px, height_px, source_filename
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, TS,
     o.uploader_member_id,
     o.is_avatar ?? 0,
+    o.caption === undefined ? null : o.caption,
     TS,
     o.s3_key_thumb   ?? `test/thumb_${id}.jpg`,
     o.s3_key_display ?? `test/display_${id}.jpg`,
     o.width_px  ?? 800,
     o.height_px ?? 600,
+    o.source_filename ?? null,
   );
   return id;
 }
@@ -541,10 +545,10 @@ export function insertTtLesson(db: BetterSqlite3.Database, o: TtLessonOverrides)
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       source_id, moderation_status
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, NULL, 'video', 0, ?, ?,
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'video', 0, ?, ?,
               'youtube', ?, ?, NULL, ?, 'active')
   `).run(
     id, TS, TS,
@@ -1192,10 +1196,10 @@ export function insertCuratorVideo(
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       moderation_status, source_filename
-    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, NULL, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active', ?)
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active', ?)
   `).run(
     mediaId, TS, TS,
     o.uploaderMemberId,
@@ -1283,10 +1287,10 @@ export function insertCuratorUrlReference(
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       moderation_status
-    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, NULL, 'video', 0, ?, ?, ?, ?, ?, ?, 'active')
+    ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, ?, ?, ?, ?, 'active')
   `).run(
     mediaId, TS, TS,
     o.uploaderMemberId,

@@ -4,8 +4,9 @@
  * FH system member. Their content is computed dynamically by tag-AND
  * match against the gallery's criteria-tag set in member_gallery_tags
  * (per docs/USER_STORIES.md §V_View_Gallery and docs/DATA_MODEL.md
- * "hashtag-driven coupling"). Curator URL-ref content is detached
- * (gallery_id NULL) per docs/USER_STORIES.md §A_Upload_Curated_Media.
+ * "hashtag-driven coupling"). Curator URL-ref content surfaces in
+ * named galleries purely via tag-AND match per
+ * docs/USER_STORIES.md §A_Upload_Curated_Media.
  *
  * Covers: hub rendering, named-gallery rendering, platform-branched tile
  * shaping (s3 / youtube / vimeo), tag-AND filtering, anti-enumeration
@@ -50,11 +51,11 @@ function insertPhoto(db: BetterSqlite3.Database, o: PhotoOverrides = {}): string
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px,
       moderation_status
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, NULL, 'photo', ?, ?, ?,
+              ?, 'photo', ?, ?, ?,
               ?, ?, 1000, 600,
               ?)
   `).run(
@@ -111,12 +112,12 @@ function insertVideo(db: BetterSqlite3.Database, o: VideoOverrides = {}): string
   db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       width_px, height_px,
       moderation_status, source_id
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, NULL, 'video', 0, ?, ?,
+              ?, 'video', 0, ?, ?,
               ?, ?, ?, ?,
               1280, 720,
               ?, ?)

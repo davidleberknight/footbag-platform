@@ -389,13 +389,13 @@ def seed_video_item(
     con.execute(
         """
         INSERT OR REPLACE INTO media_items (
-            id, uploader_member_id, gallery_id,
+            id, uploader_member_id,
             media_type, is_avatar, caption, uploaded_at,
             video_platform, video_id, video_url, thumbnail_url,
             width_px, height_px,
             moderation_status, source_filename,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, NULL, 'video', 0, ?, ?, 's3', ?, NULL, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, 'video', 0, ?, ?, 's3', ?, NULL, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id,
@@ -441,13 +441,13 @@ def seed_photo_item(
     con.execute(
         """
         INSERT OR REPLACE INTO media_items (
-            id, uploader_member_id, gallery_id,
+            id, uploader_member_id,
             media_type, is_avatar, caption, uploaded_at,
             s3_key_thumb, s3_key_display,
             width_px, height_px,
             moderation_status, source_filename,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, NULL, 'photo', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id, 1 if is_avatar else 0,
@@ -725,22 +725,20 @@ def _seed_one_sidecar(
 
     # INSERT OR REPLACE: ON DELETE CASCADE on media_tags.media_id wipes
     # prior tag rows for this media_id; we re-insert below.
-    # Curator URL-ref content is uploaded as DETACHED per USER_STORIES.md
-    # §A_Upload_Curated_Media (gallery_id = NULL). The named gallery
-    # row at gallery_curated_freestyle_tricks is a URL bookmark; the
-    # content that appears on that page is computed dynamically by
-    # hashtag-AND match (per DATA_MODEL.md §"hashtag-driven coupling"
-    # and USER_STORIES.md §V_View_Gallery), not by direct gallery_id FK.
+    # Curator URL-ref content surfaces in the named gallery at
+    # gallery_curated_freestyle_tricks purely via hashtag-AND match
+    # against the gallery's criteria-tag set (per DATA_MODEL.md
+    # §"hashtag-driven coupling" and USER_STORIES.md §V_View_Gallery).
     con.execute(
         """
         INSERT OR REPLACE INTO media_items (
-            id, uploader_member_id, gallery_id,
+            id, uploader_member_id,
             media_type, is_avatar, caption, uploaded_at,
             video_platform, video_id, video_url, thumbnail_url,
             source_id, start_seconds, end_seconds,
             moderation_status, source_filename,
             created_at, created_by, updated_at, updated_by, version
-        ) VALUES (?, ?, NULL, 'video', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, 'seed', ?, 'seed', 1)
+        ) VALUES (?, ?, 'video', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NULL, ?, 'seed', ?, 'seed', 1)
         """,
         (
             media_id, fh_id,

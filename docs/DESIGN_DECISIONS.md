@@ -1088,7 +1088,7 @@ Rationale:
 
 - Modern browsers have 97%+ support for SameSite (CSRF dropped from OWASP Top 10 in 2017).
 
-- Proper HTTP verb discipline (GETs are non-side-effecting; mutations use POST, including POST with method override to represent PUT/DELETE semantics) ensures GET requests cannot perform state changes.
+- Proper HTTP verb discipline (GETs are non-side-effecting; mutations use POST) ensures GET requests cannot perform state changes.
 
 - Content-Type validation on JSON endpoints (require application/json) prevents simple form-based CSRF.
 
@@ -1098,7 +1098,7 @@ Requirements:
 
 - GET requests must be strictly read-only (no state changes).
 
-- All state-changing operations use POST (including POST with method override where PUT/DELETE semantics are desired).
+- All state-changing operations use POST.
 
 - JSON-only routes (webhooks and explicitly-designated JSON-only progressive-enhancement endpoints) validate Content-Type: application/json.
 

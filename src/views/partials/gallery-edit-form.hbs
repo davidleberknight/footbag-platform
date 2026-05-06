@@ -46,9 +46,9 @@
     <span class="form-label">Criteria tags</span>
     <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{gallery.criteriaTagsString}}</textarea>
     {{#if isCreate}}
-      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Your slug-tag is added automatically so the gallery scopes to your own uploads.</small>
+      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your slug-tag is added automatically.</small>
     {{else}}
-      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
+      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded.</small>
     {{/if}}
   </label>
 
@@ -69,6 +69,8 @@
       </small>
     </fieldset>
   {{/if}}
+
+  {{> _member-media-picker pickerItems=pickerItems}}
 
   <div class="form-actions">
     <button type="submit">{{#if submitLabel}}{{submitLabel}}{{else}}Save changes{{/if}}</button>

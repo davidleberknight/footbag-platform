@@ -306,6 +306,26 @@ function applyTags(mediaId: string, tags: string[], now: string): void {
   }
 }
 
+// Idempotent variant of applyTags: skip the media_tags insert when the
+// (media_id, tag_id) row already exists. Used by addMediaToGallery,
+// where the picked media items may already carry one or more of the
+// gallery's criteria tags. The non-idempotent applyTags path stays in
+// place for upload flows (freshly inserted media has no prior tags).
+function applyTagsIdempotent(mediaId: string, tags: string[], now: string): void {
+  for (const tag of tags) {
+    const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as { id: string } | undefined;
+    let tagId: string;
+    if (existingTag) {
+      tagId = existingTag.id;
+    } else {
+      tagId = newTagId();
+      mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
+    }
+    if (mediaTagsDb.findMediaTag.get(mediaId, tagId)) continue;
+    mediaTagsDb.insertMediaTag.run(newMediaTagId(), now, now, mediaId, tagId, tag);
+  }
+}
+
 // Curator tag application: appends #curated to the user-supplied tags.
 // Caller has already passed userTags through validateTags (which rejects
 // #curated from input). This is the only path that adds #curated to a
@@ -548,6 +568,21 @@ interface MediaListRow {
   thumbnail_url: string | null;
   width_px: number | null;
   height_px: number | null;
+  source_filename?: string | null;
+}
+
+export interface MediaPickerItem {
+  mediaId: string;
+  mediaType: 'photo' | 'video';
+  thumbnailUrl: string;
+  caption: string | null;
+  sourceFilename: string | null;
+  uploadedAt: string;
+  tags: string[];
+}
+
+export interface MediaPickerListResult {
+  items: MediaPickerItem[];
 }
 
 interface CountRow {
@@ -1152,6 +1187,34 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       return { items, total, page, pageSize };
     },
 
+    // Member's own active media for the gallery-create / gallery-edit
+    // picker. Ownership is read directly off uploader_member_id (the
+    // authoritative signal), not via the slug-tag — a curator-uploaded
+    // item that happens to carry #<slug> is not the member's own
+    // upload. Avatars are excluded so the picker never offers the
+    // member's profile photo as gallery content.
+    listMediaForPicker(input: { ownerMemberId: string }): MediaPickerListResult {
+      return runSqliteRead('listMediaForPicker', () => {
+        const rows = media.listMediaForOwnerPicker.all(input.ownerMemberId) as MediaListRow[];
+        const ids = rows.map((r) => r.id);
+        const tagsById = new Map<string, string[]>();
+        for (const id of ids) tagsById.set(id, []);
+        for (const pair of queryCuratorMediaTags(ids)) {
+          tagsById.get(pair.media_id)?.push(pair.tag_display);
+        }
+        const items: MediaPickerItem[] = rows.map((r) => ({
+          mediaId: r.id,
+          mediaType: r.media_type,
+          thumbnailUrl: deriveListThumbnail(r),
+          caption: r.caption,
+          sourceFilename: r.source_filename ?? null,
+          uploadedAt: r.uploaded_at,
+          tags: tagsById.get(r.id) ?? [],
+        }));
+        return { items };
+      });
+    },
+
     // ── Admin gallery-edit surface ──────────────────────────────────────
     // Lists every FH-owned named gallery with its criteria + exclude tag
     // sets and item count. Drives the /admin/curator/galleries index.
@@ -1387,6 +1450,64 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           );
         }
       }
+    },
+
+    // Attach existing media to a gallery by applying the gallery's
+    // CURRENT criteria tags to each picked item. The picker UI on
+    // /members/:slug/galleries/{new,:id/edit} drives this method.
+    //
+    // Cross-gallery side-effect: tags are global metadata, not per-
+    // gallery membership tokens. Applying e.g. `#event_2024_eugene`
+    // here adds the item to every gallery whose criteria include that
+    // tag. This is intentional under the tag-AND model.
+    //
+    // Authz: actor must own the gallery (or be admin). Per-item
+    // ownership is also enforced — a non-admin actor cannot attach
+    // another member's media to their gallery; mismatched items are
+    // silently skipped (and surface in `skipped`).
+    addMediaToGallery(input: {
+      actorMemberId: string;
+      actorIsAdmin: boolean;
+      galleryId: string;
+      mediaIds: string[];
+    }): { added: number; skipped: number } {
+      if (input.mediaIds.length === 0) return { added: 0, skipped: 0 };
+      if (input.mediaIds.length > 50) {
+        throw new ValidationError('Cannot add more than 50 items in one operation.');
+      }
+      const gallery = media.getNamedGalleryById.get(input.galleryId) as
+        | { id: string; owner_member_id: string }
+        | undefined;
+      if (!gallery) {
+        throw new NotFoundError(`gallery ${input.galleryId} not found`);
+      }
+      authorizeGalleryActor(input.actorMemberId, input.actorIsAdmin, gallery.owner_member_id);
+
+      const criteriaTags = (
+        media.listFhNamedGalleryTags.all(input.galleryId) as Array<{ tag_display: string }>
+      ).map((t) => t.tag_display);
+
+      let added = 0;
+      let skipped = 0;
+      const now = new Date().toISOString();
+      transaction(() => {
+        for (const mediaId of input.mediaIds) {
+          const row = media.getMediaUploaderById.get(mediaId) as
+            | { id: string; uploader_member_id: string }
+            | undefined;
+          if (!row) {
+            skipped++;
+            continue;
+          }
+          if (!input.actorIsAdmin && row.uploader_member_id !== input.actorMemberId) {
+            skipped++;
+            continue;
+          }
+          applyTagsIdempotent(mediaId, criteriaTags, now);
+          added++;
+        }
+      });
+      return { added, skipped };
     },
 
     // Lists every gallery owned by a given member, including item count.

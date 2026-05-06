@@ -392,17 +392,6 @@ def test_freestyle_tricks_seeder_creates_named_gallery_and_criteria_tags() -> No
                 f"expected criteria tags {{#curated, #freestyle, #trick}}, got {criteria}"
             )
 
-            # Sidecars themselves stay detached (gallery_id = NULL).
-            (detached,) = con.execute(
-                "SELECT COUNT(*) FROM media_items "
-                "WHERE source_filename IS NULL AND gallery_id IS NOT NULL "
-                "  AND moderation_status = 'active'"
-            ).fetchone()
-            assert detached == 0, (
-                f"sidecar media_items must have gallery_id NULL (detached); "
-                f"got {detached} attached rows"
-            )
-
             # YouTube sidecars: thumbnail_url stays NULL (service derives at render).
             yt = con.execute(
                 "SELECT COUNT(*) FROM media_items "

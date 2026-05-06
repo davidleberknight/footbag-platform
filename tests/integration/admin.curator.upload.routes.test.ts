@@ -232,7 +232,6 @@ describe('POST /admin/curator/upload — photo', () => {
     expect(mediaRow.media_type).toBe('photo');
     expect(mediaRow.uploader_member_id).toBe(SYSTEM_ID);
     expect(mediaRow.is_avatar).toBe(0);
-    expect(mediaRow.gallery_id).toBeNull();
     expect(mediaRow.s3_key_thumb).toMatch(/-thumb\.jpg$/);
     expect(mediaRow.s3_key_display).toMatch(/-display\.jpg$/);
     expect(mediaRow.created_by).toBe('admin-act-as');

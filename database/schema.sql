@@ -1996,16 +1996,14 @@ CREATE INDEX idx_result_participants_person ON event_result_entry_participants(h
 -- Referential cleanup on delete is handled declaratively:
 --   members.avatar_media_id  REFERENCES media_items(id) ON DELETE SET NULL
 --   clubs.logo_media_id      REFERENCES media_items(id) ON DELETE SET NULL
---   media_items.gallery_id   REFERENCES member_galleries(id) ON DELETE CASCADE
 --
--- CASCADE on gallery_id: deleting a gallery removes all its media items.
--- Avatar photos (is_avatar=1) are never gallery-assigned, so CASCADE cannot
--- accidentally remove avatar content.
+-- Gallery membership is computed at request time by tag-AND match against
+-- member_gallery_tags / member_gallery_exclude_tags. Deleting a gallery
+-- removes the gallery row and its tag-set rows; member-uploaded media
+-- survive the delete and remain reachable via tag-based galleries.
 --
 -- media_tags and media_flags cascade-delete on media_id.
 -- gallery_external_links cascade-deletes on gallery_id.
---
--- Video cap: max 5 video embeds per named gallery (application-enforced; APP-009).
 
 -- Photo and video media items uploaded by members. Photo fields (s3_key_thumb,
 -- s3_key_display) are required for photos; video fields (video_platform, video_id,
@@ -2033,10 +2031,6 @@ CREATE TABLE media_items (
   version    INTEGER NOT NULL DEFAULT 1,
 
   uploader_member_id TEXT NOT NULL REFERENCES members(id),
-  -- NULL = media is not assigned to any gallery (detached or avatar-only)
-  -- ON DELETE CASCADE: deleting a gallery deletes all its media items (US M_Delete_Own_Media).
-  -- Avatar photos (is_avatar=1) are never gallery-assigned, so cascade cannot delete them.
-  gallery_id TEXT REFERENCES member_galleries(id) ON DELETE CASCADE,
 
   media_type TEXT NOT NULL CHECK (media_type IN ('photo','video')),
   is_avatar  INTEGER NOT NULL DEFAULT 0 CHECK (is_avatar IN (0,1)),
@@ -2081,10 +2075,8 @@ CREATE TABLE media_items (
   CHECK (media_type <> 'video'
     OR (video_platform IS NOT NULL AND video_id IS NOT NULL
         AND (video_url IS NOT NULL OR video_platform = 's3'))),
-  -- Avatar integrity: avatars must be photos and cannot be gallery-assigned
-  -- (enforces the cascade-safety invariant documented in DM §4.17).
+  -- Avatar integrity: avatars must be photos.
   CHECK (is_avatar = 0 OR media_type = 'photo'),
-  CHECK (is_avatar = 0 OR gallery_id IS NULL),
   -- Clip-range integrity: when both bounds are set, start must precede end;
   -- negative bounds are rejected. NULL bounds are valid (full asset).
   CHECK (start_seconds IS NULL OR start_seconds >= 0),
@@ -2168,7 +2160,6 @@ CREATE TABLE gallery_external_links (
 );
 
 CREATE INDEX        idx_media_uploader          ON media_items(uploader_member_id);
-CREATE INDEX        idx_media_gallery           ON media_items(gallery_id) WHERE gallery_id IS NOT NULL;
 CREATE INDEX        idx_media_moderation        ON media_items(moderation_status) WHERE moderation_status = 'active';
 CREATE UNIQUE INDEX ux_media_avatar_per_member  ON media_items(uploader_member_id) WHERE is_avatar = 1;
 -- Curator slot identity: among an uploader's active rows, the source filename

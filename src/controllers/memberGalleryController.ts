@@ -44,18 +44,28 @@ function parseTagsField(raw: string | undefined): string[] {
 // Applied on create only. Edit leaves criteria alone, so the owner
 // can curate the filter intentionally.
 //
-// Empty user-supplied criteria is left empty so the downstream
-// validation ("at least one criteria tag required") still fires; the
-// auto-slug should add to a deliberate filter, not stand in for one.
+// Empty user-supplied criteria becomes [#<slug>] so a member can create
+// "My Photos"-style galleries without typing their own slug. The
+// service's >=1 criteria invariant remains satisfied.
 function prependSlugTagToCriteria(slug: string, criteriaTags: string[]): string[] {
-  if (criteriaTags.length === 0) {
-    return criteriaTags;
-  }
   const slugTag = `#${slug.toLowerCase()}`;
   if (criteriaTags.some((t) => t.toLowerCase() === slugTag)) {
     return criteriaTags;
   }
   return [slugTag, ...criteriaTags];
+}
+
+// Picker submission: parse the repeated `mediaIds` field from a form
+// POST. Express's urlencoded body-parser yields a string for one
+// checkbox, an array for many; busboy fires per-checkbox `field`
+// events so multipart accumulates into an array elsewhere. Validates
+// the shape (no path-traversal-like values) but defers existence and
+// authz to addMediaToGallery.
+function parseMediaIds(raw: unknown): string[] {
+  const SHAPE = /^[a-z0-9_-]+$/i;
+  if (Array.isArray(raw)) return raw.map(String).filter((s) => SHAPE.test(s));
+  if (typeof raw === 'string' && raw) return [raw].filter((s) => SHAPE.test(s));
+  return [];
 }
 
 function buildSvc(): ReturnType<typeof createCuratorMediaService> {
@@ -131,12 +141,16 @@ export const memberGalleryController = {
       return;
     }
     const memberKey = req.params.memberKey;
+    const memberId = req.user!.userId;
+    const svc = buildSvc();
+    const picker = svc.listMediaForPicker({ ownerMemberId: memberId });
     res.render('members/galleries/new', {
       seo: { title: 'Create Gallery' },
       page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
       formAction: listHref(memberKey),
       gallery: { name: '', description: '', sortOrder: 'upload_desc', criteriaTagsString: '', excludeTagsString: '' },
       cancelHref: listHref(memberKey),
+      pickerItems: picker.items,
     });
   },
 
@@ -166,21 +180,27 @@ export const memberGalleryController = {
       );
       const excludeTags = parseTagsField(req.body?.excludeTags);
 
+      const mediaIds = parseMediaIds(req.body?.mediaIds);
       const svc = buildSvc();
       try {
         // ownerMemberId is taken from the authenticated session, NOT the
         // request body. A forged owner id in the form is ignored: a
         // member can only create galleries owned by themselves.
-        await svc.createGallery({
+        const created = await svc.createGallery({
           actorMemberId,
           actorIsAdmin,
           ownerMemberId: actorMemberId,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
         });
+        if (mediaIds.length > 0) {
+          svc.addMediaToGallery({ actorMemberId, actorIsAdmin, galleryId: created.id, mediaIds });
+        }
         res.redirect(`${listHref(memberKey)}?saved=create`);
         return;
       } catch (err) {
         if (err instanceof ValidationError || err instanceof ConflictError) {
+          const memberId = actorMemberId;
+          const picker = svc.listMediaForPicker({ ownerMemberId: memberId });
           res.status(422).render('members/galleries/new', {
             seo: { title: 'Create Gallery' },
             page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
@@ -194,6 +214,7 @@ export const memberGalleryController = {
               excludeTagsString: (req.body?.excludeTags ?? '') as string,
             },
             cancelHref: listHref(memberKey),
+            pickerItems: picker.items,
           });
           return;
         }
@@ -221,6 +242,7 @@ export const memberGalleryController = {
         // exists but is not owned by the requesting member — matches
         // the anti-enumeration convention of the rest of /members/.
         const g = svc.getGalleryForEdit(galleryId, memberId);
+        const picker = svc.listMediaForPicker({ ownerMemberId: memberId });
         res.render('members/galleries/edit', {
           seo: { title: 'Edit Gallery' },
           page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
@@ -234,6 +256,7 @@ export const memberGalleryController = {
             excludeTagsString: g.excludeTags.join(' '),
           },
           cancelHref: listHref(memberKey),
+          pickerItems: picker.items,
         });
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -263,6 +286,7 @@ export const memberGalleryController = {
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
       const criteriaTags = parseTagsField(req.body?.criteriaTags);
       const excludeTags = parseTagsField(req.body?.excludeTags);
+      const mediaIds = parseMediaIds(req.body?.mediaIds);
 
       const svc = buildSvc();
       try {
@@ -278,6 +302,9 @@ export const memberGalleryController = {
           galleryId,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
         });
+        if (mediaIds.length > 0) {
+          svc.addMediaToGallery({ actorMemberId, actorIsAdmin, galleryId, mediaIds });
+        }
         res.redirect(`${listHref(memberKey)}?saved=edit`);
         return;
       } catch (err) {
@@ -286,6 +313,7 @@ export const memberGalleryController = {
           return;
         }
         if (err instanceof ValidationError) {
+          const picker = svc.listMediaForPicker({ ownerMemberId: actorMemberId });
           res.status(422).render('members/galleries/edit', {
             seo: { title: 'Edit Gallery' },
             page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
@@ -300,6 +328,7 @@ export const memberGalleryController = {
               excludeTagsString: (req.body?.excludeTags ?? '') as string,
             },
             cancelHref: listHref(memberKey),
+            pickerItems: picker.items,
           });
           return;
         }
@@ -372,15 +401,25 @@ function handleMultipartCreate(
   const memberKey = req.params.memberKey;
 
   const fields: Record<string, string> = {};
+  const mediaIds: string[] = [];
   const photoFiles: Array<{ buffer: Buffer; filename: string }> = [];
   let limitExceeded = false;
 
+  // The fields cap accommodates the standard form fields plus up to 50
+  // picker checkboxes (addMediaToGallery's per-call ceiling) with margin.
   const busboy = Busboy({
     headers: req.headers,
-    limits: { fileSize: PHOTO_MAX_BYTES, files: MAX_FILES_PER_CREATE, fields: 10 },
+    limits: { fileSize: PHOTO_MAX_BYTES, files: MAX_FILES_PER_CREATE, fields: 100 },
   });
 
+  // Picker checkboxes fire one `field` event per checked item under the
+  // same `mediaIds` name; accumulate into a dedicated array so a multi-
+  // selection isn't collapsed to the last value.
   busboy.on('field', (name, val) => {
+    if (name === 'mediaIds') {
+      mediaIds.push(val);
+      return;
+    }
     fields[name] = val;
   });
 
@@ -408,7 +447,7 @@ function handleMultipartCreate(
 
   busboy.on('finish', () => {
     void executeMultipartCreate({
-      req, res, memberKey, fields, photoFiles, limitExceeded,
+      req, res, memberKey, fields, mediaIds, photoFiles, limitExceeded,
     }).catch((err: unknown) => {
       logger.error('member gallery multipart create error', {
         error: err instanceof Error ? err.message : String(err),
@@ -430,10 +469,11 @@ async function executeMultipartCreate(args: {
   res: Response;
   memberKey: string;
   fields: Record<string, string>;
+  mediaIds: string[];
   photoFiles: Array<{ buffer: Buffer; filename: string }>;
   limitExceeded: boolean;
 }): Promise<void> {
-  const { req, res, memberKey, fields, photoFiles, limitExceeded } = args;
+  const { req, res, memberKey, fields, mediaIds: rawMediaIds, photoFiles, limitExceeded } = args;
   const actorMemberId = req.user!.userId;
   const actorIsAdmin = req.user!.role === 'admin';
   const slug = req.user!.slug;
@@ -443,8 +483,12 @@ async function executeMultipartCreate(args: {
   const sortOrderRaw = String(fields.sortOrder ?? '');
   const criteriaTags = prependSlugTagToCriteria(slug, parseTagsField(fields.criteriaTags));
   const excludeTags = parseTagsField(fields.excludeTags);
+  const mediaIds = parseMediaIds(rawMediaIds);
+
+  const svc = buildSvc();
 
   function rerenderError(status: number, errorMessage: string): void {
+    const picker = svc.listMediaForPicker({ ownerMemberId: actorMemberId });
     res.status(status).render('members/galleries/new', {
       seo: { title: 'Create Gallery' },
       page: { sectionKey: 'members', pageKey: 'member_galleries_new', title: 'Create Gallery' },
@@ -458,6 +502,7 @@ async function executeMultipartCreate(args: {
         excludeTagsString: fields.excludeTags ?? '',
       },
       cancelHref: listHref(memberKey),
+      pickerItems: picker.items,
     });
   }
 
@@ -480,7 +525,6 @@ async function executeMultipartCreate(args: {
     }
   }
 
-  const svc = buildSvc();
   let galleryId: string;
   try {
     const created = await svc.createGallery({
@@ -520,6 +564,20 @@ async function executeMultipartCreate(args: {
           422,
           `Gallery "${name}" was created, but uploading "${f.filename}" failed: ${err.message}`,
         );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  // Picker-selected items are tagged with the gallery's criteria tags,
+  // so they appear in this gallery and any other whose criteria match.
+  if (mediaIds.length > 0) {
+    try {
+      svc.addMediaToGallery({ actorMemberId, actorIsAdmin, galleryId, mediaIds });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        rerenderError(422, `Gallery "${name}" was created, but adding existing items failed: ${err.message}`);
         return;
       }
       throw err;

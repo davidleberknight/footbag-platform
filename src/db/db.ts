@@ -3487,9 +3487,9 @@ export const media = {
   get insertAvatarPhoto() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px, source_filename
-    ) VALUES (?, ?, 'member', ?, 'member', 1, ?, NULL, 'photo', 1, NULL, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, 'member', ?, 'member', 1, ?, 'photo', 1, NULL, ?, ?, ?, ?, ?, ?)
   `); },
 
   get findSystemMemberId() { return db.prepare(`
@@ -3499,11 +3499,11 @@ export const media = {
   get insertCuratorPhoto() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px,
       moderation_status, source_filename
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, NULL, 'photo', 0, ?, ?,
+              ?, 'photo', 0, ?, ?,
               ?, ?, ?, ?,
               'active', ?)
   `); },
@@ -3511,12 +3511,12 @@ export const media = {
   get insertCuratorVideo() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       width_px, height_px,
       moderation_status, source_filename
     ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1,
-              ?, NULL, 'video', 0, ?, ?,
+              ?, 'video', 0, ?, ?,
               's3', ?, NULL, ?,
               ?, ?,
               'active', ?)
@@ -3525,17 +3525,16 @@ export const media = {
   // Member-uploaded photo: uploader is the member themselves (not the
   // system member). Mirrors insertCuratorPhoto but stamps created_by/
   // updated_by = 'member' and leaves is_avatar = 0 (avatars use
-  // insertAvatarPhoto). gallery_id stays NULL — gallery membership is
-  // computed at request time via tag-AND match against the gallery's
-  // criteria/exclude tag sets.
+  // insertAvatarPhoto). Gallery membership is computed at request time
+  // via tag-AND match against the gallery's criteria/exclude tag sets.
   get insertMemberPhoto() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px,
       moderation_status, source_filename
     ) VALUES (?, ?, 'member', ?, 'member', 1,
-              ?, NULL, 'photo', 0, ?, ?,
+              ?, 'photo', 0, ?, ?,
               ?, ?, ?, ?,
               'active', ?)
   `); },
@@ -3548,11 +3547,11 @@ export const media = {
   get insertMemberVideo() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
-      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       video_platform, video_id, video_url, thumbnail_url,
       moderation_status, source_filename
     ) VALUES (?, ?, 'member', ?, 'member', 1,
-              ?, NULL, 'video', 0, ?, ?,
+              ?, 'video', 0, ?, ?,
               ?, ?, ?, ?,
               'active', NULL)
   `); },
@@ -3855,6 +3854,32 @@ export const media = {
     SET is_default = 1, updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
+
+  // Member's own active media for the gallery picker. uploader_member_id
+  // is the authoritative "this member uploaded it" signal — a curator-
+  // uploaded item that happens to carry #<slug> is not the member's own
+  // upload. Avatars are excluded so the picker never offers the
+  // member's profile photo as gallery content.
+  get listMediaForOwnerPicker() { return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.width_px, mi.height_px, mi.source_filename
+    FROM media_items mi
+    WHERE mi.uploader_member_id = ?
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+  `); },
+
+  // Existence + ownership probe for addMediaToGallery: confirm the row
+  // is active and surface its uploader_member_id so the service can
+  // enforce actor-owns-media authz on non-admin attaches.
+  get getMediaUploaderById() { return db.prepare(`
+    SELECT mi.id, mi.uploader_member_id
+    FROM media_items mi
+    WHERE mi.id = ? AND mi.moderation_status = 'active'
+  `); },
 };
 
 // Tag display values for a set of media ids in one round-trip. Built
@@ -4009,6 +4034,13 @@ export const mediaTags = {
   // editMedia. Caller wraps in a transaction with the matching reinsert.
   get deleteMediaTagsByMediaId() { return db.prepare(`
     DELETE FROM media_tags WHERE media_id = ?
+  `); },
+
+  // (media_id, tag_id) probe for idempotent tag application: callers
+  // that may re-apply tags to media that already carry them (gallery
+  // picker) skip the INSERT when this returns a row.
+  get findMediaTag() { return db.prepare(`
+    SELECT id FROM media_tags WHERE media_id = ? AND tag_id = ?
   `); },
 };
 

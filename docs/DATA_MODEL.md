@@ -849,10 +849,10 @@ When a media item is deleted:
 - `media_flags` / `media_tags` → `CASCADE` delete (flags and tags removed with the media)
 
 When a gallery is deleted:
-- `media_items.gallery_id` → **`CASCADE`** (all media in the gallery is deleted with it)
+- `member_gallery_tags` / `member_gallery_exclude_tags` → `CASCADE` (the gallery's criteria and exclude tag-link rows disappear with it)
 - `gallery_external_links` → `CASCADE` delete
 
-The gallery `CASCADE` matches the US requirement in M_Delete_Own_Media: deleting a gallery deletes its contents. Avatar photos are never gallery-assigned (`gallery_id IS NULL` when `is_avatar = 1`), so cascade cannot accidentally remove avatar content.
+Member-uploaded media survives gallery deletion: galleries are saved-search bookmarks over the tag set, not content buckets, so a deleted gallery only loses its tag-link rows. The media itself remains reachable via any other gallery whose criteria still match (every member upload carries the uploader's `#<slug>` tag and so always remains in the owner's `#<slug>` view).
 
 `media_flags.media_id ON DELETE CASCADE` and `media_tags.media_id ON DELETE CASCADE`: flags and tags are removed when their media is deleted.
 
@@ -868,7 +868,6 @@ Maximum 5 video embeds per named gallery (US §3.8 M_Organize_Media_Galleries). 
 
 #### Avatar integrity CHECKs
 - `CHECK (is_avatar = 0 OR media_type = 'photo')`: avatars must be photos (DB-enforced).
-- `CHECK (is_avatar = 0 OR gallery_id IS NULL)`: avatars cannot be gallery-assigned (DB-enforced). This ensures gallery `CASCADE` delete cannot accidentally remove avatar content.
 
 #### Provenance and clip ranges (curator reference media)
 
@@ -894,7 +893,7 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 
 **Semantics:** items appear in a named gallery iff they carry every tag linked via `member_gallery_tags` AND no tag linked via `member_gallery_exclude_tags`. Empty criteria → empty gallery. The same `tags` table backs both per-item tagging (`media_tags`) and per-gallery criteria/exclude sets, so a curator who tags media with `#freestyle` automatically affects every gallery whose criteria include `#freestyle`.
 
-**Detached vs attached content:** the `media_items.gallery_id` FK is for member-uploaded content that lives in a personal organizational bucket. Curator URL-reference content (YouTube/Vimeo) is uploaded as detached (`gallery_id IS NULL`) and surfaces in named galleries purely via tag matching. The two mechanisms coexist on the same `member_galleries` table.
+**Tag-only gallery membership:** named galleries do not own their content directly; `media_items` carries no gallery FK. Both curator URL-reference content and member uploads surface in a named gallery purely via tag-AND match against the gallery's `member_gallery_tags` set (minus any exclude match). One media item can appear in many galleries, and the same item is reachable through different galleries whose criteria match.
 
 ### 4.18 Club Leaders & Event Organizers
 

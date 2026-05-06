@@ -1794,7 +1794,7 @@ Render the standard empty state ("No media yet.") when the criteria-tag set matc
 
 **Implementation notes**
 
-- Source rows are filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`. Curator URL-reference content is detached (`gallery_id IS NULL`) and surfaces in named galleries purely via tag-AND match.
+- Source rows are filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`. All gallery membership is computed by tag-AND match against the gallery's criteria-tag set; both curator URL-reference content and member uploads surface in named galleries through the same mechanism.
 - Unknown `galleryId` values return 404. Member-owned galleries are public; the hub lists them with owner attribution alongside FH-owned bookmarks.
 - Query parameter `?page=N` selects the page (invalid values clamp to 1).
 - Caption text is HTML-escaped at render time; item tag chips do not link to per-tag pages in this slice.

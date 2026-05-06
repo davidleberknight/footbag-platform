@@ -2,8 +2,9 @@
 <div class="wrapper">
   <h1>{{page.title}}</h1>
   <p>
-    Editing your gallery. Membership rule: an item appears in this gallery iff it carries every
-    <strong>criteria tag</strong> AND no <strong>exclude tag</strong>.
+    Editing your gallery. Items appear here when they carry every
+    <strong>criteria tag</strong> and no <strong>exclude tag</strong>.
+    Leave criteria empty to show everything you have uploaded.
   </p>
 
   {{> gallery-edit-form
@@ -11,5 +12,6 @@
       gallery=gallery
       errorMessage=errorMessage
       cancelHref=cancelHref
+      pickerItems=pickerItems
   }}
 </div>

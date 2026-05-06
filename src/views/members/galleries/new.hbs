@@ -2,10 +2,10 @@
 <div class="wrapper">
   <h1>{{page.title}}</h1>
   <p>
-    Create a new named gallery. Pick a name, an optional description, and the
-    set of <strong>criteria tags</strong> that decides which media appears in
-    your gallery (an item must carry every criteria tag to appear). Optionally
-    add <strong>exclude tags</strong> to filter out a subset.
+    Create a new named gallery. Pick a name and an optional description.
+    Add <strong>criteria tags</strong> to filter what appears here, or leave
+    them empty to show everything you have uploaded. Optionally add
+    <strong>exclude tags</strong> to filter out a subset.
   </p>
 
   {{> gallery-edit-form
@@ -15,5 +15,6 @@
       cancelHref=cancelHref
       submitLabel="Create gallery"
       isCreate=true
+      pickerItems=pickerItems
   }}
 </div>
