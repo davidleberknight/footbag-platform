@@ -3522,6 +3522,41 @@ export const media = {
               'active', ?)
   `); },
 
+  // Member-uploaded photo: uploader is the member themselves (not the
+  // system member). Mirrors insertCuratorPhoto but stamps created_by/
+  // updated_by = 'member' and leaves is_avatar = 0 (avatars use
+  // insertAvatarPhoto). gallery_id stays NULL — gallery membership is
+  // computed at request time via tag-AND match against the gallery's
+  // criteria/exclude tag sets.
+  get insertMemberPhoto() { return db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      s3_key_thumb, s3_key_display, width_px, height_px,
+      moderation_status, source_filename
+    ) VALUES (?, ?, 'member', ?, 'member', 1,
+              ?, NULL, 'photo', 0, ?, ?,
+              ?, ?, ?, ?,
+              'active', ?)
+  `); },
+
+  // Member-submitted video: a YouTube or Vimeo URL reference. The
+  // platform never hosts member video bytes (per US M_Submit_Video);
+  // video_platform is constrained to 'youtube'|'vimeo' here even though
+  // the schema CHECK also allows 's3' (reserved for curator-transcoded
+  // assets).
+  get insertMemberVideo() { return db.prepare(`
+    INSERT INTO media_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      uploader_member_id, gallery_id, media_type, is_avatar, caption, uploaded_at,
+      video_platform, video_id, video_url, thumbnail_url,
+      moderation_status, source_filename
+    ) VALUES (?, ?, 'member', ?, 'member', 1,
+              ?, NULL, 'video', 0, ?, ?,
+              ?, ?, ?, ?,
+              'active', NULL)
+  `); },
+
   get setMemberAvatar() { return db.prepare(`
     UPDATE members
     SET avatar_media_id = ?, updated_at = ?, updated_by = 'member', version = version + 1
@@ -3756,6 +3791,12 @@ export const media = {
   // then by name. The hub uses this; the existing FH-only
   // `listFhNamedGalleries` is retained for any caller that needs to
   // filter to the curator cohort only.
+  //
+  // is_default = 1 rows (the auto-materialized per-member Personal
+  // Gallery) are excluded: those are not deliberately-named bookmarks,
+  // so they don't belong on the public hub. The Personal Gallery row
+  // still exists and is still reachable at /media/<id> for sharing; it
+  // just isn't advertised in the hub list.
   get listAllNamedGalleries() { return db.prepare(`
     SELECT g.id, g.name, g.description, g.sort_order,
            g.owner_member_id, m.is_system,
@@ -3763,6 +3804,7 @@ export const media = {
            m.slug         AS owner_slug
     FROM member_galleries g
     JOIN members m ON m.id = g.owner_member_id
+    WHERE g.is_default = 0
     ORDER BY m.is_system DESC, g.name
   `); },
 
@@ -3791,6 +3833,27 @@ export const media = {
     FROM member_galleries g
     WHERE g.owner_member_id = ?
     ORDER BY g.name
+  `); },
+
+  // Existence probe for the per-member default Personal Gallery, keyed
+  // on (owner, name). Used by the upload service to make first-upload
+  // gallery creation idempotent: if the row already exists we skip the
+  // INSERT; if not, createGallery handles it. UNIQUE(owner_member_id,
+  // name) is the underlying integrity guard.
+  get findMemberGalleryByOwnerAndName() { return db.prepare(`
+    SELECT id FROM member_galleries
+    WHERE owner_member_id = ? AND name = ?
+  `); },
+
+  // Marks a gallery as the member's default Personal Gallery. Called
+  // once per member, immediately after createGallery, so the row's
+  // is_default flag matches the semantic role assigned by the upload
+  // service. Standalone UPDATE rather than threading is_default
+  // through createGallery keeps the existing FH/admin path untouched.
+  get markMemberGalleryAsDefault() { return db.prepare(`
+    UPDATE member_galleries
+    SET is_default = 1, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
   `); },
 };
 

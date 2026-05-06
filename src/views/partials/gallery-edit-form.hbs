@@ -10,11 +10,15 @@
     errorMessage optional validation error to render at the top of the form
     submitLabel  optional ("Save changes" by default)
     cancelHref   URL the cancel link points to
+    isCreate     when true, the form submits multipart and renders an
+                 optional file-picker block. Files attached are uploaded
+                 alongside the gallery and inherit its criteria tags.
 
   CSRF protection: per DD §3.3, the platform relies on SameSite=Lax
   session cookies + POST-only state changes; no synchronizer tokens.
 --}}
-<form method="POST" action="{{formAction}}" class="curator-edit-form">
+<form method="POST" action="{{formAction}}" class="curator-edit-form"
+      {{#if isCreate}}enctype="multipart/form-data"{{/if}}>
   {{#if errorMessage}}
     <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
@@ -41,7 +45,11 @@
   <label class="form-row">
     <span class="form-label">Criteria tags</span>
     <textarea name="criteriaTags" rows="2" placeholder="#freestyle #trick">{{gallery.criteriaTagsString}}</textarea>
-    <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
+    {{#if isCreate}}
+      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Your slug-tag is added automatically so the gallery scopes to your own uploads.</small>
+    {{else}}
+      <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. At least one required.</small>
+    {{/if}}
   </label>
 
   <label class="form-row">
@@ -49,6 +57,18 @@
     <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
     <small class="form-help">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
   </label>
+
+  {{#if isCreate}}
+    <fieldset class="form-row">
+      <legend class="form-label">Upload files now (optional)</legend>
+      <input type="file" name="photoFiles" accept="image/jpeg,image/png" multiple>
+      <small class="form-help">
+        JPEG or PNG, up to 25 MB each, max 3 files. Attached files are tagged
+        with the criteria tags above plus your slug, so they appear in this
+        gallery automatically.
+      </small>
+    </fieldset>
+  {{/if}}
 
   <div class="form-actions">
     <button type="submit">{{#if submitLabel}}{{submitLabel}}{{else}}Save changes{{/if}}</button>

@@ -11,6 +11,8 @@ import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import {
+  parseVimeoVideoId,
+  parseYouTubeVideoId,
   verifyExternalVideoUrl,
   type VideoVerifyResult,
   type VideoPlatform,
@@ -189,6 +191,36 @@ export interface CuratorUploadResult {
   displayUrl: string;
 }
 
+export interface MemberPhotoInput {
+  memberId: string;
+  // Slug of the authenticated member. Auto-applied as `#<slug>` on
+  // every member upload (the "uploader tag"; mirrors #curated for
+  // curator uploads). Caller is the controller that knows the
+  // session's slug.
+  slug: string;
+  photoBuffer: Buffer;
+  sourceFilename: string;
+  caption: string | null;
+  tags: string[];
+}
+
+export interface MemberVideoInput {
+  memberId: string;
+  slug: string;
+  // YouTube or Vimeo URL; service extracts the video id and verifies
+  // availability via oEmbed. Member video flow is URL-reference only
+  // (no upload of bytes), per US M_Submit_Video.
+  videoUrl: string;
+  videoPlatform: VideoPlatform;
+  caption: string | null;
+  tags: string[];
+}
+
+export interface MemberUploadResult {
+  mediaId: string;
+  displayUrl: string;
+}
+
 interface SystemMemberRow {
   id: string;
 }
@@ -284,6 +316,73 @@ function applyTags(mediaId: string, tags: string[], now: string): void {
 function applyTagsForCurator(mediaId: string, userTags: string[], now: string): void {
   const canonical = [...userTags, CURATED_TAG];
   applyTags(mediaId, canonical, now);
+}
+
+// Member tag application: prepends `#<slug>` (the uploader tag) to the
+// user-supplied tags, deduplicating if the user also typed it. The
+// slug-tag plays the same role for member uploads that #curated plays
+// for curator uploads: the auto-applied marker that ties the media to
+// its uploader and powers the per-member Personal Gallery. Per
+// US §1.1, slug-tags are reserved for the matching uploader; today
+// validateTags only rejects #curated, so user-supplied #<other_slug>
+// passes through unchanged. Anti-spoofing of arbitrary slug-tags is
+// deferred to a follow-up slice (IP entry: "Member upload accepts
+// arbitrary #<slug> tags from user input").
+function applyTagsForMember(
+  mediaId: string,
+  slug: string,
+  userTags: string[],
+  now: string,
+): void {
+  const slugTag = `#${slug.toLowerCase()}`;
+  const canonical = Array.from(new Set([slugTag, ...userTags]));
+  applyTags(mediaId, canonical, now);
+}
+
+// Default per-member gallery materialized on first upload. Members can
+// rename or delete it after creation; the find-by-name probe in
+// ensureDefaultPersonalGalleryTx keys on this exact name, so a manual
+// rename detaches the auto-create path (subsequent uploads do not
+// re-create a "Personal Gallery" row). Criteria tag is the member's
+// slug-tag, so anything they upload appears here automatically.
+const PERSONAL_GALLERY_NAME = 'Personal Gallery';
+const PERSONAL_GALLERY_DESCRIPTION = 'Everything I have uploaded.';
+
+// Closure for first-upload Personal Gallery materialization. Caller
+// must already hold a transaction open (the upload methods call this
+// inline). Idempotent: the find-by-name probe short-circuits when the
+// gallery already exists. Returns the gallery id either way.
+function ensureDefaultPersonalGalleryTx(
+  memberId: string,
+  slug: string,
+  now: string,
+): string {
+  const existing = media.findMemberGalleryByOwnerAndName.get(
+    memberId,
+    PERSONAL_GALLERY_NAME,
+  ) as { id: string } | undefined;
+  if (existing) {
+    return existing.id;
+  }
+  const galleryId = newMemberGalleryId();
+  media.insertMemberGallery.run(
+    galleryId, now, memberId, now, memberId,
+    memberId, PERSONAL_GALLERY_NAME, PERSONAL_GALLERY_DESCRIPTION, 'upload_desc',
+  );
+  const slugTag = `#${slug.toLowerCase()}`;
+  const existingTag = mediaTagsDb.findTagByNormalized.get(slugTag) as
+    | { id: string }
+    | undefined;
+  let tagId: string;
+  if (existingTag) {
+    tagId = existingTag.id;
+  } else {
+    tagId = newTagId();
+    mediaTagsDb.insertTag.run(tagId, now, now, slugTag, slugTag);
+  }
+  media.insertMemberGalleryTag.run(galleryId, tagId, now, memberId);
+  media.markMemberGalleryAsDefault.run(now, memberId, galleryId);
+  return galleryId;
 }
 
 export interface CuratorMediaEditInput {
@@ -1323,6 +1422,173 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           };
         });
       });
+    },
+
+    // Member-attributed photo upload. Mirrors uploadPhoto but writes
+    // uploader_member_id = memberId (not the system member) and uses
+    // applyTagsForMember so #<slug> auto-applies. Synchronous from the
+    // caller's perspective: image processing, S3 put, DB insert, and
+    // Personal Gallery materialization all complete before return.
+    //
+    // DEVIATION: no tier gate (US M_Upload_Photo requires Tier 1+).
+    // Tier ledger exists in schema but no enforcement anywhere yet;
+    // see IMPLEMENTATION_PLAN deviations.
+    async uploadPhotoForMember(input: MemberPhotoInput): Promise<MemberUploadResult> {
+      validateCaption(input.caption);
+      validateTags(input.tags);
+
+      if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
+        throw new ValidationError('Photo is too large. Maximum size is 25 MB.');
+      }
+      if (!detectImageType(input.photoBuffer)) {
+        throw new ValidationError('Only JPEG and PNG photos are accepted.');
+      }
+
+      const processed = await imageProcessor.processPhoto(input.photoBuffer);
+
+      const mediaId = newMediaId();
+      const thumbKey = `${input.memberId}/detached/${mediaId}-thumb.jpg`;
+      const displayKey = `${input.memberId}/detached/${mediaId}-display.jpg`;
+
+      await storage.put(thumbKey, processed.thumb);
+      await storage.put(displayKey, processed.display);
+
+      const now = new Date().toISOString();
+
+      // Storage puts run before the DB transaction (above), so a UNIQUE
+      // constraint reject here orphans the thumb/display objects. Same
+      // small window the curator path has had; cleanup is a follow-up.
+      try {
+        transaction(() => {
+          media.insertMemberPhoto.run(
+            mediaId, now, now,
+            input.memberId, input.caption, now,
+            thumbKey, displayKey, processed.widthPx, processed.heightPx,
+            input.sourceFilename,
+          );
+          applyTagsForMember(mediaId, input.slug, input.tags, now);
+          ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
+          appendAuditEntry({
+            actionType: 'upload_member_media',
+            category: 'media',
+            actorType: 'member',
+            actorMemberId: input.memberId,
+            entityType: 'media_item',
+            entityId: mediaId,
+            metadata: { mediaType: 'photo', tags: input.tags },
+          });
+        });
+      } catch (err) {
+        const msg = (err as Error).message ?? '';
+        if (msg.includes('UNIQUE') && msg.includes('source_filename')) {
+          throw new ValidationError(
+            `You have already uploaded a file named "${input.sourceFilename}". ` +
+            `Rename the file or delete the previous upload first.`,
+          );
+        }
+        throw err;
+      }
+
+      return { mediaId, displayUrl: storage.constructURL(displayKey) };
+    },
+
+    // Member-attributed video URL submission. URL-reference only (no
+    // bytes hosted), per US M_Submit_Video. The service verifies the
+    // URL via the platform's oEmbed endpoint (the only reliable
+    // signal: page URLs return 200 even for removed videos), extracts
+    // the video id, and pulls the Vimeo thumbnail from the oEmbed
+    // body (Vimeo thumbnails are not derivable from id; YouTube ids
+    // are derived at render time).
+    async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
+      validateCaption(input.caption);
+      validateTags(input.tags);
+
+      if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
+        throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
+      }
+      if (!input.videoUrl || !/^https?:\/\//.test(input.videoUrl)) {
+        throw new ValidationError('Video URL must start with http:// or https://.');
+      }
+
+      const videoId = input.videoPlatform === 'youtube'
+        ? parseYouTubeVideoId(input.videoUrl)
+        : parseVimeoVideoId(input.videoUrl);
+      if (!videoId) {
+        throw new ValidationError(
+          `Could not extract a ${input.videoPlatform} video id from the URL.`,
+        );
+      }
+
+      const verify = await videoUrlVerifier(input.videoUrl, input.videoPlatform);
+      if (!verify.ok) {
+        throw new ValidationError(
+          `Video is not available at the platform (oEmbed status ${verify.status}).`,
+        );
+      }
+
+      let thumbnailUrl: string | null = null;
+      if (input.videoPlatform === 'vimeo') {
+        const t = (verify.body as { thumbnail_url?: unknown } | undefined)?.thumbnail_url;
+        if (typeof t === 'string' && t.startsWith('https://')) {
+          thumbnailUrl = t;
+        } else {
+          throw new ValidationError(
+            'Vimeo did not return a usable thumbnail URL. Try a different link.',
+          );
+        }
+      }
+
+      const mediaId = newMediaId();
+      const now = new Date().toISOString();
+      // YouTube thumbnail is null in the DB; the read path derives
+      // `https://i.ytimg.com/vi/{id}/hqdefault.jpg` at render time
+      // (see deriveListThumbnail above for the matching read-side rule).
+      const displayUrl =
+        input.videoPlatform === 'youtube'
+          ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+          : (thumbnailUrl ?? '');
+
+      transaction(() => {
+        media.insertMemberVideo.run(
+          mediaId, now, now,
+          input.memberId, input.caption, now,
+          input.videoPlatform, videoId, input.videoUrl, thumbnailUrl,
+        );
+        applyTagsForMember(mediaId, input.slug, input.tags, now);
+        ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
+        appendAuditEntry({
+          actionType: 'upload_member_media',
+          category: 'media',
+          actorType: 'member',
+          actorMemberId: input.memberId,
+          entityType: 'media_item',
+          entityId: mediaId,
+          metadata: { mediaType: 'video', videoPlatform: input.videoPlatform, tags: input.tags },
+        });
+      });
+
+      return { mediaId, displayUrl };
+    },
+
+    // Idempotent: creates the default Personal Gallery for a member if
+    // they don't already have one. Public method for callers that
+    // want to materialize the gallery up front (e.g. on first profile
+    // visit). The upload methods call the closure-scoped variant
+    // inside their write transactions so the gallery materializes on
+    // first upload too. Returns the gallery id either way.
+    ensureDefaultPersonalGallery(memberId: string, slug: string): { galleryId: string } {
+      const existing = runSqliteRead('findMemberGalleryByOwnerAndName', () =>
+        media.findMemberGalleryByOwnerAndName.get(memberId, PERSONAL_GALLERY_NAME),
+      ) as { id: string } | undefined;
+      if (existing) {
+        return { galleryId: existing.id };
+      }
+      const now = new Date().toISOString();
+      let galleryId = '';
+      transaction(() => {
+        galleryId = ensureDefaultPersonalGalleryTx(memberId, slug, now);
+      });
+      return { galleryId };
     },
   };
 

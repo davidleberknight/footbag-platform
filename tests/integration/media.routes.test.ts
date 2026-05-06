@@ -151,14 +151,14 @@ function tagAsCuratedFreestyleTrick(db: BetterSqlite3.Database, mediaId: string)
 
 function insertNamedGallery(
   db: BetterSqlite3.Database,
-  o: { id: string; ownerId: string; name: string; description?: string },
+  o: { id: string; ownerId: string; name: string; description?: string; isDefault?: 0 | 1 },
 ): void {
   db.prepare(`
     INSERT INTO member_galleries (
       id, created_at, created_by, updated_at, updated_by, version,
       owner_member_id, name, description, is_default
-    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?, 0)
-  `).run(o.id, TS, TS, o.ownerId, o.name, o.description ?? '');
+    ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, ?, ?, ?)
+  `).run(o.id, TS, TS, o.ownerId, o.name, o.description ?? '', o.isDefault ?? 0);
 }
 
 function insertGalleryCriteria(
@@ -226,6 +226,18 @@ beforeAll(async () => {
   });
   insertGalleryCriteria(db, MEMBER_GALLERY_ID, [CURATED_TAG_ID]);
 
+  // Auto-materialized Personal Gallery (is_default=1). The hub should
+  // exclude these so the public list isn't polluted with one row per
+  // member who has ever uploaded.
+  insertNamedGallery(db, {
+    id: 'gallery_m_defaultper001',
+    ownerId: MEMBER_ID,
+    name: 'Personal Gallery',
+    description: 'Everything I have uploaded.',
+    isDefault: 1,
+  });
+  insertGalleryCriteria(db, 'gallery_m_defaultper001', [CURATED_TAG_ID]);
+
   db.close();
   createApp = await importApp();
 });
@@ -263,6 +275,14 @@ describe('GET /media (hub)', () => {
     expect(fhIdx).toBeGreaterThan(-1);
     expect(memberIdx).toBeGreaterThan(-1);
     expect(fhIdx).toBeLessThan(memberIdx);
+  });
+
+  it('excludes per-member auto-default Personal Gallery (is_default=1) from the hub', async () => {
+    const app = createApp();
+    const res = await request(app).get('/media');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('Personal Gallery');
+    expect(res.text).not.toContain('Everything I have uploaded.');
   });
 });
 

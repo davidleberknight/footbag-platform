@@ -2,17 +2,20 @@
 <div class="wrapper">
   <h1>{{page.title}}</h1>
   <p>
-    Named galleries you've created. Each gallery is a tag-criteria URL bookmark on
-    <code>/media/&lt;id&gt;</code>; an item appears in the gallery iff it carries every
-    criteria tag you specify and no exclude tag.
+    Your media collections. A gallery is a saved view of your photos and videos
+    that match a set of hashtags. Items appear when they carry every required
+    tag, and none of the excluded tags.
   </p>
 
   <p>
-    <a href="{{content.newGalleryHref}}" class="btn btn-primary">Create new gallery</a>
+    <a href="{{content.uploadMediaHref}}" class="btn btn-primary">Upload media</a>
+    <a href="{{content.newGalleryHref}}" class="btn">Create new gallery</a>
   </p>
 
   {{#if content.savedFlag}}
-    <div class="form-success-banner" role="status">Saved.</div>
+    <div class="form-success-banner" role="status">
+      {{#if (eq content.savedFlag "upload")}}Uploaded.{{else}}Saved.{{/if}}
+    </div>
   {{/if}}
 
   {{#if content.galleries.length}}

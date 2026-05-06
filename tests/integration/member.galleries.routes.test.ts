@@ -141,6 +141,25 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.text).toContain('My Galleries');
     expect(res.text).toContain('Create new gallery');
     expect(res.text).toContain('You haven\'t created any galleries yet.');
+    // Replaced the old developer-spec description with member-facing copy.
+    expect(res.text).toContain('saved view of your photos and videos');
+  });
+
+  it('renders an Upload media button linked to /members/:slug/media/upload', async () => {
+    const res = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Upload media');
+    expect(res.text).toMatch(new RegExp(`href="/members/${OWNER_SLUG}/media/upload"`));
+  });
+
+  it('?saved=upload renders an "Uploaded." flash banner', async () => {
+    const res = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/galleries?saved=upload`)
+      .set('Cookie', ownerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Uploaded.');
   });
 
   it('lists the owner\'s galleries with edit + delete actions', async () => {

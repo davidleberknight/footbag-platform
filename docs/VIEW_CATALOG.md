@@ -485,6 +485,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /members/:memberKey/galleries` | Member galleries list | Owner-only list of the member's named galleries with create/edit/delete actions | Current |
 | `GET /members/:memberKey/galleries/new` | Member gallery create | Owner-only new-gallery form | Current |
 | `GET /members/:memberKey/galleries/:id/edit` | Member gallery edit | Owner-only edit form for a member-owned gallery | Current |
+| `GET /members/:memberKey/media/upload` | Member upload | Owner-only form to upload one photo or submit one video URL; auto-tags with the uploader's slug-tag | Current |
 | `GET /members/:memberKey/:section` | Member account stub | Placeholder pages for future account subsections | Current |
 | `GET /history` | Historical players redirect | 301 redirect to `/members` | Current |
 | `GET /history/:personId` | Historical player detail | Historical person competitive record detail | Current |
@@ -1817,13 +1818,13 @@ The list, new, and edit pages consume the generic public rendering standard and 
 **Page intent**
 
 - show the member their own gallery inventory with name, description, sort order, criteria-tag set, exclude-tag set, and item count
-- offer per-row Edit / View / Delete affordances and a top-level "Create new gallery" link
+- offer per-row Edit / View / Delete affordances and top-level "Upload media" and "Create new gallery" links
 - 404 (anti-enumeration) when the authenticated user is not the profile owner
 
 **Required content**
 
 - title and intro
-- "Create new gallery" link
+- "Upload media" link (primary affordance) and "Create new gallery" link
 - table of galleries (or empty state) with name, description, sort order, criteria tags, exclude tags, item count, and per-row Edit / View / Delete
 
 **Required view-model fields**
@@ -1839,7 +1840,8 @@ The list, new, and edit pages consume the generic public rendering standard and 
   - `editHref` — `/members/{memberKey}/galleries/{id}/edit`
   - `deleteHref` — `/members/{memberKey}/galleries/{id}/delete`
 - `content.newGalleryHref` — `/members/{memberKey}/galleries/new`
-- `content.savedFlag` — `'create' | 'edit' | 'delete' | null` (drives the success banner)
+- `content.uploadMediaHref` — `/members/{memberKey}/media/upload`
+- `content.savedFlag` — `'create' | 'edit' | 'delete' | 'upload' | null` (drives the success banner)
 
 **Empty state**
 
@@ -1883,6 +1885,31 @@ Render "You haven't created any galleries yet." when `content.galleries[]` is em
 - `formAction` — `/members/{memberKey}/galleries/{id}/edit`
 - `gallery` — `{ id, name, description, sortOrder, criteriaTagsString, excludeTagsString }`
 - `cancelHref` — `/members/{memberKey}/galleries`
+
+#### Upload at `GET /members/:memberKey/media/upload`
+
+**Page intent**
+
+- render the owner-only upload form for one photo (JPEG or PNG, up to 25 MB) or one YouTube/Vimeo video URL
+- 404 (anti-enumeration) when the authenticated user is not the profile owner
+
+**Required content**
+
+- title, intro copy explaining that uploads are auto-tagged with the uploader's slug-tag
+- mediaType radio (photo / video link)
+- photo file picker (`name="photoFile"`, `accept="image/jpeg,image/png"`)
+- video URL fields (platform select for YouTube/Vimeo, URL input)
+- shared caption (optional, max 500 chars) and tags (optional, space-separated `#hashtag`) fields
+- submit and cancel actions
+
+**Required view-model fields**
+
+- `seo.title = Upload Media`
+- `page.sectionKey = members`, `page.pageKey = member_media_upload`
+- `formAction` — `/members/{memberKey}/media/upload`
+- `cancelHref` — `/members/{memberKey}/galleries`
+- `formValues` — `{ mediaType, caption, tags, videoUrl, videoPlatform }` (re-populated on validation re-render)
+- `errorMessage` — present on 422 / 429 re-render
 
 **Implementation notes**
 

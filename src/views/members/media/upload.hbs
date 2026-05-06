@@ -1,0 +1,78 @@
+{{!-- Member-owned upload form. Owner-only view (anti-enumeration 404 elsewhere). --}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+  <p>
+    Upload a photo, or share a YouTube or Vimeo video link. Anything you upload is
+    automatically tagged with your slug, so it appears in your Personal Gallery.
+    Add more hashtags to surface it in event, club, or topic galleries too.
+  </p>
+
+  {{#if errorMessage}}
+    <div class="form-error-banner" role="alert">{{errorMessage}}</div>
+  {{/if}}
+
+  <form action="{{formAction}}" method="POST" enctype="multipart/form-data">
+    <fieldset>
+      <legend>Type</legend>
+      <label>
+        <input type="radio" name="mediaType" value="photo"
+          {{#if (eq formValues.mediaType "video")}}{{else}}checked{{/if}}>
+        Photo (JPEG or PNG, up to 25 MB)
+      </label>
+      <label>
+        <input type="radio" name="mediaType" value="video"
+          {{#if (eq formValues.mediaType "video")}}checked{{/if}}>
+        Video link (YouTube or Vimeo)
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Photo</legend>
+      <p>
+        <label>
+          File:
+          <input type="file" name="photoFile" accept="image/jpeg,image/png">
+        </label>
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Video link</legend>
+      <p>
+        <label>
+          Platform:
+          <select name="videoPlatform">
+            <option value="">--</option>
+            <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
+            <option value="vimeo" {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
+          </select>
+        </label>
+      </p>
+      <p>
+        <label>
+          URL:
+          <input type="url" name="videoUrl" value="{{formValues.videoUrl}}"
+                 placeholder="https://www.youtube.com/watch?v=...">
+        </label>
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Details (apply to either type)</legend>
+      <p>
+        <label for="caption">Caption (optional, up to 500 characters):</label><br>
+        <textarea id="caption" name="caption" maxlength="500" rows="3" cols="60">{{formValues.caption}}</textarea>
+      </p>
+      <p>
+        <label for="tags">Tags (optional, space-separated <code>#hashtags</code>):</label><br>
+        <input id="tags" type="text" name="tags" value="{{formValues.tags}}"
+               placeholder="#freestyle #spike">
+      </p>
+    </fieldset>
+
+    <p>
+      <button type="submit" class="btn btn-primary">Upload</button>
+      <a href="{{cancelHref}}" class="btn btn-link">Cancel</a>
+    </p>
+  </form>
+</div>

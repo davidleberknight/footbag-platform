@@ -6,6 +6,7 @@ import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
 import { memberGalleryController } from '../controllers/memberGalleryController';
+import { memberMediaUploadController } from '../controllers/memberMediaUploadController';
 import { claimController } from '../controllers/claimController';
 import { authController } from '../controllers/authController';
 import { hofController } from '../controllers/hofController';
@@ -105,6 +106,14 @@ publicRouter.post('/members/:memberKey/galleries',               requireAuth, me
 publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireAuth, memberGalleryController.getEdit);
 publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireAuth, memberGalleryController.postUpdate);
 publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, memberGalleryController.postDelete);
+
+// Owner-only member upload. Same anti-enumeration 404 pattern as the
+// gallery routes above. POST is multipart/form-data (busboy in the
+// controller); the service layer auto-applies #<slug> as the
+// uploader tag and materializes the per-member Personal Gallery on
+// first upload.
+publicRouter.get('/members/:memberKey/media/upload',  requireAuth, memberMediaUploadController.getUpload);
+publicRouter.post('/members/:memberKey/media/upload', requireAuth, memberMediaUploadController.postUpload);
 
 publicRouter.get('/members/:memberKey/:section',      requireAuth, memberController.getStub);
 
