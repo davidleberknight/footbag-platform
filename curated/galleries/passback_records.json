@@ -1,0 +1,10 @@
+{
+  "id": "gallery_passback_records",
+  "name": "Passback World Records",
+  "description": "",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#passback_records"
+  ],
+  "excludeTags": []
+}
