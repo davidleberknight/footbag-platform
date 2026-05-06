@@ -1857,6 +1857,7 @@ Render "You haven't created any galleries yet." when `content.galleries[]` is em
 **Required content**
 
 - the shared `gallery-edit-form` partial with empty fields and submit label "Create gallery"
+- a "your existing uploads" picker fieldset (checkbox grid) of the owner's prior uploads; checked items are submitted as repeated `mediaIds=<id>` form fields and receive the gallery's criteria tags after the gallery is created. The fieldset renders nothing when the owner has no prior uploads.
 
 **Required view-model fields**
 
@@ -1865,6 +1866,7 @@ Render "You haven't created any galleries yet." when `content.galleries[]` is em
 - `formAction` — `/members/{memberKey}/galleries`
 - `gallery` — empty placeholders (`name=''`, `description=''`, `sortOrder='upload_desc'`, `criteriaTagsString=''`, `excludeTagsString=''`)
 - `cancelHref` — `/members/{memberKey}/galleries`
+- `pickerItems[]` — each `{mediaId, mediaType, thumbnailUrl, caption, sourceFilename, uploadedAt, tags[]}`; ordered by upload date desc. Empty array when the owner has no prior uploads.
 
 #### Edit at `GET /members/:memberKey/galleries/:id/edit`
 
@@ -1877,6 +1879,7 @@ Render "You haven't created any galleries yet." when `content.galleries[]` is em
 **Required content**
 
 - the shared `gallery-edit-form` partial with current values
+- a "your existing uploads" picker fieldset (checkbox grid); checked items receive the gallery's post-edit criteria tags. The fieldset renders nothing when the owner has no prior uploads. Items are added to the gallery via tag application; removing an item from a gallery is a per-item tag-edit flow (out of scope for the gallery edit form).
 
 **Required view-model fields**
 
@@ -1885,6 +1888,7 @@ Render "You haven't created any galleries yet." when `content.galleries[]` is em
 - `formAction` — `/members/{memberKey}/galleries/{id}/edit`
 - `gallery` — `{ id, name, description, sortOrder, criteriaTagsString, excludeTagsString }`
 - `cancelHref` — `/members/{memberKey}/galleries`
+- `pickerItems[]` — same shape as on the new form.
 
 #### Upload at `GET /members/:memberKey/media/upload`
 
