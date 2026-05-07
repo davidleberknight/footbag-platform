@@ -24,7 +24,7 @@ import Busboy from 'busboy';
 import { logger } from '../config/logger';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
-import { createCuratorMediaService, PHOTO_MAX_BYTES } from '../services/curatorMediaService';
+import { createCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX } from '../services/curatorMediaService';
 import { detectImageType } from '../lib/imageProcessing';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 
@@ -34,26 +34,13 @@ function parseTagsField(raw: string | undefined): string[] {
   return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
 }
 
-// Member-owned galleries scope to their owner: every member upload
-// carries `#<slug>` as the uploader tag (mirrors `#curated` for admin
-// uploads), so the gallery's criteria-tag set must include `#<slug>`
-// for the tag-AND match to filter to the owner's items. Without this,
-// a member's "Funky Footbags" gallery with criteria `#footbag` would
-// surface anyone's `#footbag` uploads, not just the owner's.
-//
-// Applied on create only. Edit leaves criteria alone, so the owner
-// can curate the filter intentionally.
-//
-// Empty user-supplied criteria becomes [#<slug>] so a member can create
-// "My Photos"-style galleries without typing their own slug. The
-// service's >=1 criteria invariant remains satisfied.
-function prependSlugTagToCriteria(slug: string, criteriaTags: string[]): string[] {
-  const slugTag = `#${slug.toLowerCase()}`;
-  if (criteriaTags.some((t) => t.toLowerCase() === slugTag)) {
-    return criteriaTags;
-  }
-  return [slugTag, ...criteriaTags];
-}
+// Member-owned galleries scope to their owner via `#by_<slug>`, the
+// system-managed uploader-attribution tag (parallel to `#curated` for
+// FH uploads). The service's createGallery / updateGallery auto-prepend
+// this tag after validation, so the gallery's tag-AND query filters
+// to the owner's uploads even if the user supplies a topical-only
+// criterion like `#footbag`. validateGalleryTag rejects `#by_*` from
+// caller input, so the prepended tag cannot be forged.
 
 // Picker submission: parse the repeated `mediaIds` field from a form
 // POST. Express's urlencoded body-parser yields a string for one
@@ -174,10 +161,7 @@ export const memberGalleryController = {
       const name = String(req.body?.name ?? '');
       const description = String(req.body?.description ?? '');
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
-      const criteriaTags = prependSlugTagToCriteria(
-        req.user!.slug,
-        parseTagsField(req.body?.criteriaTags),
-      );
+      const criteriaTags = parseTagsField(req.body?.criteriaTags);
       const excludeTags = parseTagsField(req.body?.excludeTags);
 
       const mediaIds = parseMediaIds(req.body?.mediaIds);
@@ -253,7 +237,9 @@ export const memberGalleryController = {
             name: g.name,
             description: g.description,
             sortOrder: g.sortOrder,
-            criteriaTagsString: g.criteriaTags.join(' '),
+            criteriaTagsString: g.criteriaTags
+              .filter((t) => !t.startsWith(UPLOADER_TAG_PREFIX))
+              .join(' '),
             excludeTagsString: g.excludeTags.join(' '),
           },
           cancelHref: listHref(memberKey),
@@ -487,7 +473,7 @@ async function executeMultipartCreate(args: {
   const name = String(fields.name ?? '');
   const description = String(fields.description ?? '');
   const sortOrderRaw = String(fields.sortOrder ?? '');
-  const criteriaTags = prependSlugTagToCriteria(slug, parseTagsField(fields.criteriaTags));
+  const criteriaTags = parseTagsField(fields.criteriaTags);
   const excludeTags = parseTagsField(fields.excludeTags);
   const mediaIds = parseMediaIds(rawMediaIds);
 

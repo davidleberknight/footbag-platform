@@ -3,7 +3,7 @@
     <h1>Named Gallery: {{content.gallery.name}}</h1>
     {{#if content.gallery.criteriaTags.length}}
       <p class="hero-subtitle">
-        Showing {{content.totalItems}} {{#if (eq content.totalItems 1)}}item{{else}}items{{/if}} tagged: {{#each content.gallery.criteriaTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{#if content.gallery.excludeTags.length}} - Excluding {{#if (eq content.gallery.excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each content.gallery.excludeTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
+        Showing {{content.totalItems}} {{#if (eq content.totalItems 1)}}item{{else}}items{{/if}} tagged: {{#each content.gallery.criteriaTags}}{{#if href}}<a href="{{href}}" class="tag-chip-link">{{display}}</a>{{else}}{{display}}{{/if}}{{#unless @last}} {{/unless}}{{/each}}{{#if content.gallery.excludeTags.length}} - Excluding {{#if (eq content.gallery.excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each content.gallery.excludeTags}}{{#if href}}<a href="{{href}}" class="tag-chip-link">{{display}}</a>{{else}}{{display}}{{/if}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
       </p>
     {{/if}}
   </div>

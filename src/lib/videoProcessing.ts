@@ -30,6 +30,17 @@ export interface TranscodedVideo {
 }
 
 /**
+ * Optional libx264 tuning knobs. All undefined = libx264 defaults
+ * (preset=medium, auto-thread, rc-lookahead=40). Set on a small host where
+ * the canonical defaults exceed the container memory budget.
+ */
+export interface VideoTranscodeTuning {
+  preset?: string;
+  threads?: number;
+  rcLookahead?: number;
+}
+
+/**
  * Validate that the buffer's magic bytes match a known curator-video input
  * format (mp4, webm, or mov). Returns the detected format, or null if
  * unrecognized. Strict enforcement at the boundary; the ffmpeg pipeline
@@ -63,7 +74,20 @@ export function detectVideoFormat(data: Buffer): CuratorVideoFormat | null {
  * mirror program's first-attempt settings
  * (`legacy_data/create_mirror_footbag_org.py`).
  */
-export function buildFfmpegArgs(inputPath: string, outputPath: string): string[] {
+export function buildFfmpegArgs(
+  inputPath: string,
+  outputPath: string,
+  tuning?: VideoTranscodeTuning,
+): string[] {
+  // Tuning args go between -c:v libx264 and -c:a so they bind to the video
+  // encoder. -preset and -threads are stream-position-sensitive in ffmpeg.
+  const x264Tuning: string[] = [];
+  if (tuning?.preset) x264Tuning.push('-preset', tuning.preset);
+  if (tuning?.threads !== undefined) x264Tuning.push('-threads', String(tuning.threads));
+  if (tuning?.rcLookahead !== undefined) {
+    x264Tuning.push('-x264-params', `rc-lookahead=${tuning.rcLookahead}`);
+  }
+
   return [
     '-i', inputPath,
     '-map', '0:v',
@@ -71,6 +95,7 @@ export function buildFfmpegArgs(inputPath: string, outputPath: string): string[]
     '-map_metadata', '-1',
     '-map_chapters', '-1',
     '-c:v', 'libx264',
+    ...x264Tuning,
     '-c:a', 'aac',
     '-pix_fmt', 'yuv420p',
     '-movflags', '+faststart',
@@ -92,7 +117,10 @@ export function buildFfmpegArgs(inputPath: string, outputPath: string): string[]
  *   - 'unrecognized video format' if the input magic bytes do not match
  *     the curator-video input whitelist.
  */
-export async function transcodeCuratorVideo(input: Buffer): Promise<TranscodedVideo> {
+export async function transcodeCuratorVideo(
+  input: Buffer,
+  tuning?: VideoTranscodeTuning,
+): Promise<TranscodedVideo> {
   const detected = detectVideoFormat(input);
   if (!detected) {
     throw new Error('unrecognized video format');
@@ -104,7 +132,7 @@ export async function transcodeCuratorVideo(input: Buffer): Promise<TranscodedVi
 
   try {
     await writeFile(inputPath, input);
-    await runFfmpeg(buildFfmpegArgs(inputPath, outputPath));
+    await runFfmpeg(buildFfmpegArgs(inputPath, outputPath, tuning));
     const bytes = await readFile(outputPath);
     return { bytes, outputFormat: 'mp4' };
   } finally {

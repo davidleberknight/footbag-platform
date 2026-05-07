@@ -8,14 +8,11 @@
  * member-route convention.
  *
  * Service-layer expectations exercised through these routes:
- *   - #<slug> auto-applied as the uploader tag on every upload
- *   - Personal Gallery materialized on first upload (idempotent)
- *   - #curated rejected from user input
+ *   - #by_<slug> auto-applied as the system uploader-attribution marker on every upload
+ *   - Personal Gallery materialized on first upload (idempotent), keyed on #by_<slug>
+ *   - #curated and any #by_* tag rejected from user input
+ *   - Freeform #<slug> stays an ordinary tag any user may apply (mentions, pre-tagging)
  *   - Rate limit 10/hr photos, 5/hr video submissions
- *
- * Anti-spoofing of #<other_member_slug> is intentionally NOT tested
- * here: the behavior is deferred per IMPLEMENTATION_PLAN deviation,
- * and a passing assertion would lock in the wrong contract.
  */
 import fs from 'fs';
 import path from 'path';
@@ -218,7 +215,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=upload`);
   });
 
-  it('owner valid JPEG -> #<slug> auto-applied + Personal Gallery created', async () => {
+  it('owner valid JPEG -> #by_<slug> auto-applied + Personal Gallery created', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
     await request(app)
@@ -239,7 +236,8 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         ORDER BY mt.tag_display
       `).all(OWNER_ID) as Array<{ tag_display: string }>;
       const tags = tagRows.map((r) => r.tag_display);
-      expect(tags).toContain(`#${OWNER_SLUG}`);
+      expect(tags).toContain(`#by_${OWNER_SLUG}`);
+      expect(tags).not.toContain(`#${OWNER_SLUG}`);
       expect(tags).toContain('#freestyle');
 
       const gallery = db.prepare(`
@@ -278,25 +276,29 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     }
   });
 
-  it('user-supplied #<own_slug> is deduplicated, not duplicated', async () => {
+  it('user-supplied #<own_slug> is accepted as a freeform mention tag', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
-    await request(app)
+    const res = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .field('tags', `#${OWNER_SLUG} #beach`)
       .attach('photoFile', jpeg, 't.jpg');
+    expect(res.status).toBe(302);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
-      const slugTagCount = db.prepare(`
-        SELECT COUNT(*) AS n
+      const tagRows = db.prepare(`
+        SELECT mt.tag_display
         FROM media_items mi
         JOIN media_tags mt ON mt.media_id = mi.id
         WHERE mi.uploader_member_id = ?
-          AND mt.tag_display = ?
-      `).get(OWNER_ID, `#${OWNER_SLUG}`) as { n: number };
-      expect(slugTagCount.n).toBe(1);
+        ORDER BY mt.tag_display
+      `).all(OWNER_ID) as Array<{ tag_display: string }>;
+      const tags = tagRows.map((r) => r.tag_display);
+      expect(tags).toContain(`#by_${OWNER_SLUG}`);
+      expect(tags).toContain(`#${OWNER_SLUG}`);
+      expect(tags).toContain('#beach');
     } finally {
       db.close();
     }
@@ -313,6 +315,94 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .attach('photoFile', jpeg, 't.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('#curated');
+  });
+
+  it('user supplies #by_<own_slug> -> 422; no media row written', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', `#by_${OWNER_SLUG}`)
+      .attach('photoFile', jpeg, 't.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('#by_');
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const row = db.prepare(
+        `SELECT COUNT(*) AS n FROM media_items WHERE uploader_member_id = ?`,
+      ).get(OWNER_ID) as { n: number };
+      expect(row.n).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('user supplies #by_<other_slug> -> 422 (forging foreign attribution rejected)', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', `#by_${OTHER_SLUG}`)
+      .attach('photoFile', jpeg, 't.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('#by_');
+  });
+
+  it("user supplies #<other_slug> as freeform mention -> 302; does NOT pollute the other member's #by_ namespace", async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', `#${OTHER_SLUG}`)
+      .attach('photoFile', jpeg, 't.jpg');
+    expect(res.status).toBe(302);
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const tagRows = db.prepare(
+        `SELECT mt.tag_display
+           FROM media_items mi
+           JOIN media_tags mt ON mt.media_id = mi.id
+          WHERE mi.uploader_member_id = ?`,
+      ).all(OWNER_ID) as Array<{ tag_display: string }>;
+      const tags = tagRows.map((r) => r.tag_display);
+      expect(tags).toContain(`#by_${OWNER_SLUG}`);
+      expect(tags).toContain(`#${OTHER_SLUG}`);
+      expect(tags).not.toContain(`#by_${OTHER_SLUG}`);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('user supplies #<unknown_slug> for an unsigned/historical person -> 302; tag stored as freeform', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#stebag_legacy')
+      .attach('photoFile', jpeg, 't.jpg');
+    expect(res.status).toBe(302);
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const tagRows = db.prepare(
+        `SELECT mt.tag_display
+           FROM media_items mi
+           JOIN media_tags mt ON mt.media_id = mi.id
+          WHERE mi.uploader_member_id = ?`,
+      ).all(OWNER_ID) as Array<{ tag_display: string }>;
+      const tags = tagRows.map((r) => r.tag_display);
+      expect(tags).toContain('#stebag_legacy');
+      expect(tags).toContain(`#by_${OWNER_SLUG}`);
+    } finally {
+      db.close();
+    }
   });
 
   it('non-image bytes -> 422', async () => {
@@ -512,13 +602,13 @@ describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
         tagDisplays.some((t) => t.tag_display === '#event_2025_beach' && tagDisplays.find(() => true)),
       );
       expect(everyMediaHasBeachTag).toBe(true);
-      expect(tagDisplays.some((t) => t.tag_display === `#${OWNER_SLUG}`)).toBe(true);
+      expect(tagDisplays.some((t) => t.tag_display === `#by_${OWNER_SLUG}`)).toBe(true);
     } finally {
       db.close();
     }
   });
 
-  it("gallery's criteria auto-includes #<slug> so the filter scopes to the owner", async () => {
+  it("gallery's criteria auto-includes #by_<slug> so the filter scopes to the owner", async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
 
@@ -548,8 +638,31 @@ describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
         ORDER BY t.tag_display
       `).all(gallery!.id) as Array<{ tag_display: string }>;
       const tags = criteriaTags.map((r) => r.tag_display);
-      expect(tags).toContain(`#${OWNER_SLUG}`);
+      expect(tags).toContain(`#by_${OWNER_SLUG}`);
       expect(tags).toContain('#footbag');
+    } finally {
+      db.close();
+    }
+  });
+
+  it('user supplies #by_* in gallery criteria -> 422; no gallery created', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie())
+      .field('name', 'Forged Attribution')
+      .field('description', '')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', `#by_${OTHER_SLUG} #footbag`)
+      .field('excludeTags', '');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('#by_');
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const gallery = db.prepare(
+        `SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?`,
+      ).get(OWNER_ID, 'Forged Attribution') as { id: string } | undefined;
+      expect(gallery).toBeUndefined();
     } finally {
       db.close();
     }

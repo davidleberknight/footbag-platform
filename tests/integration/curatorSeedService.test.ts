@@ -16,7 +16,7 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
 import type { MediaStorageAdapter } from '../../src/adapters/mediaStorageAdapter';
 import type { ImageProcessingAdapter } from '../../src/adapters/imageProcessingAdapter';
-import type { TranscodedVideo } from '../../src/lib/videoProcessing';
+import type { VideoTranscodingAdapter } from '../../src/adapters/videoTranscodingAdapter';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -70,8 +70,10 @@ function makeStubImageProcessor(): ImageProcessingAdapter {
   };
 }
 
-function fakeTranscoder(): (buf: Buffer) => Promise<TranscodedVideo> {
-  return async () => ({ bytes: Buffer.from('mp4'), outputFormat: 'mp4' });
+function fakeTranscoder(): VideoTranscodingAdapter {
+  return {
+    transcode: async () => ({ bytes: Buffer.from('mp4'), outputFormat: 'mp4' }),
+  };
 }
 
 async function makeJpegBuffer(): Promise<Buffer> {

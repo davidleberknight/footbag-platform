@@ -1,15 +1,15 @@
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { countGalleryItemsByCriteria, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction } from '../db/db';
+import { countGalleryItemsByCriteria, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction, type MediaJobRow } from '../db/db';
 import { detectImageType } from '../lib/imageProcessing';
-import {
-  detectVideoFormat,
-  transcodeCuratorVideo,
-  type TranscodedVideo,
-} from '../lib/videoProcessing';
+import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
 import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import {
+  getVideoTranscodingAdapter,
+  type VideoTranscodingAdapter,
+} from '../adapters/videoTranscodingAdapter';
 import {
   parseVimeoVideoId,
   parseYouTubeVideoId,
@@ -57,20 +57,6 @@ export const CAPTION_MAX_LEN = 500;
 // generous because legitimate transcode takes 1-3 min.
 const TRANSCODE_WAIT_MS = 10 * 60 * 1000;
 const transcodeBound = new Semaphore(1, TRANSCODE_WAIT_MS);
-
-// Test seam: integration tests inject a fake transcoder via this module-
-// level setter so the suite runs without real ffmpeg. Controllers construct
-// the service without passing `videoTranscoder`; in production it falls
-// through to `transcodeCuratorVideo`. Mirrors `setImageProcessingAdapterForTests`.
-let transcoderOverrideForTests: ((buf: Buffer) => Promise<TranscodedVideo>) | null = null;
-export function setVideoTranscoderForTests(
-  impl: (buf: Buffer) => Promise<TranscodedVideo>,
-): void {
-  transcoderOverrideForTests = impl;
-}
-export function resetVideoTranscoderForTests(): void {
-  transcoderOverrideForTests = null;
-}
 
 // Test seam: integration tests inject a fake URL verifier so the suite
 // runs without hitting real youtube.com/vimeo.com oEmbed endpoints.
@@ -133,7 +119,7 @@ export async function listExistingCuratorCategories(curatedRootDir: string): Pro
 export interface CuratorMediaServiceDeps {
   storage: MediaStorageAdapter;
   imageProcessor: ImageProcessingAdapter;
-  videoTranscoder?: (buf: Buffer) => Promise<TranscodedVideo>;
+  videoTranscoder?: VideoTranscodingAdapter;
   // Test seam: override system-member resolution. Default reads from DB.
   findSystemMemberId?: () => string | null;
   // Test seam: override the URL verifier. Defaults to the live oEmbed
@@ -285,6 +271,14 @@ function validateCaption(caption: string | null): void {
 // by hand. Stored as a standard tag (is_standard=1, standard_type='curator').
 export const CURATED_TAG = '#curated';
 
+// Member-uploader namespace. `#by_<slug>` is auto-applied on every
+// member upload as the uploader-attribution marker (parallel to
+// #curated for FH uploads); user-supplied tags in this namespace are
+// rejected so attribution cannot be forged. The freeform `#<slug>`
+// remains an ordinary tag any user may apply (mentions, pre-tagging
+// unsigned/historical persons).
+export const UPLOADER_TAG_PREFIX = '#by_';
+
 function validateTags(tags: string[]): void {
   for (const tag of tags) {
     if (!tag.startsWith('#')) {
@@ -298,19 +292,31 @@ function validateTags(tags: string[]): void {
         `The ${CURATED_TAG} tag is auto-applied by the curator pipeline and must not appear in input.`,
       );
     }
+    if (tag.startsWith(UPLOADER_TAG_PREFIX)) {
+      throw new ValidationError(
+        `Tags starting with "${UPLOADER_TAG_PREFIX}" are auto-applied as uploader attribution and must not appear in input: got "${tag}"`,
+      );
+    }
   }
 }
 
 // Gallery-editing tag pattern (per docs/USER_STORIES.md §1.1): leading '#'
 // then alphanumeric + underscores only, max 100 chars. Unlike validateTags
 // this DOES allow `#curated` (the existing curated-freestyle-tricks gallery
-// uses it as a criteria tag).
+// uses it as a criteria tag). The `#by_*` namespace is system-managed
+// (auto-applied as the gallery's uploader-scoping criterion) and is
+// rejected from caller input here, matching the validateTags rule.
 const GALLERY_TAG_PATTERN = /^#[a-z0-9_]{1,99}$/;
 
 function validateGalleryTag(tag: string, role: 'criteria' | 'exclude'): void {
   if (!GALLERY_TAG_PATTERN.test(tag)) {
     throw new ValidationError(
       `${role} tag must be lowercase '#' + alphanumeric/underscore (max 100 chars): got "${tag}"`,
+    );
+  }
+  if (tag.startsWith(UPLOADER_TAG_PREFIX)) {
+    throw new ValidationError(
+      `${role} tag "${tag}" is in the auto-applied uploader namespace and must not appear in input.`,
     );
   }
 }
@@ -368,24 +374,23 @@ function applyTagsForCurator(mediaId: string, userTags: string[], now: string): 
   applyTags(mediaId, canonical, now);
 }
 
-// Member tag application: prepends `#<slug>` (the uploader tag) to the
-// user-supplied tags, deduplicating if the user also typed it. The
-// slug-tag plays the same role for member uploads that #curated plays
-// for curator uploads: the auto-applied marker that ties the media to
-// its uploader and powers the per-member Personal Gallery. Per
-// US §1.1, slug-tags are reserved for the matching uploader; today
-// validateTags only rejects #curated, so user-supplied #<other_slug>
-// passes through unchanged. Anti-spoofing of arbitrary slug-tags is
-// deferred to a follow-up slice (IP entry: "Member upload accepts
-// arbitrary #<slug> tags from user input").
+// Member tag application: prepends `#by_<slug>` (the uploader-attribution
+// marker, parallel to #curated for FH uploads) to the user-supplied
+// tags. `validateTags` rejects user-supplied tags in the `#by_*`
+// namespace, so the prepended marker is always the only `#by_*` tag
+// in the canonical set. The freeform `#<slug>` is NOT auto-applied;
+// it stays an ordinary tag any user may apply for mentions or
+// pre-tagging unsigned/historical persons. Personal Gallery's criterion
+// keys on `#by_<slug>`, so other members tagging `#<slug>` cannot
+// pollute the uploader's gallery.
 function applyTagsForMember(
   mediaId: string,
   slug: string,
   userTags: string[],
   now: string,
 ): void {
-  const slugTag = `#${slug.toLowerCase()}`;
-  const canonical = Array.from(new Set([slugTag, ...userTags]));
+  const uploaderTag = `${UPLOADER_TAG_PREFIX}${slug.toLowerCase()}`;
+  const canonical = [uploaderTag, ...userTags];
   applyTags(mediaId, canonical, now);
 }
 
@@ -394,7 +399,9 @@ function applyTagsForMember(
 // ensureDefaultPersonalGalleryTx keys on this exact name, so a manual
 // rename detaches the auto-create path (subsequent uploads do not
 // re-create a "Personal Gallery" row). Criteria tag is the member's
-// slug-tag, so anything they upload appears here automatically.
+// uploader-attribution tag (#by_<slug>), so everything they upload
+// appears here automatically and nothing tagged with their freeform
+// `#<slug>` by another member can pollute the gallery.
 const PERSONAL_GALLERY_NAME = 'Personal Gallery';
 const PERSONAL_GALLERY_DESCRIPTION = 'Everything I have uploaded.';
 
@@ -422,8 +429,8 @@ function ensureDefaultPersonalGalleryTx(
     galleryId, now, memberId, now, memberId,
     memberId, PERSONAL_GALLERY_NAME, PERSONAL_GALLERY_DESCRIPTION, 'upload_desc',
   );
-  const slugTag = `#${slug.toLowerCase()}`;
-  const existingTag = mediaTagsDb.findTagByNormalized.get(slugTag) as
+  const uploaderTag = `${UPLOADER_TAG_PREFIX}${slug.toLowerCase()}`;
+  const existingTag = mediaTagsDb.findTagByNormalized.get(uploaderTag) as
     | { id: string }
     | undefined;
   let tagId: string;
@@ -431,7 +438,7 @@ function ensureDefaultPersonalGalleryTx(
     tagId = existingTag.id;
   } else {
     tagId = newTagId();
-    mediaTagsDb.insertTag.run(tagId, now, now, slugTag, slugTag);
+    mediaTagsDb.insertTag.run(tagId, now, now, uploaderTag, uploaderTag);
   }
   media.insertMemberGalleryTag.run(galleryId, tagId, now, memberId);
   media.markMemberGalleryAsDefault.run(now, memberId, galleryId);
@@ -630,8 +637,7 @@ interface CountRow {
 
 export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   const { storage, imageProcessor } = deps;
-  const videoTranscoder =
-    deps.videoTranscoder ?? transcoderOverrideForTests ?? transcodeCuratorVideo;
+  const videoTranscoder = deps.videoTranscoder ?? getVideoTranscodingAdapter();
   const findSystemMemberId = deps.findSystemMemberId ?? defaultFindSystemMemberId;
   const videoUrlVerifier =
     deps.videoUrlVerifier ?? videoUrlVerifierOverrideForTests ?? verifyExternalVideoUrl;
@@ -762,7 +768,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
       try {
         [transcoded, processed] = await Promise.all([
-          videoTranscoder(input.videoBuffer),
+          videoTranscoder.transcode(input.videoBuffer),
           imageProcessor.processPhoto(input.posterBuffer),
         ]);
       } finally {
@@ -800,6 +806,110 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           metadata: { mediaType: 'video', tags: input.tags },
         });
       });
+
+      return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
+    },
+
+    /**
+     * Worker-side finalize for a media_jobs row in 'processing' state.
+     *
+     * Pulls source bytes from S3 (written by the browser via presigned PUT),
+     * runs the same transcode + poster pipeline as uploadVideo, persists the
+     * resulting media_items row + tags + audit, and deletes the pending
+     * source objects. Returns the new mediaId so the caller can update the
+     * job row's media_id and announce the success event.
+     *
+     * Mirrors uploadVideo's validation (size, magic bytes, caption, tags) as
+     * defense in depth: the browser is not trusted, and the /sign endpoint's
+     * size check binds the user-claimed size, not the actual S3 object size.
+     */
+    async finalizeTranscodeForJob(job: MediaJobRow): Promise<CuratorUploadResult> {
+      if (job.kind !== 'curator_video') {
+        throw new ValidationError(`Unsupported media_jobs.kind: ${job.kind}`);
+      }
+      if (!job.source_video_key || !job.source_poster_key) {
+        throw new ValidationError(
+          `Job ${job.id} is missing source keys; cannot finalize.`,
+        );
+      }
+
+      const tags = job.tags.length === 0 ? [] : job.tags.trim().split(/\s+/).filter(Boolean);
+      validateCaption(job.caption);
+      validateTags(tags);
+
+      const [videoBuffer, posterBuffer] = await Promise.all([
+        storage.get(job.source_video_key),
+        storage.get(job.source_poster_key),
+      ]);
+
+      if (videoBuffer.length > VIDEO_MAX_BYTES) {
+        throw new ValidationError('Video is too large. Maximum size is 150 MB.');
+      }
+      if (posterBuffer.length > POSTER_MAX_BYTES) {
+        throw new ValidationError('Poster is too large. Maximum size is 25 MB.');
+      }
+      if (!detectVideoFormat(videoBuffer)) {
+        throw new ValidationError('Only MP4, WebM, and MOV videos are accepted.');
+      }
+      if (!detectImageType(posterBuffer)) {
+        throw new ValidationError('Poster must be a JPEG or PNG image.');
+      }
+
+      const systemMemberId = resolveSystemMemberIdOrThrow();
+
+      // Slot-1 semaphore prevents two concurrent finalize calls from OOMing
+      // the host. Single dispatch endpoint + slot-1 semaphore is belt-and-
+      // suspenders against accidental double-dispatch.
+      await transcodeBound.acquire();
+      let transcoded: TranscodedVideo;
+      let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
+      try {
+        [transcoded, processed] = await Promise.all([
+          videoTranscoder.transcode(videoBuffer),
+          imageProcessor.processPhoto(posterBuffer),
+        ]);
+      } finally {
+        transcodeBound.release();
+      }
+
+      const mediaId = newMediaId();
+      const videoKey = `${systemMemberId}/detached/${mediaId}-video.mp4`;
+      const posterDisplayKey = `${systemMemberId}/detached/${mediaId}-poster-display.jpg`;
+      const posterThumbKey = `${systemMemberId}/detached/${mediaId}-poster-thumb.jpg`;
+
+      await storage.put(videoKey, transcoded.bytes);
+      await storage.put(posterDisplayKey, processed.display);
+      await storage.put(posterThumbKey, processed.thumb);
+
+      const now = new Date().toISOString();
+      const thumbnailUrl = `/media/${posterDisplayKey}`;
+
+      transaction(() => {
+        media.insertCuratorVideo.run(
+          mediaId, now, now,
+          systemMemberId, job.caption, now,
+          videoKey, thumbnailUrl,
+          processed.widthPx, processed.heightPx,
+          job.source_filename,
+        );
+        applyTagsForCurator(mediaId, tags, now);
+        appendAuditEntry({
+          actionType: 'upload_curated_media',
+          category: 'media',
+          actorType: 'admin',
+          actorMemberId: job.admin_member_id,
+          entityType: 'media_item',
+          entityId: mediaId,
+          metadata: { mediaType: 'video', tags, mediaJobId: job.id },
+        });
+      });
+
+      // Best-effort cleanup of pending sources. S3 lifecycle on the pending/
+      // prefix is the safety net if these calls fail.
+      await Promise.all([
+        storage.delete(job.source_video_key).catch(() => undefined),
+        storage.delete(job.source_poster_key).catch(() => undefined),
+      ]);
 
       return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
     },
@@ -1344,13 +1454,29 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const validated = validateGalleryUpdates(updates);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
-        | { id: string; owner_member_id: string; is_system: number }
+        | { id: string; owner_member_id: string; is_system: number; owner_slug: string }
         | undefined;
       if (!existing) {
         throw new NotFoundError(`gallery ${galleryId} not found`);
       }
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
+
+      // Auto-include the owner's `#by_<slug>` on member-owned gallery
+      // edits, mirroring the create path. This survives the rewriteGalleryTagSets
+      // tag-set replacement so the gallery's owner-scoping criterion
+      // cannot be removed by editing. validateGalleryTag rejects `#by_*`
+      // from caller input, so the prepended tag is the only `#by_*`.
+      if (existing.is_system !== 1) {
+        const uploaderTag = `${UPLOADER_TAG_PREFIX}${existing.owner_slug.toLowerCase()}`;
+        validated.criteriaTags = [uploaderTag, ...validated.criteriaTags];
+      }
+
+      if (validated.criteriaTags.length === 0) {
+        throw new ValidationError(
+          'A gallery must declare at least one criteria tag (otherwise it would render empty).',
+        );
+      }
 
       const now = new Date().toISOString();
 
@@ -1426,6 +1552,19 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           );
         }
         galleryId = buildMemberGalleryId(ownerSlug, validated.name, 0);
+        // Member-owned galleries auto-include the owner's `#by_<slug>` so
+        // the tag-AND query scopes to the owner's uploads. validateGalleryTag
+        // rejects `#by_*` from caller input, so the prepended tag is the
+        // only `#by_*` in the criteria set. FH-owned galleries are not
+        // uploader-scoped and do not get the prepend.
+        const uploaderTag = `${UPLOADER_TAG_PREFIX}${ownerSlug.toLowerCase()}`;
+        validated.criteriaTags = [uploaderTag, ...validated.criteriaTags];
+      }
+
+      if (validated.criteriaTags.length === 0) {
+        throw new ValidationError(
+          'A gallery must declare at least one criteria tag (otherwise it would render empty).',
+        );
       }
 
       const now = new Date().toISOString();
@@ -1554,9 +1693,17 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
       authorizeGalleryActor(input.actorMemberId, input.actorIsAdmin, gallery.owner_member_id);
 
+      // Strip `#by_*` from the gallery's criteria tags before stamping
+      // them on picked items: the uploader-attribution namespace is
+      // system-managed at upload time, so the picker must never apply
+      // it. Without this, an admin picking another member's item into
+      // a gallery whose criteria includes `#by_<owner>` would forge
+      // uploader attribution on the picked item.
       const criteriaTags = (
         media.listFhNamedGalleryTags.all(input.galleryId) as Array<{ tag_display: string }>
-      ).map((t) => t.tag_display);
+      )
+        .map((t) => t.tag_display)
+        .filter((t) => !t.startsWith(UPLOADER_TAG_PREFIX));
 
       let added = 0;
       let skipped = 0;
@@ -1818,11 +1965,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       );
     }
     const sortOrder = updates.sortOrder as GallerySortOrderValue;
-    if (updates.criteriaTags.length === 0) {
-      throw new ValidationError(
-        'A gallery must declare at least one criteria tag (otherwise it would render empty).',
-      );
-    }
+    // The >=1 criteria invariant is enforced by createGallery/updateGallery
+    // AFTER the system auto-prepends `#by_<owner_slug>`, so an empty
+    // user-supplied criteriaTags is acceptable here for member-owned
+    // galleries (the auto-prepend always supplies at least one).
     const seenCriteria = new Set<string>();
     for (const tag of updates.criteriaTags) {
       validateGalleryTag(tag, 'criteria');

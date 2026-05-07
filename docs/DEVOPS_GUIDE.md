@@ -1113,7 +1113,7 @@ Required stance:
 
 #### Photo storage pipeline operations
 
-The avatar/photo pipeline runs on a four-container topology (nginx + web + worker + image), with photo bytes stored in S3 and served by CloudFront with OAC. Per-environment configuration lives in `/srv/footbag/env`, not Parameter Store (these are non-secret deploy-time values per §5.3). The `image` container runs Sharp internally on the docker network and is reachable only from web.
+The avatar/photo pipeline runs on a four-container topology (nginx + web + worker + image), with photo bytes stored in S3 and served by CloudFront with OAC. Per-environment configuration lives in `/srv/footbag/env`, not Parameter Store (these are non-secret deploy-time values per §5.3). The `image` container runs Sharp (avatar/photo) and ffmpeg (curator video transcode) internally on the docker network and is reachable only from web.
 
 ##### Required `/srv/footbag/env` variables
 
@@ -1121,6 +1121,7 @@ The avatar/photo pipeline runs on a four-container topology (nginx + web + worke
 - `MEDIA_STORAGE_S3_BUCKET=<terraform output media_bucket_name>`
 - `IMAGE_PROCESSOR_URL=http://image:4000`
 - `IMAGE_MAX_CONCURRENT=2` (default; tune under observed load)
+- `IMAGE_VIDEO_MAX_CONCURRENT=1` (default; raise only when host memory headroom permits a second concurrent ffmpeg)
 
 ##### Replication verification (after any TF apply touching s3.tf)
 
@@ -1279,6 +1280,32 @@ Every job run must record:
 - error summary if failed
 - operator correlation where manually rerun
 - key metrics such as processed counts when relevant
+
+### 11.6 Curator video transcode job inspection
+
+The asynchronous interactive admin video upload (DD §6.8 "Asynchronous orchestration") records each upload in the `media_jobs` table with a state machine: `pending_upload` → `pending_transcode` → `processing` → `succeeded` | `failed` | `abandoned`. The dispatch handler runs in the worker container's HTTP server alongside the email-outbox loop; ffmpeg runs in the existing image container.
+
+Inspection queries:
+
+```sql
+-- Recent jobs across all admins
+SELECT id, state, retry_count, last_error, created_at, updated_at
+FROM media_jobs
+ORDER BY created_at DESC
+LIMIT 20;
+
+-- Stuck-looking jobs (processing past their dispatch lease, or terminal failures)
+SELECT id, state, admin_member_id, last_error, last_attempted_at, lease_expires_at
+FROM media_jobs
+WHERE state IN ('processing','failed')
+ORDER BY updated_at DESC;
+```
+
+Failure response:
+
+- A `processing` row whose `lease_expires_at` is in the past indicates the worker crashed mid-transcode. The worker's one-shot boot-time recovery sweep resets such rows to `pending_transcode` for re-dispatch; restart the worker container to trigger the sweep.
+- A `failed` row is terminal. The admin re-uploads to retry; there is no in-place retry from the operator side.
+- Pending S3 source bytes live under `pending/<jobId>/`. The worker deletes them on success; an S3 lifecycle rule on the `pending/` prefix expires anything left after 24 hours, so orphaned uploads do not require manual cleanup.
 
 ---
 

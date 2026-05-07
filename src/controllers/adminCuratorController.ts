@@ -3,14 +3,40 @@ import Busboy from 'busboy';
 import { logger } from '../config/logger';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { getVideoTranscodingAdapter } from '../adapters/videoTranscodingAdapter';
 import {
   createCuratorMediaService,
+  PHOTO_MAX_BYTES,
   VIDEO_MAX_BYTES,
   POSTER_MAX_BYTES,
   isValidCategoryName,
   type CuratorMediaEditInput,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
+import { getMediaJobService } from '../services/mediaJobService';
+import { subscribeToJobEvents } from '../services/jobEventBus';
+import {
+  getTranscodeDispatchClient,
+  TranscodeDispatchError,
+} from '../services/transcodeDispatchClient';
+import { config } from '../config/env';
+import { randomUUID } from 'node:crypto';
+
+const ALLOWED_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
+const ALLOWED_POSTER_CONTENT_TYPES = new Set(['image/jpeg', 'image/png']);
+
+function videoExtFor(contentType: string): string {
+  if (contentType === 'video/mp4') return 'mp4';
+  if (contentType === 'video/webm') return 'webm';
+  if (contentType === 'video/quicktime') return 'mov';
+  return 'bin';
+}
+
+function posterExtFor(contentType: string): string {
+  if (contentType === 'image/jpeg') return 'jpg';
+  if (contentType === 'image/png') return 'png';
+  return 'bin';
+}
 
 const LIST_PAGE_SIZE = 50;
 
@@ -22,13 +48,16 @@ function buildSvc(): ReturnType<typeof createCuratorMediaService> {
   return createCuratorMediaService({
     storage: getMediaStorageAdapter(),
     imageProcessor: getImageProcessingAdapter(),
+    videoTranscoder: getVideoTranscodingAdapter(),
   });
 }
 
-// Busboy enforces a single per-file ceiling. Set it to the largest legitimate
-// per-file size (video). Per-field size validation (photo 25 MB, poster 25 MB)
-// happens inside curatorMediaService after the buffer is collected.
-const PER_FILE_LIMIT = Math.max(VIDEO_MAX_BYTES, POSTER_MAX_BYTES);
+// Busboy enforces a single per-file ceiling on the legacy multipart endpoint.
+// After DD §6.8 the legacy endpoint only handles photos and URL-references;
+// video upload moved to the async sign+S3-PUT+finalize path. PHOTO_MAX_BYTES
+// (25 MB) is the worst-case here. Per-field size validation against this same
+// constant happens inside curatorMediaService.uploadPhoto.
+const PER_FILE_LIMIT = PHOTO_MAX_BYTES;
 
 interface FormValues {
   mediaType?: string;
@@ -94,7 +123,11 @@ export const adminCuratorController = {
 
     const busboy = Busboy({
       headers: req.headers,
-      limits: { fileSize: PER_FILE_LIMIT, files: 3, fields: 10 },
+      // files: 1 — only `mediaFile` is read here. The url_reference branch
+      // attaches no files; the photo branch reads `mediaFile`; video uploads
+      // were retired (return 410 below). Lowering the cap rejects spurious
+      // multi-file submissions early.
+      limits: { fileSize: PER_FILE_LIMIT, files: 1, fields: 10 },
     });
 
     busboy.on('field', (name, val) => {
@@ -286,18 +319,21 @@ export const adminCuratorController = {
       }
 
       // mediaType === 'video'
-      const videoBuffer = fileBuffers.mediaFile;
-      const posterBuffer = fileBuffers.poster;
-      if (!videoBuffer || videoBuffer.length === 0) {
-        renderForm(res.status(422), { errorMessage: 'Please select a video to upload.', formValues, existingCategories });
-        return;
-      }
-      if (!posterBuffer || posterBuffer.length === 0) {
-        renderForm(res.status(422), { errorMessage: 'Please provide a poster image for the video.', formValues, existingCategories });
-        return;
-      }
-      await svc.uploadVideo({ adminMemberId, videoBuffer, posterBuffer, sourceFilename, caption, tags });
-      res.redirect('/admin/curator/upload');
+      // Legacy synchronous multipart upload was retired in DD §6.8: video
+      // bytes now flow browser → S3 (presigned PUT) → /finalize → worker.
+      // The async path requires JavaScript, which the noscript banner on the
+      // upload form warns about. A request landing here means JS was off or
+      // failed to load. 410 Gone is the right code: the resource (this
+      // synchronous video endpoint) is permanently removed; the new flow is
+      // POST /admin/curator/upload/sign + direct-to-S3 PUT + POST /finalize.
+      // The operator-run curator seeding script still calls
+      // curatorMediaService.uploadVideo directly (not through HTTP).
+      renderForm(res.status(410), {
+        errorMessage:
+          'Synchronous video upload via this form has been removed. Enable JavaScript and reload the page; video uploads now run as background transcode jobs.',
+        formValues,
+        existingCategories,
+      });
     }
 
     req.pipe(busboy);
@@ -679,6 +715,286 @@ export const adminCuratorController = {
     } catch (err) {
       next(err);
     }
+  },
+
+  /**
+   * POST /admin/curator/upload/sign  (DD §6.8 async curator video upload)
+   *
+   * The admin browser, after picking a video + poster + caption + tags, calls
+   * this endpoint to get presigned PUT URLs. The browser then PUTs the bytes
+   * directly to S3 (bypassing nginx and CloudFront for the body) and finally
+   * POSTs /finalize with the jobId. This handler creates the media_jobs row
+   * in 'pending_upload' state and returns the URLs.
+   *
+   * Validates per-type size and content-type before issuing URLs. The browser-
+   * supplied size is a hint; the worker-side finalize re-checks the actual S3
+   * object size at HEAD time before transcoding.
+   */
+  async postSignUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const adminMemberId = req.user!.userId;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const videoFilename = String(body.videoFilename ?? '').trim();
+      const videoContentType = String(body.videoContentType ?? '').trim();
+      const videoSizeBytes = Number(body.videoSizeBytes);
+      const posterContentType = String(body.posterContentType ?? '').trim();
+      const posterSizeBytes = Number(body.posterSizeBytes);
+      const caption = body.caption ? String(body.caption).trim() : '';
+      const tags = String(body.tags ?? '');
+
+      if (!videoFilename) {
+        res.status(400).json({ error: 'videoFilename required' });
+        return;
+      }
+      if (!ALLOWED_VIDEO_CONTENT_TYPES.has(videoContentType)) {
+        res.status(400).json({ error: 'Only MP4, WebM, and MOV videos are accepted.' });
+        return;
+      }
+      if (!ALLOWED_POSTER_CONTENT_TYPES.has(posterContentType)) {
+        res.status(400).json({ error: 'Poster must be a JPEG or PNG image.' });
+        return;
+      }
+      if (!Number.isInteger(videoSizeBytes) || videoSizeBytes <= 0) {
+        res.status(400).json({ error: 'videoSizeBytes must be a positive integer.' });
+        return;
+      }
+      if (videoSizeBytes > VIDEO_MAX_BYTES) {
+        res.status(400).json({ error: 'Video is too large. Maximum size is 150 MB.' });
+        return;
+      }
+      if (!Number.isInteger(posterSizeBytes) || posterSizeBytes <= 0) {
+        res.status(400).json({ error: 'posterSizeBytes must be a positive integer.' });
+        return;
+      }
+      if (posterSizeBytes > POSTER_MAX_BYTES) {
+        res.status(400).json({ error: 'Poster is too large. Maximum size is 25 MB.' });
+        return;
+      }
+
+      const jobId = `mediajob_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+      const prefix = config.mediaPendingUploadPrefix;
+      const sourceVideoKey = `${prefix}${jobId}/source.${videoExtFor(videoContentType)}`;
+      const sourcePosterKey = `${prefix}${jobId}/poster.${posterExtFor(posterContentType)}`;
+      const ttl = config.mediaPresignedPutTtlSeconds;
+      const expiresAtIso = new Date(Date.now() + ttl * 1000).toISOString();
+
+      const storage = getMediaStorageAdapter();
+      const [videoUrl, posterUrl] = await Promise.all([
+        storage.generatePresignedPutUrl(sourceVideoKey, videoContentType, ttl),
+        storage.generatePresignedPutUrl(sourcePosterKey, posterContentType, ttl),
+      ]);
+
+      getMediaJobService().createPendingUploadJob({
+        jobId,
+        kind: 'curator_video',
+        adminMemberId,
+        sourceVideoKey,
+        sourcePosterKey,
+        caption: caption.length === 0 ? null : caption,
+        tags,
+        sourceFilename: videoFilename,
+        expiresAtIso,
+      });
+
+      res.json({ jobId, videoUrl, posterUrl, expiresAtIso });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * POST /admin/curator/upload/finalize
+   *
+   * Browser calls this after both presigned PUTs complete. We verify both
+   * source keys exist in S3, transition the row to 'pending_transcode', and
+   * push the dispatch to the worker container. Returns the status-page URL
+   * the browser should redirect to.
+   *
+   * Idempotent: a duplicate call after pending_transcode logs and returns
+   * success rather than 409, so a transient browser retry doesn't error.
+   */
+  async postFinalizeUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const adminMemberId = req.user!.userId;
+      const jobId = String((req.body as Record<string, unknown> | undefined)?.jobId ?? '').trim();
+      if (!jobId) {
+        res.status(400).json({ error: 'jobId required' });
+        return;
+      }
+
+      const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
+      if (!job) {
+        // Anti-enumeration: not-found and not-owned look the same.
+        res.status(404).json({ error: 'job not found' });
+        return;
+      }
+      if (!job.source_video_key || !job.source_poster_key) {
+        res.status(409).json({ error: 'job has no source keys' });
+        return;
+      }
+
+      const storage = getMediaStorageAdapter();
+      const [videoExists, posterExists] = await Promise.all([
+        storage.exists(job.source_video_key),
+        storage.exists(job.source_poster_key),
+      ]);
+      if (!videoExists || !posterExists) {
+        res.status(409).json({ error: 'source files have not been uploaded yet' });
+        return;
+      }
+
+      try {
+        getMediaJobService().markPendingTranscode(jobId, adminMemberId);
+      } catch (err) {
+        if (err instanceof ConflictError) {
+          // Already past pending_upload; treat as idempotent success and
+          // re-dispatch (worker dispatch is itself idempotent because
+          // claimForProcessing only succeeds when state=pending_transcode).
+          logger.info('finalize: job already past pending_upload', {
+            jobId,
+            currentState: job.state,
+          });
+        } else {
+          throw err;
+        }
+      }
+
+      try {
+        await getTranscodeDispatchClient().dispatch(jobId);
+      } catch (err) {
+        if (err instanceof TranscodeDispatchError) {
+          logger.error('finalize: worker dispatch failed', {
+            jobId,
+            error: err.message,
+            status: err.status,
+          });
+          res.status(502).json({ error: 'worker dispatch failed' });
+          return;
+        }
+        throw err;
+      }
+
+      res.json({
+        jobId,
+        statusUrl: `/admin/curator/upload/jobs/${encodeURIComponent(jobId)}`,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * GET /admin/curator/upload/jobs/:jobId
+   *
+   * Server-side render of the current media_jobs row state. The browser then
+   * opens an SSE stream at /events for live updates. Anti-enumeration: jobs
+   * owned by another admin return 404 (same response as a job that does not
+   * exist), so existence cannot be probed.
+   */
+  getJobStatus(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const adminMemberId = req.user!.userId;
+      const jobId = req.params.jobId;
+      const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
+      if (!job) {
+        res.status(404).render('admin/curator/job-status', {
+          seo: { title: 'Curator Upload — Not Found' },
+          page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Curator Upload — Not Found' },
+          notFound: true,
+          jobId,
+        });
+        return;
+      }
+      res.render('admin/curator/job-status', {
+        seo: { title: 'Curator Upload Progress' },
+        page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Curator Upload Progress' },
+        job: {
+          id: job.id,
+          state: job.state,
+          mediaId: job.media_id,
+          errorMessage: job.last_error,
+          sourceFilename: job.source_filename,
+          caption: job.caption,
+          isPendingUpload: job.state === 'pending_upload',
+          isPendingTranscode: job.state === 'pending_transcode',
+          isProcessing: job.state === 'processing',
+          isSucceeded: job.state === 'succeeded',
+          isFailed: job.state === 'failed',
+          isAbandoned: job.state === 'abandoned',
+        },
+        eventsUrl: `/admin/curator/upload/jobs/${encodeURIComponent(job.id)}/events`,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * GET /admin/curator/upload/jobs/:jobId/events
+   *
+   * Server-Sent Events stream pushing media-job state transitions to the
+   * admin's status page. The page first sees the current state (sent
+   * immediately as an SSE event so refreshes work), then live updates as the
+   * worker transitions the row. Heartbeat every config.sseHeartbeatSeconds
+   * keeps nginx and CloudFront from idle-killing the connection during long
+   * transcodes.
+   *
+   * Cleanup is unconditional: req.on('close') unsubscribes from the bus and
+   * clears the heartbeat timer regardless of why the connection ended.
+   */
+  streamJobEvents(req: Request, res: Response, _next: NextFunction): void {
+    const adminMemberId = req.user!.userId;
+    const jobId = req.params.jobId;
+    const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
+    if (!job) {
+      res.status(404).end();
+      return;
+    }
+
+    res.set({
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      // Hint to nginx (when present) to flush each chunk; the nginx config
+      // for this route also sets `proxy_buffering off`, but the header is
+      // honored even outside that context.
+      'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders?.();
+
+    function writeSse(eventName: string, data: unknown): void {
+      try {
+        res.write(`event: ${eventName}\n`);
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      } catch {
+        // Connection closed underneath us; cleanup() will run via 'close'.
+      }
+    }
+
+    // Initial snapshot so a refresh past the live events still shows state.
+    writeSse('state', {
+      state: job.state,
+      mediaId: job.media_id,
+      errorMessage: job.last_error,
+    });
+
+    const unsubscribe = subscribeToJobEvents(jobId, (event) => {
+      writeSse('state', {
+        state: event.state,
+        mediaId: event.mediaId ?? null,
+        errorMessage: event.errorMessage ?? null,
+      });
+    });
+
+    const heartbeat = setInterval(() => {
+      writeSse('heartbeat', { ts: new Date().toISOString() });
+    }, config.sseHeartbeatSeconds * 1000);
+
+    const cleanup = (): void => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    };
+    req.on('close', cleanup);
   },
 };
 

@@ -21,7 +21,7 @@
               {{#if criteriaTags.length}}
                 <div class="hub-card-foot">
                   <p class="hub-card-summary">
-                    Showing {{itemCount}} {{#if (eq itemCount 1)}}item{{else}}items{{/if}} tagged: {{#each criteriaTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{#if excludeTags.length}} - Excluding {{#if (eq excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each excludeTags}}{{this}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
+                    Showing {{itemCount}} {{#if (eq itemCount 1)}}item{{else}}items{{/if}} tagged: {{#each criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{#if excludeTags.length}} - Excluding {{#if (eq excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
                   </p>
                   <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
                 </div>

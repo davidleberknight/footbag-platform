@@ -79,6 +79,38 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
   })
 }
 
+# Mirror of the staging media policy. Web Put/Delete writes processed photo and
+# video assets plus pending/ presigned-PUT keys (DD §6.8). GetObject reads
+# pending source bytes back during transcode finalize. ListBucket lets HEAD on
+# missing keys return 404 NoSuchKey rather than 403. CloudFront-OAC remains the
+# sole serving read path for finalized media.
+resource "aws_iam_role_policy" "app_s3_media" {
+  name = "s3-media"
+  role = aws_iam_role.app_runtime.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadWriteMediaObjects"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:GetObject"
+        ]
+        Resource = "${aws_s3_bucket.media.arn}/*"
+      },
+      {
+        Sid      = "HeadMediaObjects"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.media.arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "app_runtime" {
   name = "${local.prefix}-app-runtime"
   role = aws_iam_role.app_runtime.name

@@ -12,10 +12,34 @@ import {
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
+import { UPLOADER_TAG_PREFIX } from './curatorMediaService';
 import { PageViewModel } from '../types/page';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 
 export const PAGE_SIZE = 24;
+
+// Chip-shape for tag rendering: each tag display string carries an
+// optional href. `#by_<slug>` chips link to the member's profile when
+// the viewer is authenticated; for unauthenticated viewers the chip
+// renders as plain text (the route is auth-gated, so a clickable
+// link would dead-end). Other tag namespaces don't yet have their
+// own destination pages, so they get null hrefs and render plain.
+export interface TagChip {
+  display: string;
+  href: string | null;
+}
+
+export interface ViewerContext {
+  authenticated: boolean;
+}
+
+function shapeTagChip(display: string, viewer: ViewerContext): TagChip {
+  if (display.startsWith(UPLOADER_TAG_PREFIX) && viewer.authenticated) {
+    const slug = display.slice(UPLOADER_TAG_PREFIX.length);
+    return { display, href: `/members/${slug}` };
+  }
+  return { display, href: null };
+}
 
 export interface GalleryItem {
   mediaId: string;
@@ -58,8 +82,8 @@ export interface MediaHubGallerySummary {
   name: string;
   description: string;
   itemCount: number;
-  criteriaTags: string[];
-  excludeTags: string[];
+  criteriaTags: TagChip[];
+  excludeTags: TagChip[];
   href: string;
   owner: GalleryOwner;
 }
@@ -76,8 +100,8 @@ export interface NamedGalleryHero {
   id: string;
   name: string;
   description: string;
-  criteriaTags: string[];
-  excludeTags: string[];
+  criteriaTags: TagChip[];
+  excludeTags: TagChip[];
   owner: GalleryOwner;
 }
 
@@ -168,7 +192,7 @@ function shapeOwner(row: NamedGalleryWithOwnerRow): GalleryOwner {
 }
 
 export const mediaService = {
-  getMediaHubPage(): PageViewModel<MediaHubContent> {
+  getMediaHubPage(viewer: ViewerContext = { authenticated: false }): PageViewModel<MediaHubContent> {
     return runSqliteRead('mediaService.getMediaHubPage', () => {
       const galleries = media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[];
 
@@ -182,8 +206,8 @@ export const mediaService = {
           name: g.name,
           description: g.description,
           itemCount: countGalleryItemsByCriteria(tagIds, excludeTagIds),
-          criteriaTags: tagRows.map((t) => t.tag_display),
-          excludeTags: excludeTagRows.map((t) => t.tag_display),
+          criteriaTags: tagRows.map((t) => shapeTagChip(t.tag_display, viewer)),
+          excludeTags: excludeTagRows.map((t) => shapeTagChip(t.tag_display, viewer)),
           href: `/media/${g.id}`,
           owner: shapeOwner(g),
         };
@@ -205,6 +229,7 @@ export const mediaService = {
   getNamedGalleryPage(
     galleryId: string,
     _rawPage: unknown,
+    viewer: ViewerContext = { authenticated: false },
   ): PageViewModel<NamedGalleryContent> {
     return runSqliteRead('mediaService.getNamedGalleryPage', () => {
       const gallery = media.getNamedGalleryById.get(galleryId) as
@@ -216,7 +241,7 @@ export const mediaService = {
 
       const tagRows = media.listFhNamedGalleryTags.all(galleryId) as FhNamedGalleryTagRow[];
       const tagIds = tagRows.map((t) => t.id);
-      const criteriaTagDisplays = tagRows.map((t) => t.tag_display);
+      const criteriaTagChips = tagRows.map((t) => shapeTagChip(t.tag_display, viewer));
 
       const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(galleryId) as FhNamedGalleryTagRow[];
       const excludeTagIds = excludeTagRows.map((t) => t.id);
@@ -253,8 +278,8 @@ export const mediaService = {
             id: gallery.id,
             name: gallery.name,
             description: gallery.description,
-            criteriaTags: criteriaTagDisplays,
-            excludeTags: excludeTagRows.map((t) => t.tag_display),
+            criteriaTags: criteriaTagChips,
+            excludeTags: excludeTagRows.map((t) => shapeTagChip(t.tag_display, viewer)),
             owner: shapeOwner(gallery),
           },
           items,

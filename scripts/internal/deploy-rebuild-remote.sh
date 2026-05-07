@@ -192,6 +192,15 @@ if ! grep -q '^MEDIA_STORAGE_ADAPTER=' "$ENV_PATH"; then
   echo 'MEDIA_STORAGE_ADAPTER=s3' >> "$ENV_PATH"
 fi
 
+# One-shot migration: INTERNAL_EVENT_SECRET seed. Authenticates the docker-
+# internal channel between web and worker for the async curator video upload
+# (DD §6.8). Generated locally; never traverses the public surface. To rotate,
+# delete the line from /srv/footbag/env and redeploy.
+if ! grep -q '^INTERNAL_EVENT_SECRET=' "$ENV_PATH"; then
+  echo "    Seeding INTERNAL_EVENT_SECRET into env file (random hex)..."
+  printf 'INTERNAL_EVENT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$ENV_PATH"
+fi
+
 NODE_ENV_VAL=$(require_env NODE_ENV)
 LOG_LEVEL_VAL=$(require_env LOG_LEVEL)
 DB_PATH=$(require_env FOOTBAG_DB_PATH)

@@ -9,7 +9,7 @@
  *
  * Mirrors admin.curator.upload.routes.test.ts setup: env vars before module
  * imports; image-processing adapter injected with a fake fetch that runs Sharp
- * inline; video transcoder injected via setVideoTranscoderForTests.
+ * inline; video transcoding adapter injected with a fake adapter.
  *
  * CSRF posture matches the upload route: SameSite=Lax cookie + POST-only
  * mutations. No token middleware on admin routes.

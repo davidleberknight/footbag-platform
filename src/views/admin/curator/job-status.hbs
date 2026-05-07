@@ -1,0 +1,59 @@
+{{!-- Curator video upload status page. SSE updates the [data-state] block in
+     phase 6 once the client JS is wired up. Server-rendered current state is
+     authoritative on first paint and on full refresh. --}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+
+  {{#if notFound}}
+    <p class="form-error-banner" role="alert">
+      No curator upload job with id <code>{{jobId}}</code> exists, or it
+      belongs to a different admin.
+    </p>
+    <p><a href="/admin/curator/upload">Back to upload</a></p>
+  {{else}}
+    <dl>
+      <dt>Job</dt><dd><code>{{job.id}}</code></dd>
+      {{#if job.sourceFilename}}<dt>File</dt><dd>{{job.sourceFilename}}</dd>{{/if}}
+      {{#if job.caption}}<dt>Caption</dt><dd>{{job.caption}}</dd>{{/if}}
+    </dl>
+
+    <section data-job-status data-state="{{job.state}}">
+      {{#if job.isPendingUpload}}
+        <p>Waiting for the browser to finish uploading source bytes to S3.</p>
+      {{/if}}
+      {{#if job.isPendingTranscode}}
+        <p>Upload complete. Waiting for the worker to start transcoding.</p>
+      {{/if}}
+      {{#if job.isProcessing}}
+        <p>Transcoding now. This usually takes one to three minutes for a typical curator clip.</p>
+      {{/if}}
+      {{#if job.isSucceeded}}
+        <p class="form-success-banner" role="status">
+          Transcode succeeded.
+          {{#if job.mediaId}}
+            <a href="/admin/curator/media/{{job.mediaId}}/edit">Open the new media item.</a>
+          {{/if}}
+        </p>
+      {{/if}}
+      {{#if job.isFailed}}
+        <p class="form-error-banner" role="alert">
+          Transcode failed{{#if job.errorMessage}}: {{job.errorMessage}}{{/if}}.
+          Re-upload the file to try again.
+        </p>
+        <p><a href="/admin/curator/upload">Back to upload</a></p>
+      {{/if}}
+      {{#if job.isAbandoned}}
+        <p class="form-error-banner" role="alert">
+          The upload session expired before finalizing. Re-upload to try again.
+        </p>
+        <p><a href="/admin/curator/upload">Back to upload</a></p>
+      {{/if}}
+    </section>
+
+    {{!-- SSE events URL exposed for the client JS hook. Without JS the page
+         still shows the server-rendered current state; refresh to re-poll. --}}
+    <div data-events-url="{{eventsUrl}}" hidden></div>
+  {{/if}}
+</div>
+
+<script src="/js/admin-curator-job-status.js" defer></script>

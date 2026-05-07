@@ -14,11 +14,18 @@
     </div>
   {{/if}}
 
-  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data">
+  <noscript>
+    <div class="form-error-banner" role="alert">
+      JavaScript is required to upload videos. Photo and URL-reference uploads
+      work without it; enable JavaScript before selecting Video.
+    </div>
+  </noscript>
+
+  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data" data-async-curator-upload>
     <fieldset>
       <legend>Type</legend>
       <label><input type="radio" name="mediaType" value="photo" checked> Photo</label>
-      <label><input type="radio" name="mediaType" value="video"> Video</label>
+      <label><input type="radio" name="mediaType" value="video"> Video (requires JavaScript)</label>
       <label><input type="radio" name="mediaType" value="url_reference"> URL reference (YouTube / Vimeo)</label>
     </fieldset>
 
@@ -127,5 +134,12 @@
     <p>Uploader: Footbag Hacky (system member). Gallery: detached.</p>
 
     <p><button type="submit">Upload</button></p>
+
+    {{!-- Video-async UX hooks. Visible only after the JS path takes over;
+         no-JS users see only the noscript banner above. --}}
+    <p data-async-status></p>
+    <progress data-async-progress value="0" max="1" hidden></progress>
   </form>
 </div>
+
+<script src="/js/admin-curator-upload.js" defer></script>

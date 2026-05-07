@@ -20,7 +20,7 @@ export interface TestJwtClaims {
   exp: number;
 }
 
-const DEFAULT_TTL_SECONDS = 10 * 60;
+const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
 
 function b64urlEncode(buf: Buffer): string {
   return buf

@@ -11,6 +11,14 @@ adminRouter.use(requireAuth, requireAdmin);
 adminRouter.get('/', adminController.index);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
+// Async curator video upload (DD §6.8). Three-step browser flow: sign,
+// direct-PUT to S3, finalize. Order matters within the /jobs subtree: the
+// more-specific /events route comes before the page render, though Express
+// matches by declaration order alone — listing both for clarity.
+adminRouter.post('/curator/upload/sign', adminCuratorController.postSignUpload);
+adminRouter.post('/curator/upload/finalize', adminCuratorController.postFinalizeUpload);
+adminRouter.get('/curator/upload/jobs/:jobId/events', adminCuratorController.streamJobEvents);
+adminRouter.get('/curator/upload/jobs/:jobId', adminCuratorController.getJobStatus);
 adminRouter.get('/curator/media', adminCuratorController.getList);
 adminRouter.get('/curator/media/:id/edit', adminCuratorController.getEdit);
 adminRouter.post('/curator/media/:id/edit', adminCuratorController.postEdit);

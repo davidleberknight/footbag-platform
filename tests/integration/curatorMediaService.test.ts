@@ -14,6 +14,7 @@ import path from 'path';
 import os from 'os';
 import type { MediaStorageAdapter } from '../../src/adapters/mediaStorageAdapter';
 import type { ImageProcessingAdapter } from '../../src/adapters/imageProcessingAdapter';
+import type { VideoTranscodingAdapter } from '../../src/adapters/videoTranscodingAdapter';
 import type { TranscodedVideo } from '../../src/lib/videoProcessing';
 import { formatGallerySidecarJson } from '../../src/lib/curatorGallerySidecar';
 
@@ -47,6 +48,7 @@ function openDb(): BetterSqlite3.Database {
 interface StubStorage extends MediaStorageAdapter {
   puts: Array<{ key: string; bytes: number }>;
   deletes: string[];
+  contents: Map<string, Buffer>;
   failOnNthPut: number | null;
   failOnDelete: boolean;
 }
@@ -54,11 +56,13 @@ interface StubStorage extends MediaStorageAdapter {
 function makeStubStorage(): StubStorage {
   const puts: Array<{ key: string; bytes: number }> = [];
   const deletes: string[] = [];
+  const contents = new Map<string, Buffer>();
   let failOn: number | null = null;
   let failDelete = false;
   const stub: StubStorage = {
     puts,
     deletes,
+    contents,
     get failOnNthPut() { return failOn; },
     set failOnNthPut(v: number | null) { failOn = v; },
     get failOnDelete() { return failDelete; },
@@ -68,13 +72,23 @@ function makeStubStorage(): StubStorage {
         throw new Error('stub storage failure');
       }
       puts.push({ key, bytes: data.length });
+      contents.set(key, Buffer.from(data));
+    },
+    async get(key) {
+      const data = contents.get(key);
+      if (!data) throw new Error(`stub storage: missing key ${key}`);
+      return data;
     },
     async delete(key) {
       if (failDelete) throw new Error('stub storage delete failure');
       deletes.push(key);
+      contents.delete(key);
     },
     constructURL(key) { return `/media/${key}`; },
-    async exists() { return false; },
+    async exists(key) { return contents.has(key); },
+    async generatePresignedPutUrl(key, contentType, expirationSeconds) {
+      return `/_stub-presigned-put/${key}?ct=${encodeURIComponent(contentType)}&exp=${expirationSeconds}`;
+    },
   };
   return stub;
 }
@@ -109,8 +123,10 @@ function makeFakeMp4(): Buffer {
   return buf;
 }
 
-function fakeTranscoder(): (buf: Buffer) => Promise<TranscodedVideo> {
-  return async () => ({ bytes: Buffer.from('transcoded-mp4'), outputFormat: 'mp4' });
+function fakeTranscoder(): VideoTranscodingAdapter {
+  return {
+    transcode: async () => ({ bytes: Buffer.from('transcoded-mp4'), outputFormat: 'mp4' }),
+  };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -300,7 +316,7 @@ describe('curatorMediaService.uploadVideo', () => {
     let transcoderCalled = false;
     const svc = svcModule.createCuratorMediaService({
       storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
-      videoTranscoder: async () => { transcoderCalled = true; return { bytes: Buffer.alloc(0), outputFormat: 'mp4' }; },
+      videoTranscoder: { transcode: async () => { transcoderCalled = true; return { bytes: Buffer.alloc(0), outputFormat: 'mp4' as const }; } },
     });
     const poster = await makeJpegBuffer();
     await expect(svc.uploadVideo({
@@ -343,15 +359,17 @@ describe('curatorMediaService.uploadVideo', () => {
     let release!: () => void;
     const blocker = new Promise<void>((r) => { release = r; });
 
-    const slowTranscoder = (label: string) => async () => {
-      order.push(`start:${label}`);
-      if (label === 'first') {
-        firstStarted();
-        await blocker;
-      }
-      order.push(`finish:${label}`);
-      return { bytes: Buffer.from(`bytes:${label}`), outputFormat: 'mp4' as const };
-    };
+    const slowTranscoder = (label: string): VideoTranscodingAdapter => ({
+      transcode: async () => {
+        order.push(`start:${label}`);
+        if (label === 'first') {
+          firstStarted();
+          await blocker;
+        }
+        order.push(`finish:${label}`);
+        return { bytes: Buffer.from(`bytes:${label}`), outputFormat: 'mp4' as const };
+      },
+    });
 
     const svcFirst = svcModule.createCuratorMediaService({
       storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(),
@@ -1647,11 +1665,12 @@ describe('curatorMediaService.createGallery', () => {
     }
   });
 
-  it('reuses validateGalleryUpdates: rejects empty criteria, oversize name, etc.', async () => {
+  it('reuses validateGalleryUpdates: empty criteria OK for member (auto-prepend), rejects oversize name', async () => {
     const ts = '2026-04-02T03:00:00Z';
     const memberId = 'member-gal-create-validate';
+    const ownerSlug = 'gal_validate';
     const db = openDb();
-    insertMember(db, { id: memberId, slug: 'gal-validate', login_email: 'gal-validate@example.com' });
+    insertMember(db, { id: memberId, slug: ownerSlug, login_email: 'gal-validate@example.com' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-validate-'));
@@ -1661,12 +1680,17 @@ describe('curatorMediaService.createGallery', () => {
         imageProcessor: makeStubImageProcessor(),
         curatedRootDir: curatedRoot,
       });
+      // Empty user-supplied criteria is fine for member-owned: the
+      // service auto-prepends `#by_<slug>` so the gallery still has
+      // at least one criteria tag.
+      const created = await svc.createGallery({
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId, ownerSlug,
+        updates: { name: 'Empty Criteria OK', description: '', sortOrder: 'upload_desc', criteriaTags: [], excludeTags: [] },
+      });
+      expect(created.id).toBeTruthy();
+      // Oversize name still rejects via validateGalleryUpdates.
       await expect(svc.createGallery({
-        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
-        updates: { name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: [], excludeTags: [] },
-      })).rejects.toThrow(/at least one criteria tag/);
-      await expect(svc.createGallery({
-        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId,
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId, ownerSlug,
         updates: { name: 'x'.repeat(151), description: '', sortOrder: 'upload_desc', criteriaTags: ['#a'], excludeTags: [] },
       })).rejects.toThrow(/Gallery name must be 150/);
     } finally {
@@ -2084,5 +2108,154 @@ describe('curatorMediaService.addMediaToGallery', () => {
     seedMedia('media_amg_nf', 'amg-owner-7');
     const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
     expect(() => svc.addMediaToGallery({ actorMemberId: 'amg-owner-7', actorIsAdmin: false, galleryId: 'gallery_m_does_not_exist_xx', mediaIds: ['media_amg_nf'] })).toThrow(/gallery .* not found/);
+  });
+});
+
+describe('curatorMediaService.finalizeTranscodeForJob', () => {
+  function makeJobRow(overrides: Partial<import('../../src/db/db').MediaJobRow> = {}): import('../../src/db/db').MediaJobRow {
+    return {
+      id: `mediajob_finalize_${Math.random().toString(36).slice(2, 10)}`,
+      kind: 'curator_video',
+      state: 'processing',
+      admin_member_id: ADMIN_ID,
+      source_video_key: 'pending/job-finalize/source.mp4',
+      source_poster_key: 'pending/job-finalize/source-poster.jpg',
+      caption: 'finalize-test',
+      tags: '#demo_freestyle',
+      source_filename: 'clip.mp4',
+      media_id: null,
+      retry_count: 0,
+      last_error: null,
+      last_attempted_at: '2026-01-01T00:00:00.000Z',
+      lease_expires_at: '2099-01-01T00:00:00.000Z',
+      expires_at: null,
+      created_at: '2026-01-01T00:00:00.000Z',
+      created_by: 'admin',
+      updated_at: '2026-01-01T00:00:00.000Z',
+      updated_by: 'admin',
+      version: 1,
+      ...overrides,
+    };
+  }
+
+  it('happy path: pulls source from storage, runs transcode + photo, inserts media_items, deletes pending', async () => {
+    const storage = makeStubStorage();
+    const mp4 = makeFakeMp4();
+    const poster = await makeJpegBuffer();
+    await storage.put('pending/job-finalize/source.mp4', mp4);
+    await storage.put('pending/job-finalize/source-poster.jpg', poster);
+    storage.puts.length = 0;
+    storage.deletes.length = 0;
+
+    const svc = svcModule.createCuratorMediaService({
+      storage,
+      imageProcessor: makeStubImageProcessor(),
+      videoTranscoder: fakeTranscoder(),
+    });
+
+    const job = makeJobRow();
+    const result = await svc.finalizeTranscodeForJob(job);
+
+    expect(result.mediaId).toMatch(/^media_/);
+    // Final puts: video, poster-display, poster-thumb (in some order).
+    const finalKeys = storage.puts.map((p) => p.key);
+    expect(finalKeys.some((k) => k.endsWith('-video.mp4'))).toBe(true);
+    expect(finalKeys.some((k) => k.endsWith('-poster-display.jpg'))).toBe(true);
+    expect(finalKeys.some((k) => k.endsWith('-poster-thumb.jpg'))).toBe(true);
+    // Pending sources deleted on success.
+    expect(storage.deletes).toContain('pending/job-finalize/source.mp4');
+    expect(storage.deletes).toContain('pending/job-finalize/source-poster.jpg');
+
+    const db = openDb();
+    try {
+      const row = db.prepare(`SELECT * FROM media_items WHERE id = ?`).get(result.mediaId) as Record<string, unknown>;
+      expect(row.media_type).toBe('video');
+      expect(row.video_platform).toBe('s3');
+      expect(row.uploader_member_id).toBe(SYSTEM_ID);
+      expect(row.caption).toBe('finalize-test');
+      expect(row.source_filename).toBe('clip.mp4');
+      const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ?`).get(result.mediaId) as Record<string, unknown>;
+      expect(audit.actor_member_id).toBe(ADMIN_ID);
+      expect(audit.action_type).toBe('upload_curated_media');
+    } finally { db.close(); }
+  });
+
+  it('parses space-separated tags and applies them', async () => {
+    const storage = makeStubStorage();
+    await storage.put('pending/job-finalize-tags/source.mp4', makeFakeMp4());
+    await storage.put('pending/job-finalize-tags/source-poster.jpg', await makeJpegBuffer());
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const job = makeJobRow({
+      id: 'mediajob_tagtest',
+      source_video_key: 'pending/job-finalize-tags/source.mp4',
+      source_poster_key: 'pending/job-finalize-tags/source-poster.jpg',
+      source_filename: 'clip-tagtest.mp4',
+      tags: '#demo_freestyle  #tutorial   #chrome',
+    });
+    const result = await svc.finalizeTranscodeForJob(job);
+
+    const db = openDb();
+    try {
+      const tagRows = db.prepare(
+        `SELECT t.tag_display FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_display`,
+      ).all(result.mediaId) as { tag_display: string }[];
+      const displays = tagRows.map((r) => r.tag_display);
+      expect(displays).toContain('#demo_freestyle');
+      expect(displays).toContain('#tutorial');
+      expect(displays).toContain('#chrome');
+      // Auto-prepended #curated.
+      expect(displays).toContain('#curated');
+    } finally { db.close(); }
+  });
+
+  it('rejects job kind other than curator_video', async () => {
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const job = makeJobRow({ kind: 'unknown' as 'curator_video' });
+    await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/Unsupported media_jobs.kind/);
+  });
+
+  it('rejects job missing source keys', async () => {
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(), imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const job = makeJobRow({ source_video_key: null });
+    await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/missing source keys/);
+  });
+
+  it('rejects oversized source video pulled from storage', async () => {
+    const storage = makeStubStorage();
+    const oversized = Buffer.alloc(151 * 1024 * 1024);
+    oversized.write('ftyp', 4, 'ascii');
+    oversized.write('isom', 8, 'ascii');
+    await storage.put('pending/job-oversized/source.mp4', oversized);
+    await storage.put('pending/job-oversized/source-poster.jpg', await makeJpegBuffer());
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const job = makeJobRow({
+      id: 'mediajob_oversized',
+      source_video_key: 'pending/job-oversized/source.mp4',
+      source_poster_key: 'pending/job-oversized/source-poster.jpg',
+    });
+    await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/Video is too large/);
+  });
+
+  it('rejects non-image poster', async () => {
+    const storage = makeStubStorage();
+    await storage.put('pending/job-badposter/source.mp4', makeFakeMp4());
+    await storage.put('pending/job-badposter/source-poster.jpg', Buffer.from('not-an-image'));
+    const svc = svcModule.createCuratorMediaService({
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+    });
+    const job = makeJobRow({
+      id: 'mediajob_badposter',
+      source_video_key: 'pending/job-badposter/source.mp4',
+      source_poster_key: 'pending/job-badposter/source-poster.jpg',
+    });
+    await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/Poster must be a JPEG or PNG/);
   });
 });

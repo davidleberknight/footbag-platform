@@ -103,6 +103,27 @@ if ! grep -q '^MEDIA_STORAGE_ADAPTER=' "$ENV_PATH"; then
   mv "$env_tmp" "$ENV_PATH"
 fi
 
+# One-shot migration: INTERNAL_EVENT_SECRET seed. Authenticates the docker-
+# internal channel between web (`/ipc/job-events`) and worker
+# (`/transcode/dispatch`) for the async curator video upload (DD §6.8).
+# Generated on the host since the value never reaches CloudFront or any
+# public surface; centralizing in SSM would add ops overhead with no security
+# gain. docker-compose.prod.yml fails fast if the var is unset, so this seed
+# is load-bearing for stack startup. To rotate, delete the line from
+# /srv/footbag/env and redeploy: this block regenerates and the worker picks
+# up the new value on its next restart.
+if ! grep -q '^INTERNAL_EVENT_SECRET=' "$ENV_PATH"; then
+  echo "==> Seeding INTERNAL_EVENT_SECRET into $ENV_PATH (random hex)..."
+  generated_secret=$(openssl rand -hex 32)
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  cp "$ENV_PATH" "$env_tmp"
+  printf 'INTERNAL_EVENT_SECRET=%s\n' "$generated_secret" >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  unset generated_secret
+fi
+
 echo "==> Promoting release (preserving env, DB, media)..."
 rsync -a --delete \
   --exclude=/env --exclude=/db --exclude=/media \

@@ -938,6 +938,7 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | OR6 | Scheduled maintenance jobs | §28.6 | State 3 → State 4 |
 | OR7 | Secrets rotation | §28.7 | State 3 → State 4 |
 | OR8 | Production database restore drill completed against a copy of production data | §28.1 | State 3 → State 4 |
+| OR9 | Post-launch admin curator authoring scheme designed and implemented | §28.14 | State 3 → State 4 |
 
 ### Code governance gates
 
@@ -1256,6 +1257,14 @@ Procedure: `docs/DEV_ONBOARDING.md` Path I (§9.4 ACM via DNS delegation); produ
 ### 28.13 Curator content seeding
 
 Gate: the system member account (FH; DD §2.8) is seeded into the production DB and its initial curator content (avatar, landing-page demo loops, Japan Worlds 2026 event headline; future items like /net cartoons, /footbag-heroes illustrations, tutorials, historical content) is loaded into the production media bucket before public DNS cutover. Landing pages and curator-tagged surfaces must resolve to the production media bucket, not 404. Procedure: run `python3 legacy_data/scripts/seed_members.py --db <prod-db-path>` followed by `python3 scripts/seed_curator_media.py --db <prod-db-path> --media-dir <local-stage-dir>`, then `aws s3 sync <local-stage-dir>/ s3://<prod-media-bucket>/`. Source assets in `curated/` are committed to the repo; expand the manifest in `seed_curator_media.py` to extend the seed list.
+
+Constraint to resolve before go-live: the curator seeder (`src/services/curatorSeedService.ts`) calls `curatorMediaService.uploadVideo` directly, running ffmpeg in-process on the seeder host with the full source buffer in RAM. This bypasses the async media-job lifecycle (DD §6.8) that backs the admin curator video upload form. Acceptable today because seeding runs operator-side with adequate memory and no HTTP-timeout window. The production seed manifest may include larger source files than dev, and the same OOM hazard the admin path was redesigned to avoid applies on a memory-constrained host. Required: route the seeder through the same `media_jobs` lifecycle, posting source bytes to S3 via presigned PUT and dispatching transcode to the worker container. Must land before State 3 → State 4.
+
+### 28.14 Post-launch admin curator authoring
+
+Pre-launch, admin curator UIs at `/admin/curator/upload`, `/admin/curator/galleries`, and `/admin/curator/media/:id/edit` write to the `/curated/` filesystem (URL-reference sidecars at `/curated/{category}/*.meta.json` and gallery sidecars at `/curated/galleries/<slug>.json`, per DD §1.13) plus DB. Pre-launch loop: admin works on localhost, commits `/curated/` changes to git, deploys; the seeder re-runs from the committed sidecars on each `bash deploy_to_aws.sh --with-db`. This loop ends at go-live: admins must work against prod, but the prod container has no git path back to the repo, so any sidecar edit on the running app diverges from the in-git source of truth.
+
+Required: design and implement a post-launch admin-curated content authoring scheme. Candidate directions: (a) make the DB the source of truth for FH-owned authoring and run periodic exports to git as backup, (b) add an admin "publish to git" surface that commits and PRs from the running app via a service account, (c) split runtime mutations from build-time authoring entirely (lock the running app to read-only on `/curated/` and require admins to author via a separate workflow). Design decision required; chosen direction is reflected in DD §1.13 and SERVICE_CATALOG `CuratorMediaService`. Must land before State 3 → State 4.
 
 ---
 

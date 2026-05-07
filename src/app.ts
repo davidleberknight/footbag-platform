@@ -9,6 +9,7 @@ import { authMiddleware } from './middleware/auth';
 import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
 import { internalRouter } from './routes/internalRoutes';
+import { ipcRouter }      from './routes/ipcRoutes';
 import { adminRouter }    from './routes/adminRoutes';
 import { publicRouter }   from './routes/publicRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
@@ -52,13 +53,22 @@ export function createApp(): express.Application {
 
   // Strict Content-Security-Policy: 'self' for scripts and styles, no inline
   // execution, no inline event handlers, no framing. Third-party origins are
-  // added only when a template references them — currently i.ytimg.com and
-  // i.vimeocdn.com (YouTube/Vimeo thumbnail CDNs used by the curator gallery
-  // tiles for external-platform reference videos) and www.youtube-nocookie.com
-  // (the privacy-friendly embed iframe loaded after the user clicks a facade).
-  // data: is allowed in img-src as a future allowance for small inline SVG
-  // icons (no current consumer). HSTS preload stays off until the custom
-  // domain lands.
+  // added only when a template or a script references them — currently
+  // i.ytimg.com and i.vimeocdn.com (YouTube/Vimeo thumbnail CDNs used by the
+  // curator gallery tiles for external-platform reference videos),
+  // www.youtube-nocookie.com (the privacy-friendly embed iframe loaded after
+  // the user clicks a facade), and the configured S3 media bucket origin
+  // (admin curator video upload PUTs source bytes directly to S3 via a
+  // presigned URL, bypassing nginx and CloudFront). data: is allowed in
+  // img-src as a future allowance for small inline SVG icons (no current
+  // consumer). HSTS preload stays off until the custom domain lands.
+  const s3MediaOrigin =
+    config.mediaStorageAdapter === 's3' &&
+    config.mediaStorageS3Bucket &&
+    config.awsRegion
+      ? `https://${config.mediaStorageS3Bucket}.s3.${config.awsRegion}.amazonaws.com`
+      : null;
+
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: false,
@@ -69,7 +79,7 @@ export function createApp(): express.Application {
         styleSrc:       ["'self'"],
         imgSrc:         ["'self'", 'data:', 'https://i.ytimg.com', 'https://i.vimeocdn.com'],
         fontSrc:        ["'self'"],
-        connectSrc:     ["'self'"],
+        connectSrc:     ["'self'", ...(s3MediaOrigin ? [s3MediaOrigin] : [])],
         frameSrc:       ['https://www.youtube-nocookie.com'],
         objectSrc:      ["'none'"],
         baseUri:        ["'self'"],
@@ -220,6 +230,7 @@ export function createApp(): express.Application {
 
   // ── Routes ───────────────────────────────────────────────────────────────
   app.use('/health',   healthRouter);
+  app.use('/ipc',      ipcRouter);
   app.use('/internal', internalRouter);
   app.use('/admin',    adminRouter);
   app.use('/',         publicRouter);

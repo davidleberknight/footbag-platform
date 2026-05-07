@@ -852,7 +852,7 @@ When a gallery is deleted:
 - `member_gallery_tags` / `member_gallery_exclude_tags` → `CASCADE` (the gallery's criteria and exclude tag-link rows disappear with it)
 - `gallery_external_links` → `CASCADE` delete
 
-Member-uploaded media survives gallery deletion: galleries are saved-search bookmarks over the tag set, not content buckets, so a deleted gallery only loses its tag-link rows. The media itself remains reachable via any other gallery whose criteria still match (every member upload carries the uploader's `#<slug>` tag and so always remains in the owner's `#<slug>` view).
+Member-uploaded media survives gallery deletion: galleries are saved-search bookmarks over the tag set, not content buckets, so a deleted gallery only loses its tag-link rows. The media itself remains reachable via any other gallery whose criteria still match (every member upload carries the uploader's `#by_<slug>` tag and so always remains in the owner's `#by_<slug>` view).
 
 `media_flags.media_id ON DELETE CASCADE` and `media_tags.media_id ON DELETE CASCADE`: flags and tags are removed when their media is deleted.
 
@@ -894,6 +894,42 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 **Semantics:** items appear in a named gallery iff they carry every tag linked via `member_gallery_tags` AND no tag linked via `member_gallery_exclude_tags`. Empty criteria → empty gallery. The same `tags` table backs both per-item tagging (`media_tags`) and per-gallery criteria/exclude sets, so a curator who tags media with `#freestyle` automatically affects every gallery whose criteria include `#freestyle`.
 
 **Tag-only gallery membership:** named galleries do not own their content directly; `media_items` carries no gallery FK. Both curator URL-reference content and member uploads surface in a named gallery purely via tag-AND match against the gallery's `member_gallery_tags` set (minus any exclude match). One media item can appear in many galleries, and the same item is reachable through different galleries whose criteria match.
+
+#### Curator video transcode jobs (`media_jobs`)
+
+**Table:** `media_jobs`. Lifecycle row backing the asynchronous interactive admin video upload (DD §6.8 "Asynchronous orchestration"). The row records the full state machine of a single admin upload from sign-time through transcode-complete, plus the metadata captured on the form (caption, tags, source filename) so the worker can persist the resulting `media_items` row on success.
+
+`kind`: discriminator. Only `'curator_video'` exists today; future variants share this table if other media paths move off the synchronous request chain.
+
+`state`: state machine. Allowed values:
+- `pending_upload`: row created at `/admin/curator/upload/sign`; the browser holds presigned PUT URLs and is uploading bytes to S3.
+- `pending_transcode`: `/admin/curator/upload/finalize` confirmed both source keys exist and dispatched the job to the worker.
+- `processing`: worker has claimed the row via optimistic UPDATE; ffmpeg is running.
+- `succeeded`: worker wrote the corresponding `media_items` row, deleted pending sources, and recorded `media_id` on this row.
+- `failed`: terminal after the configured max attempts; admin re-uploads to retry.
+- `abandoned`: `pending_upload` row past its TTL (browser closed before `/finalize`).
+
+`source_video_key`, `source_poster_key`: S3 object keys under the configured pending-upload prefix (`pending/<jobId>/source.{ext}` and `/poster.{ext}`). Both deleted by the worker on success; an S3 lifecycle rule expires anything under `pending/` after 24 hours as defense in depth.
+
+`admin_member_id REFERENCES members(id)`: the admin who initiated the job. Used for owner-scoped status-page lookups (anti-enumeration: another admin's job appears as 404, same as a job that does not exist) and for the audit entry written on `succeeded`.
+
+`media_id REFERENCES media_items(id) ON DELETE SET NULL`: populated when the job reaches `succeeded`. The FK action preserves the `media_jobs` audit trail if the resulting `media_items` row is later deleted.
+
+`retry_count`, `last_error`: failure metadata. `retry_count` increments only on retryable failures; reaching the configured max transitions the job to `failed` (terminal).
+
+`last_attempted_at`, `lease_expires_at`: dispatch lease. Set when the worker claims the row (state → `processing`). Boot-time recovery (`recoverOrphanedProcessingJobs`) compares `lease_expires_at` against the current time to distinguish a freshly-claimed row from one orphaned by a worker crash; orphaned rows are reset to `pending_transcode` for re-dispatch. This is the only sweep of this table; all other transitions are HTTP push events.
+
+`expires_at`: TTL for `pending_upload` rows. Set at `/sign` so abandoned uploads can be reconciled to `abandoned`.
+
+**CHECK constraints:**
+- `state IN ('pending_upload','pending_transcode','processing','succeeded','failed','abandoned')`
+- `state <> 'succeeded' OR media_id IS NOT NULL` — terminal-state safety: a succeeded row must point at the resulting media item.
+- `kind IN ('curator_video')`
+
+**Indexes:**
+- `idx_media_jobs_state ON media_jobs(state, created_at)` — state-bucketed time-ordered listing for operator inspection.
+- `idx_media_jobs_admin ON media_jobs(admin_member_id, created_at)` — admin-status-page reads.
+- `idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at) WHERE state = 'processing'` — partial index used by the boot-time orphan sweep.
 
 ### 4.18 Club Leaders & Event Organizers
 

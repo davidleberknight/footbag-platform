@@ -227,7 +227,7 @@ describe('POST /members/:memberKey/galleries', () => {
     expect(id).toBe('gallery_mg_owner_fresh_gallery');
   });
 
-  it('auto-applies #<slug> when criteriaTags is empty (My Photos default)', async () => {
+  it('auto-applies #by_<slug> when criteriaTags is empty (My Photos default)', async () => {
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie())
@@ -241,7 +241,7 @@ describe('POST /members/:memberKey/galleries', () => {
       const tags = db.prepare(
         `SELECT t.tag_display FROM member_gallery_tags mgt JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ?`,
       ).all(id) as { tag_display: string }[];
-      expect(tags.map((t) => t.tag_display)).toEqual([`#${OWNER_SLUG}`]);
+      expect(tags.map((t) => t.tag_display)).toEqual([`#by_${OWNER_SLUG}`]);
     } finally { db.close(); }
   });
 
@@ -543,8 +543,13 @@ describe('member-media picker', () => {
       .send({ name: 'Trips', sortOrder: 'upload_desc', criteriaTags: '#trip2024', excludeTags: '', mediaIds: [m1, m2] });
     expect(res.status).toBe(302);
 
-    expect(findMediaTags(m1)).toEqual([`#${OWNER_SLUG}`, '#trip2024']);
-    expect(findMediaTags(m2)).toEqual([`#${OWNER_SLUG}`, '#trip2024']);
+    // Picker applies the gallery's criteria tags MINUS the auto-prepended
+    // `#by_<owner>` (filtered as defense-in-depth: the uploader-attribution
+    // namespace is system-managed at upload time, never via picker). These
+    // test items were inserted via the test factory which bypasses the
+    // upload service, so they carry no `#by_<owner>` from upload either.
+    expect(findMediaTags(m1)).toEqual(['#trip2024']);
+    expect(findMediaTags(m2)).toEqual(['#trip2024']);
     expect(findMediaTags(m3)).toEqual([]);
   });
 
@@ -562,7 +567,7 @@ describe('member-media picker', () => {
       .send({ name: 'Mix', sortOrder: 'upload_desc', criteriaTags: '#mix', excludeTags: '', mediaIds: [ownerMedia, otherMedia] });
     expect(res.status).toBe(302);
 
-    expect(findMediaTags(ownerMedia)).toEqual([`#${OWNER_SLUG}`, '#mix']);
+    expect(findMediaTags(ownerMedia)).toEqual(['#mix']);
     expect(findMediaTags(otherMedia)).toEqual([]);
   });
 
@@ -584,9 +589,10 @@ describe('member-media picker', () => {
   });
 
   it('POST /galleries/:id/edit with mediaIds applies the gallery\'s post-update criteria tags', async () => {
-    // The create flow auto-prepends #<slug>; the edit flow does not
-    // (the owner can curate the criteria-tag set intentionally), so the
-    // edit POST body must include every tag the gallery should keep.
+    // Both create and edit auto-prepend `#by_<owner>` (system-managed
+    // uploader-attribution criterion); user-supplied criteria are
+    // freeform after that. Picker stamps non-`#by_*` criteria onto
+    // each picked item.
     await createGalleryViaApi('Add Later', '#later');
     const galleryId = findGalleryIdByName('Add Later')!;
 
@@ -602,7 +608,9 @@ describe('member-media picker', () => {
       .send({ name: 'Add Later', description: '', sortOrder: 'upload_desc', criteriaTags: `#${OWNER_SLUG} #later`, excludeTags: '', mediaIds: m });
     expect(res.status).toBe(302);
 
-    // findMediaTags sorts by tag_display ASCII; '#later' < '#mg_owner'.
+    // Picker applies criteria minus `#by_*`: user-supplied freeform
+    // `#<slug>` and `#later` survive. findMediaTags sorts ASCII;
+    // '#later' < '#mg_owner'.
     expect(findMediaTags(m)).toEqual(['#later', `#${OWNER_SLUG}`]);
   });
 
@@ -633,8 +641,10 @@ describe('member-media picker', () => {
         `SELECT t.tag_display, COUNT(*) AS n FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? GROUP BY t.tag_display ORDER BY t.tag_display`,
       ).all(m) as { tag_display: string; n: number }[];
       // Each tag appears exactly once on the item, even after two POSTs.
+      // Picker filters `#by_*` from gallery criteria before stamping;
+      // the test fixture inserts the item directly (bypassing upload),
+      // so it carries no `#by_<owner>` from upload either. Only `#once`.
       expect(rows).toEqual([
-        { tag_display: `#${OWNER_SLUG}`, n: 1 },
         { tag_display: '#once', n: 1 },
       ]);
     } finally { db.close(); }
@@ -680,9 +690,11 @@ describe('member-media picker', () => {
     expect(create2.text).not.toContain('already uploaded');
 
     const g2 = findGalleryIdByName('Trips Reborn')!;
-    expect(findGalleryCriteriaTags(g2)).toEqual([`#${OWNER_SLUG}`, '#trip2024_reborn']);
-    // The picked item now carries the new gallery's criteria tag too.
-    expect(findMediaTags(sunset).sort()).toEqual([`#${OWNER_SLUG}`, '#trip2024', '#trip2024_reborn'].sort());
+    expect(findGalleryCriteriaTags(g2)).toEqual([`#by_${OWNER_SLUG}`, '#trip2024_reborn']);
+    // The picked item carries each gallery's non-`#by_*` criteria from
+    // the picker apply (G1's #trip2024 from create1; G2's #trip2024_reborn
+    // from create2). G1 was deleted, but media_tags rows survive deletion.
+    expect(findMediaTags(sunset).sort()).toEqual(['#trip2024', '#trip2024_reborn'].sort());
   });
 
   it('Bug 3 regression: multipart submit with picker-only (empty file input) creates the gallery', async () => {
@@ -715,6 +727,6 @@ describe('member-media picker', () => {
 
     const g = findGalleryIdByName('Funky Footbags')!;
     expect(g).toBeTruthy();
-    expect(findMediaTags(picked)).toEqual(['#footbags', `#${OWNER_SLUG}`]);
+    expect(findMediaTags(picked)).toEqual(['#footbags']);
   });
 });

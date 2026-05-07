@@ -20,6 +20,12 @@ http {
     tcp_nodelay on;
     keepalive_timeout 65;
 
+    # App enforces per-type size in src/controllers/adminCuratorController.ts
+    # (Busboy fileSize) and src/services/curatorMediaService.ts (per-buffer).
+    # Set nginx ceiling above the app's max (video 150 MB) so the app — not
+    # nginx — renders a friendly error when a user exceeds the limit.
+    client_max_body_size 160m;
+
     # ── Logging ───────────────────────────────────────────────────────────────
     log_format main '$remote_addr - $remote_user [$time_local] "$request" '
                     '$status $body_bytes_sent "$http_referer" '
@@ -83,6 +89,37 @@ http {
             proxy_set_header   X-Forwarded-Proto $forwarded_proto;
             proxy_read_timeout 5s;
             access_log off;
+        }
+
+        # ── /ipc: machine-only, never reachable from public traffic ────────
+        # The app's /ipc/* routes (worker -> web event channel for the async
+        # curator video upload, DD §6.8) are intra-docker-network only.
+        # nginx blocks them at the perimeter regardless of the X-Origin-Verify
+        # check above; the worker container reaches web at http://web:3000
+        # without going through nginx.
+        location /ipc/ {
+            return 404;
+        }
+
+        # ── SSE: /admin/curator/upload/jobs/<id>/events ────────────────────
+        # Server-Sent Events stream from web to admin browser, used by the
+        # async curator video upload status page. nginx must NOT buffer the
+        # response (events would queue and arrive in batches), and the read
+        # timeout must accommodate quiet periods between heartbeats. Heartbeat
+        # cadence is set by SSE_HEARTBEAT_SECONDS (default 15) on the web
+        # container.
+        location ~ ^/admin/curator/upload/jobs/[^/]+/events$ {
+            proxy_pass         http://app;
+            proxy_http_version 1.1;
+            proxy_set_header   Connection        "";
+            proxy_set_header   Host              ${PUBLIC_HOST};
+            proxy_set_header   X-Real-IP         $remote_addr;
+            proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header   X-Forwarded-Proto $forwarded_proto;
+            proxy_buffering    off;
+            proxy_cache        off;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
         }
 
         # ── All other requests ─────────────────────────────────────────────

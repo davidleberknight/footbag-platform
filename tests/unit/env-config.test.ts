@@ -48,8 +48,18 @@ function clearAwsWiring(): void {
   delete process.env.IMAGE_MAX_CONCURRENT;
   delete process.env.IMAGE_PORT;
   delete process.env.IMAGE_PROCESS_TIMEOUT_MS;
+  delete process.env.VIDEO_PROCESSOR_URL;
+  delete process.env.VIDEO_TRANSCODE_TIMEOUT_MS;
   delete process.env.MEDIA_STORAGE_ADAPTER;
   delete process.env.MEDIA_STORAGE_S3_BUCKET;
+  delete process.env.MEDIA_PRESIGNED_PUT_TTL_SECONDS;
+  delete process.env.MEDIA_PENDING_UPLOAD_PREFIX;
+  delete process.env.WORKER_INTERNAL_PORT;
+  delete process.env.WORKER_INTERNAL_URL;
+  delete process.env.WEB_INTERNAL_URL;
+  delete process.env.INTERNAL_EVENT_SECRET;
+  delete process.env.MEDIA_JOB_LEASE_SECONDS;
+  delete process.env.MEDIA_JOB_MAX_RETRIES;
 }
 
 describe('env config: dev defaults apply when NODE_ENV is not production', () => {
@@ -318,10 +328,112 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
     process.env.AWS_REGION = 'us-east-1';
+    process.env.INTERNAL_EVENT_SECRET = 'a'.repeat(48);
     const { config } = await import('../../src/config/env');
     expect(config.mediaStorageAdapter).toBe('s3');
     expect(config.mediaStorageS3Bucket).toBe('footbag-staging-media');
     expect(config.awsRegion).toBe('us-east-1');
+  });
+
+  it('throws when MEDIA_STORAGE_ADAPTER=s3 but INTERNAL_EVENT_SECRET is unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 's3';
+    process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
+    process.env.AWS_REGION = 'us-east-1';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /INTERNAL_EVENT_SECRET is required when MEDIA_STORAGE_ADAPTER=s3/,
+    );
+  });
+});
+
+describe('env config: MEDIA_PRESIGNED_PUT_TTL_SECONDS and MEDIA_PENDING_UPLOAD_PREFIX', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('uses defaults when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.mediaPresignedPutTtlSeconds).toBe(900);
+    expect(config.mediaPendingUploadPrefix).toBe('pending/');
+  });
+
+  it('honors MEDIA_PRESIGNED_PUT_TTL_SECONDS within range', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_PRESIGNED_PUT_TTL_SECONDS = '1800';
+    const { config } = await import('../../src/config/env');
+    expect(config.mediaPresignedPutTtlSeconds).toBe(1800);
+  });
+
+  it('throws when MEDIA_PRESIGNED_PUT_TTL_SECONDS is below the floor', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_PRESIGNED_PUT_TTL_SECONDS = '30';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /MEDIA_PRESIGNED_PUT_TTL_SECONDS must be between 60 and 3600/,
+    );
+  });
+
+  it('throws when MEDIA_PRESIGNED_PUT_TTL_SECONDS exceeds the ceiling', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_PRESIGNED_PUT_TTL_SECONDS = '7200';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /MEDIA_PRESIGNED_PUT_TTL_SECONDS must be between 60 and 3600/,
+    );
+  });
+
+  it('throws when MEDIA_PRESIGNED_PUT_TTL_SECONDS is non-numeric', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_PRESIGNED_PUT_TTL_SECONDS = 'never';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /MEDIA_PRESIGNED_PUT_TTL_SECONDS must be a positive integer/,
+    );
+  });
+
+  it('honors MEDIA_PENDING_UPLOAD_PREFIX when valid', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_PENDING_UPLOAD_PREFIX = 'staging_pending/';
+    const { config } = await import('../../src/config/env');
+    expect(config.mediaPendingUploadPrefix).toBe('staging_pending/');
+  });
+
+  it('rejects MEDIA_PENDING_UPLOAD_PREFIX without a trailing slash', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_PENDING_UPLOAD_PREFIX = 'pending';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /MEDIA_PENDING_UPLOAD_PREFIX must match \[a-z0-9_\]\+\//,
+    );
+  });
+
+  it('rejects MEDIA_PENDING_UPLOAD_PREFIX with disallowed characters', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.MEDIA_PENDING_UPLOAD_PREFIX = 'Up/Loads/';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /MEDIA_PENDING_UPLOAD_PREFIX must match \[a-z0-9_\]\+\//,
+    );
   });
 });
 
@@ -414,6 +526,90 @@ describe('env config: IMAGE_* parsing and defaults', () => {
     expect(config.imageMaxConcurrent).toBe(5);
     expect(config.imagePort).toBe(4500);
     expect(config.imageProcessTimeoutMs).toBe(15000);
+  });
+});
+
+describe('env config: VIDEO_* parsing and defaults', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('falls back videoProcessorUrl to imageProcessorUrl when VIDEO_PROCESSOR_URL is unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoProcessorUrl).toBe('http://image:4000');
+  });
+
+  it('honors VIDEO_PROCESSOR_URL when set independently', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.VIDEO_PROCESSOR_URL = 'http://video:4002';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoProcessorUrl).toBe('http://video:4002');
+  });
+
+  it('inherits the dev fallback when neither var is set', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoProcessorUrl).toBe('http://localhost:4001');
+  });
+
+  it('throws via IMAGE_PROCESSOR_URL when both are unset in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /IMAGE_PROCESSOR_URL must be set explicitly in production/,
+    );
+  });
+
+  it('uses default videoTranscodeTimeoutMs when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoTranscodeTimeoutMs).toBe(300000);
+  });
+
+  it('parses valid VIDEO_TRANSCODE_TIMEOUT_MS', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '600000';
+    const { config } = await import('../../src/config/env');
+    expect(config.videoTranscodeTimeoutMs).toBe(600000);
+  });
+
+  it('throws when VIDEO_TRANSCODE_TIMEOUT_MS is non-numeric', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = 'forever';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /VIDEO_TRANSCODE_TIMEOUT_MS must be a positive integer/,
+    );
+  });
+
+  it('throws when VIDEO_TRANSCODE_TIMEOUT_MS is out of range', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.VIDEO_TRANSCODE_TIMEOUT_MS = '99999999';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /VIDEO_TRANSCODE_TIMEOUT_MS must be between 1 and 1800000/,
+    );
   });
 });
 

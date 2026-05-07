@@ -188,6 +188,7 @@ const STAGING_FIXTURE: Record<string, string> = {
   IMAGE_PROCESSOR_URL: 'http://image:4000',
   IMAGE_MAX_CONCURRENT: '1',
   MEDIA_STORAGE_ADAPTER: 'local',
+  INTERNAL_EVENT_SECRET: 'a'.repeat(48),
 };
 
 /**
@@ -213,6 +214,9 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   IMAGE_MAX_CONCURRENT: '2',
   MEDIA_STORAGE_ADAPTER: 's3',
   MEDIA_STORAGE_S3_BUCKET: 'footbag-production-media',
+  INTERNAL_EVENT_SECRET: 'a'.repeat(48),
+  WORKER_INTERNAL_URL: 'http://worker:3100',
+  WEB_INTERNAL_URL: 'http://web:3000',
 };
 
 async function loadEnvWith(containerEnv: Record<string, string>): Promise<void> {

@@ -2493,11 +2493,57 @@ Insertion paths: the operator-run curator-content seeding script (acknowledged i
 
 The same malware-stripping pipeline (Sharp for photos, ffmpeg with the options above for video) is applied uniformly to media sourced from any upstream origin: interactive member upload, interactive admin curator upload, operator-run curator seed, and legacy archive ingestion via the mirror program. Implementation consolidates the settings so a single update tightens every source path equivalently.
 
+Asynchronous orchestration for interactive admin video upload:
+
+The interactive admin upload path (`A_Upload_Curated_Media`) wraps the ffmpeg pipeline above in a media-job lifecycle so the user-visible HTTP request stays short. Source bytes flow browser to S3 directly via presigned PUT URLs, bypassing nginx and CloudFront for the body; transcode runs in the worker container after the fact and reports state changes back to the admin's browser via Server-Sent Events. The operator-run curator seeder retains the synchronous orchestration described above, since it has no proxy-chain timeout window and runs on a host with adequate memory.
+
+Three browser-side calls form the user-facing flow:
+
+- POST /admin/curator/upload/sign. Web validates the admin's claimed video and poster sizes and content types, mints a media_jobs row in pending_upload state, and returns presigned PUT URLs (one per file, time-bounded).
+
+- Direct PUT from browser to S3 for each file. Bytes never traverse nginx or CloudFront. The signed URL binds Content-Type so the browser cannot upload arbitrary types under the signed key.
+
+- POST /admin/curator/upload/finalize. Web HEADs both source keys to confirm the bytes landed, transitions the row to pending_transcode, and HTTP-pushes the job id to the worker container. The browser is redirected to a status page.
+
+The status page subscribes to SSE on /admin/curator/upload/jobs/<id>/events. The worker, on each state transition, HTTP-pushes a small payload to /ipc/job-events on the web container, which fans the event out over the SSE connection to any subscribed status pages. Heartbeats from the server keep nginx and CloudFront idle timers warm during long transcodes.
+
+State machine for media_jobs:
+
+- pending_upload: row created at /sign; expires_at set so abandoned uploads (browser closed before /finalize) reconcile to abandoned.
+
+- pending_transcode: bytes confirmed in S3 by /finalize; job dispatched to worker.
+
+- processing: worker has claimed the row via optimistic UPDATE; lease_expires_at set so a crashed worker's row can be reclaimed at next worker boot.
+
+- succeeded: media_items row written and pending source keys deleted.
+
+- failed: terminal after the configured max attempts; admin re-uploads to retry.
+
+- abandoned: pending_upload row past its TTL.
+
+There is no polling at any tier. The only sweep is a one-shot boot-time scan in the worker for orphaned processing rows whose lease has expired; those reset to pending_transcode for re-dispatch. All other transitions are HTTP push events.
+
+Authentication seams: web-to-worker dispatch and worker-to-web event push share an INTERNAL_EVENT_SECRET; /ipc/* routes on web are dropped at the nginx perimeter so they are reachable only from the docker internal network. SSE is gated by the admin session cookie. Direct-S3 PUT is gated by the bucket CORS policy (allowed_origins limited to the canonical public origin) and the time-bounded signed URL.
+
+S3 layout for pending uploads under the asynchronous flow:
+
+- Pending source video at `s3://footbag-media/pending/<jobId>/source.{mp4|webm|mov}`.
+
+- Pending source poster at `s3://footbag-media/pending/<jobId>/poster.{jpg|png}`.
+
+- An S3 lifecycle rule expires anything under `pending/` after 24 hours as defense in depth against orphaned uploads.
+
+- Final media keys after success follow the Path Structure section below; pending sources are deleted by the worker on success.
+
 Trade-offs specific to curator video:
 
 - ffmpeg dependency added to the image-processor container (~50MB; modest growth in the constrained Lightsail nano envelope). Same ffmpeg the historical mirror program already uses for archive ingestion; consolidation via shared utility is plausible at slice.
 
-- Synchronous transcode time: typically 1-2 minutes per video (varies by input size and codec). Acceptable for operator-driven seed runs and infrequent interactive admin uploads. If transcode time becomes a UX issue at admin upload, the path can move to a background job in a follow-on slice without changing this design.
+- Transcode time is typically 1-2 min per video. The operator seeder accepts this synchronously, since seeding has no HTTP-timeout window. The interactive admin path accepts the same transcode cost asynchronously via the orchestration above, so the user-visible HTTP request returns immediately and the admin watches progress on the status page.
+
+- Asynchronous orchestration adds moving parts: a media_jobs table, a worker dispatch endpoint, a server-side event bus on web, and an SSE channel. Justified by the user-visible latency that the synchronous shape cannot avoid through nginx and CloudFront. The seeder retains the simpler synchronous shape because it does not face that constraint.
+
+- Asynchronous browser flow requires JavaScript. The admin upload form surfaces this via a noscript banner; the photo and URL-reference paths on the same form remain JavaScript-optional.
 
 - Small quality loss possible at the chosen output bitrate. Mitigated by selecting reasonable encoder settings.
 

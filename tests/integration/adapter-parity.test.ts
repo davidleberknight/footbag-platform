@@ -32,10 +32,12 @@ import {
 } from '../../src/adapters/sesAdapter';
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
-  type S3Client,
+  S3Client,
 } from '@aws-sdk/client-s3';
+import { Readable } from 'node:stream';
 import {
   createLocalMediaStorageAdapter,
   createS3MediaStorageAdapter,
@@ -45,8 +47,20 @@ import {
   createHttpImageAdapter,
   ImageProcessingError,
 } from '../../src/adapters/imageProcessingAdapter';
+import {
+  createHttpVideoTranscodingAdapter,
+  VideoTranscodingError,
+} from '../../src/adapters/videoTranscodingAdapter';
 import sharp from 'sharp';
 import { processAvatar } from '../../src/lib/imageProcessing';
+import { spawnSync } from 'node:child_process';
+import {
+  detectVideoFormat,
+  transcodeCuratorVideo,
+} from '../../src/lib/videoProcessing';
+
+const ffmpegAvailable =
+  spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 
 function makeFakeKmsClient(): KMSClient {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
@@ -252,11 +266,34 @@ describe('adapter-parity: MediaStorageAdapter contract', () => {
     const adapter = createLocalMediaStorageAdapter({ baseDir: tmpDir });
     await expect(adapter.delete('never/written.bin')).resolves.toBeUndefined();
   });
+
+  it('local adapter get round-trips bytes written via put', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir: tmpDir });
+    const key = 'pending/job1/source.mp4';
+    const payload = Buffer.from('fake-mp4-bytes');
+    await adapter.put(key, payload);
+    const fetched = await adapter.get(key);
+    expect(fetched.equals(payload)).toBe(true);
+  });
+
+  it('local generatePresignedPutUrl returns a stub URL with content-type and TTL', async () => {
+    const adapter = createLocalMediaStorageAdapter({ baseDir: tmpDir });
+    const url = await adapter.generatePresignedPutUrl(
+      'pending/job1/source.mp4',
+      'video/mp4',
+      900,
+    );
+    expect(url).toContain('/_local-presigned-put/pending/job1/source.mp4');
+    expect(url).toContain('X-Amz-Algorithm=LOCAL-STUB');
+    expect(url).toContain('X-Amz-Expires=900');
+    expect(url).toContain('Content-Type=video%2Fmp4');
+  });
 });
 
 interface FakeS3State {
   client: S3Client;
   puts: PutObjectCommand[];
+  gets: GetObjectCommand[];
   deletes: DeleteObjectCommand[];
   heads: HeadObjectCommand[];
   store: Map<string, Buffer>;
@@ -264,6 +301,7 @@ interface FakeS3State {
 
 function makeFakeS3Client(): FakeS3State {
   const puts: PutObjectCommand[] = [];
+  const gets: GetObjectCommand[] = [];
   const deletes: DeleteObjectCommand[] = [];
   const heads: HeadObjectCommand[] = [];
   const store = new Map<string, Buffer>();
@@ -277,6 +315,17 @@ function makeFakeS3Client(): FakeS3State {
           Buffer.isBuffer(body) ? body : Buffer.from(body),
         );
         return {};
+      }
+      if (cmd instanceof GetObjectCommand) {
+        gets.push(cmd);
+        const lookupKey = `${cmd.input.Bucket}/${cmd.input.Key}`;
+        const data = store.get(lookupKey);
+        if (!data) {
+          const err = new Error('NoSuchKey');
+          err.name = 'NoSuchKey';
+          throw err;
+        }
+        return { Body: Readable.from([data]) };
       }
       if (cmd instanceof DeleteObjectCommand) {
         deletes.push(cmd);
@@ -297,6 +346,7 @@ function makeFakeS3Client(): FakeS3State {
   return {
     client: fake as unknown as S3Client,
     puts,
+    gets,
     deletes,
     heads,
     store,
@@ -380,6 +430,52 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     const key = 'avatars/m-3/thumb.jpg';
     expect(localAdapter.constructURL(key)).toBe('/media/avatars/m-3/thumb.jpg');
     expect(s3Adapter.constructURL(key)).toBe('/media/avatars/m-3/thumb.jpg');
+  });
+
+  it('s3 get streams body to a Buffer matching what put stored', async () => {
+    const fake = makeFakeS3Client();
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: fake.client,
+    });
+    const payload = Buffer.from('source-mp4-bytes');
+    await adapter.put('pending/job1/source.mp4', payload);
+    const fetched = await adapter.get('pending/job1/source.mp4');
+    expect(fetched.equals(payload)).toBe(true);
+    expect(fake.gets).toHaveLength(1);
+    expect(fake.gets[0].input.Bucket).toBe('parity-bucket');
+    expect(fake.gets[0].input.Key).toBe('pending/job1/source.mp4');
+  });
+
+  it('s3 generatePresignedPutUrl emits a SigV4 query string with bound ContentType and TTL', async () => {
+    // Real S3Client with fake credentials; getSignedUrl signs locally without
+    // calling AWS. The fake `send`-only client used elsewhere can't satisfy
+    // the SDK's credential resolver, so the presign path uses a real client.
+    // requestChecksumCalculation: 'WHEN_REQUIRED' matches the production
+    // adapter's client construction; default 'WHEN_SUPPORTED' would inject
+    // x-amz-checksum-crc32 of an empty body, which the browser cannot match.
+    const realClient = new S3Client({
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'AKIAFAKEACCESSKEY', secretAccessKey: 'fakesecret' },
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+    });
+    const adapter = createS3MediaStorageAdapter({
+      bucket: 'parity-bucket',
+      s3Client: realClient,
+    });
+    const url = await adapter.generatePresignedPutUrl(
+      'pending/job1/source.mp4',
+      'video/mp4',
+      900,
+    );
+    expect(url).toMatch(/^https:\/\/parity-bucket\.s3\.us-east-1\.amazonaws\.com\/pending\/job1\/source\.mp4\?/);
+    expect(url).toContain('X-Amz-Algorithm=AWS4-HMAC-SHA256');
+    expect(url).toContain('X-Amz-Expires=900');
+    // ContentType binding via signableHeaders: shows up in X-Amz-SignedHeaders.
+    expect(url).toMatch(/X-Amz-SignedHeaders=[^&]*content-type/);
+    // No SDK auto-checksum should appear: it would block browser uploads.
+    expect(url).not.toContain('x-amz-checksum-crc32');
+    expect(url).not.toContain('x-amz-sdk-checksum-algorithm');
   });
 });
 
@@ -512,5 +608,144 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
       name: 'ImageProcessingError',
     });
     await expect(adapter.processAvatar(await makeJpeg())).rejects.toThrow(/ECONNREFUSED/);
+  });
+});
+
+describe('adapter-parity: VideoTranscodingAdapter contract', () => {
+  function makeTinyMp4(): Buffer {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'video-parity-'));
+    const outPath = path.join(tmpDir, 'tiny.mp4');
+    try {
+      const r = spawnSync(
+        'ffmpeg',
+        [
+          '-f', 'lavfi',
+          '-i', 'color=c=blue:s=64x64:d=0.2:r=10',
+          '-c:v', 'libx264',
+          '-pix_fmt', 'yuv420p',
+          '-y',
+          outPath,
+        ],
+        { stdio: 'ignore' },
+      );
+      if (r.status !== 0) throw new Error('ffmpeg synth failed');
+      return fs.readFileSync(outPath);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  function makeTranscodingFakeFetch(): {
+    fetchImpl: typeof fetch;
+    calls: Array<{ url: string; method: string; contentType: string; bodyLen: number }>;
+  } {
+    const calls: Array<{ url: string; method: string; contentType: string; bodyLen: number }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      const contentType = headers['Content-Type'] ?? headers['content-type'] ?? '';
+      const body = init?.body as Buffer | Uint8Array;
+      const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+      calls.push({ url, method, contentType, bodyLen: buf.length });
+      // Run the real ffmpeg pipeline inline so the bytes round-tripping
+      // through the adapter are real mp4. Mirrors the Sharp parity test.
+      const result = await transcodeCuratorVideo(buf);
+      return new Response(
+        JSON.stringify({
+          bytes: result.bytes.toString('base64'),
+          outputFormat: result.outputFormat,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    };
+    return { fetchImpl, calls };
+  }
+
+  it.skipIf(!ffmpegAvailable)(
+    'round-trips real mp4 bytes through the HTTP boundary',
+    async () => {
+      const { fetchImpl, calls } = makeTranscodingFakeFetch();
+      const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+      const mp4 = makeTinyMp4();
+
+      const result = await adapter.transcode(mp4);
+
+      expect(Buffer.isBuffer(result.bytes)).toBe(true);
+      expect(result.bytes.length).toBeGreaterThan(0);
+      expect(result.outputFormat).toBe('mp4');
+      expect(detectVideoFormat(result.bytes)).toBe('mp4');
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0].url).toBe('http://fake/process/video');
+      expect(calls[0].method).toBe('POST');
+      expect(calls[0].contentType).toBe('application/octet-stream');
+      expect(calls[0].bodyLen).toBe(mp4.length);
+    },
+  );
+
+  it.skipIf(!ffmpegAvailable)(
+    'strips a trailing slash from baseUrl',
+    async () => {
+      const { fetchImpl, calls } = makeTranscodingFakeFetch();
+      const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake/', fetchImpl });
+      await adapter.transcode(makeTinyMp4());
+      expect(calls[0].url).toBe('http://fake/process/video');
+    },
+  );
+
+  it('throws VideoTranscodingError on 400 with rejected-video message', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(JSON.stringify({ error: 'unrecognized video format' }), { status: 400 });
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    await expect(adapter.transcode(Buffer.from('not-a-video'))).rejects.toMatchObject({
+      name: 'VideoTranscodingError',
+      status: 400,
+    });
+    await expect(adapter.transcode(Buffer.from('not-a-video'))).rejects.toThrow(/rejected video/);
+  });
+
+  it('throws VideoTranscodingError on 503', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(JSON.stringify({ error: 'busy' }), { status: 503 });
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    await expect(adapter.transcode(Buffer.from('payload'))).rejects.toMatchObject({
+      name: 'VideoTranscodingError',
+      status: 503,
+    });
+  });
+
+  it('throws on timeout', async () => {
+    const fetchImpl: typeof fetch = (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal as AbortSignal | undefined;
+        signal?.addEventListener('abort', () => {
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+    const adapter = createHttpVideoTranscodingAdapter({
+      baseUrl: 'http://fake',
+      fetchImpl,
+      timeoutMs: 50,
+    });
+    const err = await adapter.transcode(Buffer.from('payload')).then(
+      () => null,
+      (e) => e,
+    );
+    expect(err).toBeInstanceOf(VideoTranscodingError);
+    expect((err as Error).message).toMatch(/timed out/);
+  });
+
+  it('wraps fetch transport errors as VideoTranscodingError', async () => {
+    const fetchImpl: typeof fetch = async () => {
+      throw new Error('ECONNREFUSED');
+    };
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    await expect(adapter.transcode(Buffer.from('payload'))).rejects.toMatchObject({
+      name: 'VideoTranscodingError',
+    });
+    await expect(adapter.transcode(Buffer.from('payload'))).rejects.toThrow(/ECONNREFUSED/);
   });
 });

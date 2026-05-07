@@ -168,10 +168,17 @@ resource "aws_s3_bucket_public_access_block" "media_dr" {
   restrict_public_buckets = true
 }
 
-# ── Media lifecycle — expire old versions after 30 days on both buckets ──────
-# Avatar keys are stable per member, so replacement uploads overwrite-in-place
-# under versioning. Without expiration, every replacement would accumulate old
-# bytes forever. 30 days gives operator headroom to restore prior versions.
+# ── Media lifecycle ──────────────────────────────────────────────────────────
+# Two rules:
+#   - expire-old-media-versions: noncurrent versions cleaned after 30 days.
+#     Avatar keys are stable per member, so replacement uploads overwrite-in-
+#     place under versioning. Without expiration, every replacement would
+#     accumulate old bytes forever. 30 days gives operator headroom.
+#   - expire-pending-uploads: objects under the configured pending/ prefix are
+#     hard-deleted after 24 hours. Defense in depth for the async curator
+#     video upload flow (DD §6.8): the worker deletes pending sources on
+#     finalize-success, but if the browser PUT lands and the admin never
+#     POSTs /finalize, lifecycle still reclaims the bytes.
 
 resource "aws_s3_bucket_lifecycle_configuration" "media" {
   bucket = aws_s3_bucket.media.id
@@ -183,6 +190,45 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
     noncurrent_version_expiration {
       noncurrent_days = 30
     }
+  }
+
+  rule {
+    id     = "expire-pending-uploads"
+    status = "Enabled"
+    filter {
+      prefix = "pending/"
+    }
+    expiration {
+      days = 1
+    }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+
+# ── CORS for direct browser PUT (DD §6.8 async curator video upload) ─────────
+# The admin browser, loaded from the CloudFront URL, PUTs source video and
+# poster bytes directly to this bucket via presigned URLs (bypasses nginx and
+# CloudFront for the bytes). Without CORS the browser blocks the cross-origin
+# PUT preflight. AllowedHeaders=* covers Content-Type (signed) plus the
+# AWS-SDK-emitted x-amz-* headers. Empty when CloudFront is not yet enabled
+# since there is no public origin to cross from.
+
+resource "aws_s3_bucket_cors_configuration" "media" {
+  count  = var.enable_cloudfront ? 1 : 0
+  bucket = aws_s3_bucket.media.id
+
+  cors_rule {
+    allowed_methods = ["PUT"]
+    allowed_origins = [
+      var.domain_name != ""
+      ? "https://${var.domain_name}"
+      : "https://${aws_cloudfront_distribution.main[0].domain_name}",
+    ]
+    allowed_headers = ["*"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3000
   }
 }
 

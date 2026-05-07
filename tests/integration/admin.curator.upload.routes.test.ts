@@ -4,7 +4,7 @@
  * Covers GET + POST /admin/curator/upload. Mirrors the avatar route
  * test pattern: env vars set before module imports; image-processing
  * adapter injected with a fake fetch that runs Sharp inline; video
- * transcoder injected via setVideoTranscoderForTests so ffmpeg is never
+ * transcoding adapter injected with a fake adapter so ffmpeg is never
  * invoked.
  *
  * CSRF posture (per tests/integration/csrf.test.ts): SameSite=Lax cookie
@@ -37,7 +37,7 @@ import sharp from 'sharp';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
 let resetImageProcessingAdapterForTests: () => void;
-let resetVideoTranscoderForTests: () => void;
+let resetVideoTranscodingAdapterForTests: () => void;
 
 const ADMIN_ID    = 'admin-curator-001';
 const ADMIN_SLUG  = 'curator_admin';
@@ -112,18 +112,20 @@ beforeAll(async () => {
     adapterMod.createHttpImageAdapter({ baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
   );
 
-  // Inject a fake video transcoder so ffmpeg is never invoked.
-  const svcMod = await import('../../src/services/curatorMediaService');
-  resetVideoTranscoderForTests = svcMod.resetVideoTranscoderForTests;
-  svcMod.setVideoTranscoderForTests(async () => ({
-    bytes: Buffer.from('fake-transcoded-mp4'),
-    outputFormat: 'mp4',
-  }));
+  // Inject a fake video transcoding adapter so ffmpeg is never invoked.
+  const videoAdapterMod = await import('../../src/adapters/videoTranscodingAdapter');
+  resetVideoTranscodingAdapterForTests = videoAdapterMod.resetVideoTranscodingAdapterForTests;
+  videoAdapterMod.setVideoTranscodingAdapterForTests({
+    transcode: async () => ({
+      bytes: Buffer.from('fake-transcoded-mp4'),
+      outputFormat: 'mp4',
+    }),
+  });
 });
 
 afterAll(() => {
   resetImageProcessingAdapterForTests();
-  resetVideoTranscoderForTests();
+  resetVideoTranscodingAdapterForTests();
   for (const ext of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
   }
@@ -301,38 +303,33 @@ describe('POST /admin/curator/upload — photo', () => {
   });
 });
 
-describe('POST /admin/curator/upload — video', () => {
-  it('happy path: redirects, inserts video row with s3 platform and thumbnail_url', async () => {
+describe('POST /admin/curator/upload — video (legacy multipart, retired)', () => {
+  // Synchronous video upload via the multipart form was retired in DD §6.8.
+  // Video bytes now flow browser → S3 (presigned PUT) → /finalize → worker.
+  // This branch is reachable only when JS is disabled or the client JS fails
+  // to load; the noscript banner on the upload form warns about that. The
+  // server returns 410 Gone with a clear message pointing at the new flow.
+  // Per-type validation (mp4/webm/mov, poster shape, sizes) lives in the new
+  // /admin/curator/upload/sign handler; see admin.curator.upload.async.routes.test.ts.
+
+  it('any video mediaType -> 410 Gone with migration message', async () => {
     const app = createApp();
     const mp4 = makeFakeMp4();
     const poster = await makeJpeg();
-    const uniqueCaption = `video-happy-${Date.now()}`;
-
     const res = await request(app)
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'video')
-      .field('caption', uniqueCaption)
-      .field('tags', `#vidtag_${Date.now()}`)
+      .field('caption', 'legacy-cutover')
+      .field('tags', '#legacy_cutover')
       .attach('mediaFile', mp4, 'clip.mp4')
       .attach('poster', poster, 'poster.jpg');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/upload');
-
-    const db = openDb();
-    const row = db.prepare(`SELECT * FROM media_items WHERE caption = ?`).get(uniqueCaption) as Record<string, unknown>;
-    expect(row.media_type).toBe('video');
-    expect(row.video_platform).toBe('s3');
-    expect(row.video_url).toBeNull();
-    expect(row.video_id).toMatch(/-video\.mp4$/);
-    expect(row.thumbnail_url).toMatch(/^\/media\/.*-poster-display\.jpg$/);
-    expect(row.uploader_member_id).toBe(SYSTEM_ID);
-    expect(row.created_by).toBe('admin-act-as');
-    expect(row.updated_by).toBe('admin-act-as');
-    db.close();
+    expect(res.status).toBe(410);
+    expect(res.text).toContain('Synchronous video upload via this form has been removed');
+    expect(res.text).toContain('Enable JavaScript');
   });
 
-  it('missing poster -> 422', async () => {
+  it('returns 410 even when fields are missing or invalid', async () => {
     const app = createApp();
     const mp4 = makeFakeMp4();
     const res = await request(app)
@@ -340,34 +337,7 @@ describe('POST /admin/curator/upload — video', () => {
       .set('Cookie', adminCookie())
       .field('mediaType', 'video')
       .attach('mediaFile', mp4, 'clip.mp4');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('poster');
-  });
-
-  it('non-supported video format -> 422', async () => {
-    const app = createApp();
-    const poster = await makeJpeg();
-    const res = await request(app)
-      .post('/admin/curator/upload')
-      .set('Cookie', adminCookie())
-      .field('mediaType', 'video')
-      .attach('mediaFile', Buffer.from('not a video'), 'clip.mp4')
-      .attach('poster', poster, 'poster.jpg');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('MP4, WebM, and MOV');
-  });
-
-  it('non-image poster -> 422', async () => {
-    const app = createApp();
-    const mp4 = makeFakeMp4();
-    const res = await request(app)
-      .post('/admin/curator/upload')
-      .set('Cookie', adminCookie())
-      .field('mediaType', 'video')
-      .attach('mediaFile', mp4, 'clip.mp4')
-      .attach('poster', Buffer.from('not an image'), 'poster.jpg');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('JPEG or PNG');
+    expect(res.status).toBe(410);
   });
 });
 

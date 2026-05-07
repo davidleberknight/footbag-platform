@@ -6,10 +6,9 @@ import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
 
 /**
  * Session JWT default TTL in seconds. Service-layer policy owned here so the
- * adapter stays a pure signer. Staging currently runs at 10 minutes for
- * observability; target baseline is 24h. Must revert before production cutover.
+ * adapter stays a pure signer.
  */
-export const DEFAULT_TTL_SECONDS = 10 * 60;
+export const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
 
 /**
  * Mints a session JWT for a signed-in member. Pure domain logic: takes

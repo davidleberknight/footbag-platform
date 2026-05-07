@@ -31,8 +31,49 @@ export interface AppConfig {
   imageMaxConcurrent: number;
   imagePort: number;
   imageProcessTimeoutMs: number;
+  // Video transcode HTTP boundary. Defaults to imageProcessorUrl: today the
+  // same `image` worker container hosts both Sharp and ffmpeg. Separate config
+  // keys leave a future split (own video container, own DNS name) as a
+  // one-line operator change.
+  videoProcessorUrl: string;
+  videoTranscodeTimeoutMs: number;
   mediaStorageAdapter: 's3' | 'local';
   mediaStorageS3Bucket: string | undefined;
+  // TTL for presigned PUT URLs the browser uses to upload curator video bytes
+  // directly to S3. 15 min (900s) gives generous wall-clock for picking files,
+  // filling the form, and uploading on a slow link without leaving long-lived
+  // signed URLs sitting in browser history.
+  mediaPresignedPutTtlSeconds: number;
+  // S3 prefix for pending-upload objects. The worker deletes objects under this
+  // prefix on success; an S3 lifecycle rule expires orphans (24h) as defense in
+  // depth. Lowercase letters, digits, underscores, ending with a slash.
+  mediaPendingUploadPrefix: string;
+  // Port the worker container's HTTP dispatch server binds to. Reachable only
+  // from the docker internal network; web container POSTs to ${workerInternalUrl}
+  // when a finalize request is ready to be transcoded.
+  workerInternalPort: number;
+  // URL the web container uses to dispatch jobs to the worker (intra-docker).
+  // Required when MEDIA_STORAGE_ADAPTER=s3 (production-like flow); defaults to
+  // http://localhost:${workerInternalPort} for local dev.
+  workerInternalUrl: string;
+  // URL the worker container uses to call back into the web container for job
+  // event notifications. Required in production.
+  webInternalUrl: string;
+  // Shared secret for the worker<->web internal-event channel. Required when
+  // workerInternalUrl or webInternalUrl is set to a non-loopback host.
+  internalEventSecret: string | undefined;
+  // Lease duration for a worker's claim on a media_jobs row. Worker boot-time
+  // recovery considers any 'processing' row whose lease has expired to be
+  // orphaned by a crash and resets it to pending_transcode for re-dispatch.
+  mediaJobLeaseSeconds: number;
+  // Maximum total attempts before a media job transitions to terminal 'failed'.
+  // v1: every failure is terminal (max=1). Reserved for a future slice that
+  // wants in-process retry on transient S3/ffmpeg blips.
+  mediaJobMaxRetries: number;
+  // SSE heartbeat cadence (seconds). The status-page stream from web to admin
+  // browser sends a heartbeat event at this interval to keep nginx and
+  // CloudFront from idle-killing the connection during long transcodes.
+  sseHeartbeatSeconds: number;
   // Path to the operator-supplied initial-admin email list. Each member
   // who registers with an email listed here gets `is_admin=1` set on their
   // newly-inserted row plus a `grant_admin_bootstrap` audit row.
@@ -175,6 +216,49 @@ function loadConfig(): AppConfig {
   const imagePort = parseIntEnv('IMAGE_PORT', 4000, 1, 65535);
   const imageProcessTimeoutMs = parseIntEnv('IMAGE_PROCESS_TIMEOUT_MS', 30000, 1, 600000);
 
+  const rawVideoUrl = process.env.VIDEO_PROCESSOR_URL;
+  const videoProcessorUrl = rawVideoUrl ? rawVideoUrl : imageProcessorUrl;
+  const videoTranscodeTimeoutMs = parseIntEnv(
+    'VIDEO_TRANSCODE_TIMEOUT_MS',
+    300000,
+    1,
+    1_800_000,
+  );
+
+  const mediaPresignedPutTtlSeconds = parseIntEnv(
+    'MEDIA_PRESIGNED_PUT_TTL_SECONDS',
+    900,
+    60,
+    3600,
+  );
+
+  const rawPendingPrefix = process.env.MEDIA_PENDING_UPLOAD_PREFIX;
+  let mediaPendingUploadPrefix: string;
+  if (rawPendingPrefix === undefined || rawPendingPrefix === '') {
+    mediaPendingUploadPrefix = 'pending/';
+  } else if (!/^[a-z0-9_]+\/$/.test(rawPendingPrefix)) {
+    throw new Error(
+      `MEDIA_PENDING_UPLOAD_PREFIX must match [a-z0-9_]+/, got: ${rawPendingPrefix}`,
+    );
+  } else {
+    mediaPendingUploadPrefix = rawPendingPrefix;
+  }
+
+  const workerInternalPort = parseIntEnv('WORKER_INTERNAL_PORT', 3100, 1, 65535);
+  const workerInternalUrl =
+    process.env.WORKER_INTERNAL_URL || `http://localhost:${workerInternalPort}`;
+  const webInternalUrl =
+    process.env.WEB_INTERNAL_URL || `http://localhost:${port}`;
+  const internalEventSecret = process.env.INTERNAL_EVENT_SECRET || undefined;
+  if (mediaStorageAdapter === 's3' && !internalEventSecret) {
+    throw new Error(
+      'INTERNAL_EVENT_SECRET is required when MEDIA_STORAGE_ADAPTER=s3 (worker<->web event channel)',
+    );
+  }
+  const mediaJobLeaseSeconds = parseIntEnv('MEDIA_JOB_LEASE_SECONDS', 1200, 60, 7200);
+  const mediaJobMaxRetries = parseIntEnv('MEDIA_JOB_MAX_RETRIES', 1, 1, 10);
+  const sseHeartbeatSeconds = parseIntEnv('SSE_HEARTBEAT_SECONDS', 15, 5, 60);
+
   const rawTrustProxy = process.env.TRUST_PROXY;
   let trustProxy: number | boolean | string;
   if (rawTrustProxy === undefined || rawTrustProxy === '') {
@@ -220,8 +304,19 @@ function loadConfig(): AppConfig {
     imageMaxConcurrent,
     imagePort,
     imageProcessTimeoutMs,
+    videoProcessorUrl,
+    videoTranscodeTimeoutMs,
     mediaStorageAdapter,
     mediaStorageS3Bucket,
+    mediaPresignedPutTtlSeconds,
+    mediaPendingUploadPrefix,
+    workerInternalPort,
+    workerInternalUrl,
+    webInternalUrl,
+    internalEventSecret,
+    mediaJobLeaseSeconds,
+    mediaJobMaxRetries,
+    sseHeartbeatSeconds,
     initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
     trustProxy,
   };

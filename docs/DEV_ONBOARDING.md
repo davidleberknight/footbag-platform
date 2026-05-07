@@ -448,7 +448,7 @@ Tests should pass before you spend time debugging browser behavior.
 ./run_dev.sh
 ```
 
-This launches both the web server (port 3000) and the image worker (port 4001). Avatar uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone returns 503 on avatar upload because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
+This launches both the web server (port 3000) and the image worker (port 4001). Avatar, photo, and curator video uploads route through the image worker over HTTP per DD §1.7's four-container topology; `npm run dev` alone fails uploads because no worker is listening. `./run_dev.sh` keeps both alive and tears both down on Ctrl+C; see also `npm run dev` and `npm run dev:image` if you want to run them individually for debugging.
 
 On WSL2, the port is forwarded automatically, so you can use your normal browser on Windows.
 

@@ -38,7 +38,7 @@ export interface JwtSigningAdapter {
 // passes its own ttlSeconds explicitly; this default exists only for test
 // call sites that don't care about TTL. Changing this value does not affect
 // session lifetime in the running app.
-const DEFAULT_TTL_SECONDS = 10 * 60;
+const DEFAULT_TTL_SECONDS = 24 * 60 * 60;
 const PUBLIC_KEY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function b64urlEncode(buf: Buffer): string {

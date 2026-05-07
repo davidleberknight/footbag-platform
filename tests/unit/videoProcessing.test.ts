@@ -89,6 +89,61 @@ describe('buildFfmpegArgs', () => {
     const idxAudio = args.indexOf('-c:a');
     expect(args[idxAudio + 1]).not.toBe('copy');
   });
+
+  it('omits all tuning args when no tuning provided (canonical defaults preserved)', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4');
+    expect(args).not.toContain('-preset');
+    expect(args).not.toContain('-threads');
+    expect(args).not.toContain('-x264-params');
+  });
+
+  it('omits all tuning args when tuning is an empty object', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4', {});
+    expect(args).not.toContain('-preset');
+    expect(args).not.toContain('-threads');
+    expect(args).not.toContain('-x264-params');
+  });
+
+  it('inserts -preset between -c:v libx264 and -c:a when preset provided', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4', { preset: 'veryfast' });
+    const vIdx = args.indexOf('-c:v');
+    const aIdx = args.indexOf('-c:a');
+    const presetIdx = args.indexOf('-preset');
+    expect(presetIdx).toBeGreaterThan(vIdx);
+    expect(presetIdx).toBeLessThan(aIdx);
+    expect(args[presetIdx + 1]).toBe('veryfast');
+  });
+
+  it('inserts -threads with stringified value when threads provided', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4', { threads: 1 });
+    const idx = args.indexOf('-threads');
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe('1');
+  });
+
+  it('inserts -x264-params rc-lookahead=N when rcLookahead provided', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4', { rcLookahead: 10 });
+    const idx = args.indexOf('-x264-params');
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe('rc-lookahead=10');
+  });
+
+  it('emits all three tuning args together when all provided', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4', {
+      preset: 'veryfast',
+      threads: 1,
+      rcLookahead: 10,
+    });
+    expect(args).toContain('-preset');
+    expect(args).toContain('-threads');
+    expect(args).toContain('-x264-params');
+  });
+
+  it('preserves rcLookahead=0 (zero is a meaningful libx264 value)', () => {
+    const args = buildFfmpegArgs('in.mp4', 'out.mp4', { rcLookahead: 0 });
+    const idx = args.indexOf('-x264-params');
+    expect(args[idx + 1]).toBe('rc-lookahead=0');
+  });
 });
 
 describe('transcodeCuratorVideo', () => {

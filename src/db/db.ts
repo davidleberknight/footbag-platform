@@ -4044,6 +4044,150 @@ export const mediaTags = {
   `); },
 };
 
+export interface MediaJobRow {
+  id: string;
+  kind: 'curator_video';
+  state:
+    | 'pending_upload'
+    | 'pending_transcode'
+    | 'processing'
+    | 'succeeded'
+    | 'failed'
+    | 'abandoned';
+  admin_member_id: string;
+  source_video_key: string | null;
+  source_poster_key: string | null;
+  caption: string | null;
+  tags: string;
+  source_filename: string | null;
+  media_id: string | null;
+  retry_count: number;
+  last_error: string | null;
+  last_attempted_at: string | null;
+  lease_expires_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  updated_by: string;
+  version: number;
+}
+
+export const mediaJobs = {
+  get insertPendingUpload() { return db.prepare(`
+    INSERT INTO media_jobs (
+      id, created_at, created_by, updated_at, updated_by, version,
+      kind, state, admin_member_id,
+      source_video_key, source_poster_key,
+      caption, tags, source_filename,
+      retry_count, expires_at
+    ) VALUES (?, ?, ?, ?, ?, 1,
+      ?, 'pending_upload', ?,
+      ?, ?,
+      ?, ?, ?,
+      0, ?)
+  `); },
+
+  get findById() { return db.prepare(`
+    SELECT * FROM media_jobs WHERE id = ?
+  `); },
+
+  get findByIdForAdmin() { return db.prepare(`
+    SELECT * FROM media_jobs WHERE id = ? AND admin_member_id = ?
+  `); },
+
+  get markPendingTranscode() { return db.prepare(`
+    UPDATE media_jobs
+    SET state = 'pending_transcode',
+        expires_at = NULL,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND admin_member_id = ? AND state = 'pending_upload'
+  `); },
+
+  get claimForProcessing() { return db.prepare(`
+    UPDATE media_jobs
+    SET state = 'processing',
+        last_attempted_at = ?,
+        lease_expires_at = ?,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND state = 'pending_transcode'
+  `); },
+
+  get markSucceeded() { return db.prepare(`
+    UPDATE media_jobs
+    SET state = 'succeeded',
+        media_id = ?,
+        lease_expires_at = NULL,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND state = 'processing'
+  `); },
+
+  get markFailedRetry() { return db.prepare(`
+    UPDATE media_jobs
+    SET state = 'pending_transcode',
+        retry_count = retry_count + 1,
+        last_error = ?,
+        last_attempted_at = NULL,
+        lease_expires_at = NULL,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND state = 'processing'
+  `); },
+
+  get markFailedTerminal() { return db.prepare(`
+    UPDATE media_jobs
+    SET state = 'failed',
+        retry_count = retry_count + 1,
+        last_error = ?,
+        lease_expires_at = NULL,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND state = 'processing'
+  `); },
+
+  get markAbandoned() { return db.prepare(`
+    UPDATE media_jobs
+    SET state = 'abandoned',
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND state = 'pending_upload'
+  `); },
+
+  get selectExpiredPendingUploads() { return db.prepare(`
+    SELECT * FROM media_jobs
+    WHERE state = 'pending_upload'
+      AND expires_at IS NOT NULL
+      AND expires_at <= ?
+  `); },
+
+  get selectOrphanedProcessing() { return db.prepare(`
+    SELECT * FROM media_jobs
+    WHERE state = 'processing'
+      AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+  `); },
+
+  get resetOrphanedToTranscode() { return db.prepare(`
+    UPDATE media_jobs
+    SET state = 'pending_transcode',
+        last_attempted_at = NULL,
+        lease_expires_at = NULL,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND state = 'processing'
+      AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+  `); },
+};
+
 export interface CuratorSlotMediaRow {
   id: string;
   media_type: 'photo' | 'video';

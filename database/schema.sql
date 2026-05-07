@@ -2175,6 +2175,81 @@ CREATE UNIQUE INDEX ux_galleries_default_per_member ON member_galleries(owner_me
 CREATE INDEX        idx_galleries_owner         ON member_galleries(owner_member_id);
 CREATE INDEX        idx_gallery_links_gallery   ON gallery_external_links(gallery_id);
 
+-- Lifecycle row for the admin curator video upload path (DD §6.8). The browser
+-- PUTs source bytes directly to S3 under a pending/ prefix, then POSTs to
+-- /admin/curator/upload/finalize. Finalize verifies both source keys exist and
+-- inserts a media_jobs row in 'pending_transcode' state, then HTTP-pushes the
+-- row id to the image worker over the internal docker network. The worker
+-- claims the row (state -> 'processing'), runs ffmpeg, writes final S3 keys,
+-- inserts the corresponding media_items row, deletes the pending sources, and
+-- marks the job 'succeeded' (or 'failed' on terminal failure). The worker
+-- HTTP-pushes each state transition back to the web container, which fans out
+-- to any SSE-connected admin status pages. No polling at any tier; the only
+-- scan of this table is a one-shot recovery sweep on worker boot for rows
+-- stuck in 'processing' beyond their lease (state -> 'pending_transcode').
+CREATE TABLE media_jobs (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  -- Discriminator. Only 'curator_video' exists today; other kinds may share
+  -- this table later if other media paths move off the synchronous request
+  -- chain (e.g. curator_photo for very large stills).
+  kind TEXT NOT NULL CHECK (kind IN ('curator_video')),
+
+  state TEXT NOT NULL
+    CHECK (state IN ('pending_upload','pending_transcode','processing','succeeded','failed','abandoned')),
+
+  -- The admin who initiated the job. Used for status-page authorization
+  -- (anti-enumeration: another admin gets 404, not 403) and audit trail.
+  admin_member_id TEXT NOT NULL REFERENCES members(id),
+
+  -- S3 keys under the configured pending/ prefix. Both populated at sign-time;
+  -- both verified to exist at finalize-time; both deleted by the worker on
+  -- success. Defensive S3 lifecycle rule on the pending/ prefix expires any
+  -- orphans after 24h regardless of row state.
+  source_video_key  TEXT,
+  source_poster_key TEXT,
+
+  -- Form fields captured at finalize-time and forwarded into the media_items
+  -- row on success. tags is a single space-separated string matching the form
+  -- submission shape; the worker parses before insert.
+  caption          TEXT,
+  tags             TEXT NOT NULL DEFAULT '',
+  source_filename  TEXT,
+
+  -- Set when the job reaches 'succeeded'. ON DELETE SET NULL preserves the
+  -- audit row if the resulting media_items row is later deleted.
+  media_id TEXT REFERENCES media_items(id) ON DELETE SET NULL,
+
+  -- Failure metadata. last_error is overwritten on each attempt. retry_count
+  -- increments only on retryable failures; reaching MEDIA_JOB_MAX_RETRIES
+  -- transitions the job to 'failed' (terminal).
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  last_error  TEXT,
+
+  -- Worker dispatch lease. Set when the worker claims the row (state ->
+  -- 'processing'). Boot-time recovery uses lease_expires_at to distinguish a
+  -- freshly-claimed row from one orphaned by a worker crash.
+  last_attempted_at TEXT,
+  lease_expires_at  TEXT,
+
+  -- TTL for pending_upload rows whose browser never POSTed /finalize. A web
+  -- cleanup step on next admin visit (or a startup reconciliation) maps
+  -- expired pending_upload rows to 'abandoned'.
+  expires_at TEXT,
+
+  CHECK (state <> 'succeeded' OR media_id IS NOT NULL)
+);
+
+CREATE INDEX idx_media_jobs_state          ON media_jobs(state, created_at);
+CREATE INDEX idx_media_jobs_admin          ON media_jobs(admin_member_id, created_at);
+CREATE INDEX idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at)
+  WHERE state = 'processing';
+
 -- =============================================================================
 -- SECTION 18: CLUBS & EVENTS — LEADERS, ORGANIZERS, ROSTER ACCESS, REGISTRATIONS
 -- =============================================================================
