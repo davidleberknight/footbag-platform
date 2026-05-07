@@ -98,7 +98,15 @@ CURATED_SOURCE_IDS: frozenset[str] = frozenset({
 # Named-identity exemptions: slugs that fit the (mod-)*base pattern but are
 # explicit canonical names rather than mere modifier-chains. Populate as
 # false-positive evidence accumulates. Keep small and justified per entry.
-ALLOWLIST_COMPOSITIONAL_NAMED: frozenset[str] = frozenset()
+ALLOWLIST_COMPOSITIONAL_NAMED: frozenset[str] = frozenset({
+    # Curator-named compounds whose slug decomposes structurally but whose
+    # community-recognized identity is preserved via alias on the canonical
+    # row. Each has a documented alternative name (alias or pt-correction).
+    "atomic-butterfly",   # alias: legbeater (modifier-table note)
+    "atomic-torque",      # alias: silo (Red pt4)
+    "spinning-torque",    # alias: marius (row's inline aliases column)
+    "barraging-osis",     # alias: baroque (Red pt4 NEW_TRICK)
+})
 
 
 # ---------------------------------------------------------------------------
