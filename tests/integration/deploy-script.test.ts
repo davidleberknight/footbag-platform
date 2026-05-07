@@ -51,58 +51,83 @@ describe('deploy_to_aws.sh wrapper', () => {
     expect(r.status).toBe(0);
   });
 
-  it('--help mentions --sync-media, --no-curator-seed, and the deprecated --with-curated alias', () => {
+  it('--help mentions the long forms of the new flag set', () => {
     const r = run('bash', ['deploy_to_aws.sh', '--help']);
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain('--sync-media');
-    expect(r.stdout).toContain('--no-curator-seed');
-    expect(r.stdout).toContain('--with-curated');
-    expect(r.stdout).toMatch(/Deprecated alias/i);
+    expect(r.stdout).toContain('--reuse-local-db');
+    expect(r.stdout).toContain('--keep-staging-db');
+    expect(r.stdout).toContain('--yes');
+    expect(r.stdout).toContain('--no-s3-wipe');
+    expect(r.stdout).toContain('--dry-run');
   });
 
-  it('--code-only --sync-media exits 1 with rejection message', () => {
-    const r = run('bash', ['scripts/deploy-to-aws.sh', '--code-only', '--sync-media'], {
+  it('-r and -k are mutually exclusive (exits 1)', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '-r', '-k'], {
       input: 'fake-pw\n',
     });
     expect(r.status).toBe(1);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
-    expect(combined).toMatch(/--sync-media requires --with-db/);
+    expect(combined).toMatch(/conflicts with prior mode/);
   });
 
-  it('--code-only --with-curated (deprecated alias) prints a deprecation warning and rejects without --with-db', () => {
-    const r = run('bash', ['scripts/deploy-to-aws.sh', '--code-only', '--with-curated'], {
+  it('unknown flag exits 1', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--bogus-flag'], {
       input: 'fake-pw\n',
     });
     expect(r.status).toBe(1);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
-    expect(combined).toMatch(/--with-curated is deprecated/);
-    expect(combined).toMatch(/--sync-media requires --with-db/);
+    expect(combined).toMatch(/unknown flag/);
   });
 
-  it('--with-db --from-csv --sync-media --dry-run accepts the flag and shows the plan', () => {
-    const r = run('bash', ['scripts/deploy-to-aws.sh', '--with-db', '--from-csv', '--sync-media', '--dry-run', '--no-staleness-check'], {
+  it('default mode -ny (dry-run + yes) prints the plan and dispatches via deploy-local-data.sh', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '-ny'], {
       input: 'fake-pw\n',
     });
     expect(r.status).toBe(0);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
-    expect(combined).toMatch(/mode=--with-db/);
-    expect(combined).toMatch(/source=--from-csv/);
-    expect(combined).toMatch(/dry-run=yes/);
+    expect(combined).toMatch(/Deploy plan/);
+    expect(combined).toMatch(/mode:\s+default/);
+    expect(combined).toMatch(/rebuild local DB:\s+yes/);
+    expect(combined).toMatch(/replace staging:\s+yes/);
+    expect(combined).toMatch(/deploy-local-data\.sh --from-csv/);
   });
 
-  it('--with-db --from-csv --no-curator-seed --dry-run accepts the seed-skip flag', () => {
-    const r = run('bash', ['scripts/deploy-to-aws.sh', '--with-db', '--from-csv', '--no-curator-seed', '--dry-run', '--no-staleness-check'], {
+  it('-rny (reuse-local-db) skips the rebuild and threads SKIP_DB_REBUILD=yes', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '-rny'], {
       input: 'fake-pw\n',
     });
     expect(r.status).toBe(0);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
-    expect(combined).toMatch(/mode=--with-db/);
+    expect(combined).toMatch(/mode:\s+reuse/);
+    expect(combined).toMatch(/rebuild local DB:\s+no/);
+    expect(combined).toMatch(/SKIP_DB_REBUILD=yes/);
+  });
+
+  it('-kny (keep-staging-db) routes to deploy-code.sh with no DB ops', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '-kny'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/mode:\s+keep/);
+    expect(combined).toMatch(/replace staging:\s+no/);
+    expect(combined).toMatch(/deploy-code\.sh/);
+  });
+
+  it('-Wny (no-s3-wipe) sets KEEP_MEDIA=yes', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '-Wny'], {
+      input: 'fake-pw\n',
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/wipe S3 first:\s+no/);
+    expect(combined).toMatch(/KEEP_MEDIA=yes/);
   });
 
   it.skipIf(!HAS_DOCKER)(
-    '--code-only with missing AWS_OPERATOR_FILE exits 1 with generic Recommendation (no path leak)',
+    '-k with missing AWS_OPERATOR_FILE exits 1 with generic Recommendation (no path leak)',
     () => {
-      const r = run('bash', ['deploy_to_aws.sh', '--code-only'], {
+      const r = run('bash', ['deploy_to_aws.sh', '-k'], {
         env: {
           AWS_OPERATOR_FILE: '/nonexistent/never/exists',
           DEPLOY_TARGET: 'footbag-staging',
@@ -118,12 +143,12 @@ describe('deploy_to_aws.sh wrapper', () => {
   );
 
   it.skipIf(!HAS_DOCKER)(
-    '--code-only with bogus DEPLOY_TARGET exits 1 with SSH-alias Recommendation',
+    '-k with bogus DEPLOY_TARGET exits 1 with SSH-alias Recommendation',
     () => {
       const tmpFile = path.join(os.tmpdir(), `op-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '--code-only'], {
+        const r = run('bash', ['deploy_to_aws.sh', '-k'], {
           env: {
             AWS_OPERATOR_FILE: tmpFile,
             DEPLOY_TARGET: 'this-alias-definitely-does-not-exist-zzz',

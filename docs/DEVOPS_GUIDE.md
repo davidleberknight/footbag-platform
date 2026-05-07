@@ -1165,14 +1165,14 @@ A clean rollback requires both an env revert AND a CloudFront TF revert.
 
 System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_curator_media.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member. Auto-applies the `#curated` tag on every row.
 
-The curator media cycle has two independent gates on `bash deploy_to_aws.sh`. The seed step (sidecars in `/curated/` -> `media_items` rows) runs by default on every deploy; pass `--no-curator-seed` to skip it. The destructive S3 cycle (ship `data/media/` to the host, wipe the S3 bucket, rsync media to S3) is opt-in via `--sync-media`; without the flag, S3 is fully preserved across deploys. `--sync-media` requires `--with-db`; it is rejected with `--code-only`. URL-reference content (YouTube/Vimeo) needs no S3 bytes and is always up to date after a default deploy. The legacy `--with-curated` flag is preserved as a deprecated alias for `--sync-media` and prints a deprecation warning.
+The curator media cycle has two parts on `bash deploy_to_aws.sh`. The seed step (sidecars in `/curated/` -> `media_items` rows) runs unconditionally on every deploy that ships a DB to staging; the orchestrator invokes `scripts/seed_fh_curator.py` against the local DB before the rsync push. Set `CURATOR_SEED=no` to skip it (rare; used when sidecars are known broken). The S3 media cycle (rsync `data/media/` to the host, optionally wipe the S3 bucket, then rsync to S3) runs on every deploy that touches staging; the additive rsync is non-destructive and runs unconditionally, while the destructive bucket wipe defaults Y when a DB rebuild is happening (avatar S3 keys remap on a fresh DB seed) and N otherwise. Pass `-W` / `--no-s3-wipe` to skip the wipe and answer N to the prompt non-interactively. URL-reference content (YouTube/Vimeo) needs no S3 bytes and is always up to date after a default deploy.
 
 Run order in dev: included automatically in `bash scripts/reset-local-db.sh` (the seed step is gated on `CURATOR_SEED`, which defaults to yes when `reset-local-db.sh` is invoked outside the deploy orchestrator).
 
 Run order in staging:
 
-1. `bash deploy_to_aws.sh --with-db --from-csv` (default DB rebuild + sidecar seed; S3 untouched).
-2. To also push fresh bytes to S3, add `--sync-media`. The remote-half wipes the staging S3 bucket and rsyncs `RELEASE_DIR/data/media/` to it. Pass `--keep-media` to skip the wipe but still rsync new bytes.
+1. `bash deploy_to_aws.sh` (default: full rebuild + sidecar seed + media rsync; prompts before each destructive step). `bash deploy_to_aws.sh -y` accepts the default-yes answers without prompting (CI).
+2. The remote-half wipes the staging S3 bucket and rsyncs `RELEASE_DIR/data/media/` to it when wipe=Y. Pass `-W` to skip the wipe but still rsync new bytes additively.
 3. CloudFront serves the seeded URLs at `/media/{key}` via OAC.
 
 `media_id` is derived from a SHA of the id_seed plus source bytes, so updating a source asset (e.g., swapping the FH avatar) produces a new render URL on the next seed run; browser cache busts naturally without manual invalidation.

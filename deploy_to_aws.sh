@@ -17,38 +17,36 @@ for arg in "$@"; do
   esac
 done
 
-# If no mode flag (--code-only or --with-db) is present, prepend the default
-# mode (--with-db --from-csv). Lets `bash deploy_to_aws.sh --dry-run` and
-# similar option-only invocations exercise the default path. Mirror-free
-# default uses only committed CSVs so a fresh clone can always run it.
-# Destructive to staging DB.
-HAS_MODE=0
-for arg in "$@"; do
-  case "$arg" in
-    --code-only|--with-db) HAS_MODE=1 ;;
-  esac
-done
-if (( HAS_MODE == 0 )); then
-  set -- --with-db --from-csv "$@"
-fi
-
 # -----------------------------------------------------------------------------
 # Mode classification (drives mode-aware preflight skips below).
 # -----------------------------------------------------------------------------
-MODE_CODE_ONLY=0
-MODE_WITH_DB=0
-MODE_INSTALL_CWAGENT=0   # placeholder; see TODO below.
-MODE_RESET_DB=0          # set when --db-only is requested (reset-local-db.sh wipes + reapplies schema).
-DB_REBUILD_INVOLVED=0
+# Short combined flags (e.g. -rW) expand into their parts so the case below
+# matches each independently.
+EXPANDED_ARGS=()
 for arg in "$@"; do
+  if [[ "$arg" =~ ^-[a-zA-Z]{2,}$ && "$arg" != --* ]]; then
+    for ((i = 1; i < ${#arg}; i++)); do
+      EXPANDED_ARGS+=("-${arg:$i:1}")
+    done
+  else
+    EXPANDED_ARGS+=("$arg")
+  fi
+done
+
+MODE_CODE_ONLY=0   # -k / --keep-staging-db: no DB ops at all.
+MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; no rebuild.
+DB_REBUILD_INVOLVED=0   # default mode runs the full pipeline → DB rebuild.
+
+HAS_MODE=0
+for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   case "$arg" in
-    --code-only)         MODE_CODE_ONLY=1 ;;
-    --with-db)           MODE_WITH_DB=1 ;;
-    --db-only)           DB_REBUILD_INVOLVED=1; MODE_RESET_DB=1 ;;
-    --from-mirror|--from-csv) DB_REBUILD_INVOLVED=1 ;;
-    --skip-local-data)   : ;;  # --with-db without local rebuild; lock check still warranted
+    -k|--keep-staging-db)  MODE_CODE_ONLY=1; HAS_MODE=1 ;;
+    -r|--reuse-local-db)   MODE_REUSE=1;     HAS_MODE=1 ;;
   esac
 done
+if (( HAS_MODE == 0 )); then
+  DB_REBUILD_INVOLVED=1
+fi
 
 # TODO(F.1, prod): production target plumbing is deferred. When terraform/production
 # applies, add a hard-confirm gate here for `--with-db` against any DEPLOY_TARGET
@@ -107,7 +105,7 @@ fi
 # would let reset-local-db.sh's `rm -f` succeed but later loaders see a stale
 # WAL. lsof is best-effort; we only fail if it's both available and reports
 # active holders.
-if (( DB_REBUILD_INVOLVED == 1 )) && command -v lsof >/dev/null 2>&1; then
+if (( (DB_REBUILD_INVOLVED == 1) || (MODE_REUSE == 1) )) && command -v lsof >/dev/null 2>&1; then
   if [[ -f database/footbag.db ]]; then
     _lock_holders=$(lsof -F pcR database/footbag.db 2>/dev/null || true)
     if [[ -n "$_lock_holders" ]]; then
@@ -188,15 +186,15 @@ fi
 
 # Schema-drift preflight: catch the case where database/schema.sql evolved
 # (column added, table added) since database/footbag.db was last rebuilt.
-# --from-csv / --from-mirror append to the existing DB without reapplying
-# schema.sql, so a schema-touching commit silently fails mid-pipeline (e.g.
-# "table legacy_club_candidates has no column named classification" in Phase G).
-# Skipped under --db-only because reset-local-db.sh wipes the DB anyway.
+# Default mode (full pipeline csv_only) appends to the existing DB without
+# reapplying schema.sql, so a schema-touching commit silently fails mid-
+# pipeline (e.g. "table legacy_club_candidates has no column named
+# classification" in Phase G).
 #
 # We compare actual column-sets (not mtimes): a crashed pipeline run leaves
 # the live DB with a fresh mtime even though its schema is still stale, so
 # mtime-based checks pass silently after every failed attempt.
-if (( DB_REBUILD_INVOLVED == 1 )) && (( MODE_RESET_DB == 0 )) \
+if (( DB_REBUILD_INVOLVED == 1 )) \
     && [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" != "1" ]] \
     && [[ -f database/footbag.db ]] && [[ -f database/schema.sql ]]; then
   _drift_tmp_db=$(mktemp -t schema_check.XXXXXX.db)
@@ -227,7 +225,7 @@ if (( DB_REBUILD_INVOLVED == 1 )) && (( MODE_RESET_DB == 0 )) \
       echo "       Drift detected (live DB is missing items declared in schema.sql):" >&2
       for _line in "${_drift_lines[@]}"; do echo "$_line" >&2; done
       echo "" >&2
-      echo "       --from-csv / --from-mirror append to the existing DB without" >&2
+      echo "       The default rebuild appends to the existing DB without" >&2
       echo "       reapplying schema.sql, so the load will crash mid-pipeline against" >&2
       echo "       the stale schema (typically inside Phase G enrichment)." >&2
       echo "" >&2

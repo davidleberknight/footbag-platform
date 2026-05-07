@@ -20,8 +20,32 @@ import type { TranscodedVideo } from '../lib/videoProcessing';
 
 export type { TranscodedVideo } from '../lib/videoProcessing';
 
+export interface VideoTranscodeFromStorageResult {
+  outputKey: string;
+  outputFormat: 'mp4';
+  outputBytes: number;
+}
+
 export interface VideoTranscodingAdapter {
+  /**
+   * Bytes-in / bytes-out variant. Caller holds the full source buffer in its
+   * own process memory; the response carries the transcoded bytes. Acceptable
+   * for tests and small inputs but OOMs the worker container on real curator
+   * uploads. Prefer transcodeFromStorage for any path where the bytes already
+   * live in S3.
+   */
   transcode(data: Buffer): Promise<TranscodedVideo>;
+
+  /**
+   * The image worker fetches sourceKey from S3, transcodes, and uploads the
+   * result to outputKey. Source bytes never traverse the caller's process,
+   * which keeps the worker container's RSS bounded by its dispatch overhead
+   * rather than the video size. Used by curatorMediaService.finalizeTranscodeForJob.
+   */
+  transcodeFromStorage(
+    sourceKey: string,
+    outputKey: string,
+  ): Promise<VideoTranscodeFromStorageResult>;
 }
 
 export class VideoTranscodingError extends Error {
@@ -84,8 +108,49 @@ export function createHttpVideoTranscodingAdapter(opts: {
     };
   }
 
+  async function callWorkerFromStorage(
+    sourceKey: string,
+    outputKey: string,
+  ): Promise<VideoTranscodeFromStorageResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let res: Response;
+    try {
+      res = await fetchImpl(`${baseUrl}/process/video-from-storage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceKey, outputKey }),
+        signal: controller.signal,
+      });
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name === 'AbortError') {
+        throw new VideoTranscodingError(`video worker timed out after ${timeoutMs}ms`);
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new VideoTranscodingError(`video worker request failed: ${msg}`);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      if (res.status === 400) {
+        throw new VideoTranscodingError(`video worker rejected job: ${body}`, 400);
+      }
+      throw new VideoTranscodingError(
+        `video worker returned ${res.status}: ${body}`,
+        res.status,
+      );
+    }
+
+    const json = (await res.json()) as VideoTranscodeFromStorageResult;
+    return json;
+  }
+
   return {
     transcode: (data) => callWorker(data),
+    transcodeFromStorage: (sourceKey, outputKey) =>
+      callWorkerFromStorage(sourceKey, outputKey),
   };
 }
 

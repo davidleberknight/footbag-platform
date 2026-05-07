@@ -89,7 +89,6 @@ jobs:
       - name: Run reset-local-db.sh against fixtures
         env:
           FOOTBAG_DB_PATH: ./database/footbag-ci.db
-          FOOTBAG_MIRROR_AGE_ACK: '1'
           STUB_PASSWORD: ci-not-a-real-password
         run: bash scripts/reset-local-db.sh
 

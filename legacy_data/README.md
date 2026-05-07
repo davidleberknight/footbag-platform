@@ -113,23 +113,26 @@ Modes (see `scripts/deploy-local-data.sh --help` for full detail):
 - `--dry-run` prints what each mode would run
 
 #### `scripts/deploy-to-aws.sh`
-Two-step AWS staging deploy orchestrator. Step 1: optional local DB prep
-(via `deploy-local-data.sh`). Step 2: push to AWS (via `deploy-code.sh`
-for code-only, or `deploy-rebuild.sh` for code plus DB replacement).
+AWS staging deploy orchestrator. Composes `deploy-local-data.sh`,
+`deploy-code.sh`, and `deploy-rebuild.sh`. Default with no flags rebuilds
+the local DB from committed CSVs, replaces the staging DB, syncs code +
+media, runs tests, runs smoke. Each destructive step prompts before
+acting (rebuild local DB, replace staging DB, wipe S3).
 
-Modes:
-- `--code-only` ships code + images; staging DB untouched
-- `--with-db --db-only` rebuilds DB via `reset-local-db.sh` then pushes
-- `--with-db --from-mirror` full pipeline rebuild then push
-- `--with-db --from-csv` CSV-only rebuild then push
-- `--with-db --skip-local-data` pushes current `database/footbag.db`
-  as-is
-- `--dry-run`, `--skip-tests`, `--help` available
+Modes (mutually exclusive; default = no flag = rebuild + replace):
+- `-r, --reuse-local-db` ships current `database/footbag.db` as-is
+- `-k, --keep-staging-db` doesn't touch the staging DB; code + media still ship
 
-Default behavior: none. The orchestrator itself requires an explicit mode
-flag. The root `deploy_to_aws.sh` wrapper forwards all args to this
-orchestrator and, when called with no arguments, supplies
-`--with-db --db-only` for back-compat with prior behavior.
+Default-mode rebuild variant:
+- `-f, --fast` skips enrichment phases (uses `reset-local-db.sh`)
+
+Modifiers:
+- `-y, --yes` accepts every destructive prompt as default-yes (CI)
+- `-W, --no-s3-wipe` skips the S3 wipe; still rsync new media bytes
+- `-n, --dry-run` prints planned actions; runs nothing
+- `-h, --help` shows full usage
+
+Combinations work: `-ryW` = reuse local DB, accept defaults, skip wipe.
 
 #### `scripts/reset-local-db.sh`
 Fastest path to a fresh `database/footbag.db` from existing canonical
@@ -307,16 +310,17 @@ See `skills/rebuild-identity-pipeline.md`.
 
 ### AWS staging deploy
 ```
-bash deploy_to_aws.sh --code-only                   # code + images only
-bash deploy_to_aws.sh --with-db --db-only           # reset-local-db + push
-bash deploy_to_aws.sh --with-db --from-csv          # csv_only + push
-bash deploy_to_aws.sh --with-db --from-mirror       # full pipeline + push
-bash deploy_to_aws.sh --with-db --skip-local-data   # push current DB as-is
+bash deploy_to_aws.sh                               # default: full rebuild + replace + media (prompts)
+bash deploy_to_aws.sh -k                            # code + media only; staging DB untouched
+bash deploy_to_aws.sh -r                            # ship current local DB as-is
+bash deploy_to_aws.sh -y                            # accept defaults non-interactively (CI)
+bash deploy_to_aws.sh -n                            # dry run
+bash deploy_to_aws.sh -ryW                          # combined: reuse, yes, no S3 wipe
 ```
-Back-compat no-flag entry: `./deploy_to_aws.sh` (root-level convenience
-wrapper) forwards to `scripts/deploy-to-aws.sh`. With no flags it supplies
-`--with-db --db-only`, preserving prior behavior. Any `deploy-to-aws.sh`
-flag is accepted on the wrapper too.
+The root `deploy_to_aws.sh` wrapper handles preflight (tools, SSH alias,
+disk, DB lock, schema drift, credential file) and forwards args to
+`scripts/deploy-to-aws.sh`. With no flags the orchestrator runs the
+default mode (rebuild + replace), prompting before each destructive step.
 
 ---
 

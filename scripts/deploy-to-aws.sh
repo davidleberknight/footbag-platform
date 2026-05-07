@@ -2,24 +2,20 @@
 # =============================================================================
 # deploy-to-aws.sh
 #
-# Two-step AWS staging deploy orchestrator:
-#   Step 1: optional local database prep
-#   Step 2: push to AWS staging (code, and optionally DB)
+# AWS staging deploy orchestrator. Composes:
+#   scripts/deploy-local-data.sh   local DB rebuild (full pipeline)
+#   scripts/deploy-code.sh         code + images only (no DB, no media)
+#   scripts/deploy-rebuild.sh      code + images + DB replacement (+ media)
 #
-# Composes:
-#   scripts/deploy-local-data.sh   local DB prep modes
-#   scripts/deploy-code.sh         code + images only
-#   scripts/deploy-rebuild.sh      code + images + DB replacement
+# Default with no flags = "ship everything fresh": rebuild local DB from
+# committed CSVs, replace staging DB, sync code + media, run tests, run smoke.
+# Each destructive step prompts before acting (rebuild local DB, replace
+# staging DB, wipe S3 bucket).
 #
-# This orchestrator requires an explicit mode flag. For a fully back-compat
-# no-flag invocation (rebuild DB via reset-local-db.sh, then push) keep using
-# scripts/deploy-rebuild.sh directly.
-#
-# TODO (future migration support): once scripts/deploy-migrate.sh is
-# implemented (see that file for the plan), this orchestrator will grow a
-# --migrate mode that runs schema migrations against the staging DB while
-# preserving live data, replacing --with-db as the safe default for schema
-# changes.
+# Mirror is NEVER required at deploy time. Committed seed CSVs carry all
+# mirror-extracted data forward. Mirror extraction is an upstream
+# legacy_data-owner workflow; deploys consume the resulting CSVs via
+# `git pull`.
 # =============================================================================
 
 set -euo pipefail
@@ -29,73 +25,38 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 usage() {
   cat <<'USAGE'
-Usage: bash deploy_to_aws.sh [<flags>]                    (recommended)
-   or: < <operator credential file> bash scripts/deploy-to-aws.sh [<flags>]
+Usage: bash deploy_to_aws.sh [flags]                       (recommended)
+   or: < <operator credential file> bash scripts/deploy-to-aws.sh [flags]
 
-DEFAULT (no flags): equivalent to `--with-db --from-csv`. Full enrichment
-(phases C/D/E/F/G/H/V), mirror-free, uses only committed canonical_input/*
-and seed/* CSVs. DESTRUCTIVE to staging DB. The wrapper runs a preflight
-first (tools, SSH alias, disk space, DB lock, credential file).
+Default (no flags): ship code, rebuild local DB, replace staging DB, sync
+media, run tests + smoke. Prompts before each destructive step (rebuild,
+replace, S3 wipe).
 
-
-WHICH MODE TO USE
+MODES (mutually exclusive)
 ─────────────────────────────────────────────────────────────────────
-  Just changed code, want staging DB intact?
-      bash deploy_to_aws.sh --code-only
+  (none)                       Default.
+  -r, --reuse-local-db         Don't rebuild local DB; ship current
+                               ./database/footbag.db to staging as-is.
+  -k, --keep-staging-db        Don't touch staging DB at all. Code + media
+                               still ship.
 
-  Push fresh data + code (mirror-free, full enrichment)?
-      bash deploy_to_aws.sh                          # default
-
-  Fast DB reset (skip enrichment phases C/D/E/F/G)?
-      bash deploy_to_aws.sh --with-db --db-only
-
-  Re-derive canonical from the legacy mirror (mirror + identity-lock required)?
-      bash deploy_to_aws.sh --with-db --from-mirror
-      (note: identity-lock CSV not yet committed; see legacy_data IP)
-
-  Already have a known-good database/footbag.db locally, just push it?
-      bash deploy_to_aws.sh --with-db --skip-local-data
-
-  Curious what would happen?
-      bash deploy_to_aws.sh --dry-run
-
-
-MODE FLAGS
+MODIFIERS
 ─────────────────────────────────────────────────────────────────────
-  --code-only                  Ship code + images; staging DB untouched.
-                               Use when only src/ changed.
-  --with-db --db-only          Rebuild local DB via reset-local-db.sh
-                               (fast, no enrichment); push code + DB.
-  --with-db --from-mirror      Full pipeline (run_pipeline.sh full);
-                               mirror + identity-lock required; push.
-  --with-db --from-csv         [DEFAULT]  Full enrichment from committed
-                               CSVs (run_pipeline.sh csv_only); push.
-  --with-db --skip-local-data  Push current ./database/footbag.db as-is.
+  -y, --yes                    Accept every destructive prompt as its
+                               default-yes answer. CI / scripted use.
+  -W, --no-s3-wipe             When media sync runs, skip the S3 wipe;
+                               still rsync new bytes additively.
+  -n, --dry-run                Print planned actions; run nothing.
+  -h, --help                   Show this message.
 
-OPTIONS
+Combinations work: `-ryW` = reuse local DB, accept defaults, skip wipe.
+
+ALWAYS-ON
 ─────────────────────────────────────────────────────────────────────
-  --skip-tests                 Skip local `npm test` preflight in
-                               deploy-rebuild.sh.
-  --dry-run                    Print what would run; do not run anything.
-  --no-staleness-check         Silence "canonical CSVs older than pipeline
-                               code" WARNING (gate is warn-only since
-                               2026-04-27; flag still useful for clean output).
-  --sync-media                 Opt in to the destructive S3 media cycle:
-                               ships ./data/media to the host, wipes S3
-                               (staging default; --keep-media to skip the
-                               wipe), and rsyncs media to S3. Without this
-                               flag, S3 media is fully preserved across
-                               deploys. The curator seed (sidecar -> DB rows)
-                               runs on every deploy by default regardless,
-                               so URL-reference content (YouTube/Vimeo) is
-                               always up to date without --sync-media.
-                               Requires --with-db; not valid with --code-only.
-  --no-curator-seed            Skip the curator seed step. Rare; use only
-                               when sidecars are known broken and the operator
-                               wants the existing DB curator rows preserved.
-  --with-curated               Deprecated alias for --sync-media. Prints a
-                               deprecation hint; otherwise behaves identically.
-  --help, -h                   Show this message.
+Code + docker images ship every deploy. `npm test` runs every deploy. The
+post-deploy smoke check runs every deploy. The curator seed step
+(seed_fh_curator.py against /curated/**/*.meta.json sidecars) runs
+unconditionally before any DB ships to staging — this is the 79-vs-37 fix.
 
 ENV OVERRIDES
 ─────────────────────────────────────────────────────────────────────
@@ -105,93 +66,69 @@ ENV OVERRIDES
   SKIP_SMOKE=yes                   Skip post-deploy smoke check.
   SMOKE_BASE_URL=<url>             Override smoke target (default: the
                                    environment's public CloudFront URL).
-  SKIP_TESTS=yes                   Same as --skip-tests.
-  SKIP_DB_REBUILD=yes              Skip reset-local-db.sh inside
-                                   deploy-rebuild.sh (auto-set by the
-                                   orchestrator for --from-mirror /
-                                   --from-csv / --skip-local-data).
-  FOOTBAG_MIRROR_AGE_ACK=1         Acknowledge stale mirror, proceed with
-                                   reset-local-db.sh.
-  FOOTBAG_MIRROR_MAX_AGE_DAYS=N    Raise mirror staleness threshold from
-                                   the 90-day default.
+  CURATOR_SEED=no                  Skip the curator seed step (rare; used
+                                   when sidecars are known broken and the
+                                   operator wants the existing DB curator
+                                   rows preserved).
 
 EXAMPLES
 ─────────────────────────────────────────────────────────────────────
-  Routine code update (DB intact):
-      bash deploy_to_aws.sh --code-only
+  Routine code update (DB + S3 untouched):
+      bash deploy_to_aws.sh -k
 
-  Full deploy from current CSVs (the default):
+  Full deploy (the default):
       bash deploy_to_aws.sh
 
-  Push without running tests:
-      bash deploy_to_aws.sh --code-only --skip-tests
+  Push the current local DB to staging without rebuilding:
+      bash deploy_to_aws.sh -r
 
-  Override the SSH alias:
-      DEPLOY_TARGET=footbag-staging-alt bash deploy_to_aws.sh --code-only
+  Non-interactive default (CI):
+      bash deploy_to_aws.sh -y
 
-  See the deploy plan without running:
-      bash deploy_to_aws.sh --dry-run
+  Dry run:
+      bash deploy_to_aws.sh -n
 USAGE
 }
 
-if [[ $# -lt 1 ]]; then
-  usage
-  exit 1
-fi
-
-DEPLOY_MODE=""
-DB_SOURCE=""
-SKIP_TESTS_FLAG="no"
+# -----------------------------------------------------------------------------
+# Parse flags. Single-letter shorts can be combined: -ry, -ryW, etc.
+# -----------------------------------------------------------------------------
+MODE=""              # "" = default, "reuse" = -r, "keep" = -k
+YES_TO_ALL="no"
+NO_S3_WIPE_FLAG="no"
 DRY_RUN="no"
-STALENESS_CHECK="yes"
-SYNC_MEDIA_FLAG="no"
-CURATOR_SEED_FLAG="yes"
 
+# Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
+# handle each independently.
+EXPANDED_ARGS=()
 for arg in "$@"; do
+  if [[ "$arg" =~ ^-[a-zA-Z]{2,}$ && "$arg" != --* ]]; then
+    for ((i = 1; i < ${#arg}; i++)); do
+      EXPANDED_ARGS+=("-${arg:$i:1}")
+    done
+  else
+    EXPANDED_ARGS+=("$arg")
+  fi
+done
+
+set_mode() {
+  if [[ -n "$MODE" ]]; then
+    echo "ERROR: $1 conflicts with prior mode flag" >&2
+    exit 1
+  fi
+  MODE="$2"
+}
+
+for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   case "$arg" in
-    --help|-h)
-      usage
-      exit 0
-      ;;
-    --code-only)
-      [[ -z "$DEPLOY_MODE" ]] || { echo "ERROR: --code-only conflicts with prior mode flag" >&2; exit 1; }
-      DEPLOY_MODE="--code-only"
-      ;;
-    --with-db)
-      [[ -z "$DEPLOY_MODE" ]] || { echo "ERROR: --with-db conflicts with prior mode flag" >&2; exit 1; }
-      DEPLOY_MODE="--with-db"
-      ;;
-    --db-only|--from-mirror|--from-csv|--skip-local-data)
-      [[ -z "$DB_SOURCE" ]] || { echo "ERROR: $arg conflicts with prior DB source flag" >&2; exit 1; }
-      DB_SOURCE="$arg"
-      ;;
-    --skip-tests)
-      SKIP_TESTS_FLAG="yes"
-      ;;
-    --dry-run)
-      DRY_RUN="yes"
-      ;;
-    --no-staleness-check)
-      STALENESS_CHECK="no"
-      ;;
-    --sync-media)
-      SYNC_MEDIA_FLAG="yes"
-      ;;
-    --no-curator-seed)
-      CURATOR_SEED_FLAG="no"
-      ;;
-    --with-curated)
-      echo "WARNING: --with-curated is deprecated; use --sync-media instead." >&2
-      SYNC_MEDIA_FLAG="yes"
-      ;;
-    -*)
-      echo "ERROR: unknown flag '$arg'" >&2
-      echo "" >&2
-      usage >&2
-      exit 1
-      ;;
+    -h|--help)             usage; exit 0 ;;
+    -r|--reuse-local-db)   set_mode "$arg" "reuse" ;;
+    -k|--keep-staging-db)  set_mode "$arg" "keep"  ;;
+    -y|--yes)              YES_TO_ALL="yes" ;;
+    -W|--no-s3-wipe)       NO_S3_WIPE_FLAG="yes" ;;
+    -n|--dry-run)          DRY_RUN="yes" ;;
     *)
-      echo "ERROR: unexpected positional argument '$arg'" >&2
+      echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
       usage >&2
       exit 1
@@ -199,24 +136,8 @@ for arg in "$@"; do
   esac
 done
 
-# --sync-media requires --with-db. The S3 cycle ships data/media bytes whose
-# keys must match the media_items rows in the deployed DB; only --with-db
-# ships that DB. Without --with-db the bytes and DB diverge. Reject the
-# unsupported combination explicitly.
-if [[ "$SYNC_MEDIA_FLAG" == "yes" && "$DEPLOY_MODE" == "--code-only" ]]; then
-  echo "ERROR: --sync-media requires --with-db (not valid with --code-only)" >&2
-  echo "       The S3 media cycle must ship alongside the DB rows that reference S3 keys." >&2
-  exit 1
-fi
-
-# Export the two split env vars so downstream scripts (deploy-rebuild.sh,
-# reset-local-db.sh, deploy-rebuild-remote.sh) gate the seed step and the S3
-# cycle independently. Defaults: seed=yes (sidecar files are the source of
-# truth for media_items rows; default deploys keep the DB in sync), sync=no
-# (the S3 wipe + rsync is destructive and stays opt-in).
-export CURATOR_SEED="$CURATOR_SEED_FLAG"
-export SYNC_MEDIA="$SYNC_MEDIA_FLAG"
-
+# Operator credential file must be on stdin (deploy_to_aws.sh wrapper supplies
+# it). Reject interactive stdin so we never hang waiting for a password.
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2
   echo "       Run via: bash deploy_to_aws.sh ..." >&2
@@ -225,33 +146,111 @@ if [[ -t 0 ]]; then
   exit 1
 fi
 
-# NOTE: do NOT consume stdin here. exec_step inherits stdin and forwards it
-# to the leaf, which forwards through its own ssh stdin to the remote sudo -S.
-# Loading the password into a shell variable would expose it to memory
-# scraping by same-uid processes; piping through unchanged keeps the password
-# only in unnamed kernel pipes.
+# -----------------------------------------------------------------------------
+# Per-axis prompts. Mode flags pre-answer prompts. -y accepts all defaults.
+# Reads from /dev/tty so the credential-file stdin pipe is preserved.
+# -----------------------------------------------------------------------------
+prompt_yn() {
+  local question="$1"
+  local default="$2"   # "Y" or "N"
 
-if [[ -z "$DEPLOY_MODE" ]]; then
-  echo "ERROR: no deploy mode specified (use --code-only or --with-db)" >&2
-  echo "" >&2
-  usage >&2
-  exit 1
+  if [[ "$YES_TO_ALL" == "yes" ]]; then
+    echo "  ${question} [auto-${default}]" >&2
+    [[ "$default" == "Y" ]] && return 0 || return 1
+  fi
+
+  if [[ ! -r /dev/tty ]]; then
+    echo "  ${question} [non-interactive default ${default}]" >&2
+    [[ "$default" == "Y" ]] && return 0 || return 1
+  fi
+
+  local prompt_text
+  if [[ "$default" == "Y" ]]; then
+    prompt_text="  ${question} [Y/n] "
+  else
+    prompt_text="  ${question} [y/N] "
+  fi
+
+  local answer=""
+  read -r -p "$prompt_text" answer </dev/tty || answer=""
+  if [[ -z "$answer" ]]; then
+    [[ "$default" == "Y" ]] && return 0 || return 1
+  fi
+  [[ "$answer" =~ ^[Yy] ]]
+}
+
+# -----------------------------------------------------------------------------
+# Resolve the three destructive choices: REBUILD_LOCAL, REPLACE_STAGING, WIPE.
+# Mode flags pre-answer; otherwise prompt.
+# -----------------------------------------------------------------------------
+case "$MODE" in
+  reuse)  REBUILD_LOCAL="no";  REPLACE_STAGING="yes"; ;;
+  keep)   REBUILD_LOCAL="no";  REPLACE_STAGING="no";  ;;
+  "")     REBUILD_LOCAL="";    REPLACE_STAGING="";    ;;  # to be prompted
+esac
+
+if [[ -z "$REBUILD_LOCAL" ]]; then
+  if prompt_yn "Rebuild local DB?" "Y"; then
+    REBUILD_LOCAL="yes"
+  else
+    REBUILD_LOCAL="no"
+  fi
 fi
 
-if [[ "$DEPLOY_MODE" == "--code-only" && -n "$DB_SOURCE" ]]; then
-  echo "ERROR: $DB_SOURCE is only valid with --with-db" >&2
-  exit 1
+if [[ -z "$REPLACE_STAGING" ]]; then
+  if [[ "$REBUILD_LOCAL" == "yes" ]]; then
+    if prompt_yn "Replace staging DB with rebuilt local?" "Y"; then
+      REPLACE_STAGING="yes"
+    else
+      REPLACE_STAGING="no"
+    fi
+  else
+    if prompt_yn "Replace staging DB with current local?" "Y"; then
+      REPLACE_STAGING="yes"
+    else
+      REPLACE_STAGING="no"
+    fi
+  fi
 fi
 
-if [[ "$DEPLOY_MODE" == "--with-db" && -z "$DB_SOURCE" ]]; then
-  echo "ERROR: --with-db requires one of: --db-only, --from-mirror, --from-csv, --skip-local-data" >&2
-  exit 1
+# Wipe defaults: Y if a DB rebuild is happening (avatar S3 keys remap on fresh
+# DB seed; orphaned objects would serve wrong-person photos). N otherwise.
+WIPE_DEFAULT="N"
+if [[ "$REBUILD_LOCAL" == "yes" && "$REPLACE_STAGING" == "yes" ]]; then
+  WIPE_DEFAULT="Y"
 fi
 
-if [[ "$SKIP_TESTS_FLAG" == "yes" ]]; then
-  export SKIP_TESTS="yes"
+# -W / --no-s3-wipe pre-answers wipe=N without prompting.
+if [[ "$NO_S3_WIPE_FLAG" == "yes" ]]; then
+  WIPE_S3="no"
+elif [[ "$REPLACE_STAGING" == "no" && "$MODE" == "keep" ]]; then
+  # -k mode: media still rsync's additively, but no DB context → no wipe.
+  WIPE_S3="no"
+else
+  if prompt_yn "Wipe S3 bucket before media sync?" "$WIPE_DEFAULT"; then
+    WIPE_S3="yes"
+  else
+    WIPE_S3="no"
+  fi
 fi
 
+# -----------------------------------------------------------------------------
+# Plan summary (always shown; doubles as dry-run output).
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Deploy plan"
+echo "    target:           ${DEPLOY_TARGET:-footbag-staging}"
+echo "    mode:             ${MODE:-default}"
+echo "    rebuild local DB: ${REBUILD_LOCAL}"
+echo "    replace staging:  ${REPLACE_STAGING}"
+echo "    sync media:       yes (additive)"
+echo "    wipe S3 first:    ${WIPE_S3}"
+echo "    dry run:          ${DRY_RUN}"
+echo ""
+
+# -----------------------------------------------------------------------------
+# Helpers preserved from prior orchestrator.
+# -----------------------------------------------------------------------------
 run_step() {
   if [[ "$DRY_RUN" == "yes" ]]; then
     echo "    DRY RUN: would run: $*"
@@ -268,8 +267,11 @@ exec_step() {
     if [[ -n "${SKIP_DB_REBUILD:-}" ]]; then
       echo "             with SKIP_DB_REBUILD=$SKIP_DB_REBUILD"
     fi
-    if [[ -n "${SKIP_TESTS:-}" ]]; then
-      echo "             with SKIP_TESTS=$SKIP_TESTS"
+    if [[ -n "${SYNC_MEDIA:-}" ]]; then
+      echo "             with SYNC_MEDIA=$SYNC_MEDIA"
+    fi
+    if [[ -n "${KEEP_MEDIA:-}" ]]; then
+      echo "             with KEEP_MEDIA=$KEEP_MEDIA"
     fi
     exit 0
   fi
@@ -281,9 +283,6 @@ exec_step() {
 }
 
 check_canonical_freshness() {
-  if [[ "$STALENESS_CHECK" == "no" ]]; then
-    return 0
-  fi
   local ci_dir="${REPO_ROOT}/legacy_data/event_results/canonical_input"
   [[ -d "$ci_dir" ]] || return 0
 
@@ -310,52 +309,57 @@ check_canonical_freshness() {
     echo "  Newest pipeline input or code: $(date -d @${inputs_latest%.*} '+%Y-%m-%d %H:%M:%S')" >&2
     echo "" >&2
     echo "  The deploy will proceed with the committed canonical_input CSVs." >&2
-    echo "  Recommendation: if you want fresh canonical outputs, run" >&2
-    echo "    bash scripts/deploy-local-data.sh --from-mirror" >&2
-    echo "  before deploying. Suppress this warning with --no-staleness-check." >&2
+    echo "  Recommendation: refresh the CSVs upstream (legacy_data owner)" >&2
+    echo "  before deploying if the gap matters." >&2
     echo "------------------------------------------------------------------------" >&2
     echo "" >&2
   fi
 }
 
-if [[ "$DEPLOY_MODE" != "--code-only" && "$DB_SOURCE" != "--from-mirror" ]]; then
+# Warn if canonical CSVs trail pipeline code (informational only).
+if [[ "$REBUILD_LOCAL" == "yes" ]]; then
   check_canonical_freshness
 fi
 
-echo "==> deploy-to-aws: mode=$DEPLOY_MODE${DB_SOURCE:+ source=$DB_SOURCE}${DRY_RUN:+ dry-run=$DRY_RUN}"
+# -----------------------------------------------------------------------------
+# Thread the resolved choices to leaf scripts as env vars.
+# -----------------------------------------------------------------------------
+# CURATOR_SEED defaults to yes; honor the env override (CURATOR_SEED=no).
+export CURATOR_SEED="${CURATOR_SEED:-yes}"
 
-if [[ "$DEPLOY_MODE" == "--code-only" ]]; then
-  echo "    Step 1 (local DB prep): skipped"
-  echo "    Step 2 (AWS push): scripts/deploy-code.sh"
+# SYNC_MEDIA: always yes when shipping anything (additive rsync).
+export SYNC_MEDIA="yes"
+
+# KEEP_MEDIA: yes means "skip wipe." Maps from WIPE_S3 (inverse semantics
+# preserved from legacy code).
+if [[ "$WIPE_S3" == "yes" ]]; then
+  export KEEP_MEDIA="no"
+else
+  export KEEP_MEDIA="yes"
+fi
+
+# -----------------------------------------------------------------------------
+# Dispatch. Three execution paths:
+#   1. -k: code + media only (no DB).             → deploy-code.sh
+#   2. -r or no rebuild: ship current local DB.   → deploy-rebuild.sh (SKIP_DB_REBUILD=yes)
+#   3. Default rebuild + replace.                 → deploy-local-data.sh + deploy-rebuild.sh
+#   3a. -f fast variant: deploy-rebuild.sh runs reset-local-db.sh internally.
+# -----------------------------------------------------------------------------
+if [[ "$REPLACE_STAGING" == "no" ]]; then
+  echo "==> Step: scripts/deploy-code.sh (code + media; staging DB untouched)"
   exec_step bash "${SCRIPT_DIR}/deploy-code.sh"
 fi
 
-case "$DB_SOURCE" in
-  --db-only)
-    echo "    Step 1 (local DB prep): handled inside deploy-rebuild.sh (reset-local-db.sh)"
-    echo "    Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh"
-    exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
-    ;;
-  --skip-local-data)
-    echo "    Step 1 (local DB prep): skipped (using current database/footbag.db)"
-    echo "    Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh (SKIP_DB_REBUILD=yes)"
-    export SKIP_DB_REBUILD="yes"
-    exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
-    ;;
-  --from-mirror)
-    echo "    Step 1 (local DB prep): scripts/deploy-local-data.sh --from-mirror"
-    run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-mirror
-    echo ""
-    echo "    Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh (SKIP_DB_REBUILD=yes)"
-    export SKIP_DB_REBUILD="yes"
-    exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
-    ;;
-  --from-csv)
-    echo "    Step 1 (local DB prep): scripts/deploy-local-data.sh --from-csv"
-    run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv
-    echo ""
-    echo "    Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh (SKIP_DB_REBUILD=yes)"
-    export SKIP_DB_REBUILD="yes"
-    exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
-    ;;
-esac
+if [[ "$REBUILD_LOCAL" == "no" ]]; then
+  echo "==> Step: scripts/deploy-rebuild.sh (ship current local DB; SKIP_DB_REBUILD=yes)"
+  export SKIP_DB_REBUILD="yes"
+  exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
+fi
+
+# REBUILD_LOCAL == yes
+echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
+run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv
+echo ""
+echo "==> Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh (SKIP_DB_REBUILD=yes)"
+export SKIP_DB_REBUILD="yes"
+exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"

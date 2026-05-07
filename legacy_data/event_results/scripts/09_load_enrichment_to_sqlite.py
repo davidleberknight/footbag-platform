@@ -424,7 +424,7 @@ def main() -> None:
                       legacy_club_key, display_name, city, country,
                       confidence_score, mapped_club_id, bootstrap_eligible,
                       classification
-                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NULL, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         lcc_id, ts, system_user, ts, system_user,
@@ -433,6 +433,7 @@ def main() -> None:
                         opt_str(row.get("city", "")),
                         opt_str(row.get("country", "")),
                         opt_float(row.get("confidence_score", "")),
+                        stable_id("club", club_key),
                         parse_bool_col(row.get("bootstrap_eligible", "0")),
                         _classification_to_bind,
                     ),
@@ -508,7 +509,7 @@ def main() -> None:
                       legacy_club_candidate_id, inferred_role,
                       confidence_score, resolution_status,
                       display_name
-                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 'pending', ?)
+                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 'confirmed_current', ?)
                     """,
                     (
                         lpca_id, ts, system_user, ts, system_user,

@@ -446,3 +446,169 @@ describe('POST /process/photo', () => {
     expect(invoked).toBe(true);
   });
 });
+
+describe('POST /process/video-from-storage', () => {
+  // Minimal valid mp4 magic so detectVideoFormat accepts the source bytes.
+  function makeFakeMp4(): Buffer {
+    const buf = Buffer.alloc(32);
+    buf.write('ftyp', 4, 'ascii');
+    buf.write('isom', 8, 'ascii');
+    return buf;
+  }
+
+  function makeStubS3Storage(initial: Record<string, Buffer> = {}): {
+    get(key: string): Promise<Buffer>;
+    put(key: string, data: Buffer): Promise<void>;
+    puts: Array<{ key: string; bytes: number }>;
+  } {
+    const objects = new Map<string, Buffer>(Object.entries(initial));
+    const puts: Array<{ key: string; bytes: number }> = [];
+    return {
+      async get(key: string) {
+        const buf = objects.get(key);
+        if (!buf) throw new Error(`NoSuchKey: ${key}`);
+        return buf;
+      },
+      async put(key: string, data: Buffer) {
+        objects.set(key, data);
+        puts.push({ key, bytes: data.length });
+      },
+      puts,
+    };
+  }
+
+  it('returns 503 when no S3 storage is configured', async () => {
+    const app = createImageWorkerApp({ s3StorageClient: null });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'a', outputKey: 'b' });
+    expect(res.status).toBe(503);
+    expect(res.body.error).toMatch(/s3 storage not configured/);
+  });
+
+  it('returns 400 when sourceKey is missing or empty', async () => {
+    const s3 = makeStubS3Storage();
+    const app = createImageWorkerApp({ s3StorageClient: s3 });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ outputKey: 'b' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/sourceKey required/);
+  });
+
+  it('returns 400 when outputKey is missing or empty', async () => {
+    const s3 = makeStubS3Storage();
+    const app = createImageWorkerApp({ s3StorageClient: s3 });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'a' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/outputKey required/);
+  });
+
+  it('returns 502 when S3 GET fails', async () => {
+    const s3 = makeStubS3Storage();
+    const app = createImageWorkerApp({ s3StorageClient: s3 });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'pending/missing.mp4', outputKey: 'out.mp4' });
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/s3 get failed/);
+  });
+
+  it('returns 400 when source object is empty', async () => {
+    const s3 = makeStubS3Storage({ 'pending/empty.mp4': Buffer.alloc(0) });
+    const app = createImageWorkerApp({ s3StorageClient: s3 });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'pending/empty.mp4', outputKey: 'out.mp4' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/empty/);
+  });
+
+  it('returns 413 when source object exceeds videoMaxBytes', async () => {
+    const oversized = Buffer.alloc(1025);
+    oversized.write('ftyp', 4, 'ascii');
+    oversized.write('isom', 8, 'ascii');
+    const s3 = makeStubS3Storage({ 'pending/big.mp4': oversized });
+    const app = createImageWorkerApp({
+      s3StorageClient: s3,
+      videoMaxBytes: 1024,
+    });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'pending/big.mp4', outputKey: 'out.mp4' });
+    expect(res.status).toBe(413);
+    expect(res.body.error).toMatch(/exceeds videoMaxBytes/);
+  });
+
+  it('returns 400 when source bytes do not match a known video magic', async () => {
+    const s3 = makeStubS3Storage({ 'pending/garbage': Buffer.from('not a video at all') });
+    const app = createImageWorkerApp({ s3StorageClient: s3 });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'pending/garbage', outputKey: 'out.mp4' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unrecognized video format/);
+  });
+
+  it('happy path: GETs source, runs transcode, PUTs output, returns metadata only', async () => {
+    const source = makeFakeMp4();
+    const s3 = makeStubS3Storage({ 'pending/job-x/source.mp4': source });
+    const app = createImageWorkerApp({
+      s3StorageClient: s3,
+      transcodeVideoImpl: async (_data) => ({
+        bytes: Buffer.from('transcoded-bytes-here'),
+        outputFormat: 'mp4',
+      }),
+    });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({
+        sourceKey: 'pending/job-x/source.mp4',
+        outputKey: 'system_member/detached/media_xyz-video.mp4',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.outputKey).toBe('system_member/detached/media_xyz-video.mp4');
+    expect(res.body.outputFormat).toBe('mp4');
+    expect(res.body.outputBytes).toBe('transcoded-bytes-here'.length);
+    expect(s3.puts).toHaveLength(1);
+    expect(s3.puts[0].key).toBe('system_member/detached/media_xyz-video.mp4');
+    expect(s3.puts[0].bytes).toBe('transcoded-bytes-here'.length);
+  });
+
+  it('passes env-derived libx264 tuning into the transcode call', async () => {
+    const source = makeFakeMp4();
+    const s3 = makeStubS3Storage({ 'pending/job-tune/source.mp4': source });
+    let captured: unknown = null;
+    const app = createImageWorkerApp({
+      s3StorageClient: s3,
+      videoTuning: { preset: 'veryfast', threads: 1, rcLookahead: 10 },
+      transcodeVideoImpl: async (_data, tuning) => {
+        captured = tuning;
+        return { bytes: Buffer.from('x'), outputFormat: 'mp4' };
+      },
+    });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'pending/job-tune/source.mp4', outputKey: 'out.mp4' });
+    expect(res.status).toBe(200);
+    expect(captured).toEqual({ preset: 'veryfast', threads: 1, rcLookahead: 10 });
+  });
+
+  it('propagates 500 when the transcode implementation throws', async () => {
+    const s3 = makeStubS3Storage({ 'pending/job-fail/source.mp4': makeFakeMp4() });
+    const app = createImageWorkerApp({
+      s3StorageClient: s3,
+      transcodeVideoImpl: async () => {
+        throw new Error('ffmpeg exited with code null: kaboom');
+      },
+    });
+    const res = await request(app)
+      .post('/process/video-from-storage')
+      .send({ sourceKey: 'pending/job-fail/source.mp4', outputKey: 'out.mp4' });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/ffmpeg exited/);
+  });
+});

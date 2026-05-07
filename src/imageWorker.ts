@@ -8,6 +8,12 @@
  * require web-only config (FOOTBAG_DB_PATH, SESSION_SECRET, etc.).
  */
 import express, { Request, Response, NextFunction } from 'express';
+import { Readable } from 'node:stream';
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import { detectImageType, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
 import {
   detectVideoFormat,
@@ -71,6 +77,56 @@ function readVideoTuningFromEnv(): VideoTranscodeTuning {
   return { preset, threads, rcLookahead };
 }
 
+/**
+ * Minimal S3 surface this worker needs for the from-storage video route.
+ * Defined locally (rather than imported from src/adapters/mediaStorageAdapter.ts)
+ * so the image worker stays decoupled from the web app's full env config:
+ * the adapter module imports src/config/env, which hard-requires
+ * FOOTBAG_DB_PATH and SESSION_SECRET — neither of which belong on this
+ * container.
+ */
+export interface S3StorageClient {
+  get(key: string): Promise<Buffer>;
+  put(key: string, data: Buffer): Promise<void>;
+}
+
+function createDefaultS3StorageClient(): S3StorageClient | null {
+  const bucket = process.env.MEDIA_STORAGE_S3_BUCKET;
+  if (!bucket) return null;
+  const region = process.env.AWS_REGION;
+  // requestChecksumCalculation: 'WHEN_REQUIRED' matches the web/worker S3
+  // client to suppress per-call CRC32 overhead. Default 'WHEN_SUPPORTED'
+  // would add x-amz-checksum-crc32 headers we don't need.
+  const client = new S3Client({
+    ...(region ? { region } : {}),
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+  });
+  return {
+    async get(key: string): Promise<Buffer> {
+      const res = await client.send(
+        new GetObjectCommand({ Bucket: bucket, Key: key }),
+      );
+      const stream = res.Body as Readable;
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks);
+    },
+    async put(key: string, data: Buffer): Promise<void> {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: data,
+          ContentType: 'video/mp4',
+          CacheControl: 'public, max-age=31536000, immutable',
+        }),
+      );
+    },
+  };
+}
+
 export interface ImageWorkerOptions {
   maxConcurrent?: number;
   semaphoreWaitMs?: number;
@@ -87,6 +143,11 @@ export interface ImageWorkerOptions {
   // Override the env-derived libx264 tuning for tests; production reads
   // VIDEO_X264_PRESET / VIDEO_X264_THREADS / VIDEO_X264_RC_LOOKAHEAD from env.
   videoTuning?: VideoTranscodeTuning;
+  // Test seam: substitute the S3 client used by /process/video-from-storage.
+  // Production reads bucket + region from MEDIA_STORAGE_S3_BUCKET / AWS_REGION
+  // and constructs an AWS SDK client. When MEDIA_STORAGE_S3_BUCKET is unset
+  // (e.g. a local-dev image worker), the from-storage route returns 503.
+  s3StorageClient?: S3StorageClient | null;
 }
 
 export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Express {
@@ -110,6 +171,8 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   const processPhotoFn = opts.processPhotoImpl ?? processPhoto;
   const transcodeVideoFn = opts.transcodeVideoImpl ?? transcodeCuratorVideo;
   const videoTuning = opts.videoTuning ?? readVideoTuningFromEnv();
+  const s3Storage =
+    opts.s3StorageClient !== undefined ? opts.s3StorageClient : createDefaultS3StorageClient();
   const semaphore = new Semaphore(maxConcurrent, semaphoreWaitMs);
   const videoSemaphore = new Semaphore(videoMaxConcurrent, videoSemaphoreWaitMs);
 
@@ -188,6 +251,82 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
     }
   }
 
+  // Memory-efficient transcode path used by the curator video finalize flow.
+  // The legacy /process/video route requires the caller (worker container) to
+  // hold the full source video buffer in its 96M cgroup, which OOMs on real
+  // uploads. This route shifts the S3 GET + ffmpeg + S3 PUT into the image
+  // container's 256M cgroup so only one container ever holds the bytes.
+  // Caller sends just `{sourceKey, outputKey}`; this worker fetches, transcodes,
+  // and uploads.
+  async function runVideoProcessFromStorage(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    if (!s3Storage) {
+      res.status(503).json({ error: 's3 storage not configured' });
+      return;
+    }
+    const body = req.body as { sourceKey?: unknown; outputKey?: unknown };
+    const sourceKey = body?.sourceKey;
+    const outputKey = body?.outputKey;
+    if (typeof sourceKey !== 'string' || sourceKey.length === 0) {
+      res.status(400).json({ error: 'sourceKey required' });
+      return;
+    }
+    if (typeof outputKey !== 'string' || outputKey.length === 0) {
+      res.status(400).json({ error: 'outputKey required' });
+      return;
+    }
+
+    let source: Buffer;
+    try {
+      source = await s3Storage.get(sourceKey);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(502).json({ error: `s3 get failed: ${msg}` });
+      return;
+    }
+    if (source.length === 0) {
+      res.status(400).json({ error: 'source object is empty' });
+      return;
+    }
+    if (source.length > videoMaxBytes) {
+      res.status(413).json({ error: 'source object exceeds videoMaxBytes' });
+      return;
+    }
+    if (!detectVideoFormat(source)) {
+      res.status(400).json({ error: 'unrecognized video format' });
+      return;
+    }
+
+    try {
+      await videoSemaphore.acquire();
+    } catch {
+      res.set('Retry-After', '1');
+      res.status(503).json({ error: 'video worker busy' });
+      return;
+    }
+
+    try {
+      const result = await transcodeVideoFn(source, videoTuning);
+      // Drop the source reference before the S3 PUT so the GC has a chance to
+      // reclaim it while we hold the (similarly sized) transcoded buffer.
+      source = Buffer.alloc(0);
+      await s3Storage.put(outputKey, result.bytes);
+      res.status(200).json({
+        ok: true,
+        outputKey,
+        outputFormat: result.outputFormat,
+        outputBytes: result.bytes.length,
+      });
+    } catch (err: unknown) {
+      next(err);
+    } finally {
+      videoSemaphore.release();
+    }
+  }
+
   const app = express();
 
   app.get('/health', (_req: Request, res: Response) => {
@@ -213,6 +352,15 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
     '/process/video',
     express.raw({ type: 'application/octet-stream', limit: videoMaxBytes }),
     runVideoProcess,
+  );
+
+  // Memory-efficient counterpart to /process/video. JSON body, no buffered
+  // request payload — the source bytes never traverse the worker container
+  // that dispatched the job.
+  app.post(
+    '/process/video-from-storage',
+    express.json({ limit: '4kb' }),
+    runVideoProcessFromStorage,
   );
 
   app.use((err: Error & { type?: string }, _req: Request, res: Response, _next: NextFunction) => {

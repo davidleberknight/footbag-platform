@@ -837,47 +837,42 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       validateCaption(job.caption);
       validateTags(tags);
 
-      const [videoBuffer, posterBuffer] = await Promise.all([
-        storage.get(job.source_video_key),
-        storage.get(job.source_poster_key),
-      ]);
-
-      if (videoBuffer.length > VIDEO_MAX_BYTES) {
-        throw new ValidationError('Video is too large. Maximum size is 150 MB.');
-      }
+      // Poster is small (cap 25 MB) and the worker container can hold it
+      // inline. Video bytes (cap 150 MB) are NOT pulled in here — they go
+      // image-container-direct via videoTranscoder.transcodeFromStorage so
+      // the worker container's 96 M staging cgroup never has to buffer the
+      // source. The image worker validates the source size + magic bytes on
+      // its side; the per-type max stays advisory at the service boundary.
+      const posterBuffer = await storage.get(job.source_poster_key);
       if (posterBuffer.length > POSTER_MAX_BYTES) {
         throw new ValidationError('Poster is too large. Maximum size is 25 MB.');
-      }
-      if (!detectVideoFormat(videoBuffer)) {
-        throw new ValidationError('Only MP4, WebM, and MOV videos are accepted.');
       }
       if (!detectImageType(posterBuffer)) {
         throw new ValidationError('Poster must be a JPEG or PNG image.');
       }
 
       const systemMemberId = resolveSystemMemberIdOrThrow();
+      const mediaId = newMediaId();
+      const videoKey = `${systemMemberId}/detached/${mediaId}-video.mp4`;
+      const posterDisplayKey = `${systemMemberId}/detached/${mediaId}-poster-display.jpg`;
+      const posterThumbKey = `${systemMemberId}/detached/${mediaId}-poster-thumb.jpg`;
 
       // Slot-1 semaphore prevents two concurrent finalize calls from OOMing
       // the host. Single dispatch endpoint + slot-1 semaphore is belt-and-
       // suspenders against accidental double-dispatch.
       await transcodeBound.acquire();
-      let transcoded: TranscodedVideo;
       let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
       try {
-        [transcoded, processed] = await Promise.all([
-          videoTranscoder.transcode(videoBuffer),
+        [, processed] = await Promise.all([
+          videoTranscoder.transcodeFromStorage(job.source_video_key, videoKey),
           imageProcessor.processPhoto(posterBuffer),
         ]);
       } finally {
         transcodeBound.release();
       }
 
-      const mediaId = newMediaId();
-      const videoKey = `${systemMemberId}/detached/${mediaId}-video.mp4`;
-      const posterDisplayKey = `${systemMemberId}/detached/${mediaId}-poster-display.jpg`;
-      const posterThumbKey = `${systemMemberId}/detached/${mediaId}-poster-thumb.jpg`;
-
-      await storage.put(videoKey, transcoded.bytes);
+      // Video object already at videoKey from transcodeFromStorage; only the
+      // poster derivatives are uploaded by this process.
       await storage.put(posterDisplayKey, processed.display);
       await storage.put(posterThumbKey, processed.thumb);
 

@@ -123,9 +123,23 @@ function makeFakeMp4(): Buffer {
   return buf;
 }
 
-function fakeTranscoder(): VideoTranscodingAdapter {
+// Optional storage reference: when provided, the from-storage transcode stub
+// mirrors the real image worker by writing the fake transcoded bytes at
+// outputKey, so happy-path assertions on storage.puts still hold without the
+// service performing the upload itself.
+function fakeTranscoder(storage?: { put: (k: string, d: Buffer) => Promise<void> }): VideoTranscodingAdapter {
   return {
     transcode: async () => ({ bytes: Buffer.from('transcoded-mp4'), outputFormat: 'mp4' }),
+    transcodeFromStorage: async (_sourceKey, outputKey) => {
+      if (storage) {
+        await storage.put(outputKey, Buffer.from('transcoded-mp4'));
+      }
+      return {
+        outputKey,
+        outputFormat: 'mp4',
+        outputBytes: 'transcoded-mp4'.length,
+      };
+    },
   };
 }
 
@@ -2150,14 +2164,15 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
     const svc = svcModule.createCuratorMediaService({
       storage,
       imageProcessor: makeStubImageProcessor(),
-      videoTranscoder: fakeTranscoder(),
+      videoTranscoder: fakeTranscoder(storage),
     });
 
     const job = makeJobRow();
     const result = await svc.finalizeTranscodeForJob(job);
 
     expect(result.mediaId).toMatch(/^media_/);
-    // Final puts: video, poster-display, poster-thumb (in some order).
+    // Final puts: video (image-worker side via fake transcoder), poster-display,
+    // poster-thumb (service side, in some order).
     const finalKeys = storage.puts.map((p) => p.key);
     expect(finalKeys.some((k) => k.endsWith('-video.mp4'))).toBe(true);
     expect(finalKeys.some((k) => k.endsWith('-poster-display.jpg'))).toBe(true);
@@ -2185,7 +2200,7 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
     await storage.put('pending/job-finalize-tags/source.mp4', makeFakeMp4());
     await storage.put('pending/job-finalize-tags/source-poster.jpg', await makeJpegBuffer());
     const svc = svcModule.createCuratorMediaService({
-      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(storage),
     });
     const job = makeJobRow({
       id: 'mediajob_tagtest',
@@ -2226,22 +2241,31 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
     await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/missing source keys/);
   });
 
-  it('rejects oversized source video pulled from storage', async () => {
+  it('propagates transcodeFromStorage errors as finalize failures', async () => {
+    // Source-video size validation lives on the image worker side now (videoMaxBytes
+    // gate in src/imageWorker.ts) since the service no longer fetches the buffer.
+    // The user-visible cap is enforced earlier still at /admin/curator/upload/sign.
+    // This test verifies the service propagates whatever error transcodeFromStorage
+    // throws (size-rejection, S3 GET failure, ffmpeg failure, S3 PUT failure)
+    // rather than swallowing it.
     const storage = makeStubStorage();
-    const oversized = Buffer.alloc(151 * 1024 * 1024);
-    oversized.write('ftyp', 4, 'ascii');
-    oversized.write('isom', 8, 'ascii');
-    await storage.put('pending/job-oversized/source.mp4', oversized);
-    await storage.put('pending/job-oversized/source-poster.jpg', await makeJpegBuffer());
+    await storage.put('pending/job-transcode-fail/source.mp4', makeFakeMp4());
+    await storage.put('pending/job-transcode-fail/source-poster.jpg', await makeJpegBuffer());
+    const failingTranscoder: VideoTranscodingAdapter = {
+      transcode: async () => ({ bytes: Buffer.from('unused'), outputFormat: 'mp4' }),
+      transcodeFromStorage: async () => {
+        throw new Error('video worker returned 413: source object exceeds videoMaxBytes');
+      },
+    };
     const svc = svcModule.createCuratorMediaService({
-      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: fakeTranscoder(),
+      storage, imageProcessor: makeStubImageProcessor(), videoTranscoder: failingTranscoder,
     });
     const job = makeJobRow({
-      id: 'mediajob_oversized',
-      source_video_key: 'pending/job-oversized/source.mp4',
-      source_poster_key: 'pending/job-oversized/source-poster.jpg',
+      id: 'mediajob_transcode_fail',
+      source_video_key: 'pending/job-transcode-fail/source.mp4',
+      source_poster_key: 'pending/job-transcode-fail/source-poster.jpg',
     });
-    await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/Video is too large/);
+    await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/source object exceeds videoMaxBytes/);
   });
 
   it('rejects non-image poster', async () => {

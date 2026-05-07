@@ -28,7 +28,10 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: < <operator credential file> bash scripts/deploy-rebuild.sh [--keep-media]
+Usage: < <operator credential file> bash scripts/deploy-rebuild.sh
+
+Internal leaf script. End users should run `bash deploy_to_aws.sh` — the
+orchestrator threads the resolved choices to this script via env vars.
 
 Reads sudo password from stdin (line 1).
 
@@ -39,26 +42,22 @@ WARNING:
   keys are stable per member ID; a fresh DB seed maps those IDs to
   different people, so leaving old objects would serve the wrong person's
   photo at the new identity).
-  Pass --keep-media to skip the S3 wipe. The script refuses to run on
-  non-staging environments unless --keep-media is passed; production
-  media wipes are an out-of-band operator procedure.
+  The script refuses to run on non-staging environments unless KEEP_MEDIA=yes.
+  Production media wipes are an out-of-band operator procedure.
 
-Flags:
-  --keep-media       Skip the S3 media bucket wipe (DB is still replaced).
-                     Required on non-staging environments.
-
-Env-var overrides:
+Env-var overrides (set by the orchestrator; document for direct invocation):
   DEPLOY_TARGET=footbag-staging
   SKIP_TESTS=yes
   SKIP_DB_REBUILD=yes
   SKIP_SMOKE=yes
-  KEEP_MEDIA=yes     (alternative to --keep-media flag)
+  CURATOR_SEED=no
+  KEEP_MEDIA=yes     Skip the S3 media bucket wipe (DB still replaced).
 USAGE
 }
 
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2
-  echo "       Run via: bash deploy_to_aws.sh --with-db --db-only" >&2
+  echo "       Run via: bash deploy_to_aws.sh" >&2
   echo "" >&2
   usage >&2
   exit 1
@@ -96,26 +95,21 @@ case "$REMOTE" in
     ;;
 esac
 
-# Parse --keep-media (env-var override also accepted for CI scripting).
-# Unset on staging = auto-wipe the S3 media bucket per Phase 8 design.
-# On non-staging the script refuses without this flag; operator must opt
-# out explicitly. Production media wipes are out-of-band (see DEVOPS_GUIDE).
+# KEEP_MEDIA is threaded by the orchestrator (yes = skip S3 wipe; no = wipe).
+# Unset on staging = auto-wipe the S3 media bucket. On non-staging the script
+# refuses without KEEP_MEDIA=yes; operator must opt out explicitly. Production
+# media wipes are out-of-band (see DEVOPS_GUIDE).
 KEEP_MEDIA="${KEEP_MEDIA:-no}"
-for arg in "$@"; do
-  case "$arg" in
-    --keep-media) KEEP_MEDIA="yes" ;;
-    *)
-      echo "ERROR: unknown argument: $arg" >&2
-      usage >&2
-      exit 1
-      ;;
-  esac
-done
+if [[ $# -gt 0 ]]; then
+  echo "ERROR: deploy-rebuild.sh takes no positional arguments; configure via env vars (see usage)." >&2
+  usage >&2
+  exit 1
+fi
 
 if [[ "$FOOTBAG_ENV" != "staging" && "$KEEP_MEDIA" != "yes" ]]; then
   echo "ERROR: refusing to auto-wipe S3 media on FOOTBAG_ENV=$FOOTBAG_ENV." >&2
   echo "       This script auto-wipes media only on staging. Either:" >&2
-  echo "         pass --keep-media to rebuild the DB without touching S3, or" >&2
+  echo "         set KEEP_MEDIA=yes (or pass -W via deploy_to_aws.sh) to rebuild the DB without touching S3, or" >&2
   echo "         use a staging deploy target." >&2
   exit 1
 fi
@@ -174,6 +168,26 @@ sqlite3 "$LOCAL_DB" \
   echo "ERROR: local rebuilt DB is missing table legacy_person_club_affiliations" >&2
   exit 1
 }
+
+# Curator seed: refresh media_items from /curated/**/*.meta.json sidecars
+# against the local DB before shipping. Idempotent (DELETE + INSERT OR REPLACE
+# pattern in seed_fh_curator.py). Runs unconditionally so every deploy that
+# ships a DB picks up the latest sidecars — covers the --skip-local-data path
+# where deploy-local-data.sh's seed call did not run, and is a redundant but
+# harmless no-op for paths where it already ran (run_pipeline.sh csv_only or
+# reset-local-db.sh). This is the 79-vs-37 fix.
+if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
+  echo "==> Running curator seed (sidecars → media_items)..."
+  _venv="${REPO_ROOT}/scripts/.venv"
+  if [[ ! -f "${_venv}/bin/python3" ]]; then
+    echo "    → Creating Python venv at ${_venv}"
+    python3 -m venv "${_venv}"
+  fi
+  "${_venv}/bin/pip" install --quiet -r "${REPO_ROOT}/scripts/requirements.txt"
+  "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_fh_curator.py" --db "${LOCAL_DB}"
+else
+  echo "==> Skipping curator seed (CURATOR_SEED=no)"
+fi
 
 echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf $REMOTE_RELEASE_DIR && mkdir -p $REMOTE_RELEASE_DIR" </dev/null

@@ -748,4 +748,102 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
     });
     await expect(adapter.transcode(Buffer.from('payload'))).rejects.toThrow(/ECONNREFUSED/);
   });
+
+  // ── transcodeFromStorage method ────────────────────────────────────────
+  // The from-storage variant ships only the S3 keys to the image worker
+  // (no source bytes traverse the dispatching process). Tests assert the
+  // wire shape, error mapping, and that the response decodes correctly.
+
+  it('transcodeFromStorage: POSTs JSON {sourceKey, outputKey} to /process/video-from-storage', async () => {
+    const calls: Array<{ url: string; method: string; contentType: string; body: string }> = [];
+    const fetchImpl: typeof fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      const method = (init?.method ?? 'GET').toUpperCase();
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      const contentType = headers['Content-Type'] ?? headers['content-type'] ?? '';
+      const body = typeof init?.body === 'string' ? init.body : '';
+      calls.push({ url, method, contentType, body });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          outputKey: 'system_member/detached/media_xxx-video.mp4',
+          outputFormat: 'mp4',
+          outputBytes: 12345,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    };
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const result = await adapter.transcodeFromStorage(
+      'pending/job-x/source.mp4',
+      'system_member/detached/media_xxx-video.mp4',
+    );
+    expect(result.outputKey).toBe('system_member/detached/media_xxx-video.mp4');
+    expect(result.outputFormat).toBe('mp4');
+    expect(result.outputBytes).toBe(12345);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe('http://fake/process/video-from-storage');
+    expect(calls[0].method).toBe('POST');
+    expect(calls[0].contentType).toBe('application/json');
+    const parsed = JSON.parse(calls[0].body) as { sourceKey: string; outputKey: string };
+    expect(parsed.sourceKey).toBe('pending/job-x/source.mp4');
+    expect(parsed.outputKey).toBe('system_member/detached/media_xxx-video.mp4');
+  });
+
+  it('transcodeFromStorage: throws VideoTranscodingError on 400 with rejected-job message', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(JSON.stringify({ error: 'unrecognized video format' }), { status: 400 });
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toMatchObject({
+      name: 'VideoTranscodingError',
+      status: 400,
+    });
+    await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toThrow(/rejected job/);
+  });
+
+  it('transcodeFromStorage: throws VideoTranscodingError on 413 (oversized source)', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(JSON.stringify({ error: 'source object exceeds videoMaxBytes' }), { status: 413 });
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toMatchObject({
+      name: 'VideoTranscodingError',
+      status: 413,
+    });
+  });
+
+  it('transcodeFromStorage: throws VideoTranscodingError on 502 (s3 get failed)', async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(JSON.stringify({ error: 's3 get failed: NoSuchKey' }), { status: 502 });
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toMatchObject({
+      name: 'VideoTranscodingError',
+      status: 502,
+    });
+  });
+
+  it('transcodeFromStorage: wraps fetch transport errors', async () => {
+    const fetchImpl: typeof fetch = async () => {
+      throw new Error('ECONNREFUSED');
+    };
+    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toThrow(/ECONNREFUSED/);
+  });
+
+  it('transcodeFromStorage: throws on timeout', async () => {
+    const fetchImpl: typeof fetch = (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal as AbortSignal | undefined;
+        signal?.addEventListener('abort', () => {
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      });
+    const adapter = createHttpVideoTranscodingAdapter({
+      baseUrl: 'http://fake',
+      fetchImpl,
+      timeoutMs: 50,
+    });
+    await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toThrow(/timed out/);
+  });
 });

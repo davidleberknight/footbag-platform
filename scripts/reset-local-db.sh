@@ -26,13 +26,17 @@ SCHEMA="database/schema.sql"
 CANONICAL_INPUT_DIR="legacy_data/event_results/canonical_input"
 SEED_DIR="legacy_data/event_results/seed/mvfp_full"
 RECORDS_MASTER_CSV="legacy_data/inputs/curated/records/records_master.csv"
-MIRROR_DIR="legacy_data/mirror_footbag_org"
+CLUBS_SEED_CSV="legacy_data/seed/clubs.csv"
+CLUB_MEMBERS_SEED_CSV="legacy_data/seed/club_members.csv"
 VENV="scripts/.venv"
 REQUIREMENTS="scripts/requirements.txt"
 
 # Preflight: required local files. This script does NOT regenerate canonical
-# inputs or the mirror; it loads existing artifacts. On a fresh clone, run
-# `bash scripts/deploy-local-data.sh --from-mirror` (or --from-csv) first.
+# inputs or extract from the mirror; it loads existing artifacts. The seed
+# CSVs (clubs.csv, club_members.csv) are produced upstream by James-owned
+# legacy_data/scripts/extract_*.py and committed under legacy_data/seed/.
+# On a fresh clone, run `bash scripts/deploy-local-data.sh --from-csv` first
+# (or `--from-mirror` if you have the legacy mirror and want to refresh CSVs).
 _missing=()
 for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
           "${CANONICAL_INPUT_DIR}/event_disciplines.csv" \
@@ -40,29 +44,17 @@ for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
           "${CANONICAL_INPUT_DIR}/event_result_participants.csv" \
           "${CANONICAL_INPUT_DIR}/persons.csv" \
           "${RECORDS_MASTER_CSV}" \
+          "${CLUBS_SEED_CSV}" \
+          "${CLUB_MEMBERS_SEED_CSV}" \
           "${SCHEMA}"; do
   [[ -f "${_f}" ]] || _missing+=("${_f}")
 done
-[[ -d "${MIRROR_DIR}" ]] || _missing+=("${MIRROR_DIR}/  (legacy site mirror; needed for clubs / club_members extract)")
 if [[ ${#_missing[@]} -gt 0 ]]; then
   echo "ERROR: required local file(s) not present:" >&2
   for _f in "${_missing[@]}"; do echo "  MISSING: ${_f}" >&2; done
   echo "" >&2
-  echo "Recommendation: bash scripts/deploy-local-data.sh --from-mirror   (or --from-csv if mirror is unavailable)." >&2
+  echo "Recommendation: bash scripts/deploy-local-data.sh --from-csv   (or --from-mirror if mirror is available and you want fresh CSVs)." >&2
   exit 1
-fi
-
-# Mirror staleness warning. Configurable via FOOTBAG_MIRROR_MAX_AGE_DAYS;
-# bypass via FOOTBAG_MIRROR_AGE_ACK=1 when intentional.
-_max_age="${FOOTBAG_MIRROR_MAX_AGE_DAYS:-90}"
-_sentinel="${MIRROR_DIR}/index.html"
-if [[ -f "${_sentinel}" && "${FOOTBAG_MIRROR_AGE_ACK:-}" != "1" ]]; then
-  _age_days=$(( ( $(date +%s) - $(stat -c %Y "${_sentinel}") ) / 86400 ))
-  if (( _age_days > _max_age )); then
-    echo "WARNING: legacy mirror is ${_age_days} days old (threshold: ${_max_age})." >&2
-    echo "Recommendation: refresh via 'cd legacy_data && ./create_mirror.sh', or set FOOTBAG_MIRROR_AGE_ACK=1 to proceed." >&2
-    exit 1
-  fi
 fi
 
 # Create venv if not present; always sync dependencies
@@ -82,11 +74,6 @@ rm -f "${DB_FILE}" "${DB_FILE}-wal" "${DB_FILE}-shm"
 # Apply schema
 echo "  → Applying schema..."
 sqlite3 "${DB_FILE}" < "${SCHEMA}"
-
-# Ensure mirror-derived club_members.csv exists (idempotent; script skips
-# when CSV newer than source). Needed as input for the legacy_members seed.
-echo "  → Extracting club member data from mirror (for legacy_members seed)..."
-"${PYTHON}" legacy_data/scripts/extract_club_members.py
 
 # Seed legacy_members BEFORE historical_persons is loaded, so the FK
 # historical_persons.legacy_member_id -> legacy_members(legacy_member_id)
@@ -174,19 +161,15 @@ echo "  → Importing net review queue..."
 "${PYTHON}" legacy_data/event_results/scripts/14_import_net_review_queue.py \
   --db "${DB_FILE}"
 
-# Extract club seed data from legacy mirror
-echo "  → Extracting club seed data from mirror..."
-"${PYTHON}" legacy_data/scripts/extract_clubs.py
-
-# Load club seed data into database
+# Load club seed data into database (CSV is preflight-required; produced
+# upstream by legacy_data/scripts/extract_clubs.py and committed under
+# legacy_data/seed/clubs.csv).
 echo "  → Loading club seed data into database..."
 "${PYTHON}" legacy_data/scripts/load_clubs_seed.py --db "${DB_FILE}"
 
-# Extract club member data from legacy mirror
-echo "  → Extracting club member data from mirror..."
-"${PYTHON}" legacy_data/scripts/extract_club_members.py
-
-# Load club member data into database
+# Load club member data into database (CSV is preflight-required; produced
+# upstream by legacy_data/scripts/extract_club_members.py and committed under
+# legacy_data/seed/club_members.csv).
 echo "  → Loading club member data into database..."
 "${PYTHON}" legacy_data/scripts/load_club_members_seed.py --db "${DB_FILE}"
 

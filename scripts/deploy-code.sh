@@ -10,7 +10,7 @@
 #   - Initial AWS bootstrap (Path D) complete
 #
 # Reads sudo password from stdin (line 1). Run via:
-#   bash deploy_to_aws.sh --code-only
+#   bash deploy_to_aws.sh -k
 # or invoke directly with stdin redirected:
 #   < <operator credential file> bash scripts/deploy-code.sh
 #
@@ -31,7 +31,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: bash deploy_to_aws.sh --code-only
+Usage: bash deploy_to_aws.sh -k
    or: < <operator credential file> bash scripts/deploy-code.sh
 
 Reads sudo password from stdin (line 1).
@@ -46,7 +46,7 @@ EOF
 
 if [[ -t 0 ]]; then
   echo "ERROR: must receive sudo password on stdin." >&2
-  echo "       Run via: bash deploy_to_aws.sh --code-only" >&2
+  echo "       Run via: bash deploy_to_aws.sh -k" >&2
   echo "" >&2
   usage >&2
   exit 1

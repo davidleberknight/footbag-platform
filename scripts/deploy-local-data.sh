@@ -91,10 +91,32 @@ fi
 
 run_or_print() {
   if [[ "$DRY_RUN" == "yes" ]]; then
-    echo "    DRY RUN: would exec: $*"
-    exit 0
+    echo "    DRY RUN: would run: $*"
+    return 0
   fi
-  exec "$@"
+  "$@"
+}
+
+# Run scripts/seed_fh_curator.py against the freshly-built local DB. The seed
+# step reads /curated/**/*.meta.json sidecars and INSERT-OR-REPLACE rows into
+# media_items + media_tags + media_sources. Idempotent. Required after every
+# DB rebuild path that ships to staging so the deployed DB reflects current
+# sidecars (the 79-vs-37 incident was caused by this step being skipped).
+# scripts/.venv is the canonical venv for repo-root scripts; reset-local-db.sh
+# also creates and uses it. Mirroring the same setup here keeps both rebuild
+# paths consistent.
+seed_curator() {
+  echo ""
+  echo "==> Running curator seed (sidecars → media_items)"
+  local venv="${REPO_ROOT}/scripts/.venv"
+  local requirements="${REPO_ROOT}/scripts/requirements.txt"
+  if [[ ! -f "${venv}/bin/python3" ]]; then
+    echo "    → Creating Python venv at ${venv}"
+    run_or_print python3 -m venv "${venv}"
+  fi
+  run_or_print "${venv}/bin/pip" install --quiet -r "${requirements}"
+  run_or_print "${venv}/bin/python3" "${REPO_ROOT}/scripts/seed_fh_curator.py" \
+    --db "${REPO_ROOT}/database/footbag.db"
 }
 
 run_from_mirror() {
@@ -107,8 +129,8 @@ run_from_mirror() {
     exit 1
   fi
   echo "    Mirror present: $mirror_dir"
-  cd "${REPO_ROOT}/legacy_data"
-  run_or_print ./run_pipeline.sh full
+  ( cd "${REPO_ROOT}/legacy_data" && run_or_print ./run_pipeline.sh full )
+  seed_curator
 }
 
 run_from_csv() {
@@ -134,8 +156,8 @@ run_from_csv() {
   fi
 
   echo "    Canonical CSVs present"
-  cd "${REPO_ROOT}/legacy_data"
-  run_or_print ./run_pipeline.sh csv_only
+  ( cd "${REPO_ROOT}/legacy_data" && run_or_print ./run_pipeline.sh csv_only )
+  seed_curator
 }
 
 run_db_only() {
@@ -144,13 +166,11 @@ run_db_only() {
   echo "    WARNING: --db-only skips phase C/D/E/F/G enrichment."
   echo "    Use --from-csv if you need those tables populated."
   echo ""
-  local mirror_dir="${REPO_ROOT}/legacy_data/mirror_footbag_org"
-  if [[ ! -d "$mirror_dir" ]]; then
-    echo "ERROR: mirror not found at ${mirror_dir}" >&2
-    echo "       --db-only still requires the mirror for club extractors." >&2
-    exit 1
-  fi
-  echo "    Mirror present: $mirror_dir"
+  # reset-local-db.sh is mirror-free as of the deploy-script cleanup; it
+  # reads committed seed CSVs (legacy_data/seed/clubs.csv,
+  # legacy_data/seed/club_members.csv) instead of re-extracting from mirror.
+  # It also runs seed_fh_curator.py internally, so seed_curator() is not
+  # re-invoked here.
   run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh"
 }
 
