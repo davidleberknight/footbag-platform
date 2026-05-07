@@ -1,0 +1,850 @@
+[
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=1sZy4gc5rr0",
+      "trick_slug": "barrage",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=E1xgRyOvHlA",
+      "trick_slug": "clipper",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Ken Somolinos",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Ken Somolinos"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=lInHcHngs2w",
+      "trick_slug": "cross-body-sole-stall",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Nick Polini",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Nick Polini"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW (pending)",
+    "reason": "Pending slug \u2014 sidecar will be is_primary=0 only",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/EwZyd_xHMdc?t=117",
+      "trick_slug": "da-da-curve",
+      "start_seconds": "117",
+      "end_seconds": "",
+      "player_name": "Anssi Sundberg",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Anssi Sundberg"
+    }
+  },
+  {
+    "classification": "REVIEW_NEEDED",
+    "reason": "Instagram URL \u2014 promote script skips non-YT/Vimeo",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.instagram.com/p/C_YhxDXubde/",
+      "trick_slug": "double-leg-over",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Derek Littlefield",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Derek Littlefield"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/KTfIsduRCaE?t=20",
+      "trick_slug": "double-leg-over",
+      "start_seconds": "20",
+      "end_seconds": "",
+      "player_name": "Derek Littlefield",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Derek Littlefield"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/shorts/nLm3UtIzOc4",
+      "trick_slug": "drifter",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "SkyLon Smith",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by SkyLon Smith"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=asSDtZ9MGeo",
+      "trick_slug": "drifter",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "TJ Boutorwick",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by TJ Boutorwick"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://vimeo.com/25019188",
+      "trick_slug": "ducking-osis",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Honza Weber",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Honza Weber"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "http://youtube.com/watch?v=8WQ_bzl2I80",
+      "trick_slug": "dyno",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Pawel Nowak",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Pawel Nowak"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=vudKdNGi4TA",
+      "trick_slug": "dyno",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "SkyLon Smith",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by SkyLon Smith"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/1oWNEtnQ0ik?t=4",
+      "trick_slug": "dyno",
+      "start_seconds": "4",
+      "end_seconds": "",
+      "player_name": "Jim Penske",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Jim Penske"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=iQXz4kGeTDI",
+      "trick_slug": "eclipse",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Ken Somolinos",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Ken Somolinos"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/lSXlJzQgkNI?t=4",
+      "trick_slug": "eclipse",
+      "start_seconds": "4",
+      "end_seconds": "",
+      "player_name": "Evan Gatesman",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Evan Gatesman"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/W1ePQDnIqA4?t=20",
+      "trick_slug": "eggbeater",
+      "start_seconds": "20",
+      "end_seconds": "",
+      "player_name": "Derek Littlefield",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Derek Littlefield"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/g_Hkw6Pckvk?t=909",
+      "trick_slug": "eggbeater",
+      "start_seconds": "909",
+      "end_seconds": "",
+      "player_name": "Jay Boychuk",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Jay Boychuk"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=dn11VDAIs2s",
+      "trick_slug": "flail",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  },
+  {
+    "classification": "REVIEW_NEEDED",
+    "reason": "URL not YouTube/Vimeo \u2014 promote script skips",
+    "row": {
+      "source_id": "passback_records",
+      "url": "http://webslinger.cz/videos/anxiety01.mpg",
+      "trick_slug": "food-processor",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Honza",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Honza"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=i6FUONkUxlM",
+      "trick_slug": "food-processor",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Jim Penske",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Jim Penske"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=cKQFZsPLgME",
+      "trick_slug": "magellan",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Jakub Worek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Jakub Worek"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Dmr7zj_c7cY#t=2m05s",
+      "trick_slug": "nemesis",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "David Clavens",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by David Clavens"
+    }
+  },
+  {
+    "classification": "REVIEW_NEEDED",
+    "reason": "Instagram URL \u2014 promote script skips non-YT/Vimeo",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.instagram.com/p/C-tI87cuxoZ",
+      "trick_slug": "omelette",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Derek Littlefield",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Derek Littlefield"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=LsUHxgbqamE",
+      "trick_slug": "paradox-blender",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Evan Gatesman",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Evan Gatesman"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=7V91IZM8kNI",
+      "trick_slug": "paradox-drifter",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=pwrNDlxqqio",
+      "trick_slug": "paradox-symposium-whirl",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=e8EQmVtrRl8",
+      "trick_slug": "paradox-torque",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "SkyLon Smith",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by SkyLon Smith"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=LR-IY5A44BI",
+      "trick_slug": "pickup",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Patryk Tenderenda",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Patryk Tenderenda"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/-QjtgUc1Z9c?t=15",
+      "trick_slug": "rev-whirl",
+      "start_seconds": "15",
+      "end_seconds": "",
+      "player_name": "SkyLon Smith",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by SkyLon Smith"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/LDnSwsn_820?t=23",
+      "trick_slug": "rev-whirl",
+      "start_seconds": "23",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/YSNAY8Ho-18?t=6",
+      "trick_slug": "ripstein",
+      "start_seconds": "6",
+      "end_seconds": "",
+      "player_name": "Evan Gatesman",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Evan Gatesman"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/nE12ACkE0QA?t=231",
+      "trick_slug": "ripstein",
+      "start_seconds": "231",
+      "end_seconds": "",
+      "player_name": "Evan Gatesman",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Evan Gatesman"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=8cQO9yV-g1o",
+      "trick_slug": "sidewalk",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/QnFUp1BqHyI?t=167",
+      "trick_slug": "smear",
+      "start_seconds": "167",
+      "end_seconds": "",
+      "player_name": "Derek Littlefield",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Derek Littlefield"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=AQ-gJtDcudE",
+      "trick_slug": "smog",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "SkyLon Smith",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by SkyLon Smith"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=KTfIsduRCaE",
+      "trick_slug": "smog",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Derek Littlefield",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Derek Littlefield"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/N8xC15b3ytg?t=9",
+      "trick_slug": "smog",
+      "start_seconds": "9",
+      "end_seconds": "",
+      "player_name": "Damian Gielnicki",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Damian Gielnicki"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Qhf3gHqThpk&t=314s",
+      "trick_slug": "smudge",
+      "start_seconds": "314",
+      "end_seconds": "",
+      "player_name": "Byrin Wylie",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Byrin Wylie"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Qhf3gHqThpk&t=383s",
+      "trick_slug": "smudge",
+      "start_seconds": "383",
+      "end_seconds": "",
+      "player_name": "Byrin Wylie",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Byrin Wylie"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=DaDOV-7fIk0",
+      "trick_slug": "spinning-clipper",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "SkyLon Smith",
+      "clip_type": "record",
+      "confidence": "medium",
+      "reviewer": "",
+      "notes": "Passback record by SkyLon Smith"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Qhf3gHqThpk&t=272s",
+      "trick_slug": "spinning-clipper",
+      "start_seconds": "272",
+      "end_seconds": "",
+      "player_name": "Byrin Wylie",
+      "clip_type": "record",
+      "confidence": "medium",
+      "reviewer": "",
+      "notes": "Passback record by Byrin Wylie"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/gZzHutLCa0o?t=9",
+      "trick_slug": "spinning-osis",
+      "start_seconds": "9",
+      "end_seconds": "",
+      "player_name": "Nick Polini",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Nick Polini"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/xAX8VwFzaXE?t=138",
+      "trick_slug": "spinning-osis",
+      "start_seconds": "138",
+      "end_seconds": "",
+      "player_name": "Brian Sherrill",
+      "clip_type": "record",
+      "confidence": "medium",
+      "reviewer": "",
+      "notes": "Passback record by Brian Sherrill"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Lxbt8nxeLRk",
+      "trick_slug": "spinning-whirl",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Evan Gatesman",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Evan Gatesman"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=d1Uy768K3cA",
+      "trick_slug": "spinning-whirl",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Jim Penske",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Jim Penske"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/x8ruLjlx73M?t=259",
+      "trick_slug": "swirl",
+      "start_seconds": "259",
+      "end_seconds": "",
+      "player_name": "Evan Gatesman",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Evan Gatesman"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=0qpRaqg0OXU",
+      "trick_slug": "symposium-mirage",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Ken Somolinos",
+      "clip_type": "record",
+      "confidence": "medium",
+      "reviewer": "",
+      "notes": "Passback record by Ken Somolinos"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Y7t-kl3dA-k",
+      "trick_slug": "symposium-mirage",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Ken Somolinos",
+      "clip_type": "record",
+      "confidence": "medium",
+      "reviewer": "",
+      "notes": "Passback record by Ken Somolinos"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=P5CD1-3TTZ8",
+      "trick_slug": "symposium-whirl",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "medium",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Qhf3gHqThpk&t=108s",
+      "trick_slug": "terrage",
+      "start_seconds": "108",
+      "end_seconds": "",
+      "player_name": "Anssi Sundberg",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Anssi Sundberg"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=jogQ-qUrku0#t=3m51s",
+      "trick_slug": "tombstone",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Nathan Pipenberg",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Nathan Pipenberg"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=Ei2DnRCZJBU",
+      "trick_slug": "torque",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Ryan Thomas",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Ryan Thomas"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW",
+    "reason": "Active slug + YT/Vimeo + player set",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://youtu.be/G3tDw8fsX4Y?t=52",
+      "trick_slug": "vortex",
+      "start_seconds": "52",
+      "end_seconds": "",
+      "player_name": "Evan Gatesman",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Evan Gatesman"
+    }
+  },
+  {
+    "classification": "PROMOTE_NOW (pending)",
+    "reason": "Pending slug \u2014 sidecar will be is_primary=0 only",
+    "row": {
+      "source_id": "passback_records",
+      "url": "https://www.youtube.com/watch?v=PhTKzs-elF0",
+      "trick_slug": "whirling-swirl",
+      "start_seconds": "",
+      "end_seconds": "",
+      "player_name": "Norek",
+      "clip_type": "record",
+      "confidence": "high",
+      "reviewer": "",
+      "notes": "Passback record by Norek"
+    }
+  }
+]
