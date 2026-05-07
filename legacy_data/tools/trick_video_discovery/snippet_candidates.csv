@@ -30,56 +30,56 @@ tt_youtube,https://www.youtube.com/watch?v=SQLHKL2kdGU,cross-body-sole-stall,,,K
 tt_youtube,https://www.youtube.com/watch?v=BEOXOHzJx68,symposium-mirage,,,Kenny Shults,tutorial,high,promoted_phase_R1,"TT #31 Symposium Mirage Stall (3 add); verified channel inventory yt-dlp 2026-05-04; CANONICAL_TUTORIAL"
 tt_youtube,https://www.youtube.com/watch?v=N1XWDydpTkk,squeeze,,,Kenny Shults,tutorial,high,promoted_phase_R2,"TT #23 Squeeze (2 add); confirmed by James 2026-05-04; CANONICAL_TUTORIAL"
 tt_youtube,https://www.youtube.com/watch?v=r-G4qBrQSN0,sole-kick,,,Kenny Shults,tutorial,high,promoted_phase_R2,"TT #10 Sole (kick, 1 add); confirmed by James 2026-05-04; sole-kick not yet in dict so lesson renders PENDING; CANONICAL_TUTORIAL"
-passback_records,https://www.youtube.com/watch?v=1sZy4gc5rr0,barrage,,,Norek,record,high,,Passback record by Norek
-passback_records,https://www.youtube.com/watch?v=E1xgRyOvHlA,clipper,,,Ken Somolinos,record,high,,Passback record by Ken Somolinos
-passback_records,https://www.youtube.com/watch?v=lInHcHngs2w,cross-body-sole-stall,,,Nick Polini,record,high,,Passback record by Nick Polini
-passback_records,https://youtu.be/EwZyd_xHMdc?t=117,da-da-curve,117,,Anssi Sundberg,record,high,,Passback record by Anssi Sundberg
+passback_records,https://www.youtube.com/watch?v=1sZy4gc5rr0,barrage,,,Norek,record,high,jl-pb1,Passback record by Norek
+passback_records,https://www.youtube.com/watch?v=E1xgRyOvHlA,clipper,,,Ken Somolinos,record,high,jl-pb1,Passback record by Ken Somolinos
+passback_records,https://www.youtube.com/watch?v=lInHcHngs2w,cross-body-sole-stall,,,Nick Polini,record,high,jl-pb1,Passback record by Nick Polini
+passback_records,https://youtu.be/EwZyd_xHMdc?t=117,da-da-curve,117,,Anssi Sundberg,record,high,jl-pb1,Passback record by Anssi Sundberg
 passback_records,https://www.instagram.com/p/C_YhxDXubde/,double-leg-over,,,Derek Littlefield,record,high,,Passback record by Derek Littlefield
-passback_records,https://youtu.be/KTfIsduRCaE?t=20,double-leg-over,20,,Derek Littlefield,record,high,,Passback record by Derek Littlefield
-passback_records,https://www.youtube.com/shorts/nLm3UtIzOc4,drifter,,,SkyLon Smith,record,high,,Passback record by SkyLon Smith
-passback_records,https://www.youtube.com/watch?v=asSDtZ9MGeo,drifter,,,TJ Boutorwick,record,high,,Passback record by TJ Boutorwick
+passback_records,https://youtu.be/KTfIsduRCaE?t=20,double-leg-over,20,,Derek Littlefield,record,high,jl-pb1,Passback record by Derek Littlefield
+passback_records,https://www.youtube.com/shorts/nLm3UtIzOc4,drifter,,,SkyLon Smith,record,high,jl-pb1,Passback record by SkyLon Smith
+passback_records,https://www.youtube.com/watch?v=asSDtZ9MGeo,drifter,,,TJ Boutorwick,record,high,jl-pb1,Passback record by TJ Boutorwick
 passback_records,https://vimeo.com/25019188,ducking-osis,,,Honza Weber,record,high,,Passback record by Honza Weber
-passback_records,http://youtube.com/watch?v=8WQ_bzl2I80,dyno,,,Pawel Nowak,record,high,,Passback record by Pawel Nowak
-passback_records,https://www.youtube.com/watch?v=vudKdNGi4TA,dyno,,,SkyLon Smith,record,high,,Passback record by SkyLon Smith
-passback_records,https://youtu.be/1oWNEtnQ0ik?t=4,dyno,4,,Jim Penske,record,high,,Passback record by Jim Penske
-passback_records,https://www.youtube.com/watch?v=iQXz4kGeTDI,eclipse,,,Ken Somolinos,record,high,,Passback record by Ken Somolinos
-passback_records,https://youtu.be/lSXlJzQgkNI?t=4,eclipse,4,,Evan Gatesman,record,high,,Passback record by Evan Gatesman
-passback_records,https://youtu.be/W1ePQDnIqA4?t=20,eggbeater,20,,Derek Littlefield,record,high,,Passback record by Derek Littlefield
-passback_records,https://youtu.be/g_Hkw6Pckvk?t=909,eggbeater,909,,Jay Boychuk,record,high,,Passback record by Jay Boychuk
-passback_records,https://www.youtube.com/watch?v=dn11VDAIs2s,flail,,,Norek,record,high,,Passback record by Norek
+passback_records,http://youtube.com/watch?v=8WQ_bzl2I80,dyno,,,Pawel Nowak,record,high,jl-pb1,Passback record by Pawel Nowak
+passback_records,https://www.youtube.com/watch?v=vudKdNGi4TA,dyno,,,SkyLon Smith,record,high,jl-pb1,Passback record by SkyLon Smith
+passback_records,https://youtu.be/1oWNEtnQ0ik?t=4,dyno,4,,Jim Penske,record,high,jl-pb1,Passback record by Jim Penske
+passback_records,https://www.youtube.com/watch?v=iQXz4kGeTDI,eclipse,,,Ken Somolinos,record,high,jl-pb1,Passback record by Ken Somolinos
+passback_records,https://youtu.be/lSXlJzQgkNI?t=4,eclipse,4,,Evan Gatesman,record,high,jl-pb1,Passback record by Evan Gatesman
+passback_records,https://youtu.be/W1ePQDnIqA4?t=20,eggbeater,20,,Derek Littlefield,record,high,jl-pb1,Passback record by Derek Littlefield
+passback_records,https://youtu.be/g_Hkw6Pckvk?t=909,eggbeater,909,,Jay Boychuk,record,high,jl-pb1,Passback record by Jay Boychuk
+passback_records,https://www.youtube.com/watch?v=dn11VDAIs2s,flail,,,Norek,record,high,jl-pb1,Passback record by Norek
 passback_records,http://webslinger.cz/videos/anxiety01.mpg,food-processor,,,Honza,record,high,,Passback record by Honza
-passback_records,https://www.youtube.com/watch?v=i6FUONkUxlM,food-processor,,,Jim Penske,record,high,,Passback record by Jim Penske
-passback_records,https://www.youtube.com/watch?v=cKQFZsPLgME,magellan,,,Jakub Worek,record,high,,Passback record by Jakub Worek
-passback_records,https://www.youtube.com/watch?v=Dmr7zj_c7cY#t=2m05s,nemesis,,,David Clavens,record,high,,Passback record by David Clavens
+passback_records,https://www.youtube.com/watch?v=i6FUONkUxlM,food-processor,,,Jim Penske,record,high,jl-pb1,Passback record by Jim Penske
+passback_records,https://www.youtube.com/watch?v=cKQFZsPLgME,magellan,,,Jakub Worek,record,high,jl-pb1,Passback record by Jakub Worek
+passback_records,https://www.youtube.com/watch?v=Dmr7zj_c7cY#t=2m05s,nemesis,,,David Clavens,record,high,jl-pb1,Passback record by David Clavens
 passback_records,https://www.instagram.com/p/C-tI87cuxoZ,omelette,,,Derek Littlefield,record,high,,Passback record by Derek Littlefield
-passback_records,https://www.youtube.com/watch?v=LsUHxgbqamE,paradox-blender,,,Evan Gatesman,record,high,,Passback record by Evan Gatesman
-passback_records,https://www.youtube.com/watch?v=7V91IZM8kNI,paradox-drifter,,,Norek,record,high,,Passback record by Norek
-passback_records,https://www.youtube.com/watch?v=pwrNDlxqqio,paradox-symposium-whirl,,,Norek,record,high,,Passback record by Norek
-passback_records,https://www.youtube.com/watch?v=e8EQmVtrRl8,paradox-torque,,,SkyLon Smith,record,high,,Passback record by SkyLon Smith
-passback_records,https://www.youtube.com/watch?v=LR-IY5A44BI,pickup,,,Patryk Tenderenda,record,high,,Passback record by Patryk Tenderenda
-passback_records,https://youtu.be/-QjtgUc1Z9c?t=15,rev-whirl,15,,SkyLon Smith,record,high,,Passback record by SkyLon Smith
-passback_records,https://youtu.be/LDnSwsn_820?t=23,rev-whirl,23,,Norek,record,high,,Passback record by Norek
-passback_records,https://youtu.be/YSNAY8Ho-18?t=6,ripstein,6,,Evan Gatesman,record,high,,Passback record by Evan Gatesman
-passback_records,https://youtu.be/nE12ACkE0QA?t=231,ripstein,231,,Evan Gatesman,record,high,,Passback record by Evan Gatesman
-passback_records,https://www.youtube.com/watch?v=8cQO9yV-g1o,sidewalk,,,Norek,record,high,,Passback record by Norek
-passback_records,https://youtu.be/QnFUp1BqHyI?t=167,smear,167,,Derek Littlefield,record,high,,Passback record by Derek Littlefield
-passback_records,https://www.youtube.com/watch?v=AQ-gJtDcudE,smog,,,SkyLon Smith,record,high,,Passback record by SkyLon Smith
-passback_records,https://www.youtube.com/watch?v=KTfIsduRCaE,smog,,,Derek Littlefield,record,high,,Passback record by Derek Littlefield
-passback_records,https://youtu.be/N8xC15b3ytg?t=9,smog,9,,Damian Gielnicki,record,high,,Passback record by Damian Gielnicki
-passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=314s,smudge,314,,Byrin Wylie,record,high,,Passback record by Byrin Wylie
-passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=383s,smudge,383,,Byrin Wylie,record,high,,Passback record by Byrin Wylie
-passback_records,https://www.youtube.com/watch?v=DaDOV-7fIk0,spinning-clipper,,,SkyLon Smith,record,medium,,Passback record by SkyLon Smith
-passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=272s,spinning-clipper,272,,Byrin Wylie,record,medium,,Passback record by Byrin Wylie
-passback_records,https://youtu.be/gZzHutLCa0o?t=9,spinning-osis,9,,Nick Polini,record,high,,Passback record by Nick Polini
-passback_records,https://youtu.be/xAX8VwFzaXE?t=138,spinning-osis,138,,Brian Sherrill,record,medium,,Passback record by Brian Sherrill
-passback_records,https://www.youtube.com/watch?v=Lxbt8nxeLRk,spinning-whirl,,,Evan Gatesman,record,high,,Passback record by Evan Gatesman
-passback_records,https://www.youtube.com/watch?v=d1Uy768K3cA,spinning-whirl,,,Jim Penske,record,high,,Passback record by Jim Penske
-passback_records,https://youtu.be/x8ruLjlx73M?t=259,swirl,259,,Evan Gatesman,record,high,,Passback record by Evan Gatesman
-passback_records,https://www.youtube.com/watch?v=0qpRaqg0OXU,symposium-mirage,,,Ken Somolinos,record,medium,,Passback record by Ken Somolinos
-passback_records,https://www.youtube.com/watch?v=Y7t-kl3dA-k,symposium-mirage,,,Ken Somolinos,record,medium,,Passback record by Ken Somolinos
-passback_records,https://www.youtube.com/watch?v=P5CD1-3TTZ8,symposium-whirl,,,Norek,record,medium,,Passback record by Norek
-passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=108s,terrage,108,,Anssi Sundberg,record,high,,Passback record by Anssi Sundberg
-passback_records,https://www.youtube.com/watch?v=jogQ-qUrku0#t=3m51s,tombstone,,,Nathan Pipenberg,record,high,,Passback record by Nathan Pipenberg
-passback_records,https://www.youtube.com/watch?v=Ei2DnRCZJBU,torque,,,Ryan Thomas,record,high,,Passback record by Ryan Thomas
-passback_records,https://youtu.be/G3tDw8fsX4Y?t=52,vortex,52,,Evan Gatesman,record,high,,Passback record by Evan Gatesman
-passback_records,https://www.youtube.com/watch?v=PhTKzs-elF0,whirling-swirl,,,Norek,record,high,,Passback record by Norek
+passback_records,https://www.youtube.com/watch?v=LsUHxgbqamE,paradox-blender,,,Evan Gatesman,record,high,jl-pb1,Passback record by Evan Gatesman
+passback_records,https://www.youtube.com/watch?v=7V91IZM8kNI,paradox-drifter,,,Norek,record,high,jl-pb1,Passback record by Norek
+passback_records,https://www.youtube.com/watch?v=pwrNDlxqqio,paradox-symposium-whirl,,,Norek,record,high,jl-pb1,Passback record by Norek
+passback_records,https://www.youtube.com/watch?v=e8EQmVtrRl8,paradox-torque,,,SkyLon Smith,record,high,jl-pb1,Passback record by SkyLon Smith
+passback_records,https://www.youtube.com/watch?v=LR-IY5A44BI,pickup,,,Patryk Tenderenda,record,high,jl-pb1,Passback record by Patryk Tenderenda
+passback_records,https://youtu.be/-QjtgUc1Z9c?t=15,rev-whirl,15,,SkyLon Smith,record,high,jl-pb1,Passback record by SkyLon Smith
+passback_records,https://youtu.be/LDnSwsn_820?t=23,rev-whirl,23,,Norek,record,high,jl-pb1,Passback record by Norek
+passback_records,https://youtu.be/YSNAY8Ho-18?t=6,ripstein,6,,Evan Gatesman,record,high,jl-pb1,Passback record by Evan Gatesman
+passback_records,https://youtu.be/nE12ACkE0QA?t=231,ripstein,231,,Evan Gatesman,record,high,jl-pb1,Passback record by Evan Gatesman
+passback_records,https://www.youtube.com/watch?v=8cQO9yV-g1o,sidewalk,,,Norek,record,high,jl-pb1,Passback record by Norek
+passback_records,https://youtu.be/QnFUp1BqHyI?t=167,smear,167,,Derek Littlefield,record,high,jl-pb1,Passback record by Derek Littlefield
+passback_records,https://www.youtube.com/watch?v=AQ-gJtDcudE,smog,,,SkyLon Smith,record,high,jl-pb1,Passback record by SkyLon Smith
+passback_records,https://www.youtube.com/watch?v=KTfIsduRCaE,smog,,,Derek Littlefield,record,high,jl-pb1,Passback record by Derek Littlefield
+passback_records,https://youtu.be/N8xC15b3ytg?t=9,smog,9,,Damian Gielnicki,record,high,jl-pb1,Passback record by Damian Gielnicki
+passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=314s,smudge,314,,Byrin Wylie,record,high,jl-pb1,Passback record by Byrin Wylie
+passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=383s,smudge,383,,Byrin Wylie,record,high,jl-pb1,Passback record by Byrin Wylie
+passback_records,https://www.youtube.com/watch?v=DaDOV-7fIk0,spinning-clipper,,,SkyLon Smith,record,medium,jl-pb1,Passback record by SkyLon Smith
+passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=272s,spinning-clipper,272,,Byrin Wylie,record,medium,jl-pb1,Passback record by Byrin Wylie
+passback_records,https://youtu.be/gZzHutLCa0o?t=9,spinning-osis,9,,Nick Polini,record,high,jl-pb1,Passback record by Nick Polini
+passback_records,https://youtu.be/xAX8VwFzaXE?t=138,spinning-osis,138,,Brian Sherrill,record,medium,jl-pb1,Passback record by Brian Sherrill
+passback_records,https://www.youtube.com/watch?v=Lxbt8nxeLRk,spinning-whirl,,,Evan Gatesman,record,high,jl-pb1,Passback record by Evan Gatesman
+passback_records,https://www.youtube.com/watch?v=d1Uy768K3cA,spinning-whirl,,,Jim Penske,record,high,jl-pb1,Passback record by Jim Penske
+passback_records,https://youtu.be/x8ruLjlx73M?t=259,swirl,259,,Evan Gatesman,record,high,jl-pb1,Passback record by Evan Gatesman
+passback_records,https://www.youtube.com/watch?v=0qpRaqg0OXU,symposium-mirage,,,Ken Somolinos,record,medium,jl-pb1,Passback record by Ken Somolinos
+passback_records,https://www.youtube.com/watch?v=Y7t-kl3dA-k,symposium-mirage,,,Ken Somolinos,record,medium,jl-pb1,Passback record by Ken Somolinos
+passback_records,https://www.youtube.com/watch?v=P5CD1-3TTZ8,symposium-whirl,,,Norek,record,medium,jl-pb1,Passback record by Norek
+passback_records,https://www.youtube.com/watch?v=Qhf3gHqThpk&t=108s,terrage,108,,Anssi Sundberg,record,high,jl-pb1,Passback record by Anssi Sundberg
+passback_records,https://www.youtube.com/watch?v=jogQ-qUrku0#t=3m51s,tombstone,,,Nathan Pipenberg,record,high,jl-pb1,Passback record by Nathan Pipenberg
+passback_records,https://www.youtube.com/watch?v=Ei2DnRCZJBU,torque,,,Ryan Thomas,record,high,jl-pb1,Passback record by Ryan Thomas
+passback_records,https://youtu.be/G3tDw8fsX4Y?t=52,vortex,52,,Evan Gatesman,record,high,jl-pb1,Passback record by Evan Gatesman
+passback_records,https://www.youtube.com/watch?v=PhTKzs-elF0,whirling-swirl,,,Norek,record,high,jl-pb1,Passback record by Norek
