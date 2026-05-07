@@ -136,6 +136,7 @@ export function createApp(): express.Application {
         gt:  (a: unknown, b: unknown) => (a as number) > (b as number),
         add: (a: unknown, b: unknown) => (a as number) + (b as number),
         not: (a: unknown) => !a,
+        or:  (a: unknown, b: unknown) => Boolean(a) || Boolean(b),
         formatDate: (iso: string) => {
           const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
           const parts = String(iso).split('-');

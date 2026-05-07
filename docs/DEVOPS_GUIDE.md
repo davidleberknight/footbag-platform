@@ -634,7 +634,7 @@ The corresponding rotation cadence for production keys will be added when produc
 
 2. Run a deploy. The remote-half fetches the new SSM value, validates the 64-hex shape, and atomically rewrites the `X_ORIGIN_VERIFY_SECRET=` line in `/srv/footbag/env`:
    ```bash
-   bash deploy_to_aws.sh --code-only
+   bash deploy_to_aws.sh -k
    ```
 
 3. There is a brief 30-to-90-second window between step 1 and step 2 where CloudFront sends the new secret and nginx still expects the old one (every CloudFront request returns 444). Run them adjacent to minimize.
@@ -833,7 +833,7 @@ Optionally run Docker parity when the change touches runtime shape, static asset
 Use this when the host DB should remain untouched.
 
 ```bash
-bash deploy_to_aws.sh --code-only
+bash deploy_to_aws.sh -k
 ```
 
 This path preserves `/srv/footbag/env` and the live DB.
@@ -843,7 +843,7 @@ This path preserves `/srv/footbag/env` and the live DB.
 Use this when the change requires rebuilding and replacing the host DB from scratch and the target's data is disposable (staging only).
 
 ```bash
-bash deploy_to_aws.sh --with-db --db-only
+bash deploy_to_aws.sh
 ```
 
 This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB.
@@ -902,7 +902,7 @@ Rollback is required when:
 
 ```bash
 git checkout <known-good-ref>
-bash deploy_to_aws.sh --code-only
+bash deploy_to_aws.sh -k
 ```
 
 The database is not touched by `scripts/deploy-code.sh`.

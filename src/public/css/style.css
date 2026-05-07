@@ -179,6 +179,12 @@ section + section { border-top: 1px solid var(--border); }
 .hero-subtitle { font-size: 0.95rem; margin-top: 2px; color: rgba(255, 255, 255, 0.9); }
 .hero.hero-sm { padding: 36px 24px; }
 .hero.hero-sm h1 { margin-bottom: 0; }
+.hero .tag-chip-link {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.hero .tag-chip-link:hover { color: rgba(255, 255, 255, 0.85); }
 
 .year-page-nav {
   display: flex;

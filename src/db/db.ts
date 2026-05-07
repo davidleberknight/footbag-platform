@@ -4007,6 +4007,19 @@ export function countGalleryItemsByCriteria(
   return row.n;
 }
 
+export function queryMemberDisplayNamesBySlugs(
+  slugs: string[],
+): { slug: string; display_name: string }[] {
+  if (slugs.length === 0) return [];
+  const placeholders = slugs.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT slug, display_name
+    FROM members_active
+    WHERE slug IN (${placeholders})
+      AND personal_data_purged_at IS NULL
+  `).all(...slugs) as { slug: string; display_name: string }[];
+}
+
 export const mediaTags = {
   get findTagByNormalized() { return db.prepare(`
     SELECT id FROM tags WHERE tag_normalized = ?

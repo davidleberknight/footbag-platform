@@ -328,8 +328,8 @@ default mode (rebuild + replace), prompting before each destructive step.
 
 - `scripts/deploy-local-data.sh`, local DB prep orchestrator
 - `scripts/deploy-to-aws.sh`, two-step AWS staging deploy orchestrator
-- `scripts/deploy-code.sh`, code-only deploy (used by `deploy-to-aws.sh --code-only`)
-- `scripts/deploy-rebuild.sh`, code + DB replacement deploy (used by `deploy-to-aws.sh --with-db`)
+- `scripts/deploy-code.sh`, code-only deploy (used by `deploy-to-aws.sh -k` / `--keep-staging-db`)
+- `scripts/deploy-rebuild.sh`, code + DB replacement deploy (used by `deploy-to-aws.sh` default mode and `-r` / `--reuse-local-db`)
 - `scripts/deploy-migrate.sh`, future preserve-data migration deploy (stub)
 - `scripts/smoke-local.sh`, HTTP smoke check (called by deploy scripts)
 - `scripts/*.ts`, TS audit tools (auto-link, provenance, email collision, unresolved cohort)

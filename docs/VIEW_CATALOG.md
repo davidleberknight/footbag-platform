@@ -1732,7 +1732,9 @@ Both pages consume the generic public rendering standard and the §4.2 page cont
   - `name`
   - `description`
   - `itemCount` — service-computed via tag-AND match against `member_gallery_tags` minus items carrying any tag in `member_gallery_exclude_tags`
-  - `criteriaTags[]` — `tag_display` values from `member_gallery_tags`
+  - `byMember` — nullable `{ display, href }`; lifted from any `#by_<slug>` criterion that resolves to an active member, so the card can render "by *Member Name*" upload attribution distinct from gallery ownership; `href` is `/members/<slug>` for authenticated viewers, null otherwise; null when no `#by_*` criterion applies; an unresolved `#by_<slug>` falls back to the raw chip in `criteriaTags`
+  - `criteriaTags[]` — non-`#by_*` criterion chips, each `{ display, href }` with `href = null` (raw `tag_display` values from `member_gallery_tags`)
+  - `excludeTags[]` — exclude chips with the same shape, `#by_*` stripped defensively
   - `href` — `/media/{id}`
   - `owner` — `{ displayName, slug, isSystem }`; `isSystem = true` for FH-owned, false for member-owned
 
@@ -1768,7 +1770,9 @@ Render the standard empty state ("No galleries yet.") when no bookmarks exist.
 - `page.intro` — gallery description (when present)
 - `content.gallery`
   - `id`, `name`, `description`
-  - `criteriaTags[]` — `tag_display` values from `member_gallery_tags`
+  - `byMember` — nullable `{ display, href }`; lifted from any `#by_<slug>` criterion that resolves to an active member, so the hero can render "by *Member Name*" upload attribution distinct from gallery ownership; `href` is `/members/<slug>` for authenticated viewers, null otherwise; null when no `#by_*` criterion applies; an unresolved `#by_<slug>` falls back to the raw chip in `criteriaTags`
+  - `criteriaTags[]` — non-`#by_*` criterion chips, each `{ display, href }` with `href = null` (raw `tag_display` values from `member_gallery_tags`)
+  - `excludeTags[]` — exclude chips with the same shape, `#by_*` stripped defensively
   - `owner` — `{ displayName, slug, isSystem }`; the hero links to `/members/{owner.slug}` for member-owned galleries and renders plain text for FH-owned
 - `content.items[]`
   - `mediaId`

@@ -1986,7 +1986,7 @@ If CloudFront pass 2 is not already complete, finish it here rather than treatin
 The nginx config must land before CloudFront is enabled. CloudFront strips `X-Forwarded-Proto` from origin requests but sends `CloudFront-Forwarded-Proto` instead. The `map` directive in `docker/nginx/nginx.conf.template` (rendered into `/etc/nginx/nginx.conf` at container startup by `40-render-nginx-conf.sh`) translates this to `X-Forwarded-Proto` so the app sets the session cookie `Secure` flag correctly. Without this, login cookies would lack the `Secure` flag when accessed through CloudFront. When accessed directly (no CloudFront header), the map falls back to `$scheme`.
 
 ```bash
-bash deploy_to_aws.sh --code-only
+bash deploy_to_aws.sh -k
 ```
 
 Verify the site still works via direct IP:
@@ -2225,7 +2225,7 @@ Initial activation: a single `terraform apply` plus one deploy. No two-apply cer
 cd terraform/staging
 terraform init -upgrade        # picks up the random + http providers
 terraform apply
-bash deploy_to_aws.sh --code-only
+bash deploy_to_aws.sh -k
 ```
 
 Validation:
@@ -2442,7 +2442,7 @@ The operator IAM user initially holds `AdministratorAccess` for bootstrap. After
    - `terraform plan` and `terraform apply` on a no-op change.
    - `aws s3 ls` on each project bucket.
    - `aws cloudfront list-distributions`.
-   - `bash deploy_to_aws.sh --code-only`.
+   - `bash deploy_to_aws.sh -k`.
 
 5. When the above is green, detach `AdministratorAccess`:
 

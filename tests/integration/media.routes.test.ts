@@ -316,6 +316,87 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(heroBlock).toContain('#curated');
   });
 
+  it('renders #by_<slug> as "items by <Name>" prose, not as a hashtag chip in the "tagged:" list', async () => {
+    // Set up a gallery whose criteria includes both #by_<slug> and a
+    // regular hashtag (#footbags). Bug being regressed: the hero read
+    // "Showing 3 items tagged: David Leberknight #footbags", which
+    // (a) treated the member name as a hashtag and (b) rendered
+    // green-on-green via the global `a { color: var(--primary) }` rule.
+    const db = openDb();
+    const byMemberTagId = `tag-by-${Math.random().toString(36).slice(2, 12)}`;
+    const footbagsTagId = `tag-footbags-${Math.random().toString(36).slice(2, 12)}`;
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(byMemberTagId, '#by_media_regular', '#by_media_regular', TS, TS);
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(footbagsTagId, '#footbags', '#footbags', TS, TS);
+    const galleryId = 'gallery_by_chip_test';
+    db.prepare(`
+      INSERT INTO member_galleries (
+        id, created_at, created_by, updated_at, updated_by, version,
+        owner_member_id, name, description, is_default
+      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Funky Footbags', '', 0)
+    `).run(galleryId, TS, TS, SYSTEM_ID);
+    db.prepare(`
+      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
+      VALUES (?, ?, ?, 'admin-act-as'), (?, ?, ?, 'admin-act-as')
+    `).run(galleryId, byMemberTagId, TS, galleryId, footbagsTagId, TS);
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${galleryId}`);
+    expect(res.status).toBe(200);
+
+    const heroOpen = res.text.search(/class="hero hero-sm[^"]*"/);
+    const heroClose = res.text.indexOf('</div>\n</div>', heroOpen);
+    const heroBlock = res.text.slice(heroOpen, heroClose);
+
+    // Prose form: "Showing N items by <Name>, tagged: #hashtag" — the
+    // member name comes BEFORE "tagged:" with a comma separator, and the
+    // hashtag list does NOT contain the name.
+    expect(heroBlock).toMatch(/items by Regular Member, tagged:\s*#footbags/);
+    expect(heroBlock).not.toMatch(/tagged:[^<]*Regular Member/);
+    expect(heroBlock).not.toContain('#by_media_regular');
+    // Unauthenticated viewer: plain text, no anchor (the gallery hero
+    // here is requested without a session; the link is auth-gated).
+    expect(heroBlock).not.toMatch(/<a[^>]*href="\/members\/media_regular"/);
+  });
+
+  it('falls back to the raw #by_<slug> tag when the slug does not resolve to an active member', async () => {
+    const db = openDb();
+    const ghostTagId = `tag-by-ghost-${Math.random().toString(36).slice(2, 12)}`;
+    db.prepare(`
+      INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
+      VALUES (?, ?, ?, 0, NULL, ?, 'admin-act-as', ?, 'admin-act-as', 1)
+    `).run(ghostTagId, '#by_ghost_account', '#by_ghost_account', TS, TS);
+    const galleryId = 'gallery_by_chip_ghost_test';
+    db.prepare(`
+      INSERT INTO member_galleries (
+        id, created_at, created_by, updated_at, updated_by, version,
+        owner_member_id, name, description, is_default
+      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Ghost Gallery', '', 0)
+    `).run(galleryId, TS, TS, SYSTEM_ID);
+    db.prepare(`
+      INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
+      VALUES (?, ?, ?, 'admin-act-as')
+    `).run(galleryId, ghostTagId, TS);
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${galleryId}`);
+    expect(res.status).toBe(200);
+
+    const heroOpen = res.text.search(/class="hero hero-sm[^"]*"/);
+    const heroClose = res.text.indexOf('</div>\n</div>', heroOpen);
+    const heroBlock = res.text.slice(heroOpen, heroClose);
+
+    expect(heroBlock).toContain('#by_ghost_account');
+    expect(heroBlock).not.toMatch(/<a[^>]*href="\/members\/ghost_account"/);
+  });
+
   it('renders YouTube tiles with the i.ytimg.com derived thumbnail and youtube.com href', async () => {
     const db = openDb();
     const id = insertVideo(db, {

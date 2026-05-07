@@ -8,6 +8,7 @@ import {
   queryCuratorMediaTags,
   queryGalleryItemsByCriteria,
   queryGalleryItemsByCriteriaGrouped,
+  queryMemberDisplayNamesBySlugs,
 } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
@@ -19,11 +20,14 @@ import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 export const PAGE_SIZE = 24;
 
 // Chip-shape for tag rendering: each tag display string carries an
-// optional href. `#by_<slug>` chips link to the member's profile when
-// the viewer is authenticated; for unauthenticated viewers the chip
-// renders as plain text (the route is auth-gated, so a clickable
-// link would dead-end). Other tag namespaces don't yet have their
-// own destination pages, so they get null hrefs and render plain.
+// optional href. `#by_<slug>` chips render the member's display name
+// (e.g. "David Leberknight") instead of the raw tag, with an href to
+// `/members/<slug>` for authenticated viewers. Unauthenticated viewers
+// see the name as plain text (the route is auth-gated, so a clickable
+// link would dead-end). Slugs that don't resolve to an active,
+// non-purged member fall back to the raw `#by_<slug>` tag string.
+// Other tag namespaces have no destination page; they get null hrefs
+// and render plain with the raw tag string.
 export interface TagChip {
   display: string;
   href: string | null;
@@ -33,12 +37,64 @@ export interface ViewerContext {
   authenticated: boolean;
 }
 
-function shapeTagChip(display: string, viewer: ViewerContext): TagChip {
-  if (display.startsWith(UPLOADER_TAG_PREFIX) && viewer.authenticated) {
+function collectMemberNamesForByTags(tagDisplays: string[]): Map<string, string> {
+  const slugs = new Set<string>();
+  for (const t of tagDisplays) {
+    if (t.startsWith(UPLOADER_TAG_PREFIX)) slugs.add(t.slice(UPLOADER_TAG_PREFIX.length));
+  }
+  if (slugs.size === 0) return new Map();
+  const rows = queryMemberDisplayNamesBySlugs([...slugs]);
+  return new Map(rows.map((r) => [r.slug, r.display_name]));
+}
+
+function shapeTagChip(
+  display: string,
+  viewer: ViewerContext,
+  memberNamesBySlug: Map<string, string>,
+): TagChip {
+  if (display.startsWith(UPLOADER_TAG_PREFIX)) {
     const slug = display.slice(UPLOADER_TAG_PREFIX.length);
-    return { display, href: `/members/${slug}` };
+    const memberName = memberNamesBySlug.get(slug);
+    if (memberName) {
+      return {
+        display: memberName,
+        href: viewer.authenticated ? `/members/${slug}` : null,
+      };
+    }
   }
   return { display, href: null };
+}
+
+// Splits raw criterion/exclude tag rows into the prose-attribution
+// chip (`byMember`) and the remaining hashtag chips. A `#by_<slug>`
+// criterion that resolves to an active member is lifted into
+// `byMember` so the template can render "by <Name>" prose; an
+// unresolved `#by_*` stays in `criteriaTags` as the raw tag.
+// `#by_*` tags in the exclude list are stripped defensively
+// (validateTags rejects them on input, so this is belt-and-braces).
+function shapeGalleryChips(
+  tagRows: { tag_display: string }[],
+  excludeTagRows: { tag_display: string }[],
+  viewer: ViewerContext,
+  memberNamesBySlug: Map<string, string>,
+): { byMember: TagChip | null; criteriaTags: TagChip[]; excludeTags: TagChip[] } {
+  let byMember: TagChip | null = null;
+  const criteriaTags: TagChip[] = [];
+  for (const t of tagRows) {
+    if (
+      byMember === null &&
+      t.tag_display.startsWith(UPLOADER_TAG_PREFIX) &&
+      memberNamesBySlug.has(t.tag_display.slice(UPLOADER_TAG_PREFIX.length))
+    ) {
+      byMember = shapeTagChip(t.tag_display, viewer, memberNamesBySlug);
+    } else {
+      criteriaTags.push(shapeTagChip(t.tag_display, viewer, memberNamesBySlug));
+    }
+  }
+  const excludeTags = excludeTagRows
+    .filter((t) => !t.tag_display.startsWith(UPLOADER_TAG_PREFIX))
+    .map((t) => shapeTagChip(t.tag_display, viewer, memberNamesBySlug));
+  return { byMember, criteriaTags, excludeTags };
 }
 
 export interface GalleryItem {
@@ -77,11 +133,19 @@ export interface GalleryOwner {
 
 // Hub at /media: list of named-gallery URL bookmarks (FH-owned first,
 // member-owned after). Each card carries the owner attribution.
+//
+// `byMember` is the lifted-out `#by_<slug>` criterion: when a gallery
+// filters items by a specific member, that chip is rendered as prose
+// attribution ("by David Leberknight") rather than listed alongside
+// hashtag chips. Null when no `#by_*` criterion applies, or when the
+// slug doesn't resolve to an active member (in which case the raw
+// `#by_<slug>` tag stays in criteriaTags as fallback).
 export interface MediaHubGallerySummary {
   id: string;
   name: string;
   description: string;
   itemCount: number;
+  byMember: TagChip | null;
   criteriaTags: TagChip[];
   excludeTags: TagChip[];
   href: string;
@@ -96,10 +160,14 @@ export interface MediaHubContent {
 // + criteria/exclude pill strip, description as a caption paragraph
 // below the hero, then a flat item grid in the gallery's sort_order.
 // Owner attribution renders in the hero block.
+//
+// `byMember` is the lifted-out `#by_<slug>` criterion. See
+// `MediaHubGallerySummary.byMember` for semantics.
 export interface NamedGalleryHero {
   id: string;
   name: string;
   description: string;
+  byMember: TagChip | null;
   criteriaTags: TagChip[];
   excludeTags: TagChip[];
   owner: GalleryOwner;
@@ -196,22 +264,34 @@ export const mediaService = {
     return runSqliteRead('mediaService.getMediaHubPage', () => {
       const galleries = media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[];
 
-      const summaries: MediaHubGallerySummary[] = galleries.map((g) => {
-        const tagRows = media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[];
-        const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[];
-        const tagIds = tagRows.map((t) => t.id);
-        const excludeTagIds = excludeTagRows.map((t) => t.id);
-        return {
-          id: g.id,
-          name: g.name,
-          description: g.description,
-          itemCount: countGalleryItemsByCriteria(tagIds, excludeTagIds),
-          criteriaTags: tagRows.map((t) => shapeTagChip(t.tag_display, viewer)),
-          excludeTags: excludeTagRows.map((t) => shapeTagChip(t.tag_display, viewer)),
-          href: `/media/${g.id}`,
-          owner: shapeOwner(g),
-        };
-      });
+      const allTagRowsByGallery = galleries.map((g) => ({
+        gallery: g,
+        tagRows: media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[],
+        excludeTagRows: media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[],
+      }));
+      const allTagDisplays = allTagRowsByGallery.flatMap((x) =>
+        [...x.tagRows, ...x.excludeTagRows].map((r) => r.tag_display),
+      );
+      const memberNamesBySlug = collectMemberNamesForByTags(allTagDisplays);
+
+      const summaries: MediaHubGallerySummary[] = allTagRowsByGallery.map(
+        ({ gallery: g, tagRows, excludeTagRows }) => {
+          const tagIds = tagRows.map((t) => t.id);
+          const excludeTagIds = excludeTagRows.map((t) => t.id);
+          const chips = shapeGalleryChips(tagRows, excludeTagRows, viewer, memberNamesBySlug);
+          return {
+            id: g.id,
+            name: g.name,
+            description: g.description,
+            itemCount: countGalleryItemsByCriteria(tagIds, excludeTagIds),
+            byMember: chips.byMember,
+            criteriaTags: chips.criteriaTags,
+            excludeTags: chips.excludeTags,
+            href: `/media/${g.id}`,
+            owner: shapeOwner(g),
+          };
+        },
+      );
 
       return {
         seo: { title: 'Media Galleries' },
@@ -240,11 +320,14 @@ export const mediaService = {
       }
 
       const tagRows = media.listFhNamedGalleryTags.all(galleryId) as FhNamedGalleryTagRow[];
-      const tagIds = tagRows.map((t) => t.id);
-      const criteriaTagChips = tagRows.map((t) => shapeTagChip(t.tag_display, viewer));
-
       const excludeTagRows = media.listFhNamedGalleryExcludeTags.all(galleryId) as FhNamedGalleryTagRow[];
+      const tagIds = tagRows.map((t) => t.id);
       const excludeTagIds = excludeTagRows.map((t) => t.id);
+
+      const memberNamesBySlug = collectMemberNamesForByTags(
+        [...tagRows, ...excludeTagRows].map((r) => r.tag_display),
+      );
+      const chips = shapeGalleryChips(tagRows, excludeTagRows, viewer, memberNamesBySlug);
 
       const rows = queryGalleryItemsByCriteriaGrouped(tagIds, gallery.sort_order, excludeTagIds);
 
@@ -278,8 +361,9 @@ export const mediaService = {
             id: gallery.id,
             name: gallery.name,
             description: gallery.description,
-            criteriaTags: criteriaTagChips,
-            excludeTags: excludeTagRows.map((t) => shapeTagChip(t.tag_display, viewer)),
+            byMember: chips.byMember,
+            criteriaTags: chips.criteriaTags,
+            excludeTags: chips.excludeTags,
             owner: shapeOwner(gallery),
           },
           items,
