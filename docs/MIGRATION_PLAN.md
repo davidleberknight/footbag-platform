@@ -507,7 +507,7 @@ Required order within the historical-data pipeline:
 
 ### 9.2 Expanding historical_persons for club members
 
-The historical_persons table currently contains ~4,861 persons drawn from event results. Approximately 1,600 additional people in the mirror appear only as club members (never competed in events). These must be extracted and added to historical_persons to support club affiliation linking at claim time.
+The historical_persons table contains ~4,861 persons drawn from event results. Approximately 1,600 additional people in the mirror appear only as club members (never competed in events). These must be extracted and added to historical_persons to support club affiliation linking at claim time.
 
 ### 9.3 Club onboarding flow during registration
 
@@ -768,7 +768,7 @@ Location: `legacy_data/event_results/seed/mvfp_full/`
 - `seed_members.py`: dev seed account creation
 - `generate_world_map_svg.py`: SVG map generation
 
-**Note:** Unchecked-in extraction code exists for the mirror member pipeline. Do not touch pipeline scripts this sprint.
+**Note:** Unchecked-in extraction code exists for the mirror member pipeline. Pipeline scripts are owned by the historical-pipeline track; coordinate before touching.
 
 ---
 
@@ -844,7 +844,7 @@ We do **not** need Steve to produce club data. That comes from the mirror pipeli
 
 ## 19. What we need from the historical-pipeline maintainer
 
-The historical-pipeline work (running as a parallel sprint; see IMPLEMENTATION_PLAN.md for sprint goals):
+The historical-pipeline work:
 
 1. **Club extraction into pipeline**: move mirror club extraction scripts into the historical pipeline; club identity normalization, affiliation inference, leadership inference. Classify clubs per the rules in section 9.1 (requires: `last_updated` and `created` from `clubs.csv`, most recent hosted event year from event HTML cross-reference, club contact member IDs matched to `historical_persons.last_year`, member counts, and description presence). Set `bootstrap_eligible` for pre-populated clubs with high-confidence leader candidates per section 2 bootstrap rule
 2. **Mirror member extraction** into `historical_persons`: ~1,600 club-only members from the mirror who never appeared in event results
@@ -1019,7 +1019,6 @@ Phase 4 activities:
 
 ### State 0: Current state
 
-- Historical pipeline complete (or in progress)
 - Legacy site live, accepting writes
 - New platform deployed on staging
 - Phase 1 code complete
@@ -1190,7 +1189,7 @@ Gate: JWT signing-key rotation procedure with 24h overlap is documented and dril
 Before Phase 4 cutover, the following staging-observability-only deviations must be reverted and rotations completed:
 
 1. JWT TTL revert: `DEFAULT_TTL_SECONDS` in `src/services/jwtService.ts` and `SESSION_COOKIE_MAX_AGE_MS` in `src/middleware/auth.ts` restored to the DD §3.4 24h baseline. Session JWT refresh (§28.7) must land before this revert to avoid silent mid-session logouts at the 24h boundary.
-2. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical address; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` IAM policy `Resource` ARN from the interim staging sender to the canonical `noreply@footbag.org` identity; restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
+2. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical address; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` IAM policy `Resource` ARN from the staging sender to the canonical `noreply@footbag.org` identity; restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
 3. STUB_PASSWORD rotation: staging preview-user credential rotated in local `.env`, redeployed, and the vault entry updated before any external tester receives the credential.
 4. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove the Path H §8.10 browser-SSH override (loosened beyond `operator_cidrs`) and return to the `operator_cidrs`-constrained ingress.
 5. SES sandbox-mode flip: `SES_SANDBOX_MODE` in `/srv/footbag/env` cleared (removed or set to `0`) once SES production access has been granted for the account. Clears the staging-warning card rendered on email-gated pages (DD §5.6).

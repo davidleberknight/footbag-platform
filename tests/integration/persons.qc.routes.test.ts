@@ -36,7 +36,7 @@ function internalGet(app: ReturnType<typeof createApp>, path: string) {
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertMember(db, { id: VIEWER_ID, slug: 'viewer-persons-qc', display_name: 'Viewer' });
+  insertMember(db, { id: VIEWER_ID, slug: 'viewer-persons-qc', display_name: 'Viewer', is_admin: 1 });
 
   // Clean persons — should NOT be flagged
   insertHistoricalPerson(db, { person_name: 'Alice Johnson', country: 'US' });

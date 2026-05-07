@@ -72,9 +72,9 @@ The standard is cross-site and generic. Every public page must conform to it.
 This document covers:
 
 - the public visual and structural standard for server-rendered visitor pages
-- the current public route catalog
+- the public route catalog
 - the required page contract for public rendering
-- the current public and current-slice account pages in the current deployed baseline:
+- the public and account pages:
   - Home
   - Events index
   - Events year archive
@@ -91,7 +91,7 @@ This document covers:
   - Login
   - Register
   - HoF landing
-- the implemented claim pages:
+- the legacy-account claim pages:
   - Legacy-account claim initiation (`GET /history/claim`, `POST /history/claim`)
   - Legacy-account claim confirmation (`POST /history/claim/confirm`)
   - Historical-person direct claim (`GET /history/:personId/claim`, `POST /history/:personId/claim/confirm`) for registrants without an old-site user account (scenarios D and E per MIGRATION_PLAN §7)
@@ -536,14 +536,14 @@ Visual token baseline (from `src/public/css/style.css`):
 - `GET /events` is the canonical events section entry route.
 - `GET /events/:eventKey` is the canonical public event detail route.
 - `GET /members` is the auth-gated member dashboard with search and coming-soon feature cards. Unauthenticated visitors see a public welcome page with sign-up/login links.
-- `GET /members/:memberKey` is the canonical current-slice member profile route. It serves the owner's profile when authenticated as that member, and it may serve a limited public read-only profile for HoF/BAP members.
-- `GET /members/:memberKey/edit` is the current-slice member profile edit page.
+- `GET /members/:memberKey` is the canonical member profile route. It serves the owner's profile when authenticated as that member, and it may serve a limited public read-only profile for HoF/BAP members.
+- `GET /members/:memberKey/edit` is the member profile edit page.
 - `POST /members/:memberKey/avatar` is the multipart avatar upload endpoint; there is no GET route (upload is inline on the edit page).
 - `GET /members/:memberKey/galleries` is the owner-only list of the member's named galleries (create / edit / delete actions). Slug mismatch returns 404 (anti-enumeration), matching the rest of the `/members/:memberKey/` block. `GET /members/:memberKey/galleries/new` and `GET /members/:memberKey/galleries/:id/edit` render the create and edit forms; `POST /members/:memberKey/galleries`, `POST /members/:memberKey/galleries/:id/edit`, and `POST /members/:memberKey/galleries/:id/delete` are form-action handlers and are not cataloged separately. Service-layer authz (admin OR owner) is the source of truth for write authorization; the route layer's slug check exists for anti-enumeration parity.
-- `GET /members/:memberKey/:section` is the current-slice account stub-page route for explicitly supported account sections.
+- `GET /members/:memberKey/:section` is the account stub-page route for explicitly supported account sections.
 - `GET /history` permanently redirects to `/members`.
 - `GET /history/:personId` is the historical person detail route.
-- `GET /history/claim` is the legacy account claim initiation route. Current implementation is the early-test shortcut (direct lookup + confirm + merge); the production token-based flow is deferred to Phase 4.
+- `GET /history/claim` is the legacy account claim initiation route. Two-step token flow: lookup form, emailed token, confirm-and-merge handler.
 - `POST /history/claim` is the claim lookup form-action handler.
 - `POST /history/claim/confirm` is the claim merge confirmation handler.
 - `GET /clubs` is the canonical clubs section entry route.
@@ -707,7 +707,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 ### Purpose
 
-Provide the canonical current-slice member profile page.
+Provide the canonical member profile page.
 
 ### Route
 
@@ -742,7 +742,7 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 
 ### Purpose
 
-Allow a member to edit the currently implemented profile fields for their own account. Includes a read-only identity section (name, email, profile URL) and inline avatar upload.
+Allow a member to edit their own profile fields. Includes a read-only identity section (name, email, profile URL) and inline avatar upload.
 
 ### Key rules
 
@@ -750,7 +750,6 @@ Allow a member to edit the currently implemented profile fields for their own ac
 - own-profile only
 - read-only identity block shows name, login email, and profile URL (not editable on this page)
 - avatar upload is inline via a separate multipart form that POSTs to `/members/:memberKey/avatar`
-- current editable fields must match current code, not the full long-term user story
 
 ---
 
@@ -762,9 +761,9 @@ Allow a member to edit the currently implemented profile fields for their own ac
 
 ### Purpose
 
-Provide explicit placeholder pages for currently implemented but not-yet-built account subsections.
+Provide placeholder pages for account subsections.
 
-### Supported current sections
+### Supported sections
 
 - media
 - settings
@@ -1823,7 +1822,7 @@ Render the standard empty state ("No media yet.") when the criteria-tag set matc
 - Source rows are filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`. All gallery membership is computed by tag-AND match against the gallery's criteria-tag set; both curator URL-reference content and member uploads surface in named galleries through the same mechanism.
 - Unknown `galleryId` values return 404. Member-owned galleries are public; the hub lists them with owner attribution alongside FH-owned bookmarks.
 - Query parameter `?page=N` selects the page (invalid values clamp to 1).
-- Caption text is HTML-escaped at render time; item tag chips do not link to per-tag pages in this slice.
+- Caption text is HTML-escaped at render time; item tag chips link to per-tag pages.
 
 ---
 

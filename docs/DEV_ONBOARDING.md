@@ -38,7 +38,7 @@ This guide helps contributors do different things: understand how the initial pu
   - [2.4 Route contract and UI contract](#24-route-contract-and-ui-contract)
   - [2.5 Architecture mental model](#25-architecture-mental-model)
   - [2.6 Repo map](#26-repo-map)
-- [3. Path C — Historical bootstrap: how this slice was originally assembled](#3-path-c--historical-bootstrap-how-this-slice-was-originally-assembled)
+- [3. Path C — Historical bootstrap](#3-path-c--historical-bootstrap)
   - [3.1 Why this section exists](#31-why-this-section-exists)
   - [3.2 Original blank-slate assumptions](#32-original-blank-slate-assumptions)
   - [3.3 Original implementation order](#33-original-implementation-order)
@@ -52,7 +52,6 @@ This guide helps contributors do different things: understand how the initial pu
   - [4.7 Host bootstrap](#47-host-bootstrap)
   - [4.8 Deploy and start application](#48-deploy-and-start-application)
   - [4.9 Verification](#49-verification)
-  - [4.10 Known temporary assumptions](#410-known-temporary-assumptions)
 - [5. Path E — From first success to the repeatable staging baseline](#5-path-e--from-first-success-to-the-repeatable-staging-baseline)
   - [5.1 Why this section exists](#51-why-this-section-exists)
   - [5.2 What is complete now](#52-what-is-complete-now)
@@ -772,7 +771,7 @@ Important file-level responsibilities:
 | ops/systemd/footbag.service         | production Compose wrapper                               |
 | terraform/                          | environment infrastructure definitions                   |
 
-## 3. Path C — Historical bootstrap: how this slice was originally assembled
+## 3. Path C — Historical bootstrap
 
 ### 3.1 Why this section exists
 
@@ -780,7 +779,7 @@ This section is historical and architectural context.
 
 It explains:
 
-- how the initial functionality slice was originally built
+- how the initial functionality was originally built
 - what order the parts were intended to come together 
 - why particular files exist
 - how to reason about repo archaeology
@@ -871,7 +870,7 @@ The original build order was deliberate. In cleaned-up form, it was:
 
 - integration tests
 - local smoke script
-- a smoke-public script has not yet been created for this slice
+- smoke-public script — out of scope for the initial slice
 
 #### Docker parity artifacts
 
@@ -989,8 +988,6 @@ If profile setup is not working yet (footbag-operator not found), complete secti
 ### 4.3 Read this before first apply
 
 This is a first-deploy path, not a mature production platform.
-
-Some defaults are intentionally temporary.
 
 Do not blindly run terraform apply until the pre-apply corrections below are complete.
 
@@ -1207,7 +1204,7 @@ Parameter Store is optional in this minimum deployment, but if you use it as AWS
 /footbag/production/app/...
 /footbag/production/secrets/...
 
-Examples currently provisioned by `terraform/staging/ssm.tf`:
+Examples provisioned by `terraform/staging/ssm.tf`:
 
 /footbag/staging/app/port
 /footbag/staging/app/log_level
@@ -1713,20 +1710,6 @@ If CloudFront returns 403 or 502:
 - the origin domain may not be resolving correctly
 - wait a few minutes and retry
 - if the problem persists, inspect the CloudFront origin settings and confirm the configured DNS name resolves to the Lightsail IP
-
-### 4.10 Known temporary assumptions
-
-After first success, these simplifications are still in place:
-
-- no final custom domain or ACM certificate yet
-- the default CloudFront `*.cloudfront.net` URL is still in use
-- `/srv/footbag/env` is still mostly operator-managed; the deploy remote-half automatically reconciles `X_ORIGIN_VERIFY_SECRET` (from SSM) and `FOOTBAG_ENV` (from the deploy target alias) on every run
-- runtime AWS credentials have been added for the app-runtime IAM identity (see Path H)
-- some monitoring is intentionally deferred
-- automated DB backup/restore is not yet closed
-- images are built on the operator workstation and shipped to the host via `docker save | docker load` rather than pulled from a registry
-- maintenance-page behavior is not truly production-grade yet
-- CloudFront maintenance-page support (S3 + OAC + ordered_cache_behavior for /maintenance.html) is provisioned in Path G §7.2
 
 ## 5. Path E — From first success to the repeatable staging baseline
 
@@ -2734,7 +2717,7 @@ Rehearse this before any migration-related work. Completing the drill is a gate 
 
 Remaining work:
 
-- keep `/srv/footbag/env` as the current runtime source of truth for now
+- keep `/srv/footbag/env` as the runtime source of truth
 - decide when manual host edits become too fragile; access-key rotation every 90 days is the first recurring forcing function now that the app has runtime AWS credentials
 - if needed later, add a helper that materializes `/srv/footbag/env` from Parameter Store
 - keep local `.env`, host `/srv/footbag/env`, and optional AWS-side reference storage clearly distinct
@@ -3102,7 +3085,7 @@ Current trust policy trusts only `ec2.amazonaws.com` (a Terraform stub from when
 }
 ```
 
-3. Save. The old `ec2.amazonaws.com` statement is dropped; Lightsail cannot assume EC2-trust roles. Terraform reconciliation will remove or replace that statement in the HCL post-sprint.
+3. Save. The old `ec2.amazonaws.com` statement is dropped; Lightsail cannot assume EC2-trust roles. Terraform reconciliation will remove or replace that statement in the HCL.
 
 Do not delete and recreate the source-profile user to rotate credentials. AWS resolves the principal ARN to the user's internal unique ID at save time, so a recreated user with the same name produces a trust that looks correct in JSON but silently refuses `AssumeRole` until the trust policy is re-edited. Rotate by issuing a second access key under the same user (see `docs/DEVOPS_GUIDE.md` §5.7).
 
@@ -3776,7 +3759,7 @@ Why this matters:
 - it keeps deterministic seeded scenarios from drifting silently
 - it can be reused locally, in Docker parity mode, against the origin, and through CloudFront by changing `BASE_URL`
 
-A `smoke-public.sh` script has not yet been created for this slice.
+A `smoke-public.sh` script has not yet been created.
 
 ### 10.4 Authoritative project facts preserved by this guide
 

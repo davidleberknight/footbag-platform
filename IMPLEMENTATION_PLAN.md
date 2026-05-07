@@ -8,3 +8,18 @@ This file tracks the current build: active sprint, accepted temporary dev shortc
 
 1. **Tier 1 gating not enforced on member upload + gallery writes.** `POST /members/:memberKey/galleries{,/...}` and `POST /members/:memberKey/media/upload` admit any authenticated member; USER_STORIES M_Upload_Photo / M_Submit_Video / M_Organize_Media_Galleries reserve these for Tier 1. Unblock: platform-wide tier enforcement + tier gate on these routes.
 
+### Adapter parity deviations
+
+1. **SecretsAdapter not yet implemented.** DD §3.6 specifies `SecretsAdapter` (SSM GetParameter in production, local JSON file in development) for Stripe keys, Stripe webhook secrets, admin bootstrap tokens, and other exportable credentials. No such consumer exists in the current code: `SESSION_SECRET` lives in the host env file per DD (not in scope for `SecretsAdapter`); JWT signing and ballot encryption are KMS-backed via their own adapters. Unblock: first time a Parameter-Store-bound secret is needed (likely Stripe integration or the admin bootstrap path).
+
+### System health deviations
+
+1. **Readiness probe is SQLite-only.** SERVICE_CATALOG.md `SystemBackgroundJobsService.checkReadiness()` composes the readiness signal for `/health/ready`. Current implementation probes SQLite only; KMS, SES, and S3 backup health are not included. Unblock: when a downstream system's failure mode requires inclusion in readiness.
+
+### Public read surface deviations
+
+1. **Named-gallery item tag chips do not link.** VIEW_CATALOG.md §6.21 specifies item tag chips on the named-gallery detail page link to per-tag pages. Current implementation renders chips as plain text. Unblock: per-tag public page route and handler.
+
+### Legacy claim deviations
+
+1. **`/history/claim` runs the direct-lookup shortcut.** VIEW_CATALOG.md route-rules block specifies a two-step token flow (lookup form, emailed token, confirm-and-merge handler). Current implementation is the early-test shortcut: direct lookup + confirm + merge in-session, no emailed token. Unblock: production-readiness work; cutover prerequisite per MP Phase 4.

@@ -578,7 +578,7 @@ Procedure (modeled on §5.5):
 4. Validate `aws sts get-caller-identity --profile footbag-staging-runtime` still returns the assumed-role ARN, then validate the new keys exercise both KMS Sign (login → JWT issue) and SES Send (password-forgot → outbox row transitions to `sent`) paths.
 5. Deactivate the old key; observe for a grace window; delete once stable.
 
-The corresponding rotation cadence for production keys will be added when production activation lands.
+Production rotation procedure parallels this; documented in Path I once production keys are provisioned.
 
 ### 5.8 SESSION_SECRET rotation runbook
 

@@ -2,19 +2,18 @@ import { Router } from 'express';
 import { netQcController } from '../internal-qc/controllers/netQcController';
 import { personsQcController } from '../internal-qc/controllers/personsQcController';
 import { requireAuth } from '../middleware/auth';
+import { requireAdmin } from '../middleware/requireAdmin';
 
 /**
- * Internal / operator routes.
- * Not linked from public nav. Gated to any logged-in member
- * (redirects to /login when unauthenticated).
- * Current auth gate is any-member; target gate is admin/operator role.
- * Must change before production cutover: these routes include
- * state-changing QC decision POSTs that affect public Net data.
+ * Internal / operator routes. Not linked from public nav.
+ * Gated by requireAuth + requireAdmin: unauthenticated requests redirect
+ * to /login, non-admin authenticated requests get 403. State-changing POSTs
+ * affect public Net data and must remain admin-only.
  * Mount point: /internal
  */
 export const internalRouter = Router();
 
-internalRouter.use(requireAuth);
+internalRouter.use(requireAuth, requireAdmin);
 
 // Persons QC + browse
 internalRouter.get('/persons/qc', personsQcController.qcPage);

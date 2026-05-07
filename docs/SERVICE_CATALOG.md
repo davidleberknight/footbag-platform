@@ -291,7 +291,7 @@ Routing note: This project is page-oriented, not REST-API-oriented. Public route
 
 ### 3.1 `IdentityAccessService`
 
-**Purpose/Boundary:** Owns current-slice account entry/auth flows: registration, credential verification, password change/reset, email verification, legacy account claim. Does NOT own member profile CRUD, historical-person reads, tier calculation, data exports, or session-cookie issuance (session-cookie issuance and clearing are controller-level HTTP glue per DD §1.9; the service returns a signed JWT string and the controller sets/clears the cookie).
+**Purpose/Boundary:** Owns account entry/auth flows: registration, credential verification, password change/reset, email verification, legacy account claim. Does NOT own member profile CRUD, historical-person reads, tier calculation, data exports, or session-cookie issuance (session-cookie issuance and clearing are controller-level HTTP glue per DD §1.9; the service returns a signed JWT string and the controller sets/clears the cookie).
 
 Future detail (retain explicitly): auth hardening to the long-term JWT/session design remains governed by `docs/DESIGN_DECISIONS.md` and `IMPLEMENTATION_PLAN.md`.
 
@@ -861,12 +861,12 @@ For the current public routes, `EventService` is responsible for:
 
 ### 6.2 `HallOfFameService`
 
-**Purpose/Boundary:** Owns the current-slice HoF landing page read for `GET /hof` — service-shaped, no DB queries required. Does NOT own HoF tier promotion or `is_hof` flag writes (MembershipTieringService), or nomination/affidavit/election lifecycle (VotingElectionService). Future in-site HoF inductee display pages, roster reads, and historical-record surfaces are deferred out of scope.
+**Purpose/Boundary:** Owns the HoF landing page read for `GET /hof` — service-shaped, no DB queries required. Does NOT own HoF tier promotion or `is_hof` flag writes (MembershipTieringService), or nomination/affidavit/election lifecycle (VotingElectionService). Future in-site HoF inductee display pages, roster reads, and historical-record surfaces are deferred out of scope.
 
 **Consumers:** Public HoF controller
 
 **Key Methods:**
-- `getHofLandingPage() -> { seo, page, content }` — shapes the current-slice editorial landing page model; no DB reads
+- `getHofLandingPage() -> { seo, page, content }` — shapes the editorial landing page model; no DB reads
 
 **Authz:** public (no login required)
 
@@ -882,12 +882,12 @@ For the current public routes, `EventService` is responsible for:
 
 ### 6.3 `BigAddPosseService`
 
-**Purpose/Boundary:** Owns the current-slice BAP landing page read for `GET /bap` — service-shaped, no DB queries required. Does NOT own BAP tier promotion or `is_bap` flag writes (MembershipTieringService). Future in-site BAP roster pages, induction-year pages, and historical-record surfaces are deferred out of scope.
+**Purpose/Boundary:** Owns the BAP landing page read for `GET /bap` — service-shaped, no DB queries required. Does NOT own BAP tier promotion or `is_bap` flag writes (MembershipTieringService). Future in-site BAP roster pages, induction-year pages, and historical-record surfaces are deferred out of scope.
 
 **Consumers:** Public BAP controller
 
 **Key Methods:**
-- `getBapLandingPage() -> { seo, page, content }` — shapes the current-slice editorial landing page model; no DB reads
+- `getBapLandingPage() -> { seo, page, content }` — shapes the editorial landing page model; no DB reads
 
 **Authz:** public (no login required)
 
@@ -1269,7 +1269,7 @@ Dev-mode shaping only. Does NOT enqueue, send, or mutate `outbox_emails`. The `d
 - `raiseAlarm(type, details) -> {ok}` — writes `system_alarm_events`; acknowledged via `AdminGovernanceService.acknowledgeAlarm()`
 - `getJobHistory(adminId, jobName, filters) -> {runs}` — admin; reads `system_job_runs`
 - `runContinuousBackup() -> {ok}` — SYS_Continuous_Database_Backup; every `continuous_backup_interval_minutes` minutes (default: 5); WAL checkpoint; SQLite backup API; upload to primary S3 with retry (3 attempts, exponential backoff); record operational success/failure metadata; raise alarms after repeated failure. Backup health is an operational concern, not a current readiness gate.
-- `checkReadiness() -> {isReady, checks}` — read-only; composes the readiness signal for `/health/ready`; currently the minimal SQLite readiness probe only
+- `checkReadiness() -> {isReady, checks}` — read-only; composes the readiness signal for `/health/ready`; SQLite readiness probe
 
 **Authz:** All job methods: system role only. `getJobHistory`: admin.
 

@@ -135,7 +135,7 @@ function setupDb(db: BetterSqlite3.Database): void {
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  insertMember(db, { id: VIEWER_ID, slug: 'viewer-net-curated', display_name: 'Viewer' });
+  insertMember(db, { id: VIEWER_ID, slug: 'viewer-net-curated', display_name: 'Viewer', is_admin: 1 });
   setupDb(db);
   db.close();
   createApp = await importApp();

@@ -469,7 +469,7 @@ Any new page, section, or service boundary that materially changes the public ar
 Rationale:
 - The project now has enough architectural structure that page contracts and service contracts need explicit governing documents.
 - This reduces drift between docs and code.
-- This keeps long-term catalogs future-facing while still allowing current-slice shortcuts to live in the implementation plan.
+- This keeps long-term catalogs future-facing while still allowing transitional shortcuts to live in the implementation plan.
 - This gives contributors and AI tools a clear source-of-truth order for page behavior and service responsibility.
 
 Trade-offs:
@@ -956,7 +956,7 @@ Impact:
 
 - Members credential CHECK gains a third branch.
 
-- `legacy_data/scripts/seed_members.py` is rewritten so the seeded mascot account (currently Footbag Hacky) carries `is_system=1` with NULL credentials.
+- The seeded mascot account (Footbag Hacky) carries `is_system=1` with NULL credentials.
 
 - Account-erasure service includes a single guard skipping `is_system=1`.
 
@@ -1850,7 +1850,7 @@ Impact:
 
 Decision:
 
-Client-side TypeScript handles user interactions: validation before form submission, dynamic form behavior, client-side previews, and autocomplete (phase 2 optional). Pages are server-rendered; TypeScript attaches event handlers and manages client behavior on top of server-rendered HTML. Forms submit via traditional browser POST with full-page reloads.
+Client-side TypeScript handles user interactions: validation before form submission, dynamic form behavior, client-side previews, and autocomplete. Pages are server-rendered; TypeScript attaches event handlers and manages client behavior on top of server-rendered HTML. Forms submit via traditional browser POST with full-page reloads.
 
 Rationale:
 
@@ -2073,7 +2073,6 @@ Impact:
 
 - `admin@footbag.org` is named in the `/legal` page Privacy, Terms, and Copyright sections as the legal/administrative contact.
 - `announce@footbag.org` is documented in `docs/USER_STORIES.md` (`M_Send_Announce_Email`, Tier 2 benefits) and `docs/SERVICE_CATALOG.md` (`CommunicationService.sendAnnounceEmail`).
-- `noreply@footbag.org` and `ops-alert@footbag.org` are referenced as TODO values in `terraform/staging/ssm.tf`, `terraform/production/ssm.tf`, and `terraform/production/terraform.tfvars.example`; activation of these addresses is part of the Phase 4 email activation work.
 - Cloudflare Email Routing is configured with one forwarding rule per receive address (`admin@`, `announce@` inbound, `brat@`, `directors@`, `ops-alert@`, `sanctioning@`) pointing to an operator-designated destination inbox. `brat@`, `directors@`, and `sanctioning@` are in-use contacts carried over from the legacy site and must be routed at cutover so no mail is lost.
 - Any additional address (e.g., `privacy@`, `legal@`, `support@`, `info@`) must be justified against this list and added here before it is introduced. The default is to route new purposes to `admin@footbag.org` unless volume or scope warrants a split.
 - Handover to IFPA: ownership of these addresses transfers as part of the operational handover; the addresses themselves and their purposes do not change.
@@ -2112,7 +2111,6 @@ Trade-offs:
 
 Impact:
 
-- Currently wired on `/register/check-email`. Any future email-gated landing page (password-reset-sent, change-email-confirmation, announce-send-receipt, event-registration-confirmation) reuses the same service and partial.
 - The previously separate `/internal/dev-outbox` page and its route, controller, service, template, and tests are retired.
 - CommunicationService and the outbox worker are unchanged; the preview is a read-only view of `StubSesAdapter` memory in dev and a static warning in staging.
 
@@ -3245,7 +3243,7 @@ Trade-offs:
 - Learning curve: Contributors must understand basic Terraform syntax and workflow.
 - State file management requires multi-operator coordination on the shared S3 backend. Native locking serializes concurrent applies; operators still coordinate before invasive changes.
 - Requires discipline: Manual console changes create drift requiring reconciliation. Manual AWS console changes are prohibited except for emergency troubleshooting. Any permanent changes must be made via Terraform.
-- AWS provider major version is pinned (currently `~> 5.0`). Provider major upgrades require explicit review of the migration guide and a coordinated apply across all workspaces, not a casual `terraform init -upgrade`.
+- AWS provider major version is pinned. Provider major upgrades require explicit review of the migration guide and a coordinated apply across all workspaces, not a casual `terraform init -upgrade`.
 - Two control surfaces: AWS-side resources land via `terraform apply`, host-side state via on-host script execution. Operators run scripts on each host after the corresponding apply for a full bootstrap. Script-side failures are not visible in `terraform apply` output.
 
 Impact:
