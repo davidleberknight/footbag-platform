@@ -227,6 +227,56 @@ Unique Fearless,,,Vasek Klouda,6/1/2005,19,5,5,Unique 5-ADD,DVD: Feet on Fire (r
 
 No `trick_slug` column. No sidecar emission. Surfacing decision deferred — the file is preservation, not auto-import.
 
+## 11. Tier convention
+
+The `tier` field on each sidecar drives primary-clip selection (per the promotion rules in §3) and visual hierarchy on trick / family pages. Tier is set at sidecar emit time and persists into the seeded `media_items` row. There is no DB-schema-level constraint on tier values; the convention lives here.
+
+### Tier semantics
+
+| Tier | Meaning | When to use |
+|---|---|---|
+| `CANONICAL_TUTORIAL` | Authoritative single-trick instructional video by a recognized creator/series | TT lessons (Kenny Shults), AnzTrikz tutorials (Anssi Sundberg), FootbagSpot Levels 1–5, similar; the "this is THE tutorial for this trick" tier |
+| `STRONG_TUTORIAL` | Clear single-trick demo / instructional from a registered tutorial-tier source, less editorial polish than CANONICAL_TUTORIAL | Shred Global single-trick demos by named players (Will Digges, Zac Miley, etc.); Polini Pointers; similar |
+| `HIGH_QUALITY_DEMO` | Named-trick demonstration footage that's not formally instructional | Footbag Finland trick demos; Flipsider clips; multi-take community demos that show the trick clearly without explicit teaching framing |
+| `RECORD` | Record-attempt clip with countable kicks (PassBack-style) | Default for `source_id='passback_records'` sidecars |
+| `WEAK_RECORD` | Record clip with low confidence or unverifiable count | Reserved; rare |
+
+### Source-default mapping (curator-asserted at emit time)
+
+The tier registry is **not codified in code or schema**. Each sidecar's tier is decided when the sidecar is created. The defaults below are conventions, not enforcement:
+
+| `source_id` | Default tier | Notes |
+|---|---|---|
+| `tt_youtube` | CANONICAL_TUTORIAL | Kenny Shults TT series |
+| `anz_trikz` | CANONICAL_TUTORIAL | Anssi Sundberg AnzTrikz tutorials |
+| `footbagspot_passback` | CANONICAL_TUTORIAL | PassBack Levels 1–5 curriculum |
+| `footbagspot_tutorials` | CANONICAL_TUTORIAL | FootbagSpot tutorial library proper |
+| `shred_global` | STRONG_TUTORIAL | Single-trick demos by named players (Boychuk, Digges, Miley, Monistere, Ścierski, etc.) |
+| `polini_pointers` | STRONG_TUTORIAL | Nick Polini's instructional content |
+| `everything_footbag` | STRONG_TUTORIAL | Hardik's educational content |
+| `footbag_foundations` | STRONG_TUTORIAL | Erik Chan's content |
+| `footbag_finland` | HIGH_QUALITY_DEMO | Named-trick demos; demonstration-style, not instructional |
+| `flipsider_footbag` | HIGH_QUALITY_DEMO | Mixed; default to demo |
+| `passback_records` | RECORD | Always; never promote to tutorial-tier |
+
+### Promotion / primary-clip selection (already in §3, re-stated for tier context)
+
+- **Primary candidates:** CANONICAL_TUTORIAL > STRONG_TUTORIAL > HIGH_QUALITY_DEMO. RECORD never serves as primary when a tutorial alternative exists.
+- **Family-page hero vs trick-page hero:** family pages may prefer multi-trick CANONICAL_TUTORIAL (e.g., AnzTrikz "Whirl and Reverse Whirl") over single-trick CANONICAL_TUTORIAL when the multi-trick coverage tells a better family story; trick-page hero prefers the focused single-trick clip. Both selections are curator decisions made at family / trick page render time.
+- **Multi-trick tutorial promotion:** see §3 — only when each target trick is explicitly named in the title.
+
+### Curator override
+
+The default tier is a starting point, not a mandate. Curator may set a different tier on a per-sidecar basis when the content quality justifies it. Document the override reason in the sidecar's `notes` field if the deviation isn't self-evident.
+
+### Audit observation (2026-05-07)
+
+The media linkage integrity audit found 14 sidecars whose tier didn't match the audit's source-default expectation. Most cases were `footbag_finland` and `shred_global` sidecars labeled `HIGH_QUALITY_DEMO` instead of the expected default. **The defaults above codify what the audit's source-tier expectations should have been.** Existing sidecars do NOT need bulk updating; the convention applies forward to new sidecar emissions and to any curator-paced consistency pass.
+
+### Tier is presentation, not data integrity
+
+A "wrong" tier is a curator-judgment finding, not a data-integrity violation. Tier does not gate validation or media seeding; it only influences primary-clip selection and visual hierarchy. The MLI audit's tier mismatches were classified as `inconsistent` (curator review needed), never `broken`.
+
 ## Cross-references
 
 - `footbag-freestyle-dictionary` skill — trick / alias / glossary layer separation rules; the canonical source for what counts as a trick.
