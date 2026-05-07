@@ -9,6 +9,7 @@
     "#trick"
   ],
   "excludeTags": [
-    "#tricks_of_the_trade"
+    "#tricks_of_the_trade",
+    "#passback_records"
   ]
 }
