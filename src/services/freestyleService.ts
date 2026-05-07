@@ -835,7 +835,13 @@ export const freestyleService = {
         referenceMedia:   runSqliteRead('media.listMediaByTrickTag', () =>
           (media as unknown as { listMediaByTrickTag: { all: (tag: string) => unknown[] } })
             .listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
-        ).map(shapeReferenceMedia),
+        )
+          // PassBack record clips render in the records table below — exclude
+          // here to avoid duplication. Note: passback_records (record clips)
+          // is distinct from footbagspot_passback (PassBack tutorial
+          // curriculum), which still renders.
+          .filter(r => r.source_id !== 'passback_records')
+          .map(shapeReferenceMedia),
       },
     };
   },

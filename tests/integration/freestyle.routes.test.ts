@@ -27,6 +27,8 @@ import {
   insertHistoricalPerson,
   insertFreestyleRecord,
   insertMember,
+  insertFreestyleTrick,
+  insertTtLesson,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3080');
@@ -111,6 +113,36 @@ beforeAll(async () => {
     trick_name:    'Hidden Trick',
     value_numeric: 99,
     confidence:    'provisional',  // must NOT appear on player page
+  });
+
+  // ── Reference Media filter fixtures (trick page) ───────────────────────
+  // Two media items tagged #ref-media-audit: one tutorial-tier
+  // (source_id=tt_youtube), one record-tier (source_id=passback_records).
+  // The service-layer filter must hide the record clip from Reference
+  // Media; the tutorial must still render.
+  const refMediaUploader = insertMember(db, { slug: 'ref-media-audit-uploader' });
+  insertFreestyleTrick(db, {
+    slug: 'ref-media-audit',
+    canonical_name: 'Ref Media Audit',
+    adds: '3',
+  });
+  insertTtLesson(db, {
+    uploader_member_id: refMediaUploader,
+    ttNumber: 901,
+    trickSlug: 'ref-media-audit',
+    videoId: 'audittutvid1',
+    lessonTitle: 'Ref Media Audit Tutorial',
+    source_id: 'tt_youtube',
+    caption: 'REF_MEDIA_TUTORIAL_MARKER',
+  });
+  insertTtLesson(db, {
+    uploader_member_id: refMediaUploader,
+    ttNumber: 902,
+    trickSlug: 'ref-media-audit',
+    videoId: 'auditrecvid1',
+    lessonTitle: 'Ref Media Audit Record',
+    source_id: 'passback_records',
+    caption: 'REF_MEDIA_RECORD_MARKER',
   });
 
   db.close();
@@ -450,5 +482,26 @@ describe('GET /history/:personId — freestyle records section', () => {
     const app = createApp();
     const res = await request(app).get(`/history/${FREESTYLE_PLAYER_ID}`);
     expect(res.text).toContain('/freestyle/records');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reference Media filter — passback_records source must NOT render in the
+// trick page's Reference Media section. Records still render via the records
+// table (separate surface). Filter lives in freestyleService.getFreestyleTrickPage.
+
+describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
+  it('renders tutorial-tier media (source_id=tt_youtube)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('REF_MEDIA_TUTORIAL_MARKER');
+  });
+
+  it('does NOT render record-tier media (source_id=passback_records) in Reference Media', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('REF_MEDIA_RECORD_MARKER');
   });
 });
