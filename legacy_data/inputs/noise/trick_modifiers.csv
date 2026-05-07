@@ -23,3 +23,5 @@ xdex,1,1,body,"+1 per instance. Per Red pt1 (2026-04-20), X-Dex pushes Atom Smas
 furious,1,2,set,"Set primitive parallel to atomic. +1 non-rotational / +2 rotational. Per Red pt6 2026-05-04 via fury = furious+paradox+mirage = 2+1+2 = 5."
 pogo,0,0,set,"Set primitive that does NOT contribute ADD when modifying a base. Per Red pt6 2026-05-04: 'Pogo is a set; does not add ADD'. Unique 0-ADD modifier."
 shooting,3,3,set,"Set primitive that doubles as a modifier. +3 universally per Red pt7 2026-05-04 (Shooting Butterfly = 3+3 = 6 ADD). Outlier magnitude (most modifiers are +1 or +2); rotational value inferred from non-rotational, pending pt8 confirmation."
+rooted,0,0,set,"Per Red pt8 2026-05-06: 'unique set with one initial dexterity attached'. No ADD value (non-scoring like pogo)."
+terraging,3,3,body,"Per Red pt8 2026-05-06: 3 ADDs. Red corrects pt6 phrasing — NOT 'parallel barraging'."
