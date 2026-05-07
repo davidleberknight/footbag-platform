@@ -33,6 +33,33 @@
     </div>
     {{/if}}
 
+    {{#if content.club.leaders.length}}
+    <div class="club-leaders">
+      <h2 class="club-leaders-heading">Leaders</h2>
+      <ul class="club-leaders-list">
+        {{#each content.club.leaders}}
+        <li class="club-leader club-leader-{{status}}">
+          {{#if personId}}
+            <a class="club-leader-name" href="/history/{{personId}}">{{displayName}}</a>
+          {{else}}
+            <span class="club-leader-name">{{displayName}}</span>
+          {{/if}}
+          <span class="club-leader-role">&nbsp;&mdash;&nbsp;{{#if (eq role "leader")}}Leader{{else}}Co-leader{{/if}}</span>
+          {{#if badgeLabel}}
+            <span class="club-leader-badge">{{badgeLabel}}</span>
+          {{/if}}
+          {{#if badgeNote}}
+            <p class="club-leader-note">{{badgeNote}}</p>
+          {{/if}}
+          {{#if showContact}}
+            <a class="club-leader-email" href="mailto:{{contactEmail}}">{{contactEmail}}</a>
+          {{/if}}
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
     {{#if isAuthenticated}}
     {{#if content.club.members.length}}
     <div class="club-members">

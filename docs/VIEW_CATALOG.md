@@ -1267,8 +1267,18 @@ This page consumes the generic public rendering standard and the §4.2 page cont
 - hero with club name
 - meta: city, region (when present), country, hashtag, external URL when present
 - optional description when non-empty
+- Leaders section, when at least one renderable leader row exists. Public to all visitors (visitor + member); rendering rules below.
 - when unauthenticated: no club member names are exposed; render a login prompt or equivalent bounded call-to-action in place of the visible roster
 - when authenticated: only the currently allowed club-member visibility may be shown; unresolved affiliations and non-approved roster visibility must not leak through template logic
+
+### Leaders rendering rules
+
+- Visible to authenticated AND unauthenticated visitors. Leader names are public; contact details are gated.
+- Each entry renders: display name, role label (`Leader` or `Co-leader`), optional badge label, optional badge note, optional contact email
+- Display name links to `/history/{personId}` when `personId` is present; plain text otherwise
+- Sort order: `role='leader'` rows first, then `role='co-leader'`; alphabetical within each role; service-computed
+- Privacy gate: `contactEmail` MUST NOT appear in the rendered HTML when `showContact` is false. The template branches on `showContact` only; it does not infer from `status`.
+- Suppression: leaders with non-renderable status MUST NOT appear; service filters at the read query, not in the template
 
 ### Required view-model fields
 
@@ -1290,15 +1300,27 @@ This page consumes the generic public rendering standard and the §4.2 page cont
   - optional `externalUrl`
   - `standardTagNormalized`
   - `standardTagDisplay`
+  - `members` — array of `{personId, name}`; empty when unauthenticated
+  - `leaders` — array of leader entries:
+    - optional `personId` — historical_persons identifier; enables `/history/{personId}` link when present
+    - optional `claimedMemberId` — `members.id` once a leader has claimed the legacy entry
+    - `displayName`
+    - `role` — `'leader' | 'co-leader'`
+    - `status` — `'provisional' | 'claimed' | 'verified'`
+    - optional `badgeLabel` — pre-shaped display text rendered as a small inline badge
+    - optional `badgeNote` — pre-shaped explanatory text rendered under the badge
+    - `showContact` — privacy gate; controls whether `contactEmail` is rendered
+    - optional `contactEmail` — present only when `showContact === true`
 
 ### Navigation outputs
 
 - `GET /clubs` (via breadcrumbs)
 - `GET /clubs/:countrySlug` (via breadcrumbs)
+- `GET /history/{personId}` (via leader-name links when `personId` is set)
 
 ### Empty state
 
-Unknown or inactive club key returns standard 404.
+Unknown or inactive club key returns standard 404. Leaders section omitted entirely when zero renderable leaders exist; no placeholder text.
 
 ---
 

@@ -44,10 +44,29 @@ export interface ClubMemberSummary {
   name: string;
 }
 
+export type ClubLeaderStatus = 'provisional' | 'claimed' | 'verified';
+
+// View-model for a club leader on /clubs/:key. Future-proofed for the claim
+// flow: once claim plumbing lands, the service mapping (not the contract)
+// is what evolves. status drives both badge text and the showContact gate;
+// rendering only consumes pre-shaped fields.
+export interface ClubLeader {
+  personId?: string;            // historical_persons.person_id; enables /history/<id> link
+  claimedMemberId?: string;     // members.id once claim flow lands; absent in Phase 1
+  displayName: string;          // canonical person_name from historical_persons
+  role: 'leader' | 'co-leader';
+  status: ClubLeaderStatus;
+  badgeLabel?: string;          // pre-shaped display text (e.g. 'Provisional leader')
+  badgeNote?: string;           // pre-shaped explanatory text under the badge
+  showContact: boolean;         // privacy gate: false for provisional, regardless of source data
+  contactEmail?: string;        // present only when showContact === true
+}
+
 export interface PublicClubDetail extends PublicClubSummary {
   description: string;
   countrySlug: string;
   members: ClubMemberSummary[];
+  leaders: ClubLeader[];
 }
 
 function toPublicClubSummary(row: PublicClubRow): PublicClubSummary {
@@ -68,10 +87,54 @@ function toPublicClubSummary(row: PublicClubRow): PublicClubSummary {
   };
 }
 
-function toPublicClubDetail(row: PublicClubRow, members: ClubMemberSummary[]): PublicClubDetail {
+// Flat row from clubs.listBootstrapLeadersByClubId. Single shaping site
+// (toClubLeader below) maps these to ClubLeader view-models.
+interface BootstrapLeaderRow {
+  person_id: string;
+  display_name: string;
+  role: 'leader' | 'co-leader';
+  status: 'provisional' | 'claimed';
+  imported_member_id: string | null;
+  claimed_member_id: string | null;
+}
+
+// Single mapping site for DB status -> view-model. Decouples the enum from
+// rendered text so the template branches on field presence, not status
+// values. New statuses (e.g. 'verified') only require a new branch here.
+function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
+  // Privacy gate: provisional leaders never expose contact email regardless
+  // of source-data presence. Future statuses may opt in via this same gate.
+  const showContact = false;
+
+  let badgeLabel: string | undefined;
+  let badgeNote: string | undefined;
+  if (row.status === 'provisional') {
+    badgeLabel = 'Provisional leader';
+    badgeNote  = 'imported from historical records';
+  }
+
+  const leader: ClubLeader = {
+    personId:    row.person_id,
+    displayName: row.display_name,
+    role:        row.role,
+    status:      row.status,
+    showContact,
+  };
+  if (row.claimed_member_id) leader.claimedMemberId = row.claimed_member_id;
+  if (badgeLabel) leader.badgeLabel = badgeLabel;
+  if (badgeNote)  leader.badgeNote  = badgeNote;
+  return leader;
+}
+
+function toPublicClubDetail(
+  row: PublicClubRow,
+  members: ClubMemberSummary[],
+  leaders: ClubLeader[],
+): PublicClubDetail {
   const summary = toPublicClubSummary(row);
   return {
     ...summary,
+    leaders,
     description: row.description,
     countrySlug: slugifyCountry(row.country),
     members,
@@ -253,7 +316,13 @@ export class ClubService {
             name: m.person_name,
           }))
         : [];
-      const club = toPublicClubDetail(row, members);
+      // Leaders are public per V_Browse_Clubs / M_View_Club: provisional
+      // leader names render to visitors and members alike. Contact-email
+      // exposure is gated separately via ClubLeader.showContact.
+      const leaders: ClubLeader[] = (
+        clubs.listBootstrapLeadersByClubId.all(row.club_id) as BootstrapLeaderRow[]
+      ).map(toClubLeader);
+      const club = toPublicClubDetail(row, members, leaders);
 
       return {
         seo: { title: club.standardTagDisplay },

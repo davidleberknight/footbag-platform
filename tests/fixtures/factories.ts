@@ -410,6 +410,55 @@ export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): s
   return id;
 }
 
+// ── Club bootstrap leader ─────────────────────────────────────────────────────
+
+export type ClubBootstrapLeaderRole = 'leader' | 'co-leader';
+export type ClubBootstrapLeaderStatus =
+  'provisional' | 'claimed' | 'superseded' | 'rejected';
+
+export interface ClubBootstrapLeaderOverrides {
+  id?: string;
+  club_id: string;            // required — FK to clubs(id)
+  legacy_member_id: string;   // required — FK target on historical_persons.legacy_member_id
+  role?: ClubBootstrapLeaderRole;
+  status?: ClubBootstrapLeaderStatus;
+  imported_member_id?: string | null;
+  claimed_member_id?: string | null;
+  confidence_score?: number | null;
+  notes?: string | null;
+}
+
+/**
+ * Insert a club_bootstrap_leaders row. The legacy_member_id is what the
+ * production loader joins to historical_persons.legacy_member_id at render
+ * time, so callers should ensure a matching historical_persons row exists
+ * (use insertHistoricalPerson with legacy_member_id set).
+ */
+export function insertClubBootstrapLeader(
+  db: BetterSqlite3.Database,
+  o: ClubBootstrapLeaderOverrides,
+): string {
+  const id = o.id ?? `cbl-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO club_bootstrap_leaders (
+      id, created_at, created_by, updated_at, updated_by, version,
+      club_id, imported_member_id, claimed_member_id, legacy_member_id,
+      role, confidence_score, status, notes
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS, TS, SYS,
+    o.club_id,
+    o.imported_member_id ?? null,
+    o.claimed_member_id  ?? null,
+    o.legacy_member_id,
+    o.role   ?? 'leader',
+    o.confidence_score ?? 0.9,
+    o.status ?? 'provisional',
+    o.notes  ?? null,
+  );
+  return id;
+}
+
 // ── Legacy club candidate ─────────────────────────────────────────────────────
 
 export type LegacyClubCandidateClassification =

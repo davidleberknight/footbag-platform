@@ -676,6 +676,29 @@ export const clubs = {
       AND lpca.resolution_status IN ('confirmed_current', 'promoted')
     ORDER BY person_name ASC
   `); },
+
+  // Bootstrap leaders for a club. Joins legacy_member_id → historical_persons
+  // for the canonical display name. Filters out 'superseded' and 'rejected'
+  // leaders since they should not surface publicly. Sort: 'leader' role
+  // before 'co-leader', alphabetical within role.
+  get listBootstrapLeadersByClubId() { return db.prepare(`
+    SELECT
+      hp.person_id            AS person_id,
+      hp.person_name          AS display_name,
+      cbl.role                AS role,
+      cbl.status              AS status,
+      cbl.imported_member_id  AS imported_member_id,
+      cbl.claimed_member_id   AS claimed_member_id
+    FROM club_bootstrap_leaders AS cbl
+    INNER JOIN historical_persons AS hp
+      ON hp.legacy_member_id = cbl.legacy_member_id
+    WHERE
+      cbl.club_id = ?
+      AND cbl.status IN ('provisional', 'claimed')
+    ORDER BY
+      CASE cbl.role WHEN 'leader' THEN 0 ELSE 1 END,
+      hp.person_name COLLATE NOCASE
+  `); },
 };
 
 // ---------------------------------------------------------------------------
