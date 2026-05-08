@@ -1320,6 +1320,25 @@ section.home-media { padding-top: 0; }
   color: var(--primary);
   margin-left: auto;
 }
+.club-leaders-summary {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.club-leaders-label {
+  font-weight: 500;
+  margin-right: 4px;
+}
+.club-leader-name {
+  color: var(--text);
+}
+.club-leaders-overflow {
+  margin-left: 4px;
+  font-size: 0.78rem;
+  font-style: italic;
+}
 
 /* ── Member profile ────────────────────────────────────────── */
 .profile-layout {
