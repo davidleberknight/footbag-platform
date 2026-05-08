@@ -62,6 +62,7 @@ These are non-negotiable. Future work that quietly relaxes them is a regression 
 - **The service layer is the privacy gate.** Templates render only what the service hands them; they MUST NOT infer policy from `status`, `personId`, or any other field. The `showContact` boolean is the single decision point and templates branch only on it.
 - **Closed-by-default for new statuses.** When a future status (`claimed`, `verified`, or anything new) lands, its mapping must explicitly choose `showContact = true` with documented justification. The default for unknown/uncategorized statuses is gated.
 - **No HTML side-channels.** When `showContact === false`, there is no `mailto:` anchor, no rendered email class, no copy-paste fallback, nothing. Tests must assert absence, not just non-display.
+- **Claiming a leader row links identity, not authority.** A `claimed` status records that a member acknowledges the historical leadership identity attached to a `legacy_member_id`. It does NOT grant operational control of the club, contact-channel exposure, edit permissions, member roster visibility, or any other governance affordance. Operational authority is granted only via explicit governance flows (yet to be designed); claim is identity linkage and nothing more.
 
 This invariant is the architectural decision most likely to silently break in future work. It is worth defending aggressively.
 
@@ -153,6 +154,7 @@ These have surfaced in design conversations and represent the failure modes most
 - Do not hide provisional leaders pre-launch waiting for claims; that creates a chicken-and-egg problem (no one claims a leadership they cannot see).
 - Do not add card layouts, avatar images, role-color systems, or moderation affordances to Phase 1 — minimal textual hierarchy is the agreed design.
 - Do not introduce mutable leader management UI as part of read-side work.
+- Do not interpret `claimed` status as a governance grant. See §3: claim ≠ operational control.
 
 ---
 
