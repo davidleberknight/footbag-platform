@@ -19,3 +19,30 @@ This file tracks the current build: active sprint, accepted temporary dev shortc
 ### Legacy claim deviations
 
 1. **`/history/claim` runs the direct-lookup shortcut.** VIEW_CATALOG.md route-rules block specifies a two-step token flow (lookup form, emailed token, confirm-and-merge handler). Current implementation is the early-test shortcut: direct lookup + confirm + merge in-session, no emailed token. Unblock: production-readiness work; cutover prerequisite per MP Phase 4.
+
+## Owner-approved fixes pending
+
+### `scripts/reset-local-db.sh` missing club bootstrap-leader loader
+
+**Symptom.** After every `scripts/reset-local-db.sh`, `club_bootstrap_leaders` is empty. Both the detail-page Leaders section and the country-page leader summary render against zero rows; no leader information appears on any public club page until the loader is run manually.
+
+**Owner gate.** `scripts/reset-local-db.sh` is Dave-owned; AI does not edit. Track and hand off.
+
+**Fix.** Add this block to `scripts/reset-local-db.sh` after the `load_club_members_seed.py` step. The required upstream tables (`legacy_club_candidates`, `historical_persons`) are already populated by earlier steps in the chain.
+
+```bash
+echo "  → Loading club bootstrap leaders..."
+"${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py --db "${DB_FILE}"
+```
+
+**Verify.**
+```bash
+sqlite3 database/footbag.db "SELECT COUNT(*) FROM club_bootstrap_leaders WHERE status IN ('provisional','claimed');"
+# → ~51 rows
+```
+Then `/clubs/usa`, `/clubs/germany`, `/clubs/canada` should render leader summaries on at least one club card each.
+
+**Manual workaround until merged.** Run the loader directly after each reset:
+```bash
+scripts/.venv/bin/python3 legacy_data/clubs/scripts/07_load_bootstrap_leaders.py --db database/footbag.db
+```
