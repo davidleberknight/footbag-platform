@@ -89,7 +89,8 @@ export const freestyleController = {
   tricksIndex(req: Request, res: Response, next: NextFunction): void {
     try {
       const family = typeof req.query['family'] === 'string' ? req.query['family'] : undefined;
-      const vm = freestyleService.getFreestyleTricksIndexPage(family);
+      const view   = typeof req.query['view']   === 'string' ? req.query['view']   : undefined;
+      const vm = freestyleService.getFreestyleTricksIndexPage(family, view);
       res.render('freestyle/tricks', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');

@@ -1012,6 +1012,23 @@ export interface FreestyleTrickRow {
   sort_order:     number;
 }
 
+// Extension of FreestyleTrickRow returned by listAllWithPending; carries the
+// activity / review-status flags that drive the external-placeholder branch
+// in the index view.
+export interface FreestyleTrickRowWithStatus extends FreestyleTrickRow {
+  is_active:     number;
+  review_status: string;
+}
+
+export interface FreestyleTrickAliasRow {
+  alias_text: string;
+  trick_slug: string;
+}
+
+export interface FreestyleMediaCoveredSlugRow {
+  slug: string;
+}
+
 export interface FreestyleTrickModifierRow {
   slug:                 string;
   modifier_name:        string;
@@ -1028,6 +1045,20 @@ export const freestyleTricks = {
     FROM freestyle_tricks
     WHERE is_active = 1
     ORDER BY sort_order ASC
+  `); },
+
+  // Same shape as listAll but includes pending/external rows (is_active = 0,
+  // review_status = 'pending'). Used by the trick-dictionary index to render
+  // external-only placeholders alongside canonical tricks. Active rows come
+  // first, then pending ones, both sorted by sort_order within their group.
+  get listAllWithPending() { return db.prepare(`
+    SELECT slug, canonical_name, adds, base_trick, trick_family, category,
+           description, aliases_json, notation, sort_order, is_active,
+           review_status
+    FROM freestyle_tricks
+    WHERE is_active = 1
+       OR (is_active = 0 AND review_status = 'pending')
+    ORDER BY is_active DESC, sort_order ASC
   `); },
 
   get getBySlug() { return db.prepare(`
@@ -1062,6 +1093,25 @@ export const freestyleTrickAliases = {
   // alias rather than a canonical slug (e.g., 'neck-catch' -> 'neck-stall').
   get getCanonicalForAlias() { return db.prepare(`
     SELECT trick_slug FROM freestyle_trick_aliases WHERE alias_slug = ?
+  `); },
+
+  // All aliases for all tricks. Used by the index page to attach alias text
+  // to each row in a single round trip; service groups by trick_slug.
+  get listAll() { return db.prepare(`
+    SELECT alias_text, trick_slug
+    FROM freestyle_trick_aliases
+    ORDER BY trick_slug, alias_text COLLATE NOCASE
+  `); },
+};
+
+export const freestyleMediaLinks = {
+  // Distinct trick slugs with at least one media link. Used by the index
+  // page to compute the "Video available" / "No video yet" indicator
+  // without loading full media rows.
+  get listCoveredTrickSlugs() { return db.prepare(`
+    SELECT DISTINCT entity_id AS slug
+    FROM freestyle_media_links
+    WHERE entity_type = 'trick'
   `); },
 };
 

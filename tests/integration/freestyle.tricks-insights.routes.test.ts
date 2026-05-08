@@ -84,7 +84,10 @@ beforeAll(async () => {
     sort_order:    3,
   });
 
-  // Pending standalone trick: must NOT appear publicly (index or direct slug).
+  // Pending standalone trick: under the new ADD-grouped index, this row
+  // surfaces as a labeled external-only placeholder — visible in the ADD
+  // bucket matching its `adds` value, with the adjudication note attached.
+  // Direct-slug detail still 404s (canonical-only contract preserved).
   insertFreestyleTrick(db, {
     slug:           'pending-zorblax',
     canonical_name: 'pending zorblax',
@@ -92,6 +95,23 @@ beforeAll(async () => {
     category:       'compound',
     description:    'unverified scraped row.',
     sort_order:     90,
+    review_status:  'pending',
+    is_active:      0,
+  });
+
+  // Unrated, descriptionless pending row: exercises the
+  // 'Unrated / unresolved' bucket and the 'Description pending' /
+  // 'Notation pending' fallback strings on the ADD view. Empty-string
+  // adds matches real data (loader-21 emits empty when the source has
+  // no ADD value).
+  insertFreestyleTrick(db, {
+    slug:           'pending-quasar',
+    canonical_name: 'pending quasar',
+    adds:           '',
+    category:       'compound',
+    description:    null,
+    notation:       null,
+    sort_order:     91,
     review_status:  'pending',
     is_active:      0,
   });
@@ -222,12 +242,21 @@ describe('GET /freestyle/tricks', () => {
 // ---------------------------------------------------------------------------
 
 describe('public dictionary presentation', () => {
-  it('renders Notation column header and notation text for active tricks', async () => {
+  it('renders Notation column header and notation text in the category view', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<th>Notation</th>');
     // 'whirl' was seeded with a notation; expect it to render in a <code> cell.
+    expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
+  });
+
+  it('renders notation inline in the default ADD view (no table header)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    // ADD view replaces the column-table layout with per-row sections.
+    expect(res.text).not.toContain('<th>Notation</th>');
     expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
   });
 
@@ -250,25 +279,25 @@ describe('public dictionary presentation', () => {
     expect(res.text).not.toContain('+ADD (rotational)');
   });
 
-  it('renders a hashtag under each trick name as an identity link to that trick', async () => {
+  it('renders a hashtag under each trick name in the category view', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
-    // Hashtag is now an identity link: #whirl → /freestyle/tricks/whirl
+    // Hashtag is an identity link in the category-table layout: #whirl → /freestyle/tricks/whirl
     expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/whirl"[^>]*>#whirl</);
     expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/legover"[^>]*>#legover</);
   });
 
-  it('strips hyphens from compound slugs and links the hashtag to the trick itself', async () => {
+  it('strips hyphens from compound slugs in the category-view hashtag', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=category');
     // 'spinning-whirl' renders #spinningwhirl linking to /freestyle/tricks/spinning-whirl
     expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/spinning-whirl"[^>]*>#spinningwhirl</);
   });
 
-  it('makes family-card titles clickable as family-filter links', async () => {
+  it('makes family-card titles clickable as family-filter links in the family view', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
     // Family-card titles wrap in an <a> pointing to the filter
     expect(res.text).toMatch(/<h3 class="family-card-title"><a href="\/freestyle\/tricks\?family=whirl">/);
@@ -448,18 +477,29 @@ describe('GET /freestyle/tricks/:slug — Related Tricks section', () => {
 });
 
 describe('pending row visibility', () => {
-  it('pending tricks are absent from the /freestyle/tricks index', async () => {
+  it('pending tricks render as labeled external placeholders in the default ADD view', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     // Active control still rendered.
     expect(res.text).toContain('whirl');
-    // Pending standalone must NOT render.
+    // Pending rows ARE surfaced as external placeholders, with the badge and
+    // adjudication note. They MUST NOT carry a detail-page anchor (inert).
+    expect(res.text).toContain('pending zorblax');
+    expect(res.text).toContain('External source — not yet adjudicated');
+    expect(res.text).toContain('not yet been fully adjudicated');
+    // No <a> link wrapping the pending name (template branches on isExternalOnly).
+    expect(res.text).not.toMatch(/<a[^>]*href="\/freestyle\/tricks\/pending-zorblax"/);
+  });
+
+  it('category view continues to hide pending tricks (canonical layout only)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks?view=category');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('whirl');
+    // Pending rows do not surface in the legacy category table layout.
     expect(res.text).not.toContain('pending zorblax');
-    expect(res.text).not.toContain('pending-zorblax');
-    // Pending family member must NOT render.
     expect(res.text).not.toContain('pending paradox whirl');
-    expect(res.text).not.toContain('pending-paradox-whirl');
   });
 
   it('direct slug to a pending trick (no records) returns 404', async () => {
@@ -477,6 +517,94 @@ describe('pending row visibility', () => {
     // Pending family member must NOT appear.
     expect(res.text).not.toContain('pending paradox whirl');
     expect(res.text).not.toContain('pending-paradox-whirl');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', () => {
+  it('renders an ADD-group section per non-empty ADD bucket', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    // The fixture seeds tricks with ADD values; expect at least the 3-ADD
+    // bucket header to render (whirl is 3 ADD in this fixture).
+    expect(res.text).toMatch(/<h2>3 ADD<\/h2>/);
+  });
+
+  it('places at least one known trick in the correct ADD group', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // 'whirl' is 3 ADD: anchor-id "add-3" must contain the whirl row.
+    const startIdx = res.text.indexOf('id="add-3"');
+    expect(startIdx).toBeGreaterThan(0);
+    // Walk forward to next section heading and confirm the slice has 'whirl'.
+    const sliceEnd = res.text.indexOf('id="add-', startIdx + 1);
+    const slice = sliceEnd > 0 ? res.text.slice(startIdx, sliceEnd) : res.text.slice(startIdx);
+    expect(slice).toContain('whirl');
+  });
+
+  it('renders an "Unrated / unresolved" group when at least one row has no numeric ADD', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // The fixture seeds 'pending zorblax' with empty ADD.
+    expect(res.text).toContain('Unrated / unresolved');
+  });
+
+  it('shows the Video available chip on tricks with media coverage', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // class hook is enough; we don't assert which trick has media in this fixture.
+    expect(res.text).toMatch(/class="trick-media-chip trick-media-chip--(?:available|missing)"/);
+  });
+
+  it('renders the "No video yet" chip for at least one trick', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.text).toContain('trick-media-chip--missing');
+    expect(res.text).toContain('No video yet');
+  });
+
+  it('renders aliases inline on the row when available', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // Whirl has no aliases in this fixture; legover seeded aliases include 'leg over'.
+    // Confirm the aliases line wrapper exists on at least one row.
+    expect(res.text).toMatch(/class="trick-aliases">Aliases:/);
+  });
+
+  it('falls back to "Notation pending" when a trick has no notation', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.text).toContain('Notation pending');
+  });
+
+  it('falls back to "Description pending" when a trick has no description', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // The pending-zorblax fixture has no description.
+    expect(res.text).toContain('Description pending');
+  });
+
+  it('renders the coverage summary with counts and the transparency note', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.text).toContain('canonical tricks');
+    expect(res.text).toContain('External-source placeholders are shown for transparency and coverage tracking');
+    // sources loaded: footbag.org always declared
+    expect(res.text).toContain('footbag.org');
+    // sources unavailable: footbagmoves.com note
+    expect(res.text).toContain('footbagmoves.com');
+  });
+
+  it('renders the view toggle with the ADD view marked active', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.text).toContain('class="trick-view-toggle"');
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
+    // The other tabs render as plain anchors.
+    expect(res.text).toContain('href="/freestyle/tricks?view=family"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=category"');
   });
 });
 

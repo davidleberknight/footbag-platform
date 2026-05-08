@@ -2017,6 +2017,128 @@ section.home-media { padding-top: 0; }
 }
 .trick-hashtag:hover { text-decoration: underline; }
 
+/* ── Trick dictionary: ADD-grouped beginner view ─────────────────────────── */
+.trick-view-toggle {
+  font-size: 0.9rem;
+  margin: 12px 0 8px;
+  color: var(--text-muted);
+}
+.trick-view-toggle a { color: var(--primary); text-decoration: none; }
+.trick-view-toggle a:hover { text-decoration: underline; }
+.trick-view-toggle-active { font-weight: 600; color: var(--text); }
+.trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
+
+.trick-coverage-summary {
+  margin: 4px 0 16px;
+  padding: 8px 12px;
+  background-color: #fafafa;
+  border-left: 3px solid var(--border, #e5e5e5);
+  border-radius: 2px;
+}
+.trick-coverage-counts { margin: 0; font-size: 0.88rem; color: var(--text); }
+.trick-coverage-note   { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); }
+
+.trick-add-group { margin-bottom: 28px; }
+
+.trick-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.trick-row {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-light, #f0f0f0);
+}
+.trick-row:last-child { border-bottom: none; }
+.trick-row--external-placeholder {
+  background-color: #fffdf6;
+  border-left: 3px solid #d97706;
+}
+
+.trick-row-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 0.95rem;
+}
+.trick-row-header .trick-name { font-weight: 600; color: var(--primary); text-decoration: none; }
+.trick-row-header a.trick-name:hover { text-decoration: underline; }
+.trick-row--external-placeholder .trick-name { color: var(--text); }
+
+.trick-add-chip {
+  font-size: 0.78rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: #eef2ff;
+  color: #3730a3;
+  font-variant-numeric: tabular-nums;
+}
+.trick-add-chip--unrated { background-color: #f3f4f6; color: var(--text-muted); }
+
+.trick-family-chip {
+  font-size: 0.78rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: #f3f4f6;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: monospace;
+}
+.trick-family-chip:hover { text-decoration: underline; }
+
+.trick-category-chip {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.trick-media-chip {
+  font-size: 0.78rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.trick-media-chip--available { background-color: #ecfdf5; color: #047857; }
+.trick-media-chip--missing   { background-color: #f3f4f6; color: var(--text-muted); }
+
+.trick-status-badge {
+  font-size: 0.78rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.trick-notation {
+  font-family: monospace;
+  font-size: 0.85rem;
+  margin-top: 4px;
+  color: var(--text);
+}
+.trick-notation--missing { color: var(--text-muted); font-family: inherit; }
+
+.trick-description {
+  font-size: 0.9rem;
+  margin-top: 4px;
+  color: var(--text);
+}
+.trick-description--missing { color: var(--text-muted); }
+
+.trick-aliases {
+  font-size: 0.82rem;
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+
+.trick-placeholder-note {
+  font-size: 0.82rem;
+  margin-top: 6px;
+  padding: 4px 8px;
+  background-color: #fef3c7;
+  color: #78350f;
+  border-radius: 2px;
+}
+
 .related-tricks-list {
   list-style: none;
   padding: 0;

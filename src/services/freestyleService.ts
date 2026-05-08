@@ -1,9 +1,11 @@
 import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
+  FreestyleTrickRowWithStatus, FreestyleTrickAliasRow, FreestyleMediaCoveredSlugRow,
   FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
   FreestylePartnershipRow,
   CuratorSlotMediaRow,
   freestyleRecords, freestyleTricks, freestyleTrickModifiers, freestyleTrickAliases,
+  freestyleMediaLinks,
   freestyleCompetition, freestylePartnerships, media,
   queryCuratorMediaTags,
 } from '../db/db';
@@ -316,6 +318,10 @@ export interface FreestyleTrickIndexRow {
   detailHref: string;           // always /freestyle/tricks/:slug for all dict entries
   hasRecords: boolean;          // true when passback records exist (shows record indicator)
   recordHref: string | null;    // kept for backwards compatibility — same as detailHref when hasRecords
+  hasMedia: boolean;            // freestyle_media_links coverage indicator for the basic ADD view
+  isExternalOnly: boolean;      // true when row is is_active=0 + review_status='pending' (external placeholder)
+  statusBadge: string | null;   // pre-shaped status text; null for plain canonical rows
+  placeholderNote: string | null; // pre-shaped note rendered under the row when isExternalOnly = true
 }
 
 export interface FreestyleTrickGroup {
@@ -324,7 +330,32 @@ export interface FreestyleTrickGroup {
   tricks: FreestyleTrickIndexRow[];
 }
 
+// ADD-grouped bucket for the beginner/default view. addNumeric is null for
+// the "Unrated / unresolved" bucket; otherwise an integer 0..9.
+export interface FreestyleTrickAddGroup {
+  addNumeric: number | null;
+  addLabel: string;            // pre-shaped: '1 ADD', '2 ADD', '0 ADD', 'Unrated / unresolved'
+  tricks: FreestyleTrickIndexRow[];
+}
+
+export interface FreestyleTricksCoverageSummary {
+  canonicalCount: number;          // active rows (review_status != 'pending')
+  pendingInternalCount: number;    // is_active=0 rows authored internally; reserved for future
+  externalOnlyCount: number;       // is_active=0 + review_status='pending' (external placeholders)
+  sourcesLoaded: string[];         // human-readable source names with local data
+  sourcesUnavailable: string[];    // human-readable source names not yet loaded
+  transparencyNote: string;        // pre-shaped: 'External-source placeholders are shown for transparency...'
+}
+
+export type FreestyleTricksActiveView = 'add' | 'family' | 'category';
+
 export interface FreestyleTricksIndexContent {
+  // Default beginner/ADD view (always shaped; rendering controlled by activeView).
+  addGroups: FreestyleTrickAddGroup[];
+  coverage: FreestyleTricksCoverageSummary;
+  activeView: FreestyleTricksActiveView;
+
+  // Existing category-grouped view, preserved for ?view=category.
   groups: FreestyleTrickGroup[];
   familyGroups: FreestyleFamilyGroup[];  // compound tricks grouped by family (for family-browsing section)
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
@@ -540,26 +571,84 @@ function extractModifierSlugs(canonicalName: string, baseTrick: string): string[
   return remaining; // these are the modifier words as slug-candidates
 }
 
-function shapeTrickIndexRow(row: FreestyleTrickRow, slugsWithRecords: Set<string>): FreestyleTrickIndexRow {
-  let aliases: string[] = [];
-  try {
-    aliases = row.aliases_json ? (JSON.parse(row.aliases_json) as string[]) : [];
-  } catch { /* ignore malformed JSON */ }
-  const detailHref  = `/freestyle/tricks/${row.slug}`;
-  const hasRecords  = slugsWithRecords.has(row.slug);
+// Shaping context bundled per request to keep shapeTrickIndexRow's signature
+// stable across the index, family, and ADD views.
+interface TrickIndexShapingContext {
+  slugsWithRecords: Set<string>;
+  aliasesByTrickSlug: Map<string, string[]>;
+  slugsWithMedia: Set<string>;
+  // Per-row status overrides for the listAllWithPending path; absent when
+  // shaping a plain active row (defaults: isActive=1, reviewStatus='curated').
+  statusBySlug?: Map<string, { isActive: number; reviewStatus: string }>;
+}
+
+const EXTERNAL_PLACEHOLDER_NOTE =
+  'This trick appears in external freestyle sources but has not yet been fully adjudicated for the canonical dictionary.';
+
+// Returns the numeric ADD bucket for a row, or null when the value isn't a
+// finite non-negative integer (empty string, null, 'modifier', non-numeric
+// text). Used by the ADD-grouping pass on the index page.
+function parseAddNumeric(adds: string | null): number | null {
+  if (adds === null || adds === undefined) return null;
+  const trimmed = adds.trim();
+  if (trimmed === '' || trimmed === 'modifier') return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
+function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: string }): number {
+  return a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' });
+}
+
+function shapeTrickIndexRow(
+  row: FreestyleTrickRow,
+  ctx: TrickIndexShapingContext,
+): FreestyleTrickIndexRow {
+  // Aliases: prefer the freestyle_trick_aliases table (canonical) when ctx
+  // carries them; fall back to deprecated aliases_json on rows the table
+  // doesn't yet cover. Service-side de-dup if both somehow hold the same text.
+  const aliasesFromTable = ctx.aliasesByTrickSlug.get(row.slug) ?? [];
+  let aliases: string[] = [...aliasesFromTable];
+  if (aliases.length === 0 && row.aliases_json) {
+    try {
+      aliases = JSON.parse(row.aliases_json) as string[];
+    } catch { /* ignore malformed JSON */ }
+  }
+
+  const status = ctx.statusBySlug?.get(row.slug);
+  const isActive = status?.isActive ?? 1;
+  const reviewStatus = status?.reviewStatus ?? 'curated';
+  const isExternalOnly = isActive === 0 && reviewStatus === 'pending';
+
+  const detailHref = `/freestyle/tricks/${row.slug}`;
+  const hasRecords = ctx.slugsWithRecords.has(row.slug);
+  const hasMedia = ctx.slugsWithMedia.has(row.slug);
+
+  let statusBadge: string | null = null;
+  let placeholderNote: string | null = null;
+  if (isExternalOnly) {
+    statusBadge = 'External source — not yet adjudicated';
+    placeholderNote = EXTERNAL_PLACEHOLDER_NOTE;
+  }
+
   return {
-    slug:          row.slug,
-    canonicalName: row.canonical_name,
-    hashtag:       slugToHashtag(row.slug),
-    trickFamily:   row.trick_family,
-    adds:          row.adds,
-    category:      row.category,
-    description:   row.description,
-    notation:      row.notation,
+    slug:            row.slug,
+    canonicalName:   row.canonical_name,
+    hashtag:         slugToHashtag(row.slug),
+    trickFamily:     row.trick_family,
+    adds:            row.adds,
+    category:        row.category,
+    description:     row.description,
+    notation:        row.notation,
     aliases,
     detailHref,
     hasRecords,
-    recordHref:    hasRecords ? detailHref : null,  // backwards compat
+    recordHref:      hasRecords ? detailHref : null,  // backwards compat
+    hasMedia,
+    isExternalOnly,
+    statusBadge,
+    placeholderNote,
   };
 }
 
@@ -1021,13 +1110,17 @@ export const freestyleService = {
     };
   },
 
-  getFreestyleTricksIndexPage(family?: string): PageViewModel<FreestyleTricksIndexContent> {
-    const allRowsUnfiltered = runSqliteRead('freestyleTricks.listAll', () =>
-      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+  getFreestyleTricksIndexPage(
+    family?: string,
+    view?: string,
+  ): PageViewModel<FreestyleTricksIndexContent> {
+    // Active + pending external rows. Pending rows surface as labeled
+    // placeholders; they never claim canonical status.
+    const allRowsUnfiltered = runSqliteRead('freestyleTricks.listAllWithPending', () =>
+      freestyleTricks.listAllWithPending.all() as FreestyleTrickRowWithStatus[],
     );
 
-    // Apply optional family filter (driven by ?family= hashtag click). Filter
-    // by trick_family only — no slug-substring matching, no compound heuristics.
+    // Apply optional family filter (driven by ?family= hashtag click).
     const activeFamily = family && allRowsUnfiltered.some(r => r.trick_family === family)
       ? family
       : null;
@@ -1035,7 +1128,30 @@ export const freestyleService = {
       ? allRowsUnfiltered.filter(r => r.trick_family === activeFamily)
       : allRowsUnfiltered;
 
-    // Build set of slugs that have passback records (for linking)
+    // Status lookup for shaping (drives isExternalOnly / statusBadge).
+    const statusBySlug = new Map<string, { isActive: number; reviewStatus: string }>();
+    for (const r of allRowsUnfiltered) {
+      statusBySlug.set(r.slug, { isActive: r.is_active, reviewStatus: r.review_status });
+    }
+
+    // Aliases via the canonical table; one round trip, group by slug.
+    const aliasRows = runSqliteRead('freestyleTrickAliases.listAll', () =>
+      freestyleTrickAliases.listAll.all() as FreestyleTrickAliasRow[],
+    );
+    const aliasesByTrickSlug = new Map<string, string[]>();
+    for (const ar of aliasRows) {
+      const list = aliasesByTrickSlug.get(ar.trick_slug);
+      if (list) list.push(ar.alias_text);
+      else aliasesByTrickSlug.set(ar.trick_slug, [ar.alias_text]);
+    }
+
+    // Media-coverage set — distinct trick slugs with at least one media link.
+    const mediaCoveredRows = runSqliteRead('freestyleMediaLinks.listCoveredTrickSlugs', () =>
+      freestyleMediaLinks.listCoveredTrickSlugs.all() as FreestyleMediaCoveredSlugRow[],
+    );
+    const slugsWithMedia = new Set(mediaCoveredRows.map(r => r.slug));
+
+    // Slugs with passback records (record-indicator on rows).
     const publicRows = runSqliteRead('freestyleRecords.listPublic', () =>
       freestyleRecords.listPublic.all() as FreestyleRecordRow[],
     );
@@ -1045,71 +1161,137 @@ export const freestyleService = {
         .map(r => trickNameToSlug(r.trick_name!)),
     );
 
-    // Group by category in display order. Modifiers are intentionally excluded
-    // from the category listing.
+    const ctx: TrickIndexShapingContext = {
+      slugsWithRecords,
+      aliasesByTrickSlug,
+      slugsWithMedia,
+      statusBySlug,
+    };
+
+    // Active rows only for category / family groupings (existing semantics:
+    // pending rows belong only in the ADD view as placeholders).
+    const activeRows = allRows.filter(r => r.is_active === 1);
+
+    // ---- Category groups (preserved for ?view=category) ---------------
     const categoryOrder = ['dex', 'body', 'set', 'compound'];
     const grouped = new Map<string, FreestyleTrickRow[]>();
-    for (const row of allRows) {
+    for (const row of activeRows) {
       if (row.category === 'modifier') continue;
       const cat = row.category ?? 'other';
       const bucket = grouped.get(cat) ?? [];
       bucket.push(row);
       grouped.set(cat, bucket);
     }
-
     const groups: FreestyleTrickGroup[] = categoryOrder
       .filter(cat => grouped.has(cat))
       .map(cat => ({
         category: cat,
         label:    CATEGORY_LABELS[cat] ?? cat,
-        tricks:   (grouped.get(cat) ?? []).map(r => shapeTrickIndexRow(r, slugsWithRecords)),
+        tricks:   (grouped.get(cat) ?? []).map(r => shapeTrickIndexRow(r, ctx)),
       }));
-
-    // Include any categories not in the ordered list (still excluding modifier).
     for (const [cat, rows] of grouped.entries()) {
       if (!categoryOrder.includes(cat) && cat !== 'modifier') {
         groups.push({
           category: cat,
           label:    CATEGORY_LABELS[cat] ?? cat,
-          tricks:   rows.map(r => shapeTrickIndexRow(r, slugsWithRecords)),
+          tricks:   rows.map(r => shapeTrickIndexRow(r, ctx)),
         });
       }
     }
 
-    // Build family-grouped compound section (only non-null families with >1 member)
+    // ---- Family groups (preserved for ?view=family) -------------------
     const familyMap = new Map<string, FreestyleTrickRow[]>();
-    for (const row of allRows) {
+    for (const row of activeRows) {
       if (!row.trick_family || row.category === 'modifier') continue;
       const bucket = familyMap.get(row.trick_family) ?? [];
       bucket.push(row);
       familyMap.set(row.trick_family, bucket);
     }
-    // Families sorted by size DESC, then by slug
     const FAMILY_ORDER = ['whirl', 'butterfly', 'osis', 'mirage', 'clipper', 'legover', 'torque', 'blender'];
     const familyGroups: FreestyleFamilyGroup[] = [];
-    // Ordered families first
     for (const fslug of FAMILY_ORDER) {
       const members = familyMap.get(fslug);
       if (members && members.length > 1) {
         familyGroups.push({
           familySlug: fslug,
           familyName: fslug.charAt(0).toUpperCase() + fslug.slice(1),
-          members:    members.map(r => shapeTrickIndexRow(r, slugsWithRecords)),
+          members:    members.map(r => shapeTrickIndexRow(r, ctx)),
         });
       }
     }
-    // Any remaining families not in the ordered list
     for (const [fslug, members] of familyMap.entries()) {
       if (!FAMILY_ORDER.includes(fslug) && members.length > 1) {
         familyGroups.push({
           familySlug: fslug,
           familyName: fslug.charAt(0).toUpperCase() + fslug.slice(1),
-          members:    members.map(r => shapeTrickIndexRow(r, slugsWithRecords)),
+          members:    members.map(r => shapeTrickIndexRow(r, ctx)),
         });
       }
     }
 
-    // Load modifier reference table
+    // ---- ADD groups (the new beginner default view) -------------------
+    // Modifiers are excluded; pending placeholders are included alongside
+    // canonical tricks within the same ADD bucket. Empty / non-numeric ADD
+    // lands in 'Unrated / unresolved'.
+    const addBuckets = new Map<number | null, FreestyleTrickIndexRow[]>();
+    for (const row of allRows) {
+      if (row.category === 'modifier' || row.adds === 'modifier') continue;
+      const numeric = parseAddNumeric(row.adds);
+      const bucket = addBuckets.get(numeric) ?? [];
+      bucket.push(shapeTrickIndexRow(row, ctx));
+      addBuckets.set(numeric, bucket);
+    }
+    const addGroups: FreestyleTrickAddGroup[] = [];
+    const numericKeys = [...addBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
+    for (const k of numericKeys) {
+      const tricks = (addBuckets.get(k) ?? []).slice().sort(byCanonicalNameAlpha);
+      addGroups.push({
+        addNumeric: k,
+        addLabel:   `${k} ADD`,
+        tricks,
+      });
+    }
+    if (addBuckets.has(null)) {
+      const tricks = (addBuckets.get(null) ?? []).slice().sort(byCanonicalNameAlpha);
+      addGroups.push({
+        addNumeric: null,
+        addLabel:   'Unrated / unresolved',
+        tricks,
+      });
+    }
+
+    // ---- Coverage summary --------------------------------------------
+    // Counts mirror what the ADD view actually shows: modifiers are excluded
+    // from the listing, so excluding them from the summary keeps the two
+    // numbers consistent for visitors.
+    const canonicalCount = allRows.filter(
+      r => r.is_active === 1 && r.category !== 'modifier' && r.adds !== 'modifier',
+    ).length;
+    const externalOnlyCount = allRows.filter(
+      r =>
+        r.is_active === 0 &&
+        r.review_status === 'pending' &&
+        r.category !== 'modifier' &&
+        r.adds !== 'modifier',
+    ).length;
+    const coverage: FreestyleTricksCoverageSummary = {
+      canonicalCount,
+      pendingInternalCount: 0,
+      externalOnlyCount,
+      sourcesLoaded: ['footbag.org'],
+      sourcesUnavailable: ['footbagmoves.com (corpus not yet loaded)'],
+      transparencyNote:
+        'External-source placeholders are shown for transparency and coverage tracking.',
+    };
+
+    // ---- View toggle --------------------------------------------------
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category'];
+    const activeView: FreestyleTricksActiveView =
+      allowedViews.includes((view ?? 'add') as FreestyleTricksActiveView)
+        ? ((view ?? 'add') as FreestyleTricksActiveView)
+        : 'add';
+
+    // Load modifier reference table (still shaped; rendering currently disabled)
     const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
       freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
     );
@@ -1127,8 +1309,8 @@ export const freestyleService = {
         pageKey:    'freestyle_tricks_index',
         title:      'Trick Dictionary',
         intro:
-          'A reference guide to documented freestyle footbag tricks, organized by category. ' +
-          'ADD values reflect the standard difficulty scoring system.',
+          'Browse freestyle tricks by ADD difficulty. Each trick includes notation, ' +
+          'aliases, family, and available media.',
       },
       navigation: {
         breadcrumbs: [
@@ -1137,11 +1319,14 @@ export const freestyleService = {
         ],
       },
       content: {
+        addGroups,
+        coverage,
+        activeView,
         groups,
         familyGroups,
         modifiers,
         activeFamily,
-        totalTricks: groups.reduce((sum, g) => sum + g.tricks.length, 0),
+        totalTricks: canonicalCount,
         dictNote:
           'This dictionary is being expanded and aligned with established freestyle notation. ' +
           'New entries are staged for review before publication.',

@@ -12,7 +12,8 @@
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
     <div class="hero-stats">
-      <span>{{content.totalTricks}} tricks</span>
+      <span>{{content.totalTricks}} canonical tricks</span>
+      {{#if content.coverage.externalOnlyCount}}<span>{{content.coverage.externalOnlyCount}} external placeholders</span>{{/if}}
     </div>
   </div>
 </div>
@@ -26,13 +27,130 @@
   </p>
   {{/if}}
 
+  {{! ── View toggle (no JS; query-string driven) ─────────────────────────── }}
+  <nav class="trick-view-toggle" aria-label="Dictionary view">
+    {{#if (eq content.activeView "add")}}
+      <span class="trick-view-toggle-active">By ADD</span>
+    {{else}}
+      <a href="/freestyle/tricks">By ADD</a>
+    {{/if}}
+    <span class="trick-view-toggle-sep">·</span>
+    {{#if (eq content.activeView "family")}}
+      <span class="trick-view-toggle-active">By family</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=family">By family</a>
+    {{/if}}
+    <span class="trick-view-toggle-sep">·</span>
+    {{#if (eq content.activeView "category")}}
+      <span class="trick-view-toggle-active">By category</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=category">By category</a>
+    {{/if}}
+  </nav>
+
+  {{! ── Coverage summary ─────────────────────────────────────────────────── }}
+  <section class="trick-coverage-summary" aria-label="Coverage summary">
+    <p class="trick-coverage-counts">
+      <strong>{{content.coverage.canonicalCount}}</strong> canonical tricks
+      {{#if content.coverage.externalOnlyCount}} · <strong>{{content.coverage.externalOnlyCount}}</strong> external-only placeholders{{/if}}
+      {{#if content.coverage.sourcesLoaded.length}} · sources loaded: {{#each content.coverage.sourcesLoaded}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}{{/if}}
+      {{#if content.coverage.sourcesUnavailable.length}} · sources unavailable: {{#each content.coverage.sourcesUnavailable}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}{{/if}}
+    </p>
+    <p class="trick-coverage-note"><em>{{content.coverage.transparencyNote}}</em></p>
+  </section>
+
   {{#if content.dictNote}}
   <p class="detail-muted dict-note"><em>{{content.dictNote}}</em></p>
   {{/if}}
 
-  {{! ------------------------------------------------------------------ }}
-  {{! Category-based reference tables }}
-  {{! ------------------------------------------------------------------ }}
+  {{! ── Default ADD-grouped view (beginner) ──────────────────────────────── }}
+  {{#if (eq content.activeView "add")}}
+  {{#each content.addGroups}}
+  <section class="content-section trick-add-group" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
+    <div class="section-heading">
+      <h2>{{addLabel}}</h2>
+      <span class="section-count">{{tricks.length}}</span>
+    </div>
+    <ul class="trick-list">
+      {{#each tricks}}
+      <li class="trick-row{{#if isExternalOnly}} trick-row--external-placeholder{{/if}}">
+        <div class="trick-row-header">
+          {{#if isExternalOnly}}
+            <span class="trick-name">{{canonicalName}}</span>
+          {{else}}
+            <a class="trick-name" href="{{detailHref}}">{{canonicalName}}</a>
+          {{/if}}
+          {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+          {{#if adds}}<span class="trick-add-chip">{{adds}} ADD</span>{{else}}<span class="trick-add-chip trick-add-chip--unrated">— ADD</span>{{/if}}
+          {{#if trickFamily}}<a class="trick-family-chip" href="/freestyle/tricks?family={{trickFamily}}">{{trickFamily}}</a>{{/if}}
+          {{#if category}}<span class="trick-category-chip">{{category}}</span>{{/if}}
+          {{#if hasMedia}}<span class="trick-media-chip trick-media-chip--available">Video available</span>{{else}}<span class="trick-media-chip trick-media-chip--missing">No video yet</span>{{/if}}
+          {{#if statusBadge}}<span class="trick-status-badge">{{statusBadge}}</span>{{/if}}
+        </div>
+        {{#if notation}}
+          <div class="trick-notation"><code>{{notation}}</code></div>
+        {{else}}
+          <div class="trick-notation trick-notation--missing"><em>Notation pending</em></div>
+        {{/if}}
+        {{#if description}}
+          <div class="trick-description">{{description}}</div>
+        {{else}}
+          <div class="trick-description trick-description--missing"><em>Description pending</em></div>
+        {{/if}}
+        {{#if aliases.length}}
+          <div class="trick-aliases">Aliases: {{#each aliases}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</div>
+        {{/if}}
+        {{#if placeholderNote}}
+          <div class="trick-placeholder-note">{{placeholderNote}}</div>
+        {{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/each}}
+  {{/if}}
+
+  {{! ── Family view (alternate) ──────────────────────────────────────────── }}
+  {{#if (eq content.activeView "family")}}
+  {{#if content.familyGroups.length}}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Trick Families</h2>
+      <p class="section-intro">Compound tricks grouped by their base move. ADD values increase as modifiers stack.</p>
+    </div>
+    <div class="family-grid">
+      {{#each content.familyGroups}}
+      <div class="family-card">
+        <h3 class="family-card-title"><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} Family</a></h3>
+        <table class="records-table records-table-sm family-table">
+          <thead>
+            <tr>
+              <th>Trick</th>
+              <th class="col-adds">ADD</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each members}}
+            <tr>
+              <td class="col-trick">
+                <a href="{{detailHref}}">{{canonicalName}}</a>
+                {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+                <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
+              </td>
+              <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+  {{/if}}
+  {{/if}}
+
+  {{! ── Category view (alternate, preserves the legacy layout) ───────────── }}
+  {{#if (eq content.activeView "category")}}
   {{#each content.groups}}
   <section class="content-section">
     <div class="section-heading">
@@ -74,85 +192,7 @@
     </div>
   </section>
   {{/each}}
-
-  {{! ------------------------------------------------------------------ }}
-  {{! Trick Families — compound tricks grouped by their base }}
-  {{! ------------------------------------------------------------------ }}
-  {{#if content.familyGroups.length}}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Trick Families</h2>
-      <p class="section-intro">Compound tricks grouped by their base move. ADD values increase as modifiers stack.</p>
-    </div>
-
-    <div class="family-grid">
-      {{#each content.familyGroups}}
-      <div class="family-card">
-        <h3 class="family-card-title"><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} Family</a></h3>
-        <table class="records-table records-table-sm family-table">
-          <thead>
-            <tr>
-              <th>Trick</th>
-              <th class="col-adds">ADD</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each members}}
-            <tr>
-              <td class="col-trick">
-                <a href="{{detailHref}}">{{canonicalName}}</a>
-                {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
-                <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
-              </td>
-              <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
-            </tr>
-            {{/each}}
-          </tbody>
-        </table>
-      </div>
-      {{/each}}
-    </div>
-  </section>
   {{/if}}
-
-  {{! ------------------------------------------------------------------ }}
-  {{! Modifier Reference — render-disabled. content.modifiers is still
-      shaped by the service and is preserved for future reuse. }}
-  {{! ------------------------------------------------------------------ }}
-  {{!--
-  {{#if content.modifiers.length}}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Modifier Reference</h2>
-      <p class="section-intro">Modifiers add difficulty to base tricks. The ADD bonus depends on whether the base trick is rotational (whirl, torque, mirage, etc.) or non-rotational.</p>
-    </div>
-    <div class="records-table-wrap">
-      <table class="records-table records-table-sm">
-        <thead>
-          <tr>
-            <th>Modifier</th>
-            <th>Type</th>
-            <th class="col-adds">+ADD (standard)</th>
-            <th class="col-adds">+ADD (rotational)</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.modifiers}}
-          <tr>
-            <td class="col-trick">{{name}}</td>
-            <td><span class="tag-badge">{{modifierType}}</span></td>
-            <td class="col-adds">+{{addBonus}}</td>
-            <td class="col-adds">+{{addBonusRotational}}</td>
-            <td class="detail-muted">{{#if notes}}{{notes}}{{else}}&mdash;{{/if}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
-  </section>
-  {{/if}}
-  --}}
 
   <p class="source-note">
     Trick data sourced from community documentation.
