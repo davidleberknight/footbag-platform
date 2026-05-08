@@ -37,6 +37,21 @@ export interface PublicClubSummary {
   externalUrl: string | null;
   standardTagNormalized: string;
   standardTagDisplay: string;
+  leaders: ClubLeaderSummary[];   // ≤ LEADER_SUMMARY_CAP; empty when no provisional/claimed leaders exist
+  leadersOverflow: number;        // count beyond the cap; 0 when total ≤ cap
+}
+
+// Cap on visible leader names per club card on /clubs/:country. Names beyond
+// this cap collapse into the leadersOverflow count. Detail page (/clubs/:key)
+// uses ClubLeader and is uncapped.
+export const LEADER_SUMMARY_CAP = 2;
+
+// Lightweight projection of ClubLeader for country-page card rendering.
+// status is carried for forward-compat (future badge variants on cards) but
+// the v1 country-page template renders names only.
+export interface ClubLeaderSummary {
+  displayName: string;
+  status: ClubLeaderStatus;
 }
 
 export interface ClubMemberSummary {
@@ -69,7 +84,11 @@ export interface PublicClubDetail extends PublicClubSummary {
   leaders: ClubLeader[];
 }
 
-function toPublicClubSummary(row: PublicClubRow): PublicClubSummary {
+function toPublicClubSummary(
+  row: PublicClubRow,
+  leaders: ClubLeaderSummary[] = [],
+  leadersOverflow: number = 0,
+): PublicClubSummary {
   const clubKey = row.tag_normalized.startsWith('#')
     ? row.tag_normalized.slice(1)
     : row.tag_normalized;
@@ -84,6 +103,8 @@ function toPublicClubSummary(row: PublicClubRow): PublicClubSummary {
     externalUrl: row.external_url,
     standardTagNormalized: row.tag_normalized,
     standardTagDisplay: row.tag_display,
+    leaders,
+    leadersOverflow,
   };
 }
 
@@ -96,6 +117,19 @@ interface BootstrapLeaderRow {
   status: 'provisional' | 'claimed';
   imported_member_id: string | null;
   claimed_member_id: string | null;
+}
+
+// Flat row from clubs.listAllBootstrapLeaders — adds club_id for grouping.
+interface BootstrapLeaderRowWithClubId extends BootstrapLeaderRow {
+  club_id: string;
+}
+
+// Single mapping site for DB row -> country-page summary projection.
+function toClubLeaderSummary(row: BootstrapLeaderRowWithClubId): ClubLeaderSummary {
+  return {
+    displayName: row.display_name,
+    status: row.status,
+  };
 }
 
 // Single mapping site for DB status -> view-model. Decouples the enum from
@@ -244,6 +278,26 @@ export class ClubService {
       }
 
       const country = matchedRows[0].country;
+
+      // Bulk-fetch all bootstrap leaders once; group by club_id for O(1)
+      // per-club lookup. Single round trip — no N+1.
+      const leaderRows = clubs.listAllBootstrapLeaders.all() as BootstrapLeaderRowWithClubId[];
+      const leadersByClubId = new Map<string, BootstrapLeaderRowWithClubId[]>();
+      for (const lr of leaderRows) {
+        if (!leadersByClubId.has(lr.club_id)) leadersByClubId.set(lr.club_id, []);
+        leadersByClubId.get(lr.club_id)!.push(lr);
+      }
+      const summarizeLeaders = (clubId: string): { leaders: ClubLeaderSummary[]; leadersOverflow: number } => {
+        const all = leadersByClubId.get(clubId) ?? [];
+        const visible = all.slice(0, LEADER_SUMMARY_CAP).map(toClubLeaderSummary);
+        const overflow = Math.max(0, all.length - LEADER_SUMMARY_CAP);
+        return { leaders: visible, leadersOverflow: overflow };
+      };
+      const buildSummary = (row: PublicClubRow): PublicClubSummary => {
+        const { leaders, leadersOverflow } = summarizeLeaders(row.club_id);
+        return toPublicClubSummary(row, leaders, leadersOverflow);
+      };
+
       // Only group by region when ALL clubs have a named region and 2+ distinct
       // named regions exist. If any club lacks a region, use a single flat group.
       const allHaveRegion = matchedRows.every((r) => r.region);
@@ -256,7 +310,7 @@ export class ClubService {
         for (const row of matchedRows) {
           const key = row.region!;
           if (!regionMap.has(key)) regionMap.set(key, []);
-          regionMap.get(key)!.push(toPublicClubSummary(row));
+          regionMap.get(key)!.push(buildSummary(row));
         }
         regions = [...regionMap.keys()]
           .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
@@ -269,7 +323,7 @@ export class ClubService {
         regions = [{
           region: null,
           regionSlug: null,
-          clubs: matchedRows.map(toPublicClubSummary),
+          clubs: matchedRows.map(buildSummary),
         }];
       }
 

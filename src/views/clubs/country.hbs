@@ -59,6 +59,13 @@
         {{#if externalUrl}}
         <a href="{{externalUrl}}" class="club-external-link" target="_blank" rel="noopener noreferrer">website</a>
         {{/if}}
+        {{#if leaders.length}}
+        <div class="club-leaders-summary">
+          <span class="club-leaders-label">Leaders:</span>
+          {{#each leaders}}<span class="club-leader-name">{{displayName}}</span>{{#unless @last}}, {{/unless}}{{/each}}
+          {{#if leadersOverflow}} <span class="club-leaders-overflow">+{{leadersOverflow}} more</span>{{/if}}
+        </div>
+        {{/if}}
       </li>
       {{/each}}
     </ul>

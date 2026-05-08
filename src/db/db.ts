@@ -699,6 +699,30 @@ export const clubs = {
       CASE cbl.role WHEN 'leader' THEN 0 ELSE 1 END,
       hp.person_name COLLATE NOCASE
   `); },
+
+  // Bulk variant for the country page leader summary. Returns one row per
+  // (club, leader) pair, with club_id included for caller-side grouping.
+  // Bounded set: total bootstrap leaders are O(80) today; if the table ever
+  // exceeds ~1k rows this should grow a country-scoped join filter.
+  get listAllBootstrapLeaders() { return db.prepare(`
+    SELECT
+      cbl.club_id             AS club_id,
+      hp.person_id            AS person_id,
+      hp.person_name          AS display_name,
+      cbl.role                AS role,
+      cbl.status              AS status,
+      cbl.imported_member_id  AS imported_member_id,
+      cbl.claimed_member_id   AS claimed_member_id
+    FROM club_bootstrap_leaders AS cbl
+    INNER JOIN historical_persons AS hp
+      ON hp.legacy_member_id = cbl.legacy_member_id
+    WHERE
+      cbl.status IN ('provisional', 'claimed')
+    ORDER BY
+      cbl.club_id,
+      CASE cbl.role WHEN 'leader' THEN 0 ELSE 1 END,
+      hp.person_name COLLATE NOCASE
+  `); },
 };
 
 // ---------------------------------------------------------------------------
