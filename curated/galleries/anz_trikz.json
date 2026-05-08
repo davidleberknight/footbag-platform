@@ -1,0 +1,11 @@
+{
+  "id": "gallery_anz_trikz",
+  "name": "AnzTrikz",
+  "description": "AnzTrikz freestyle footbag tutorial series covering foundational and advanced tricks.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#anz_trikz"
+  ],
+  "excludeTags": []
+}
