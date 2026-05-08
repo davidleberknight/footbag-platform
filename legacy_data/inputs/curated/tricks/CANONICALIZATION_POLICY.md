@@ -337,3 +337,30 @@ Rows that exist only via the fb.org pending pool (`is_active=0`, sourced from th
 | 2026-05-07 | RC-2A: normalized 39 `records_master.csv` `trick_name` rows from abbreviations (`pdx-`, `symp-`, `ATW`, `DATW`, `Atomsmasher`, `Janiwalker`, `Alpine X`, `BS X`, etc.) to canonical full forms matching `freestyle_tricks.canonical_name`. Closes the records-table empty-state on 12 affected trick pages. Implements §6 alias-policy rule "alias targets must resolve to canonical." | James Leberknight (explicit instruction) |
 | 2026-05-07 | CD-1: PassBack-source sidecar caption format established as `<canonical_trick_name> — <Creator> (<N> kicks, <YYYY-MM-DD>)`. Disambiguates same-trick same-player record clips in the Passback gallery via player + count + date + (where applicable) `(ss)`/`(op)` qualifier inherited from canonical name. | James Leberknight (explicit instruction) |
 | 2026-05-07 | Adopted display-time year-1970 floor for `achieved_date` rendering: when parsed year < 1970, suppress the date suffix in caption (Excel-epoch placeholder artifacts like `1905-MM-DD` would otherwise render as visually catastrophic dates). Source data is NOT modified — sanitization is presentation-only. Pattern lives in `fmt_date()` of caption-generator scripts. | James Leberknight (explicit instruction) |
+
+---
+
+## Appendix: Future modeling considerations (non-binding)
+
+Items captured here are **observations**, not policy commitments. They flag known modeling tensions where the current schema or row shape is workable but would benefit from a future enhancement. None require immediate schema change; none should be acted on in routine adjudication.
+
+### A1. Multi-family membership
+
+The current `freestyle_tricks.trick_family` column stores a single family slug. Two known canonical tricks belong to TWO families simultaneously:
+
+- **`double-leg-over`** belongs to both the **mirage family** (it is structurally a mirage variant — the dexterity work mirrors mirage's leg paths) AND the **legover family** (it is a leg-over move by name and mechanic).
+- **`eggbeater`** belongs to both the **illusion family** (structurally illusion-derivative) AND the **legover family** (it is a leg-over compound).
+
+The current single-family field forces a pick. The platform tolerates the pick, but the ontology under-represents the lineage in both cases. A future schema accommodation would be a secondary-family field (e.g. `trick_family_secondary TEXT NULLABLE`), or a normalized many-to-many `freestyle_trick_families` join table. Either would let the dictionary-by-family view group these tricks under both lineages without duplicating rows.
+
+**Status: deferred.** Document only. Do not add the field, do not add a join table, do not split rows. James direct adjudication 2026-05-08.
+
+### A2. Future modeling considerations are non-binding
+
+Entries in this appendix are intended for designers and future curators reading the policy. They explicitly do NOT:
+
+- override existing canonical decisions
+- block adjudication of new tricks under the current schema
+- create a backlog item that must be resolved before other work
+
+When a real consumer need arises (e.g. a UI feature that depends on multi-family grouping), the relevant entry can be promoted out of this appendix into a normal policy section with an explicit decision. Until then, single-family modeling is correct per current schema.

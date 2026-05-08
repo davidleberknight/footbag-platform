@@ -1,5 +1,5 @@
 trick_canon,adds,base_trick,category,aliases,notes
-clipper,2,clipper,dex,,Cross-body inside delay.
+clipper,1,clipper,body,,Body kick into clipper position.
 mirage,2,mirage,dex,,"Toe-set dex'd outside the supporting leg, recaught on the opposite toe (in-to-out dex)."
 legover,2,legover,dex,leg over,Leg-over dexterity.
 pickup,2,pickup,dex,,Pickup dexterity caught from below.
@@ -17,7 +17,7 @@ osis,3,osis,compound,,Inside-to-outside delay combination.
 eclipse,3,eclipse,compound,catwalk,3-ADD named compound
 eggbeater,3,legover,compound,egg beater,Illusion-modified legover.
 double leg over,3,legover,compound,dlo|miraging legover,Mirage-modified legover.
-drifter,3,clipper,compound,miraging clipper,Mirage-modified clipper.
+drifter,3,clipper stall,compound,miraging clipper,Mirage-modified clipper stall.
 barfly,4,infinity,compound,double infinity|bar fly,Double infinity.
 smear,3,mirage,compound,pixie mirage,Pixie-modified mirage.
 flurry,3,legover,compound,barraging legover,"Three consecutive dexes from a clipper set, finishing on the same toe."
@@ -28,8 +28,8 @@ ripwalk,4,butterfly,compound,blurry butterfly,Blurry-modified butterfly.
 blur,4,mirage,compound,blurry mirage,Blurry-modified mirage.
 atom smasher,4,mirage,compound,atomsmasher|atomic mirage|atom-smasher,"Atomic mirage: outside-then-inside dex sequence, recaught on the opposite toe."
 blender,4,osis,compound,whirling osis,Whirl-modified osis.
-ducking clipper,3,clipper,compound,,Ducking-modified clipper.
-spinning clipper,3,clipper,compound,,Spinning-modified clipper.
+ducking clipper,3,clipper stall,compound,,Ducking-modified clipper stall.
+spinning clipper,3,clipper stall,compound,,Spinning-modified clipper stall.
 ducking butterfly,4,butterfly,compound,,Ducking-modified butterfly.
 spinning butterfly,4,butterfly,compound,,Spinning-modified butterfly.
 symposium whirl,4,whirl,compound,symposium wirl,Symposium-modified whirl.

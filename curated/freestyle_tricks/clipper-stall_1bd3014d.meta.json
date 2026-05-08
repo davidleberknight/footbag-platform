@@ -6,9 +6,9 @@
   "sourceId": "passback_records",
   "tier": "RECORD",
   "tags": [
-    "#clipper",
+    "#clipper-stall",
     "#freestyle",
-    "#trick",
-    "#passback_records"
+    "#passback_records",
+    "#trick"
   ]
 }
