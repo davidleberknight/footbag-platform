@@ -143,6 +143,31 @@ beforeAll(async () => {
     status:           'rejected',
   });
 
+  // HP-less leader club: legacy_members row exists, but NO historical_persons
+  // row. Path-B contract: still renders, name from legacy_members.real_name,
+  // no /history/<id> link (template branches on personId).
+  const hplessTagId = insertTag(db, {
+    standard_type: 'club',
+    tag_normalized: '#club_test_hpless',
+  });
+  const hplessClubId = insertClub(db, {
+    hashtag_tag_id: hplessTagId,
+    name:           'HP-less Leader Club',
+    city:           'Limboville',
+    country:        'USA',
+  });
+  insertLegacyMember(db, {
+    legacy_member_id: 'legacy-hpless-005',
+    real_name: 'Mira NoHistorical',
+  });
+  // Intentionally NOT inserting a historical_persons row for legacy-hpless-005.
+  insertClubBootstrapLeader(db, {
+    club_id:          hplessClubId,
+    legacy_member_id: 'legacy-hpless-005',
+    role:             'leader',
+    status:           'provisional',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -238,5 +263,29 @@ describe('GET /clubs/club_test_suppressed — suppression filter', () => {
     expect(res.text).not.toContain('Old Leader');
     expect(res.text).not.toContain('Rejected Person');
     expect(res.text).not.toContain('class="club-leaders-heading"');
+  });
+});
+
+describe('GET /clubs/club_test_hpless — leader without historical_persons row', () => {
+  it('renders the leader using the legacy_members.real_name fallback', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_hpless');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="club-leaders-heading"');
+    expect(res.text).toContain('Mira NoHistorical');
+  });
+
+  it('does NOT link the leader name to /history/:personId when no HP row exists', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_hpless');
+    // No anchor wrapping the name (template branches on personId presence).
+    expect(res.text).toMatch(/<span class="club-leader-name">Mira NoHistorical<\/span>/);
+    expect(res.text).not.toMatch(/<a [^>]+href="\/history\/[^"]+"[^>]*>Mira NoHistorical<\/a>/);
+  });
+
+  it('still surfaces the Provisional leader badge for an HP-less leader', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_hpless');
+    expect(res.text).toContain('Provisional leader');
   });
 });

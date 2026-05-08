@@ -108,11 +108,16 @@ function toPublicClubSummary(
   };
 }
 
-// Flat row from clubs.listBootstrapLeadersByClubId. Single shaping site
-// (toClubLeader below) maps these to ClubLeader view-models.
+// Flat row from clubs.listBootstrapLeadersByClubId. The query LEFT JOINs both
+// historical_persons (for canonical name + person_id) and legacy_members (for
+// the two fallback name columns: real_name first, display_name second). All
+// four name-source fields are nullable. Single shaping sites below
+// (toClubLeader / toClubLeaderSummary) decide displayName + linkability.
 interface BootstrapLeaderRow {
-  person_id: string;
-  display_name: string;
+  person_id: string | null;
+  hp_person_name: string | null;
+  lm_real_name: string | null;
+  lm_display_name: string | null;
   role: 'leader' | 'co-leader';
   status: 'provisional' | 'claimed';
   imported_member_id: string | null;
@@ -124,10 +129,23 @@ interface BootstrapLeaderRowWithClubId extends BootstrapLeaderRow {
   club_id: string;
 }
 
+// Fallback chain for displayName. Empty strings are treated the same as NULL
+// (the legacy_members import has populated either real_name or display_name
+// for any given row, but not always both, and unset columns are stored as
+// empty strings, not NULL). Literal string of last resort keeps the contract
+// total so templates never branch on identity completeness.
+function pickDisplayName(row: BootstrapLeaderRow): string {
+  const candidates = [row.hp_person_name, row.lm_real_name, row.lm_display_name];
+  for (const c of candidates) {
+    if (c && c.trim() !== '') return c;
+  }
+  return '(unknown leader)';
+}
+
 // Single mapping site for DB row -> country-page summary projection.
 function toClubLeaderSummary(row: BootstrapLeaderRowWithClubId): ClubLeaderSummary {
   return {
-    displayName: row.display_name,
+    displayName: pickDisplayName(row),
     status: row.status,
   };
 }
@@ -135,6 +153,10 @@ function toClubLeaderSummary(row: BootstrapLeaderRowWithClubId): ClubLeaderSumma
 // Single mapping site for DB status -> view-model. Decouples the enum from
 // rendered text so the template branches on field presence, not status
 // values. New statuses (e.g. 'verified') only require a new branch here.
+//
+// Identity completeness is a service concern, not a template concern: the
+// template branches on personId presence (linkable to /history/<id>) but
+// never infers identity completeness from any other field.
 function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
   // Privacy gate: provisional leaders never expose contact email regardless
   // of source-data presence. Future statuses may opt in via this same gate.
@@ -148,12 +170,12 @@ function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
   }
 
   const leader: ClubLeader = {
-    personId:    row.person_id,
-    displayName: row.display_name,
+    displayName: pickDisplayName(row),
     role:        row.role,
     status:      row.status,
     showContact,
   };
+  if (row.person_id)        leader.personId        = row.person_id;
   if (row.claimed_member_id) leader.claimedMemberId = row.claimed_member_id;
   if (badgeLabel) leader.badgeLabel = badgeLabel;
   if (badgeNote)  leader.badgeNote  = badgeNote;

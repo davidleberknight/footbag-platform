@@ -677,51 +677,62 @@ export const clubs = {
     ORDER BY person_name ASC
   `); },
 
-  // Bootstrap leaders for a club. Joins legacy_member_id → historical_persons
-  // for the canonical display name. Filters out 'superseded' and 'rejected'
-  // leaders since they should not surface publicly. Sort: 'leader' role
-  // before 'co-leader', alphabetical within role.
+  // Bootstrap leaders for a club. LEFT JOINs historical_persons + legacy_members
+  // so leaders without an HP row still surface (HP-less leaders fall back to
+  // legacy_members.real_name; service-side COALESCE picks the displayName and
+  // only sets personId when an HP row exists). Filters out 'superseded' and
+  // 'rejected' leaders since they should not surface publicly. Sort: 'leader'
+  // role before 'co-leader', alphabetical within role using the same COALESCE.
   get listBootstrapLeadersByClubId() { return db.prepare(`
     SELECT
       hp.person_id            AS person_id,
-      hp.person_name          AS display_name,
+      hp.person_name          AS hp_person_name,
+      lm.real_name            AS lm_real_name,
+      lm.display_name         AS lm_display_name,
       cbl.role                AS role,
       cbl.status              AS status,
       cbl.imported_member_id  AS imported_member_id,
       cbl.claimed_member_id   AS claimed_member_id
     FROM club_bootstrap_leaders AS cbl
-    INNER JOIN historical_persons AS hp
+    LEFT JOIN historical_persons AS hp
       ON hp.legacy_member_id = cbl.legacy_member_id
+    LEFT JOIN legacy_members AS lm
+      ON lm.legacy_member_id = cbl.legacy_member_id
     WHERE
       cbl.club_id = ?
       AND cbl.status IN ('provisional', 'claimed')
     ORDER BY
       CASE cbl.role WHEN 'leader' THEN 0 ELSE 1 END,
-      hp.person_name COLLATE NOCASE
+      COALESCE(hp.person_name, NULLIF(lm.real_name, ''), NULLIF(lm.display_name, '')) COLLATE NOCASE
   `); },
 
   // Bulk variant for the country page leader summary. Returns one row per
   // (club, leader) pair, with club_id included for caller-side grouping.
+  // Same LEFT JOIN + COALESCE shape as the per-club query.
   // Bounded set: total bootstrap leaders are O(80) today; if the table ever
   // exceeds ~1k rows this should grow a country-scoped join filter.
   get listAllBootstrapLeaders() { return db.prepare(`
     SELECT
       cbl.club_id             AS club_id,
       hp.person_id            AS person_id,
-      hp.person_name          AS display_name,
+      hp.person_name          AS hp_person_name,
+      lm.real_name            AS lm_real_name,
+      lm.display_name         AS lm_display_name,
       cbl.role                AS role,
       cbl.status              AS status,
       cbl.imported_member_id  AS imported_member_id,
       cbl.claimed_member_id   AS claimed_member_id
     FROM club_bootstrap_leaders AS cbl
-    INNER JOIN historical_persons AS hp
+    LEFT JOIN historical_persons AS hp
       ON hp.legacy_member_id = cbl.legacy_member_id
+    LEFT JOIN legacy_members AS lm
+      ON lm.legacy_member_id = cbl.legacy_member_id
     WHERE
       cbl.status IN ('provisional', 'claimed')
     ORDER BY
       cbl.club_id,
       CASE cbl.role WHEN 'leader' THEN 0 ELSE 1 END,
-      hp.person_name COLLATE NOCASE
+      COALESCE(hp.person_name, NULLIF(lm.real_name, ''), NULLIF(lm.display_name, '')) COLLATE NOCASE
   `); },
 };
 

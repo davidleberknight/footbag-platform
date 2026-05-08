@@ -119,6 +119,34 @@ beforeAll(async () => {
   const caId = mkClub('club_country_ca', 'Canadian Isolation Club', 'Canada');
   addLeader(caId, 'lm-cl-ca-1', 'p-cl-ca-1', 'Olive CanadaLead');
 
+  // HP-less leader club: leader's legacy_member_id has a legacy_members row
+  // but no historical_persons row. Path-B contract: still renders on the
+  // country card via legacy_members.real_name fallback.
+  const hplessId = mkClub('club_country_hpless', 'Country HP-less Leader Club');
+  insertLegacyMember(db, { legacy_member_id: 'lm-cl-hpless-1', real_name: 'Quinn NoHP' });
+  // Intentionally NOT inserting a historical_persons row.
+  insertClubBootstrapLeader(db, {
+    club_id:          hplessId,
+    legacy_member_id: 'lm-cl-hpless-1',
+    role:             'leader',
+    status:           'provisional',
+  });
+
+  // Mixed club: one HP-having leader + one HP-less leader on the same club.
+  // Both must surface in the summary; sort uses COALESCE so they alphabetize
+  // together rather than HP-less rows clumping at the end.
+  const mixedId = mkClub('club_country_mixed', 'Country Mixed HP Leader Club');
+  // HP-having: 'Aaron Mixed' — alphabetically first
+  addLeader(mixedId, 'lm-cl-mixed-1', 'p-cl-mixed-1', 'Aaron Mixed', 'leader');
+  // HP-less: 'Bella Mixed' — second alphabetically; same role
+  insertLegacyMember(db, { legacy_member_id: 'lm-cl-mixed-2', real_name: 'Bella Mixed' });
+  insertClubBootstrapLeader(db, {
+    club_id:          mixedId,
+    legacy_member_id: 'lm-cl-mixed-2',
+    role:             'leader',
+    status:           'provisional',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -214,6 +242,26 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
     const app = createApp();
     const res = await request(app).get('/clubs/usa');
     expect(res.text).not.toContain('Olive CanadaLead');
+  });
+
+  it('renders an HP-less leader using the legacy_members.real_name fallback', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    const cardSlice = sliceCard(res.text, 'club_country_hpless');
+    expect(cardSlice).toContain('Quinn NoHP');
+  });
+
+  it('renders HP-having and HP-less leaders side-by-side on the same club', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    const cardSlice = sliceCard(res.text, 'club_country_mixed');
+    expect(cardSlice).toContain('Aaron Mixed');
+    expect(cardSlice).toContain('Bella Mixed');
+    // COALESCE sort: Aaron (HP-having) before Bella (HP-less); same role.
+    const aIdx = cardSlice.indexOf('Aaron Mixed');
+    const bIdx = cardSlice.indexOf('Bella Mixed');
+    expect(aIdx).toBeGreaterThan(0);
+    expect(bIdx).toBeGreaterThan(aIdx);
   });
 });
 
