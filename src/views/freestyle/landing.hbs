@@ -43,19 +43,36 @@
     </div>
   </section>
 
-  {{! ── Portal cards (existing five) ───────────────────────────────────────── }}
+  {{! ── Portal cards (intent-ordered: learn → records → competition → reference → context → analysis) ── }}
   <section class="content-section">
     <div class="card-grid card-grid-2col">
 
       <div class="card">
-        <div class="card-title">History &amp; ADD System</div>
+        <div class="card-title">Learn Tricks</div>
         <p>
-          ADD (Additional Degree of Difficulty) scoring and the evolution of freestyle
-          vocabulary from the 1980s foundation through modifier stacking in the 2000s.
+          Tutorial videos and freestyle vocabulary for newcomers and returning players.
+          Start with the Tricks of the Trade series, or look up unfamiliar terms in the glossary.
         </p>
         <div class="card-actions">
-          <a href="/freestyle/history" class="btn btn-outline">Full history &rarr;</a>
+          <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade &rarr;</a>
+          <a href="/freestyle/glossary" class="btn btn-outline">Glossary &rarr;</a>
         </div>
+      </div>
+
+      <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
+        <div class="card-title">Freestyle World Records</div>
+        <p>
+          Per-trick consecutive-completion records, sourced from the Passback record community.
+          Browse records by trick or see the all-time leaderboard.
+        </p>
+        {{#if content.totalRecords}}
+        <div class="card-actions">
+          <a href="/freestyle/records" class="btn btn-outline">View records &rarr;</a>
+          <a href="/freestyle/leaders" class="btn btn-outline">Leaderboard &rarr;</a>
+        </div>
+        {{else}}
+        <span class="badge badge-coming-soon">Coming soon</span>
+        {{/if}}
       </div>
 
       <div class="card">
@@ -71,37 +88,31 @@
         </div>
       </div>
 
-      <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
-        <div class="card-title">Passback Records</div>
+      <div class="card{{#unless content.totalTricks}} card-coming-soon{{/unless}}">
+        <div class="card-title">Trick Dictionary</div>
         <p>
-          Per-trick consecutive completion records from the freestyle
-          passback community.
+          ADD values, decompositions, and modifier relationships. Browse the full set,
+          or jump into named groupings via Move sets.
         </p>
-        {{#if content.totalRecords}}
+        {{#if content.totalTricks}}
         <div class="card-actions">
-          <a href="/freestyle/records" class="btn btn-outline">View records &rarr;</a>
-          <a href="/freestyle/leaders" class="btn btn-outline">Leaderboard &rarr;</a>
+          <a href="/freestyle/tricks" class="btn btn-outline">Browse tricks &rarr;</a>
+          <a href="/freestyle/moves"  class="btn btn-outline">Move sets &rarr;</a>
         </div>
         {{else}}
         <span class="badge badge-coming-soon">Coming soon</span>
         {{/if}}
       </div>
 
-      <div class="card{{#unless content.totalTricks}} card-coming-soon{{/unless}}">
-        <div class="card-title">Trick Dictionary</div>
+      <div class="card">
+        <div class="card-title">History &amp; ADD System</div>
         <p>
-          ADD values, categories, descriptions, base components, and modifier relationships.
+          ADD (Additional Degree of Difficulty) scoring and the evolution of freestyle
+          vocabulary from the 1980s foundation through modifier stacking in the 2000s.
         </p>
-        <p>New to freestyle? <a href="/freestyle/glossary">See Glossary &rarr;</a></p>
-        {{#if content.totalTricks}}
         <div class="card-actions">
-          <a href="/freestyle/tricks" class="btn btn-outline">Browse tricks &rarr;</a>
-          <a href="/freestyle/moves"  class="btn btn-outline">Move sets &rarr;</a>
-          <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade &rarr;</a>
+          <a href="/freestyle/history" class="btn btn-outline">Full history &rarr;</a>
         </div>
-        {{else}}
-        <span class="badge badge-coming-soon">Coming soon</span>
-        {{/if}}
       </div>
 
       <div class="card">

@@ -341,14 +341,35 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('rel="noopener noreferrer"');
   });
 
-  it('shows portal cards including new History & ADD System card', async () => {
+  it('shows the six portal cards (intent-ordered)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('History &amp; ADD System');
+    expect(res.text).toContain('Learn Tricks');
+    expect(res.text).toContain('Freestyle World Records');
     expect(res.text).toContain('Competition');
-    expect(res.text).toContain('Passback Records');
     expect(res.text).toContain('Trick Dictionary');
+    expect(res.text).toContain('History &amp; ADD System');
     expect(res.text).toContain('Insights');
+    // Old card title must not survive the rename.
+    expect(res.text).not.toContain('Passback Records');
+  });
+
+  it('Learn Tricks card carries the tutorial series + glossary links (not the dictionary card)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Both links must be present on the page somewhere.
+    expect(res.text).toContain('/media/gallery_tricks_of_the_trade');
+    expect(res.text).toContain('/freestyle/glossary');
+    // Tutorial-series link must sit inside the Learn Tricks card, not the
+    // Trick Dictionary card. Verify by anchoring the slice between
+    // "Learn Tricks" and the next card title.
+    const learnIdx = res.text.indexOf('Learn Tricks');
+    const recordsIdx = res.text.indexOf('Freestyle World Records');
+    expect(learnIdx).toBeGreaterThan(0);
+    expect(recordsIdx).toBeGreaterThan(learnIdx);
+    const learnSlice = res.text.slice(learnIdx, recordsIdx);
+    expect(learnSlice).toContain('/media/gallery_tricks_of_the_trade');
+    expect(learnSlice).toContain('/freestyle/glossary');
   });
 
   it('links to all portal pillar pages', async () => {
