@@ -66,6 +66,9 @@
           {{#if leadersOverflow}} <span class="club-leaders-overflow">+{{leadersOverflow}} more</span>{{/if}}
         </div>
         {{/if}}
+        <div class="club-meta-row club-meta-row--{{vitality.statusLabelKebab}}">
+          {{#each vitality.metaChips}}<span class="club-meta-chip">{{this}}</span>{{#unless @last}}<span class="club-meta-sep"> · </span>{{/unless}}{{/each}}
+        </div>
       </li>
       {{/each}}
     </ul>

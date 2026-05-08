@@ -21,6 +21,8 @@ import {
   insertHistoricalPerson,
   insertLegacyMember,
   insertClubBootstrapLeader,
+  insertLegacyClubCandidate,
+  insertLegacyPersonClubAffiliation,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3093');
@@ -147,6 +149,57 @@ beforeAll(async () => {
     status:           'provisional',
   });
 
+  // Vitality fixtures. Helper: attach N "members" (legacy_person_club_affiliations
+  // with status='confirmed_current') to a club via a legacy_club_candidates row.
+  // Each affiliation needs a historical_person_id (CHECK constraint: HP-id OR
+  // legacy_member_id must be non-null).
+  const attachMembers = (clubId: string, n: number, prefix: string): void => {
+    const lccId = insertLegacyClubCandidate(db, {
+      mapped_club_id: clubId,
+      classification: 'pre_populate',
+    });
+    for (let i = 0; i < n; i++) {
+      const lmId = `lm-mem-${prefix}-${i}`;
+      const hpId = `hp-mem-${prefix}-${i}`;
+      insertLegacyMember(db, { legacy_member_id: lmId, real_name: `Member ${i + 1}` });
+      insertHistoricalPerson(db, {
+        person_id:        hpId,
+        person_name:      `Member ${i + 1}`,
+        legacy_member_id: lmId,
+        source_scope:     'CANONICAL',
+      });
+      insertLegacyPersonClubAffiliation(db, {
+        legacy_club_candidate_id: lccId,
+        historical_person_id:     hpId,
+        resolution_status:        'confirmed_current',
+        display_name:             `Member ${i + 1}`,
+      });
+    }
+  };
+
+  // Active + leaders + members → "X leaders · Y members" (no trailing status chip).
+  // (TWO_LEADERS already has 2 leaders; attach 5 historical members to it.)
+  attachMembers(twoId, 5, 'two');
+
+  // Active + no leaders + members → "No known leaders yet · 4 members".
+  const memOnlyId = mkClub('club_country_members_only', 'Country Members-Only Club');
+  attachMembers(memOnlyId, 4, 'memonly');
+
+  // Inactive → "Historical club" appended even when leaders/members present.
+  const histTagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_country_historical' });
+  const histId = insertClub(db, {
+    hashtag_tag_id: histTagId,
+    name:    'Country Historical Club',
+    city:    'Yesteryear',
+    country: 'USA',
+    status:  'inactive',
+  });
+  addLeader(histId, 'lm-cl-hist-1', 'p-cl-hist-1', 'Hattie History', 'leader');
+  attachMembers(histId, 3, 'hist');
+
+  // Sparse → "No known leaders yet · Needs update" (no leaders, no members).
+  // ZERO_LEADERS already qualifies; reuse for sparse assertion.
+
   db.close();
   createApp = await importApp();
 });
@@ -262,6 +315,67 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
     const bIdx = cardSlice.indexOf('Bella Mixed');
     expect(aIdx).toBeGreaterThan(0);
     expect(bIdx).toBeGreaterThan(aIdx);
+  });
+});
+
+describe('GET /clubs/usa — vitality metadata row', () => {
+  it('renders a meta-row on every club entry', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    // Six fixture clubs in USA → six meta rows.
+    const rowCount = (res.text.match(/class="club-meta-row /g) ?? []).length;
+    expect(rowCount).toBeGreaterThanOrEqual(6);
+  });
+
+  it('active club with leaders + members → "leaders · members" without a status chip', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    const cardSlice = sliceCard(res.text, 'club_country_two');
+    expect(cardSlice).toContain('class="club-meta-row club-meta-row--known-leaders"');
+    expect(cardSlice).toContain('2 leaders');
+    expect(cardSlice).toContain('5 members');
+    // Status chip suppressed when implicit in the count chips.
+    expect(cardSlice).not.toContain('Known leaders');
+    expect(cardSlice).not.toContain('Historical club');
+    expect(cardSlice).not.toContain('Needs update');
+  });
+
+  it('active club with no leaders but members → "No known leaders yet · N members"', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    const cardSlice = sliceCard(res.text, 'club_country_members_only');
+    expect(cardSlice).toContain('class="club-meta-row club-meta-row--member-activity"');
+    expect(cardSlice).toContain('No known leaders yet');
+    expect(cardSlice).toContain('4 members');
+    expect(cardSlice).not.toContain('Member activity');  // suppressed when implicit
+    expect(cardSlice).not.toContain('Needs update');
+  });
+
+  it('inactive club → "Historical club" chip appended even with leaders + members', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    const cardSlice = sliceCard(res.text, 'club_country_historical');
+    expect(cardSlice).toContain('class="club-meta-row club-meta-row--historical-club"');
+    expect(cardSlice).toContain('1 leader');     // singular form
+    expect(cardSlice).toContain('3 members');
+    expect(cardSlice).toContain('Historical club');
+  });
+
+  it('sparse club (no leaders, no members) → "No known leaders yet · Needs update"', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    const cardSlice = sliceCard(res.text, 'club_country_zero');
+    expect(cardSlice).toContain('class="club-meta-row club-meta-row--needs-update"');
+    expect(cardSlice).toContain('No known leaders yet');
+    expect(cardSlice).toContain('Needs update');
+  });
+
+  it('singular vs plural leader chip: "1 leader" vs "2 leaders"', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/usa');
+    expect(sliceCard(res.text, 'club_country_one')).toContain('1 leader');
+    expect(sliceCard(res.text, 'club_country_one')).not.toContain('1 leaders');
+    expect(sliceCard(res.text, 'club_country_two')).toContain('2 leaders');
   });
 });
 

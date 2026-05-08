@@ -1339,6 +1339,57 @@ section.home-media { padding-top: 0; }
   font-size: 0.78rem;
   font-style: italic;
 }
+.club-meta-row {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+  line-height: 1.4;
+}
+.club-meta-chip {
+  white-space: nowrap;
+}
+.club-meta-sep {
+  margin: 0 4px;
+  opacity: 0.6;
+}
+.club-meta-row--needs-update {
+  color: #a16207;
+}
+.club-meta-row--historical-club {
+  font-style: italic;
+}
+.club-snapshot {
+  margin: 12px 0 18px;
+  padding: 10px 14px;
+  background-color: #fafafa;
+  border-left: 3px solid var(--border, #e5e5e5);
+  border-radius: 2px;
+}
+.club-snapshot-heading {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+.club-snapshot-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+.club-snapshot-list dt {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.club-snapshot-list dd {
+  margin: 0;
+  color: var(--text);
+}
+.club-snapshot--needs-update {
+  border-left-color: #a16207;
+}
 
 /* ── Member profile ────────────────────────────────────────── */
 .profile-layout {

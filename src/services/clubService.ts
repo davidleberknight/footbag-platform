@@ -1,4 +1,4 @@
-import { PublicClubRow, PublicClubMemberRow, clubs } from '../db/db';
+import { PublicClubRow, PublicClubMemberRow, MemberCountRow, clubs } from '../db/db';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
@@ -39,12 +39,43 @@ export interface PublicClubSummary {
   standardTagDisplay: string;
   leaders: ClubLeaderSummary[];   // ≤ LEADER_SUMMARY_CAP; empty when no provisional/claimed leaders exist
   leadersOverflow: number;        // count beyond the cap; 0 when total ≤ cap
+  vitality: ClubVitalitySignals;  // pre-shaped display signals for the metadata row
 }
 
 // Cap on visible leader names per club card on /clubs/:country. Names beyond
 // this cap collapse into the leadersOverflow count. Detail page (/clubs/:key)
 // uses ClubLeader and is uncapped.
 export const LEADER_SUMMARY_CAP = 2;
+
+// Conservative status labels for /clubs/:country chip rows and /clubs/:key
+// snapshot. Service-shaped; templates render the strings as-is. Avoids
+// "active" wording (which would imply real-time activity tracking the
+// platform does not yet do) and avoids governance-flavored words.
+export type ClubStatusLabel =
+  | 'Known leaders'      // active club with at least one provisional/claimed leader
+  | 'Member activity'    // active club with no leaders but historical members
+  | 'Historical club'    // clubs.status='inactive' (deactivated; preserved publicly)
+  | 'Needs update';      // active club with no leaders, no members
+
+export interface ClubVitalitySignals {
+  // Raw counts (also surfaced for tests + future use).
+  knownLeadersCount: number;
+  memberCount: number;
+  hasExternalLink: boolean;
+
+  // Pre-shaped display strings so templates remain logic-light.
+  statusLabel: ClubStatusLabel;
+  statusLabelKebab: string;        // CSS hook, e.g. 'historical-club'
+  knownLeadersText: string;        // '3' or 'None known yet'
+  memberCountText: string;         // '12' or 'Unknown'
+
+  // Country-page metadata-row chips, in display order. Composition rules:
+  // - always include a leaders chip ("X leaders" or "No known leaders yet")
+  // - include a members chip only when memberCount > 0
+  // - append the statusLabel chip only when it adds info beyond the counts
+  //   (i.e. only for 'Historical club' and 'Needs update')
+  metaChips: string[];
+}
 
 // Lightweight projection of ClubLeader for country-page card rendering.
 // status is carried for forward-compat (future badge variants on cards) but
@@ -84,8 +115,63 @@ export interface PublicClubDetail extends PublicClubSummary {
   leaders: ClubLeader[];
 }
 
+// Single shaping site for the vitality signals. Pure function over the
+// pre-fetched counts so both country-page (bulk) and detail-page (single)
+// paths reach the same display strings via identical logic.
+function computeVitality(
+  row: PublicClubRow,
+  knownLeadersCount: number,
+  memberCount: number,
+): ClubVitalitySignals {
+  const hasExternalLink =
+    row.external_url !== null && row.external_url.trim() !== '';
+
+  let statusLabel: ClubStatusLabel;
+  if (row.status === 'inactive') {
+    statusLabel = 'Historical club';
+  } else if (knownLeadersCount > 0) {
+    statusLabel = 'Known leaders';
+  } else if (memberCount > 0) {
+    statusLabel = 'Member activity';
+  } else {
+    statusLabel = 'Needs update';
+  }
+
+  const knownLeadersText =
+    knownLeadersCount > 0 ? String(knownLeadersCount) : 'None known yet';
+  const memberCountText =
+    memberCount > 0 ? String(memberCount) : 'Unknown';
+
+  const chips: string[] = [];
+  chips.push(
+    knownLeadersCount > 0
+      ? `${knownLeadersCount} leader${knownLeadersCount === 1 ? '' : 's'}`
+      : 'No known leaders yet',
+  );
+  if (memberCount > 0) {
+    chips.push(`${memberCount} member${memberCount === 1 ? '' : 's'}`);
+  }
+  // Append statusLabel only when it adds info beyond the count chips.
+  // 'Known leaders' / 'Member activity' are already implicit in the counts.
+  if (statusLabel === 'Historical club' || statusLabel === 'Needs update') {
+    chips.push(statusLabel);
+  }
+
+  return {
+    knownLeadersCount,
+    memberCount,
+    hasExternalLink,
+    statusLabel,
+    statusLabelKebab: statusLabel.toLowerCase().replace(/\s+/g, '-'),
+    knownLeadersText,
+    memberCountText,
+    metaChips: chips,
+  };
+}
+
 function toPublicClubSummary(
   row: PublicClubRow,
+  vitality: ClubVitalitySignals,
   leaders: ClubLeaderSummary[] = [],
   leadersOverflow: number = 0,
 ): PublicClubSummary {
@@ -105,6 +191,7 @@ function toPublicClubSummary(
     standardTagDisplay: row.tag_display,
     leaders,
     leadersOverflow,
+    vitality,
   };
 }
 
@@ -184,10 +271,11 @@ function toClubLeader(row: BootstrapLeaderRow): ClubLeader {
 
 function toPublicClubDetail(
   row: PublicClubRow,
+  vitality: ClubVitalitySignals,
   members: ClubMemberSummary[],
   leaders: ClubLeader[],
 ): PublicClubDetail {
-  const summary = toPublicClubSummary(row);
+  const summary = toPublicClubSummary(row, vitality);
   return {
     ...summary,
     leaders,
@@ -309,15 +397,25 @@ export class ClubService {
         if (!leadersByClubId.has(lr.club_id)) leadersByClubId.set(lr.club_id, []);
         leadersByClubId.get(lr.club_id)!.push(lr);
       }
-      const summarizeLeaders = (clubId: string): { leaders: ClubLeaderSummary[]; leadersOverflow: number } => {
+
+      // Bulk-fetch member counts once; same per-club Map pattern.
+      const memberCountRows = clubs.listMemberCountsForAllClubs.all() as MemberCountRow[];
+      const memberCountByClubId = new Map<string, number>();
+      for (const mr of memberCountRows) {
+        memberCountByClubId.set(mr.club_id, mr.member_count);
+      }
+
+      const summarizeLeaders = (clubId: string): { leaders: ClubLeaderSummary[]; leadersOverflow: number; total: number } => {
         const all = leadersByClubId.get(clubId) ?? [];
         const visible = all.slice(0, LEADER_SUMMARY_CAP).map(toClubLeaderSummary);
         const overflow = Math.max(0, all.length - LEADER_SUMMARY_CAP);
-        return { leaders: visible, leadersOverflow: overflow };
+        return { leaders: visible, leadersOverflow: overflow, total: all.length };
       };
       const buildSummary = (row: PublicClubRow): PublicClubSummary => {
-        const { leaders, leadersOverflow } = summarizeLeaders(row.club_id);
-        return toPublicClubSummary(row, leaders, leadersOverflow);
+        const { leaders, leadersOverflow, total: knownLeadersCount } = summarizeLeaders(row.club_id);
+        const memberCount = memberCountByClubId.get(row.club_id) ?? 0;
+        const vitality = computeVitality(row, knownLeadersCount, memberCount);
+        return toPublicClubSummary(row, vitality, leaders, leadersOverflow);
       };
 
       // Only group by region when ALL clubs have a named region and 2+ distinct
@@ -395,10 +493,17 @@ export class ClubService {
       // Leaders are public per V_Browse_Clubs / M_View_Club: provisional
       // leader names render to visitors and members alike. Contact-email
       // exposure is gated separately via ClubLeader.showContact.
-      const leaders: ClubLeader[] = (
-        clubs.listBootstrapLeadersByClubId.all(row.club_id) as BootstrapLeaderRow[]
-      ).map(toClubLeader);
-      const club = toPublicClubDetail(row, members, leaders);
+      const leaderRows = clubs.listBootstrapLeadersByClubId.all(row.club_id) as BootstrapLeaderRow[];
+      const leaders: ClubLeader[] = leaderRows.map(toClubLeader);
+
+      // Vitality signals: counts mirror the auth-gated members list scope
+      // so the snapshot agrees with the visible roster. Run the bulk
+      // member-count query once, look up this one club_id from the result.
+      const memberCountRows = clubs.listMemberCountsForAllClubs.all() as MemberCountRow[];
+      const memberCount = memberCountRows.find((r) => r.club_id === row.club_id)?.member_count ?? 0;
+      const vitality = computeVitality(row, leaderRows.length, memberCount);
+
+      const club = toPublicClubDetail(row, vitality, members, leaders);
 
       return {
         seo: { title: club.standardTagDisplay },

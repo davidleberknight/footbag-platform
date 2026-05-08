@@ -24,6 +24,8 @@ import {
   insertHistoricalPerson,
   insertLegacyMember,
   insertClubBootstrapLeader,
+  insertLegacyClubCandidate,
+  insertLegacyPersonClubAffiliation,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -141,6 +143,41 @@ beforeAll(async () => {
     legacy_member_id: 'legacy-rejected-004',
     role:             'co-leader',
     status:           'rejected',
+  });
+
+  // Attach 4 historical members to CLUB_TAG_NORMALIZED via legacy affiliations.
+  // Drives the "4 members" snapshot count. Each LPCA needs a historical_person_id
+  // (CHECK constraint: HP-id OR legacy_member_id must be non-null).
+  const mainLcc = insertLegacyClubCandidate(db, {
+    mapped_club_id: CLUB_ID,
+    classification: 'pre_populate',
+  });
+  for (let i = 0; i < 4; i++) {
+    const lmId = `lm-snap-${i}`;
+    const hpId = `hp-snap-${i}`;
+    insertLegacyMember(db, { legacy_member_id: lmId, real_name: `Snap Member ${i + 1}` });
+    insertHistoricalPerson(db, {
+      person_id:        hpId,
+      person_name:      `Snap Member ${i + 1}`,
+      legacy_member_id: lmId,
+      source_scope:     'CANONICAL',
+    });
+    insertLegacyPersonClubAffiliation(db, {
+      legacy_club_candidate_id: mainLcc,
+      historical_person_id:     hpId,
+      resolution_status:        'confirmed_current',
+      display_name:             `Snap Member ${i + 1}`,
+    });
+  }
+
+  // Sparse historical club for snapshot status='Historical club' assertion.
+  const histTagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_test_historical' });
+  insertClub(db, {
+    hashtag_tag_id: histTagId,
+    name:    'Historical Test Club',
+    city:    'Yesteryear',
+    country: 'USA',
+    status:  'inactive',
   });
 
   // HP-less leader club: legacy_members row exists, but NO historical_persons
@@ -263,6 +300,55 @@ describe('GET /clubs/club_test_suppressed — suppression filter', () => {
     expect(res.text).not.toContain('Old Leader');
     expect(res.text).not.toContain('Rejected Person');
     expect(res.text).not.toContain('class="club-leaders-heading"');
+  });
+});
+
+describe(`GET /clubs/${CLUB_KEY} — Club snapshot section`, () => {
+  it('renders the Club snapshot heading', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    expect(res.text).toContain('class="club-snapshot');
+    expect(res.text).toContain('>Club snapshot<');
+  });
+
+  it('shows the known-leaders count', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    expect(res.text).toMatch(/<dt>Known leaders<\/dt>\s*<dd>2<\/dd>/);
+  });
+
+  it('shows the member count from legacy affiliations', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    expect(res.text).toMatch(/<dt>Members<\/dt>\s*<dd>4<\/dd>/);
+  });
+
+  it('shows the status label as "Known leaders" when leaders exist on an active club', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/clubs/${CLUB_KEY}`);
+    expect(res.text).toContain('club-status-label');
+    expect(res.text).toMatch(/<dd class="club-status-label">Known leaders<\/dd>/);
+  });
+});
+
+describe('GET /clubs/club_test_no_leaders — Club snapshot for sparse club', () => {
+  it('shows "None known yet" for known leaders and "Needs update" status', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_no_leaders');
+    expect(res.text).toMatch(/<dt>Known leaders<\/dt>\s*<dd>None known yet<\/dd>/);
+    expect(res.text).toMatch(/<dt>Members<\/dt>\s*<dd>Unknown<\/dd>/);
+    expect(res.text).toMatch(/<dd class="club-status-label">Needs update<\/dd>/);
+    expect(res.text).toContain('club-snapshot--needs-update');
+  });
+});
+
+describe('GET /clubs/club_test_historical — Club snapshot for inactive club', () => {
+  it('shows "Historical club" status for a status=inactive club', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs/club_test_historical');
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/<dd class="club-status-label">Historical club<\/dd>/);
+    expect(res.text).toContain('club-snapshot--historical-club');
   });
 });
 

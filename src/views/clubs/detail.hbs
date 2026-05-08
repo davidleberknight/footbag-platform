@@ -33,6 +33,18 @@
     </div>
     {{/if}}
 
+    <section class="club-snapshot club-snapshot--{{content.club.vitality.statusLabelKebab}}" aria-label="Club snapshot">
+      <h2 class="club-snapshot-heading">Club snapshot</h2>
+      <dl class="club-snapshot-list">
+        <dt>Known leaders</dt>
+        <dd>{{content.club.vitality.knownLeadersText}}</dd>
+        <dt>Members</dt>
+        <dd>{{content.club.vitality.memberCountText}}</dd>
+        <dt>Status</dt>
+        <dd class="club-status-label">{{content.club.vitality.statusLabel}}</dd>
+      </dl>
+    </section>
+
     {{#if content.club.leaders.length}}
     <div class="club-leaders">
       <h2 class="club-leaders-heading">Leaders</h2>

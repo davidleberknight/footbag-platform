@@ -212,8 +212,14 @@ export interface PublicClubRow {
   region: string | null;
   country: string;
   external_url: string | null;
+  status: 'active' | 'inactive';   // 'archived' is filtered out of clubs_open
   tag_normalized: string;
   tag_display: string;
+}
+
+export interface MemberCountRow {
+  club_id: string;
+  member_count: number;
 }
 
 export interface PublicClubMemberRow {
@@ -626,6 +632,7 @@ export const clubs = {
       c.region,
       c.country,
       c.external_url,
+      c.status,
       t.tag_normalized,
       t.tag_display
     FROM clubs_open AS c
@@ -651,6 +658,7 @@ export const clubs = {
       c.region,
       c.country,
       c.external_url,
+      c.status,
       t.tag_normalized,
       t.tag_display
     FROM clubs_open AS c
@@ -711,6 +719,25 @@ export const clubs = {
   // Same LEFT JOIN + COALESCE shape as the per-club query.
   // Bounded set: total bootstrap leaders are O(80) today; if the table ever
   // exceeds ~1k rows this should grow a country-scoped join filter.
+  // Bulk member-count query for the country page vitality signals + the
+  // detail page club snapshot. Returns one row per (club_id, member_count)
+  // for every open club that has at least one confirmed/promoted historical
+  // affiliation. Counted scope mirrors listMembersByClubId so the count and
+  // the auth-gated list agree. Clubs with zero matching affiliations are
+  // simply absent from the result; service treats absence as count = 0.
+  get listMemberCountsForAllClubs() { return db.prepare(`
+    SELECT
+      lcc.mapped_club_id AS club_id,
+      COUNT(*)           AS member_count
+    FROM legacy_person_club_affiliations AS lpca
+    INNER JOIN legacy_club_candidates AS lcc
+      ON lcc.id = lpca.legacy_club_candidate_id
+    WHERE
+      lpca.resolution_status IN ('confirmed_current', 'promoted')
+      AND lcc.mapped_club_id IS NOT NULL
+    GROUP BY lcc.mapped_club_id
+  `); },
+
   get listAllBootstrapLeaders() { return db.prepare(`
     SELECT
       cbl.club_id             AS club_id,
