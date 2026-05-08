@@ -341,6 +341,58 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
   });
 });
 
+describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
+  it('renders the Learn / Watch / Family pathways block on the detail page', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="content-section trick-pathways"');
+    expect(res.text).toContain('What you can do with this trick');
+    // Three pathway items must render (Learn / Watch / Family).
+    expect(res.text).toContain('class="trick-pathway trick-pathway--learn');
+    expect(res.text).toContain('class="trick-pathway trick-pathway--watch');
+    expect(res.text).toContain('class="trick-pathway trick-pathway--family');
+    expect(res.text).toContain('Learn this trick');
+    expect(res.text).toContain('Watch records');
+    expect(res.text).toContain('Related families');
+  });
+
+  it('Watch pathway shows record count + top holder when records exist', async () => {
+    const app = createApp();
+    // 'whirl' has at least one fixture record (Stefan, etc. depending on seed).
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.text).toContain('class="trick-pathway trick-pathway--watch');
+    // Pathway text references "record" or "records" — pluralization handled in service.
+    expect(res.text).toMatch(/trick-pathway--watch[^"]*"[\s\S]*?\d+ record/);
+  });
+
+  it('Watch pathway links to the in-page Passback Records anchor', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    // When records exist, the link target is #passback-records.
+    expect(res.text).toMatch(/href="#passback-records"/);
+    // The Passback Records section carries the matching id anchor.
+    expect(res.text).toMatch(/<section id="passback-records"/);
+  });
+
+  it('Family pathway links to the family filter when family has siblings', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    // Whirl family has siblings (spinning-whirl in fixtures); link should resolve.
+    expect(res.text).toMatch(/trick-pathway--family[^"]*"[\s\S]*?href="\/freestyle\/tricks\?family=whirl"/);
+  });
+
+  it('Pathways block falls back gracefully when a pathway has no data', async () => {
+    const app = createApp();
+    // legover in the fixture has no family siblings (per existing test seeds).
+    const res = await request(app).get('/freestyle/tricks/legover');
+    // The pathways block still renders; the empty-pathway gets the
+    // trick-pathway--empty modifier and a "no X yet" / placeholder text.
+    expect(res.text).toContain('class="content-section trick-pathways"');
+    expect(res.text).toMatch(/trick-pathway[^"]*--family[^"]*trick-pathway--empty/);
+  });
+});
+
 describe('GET /freestyle/tricks/:slug — family badge in hero', () => {
   it('renders a family badge linking to the family filter', async () => {
     const app = createApp();

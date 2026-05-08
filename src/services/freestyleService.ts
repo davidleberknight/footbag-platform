@@ -187,6 +187,86 @@ function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
   };
 }
 
+// Pathway-block shaping for the trick detail page. Bundles three pre-shaped
+// summaries so the template renders without any business logic. Every string
+// the template will display is built here; href anchors point at existing
+// detail-page sections.
+function shapeTrickPathways(args: {
+  tutorialCount: number;
+  recordCount: number;
+  topRecordHolder: string | null;
+  topRecordValue: number;
+  familySlug: string | null;
+  familyName: string | null;
+  familyMemberCount: number;  // already-rendered-on-page family ladder size
+}): TrickPathways {
+  const { tutorialCount, recordCount, topRecordHolder, topRecordValue,
+          familySlug, familyName, familyMemberCount } = args;
+
+  // Learn pathway
+  const learn: TrickPathwaySummary = tutorialCount > 0
+    ? {
+        available: true,
+        count: tutorialCount,
+        primaryText: `${tutorialCount} tutorial${tutorialCount === 1 ? '' : 's'} available`,
+        secondaryText: null,
+        href: '#reference-media',
+        hrefLabel: 'Jump to Reference Media',
+      }
+    : {
+        available: false,
+        count: 0,
+        primaryText: 'No tutorials yet',
+        secondaryText: null,
+        href: null,
+        hrefLabel: null,
+      };
+
+  // Watch pathway — driven by passback record count (rendered in the records
+  // table further down the page), not by record-tier media items
+  const watch: TrickPathwaySummary = recordCount > 0
+    ? {
+        available: true,
+        count: recordCount,
+        primaryText: `${recordCount} record${recordCount === 1 ? '' : 's'}`,
+        secondaryText: topRecordHolder
+          ? `Top: ${topRecordHolder} (${topRecordValue} kicks)`
+          : null,
+        href: '#passback-records',
+        hrefLabel: 'Jump to Passback Records',
+      }
+    : {
+        available: false,
+        count: 0,
+        primaryText: 'No records yet',
+        secondaryText: null,
+        href: null,
+        hrefLabel: null,
+      };
+
+  // Family pathway. familyMemberCount > 1 means the family ladder section
+  // actually renders below; only surface the link when there's somewhere to go.
+  const family: TrickPathwaySummary = familySlug && familyName && familyMemberCount > 1
+    ? {
+        available: true,
+        count: familyMemberCount - 1,  // siblings, not counting current trick
+        primaryText: `Family: ${familyName}`,
+        secondaryText: `${familyMemberCount - 1} related trick${familyMemberCount - 1 === 1 ? '' : 's'}`,
+        href: `/freestyle/tricks?family=${familySlug}`,
+        hrefLabel: `Browse ${familyName} family`,
+      }
+    : {
+        available: false,
+        count: 0,
+        primaryText: 'No family attribution yet',
+        secondaryText: null,
+        href: null,
+        hrefLabel: null,
+      };
+
+  return { learn, watch, family };
+}
+
 /** Returns the canonical trick slug (or null if no row exists). Walks aliases once. */
 function resolveTrickSlug(slug: string): string | null {
   const direct = freestyleTricks.getAnyStatusBySlug.get(slug) as
@@ -249,6 +329,25 @@ export interface FreestyleTrickContent {
   // TT lessons, passback records, and source-tutorials together; surfaced as a
   // single block on the detail page. Most-recent first.
   referenceMedia: TrickReferenceMediaItem[];
+  // Pathways block: pre-shaped summary of Learn / Watch / Family availability
+  // for the new "What you can do with this trick" panel near the top of the
+  // detail page. All anchor hrefs are pre-built so templates render only.
+  pathways: TrickPathways;
+}
+
+export interface TrickPathwaySummary {
+  available: boolean;            // gates the block's "no X yet" fallback rendering
+  count: number;                 // pre-formatted into pre-shaped strings; raw count for tests
+  primaryText: string;           // pre-shaped main-line text; e.g. "3 tutorials available"
+  secondaryText: string | null;  // optional second line; e.g. "Top: Jim Penske (47 kicks)"
+  href: string | null;           // jump-link target ('#reference-media', '#passback-records', or family filter)
+  hrefLabel: string | null;      // pre-shaped CTA text; e.g. "Jump to Reference Media"
+}
+
+export interface TrickPathways {
+  learn: TrickPathwaySummary;
+  watch: TrickPathwaySummary;
+  family: TrickPathwaySummary;
 }
 
 export interface TrickReferenceMediaItem {
@@ -906,22 +1005,8 @@ export const freestyleService = {
           { label: trickName },
         ],
       },
-      content: {
-        trickName,
-        sortName,
-        slug,
-        records:          currentRows.map(shapeFreestyleRecord),
-        recordCount:      currentRows.length,
-        topValue,
-        progression:      allTrickRows.map(shapeFreestyleRecord),
-        hasProgression,
-        dictEntry,
-        familyMembers,
-        hasFamilyMembers: familyMembers.length > 1,
-        relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
-        previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
-        nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
-        referenceMedia:   runSqliteRead('media.listMediaByTrickTag', () =>
+      content: (() => {
+        const referenceMedia = runSqliteRead('media.listMediaByTrickTag', () =>
           (media as unknown as { listMediaByTrickTag: { all: (tag: string) => unknown[] } })
             .listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
         )
@@ -930,8 +1015,41 @@ export const freestyleService = {
           // is distinct from footbagspot_passback (PassBack tutorial
           // curriculum), which still renders.
           .filter(r => r.source_id !== 'passback_records')
-          .map(shapeReferenceMedia),
-      },
+          .map(shapeReferenceMedia);
+
+        const familySlug = dictRow?.trick_family ?? null;
+        const familyName = familySlug
+          ? familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/-/g, ' ')
+          : null;
+        const pathways = shapeTrickPathways({
+          tutorialCount: referenceMedia.length,
+          recordCount: currentRows.length,
+          topRecordHolder: currentRows[0]?.holder_name ?? null,
+          topRecordValue: topValue,
+          familySlug,
+          familyName,
+          familyMemberCount: familyMembers.length,
+        });
+
+        return {
+          trickName,
+          sortName,
+          slug,
+          records:          currentRows.map(shapeFreestyleRecord),
+          recordCount:      currentRows.length,
+          topValue,
+          progression:      allTrickRows.map(shapeFreestyleRecord),
+          hasProgression,
+          dictEntry,
+          familyMembers,
+          hasFamilyMembers: familyMembers.length > 1,
+          relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
+          previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
+          nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
+          referenceMedia,
+          pathways,
+        };
+      })(),
     };
   },
 

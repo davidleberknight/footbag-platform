@@ -95,6 +95,46 @@
   </section>
   {{/if}}
 
+  {{! ── Pathways — Learn / Watch / Family cross-link summary ─────────────── }}
+  <section class="content-section trick-pathways" aria-label="What you can do with this trick">
+    <div class="section-heading">
+      <h2>What you can do with this trick</h2>
+    </div>
+    <ul class="trick-pathway-list">
+      <li class="trick-pathway trick-pathway--learn{{#unless content.pathways.learn.available}} trick-pathway--empty{{/unless}}">
+        <h3 class="trick-pathway-title">Learn this trick</h3>
+        <p class="trick-pathway-primary">{{content.pathways.learn.primaryText}}</p>
+        {{#if content.pathways.learn.secondaryText}}
+        <p class="trick-pathway-secondary">{{content.pathways.learn.secondaryText}}</p>
+        {{/if}}
+        {{#if content.pathways.learn.href}}
+        <a class="trick-pathway-link" href="{{{content.pathways.learn.href}}}">{{content.pathways.learn.hrefLabel}} &rarr;</a>
+        {{/if}}
+      </li>
+      <li class="trick-pathway trick-pathway--watch{{#unless content.pathways.watch.available}} trick-pathway--empty{{/unless}}">
+        <h3 class="trick-pathway-title">Watch records</h3>
+        <p class="trick-pathway-primary">{{content.pathways.watch.primaryText}}</p>
+        {{#if content.pathways.watch.secondaryText}}
+        <p class="trick-pathway-secondary">{{content.pathways.watch.secondaryText}}</p>
+        {{/if}}
+        {{#if content.pathways.watch.href}}
+        <a class="trick-pathway-link" href="{{{content.pathways.watch.href}}}">{{content.pathways.watch.hrefLabel}} &rarr;</a>
+        {{/if}}
+      </li>
+      <li class="trick-pathway trick-pathway--family{{#unless content.pathways.family.available}} trick-pathway--empty{{/unless}}">
+        <h3 class="trick-pathway-title">Related families</h3>
+        <p class="trick-pathway-primary">{{content.pathways.family.primaryText}}</p>
+        {{#if content.pathways.family.secondaryText}}
+        <p class="trick-pathway-secondary">{{content.pathways.family.secondaryText}}</p>
+        {{/if}}
+        {{#if content.pathways.family.href}}
+        {{! triple-stash: pathway href is service-built from controlled paths; double-stash would escape '=' in '?family=X' query strings }}
+        <a class="trick-pathway-link" href="{{{content.pathways.family.href}}}">{{content.pathways.family.hrefLabel}} &rarr;</a>
+        {{/if}}
+      </li>
+    </ul>
+  </section>
+
   {{! ── Related Tricks ─────────────────────────────────────────────────────── }}
   {{#if content.relatedTricks.length}}
   <section class="content-section">
@@ -133,7 +173,7 @@
 
   {{! ── Reference Media — curator videos tagged with this trick's slug ─── }}
   {{#if content.referenceMedia.length}}
-  <section class="content-section">
+  <section id="reference-media" class="content-section">
     <div class="section-heading">
       <h2>Reference Media</h2>
       <p class="section-intro">Curated videos referencing {{content.trickName}}.</p>
@@ -199,7 +239,7 @@
 
   {{! ── Passback Records ───────────────────────────────────────────────────── }}
   {{#if content.recordCount}}
-  <section class="content-section">
+  <section id="passback-records" class="content-section">
   <div class="section-heading"><h2>Passback Records</h2></div>
   <div class="records-table-wrap">
     <table class="records-table">
