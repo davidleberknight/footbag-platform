@@ -312,6 +312,70 @@ Rows that exist only via the fb.org pending pool (`is_active=0`, sourced from th
 
 ---
 
+## 10. Productive multiplicity patterns
+
+### Red pt3 principle
+
+> *"Double / Triple describes repetition unless community usage stabilizes a distinct name."*
+
+Source: `red-corrections-pt3.txt` — Red's explicit guidance on "Double Legover", "Double Fairy", "Double Blender", "Double Spinning Osis":
+
+> *"Double is not its own set of moves (like stepping) but only signifies someone has done a double dexterity or double body spin. Double can involve different trick families."*
+
+A multiplicity prefix (`Double`, `Triple`, `Quadruple`, `Quintuple`) describes **count of repeated dexterity / body-spin / set events**, not a registered modifier. The presence of a multiplicity prefix is therefore a CLASSIFICATION-LEVEL signal, not a CANONICAL-LEVEL signal: the row may or may not deserve canonical status, and the prefix alone does not decide.
+
+### The named-identity test
+
+A `<Multiplicity> X` entry earns its own canonical row only when **community usage has stabilized it as a distinct, recognized name** — not merely as a count-described variant of another canonical.
+
+**Stabilized examples (already canonical):**
+- `double-leg-over` — community-fixed name; Red identifies as "Miraging Legover" structurally but the name persists independently.
+- `double-around-the-world` — community-fixed name; standard term in the ATW family.
+- `double-spin` — community-fixed name; pairs with `spin` as a body-primitive ladder.
+
+**Descriptive examples (NOT canonical, per Red pt3):**
+- `Double Fairy` — Red: "term isn't used much, really a Double Illusion."
+- `Double Blender` — Red: "Whirling Blender, two dexes and an Osis."
+- `Double Spinning Osis` — Red: "is just that, two spins to an Osis = 5 ADDs."
+
+The distinction is not visible from the name alone, the ADD value, or even the presence of records and notation. It requires Red-tier endorsement OR substantial documented community use.
+
+### Adjudication checklist for `<Multiplicity> X` candidates
+
+1. Does Red explicitly endorse the name as a distinct identity? → if yes, candidate for canonical.
+2. Has Red explicitly described it as descriptive (e.g. "is just that", "term isn't used much")? → if yes, NOT canonical.
+3. Is there a substantial passback record (not just a struggle-indicator count)? Records are evidence of community use but **not sufficient** without named-identity persistence.
+4. Does the name appear in independent sources (TT lessons, AnzTrikz, Footbagspot tutorials, multiple competitor uploads)? Independent sources outweigh single fb.org listings.
+5. If steps 1–4 are inconclusive, default to DEFER — not promote.
+
+### Default disposition
+
+In the absence of clear community-fixed identity, productive multiplicity rows default to:
+
+- **`is_active=0` external residue** — visible in the coverage-diff workbook, NOT in the canonical dictionary.
+- The base trick (where it exists) handles the rendering. E.g. records labeled "Double X" can resolve via alias to canonical `X` if and when the alias is curator-approved (NOT automatic — see §6 Alias policy).
+
+### Detection tooling
+
+`legacy_data/scripts/build_freestyle_dict_coverage_diff.py` carries a productive-multiplicity detector that flags `Double / Triple / Quadruple / Quintuple <X>` external rows and emits:
+
+- `is_productive_multiplicity` (yes/no)
+- `multiplicity_prefix`
+- `multiplicity_base_name`
+- `multiplicity_note` (whether base resolves; high-evidence caveat)
+- `review_needed='productive-multiplicity-review'` for unmatched flagged rows
+
+**The detector flags but does NOT adjudicate.** Decisions remain with Red (or, where Red has spoken, with the curator-applied principle above).
+
+### Cross-references
+
+- §1 Canonical vs alias vs structural-decomposition (canonical-row criteria)
+- §5 Modifier / set / body / naming distinction (productive multiplicity is NOT a registered modifier)
+- §6 Alias policy (descriptive multiplicity names may live as aliases when Red approves)
+- §7 Expert-override protocol (Red's explicit corrections supersede heuristic detection)
+
+---
+
 ## Cross-references
 
 | File / Path | Role |
@@ -337,6 +401,7 @@ Rows that exist only via the fb.org pending pool (`is_active=0`, sourced from th
 | 2026-05-07 | RC-2A: normalized 39 `records_master.csv` `trick_name` rows from abbreviations (`pdx-`, `symp-`, `ATW`, `DATW`, `Atomsmasher`, `Janiwalker`, `Alpine X`, `BS X`, etc.) to canonical full forms matching `freestyle_tricks.canonical_name`. Closes the records-table empty-state on 12 affected trick pages. Implements §6 alias-policy rule "alias targets must resolve to canonical." | James Leberknight (explicit instruction) |
 | 2026-05-07 | CD-1: PassBack-source sidecar caption format established as `<canonical_trick_name> — <Creator> (<N> kicks, <YYYY-MM-DD>)`. Disambiguates same-trick same-player record clips in the Passback gallery via player + count + date + (where applicable) `(ss)`/`(op)` qualifier inherited from canonical name. | James Leberknight (explicit instruction) |
 | 2026-05-07 | Adopted display-time year-1970 floor for `achieved_date` rendering: when parsed year < 1970, suppress the date suffix in caption (Excel-epoch placeholder artifacts like `1905-MM-DD` would otherwise render as visually catastrophic dates). Source data is NOT modified — sanitization is presentation-only. Pattern lives in `fmt_date()` of caption-generator scripts. | James Leberknight (explicit instruction) |
+| 2026-05-08 | Added §10 "Productive multiplicity patterns" codifying Red pt3 principle: *"Double / Triple describes repetition unless community usage stabilizes a distinct name."* Captures the named-identity test, stabilized vs. descriptive examples (canonical: `double-leg-over`, `double-around-the-world`, `double-spin`; descriptive: Double Fairy, Double Blender, Double Spinning Osis), adjudication checklist, default disposition (external residue), and reference to the detector in `build_freestyle_dict_coverage_diff.py`. | James Leberknight (explicit instruction) |
 
 ---
 
