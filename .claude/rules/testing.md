@@ -34,7 +34,7 @@ For every service method:
 - Idempotency — repeating an operation with the same key returns the same id/outcome.
 - Error classes — every `throw` path has a test that asserts the thrown class and the message shape.
 - Boundary values — zero rows, one row, N rows, N+1 rows, empty strings, unicode, NULLs, extreme dates.
-- Edge cases from the relevant `docs/USER_STORIES.md` or `docs/SERVICE_CATALOG.md` entry — read the story before writing the test.
+- Edge cases from the relevant `docs/USER_STORIES.md` story (acceptance criteria) and the SERVICE_CATALOG entry for the owning service (required service-layer patterns; current method shapes are authoritative in TypeScript and tests). Read the story before writing the test.
 
 For every pure function / shaping helper:
 

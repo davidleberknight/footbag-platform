@@ -20,8 +20,8 @@ Auto memory is not authoritative for current slice status; use the plan for that
 - **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/GOVERNANCE.md` first, then targeted sections of `docs/DESIGN_DECISIONS.md`.
 - For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES.md` first.
 - For current slice/scope, known drift, and sequencing, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`; for sequencing, dependency analysis, or phased planning, read the full document in Plan Mode.
-- For page/UI/view/route/view-model details already in scope, load `docs/VIEW_CATALOG.md`.
-- For service-layer ownership and method contracts, load `docs/SERVICE_CATALOG.md`; use the plan to determine what is implemented now versus what is broader design / planned work.
+- For required public-page rendering patterns, view-model contracts, route catalog, and sensitive-page invariants, load `docs/VIEW_CATALOG.md`.
+- For required service-layer ownership and patterns, load `docs/SERVICE_CATALOG.md`; pair with code/tests/types for current method shapes; use the plan to determine current scope.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load `docs/DESIGN_DECISIONS.md` — read when entering a new code area or unwinding a temporary simplification; do not load by default.
 - For go-live readiness, legacy data migration scope, operational-readiness gates, phasing, or cutover planning, load `docs/MIGRATION_PLAN.md`.
@@ -125,8 +125,8 @@ This project uses a documentation suite. The AI should treat it as a modular kno
 - **Data Model** - canonical persisted entities, relationships, schema conventions, storage structure.
 
 ### Catalog and contract documents
-- **View Catalog** - authoritative page/UI/view/route/view-model specification for the cataloged views; use this instead of looking for a separate UI or Server specification document.
-- **Service Catalog** - authoritative service-layer specification and contract document: service ownership, controller-to-service expectations, method contracts, business logic expectations, persistence touchpoints, and service-level error semantics.
+- **View Catalog** - target public-rendering standard, route catalog, public page matrix, and sensitive-page invariants (privacy, anti-enumeration, owner-only, public/private profile boundary).
+- **Service Catalog** - target service-layer ownership, required patterns, and invariants. Pair with code/tests/types for current method shapes.
 - **DevOps guide** - build, test, release, operate, recover, CI/CD, infrastructure procedures.
 
 ## When to load more detail (recommended wording / agent rule)
@@ -140,8 +140,8 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 ## Document routing heuristics (what to read next)
 
 - Need exact feature behavior or acceptance criteria -> **User Stories** (+ **View Catalog** when flow/UI context matters)
-- Need page routes, rendered page behavior, page/view-model composition, or UI-facing implementation conventions for cataloged views -> **View Catalog**
-- Need business rules, service boundaries, controller-to-service expectations, method contracts, or service-level error semantics -> **Service Catalog**
+- Need required rendering patterns, route audience/auth, view-model contracts, or sensitive-page invariants -> **View Catalog**
+- Need target service ownership, required service-layer patterns, or service-level error semantics -> **Service Catalog**
 - Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
 - Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DevOps guide**. Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.

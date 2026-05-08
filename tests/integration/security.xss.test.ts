@@ -2,8 +2,7 @@
  * Adversarial tests: XSS attempts against fields that render in Handlebars
  * templates.
  *
- * Per `.claude/rules/testing.md` §Adversarial testing: "XSS attempts in every
- * field that lands in a Handlebars template."
+ * XSS attempts in every field that lands in a Handlebars template.
  *
  * Assertion shape: for every payload, the response body must contain the
  * escaped form (`&lt;script&gt;`, `&quot;`, etc.) and must NOT contain the

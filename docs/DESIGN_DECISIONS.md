@@ -537,13 +537,13 @@ Internal-only code (operator, maintainer, and QC tools that are not reachable fr
 Current and reserved subtrees:
 
 - `src/internal-qc/{controllers,services}/**` (live): historical-data QC tooling (net team corrections, persons data-quality review). Every file in this subtree carries the banner `// ---- QC-only (delete with pipeline-qc subsystem) ----` so the retirement scope (per `docs/MIGRATION_PLAN.md` §29) is mechanically greppable at retirement time.
-- `src/internal-admin/**` (reserved, not yet created): future role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes per `docs/SERVICE_CATALOG.md` §9.1. Follows the same subtree convention without the QC deletion banner.
+- `src/internal-admin/**` (reserved, not yet created): future role-gated admin tooling covering work queue, audit viewer, alarm management, and config writes per the `AdminGovernanceService` entry in `docs/SERVICE_CATALOG.md`. Follows the same subtree convention without the QC deletion banner.
 
 Rationale:
 
 - A distinct subtree signals at a glance whether code serves the public product or serves operator/maintainer needs. Nothing in `src/services/` or `src/controllers/` is silently QC-only.
 - The QC-only banner on every source file makes the "delete with pipeline-qc subsystem" scope mechanically greppable at retirement time (MIGRATION_PLAN §29).
-- Keeping internal-only code out of `src/services/` preserves the service-catalog invariant: `docs/SERVICE_CATALOG.md` covers permanent product surface only (see SC §1 "Catalog scope and organizational tiers"). Internal-only code is documented in its relevant runbook, not in the main service catalog.
+- Keeping internal-only code out of `src/services/` preserves the service-catalog invariant: `docs/SERVICE_CATALOG.md` covers permanent product surface only (see the SC scope-and-organization section). Internal-only code is documented in its relevant runbook, not in the main service catalog.
 - Role-based separation is orthogonal to environment-based adapter parity: dev, staging, and production differ only at the `<Purpose>Adapter` seam (§5.3). Internal-only surfaces exist in every environment and are gated by auth role, not by env config.
 
 Trade-offs:
@@ -556,7 +556,7 @@ Impact:
 - `src/internal-qc/` already houses the Net QC and persons QC subsystems. `src/internal-admin/` is reserved, not yet created.
 - `src/services/`, `src/controllers/`, `src/views/` hold permanent product code only. New internal-only code must land under the appropriate `src/internal-<purpose>/**` subtree on first commit. Do not merge an internal-only addition into the main trees with intent to move later.
 - Integration tests for internal-only routes continue to live in `tests/integration/` alongside other route tests. Test-file paths do not mirror the src-layer separation today; if a convention for that is adopted later, it is a test-layout decision, not a change to this rule.
-- `docs/SERVICE_CATALOG.md` §1 documents the catalog-scope consequence: internal-only subtrees are out of catalog scope. Permanent product services (including dev-mode shaping services such as `SimulatedEmailService` at SC §8.2) remain in-catalog.
+- `docs/SERVICE_CATALOG.md` documents the catalog-scope consequence in the scope-and-organization section: internal-only subtrees are out of catalog scope. Permanent product services (including dev-mode shaping services such as `SimulatedEmailService`) remain in-catalog.
 
 ## 1.13 Curator Content Source of Truth
 
@@ -799,7 +799,7 @@ Rules:
 
 6. Historical persons confer no member capabilities. A row in `historical_persons` — whether claimed or unclaimed — does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and GOVERNANCE.md §4.
 
-7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and SC §10.1) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row per MIGRATION_PLAN §8, and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
+7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `LegacyMigrationService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row per MIGRATION_PLAN §8, and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
 Rationale:
 

@@ -1,8 +1,7 @@
 /**
  * Integration tests for activePlayerService.
  *
- * Covers every named edge case from MEMBERSHIP_IMPLEMENTATION_PLAN Phase A
- * that lives in the AP service surface:
+ * Covers AP service surface edge cases:
  *   - applyAttendance: grant, extend, no-shorten, registration idempotency,
  *     Tier 1+ no-op, validation
  *   - applyVouch: grant + paired vouch row, target Tier 1+ no-op, self-vouch

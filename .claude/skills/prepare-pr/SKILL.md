@@ -30,8 +30,8 @@ Before writing the summary, confirm the changes follow the project's non-negotia
 - no repository abstractions, ORMs, mediator layers, or speculative API layers
 - `db.ts` is the only SQL surface — no raw SQL outside it
 - new timestamps use `strftime('%Y-%m-%dT%H:%M:%fZ','now')`, not `datetime('now')`
-- public pages conform to VIEW_CATALOG.md §4 standard (if any public pages were touched)
-- service contracts match SERVICE_CATALOG.md (if any service boundaries were touched)
+- public pages follow the VIEW_CATALOG required-rendering-standard and view/controller/template patterns (if any public pages were touched)
+- service changes follow the SERVICE_CATALOG required ownership and service-layer patterns (if any service boundaries were touched); intentional deviations land in `IMPLEMENTATION_PLAN.md`
 
 Flag any violations explicitly in the summary.
 

@@ -49,10 +49,9 @@ function collectMemberNamesForByTags(tagDisplays: string[]): Map<string, string>
 }
 
 // `buildOtherHref`, when supplied, sets the chip href for non-`#by_*`
-// tags. Hero criteria/exclude callers omit it so chips render as plain
-// (per VIEW_CATALOG §6.21: hero chips have href = null). Item-tile
-// callers pass `browseTagHref` so each chip links to the on-the-fly
-// /media/browse view for that tag.
+// tags. Hero criteria/exclude callers omit it so chips render as plain.
+// Item-tile callers pass `browseTagHref` so each chip links to the
+// on-the-fly /media/browse view for that tag.
 function shapeTagChip(
   display: string,
   viewer: ViewerContext,

@@ -9,10 +9,9 @@
  *
  * Why this module exists separately from `src/services/freestyleService.ts`:
  * the data here is CONTENT, not service logic. Putting it in a service file
- * violates the "services own use-case logic, not editorial data" boundary
- * (`.claude/rules/service-layer.md`). Finding 11.4 of `code_doc_review.md`
- * called out ~200 lines of hardcoded arrays in `freestyleService.ts`; this
- * module is where they were moved.
+ * violates the "services own use-case logic, not editorial data" boundary;
+ * roughly 200 lines of hardcoded editorial arrays previously lived in
+ * `freestyleService.ts` and were extracted here.
  *
  * What is in here:
  *   1. Type interfaces describing each content shape (consumed by

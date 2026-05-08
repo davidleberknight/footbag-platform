@@ -1,7 +1,7 @@
 /**
  * Integration tests for membershipTieringService.
  *
- * Covers every named edge case from MEMBERSHIP_IMPLEMENTATION_PLAN Phase A:
+ * Covers tiering service edge cases:
  *   - Tier 0 buys Tier 1 / Tier 2 ends current Active Player
  *   - Tier 0 / Tier 1 / Tier 2 → Tier 3 governance with correct underlying
  *   - Tier 0 with AP → Tier 3 ends AP (paired ledger writes in one transaction)

@@ -22,25 +22,17 @@ Use this skill — not general editing — when a task does any of the following
 
 Read only the section relevant to this task. For large documents, locate the section by heading or keyword before reading. Do not load entire files into context.
 
-1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`** — confirm the service change is in scope now.
-2. **`docs/USER_STORIES.md`** — locate the relevant user story by feature name, then read only that story's acceptance criteria. Understand what behavior is being added or corrected.
-3. **`docs/SERVICE_CATALOG.md`** — locate the section for the affected service by name. Read only that section:
-   - the service's stated ownership and responsibility boundary
-   - current method contracts (parameters, return shapes, pre/postconditions)
-   - listed business rules and invariants
-   - persistence touchpoints and `db.ts` statement groups used
-   - service-level error semantics
-4. **`database/schema.sql`** — verify exact column or field names, types, nullable vs. required, status enum values, and any computed or join-derived fields used in the view-model, plus impacted FK relationships, indices, and triggers relevant to the change. The database schema was derived from early requirements analysis so there might be drift compared to current detail. If drift is detected, call it out to the human and explain.
-5. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and any data invariants that must be preserved. Double check against drift from the schema if impacted by this change to the service layer.
-6. **`docs/DESIGN_DECISIONS.md`** (targeted sections) — check for invariants relevant to the change:
-   - §1.9 Controller to Service Pattern
-   - §2.2 Data Access Pattern
-   - §2.3 Soft Deletes
-   - §2.4 Immutable Audit Logs
-   - auth/security invariants if the service touches sessions, passwords, or ballots
-7. **CODE** - Always follow existing code patterns and naming conventions if similar features have already been implemented. If there is no good pattern in existing code to follow for the task at hand, do a targetted lookup for the relevant Decision(s) in **`docs/DESIGN_DECISIONS.md`** and then ask the human for advice. Do not write code that deviates from established patterns unless authorized by the human.
-
-`docs/SERVICE_CATALOG.md` may describe broader service contracts than the active slice. Use `IMPLEMENTATION_PLAN.md` to determine what is implemented now versus what remains broader planned/design contract. Note that the IMPLEMENTATION_PLAN is clear about what services have already been implemented successfully, and those establish the correct patterns to follow.
+1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`** — confirm the service change is in scope now. Note any current deviations from target patterns flagged here.
+2. **`docs/USER_STORIES.md`** — locate the relevant user story by feature name, then read only that story's acceptance criteria.
+3. **`docs/GOVERNANCE.md`** — when the service touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
+4. **`docs/DESIGN_DECISIONS.md`** (targeted) — check for invariants relevant to the change. Read the controller-to-service pattern decision, the data-access pattern decision, the soft-deletes decision, the immutable-audit-logs decision, and any auth or security decisions the service touches.
+5. **`docs/SERVICE_CATALOG.md`** — target service-layer ownership and required patterns. Locate the entry for the affected service. Read:
+   - the service's target ownership boundary (Owns / Does not own)
+   - the required patterns the service must follow
+   - the method roster (names; signatures and return shapes are authoritative in the cited source file)
+   - the side-effects categories the service produces
+6. **Code, types, tests, and `database/schema.sql`** — authoritative for current shapes (method signatures, return types, error class shape, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with target patterns in SC, that is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not catalog drift. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
+7. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the service-layer change must preserve.
 
 ## Step 2 — Inspect current code
 

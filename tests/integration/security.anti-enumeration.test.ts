@@ -1,11 +1,10 @@
 /**
  * Adversarial tests: anti-enumeration assertions.
  *
- * Per `.claude/rules/testing.md` §Adversarial testing: "Timing attacks
- * against anti-enumeration endpoints (login, password reset, claim lookup).
- * Endpoints that could leak existence (login, password reset, email verify,
- * claim lookup) must return identical UX for 'exists' vs 'does not exist'
- * cases."
+ * Timing attacks against anti-enumeration endpoints (login, password reset,
+ * claim lookup). Endpoints that could leak existence (login, password reset,
+ * email verify, claim lookup) must return identical UX for 'exists' vs
+ * 'does not exist' cases.
  *
  * This suite asserts the long-term contract that the identity-probing
  * endpoints are response-shape-identical for positive and negative inputs.

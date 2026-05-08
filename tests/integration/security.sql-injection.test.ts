@@ -1,11 +1,9 @@
 /**
  * Adversarial tests: SQL injection attempts against free-text inputs.
  *
- * Per `.claude/rules/testing.md` §Adversarial testing: "SQL-injection
- * attempts in every free-text input."
- *
- * This suite asserts the long-term contract that free-text user input is
- * parameterized at the db layer, never concatenated into SQL. Positive proof:
+ * SQL-injection attempts in every free-text input. This suite asserts the
+ * long-term contract that free-text user input is parameterized at the db
+ * layer, never concatenated into SQL. Positive proof:
  *
  *   - no endpoint responds 500 for a payload containing DROP / UNION / --
  *   - the `members` table remains queryable after every payload (row count

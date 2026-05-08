@@ -3717,10 +3717,10 @@ export const media = {
 
   // Named-gallery URL bookmarks: a member_galleries row anchors a stable
   // /media/<gallery_id> URL; its content is the tag-AND view defined by
-  // member_gallery_tags. Per USER_STORIES.md §V_View_Gallery: "Gallery
-  // built dynamically based on tag matching". The hub at /media lists
-  // FH-owned bookmarks. Item counts are computed in the service layer
-  // via countGalleryItemsByCriteria so this query stays simple.
+  // member_gallery_tags (gallery built dynamically by tag matching). The
+  // hub at /media lists FH-owned bookmarks. Item counts are computed in
+  // the service layer via countGalleryItemsByCriteria so this query stays
+  // simple.
   get listFhNamedGalleries() { return db.prepare(`
     SELECT g.id, g.name, g.description, g.sort_order
     FROM member_galleries g

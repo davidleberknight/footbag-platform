@@ -300,8 +300,8 @@ function validateTags(tags: string[]): void {
   }
 }
 
-// Gallery-editing tag pattern (per docs/USER_STORIES.md §1.1): leading '#'
-// then alphanumeric + underscores only, max 100 chars. Unlike validateTags
+// Gallery-editing tag pattern: leading '#' then alphanumeric + underscores
+// only, max 100 chars. Unlike validateTags
 // this DOES allow `#curated` (the existing curated-freestyle-tricks gallery
 // uses it as a criteria tag). The `#by_*` namespace is system-managed
 // (auto-applied as the gallery's uploader-scoping criterion) and is
@@ -1764,9 +1764,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // caller's perspective: image processing, S3 put, DB insert, and
     // Personal Gallery materialization all complete before return.
     //
-    // DEVIATION: no tier gate (US M_Upload_Photo requires Tier 1+).
-    // Tier ledger exists in schema but no enforcement anywhere yet;
-    // see IMPLEMENTATION_PLAN deviations.
+    // DEVIATION: no tier gate (target: Tier 1+ required to upload).
+    // Tier ledger exists in schema but no enforcement anywhere yet.
     async uploadPhotoForMember(input: MemberPhotoInput): Promise<MemberUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);

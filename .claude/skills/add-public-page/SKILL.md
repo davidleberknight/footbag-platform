@@ -11,21 +11,20 @@ Public pages in this project are IFPA-facing visitor pages. Every page must conf
 
 Read only the section relevant to this task. For large documents, locate the section by heading or keyword before reading. Do not load entire files into context.
 
-1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`** — confirm the page is in scope now, drafted next, or out of scope, noting that some pages are only partially complete, with final details defered.
+1. **The top active-slice/status block in `IMPLEMENTATION_PLAN.md`** — confirm the page is in scope now, drafted next, or out of scope. Note any current deviations from target patterns flagged here.
 2. **`docs/USER_STORIES.md`** — locate the relevant user story by page name or route, then read only that story's acceptance criteria. Do not infer behavior; derive it from the stories.
-3. **`docs/VIEW_CATALOG.md`** — the authoritative page contract for views already implemented, fully or partially, or specified in the current implementation slice / sprint. Read:
-   - §4.2 Required top-level view-model shape (`seo`, `page`, `navigation`, `content`)
-   - §4.3 Required reusable primitives (event card, discipline tag, result section, year nav, etc.)
-   - §4.4 Implementation rules (thin controllers, logic-light templates, service-owned shaping)
-   - §4.5 Visual rules and CSS token baseline
-   - §5 Route catalog — confirm the route is cataloged or explain why it should be added
-   - §6.x Page specification for the affected page — required content, required view-model fields, navigation outputs, empty states
-4. **`docs/SERVICE_CATALOG.md`** — locate the section for the owning service, then read only that section's method contracts and business rules. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
-5. **`database/schema.sql`** — verify exact column or field names, types, nullable vs. required, status enum values, and any computed or join-derived fields used in the view-model, plus impacted FK relationships, indices, and/or triggers relevant to the change. The database schema was derived from early requirements analysis so there might be drift compared to current details. If drift is detected, call it out to the human and explain.
-6. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and any data invariants that must be preserved. Double check against drift from the schema if impacted by this change to the view layer.
-7. **CODE** - Always follow existing code patterns and naming conventions if similar features have already been implemented. If there is no good pattern in existing code to follow for the task at hand, do a targetted lookup for the relevant Decision(s) in **`docs/DESIGN_DECISIONS.md`** and then ask the human for advice. Do not write code that deviates from established patterns unless authorized by the human.
+3. **`docs/GOVERNANCE.md`** — when the page touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
+4. **`docs/DESIGN_DECISIONS.md`** (targeted) — read when entering a new code area, unwinding a temporary simplification, or when the rationale behind a pattern is unclear.
+5. **`docs/VIEW_CATALOG.md`** — target rendering standard and target page contract. Read:
+   - public-rendering-standard section: required `PageViewModel<TContent>` shape (`seo`, `page`, `navigation`, `content`); required reusable primitives (event card, discipline tag, result section, year nav, etc.); implementation rules (thin controllers, logic-light templates, service-owned shaping); visual rules and CSS token baseline.
+   - public-route-catalog section: confirm the route is cataloged or explain why it should be added.
+   - public-page-matrix entry for the affected route: required service binding, audience and authorization, required rendering pattern, source files.
+   - sensitive-page target rules: when the page touches privacy, anti-enumeration, owner-only, or public/private boundary surfaces, read the relevant subsection in full.
+6. **`docs/SERVICE_CATALOG.md`** — target service-layer ownership and required patterns. Locate the entry for the owning service; read its boundary statement, required patterns, and method roster. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
+7. **Code, types, tests, and `database/schema.sql`** — authoritative for current shapes (method signatures, view-model TypeScript, return types, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with target patterns in VC or SC, that is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not catalog drift. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
+8. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the view-layer change must preserve.
 
-Note that `docs/VIEW_CATALOG.md` may be intentionally partial. If the requested page is not cataloged, first determine whether it is out of scope for the current slice before proposing catalog expansion.
+If the requested page is not cataloged, first determine whether it is out of scope for the cataloged surface before proposing catalog expansion.
 
 ## Step 2 — Inspect current code
 
@@ -62,12 +61,12 @@ If this task adds a **new top-level nav section**, also read:
 ## Step 5 — State your plan before editing
 
 Before touching any file, state:
-- route(s) affected and whether they are already cataloged in VIEW_CATALOG.md §5
+- route(s) affected and whether they are already cataloged in the VIEW_CATALOG public-route-catalog section
 - user story acceptance criteria being satisfied
-- view-model fields required by VIEW_CATALOG.md §6.x
-- service method(s) that will own the page shaping
+- view-model fields required by the VIEW_CATALOG public-page-matrix entry for the route
+- service method(s) that will own the page shaping (from the SERVICE_CATALOG entry for the owning service)
 - if content comes from an external URL: the fetched content structure and how it maps to `content.sections[]`
-- if a new top-level nav section: which files need a nav item added (home controller, nav partial/layout, VIEW_CATALOG.md §4.2)
+- if a new top-level nav section: which files need a nav item added (home controller, nav partial/layout, the VIEW_CATALOG public-rendering-standard section)
 - complete list of files expected to change
 - verification plan
 

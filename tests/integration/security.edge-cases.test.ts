@@ -1,8 +1,6 @@
 /**
  * Adversarial tests: oversized payloads, unicode mischief, race conditions.
  *
- * Per `.claude/rules/testing.md` §Adversarial testing.
- *
  * Covers:
  *   - oversized payloads (1 MB form body, oversized bio, oversized name fields)
  *   - unicode mischief (RTL override, zero-width joiners, homoglyphs)
@@ -125,9 +123,9 @@ describe('Oversized payloads', () => {
       .set('Cookie', ownCookie())
       .type('form')
       .send({ bio: huge, firstCompetitionYear: '', showCompetitiveResults: 'on' });
-    // Known gap (code_doc_review.md finding 12.1): body-parser "request
-    // entity too large" currently surfaces as 500 instead of the canonical
-    // 413 Payload Too Large. Accept either until the error handler is fixed.
+    // Known gap: body-parser "request entity too large" currently surfaces
+    // as 500 instead of the canonical 413 Payload Too Large. Accept either
+    // until the error handler is fixed.
     expect([413, 500]).toContain(res.status);
 
     // Process stayed up: a subsequent request succeeds.

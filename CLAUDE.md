@@ -36,7 +36,7 @@ Read the minimum the task requires. Default: active-slice block + code. Load doc
 4. When needed, targeted sections of:
    - `docs/USER_STORIES.md` — intended behavior
    - `docs/VIEW_CATALOG.md` — route/page contracts
-   - `docs/SERVICE_CATALOG.md` — service contracts (derived from requirements analysis; only reliable where it overlaps with implemented code)
+   - `docs/SERVICE_CATALOG.md` — required target service-layer patterns and ownership; pair with code/tests/types for current shapes
    - `docs/DATA_MODEL.md` — schema semantics (derived from requirements analysis; verify against `database/schema.sql` and current code)
    - `docs/GOVERNANCE.md` — security, privacy, historical data policy
 5. `docs/DESIGN_DECISIONS.md` — long-term rationale and architectural commitments; read when entering a new code area, unwinding a temporary simplification, or when the reason behind a pattern is unclear; do not load by default

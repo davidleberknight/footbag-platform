@@ -1,15 +1,12 @@
 /**
  * Adversarial tests: transaction atomicity for multi-row writes.
  *
- * Per `.claude/rules/testing.md` §What "edge cases" means: "multi-row writes
- * either all land or none."
- *
- * This suite pins the atomicity contract for flows that write to more than
- * one row or table in a single service call. If any step fails, no partial
- * state should persist.
+ * Multi-row writes either all land or none. This suite pins the atomicity
+ * contract for flows that write to more than one row or table in a single
+ * service call. If any step fails, no partial state should persist.
  *
  * Limitation: strict mid-transaction fault injection would require either DB
- * mocking (forbidden per testing.md) or a stub adapter. These tests instead
+ * mocking (forbidden) or a stub adapter. These tests instead
  * exercise the paths where the service itself throws mid-transaction and
  * verify DB state is consistent after the throw.
  */
@@ -143,11 +140,11 @@ describe('claimLegacyAccount — atomicity invariants', () => {
 
 // ── claimLegacyAccount two-actor concurrency ─────────────────────────────────
 //
-// Per `.claude/rules/testing.md` adversarial checklist: "two simultaneous
-// claims of the same legacy account." Fires both POSTs via Promise.all and
-// asserts the markClaimed `WHERE claimed_by_member_id IS NULL` guard lets
-// exactly one actor win (legacy_members.claimed_by_member_id is populated by
-// exactly that member, and no stray member row ends up with a cross-claim).
+// Two simultaneous claims of the same legacy account. Fires both POSTs via
+// Promise.all and asserts the markClaimed `WHERE claimed_by_member_id IS
+// NULL` guard lets exactly one actor win (legacy_members.claimed_by_member_id
+// is populated by exactly that member, and no stray member row ends up with
+// a cross-claim).
 
 describe('claimLegacyAccount — two-actor race', () => {
   const MEMBER_B_ID   = 'atomic-member-002';

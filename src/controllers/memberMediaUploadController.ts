@@ -13,7 +13,7 @@
  * DEVIATION: any authenticated member may upload — there is no tier
  * gate at this level. Target: gate on tier eligibility once the tier
  * feature lands. Tier ledger exists in schema; no enforcement
- * anywhere yet (see IMPLEMENTATION_PLAN deviations).
+ * anywhere yet.
  */
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';

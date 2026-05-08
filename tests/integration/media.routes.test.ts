@@ -3,10 +3,8 @@
  * URL bookmarks. Named galleries are member_galleries rows owned by the
  * FH system member. Their content is computed dynamically by tag-AND
  * match against the gallery's criteria-tag set in member_gallery_tags
- * (per docs/USER_STORIES.md §V_View_Gallery and docs/DATA_MODEL.md
- * "hashtag-driven coupling"). Curator URL-ref content surfaces in
- * named galleries purely via tag-AND match per
- * docs/USER_STORIES.md §A_Upload_Curated_Media.
+ * (hashtag-driven coupling). Curator URL-ref content surfaces in named
+ * galleries purely via tag-AND match.
  *
  * Covers: hub rendering, named-gallery rendering, platform-branched tile
  * shaping (s3 / youtube / vimeo), tag-AND filtering, anti-enumeration
@@ -559,9 +557,8 @@ describe('GET /media/:galleryId (named gallery)', () => {
     // BUT the named gallery's owner is FH — and queryGalleryItemsByCriteria
     // does not filter by uploader. This test pins down that today's
     // behaviour is "any moderation_status='active', is_avatar=0 item that
-    // matches the criteria appears", which is correct per
-    // USER_STORIES.md §V_View_Gallery (gallery is dynamic tag-match,
-    // not uploader-restricted).
+    // matches the criteria appears" (gallery is dynamic tag-match, not
+    // uploader-restricted).
     const app = createApp();
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.text).toContain('member-uploaded-marker');

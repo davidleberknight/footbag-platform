@@ -376,9 +376,8 @@ describe('docker-compose.prod.yml structural invariants', () => {
   });
 
   it('memory limits match documented nano_3_0 values', () => {
-    // Documented in the compose file's deviation comments and in
-    // IMPLEMENTATION_PLAN.md's photo-pipeline accepted-deviation entry.
-    // If these change, both the comments and IP must be updated together.
+    // Documented in the compose file's deviation comments. If these
+    // change, update the compose-file comments alongside.
     const overlay = loadCompose('docker/docker-compose.prod.yml');
     expect(overlay.services.nginx.deploy?.resources?.limits?.memory).toBe('64M');
     expect(overlay.services.web.deploy?.resources?.limits?.memory).toBe('192M');

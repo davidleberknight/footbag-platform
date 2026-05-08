@@ -161,9 +161,9 @@ These have surfaced in design conversations and represent the failure modes most
 For design intent, not implementation:
 
 - `docs/USER_STORIES.md` — `M_View_Club` ("Leaders array displayed on club detail page"), `V_Browse_Clubs` (visitor-public surface)
-- `docs/VIEW_CATALOG.md` §6.13 — Leaders rendering rules + view-model contract
-- `docs/SERVICE_CATALOG.md` §4.1 — `ClubService` boundary and consumer list
-- `docs/DESIGN_DECISIONS.md` §2.4 — `members` vs `historical_persons` entity distinction
-- `legacy_data/inputs/curated/tricks/CANONICALIZATION_POLICY.md` §9 — under-classification-beats-pollution philosophy (parallel reasoning for the freestyle ontology, applies analogously here)
+- `docs/VIEW_CATALOG.md` — the club-detail entry in the public-page matrix and the club-detail-leader-contact-gate sensitive-page subsection (leaders rendering rules and view-model contract)
+- `docs/SERVICE_CATALOG.md` — the `ClubService` entry (boundary and consumer list)
+- `docs/DESIGN_DECISIONS.md` — the entity-distinction decision for `members` vs `historical_persons`
+- `legacy_data/inputs/curated/tricks/CANONICALIZATION_POLICY.md` — the under-classification-beats-pollution philosophy section (parallel reasoning for the freestyle ontology, applies analogously here)
 
 For implementation specifics (SQL, factories, test fixtures, file paths), consult the codebase at the time of work. Those details rot; the principles in this skill do not.

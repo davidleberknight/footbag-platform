@@ -51,11 +51,11 @@ This Footbag Website Modernization Project will upgrade footbag.org as the new g
 
 The project documentation suite consists of the following documents:
 
-**View Catalog:** Defines the authoritative page/UI/view/route/view-model specification for the cataloged views. It documents which pages exist, which route renders each page, what the page is for, what the page-level boundaries are, and what data shape the rendered view requires. 
+**View Catalog:** Target public-rendering standard, route catalog, and public page matrix. Defines the `PageViewModel<TContent>` contract every page must consume, the reusable primitives, the public route inventory with audience and authorization, and the sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary).
 
 **User Stories:** Defines complete feature scope, and describes what users must be able to achieve, and acceptance criteria (system side effects). Source of Truth for Functional Requirements.
 
-**Service Catalog:** This defines the back-end services that meet all Functional Requirements as defined by User Stories and Design Decisions. It defines the boundaries and method contracts used by Controllers and background jobs to invoke these business services. This document is the source of Truth for business logic, Controller to Service conventions and behaviors, persistence adapter expectations, and error semantics at the boundary between the front and back end systems. The level of detail is such that it can drive the AI implementation of the user-facing functionality in a way that is separate from UI layouts and from Server technology specifics.
+**Service Catalog:** Target service-layer design. Defines ownership boundaries for every service under `src/services/**`, the required patterns each service must follow, the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others), and the catalog-scope rule that determines what belongs here vs in TypeScript or `IMPLEMENTATION_PLAN.md`. Pair with code, tests, and TypeScript types for current method shapes.
 
 **Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, these three documents define the high-level requirements from which all other documents must be consistent. 
 
@@ -69,7 +69,7 @@ The project documentation suite consists of the following documents:
 
 **Design Decisions:** Captures technology and design decisions and their rationale. It explains why major choices were made, and which constraints are intentional, with implementation details where known or applicable. It is the Source of Truth for design commitments and non-functional requirements from which the Solution Architecture follows.
 
-**Data Model:** Defines canonical data schemas and conventions for all persisted entities. It is the Source of Truth for entity types, common fields, storage layout, key structure, relationships between entities. The Service Catalog document elaborates on the expected queries into the data and their requirements that are used to derive this model. The schema sql file goes with this, to create the SQLite database.
+**Data Model:** Defines canonical data schemas and conventions for all persisted entities. It is the Source of Truth for entity types, common fields, storage layout, key structure, relationships between entities. The Service Catalog defines which services own which tables and the required persistence patterns; this document defines the schema itself. The schema sql file goes with this, to create the SQLite database.
 
 **Migration Plan:** Source of Truth for go-live readiness, covering legacy data migration design (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history), operational-readiness gates (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the phasing, operational states, and validation gates that govern cutover. The two canonical docs above describe the long-term design; this one describes how the project transitions from where it is today to production launch.
 

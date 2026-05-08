@@ -1,71 +1,36 @@
 # Footbag Website Modernization Project -- View Catalog
----
+
+This catalog defines the target rendering standard for the public site and the target page contract for every public route. It describes durable design intent: required `PageViewModel` shape, required reusable primitives, required visual rules, route-level audience and authorization, and the sensitive-page invariants (anti-enumeration, owner-only, public/private profile boundary). Current shapes (controller code, template HTML, view-model TypeScript) are authoritative for current behavior; this catalog is authoritative for target patterns. When this catalog and `IMPLEMENTATION_PLAN.md` disagree, the plan wins for current-state questions; this catalog wins for target-design questions.
 
 ## Table of Contents
 
-- [1. Purpose](#1-purpose)
+- [1. Purpose and authority](#1-purpose-and-authority)
 - [2. Scope](#2-scope)
-- [3. Governing Principles](#3-governing-principles)
-  - [3.1 One standard, many pages](#31-one-standard-many-pages)
-  - [3.2 Reuse must be enforceable](#32-reuse-must-be-enforceable)
-  - [3.3 Events are consumers, not the authority](#33-events-are-consumers-not-the-authority)
-  - [3.4 Future pages must fit the standard](#34-future-pages-must-fit-the-standard)
-  - [3.5 Home is a special composition-page exception](#35-home-is-a-special-composition-page-exception)
-- [4. Public Rendering Standard](#4-public-rendering-standard)
+- [3. Governing principles](#3-governing-principles)
+- [4. Public rendering standard](#4-public-rendering-standard)
   - [4.1 Standard purpose](#41-standard-purpose)
   - [4.2 Required page contract](#42-required-page-contract)
   - [4.3 Required reusable primitives](#43-required-reusable-primitives)
   - [4.4 Implementation rules](#44-implementation-rules)
   - [4.5 Visual rules](#45-visual-rules)
-- [5. Public Route Catalog](#5-public-route-catalog)
-- [6. Page Specifications](#6-page-specifications)
-  - [6.1 Home](#61-home)
-  - [6.2 Member dashboard](#62-member-dashboard)
-  - [6.3 Member profile](#63-member-profile)
-  - [6.4 Member profile edit](#64-member-profile-edit)
-  - [6.5 Member account stub pages](#65-member-account-stub-pages)
-  - [6.6 Historical players redirect](#66-historical-players-redirect)
-  - [6.7 Historical player detail](#67-historical-player-detail)
-  - [6.8 Events index](#68-events-index)
-  - [6.9 Events year archive](#69-events-year-archive)
-  - [6.10 Event detail](#610-event-detail)
-  - [6.11 Clubs index](#611-clubs-index)
-  - [6.12 Clubs country page](#612-clubs-country-page)
-  - [6.13 Club detail](#613-club-detail)
-  - [6.14 HoF landing](#614-hof-landing)
-  - [6.15 BAP landing](#615-bap-landing)
-  - [6.16 Login](#616-login)
-  - [6.17 Register](#617-register)
-  - [6.18 Claim initiation](#618-claim-initiation)
-  - [6.19 Claim confirmation](#619-claim-confirmation)
-  - [6.20 Legal](#620-legal)
-  - [6.21 Media galleries](#621-media-galleries)
-  - [6.22 Member gallery management](#622-member-gallery-management)
-- [7. Shared Public Behavior Rules](#7-shared-public-behavior-rules)
-  - [7.1 Authorization boundary](#71-authorization-boundary)
-  - [7.2 Error behavior](#72-error-behavior)
-  - [7.3 Template behavior](#73-template-behavior)
-- [8. Future Admission Rules](#8-future-admission-rules)
-- [9. Summary](#9-summary)
+- [5. Public route catalog](#5-public-route-catalog)
+- [6. Public page matrix](#6-public-page-matrix)
+- [7. Sensitive page target rules](#7-sensitive-page-target-rules)
+- [8. Shared public behavior rules](#8-shared-public-behavior-rules)
+- [9. Future admission rules](#9-future-admission-rules)
+- [10. Catalog update rules](#10-catalog-update-rules)
 
 ---
 
-## 1. Purpose
+## 1. Purpose and authority
 
-**Before using this catalog, read `IMPLEMENTATION_PLAN.md` first.** This catalog defines the long-lived rendering standard and target page contracts; it does not track what is actually shipped. `IMPLEMENTATION_PLAN.md` is authoritative for current scope, in-progress work, and accepted temporary shortcuts the dev/staging environment runs with (early-test flows, deferred verifications, substitute adapters). When this catalog and `IMPLEMENTATION_PLAN.md` disagree, the plan wins for current-state questions; this catalog wins for target-design questions. Never silently reconcile them.
+This catalog owns: the target public-rendering standard, the target page contract (`PageViewModel<TContent>`), the required reusable primitives and CSS vocabulary, the public route catalog, and the target audience/authorization and rendering invariants for every public page. It is authoritative for design questions about how a public page must be rendered, what view-model shape services must produce, and which rules templates must follow.
 
-This document is the authoritative catalog for the public pages that are already implemented or actively specified in the current slice, and for the rendering standard those cataloged pages must follow.
+This catalog does not own: current template HTML, current view-model TypeScript shapes, current controller code paths, or current implementation status. Those live in `src/views/`, `src/types/`, `src/controllers/`, and `IMPLEMENTATION_PLAN.md` respectively. It also does not own service ownership boundaries; those live in `docs/SERVICE_CATALOG.md`.
 
-It is intentionally partial. A view may still be part of the product because it is defined in `docs/USER_STORIES.md` even when it is not yet cataloged here.
+This catalog is intentionally narrower than the full product. A public capability may still be part of the broader product because it is defined in `docs/USER_STORIES.md` even when it is not yet cataloged here. Read `IMPLEMENTATION_PLAN.md` to determine current scope.
 
-It has two jobs:
-
-1. define the **generic look-and-feel standard** that applies to every cataloged page.
-2. define the **catalog of public pages** that consume that standard.
-
-The standard is cross-site and generic. Every public page must conform to it.
-
----
+It has two jobs: define the generic look-and-feel standard that applies to every cataloged page; and define the catalog of public pages that consume that standard. The standard is cross-site and generic. Every public page must conform to it.
 
 ## 2. Scope
 
@@ -74,66 +39,33 @@ This document covers:
 - the public visual and structural standard for server-rendered visitor pages
 - the public route catalog
 - the required page contract for public rendering
-- the public and account pages:
-  - Home
-  - Events index
-  - Events year archive
-  - Event detail
-  - Clubs index
-  - Clubs country pages and club detail pages
-  - Historical players redirect (`/history` -> `/members`)
-  - Historical player detail (`/history/:personId`)
-  - Member dashboard (`/members`)
-  - Member profile (`/members/:memberKey`)
-  - Member profile edit (`/members/:memberKey/edit`)
-  - Member avatar upload (`POST /members/:memberKey/avatar` — multipart upload endpoint, inline on edit page)
-  - Member account stub pages (`/members/:memberKey/:section`)
-  - Login
-  - Register
-  - HoF landing
-- the legacy-account claim pages:
-  - Legacy-account claim initiation (`GET /history/claim`, `POST /history/claim`)
-  - Legacy-account claim confirmation (`POST /history/claim/confirm`)
-  - Historical-person direct claim (`GET /history/:personId/claim`, `POST /history/:personId/claim/confirm`) for registrants without an old-site user account (scenarios D and E per MIGRATION_PLAN §7)
-- the rules future pages must follow to join the catalog
+- the public, account, claim, and content-discovery pages in the cataloged surface
+- the rules a future page must follow to join the catalog
 
-`docs/USER_STORIES.md` remains broader than this file. This catalog is authoritative for the views it includes; it does not attempt to catalog the full future product yet.
+`docs/USER_STORIES.md` remains broader than this file. This catalog is authoritative for the views it includes; it does not catalog the full future product.
 
-This document does not cover (yet):
+This document does not cover: organizer workflows, admin pages, APIs, internal tools, and pages that remain out of scope for the cataloged surface.
 
-- organizer workflows
-- admin pages
-- APIs
-- internal tools
-- media pages that remain out of scope for the current slice
-- news pages that remain out of scope for the current slice
-- tutorial pages that remain out of scope for the current slice
-- implementation details that belong in code patches rather than catalog definition
-
----
-
-## 3. Governing Principles
+## 3. Governing principles
 
 ### 3.1 One standard, many pages
 
-The public site must have one reusable look-and-feel standard. Pages consume the standard. Pages do not define their own standards.
+The public site has one reusable look-and-feel standard. Pages consume the standard. Pages do not define their own standards.
 
 ### 3.2 Reuse must be enforceable
 
-The standard must be enforceable through reusable code, not through convention alone.
-
-That means:
+The standard is enforceable through reusable code, not through convention alone:
 
 - thin controllers
-- shaped page view models
+- shaped page view-models
 - one public layout contract
-- reusable Handlebars partials/components
+- reusable Handlebars partials and components
 - shared CSS tokens and component styles
 - logic-light templates
 
 ### 3.3 Events are consumers, not the authority
 
-The existing Events pages are part of the catalog, but they do not define the site-wide visual or structural rules. They must refer to the generic standard exactly as Home, Clubs, and future sections do.
+The Events pages are part of the catalog, but they do not define site-wide visual or structural rules. They refer to the generic standard exactly as Home, Clubs, and other sections do.
 
 ### 3.4 Future pages must fit the standard
 
@@ -141,15 +73,13 @@ A new public page may join the catalog only if it can be expressed through the s
 
 ### 3.5 Home is a special composition-page exception
 
-Home (`/`) is the one intentional composition-page exception. It is not required to use the standard `seo / page / navigation / content` contract, but it must still use the shared site layout, shared visual tokens, shared section identity, thin-controller discipline, and service-owned shaping.
+Home (`/`) is the one intentional composition-page exception. It is not required to use the standard `seo / page / navigation / content` contract, but it must use the shared site layout, shared visual tokens, shared section identity, thin-controller discipline, and service-owned shaping.
 
-Home may introduce richer editorial composition and optional media/interactivity regions such as hero media, inline video, motion treatments, or other page-specific JavaScript enhancements. These enhancements must remain within the same Express + Handlebars + vanilla TypeScript architecture and must not introduce a separate front-end stack, template-owned routing logic, or a home-only chrome system.
+Home may introduce richer editorial composition and optional media or interactivity regions such as hero media, inline video, motion treatments, or other page-specific JavaScript enhancements. These enhancements must remain within the same Express plus Handlebars plus vanilla TypeScript architecture and must not introduce a separate front-end stack, template-owned routing logic, or a home-only chrome system.
 
 Any permanent change to navigation structure or global shell belongs in the shared layout and design system, not in the Home template alone.
 
----
-
-## 4. Public Rendering Standard
+## 4. Public rendering standard
 
 ### 4.1 Standard purpose
 
@@ -157,1925 +87,498 @@ The public rendering standard defines the shared structure, page contract, and r
 
 ### 4.2 Required page contract
 
-Every public page except Home (see §3.5) must render from the same top-level contract. This is a current implementation obligation, not aspirational — existing non-home pages must comply before new pages are added.
+Every public page except Home (per §3.5) must render from the same top-level contract.
 
-### Required top-level shape
+**Required top-level shape:**
 
 - `seo`
-  - `title` — tab suffix (e.g. `"Events"`, `"2025 Events"`, `"Alice Footbag"`); the layout renders `Footbag {seo.title}` in the `<title>` tag; never include the word "Footbag" in this value
-  - optional `description` — meta description for future SEO use
+  - `title`: tab suffix (e.g. `"Events"`, `"2025 Events"`, `"Alice Footbag"`); the layout renders `Footbag {seo.title}` in the `<title>` tag; never include the word "Footbag" in this value
+  - optional `description`: meta description for future SEO use
+  - optional `fullTitle`: complete tab title (no "Footbag" prefix); used when the page needs a non-"Footbag" prefix (e.g. IFPA Member pages render `IFPA Member {name}`)
 - `page`
-  - `sectionKey` — nav section identifier (`'events'`, `'members'`, `'clubs'`, `'hof'`, `'bap'`, `'freestyle'`, `'records'`, `'net'`, or `''` for login/error pages)
-  - `pageKey` — unique page identifier (`'events_index'`, `'event_detail'`, `'member_history_detail'`, etc.)
-  - `title` — displayed h1 text
-  - optional `eyebrow` — small label rendered above h1
-  - optional `intro` — subtitle paragraph rendered below h1
-  - optional `notice` — WIP or caveat notice block
-- `navigation` — contextual navigation; service-provided and distinct from middleware locals
-  - Middleware provides `currentSection` (drives active nav link) and `isAuthenticated` (drives login/logout display) via `res.locals` on every request; these are not part of the service contract
+  - `sectionKey`: nav section identifier (`'events'`, `'members'`, `'clubs'`, `'hof'`, `'bap'`, `'freestyle'`, `'records'`, `'net'`, `'sideline'`, `'rules'`, `'media'`, or `''` for login/error pages)
+  - `pageKey`: unique page identifier (`'events_index'`, `'event_detail'`, `'member_history_detail'`, etc.)
+  - `title`: displayed h1 text (distinct from `seo.title`)
+  - optional `eyebrow`: small label rendered above h1
+  - optional `intro`: subtitle paragraph rendered below h1
+  - optional `notice`: WIP or caveat notice block
+- `navigation`: contextual navigation; service-provided and distinct from middleware locals
+  - Middleware provides `currentSection` (drives active nav link) and `isAuthenticated` (drives login/logout display) via `res.locals` on every request; these are not part of the service contract.
   - Services provide an optional `navigation` object for page-specific nav context that middleware cannot infer:
-  - optional `breadcrumbs` — `{ label: string; href?: string }[]`; last entry is the current page (no `href`); used for hierarchical pages (clubs, deep member pages); omitted on flat pages
-  - optional `siblings` — `{ previous?: { label: string; href: string }; next?: { label: string; href: string } }`; sequential browsing (year archive prev/next); omitted on pages with no sequential relationship
-  - optional `contextLinks` — `{ label: string; href: string; variant?: 'primary' | 'outline' }[]`; page-scoped related actions (back to members, more events from year); templates place these explicitly — the layout does not render them automatically
+  - optional `breadcrumbs`: `{ label: string; href?: string }[]`; last entry is the current page (no `href`); used for hierarchical pages; omitted on flat pages
+  - optional `siblings`: `{ previous?: { label, href }; next?: { label, href } }`; sequential browsing (year archive prev/next); omitted on pages with no sequential relationship
+  - optional `contextLinks`: `{ label, href, variant?: 'primary' | 'outline' }[]`; page-scoped related actions; templates place these explicitly, the layout does not render them automatically
 - `content`
   - page-specific regions, always nested under this key
-  - services compute all hrefs (e.g. `participantHref`, `eventHref`, `memberHref`) — templates never construct URLs
+  - services compute all hrefs (e.g. `participantHref`, `eventHref`, `memberHref`); templates never construct URLs
   - services compute domain-derived display labels (e.g. `teamTypeLabel`) and boolean display flags (e.g. `hasResults`)
-  - templates use registered helpers (`formatDate`, `countryFlag`) for presentation formatting only
+  - templates use registered helpers (`formatDate`, `countryFlag`, `yearFromDate`) for presentation formatting only
   - templates iterate typed arrays for structured content (results, event groups, discipline lists)
 
-Templates must consume this contract rather than derive it.
+Templates consume this contract rather than derive it.
 
-### TypeScript enforcement: `PageViewModel<TContent>`
-
-The shape above is codified as a generic TypeScript interface in `src/types/page.ts`:
+**TypeScript enforcement:** the shape is codified as a generic interface in `src/types/page.ts`:
 
 ```ts
 interface PageViewModel<TContent = Record<string, unknown>> {
-  seo: SeoMeta;                // title, fullTitle?, description?
-  page: PageMeta;              // sectionKey, pageKey, title, eyebrow?, intro?, notice?
-  navigation?: NavigationMeta; // breadcrumbs?, siblings?, contextLinks?
-  content: TContent;           // page-specific body (generic slot)
+  seo: SeoMeta;
+  page: PageMeta;
+  navigation?: NavigationMeta;
+  content: TContent;
 }
 ```
 
-The generic slot `TContent` is the page-specific content shape. Each page declares its own `*Content` interface (e.g., `RecordsContent`, `NetTeamsContent`, `LoginContent`) and services return `PageViewModel<RecordsContent>` rather than hand-rolling a bespoke `{ seo; page; content }` shape.
+The generic slot `TContent` is the page-specific content shape. Each page declares its own `<PageName>Content` interface (e.g. `RecordsContent`, `NetTeamsContent`, `LoginContent`); services return `PageViewModel<TContent>` rather than hand-rolling a bespoke envelope.
 
 **Naming conventions:**
 
-- Page-content interfaces are `<PageName>Content` (e.g. `LoginContent`, `RecordsContent`, `NetTeamsContent`).
-- Row-level view-model interfaces that appear inside a `*Content` shape are `<Entity>ViewModel` (e.g. `FreestyleRecordViewModel`, `NetTeamViewModel`, `NetTeamListViewModel`).
-- Controllers are `<domain>Controller.ts`; templates live under `src/views/<section>/<page>.hbs`. Service and prepared-statement naming are defined in `docs/SERVICE_CATALOG.md` §1.
+- Page-content interfaces: `<PageName>Content` (e.g. `LoginContent`, `RecordsContent`).
+- Row-level view-model interfaces inside a `*Content` shape: `<Entity>ViewModel` (e.g. `FreestyleRecordViewModel`, `NetTeamViewModel`).
+- Controllers: `<domain>Controller.ts`; templates: `src/views/<section>/<page>.hbs`. Service and prepared-statement naming live in `docs/SERVICE_CATALOG.md`.
 
-Enforcement:
+**Enforcement:**
 
 - Every service method that produces a public page returns `PageViewModel<TContent>` as its declared return type.
-- Controllers that render inline (no service-method wrapper) type the render arg with `satisfies PageViewModel<TContent>` so the envelope shape is compile-time-checked.
-- Renaming a field in `SeoMeta`, `PageMeta`, or `NavigationMeta` now produces a compile error at every call site, not a silent runtime rendering gap.
+- Controllers that render inline (no service-method wrapper) type the render arg with `satisfies PageViewModel<TContent>` so the envelope is compile-time-checked.
+- Renaming a field in `SeoMeta`, `PageMeta`, or `NavigationMeta` produces a compile error at every call site.
 
-Home is exempt per §3.5. Internal `/internal/*` routes (operator tooling) are exempt — they are not part of the public rendering standard.
+Home is exempt per §3.5. Internal `/internal/*` routes (operator tooling) are exempt; they are not part of the public rendering standard.
 
-### Browser tab title rule
+**Browser tab title rule:**
 
-The HTML `<title>` tag follows the pattern `Footbag {seo.title}` for most pages. When `seo.fullTitle` is set, it is used as the complete tab title (no "Footbag" prefix). The home page renders as `Footbag Worldwide` (no suffix, no `seo` contract applies).
-
-`seo.title` / `seo.fullTitle` values by page:
-
-| Page | `seo.title` | `seo.fullTitle` | Tab result |
-|---|---|---|---|
-| Home `/` | *(none — home is exempt)* | | `Footbag Worldwide` |
-| Events index | `Events` | | `Footbag Events` |
-| Events year archive | `{year} Events` | | `Footbag 2024 Events` |
-| Event detail | `event.standardTagDisplay` | | `Footbag #event_{year}_{slug}` |
-| Historical person detail | `Player {name}` | | `Footbag Player {name}` |
-| Member dashboard | `Member Dashboard` | | `Footbag Member Dashboard` |
-| Member profile (own) | `{displayName}` | `IFPA Member {displayName}` | `IFPA Member {name}` |
-| Member profile (public) | `{displayName}` | `IFPA Member {displayName}` | `IFPA Member {name}` |
-| Clubs index | `Clubs` | | `Footbag Clubs` |
-| Clubs country | `"{country} Clubs"` | | `Footbag New Zealand Clubs` |
-| Club detail | `club.standardTagDisplay` | | `Footbag #club_wellington_hack_crew` |
-| HoF | `Hall of Fame` | | `Footbag Hall of Fame` |
-| Login | `Login` | | `Footbag Login` |
-| Error pages | `Page Not Found` / `Service Unavailable` | | `Footbag {error label}` |
-
-Default pattern: `seo.title` is the short section or entity label; never include the word "Footbag" in it. Use `seo.fullTitle` only when the page needs a non-"Footbag" prefix (e.g., IFPA Member pages). `page.title` is the full displayed h1 text (e.g. `"Footbag Events"`, `"Member Login"`) and is distinct from `seo.title`.
+The HTML `<title>` follows the pattern `Footbag {seo.title}` for most pages. When `seo.fullTitle` is set, it is the complete tab title (no "Footbag" prefix). Home renders as `Footbag Worldwide` (no suffix; no `seo` contract applies to Home per §3.5). `page.title` is the displayed h1 text and is distinct from `seo.title`.
 
 ### 4.3 Required reusable primitives
 
 Every public page must be composed from the same small set of reusable primitives.
 
-### Site frame
+**Site frame:** header/navigation region, main content container, footer region.
 
-- header/navigation region
-- main content container
-- footer region
+**Page hero:** optional eyebrow (`.hero-eyebrow`), page title, optional subtitle (`.hero-subtitle`), optional notice. All text inside `.hero` must be white or `rgba(255, 255, 255, *)`; `.text-muted` is overridden inside `.hero` as a safety net, but prefer the semantic classes `.hero-eyebrow`, `.hero-subtitle`, or `.hero-hashtag`.
 
-### Page hero
+**Content section:** section heading, optional supporting text, content body.
 
-- optional eyebrow (`.hero-eyebrow`) — small label above the title (e.g. "Historical player record")
-- page title
-- optional subtitle (`.hero-subtitle`) — secondary text below the title (e.g. historical record name, hashtag, intro text)
-- optional notice
+**Event card:** used in events index upcoming list and home featured events. Renders title (linked to canonical event route), date range, location, host club when present, status badge, short description when present.
 
-Both eyebrow and subtitle render in white with reduced opacity for contrast against the dark hero gradient. All text inside `.hero` must be white or `rgba(255, 255, 255, *)`. The `.text-muted` utility is overridden inside `.hero` as a safety net, but prefer the semantic classes `.hero-eyebrow`, `.hero-subtitle`, or `.hero-hashtag`.
+**Discipline tag:** used in event detail. Renders the discipline name; non-singles disciplines (`doubles`, `mixed_doubles`) include a parenthetical team-type indicator. `discipline_category` is application-enforced taxonomy with canonical families `freestyle`, `net`, `golf`, `sideline`. Tags ordered by `sortOrder`.
 
-### Content section
+**Result section:** used in event detail. One section per discipline grouping. Header is `disciplineName` when present; otherwise "General Results". Optional meta line when `teamType` is present. One row per placement: `placement` number, participant entries ordered by `participantOrder` (stacked for `doubles` and `mixed_doubles`); each participant renders `participantDisplayName` and may optionally render `participantHref` when a linked detail target exists; `scoreText` when present (cell empty when absent, no placeholder). Placements rendered ascending. Template prose, debug text, and loop scaffolding must never appear in rendered HTML.
 
-- section heading
-- optional supporting text
-- content body
+**Handlebars helpers:** `formatDate` (ISO `YYYY-MM-DD` to `D Month YYYY`); `yearFromDate` (extracts 4-digit year for href construction); same-day-event suppression via `{{#unless (eq startDate endDate)}}`. Raw ISO date strings must never appear in rendered output.
 
-### Event card
+**Year navigation:** used in year archive. Renders prev/next year links when adjacent years with completed public events exist; disabled placeholder otherwise. Sits below the hero inside the wrapper. Uses `.year-page-nav`, `.hero-year-arrow`, `.hero-year-arrow--disabled`.
 
-Used in the events index upcoming list and the home featured events region.
+**Metadata list / summary rows:** used for date, location, host, status, and equivalent facts.
 
-Each card renders: title (linked to the canonical event route), date range, location (city / region / country), host club when present, status badge, short description when present.
+**Empty state:** used when a page is valid but has no content.
 
-### Discipline tag
+**Notice / coming-soon block:** used for temporary incompleteness or intentionally stubbed sections.
 
-Used in event detail. Each tag renders the discipline name. Non-singles disciplines (`doubles`, `mixed_doubles`) include a parenthetical team-type indicator. Tags are ordered by `sortOrder`.
+**CSS class vocabulary:**
 
-`discipline_category` is an application-enforced taxonomy. Canonical families are `freestyle`, `net`, `golf`, and `sideline`. The schema stores this as free text; no CHECK constraint exists.
+The vocabulary is split into shared (required across all public pages) and per-section (required only within that section). Class definitions live in `src/public/css/style.css`; this catalog names the groups and points at the source for the full enumeration. Every CSS class used in a template must have a corresponding rule in `src/public/css/style.css`; new classes are added to `style.css` and to the appropriate group below.
 
-### Result section
+Shared (required across all public pages):
 
-Used in event detail. One section per discipline grouping.
+- Site frame: `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`.
+- Hero: `.hero`, `.hero-sm` (default 36px padding; `.hero` without `.hero-sm` reserved for large-format hero use), `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`. Hero text classes use white with reduced opacity for dark-gradient contrast.
+- Sections, cards, badges, buttons, states, notices: `.section-heading`, `.section-count`, `.card-grid`, `.card`, `.card-title`, `.card-meta`, `.card-description`, `.badge`, `.badge-{published,registration_full,closed,completed}`, `.btn`, `.btn-primary`, `.btn-outline`, `.empty-state`, `.notice`.
+- Notice cards (in-page advisories): `.notice-card` plus variants `.notice-card--info`, `.notice-card--info-blue`, `.notice-card--warn`, `.notice-card--warn-strong`. Distinct from `.notice` (subtle inline text below a section heading).
+- Nav and form utilities: `.nav-logout`, `.nav-logout-btn`, `.form-hint`, `.profile-identity-block`, `.avatar-edit-row`.
+- Spacing utilities (Tailwind-style; 1 unit = 4px): margin-top `.mt-1` through `.mt-10`; margin-bottom `.mb-2` through `.mb-8`; `.m-0`, `.my-4`, `.pt-6`, `.pl-5`. Use these instead of inline `style="margin:..."`.
+- Width utilities (Tailwind-style; 1 unit = 4px): `.w-12`, `.w-20`, `.w-30`, `.w-50`. Use for table column widths and short input sizing.
+- Type utilities: `.text-muted`, `.text-secondary` (HoF/BAP teal, `var(--secondary)`), `.text-center`, `.fs-{sm,xs,xxs,mini}`, `.fw-{500,600}`, `.op-60`, `.ws-pre-line`, `.truncate-50`.
+- Row-state utilities (internal QC pages only): `.row-flagged`.
+- Layout: `.pagination-row` (flex row with gap and 1rem vertical margin for prev/next pagination).
+- Footer: `.footer-brand-block`, `.footer-logo`, `.footer-tagline`, `.footer-links`, `.footer-legal`, `.footer-legal-links`, `.footer-copy`.
 
-- Section header: `disciplineName` when present; otherwise "General Results"
-- Optional meta line when `teamType` is present (renders raw `teamType` value)
-- One row per placement: `placement` number, participant entries ordered by `participantOrder` (stacked for `doubles` and `mixed_doubles`); each participant renders `participantDisplayName` and may optionally render `participantHref` when a linked historical member detail page exists; `scoreText` when present (cell is empty when absent — no placeholder text)
-- Placements rendered in ascending `placement` order
-- Template comments, loop prose, and debugging text must never appear in rendered HTML output
+Per-section vocabularies (required only within that section; full enumerations in `src/public/css/style.css`):
 
-### Handlebars helpers
-
-Two registered helpers are part of the rendering standard and must be used consistently across all templates:
-
-- `formatDate` — formats an ISO date string (`YYYY-MM-DD`) as `D Month YYYY` (e.g. "29 July 2024"). All templates must use this helper for displayed dates. Raw ISO date strings must never appear in rendered output.
-- `yearFromDate` — extracts the 4-digit year string from an ISO date string. Use when a year value is needed for linking, e.g. `{{yearFromDate event.startDate}}` to build a `/events/year/{year}` href.
-- Same-day events: suppress the end date when `startDate === endDate` using `{{#unless (eq startDate endDate)}}`. This rule applies to all date range displays across all templates.
-
-### Year navigation
-
-Used in year archive. Renders previous-year and next-year links when adjacent years with completed public events exist. When no adjacent year exists, a disabled placeholder renders instead. The nav sits **below the hero inside the wrapper**, not inside the hero. Uses `.year-page-nav`, `.hero-year-arrow`, and `.hero-year-arrow--disabled`.
-
-### Metadata list / summary rows
-
-Used for date, location, host, status, and equivalent facts.
-
-### Empty state
-
-Used when a page is valid but has no content to show.
-
-### Notice / coming-soon block
-
-Used for temporary incompleteness or intentionally stubbed sections.
-
-### CSS class vocabulary
-
-The CSS vocabulary is split into two tiers.
-
-**Shared — required across all public pages:**
-
-- Site frame: `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`
-- Hero: `.hero` (base, 72px padding), `.hero-sm` (36px padding — use on all pages; `.hero` without `.hero-sm` is reserved for future large-format hero use only), `.hero-eyebrow` (label above title), `.hero-subtitle` (secondary text below title), `.hero-hashtag` (hashtag display). All hero text classes use white with reduced opacity for dark-gradient contrast.
-- Sections: `.section-heading`, `.section-count`
-- Cards: `.card-grid`, `.card`, `.card-title`, `.card-meta`, `.card-description`
-- Badges: `.badge`, `.badge-published`, `.badge-registration_full`, `.badge-closed`, `.badge-completed`
-- Buttons: `.btn`, `.btn-primary`, `.btn-outline`
-- States: `.empty-state`
-- Notices: `.notice` (subtle informational text below hero or section heading)
-- Nav utilities: `.nav-logout`, `.nav-logout-btn`
-- Form utilities: `.form-hint` (helper text below form fields), `.profile-identity-block` (read-only identity section), `.avatar-edit-row` (inline avatar upload)
-- Spacing utilities (Tailwind-style numbering: 1 unit = 4px): `.m-0`; margin-top `.mt-1` (4px), `.mt-2` (8px), `.mt-3` (12px), `.mt-4` (16px), `.mt-5` (20px), `.mt-6` (24px), `.mt-10` (40px); margin-bottom `.mb-2`, `.mb-3`, `.mb-4`, `.mb-6`, `.mb-8`; margin-y `.my-4`; padding-top `.pt-6`; padding-left `.pl-5` (1.25rem, for indented lists). Use these instead of inline `style="margin:..."`.
-- Width utilities (Tailwind-style: 1 unit = 4px): `.w-12` (48px), `.w-20` (80px), `.w-30` (120px), `.w-50` (200px). Use for table-column widths and short input sizing.
-- Type utilities: `.text-muted`, `.text-secondary` (HoF/BAP teal — uses `var(--secondary)`), `.text-center`, `.fs-sm` (0.9rem), `.fs-xs` (0.8rem), `.fs-xxs` (0.7rem), `.fs-mini` (0.625rem), `.fw-500`, `.fw-600`, `.op-60`, `.ws-pre-line`, `.truncate-50` (max-width 200px + ellipsis).
-- Notice cards: `.notice-card` (border-left + tinted background) with variants `.notice-card--info` (teal), `.notice-card--info-blue`, `.notice-card--warn` (amber), `.notice-card--warn-strong` (dark amber). Use for in-page advisories, eligibility reminders, claim-confirm warnings. Distinct from `.notice`, which is subtle inline text below a section heading.
-- Row-state utilities: `.row-flagged` (table-row tint for QC-flagged rows; internal QC pages only).
-- Layout: `.pagination-row` (flex row with gap and 1rem vertical margin, used for prev/next pagination controls)
-- Footer: `.footer-brand-block`, `.footer-logo`, `.footer-tagline`, `.footer-links`, `.footer-legal`, `.footer-legal-links`, `.footer-copy`
-
-**Legal page — required within `/legal` only:**
-
-- `.legal-toc`, `.legal-section`, `.legal-last-updated`
-
-**Clubs section — required within clubs pages only:**
-
-- Country nav: `.club-country-nav`, `.club-country-nav-list`, `.club-country-count`
-- Country sections: `.club-section`, `.club-region-heading`
-- Club list: `.club-list`, `.club-entry`, `.club-name`, `.club-location`, `.club-hashtag`, `.club-external-link`
-- Club detail: `.club-detail`, `.club-detail-meta`, `.club-detail-description`
-
-**Members section — required within member profile pages only:**
-
-- Profile layout: `.profile-layout`, `.profile-sidebar`, `.profile-main`
-- Avatar card: `.profile-avatar-card`, `.profile-avatar-img`, `.profile-avatar-placeholder`
-- Profile text: `.profile-name`, `.profile-location`, `.profile-honor-badge`
-- Profile sections: `.profile-section`, `.profile-section-heading`
-- Caption helpers: `.profile-bap-caption` (BAP nickname caption that tucks under the profile avatar with a negative margin; used on `/history/:personId`)
-- Account list: `.profile-account-list`
-- Links grid: `.profile-link-grid`, `.profile-link-card`, `.profile-link-icon`, `.profile-link-label`
-
-**Events section — required within events pages only:**
-
-- Archive years: `.year-grid`, `.year-pill`
-- Year page navigation: `.year-page-nav`, `.hero-year-arrow`, `.hero-year-arrow--disabled`
-- Year archive event list: `.event-list`, `.event-list-row`, `.event-list-main`, `.event-list-title`, `.event-list-host`, `.event-list-meta`, `.event-list-date`, `.event-list-location`
-- Event detail layout: `.event-detail`, `.event-header`, `.event-meta-row`, `.event-external-link`
-- Disciplines: `.disciplines-list`, `.discipline-tag`
-- Results: `.results-section`, `.results-section-header`, `.discipline-meta`, `.results-table`, `.placement-num`, `.participants-list`, `.score-text`, `.no-results-notice`
-
-**Freestyle section — required within freestyle pages only:**
-
-- Landing wrapper scope: `.freestyle-landing`
-- Hero with mascot: `.hero-with-mascot`, `.hero-mascot`
-- Get-started tiles and format cards: `.card-tile`, `.format-card`
-- Embedded video wrapper (16:9 responsive container for click-to-play YouTube facade): `.video-embed`
-- Stats strip (standalone hero-stats outside the hero): `.stats-strip`
-
-**Internal QC tooling — required within `/internal/*` pages only:**
-
-- Decision forms (recovery candidates, team corrections): `.rc-decision-form`, `.rc-approved`, `.rc-rejected`, `.rc-deferred`
-- Net review item editor: `.review-edit-row`, `.review-edit-forms`, `.review-inline-form`
-
-**Simulated email card (dev/sandbox only — partial renders nothing in production):**
-
-- Container variants: `.sec-card`, `.sec-card-dev`, `.sec-card-sandbox`
-- Inner elements: `.sec-card .sec-body` (preformatted body), `.sec-card .sec-table` (message table), `.sec-card .sec-msgid` (small message-id label)
+- Legal page (`/legal`): `.legal-toc`, `.legal-section`, `.legal-last-updated`.
+- Clubs section: country nav (`.club-country-nav*`), country sections (`.club-section`, `.club-region-heading`), club list (`.club-list`, `.club-entry`, `.club-name`, `.club-location`, `.club-hashtag`, `.club-external-link`), club detail (`.club-detail*`).
+- Members section: profile layout (`.profile-layout`, `.profile-sidebar`, `.profile-main`), avatar card (`.profile-avatar-*`), profile text (`.profile-name`, `.profile-location`, `.profile-honor-badge`), profile sections, caption helpers (`.profile-bap-caption`), account list, links grid.
+- Events section: archive years (`.year-grid`, `.year-pill`), year page navigation, year archive event list (`.event-list*`), event detail layout (`.event-detail*`), disciplines (`.disciplines-list`, `.discipline-tag`), results (`.results-section*`, `.results-table`, `.placement-num`, `.participants-list`, `.score-text`, `.no-results-notice`).
+- Freestyle section: landing wrapper (`.freestyle-landing`), hero with mascot (`.hero-with-mascot`, `.hero-mascot`), tile cards (`.card-tile`, `.format-card`), embedded video wrapper (`.video-embed`), stats strip (`.stats-strip`).
+- Internal QC tooling (`/internal/*`): decision forms (`.rc-decision-form`, `.rc-{approved,rejected,deferred}`), net review item editor (`.review-edit-row`, `.review-edit-forms`, `.review-inline-form`).
+- Simulated email card (dev/sandbox only; partial renders nothing in production): container variants (`.sec-card`, `.sec-card-dev`, `.sec-card-sandbox`), inner elements (`.sec-card .sec-{body,table,msgid}`).
 
 ### 4.4 Implementation rules
 
 The standard must be implemented through reusable code.
 
-### Express / controller rules
+**Express and controller rules:**
 
-- routes return HTML pages
-- controllers stay thin
-- page shaping belongs in services or page-model builders
-- shared site-wide data may be injected through `app.locals` and `res.locals`
-- error mapping runs through `handleControllerError` in `src/lib/controllerErrors.ts` (see §7.2)
-- session cookies are set/cleared through `issueSessionCookie` / `clearSessionCookie` in `src/lib/sessionCookie.ts`; controllers never write to `Set-Cookie` directly
+- Routes return HTML pages.
+- Controllers stay thin; page shaping belongs in services or page-model builders.
+- Shared site-wide data may be injected through `app.locals` and `res.locals`.
+- Error mapping runs through `handleControllerError` in `src/lib/controllerErrors.ts` (per §8.2).
+- Session cookies are set or cleared through `issueSessionCookie` and `clearSessionCookie` in `src/lib/sessionCookie.ts`; controllers never write `Set-Cookie` directly.
 
-### Service-owned shaping helpers
+**Service-owned shaping helpers.** Services are the single source of URL construction and cross-entity shape. Templates receive pre-shaped hrefs and labels; they never construct URLs or apply domain rules. Current shared helpers:
 
-Services are the single source of URL construction and cross-entity shape. Templates receive pre-shaped hrefs and labels; they never construct URLs or apply domain rules. Current shared helpers:
-
-- `personHref(memberSlug, historicalPersonId)` — canonical person-detail URL (`/members/:slug` or `/history/:personId` per DD §2.4 rule 2), or `null` when no linkable identity exists.
-- `shapePartnershipPair(row)` — shapes a two-person doubles partnership into the view-model pair used by net and freestyle partnership surfaces.
-- `shapeFreestyleRecord(row)` — shapes a `FreestyleRecordRow` into the public `FreestyleRecordViewModel`, stripping pipeline-curation metadata.
-- `groupPlayerResults(rows)` — groups flat player-result rows into per-event and per-discipline view-model groups.
+- `personHref(memberSlug, historicalPersonId)`: canonical person-detail URL (`/members/:slug` or `/history/:personId`), or `null` when no linkable identity exists.
+- `shapePartnershipPair(row)`: shapes a two-person doubles partnership into the view-model pair used by net and freestyle partnership surfaces.
+- `shapeFreestyleRecord(row)`: shapes a `FreestyleRecordRow` into the public `FreestyleRecordViewModel`, stripping pipeline-curation metadata.
+- `groupPlayerResults(rows)`: groups flat player-result rows into per-event and per-discipline view-model groups.
 
 Helpers live alongside the service that owns their shape (`src/services/*Shaping.ts`) or inside the service module itself when scoped to one consumer.
 
-### Handlebars rules
+**Handlebars rules:**
 
-- shared structure must live in reusable partials/components
-- templates remain logic-light
-- helpers, if used, remain presentation-oriented
-- templates must not own business rules or infer domain behavior from raw data
+- Shared structure lives in reusable partials and components.
+- Templates remain logic-light.
+- Helpers, when used, remain presentation-oriented.
+- Templates do not own business rules or infer domain behavior from raw data.
 
-### CSS rules
-
-The visual system must be organized as reusable layers rather than one growing page-specific stylesheet.
-
-Preferred structure:
+**CSS rules.** The visual system is organized as reusable layers:
 
 - design tokens
-- base/global styles
+- base and global styles
 - layout styles
 - reusable component styles
 - minimal page-specific exceptions only when unavoidable
 
-Hard rules:
+Hard rules: every CSS class used in a template has a corresponding rule in `src/public/css/style.css`; no undefined classes. New classes are documented in §4.3. Hero content (honors, location) is not duplicated in the page body; choose one canonical placement per data element.
 
-- Every CSS class used in a template must have a corresponding rule in `src/public/css/style.css`. No undefined classes.
-- New classes must be documented in the CSS class vocabulary (section 4.3 above).
-- Content that appears in the hero (honors, location) must not be duplicated in the page body. Choose one canonical placement per data element.
+**Asset rules.** The application enforces a strict Content-Security-Policy (`script-src 'self'`, `style-src 'self'`, `script-src-attr 'none'`, `frame-ancestors 'none'`). Templates and partials must therefore satisfy:
 
-### Asset rules
-
-The application enforces a strict Content-Security-Policy (`script-src 'self'`, `style-src 'self'`, `script-src-attr 'none'`, `frame-ancestors 'none'`). Templates and partials must therefore satisfy:
-
-- No inline `style="..."` attributes. Use a class from the §4.3 vocabulary; if the styling does not yet have a class, add the class to `style.css` and document it in §4.3.
-- No inline `<script>...</script>` blocks. Client behavior lives in `src/public/js/*.js` files loaded via `<script src="..." defer>`. The single permitted exception is non-executable JSON data islands, declared as `<script type="application/json" id="...">{{{ jsonViewModel }}}</script>` and parsed by an external script.
+- No inline `style="..."` attributes. Use a class from §4.3; if styling does not yet have a class, add the class to `style.css` and document it in §4.3.
+- No inline `<script>...</script>` blocks. Client behavior lives in `src/public/js/*.js` files loaded via `<script src="..." defer>`. The single permitted exception is non-executable JSON data islands declared as `<script type="application/json" id="...">{{{ jsonViewModel }}}</script>` and parsed by an external script.
 - No inline `<style>...</style>` blocks in templates or partials. All CSS lives in `src/public/css/style.css`. Internal-tooling pages (`/internal/*`) follow the same rule.
-- No inline event-handler attributes (`onclick`, `onchange`, `onsubmit`, etc.). Attach handlers from external JS using `addEventListener` on a class or `data-*` selector.
+- No inline event-handler attributes (`onclick`, `onchange`, `onsubmit`). Attach handlers from external JS using `addEventListener` on a class or `data-*` selector.
 - Externally-hosted assets (CDNs, fonts, images, iframes) must be added to the CSP directive list in `src/app.ts` at the same time the reference is added to the template.
 
 ### 4.5 Visual rules
 
-All public pages must present a consistent public experience.
+All public pages present a consistent public experience: clean, readable, content-first layout; consistent spacing and max width; consistent typography hierarchy; consistent card and metadata treatment; consistent empty-state and notice styling; consistent header and footer behavior; no section-specific chrome systems.
 
-Required characteristics:
+Visual token baseline (from `src/public/css/style.css`): font stack Inter, Helvetica Neue, Arial, sans-serif; primary accent green (`#1bb36b`); secondary accent teal (`#0b5e6b`); white page background; soft-gray borders; rounded cards with light drop shadow; generous whitespace, clean editorial layout, not dense app chrome.
 
-- clean, readable, content-first layout
-- consistent spacing and max width
-- consistent typography hierarchy
-- consistent card treatment across sections
-- consistent metadata styling
-- consistent empty-state styling
-- consistent notice / coming-soon styling
-- consistent header/footer behavior
-- no section-specific chrome systems
+## 5. Public route catalog
 
-Visual token baseline (from `src/public/css/style.css`):
-
-- font stack: Inter, Helvetica Neue, Arial, sans-serif
-- primary accent: green (`#1bb36b`)
-- secondary accent: teal (`#0b5e6b`)
-- page background: white
-- borders: soft gray
-- cards: rounded corners, light drop shadow
-- layout: generous whitespace, clean editorial, not dense app chrome
-
----
-
-## 5. Public Route Catalog
-
-| Route | Page | Purpose | Status |
-| --- | --- | --- | --- |
-| `GET /` | Home | Public landing page | Current |
-| `GET /events` | Events index | Browse upcoming events and archive entry points | Current |
-| `GET /events/year/:year` | Events year archive | Browse completed events for one year | Current |
-| `GET /events/:eventKey` | Event detail | Canonical public event page | Current |
-| `GET /members` | Member dashboard | Auth-gated member dashboard with search and feature cards | Current |
-| `GET /members/:memberKey` | Member profile | Own profile or public HoF/BAP read-only view | Current |
-| `GET /members/:memberKey/edit` | Member profile edit | Own-profile edit form | Current |
-| `POST /members/:memberKey/avatar` | Member avatar upload | Multipart upload endpoint (inline on edit page, no GET route) | Current |
-| `GET /members/:memberKey/galleries` | Member galleries list | Owner-only list of the member's named galleries with create/edit/delete actions | Current |
-| `GET /members/:memberKey/galleries/new` | Member gallery create | Owner-only new-gallery form | Current |
-| `GET /members/:memberKey/galleries/:id/edit` | Member gallery edit | Owner-only edit form for a member-owned gallery | Current |
-| `GET /members/:memberKey/media/upload` | Member upload | Owner-only form to upload one photo or submit one video URL; auto-tags with the uploader's slug-tag | Current |
-| `GET /members/:memberKey/:section` | Member account stub | Placeholder pages for future account subsections | Current |
-| `GET /history` | Historical players redirect | 301 redirect to `/members` | Current |
-| `GET /history/:personId` | Historical player detail | Historical person competitive record detail | Current |
-| `GET /history/claim` | Claim initiation | Legacy account claim form | Current (early-test shortcut) |
-| `POST /history/claim` | Claim lookup | Legacy account lookup handler | Current (early-test shortcut) |
-| `POST /history/claim/confirm` | Claim confirmation | Legacy account merge handler | Current (early-test shortcut) |
-| `GET /history/:personId/claim` | HP claim confirmation | Historical-person direct claim (scenarios D/E) confirm page, with surname reconciliation and first-name-variant warning | Current |
-| `POST /history/:personId/claim/confirm` | HP claim execution | Direct HP claim handler; sets `members.historical_person_id` and transitively claims the linked `legacy_members` row when present | Current |
-| `GET /clubs` | Clubs index | Country-grouped clubs directory entry page | Current |
-| `GET /clubs/:key` | Clubs shared handler | Dispatches to country page or club detail | Current |
-| `GET /media` | Media hub | Public hub listing every named-gallery URL bookmark with owner attribution, name, description, item count, and criteria-tag pills per card | Current |
-| `GET /media/browse` | Media tag browse | On-the-fly tag browse + temp gallery; included/excluded tags carried as repeatable `?tag=` and `?exclude=` query args; not a registered named-gallery URL bookmark | Current |
-| `GET /media/:galleryId` | Named gallery | Single named-gallery page, items computed at request time by tag-AND match against the gallery's criteria-tag set, paginated reverse-chronologically | Current |
-| `GET /login` | Login | Member login | Current |
-| `GET /register` | Register | Member registration | Current |
-| `GET /register/check-email` | Check-email landing | Generic post-registration and post-resend landing | Current |
-| `GET /verify/:token` | Email-verify link | Consume verification token; issue session; route to legacy-claim or dashboard | Current |
-| `GET /password/forgot` | Password forgot | Form to request a password-reset email | Current |
-| `GET /password/reset/:token` | Password reset | Form to set a new password from an email link | Current |
-| `GET /members/:memberKey/edit/password` | Member password edit | Own-profile change-password form | Current |
-| `GET /hof` | HoF landing | Footbag Hall of Fame editorial/informational landing page | Current stub |
-| `GET /bap` | BAP landing | Big Add Posse editorial/informational landing page | Current stub |
-| `GET /freestyle` | Freestyle landing | Freestyle section entry page | Current |
-| `GET /freestyle/records` | Freestyle records | Freestyle world records (authoritative list) | Current |
-| `GET /freestyle/leaders` | Freestyle leaders | Freestyle leaders list | Current |
-| `GET /freestyle/about` | Freestyle about | Freestyle discipline overview | Current |
-| `GET /freestyle/moves` | Freestyle moves | Freestyle moves reference | Current |
-| `GET /freestyle/tricks` | Freestyle tricks index | Trick dictionary browse, all tricks with optional record counts | Current |
-| `GET /freestyle/tricks/:slug` | Freestyle trick detail | Detail page for a single freestyle trick: dictionary entry, ADD composition, family ladder, related/previous/next tricks, passback records, and a gallery of curator-tagged reference videos. Browser-tab title format `Footbag Trick #{slug}`. | Current |
-| `GET /freestyle/competition` | Freestyle competition | Results-derived competition analytics: top competitors, eras, recent events | Current |
-| `GET /freestyle/partnerships` | Freestyle partnerships | Doubles partnerships extracted from competition results | Current |
-| `GET /freestyle/history` | Freestyle history | Editorial history + pioneers + eras (static curated content) | Current |
-| `GET /freestyle/insights` | Freestyle insights | Analytical insights (most-used tricks, transitions, difficulty eras, narratives) | Current |
-| `GET /records` | Consecutive records | Consecutive kicks world records | Current |
-| `GET /net` | Footbag Net landing | Footbag Net section entry page (hero with mascot, "What is Footbag Net?" narrative, Singles/Doubles competition-format cards, Explore cards into teams and events, notable teams, notable players, recent events) | Current |
-| `GET /net/teams` | Net teams list | League-table view of all net doubles teams, filterable by division and player search | Current |
-| `GET /net/teams/:teamId` | Net team detail | Team detail with summary stats, competitive timeline, and year-grouped competition history | Current |
-| `GET /net/events` | Net events list | Net events ordered by recency, with team/appearance counts | Current |
-| `GET /sideline` | Sideline landing | Casual / social footbag games portal (Circle Kicking, 2-Square, 4-Square, Consecutive Kicks, Footbag Golf), with hero mascot and per-game demo videos. Static content; no DB reads. | Current |
-| `GET /rules` | Rules index | Top-level index of all in-codebase rule pages, grouped by discipline. Static; no DB reads. | Current |
-| `GET /rules/:disciplineSlug/:ruleSlug` | Rule detail | Single rule page: title hero, optional cross-language toggle button, italic authority + effective-date meta line, optional on-this-page TOC, then markdown-rendered body from `ifpa/rules/{discipline}.md`. Static; no DB reads. Returns 404 for unknown discipline or slug. | Current |
-| `GET /legal` | Legal | Privacy, Terms of Use, and Copyright & Trademarks on a single page with anchored sections | Current |
-| `GET /health/live` | Operational endpoint | Liveness check | Not a cataloged page |
-| `GET /health/ready` | Operational endpoint | Readiness check | Not a cataloged page |
+| Route | Page | Purpose |
+| --- | --- | --- |
+| `GET /` | Home | Public landing page |
+| `GET /events` | Events index | Browse upcoming events and archive entry points |
+| `GET /events/year/:year` | Events year archive | Browse completed events for one year |
+| `GET /events/:eventKey` | Event detail | Canonical public event page |
+| `GET /members` | Member dashboard | Auth-gated member dashboard with search and feature cards |
+| `GET /members/:memberKey` | Member profile | Own profile or public HoF/BAP read-only view |
+| `GET /members/:memberKey/edit` | Member profile edit | Own-profile edit form |
+| `POST /members/:memberKey/avatar` | Member avatar upload | Multipart upload endpoint (inline on edit page; no GET route) |
+| `GET /members/:memberKey/galleries` | Member galleries list | Owner-only list with create, edit, delete actions |
+| `GET /members/:memberKey/galleries/new` | Member gallery create | Owner-only new-gallery form |
+| `GET /members/:memberKey/galleries/:id/edit` | Member gallery edit | Owner-only edit form for a member-owned gallery |
+| `GET /members/:memberKey/media/upload` | Member upload | Owner-only form to upload one photo or submit one video URL |
+| `GET /members/:memberKey/:section` | Member account stub | Placeholder pages for future account subsections |
+| `GET /history` | Historical players redirect | 301 redirect to `/members` |
+| `GET /history/:personId` | Historical player detail | Historical person competitive record detail |
+| `GET /history/claim` | Claim initiation | Legacy account claim form |
+| `POST /history/claim` | Claim lookup | Legacy account lookup handler |
+| `POST /history/claim/confirm` | Claim confirmation | Legacy account merge handler |
+| `GET /history/:personId/claim` | HP claim confirmation | Historical-person direct claim confirm page |
+| `POST /history/:personId/claim/confirm` | HP claim execution | Direct HP claim handler |
+| `GET /clubs` | Clubs index | Country-grouped clubs directory entry |
+| `GET /clubs/:key` | Clubs shared handler | Dispatches to country page or club detail |
+| `GET /media` | Media hub | Public hub listing every named-gallery URL bookmark |
+| `GET /media/browse` | Media tag browse | On-the-fly tag browse and temp gallery |
+| `GET /media/:galleryId` | Named gallery | Single named-gallery page, items computed at request time |
+| `GET /login` | Login | Member login |
+| `GET /register` | Register | Member registration |
+| `GET /register/check-email` | Check-email landing | Generic post-registration and post-resend landing |
+| `GET /verify/:token` | Email-verify link | Consume verification token; issue session |
+| `GET /password/forgot` | Password forgot | Form to request a password-reset email |
+| `GET /password/reset/:token` | Password reset | Form to set a new password from an email link |
+| `GET /members/:memberKey/edit/password` | Member password edit | Own-profile change-password form |
+| `GET /hof` | HoF landing | Footbag Hall of Fame editorial landing page |
+| `GET /bap` | BAP landing | Big Add Posse editorial landing page |
+| `GET /freestyle` | Freestyle landing | Freestyle section entry page |
+| `GET /freestyle/records` | Freestyle records | Freestyle world records authoritative list |
+| `GET /freestyle/leaders` | Freestyle leaders | Freestyle leaders list |
+| `GET /freestyle/about` | Freestyle about | Freestyle discipline overview |
+| `GET /freestyle/moves` | Freestyle moves | Freestyle moves reference |
+| `GET /freestyle/tricks` | Freestyle tricks index | Trick dictionary browse |
+| `GET /freestyle/tricks/:slug` | Freestyle trick detail | Detail page for a single freestyle trick |
+| `GET /freestyle/competition` | Freestyle competition | Results-derived competition analytics |
+| `GET /freestyle/partnerships` | Freestyle partnerships | Doubles partnerships from competition results |
+| `GET /freestyle/history` | Freestyle history | Editorial history, pioneers, eras |
+| `GET /freestyle/insights` | Freestyle insights | Analytical insights |
+| `GET /records` | Consecutive records | Consecutive kicks world records |
+| `GET /net` | Footbag Net landing | Footbag Net section entry page |
+| `GET /net/teams` | Net teams list | League-table view of net doubles teams |
+| `GET /net/teams/:teamId` | Net team detail | Team detail with stats and history |
+| `GET /net/events` | Net events list | Net events ordered by recency |
+| `GET /sideline` | Sideline landing | Casual / social footbag games portal |
+| `GET /rules` | Rules index | Top-level index of rule pages, grouped by discipline |
+| `GET /rules/:disciplineSlug/:ruleSlug` | Rule detail | Single rule page from `ifpa/rules/{discipline}.md` |
+| `GET /legal` | Legal | Privacy, Terms of Use, Copyright and Trademarks single page |
+| `GET /health/live` | Operational endpoint | Liveness check (not a cataloged page) |
+| `GET /health/ready` | Operational endpoint | Readiness check (not a cataloged page) |
 
 ### Route rules
 
 - `GET /` is the canonical public home route.
-- `GET /events` is the canonical events section entry route.
-- `GET /events/:eventKey` is the canonical public event detail route.
-- `GET /members` is the auth-gated member dashboard with search and coming-soon feature cards. Unauthenticated visitors see a public welcome page with sign-up/login links.
-- `GET /members/:memberKey` is the canonical member profile route. It serves the owner's profile when authenticated as that member, and it may serve a limited public read-only profile for HoF/BAP members.
-- `GET /members/:memberKey/edit` is the member profile edit page.
+- `GET /events` is the canonical events section entry; `GET /events/:eventKey` is the canonical public event detail; `GET /events/year/:year` is the year archive.
+- `GET /members` is the auth-gated member dashboard with search. Unauthenticated visitors see a public welcome page with sign-up and login links.
+- `GET /members/:memberKey` is the canonical member profile route. It serves the owner's profile when authenticated as that member, and serves a limited public read-only profile for HoF/BAP members.
 - `POST /members/:memberKey/avatar` is the multipart avatar upload endpoint; there is no GET route (upload is inline on the edit page).
-- `GET /members/:memberKey/galleries` is the owner-only list of the member's named galleries (create / edit / delete actions). Slug mismatch returns 404 (anti-enumeration), matching the rest of the `/members/:memberKey/` block. `GET /members/:memberKey/galleries/new` and `GET /members/:memberKey/galleries/:id/edit` render the create and edit forms; `POST /members/:memberKey/galleries`, `POST /members/:memberKey/galleries/:id/edit`, and `POST /members/:memberKey/galleries/:id/delete` are form-action handlers and are not cataloged separately. Service-layer authz (admin OR owner) is the source of truth for write authorization; the route layer's slug check exists for anti-enumeration parity.
+- `GET /members/:memberKey/galleries` is the owner-only list of the member's named galleries. Slug mismatch returns 404 (anti-enumeration), matching the rest of the `/members/:memberKey/` block. `GET /members/:memberKey/galleries/new` and `GET /members/:memberKey/galleries/:id/edit` render create and edit forms; `POST /members/:memberKey/galleries`, `POST /members/:memberKey/galleries/:id/edit`, and `POST /members/:memberKey/galleries/:id/delete` are form-action handlers and are not cataloged separately. Service-layer authorization (admin OR owner) is the source of truth for write authorization; the route layer's slug check exists for anti-enumeration parity.
 - `GET /members/:memberKey/:section` is the account stub-page route for explicitly supported account sections.
-- `GET /history` permanently redirects to `/members`.
-- `GET /history/:personId` is the historical person detail route.
+- `GET /history` permanently redirects to `/members`. `GET /history/:personId` is the historical person detail.
 - `GET /history/claim` is the legacy account claim initiation route. Two-step token flow: lookup form, emailed token, confirm-and-merge handler.
-- `POST /history/claim` is the claim lookup form-action handler.
-- `POST /history/claim/confirm` is the claim merge confirmation handler.
-- `GET /clubs` is the canonical clubs section entry route.
-- `GET /clubs/:key` is the shared Express handler for both the country page and the club detail page. The controller dispatches by prefix: a key beginning with `club_` routes to the club detail handler; any other key routes to the country page handler. Public country URLs take the form `/clubs/{countryKey}`. Public club URLs take the form `/clubs/{clubKey}` where `clubKey` matches the `club_...` standard form.
-- `GET /media` is the canonical public media hub. It lists every named-gallery URL bookmark (FH-owned and member-owned), ordered FH first then alphabetically by name; each card shows the gallery name, description, item count, the gallery's criteria-tag pills, and the owner's display name. FH-owned cards render the owner as plain text ("Curated by Footbag Hacky"); member-owned cards render the owner display name (no link inside the card to avoid nesting anchors).
-- `GET /media/:galleryId` is the canonical named-gallery page. Items are computed at request time by tag-AND match against `member_gallery_tags` minus any item carrying a tag in `member_gallery_exclude_tags`, filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`, ordered per the gallery's `sort_order` (default `upload_desc`), paginated by `?page=N` (invalid values clamp to 1). The hero renders owner attribution; for member-owned galleries the owner display name links to `/members/{owner.slug}`. Unknown `galleryId` values return 404.
-- `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
-- `GET /register` is the member registration route. `POST /register` is its form-action handler and is not a separate cataloged page.
+- `GET /clubs` is the canonical clubs section entry. `GET /clubs/:key` is the shared Express handler for both country page and club detail; the controller dispatches by prefix (a key beginning with `club_` routes to club detail; any other key routes to country page).
+- `GET /media` is the canonical public media hub. `GET /media/:galleryId` is the canonical named-gallery page (items computed at request time by tag-AND match against `member_gallery_tags` minus exclude tags). `GET /media/browse` is the on-the-fly tag browse and temp gallery; included and excluded tags travel as query args. Unknown `galleryId` values return 404.
+- `GET /login` is the member login route. `POST /login` and `POST /logout` are form-action handlers, not cataloged pages. `POST /logout` clears the session cookie and redirects to the Referer page if present and valid, otherwise `/`.
+- `GET /register` is the registration route. `POST /register` is its form-action handler.
 - `GET /register/check-email` is the generic post-registration and post-resend landing. It never reveals whether an account exists for a given address.
-- `GET /verify/:token` consumes an email-verification token. Success issues a session cookie and redirects to the legacy-link check when the member's email matches a legacy row, or to the member dashboard otherwise. Invalid/expired/used tokens render an identical generic error page (enumeration-safe).
+- `GET /verify/:token` consumes an email-verification token. Success issues a session cookie and redirects to the legacy-link check when the member's email matches a legacy row, or to the dashboard otherwise. Invalid, expired, or used tokens render an identical generic error page (enumeration-safe).
 - `POST /verify/resend` is the form-action handler for the resend form on `/register/check-email`. The response is identical regardless of membership or rate-limit state.
 - `GET /password/forgot` is the password-reset request form. `POST /password/forgot` is its form-action handler; the response is identical regardless of membership.
 - `GET /password/reset/:token` is the password-reset form reached from the emailed link. `POST /password/reset/:token` is its form-action handler; on success it issues a fresh session cookie (new `passwordVersion`) and redirects to `/members`.
 - `GET /members/:memberKey/edit/password` is the own-profile change-password form. `POST /members/:memberKey/edit/password` is its form-action handler; on success it re-issues the session cookie with the bumped `passwordVersion` so the current browser stays authenticated.
-- `GET /hof` is the canonical HoF section entry route.
-- `GET /freestyle` is the canonical freestyle section entry route. Sub-routes `/freestyle/records`, `/freestyle/leaders`, `/freestyle/about`, `/freestyle/moves`, and `/freestyle/tricks/:slug` are all public and unauthenticated.
-- `GET /records` is the canonical records section entry route and the single page in the records section.
-- `GET /net` is the canonical net section entry route; a portal landing with hero, mascot, "What is Footbag Net?" narrative, Singles/Doubles competition-format cards, and pathways into the data sub-routes. `GET /net/teams` lists doubles teams ordered by appearance count; `GET /net/teams/:teamId` is the team detail route, returning 404 for unknown team IDs. All team-data pages render the disclaimer: "Team identities are algorithmically constructed from placement data and may not reflect official partnerships."
-- `GET /sideline` is the canonical sideline section entry route. The page has no sub-routes and no DB reads; it renders a static hero plus per-game sections (Circle Kicking, 2-Square, 4-Square, Consecutive Kicks, Footbag Golf) with cartoon icons and per-game demo `.webm` clips. All "MORE INFO" links route internally to `/rules/sideline/{slug}`; the page contains no offsite hyperlinks.
-- `GET /rules` is the canonical rules section entry route. The index lists every rule page grouped by discipline. `GET /rules/:disciplineSlug/:ruleSlug` is the canonical rule-detail route, returning 404 for unknown discipline or slug. All rule content is in-codebase as markdown files under `ifpa/rules/{discipline}.md`, rendered with `marked`. Rule pages render no offsite hyperlinks; cross-language alternates (e.g. English / bilingual French versions of Article III) are exposed via a frontmatter-driven internal toggle button.
-- `GET /legal` is the canonical legal page. It is a public, unauthenticated single page that composes Privacy, Terms of Use, and Copyright & Trademarks as three anchored sections (`#privacy`, `#terms`, `#copyright`). Footer links across the site deep-link to these anchors.
-- health routes are operational and are outside the cataloged page system.
+- `GET /hof` and `GET /bap` are the canonical HoF and BAP section entry routes.
+- `GET /freestyle` is the canonical freestyle section entry; sub-routes (`/freestyle/records`, `/freestyle/leaders`, `/freestyle/about`, `/freestyle/moves`, `/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/competition`, `/freestyle/partnerships`, `/freestyle/history`, `/freestyle/insights`) are public and unauthenticated.
+- `GET /records` is the canonical records section entry and the single page in the records section.
+- `GET /net` is the canonical net section entry; portal landing with hero, mascot, narrative, Singles/Doubles competition-format cards, and pathways into data sub-routes. `GET /net/teams` lists doubles teams ordered by appearance count; `GET /net/teams/:teamId` is the team detail route, returning 404 for unknown team IDs. All team-data pages render the disclaimer: "Team identities are algorithmically constructed from placement data and may not reflect official partnerships."
+- `GET /sideline` is the canonical sideline section entry. Static hero plus per-game sections (Circle Kicking, 2-Square, 4-Square, Consecutive Kicks, Footbag Golf) with cartoon icons and per-game demo `.webm` clips. All "MORE INFO" links route internally to `/rules/sideline/{slug}`; the page contains zero offsite links.
+- `GET /rules` is the canonical rules section entry; lists every rule page grouped by discipline. `GET /rules/:disciplineSlug/:ruleSlug` is the canonical rule-detail route, returning 404 for unknown discipline or slug. Rule pages render zero offsite hyperlinks; cross-language alternates exposed via a frontmatter-driven internal toggle button.
+- `GET /legal` is the canonical legal page. Public unauthenticated single page composing Privacy, Terms of Use, and Copyright and Trademarks as three anchored sections (`#privacy`, `#terms`, `#copyright`). Footer links across the site deep-link to these anchors.
+- Health routes are operational and outside the cataloged page system.
+
+## 6. Public page matrix
+
+One row per public route. The "Required rendering pattern" column carries the load-bearing target invariants for the page; sensitive-page detail (anti-enumeration, owner-only, public/private boundary, scope language) lives in §7.
+
+| Page | Route | Service / method | Audience | Required rendering pattern | Source |
+| --- | --- | --- | --- | --- | --- |
+| Home | `GET /`  | `HomeService.getPublicHomePage` | Public | Composition-page exception per §3.5 (no `PageViewModel` envelope); shared layout, tokens, section identity, thin-controller, service-owned shaping; rich editorial composition allowed within the same Express + Handlebars + vanilla TS architecture; YouTube media renders as click-to-play facade with link fallback. | `src/controllers/homeController.ts`, `src/views/home/index.hbs` |
+| Member dashboard | `GET /members` | `MemberService.getMembersLandingPage` | Authenticated; unauthenticated visitor sees public welcome | `PageViewModel<MembersLandingContent>`; member search via `?q=` (substring on `display_name_normalized`, min 2 chars, 20-result cap, `hasMore` and `tooShort` flags); search reads `members_searchable` view; results show display name, country, honor badges only; coming-soon feature cards. | `src/controllers/memberController.ts`, `src/views/members/landing.hbs` |
+| Member profile | `GET /members/:memberKey` | `MemberService.getOwnProfile` (owner) / `MemberService.getPublicProfile` (public HoF/BAP) | Owner OR public HoF/BAP | `PageViewModel<OwnProfileContent>` or `PageViewModel<PublicProfileContent>`; contact-field visibility via `email_visibility`; owner sees edit links and account context; non-owner non-HoF/BAP fails closed. See §7.1. | `src/controllers/memberController.ts`, `src/views/members/profile.hbs` |
+| Member profile edit | `GET /members/:memberKey/edit` | `MemberService.getProfileEditPage` | Owner only | `PageViewModel<ProfileEditContent>`; read-only identity block (name, login email, profile URL); avatar upload inline via multipart form posting to `/members/:memberKey/avatar`; `member_links` max 3 URLs validated as https. | `src/controllers/memberController.ts`, `src/views/members/profile-edit.hbs` |
+| Member avatar upload | `POST /members/:memberKey/avatar` | `createAvatarService(...).uploadAvatar` | Owner only | Multipart endpoint; JPEG/PNG only; 5 MB size limit; replaces existing avatar atomically; no GET route. | `src/controllers/memberController.ts` |
+| Member galleries list | `GET /members/:memberKey/galleries` | `CuratorMediaService.listGalleriesForOwner` | Owner only | `PageViewModel<MemberGalleriesListContent>`; slug mismatch returns 404 (anti-enumeration); per-row Edit/View/Delete plus "Upload media" and "Create new gallery" links; `savedFlag` drives success banner (`'create' | 'edit' | 'delete' | 'upload' | null`). See §7.4. | `src/controllers/memberGalleryController.ts`, `src/views/members/galleries-list.hbs` |
+| Member gallery create | `GET /members/:memberKey/galleries/new` | `CuratorMediaService.listMediaForPicker` | Owner only | `PageViewModel<MemberGalleryNewContent>`; shared `partials/gallery-edit-form.hbs`; existing-uploads picker fieldset (checkbox grid); slug mismatch 404; `formAction` posts to `/members/:memberKey/galleries`. | `src/controllers/memberGalleryController.ts`, `src/views/members/gallery-new.hbs` |
+| Member gallery edit | `GET /members/:memberKey/galleries/:id/edit` | `CuratorMediaService.getGalleryForEdit`, `CuratorMediaService.listMediaForPicker` | Owner only | `PageViewModel<MemberGalleryEditContent>`; pre-populated shared form; existing-uploads picker; 404 when gallery does not exist OR is not owned by the authenticated member; `formAction` posts to `/members/:memberKey/galleries/:id/edit`. | `src/controllers/memberGalleryController.ts`, `src/views/members/gallery-edit.hbs` |
+| Member upload | `GET /members/:memberKey/media/upload` | `MediaGalleryService` (no specific read method; controller assembles form values) | Owner only | `PageViewModel<MemberMediaUploadContent>`; mediaType radio (photo / video link); photo file picker (JPEG/PNG up to 25 MB); video URL fields (YouTube/Vimeo); shared caption (max 500 chars) and tags fields; uploads auto-tagged with uploader's slug-tag; slug mismatch 404. | `src/controllers/memberMediaUploadController.ts`, `src/views/members/media-upload.hbs` |
+| Member account stub | `GET /members/:memberKey/:section` | `MemberService` (per-section) | Owner only | `PageViewModel`; supported sections `media`, `settings`, `password`, `download`, `delete`; unsupported sections fail closed. | `src/controllers/memberController.ts`, `src/views/members/account-stub.hbs` |
+| Historical players redirect | `GET /history` | `historyController` (permanent redirect) | Public | 301 to `/members`. | `src/controllers/historyController.ts` |
+| Historical player detail | `GET /history/:personId` | `HistoryService.getHistoricalPlayerPage` | Public for HoF/BAP; auth required otherwise | `PageViewModel<HistoricalPlayerDetailContent>`; controller-level auth check (loads person, checks honor flags, redirects unauthenticated to `/login?returnTo=/history/{personId}` for non-honored persons); `eventGroups[]` with service-computed `eventHref`; per-row `participantHref` via `personHref()` (resolves to `/members/{slug}` or `/history/{personId}`); historical-only persons must not imply current-member capabilities or contactability. | `src/controllers/historyController.ts`, `src/views/history/player-detail.hbs` |
+| Claim initiation | `GET /history/claim`, `POST /history/claim` | `LegacyMigrationService.initiateAccountClaim` | Authenticated only; redirect to `/login?returnTo=%2Fhistory%2Fclaim` | `PageViewModel<ClaimInitiateContent>`; non-revealing response regardless of lookup outcome; rate-limited per requesting account, per target row, per session/IP. See §7.7. | `src/controllers/historyClaimController.ts`, `src/views/history/claim-initiate.hbs` |
+| Claim confirmation | `POST /history/claim/confirm` | `LegacyMigrationService.consumeAccountClaim` | Authenticated only | `PageViewModel<ClaimConfirmContent>`; matched legacy record fields shown for review; merge atomic per the MIGRATION_PLAN merge rules; redirect to own profile on success. | `src/controllers/historyClaimController.ts`, `src/views/history/claim-confirm.hbs` |
+| HP claim confirmation | `GET /history/:personId/claim` | `LegacyMigrationService.lookupHistoricalPersonForClaim` | Authenticated only | `PageViewModel<HpClaimConfirmContent>`; surname-match precondition; first-name-variant warning flag (e.g. Dave/David); `ValidationError` with user-safe message on ineligibility. | `src/controllers/historyClaimController.ts`, `src/views/history/hp-claim-confirm.hbs` |
+| HP claim execution | `POST /history/:personId/claim/confirm` | `LegacyMigrationService.claimHistoricalPerson` | Authenticated only | Atomic merge; sets `members.historical_person_id`; transitively claims linked `legacy_members` row when present; partial UNIQUE index enforces one live member per HP. | `src/controllers/historyClaimController.ts` |
+| Events index | `GET /events` | `EventService.getPublicEventsLandingPage` | Public | `PageViewModel<EventsIndexContent>`; `featuredPromo` shape owned by this catalog; `upcomingEvents[]` rendered with the standard event card; `archiveYears[]` listed; pre-1997 archive note; `registrationStatus` rendered when present, no fallback wording when absent. | `src/controllers/eventsController.ts`, `src/views/events/index.hbs` |
+| Events year archive | `GET /events/year/:year` | `EventService.getPublicEventsYearPage` | Public | `PageViewModel<EventsYearArchiveContent>`; pre-1997 years return 404; `formatDate` for displayed dates with same-day suppression; `.event-list` primitive; year navigation primitive (§4.3) below the hero; results not rendered inline (results live on canonical event detail). | `src/controllers/eventsController.ts`, `src/views/events/year-archive.hbs` |
+| Event detail | `GET /events/:eventKey` | `EventService.getPublicEventPage` | Public | `PageViewModel<EventDetailContent>`; visibility limited to status `published`, `registration_full`, `closed`, `completed` (other statuses return standard not-found); public key format `event_{year}_{event_slug}` exact-match underscore-based; `participantHref` via `personHref()` (templates render plain text when null). See §7.10. | `src/controllers/eventsController.ts`, `src/views/events/detail.hbs` |
+| Clubs index | `GET /clubs` | `ClubService` (read method per code) | Public | `PageViewModel<ClubsIndexContent>`; SVG world map JS-enhanced (hidden on mobile, degrades to country list when JS unavailable); `mapDataJson` injected into `window.__CLUBS_MAP_DATA__`; country list with flag, name, count, link. | `src/controllers/clubsController.ts`, `src/views/clubs/index.hbs` |
+| Clubs country page | `GET /clubs/{countryKey}` (shared `:key`) | `ClubService` (read method per code) | Public | `PageViewModel<ClubsCountryContent>`; anchor nav for state/province sections when 2+ named regions exist; each region carries `id="region-{regionSlug}"` for future map anchor; each entry carries `data-club-id="{clubId}"` for future map pin; unnamed-region clubs appear last under no heading; unknown country returns 404. | `src/controllers/clubsController.ts`, `src/views/clubs/country.hbs` |
+| Club detail | `GET /clubs/{clubKey}` (shared `:key`) | `ClubService` (read method per code) | Public | `PageViewModel<ClubDetailContent>`; `clubKey` matches `^club_[a-z0-9_]+$` exactly (no aliasing or fuzzy); leaders section public; `contactEmail` rendered only when `showContact = true`; service filters non-renderable leaders at read query (not in template); see §7.9. | `src/controllers/clubsController.ts`, `src/views/clubs/detail.hbs` |
+| Media hub | `GET /media` | `MediaGalleryService.getMediaHubPage` | Public | `PageViewModel<MediaHubContent>`; lists every named-gallery URL bookmark (FH-owned and member-owned); FH first then alphabetical within each cohort; `byMember` chip lifted from `#by_<slug>` criterion when it resolves to active member (auth-gated profile link); `criteriaTags[]` and `excludeTags[]` chips; per-card `owner` shape (`displayName`, `slug`, `isSystem`); FH-owned card owner rendered as plain text, member-owned as plain text inside card (no nested anchor). | `src/controllers/mediaController.ts`, `src/views/media/hub.hbs` |
+| Named gallery | `GET /media/:galleryId` | `MediaGalleryService.getNamedGalleryPage` | Public | `PageViewModel<NamedGalleryContent>`; tag-AND match against `member_gallery_tags` minus `member_gallery_exclude_tags`; filter `moderation_status = 'active'` and `is_avatar = 0`; ordering follows `member_galleries.sort_order`; pagination via `?page=N` (invalid clamps to 1); hero `byMember` chip; per-item `tags[]` as `TagChip[]` linking to `/media/browse?tag=<normalized-without-#>`; video tiles render canonical `VideoMedia` shape via `partials/video-facade.hbs`; unknown `galleryId` returns 404. | `src/controllers/mediaController.ts`, `src/views/media/named-gallery.hbs` |
+| Media tag browse | `GET /media/browse` | `MediaGalleryService.getMediaBrowsePage` | Public | `PageViewModel<MediaBrowseContent>`; not a registered named-gallery URL bookmark (no `member_galleries` row, no hub-card listing); repeatable `?tag=` and `?exclude=` plus optional `?page=N`; tokens accepted with or without leading `#`, normalized to `#<lowercase>`, deduplicated, include winning over same-token exclude; `mode = 'browse'` (form pane only when no token resolves) or `mode = 'results'` (form plus paginated tile grid); default sort `upload_desc`, page size 24; pagination prev/next reproduce canonical repeated-arg form; `unresolvedTokens[]` echoes back unresolved criteria. | `src/controllers/mediaController.ts`, `src/views/media/browse.hbs` |
+| Login | `GET /login` | `authController` (no service-method wrapper) | Public | `PageViewModel<LoginContent>`; auth-reason notice when `?returnTo` query param present; inline error display; hidden `returnTo` field validated as relative same-site path (starts with `/`, not `//` or `http`); falls back to `/members/{memberKey}` on missing or invalid value. See §7.5. | `src/controllers/authController.ts`, `src/views/auth/login.hbs` |
+| Register | `GET /register` | `authController` | Public | `PageViewModel<RegisterContent>`; inline validation errors; safe validation feedback that does not leak protected account information. See §7.5. | `src/controllers/authController.ts`, `src/views/auth/register.hbs` |
+| Check-email landing | `GET /register/check-email` | `authController` (with `SimulatedEmailService.getEmailPreview` for dev) | Public | `PageViewModel<CheckEmailContent>`; never reveals whether an account exists for a given address; `SimulatedEmailService` view-model in dev/sandbox mode only (renders nothing in production). See §7.5. | `src/controllers/authController.ts`, `src/views/auth/check-email.hbs` |
+| Email-verify link | `GET /verify/:token` | `IdentityAccessService.verifyEmail` | Public | Token consumption; success issues session cookie and redirects to legacy-link check (when member's email matches a legacy row) or to `/members`; invalid, expired, or used tokens render an identical generic error page (enumeration-safe). | `src/controllers/authController.ts`, `src/views/auth/verify-error.hbs` |
+| Password forgot | `GET /password/forgot` | `IdentityAccessService.requestPasswordReset` | Public | `PageViewModel<PasswordForgotContent>`; response identical regardless of membership; rate-limited per email per hour. See §7.6. | `src/controllers/authController.ts`, `src/views/auth/password-forgot.hbs` |
+| Password reset | `GET /password/reset/:token` | `IdentityAccessService.resetPassword` | Public | `PageViewModel<PasswordResetContent>`; on success issues fresh session cookie with new `passwordVersion` and redirects to `/members`; invalid or expired token renders identical generic error. See §7.6. | `src/controllers/authController.ts`, `src/views/auth/password-reset.hbs` |
+| Member password edit | `GET /members/:memberKey/edit/password` | `IdentityAccessService.changePassword` | Owner only | `PageViewModel<PasswordEditContent>`; on success re-issues session cookie with bumped `passwordVersion` so current browser stays authenticated; bumping `password_version` invalidates all other sessions. | `src/controllers/memberController.ts`, `src/views/members/password-edit.hbs` |
+| HoF landing | `GET /hof` | `HallOfFameService.getHofLandingPage` | Public | `PageViewModel<HofLandingContent>`; service-shaped (no DB queries); `content.externalLink` provided so templates do not construct the standalone HoF URL. See §7.8. | `src/controllers/hofController.ts`, `src/views/hof/index.hbs` |
+| BAP landing | `GET /bap` | `BigAddPosseService.getBapLandingPage` | Public | `PageViewModel<BapLandingContent>`; service-shaped (no DB queries); `content.externalLink` provided so templates do not construct the standalone BAP URL. See §7.8. | `src/controllers/bapController.ts`, `src/views/bap/index.hbs` |
+| Freestyle landing | `GET /freestyle` | `FreestyleService.getLandingPage` | Public | `PageViewModel<FreestyleLandingContent>`; freestyle-section primitives (`.freestyle-landing`, `.hero-with-mascot`, `.card-tile`, `.format-card`, `.video-embed`, `.stats-strip`). | `src/controllers/freestyleController.ts`, `src/views/freestyle/index.hbs` |
+| Freestyle records | `GET /freestyle/records` | `FreestyleService.getRecordsPage` | Public | `PageViewModel<FreestyleRecordsContent>`; world records grouped by record type. | `src/controllers/freestyleController.ts`, `src/views/freestyle/records.hbs` |
+| Freestyle leaders | `GET /freestyle/leaders` | `FreestyleService.getLeadersPage` | Public | `PageViewModel<FreestyleLeadersContent>`; leaders list. | `src/controllers/freestyleController.ts`, `src/views/freestyle/leaders.hbs` |
+| Freestyle about | `GET /freestyle/about` | `FreestyleService.getAboutPage` | Public | `PageViewModel<FreestyleAboutContent>`; freestyle discipline overview. | `src/controllers/freestyleController.ts`, `src/views/freestyle/about.hbs` |
+| Freestyle moves | `GET /freestyle/moves` | `FreestyleService.getMovesPage` | Public | `PageViewModel<FreestyleMovesContent>`; moves reference. | `src/controllers/freestyleController.ts`, `src/views/freestyle/moves.hbs` |
+| Freestyle tricks index | `GET /freestyle/tricks` | `FreestyleService` (tricks-index method) | Public | `PageViewModel<FreestyleTricksIndexContent>`; trick dictionary browse. | `src/controllers/freestyleController.ts`, `src/views/freestyle/tricks-index.hbs` |
+| Freestyle trick detail | `GET /freestyle/tricks/:slug` | `FreestyleService.getTrickDetailPage` | Public | `PageViewModel<FreestyleTrickDetailContent>`; reference video gallery filters to curator-uploaded media (`#curated` plus `#freestyle` plus `#trick` plus slug tag) joined to `media_sources` for provenance; `NotFoundError` on unknown slug renders 404; tab title format `Footbag Trick #{slug}`. | `src/controllers/freestyleController.ts`, `src/views/freestyle/trick-detail.hbs` |
+| Freestyle competition | `GET /freestyle/competition` | `FreestyleService` (competition method) | Public | `PageViewModel<FreestyleCompetitionContent>`; results-derived analytics: top competitors, eras, recent events. | `src/controllers/freestyleController.ts`, `src/views/freestyle/competition.hbs` |
+| Freestyle partnerships | `GET /freestyle/partnerships` | `FreestyleService` (partnerships method) | Public | `PageViewModel<FreestylePartnershipsContent>`; doubles partnerships extracted from competition results. | `src/controllers/freestyleController.ts`, `src/views/freestyle/partnerships.hbs` |
+| Freestyle history | `GET /freestyle/history` | `FreestyleService` (history method) | Public | `PageViewModel<FreestyleHistoryContent>`; editorial static-curated content. | `src/controllers/freestyleController.ts`, `src/views/freestyle/history.hbs` |
+| Freestyle insights | `GET /freestyle/insights` | `FreestyleService` (insights method) | Public | `PageViewModel<FreestyleInsightsContent>`; analytical insights. | `src/controllers/freestyleController.ts`, `src/views/freestyle/insights.hbs` |
+| Records | `GET /records` | `RecordsService.getRecordsPage` | Public | `PageViewModel<RecordsContent>`; cross-sport records page; aggregates consecutive-kicks world records, highest scores, progression, milestones, and freestyle passback records into one view-model. | `src/controllers/recordsController.ts`, `src/views/records/index.hbs` |
+| Net landing | `GET /net` | `NetService.getNetHomePage` | Public | `PageViewModel<NetHomeContent>`; portal landing with hero/mascot, narrative, Singles/Doubles competition-format cards, Explore-card data-driven grey-out, notable teams, notable players, recent events; statistics firewall (`canonical_only` data only). | `src/controllers/netController.ts`, `src/views/net/index.hbs` |
+| Net teams list | `GET /net/teams` | `NetService.getTeamsPage` | Public | `PageViewModel<NetTeamsContent>`; ordered by appearance count descending; conflict-flag-aware discipline label resolution; algorithmic-team disclaimer always rendered. | `src/controllers/netController.ts`, `src/views/net/teams.hbs` |
+| Net team detail | `GET /net/teams/:teamId` | `NetService.getTeamDetailPage` | Public | `PageViewModel<NetTeamDetailContent>`; appearances grouped by year descending; `NotFoundError` on unknown ID renders 404; algorithmic-team disclaimer always rendered. | `src/controllers/netController.ts`, `src/views/net/team-detail.hbs` |
+| Net events list | `GET /net/events` | `NetService` (events method) | Public | `PageViewModel<NetEventsContent>`; net events ordered by recency with team and appearance counts. | `src/controllers/netController.ts`, `src/views/net/events.hbs` |
+| Sideline landing | `GET /sideline` | `SidelineService.getSidelineLandingPage` | Public | `PageViewModel<SidelineLandingContent>`; static content; fixed game list with mascot, optional cartoon icon, optional demo `.webm` video, optional internal-only `moreInfo` link; zero offsite links. | `src/controllers/sidelineController.ts`, `src/views/sideline/index.hbs` |
+| Rules index | `GET /rules` | `RulesService.getRulesIndexPage` | Public | `PageViewModel<RulesIndexContent>`; rule pages grouped by discipline ordered `sideline -> net -> golf -> freestyle`; rendered from `ifpa/rules/*.md` via `marked` v14, in-memory cache. | `src/controllers/rulesController.ts`, `src/views/rules/index.hbs` |
+| Rule detail | `GET /rules/:disciplineSlug/:ruleSlug` | `RulesService.getRulePage` | Public | `PageViewModel<RulesDetailContent>`; title hero, optional cross-language toggle button (driven by `alternateLanguageHref` plus `alternateLanguageLabel` frontmatter), italic authority and effective-date meta line, optional on-this-page TOC, markdown-rendered `bodyHtml`; H1 becomes rule page with `slugify(headingText)`; H2 receives matching `id` for in-page anchor; zero offsite hyperlinks; `NotFoundError` on unknown slug renders 404. | `src/controllers/rulesController.ts`, `src/views/rules/detail.hbs` |
+| Legal | `GET /legal` | `LegalService.getLegalPage` | Public | `PageViewModel<LegalContent>`; three sections in fixed order with stable anchor IDs `privacy`, `terms`, `copyright`; per-section `bodyHtml` pre-shaped by service; `lastUpdated` ISO date rendered. | `src/controllers/legalController.ts`, `src/views/legal/index.hbs` |
 
----
+## 7. Sensitive page target rules
 
-## 6. Page Specifications
+This section carries the privacy, anti-enumeration, owner-only, and visibility-status invariants that do not compress into a matrix cell. Each subsection is self-contained: it states the target rule for one page or related set of pages without "see other section" cross-refs.
 
-### 6.1 Home
+### 7.1 Member profile public/private boundary
 
-### Purpose
+`GET /members/:memberKey` serves three audiences with three rendering modes. Mode is selected in the service layer, not the template.
 
-Provide the primary public entry point for the modernized site. Home is a richer landing-page composition surface that introduces the platform, highlights live public data, and routes visitors into the main sections.
+1. **Owner** (authenticated as the member whose slug matches `:memberKey`). `MemberService.getOwnProfile` returns `PageViewModel<OwnProfileContent>` including display name, bio, city/region/country, phone if applicable, login email (always visible to owner), `email_visibility` setting, avatar thumbnail, and account context links. Owner sees edit links and account-management call-to-actions.
 
-### Route
+2. **Authenticated non-owner viewing a HoF/BAP member**. `MemberService.getPublicProfile` returns `PageViewModel<PublicProfileContent>` with approved non-PII fields only: display name, country, honor badges, bio, optional `member_links`. No edit links. No contact-field exposure. Email is shown only when `email_visibility = 'members'` AND the viewer is authenticated; never to unauthenticated visitors. `email_visibility = 'public'` is not a forward-looking supported value; contact fields are never publicly exposed.
 
-`GET /`
+3. **Authenticated non-owner viewing a non-HoF/BAP member**, OR **unauthenticated visitor on any member URL**. Fail closed via standard not-found behavior. No template-level "this profile is private" message; that itself would leak existence.
 
-### Audience
+The privacy gate is enforced at the service layer (`getPublicProfile` returns null for non-HoF/BAP). The controller maps null to 404. The template must not branch on member-tier or honor-flag values to decide what to render; if the service handed it a model, every field in that model is renderable.
 
-Public visitor.
+### 7.2 Member dashboard auth gate and member-search anti-enumeration
 
-### Standard relationship
+`GET /members` is auth-gated at the controller. Authenticated visitors see the member dashboard with profile quick link, member search, and feature cards. Unauthenticated visitors see a public welcome page with sign-up and login links; they do not see search, feature cards, or any member-data hint.
 
-This page consumes the generic public rendering standard's shared frame, shared visual language, and reusable primitives where practical, but it is the one intentional composition-page exception and does not use the §4.2 generic page contract.
+Member search via `?q=`:
 
-### Page intent
+- Substring match on `display_name_normalized` against the `members_searchable` view (excludes soft-deleted, deceased, opted-out, PII-purged, and unverified rows; the unverified exclusion is the primary mechanism preventing legacy placeholder rows from appearing in results).
+- Minimum 2-character query; `tooShort` flag drives the "type at least 2 characters" hint.
+- Maximum 20 results; `hasMore` flag drives the "refine your query" hint.
+- Results show display name, country, and honor badges only (HoF, BAP, board). No email, no city, no member-internal data.
+- No browse-all pagination. No exhaustive list endpoint. The 20-result cap with `hasMore` is intentional anti-enumeration design.
 
-- welcome visitors to IFPA Footbag
-- establish the site's overall look and feel
-- provide strong entry points into Events, Members, Clubs, and Freestyle
-- support richer editorial/media presentation than ordinary list/detail pages
-- remain compatible with future designer-led landing-page enhancements without requiring a new front-end architecture
+### 7.3 Member account stub pages and profile edit owner-only block
 
-### Required content
+`GET /members/:memberKey/edit`, `GET /members/:memberKey/edit/password`, and `GET /members/:memberKey/:section` are owner-only: the controller verifies `req.user.slug === req.params.memberKey` and returns 404 on mismatch (anti-enumeration). Template must not render any owner-only content when the model is absent; the controller must not fall through to rendering a page with empty content.
 
-- hero with site title and short welcome text
-- primary navigation cards/links into the major sections
-- optional featured upcoming events teaser region
-- optional editorial or media regions
-- optional coming-soon / future-sections region
+The profile edit page renders a read-only identity block (name, login email, profile URL; none editable on this page) plus the editable bio, location, contact prefs, and external URLs (max 3, validated as https). Avatar upload is inline via a separate multipart form posting to `/members/:memberKey/avatar`. The avatar form follows the same owner-only gate.
 
-### Required view-model fields
+Account stub sections: `media`, `settings`, `password`, `download`, `delete`. Unsupported sections fail closed (404, not a generic stub).
 
-- `page.sectionKey = home`
-- `page.pageKey = home_index`
-- `page.title`
-- optional `page.eyebrow`
-- `page.intro`
-- optional `page.notice`
-- `hero`
-  - `heading`
-  - optional `subheading`
-  - optional `media`
-    - `kind: 'image' | 'video' | 'youtube'`
-    - `src` — for `image` or `video`, a site-relative or absolute URL; for `youtube`, the 11-character YouTube video ID (not a full URL)
-    - optional `alt`
-    - optional `posterSrc`
-    - optional `caption`
-    - YouTube media must be rendered as a click-to-play facade that defers loading the third-party iframe until user activation, and must degrade to a plain link to the YouTube watch page when JavaScript is unavailable
-- `primaryLinks[]`
-  - `label`
-  - `href`
-  - `description`
-  - optional `variant`
-- optional `featuredUpcomingEvents[]`
-- optional `featurePanels[]`
-  - `heading`
-  - `body`
-  - optional `href`
-  - optional `ctaLabel`
-- optional `comingSoonSections[]`
+### 7.4 Member upload and member gallery management owner-only block
 
-### Navigation outputs
+`GET /members/:memberKey/galleries`, `GET /members/:memberKey/galleries/new`, `GET /members/:memberKey/galleries/:id/edit`, and `GET /members/:memberKey/media/upload` are owner-only with anti-enumeration parity: slug mismatch returns 404, matching the rest of the `/members/:memberKey/` block. Edit-form 404 also applies when the gallery does not exist OR is not owned by the authenticated member.
 
-- `GET /events`
-- `GET /members`
-- `GET /clubs`
+Service-layer authorization (admin OR owner) is the source of truth for write authorization on `POST /members/:memberKey/galleries`, `POST /members/:memberKey/galleries/:id/edit`, and `POST /members/:memberKey/galleries/:id/delete`. The route layer's slug check exists for anti-enumeration parity. A forged `ownerMemberId` in the request body is ignored: the controller takes the owner from the session.
 
-### Empty state
+CSRF protection comes from the SameSite=Lax session cookie plus `requireAuth`, not from a per-form token. `ValidationError` (including authz failures and shape violations) renders the form re-populated with input and 422 status. `ConflictError` (UNIQUE owner+name on create) renders the form with the conflict message at 422.
 
-Home still renders normally when optional featured/media regions are absent.
+Member-owned galleries auto-prepend `#by_<owner_slug>` to validated criteria tags on every create and edit so the gallery's owner-scoping criterion survives DELETE-then-INSERT and cannot be removed by editing. User-supplied `#by_*` tags rejected from input. The picker fieldset reads by `uploader_member_id` (the authoritative ownership signal).
 
----
+### 7.5 Auth pages: login, register, check-email, verify, resend
 
-### 6.2 Member dashboard
+Anti-enumeration applies across all account-existence-sensitive surfaces. Same code path runs for "exists" and "does not exist"; same response shape; same timing.
 
-### Purpose
+- `GET /login` renders `PageViewModel<LoginContent>`. Auth-reason notice rendered when `?returnTo` is present. Inline error rendered above the form on failed authentication; the error message must not distinguish "wrong password" from "no such account". `content.returnTo` is validated as a relative same-site path (starts with `/`, not `//` or `http`); invalid or absent values fall back to `/members/{memberKey}`.
 
-Provide the authenticated member dashboard with profile quick link, member search, and coming-soon feature cards.
+- `GET /register` renders `PageViewModel<RegisterContent>` with inline validation errors. Successful registration redirects into the member account flow. Validation feedback must not leak whether the supplied email is already in use; the registration response is identical for "new account created" and "duplicate email; check your inbox".
 
-### Route
+- `GET /register/check-email` renders the generic post-registration and post-resend landing. The page never reveals whether an account exists for a given address. In dev (`SES_ADAPTER=stub`) and sandbox modes the `simulated-email-card` partial renders with captured stub messages or a sandbox notice; in production the partial renders nothing.
 
-`GET /members`
+- `POST /verify/resend` is the form-action handler for the resend form on `/register/check-email`. The response is identical regardless of membership state or rate-limit state.
 
-### Audience
+- `GET /verify/:token` consumes the email-verification token. Success issues a session cookie and redirects: to the legacy-link check when the member's email matches a legacy row; otherwise to `/members`. Invalid, expired, used, or wrong-type tokens render an identical generic error page; the page must not distinguish among the failure modes.
 
-Authenticated member. Unauthenticated visitor is redirected through the standard auth gate.
+### 7.6 Password reset flow
 
-### Standard relationship
+Anti-enumeration applies. Same code path; same response; same timing.
 
-This page consumes the generic public rendering standard and the §4.2 page contract.
+- `GET /password/forgot` renders the request form. `POST /password/forgot` is the form-action handler; response is identical regardless of membership. Rate-limited at 5 requests per email per hour, enforced regardless of email existence.
 
-### Required content
+- `GET /password/reset/:token` renders the form reached from the emailed link. `POST /password/reset/:token` consumes the token (1-hour expiry, unused) and on success: increments `password_version` (invalidating all outstanding JWTs), updates `password_hash`, marks token consumed, issues a fresh session cookie with the new `passwordVersion`, and redirects to `/members`. Invalid, expired, or used tokens render an identical generic error page.
 
-- hero with section title and personalized welcome subtitle
-- own-profile quick link ("My Profile" button, links to edit page)
-- member search form with section heading (GET with query parameter `q`)
-- search results section (conditional on query presence)
-- coming-soon feature cards section ("Member Features")
+- `GET /members/:memberKey/edit/password` is the own-profile change-password form. On success the controller re-issues the session cookie with the bumped `passwordVersion` so the current browser stays authenticated; all other browser sessions for this member are immediately invalid via the JWT `passwordVersion` check in middleware.
 
-### Required view-model fields
+### 7.7 Legacy account claim flow
 
-- `seo.title = Member Dashboard`
-- `page.sectionKey = members`
-- `page.pageKey = member_landing`
-- `page.title = Member Dashboard`
-- `content.profileSlug`
-- `content.displayName`
-- `content.search` (null when no query)
-  - `query`
-  - `results[]` -- `{ displayName, country, slug, isHof, isBap, isBoard }`
-  - `hasMore: boolean`
-  - `tooShort: boolean`
+Non-revealing target. `LegacyMigrationService.initiateAccountClaim` returns a generic non-revealing response regardless of outcome: zero matches, multiple matches, ineligible rows, and blocked rows are indistinguishable to the caller. Recommended message: "If an eligible legacy record was found, a claim email will be sent."
 
-### Behavior
+Rate limiting applies at `initiateAccountClaim` and resend per requesting account, per target row, and per session/IP. A token may only be consumed by the same `member_id` that initiated the request; consuming while authenticated as a different account is rejected.
 
-- authenticated visitor -> 200 with member dashboard; search via `?q=` query parameter
-- unauthenticated visitor -> 200 with public welcome page (sign-up and login links)
+`POST /history/claim/confirm` runs the merge transaction atomically: marks the target `legacy_members` row claimed (`claimed_by_member_id` plus `claimed_at`; the row is NOT deleted, it persists as the permanent archival record), copies merge fields per the MIGRATION_PLAN merge rules, sets `members.historical_person_id` when the target's `legacy_member_id` matches a `historical_persons.legacy_member_id`, runs the HP-sourced field merge, writes a single tier grant with `reason_code = 'legacy.claim_tier_grant'`, processes confirmed club affiliations and bootstrap-leader confirmations, and marks all outstanding `account_claim` tokens targeting the row as consumed. After successful merge, redirect to own profile.
 
-### Search rules
+`GET /history/:personId/claim` is the direct historical-person claim flow (no legacy-account row required). Surname-match precondition between `members.real_name` and `historical_persons.person_name`; first-name variance (e.g. Dave/David) permitted with a `firstNameWarning` flag on the preview. Service throws a `ValidationError` with a user-safe message on ineligibility. `POST /history/:personId/claim/confirm` executes the direct-HP claim atomically.
 
-- substring match on `display_name_normalized`
-- minimum 2-character query
-- maximum 20 results; `hasMore` signals the user should refine
-- queries the `members_searchable` view (excludes deleted, deceased, opted-out, purged, unverified)
-- results show display name, country, and honor badges only
+### 7.8 HoF and BAP landing scope
 
----
+`GET /hof` and `GET /bap` are the canonical section entry routes. The current target is the editorial landing page only. The services (`HallOfFameService.getHofLandingPage` and `BigAddPosseService.getBapLandingPage`) are read-only with no DB queries; they shape the page model directly. Templates must not construct the standalone HoF or BAP URLs; the service provides `content.externalLink` for the call-to-action.
 
-### 6.3 Member profile
+Full inductee and roster surfaces are deferred out of scope by design: in-site HoF inductee pages, member-linked HoF records, and richer HoF history are scope-deferred per the `HallOfFameService` entry in `docs/SERVICE_CATALOG.md`. In-site BAP roster pages, induction-year pages, and member-linked BAP records are scope-deferred per the `BigAddPosseService` entry. This is scope language, not status: the design intent is that those surfaces require future curation work that has not been scoped in.
 
-### Purpose
+### 7.9 Club detail leader contact gate
 
-Provide the canonical member profile page.
+`GET /clubs/{clubKey}` renders the canonical public club detail page. The Leaders section is visible to authenticated AND unauthenticated visitors; leader display names are public; contact details are gated.
 
-### Route
+Each leader entry renders display name, role label (`Leader` or `Co-leader`), optional badge label, optional badge note, and optional contact email. Display name links to `/history/{personId}` when `personId` is present; plain text otherwise. Sort order: `role='leader'` rows first, then `role='co-leader'`; alphabetical within each role; service-computed.
 
-`GET /members/:memberKey`
+Privacy gate: `contactEmail` MUST NOT appear in the rendered HTML when `showContact` is false. The template branches on `showContact` only; it does not infer from `status` or any other field.
 
-### Audience
+Suppression: leaders with non-renderable status MUST NOT appear in the rendered HTML; the service filters at the read query, not in the template.
 
-Profile owner when authenticated as that member; limited public read-only audience for HoF/BAP member profiles only.
+Unauthenticated visitors viewing the club detail page see the leaders section with display names but no club member roster; a login prompt or equivalent bounded call-to-action appears in place of the visible roster. Authenticated visitors see only the approved club-member visibility; unresolved affiliations and non-approved roster visibility must not leak through template logic.
 
-### Standard relationship
+### 7.10 Event detail visibility status
 
-This page consumes the generic public rendering standard and the §4.2 page contract.
+`GET /events/:eventKey` renders the canonical public event detail page. Public visibility is limited to events whose `status` is one of `published`, `registration_full`, `closed`, or `completed`. Events with status `draft`, `pending_approval`, or `canceled` resolve through standard not-found behavior; no distinct error state is exposed for non-public events.
 
-### Required content
+Public-key parsing and validation belong in the service layer. The public key format is exactly `event_{year}_{event_slug}`; exactness is underscore-based; the catalog does not authorize hyphen/underscore rewrites, aliasing, or fuzzy matching.
 
-- own-profile view: display name, bio, city, region, country, phone (if applicable to the current slice), email visibility setting, avatar thumbnail, account context links
-- public HoF/BAP view: approved non-PII profile fields only; no edit links; no contact-field exposure
+The canonical public event page is one route and one template; render emphasis is expressed through page-model fields such as `primarySection` (set to `details` when no results exist; `results` when results exist), not through alternate public URLs.
 
-### Key rules
+When shaping public result rows, set `participantHref` via `personHref(participant_member_slug, participant_historical_person_id)` (resolves to `/members/{slug}` for claimed members, `/history/{personId}` otherwise, null if neither). Templates render plain name when `participantHref` is null; no URL construction in templates.
 
-- own profile access is owner-only
-- non-owner access is limited to the explicit HoF/BAP public-profile exception
-- non-HoF/BAP public access redirects to login and then fails closed
+## 8. Shared public behavior rules
 
----
-
-### 6.4 Member profile edit
-
-### Route
-
-`GET /members/:memberKey/edit`
-
-### Purpose
-
-Allow a member to edit their own profile fields. Includes a read-only identity section (name, email, profile URL) and inline avatar upload.
-
-### Key rules
-
-- auth required
-- own-profile only
-- read-only identity block shows name, login email, and profile URL (not editable on this page)
-- avatar upload is inline via a separate multipart form that POSTs to `/members/:memberKey/avatar`
-
----
-
-### 6.5 Member account stub pages
-
-### Route
-
-`GET /members/:memberKey/:section`
-
-### Purpose
-
-Provide placeholder pages for account subsections.
-
-### Supported sections
-
-- media
-- settings
-- password
-- download
-- delete
-
-### Key rules
-
-- auth required
-- own-profile only
-- unsupported sections must fail closed
-
----
-
-### 6.6 Historical players redirect
-
-`GET /history` permanently redirects (301) to `/members`. The historical players index page has been removed. Individual historical player detail pages remain at `/history/:personId` (see §6.7).
-
----
-
-### 6.7 Historical player detail
-
-### Purpose
-
-Provide the detail page for one imported historical person's competitive record.
-
-### Route
-
-`GET /history/:personId`
-
-### Audience
-
-Public for HoF and BAP persons. Auth required otherwise. Auth enforced at controller level: the controller loads the person, checks honor flags, and redirects unauthenticated visitors to `/login?returnTo=/history/{personId}` for non-honored persons.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract. It is a Tier 1 public historical read page. It must not imply current-member capabilities, profile ownership, member-search inclusion, or club-roster visibility for historical-only persons.
-
-### Page intent
-
-- present the imported historical person's competitive record clearly
-- support result-participant linking from public event pages when a historical person is known
-- preserve historical accuracy
-- for historical-only persons: must not imply current-member account, public discoverability, or contactability
-
-### Required content
-
-- hero with the historical person's display name
-- minimal identity/facts region using only data available from imported historical records
-- optional historical-results or related-links region when present
-- optional notice clarifying that historical imported people may not be current Members
-
-### Required view-model fields
-
-- `page.sectionKey = history`
-- `page.pageKey = history_player_detail`
-- `page.title` — the person's display name (plain text, for h1 and tab title)
-- optional `page.eyebrow` — e.g. `"Historical member record"`
-- optional `page.intro`
-- optional `page.notice`
-- `navigation.contextLinks` — typed back link to `GET /members` (service-computed)
-- `content.personId`
-- `content.displayName` — the person's display name
-- optional `content.honorificNickname` — BAP nickname when present; rendered in a styled span alongside `displayName` in the h1
-- `content.eventGroups` — `{ eventKey, eventHref, eventTitle, startDate, city, eventCountry, hasDetailColumn, results[] }[]`; service computes `eventHref` as `"/events/{eventKey}"`; `hasDetailColumn` is true when any result row has teammates or `scoreText`; each result entry includes `disciplineName`, `disciplineCategory`, `teamType`, `placement`, `scoreText`, `detailPrefix`, and `teammates: { name, participantHref? }[]` where `participantHref` is computed via `personHref()` per DD §2.4 rule 2 (resolves to `/members/{slug}` for claimed members, `/history/{personId}` otherwise); `detailPrefix` is a per-row label: `"With partner: "`, `"With partners: "`, `"Tied with: "`, or empty; the detail column is suppressed entirely when `hasDetailColumn` is false
-
-### Navigation outputs
-
-- `GET /events/:eventKey` (via `content.eventGroups[].eventHref`)
-- `GET /events/year/:year`
-- `GET /members` (via `navigation.contextLinks`)
-
-### Empty state
-
-Unknown or non-public historical identities resolve through standard not-found behavior rather than a custom empty state.
-
----
-
-### 6.8 Events index
-
-### Purpose
-
-Provide the primary public Events entry page by showing upcoming public events and links into completed-event archives.
-
-### Route
-
-`GET /events`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard.
-
-### Page intent
-
-- show upcoming public events
-- provide clear event drill-down links
-- provide archive-year entry points for completed events
-
-### Required content
-
-- hero for the Events section
-- optional featured promo region for intentionally highlighted event content
-- upcoming events region — event cards use the standard event card primitive (§4.3)
-- archive years region
-
-### Required view-model fields
-
-- `seo.title = Events`
-- `page.sectionKey = events`
-- `page.pageKey = events_index`
-- `page.title` — e.g. `"Footbag Events"`
-- optional `page.eyebrow`
-- `page.intro`
-- optional `page.notice`
-- optional `content.featuredPromo`
-  - `title`
-  - `href`
-  - `ctaLabel`
-  - optional `description`
-  - `startDate`
-  - `endDate`
-  - `city`
-  - optional `region`
-  - `country`
-  - optional `external: boolean`
-  - optional `imageUrl` — site-relative path to a hero/poster graphic for the promo (service-owned, never hardcoded in templates)
-  - optional `imageAlt` — alt text for the hero graphic; falls back to `title` when omitted
-- `content.upcomingEvents[]`
-  - `eventKey`
-  - `title`
-  - `description`
-  - `startDate`
-  - `endDate`
-  - `city`
-  - `region`
-  - `country`
-  - `hostClub`
-  - `registrationStatus`
-  - `status`
-- `content.archiveYears[]`
-
-`registrationStatus` is part of the display contract. Templates should render it when present and should not invent fallback wording when it is absent or empty.
-
-### Navigation outputs
-
-- `GET /events/:eventKey`
-- `GET /events/year/:year`
-
-### Empty state
-
-If no upcoming events exist, render a standard empty state. Archive-year links may still appear if completed-event years exist.
-
----
-
-### 6.9 Events year archive
-
-### Purpose
-
-Provide a complete public archive page for completed events in one calendar year.
-
-### Route
-
-`GET /events/year/:year`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard.
-
-### Page intent
-
-- show completed public events for one year as a clean scannable list
-- provide drill-down links to canonical event pages
-- preserve year-level browseability without pagination
-
-### Required content
-
-- hero showing "Footbag Events from {year}"
-- year navigation (previous/next) using the standard year navigation primitive (§4.3), positioned below the hero
-- completed events list for that year — one row per event using the `.event-list` primitive; each row renders title (linked to canonical event route), formatted date range (via `formatDate`; same-day events show one date only), and location
-- no inline results on this page; results are accessed via the canonical event detail route
-- a note below the archive year pills on the events index page that pre-1997 data is incomplete and more historical results are coming
-
-### Data constraints
-
-- years before 1997 are excluded from year navigation
-- direct navigation to a pre-1997 year URL returns a standard 404
-
-### Required view-model fields
-
-- `seo.title` — e.g. `"{year} Events"`
-- `page.sectionKey = events`
-- `page.pageKey = events_year_archive`
-- `page.title` — e.g. `"Footbag Events from {year}"`
-- optional `page.eyebrow`
-- optional `page.intro`
-- optional `page.notice`
-- optional `navigation.siblings.previous: { label, href }` — service-computed; present when a previous archive year exists; omitted otherwise
-- optional `navigation.siblings.next: { label, href }` — service-computed; present when a next archive year exists; omitted otherwise
-- `content.year`
-- `content.events[]`
-  - `eventKey`
-  - `title`
-  - optional `description`
-  - `startDate`
-  - `endDate`
-  - `city`
-  - optional `region`
-  - `country`
-  - optional `hostClub`
-  - `status`
-  - `hasResults` — may be used for a visual indicator; results are not rendered inline on this page
-
-### Navigation outputs
-
-- `GET /events`
-- `GET /events/:eventKey`
-
-### Empty state
-
-If the requested year is valid but contains no public completed events, render a standard empty state.
-
----
-
-### 6.10 Event detail
-
-### Purpose
-
-Provide the canonical public detail page for one event.
-
-### Route
-
-`GET /events/:eventKey`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard.
-
-### Page intent
-
-- present the event identity, timing, location, and status clearly
-- present the public event description and available public results sections
-- act as the canonical drill-down destination from all public event browse pages
-
-### Event visibility
-
-Public canonical event pages exist only for events whose `status` is one of:
-`published`, `registration_full`, `closed`, `completed`
-
-Events with status `draft`, `pending_approval`, or `canceled` resolve through standard not-found behavior. No distinct error state is exposed for non-public events.
-
-### Required content
-
-- hero: event title; location and date range as subtitle
-- meta row below hero: date range, location, host club when present, status badge; external URL button when present
-- optional description region
-- disciplines region: discipline tags ordered by `sortOrder` using the standard discipline tag primitive (§4.3); omitted cleanly when no disciplines exist
-- results region: when `hasResults`, render one result section per entry in `resultSections[]` using the standard result section primitive (§4.3); when not, render a styled no-results notice
-
-### Required view-model fields
-
-- `seo.title = event.standardTagDisplay` — the event's canonical display tag (e.g. `"World Championships 2024"`)
-- `page.sectionKey = events`
-- `page.pageKey = event_detail`
-- `page.title`
-- optional `page.eyebrow`
-- optional `page.intro`
-- optional `page.notice`
-- `navigation.contextLinks[]` — service-provided; one entry: `{ label: "More events from {year}", href: "/events/year/{year}" }` where year is derived from `event.startDate`
-- `content.event`
-  - `eventKey`
-  - `title`
-  - optional `description`
-  - `startDate`
-  - `endDate`
-  - `city`
-  - optional `region`
-  - `country`
-  - optional `hostClub`
-  - `status`
-  - optional `registrationStatus`
-  - optional `registrationDeadline`
-  - optional `capacityLimit`
-  - optional `externalUrl`
-- `content.disciplines[]`
-  - `disciplineId`
-  - `name`
-  - `disciplineCategory`
-  - `teamType` (`singles` | `doubles` | `mixed_doubles`)
-  - `teamTypeLabel` (`null` for singles; `"Doubles"` or `"Mixed Doubles"` for non-singles — computed by service; templates use this for display)
-  - `sortOrder`
-- `content.hasResults`
-- `content.primarySection` (`details` when no results exist; `results` when results exist — affects emphasis only, not route shape)
-- `content.resultSections[]`
-  - optional `disciplineId`
-  - optional `disciplineName`
-  - optional `disciplineCategory`
-  - optional `teamType`
-  - `placements[]`
-    - `placement`
-    - optional `scoreText`
-    - `participants[]`
-      - `participantDisplayName`
-      - `participantOrder`
-      - optional `participantHref` — present only when the participant resolves to a historical-person-backed read-only detail target; omit otherwise and render plain text
-
-### Canonical event identity rule
-
-For the current slice, the public route key is `eventKey`.
-
-Rules:
-
-- `GET /events/:eventKey` is the canonical public detail route
-- the public key format is exactly `event_{year}_{event_slug}` for the current slice
-- exactness is underscore-based; the catalog does not authorize hyphen/underscore rewrites, aliasing, or fuzzy matching
-- route validation belongs in controller/service code, not templates
-- the catalog does not authorize alternate public detail URL patterns
-
-### Navigation outputs
-
-`navigation.contextLinks` is the sole navigation output for this page. The "More events from {year}" link is included as the single entry (see Required view-model fields above). Templates render contextLinks as a button (`.btn.btn-outline`) at the bottom of the page. No other navigation outputs are produced.
-
-### Empty state
-
-There is no empty state for a missing event. A valid missing-record path should resolve through the site’s standard not-found behavior.
-
----
-
-### 6.11 Clubs index
-
-### Purpose
-
-Provide the primary public Clubs entry page showing all countries that have at least one active club, with counts and drill-down links.
-
-### Route
-
-`GET /clubs`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- introduce the Clubs section as a first-class public destination
-- show all countries with active clubs as a scannable list with counts
-- provide drill-down links to each country's club page
-- expose total club and country counts in the hero
-
-### Required content
-
-- hero with title, intro, and stat counts (total clubs, total countries)
-- SVG world map: JS-enhanced; active-club countries highlighted; tooltip on hover; click drills to country page; requires JS to render and is hidden on mobile (≤768px); degrades to the country list when JS is absent or the fetch fails
-- country list: one entry per country with country flag, name, count, and link to country page
-
-### Required view-model fields
-
-- `seo.title = Clubs`
-- `page.sectionKey = clubs`
-- `page.pageKey = clubs_index`
-- `page.title`
-- `page.intro`
-- `content.totalClubs`
-- `content.totalCountries`
-- `content.countries[]`
-  - `country` — full country name
-  - `countryCode` — ISO 3166-1 alpha-2 code; service-computed; used for SVG map path matching
-  - `countrySlug` — slugified country name; service-computed; used in `countryHref`
-  - `countryHref` — service-computed; `/clubs/{countrySlug}`
-  - `total` — count of active clubs in this country
-- `content.mapDataJson` — JSON string; serialized array of `{ code, slug, name, total }` per country; injected into `window.__CLUBS_MAP_DATA__` for the client-side map script
-
-### Navigation outputs
-
-- `GET /clubs/:countrySlug` (via `content.countries[].countryHref`)
-
-### Empty state
-
-Render standard empty state if no clubs are active.
-
----
-
-### 6.12 Clubs country page
-
-### Purpose
-
-Show all active clubs in one country, grouped by state or province when applicable, with anchor-linked section navigation for countries with many clubs.
-
-### Route
-
-Public country URLs take the form `GET /clubs/{countryKey}`. In Express these are handled by the shared route `GET /clubs/:key`.
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- present all clubs in the selected country
-- group by state/province for countries with regional data (USA, Canada, etc.)
-- bake in region anchor IDs and `data-club-id` attributes on club entries for future map integration
-- optional coming-soon map notice (to be replaced by an interactive state/province map in a future slice — clicking a state on the map will anchor-jump to that region's section)
-
-### Required content
-
-- hero with country name and club count
-- anchor nav to state/province sections when two or more named regions exist
-- club list grouped by region; unnamed-region clubs appear last under no heading
-- each entry: club name (linked to club detail), city, hashtag, external URL when present
-- each region section must carry `id="region-{regionSlug}"` for future map anchor targeting
-- each club entry must carry `data-club-id="{clubId}"` for future map pin linking
-
-### Required view-model fields
-
-- `seo.title = "{country} Clubs"` — full country name (e.g. `"New Zealand Clubs"` → tab `Footbag New Zealand Clubs`)
-- `page.sectionKey = clubs`
-- `page.pageKey = clubs_country`
-- `page.title` — e.g. `"Clubs in New Zealand"`
-- `navigation.breadcrumbs` — `[{ label: 'Clubs', href: '/clubs' }, { label: country }]`
-- `content.country` — full country name
-- `content.countrySlug`
-- `content.total` — count of clubs on this page
-- `content.hasMultipleRegions` — boolean; true only when all clubs have a named region and 2+ distinct named regions exist; controls anchor nav and region heading rendering
-- `content.regions[]`
-  - optional `region` — state/province name; `null` for clubs with no region
-  - optional `regionSlug` — slugified region name; service-computed; used as anchor target `region-{regionSlug}`
-  - `clubs[]`
-    - `clubId`
-    - `clubKey` — service-computed; `tag_normalized.slice(1)`; used in `clubHref`
-    - `clubHref` — service-computed; `/clubs/{clubKey}`
-    - `name`
-    - `city`
-    - optional `externalUrl`
-    - `standardTagDisplay`
-
-### Navigation outputs
-
-- `GET /clubs` (via `navigation.breadcrumbs`)
-- `GET /clubs/club_:clubKey` (via `content.regions[].clubs[].clubHref`)
-
-### Empty state
-
-Unknown country slug returns standard 404. A valid country with zero active clubs renders a standard empty state.
-
----
-
-### 6.13 Club detail
-
-### Purpose
-
-Provide the canonical public page for one club.
-
-### Route
-
-Public club URLs take the form `GET /clubs/{clubKey}` where `clubKey` begins with `club_`. In Express these are handled by the shared route `GET /clubs/:key`.
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- present the club's identity, location, and contact/web information
-- act as the canonical drill-down destination from the country page
-- support future map and membership features via stable `club_{clubKey}` URLs
-
-### Canonical club identity rule
-
-- `clubKey` = `tag_normalized` with the leading `#` stripped: `club_wellington_hack_crew`
-- Pattern: `^club_[a-z0-9_]+$`
-- Service dispatch: `key.startsWith('club_')` → club detail; otherwise → country page
-- No aliasing, hyphen rewrites, or fuzzy matching
-
-### Required content
-
-- hero with club name
-- meta: city, region (when present), country, hashtag, external URL when present
-- optional description when non-empty
-- Leaders section, when at least one renderable leader row exists. Public to all visitors (visitor + member); rendering rules below.
-- when unauthenticated: no club member names are exposed; render a login prompt or equivalent bounded call-to-action in place of the visible roster
-- when authenticated: only the currently allowed club-member visibility may be shown; unresolved affiliations and non-approved roster visibility must not leak through template logic
-
-### Leaders rendering rules
-
-- Visible to authenticated AND unauthenticated visitors. Leader names are public; contact details are gated.
-- Each entry renders: display name, role label (`Leader` or `Co-leader`), optional badge label, optional badge note, optional contact email
-- Display name links to `/history/{personId}` when `personId` is present; plain text otherwise
-- Sort order: `role='leader'` rows first, then `role='co-leader'`; alphabetical within each role; service-computed
-- Privacy gate: `contactEmail` MUST NOT appear in the rendered HTML when `showContact` is false. The template branches on `showContact` only; it does not infer from `status`.
-- Suppression: leaders with non-renderable status MUST NOT appear; service filters at the read query, not in the template
-
-### Required view-model fields
-
-- `seo.title = club.standardTagDisplay`
-- `page.sectionKey = clubs`
-- `page.pageKey = clubs_detail`
-- `page.title` — club name
-- `navigation.breadcrumbs` — `[{ label: 'Clubs', href: '/clubs' }, { label: country, href: '/clubs/{countrySlug}' }, { label: clubName }]`
-- `navigation.contextLinks` — `[{ label: "All clubs in {country}", href: "/clubs/{countrySlug}" }]`; service-computed; renders as a back-link button at the bottom of the page
-- `content.club`
-  - `clubId`
-  - `clubKey`
-  - `name`
-  - optional `description`
-  - `city`
-  - optional `region`
-  - `country`
-  - `countrySlug` — service-computed; used in breadcrumb href
-  - optional `externalUrl`
-  - `standardTagNormalized`
-  - `standardTagDisplay`
-  - `members` — array of `{personId, name}`; empty when unauthenticated
-  - `leaders` — array of leader entries:
-    - optional `personId` — historical_persons identifier; enables `/history/{personId}` link when present
-    - optional `claimedMemberId` — `members.id` once a leader has claimed the legacy entry
-    - `displayName`
-    - `role` — `'leader' | 'co-leader'`
-    - `status` — `'provisional' | 'claimed' | 'verified'`
-    - optional `badgeLabel` — pre-shaped display text rendered as a small inline badge
-    - optional `badgeNote` — pre-shaped explanatory text rendered under the badge
-    - `showContact` — privacy gate; controls whether `contactEmail` is rendered
-    - optional `contactEmail` — present only when `showContact === true`
-
-### Navigation outputs
-
-- `GET /clubs` (via breadcrumbs)
-- `GET /clubs/:countrySlug` (via breadcrumbs)
-- `GET /history/{personId}` (via leader-name links when `personId` is set)
-
-### Empty state
-
-Unknown or inactive club key returns standard 404. Leaders section omitted entirely when zero renderable leaders exist; no placeholder text.
-
----
-
-### 6.14 HoF landing
-
-### Purpose
-
-Provide the public Footbag Hall of Fame landing page as a first-class route in the main site. In the current slice this is a service-shaped editorial landing page that links to the existing standalone HoF site. Future inductee pages, member-linked HoF records, and richer HoF history remain future scope.
-
-### Route
-
-`GET /hof`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- establish the Footbag Hall of Fame as a first-class section in the site navigation
-- provide a credible current landing page now
-- link visitors to the existing standalone HoF site
-- leave a clean expansion path for future HoF detail/history pages inside footbag.org
-
-### Required content
-
-- hero for the HoF section
-- external call-to-action to the current standalone HoF site
-- optional editorial sections when local content is available
-
-### Required view-model fields
-
-- `seo.title = Hall of Fame`
-- `page.sectionKey = hof`
-- `page.pageKey = hof_index`
-- `page.title`
-- optional `page.eyebrow`
-- `page.intro`
-- optional `page.notice`
-- optional `content.externalLink`
-  - `href`
-  - `label`
-- optional `content.sections[]`
-  - `heading`
-  - `paragraphs: string[]`
-
-### Navigation outputs
-
-No service-provided navigation outputs. Global nav (`currentSection`) is set by middleware.
-
-### Empty state
-
-This page has editorial content in the current slice and does not use a generic empty-state treatment.
-
-### Implementation notes
-
-- No DB queries required for the current slice; service shapes the page model directly.
-- Templates must not construct the standalone HoF URL.
-- Future HoF inductee/member/history routes are intentionally out of scope here and will be cataloged separately when implemented.
-
----
-
-### 6.15 BAP landing
-
-### Purpose
-
-Provide the public Big Add Posse landing page as a first-class route in the main site. In the current slice this is a service-shaped editorial landing page that links to the existing standalone BAP site. Future BAP roster pages, induction-year pages, and member-linked BAP records remain future scope.
-
-### Route
-
-`GET /bap`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- establish the Big Add Posse as a first-class section in the site navigation, peer to the Hall of Fame
-- provide a credible current landing page now
-- link visitors to the existing standalone BAP site
-- leave a clean expansion path for future BAP roster/history pages inside footbag.org
-
-### Required content
-
-- hero for the BAP section
-- external call-to-action to the current standalone BAP site
-- editorial sections framing ADD scoring and BAP's relationship to it
-
-### Required view-model fields
-
-- `seo.title = Big Add Posse`
-- `page.sectionKey = bap`
-- `page.pageKey = bap_index`
-- `page.title`
-- optional `page.eyebrow`
-- `page.intro`
-- optional `page.notice`
-- optional `content.externalLink`
-  - `href`
-  - `label`
-- optional `content.sections[]`
-  - `heading`
-  - `paragraphs: string[]`
-
-### Navigation outputs
-
-No service-provided navigation outputs. Global nav (`currentSection`) is set by middleware.
-
-### Empty state
-
-This page has editorial content in the current slice and does not use a generic empty-state treatment.
-
-### Implementation notes
-
-- No DB queries required for the current slice; service shapes the page model directly.
-- Templates must not construct the standalone BAP URL.
-- Future BAP roster/induction-year/member routes are intentionally out of scope here and will be cataloged separately when implemented.
-
----
-
-### 6.16 Login
-
-### Purpose
-
-Provide the public member login page with DB-backed authentication.
-
-### Route
-
-`GET /login`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- establish member login as a first-class section of the site
-- allow registered members to authenticate
-- when a visitor arrives via `requireAuth` redirect, explain why login is required
-
-### Required content
-
-- hero: "Member Login" title with a brief subtitle establishing context
-- optional auth-reason notice when the visitor was redirected from a protected page
-- a login form with email and password fields
-- inline error display when authentication fails
-- link to registration page
-
-### Required view-model fields
-
-- `seo.title = Login`
-- `page.sectionKey` — none (login is not a primary nav section)
-- `page.pageKey = login`
-- `page.title = Member Login` — displayed h1; `seo.title` is the shorter tab suffix
-- optional `content.error` — rendered inline above the form when authentication fails
-- optional `content.authReason` — informational notice shown when the visitor was redirected from a protected page (present when `returnTo` query param exists)
-- optional `content.returnTo: string` — the path to redirect to after successful login; read by the controller from the `?returnTo` query parameter; must be validated as a relative same-site path (starts with `/`, not `//` or `http`) before use — invalid or absent values fall back to `/members/{memberKey}`; rendered as a hidden form field so the destination survives the `POST /login` submission
-
-### Navigation outputs
-
-No service-provided navigation outputs. When `requireAuth` intercepts an unauthenticated request, it redirects to `/login?returnTo=<originalUrl>`. On successful `POST /login`, the controller redirects to `content.returnTo` (the validated return path) when present; otherwise falls back to `GET /members/{memberKey}`.
-
-### Empty state
-
-Not applicable. The form always renders.
-
-### Implementation notes
-
-- `POST /login` and `POST /logout` are form-action handlers, not cataloged pages.
-- `POST /logout` clears the session cookie and redirects to the Referer page if present and valid, otherwise `/`.
-
----
-
-### 6.17 Register
-
-### Purpose
-
-Provide the public member registration page.
-
-### Route
-
-`GET /register`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- allow a new member account to be created in the current slice
-- provide a clear companion path to login
-- preserve safe validation feedback without leaking protected account information
-
-### Required content
-
-- registration form
-- inline validation errors
-- link back to login
-
-### Required view-model fields
-
-- `seo.title = Register`
-- `page.pageKey = register`
-- `page.title = Register to create an IFPA member account.`
-- optional `content.error`
-
-### Implementation notes
-
-- `POST /register` is the form-action handler, not a separate cataloged page
-- successful registration redirects into the member account flow
-
----
-
-### 6.18 Claim initiation
-
-### Purpose
-
-Provide the legacy account claim form where a logged-in member can initiate linking their modern account to a legacy footbag.org member record.
-
-### Route
-
-`GET /history/claim`
-
-### Audience
-
-Authenticated member only. Unauthenticated visitors are redirected to `/login?returnTo=%2Fhistory%2Fclaim`.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- allow a logged-in member to begin the self-serve legacy account claim flow
-- accept one identifier: legacy email address, legacy username, or legacy member ID
-- return a non-revealing response regardless of lookup outcome
-
-### Required content
-
-- claim form with a single identifier input field
-- explanatory text about what the claim flow does and what identifiers are accepted
-- non-revealing confirmation page after form submission ("If an eligible legacy record was found, a claim email will be sent.")
-
-### Required view-model fields
-
-- `seo.title = Link Legacy Account`
-- `page.sectionKey = members`
-- `page.pageKey = claim_initiate`
-- `page.title = Link Legacy Account`
-- optional `content.error` — rate limit or validation feedback (never revealing about the target row)
-
-### Key rules
-
-- auth required
-- non-revealing messaging: the response must never distinguish zero matches, multiple matches, ineligible rows, or blocked rows
-- rate limiting applies per requesting account, per target row, and per session/IP
-
-### Implementation notes
-
-- `POST /history/claim` is the form-action handler, not a separate cataloged page
-- the claim-sent confirmation is rendered by the same route after successful POST (or as a redirect target)
-
----
-
-### 6.19 Claim confirmation
-
-### Purpose
-
-Provide the claim confirmation page where a logged-in member reviews a matched legacy record and confirms the merge.
-
-### Route
-
-`POST /history/claim` renders the confirmation view when a match is found. `POST /history/claim/confirm` executes the merge.
-
-### Audience
-
-Authenticated member only.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- show the matched legacy record (display name, legacy member ID, country, HoF/BAP status)
-- allow the member to confirm or cancel the merge
-
-### Required content
-
-- confirmation display showing the matched legacy record
-- confirm and cancel actions
-
-### Required view-model fields
-
-- `seo.title = Link Legacy Account`
-- `page.sectionKey = members`
-- `page.pageKey = claim_initiate`
-- `page.title = Link Legacy Account`
-- `content.displayName` — display name from the matched legacy record
-- optional `content.legacyMemberId` — legacy member ID
-- optional `content.country`
-- `content.isHof: boolean`
-- `content.isBap: boolean`
-- `content.source` — hidden field: `'historical_person'` or `'imported_placeholder'`
-- `content.targetId` — hidden field: ID of the matched record
-
-### Key rules
-
-- auth required
-- member can claim at most one legacy record
-- merge is atomic: legacy fields transferred, placeholder soft-deleted (if imported_placeholder source), boolean flags use OR semantics, text fields use fill-if-empty semantics
-- after successful merge, redirect to own profile
-
----
-
-### 6.20 Legal
-
-### Purpose
-
-Provide the canonical site-wide legal surface covering Privacy, Terms of Use, and Copyright & Trademarks as a single page with three anchored sections.
-
-### Route
-
-`GET /legal`
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-This page consumes the generic public rendering standard and the §4.2 page contract.
-
-### Page intent
-
-- consolidate Privacy, Terms, and Copyright content on one maintainable page
-- support deep linking to individual sections via anchors (`#privacy`, `#terms`, `#copyright`)
-- document operator identity, governing law, user-content licensing, trademark notices, and source-code licensing in one authoritative location
-- survive the eventual transfer of operational responsibility from the current volunteer maintainer to IFPA with minimal edits (section content updates only; URL and structure unchanged)
-
-### Required content
-
-- hero: "Legal" title with brief subtitle
-- last-updated date line
-- in-page table of contents linking to the three section anchors
-- three anchored sections in order: Privacy, Terms of Use, Copyright & Trademarks
-- each section composed of sub-headed paragraphs for readable legal prose
-- trademark, IFPA mark, and Hacky Sack descriptive-use notices in the Copyright section
-- source-code license reference (Apache-2.0) and repository URL in the Copyright section
-- contact email (`admin@footbag.org`) named in all three sections for questions relevant to that section
-
-### Required view-model fields
-
-- `seo.title = Legal`
-- `page.sectionKey` — empty string (legal is not a primary nav section; footer-linked only)
-- `page.pageKey = legal_index`
-- `page.title = Legal` — displayed h1
-- optional `page.intro` — short subtitle prose
-- `content.lastUpdated: string` — ISO date (YYYY-MM-DD) of the most recent substantive revision
-- `content.sections: LegalSection[]` — exactly three entries in order with `id` values `privacy`, `terms`, `copyright`
-- each `LegalSection` has `id: string`, `heading: string`, `paragraphs: LegalParagraph[]`
-- each `LegalParagraph` has optional `subheading: string` and required `bodyHtml: string`; `bodyHtml` is pre-shaped by the service, may contain anchor and entity markup, and is rendered via triple-stache in the template
-
-### Navigation outputs
-
-No service-provided navigation outputs. Footer links across the site deep-link to `/legal#privacy`, `/legal#terms`, `/legal#copyright`.
-
-### Empty state
-
-Not applicable. Legal content is static and always present.
-
-### Implementation notes
-
-- Content is static, owned by `legalService.getLegalPage()`; no database dependency
-- The page is unauthenticated and cacheable
-- Operator identity, governing law, and copyright year range are authoritative; changes require substantive review and a `lastUpdated` bump
-
----
-
-### 6.21 Media galleries
-
-The public media surface is a three-page composition: a hub at `/media` that lists every named-gallery URL bookmark (FH-owned and member-owned), a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set (minus any item carrying a tag in the gallery's exclude-tag set), and an on-the-fly tag browse + temp gallery at `/media/browse` whose included and excluded tags travel as query args (no `member_galleries` row, no hub-card listing). Named-gallery bookmarks are `member_galleries` rows; FH-owned bookmarks (system member) keep the `gallery_<descriptive_slug>` URL convention, member-owned derive `gallery_<owner_slug>_<gallery_name_slug>` from the owner's member slug and the gallery name (with `_2`, `_3` suffixes on collision). Each surface (hub card, gallery hero) renders owner attribution. Item ordering follows the gallery's `sort_order` field for named galleries; `/media/browse` always orders newest-first.
-
-### Audience
-
-Public visitor.
-
-### Standard relationship
-
-Both pages consume the generic public rendering standard and the §4.2 page contract.
-
-#### Hub at `GET /media`
-
-**Page intent**
-
-- surface every named-gallery URL bookmark (FH-owned and member-owned) as an entry point
-- communicate each bookmark's identity (name, description, owner) and scope (criteria-tag set, item count)
-- order FH-owned bookmarks before member-owned, then alphabetically by name within each cohort
-
-**Required content**
-
-- hero with title and intro
-- card grid: one tile per gallery, with name, description, item count badge, criteria-tag pills, and a link to the named-gallery page
-
-**Required view-model fields**
-
-- `seo.title = Media Galleries`
-- `page.sectionKey = media`
-- `page.pageKey = media_hub`
-- `page.title`
-- `page.intro`
-- `content.galleries[]`
-  - `id` — bookmark slug (e.g., `gallery_curated_freestyle_tricks` for FH-owned, `gallery_<owner_slug>_<gallery_name_slug>` for member-owned)
-  - `name`
-  - `description`
-  - `itemCount` — service-computed via tag-AND match against `member_gallery_tags` minus items carrying any tag in `member_gallery_exclude_tags`
-  - `byMember` — nullable `{ display, href }`; lifted from any `#by_<slug>` criterion that resolves to an active member, so the card can render "by *Member Name*" upload attribution distinct from gallery ownership; `href` is `/members/<slug>` for authenticated viewers, null otherwise; null when no `#by_*` criterion applies; an unresolved `#by_<slug>` falls back to the raw chip in `criteriaTags`
-  - `criteriaTags[]` — non-`#by_*` criterion chips, each `{ display, href }` with `href = null` (raw `tag_display` values from `member_gallery_tags`)
-  - `excludeTags[]` — exclude chips with the same shape, `#by_*` stripped defensively
-  - `href` — `/media/{id}`
-  - `owner` — `{ displayName, slug, isSystem }`; `isSystem = true` for FH-owned, false for member-owned
-
-**Navigation outputs**
-
-Each card links to the corresponding `/media/{id}` named-gallery page.
-
-**Empty state**
-
-Render the standard empty state ("No galleries yet.") when no bookmarks exist.
-
-#### Named gallery at `GET /media/:galleryId`
-
-**Page intent**
-
-- render a single named-gallery bookmark with its identity (name, description) and the items currently matching its criteria-tag set
-- surface the criteria tags themselves so visitors understand the membership rule
-- avoid replicating filter axes that belong on entity pages (event, club, member profile) or on dedicated tag pages
-
-**Required content**
-
-- hero with gallery name and description
-- criteria strip: the gallery's criteria-tag pills with a count of matching items
-- card grid: one tile per item, with thumbnail, optional caption, item-level tag chips, and uploaded-at date
-- pagination block (Previous / Next) when total exceeds page size
-
-**Required view-model fields**
-
-- `seo.title` — gallery name
-- `page.sectionKey = media`
-- `page.pageKey = media_named_gallery`
-- `page.title` — gallery name
-- `page.intro` — gallery description (when present)
-- `content.gallery`
-  - `id`, `name`, `description`
-  - `byMember` — nullable `{ display, href }`; lifted from any `#by_<slug>` criterion that resolves to an active member, so the hero can render "by *Member Name*" upload attribution distinct from gallery ownership; `href` is `/members/<slug>` for authenticated viewers, null otherwise; null when no `#by_*` criterion applies; an unresolved `#by_<slug>` falls back to the raw chip in `criteriaTags`
-  - `criteriaTags[]` — non-`#by_*` criterion chips, each `{ display, href }` with `href = null` (raw `tag_display` values from `member_gallery_tags`)
-  - `excludeTags[]` — exclude chips with the same shape, `#by_*` stripped defensively
-  - `owner` — `{ displayName, slug, isSystem }`; the hero links to `/members/{owner.slug}` for member-owned galleries and renders plain text for FH-owned
-- `content.items[]`
-  - `mediaId`
-  - `mediaType` — `photo` or `video`
-  - `caption` — nullable
-  - `thumbnailUrl` — service-computed; for photos uses the `s3_key_thumb` URL via the storage adapter
-  - `displayHref` — service-computed; for photos returns the `s3_key_display` URL via the storage adapter
-  - `media` — canonical `VideoMedia` shape for video items (null for photos): `{ videoPlatform, videoId, videoUrl, videoEmbedUrl, thumbnailUrl, videoTitle }`. Produced by `expandVideoFromMediaItem`. Consumed by `src/views/partials/video-facade.hbs` to render the click-to-play facade (anchor with platform watch href, thumbnail img, play overlay, and platform/embed-url data attributes that drive `src/public/js/video-facade.js`)
-  - `uploadedAtIso`, `uploadedAtDisplay`
-  - `tags[]` — `tag_display` values from `media_tags` for the item
-- `content.pagination`
-  - `page`, `pageSize`, `total`
-  - `hasPrev`, `hasNext`
-  - `prevHref`, `nextHref` — service-computed; absent when the corresponding `has*` is false
-
-**Navigation outputs**
-
-None at present. Per-tag, per-member, per-event, and per-club drill-downs are surfaced on the relevant entity pages or on dedicated tag pages.
-
-**Empty state**
-
-Render the standard empty state ("No media yet.") when the criteria-tag set matches no items.
-
-**Implementation notes**
-
-- Source rows are filtered to `media_items.moderation_status = 'active'` and `is_avatar = 0`. All gallery membership is computed by tag-AND match against the gallery's criteria-tag set; both curator URL-reference content and member uploads surface in named galleries through the same mechanism.
-- Unknown `galleryId` values return 404. Member-owned galleries are public; the hub lists them with owner attribution alongside FH-owned bookmarks.
-- Query parameter `?page=N` selects the page (invalid values clamp to 1).
-- Caption text is HTML-escaped at render time; item tag chips link to per-tag pages.
-
-#### Tag browse + temp gallery at `GET /media/browse`
-
-**Page intent**
-
-- give visitors a single entry-point to compose ad-hoc tag-AND queries (with optional excludes) over the active media corpus
-- surface that result inline as a temp gallery, without registering a named-gallery URL bookmark
-- act as the link target for every clickable item tag chip elsewhere on the public read surface
-
-**Required content**
-
-- hero with title and intro (browse-mode subtitle when no criteria; "Showing N items tagged: …" subtitle when results render)
-- include / exclude tag input form (whitespace-separated text inputs), submit button
-- when at least one criterion resolves: card grid of matching items with the same tile shape as `/media/:galleryId`, plus pagination block
-- when criteria are submitted but resolve to no `tags` row: a "no media found for: …" hint above the form, with the unresolved tokens echoed
-
-**Required view-model fields**
-
-- `seo.title = Browse Media`
-- `page.sectionKey = media`
-- `page.pageKey = media_browse`
-- `page.title = Browse Media`
-- `content.mode` — `browse` (no resolved criteria, results pane omitted) or `results`
-- `content.formIncludeText`, `content.formExcludeText` — space-joined echo of the submitted tokens (without leading `#`), so the form re-fills correctly
-- `content.unresolvedTokens[]` — submitted criteria tokens (without `#`) that did not resolve to a `tags` row
-- `content.byMember`, `content.criteriaTags[]`, `content.excludeTags[]` — same chip shapes as `/media/:galleryId`; populated only in `results` mode
-- `content.items[]` — same `GalleryItem` shape as `/media/:galleryId` (`mediaId`, `mediaType`, `caption`, `thumbnailUrl`, `displayHref`, `media`, `uploadedAtIso`, `uploadedAtDisplay`, `tags[]`)
-- `content.totalItems` — count after include/exclude filtering
-- `content.pagination` — same shape as `/media/:galleryId`; null in `browse` mode
-
-**Navigation outputs**
-
-- Item tag chips link to `/media/browse?tag=<normalized-without-#>` for each non-`#by_*` tag.
-- The `/media` hub renders a dedicated "Browse by tag" tile that links here.
-
-**Empty state**
-
-- Bare `/media/browse` (no criteria) renders the form pane only; no empty-state copy.
-- Submitted criteria that match no items → standard empty state ("No media yet.") in the results pane.
-- Submitted criteria that resolve to no `tags` row → "no media found for: <tokens>" hint above the form (browse mode).
-
-**Implementation notes**
-
-- Query args: repeatable `?tag=` and `?exclude=`; also accepts a single whitespace-joined `?tag=a+b` form (the tag-input form posts that shape). Tokens are accepted with or without leading `#`; normalized server-side to `#<lowercase>`.
-- Empty / bare-`#` tokens are dropped during normalization. Duplicate tokens are de-duplicated. A token appearing in both `?tag=` and `?exclude=` is retained as include and removed from exclude (otherwise the temp gallery would be vacuously empty).
-- Items filtered to `media_items.moderation_status = 'active'` AND `is_avatar = 0` (same rule as the named-gallery query).
-- Default sort: `upload_desc` (newest first). Page size: 24. `?page=N` invalid values clamp to 1.
-- Pagination prev/next hrefs reproduce the canonical repeated-arg form (`?tag=a&tag=b&exclude=c`) regardless of which form the user originally submitted.
-- No `member_galleries` row is created. The URL is a deterministic query view; it does not appear on the `/media` hub list.
-
----
-
-### 6.22 Member gallery management
-
-The owner-only surface for managing a member's own named galleries. Distinct from §6.21 (the public read surface): these pages are auth-gated and render only when `req.user.slug === req.params.memberKey`. Slug mismatch returns 404 (anti-enumeration), matching the rest of the `/members/:memberKey/` block.
-
-### Audience
-
-Authenticated owner of the profile.
-
-### Standard relationship
-
-The list, new, and edit pages consume the generic public rendering standard and the §4.2 page contract. The new and edit forms reuse the shared `partials/gallery-edit-form.hbs` partial used by the admin curator gallery edit page; the partial takes a controller-supplied `formAction` so the same fields back both surfaces.
-
-#### List at `GET /members/:memberKey/galleries`
-
-**Page intent**
-
-- show the member their own gallery inventory with name, description, sort order, criteria-tag set, exclude-tag set, and item count
-- offer per-row Edit / View / Delete affordances and top-level "Upload media" and "Create new gallery" links
-- 404 (anti-enumeration) when the authenticated user is not the profile owner
-
-**Required content**
-
-- title and intro
-- "Upload media" link (primary affordance) and "Create new gallery" link
-- table of galleries (or empty state) with name, description, sort order, criteria tags, exclude tags, item count, and per-row Edit / View / Delete
-
-**Required view-model fields**
-
-- `seo.title = My Galleries`
-- `page.sectionKey = members`
-- `page.pageKey = member_galleries_list`
-- `page.title`
-- `content.galleries[]`
-  - `id`, `name`, `description`, `sortOrder`
-  - `criteriaTags[]`, `excludeTags[]`
-  - `itemCount`
-  - `editHref` — `/members/{memberKey}/galleries/{id}/edit`
-  - `deleteHref` — `/members/{memberKey}/galleries/{id}/delete`
-- `content.newGalleryHref` — `/members/{memberKey}/galleries/new`
-- `content.uploadMediaHref` — `/members/{memberKey}/media/upload`
-- `content.savedFlag` — `'create' | 'edit' | 'delete' | 'upload' | null` (drives the success banner)
-
-**Empty state**
-
-Render "You haven't created any galleries yet." when `content.galleries[]` is empty.
-
-#### New at `GET /members/:memberKey/galleries/new`
-
-**Page intent**
-
-- render an empty form for a new gallery owned by the authenticated member
-- form posts to `POST /members/:memberKey/galleries`
-
-**Required content**
-
-- the shared `gallery-edit-form` partial with empty fields and submit label "Create gallery"
-- a "your existing uploads" picker fieldset (checkbox grid) of the owner's prior uploads; checked items are submitted as repeated `mediaIds=<id>` form fields and receive the gallery's criteria tags after the gallery is created. The fieldset renders nothing when the owner has no prior uploads.
-
-**Required view-model fields**
-
-- `seo.title = Create Gallery`
-- `page.sectionKey = members`, `page.pageKey = member_galleries_new`
-- `formAction` — `/members/{memberKey}/galleries`
-- `gallery` — empty placeholders (`name=''`, `description=''`, `sortOrder='upload_desc'`, `criteriaTagsString=''`, `excludeTagsString=''`)
-- `cancelHref` — `/members/{memberKey}/galleries`
-- `pickerItems[]` — each `{mediaId, mediaType, thumbnailUrl, caption, sourceFilename, uploadedAt, tags[]}`; ordered by upload date desc. Empty array when the owner has no prior uploads.
-
-#### Edit at `GET /members/:memberKey/galleries/:id/edit`
-
-**Page intent**
-
-- render the shared edit form pre-populated with the current gallery's fields
-- form posts to `POST /members/:memberKey/galleries/:id/edit`
-- 404 when the gallery does not exist OR is not owned by the authenticated member (anti-enumeration parity with the list page)
-
-**Required content**
-
-- the shared `gallery-edit-form` partial with current values
-- a link to the member's upload page so the owner can add new photos or videos and return to the edit form to attach them
-- a "your existing uploads" picker fieldset (checkbox grid); checked items receive the gallery's post-edit criteria tags. The fieldset renders nothing when the owner has no prior uploads. Items are added to the gallery via tag application; removing an item from a gallery is a per-item tag-edit flow (out of scope for the gallery edit form).
-
-**Required view-model fields**
-
-- `seo.title = Edit Gallery`
-- `page.sectionKey = members`, `page.pageKey = member_galleries_edit`
-- `formAction` — `/members/{memberKey}/galleries/{id}/edit`
-- `gallery` — `{ id, name, description, sortOrder, criteriaTagsString, excludeTagsString }`
-- `cancelHref` — `/members/{memberKey}/galleries`
-- `uploadMediaHref` — `/members/{memberKey}/media/upload`
-- `pickerItems[]` — same shape as on the new form.
-
-#### Upload at `GET /members/:memberKey/media/upload`
-
-**Page intent**
-
-- render the owner-only upload form for one photo (JPEG or PNG, up to 25 MB) or one YouTube/Vimeo video URL
-- 404 (anti-enumeration) when the authenticated user is not the profile owner
-
-**Required content**
-
-- title, intro copy explaining that uploads are auto-tagged with the uploader's slug-tag
-- mediaType radio (photo / video link)
-- photo file picker (`name="photoFile"`, `accept="image/jpeg,image/png"`)
-- video URL fields (platform select for YouTube/Vimeo, URL input)
-- shared caption (optional, max 500 chars) and tags (optional, space-separated `#hashtag`) fields
-- submit and cancel actions
-
-**Required view-model fields**
-
-- `seo.title = Upload Media`
-- `page.sectionKey = members`, `page.pageKey = member_media_upload`
-- `formAction` — `/members/{memberKey}/media/upload`
-- `cancelHref` — `/members/{memberKey}/galleries`
-- `formValues` — `{ mediaType, caption, tags, videoUrl, videoPlatform }` (re-populated on validation re-render)
-- `errorMessage` — present on 422 / 429 re-render
-
-**Implementation notes**
-
-- The state-changing verbs are `POST /members/:memberKey/galleries`, `POST /members/:memberKey/galleries/:id/edit`, and `POST /members/:memberKey/galleries/:id/delete`. They are form-action handlers and are not cataloged separately; CSRF protection comes from the SameSite=Lax session cookie + `requireAuth`, not from a per-form token.
-- Service-layer authorization (admin OR owner) is the source of truth for write authorization; the route's slug check exists for anti-enumeration parity. A forged `ownerMemberId` in the request body is ignored: the controller takes the owner from the session.
-- A `ValidationError` (including authz failures and shape violations) renders the form re-populated with the user's input and a 422 status. `ConflictError` (UNIQUE owner+name on create) renders the form with the conflict message at 422.
-
----
-
-## 7. Shared Public Behavior Rules
-
-### 7.1 Authorization boundary
+### 8.1 Authorization boundary
 
 Most pages in this catalog are public visitor pages. The following routes require authentication and redirect unauthenticated visitors to `/login?returnTo=<originalUrl>`:
 
-- `GET /history/:personId` — historical player detail (public for HoF/BAP persons; auth required otherwise). Note: `GET /history` (no id) is a public 301 redirect to `/members` and is not auth-gated.
-- `GET /history/claim` — auth required (route middleware)
-- `POST /history/claim` — auth required (route middleware)
-- `POST /history/claim/confirm` — auth required (route middleware)
-- `GET /history/:personId/claim` — auth required (route middleware)
-- `POST /history/:personId/claim/confirm` — auth required (route middleware)
-- `GET /members` — auth-gated member dashboard with search
-- `GET /members/:memberKey` — own profile when authenticated as that member; limited public read-only HoF/BAP view otherwise; non-HoF/BAP public access fails closed
-- `GET /members/:memberKey/edit`, `POST /members/:memberKey/edit` — auth required, own-profile only
-- `POST /members/:memberKey/avatar` — auth required, own-profile only
-- `GET /members/:memberKey/:section` — auth required, own-profile only
+- `GET /history/:personId`: historical player detail (public for HoF/BAP persons; auth required otherwise). `GET /history` (no id) is a public 301 redirect to `/members` and is not auth-gated.
+- `GET /history/claim`, `POST /history/claim`, `POST /history/claim/confirm`: auth required (route middleware).
+- `GET /history/:personId/claim`, `POST /history/:personId/claim/confirm`: auth required (route middleware).
+- `GET /members`: auth-gated member dashboard with search.
+- `GET /members/:memberKey`: own profile when authenticated as that member; limited public read-only HoF/BAP view otherwise; non-HoF/BAP public access fails closed.
+- `GET /members/:memberKey/edit`, `POST /members/:memberKey/edit`: auth required, owner-only.
+- `POST /members/:memberKey/avatar`: auth required, owner-only.
+- `GET /members/:memberKey/:section`, `GET /members/:memberKey/galleries*`, `GET /members/:memberKey/media/upload`, `GET /members/:memberKey/edit/password`: auth required, owner-only.
 
-Public pages must not expose:
+Public pages must not expose: member-only data, organizer-only controls, admin controls, internal diagnostics, private participant history, or workflow actions outside the public browsing scope.
 
-- member-only data
-- organizer-only controls
-- admin controls
-- internal diagnostics
-- private participant history
-- workflow actions outside the public browsing scope
+### 8.2 Error behavior
 
-### 7.2 Error behavior
-
-Public pages must fail safely.
-
-They must not expose:
-
-- stack traces
-- SQL errors
-- internal implementation details
+Public pages must fail safely. They must not expose stack traces, SQL errors, or internal implementation details.
 
 Service-layer errors map to HTTP responses through `handleControllerError` in `src/lib/controllerErrors.ts`:
 
 | Service error class | HTTP status | Rendered page |
 |---|---|---|
 | `NotFoundError` | 404 | `errors/not-found` |
-| `ValidationError` | 404 | `errors/not-found` (validation details are intentionally not leaked to public visitors) |
+| `ValidationError` | 404 | `errors/not-found` (validation details intentionally not leaked to public visitors) |
 | `ServiceUnavailableError` | 503 | `errors/unavailable` |
-| `ConflictError` | — | unhandled by public controller; falls to Express error middleware |
+| `ConflictError` | n/a | unhandled by public controller; falls to Express error middleware |
 | `RateLimitedError` | 429 | controller sets `Retry-After` from `retryAfterSeconds` and renders a rate-limited response |
 
-Errors not listed above delegate to Express's default error middleware. Controllers that do not use `handleControllerError` must still preserve the same status mapping and must not leak service-layer detail into the response body.
+Errors not listed delegate to Express's default error middleware. Controllers that do not use `handleControllerError` must still preserve the same status mapping and must not leak service-layer detail into the response body.
 
-### 7.3 Template behavior
+### 8.3 Template behavior
 
-Templates may branch only on already-shaped display data such as booleans, empty lists, or presentation-ready sections. They must not parse route semantics, authorization rules, or domain logic.
+Templates may branch only on already-shaped display data such as booleans, empty lists, or presentation-ready sections. They must not parse route semantics, authorization rules, or domain logic. Template prose, debug text, and loop scaffolding must never appear in rendered HTML output.
 
----
-
-## 8. Future Admission Rules
+## 9. Future admission rules
 
 A future public page may join this catalog only if:
 
-- it uses the same top-level page contract
-- it uses the same reusable primitives
+- it uses the same top-level page contract (`PageViewModel<TContent>`)
+- it uses the same reusable primitives (§4.3)
 - it does not introduce a section-specific chrome system
 - it can be rendered through the same reusable Handlebars and CSS approach
 
 If a future page requires a new reusable primitive, add that primitive to the standard first, then apply it across all relevant pages.
 
----
+## 10. Catalog update rules
 
-## 9. Summary
+Update this catalog when any of the following changes:
 
-This catalog establishes a single generic public look-and-feel standard and then catalogs the current pages that consume it.
+- A new public route is added, retired, or renamed.
+- A required rendering pattern is added, removed, or strengthened.
+- An invariant in §7 changes (privacy gate, anti-enumeration, owner-only, visibility status).
+- The `PageViewModel<TContent>` envelope shape changes.
+- A reusable primitive in §4.3 is added or retired.
 
-The hierarchy is intentional:
+Do not update this catalog for:
 
-1. define the standard
-2. define the route catalog
-3. define each page as a consumer of the standard
+- View-model field shape changes that preserve the contract (TypeScript at the cited path is authoritative).
+- Template HTML restructuring that preserves the rendering pattern.
+- Controller refactors that preserve the route, audience, and service binding.
+- Implementation-state notes ("currently", "in progress", "not yet wired"); those belong in `IMPLEMENTATION_PLAN.md`.
+- Deviation tracking; those belong in `IMPLEMENTATION_PLAN.md`.
+- Sprint-scoped or status-tracking language of any kind.
 
-That is the governing structure for the public site going forward.
+When in doubt: the catalog describes durable design intent. If the change is durable and design-level, update the catalog. If the change is shape-level, update TypeScript and tests; the catalog already covers the rendering pattern that constrains the shape.
