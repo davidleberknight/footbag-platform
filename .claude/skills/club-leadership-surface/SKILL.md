@@ -63,6 +63,7 @@ These are non-negotiable. Future work that quietly relaxes them is a regression 
 - **Closed-by-default for new statuses.** When a future status (`claimed`, `verified`, or anything new) lands, its mapping must explicitly choose `showContact = true` with documented justification. The default for unknown/uncategorized statuses is gated.
 - **No HTML side-channels.** When `showContact === false`, there is no `mailto:` anchor, no rendered email class, no copy-paste fallback, nothing. Tests must assert absence, not just non-display.
 - **Claiming a leader row links identity, not authority.** A `claimed` status records that a member acknowledges the historical leadership identity attached to a `legacy_member_id`. It does NOT grant operational control of the club, contact-channel exposure, edit permissions, member roster visibility, or any other governance affordance. Operational authority is granted only via explicit governance flows (yet to be designed); claim is identity linkage and nothing more.
+- **Public contactability is a member preference, not a club entitlement.** Contact exposure on a club's leader surface is the individual leader's consent, not the club's right to display. The platform MUST NOT introduce forced-exposure mechanisms — no admin-toggled "show contact for all leaders," no club-required visible email, no mandatory contact for active clubs, no governance role that grants the power to flip another member's contact gate. The member is the sole decision-maker on whether their contact reaches a public surface; the platform's job is to honor that decision in both directions, not to coerce it.
 
 This invariant is the architectural decision most likely to silently break in future work. It is worth defending aggressively.
 
@@ -92,6 +93,7 @@ type ClubLeader = {
 - **Service layer owns the entire mapping**: status → badge text, status → `showContact`, status → which fields are populated. Single mapping site, single source of truth.
 - **Rendering does not branch on `status` for text.** Templates render `badgeLabel`/`badgeNote` if present and otherwise omit. New statuses do not require template changes — only a new branch in the service mapping.
 - **Sorting is service-computed, not template-computed.** Display order is a contract output, not a presentation accident.
+- **`showContact` is a computed predicate, not a hardcoded status check.** The privacy gate is the conjunction of three inputs: (1) status admits exposure, (2) the member has given explicit consent for this leader row, (3) a public contact source is present. Today's policy is `claimed` + opted-in + public email present. New statuses (e.g. `verified`) extend input (1) without rewriting the predicate; new contact channels extend input (3) without invalidating the others. Default-deny on any missing input.
 
 ### Sort semantics
 
@@ -155,6 +157,7 @@ These have surfaced in design conversations and represent the failure modes most
 - Do not add card layouts, avatar images, role-color systems, or moderation affordances to Phase 1 — minimal textual hierarchy is the agreed design.
 - Do not introduce mutable leader management UI as part of read-side work.
 - Do not interpret `claimed` status as a governance grant. See §3: claim ≠ operational control.
+- Do not implement forced-contact exposure (admin override, club-required visible email, mandatory contact for active clubs, governance role that flips another member's contact gate). See §3: contactability is a member preference, not a club entitlement.
 
 ---
 
