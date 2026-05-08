@@ -173,6 +173,12 @@ echo "  → Loading club seed data into database..."
 echo "  → Loading club member data into database..."
 "${PYTHON}" legacy_data/scripts/load_club_members_seed.py --db "${DB_FILE}"
 
+# Load club bootstrap leaders. Reads legacy_data/clubs/out/club_bootstrap_leaders.csv
+# (~51 rows). Depends on legacy_club_candidates and historical_persons being
+# already loaded by earlier steps.
+echo "  → Loading club bootstrap leaders..."
+"${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py --db "${DB_FILE}"
+
 # Seed Footbag Hacky (FH) and all FH-owned curator content: FH member row,
 # FH avatar, demo loops, event-pinned curator photos, /curated/freestyle_tricks/
 # sidecars, and FH-owned named galleries. Single home for everything FH owns
