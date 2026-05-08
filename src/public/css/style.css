@@ -606,6 +606,24 @@ th.sortable:hover { color: var(--primary); }
 }
 .hub-card:hover .hub-card-arrow { transform: translateX(3px); }
 
+/* Special "Browse by hashtag" tile injected at the head of the /media hub
+   gallery-grid. Visually distinct from the bookmark cards: full-tile
+   gradient + white text, so visitors immediately see it as the alternate
+   (tag-driven) entry-point alongside the curated and member-made
+   named-gallery bookmarks. */
+.hub-card-browse {
+  background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+  border-color: transparent;
+  color: #fff;
+}
+.hub-card-browse .hub-card-link        { color: #fff; }
+.hub-card-browse .hub-card-name        { color: #fff; }
+.hub-card-browse .hub-card-description { color: rgba(255, 255, 255, 0.88); }
+.hub-card-browse .hub-card-arrow       { color: #fff; }
+.hub-card-foot-browse {
+  border-top-color: rgba(255, 255, 255, 0.18);
+}
+
 /* Gallery description renders as a caption paragraph below the hero. */
 .gallery-description {
   margin: 24px 0;

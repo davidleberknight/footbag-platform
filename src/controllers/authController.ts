@@ -128,7 +128,7 @@ async function getCheckEmail(_req: Request, res: Response, next: NextFunction): 
   try {
     const emailPreview = (await simulatedEmailService.getEmailPreview()) ?? undefined;
     res.render('auth/check-email', {
-      seo: { title: 'Check your email' },
+      seo: { title: 'Check Your Email' },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
       content: { emailPreview },
     } satisfies PageViewModel<CheckEmailContent>);
@@ -182,7 +182,7 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   }
   const emailPreview = (await simulatedEmailService.getEmailPreview()) ?? undefined;
   res.render('auth/check-email', {
-    seo: { title: 'Check your email' },
+    seo: { title: 'Check Your Email' },
     page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
     content: { resent: true, emailPreview },
   } satisfies PageViewModel<CheckEmailContent>);
@@ -206,7 +206,7 @@ function postLogout(req: Request, res: Response): void {
 
 function getPasswordForgot(_req: Request, res: Response): void {
   res.render('auth/password-forgot', {
-    seo: { title: 'Reset your password' },
+    seo: { title: 'Reset Your Password' },
     page: { sectionKey: '', pageKey: 'password_forgot', title: 'Reset your password' },
     content: {},
   } satisfies PageViewModel<PasswordForgotContent>);
@@ -217,7 +217,7 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
   try {
     await identityAccessService.requestPasswordReset(email ?? '');
     res.render('auth/password-forgot-sent', {
-      seo: { title: 'Reset your password' },
+      seo: { title: 'Reset Your Password' },
       page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset your password' },
       content: {},
     } satisfies PageViewModel<PasswordForgotSentContent>);
@@ -235,7 +235,7 @@ function setNoStore(res: Response): void {
 function getPasswordReset(req: Request, res: Response): void {
   setNoStore(res);
   res.render('auth/password-reset', {
-    seo: { title: 'Set a new password' },
+    seo: { title: 'Set a New Password' },
     page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
     content: { token: req.params.token },
   } satisfies PageViewModel<PasswordResetContent>);
@@ -259,7 +259,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     if (err instanceof ValidationError) {
       setNoStore(res);
       res.status(422).render('auth/password-reset', {
-        seo: { title: 'Set a new password' },
+        seo: { title: 'Set a New Password' },
         page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a new password' },
         content: { token, error: err.message },
       } satisfies PageViewModel<PasswordResetContent>);

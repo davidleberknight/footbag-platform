@@ -1,7 +1,7 @@
 # =============================================================================
 # Cache & origin-request policies
 # Managed policies (data sources) for HTML and static assets; one custom cache
-# policy for /media/* (query string in cache key, URL-versioned cache-bust).
+# policy for /media-store/* (query string in cache key, URL-versioned cache-bust).
 # =============================================================================
 
 data "aws_cloudfront_cache_policy" "caching_disabled" {
@@ -22,7 +22,7 @@ data "aws_cloudfront_origin_request_policy" "cors_s3_origin" {
 
 resource "aws_cloudfront_cache_policy" "media_assets" {
   name        = "${local.prefix}-media-assets"
-  comment     = "Edge cache for /media/* with query string in cache key (URL-versioned cache-bust)"
+  comment     = "Edge cache for /media-store/* with query string in cache key (URL-versioned cache-bust)"
   min_ttl     = 0
   default_ttl = 604800   # 7 days; matches express.static maxAge
   max_ttl     = 31536000 # 1 year ceiling
@@ -59,20 +59,20 @@ resource "aws_cloudfront_origin_access_control" "media" {
 }
 
 # =============================================================================
-# CloudFront Function: strip /media/ prefix from viewer-request URI
+# CloudFront Function: strip /media-store/ prefix from viewer-request URI
 # DD §1.5 says local-fs and S3 layouts mirror exactly, so S3 keys do NOT have
-# a /media/ prefix. The prefix is purely a URL convention. When CloudFront
+# a /media-store/ prefix. The prefix is purely a URL convention. When CloudFront
 # forwards to S3, this function rewrites the URI so the origin sees the actual
-# S3 key. Without it, S3 looks up media/avatars/... and 404s.
+# S3 key. Without it, S3 looks up media-store/avatars/... and 404s.
 # =============================================================================
 
-resource "aws_cloudfront_function" "strip_media_prefix" {
+resource "aws_cloudfront_function" "strip_media_store_prefix" {
   count   = var.enable_cloudfront ? 1 : 0
-  name    = "${local.prefix}-strip-media-prefix"
+  name    = "${local.prefix}-strip-media-store-prefix"
   runtime = "cloudfront-js-2.0"
   publish = true
-  comment = "Strips /media/ from viewer-request URI before forwarding to S3 origin (DD §1.5)"
-  code    = file("${path.module}/cloudfront-functions/strip-media-prefix.js")
+  comment = "Strips /media-store/ from viewer-request URI before forwarding to S3 origin (DD §1.5)"
+  code    = file("${path.module}/cloudfront-functions/strip-media-store-prefix.js")
 
   # CloudFront Functions cannot be deleted while a distribution still
   # references them, so renames or code changes that force replacement must
@@ -222,24 +222,12 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   # ── Member photos and system-account media (S3 origin) — query-string in cache key (URL-versioned cache-bust) ─
-  # Named-gallery URL bookmarks render as dynamic HTML from the app, not
-  # bytes from S3. Pattern is `/media/gallery_*` (the `gallery_<slug>`
-  # convention used by member_galleries.id for FH-owned bookmarks). Must
-  # precede the `/media/*` → S3 behavior because CloudFront evaluates
-  # ordered behaviors in list order; the more-specific prefix wins. The
-  # existing S3-keyed paths under /media all start with `/media/member_…`,
-  # so the `gallery_` and `member_` prefixes do not collide.
-  ordered_cache_behavior {
-    path_pattern           = "/media/gallery_*"
-    target_origin_id       = "lightsail-origin"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
-  }
-
+  # Binary media is served under the dedicated `/media-store/*` URL prefix,
+  # disjoint from the `/media` user-facing app section (routes `/media`,
+  # `/media/:galleryId`, `/media/browse`). The app section flows through the
+  # default cache behavior to lightsail-origin; only `/media-store/*` is
+  # diverted to S3.
+  #
   # No origin_request_policy: OAC handles SigV4 signing, and forwarding the
   # viewer Host header to an S3 origin breaks virtual-host bucket routing.
   # AllViewer forwarded Host=<cloudfront-domain> to S3, so S3 could not map
@@ -248,7 +236,7 @@ resource "aws_cloudfront_distribution" "main" {
   # policy that forwards no headers/cookies, CloudFront sets Host to the S3
   # origin domain and the OAC signature matches.
   ordered_cache_behavior {
-    path_pattern           = "/media/*"
+    path_pattern           = "/media-store/*"
     target_origin_id       = "media-s3-origin"
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD"]
@@ -259,7 +247,7 @@ resource "aws_cloudfront_distribution" "main" {
 
     function_association {
       event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.strip_media_prefix[0].arn
+      function_arn = aws_cloudfront_function.strip_media_store_prefix[0].arn
     }
   }
 

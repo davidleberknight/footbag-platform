@@ -3905,20 +3905,40 @@ export const media = {
   `); },
 };
 
-// Tag display values for a set of media ids in one round-trip. Built
-// dynamically because better-sqlite3 has no array-binding for IN().
-// Mirrors the queryCuratedItems / queryFilteredTeams pattern.
+// Tag display + normalized values for a set of media ids in one round-trip.
+// tag_normalized is needed alongside tag_display so the chip-rendering code
+// can build per-tag URLs (/media/browse?tag=<normalized-without-#>) without a
+// second round-trip. Built dynamically because better-sqlite3 has no
+// array-binding for IN(). Mirrors the queryCuratedItems / queryFilteredTeams
+// pattern.
 export function queryCuratorMediaTags(
   mediaIds: string[],
-): { media_id: string; tag_display: string }[] {
+): { media_id: string; tag_display: string; tag_normalized: string }[] {
   if (mediaIds.length === 0) return [];
   const placeholders = mediaIds.map(() => '?').join(',');
   return db.prepare(`
-    SELECT mt.media_id, mt.tag_display
+    SELECT mt.media_id, mt.tag_display, t.tag_normalized
     FROM media_tags mt
+    JOIN tags t ON t.id = mt.tag_id
     WHERE mt.media_id IN (${placeholders})
     ORDER BY mt.tag_display
-  `).all(...mediaIds) as { media_id: string; tag_display: string }[];
+  `).all(...mediaIds) as { media_id: string; tag_display: string; tag_normalized: string }[];
+}
+
+// Resolve a set of tag_normalized strings (with leading '#') to tag rows.
+// Used by /media/browse to convert URL tag tokens into tag ids before
+// running queryGalleryItemsByCriteria. Unknown normalized forms have no
+// row and are silently dropped by the caller.
+export function queryTagIdsByNormalized(
+  normalizedForms: string[],
+): { id: string; tag_normalized: string; tag_display: string }[] {
+  if (normalizedForms.length === 0) return [];
+  const placeholders = normalizedForms.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT id, tag_normalized, tag_display
+    FROM tags
+    WHERE tag_normalized IN (${placeholders})
+  `).all(...normalizedForms) as { id: string; tag_normalized: string; tag_display: string }[];
 }
 
 // Tag-AND-of-N gallery query. Items appear iff they carry every one of
@@ -3931,9 +3951,17 @@ export function queryGalleryItemsByCriteria(
   tagIds: string[],
   limit: number,
   offset: number,
+  excludeTagIds: string[] = [],
 ): CuratorGalleryRow[] {
   if (tagIds.length === 0) return [];
   const placeholders = tagIds.map(() => '?').join(',');
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         WHERE mtex.media_id = mi.id
+           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
+       )`;
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
@@ -3944,11 +3972,12 @@ export function queryGalleryItemsByCriteria(
     WHERE mi.moderation_status = 'active'
       AND mi.is_avatar = 0
       AND mt.tag_id IN (${placeholders})
+      ${excludeClause}
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY mi.uploaded_at DESC, mi.id DESC
     LIMIT ? OFFSET ?
-  `).all(...tagIds, tagIds.length, limit, offset) as CuratorGalleryRow[];
+  `).all(...tagIds, ...excludeTagIds, tagIds.length, limit, offset) as CuratorGalleryRow[];
 }
 
 /**

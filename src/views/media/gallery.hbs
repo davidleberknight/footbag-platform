@@ -27,6 +27,13 @@
             </a>
           {{/if}}
           {{#if caption}}<p class="gallery-tile-caption">{{caption}}</p>{{/if}}
+          {{#if tags.length}}
+            <ul class="gallery-tile-tags">
+              {{#each tags}}
+                <li>{{#if href}}<a href="{{href}}" class="gallery-tile-tag">{{display}}</a>{{else}}<span class="gallery-tile-tag">{{display}}</span>{{/if}}</li>
+              {{/each}}
+            </ul>
+          {{/if}}
           <p class="gallery-tile-date"><time datetime="{{uploadedAtIso}}">{{uploadedAtDisplay}}</time></p>
         </li>
       {{/each}}

@@ -364,7 +364,7 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     expect(await adapter.exists(key)).toBe(false);
     await adapter.put(key, Buffer.from('round-trip-bytes'));
     expect(await adapter.exists(key)).toBe(true);
-    expect(adapter.constructURL(key)).toBe('/media/avatars/m-1/thumb.jpg');
+    expect(adapter.constructURL(key)).toBe('/media-store/avatars/m-1/thumb.jpg');
     await adapter.delete(key);
     expect(await adapter.exists(key)).toBe(false);
   });
@@ -421,15 +421,15 @@ describe('adapter-parity: MediaStorageAdapter S3 contract', () => {
     });
   });
 
-  it('s3 constructURL returns /media/{key} (parity with local)', () => {
+  it('s3 constructURL returns /media-store/{key} (parity with local)', () => {
     const localAdapter = createLocalMediaStorageAdapter({ baseDir: '/tmp' });
     const s3Adapter = createS3MediaStorageAdapter({
       bucket: 'parity-bucket',
       s3Client: makeFakeS3Client().client,
     });
     const key = 'avatars/m-3/thumb.jpg';
-    expect(localAdapter.constructURL(key)).toBe('/media/avatars/m-3/thumb.jpg');
-    expect(s3Adapter.constructURL(key)).toBe('/media/avatars/m-3/thumb.jpg');
+    expect(localAdapter.constructURL(key)).toBe('/media-store/avatars/m-3/thumb.jpg');
+    expect(s3Adapter.constructURL(key)).toBe('/media-store/avatars/m-3/thumb.jpg');
   });
 
   it('s3 get streams body to a Buffer matching what put stored', async () => {

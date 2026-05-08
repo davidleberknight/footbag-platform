@@ -5,8 +5,8 @@
  * against the real staging media bucket via the assumed-role chain. The
  * contract asserted here is permanent: the host's runtime identity can
  * put, head-check, and delete S3 objects in the configured bucket, and
- * keys are preserved exactly as the adapter writes them (no `media/`
- * prefix on the storage side; the `/media/` prefix is purely a URL
+ * keys are preserved exactly as the adapter writes them (no `media-store/`
+ * prefix on the storage side; the `/media-store/` prefix is purely a URL
  * convention applied by constructURL).
  *
  * Run with: npm run test:smoke (uses scripts/test-smoke.sh to set
@@ -82,8 +82,8 @@ describe.skipIf(!RUN)('media storage adapter against staging S3', () => {
     expect(await adapter.exists(key)).toBe(false);
   });
 
-  it('constructURL: returns /media/{key} unchanged from the storage key', () => {
+  it('constructURL: returns /media-store/{key} unchanged from the storage key', () => {
     const key = `${SMOKE_PREFIX}/probe-url.jpg`;
-    expect(adapter.constructURL(key)).toBe(`/media/${key}`);
+    expect(adapter.constructURL(key)).toBe(`/media-store/${key}`);
   });
 });

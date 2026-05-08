@@ -84,7 +84,7 @@ function makeStubStorage(): StubStorage {
       deletes.push(key);
       contents.delete(key);
     },
-    constructURL(key) { return `/media/${key}`; },
+    constructURL(key) { return `/media-store/${key}`; },
     async exists(key) { return contents.has(key); },
     async generatePresignedPutUrl(key, contentType, expirationSeconds) {
       return `/_stub-presigned-put/${key}?ct=${encodeURIComponent(contentType)}&exp=${expirationSeconds}`;
@@ -160,7 +160,7 @@ describe('curatorMediaService.uploadPhoto', () => {
     });
 
     expect(result.mediaId).toMatch(/^media_/);
-    expect(result.displayUrl).toMatch(/^\/media\/.*-display\.jpg$/);
+    expect(result.displayUrl).toMatch(/^\/media-store\/.*-display\.jpg$/);
     expect(storage.puts).toHaveLength(2);
     expect(storage.puts[0].key).toMatch(/-thumb\.jpg$/);
     expect(storage.puts[1].key).toMatch(/-display\.jpg$/);
@@ -316,7 +316,7 @@ describe('curatorMediaService.uploadVideo', () => {
     expect(row.video_platform).toBe('s3');
     expect(row.video_url).toBeNull();
     expect(row.video_id).toMatch(/-video\.mp4$/);
-    expect(row.thumbnail_url).toMatch(/^\/media\/.*-poster-display\.jpg$/);
+    expect(row.thumbnail_url).toMatch(/^\/media-store\/.*-poster-display\.jpg$/);
     expect(row.uploader_member_id).toBe(SYSTEM_ID);
 
     const audit = db.prepare(`SELECT * FROM audit_entries WHERE entity_id = ?`).get(result.mediaId) as Record<string, unknown>;
@@ -821,7 +821,7 @@ describe('curatorMediaService.getMediaItem', () => {
     expect(item!.mediaId).toBe(r.mediaId);
     expect(item!.mediaType).toBe('photo');
     expect(item!.caption).toBe(caption);
-    expect(item!.thumbnailUrl).toMatch(/^\/media\/.*-thumb\.jpg$/);
+    expect(item!.thumbnailUrl).toMatch(/^\/media-store\/.*-thumb\.jpg$/);
     expect(item!.tags.sort()).toEqual([tag, '#curated'].sort());
   });
 
@@ -837,7 +837,7 @@ describe('curatorMediaService.getMediaItem', () => {
     const item = await svc.getMediaItem(r.mediaId);
     expect(item).not.toBeNull();
     expect(item!.mediaType).toBe('video');
-    expect(item!.thumbnailUrl).toMatch(/^\/media\/.*-poster-display\.jpg$/);
+    expect(item!.thumbnailUrl).toMatch(/^\/media-store\/.*-poster-display\.jpg$/);
   });
 
   it('photo upload: videoPlatform/videoId/videoUrl are all null in the shape', async () => {

@@ -486,7 +486,7 @@ export const netService = {
     ];
 
     return {
-      seo:  { title: 'Footbag Net' },
+      seo:  { title: 'Net' },
       page: {
         sectionKey: 'net',
         pageKey:    'net_home',
@@ -577,7 +577,7 @@ export const netService = {
     const title = teamName(teamRow.person_name_a, teamRow.person_name_b);
 
     return {
-      seo:  { title: `${title} — Team` },
+      seo:  { title: `Net Team ${title}` },
       page: {
         sectionKey: 'net',
         pageKey:    'net_team_detail',

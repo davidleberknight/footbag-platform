@@ -1173,7 +1173,7 @@ Run order in staging:
 
 1. `bash deploy_to_aws.sh` (default: full rebuild + sidecar seed + media rsync; prompts before each destructive step). `bash deploy_to_aws.sh -y` accepts the default-yes answers without prompting (CI).
 2. The remote-half wipes the staging S3 bucket and rsyncs `RELEASE_DIR/data/media/` to it when wipe=Y. Pass `-W` to skip the wipe but still rsync new bytes additively.
-3. CloudFront serves the seeded URLs at `/media/{key}` via OAC.
+3. CloudFront serves the seeded URLs at `/media-store/{key}` via OAC.
 
 `media_id` is derived from a SHA of the id_seed plus source bytes, so updating a source asset (e.g., swapping the FH avatar) produces a new render URL on the next seed run; browser cache busts naturally without manual invalidation.
 

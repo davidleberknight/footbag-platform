@@ -356,7 +356,12 @@ if [[ "$REBUILD_LOCAL" == "no" ]]; then
   exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
 fi
 
-# REBUILD_LOCAL == yes
+# REBUILD_LOCAL == yes. --from-csv is the no-mirror path: it loads the
+# committed canonical_input/*.csv into the DB and runs the enrichment phases.
+# deploy-local-data.sh:run_from_csv() bootstraps legacy_data/out/canonical/
+# from the same canonical_input snapshot before invoking csv_only, so phase D
+# (which reads out/canonical/events.csv) has its input without requiring the
+# mirror.
 echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
 run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv
 echo ""

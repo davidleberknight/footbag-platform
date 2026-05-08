@@ -1,9 +1,9 @@
 # =============================================================================
 # Cache & origin-request policies
 # Managed policies (data sources) for HTML and static assets; one custom cache
-# policy for /media/* (query string in cache key, URL-versioned cache-bust)
+# policy for /media-store/* (query string in cache key, URL-versioned cache-bust)
 # reserved for the future production media S3 backend (production currently
-# has no S3 origin; staging has migrated to S3-served /media/*, production
+# has no S3 origin; staging has migrated to S3-served /media-store/*, production
 # follows at cutover).
 # =============================================================================
 
@@ -25,7 +25,7 @@ data "aws_cloudfront_origin_request_policy" "cors_s3_origin" {
 
 resource "aws_cloudfront_cache_policy" "media_assets" {
   name        = "${local.prefix}-media-assets"
-  comment     = "Edge cache for /media/* with query string in cache key (URL-versioned cache-bust). Reserved for the future production S3 media backend; not yet attached to any cache behavior."
+  comment     = "Edge cache for /media-store/* with query string in cache key (URL-versioned cache-bust). Reserved for the future production S3 media backend; not yet attached to any cache behavior."
   min_ttl     = 0
   default_ttl = 604800   # 7 days; matches express.static maxAge
   max_ttl     = 31536000 # 1 year ceiling
@@ -160,14 +160,14 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
-  # ── Repo-bundled curated landing-page chrome (Lightsail origin) ──────────
-  # /media/* currently serves the curated video shorts and posters that ship
-  # in the Docker image at src/public/media/. At production cutover, this
-  # behavior migrates to the S3 media origin (paralleling staging) using the
-  # media_assets cache policy defined above plus the strip-media-prefix
-  # CloudFront function. Until then, Lightsail serves the bundled chrome.
+  # ── Binary media storage (Lightsail origin until S3 cutover) ─────────────
+  # /media-store/* serves binary media bytes via the express.static mount on
+  # the lightsail origin until production cuts over to the S3 media backend
+  # (paralleling staging). At cutover, this behavior switches target_origin_id
+  # to the S3 origin and adopts the media_assets cache policy plus the
+  # strip-media-store-prefix CloudFront function.
   ordered_cache_behavior {
-    path_pattern           = "/media/*"
+    path_pattern           = "/media-store/*"
     target_origin_id       = "lightsail-origin"
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD"]

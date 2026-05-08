@@ -3,14 +3,18 @@
  * adapters layer. Abstracts media storage between environments. Production
  * uses S3 (`createS3MediaStorageAdapter`); development and pre-cutover
  * staging use the local filesystem (`createLocalMediaStorageAdapter`) with
- * identical key structure. Both implementations return relative `/media/{key}`
- * URLs from `constructURL`. The CloudFront `/media/*` cache behavior routes
- * to the S3 bucket via OAC (with a viewer-request function stripping the
- * prefix so S3 sees the bare key). Services call the interface; the getter
- * returns the configured implementation based on `config.mediaStorageAdapter`.
+ * identical key structure. Both implementations return relative
+ * `/media-store/{key}` URLs from `constructURL`. The CloudFront
+ * `/media-store/*` cache behavior routes to the S3 bucket via OAC (with a
+ * viewer-request function stripping the prefix so S3 sees the bare key).
+ * Services call the interface; the getter returns the configured
+ * implementation based on `config.mediaStorageAdapter`.
  *
- * Content-agnostic: the adapter handles photos, system-account video bytes,
- * and posters identically. Per DD §1.5.
+ * The `/media-store/` URL prefix is dedicated to binary storage and is
+ * disjoint from the `/media` user-facing app section (routes `/media`,
+ * `/media/:galleryId`, `/media/browse`). Content-agnostic: the adapter
+ * handles photos, system-account video bytes, and posters identically.
+ * Per DD §1.5.
  */
 import { mkdir, writeFile, unlink, access, readFile } from 'node:fs/promises';
 import * as path from 'node:path';
@@ -35,7 +39,7 @@ export interface MediaStorageAdapter {
   /** Delete the object at the given storage key. No-op if it does not exist. */
   delete(key: string): Promise<void>;
 
-  /** Return a URL suitable for use in templates (e.g. `/media/{key}` or a CloudFront URL). */
+  /** Return a URL suitable for use in templates (e.g. `/media-store/{key}` or a CloudFront URL). */
   constructURL(key: string): string;
 
   /** Check whether an object exists at the given storage key. */
@@ -77,7 +81,7 @@ export function createLocalMediaStorageAdapter(opts: {
       }
     },
     constructURL(key: string): string {
-      return `/media/${key}`;
+      return `/media-store/${key}`;
     },
     async exists(key: string): Promise<boolean> {
       try {
@@ -158,7 +162,7 @@ export function createS3MediaStorageAdapter(opts: {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     },
     constructURL(key: string): string {
-      return `/media/${key}`;
+      return `/media-store/${key}`;
     },
     async exists(key: string): Promise<boolean> {
       try {

@@ -58,7 +58,7 @@ function makeStubStorage(): StubStorage {
     puts, deletes,
     async put(key) { puts.push(key); },
     async delete(key) { deletes.push(key); },
-    constructURL(key) { return `/media/${key}`; },
+    constructURL(key) { return `/media-store/${key}`; },
     async exists() { return false; },
   };
 }

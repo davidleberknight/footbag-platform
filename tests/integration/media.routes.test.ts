@@ -92,7 +92,7 @@ function insertVideo(db: BetterSqlite3.Database, o: VideoOverrides = {}): string
   if (platform === 's3') {
     videoId = o.video_id ?? `${uploader}/detached/${id}-video.mp4`;
     videoUrl = o.video_url ?? null;
-    thumbUrl = o.thumbnail_url ?? `/media/${uploader}/detached/${id}-poster-display.jpg`;
+    thumbUrl = o.thumbnail_url ?? `/media-store/${uploader}/detached/${id}-poster-display.jpg`;
   } else if (platform === 'youtube') {
     videoId = o.video_id ?? `yt${id.slice(-8)}`;
     videoUrl = o.video_url ?? `https://www.youtube.com/watch?v=${videoId}`;
@@ -448,8 +448,8 @@ describe('GET /media/:galleryId (named gallery)', () => {
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('s3-branch-marker');
-    expect(res.text).toContain(`/media/${SYSTEM_ID}/detached/${id}-poster-display.jpg`);
-    expect(res.text).toContain(`/media/${SYSTEM_ID}/detached/${id}-video.mp4`);
+    expect(res.text).toContain(`/media-store/${SYSTEM_ID}/detached/${id}-poster-display.jpg`);
+    expect(res.text).toContain(`/media-store/${SYSTEM_ID}/detached/${id}-video.mp4`);
   });
 
   it('marks YouTube video tiles as click-to-play facades with the nocookie embed URL', async () => {
@@ -502,7 +502,7 @@ describe('GET /media/:galleryId (named gallery)', () => {
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain('data-platform="s3"');
-    expect(res.text).toContain(`data-video-src="/media/${SYSTEM_ID}/detached/${id}-video.mp4"`);
+    expect(res.text).toContain(`data-video-src="/media-store/${SYSTEM_ID}/detached/${id}-video.mp4"`);
   });
 
   it('does not mark photo tiles as video facades', async () => {
@@ -729,6 +729,66 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('gallery-excl-keep');
     expect(res.text).not.toContain('gallery-excl-drop');
+  });
+});
+
+describe('GET /media/:galleryId — item tag chip linkification', () => {
+  it('renders each non-#by_* item tag as <a href="/media/browse?tag=…">', async () => {
+    const db = openDb();
+    const id = insertVideo(db, {
+      id: 'media_chip_link_001',
+      caption: 'chip-link-marker',
+      platform: 'youtube',
+      video_id: 'CHIPLNK001',
+      uploaded_at: '2027-03-01T12:00:00.000Z',
+    });
+    tagAsCuratedFreestyleTrick(db, id);
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    const tileMatch = res.text.match(/chip-link-marker[\s\S]{0,2000}<\/li>/);
+    expect(tileMatch, 'tile for chip-link-marker should be present').toBeTruthy();
+    const tile = tileMatch![0];
+    expect(tile).toContain('class="gallery-tile-tags"');
+    expect(tile).toContain('href="/media/browse?tag&#x3D;curated"');
+    expect(tile).toContain('href="/media/browse?tag&#x3D;freestyle"');
+    expect(tile).toContain('href="/media/browse?tag&#x3D;trick"');
+    // tag_display preserved (with leading '#') in the chip body.
+    expect(tile).toContain('>#curated<');
+  });
+
+  it('item-level #by_<slug> chip renders the member display name as plain text for anonymous viewers', async () => {
+    const db = openDb();
+    // Reuse the #by_media_regular tag inserted by the earlier hero-byMember
+    // test rather than re-INSERT (UNIQUE constraint on tag_normalized).
+    const existing = db.prepare("SELECT id FROM tags WHERE tag_normalized = '#by_media_regular'").get() as { id: string } | undefined;
+    expect(existing, 'expected the earlier test to have inserted #by_media_regular').toBeTruthy();
+    const byTagId = existing!.id;
+    const id = insertVideo(db, {
+      id: 'media_chip_by_anon_001',
+      caption: 'chip-by-anon-marker',
+      platform: 'youtube',
+      video_id: 'CHIPBYAN01',
+      uploaded_at: '2027-03-02T12:00:00.000Z',
+    });
+    tagAsCuratedFreestyleTrick(db, id);
+    attachTag(db, id, byTagId, '#by_media_regular');
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    const tileMatch = res.text.match(/chip-by-anon-marker[\s\S]{0,2000}<\/li>/);
+    expect(tileMatch).toBeTruthy();
+    const tile = tileMatch![0];
+    // Anonymous viewer: member name is rendered plain (no anchor) and the
+    // chip does NOT carry a /members/ href.
+    expect(tile).toContain('>Regular Member<');
+    expect(tile).not.toMatch(/href="\/members\/media_regular"/);
+    // Other criteria-tag chips on the same tile still link to /media/browse.
+    expect(tile).toContain('href="/media/browse?tag&#x3D;curated"');
   });
 });
 

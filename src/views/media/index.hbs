@@ -8,31 +8,38 @@
 <div class="wrapper">
 
   <section>
-    {{#if content.galleries.length}}
-      <ul class="gallery-grid">
-        {{#each content.galleries}}
-          <li class="hub-card">
-            <a href="{{href}}" class="hub-card-link">
-              <div class="hub-card-accent" aria-hidden="true"></div>
-              <div class="hub-card-body">
-                <h2 class="hub-card-name">{{name}}</h2>
-                {{#if description}}<p class="hub-card-description">{{description}}</p>{{/if}}
+    <ul class="gallery-grid">
+      <li class="hub-card hub-card-browse">
+        <a href="/media/browse" class="hub-card-link">
+          <div class="hub-card-body">
+            <h2 class="hub-card-name">Browse by hashtag</h2>
+            <p class="hub-card-description">Find every photo and video matching a set of hashtags.</p>
+          </div>
+          <div class="hub-card-foot hub-card-foot-browse">
+            <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
+          </div>
+        </a>
+      </li>
+      {{#each content.galleries}}
+        <li class="hub-card">
+          <a href="{{href}}" class="hub-card-link">
+            <div class="hub-card-accent" aria-hidden="true"></div>
+            <div class="hub-card-body">
+              <h2 class="hub-card-name">{{name}}</h2>
+              {{#if description}}<p class="hub-card-description">{{description}}</p>{{/if}}
+            </div>
+            {{#if (or byMember criteriaTags.length)}}
+              <div class="hub-card-foot">
+                <p class="hub-card-summary">
+                  Showing {{itemCount}} {{#if (eq itemCount 1)}}item{{else}}items{{/if}}{{#if byMember}} by {{byMember.display}}{{#if criteriaTags.length}},{{/if}}{{/if}}{{#if criteriaTags.length}} tagged: {{#each criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if excludeTags.length}} - Excluding {{#if (eq excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
+                </p>
+                <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
               </div>
-              {{#if (or byMember criteriaTags.length)}}
-                <div class="hub-card-foot">
-                  <p class="hub-card-summary">
-                    Showing {{itemCount}} {{#if (eq itemCount 1)}}item{{else}}items{{/if}}{{#if byMember}} by {{byMember.display}}{{#if criteriaTags.length}},{{/if}}{{/if}}{{#if criteriaTags.length}} tagged: {{#each criteriaTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}{{#if excludeTags.length}} - Excluding {{#if (eq excludeTags.length 1)}}tag{{else}}tags{{/if}}: {{#each excludeTags}}{{display}}{{#unless @last}} {{/unless}}{{/each}}{{/if}}
-                  </p>
-                  <span class="hub-card-arrow" aria-hidden="true">&rarr;</span>
-                </div>
-              {{/if}}
-            </a>
-          </li>
-        {{/each}}
-      </ul>
-    {{else}}
-      <div class="empty-state">No galleries yet.</div>
-    {{/if}}
+            {{/if}}
+          </a>
+        </li>
+      {{/each}}
+    </ul>
   </section>
 
 </div>

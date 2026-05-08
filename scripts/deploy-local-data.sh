@@ -156,6 +156,22 @@ run_from_csv() {
   fi
 
   echo "    Canonical CSVs present"
+
+  # Bootstrap out/canonical/ from the committed canonical_input/ snapshot.
+  # csv_only mode skips run_v0_backbone() (the only producer of out/canonical/)
+  # because that step requires mirror access. Phase D's
+  # 02_build_legacy_club_candidates.py still reads out/canonical/events.csv,
+  # so we materialize it here from canonical_input. The two snapshots differ
+  # by ~30 events that export_canonical_platform.py drops for sparse
+  # disciplines; this is acceptable for the deploy-time enrichment build, and
+  # any subsequent run_pipeline.sh full run overwrites these files with the
+  # mirror-derived authoritative copies.
+  local out_canonical="${REPO_ROOT}/legacy_data/out/canonical"
+  run_or_print mkdir -p "${out_canonical}"
+  for f in events event_disciplines event_results event_result_participants persons; do
+    run_or_print cp "${ci}/${f}.csv" "${out_canonical}/${f}.csv"
+  done
+
   ( cd "${REPO_ROOT}/legacy_data" && run_or_print ./run_pipeline.sh csv_only )
   seed_curator
 }

@@ -497,6 +497,7 @@ Visual token baseline (from `src/public/css/style.css`):
 | `GET /clubs` | Clubs index | Country-grouped clubs directory entry page | Current |
 | `GET /clubs/:key` | Clubs shared handler | Dispatches to country page or club detail | Current |
 | `GET /media` | Media hub | Public hub listing every named-gallery URL bookmark with owner attribution, name, description, item count, and criteria-tag pills per card | Current |
+| `GET /media/browse` | Media tag browse | On-the-fly tag browse + temp gallery; included/excluded tags carried as repeatable `?tag=` and `?exclude=` query args; not a registered named-gallery URL bookmark | Current |
 | `GET /media/:galleryId` | Named gallery | Single named-gallery page, items computed at request time by tag-AND match against the gallery's criteria-tag set, paginated reverse-chronologically | Current |
 | `GET /login` | Login | Member login | Current |
 | `GET /register` | Register | Member registration | Current |
@@ -1718,7 +1719,7 @@ Not applicable. Legal content is static and always present.
 
 ### 6.21 Media galleries
 
-The public media surface is a two-page composition: a hub at `/media` that lists every named-gallery URL bookmark (FH-owned and member-owned), and a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set, minus any item carrying a tag in the gallery's exclude-tag set. Named-gallery bookmarks are `member_galleries` rows; FH-owned bookmarks (system member) keep the `gallery_<descriptive_slug>` URL convention, member-owned derive `gallery_<owner_slug>_<gallery_name_slug>` from the owner's member slug and the gallery name (with `_2`, `_3` suffixes on collision). Each surface (hub card, gallery hero) renders owner attribution. Item ordering follows the gallery's `sort_order` field.
+The public media surface is a three-page composition: a hub at `/media` that lists every named-gallery URL bookmark (FH-owned and member-owned), a per-bookmark named-gallery page at `/media/:galleryId` whose content is computed at request time by tag-AND match against the gallery's criteria-tag set (minus any item carrying a tag in the gallery's exclude-tag set), and an on-the-fly tag browse + temp gallery at `/media/browse` whose included and excluded tags travel as query args (no `member_galleries` row, no hub-card listing). Named-gallery bookmarks are `member_galleries` rows; FH-owned bookmarks (system member) keep the `gallery_<descriptive_slug>` URL convention, member-owned derive `gallery_<owner_slug>_<gallery_name_slug>` from the owner's member slug and the gallery name (with `_2`, `_3` suffixes on collision). Each surface (hub card, gallery hero) renders owner attribution. Item ordering follows the gallery's `sort_order` field for named galleries; `/media/browse` always orders newest-first.
 
 ### Audience
 
@@ -1823,6 +1824,55 @@ Render the standard empty state ("No media yet.") when the criteria-tag set matc
 - Unknown `galleryId` values return 404. Member-owned galleries are public; the hub lists them with owner attribution alongside FH-owned bookmarks.
 - Query parameter `?page=N` selects the page (invalid values clamp to 1).
 - Caption text is HTML-escaped at render time; item tag chips link to per-tag pages.
+
+#### Tag browse + temp gallery at `GET /media/browse`
+
+**Page intent**
+
+- give visitors a single entry-point to compose ad-hoc tag-AND queries (with optional excludes) over the active media corpus
+- surface that result inline as a temp gallery, without registering a named-gallery URL bookmark
+- act as the link target for every clickable item tag chip elsewhere on the public read surface
+
+**Required content**
+
+- hero with title and intro (browse-mode subtitle when no criteria; "Showing N items tagged: …" subtitle when results render)
+- include / exclude tag input form (whitespace-separated text inputs), submit button
+- when at least one criterion resolves: card grid of matching items with the same tile shape as `/media/:galleryId`, plus pagination block
+- when criteria are submitted but resolve to no `tags` row: a "no media found for: …" hint above the form, with the unresolved tokens echoed
+
+**Required view-model fields**
+
+- `seo.title = Browse Media`
+- `page.sectionKey = media`
+- `page.pageKey = media_browse`
+- `page.title = Browse Media`
+- `content.mode` — `browse` (no resolved criteria, results pane omitted) or `results`
+- `content.formIncludeText`, `content.formExcludeText` — space-joined echo of the submitted tokens (without leading `#`), so the form re-fills correctly
+- `content.unresolvedTokens[]` — submitted criteria tokens (without `#`) that did not resolve to a `tags` row
+- `content.byMember`, `content.criteriaTags[]`, `content.excludeTags[]` — same chip shapes as `/media/:galleryId`; populated only in `results` mode
+- `content.items[]` — same `GalleryItem` shape as `/media/:galleryId` (`mediaId`, `mediaType`, `caption`, `thumbnailUrl`, `displayHref`, `media`, `uploadedAtIso`, `uploadedAtDisplay`, `tags[]`)
+- `content.totalItems` — count after include/exclude filtering
+- `content.pagination` — same shape as `/media/:galleryId`; null in `browse` mode
+
+**Navigation outputs**
+
+- Item tag chips link to `/media/browse?tag=<normalized-without-#>` for each non-`#by_*` tag.
+- The `/media` hub renders a dedicated "Browse by tag" tile that links here.
+
+**Empty state**
+
+- Bare `/media/browse` (no criteria) renders the form pane only; no empty-state copy.
+- Submitted criteria that match no items → standard empty state ("No media yet.") in the results pane.
+- Submitted criteria that resolve to no `tags` row → "no media found for: <tokens>" hint above the form (browse mode).
+
+**Implementation notes**
+
+- Query args: repeatable `?tag=` and `?exclude=`; also accepts a single whitespace-joined `?tag=a+b` form (the tag-input form posts that shape). Tokens are accepted with or without leading `#`; normalized server-side to `#<lowercase>`.
+- Empty / bare-`#` tokens are dropped during normalization. Duplicate tokens are de-duplicated. A token appearing in both `?tag=` and `?exclude=` is retained as include and removed from exclude (otherwise the temp gallery would be vacuously empty).
+- Items filtered to `media_items.moderation_status = 'active'` AND `is_avatar = 0` (same rule as the named-gallery query).
+- Default sort: `upload_desc` (newest first). Page size: 24. `?page=N` invalid values clamp to 1.
+- Pagination prev/next hrefs reproduce the canonical repeated-arg form (`?tag=a&tag=b&exclude=c`) regardless of which form the user originally submitted.
+- No `member_galleries` row is created. The URL is a deterministic query view; it does not appear on the `/media` hub list.
 
 ---
 

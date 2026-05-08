@@ -1221,7 +1221,7 @@ export interface CuratorVideoOverrides {
   sourceFilename: string; // e.g. 'demo-freestyle.mp4' — primary slot identity
   slotTag: string;        // e.g. '#demo_freestyle' (must start with '#')
   caption?: string;
-  videoKey?: string;      // S3 key stored in video_id (constructURL builds /media/{key})
+  videoKey?: string;      // S3 key stored in video_id (constructURL builds /media-store/{key})
   posterUrl?: string;     // already-constructed CDN URL for the poster
   mediaId?: string;
 }
@@ -1237,7 +1237,7 @@ export function insertCuratorVideo(
 ): string {
   const mediaId = o.mediaId ?? `media-curator-${uid()}`;
   const videoKey = o.videoKey ?? `${o.uploaderMemberId}/detached/${mediaId}-video.mp4`;
-  const posterUrl = o.posterUrl ?? `/media/${o.uploaderMemberId}/detached/${mediaId}-poster-display.jpg`;
+  const posterUrl = o.posterUrl ?? `/media-store/${o.uploaderMemberId}/detached/${mediaId}-poster-display.jpg`;
   const tagDisplay = o.slotTag;
   const tagNormalized = tagDisplay.toLowerCase();
   const tagId = `tag-${tagNormalized.replace(/[^a-z0-9]/g, '_')}`;

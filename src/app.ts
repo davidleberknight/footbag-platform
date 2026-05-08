@@ -97,23 +97,23 @@ export function createApp(): express.Application {
   // process.cwd() resolves correctly from both tsx (dev) and dist/ (prod).
   app.use(express.static(path.join(process.cwd(), 'src', 'public')));
 
-  // ── Media (member photos, system-account video bytes and posters) ─────
-  // Mounted at `/media/*` to mirror the production CloudFront cache
-  // behavior. The dev local-FS emulation directory (`config.mediaDir`)
-  // stands in for the S3 bucket; the URL prefix is identical in dev and
-  // prod so `mediaStorageAdapter.constructURL()` returns one shape.
+  // ── Media storage (member photos, system-account video bytes and posters) ─
+  // Mounted at `/media-store/*` to mirror the production CloudFront cache
+  // behavior. The prefix is dedicated to binary storage so it does not
+  // collide with the user-facing `/media` app section (routes `/media`,
+  // `/media/:galleryId`, `/media/browse`). The dev local-FS emulation
+  // directory (`config.mediaDir`) stands in for the S3 bucket; the URL
+  // prefix is identical in dev and prod so
+  // `mediaStorageAdapter.constructURL()` returns one shape.
   // Cache header matches the production S3 PUT contract
   // (Cache-Control: public, max-age=31536000, immutable). URL-versioning
   // via `?v={media_id}` makes `immutable` semantically correct: each
   // emitted URL is unique to its upload, replacement uploads emit a fresh
   // `?v=` and become a distinct cache entry.
-  // index: false + redirect: false ensure a request for /media or
-  // /media/<no-such-key> falls through to the public router (where the
-  // /media hub and named-gallery routes live). Without redirect: false,
-  // express.static issues 301 /media → /media/ on the bare path because
-  // it sees a directory; that hijacks our hub route.
+  // index: false + redirect: false avoid express.static auto-redirects on
+  // the bare `/media-store` path.
   app.use(
-    '/media',
+    '/media-store',
     express.static(config.mediaDir, {
       maxAge: '1y',
       immutable: true,

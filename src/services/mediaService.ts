@@ -9,6 +9,7 @@ import {
   queryGalleryItemsByCriteria,
   queryGalleryItemsByCriteriaGrouped,
   queryMemberDisplayNamesBySlugs,
+  queryTagIdsByNormalized,
 } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
@@ -47,10 +48,16 @@ function collectMemberNamesForByTags(tagDisplays: string[]): Map<string, string>
   return new Map(rows.map((r) => [r.slug, r.display_name]));
 }
 
+// `buildOtherHref`, when supplied, sets the chip href for non-`#by_*`
+// tags. Hero criteria/exclude callers omit it so chips render as plain
+// (per VIEW_CATALOG §6.21: hero chips have href = null). Item-tile
+// callers pass `browseTagHref` so each chip links to the on-the-fly
+// /media/browse view for that tag.
 function shapeTagChip(
   display: string,
   viewer: ViewerContext,
   memberNamesBySlug: Map<string, string>,
+  buildOtherHref?: () => string,
 ): TagChip {
   if (display.startsWith(UPLOADER_TAG_PREFIX)) {
     const slug = display.slice(UPLOADER_TAG_PREFIX.length);
@@ -62,7 +69,15 @@ function shapeTagChip(
       };
     }
   }
-  return { display, href: null };
+  return { display, href: buildOtherHref ? buildOtherHref() : null };
+}
+
+// /media/browse URL for a single tag, given its tag_normalized form
+// (with leading '#'). The URL token is the normalized form minus the '#',
+// matching the input format the browse handler expects.
+function browseTagHref(tagNormalized: string): string {
+  const token = tagNormalized.startsWith('#') ? tagNormalized.slice(1) : tagNormalized;
+  return `/media/browse?tag=${encodeURIComponent(token)}`;
 }
 
 // Splits raw criterion/exclude tag rows into the prose-attribution
@@ -105,7 +120,9 @@ export interface GalleryItem {
   displayHref: string;      // photo full-size; videos use media.videoUrl via the partial
   uploadedAtIso: string;
   uploadedAtDisplay: string;
-  tags: string[];
+  // Per-tile chips: non-`#by_*` link to /media/browse?tag=…; `#by_*` lifts
+  // to the member-profile chip-link convention (auth-gated).
+  tags: TagChip[];
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
   // fed by this canonical shape. Null for photos.
   media: VideoMedia | null;
@@ -179,6 +196,38 @@ export interface NamedGalleryContent {
   totalItems: number;
 }
 
+// /media/browse: the on-the-fly tag browse + temp gallery surface. Not a
+// named-gallery URL bookmark (no `member_galleries` row). Two render modes:
+//
+//   mode === 'browse'  → form pane only, no results pane. Bare /media/browse
+//                        and submitted-but-unresolved-tags both land here.
+//   mode === 'results' → form pane + results pane. At least one criteria
+//                        token resolved to a `tags` row.
+//
+// `formIncludeText` / `formExcludeText` are the space-joined echo of what
+// the user submitted (after normalization), so the form re-fills correctly.
+// `unresolvedTokens` lists submitted criteria tokens that did not resolve
+// to a `tags` row, so the page can show a "no items match those tags"
+// hint without 404-ing the URL.
+export interface MediaBrowseArgs {
+  rawTags: string[];
+  rawExcludes: string[];
+  rawPage: unknown;
+}
+
+export interface MediaBrowseContent {
+  mode: 'browse' | 'results';
+  formIncludeText: string;
+  formExcludeText: string;
+  unresolvedTokens: string[];
+  byMember: TagChip | null;
+  criteriaTags: TagChip[];
+  excludeTags: TagChip[];
+  items: GalleryItem[];
+  totalItems: number;
+  pagination: GalleryPagination | null;
+}
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -208,7 +257,7 @@ function buildHref(galleryId: string, page: number): string {
 
 function shapeItem(
   row: CuratorGalleryRow,
-  tags: string[],
+  tags: TagChip[],
   constructURL: (key: string) => string,
 ): GalleryItem {
   let thumbnailUrl: string;
@@ -299,7 +348,7 @@ export const mediaService = {
           sectionKey: 'media',
           pageKey: 'media_hub',
           title: 'Media Galleries',
-          intro: 'Photos and videos organized into named galleries.',
+          intro: 'Browse by hashtag or visit named galleries.',
         },
         content: { galleries: summaries },
       };
@@ -324,23 +373,32 @@ export const mediaService = {
       const tagIds = tagRows.map((t) => t.id);
       const excludeTagIds = excludeTagRows.map((t) => t.id);
 
-      const memberNamesBySlug = collectMemberNamesForByTags(
-        [...tagRows, ...excludeTagRows].map((r) => r.tag_display),
-      );
-      const chips = shapeGalleryChips(tagRows, excludeTagRows, viewer, memberNamesBySlug);
-
       const rows = queryGalleryItemsByCriteriaGrouped(tagIds, gallery.sort_order, excludeTagIds);
 
-      // Per-item tag displays for tile-level chip rendering (no per-trick
-      // grouping; items render flat in the gallery's sort_order).
-      const tagsByMediaId = new Map<string, string[]>();
-      if (rows.length > 0) {
-        const tagDisplays = queryCuratorMediaTags(rows.map((r) => r.id));
-        for (const tr of tagDisplays) {
-          const list = tagsByMediaId.get(tr.media_id);
-          if (list) list.push(tr.tag_display);
-          else tagsByMediaId.set(tr.media_id, [tr.tag_display]);
-        }
+      // Per-item tag rows for tile-level chip rendering.
+      const itemTagRows = rows.length > 0 ? queryCuratorMediaTags(rows.map((r) => r.id)) : [];
+
+      // Member-name lookup must cover both gallery-level criteria/exclude
+      // `#by_*` tags AND item-level `#by_*` chips, so each tile chip lifts
+      // to the member display name.
+      const memberNamesBySlug = collectMemberNamesForByTags([
+        ...tagRows.map((r) => r.tag_display),
+        ...excludeTagRows.map((r) => r.tag_display),
+        ...itemTagRows.map((r) => r.tag_display),
+      ]);
+      const chips = shapeGalleryChips(tagRows, excludeTagRows, viewer, memberNamesBySlug);
+
+      const tagsByMediaId = new Map<string, TagChip[]>();
+      for (const tr of itemTagRows) {
+        const chip = shapeTagChip(
+          tr.tag_display,
+          viewer,
+          memberNamesBySlug,
+          () => browseTagHref(tr.tag_normalized),
+        );
+        const list = tagsByMediaId.get(tr.media_id);
+        if (list) list.push(chip);
+        else tagsByMediaId.set(tr.media_id, [chip]);
       }
 
       const adapter = getMediaStorageAdapter();
@@ -349,7 +407,7 @@ export const mediaService = {
       );
 
       return {
-        seo: { title: gallery.name },
+        seo: { title: `Gallery ${gallery.name}` },
         page: {
           sectionKey: 'media',
           pageKey: 'media_named_gallery',
@@ -372,4 +430,179 @@ export const mediaService = {
       };
     });
   },
+
+  // /media/browse: on-the-fly tag browse + temp gallery. Not a named-gallery
+  // bookmark. See MediaBrowseContent doc-comment for the two render modes.
+  getMediaBrowsePage(
+    args: MediaBrowseArgs,
+    viewer: ViewerContext = { authenticated: false },
+  ): PageViewModel<MediaBrowseContent> {
+    return runSqliteRead('mediaService.getMediaBrowsePage', () => {
+      const includeNormalized = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty));
+      const excludeNormalizedRaw = uniqStrings(args.rawExcludes.map(normalizeTagToken).filter(notEmpty));
+      // Include wins over exclude when the same token appears in both
+      // (otherwise the gallery would be vacuously empty, which is a
+      // confusing UX). Strip the conflicting exclude entries.
+      const excludeNormalized = excludeNormalizedRaw.filter((t) => !includeNormalized.includes(t));
+
+      const formIncludeText = includeNormalized.map(stripHash).join(' ');
+      const formExcludeText = excludeNormalized.map(stripHash).join(' ');
+
+      const allNormalized = [...includeNormalized, ...excludeNormalized];
+      const tagRows = allNormalized.length === 0 ? [] : queryTagIdsByNormalized(allNormalized);
+      const tagRowByNormalized = new Map(tagRows.map((r) => [r.tag_normalized, r]));
+
+      const includeRows = includeNormalized
+        .map((n) => tagRowByNormalized.get(n))
+        .filter((r): r is { id: string; tag_normalized: string; tag_display: string } => r != null);
+      const excludeRows = excludeNormalized
+        .map((n) => tagRowByNormalized.get(n))
+        .filter((r): r is { id: string; tag_normalized: string; tag_display: string } => r != null);
+
+      const unresolvedTokens = includeNormalized
+        .filter((n) => !tagRowByNormalized.has(n))
+        .map(stripHash);
+
+      // Member-name lookup for `#by_*` lift across hero criteria/exclude
+      // chips AND any per-item chips we surface in the results pane.
+      const allCriteriaDisplays = [
+        ...includeRows.map((r) => r.tag_display),
+        ...excludeRows.map((r) => r.tag_display),
+      ];
+
+      const criteriaTagIds = includeRows.map((r) => r.id);
+      const excludeTagIds = excludeRows.map((r) => r.id);
+
+      // Browse mode: no resolved criteria → no results pane. Hero echoes
+      // submitted tokens via formInclude/ExcludeText only; chip lists empty.
+      if (criteriaTagIds.length === 0) {
+        return {
+          seo: { title: 'Browse Media' },
+          page: {
+            sectionKey: 'media',
+            pageKey: 'media_browse',
+            title: 'Browse Media',
+          },
+          content: {
+            mode: 'browse',
+            formIncludeText,
+            formExcludeText,
+            unresolvedTokens,
+            byMember: null,
+            criteriaTags: [],
+            excludeTags: [],
+            items: [],
+            totalItems: 0,
+            pagination: null,
+          },
+        };
+      }
+
+      // Results mode.
+      const page = sanitizePage(args.rawPage);
+      const total = countGalleryItemsByCriteria(criteriaTagIds, excludeTagIds);
+      const offset = (page - 1) * PAGE_SIZE;
+      const rows = queryGalleryItemsByCriteria(criteriaTagIds, PAGE_SIZE, offset, excludeTagIds);
+
+      const itemTagRows = rows.length > 0 ? queryCuratorMediaTags(rows.map((r) => r.id)) : [];
+
+      const memberNamesBySlug = collectMemberNamesForByTags([
+        ...allCriteriaDisplays,
+        ...itemTagRows.map((r) => r.tag_display),
+      ]);
+      const heroChips = shapeGalleryChips(includeRows, excludeRows, viewer, memberNamesBySlug);
+
+      const tagsByMediaId = new Map<string, TagChip[]>();
+      for (const tr of itemTagRows) {
+        const chip = shapeTagChip(
+          tr.tag_display,
+          viewer,
+          memberNamesBySlug,
+          () => browseTagHref(tr.tag_normalized),
+        );
+        const list = tagsByMediaId.get(tr.media_id);
+        if (list) list.push(chip);
+        else tagsByMediaId.set(tr.media_id, [chip]);
+      }
+
+      const adapter = getMediaStorageAdapter();
+      const items: GalleryItem[] = rows.map((row) =>
+        shapeItem(row, tagsByMediaId.get(row.id) ?? [], (k) => adapter.constructURL(k)),
+      );
+
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const hasPrev = page > 1;
+      const hasNext = page < totalPages;
+      const baseQuery = buildBrowseQueryString(includeNormalized, excludeNormalized);
+      const pageHref = (p: number): string =>
+        p === 1 ? `/media/browse?${baseQuery}` : `/media/browse?${baseQuery}&page=${p}`;
+      const pagination: GalleryPagination = {
+        page,
+        pageSize: PAGE_SIZE,
+        total,
+        hasNext,
+        hasPrev,
+        ...(hasPrev ? { prevHref: pageHref(page - 1) } : {}),
+        ...(hasNext ? { nextHref: pageHref(page + 1) } : {}),
+      };
+
+      return {
+        seo: { title: 'Browse Media' },
+        page: {
+          sectionKey: 'media',
+          pageKey: 'media_browse',
+          title: 'Browse Media',
+        },
+        content: {
+          mode: 'results',
+          formIncludeText,
+          formExcludeText,
+          unresolvedTokens,
+          byMember: heroChips.byMember,
+          criteriaTags: heroChips.criteriaTags,
+          excludeTags: heroChips.excludeTags,
+          items,
+          totalItems: total,
+          pagination,
+        },
+      };
+    });
+  },
 };
+
+// Lowercase + ensure leading '#' for an incoming tag token. Returns the
+// empty string for inputs that are nothing more than '#' or whitespace.
+function normalizeTagToken(raw: string): string {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) return '';
+  const withHash = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  if (withHash === '#') return '';
+  return withHash;
+}
+
+function stripHash(t: string): string {
+  return t.startsWith('#') ? t.slice(1) : t;
+}
+
+function notEmpty(s: string): boolean {
+  return s.length > 0;
+}
+
+function uniqStrings(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of items) {
+    if (!seen.has(s)) {
+      seen.add(s);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+function buildBrowseQueryString(includeNormalized: string[], excludeNormalized: string[]): string {
+  const parts: string[] = [];
+  for (const t of includeNormalized) parts.push(`tag=${encodeURIComponent(stripHash(t))}`);
+  for (const t of excludeNormalized) parts.push(`exclude=${encodeURIComponent(stripHash(t))}`);
+  return parts.join('&');
+}

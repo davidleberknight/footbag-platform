@@ -16,10 +16,6 @@ This file tracks the current build: active sprint, accepted temporary dev shortc
 
 1. **Readiness probe is SQLite-only.** SERVICE_CATALOG.md `SystemBackgroundJobsService.checkReadiness()` composes the readiness signal for `/health/ready`. Current implementation probes SQLite only; KMS, SES, and S3 backup health are not included. Unblock: when a downstream system's failure mode requires inclusion in readiness.
 
-### Public read surface deviations
-
-1. **Named-gallery item tag chips do not link.** VIEW_CATALOG.md §6.21 specifies item tag chips on the named-gallery detail page link to per-tag pages. Current implementation renders chips as plain text. Unblock: per-tag public page route and handler.
-
 ### Legacy claim deviations
 
 1. **`/history/claim` runs the direct-lookup shortcut.** VIEW_CATALOG.md route-rules block specifies a two-step token flow (lookup form, emailed token, confirm-and-merge handler). Current implementation is the early-test shortcut: direct lookup + confirm + merge in-session, no emailed token. Unblock: production-readiness work; cutover prerequisite per MP Phase 4.

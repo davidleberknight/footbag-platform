@@ -785,7 +785,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       await storage.put(posterThumbKey, processed.thumb);
 
       const now = new Date().toISOString();
-      const thumbnailUrl = `/media/${posterDisplayKey}`;
+      const thumbnailUrl = storage.constructURL(posterDisplayKey);
 
       transaction(() => {
         media.insertCuratorVideo.run(
@@ -877,7 +877,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       await storage.put(posterThumbKey, processed.thumb);
 
       const now = new Date().toISOString();
-      const thumbnailUrl = `/media/${posterDisplayKey}`;
+      const thumbnailUrl = storage.constructURL(posterDisplayKey);
 
       transaction(() => {
         media.insertCuratorVideo.run(
@@ -1160,8 +1160,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         if (row.s3_key_thumb) keysToDelete.push(row.s3_key_thumb);
         if (row.s3_key_display) keysToDelete.push(row.s3_key_display);
         if (row.video_id) keysToDelete.push(row.video_id);
-        if (row.thumbnail_url && row.thumbnail_url.startsWith('/media/')) {
-          keysToDelete.push(row.thumbnail_url.slice('/media/'.length));
+        if (row.thumbnail_url && row.thumbnail_url.startsWith('/media-store/')) {
+          keysToDelete.push(row.thumbnail_url.slice('/media-store/'.length));
         }
       }
 

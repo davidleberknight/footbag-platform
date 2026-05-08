@@ -117,7 +117,7 @@ export const homeService = {
         {
           label: 'Media Galleries',
           href: '/media',
-          description: 'Photos and videos organized into named galleries.',
+          description: 'Browse by hashtag or visit named galleries.',
         },
       ],
       comingSoonSections: [

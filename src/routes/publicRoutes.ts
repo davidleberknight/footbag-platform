@@ -25,6 +25,11 @@ publicRouter.get('/',      homeController.home);
 publicRouter.get('/clubs',       clubController.index);
 publicRouter.get('/clubs/:key', clubController.byKey);
 publicRouter.get('/media',              mediaController.hub);
+// IMPORTANT: /media/browse is a literal sub-route and MUST be registered
+// before /media/:galleryId. Without this ordering, "browse" would be
+// captured as the :galleryId param and the browse page would 404 through
+// the named-gallery NotFound branch.
+publicRouter.get('/media/browse',       mediaController.browse);
 publicRouter.get('/media/:galleryId',    mediaController.namedGallery);
 publicRouter.get('/hof',   hofController.index);
 publicRouter.get('/bap',   bapController.index);

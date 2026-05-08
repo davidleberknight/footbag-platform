@@ -212,7 +212,7 @@ The distinction between standardized and freeform tags is semantic, not technica
 
 Tag Discovery and Browsing: All hashtags throughout the platform appear as clickable links. Clicking any tag navigates to a tag gallery page showing all photos and videos with that tag. A browse-all tags page shows Popular Tags (the most frequently used tags, top N by usage) and All Tags (community tags listed alphabetically).
 
-A community tag is any tag used by at least two distinct members. The browse-all tags page helps new visitors explore user-uploaded content. Tags used only by a single member (even if that member uses the tag many times) are treated as personal tags and are not listed on the /tags browse page. This browsing architecture turns tags into a navigation system, not just metadata. The "/tags" browse page and per-tag gallery pages are public.
+A community tag is any tag used by at least two distinct members. The Browse Hashtags page helps new visitors explore user-uploaded content. Tags used only by a single member (even if that member uses the tag many times) are treated as personal tags and are not listed on the Browse Hashtags page. This browsing architecture turns tags into a navigation system, not just metadata. The Browse Hashtags page and per-tag gallery pages are public.
 
 The upload interface for media (photos and video links) from the MyContent page never blocks, never enforces. All tag fields start empty. Members can upload media into named galleries with no tags at all, they simply won't appear in event/club or discoverable galleries. This respects member agency while providing clear pathways to proper organization.
 

@@ -391,8 +391,8 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="demo-video"');
-    expect(res.text).toMatch(/\/media\/[^"]+-video\.mp4\?v(?:=|&#x3D;)[^"]+/);
-    expect(res.text).toMatch(/\/media\/[^"]+-poster-display\.jpg/);
+    expect(res.text).toMatch(/\/media-store\/[^"]+-video\.mp4\?v(?:=|&#x3D;)[^"]+/);
+    expect(res.text).toMatch(/\/media-store\/[^"]+-poster-display\.jpg/);
     expect(res.text).toContain('Demonstration of freestyle footbag');
     expect(res.text).toContain('autoplay');
     expect(res.text).toContain('playsinline');
