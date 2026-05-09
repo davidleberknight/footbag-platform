@@ -6,7 +6,7 @@ WARNING:
 - Expect roughly ~60 GB disk usage (can vary).
 - Expect it to take multiple days to complete, depending on network speed and site responsiveness.
 - It downloads and rewrites a large amount of content, including media.
-- ffmpeg is required for converting older media formats to MP4/JPG.
+- ffmpeg is required: every ingested image and video is re-encoded through ffmpeg as a malware-stripping requirement (not just legacy-format conversion).
 
 This is AI-assisted code: a bit messy in places, but it gets the job done.
 
@@ -138,43 +138,46 @@ LOGIN_TARGET = '/members/home'
 MAX_DEPTH = 50 # Will stop at very old event and news pages (back to 1975)
 MAX_URLS = 1000000
 MAX_FILE_SIZE = 160 * 1024 * 1024  # 160MB # 167279451 bytes is largest known
-SKIP_EXTENSIONS = ['.zip', '.tar.gz', '.exe', '.dmg' ,'.asx' ,'.php', '.sh', '.xml']
+SKIP_EXTENSIONS = [
+    '.zip', '.tar.gz', '.exe', '.dmg', '.asx', '.php', '.sh', '.xml',
+    '.mp3', '.ogg', '.wav', '.aac', '.m4a',
+    '.svg',
+]
 RESUME_ON_RESTART = True
 RESPECT_ROBOTS_TXT = True
 USER_AGENT = 'FootbagMirror/1.0 (Archival/Backup Purpose)'
 SESSION_TIMEOUT = 360000  # 1 hour
 DUPLICATE_DETECTION = True
 
+# All accepted media extensions are flagged convertible=True: every image and video
+# is re-encoded through ffmpeg/Sharp-equivalent on ingest as a malware-stripping
+# requirement (DD §6.8 line 2492). Audio (.mp3 etc.) and .svg are not in the
+# accepted set; they live in SKIP_EXTENSIONS above.
 MEDIA_FORMATS = {
-    '.mp4':  ('video/mp4', False),
+    '.mp4':  ('video/mp4', True),
     '.mov':  ('video/quicktime', True),
     '.avi':  ('video/x-msvideo', True),
     '.mkv':  ('video/x-matroska', True),
-    '.webm': ('video/webm', False),
+    '.webm': ('video/webm', True),
     '.wmv':  ('video/x-ms-wmv', True),
     '.divx': ('video/x-msvideo', True),
     '.mpg':  ('video/mpeg', True),
     '.mpeg': ('video/mpeg', True),
     '.flv':  ('video/x-flv', True),
-    '.m4v':  ('video/mp4', True), 
-    '.mp3':  ('audio/mpeg', False),
-    '.ogg':  ('audio/ogg', True),
-    '.wav':  ('audio/wav', True),
-    '.aac':  ('audio/aac', True),
-    '.m4a':  ('audio/mp4', True),
-    '.jpg':  ('image/jpeg', False),
-    '.jpeg': ('image/jpeg', False),
-    '.png':  ('image/png', False),
-    '.gif':  ('image/gif', False),
+    '.m4v':  ('video/mp4', True),
+    '.jpg':  ('image/jpeg', True),
+    '.jpeg': ('image/jpeg', True),
+    '.png':  ('image/png', True),
+    # GIFs stay as GIFs (animation preserved). ffmpeg roundtrip still
+    # runs for malware stripping; output is .gif, not .jpg.
+    '.gif':  ('image/gif', True),
     '.bmp':  ('image/bmp', True),
     '.tiff': ('image/tiff', True),
     '.tif':  ('image/tiff', True),
     '.webp': ('image/webp', True),
-    '.svg':  ('image/svg+xml', True),  
-} 
+}
 
 VIDEO_EXTENSIONS = {ext for ext, (mime, _) in MEDIA_FORMATS.items() if mime.startswith('video/')}
-AUDIO_EXTENSIONS = {ext for ext, (mime, _) in MEDIA_FORMATS.items() if mime.startswith('audio/')}
 IMAGE_EXTENSIONS = {ext for ext, (mime, _) in MEDIA_FORMATS.items() if mime.startswith('image/')}
 CONVERTIBLE_EXTENSIONS = {ext for ext, (_, convertible) in MEDIA_FORMATS.items() if convertible}
 
@@ -203,7 +206,6 @@ class MirrorState:
         self.regsummary_map = {}
         self.stats.setdefault('media_input_bytes', 0)
         self.stats.setdefault('media_output_bytes', 0)
-        self.stats.setdefault('mp3_downloads', 0)  
         self.stats['total_urls'] = 0
         self.stats['successful_downloads'] = 0
         self.stats['failed_downloads'] = 0
@@ -212,6 +214,7 @@ class MirrorState:
         self.stats['regsummary_links_detected'] = 0
         self.stats['video_conversions'] = 0
         self.stats['image_conversions'] = 0
+        self.stats['magic_byte_failures'] = 0
         self.session_start = time.time()
         self.duplicate_redirects = {}  
 
@@ -267,7 +270,6 @@ class MirrorState:
             # Ensure all stats keys exist (for backwards compatibility with old progress files)
             self.stats.setdefault('media_input_bytes', 0)
             self.stats.setdefault('media_output_bytes', 0)
-            self.stats.setdefault('mp3_downloads', 0)
             self.stats.setdefault('total_urls', 0)
             self.stats.setdefault('successful_downloads', 0)
             self.stats.setdefault('failed_downloads', 0)
@@ -276,6 +278,7 @@ class MirrorState:
             self.stats.setdefault('regsummary_links_detected', 0)
             self.stats.setdefault('video_conversions', 0)
             self.stats.setdefault('image_conversions', 0)
+            self.stats.setdefault('magic_byte_failures', 0)
             logging.info(f"Progress loaded from {PROGRESS_FILE}")
             logging.info(f"Resuming with {len(self.visited)} visited URLs, {len(self.queue)} queued")
             return True
@@ -403,13 +406,69 @@ def is_video_file(url_or_path):
     ext = get_extension(url_or_path)
     return ext in VIDEO_EXTENSIONS
 
-def is_audio_file(url_or_path):
-    ext = get_extension(url_or_path)
-    return ext in AUDIO_EXTENSIONS
-
 def is_convertible_video(url_or_path):
     ext = get_extension(url_or_path)
     return ext in CONVERTIBLE_EXTENSIONS
+
+# Per-extension magic-byte signatures. Each entry is (offset, [candidate_bytes]).
+# Compared against the first 16 bytes of the downloaded file. Match = first
+# `candidate_bytes` found at the given offset.
+_MAGIC_BYTES = {
+    '.jpg':  (0, [b'\xff\xd8\xff']),
+    '.jpeg': (0, [b'\xff\xd8\xff']),
+    '.png':  (0, [b'\x89PNG\r\n\x1a\n']),
+    '.gif':  (0, [b'GIF87a', b'GIF89a']),
+    '.bmp':  (0, [b'BM']),
+    '.tiff': (0, [b'II*\x00', b'MM\x00*']),
+    '.tif':  (0, [b'II*\x00', b'MM\x00*']),
+    '.webp': (0, [b'RIFF']),  # also has 'WEBP' at offset 8; loose check is acceptable
+    '.mp4':  (4, [b'ftyp']),
+    '.m4v':  (4, [b'ftyp']),
+    '.mov':  (4, [b'ftyp']),  # QuickTime shares ISO BMFF container shape
+    '.webm': (0, [b'\x1aE\xdf\xa3']),  # EBML header
+    '.mkv':  (0, [b'\x1aE\xdf\xa3']),
+    '.avi':  (0, [b'RIFF']),  # also has 'AVI ' at offset 8; loose check is acceptable
+    '.wmv':  (0, [b'\x30\x26\xb2\x75\x8e\x66\xcf\x11']),  # ASF header GUID prefix
+    '.mpg':  (0, [b'\x00\x00\x01\xba', b'\x00\x00\x01\xb3']),
+    '.mpeg': (0, [b'\x00\x00\x01\xba', b'\x00\x00\x01\xb3']),
+    '.flv':  (0, [b'FLV']),
+    '.divx': (0, [b'RIFF']),
+}
+
+def verify_magic_bytes(filepath, ext):
+    # Returns True if the file's magic bytes match its declared extension.
+    # Returns False (and increments magic_byte_failures) on any mismatch or
+    # missing-signature-table entry. Protects against a footbag.org URL
+    # serving a disguised payload under a benign extension before that
+    # bytestream reaches ffmpeg.
+    spec = _MAGIC_BYTES.get(ext.lower())
+    if spec is None:
+        # No signature in table → conservative reject. Covers extensions
+        # newly added to MEDIA_FORMATS without a corresponding _MAGIC_BYTES entry.
+        logging.warning(f"No magic-byte signature defined for ext {ext}: {filepath}")
+        mirror_state.stats['magic_byte_failures'] += 1
+        return False
+
+    offset, candidates = spec
+    try:
+        with open(filepath, 'rb') as f:
+            head = f.read(16)
+    except OSError as e:
+        logging.error(f"Failed to read header for magic-byte check: {filepath} → {e}")
+        mirror_state.stats['magic_byte_failures'] += 1
+        return False
+
+    for sig in candidates:
+        end = offset + len(sig)
+        if len(head) >= end and head[offset:end] == sig:
+            return True
+
+    logging.warning(
+        f"Magic-byte mismatch for {filepath} (declared {ext}): "
+        f"first 16 bytes = {head.hex()}"
+    )
+    mirror_state.stats['magic_byte_failures'] += 1
+    return False
 
 def get_media_mime_type(filepath):
     ext = Path(filepath).suffix.lower()
@@ -418,6 +477,17 @@ def get_media_mime_type(filepath):
 def is_image_file(url_or_path):
     ext = Path(urlparse(url_or_path).path).suffix.lower()
     return ext in mimetypes.types_map and mimetypes.types_map[ext].startswith("image/")
+
+# Extensions that are intentionally not mirrored per DD §6.4 (only mp4 and jpg
+# are preserved). Returns a short human-readable label for the skipped class,
+# or None if the extension is not a known skipped media class.
+def _skipped_media_label(ext):
+    ext = (ext or '').lower()
+    if ext in {'.mp3', '.ogg', '.wav', '.aac', '.m4a'}:
+        return 'Audio'
+    if ext == '.svg':
+        return 'SVG image'
+    return None
 
 def is_convertible_image(url_or_path):
     ext = get_extension(url_or_path)
@@ -671,9 +741,35 @@ def login():
     except requests.RequestException as e:
         raise RuntimeError(f"Login failed due to network error: {e}")
 
+def _sanitized_marker_path(output_filepath):
+    return output_filepath + '.sanitized'
+
+def _is_already_sanitized(output_filepath):
+    # Output is considered sanitized only when both the file and its
+    # `.sanitized` sidecar exist. A bare output file (no sidecar) means a
+    # pre-fix run produced unsanitized bytes, or a partial run was interrupted
+    # mid-encode; either way, re-encode.
+    return os.path.exists(output_filepath) and os.path.exists(_sanitized_marker_path(output_filepath))
+
+def _write_sanitized_marker(output_filepath):
+    try:
+        Path(_sanitized_marker_path(output_filepath)).touch()
+    except OSError as e:
+        logging.warning(f"Failed to write sanitized marker for {output_filepath}: {e}")
+
+# Malware-stripping ffmpeg flags shared by both transcode attempts (DD §6.8 lines 2475-2481).
+# These drop subtitle/data/attachment streams, container metadata, and chapter markers
+# that can carry payloads, regardless of what the source container happens to contain.
+_FFMPEG_MALWARE_STRIP_FLAGS = [
+    '-map', '0:v', '-map', '0:a?',
+    '-map_metadata', '-1',
+    '-map_chapters', '-1',
+]
+
 def convert_to_mp4(input_filepath):
-    # Converts a video file (mov, wmv, avi, divx) to mp4 using ffmpeg.
-    # Returns the path to the converted file or None if conversion fails.
+    # Re-encode any accepted video to .mp4 via ffmpeg, destroying container-,
+    # codec-, and metadata-level malware by rebuilding the bytes from the
+    # essential signal. Returns the output path on success, None on failure.
     input_path = Path(input_filepath)
     ext = input_path.suffix.lower()
 
@@ -683,35 +779,46 @@ def convert_to_mp4(input_filepath):
 
     output_filepath = str(input_path.with_suffix('.mp4'))
 
-    if os.path.exists(output_filepath):
-        logging.info(f"Already converted: {output_filepath}")
+    if _is_already_sanitized(output_filepath):
+        logging.info(f"Already sanitized: {output_filepath}")
         return output_filepath
 
-    # First attempt: Fast, high-quality settings for newer videos
+    # Same-extension inputs (.mp4 → .mp4) collide source and target paths.
+    # Encode to a temp suffix and rename on success so the source bytes are
+    # never overwritten in place mid-encode.
+    temp_output = str(input_path.with_suffix('.reenc.mp4'))
+
+    # First attempt: Fast, high-quality settings for newer videos.
     try:
         logging.info(f"Converting {input_filepath} to .mp4 ...")
         subprocess.run([
             'ffmpeg', '-i', str(input_filepath),
-            '-c:v', 'libx264', '-c:a', 'aac', '-movflags', 'faststart',
-            '-y',  # overwrite if needed
-            output_filepath
+            *_FFMPEG_MALWARE_STRIP_FLAGS,
+            '-c:v', 'libx264', '-c:a', 'aac',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', 'faststart',
+            '-y',
+            temp_output
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+        os.replace(temp_output, output_filepath)
+        _write_sanitized_marker(output_filepath)
         mirror_state.stats['video_conversions'] += 1
         return output_filepath
-        
+
     except subprocess.CalledProcessError as e:
-        if os.path.exists(output_filepath):
+        if os.path.exists(temp_output):
             try:
-                os.remove(output_filepath)
+                os.remove(temp_output)
             except:
                 pass
-    
-    # Second attempt: Conservative settings for extremely old/corrupt videos
+
+    # Second attempt: Conservative settings for extremely old/corrupt videos.
     try:
         logging.info(f"Trying conservative conversion for {input_filepath}")
-        result = subprocess.run([
+        subprocess.run([
             'ffmpeg', '-i', str(input_filepath),
+            *_FFMPEG_MALWARE_STRIP_FLAGS,
             '-c:v', 'libx264', '-preset', 'slow', '-crf', '28',
             '-c:a', 'aac', '-b:a', '96k', '-ar', '44100',
             '-movflags', 'faststart',
@@ -720,41 +827,102 @@ def convert_to_mp4(input_filepath):
             '-avoid_negative_ts', 'make_zero',  # Handle timestamp issues
             '-fflags', '+genpts',  # Generate presentation timestamps
             '-r', '25',  # Force frame rate for problematic videos
-            '-y',  # overwrite if needed
-            output_filepath
+            '-y',
+            temp_output
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+        os.replace(temp_output, output_filepath)
+        _write_sanitized_marker(output_filepath)
         mirror_state.stats['video_conversions'] += 1
         logging.info(f"Successfully converted : {output_filepath}")
         return output_filepath
-        
+
     except subprocess.CalledProcessError as e:
+        if os.path.exists(temp_output):
+            try:
+                os.remove(temp_output)
+            except:
+                pass
         logging.warning(f"All conversion attempts failed for {input_filepath}.")
         return None
 
 def convert_image_to_jpg(filepath):
+    # Re-encode any accepted still image (jpg/jpeg/png/bmp/tiff/webp) to .jpg
+    # via ffmpeg, stripping EXIF/ICC and destroying image-format malware by
+    # rebuilding the bytes. GIFs are handled separately via convert_gif_to_gif.
     try:
         output_path = str(Path(filepath).with_suffix('.jpg'))
-        if os.path.exists(output_path):
-            logging.info(f"JPEG already exists: {output_path}")
+
+        if _is_already_sanitized(output_path):
+            logging.info(f"JPEG already sanitized: {output_path}")
             return output_path
+
+        # Same-extension inputs (.jpg → .jpg) collide source and target.
+        # Encode to a temp suffix and rename on success.
+        temp_output = str(Path(filepath).with_suffix('.reenc.jpg'))
 
         logging.info(f"Converting image to JPG: {filepath} → {output_path}")
         subprocess.run([
             'ffmpeg',
             '-i', filepath,
+            '-frames:v', '1',  # Single-frame output (explicit; not muxer-default)
             '-q:v', '4',  # ~JPEG quality 85 (scale 2-31, lower is better)
             '-y',
-            output_path,
+            temp_output,
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+        os.replace(temp_output, output_path)
+        _write_sanitized_marker(output_path)
         mirror_state.stats['image_conversions'] += 1
         return output_path
     except subprocess.CalledProcessError as e:
+        # Clean up any temp output ffmpeg may have left behind
+        try:
+            if 'temp_output' in locals() and os.path.exists(temp_output):
+                os.remove(temp_output)
+        except OSError:
+            pass
         logging.error(f"ffmpeg failed to convert image to JPG: {filepath} → {e}")
         return None
     except Exception as e:
         logging.error(f"Failed to convert image to JPG: {filepath} → {e}")
+        return None
+
+def convert_gif_to_gif(filepath):
+    # ffmpeg roundtrip on a .gif: rebuild bytes from the pixel signal to
+    # destroy embedded malware while preserving animation and the .gif format.
+    try:
+        output_path = str(Path(filepath).with_suffix('.gif'))
+
+        if _is_already_sanitized(output_path):
+            logging.info(f"GIF already sanitized: {output_path}")
+            return output_path
+
+        # Same-extension input → temp-rename so source isn't overwritten mid-encode.
+        temp_output = str(Path(filepath).with_suffix('.reenc.gif'))
+
+        logging.info(f"Re-encoding GIF: {filepath}")
+        subprocess.run([
+            'ffmpeg',
+            '-i', filepath,
+            '-y',
+            temp_output,
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        os.replace(temp_output, output_path)
+        _write_sanitized_marker(output_path)
+        mirror_state.stats['image_conversions'] += 1
+        return output_path
+    except subprocess.CalledProcessError as e:
+        try:
+            if 'temp_output' in locals() and os.path.exists(temp_output):
+                os.remove(temp_output)
+        except OSError:
+            pass
+        logging.error(f"ffmpeg failed to re-encode GIF: {filepath} → {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Failed to re-encode GIF: {filepath} → {e}")
         return None
 
 def delete_original_file_if_converted(original_path, converted_path, media_type="media"):
@@ -799,6 +967,23 @@ def convert_and_cleanup(filepath, ext):
                 logging.error(f"Failed to delete unplayable video after failed conversion: {filepath} → {e}")
             return None
 
+    elif ext == '.gif':
+        # GIF stays as GIF (own category, not an image-to-JPG candidate).
+        final = convert_gif_to_gif(filepath)
+        if final and os.path.exists(final):
+            try:
+                out_size = os.path.getsize(final)
+            except OSError:
+                out_size = 0
+            mirror_state.stats['media_output_bytes'] += out_size
+            return final
+        else:
+            # Re-encode failed → keep original GIF on disk (do not delete; a
+            # passing magic-byte check upstream means the bytes are at least
+            # a valid GIF header).
+            mirror_state.stats['media_output_bytes'] += orig_size
+            return filepath
+
     elif ext in IMAGE_EXTENSIONS:
         final = convert_image_to_jpg(filepath)
         if final and final != filepath and os.path.exists(final):
@@ -840,8 +1025,6 @@ def download_and_process_media(url, session):
         filepath = url_to_filepath(clean_url)
         ext = get_extension(url)
 
-        is_image = is_image_file(url)
-        is_audio = is_audio_file(url)
         is_convertible = ext in CONVERTIBLE_EXTENSIONS
 
         if not filepath:
@@ -850,22 +1033,35 @@ def download_and_process_media(url, session):
 
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
 
+        # Cheap skip if the sanitized output for this URL already exists.
+        # Gated on the `.sanitized` sidecar so a pre-fix run's bare output
+        # does NOT short-circuit; it must be re-encoded. Avoids re-downloading
+        # a source whose converted output is already present (e.g. the same
+        # spacer .gif referenced from many pages).
         if is_convertible:
             if ext in VIDEO_EXTENSIONS:
                 target_path = str(Path(filepath).with_suffix('.mp4'))
-            elif ext in AUDIO_EXTENSIONS:
-                target_path = str(Path(filepath).with_suffix('.mp3'))
+            elif ext == '.gif':
+                target_path = str(Path(filepath).with_suffix('.gif'))
             elif ext in IMAGE_EXTENSIONS:
                 target_path = str(Path(filepath).with_suffix('.jpg'))
             else:
                 target_path = None
 
-            if target_path and os.path.exists(target_path):
-                logging.debug(f"Converted file already exists, skipping: {target_path}")
+            if target_path and _is_already_sanitized(target_path):
+                logging.debug(f"Already-sanitized output exists, skipping: {target_path}")
                 return target_path
 
-        # If source file already exists, attempt conversion/cleanup in place
+        # If source file already exists, magic-byte verify (when applicable),
+        # then attempt conversion/cleanup in place.
         if os.path.exists(filepath):
+            if is_convertible and not verify_magic_bytes(filepath, ext):
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+                mirror_state.failed_urls.add(media_fail_key(url))
+                return None
             result = convert_and_cleanup(filepath, ext) if is_convertible else filepath
             if result is None and ext in VIDEO_EXTENSIONS:
                 key = media_fail_key(url)
@@ -919,9 +1115,16 @@ def download_and_process_media(url, session):
         if not is_convertible:
             mirror_state.stats['media_output_bytes'] += size
 
-        if ext == '.mp3':
-            mirror_state.stats['mp3_downloads'] += 1
-            logging.info(f"Audio file : {filepath}")
+        # Magic-byte verify before any ffmpeg/PIL processing. A disguised
+        # payload under a benign extension is dropped before it can reach
+        # the conversion pipeline.
+        if is_convertible and not verify_magic_bytes(filepath, ext):
+            try:
+                os.remove(filepath)
+            except OSError:
+                pass
+            mirror_state.failed_urls.add(media_fail_key(url))
+            return None
 
         result = convert_and_cleanup(filepath, ext) if is_convertible else filepath
         if result is None and ext in VIDEO_EXTENSIONS:
@@ -1215,6 +1418,27 @@ def rewrite_links(html, page_url):
         current_filepath = url_to_filepath(page_url)
         # Track embedded video files to suppress redundant viewer pages
         embedded_video_refs = set()
+
+        # Skipped media classes (audio, SVG) are intentionally not mirrored.
+        # Replace any <a>/<audio>/<source> reference to a skipped extension
+        # with a visible inline note so the archive viewer sees the gap
+        # explicitly rather than a broken link.
+        for tag in list(soup.find_all(['a', 'audio', 'source'])):
+            href_or_src = tag.get('href') or tag.get('src')
+            if not href_or_src:
+                continue
+            try:
+                abs_url = urljoin(page_url, href_or_src)
+            except Exception:
+                continue
+            skip_label = _skipped_media_label(get_extension(abs_url))
+            if skip_label:
+                note = soup.new_tag('span')
+                note['class'] = 'mirror-skipped-media'
+                note.string = f"[{skip_label}: not mirrored]"
+                tag.insert_before(note)
+                tag.decompose()
+                logging.debug(f"Replaced skipped {skip_label} reference with note: {abs_url}")
 
         # Embedded <video>/<source> tags
         for tag in soup.find_all(['video', 'source']):
@@ -1945,7 +2169,7 @@ def print_stats():
     print(f"Video conversions: {s.get('video_conversions', 0):,}")
     print(f"Failed video conversions: {len(mirror_state.failed_conversion_videos)}")
     print(f"Image conversions: {s.get('image_conversions', 0):,}")
-    print(f"Audio files: {s.get('mp3_downloads', 0):,}")
+    print(f"Magic-byte failures: {s.get('magic_byte_failures', 0):,}")
     if s.get('skipped_too_large', 0) > 0:
         print(f"Skipped too large: {s.get('skipped_too_large', 0):,}")
     print(f"Regsummaries added: {s.get('regsummary_links_detected', 0):,}")
