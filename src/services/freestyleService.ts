@@ -497,6 +497,18 @@ export interface FreestyleSetGroup {
   trickCount: number;
 }
 
+// Cross-link from a family-filtered dictionary view to a section in the
+// ?view=sets projection. Surfaces the modifiers used by tricks in the
+// active family. Driven entirely by freestyle_trick_modifier_links —
+// no schema, ontology, or routing change.
+export interface FreestyleRelatedSetLink {
+  modifierSlug: string;
+  modifierName: string;
+  modifierType: string;
+  count: number;          // number of in-family tricks linked to this modifier
+  href: string;           // /freestyle/tricks?view=sets#set-{modifierSlug}
+}
+
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
@@ -513,6 +525,8 @@ export interface FreestyleTricksIndexContent {
   totalTricks: number;
   dictNote: string;                      // small subtle note rendered above the categories
   activeFamily: string | null;           // when set, dictionary is filtered to this family only (hashtag-click filter)
+  // Empty unless activeFamily is set AND the family has modifier-linked tricks.
+  relatedSetGroups: FreestyleRelatedSetLink[];
 }
 
 export interface FreestyleFamilyGroup {
@@ -1559,6 +1573,21 @@ export const freestyleService = {
       trickCount: b.tricks.length,
     }));
 
+    // Cross-link block: when the dictionary is filtered to one family, surface
+    // the modifiers used by tricks in that family as deep-links into the sets
+    // projection. The accumulator is already family-scoped (allRows was
+    // filtered by activeFamily upstream), so a non-empty bucket means at least
+    // one in-family trick links to that modifier.
+    const relatedSetGroups: FreestyleRelatedSetLink[] = activeFamily
+      ? [...setGroupAccumulator.values()].map(b => ({
+          modifierSlug: b.modifierSlug,
+          modifierName: b.modifierName,
+          modifierType: b.modifierType,
+          count:        b.tricks.length,
+          href:         `/freestyle/tricks?view=sets#set-${b.modifierSlug}`,
+        }))
+      : [];
+
     return {
       seo: {
         title: 'Freestyle Trick Dictionary',
@@ -1589,6 +1618,7 @@ export const freestyleService = {
         setGroups,
         modifiers,
         activeFamily,
+        relatedSetGroups,
         totalTricks: canonicalCount,
         dictNote:
           'This dictionary is being expanded and aligned with established freestyle notation. ' +

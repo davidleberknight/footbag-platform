@@ -25,6 +25,14 @@
     Filtering by family: <strong>{{content.activeFamily}}</strong>
     &nbsp;<a href="/freestyle/tricks">Clear filter</a>
   </p>
+  {{#if content.relatedSetGroups.length}}
+  <nav class="related-set-groups" aria-label="Related set or modifier groups">
+    <span class="related-set-groups-label">Related set/modifier groups:</span>
+    {{#each content.relatedSetGroups}}
+      <a class="related-set-group-link" href="{{{href}}}">{{modifierName}} <span class="related-set-group-count">({{count}})</span></a>{{#unless @last}} <span class="related-set-group-sep">·</span> {{/unless}}
+    {{/each}}
+  </nav>
+  {{/if}}
   {{/if}}
 
   {{! ── View toggle (no JS; query-string driven) ─────────────────────────── }}

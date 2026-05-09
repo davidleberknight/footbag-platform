@@ -374,6 +374,33 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
     expect(res.text).toContain('/freestyle/tricks/whirl');
     expect(res.text).toContain('/freestyle/tricks/legover');
   });
+
+  it('renders Related set/modifier groups when the active family has modifier-linked tricks', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks?family=whirl');
+    // Whirl-family fixture seeds spinning-whirl with a modifier_link to spinning.
+    expect(res.text).toContain('class="related-set-groups"');
+    expect(res.text).toContain('Related set/modifier groups:');
+    // Deep-link into the sets projection at the matching set anchor.
+    expect(res.text).toContain('href="/freestyle/tricks?view=sets#set-spinning"');
+    // Link surface shows the modifier name and a count chip.
+    expect(res.text).toMatch(/related-set-group-link[^>]*>spinning <span class="related-set-group-count">\(1\)<\/span>/);
+  });
+
+  it('does NOT render the Related set/modifier groups block when no family is active', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    expect(res.text).not.toContain('class="related-set-groups"');
+    expect(res.text).not.toContain('Related set/modifier groups:');
+  });
+
+  it('does NOT render the Related set/modifier groups block for a family with no modifier-linked tricks', async () => {
+    const app = createApp();
+    // legover family has one trick (legover) and no modifier_links rows.
+    const res = await request(app).get('/freestyle/tricks?family=legover');
+    expect(res.text).toContain('family-filter-pill'); // sanity: filter active
+    expect(res.text).not.toContain('class="related-set-groups"');
+  });
 });
 
 describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {

@@ -2268,6 +2268,17 @@ section.home-media { padding-top: 0; }
   margin: 0 0 12px 0;
 }
 
+.related-set-groups {
+  font-size: 0.85rem;
+  margin: 0 0 12px 0;
+  color: var(--text-muted);
+}
+.related-set-groups-label { margin-right: 6px; }
+.related-set-group-link { color: var(--primary); text-decoration: none; }
+.related-set-group-link:hover { text-decoration: underline; }
+.related-set-group-count { color: var(--text-muted); }
+.related-set-group-sep { opacity: 0.5; }
+
 .family-badge {
   display: inline-block;
   font-size: 0.85rem;
