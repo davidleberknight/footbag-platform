@@ -80,6 +80,11 @@ services:
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
       FOOTBAG_INITIAL_ADMIN_EMAILS: ${FOOTBAG_INITIAL_ADMIN_EMAILS:-}
+      # Shared secret for web<->image auth (and web<->worker, in s3 mode).
+      # Local-default is fine here because the parity stack runs on a private
+      # docker network; override via project-root .env when running against
+      # real AWS resources.
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
     volumes:
       # Directory bind mount so SQLite WAL/SHM sidecars live on the host and
       # are shared between web and worker containers. A file bind mount would
@@ -114,6 +119,7 @@ services:
       IMAGE_PORT: "4000"
       IMAGE_MAX_CONCURRENT: "2"
       LOG_LEVEL: info
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
@@ -153,6 +159,7 @@ services:
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:-dev-internal-event-secret-not-for-prod}
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ../database:/app/db:rw

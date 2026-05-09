@@ -46,7 +46,7 @@ Read the minimum the task requires. Default: active-slice block + code. Load doc
 ## Non-negotiable rules
 
 1. Never edit documentation, `.github/`, or `.claude/` files without explicit human approval.
-2. Never take a destructive or risky action without explicit human approval. This includes bypassing safety checks in scripts (`--force`, `--clobber`, `--clobber-real-data`, `CI=true` overrides on fixture stagers, `--no-verify` on git, schema-drop guards, etc.) — those gates exist to protect work and require the same approval as any other destructive action. The 2026-05-09 mirror-wipe incident is the load-bearing precedent: setting `CI=true` to reproduce a CI failure clobbered hours-to-days of pipeline state because the AI read the guard's "refuses unless --force or CI=true" comment as instructions rather than as a warning.
+2. Never take a destructive or risky action without explicit human approval. Safety overrides in scripts (`--force`, `CI=true`, `--no-verify`, etc.) require the same approval as the action they bypass; treat their inline help text as warnings, not instructions.
 3. When asking the human a question, always provide context so the human can understand clearly.
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask.
@@ -54,12 +54,12 @@ Read the minimum the task requires. Default: active-slice block + code. Load doc
 ## Workflow rules
 
 - Long-term docs describe design intent, not implementation status. See doc-sync skill for governance details.
-- Use Plan Mode when the task is primarily about sequencing, dependency ordering, phased planning, or architectural tradeoffs. For normal implementation work, the top active-slice/status block in `IMPLEMENTATION_PLAN.md` is sufficient.
+- Plan Mode for sequencing / dependency / architecture work; otherwise the IP active-slice block is enough.
 - Verification defaults: confirm what success looks like for the task, prefer route/integration verification first, and verify with `npm test` and `npm run build`.
 - Do not use browser automation or MCP tools unless the human explicitly asks for browser testing or verification.
 - Make surgical changes scoped to the current slice: no speculative abstraction, flexibility, or scope creep; no refactoring unrelated code, unnecessary formatting or comment changes.
 - Use the Explore sub-agent for broad codebase searches; use the Plan sub-agent for sequencing or architecture tasks. Both protect the main context window.
-- Prefer single Bash commands over compound pipelines (`cmd1 && cmd2`). Compound commands evaluate each component independently against permission rules and trigger spurious prompts even when each component is safe alone.
+- Single Bash commands over compound pipelines (`cmd1 && cmd2`); compounds trigger per-component permission prompts.
 
 ## Skills
 

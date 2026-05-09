@@ -1,6 +1,6 @@
 # IMPLEMENTATION_PLAN.md
 
-This file tracks the current build: active sprint, accepted temporary dev shortcuts, and external blockers. Long-term design lives in `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`. The go-live migration detail is here: `docs/MIGRATION_PLAN.md`; anything narrower than these docs is implicit future work and is not enumerated here. See also `legacy_data/IMPLEMENTATION_PLAN.md` for data preparation / James' sprint planning. For all of these files, do not read unless necessary for current work.
+Active deviations from design intent and security follow-ups. Long-term design: `docs/`. Sister IP for data prep: `legacy_data/IMPLEMENTATION_PLAN.md`.
 
 ## Accepted temporary deviations
 
@@ -10,7 +10,7 @@ This file tracks the current build: active sprint, accepted temporary dev shortc
 
 ### Adapter parity deviations
 
-1. **SecretsAdapter not yet implemented.** DD §3.6 specifies `SecretsAdapter` (SSM GetParameter in production, local JSON file in development) for Stripe keys, Stripe webhook secrets, admin bootstrap tokens, and other exportable credentials. No such consumer exists in the current code: `SESSION_SECRET` lives in the host env file per DD (not in scope for `SecretsAdapter`); JWT signing and ballot encryption are KMS-backed via their own adapters. Unblock: first time a Parameter-Store-bound secret is needed (likely Stripe integration or the admin bootstrap path).
+1. **SecretsAdapter not yet implemented (DD §3.6).** No consumer in current code; `SESSION_SECRET` is host-env, JWT/ballot keys are KMS. Unblock: first Parameter-Store-bound secret needed (Stripe / admin bootstrap).
 
 ### System health deviations
 
@@ -22,5 +22,4 @@ This file tracks the current build: active sprint, accepted temporary dev shortc
 
 ### URL validation deviations
 
-1. **External-URL validator: redirect-follow + reachability cache + safe-link helper deferred.** `src/lib/externalUrlValidator.ts` implements scheme allowlist, length cap, URL parse, SSRF block (literal-IP + DNS resolution and re-check), and Safe Browsing lookup via `SafeBrowsingAdapter`. DD §3.17 still mandates: redirect-follow re-resolution at each hop (closes DNS-rebinding via redirect to private IP); optional reachability HEAD with 24-hour cache keyed by URL hash; a Handlebars helper rendering `target="_blank" rel="nofollow noopener noreferrer"` plus the external-link icon. Unblock: when a public surface starts accepting user-supplied URLs at scale (member profile URLs, club URL, event URL, gallery URL); the safe-link helper is also blocking on the first public template that needs to render an external href. Pipeline is already async; new layers slot in behind `validateExternalUrl` without caller changes.
-
+1. **External-URL validator: redirect-follow + reachability cache + safe-link helper deferred (DD §3.17).** Current `src/lib/externalUrlValidator.ts` covers scheme allowlist, SSRF block, Safe Browsing. Unblock: first public surface accepting user URLs at scale, or first template needing external-href helper.

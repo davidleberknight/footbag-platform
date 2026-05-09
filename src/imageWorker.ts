@@ -7,13 +7,7 @@
  * directly because it is a separate process from the web app and must not
  * require web-only config (FOOTBAG_DB_PATH, SESSION_SECRET, etc.).
  */
-import express, { Request, Response, NextFunction } from 'express';
-import { Readable } from 'node:stream';
-import {
-  S3Client,
-  GetObjectCommand,
-  PutObjectCommand,
-} from '@aws-sdk/client-s3';
+import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import { detectImageType, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
 import {
   detectVideoFormat,
@@ -78,54 +72,15 @@ function readVideoTuningFromEnv(): VideoTranscodeTuning {
 }
 
 /**
- * Minimal S3 surface this worker needs for the from-storage video route.
- * Defined locally (rather than imported from src/adapters/mediaStorageAdapter.ts)
- * so the image worker stays decoupled from the web app's full env config:
- * the adapter module imports src/config/env, which hard-requires
- * FOOTBAG_DB_PATH and SESSION_SECRET — neither of which belong on this
- * container.
+ * Image worker holds NO AWS credentials. The from-storage video route
+ * receives presigned GET + PUT URLs from the dispatching web container and
+ * uses fetch() against opaque URLs; no S3 SDK, no profile, no role chain.
+ * Eliminates SEC-D02 (untrusted runtime holding source-profile keys).
+ *
+ * All /process/* routes require the x-internal-secret header (matches the
+ * INTERNAL_EVENT_SECRET seam already used between web and worker containers).
+ * SEC-A12.
  */
-export interface S3StorageClient {
-  get(key: string): Promise<Buffer>;
-  put(key: string, data: Buffer): Promise<void>;
-}
-
-function createDefaultS3StorageClient(): S3StorageClient | null {
-  const bucket = process.env.MEDIA_STORAGE_S3_BUCKET;
-  if (!bucket) return null;
-  const region = process.env.AWS_REGION;
-  // requestChecksumCalculation: 'WHEN_REQUIRED' matches the web/worker S3
-  // client to suppress per-call CRC32 overhead. Default 'WHEN_SUPPORTED'
-  // would add x-amz-checksum-crc32 headers we don't need.
-  const client = new S3Client({
-    ...(region ? { region } : {}),
-    requestChecksumCalculation: 'WHEN_REQUIRED',
-  });
-  return {
-    async get(key: string): Promise<Buffer> {
-      const res = await client.send(
-        new GetObjectCommand({ Bucket: bucket, Key: key }),
-      );
-      const stream = res.Body as Readable;
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-      return Buffer.concat(chunks);
-    },
-    async put(key: string, data: Buffer): Promise<void> {
-      await client.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: data,
-          ContentType: 'video/mp4',
-          CacheControl: 'public, max-age=31536000, immutable',
-        }),
-      );
-    },
-  };
-}
 
 export interface ImageWorkerOptions {
   maxConcurrent?: number;
@@ -143,11 +98,14 @@ export interface ImageWorkerOptions {
   // Override the env-derived libx264 tuning for tests; production reads
   // VIDEO_X264_PRESET / VIDEO_X264_THREADS / VIDEO_X264_RC_LOOKAHEAD from env.
   videoTuning?: VideoTranscodeTuning;
-  // Test seam: substitute the S3 client used by /process/video-from-storage.
-  // Production reads bucket + region from MEDIA_STORAGE_S3_BUCKET / AWS_REGION
-  // and constructs an AWS SDK client. When MEDIA_STORAGE_S3_BUCKET is unset
-  // (e.g. a local-dev image worker), the from-storage route returns 503.
-  s3StorageClient?: S3StorageClient | null;
+  // Test seam: substitute fetch for /process/video-from-storage's source GET
+  // and output PUT. Production uses global fetch.
+  fetchImpl?: typeof fetch;
+  // Test seam / explicit override: the shared secret callers must present in
+  // x-internal-secret. When undefined and no override is supplied, the worker
+  // reads process.env.INTERNAL_EVENT_SECRET; if that is also unset, /process/*
+  // returns 503 (graceful misconfig signal, mirrors ipcController).
+  internalSecret?: string;
 }
 
 export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Express {
@@ -171,10 +129,27 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   const processPhotoFn = opts.processPhotoImpl ?? processPhoto;
   const transcodeVideoFn = opts.transcodeVideoImpl ?? transcodeCuratorVideo;
   const videoTuning = opts.videoTuning ?? readVideoTuningFromEnv();
-  const s3Storage =
-    opts.s3StorageClient !== undefined ? opts.s3StorageClient : createDefaultS3StorageClient();
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const internalSecret =
+    opts.internalSecret !== undefined ? opts.internalSecret : process.env.INTERNAL_EVENT_SECRET;
   const semaphore = new Semaphore(maxConcurrent, semaphoreWaitMs);
   const videoSemaphore = new Semaphore(videoMaxConcurrent, videoSemaphoreWaitMs);
+
+  // Mirror src/controllers/ipcController.ts: 503 when secret is unconfigured
+  // (graceful misconfig signal — the caller knows to skip), 401 on header
+  // mismatch (active rejection of an unauthorized caller). Applied before the
+  // body parser on each /process/* route.
+  const requireInternalSecret: RequestHandler = (req, res, next) => {
+    if (!internalSecret) {
+      res.status(503).json({ error: 'INTERNAL_EVENT_SECRET not configured' });
+      return;
+    }
+    if (req.header('x-internal-secret') !== internalSecret) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
+    next();
+  };
 
   async function runProcess(
     req: Request,
@@ -254,34 +229,59 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   // Memory-efficient transcode path used by the curator video finalize flow.
   // The legacy /process/video route requires the caller (worker container) to
   // hold the full source video buffer in its 96M cgroup, which OOMs on real
-  // uploads. This route shifts the S3 GET + ffmpeg + S3 PUT into the image
-  // container's 256M cgroup so only one container ever holds the bytes.
-  // Caller sends just `{sourceKey, outputKey}`; this worker fetches, transcodes,
-  // and uploads.
+  // uploads. This route shifts the bytes into the image container's 256M cgroup
+  // so only one container ever holds them.
+  //
+  // Caller (web container) presigns the source-key GET and the output-key PUT
+  // and hands the URLs over; the image worker holds no AWS credentials and
+  // sees only opaque http(s) URLs (SEC-D02). The legacy {sourceKey, outputKey}
+  // shape is structurally moot here because S3 path semantics never reach the
+  // worker (SEC-A17). `outputKey` may still be passed for the response echo
+  // (caller-side audit log convenience) but is otherwise unused.
   async function runVideoProcessFromStorage(
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
-    if (!s3Storage) {
-      res.status(503).json({ error: 's3 storage not configured' });
-      return;
-    }
-    const body = req.body as { sourceKey?: unknown; outputKey?: unknown };
-    const sourceKey = body?.sourceKey;
+    const body = req.body as {
+      sourceUrl?: unknown;
+      putUrl?: unknown;
+      putContentType?: unknown;
+      outputKey?: unknown;
+    };
+    const sourceUrl = body?.sourceUrl;
+    const putUrl = body?.putUrl;
+    const putContentType = body?.putContentType;
     const outputKey = body?.outputKey;
-    if (typeof sourceKey !== 'string' || sourceKey.length === 0) {
-      res.status(400).json({ error: 'sourceKey required' });
+
+    if (typeof sourceUrl !== 'string' || !/^https?:\/\//.test(sourceUrl)) {
+      res.status(400).json({ error: 'sourceUrl required (http:// or https:// only)' });
       return;
     }
-    if (typeof outputKey !== 'string' || outputKey.length === 0) {
-      res.status(400).json({ error: 'outputKey required' });
+    if (typeof putUrl !== 'string' || !/^https?:\/\//.test(putUrl)) {
+      res.status(400).json({ error: 'putUrl required (http:// or https:// only)' });
+      return;
+    }
+    if (typeof putContentType !== 'string' || putContentType.length === 0) {
+      res.status(400).json({ error: 'putContentType required' });
       return;
     }
 
+    // Fetch source bytes via the presigned GET URL. No AWS SDK, no creds.
     let source: Buffer;
     try {
-      source = await s3Storage.get(sourceKey);
+      const sourceRes = await fetchImpl(sourceUrl);
+      if (!sourceRes.ok) {
+        res.status(502).json({ error: `s3 get failed: ${sourceRes.status}` });
+        return;
+      }
+      const cl = sourceRes.headers.get('content-length');
+      if (cl !== null && /^\d+$/.test(cl) && parseInt(cl, 10) > videoMaxBytes) {
+        res.status(413).json({ error: 'source object exceeds videoMaxBytes' });
+        return;
+      }
+      const ab = await sourceRes.arrayBuffer();
+      source = Buffer.from(ab);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       res.status(502).json({ error: `s3 get failed: ${msg}` });
@@ -310,13 +310,22 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
 
     try {
       const result = await transcodeVideoFn(source, videoTuning);
-      // Drop the source reference before the S3 PUT so the GC has a chance to
-      // reclaim it while we hold the (similarly sized) transcoded buffer.
+      // Drop the source reference before the PUT so the GC can reclaim it
+      // while we hold the (similarly sized) transcoded buffer.
       source = Buffer.alloc(0);
-      await s3Storage.put(outputKey, result.bytes);
+      const putRes = await fetchImpl(putUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': putContentType },
+        body: result.bytes as unknown as BodyInit,
+      });
+      if (!putRes.ok) {
+        const errBody = await putRes.text().catch(() => '');
+        next(new Error(`s3 put failed: ${putRes.status} ${errBody.slice(0, 200)}`));
+        return;
+      }
       res.status(200).json({
         ok: true,
-        outputKey,
+        outputKey: typeof outputKey === 'string' ? outputKey : undefined,
         outputFormat: result.outputFormat,
         outputBytes: result.bytes.length,
       });
@@ -335,12 +344,14 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
 
   app.post(
     '/process/avatar',
+    requireInternalSecret,
     express.raw({ type: 'application/octet-stream', limit: AVATAR_MAX_BYTES }),
     (req, res, next) => runProcess(req, res, next, processAvatarFn),
   );
 
   app.post(
     '/process/photo',
+    requireInternalSecret,
     express.raw({ type: 'application/octet-stream', limit: PHOTO_MAX_BYTES }),
     (req, res, next) => runProcess(req, res, next, processPhotoFn),
   );
@@ -350,16 +361,19 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   // churn terraform, compose, and IMAGE_* env vars for no functional gain.
   app.post(
     '/process/video',
+    requireInternalSecret,
     express.raw({ type: 'application/octet-stream', limit: videoMaxBytes }),
     runVideoProcess,
   );
 
-  // Memory-efficient counterpart to /process/video. JSON body, no buffered
-  // request payload — the source bytes never traverse the worker container
-  // that dispatched the job.
+  // Memory-efficient counterpart to /process/video. JSON body carries presigned
+  // GET + PUT URLs (no buffered source payload, no AWS credentials needed in
+  // this container). Limit raised to 16 KB to comfortably accommodate two
+  // ~2 KB presigned URLs plus metadata.
   app.post(
     '/process/video-from-storage',
-    express.json({ limit: '4kb' }),
+    requireInternalSecret,
+    express.json({ limit: '16kb' }),
     runVideoProcessFromStorage,
   );
 

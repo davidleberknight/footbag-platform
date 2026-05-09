@@ -106,7 +106,7 @@ beforeAll(async () => {
     );
   };
   adapterMod.setImageProcessingAdapterForTests(
-    adapterMod.createHttpImageAdapter({ baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
+    adapterMod.createHttpImageAdapter({ internalSecret: 'test-internal-event-secret', baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
   );
 
   // Video URL verifier stub: never hits youtube.com / vimeo.com. Returns

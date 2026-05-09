@@ -197,6 +197,13 @@ Transaction timeout: All transactions must complete within 30 seconds, enforced 
 
 Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds for all in-flight transactions to complete (same timeout value for consistency). Any transaction still running after 30 seconds is aborted. Then checkpoint WAL, close connection, perform final S3 backup upload, and exit gracefully.
 
+Requirements:
+
+- A continuous-backup loop runs on the application host and writes the SQLite snapshot to the primary backup bucket on the documented cadence (default five minutes per the worker description above). Loss of the loop fails the readiness probe so a silent backup gap cannot accrue.
+- The off-account DR replica bucket has S3 Object Lock enabled in compliance mode for the configured retention window, so a compromised production credential cannot delete or overwrite snapshots in the disaster-recovery target.
+- Retention windows are documented per artifact class (hot snapshot, DR replica, log archive). Each class has a single source of truth in `docs/DEVOPS_GUIDE.md` and matching S3 lifecycle rules; the lifecycle rules and the documented retention table cannot drift.
+- The interaction between erasure (GDPR Article 17) and backup is documented: an erased record's identifier is recorded in an erasure log, and any restore from backup re-applies the erasure log before the restored data is reachable, so erasure cannot be silently undone by routine recovery.
+
 ## 1.3 Transaction Model
 
 ACID transactions provide the platform's core write-safety guarantees, but the application still needs explicit handling for temporary contention. SQLite serializes conflicting writers through the configured busy_timeout, yet under load the app can still receive SQLITE_BUSY or SQLITE_BUSY_TIMEOUT. The platform therefore uses BEGIN IMMEDIATE to acquire the write lock early, keeps write transactions short, and applies bounded retries only for idempotent operations when a busy condition occurs. The application also enforces a 30-second transaction timeout. Transactions must remain fully synchronous: all database work finishes before commit, and any async follow-up work such as email or S3 runs only after the transaction completes.
@@ -308,6 +315,15 @@ Rationale:
 - Makes dev and prod more similar: containers behave the same across environments.
 
 - Avoids "snowflake" servers with manual tweaks.
+
+Requirements:
+
+- Runtime container images declare a non-root `USER` and the entrypoint runs as that user. Root inside the container is reserved for build-time package installation only.
+- Each image build uses a `.dockerignore` that excludes `.git/`, secret files, local env files, and dev-only tooling so build context cannot leak credentials or repo metadata into image layers.
+- Compose runs containers with `cap_drop: [ALL]` and `security_opt: [no-new-privileges:true]`. Capabilities are re-added explicitly only where a runtime requirement justifies them, and the justification is captured next to the compose entry.
+- Base images are pinned by SHA256 digest, not by floating tag, so a hijacked upstream tag cannot replace the base layer between rebuilds.
+- Native dependencies (e.g. `better-sqlite3`) are prebuilt during the build stage; runtime images do not include `python3`, `make`, or `g++`. The runtime image carries only what the running process needs.
+- Every long-running container image declares a `HEALTHCHECK` so orchestration can detect a hung process without relying on TCP-level signals alone.
 
 Trade-offs:
 
@@ -729,6 +745,10 @@ Trade-offs:
 
 - Hard-deleting events and news items simplifies the cleanup job and eliminates grace-period configuration for those entities at the cost of no admin undo for those deletions (confirmation dialogs are the safeguard).
 
+Requirements:
+
+- The retention-cleanup job runs on the documented cadence and is part of the standard runtime, not an optional add-on. It permanently purges PII from soft-deleted member rows past the configured grace period, hard-deletes rows whose retention window has elapsed, and writes an audit-log entry per affected row. Loss of the job's last successful run past a configured threshold raises an alarm.
+
 Impact:
 
 - Controllers and services apply each entity's defined lifecycle action: grace-period deletion via deleted_at for members, status = 'archived' for clubs, and immediate hard delete for events (without results), news items, and media.
@@ -886,27 +906,29 @@ Impact:
 
 Decision:
 
-Use AWS S3 default encryption (SSE-S3).
+S3 buckets that hold application data (database snapshots, member-uploaded media, curated media, error pages) use SSE-KMS with the project KMS customer-managed key. The local SQLite database file on the Lightsail instance is stored unencrypted as an explicit deployment trade-off; mitigations include restricted instance access, least-privilege IAM, OS hardening, and encrypted S3 backups with defined retention.
 
 Rationale:
 
-- SSE-S3 uses AES-256 encryption with Amazon S3-managed keys.
+- Customer-managed KMS keys allow operator-controlled rotation, scoped key policies, and a CloudTrail audit trail for every decrypt operation; SSE-S3 (AWS-managed keys) provides none of these.
+- KMS-scoped policies restrict which principals can decrypt a given bucket's objects independently of the bucket policy, which limits blast radius if a runtime credential is compromised.
+- The application reads and writes through the standard S3 SDK; SSE-KMS is transparent at the data path and adds no application-side encryption code.
 
-- Enabled by default on all S3 buckets.
+Requirements:
 
-- Zero configuration or cost required.
+- Every S3 bucket holding application data sets `bucket-key-enabled` and a default-encryption rule that selects SSE-KMS with the project key, so any object written via any client lands encrypted under the managed key.
+- The KMS key policy grants `kms:Encrypt`, `kms:Decrypt`, and `kms:GenerateDataKey` only to the runtime principals that need them per bucket. Tally-side ballot decryption uses a separate key per §3.7.
+- Bucket policies deny `s3:PutObject` requests that select a different SSE algorithm, so a misconfigured client cannot write SSE-S3 objects into a bucket that should be SSE-KMS.
 
-- Transparent to application (encryption/decryption automatic).
+Trade-offs:
 
-- Meets security requirements for non-regulated data.
+- SSE-KMS adds per-request KMS API calls (mitigated by the bucket-key feature, which amortizes the data key over many objects) and a small monthly KMS charge per active key.
+- Operator burden grows by one KMS key per environment plus its rotation cadence; offset by the security gain of operator-controlled rotation and the audit trail.
 
-Alternative Considered:
+Impact:
 
-- SSE-KMS with customer-managed keys: Rejected due to added complexity, cost, and key rotation overhead, not justified for this use case.
-
-Implementation:
-
-- S3 buckets have default encryption enabled for data backup snapshots. Local SQLite database file on the instance is stored unencrypted as an explicit MVP trade-off; mitigations include restricted instance access, least-privilege IAM, OS hardening/patching, and encrypted S3 backups with defined retention.
+- Terraform bucket creation references the KMS key; new buckets that hold application data inherit the SSE-KMS default automatically.
+- Local SQLite remains unencrypted on the Lightsail volume; the property the platform actually relies on is "no plaintext leaves the host", and that property is satisfied by the SSE-KMS backups plus host-access controls.
 
 ## 2.8 System Member Account
 
@@ -1018,6 +1040,11 @@ Rationale:
 
 - We already rely on other strong controls: IAM, HTTPS, limited blast radius.
 
+Requirements:
+
+- Submitted passwords are length-capped at 128 bytes before hashing so a multi-megabyte password body cannot drive argon2id into a denial-of-service path.
+- argon2id parameters (memory, iterations, parallelism) are pinned in code constants and recorded in the stored hash via a version tag, so older hashes can be re-derived to current cost on next login without ambiguity.
+
 Trade-offs:
 
 - If an attacker obtains the hashed passwords and has sufficient compute, they can attempt offline cracking. This risk is mitigated by strong hashing parameters and general AWS hardening.
@@ -1057,6 +1084,10 @@ Rationale:
 - Immediate cross-device logout on password change.
 
 - The per-request member read is the only stateful component and provides essential security.
+
+Requirements:
+
+- Session cookie `secure` flag is derived from the deployment's TLS posture (e.g. the `PUBLIC_BASE_URL` scheme), not from `NODE_ENV`, so a non-TLS deployment never sees the cookie sent and a TLS deployment cannot accidentally expose it over plain HTTP.
 
 Trade-offs:
 
@@ -1101,6 +1132,8 @@ Requirements:
 - All state-changing operations use POST.
 
 - JSON-only routes (webhooks and explicitly-designated JSON-only progressive-enhancement endpoints) validate Content-Type: application/json.
+
+- Forms that change auth state (login, logout, password change, password reset, email change, account-claim confirm) carry a per-session synchronizer token alongside the SameSite=Lax defense. The synchronizer covers the residual cross-site POST surface that SameSite=Lax does not (top-level navigations, browser bugs, and historical edge cases).
 
 Trade-offs:
 
@@ -1171,6 +1204,11 @@ Rationale:
 - Lightsail has no EC2 instance profile; KMS integration is simpler on EC2 (instance profile attaches automatically) and requires explicit runtime credential wiring on Lightsail (see §7.2). The offline-forgery protection of non-exportable HSM-backed key material is worth that wiring cost for session signing.
 - Private key material never leaves KMS/HSM. A container compromise cannot exfiltrate a reusable signing key. Public-key verification is fast and can be done in-process without KMS round trips.
 
+Requirements:
+
+- The KMS key policy for the JWT signing key grants only the specific principals and actions required for signing and public-key retrieval. The broad `kms:*` allow-root statement is removed; root retains administrative access via account-level IAM, not via the key policy itself.
+- The signing key has a documented rotation cadence. An alarm fires when a key passes its rotation deadline without a successor, so silent staleness cannot accrue.
+
 Trade-offs:
 
 - Container compromise can still sign tokens while the runtime AWS credentials for the assumed runtime role remain usable (an attacker can still call KMS Sign through that role). KMS prevents offline forging after incident response because the private key is non-exportable.
@@ -1218,6 +1256,11 @@ KMS is used for:
 
 - JWT signing (`kms:Sign`, `kms:GetPublicKey`) – no JWT signing secret is stored in Parameter Store.
 - Ballot envelope encryption (`kms:GenerateDataKey`, `kms:Decrypt` in tally role only) – no ballot master key is stored in Parameter Store.
+
+Requirements:
+
+- Operator commands that pass secret values on the CLI (e.g. `aws ssm put-parameter --type SecureString`) use a shell-history-safe pattern: `--value file://path-to-tempfile` or `--cli-input-json file://...`, not a literal `--value <secret>` argument that lands in `~/.bash_history` and process listings.
+- `INTERNAL_EVENT_SECRET` is required in every environment that accepts image-worker callbacks (or any other internal-origin webhook), not only when storage mode is S3. The shared-secret gate is a property of the callback channel, not of the storage backend.
 
 Trade-offs:
 
@@ -1316,6 +1359,10 @@ Validation: A presented token is hashed and compared to stored hashes; validatio
 
 Cleanup: A background cleanup job runs daily to delete expired or consumed token rows (tokens older than 7 days).
 
+Requirements:
+
+- URL-path redaction in request logs covers every token-bearing route (email-verify, password-reset, data-export, account-claim, and any future token-in-path additions). The redactor is a single helper module, and any new token-in-path route registers its pattern with the helper so logs cannot leak a usable token via path emission.
+
 Impact: Token generation/validation logic is centralized in an AuthService helper to avoid copy/paste drift across flows (verification, reset, onboarding).
 
 ## 3.9 Security, Privacy, and Historical Record Governance
@@ -1362,6 +1409,12 @@ The platform handles real people's competitive history, identity, and contact in
 Public historical records are legitimate and required: the footbag community's history belongs to the community. But historical discoverability is categorically different from current-member discoverability. The platform must maintain that distinction explicitly in both code and docs.
 
 For normative policy detail, implementation rules, and reference tables, see `docs/GOVERNANCE.md`.
+
+Requirements:
+
+- Historical-pipeline outputs that feed the database carry no member email addresses. Email addresses arrive only via member self-claim. The pipeline's intermediate artifacts and committed CSVs are scrubbed of email columns before they enter the working tree. If a pipeline output reaches the working tree containing email PII, the leak is purged from history (filter-repo, force-push, GitHub Support cache invalidation) before any public exposure.
+- A working GDPR Article 17 erasure path exists pre-launch covering the primary database, any read replicas, backup snapshots (via the erasure log re-application from §1.2), and any search or derived-stat indices. Erasure that fails on any of those surfaces is a launch-blocker.
+- Anonymization tooling for production-data sharing exists and is documented. Production data is not shared with developers, support contractors, or external auditors without first running the anonymization tool against the snapshot. Sharing a raw production export is not a permitted operator path.
 
 Cross-references:
 
@@ -1444,6 +1497,7 @@ Requirements:
 
 - Integration tests assert the helmet header set on a representative public route and a health route (`tests/integration/security-headers.test.ts`).
 - HSTS preload is conditional on the custom domain landing; with the CloudFront default URL as the public host, preload is off because the `*.cloudfront.net` domain is not eligible for the HSTS preload list.
+- Authenticated responses are served without `Content-Encoding: gzip` or `br`. Compression of bodies that mix attacker-controlled and secret content is the BREACH side channel; the authenticated middleware path disables compression rather than relying on per-route discipline.
 
 Trade-offs:
 
@@ -1472,6 +1526,7 @@ Requirements:
 - nginx container receives `PUBLIC_BASE_URL` via compose env (`docker/docker-compose.prod.yml` fail-fast `:?`; `docker/docker-compose.yml` defaults to `http://localhost`).
 - `40-render-nginx-conf.sh` derives `PUBLIC_HOST` from `PUBLIC_BASE_URL` (strips scheme, port, path), validates the result as `[a-z0-9.-]+`, and substitutes via sed into both `proxy_set_header Host` directives.
 - `PUBLIC_BASE_URL` is the same canonical-host source the app reads via `config.publicBaseUrl`, so nginx and Express agree by construction.
+- The production `server` block lists the canonical hostnames in `server_name` explicitly. The catch-all `_` virtualhost is not used in production; an unrecognized `Host` header reaches the default-deny path rather than the application.
 
 Trade-offs:
 
@@ -1518,6 +1573,9 @@ Requirements:
 - Every controller route validates body, query parameters, and route parameters against a schema before invoking the service layer.
 - Schemas live alongside the route handler so the contract and the consumer stay in sync.
 - HTML form re-renders preserve the user's submitted values on validation failure so a single typo does not erase a long form.
+- The post-login redirect-path validator (`isSafePath` and equivalents) rejects any path containing a backslash character in addition to its existing scheme and prefix rules, closing the Windows-style path-confusion class that pure forward-slash checks miss.
+- Every `sharp(...)` constructor passes `limitInputPixels` bounded to a documented maximum (default 4000 x 4000) so a maliciously dimensioned image cannot allocate a multi-gigabyte pixel buffer before downstream validation runs.
+- nginx `client_max_body_size` is set to match the application-layer upload limits and is reduced once the upstream WAF lands. The perimeter never accepts a body larger than the application is willing to process.
 
 Trade-offs:
 
@@ -1569,6 +1627,9 @@ Requirements:
 - A single sanitization helper module exports the pipeline functions. Controllers and services call the helpers, not ad-hoc string operations.
 - Template engine configuration enforces escape-by-default. An integration test asserts that a known XSS payload appears HTML-encoded in rendered output.
 - Sanitization-pipeline unit tests cover each step's edge cases (invalid UTF-8, decomposed Unicode, embedded HTML, control characters, oversized inputs, RTL, combining diacriticals).
+- Templates render hrefs through escape-by-default `{{href}}`. Triple-mustache `{{{href}}}` is reserved for trusted admin-controlled content and is not used for anything derived from user input or external URLs.
+- `marked` output is server-side sanitized (DOMPurify-equivalent allowlist) before reaching the template. Rendered markdown is treated as untrusted regardless of the source field, so a future field that opts into markdown does not bypass the sanitizer.
+- JSON data islands serialized into HTML escape `</` to `<\/` so a script-close substring inside payload data cannot terminate the surrounding `<script>` block. The escaping helper is centralized; ad-hoc `JSON.stringify` calls inside templates are not used for data-island emission.
 
 Trade-offs:
 
@@ -2064,6 +2125,11 @@ Rationale:
 - A dedicated `noreply@` sender preserves the convention that transactional messages are not a reply channel. Members who need to respond are directed to the appropriate purpose-specific address.
 - Privacy and legal requests (GDPR export, CCPA deletion, copyright inquiries, trademark questions) are consolidated under `admin@footbag.org`; the `/legal` page surfaces this address in all three sections.
 
+Requirements:
+
+- Outbound email uses an SES domain identity (not a single verified address) with DKIM signing enabled, an SPF record published for the sending domain, and a DMARC policy of at least `quarantine` aligned with the sending identity. Bounce and complaint handling consume SES feedback notifications.
+- The application's IAM grant to SES is scoped to the verified sending identity (`ses:SendEmail`, `ses:SendRawEmail` on the configured From-address ARN) and the specific actions the application uses, not `ses:*` on `*`. The Configuration Set used for sending is named explicitly in the policy.
+
 Trade-offs:
 
 - Additional alias configuration at Cloudflare Email Routing (one forwarding rule per receive address rather than one catch-all). Cloudflare Email Routing provides forwarding only, with no hosted mailboxes or shared web UI; if a role address later needs collaborative shared-inbox workflows, a hosted provider (for example Google Workspace, Fastmail, Zoho Mail) may replace Cloudflare for that specific address without changing the canonical list.
@@ -2173,6 +2239,12 @@ Rationale:
 - Archive is immutable so extremely long cache is safe.
 
 - For OAC-fronted S3 origins, omitting `origin_request_policy_id` is required because S3 uses the `Host` header for virtual-host bucket routing and OAC overrides only `Authorization`. Forwarding the viewer's `Host` (the CloudFront edge domain) to S3 makes S3 unable to identify the bucket and return generic `NotFound` before bucket policy evaluation.
+
+Requirements:
+
+- Every CloudFront distribution pins viewer minimum TLS protocol to `TLSv1.2_2021` (or higher). The protocol version is set in Terraform; CloudFront viewer settings are not modified via the AWS Console.
+- A WAFv2 web ACL is attached to the public CloudFront distribution. The ACL covers the AWS managed common rule set and a rate-based rule sized to the platform's traffic profile, with override-counts and metrics scoped per rule for tuning.
+- CloudFront access logs and S3 server access logs (for OAC-fronted buckets) are enabled and shipped to a dedicated log bucket whose lifecycle matches the retention windows in §1.2.
 
 Trade-offs:
 
@@ -2302,6 +2374,12 @@ Rationale:
 - The imported-row model preserves legacy identity without granting premature access. Mailbox verification is the minimal proof step that is both secure and feasible given the data available.
 - Club bootstrap ensures clubs are present on day one. Leaders can manage clubs once they register.
 - Ledger-only tier handling eliminates the cache-sync complexity that existed in earlier designs and makes imported-row tier state auditable from day one.
+
+Requirements:
+
+- Bulk loaders default to dry-run. An explicit `--apply` flag is required to write, and every apply emits an audit CSV (rows changed, before/after values for non-trivial mutations) plus a rollback SQL script before the transaction commits. A loader cannot mutate the database without producing both artifacts.
+- Synthetic preview or demo seed fixtures (e.g. the Footbag-Hacky preview profile) are gated behind an environment flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`). Production loaders do not include them by default and the flag is not set in the production environment.
+- Loaders enforce foreign-key checks (`PRAGMA foreign_keys = ON`); a loader cannot disable FK enforcement to land data. A row that violates a foreign key is a loader bug to fix, not a constraint to bypass.
 
 Trade-offs:
 
@@ -2563,6 +2641,13 @@ External-platform reference videos (YouTube and Vimeo) are linked rather than em
 
 Availability of external-platform reference URLs is verified via the platform oEmbed endpoint (`https://www.youtube.com/oembed?url=...&format=json` for YouTube; `https://vimeo.com/api/oembed.json?url=...` for Vimeo) at every ingestion path (operator-run curator seed, admin act-as upload, one-shot migration scripts). Page-URL HEAD checks are insufficient because both platforms serve HTTP 200 for removed, private, or unavailable videos, and YouTube serves a generic placeholder for the derived `i.ytimg.com/vi/{video_id}/hqdefault.jpg` thumbnail of some removed videos. Sidecars whose oEmbed call fails are rejected at ingestion. Verification runs at ingest only; stale URLs that decay post-ingest surface as broken thumbnails and are corrected by removing or rehosting the affected sidecar.
 
+Requirements:
+
+- The image-worker container holds no AWS credentials. The web container generates short-lived presigned GET URLs (read source) and PUT URLs (write final variants) and passes them to the worker. The worker's only AWS-network exposure is via those signed URLs, so a worker compromise cannot enumerate or delete S3 objects outside the per-job key set.
+- Presigned PUT URLs use the lowest TTL that still covers the upload window (single-digit minutes). The `/sign` controller does not issue long-lived URLs and does not pre-sign keys outside the active job.
+- User-facing error messages from the transcode pipeline truncate ffmpeg stderr to a documented byte limit and never include filesystem paths or container-internal identifiers. Full stderr is written to the worker log, not surfaced to the browser.
+- `markDeadLetter` writes a NULL `body_text` (or equivalent payload-stripped marker) when the failure cause is suspected payload toxicity, so the dead-letter table cannot itself become a malware-replay vector when an operator triages the queue.
+
 ## 6.9 Voting
 
 This is not an external service integration, except to the extent that we rely on AWS. Voting is implemented entirely in-house. This section is grouped with external services for structural convenience only; no third-party voting service is used. AWS KMS (an external service) is used for ballot encryption.
@@ -2661,6 +2746,14 @@ Rationale:
 - A documented AssumeRole-based runtime model preserves temporary credentials and least privilege without removing the existing AWS integrations from the design.
 - Even if there is only one operator initially, the named-account / per-key model avoids future shared-access cleanup when additional System Administrators are onboarded.
 
+Requirements:
+
+- Deploy SSH uses a pinned `known_hosts` file with `StrictHostKeyChecking=yes`. First-use TOFU is not used for production deploys; an unrecognized host fingerprint fails the deploy and forces an out-of-band fingerprint check before the operator updates the pin.
+- The production `app_runtime` IAM role's trust policy follows the same source-profile / external-id pattern documented for staging. There is no asymmetric privilege between the two environments; a difference in trust policy is a bug to reconcile, not a feature.
+- systemd units run with hardening directives (`ProtectSystem=strict`, `NoNewPrivileges=true`, `PrivateTmp=true`, and the equivalent file and network restrictions appropriate to the unit) and a documented start-rate limit so a crash loop cannot overwhelm the host.
+- Operator scripts that read deployed env files use a dedicated key-reader (parses one key, prints one value) rather than `sudo cat <env-file> | grep`. Cached `sudo` credentials must not flow stdin into a generic command that could leak the file contents into outputs or logs.
+- Scripts that edit env files in place (sed `-i.bak` and equivalents) delete the `.bak` artifact on exit via a shell trap, so a failed script run cannot leave a credential-bearing backup file on the host filesystem.
+
 Trade-offs:
 
 - SSH requires opening port 22 to approved operator source IPs and maintaining that allowlist deliberately.
@@ -2754,6 +2847,21 @@ Rationale:
 
 - GitHub is the standard place to store project code and track code changes.
 
+Requirements:
+
+- Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `packages: write` for the GHCR publish step). Default-write tokens are not used.
+- GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference.
+- Dependabot is enabled for npm, GitHub Actions, and Docker base images. Security-only updates may auto-merge after CI; ecosystem updates land via review.
+- CodeQL (or equivalent SAST) runs on every PR and on a weekly schedule against `main`.
+- The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
+- A `CODEOWNERS` file routes review requirements for security-sensitive paths (`src/middleware/`, `src/adapters/`, `terraform/`, `.github/workflows/`, `docker/`).
+- Project MCP server entries (`.mcp.json`) pin server packages to a specific version, not `@latest`. A version bump is a reviewed PR, not a transparent upstream change.
+- Security-critical npm dependencies (`argon2`, `helmet`, `marked`, `better-sqlite3`, `express`) are pinned exactly in `package.json` (no `^` or `~`). The lockfile is the canonical source for transitive versions.
+- Test-only packages (e.g. `@playwright/test`) live under `devDependencies`, never `dependencies`. Production images do not install dev dependencies.
+- Repo git hooks live under `.githooks/` and are activated by `git config core.hooksPath .githooks`. The pre-commit hook runs `gitleaks --staged` so a secret cannot be committed without the operator explicitly overriding the hook.
+- A release workflow emits an SPDX or CycloneDX SBOM as a release artifact alongside the published images.
+- OpenSSF Scorecard runs in CI on a weekly schedule against `main`; the score and any regressions are surfaced to the maintainer.
+
 Trade-offs:
 
 - None. GitHub is standard and works great.
@@ -2803,6 +2911,11 @@ Required IAM permissions for dev profile:
 - S3: Limited to dev/test buckets only (no production access for devs).
 
 - Stripe: Test mode API keys only (no live keys in dev environments).
+
+Requirements:
+
+- Project AI-agent hooks (under `.claude/hooks/`) deny `git -C <path> commit` and equivalent path-form invocations, not only the unprefixed form. An agent cannot bypass the commit prohibition by changing working directory or by passing `-C`.
+- Project AI-agent hooks deny unbounded `UPDATE` and `DELETE` statements (no `WHERE` clause) against the dev database, with an explicit allowlist for migration scripts. Bulk mutation is operator-explicit, not agent-implicit.
 
 Trade-offs:
 
@@ -2876,6 +2989,10 @@ Impact:
 
 - Logs MUST redact tokens, JWTs, cookies, Stripe secrets, webhook signatures, AWS access key IDs and secret access keys, the value of `SESSION_SECRET`, raw JWT cookie values, and any §3.8 single-use account-security token (email verify, password reset, data export, legacy claim) regardless of whether the token appears in URL path, query string, or request body; use allowlist logging; never log raw email or full message subjects. KMS key ARNs are not secrets but should not be logged at request scope.
 
+Requirements:
+
+- AWS CloudTrail is enabled in the project account with management events (and S3 data events for the audit-log bucket) delivered to a dedicated audit-log bucket, retained per the §1.2 log-archive retention window. The audit-log bucket is separate from the application logs bucket and has restricted write/delete permissions so a compromised runtime credential cannot tamper with the audit trail.
+
 ## 8.2 Monitoring and Alerting
 
 Decision:
@@ -2927,6 +3044,11 @@ Rationale:
 - The CloudWatch origin-spike alarm is the detective backstop for general traffic floods that bypass form-based gates, such as unauthenticated GET storms. Application controls block; the alarm escalates anything that gets through.
 
 - Community scale doesn't justify a managed WAF.
+
+Requirements:
+
+- Authenticated member-search endpoints enforce a search-specific rate limit (per-IP and per-member quotas) stricter than the baseline anonymous/authenticated limits, defending against scraping the member directory at the legitimate-traffic threshold without exceeding it.
+- Every member-search query writes an immutable, privacy-safe audit log entry (actor member id, query hash, result count, timestamp; no IP, no raw query string). Abusive search patterns are detectable post-hoc and a privacy-impacting search surface remains accountable.
 
 Trade-offs:
 
@@ -3236,6 +3358,13 @@ Canonical pattern: idempotent scripts in `scripts/` are reviewable, version-cont
 Secrets Management:
 
 Terraform creates Parameter Store parameters (paths and metadata) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set manually via AWS CLI or secure deployment pipeline after Terraform creates parameter structure. Terraform references secrets via parameter names; actual values never appear in `.tf` files or state files. JWT signing keys and ballot encryption keys use AWS KMS (non-exportable key material) and are provisioned via Terraform KMS resources; they are never stored in Parameter Store.
+
+Requirements:
+
+- Terraform backend configuration uses `-backend-config` placeholders for environment-specific identifiers (state bucket suffix, lock table name). Literals do not appear in checked-in `terraform/<env>/backend.tf`; each environment supplies its values at `terraform init` time so the same `backend.tf` file works for any future environment.
+- Deploy scripts read environment-specific identifiers (CloudFront distribution ID, S3 bucket names, KMS key IDs) from environment variables or `terraform output`, not from hardcoded constants in script source. A new environment does not require editing a script literal.
+- Terraform shared/global state (the `terraform/shared/` workspace) lives outside the repo working tree (separate clone, separate workspace, or external mount). The state files cannot be accidentally committed to the application repo by a `git add -A`.
+- `terraform/staging/providers.tf` and `terraform/production/providers.tf` declare the same `required_version` and the same provider version constraints. A required-version bump is a coordinated PR that touches both files in the same commit.
 
 Trade-offs:
 

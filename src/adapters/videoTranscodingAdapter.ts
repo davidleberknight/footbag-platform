@@ -17,8 +17,16 @@
  */
 import { config } from '../config/env';
 import type { TranscodedVideo } from '../lib/videoProcessing';
+import { getMediaStorageAdapter, type MediaStorageAdapter } from './mediaStorageAdapter';
 
 export type { TranscodedVideo } from '../lib/videoProcessing';
+
+// 5 minutes is comfortably more than any realistic image-worker dispatch +
+// fetch round-trip and well under any TTL ceiling. Worker-internal use only;
+// not user-facing.
+const PRESIGN_TTL_SECONDS_DEFAULT = 300;
+
+const PUT_CONTENT_TYPE_VIDEO = 'video/mp4';
 
 export interface VideoTranscodeFromStorageResult {
   outputKey: string;
@@ -62,12 +70,18 @@ interface TranscodeVideoResponse {
 
 export function createHttpVideoTranscodingAdapter(opts: {
   baseUrl: string;
+  mediaStorage: MediaStorageAdapter;
+  internalSecret: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  presignTtlSeconds?: number;
 }): VideoTranscodingAdapter {
   const baseUrl = opts.baseUrl.replace(/\/$/, '');
+  const mediaStorage = opts.mediaStorage;
+  const internalSecret = opts.internalSecret;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 300000;
+  const presignTtl = opts.presignTtlSeconds ?? PRESIGN_TTL_SECONDS_DEFAULT;
 
   async function callWorker(data: Buffer): Promise<TranscodedVideo> {
     const controller = new AbortController();
@@ -76,7 +90,10 @@ export function createHttpVideoTranscodingAdapter(opts: {
     try {
       res = await fetchImpl(`${baseUrl}/process/video`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'x-internal-secret': internalSecret,
+        },
         body: data as unknown as BodyInit,
         signal: controller.signal,
       });
@@ -112,14 +129,32 @@ export function createHttpVideoTranscodingAdapter(opts: {
     sourceKey: string,
     outputKey: string,
   ): Promise<VideoTranscodeFromStorageResult> {
+    // Presign GET (source) and PUT (output) so the image container handles
+    // opaque, time-bounded URLs only — no AWS credentials in that container.
+    // Web container retains credentials for the presign step. SEC-D02.
+    const [sourceUrl, putUrl] = await Promise.all([
+      mediaStorage.generatePresignedGetUrl(sourceKey, presignTtl),
+      mediaStorage.generatePresignedPutUrl(outputKey, PUT_CONTENT_TYPE_VIDEO, presignTtl),
+    ]);
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let res: Response;
     try {
       res = await fetchImpl(`${baseUrl}/process/video-from-storage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceKey, outputKey }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-secret': internalSecret,
+        },
+        body: JSON.stringify({
+          sourceUrl,
+          putUrl,
+          putContentType: PUT_CONTENT_TYPE_VIDEO,
+          // outputKey is echoed in the worker's response for caller-side audit
+          // log convenience; the worker itself has no S3 path semantics.
+          outputKey,
+        }),
         signal: controller.signal,
       });
     } catch (err: unknown) {
@@ -158,8 +193,16 @@ let singleton: VideoTranscodingAdapter | null = null;
 
 export function getVideoTranscodingAdapter(): VideoTranscodingAdapter {
   if (!singleton) {
+    const internalSecret = config.internalEventSecret;
+    if (!internalSecret) {
+      throw new Error(
+        'INTERNAL_EVENT_SECRET not configured; cannot reach image worker',
+      );
+    }
     singleton = createHttpVideoTranscodingAdapter({
       baseUrl: config.videoProcessorUrl,
+      mediaStorage: getMediaStorageAdapter(),
+      internalSecret,
       timeoutMs: config.videoTranscodeTimeoutMs,
     });
   }

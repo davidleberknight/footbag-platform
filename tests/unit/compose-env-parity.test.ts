@@ -379,6 +379,53 @@ describe('docker-compose.prod.yml structural invariants', () => {
     expect(overlay.services.worker.restart).toBe('unless-stopped');
   });
 
+  // Long-term contract: the image container holds NO AWS credentials. The
+  // from-storage video transcode route receives presigned GET + PUT URLs
+  // from the web container and uses fetch() against those opaque URLs.
+  // Eliminates SEC-D02 (untrusted ffmpeg/Sharp runtime holding source-profile
+  // keys); structurally moots SEC-A17 (no S3 path semantics in the worker).
+  it('image service has no /root/.aws bind mount in prod (SEC-D02)', () => {
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const volumes = (overlay.services.image as { volumes?: string[] }).volumes ?? [];
+    for (const v of volumes) {
+      expect(v).not.toMatch(/\/root\/\.aws/);
+    }
+  });
+
+  it('image service does not receive AWS_PROFILE or MEDIA_STORAGE_S3_BUCKET in prod (SEC-D02)', () => {
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const env = normalizeEnv(overlay.services.image.environment);
+    // Bare existence of the keys is what compose injects — even with empty
+    // values they're set in the container env. Both must be absent.
+    expect(env.AWS_PROFILE).toBeUndefined();
+    expect(env.MEDIA_STORAGE_S3_BUCKET).toBeUndefined();
+    expect(env.AWS_REGION).toBeUndefined();
+  });
+
+  // Long-term contract: every container that calls or serves /process/* on
+  // the image worker has INTERNAL_EVENT_SECRET plumbed through, matching the
+  // INTERNAL_EVENT_SECRET seam already in use between web and worker. The
+  // image worker enforces x-internal-secret on /process/* (SEC-A12); web
+  // and worker callers must therefore have the secret available to set it.
+  it('INTERNAL_EVENT_SECRET is plumbed to image service in prod (SEC-A12)', () => {
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const env = normalizeEnv(overlay.services.image.environment);
+    expect(env.INTERNAL_EVENT_SECRET).toBeDefined();
+    expect(env.INTERNAL_EVENT_SECRET).toContain('INTERNAL_EVENT_SECRET');
+  });
+
+  it('INTERNAL_EVENT_SECRET resolves on image, web, and worker under staging fixture', () => {
+    const base = loadCompose('docker/docker-compose.yml');
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const merged = mergeCompose(base, overlay);
+    for (const svc of ['web', 'worker', 'image'] as const) {
+      const env = resolveServiceEnv(merged.services[svc], STAGING_FIXTURE);
+      expect(env.INTERNAL_EVENT_SECRET, `${svc}.INTERNAL_EVENT_SECRET`).toBe(
+        STAGING_FIXTURE.INTERNAL_EVENT_SECRET,
+      );
+    }
+  });
+
   it('memory limits match documented nano_3_0 values', () => {
     // Documented in the compose file's deviation comments. If these
     // change, update the compose-file comments alongside.

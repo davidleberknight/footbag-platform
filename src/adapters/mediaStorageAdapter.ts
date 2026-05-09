@@ -57,6 +57,18 @@ export interface MediaStorageAdapter {
     contentType: string,
     expirationSeconds: number,
   ): Promise<string>;
+
+  /**
+   * Return a time-bounded signed URL that grants read access to a single object.
+   * Used by the curator video transcode flow: the web container generates this
+   * URL and hands it to the image-processor container, which fetches the source
+   * bytes anonymously and re-uploads the transcoded result via a separate
+   * presigned PUT URL. Keeps the image container free of AWS credentials.
+   */
+  generatePresignedGetUrl(
+    key: string,
+    expirationSeconds: number,
+  ): Promise<string>;
 }
 
 export function createLocalMediaStorageAdapter(opts: {
@@ -109,6 +121,21 @@ export function createLocalMediaStorageAdapter(opts: {
         'Content-Type': contentType,
       });
       return `/_local-presigned-put/${key}?${params.toString()}`;
+    },
+    // Mirrors generatePresignedPutUrl for the GET case. The image container's
+    // /process/video-from-storage route rejects non-http URLs, so this stub is
+    // never actually fetched at runtime in local-adapter mode. Exists to
+    // satisfy the interface and to keep tests that assert the call site
+    // independent of whether an S3 client is present.
+    async generatePresignedGetUrl(
+      key: string,
+      expirationSeconds: number,
+    ): Promise<string> {
+      const params = new URLSearchParams({
+        'X-Amz-Algorithm': 'LOCAL-STUB',
+        'X-Amz-Expires': String(expirationSeconds),
+      });
+      return `/_local-presigned-get/${key}?${params.toString()}`;
     },
   };
 }
@@ -195,6 +222,16 @@ export function createS3MediaStorageAdapter(opts: {
         expiresIn: expirationSeconds,
         signableHeaders: new Set(['content-type']),
       });
+    },
+    async generatePresignedGetUrl(
+      key: string,
+      expirationSeconds: number,
+    ): Promise<string> {
+      // No Content-Type binding for GET (S3 returns the stored object's type).
+      // Used to hand the image container a read-only, time-bounded view of a
+      // single object so the container can run without any AWS credentials.
+      const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+      return getSignedUrl(client, command, { expiresIn: expirationSeconds });
     },
   };
 }

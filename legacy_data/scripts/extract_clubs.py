@@ -6,8 +6,9 @@ and writes a CSV. Idempotent: skips if the output CSV already exists and is
 newer than this script.
 
 Output columns:
-  legacy_club_key, name, city, region, country, contact_email, contact_member_id,
-  external_url, description, created, last_updated
+  legacy_club_key, name, city, region, country, contact_email (always empty
+  per SEC-S04; never extract personal emails into a public git repo),
+  contact_member_id, external_url, description, created, last_updated
 """
 
 import csv
@@ -35,16 +36,6 @@ FIELDNAMES = [
     "created",
     "last_updated",
 ]
-
-
-def extract_email(tag):
-    """Reconstruct obfuscated email from a <tt> element with interleaved <i> tags."""
-    if tag is None:
-        return ""
-    # Remove all <i> children and concatenate remaining text
-    for i_tag in tag.find_all("i"):
-        i_tag.decompose()
-    return tag.get_text(strip=True)
 
 
 def parse_location(text):
@@ -86,18 +77,20 @@ def extract_club(html_path, legacy_club_key):
     if country == "Basque Country":
         country = "Spain"
 
-    # Email + contact member ID: both inside .clubsContacts. The contact
-    # block contains <a href="../../../members/profile/{ID}/index.html">
-    # identifying the mirror member ID of the person listed as club contact.
-    # Capture the FIRST profile link; if multiple contacts exist, the first
-    # is the primary contact per the mirror page layout.
+    # Contact member ID from the .clubsContacts block: capture the FIRST
+    # profile link's mirror member ID (if multiple contacts exist, the first
+    # is the primary contact per the mirror page layout).
+    #
+    # contact_email is intentionally never populated from the mirror. The
+    # legacy site carries personal email addresses in obfuscated form, and
+    # this CSV is tracked in a public git repository, so extracting them
+    # re-leaks them upstream of every downstream consumer. The column stays
+    # in FIELDNAMES so loaders that bind by name (e.g. load_clubs_seed.py)
+    # keep working unchanged. SEC-S04.
     contact_email = ""
     contact_member_id = ""
     contacts_div = soup.select_one("div.clubsContacts")
     if contacts_div:
-        tt = contacts_div.find("tt")
-        if tt:
-            contact_email = extract_email(tt)
         profile_link = contacts_div.find("a", href=re.compile(r"members/profile/\d+"))
         if profile_link:
             m = re.search(r"members/profile/(\d+)", profile_link.get("href", ""))

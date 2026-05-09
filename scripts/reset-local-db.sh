@@ -9,6 +9,23 @@
 
 set -euo pipefail
 
+# Refuse to run against any environment that smells like staging or production.
+# Positive guards only -- no --force or CI=true escape hatch by design. If you
+# legitimately need to run on one of these conditions, edit the script with
+# informed intent. SEC-DB01.
+_GUARD_DB_PATH="${FOOTBAG_DB_PATH:-./database/footbag.db}"
+if [[ "${NODE_ENV:-}" == "production" ]] \
+  || [[ "${FOOTBAG_ENV:-}" == "production" ]] \
+  || [[ "${FOOTBAG_ENV:-}" == "staging" ]] \
+  || [[ -z "${_GUARD_DB_PATH}" ]] \
+  || [[ "${_GUARD_DB_PATH}" == "/" ]] \
+  || [[ "${_GUARD_DB_PATH}" == /srv/footbag/* ]]; then
+  echo "refusing to reset DB: this script is dev-only." >&2
+  echo "  NODE_ENV=${NODE_ENV:-} FOOTBAG_ENV=${FOOTBAG_ENV:-} FOOTBAG_DB_PATH=${_GUARD_DB_PATH}" >&2
+  exit 2
+fi
+unset _GUARD_DB_PATH
+
 if ! command -v sqlite3 &>/dev/null; then
   echo "Error: sqlite3 CLI not found. Install it first:"
   echo "  Ubuntu/Debian: sudo apt-get install sqlite3"

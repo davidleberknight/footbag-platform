@@ -66,6 +66,29 @@ import {
 const ffmpegAvailable =
   spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 
+// Shared shared-secret used by the auth header on web↔image-worker IPC.
+const TEST_INTERNAL_SECRET = 'test-internal-event-secret';
+
+// Minimal MediaStorageAdapter test double for adapter-construction tests that
+// don't exercise real presigning. Returns deterministic dummy URLs so the
+// from-storage wire-shape test can assert what got sent to the worker.
+function makeFakeMediaStorage(opts: {
+  presignedGet?: (key: string, ttl: number) => Promise<string>;
+  presignedPut?: (key: string, contentType: string, ttl: number) => Promise<string>;
+} = {}): MediaStorageAdapter {
+  return {
+    put: async () => {},
+    get: async () => Buffer.alloc(0),
+    delete: async () => {},
+    constructURL: (key) => `/media-store/${key}`,
+    exists: async () => false,
+    generatePresignedPutUrl: opts.presignedPut ?? (async (key) =>
+      `https://fake-presign.example/${key}?put=1`),
+    generatePresignedGetUrl: opts.presignedGet ?? (async (key) =>
+      `https://fake-presign.example/${key}?get=1`),
+  };
+}
+
 function makeFakeKmsClient(): KMSClient {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
@@ -619,7 +642,7 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
 
   it('round-trips real JPEG bytes through the HTTP boundary', async () => {
     const { fetchImpl, calls } = makeProcessingFakeFetch();
-    const adapter = createHttpImageAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpImageAdapter({ internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     const jpeg = await makeJpeg(100, 80);
 
     const result = await adapter.processAvatar(jpeg);
@@ -650,7 +673,7 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
 
   it('strips a trailing slash from baseUrl', async () => {
     const { fetchImpl, calls } = makeProcessingFakeFetch();
-    const adapter = createHttpImageAdapter({ baseUrl: 'http://fake/', fetchImpl });
+    const adapter = createHttpImageAdapter({ internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake/', fetchImpl });
     await adapter.processAvatar(await makeJpeg());
     expect(calls[0].url).toBe('http://fake/process/avatar');
   });
@@ -658,7 +681,7 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
   it('throws ImageProcessingError on 400 with image-type message', async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 'unrecognized image type' }), { status: 400 });
-    const adapter = createHttpImageAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpImageAdapter({ internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.processAvatar(Buffer.from('not-an-image'))).rejects.toMatchObject({
       name: 'ImageProcessingError',
       status: 400,
@@ -671,7 +694,7 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
   it('throws ImageProcessingError on 503', async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 'busy' }), { status: 503 });
-    const adapter = createHttpImageAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpImageAdapter({ internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.processAvatar(await makeJpeg())).rejects.toMatchObject({
       name: 'ImageProcessingError',
       status: 503,
@@ -689,6 +712,7 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
         });
       });
     const adapter = createHttpImageAdapter({
+      internalSecret: TEST_INTERNAL_SECRET,
       baseUrl: 'http://fake',
       fetchImpl,
       timeoutMs: 50,
@@ -705,7 +729,7 @@ describe('adapter-parity: ImageProcessingAdapter contract', () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('ECONNREFUSED');
     };
-    const adapter = createHttpImageAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpImageAdapter({ internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.processAvatar(await makeJpeg())).rejects.toMatchObject({
       name: 'ImageProcessingError',
     });
@@ -768,7 +792,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
     'round-trips real mp4 bytes through the HTTP boundary',
     async () => {
       const { fetchImpl, calls } = makeTranscodingFakeFetch();
-      const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+      const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
       const mp4 = makeTinyMp4();
 
       const result = await adapter.transcode(mp4);
@@ -790,7 +814,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
     'strips a trailing slash from baseUrl',
     async () => {
       const { fetchImpl, calls } = makeTranscodingFakeFetch();
-      const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake/', fetchImpl });
+      const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake/', fetchImpl });
       await adapter.transcode(makeTinyMp4());
       expect(calls[0].url).toBe('http://fake/process/video');
     },
@@ -799,7 +823,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
   it('throws VideoTranscodingError on 400 with rejected-video message', async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 'unrecognized video format' }), { status: 400 });
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.transcode(Buffer.from('not-a-video'))).rejects.toMatchObject({
       name: 'VideoTranscodingError',
       status: 400,
@@ -810,7 +834,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
   it('throws VideoTranscodingError on 503', async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 'busy' }), { status: 503 });
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.transcode(Buffer.from('payload'))).rejects.toMatchObject({
       name: 'VideoTranscodingError',
       status: 503,
@@ -828,6 +852,8 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
         });
       });
     const adapter = createHttpVideoTranscodingAdapter({
+      mediaStorage: makeFakeMediaStorage(),
+      internalSecret: TEST_INTERNAL_SECRET,
       baseUrl: 'http://fake',
       fetchImpl,
       timeoutMs: 50,
@@ -844,7 +870,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('ECONNREFUSED');
     };
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.transcode(Buffer.from('payload'))).rejects.toMatchObject({
       name: 'VideoTranscodingError',
     });
@@ -852,19 +878,21 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
   });
 
   // ── transcodeFromStorage method ────────────────────────────────────────
-  // The from-storage variant ships only the S3 keys to the image worker
-  // (no source bytes traverse the dispatching process). Tests assert the
-  // wire shape, error mapping, and that the response decodes correctly.
+  // The from-storage variant presigns the S3 GET (source) + PUT (output) on
+  // the web side and ships opaque URLs to the image worker. Bytes never
+  // traverse the dispatching process; the image worker holds no AWS creds.
+  // SEC-D02 / SEC-A17.
 
-  it('transcodeFromStorage: POSTs JSON {sourceKey, outputKey} to /process/video-from-storage', async () => {
-    const calls: Array<{ url: string; method: string; contentType: string; body: string }> = [];
+  it('transcodeFromStorage: presigns sourceKey/outputKey, POSTs URLs + auth header', async () => {
+    const calls: Array<{ url: string; method: string; contentType: string; secret: string; body: string }> = [];
     const fetchImpl: typeof fetch = async (input, init) => {
       const url = typeof input === 'string' ? input : input.toString();
       const method = (init?.method ?? 'GET').toUpperCase();
       const headers = (init?.headers ?? {}) as Record<string, string>;
       const contentType = headers['Content-Type'] ?? headers['content-type'] ?? '';
+      const secret = headers['x-internal-secret'] ?? headers['X-Internal-Secret'] ?? '';
       const body = typeof init?.body === 'string' ? init.body : '';
-      calls.push({ url, method, contentType, body });
+      calls.push({ url, method, contentType, secret, body });
       return new Response(
         JSON.stringify({
           ok: true,
@@ -875,7 +903,29 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
     };
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    // Capture the keys the adapter tries to presign so we can assert it
+    // forwarded the caller's keys to the storage adapter (vs. some other
+    // value being injected upstream).
+    const presignedKeys: { gets: string[]; puts: Array<{ key: string; ct: string }> } = {
+      gets: [],
+      puts: [],
+    };
+    const mediaStorage = makeFakeMediaStorage({
+      presignedGet: async (key) => {
+        presignedKeys.gets.push(key);
+        return `https://fake-presign.example/${key}?get=1`;
+      },
+      presignedPut: async (key, ct) => {
+        presignedKeys.puts.push({ key, ct });
+        return `https://fake-presign.example/${key}?put=1`;
+      },
+    });
+    const adapter = createHttpVideoTranscodingAdapter({
+      mediaStorage,
+      internalSecret: TEST_INTERNAL_SECRET,
+      baseUrl: 'http://fake',
+      fetchImpl,
+    });
     const result = await adapter.transcodeFromStorage(
       'pending/job-x/source.mp4',
       'system_member/detached/media_xxx-video.mp4',
@@ -883,19 +933,68 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
     expect(result.outputKey).toBe('system_member/detached/media_xxx-video.mp4');
     expect(result.outputFormat).toBe('mp4');
     expect(result.outputBytes).toBe(12345);
+
+    // Caller's keys reached the storage adapter for presigning.
+    expect(presignedKeys.gets).toEqual(['pending/job-x/source.mp4']);
+    expect(presignedKeys.puts).toEqual([
+      { key: 'system_member/detached/media_xxx-video.mp4', ct: 'video/mp4' },
+    ]);
+
+    // Worker received URLs + auth header, not the raw keys.
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('http://fake/process/video-from-storage');
     expect(calls[0].method).toBe('POST');
     expect(calls[0].contentType).toBe('application/json');
-    const parsed = JSON.parse(calls[0].body) as { sourceKey: string; outputKey: string };
-    expect(parsed.sourceKey).toBe('pending/job-x/source.mp4');
+    expect(calls[0].secret).toBe(TEST_INTERNAL_SECRET);
+    const parsed = JSON.parse(calls[0].body) as {
+      sourceUrl?: string;
+      putUrl?: string;
+      putContentType?: string;
+      sourceKey?: string;
+      outputKey?: string;
+    };
+    expect(parsed.sourceUrl).toBe('https://fake-presign.example/pending/job-x/source.mp4?get=1');
+    expect(parsed.putUrl).toBe('https://fake-presign.example/system_member/detached/media_xxx-video.mp4?put=1');
+    expect(parsed.putContentType).toBe('video/mp4');
     expect(parsed.outputKey).toBe('system_member/detached/media_xxx-video.mp4');
+    // Old wire shape must NOT be present (regression guard for SEC-A17).
+    expect(parsed.sourceKey).toBeUndefined();
+  });
+
+  it('transcodeFromStorage + transcode: every image-worker call carries x-internal-secret', async () => {
+    const seenSecrets: string[] = [];
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      seenSecrets.push(headers['x-internal-secret'] ?? '');
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          outputKey: 'k',
+          outputFormat: 'mp4',
+          outputBytes: 0,
+          bytes: '',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    };
+    const adapter = createHttpVideoTranscodingAdapter({
+      mediaStorage: makeFakeMediaStorage(),
+      internalSecret: TEST_INTERNAL_SECRET,
+      baseUrl: 'http://fake',
+      fetchImpl,
+    });
+    await adapter.transcode(Buffer.from('payload')).catch(() => {});
+    await adapter.transcodeFromStorage('a', 'b').catch(() => {});
+    expect(seenSecrets).toHaveLength(2);
+    for (const s of seenSecrets) {
+      expect(s).toBe(TEST_INTERNAL_SECRET);
+    }
   });
 
   it('transcodeFromStorage: throws VideoTranscodingError on 400 with rejected-job message', async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 'unrecognized video format' }), { status: 400 });
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toMatchObject({
       name: 'VideoTranscodingError',
       status: 400,
@@ -906,7 +1005,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
   it('transcodeFromStorage: throws VideoTranscodingError on 413 (oversized source)', async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 'source object exceeds videoMaxBytes' }), { status: 413 });
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toMatchObject({
       name: 'VideoTranscodingError',
       status: 413,
@@ -916,7 +1015,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
   it('transcodeFromStorage: throws VideoTranscodingError on 502 (s3 get failed)', async () => {
     const fetchImpl: typeof fetch = async () =>
       new Response(JSON.stringify({ error: 's3 get failed: NoSuchKey' }), { status: 502 });
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toMatchObject({
       name: 'VideoTranscodingError',
       status: 502,
@@ -927,7 +1026,7 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('ECONNREFUSED');
     };
-    const adapter = createHttpVideoTranscodingAdapter({ baseUrl: 'http://fake', fetchImpl });
+    const adapter = createHttpVideoTranscodingAdapter({ mediaStorage: makeFakeMediaStorage(), internalSecret: TEST_INTERNAL_SECRET, baseUrl: 'http://fake', fetchImpl });
     await expect(adapter.transcodeFromStorage('a', 'b')).rejects.toThrow(/ECONNREFUSED/);
   });
 
@@ -942,6 +1041,8 @@ describe('adapter-parity: VideoTranscodingAdapter contract', () => {
         });
       });
     const adapter = createHttpVideoTranscodingAdapter({
+      mediaStorage: makeFakeMediaStorage(),
+      internalSecret: TEST_INTERNAL_SECRET,
       baseUrl: 'http://fake',
       fetchImpl,
       timeoutMs: 50,

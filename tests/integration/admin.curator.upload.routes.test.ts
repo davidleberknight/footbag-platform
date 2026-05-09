@@ -114,7 +114,7 @@ beforeAll(async () => {
     );
   };
   adapterMod.setImageProcessingAdapterForTests(
-    adapterMod.createHttpImageAdapter({ baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
+    adapterMod.createHttpImageAdapter({ internalSecret: 'test-internal-event-secret', baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
   );
 
   // Inject a fake video transcoding adapter so ffmpeg is never invoked.

@@ -146,12 +146,10 @@ services:
   image:
     restart: always
     logging: *log-rotation
-    volumes:
-      # AWS credentials for the from-storage video transcode route. The image
-      # worker fetches source video bytes from S3 and uploads the transcoded
-      # result back, so it needs the same source-profile + AssumeRole chain
-      # the web/worker containers use. Read-only mount.
-      - /root/.aws:/root/.aws:ro
+    # No /root/.aws mount: this container holds NO AWS credentials. The from-
+    # storage video transcode route receives presigned GET + PUT URLs from the
+    # web container and uses fetch() against those opaque URLs. Eliminates
+    # SEC-D02 (untrusted ffmpeg/Sharp runtime holding source-profile keys).
     environment:
       NODE_ENV: production
       IMAGE_PORT: "4000"
@@ -167,13 +165,10 @@ services:
       VIDEO_X264_PRESET: ${VIDEO_X264_PRESET:-veryfast}
       VIDEO_X264_THREADS: ${VIDEO_X264_THREADS:-1}
       VIDEO_X264_RC_LOOKAHEAD: ${VIDEO_X264_RC_LOOKAHEAD:-10}
-      # S3 access for the from-storage video transcode route. Required for
-      # MEDIA_STORAGE_ADAPTER=s3 deployments; if unset, /process/video-from-storage
-      # returns 503 and the legacy bytes-in/bytes-out /process/video route
-      # remains available.
-      AWS_PROFILE: ${AWS_PROFILE}
-      AWS_REGION: ${AWS_REGION}
-      MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
+      # Shared secret used by the image worker to authenticate /process/*
+      # callers. Same value as the web<->worker channel; web's adapters set
+      # it on the x-internal-secret header.
+      INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?must be set in /srv/footbag/env (web<->image auth)}
     deploy:
       resources:
         limits:

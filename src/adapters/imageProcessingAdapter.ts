@@ -32,10 +32,12 @@ interface ProcessImageResponse {
 
 export function createHttpImageAdapter(opts: {
   baseUrl: string;
+  internalSecret: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
 }): ImageProcessingAdapter {
   const baseUrl = opts.baseUrl.replace(/\/$/, '');
+  const internalSecret = opts.internalSecret;
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? 30000;
 
@@ -49,7 +51,10 @@ export function createHttpImageAdapter(opts: {
       // copying bytes.
       res = await fetchImpl(`${baseUrl}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/octet-stream' },
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'x-internal-secret': internalSecret,
+        },
         body: data as unknown as BodyInit,
         signal: controller.signal,
       });
@@ -93,8 +98,15 @@ let singleton: ImageProcessingAdapter | null = null;
 
 export function getImageProcessingAdapter(): ImageProcessingAdapter {
   if (!singleton) {
+    const internalSecret = config.internalEventSecret;
+    if (!internalSecret) {
+      throw new Error(
+        'INTERNAL_EVENT_SECRET not configured; cannot reach image worker',
+      );
+    }
     singleton = createHttpImageAdapter({
       baseUrl: config.imageProcessorUrl,
+      internalSecret,
       timeoutMs: config.imageProcessTimeoutMs,
     });
   }

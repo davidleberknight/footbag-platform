@@ -32,6 +32,12 @@ process.env.JWT_LOCAL_KEYPAIR_PATH  ??= path.join(
 );
 process.env.SES_ADAPTER             ??= 'stub';
 process.env.AWS_REGION              ??= 'us-east-1';
+// Required by `getImageProcessingAdapter` and `getVideoTranscodingAdapter`
+// (they refuse to construct without a value, mirroring `transcodeDispatchClient`).
+// Tests that inject fakes via the *ForTests setters never reach this value;
+// it exists so any test that does construct the real adapter doesn't trip the
+// guard. Default is fine because the value never leaves test space.
+process.env.INTERNAL_EVENT_SECRET   ??= 'test-internal-event-secret';
 
 // Seeded preview-user password used by integration tests that insert the
 // Footbag Hacky test account and then authenticate as it. Tests read
