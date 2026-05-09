@@ -94,8 +94,20 @@ def main() -> int:
         print(f"ERROR: database not found at {db_path}", file=sys.stderr)
         return 1
     if not LEADERS_CSV.exists():
-        print(f"ERROR: leaders CSV not found at {LEADERS_CSV}", file=sys.stderr)
-        return 1
+        # Soft-skip: a missing CSV is the expected state on fresh clones,
+        # CI runners that haven't run the classifier, and any environment
+        # where clubs/scripts/04_build_club_bootstrap_leaders.py hasn't
+        # produced its output yet. Returning 0 lets reset-local-db.sh and
+        # run_pipeline.sh proceed without a hard-coded existence guard at
+        # the call site. To populate the table, run the full pipeline
+        # (or 04_build_club_bootstrap_leaders.py directly) and re-run
+        # this loader.
+        print(
+            f"NOTE: leaders CSV not found at {LEADERS_CSV} — skipping load "
+            "(no rows inserted). This is expected before "
+            "04_build_club_bootstrap_leaders.py has produced its output."
+        )
+        return 0
 
     with open(LEADERS_CSV, newline="", encoding="utf-8") as f:
         csv_rows = list(csv.DictReader(f))
