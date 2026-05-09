@@ -344,32 +344,47 @@ describe('GET /freestyle — onboarding + portal landing', () => {
   it('shows the six portal cards (intent-ordered)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('Learn Tricks');
+    expect(res.text).toContain('Tutorials &amp; Learning');
     expect(res.text).toContain('Freestyle World Records');
     expect(res.text).toContain('Competition');
     expect(res.text).toContain('Trick Dictionary');
     expect(res.text).toContain('History &amp; ADD System');
     expect(res.text).toContain('Insights');
-    // Old card title must not survive the rename.
+    // Prior card titles must not survive the renames.
     expect(res.text).not.toContain('Passback Records');
+    expect(res.text).not.toMatch(/<div class="card-title">Learn Tricks<\/div>/);
   });
 
-  it('Learn Tricks card carries the tutorial series + glossary links (not the dictionary card)', async () => {
+  it('Tutorials & Learning card consolidates TT + AnzTrikz tutorial series and surfaces Glossary as a reference', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Both links must be present on the page somewhere.
+    // All three links must be present on the page.
     expect(res.text).toContain('/media/gallery_tricks_of_the_trade');
+    expect(res.text).toContain('/media/gallery_anz_trikz');
     expect(res.text).toContain('/freestyle/glossary');
-    // Tutorial-series link must sit inside the Learn Tricks card, not the
-    // Trick Dictionary card. Verify by anchoring the slice between
-    // "Learn Tricks" and the next card title.
-    const learnIdx = res.text.indexOf('Learn Tricks');
+    // All three must sit inside the Tutorials & Learning card, anchored
+    // between that card title and the next card title.
+    const tutIdx = res.text.indexOf('Tutorials &amp; Learning');
     const recordsIdx = res.text.indexOf('Freestyle World Records');
-    expect(learnIdx).toBeGreaterThan(0);
-    expect(recordsIdx).toBeGreaterThan(learnIdx);
-    const learnSlice = res.text.slice(learnIdx, recordsIdx);
-    expect(learnSlice).toContain('/media/gallery_tricks_of_the_trade');
-    expect(learnSlice).toContain('/freestyle/glossary');
+    expect(tutIdx).toBeGreaterThan(0);
+    expect(recordsIdx).toBeGreaterThan(tutIdx);
+    const tutSlice = res.text.slice(tutIdx, recordsIdx);
+    expect(tutSlice).toContain('/media/gallery_tricks_of_the_trade');
+    expect(tutSlice).toContain('/media/gallery_anz_trikz');
+    expect(tutSlice).toContain('/freestyle/glossary');
+  });
+
+  it('Glossary renders as a subordinate reference link, not as a peer button', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const tutIdx = res.text.indexOf('Tutorials &amp; Learning');
+    const recordsIdx = res.text.indexOf('Freestyle World Records');
+    const tutSlice = res.text.slice(tutIdx, recordsIdx);
+    // Glossary anchor must sit inside the .card-secondary-link paragraph,
+    // NOT the .card-actions button row. The .btn-outline class indicates
+    // peer-button rendering; the glossary link must NOT carry it.
+    expect(tutSlice).toMatch(/class="card-secondary-link"[\s\S]*?\/freestyle\/glossary/);
+    expect(tutSlice).not.toMatch(/<a[^>]*class="btn btn-outline"[^>]*href="\/freestyle\/glossary"/);
   });
 
   it('links to all portal pillar pages', async () => {

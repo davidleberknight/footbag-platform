@@ -182,7 +182,7 @@ Shared (required across all public pages):
 
 - Site frame: `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`, `.site-footer`.
 - Hero: `.hero`, `.hero-sm` (default 36px padding; `.hero` without `.hero-sm` reserved for large-format hero use), `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`. Hero text classes use white with reduced opacity for dark-gradient contrast.
-- Sections, cards, badges, buttons, states, notices: `.section-heading`, `.section-count`, `.card-grid`, `.card`, `.card-title`, `.card-meta`, `.card-description`, `.badge`, `.badge-{published,registration_full,closed,completed}`, `.btn`, `.btn-primary`, `.btn-outline`, `.empty-state`, `.notice`.
+- Sections, cards, badges, buttons, states, notices: `.section-heading`, `.section-count`, `.card-grid`, `.card`, `.card-title`, `.card-meta`, `.card-description`, `.card-actions`, `.card-secondary-link`, `.badge`, `.badge-{published,registration_full,closed,completed}`, `.btn`, `.btn-primary`, `.btn-outline`, `.empty-state`, `.notice`.
 - Notice cards (in-page advisories): `.notice-card` plus variants `.notice-card--info`, `.notice-card--info-blue`, `.notice-card--warn`, `.notice-card--warn-strong`. Distinct from `.notice` (subtle inline text below a section heading).
 - Nav and form utilities: `.nav-logout`, `.nav-logout-btn`, `.form-hint`, `.profile-identity-block`, `.avatar-edit-row`.
 - Spacing utilities (Tailwind-style; 1 unit = 4px): margin-top `.mt-1` through `.mt-10`; margin-bottom `.mb-2` through `.mb-8`; `.m-0`, `.my-4`, `.pt-6`, `.pl-5`. Use these instead of inline `style="margin:..."`.

@@ -434,6 +434,19 @@ th.sortable:hover { color: var(--primary); }
 
 .card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
 
+/* Secondary in-card link — used to position a reference (e.g. Glossary)
+   below tutorial-series buttons without making it a peer button. */
+.card-secondary-link {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.card-secondary-link a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.card-secondary-link a:hover { text-decoration: underline; }
+
 .card-meta {
   font-size: 0.875rem;
   color: var(--text-muted);
