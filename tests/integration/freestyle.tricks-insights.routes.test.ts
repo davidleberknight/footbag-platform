@@ -178,6 +178,25 @@ beforeAll(async () => {
     confidence:    'probable',
   });
 
+  // Curator-reference media (separate from member-uploaded media_items).
+  // Seeds two coverage tiers so the trick-dictionary chip exercises all
+  // three states: 'tutorial' (whirl), 'demo' (legover), 'none' (everything else).
+  db.prepare(`
+    INSERT INTO freestyle_media_sources (source_id, source_name, source_type, url, creator)
+    VALUES ('tt_youtube', 'WorldFootbag YouTube — Tricks of the Trade', 'youtube', NULL, NULL),
+           ('footbag_finland', 'Footbag Finland', 'youtube', NULL, NULL)
+  `).run();
+  db.prepare(`
+    INSERT INTO freestyle_media_assets (id, media_type, url, title, source_id, review_status, is_active)
+    VALUES ('fma-tt-whirl',     'video', 'https://example.test/tt-whirl',     'TT — Whirl',    'tt_youtube',     'curated', 1),
+           ('fma-finland-lego', 'video', 'https://example.test/finland-lego', 'Legover demo',  'footbag_finland', 'curated', 1)
+  `).run();
+  db.prepare(`
+    INSERT INTO freestyle_media_links (media_id, entity_type, entity_id, is_primary)
+    VALUES ('fma-tt-whirl',     'trick', 'whirl',   1),
+           ('fma-finland-lego', 'trick', 'legover', 1)
+  `).run();
+
   db.close();
   createApp = await importApp();
 });
@@ -619,18 +638,36 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).toContain('Unrated / unresolved');
   });
 
-  it('shows the Video available chip on tricks with media coverage', async () => {
+  it('renders a tier-aware media chip on every trick row', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // class hook is enough; we don't assert which trick has media in this fixture.
-    expect(res.text).toMatch(/class="trick-media-chip trick-media-chip--(?:available|missing)"/);
+    // The chip is one of three tier states: tutorial / demo / missing.
+    expect(res.text).toMatch(/class="trick-media-chip trick-media-chip--(?:tutorial|demo|missing)"/);
   });
 
-  it('renders the "No video yet" chip for at least one trick', async () => {
+  it('renders the "No video yet" chip for tricks with no media coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.text).toContain('trick-media-chip--missing');
     expect(res.text).toContain('No video yet');
+  });
+
+  it('renders the "Tutorial available" chip when a trick has tutorial-tier coverage', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // The fixture seeds a freestyle_media_links row pointing whirl at a
+    // tt_youtube asset (tutorial tier). At least one row must carry the
+    // tutorial chip.
+    expect(res.text).toContain('trick-media-chip--tutorial');
+    expect(res.text).toContain('Tutorial available');
+  });
+
+  it('renders the "Demo only" chip when a trick has only demo-tier coverage', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // Fixture seeds a footbag_finland-only row for legover (demo tier).
+    expect(res.text).toContain('trick-media-chip--demo');
+    expect(res.text).toContain('Demo only');
   });
 
   it('renders aliases inline on the row when available', async () => {

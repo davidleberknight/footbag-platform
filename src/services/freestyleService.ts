@@ -1,6 +1,6 @@
 import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
-  FreestyleTrickRowWithStatus, FreestyleTrickAliasRow, FreestyleMediaCoveredSlugRow,
+  FreestyleTrickRowWithStatus, FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
   FreestyleTrickModifierLinkRow,
   FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
   FreestylePartnershipRow,
@@ -432,6 +432,12 @@ export interface FreestyleModifierEntry {
   notes: string | null;
 }
 
+// Three-state media-coverage indicator for the trick-dictionary ADD view:
+//   'tutorial' — at least one tutorial-tier source covers this trick
+//   'demo'     — only demo-tier or record-tier sources cover (no tutorial)
+//   'none'     — no media links exist for this trick
+export type TrickMediaCoverage = 'tutorial' | 'demo' | 'none';
+
 export interface FreestyleTrickIndexRow {
   slug: string;
   canonicalName: string;
@@ -445,7 +451,8 @@ export interface FreestyleTrickIndexRow {
   detailHref: string;           // always /freestyle/tricks/:slug for all dict entries
   hasRecords: boolean;          // true when passback records exist (shows record indicator)
   recordHref: string | null;    // kept for backwards compatibility — same as detailHref when hasRecords
-  hasMedia: boolean;            // freestyle_media_links coverage indicator for the basic ADD view
+  hasMedia: boolean;            // back-compat boolean; equals (mediaCoverage !== 'none')
+  mediaCoverage: TrickMediaCoverage;  // tier-aware coverage classification
   isExternalOnly: boolean;      // true when row is is_active=0 + review_status='pending' (external placeholder)
   statusBadge: string | null;   // pre-shaped status text; null for plain canonical rows
   placeholderNote: string | null; // pre-shaped note rendered under the row when isExternalOnly = true
@@ -720,7 +727,10 @@ function extractModifierSlugs(canonicalName: string, baseTrick: string): string[
 interface TrickIndexShapingContext {
   slugsWithRecords: Set<string>;
   aliasesByTrickSlug: Map<string, string[]>;
-  slugsWithMedia: Set<string>;
+  // Tier-aware media coverage. Map<slug, 'tutorial' | 'demo'>; absence
+  // from the map means 'none'. shapeTrickIndexRow derives the row's
+  // hasMedia boolean and mediaCoverage tier from this lookup.
+  mediaCoverageBySlug: Map<string, TrickMediaCoverage>;
   // Per-row status overrides for the listAllWithPending path; absent when
   // shaping a plain active row (defaults: isActive=1, reviewStatus='curated').
   statusBySlug?: Map<string, { isActive: number; reviewStatus: string }>;
@@ -767,7 +777,8 @@ function shapeTrickIndexRow(
 
   const detailHref = `/freestyle/tricks/${row.slug}`;
   const hasRecords = ctx.slugsWithRecords.has(row.slug);
-  const hasMedia = ctx.slugsWithMedia.has(row.slug);
+  const mediaCoverage: TrickMediaCoverage = ctx.mediaCoverageBySlug.get(row.slug) ?? 'none';
+  const hasMedia = mediaCoverage !== 'none';
 
   let statusBadge: string | null = null;
   let placeholderNote: string | null = null;
@@ -790,6 +801,7 @@ function shapeTrickIndexRow(
     hasRecords,
     recordHref:      hasRecords ? detailHref : null,  // backwards compat
     hasMedia,
+    mediaCoverage,
     isExternalOnly,
     statusBadge,
     placeholderNote,
@@ -1328,11 +1340,24 @@ export const freestyleService = {
       else aliasesByTrickSlug.set(ar.trick_slug, [ar.alias_text]);
     }
 
-    // Media-coverage set — distinct trick slugs with at least one media link.
-    const mediaCoveredRows = runSqliteRead('freestyleMediaLinks.listCoveredTrickSlugs', () =>
-      freestyleMediaLinks.listCoveredTrickSlugs.all() as FreestyleMediaCoveredSlugRow[],
+    // Tier-aware media coverage. For each trick slug, classify by the
+    // strongest source linked to it: tutorial > demo (records collapse
+    // into demo for chip purposes; the trick-detail page differentiates).
+    // Absent slugs → 'none' (handled at lookup site).
+    const mediaCoverageRows = runSqliteRead('freestyleMediaLinks.listCoveredTrickSlugsWithSource', () =>
+      freestyleMediaLinks.listCoveredTrickSlugsWithSource.all() as FreestyleMediaCoveredSourceRow[],
     );
-    const slugsWithMedia = new Set(mediaCoveredRows.map(r => r.slug));
+    const mediaCoverageBySlug = new Map<string, TrickMediaCoverage>();
+    for (const r of mediaCoverageRows) {
+      const isTutorial = TUTORIAL_SOURCE_IDS.has(r.source_id);
+      const current = mediaCoverageBySlug.get(r.slug);
+      // 'tutorial' wins over 'demo'; once tutorial set, never downgrade.
+      if (isTutorial) {
+        mediaCoverageBySlug.set(r.slug, 'tutorial');
+      } else if (current !== 'tutorial') {
+        mediaCoverageBySlug.set(r.slug, 'demo');
+      }
+    }
 
     // Slugs with passback records (record-indicator on rows).
     const publicRows = runSqliteRead('freestyleRecords.listPublic', () =>
@@ -1347,7 +1372,7 @@ export const freestyleService = {
     const ctx: TrickIndexShapingContext = {
       slugsWithRecords,
       aliasesByTrickSlug,
-      slugsWithMedia,
+      mediaCoverageBySlug,
       statusBySlug,
     };
 

@@ -1125,7 +1125,27 @@ export const freestyleMediaLinks = {
     FROM freestyle_media_links
     WHERE entity_type = 'trick'
   `); },
+
+  // Per-trick media-coverage rows joined to source_id. One row per
+  // (trick_slug, source_id) pair (deduped). Drives the tier-aware media
+  // chip on the trick-dictionary ADD view: service classifies each trick
+  // as 'tutorial' (any tutorial-tier source linked), 'demo' (only
+  // demo-/record-tier), or 'none' (no rows here at all).
+  get listCoveredTrickSlugsWithSource() { return db.prepare(`
+    SELECT DISTINCT
+      l.entity_id   AS slug,
+      a.source_id   AS source_id
+    FROM freestyle_media_links AS l
+    INNER JOIN freestyle_media_assets AS a ON a.id = l.media_id
+    WHERE l.entity_type = 'trick'
+      AND a.source_id IS NOT NULL
+  `); },
 };
+
+export interface FreestyleMediaCoveredSourceRow {
+  slug:      string;
+  source_id: string;
+}
 
 export const freestyleTrickModifiers = {
   get listAll() { return db.prepare(`

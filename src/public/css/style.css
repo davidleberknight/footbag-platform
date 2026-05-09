@@ -2130,8 +2130,12 @@ section.home-media { padding-top: 0; }
   padding: 1px 6px;
   border-radius: 3px;
 }
-.trick-media-chip--available { background-color: #ecfdf5; color: #047857; }
+/* tier-aware: tutorial = strong green; demo = softer; missing = muted */
+.trick-media-chip--tutorial  { background-color: #ecfdf5; color: #047857; }
+.trick-media-chip--demo      { background-color: #fef9c3; color: #854d0e; }
 .trick-media-chip--missing   { background-color: #f3f4f6; color: var(--text-muted); }
+/* legacy alias (kept for any consumer still rendering --available) */
+.trick-media-chip--available { background-color: #ecfdf5; color: #047857; }
 
 .trick-status-badge {
   font-size: 0.78rem;
