@@ -310,9 +310,11 @@ See `skills/rebuild-identity-pipeline.md`.
 
 ### AWS staging deploy
 ```
-bash deploy_to_aws.sh                               # default: full rebuild + replace + media (prompts)
+bash deploy_to_aws.sh                               # default: rebuild from committed CSVs, replace staging, sync media (prompts)
 bash deploy_to_aws.sh -k                            # code + media only; staging DB untouched
 bash deploy_to_aws.sh -r                            # ship current local DB as-is
+bash deploy_to_aws.sh --from-csv                    # explicit alias for the default rebuild path
+bash deploy_to_aws.sh --from-mirror                 # soup-to-nuts: regenerate from legacy mirror, then ship
 bash deploy_to_aws.sh -y                            # accept defaults non-interactively (CI)
 bash deploy_to_aws.sh -n                            # dry run
 bash deploy_to_aws.sh -ryW                          # combined: reuse, yes, no S3 wipe
@@ -321,6 +323,9 @@ The root `deploy_to_aws.sh` wrapper handles preflight (tools, SSH alias,
 disk, DB lock, schema drift, credential file) and forwards args to
 `scripts/deploy-to-aws.sh`. With no flags the orchestrator runs the
 default mode (rebuild + replace), prompting before each destructive step.
+The mirror-driven `--from-mirror` path regenerates committed
+`canonical_input/`, `name_variants.csv`, and `seed/` files; review with
+`git status` before pushing.
 
 ---
 

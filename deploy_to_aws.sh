@@ -49,8 +49,9 @@ if (( HAS_MODE == 0 )); then
 fi
 
 # TODO(F.1, prod): production target plumbing is deferred. When terraform/production
-# applies, add a hard-confirm gate here for `--with-db` against any DEPLOY_TARGET
-# matching footbag-prod*. Auto mode is staging-only today.
+# applies, add a hard-confirm gate here for any DB-rebuild mode (default,
+# --from-csv, or --from-mirror) against any DEPLOY_TARGET matching footbag-prod*.
+# Auto mode is staging-only today.
 
 # -----------------------------------------------------------------------------
 # Preflight. Each check exits 1 with a one-line Recommendation. Mode-aware:

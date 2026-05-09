@@ -846,7 +846,7 @@ Use this when the change requires rebuilding and replacing the host DB from scra
 bash deploy_to_aws.sh
 ```
 
-This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB.
+This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. The default rebuild loads the committed canonical CSVs (no mirror access). Pass `--from-csv` to make that explicit. Pass `--from-mirror` to instead run the soup-to-nuts pipeline starting from the legacy mirror; that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
 
 For schema changes against a target with non-disposable data (production), follow the migration runbook in §9.3 instead of Option B.
 
@@ -1163,7 +1163,7 @@ A clean rollback requires both an env revert AND a CloudFront TF revert.
 
 #### Curator media seeding
 
-System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_curator_media.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member. Auto-applies the `#curated` tag on every row.
+System-account-owned content (FH avatar, landing-page demo loops, future illustrations and historical content) is seeded operationally rather than uploaded interactively. The seed script (`scripts/seed_fh_curator.py`) reads source assets from `curated/`, transcodes videos through ffmpeg with the canonical malware-stripping options (DD §6.8), processes photos through PIL, writes the outputs via the media storage adapter to local FS or S3, and INSERTs the corresponding `media_items` + `media_tags` rows owned by the system member. Auto-applies the `#curated` tag on every row.
 
 The curator media cycle has two parts on `bash deploy_to_aws.sh`. The seed step (sidecars in `/curated/` -> `media_items` rows) runs unconditionally on every deploy that ships a DB to staging; the orchestrator invokes `scripts/seed_fh_curator.py` against the local DB before the rsync push. Set `CURATOR_SEED=no` to skip it (rare; used when sidecars are known broken). The S3 media cycle (rsync `data/media/` to the host, optionally wipe the S3 bucket, then rsync to S3) runs on every deploy that touches staging; the additive rsync is non-destructive and runs unconditionally, while the destructive bucket wipe defaults Y when a DB rebuild is happening (avatar S3 keys remap on a fresh DB seed) and N otherwise. Pass `-W` / `--no-s3-wipe` to skip the wipe and answer N to the prompt non-interactively. URL-reference content (YouTube/Vimeo) needs no S3 bytes and is always up to date after a default deploy.
 

@@ -40,6 +40,21 @@ MODES (mutually exclusive)
   -k, --keep-staging-db        Don't touch staging DB at all. Code + media
                                still ship.
 
+DATA SOURCE (default rebuild mode only; mutually exclusive)
+─────────────────────────────────────────────────────────────────────
+  --from-csv                   Rebuild local DB from committed canonical
+                               CSVs (no mirror access). This is the
+                               default when no mode flag is given; the
+                               flag is for explicit symmetry with
+                               --from-mirror.
+  --from-mirror                Soup-to-nuts: rebuild local DB end-to-end
+                               from the legacy mirror
+                               (legacy_data/mirror_footbag_org/).
+                               Regenerates canonical_input CSVs and runs
+                               all enrichment phases. Working tree may
+                               show diffs after the run. Conflicts with
+                               -r and -k.
+
 MODIFIERS
 ─────────────────────────────────────────────────────────────────────
   -y, --yes                    Accept every destructive prompt as its
@@ -82,6 +97,9 @@ EXAMPLES
   Push the current local DB to staging without rebuilding:
       bash deploy_to_aws.sh -r
 
+  Soup-to-nuts deploy (regenerate from the legacy mirror, then ship):
+      bash deploy_to_aws.sh --from-mirror
+
   Non-interactive default (CI):
       bash deploy_to_aws.sh -y
 
@@ -97,6 +115,8 @@ MODE=""              # "" = default, "reuse" = -r, "keep" = -k
 YES_TO_ALL="no"
 NO_S3_WIPE_FLAG="no"
 DRY_RUN="no"
+FROM_CSV="no"        # explicit alias for default rebuild source
+FROM_MIRROR="no"     # rebuild from legacy mirror end-to-end
 
 # Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
 # handle each independently.
@@ -127,6 +147,8 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -y|--yes)              YES_TO_ALL="yes" ;;
     -W|--no-s3-wipe)       NO_S3_WIPE_FLAG="yes" ;;
     -n|--dry-run)          DRY_RUN="yes" ;;
+    --from-csv)            FROM_CSV="yes" ;;
+    --from-mirror)         FROM_MIRROR="yes" ;;
     *)
       echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
@@ -135,6 +157,22 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
       ;;
   esac
 done
+
+# --from-csv / --from-mirror are valid only with the default rebuild mode.
+if [[ "$FROM_CSV" == "yes" && "$FROM_MIRROR" == "yes" ]]; then
+  echo "ERROR: --from-csv and --from-mirror are mutually exclusive." >&2
+  exit 1
+fi
+if [[ "$FROM_MIRROR" == "yes" || "$FROM_CSV" == "yes" ]]; then
+  if [[ "$MODE" == "reuse" ]]; then
+    echo "ERROR: --from-csv / --from-mirror conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
+    exit 1
+  fi
+  if [[ "$MODE" == "keep" ]]; then
+    echo "ERROR: --from-csv / --from-mirror conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --from-mirror to rebuild locally without deploying." >&2
+    exit 1
+  fi
+fi
 
 # Operator credential file must be on stdin (deploy_to_aws.sh wrapper supplies
 # it). Reject interactive stdin so we never hang waiting for a password.
@@ -356,14 +394,30 @@ if [[ "$REBUILD_LOCAL" == "no" ]]; then
   exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
 fi
 
-# REBUILD_LOCAL == yes. --from-csv is the no-mirror path: it loads the
-# committed canonical_input/*.csv into the DB and runs the enrichment phases.
-# deploy-local-data.sh:run_from_csv() bootstraps legacy_data/out/canonical/
-# from the same canonical_input snapshot before invoking csv_only, so phase D
-# (which reads out/canonical/events.csv) has its input without requiring the
-# mirror.
-echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
-run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv
+# REBUILD_LOCAL == yes. Two paths:
+#   default / --from-csv : no-mirror path. Loads committed
+#       canonical_input/*.csv and runs the enrichment phases.
+#       deploy-local-data.sh:run_from_csv() bootstraps
+#       legacy_data/out/canonical/ from the canonical_input snapshot before
+#       invoking csv_only, so phase D (which reads out/canonical/events.csv)
+#       has its input without requiring the mirror.
+#   --from-mirror : soup-to-nuts. Runs the full pipeline starting from the
+#       legacy mirror. Regenerates committed canonical_input/*.csv, name
+#       variants, and seed/*.csv as a side effect; working tree will show
+#       diffs after the run.
+if [[ "$FROM_MIRROR" == "yes" ]]; then
+  echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-mirror"
+  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-mirror
+  if [[ "$DRY_RUN" != "yes" ]]; then
+    echo ""
+    echo "NOTE: --from-mirror regenerated committed files. Working tree may now show diffs in:"
+    echo "      legacy_data/event_results/canonical_input/, legacy_data/inputs/name_variants.csv,"
+    echo "      legacy_data/seed/. Commit or revert before deploying again."
+  fi
+else
+  echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
+  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv
+fi
 echo ""
 echo "==> Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh (SKIP_DB_REBUILD=yes)"
 export SKIP_DB_REBUILD="yes"

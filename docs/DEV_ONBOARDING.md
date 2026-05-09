@@ -383,7 +383,7 @@ Do not commit `.env` (make sure it is in your .gitignore)
 
 ### 1.7 Reset the local database
 
-> **Recommended one-shot:** `./run_dev.sh` at repo root installs npm deps + Python venv if missing, resets the DB only if missing or stale (pass `--reset` to force), and launches the dev web server + image worker together with clean Ctrl+C teardown. The rest of §1.7-1.9 is the manual breakdown for diagnostics.
+> **Recommended one-shot:** `./run_dev.sh` at repo root installs npm deps + Python venv if missing, resets the DB only if missing or stale (pass `--reset` for a fast committed-seed reset, `--from-csv` for the deploy-parity rebuild, or `--from-mirror` for the legacy-mirror rebuild), and launches the dev web server + image worker together with clean Ctrl+C teardown. The rest of §1.7-1.9 is the manual breakdown for diagnostics.
 
 > **Minimal first-boot check (optional).** To confirm that `npm install` and `.env` are healthy before running the full seed pipeline, apply the schema only:
 >

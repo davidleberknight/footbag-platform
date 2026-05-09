@@ -4,8 +4,10 @@
 # together, kills both cleanly on Ctrl+C.
 #
 # Usage:
-#   ./run_dev.sh           # smart: skip reset if DB up to date
-#   ./run_dev.sh --reset   # force a fresh DB reset
+#   ./run_dev.sh                  # smart: skip reset if DB up to date
+#   ./run_dev.sh --reset          # fast reset from committed seeds
+#   ./run_dev.sh --from-csv       # full enrichment rebuild (deploy-parity, no mirror)
+#   ./run_dev.sh --from-mirror    # soup-to-nuts rebuild from legacy mirror
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -30,13 +32,47 @@ kill_port 3000
 kill_port 4001
 
 RESET=0
+FROM_CSV=0
+FROM_MIRROR=0
 for arg in "$@"; do
   case "$arg" in
-    --reset) RESET=1 ;;
-    -h|--help) echo "Usage: $0 [--reset]"; exit 0 ;;
+    --reset)        RESET=1 ;;
+    --from-csv)     FROM_CSV=1 ;;
+    --from-mirror)  FROM_MIRROR=1 ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage: ./run_dev.sh [MODE]
+
+Local dev launcher.
+
+DB rebuild modes (mutually exclusive; default = smart-skip via mtime):
+  --reset         Fast reset from committed seeds.
+                  Calls scripts/reset-local-db.sh.
+  --from-csv      Full enrichment rebuild from committed canonical CSVs;
+                  matches what deploy_to_aws.sh ships locally.
+                  Calls scripts/deploy-local-data.sh --from-csv.
+  --from-mirror   Soup-to-nuts rebuild from the legacy mirror; regenerates
+                  canonical_input CSVs and runs all enrichment phases.
+                  Requires legacy_data/mirror_footbag_org/ to be present.
+                  Calls scripts/deploy-local-data.sh --from-mirror.
+
+  -h, --help      Show this message.
+
+After --from-mirror, working tree may show diffs in
+legacy_data/event_results/canonical_input/, legacy_data/inputs/name_variants.csv,
+and legacy_data/seed/. Review with 'git status' before pushing.
+USAGE
+      exit 0
+      ;;
     *) echo "unknown arg: $arg"; exit 1 ;;
   esac
 done
+
+# Mutex: at most one rebuild mode.
+if (( RESET + FROM_CSV + FROM_MIRROR > 1 )); then
+  echo "ERROR: --reset, --from-csv, and --from-mirror are mutually exclusive." >&2
+  exit 1
+fi
 
 # 1. npm deps
 if [[ ! -d node_modules ]]; then
@@ -51,14 +87,25 @@ if [[ ! -d scripts/.venv ]]; then
 fi
 scripts/.venv/bin/pip install -q -r scripts/requirements.txt
 
-# 3. DB seed (if missing, stale, or --reset)
-if [[ "$RESET" == "1" ]] \
+# 3. DB seed.
+# --from-csv / --from-mirror always rebuild and bypass the mtime smart-skip.
+if (( FROM_MIRROR == 1 )); then
+  echo "→ Soup-to-nuts rebuild from legacy mirror..."
+  bash scripts/deploy-local-data.sh --from-mirror
+  echo ""
+  echo "NOTE: --from-mirror regenerated committed files. Working tree may now show diffs in:"
+  echo "      legacy_data/event_results/canonical_input/, legacy_data/inputs/name_variants.csv,"
+  echo "      legacy_data/seed/. Review with 'git status' before pushing."
+elif (( FROM_CSV == 1 )); then
+  echo "→ Full enrichment rebuild from canonical CSVs (deploy-parity)..."
+  bash scripts/deploy-local-data.sh --from-csv
+elif [[ "$RESET" == "1" ]] \
    || [[ ! -f database/footbag.db ]] \
    || [[ database/schema.sql -nt database/footbag.db ]]; then
   echo "→ Resetting local DB..."
   bash scripts/reset-local-db.sh
 else
-  echo "→ DB up to date; refreshing FH/curator content (run with --reset to force a full DB reset)."
+  echo "→ DB up to date; refreshing FH/curator content (run with --reset, --from-csv, or --from-mirror to force a rebuild)."
   scripts/.venv/bin/python3 scripts/seed_fh_curator.py --db ./database/footbag.db --media-dir ./data/media
 fi
 
