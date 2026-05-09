@@ -3599,7 +3599,27 @@ CREATE TABLE freestyle_tricks (
   is_active       INTEGER NOT NULL DEFAULT 1,      -- v2.1: 0 hides from public listings (used for review_status='pending' rows)
   sort_order      INTEGER NOT NULL DEFAULT 0,      -- load order from source CSV
   loaded_at       TEXT NOT NULL,
-  updated_at      TEXT                             -- v2.1: populated by loaders on row update; nullable on first insert
+  updated_at      TEXT,                            -- v2.1: populated by loaders on row update; nullable on first insert
+
+  -- ── Notation grammar (Phase 0, 2026-05-09) ──────────────────────────────
+  -- See exploration/freestyle-notation-grammar/PROPOSAL.md.
+  --
+  -- Raw Jobs notation is preserved exactly as documented (historical
+  -- evidence). The structured-parse columns are PARALLEL metadata derived
+  -- from canonical_name + jobs_notation_raw — they are filled by a future
+  -- parser (Phase 1) and used for ADD-derivation QC and visualization.
+  --
+  -- Asserted `adds` above remains authoritative for editorial truth.
+  -- Computed values below are diagnostic only; status field tracks how
+  -- the computed value relates to the asserted one.
+  --
+  -- All six are nullable; existing rows load unchanged.
+  jobs_notation_raw         TEXT,                  -- canonical raw Jobs notation; never mutated. Backfill source = current `notation` column.
+  jobs_notation_normalized  TEXT,                  -- whitespace-collapsed / case-standardized form for diff + QC. Derived; regenerable from jobs_notation_raw.
+  structural_parse_json     TEXT,                  -- JSON: {core_family, set, rotation, modifier, dex_structure, delay_surface, ...}. Per PROPOSAL §2.
+  computed_add_formula      TEXT,                  -- human-readable ADD derivation, e.g. 'spinning(+1 rot) + whirl(3) = 4'. NULL when unresolved.
+  computed_adds             INTEGER,               -- numeric ADD when derivable. NULL otherwise. Diagnostic only — does NOT override `adds` above.
+  add_formula_status        TEXT                   -- 'exact' | 'approximate' | 'unresolved' | 'policy_dependent' (no CHECK; see PROPOSAL §7.2)
 );
 
 CREATE INDEX idx_freestyle_tricks_category      ON freestyle_tricks(category);
