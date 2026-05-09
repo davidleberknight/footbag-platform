@@ -105,9 +105,11 @@ entry point with explicit modes and preflight checks. Does NOT push to
 AWS.
 
 Modes (see `scripts/deploy-local-data.sh --help` for full detail):
-- `--from-mirror` delegates to `run_pipeline.sh full` (mirror required)
-- `--from-csv` delegates to `run_pipeline.sh csv_only` (mirror not
-  required)
+- `--soup-to-nuts` delegates to `reset-local-db.sh` then
+  `run_pipeline.sh full` (mirror required); drops and rebuilds the DB
+- `--from-csv` delegates to `reset-local-db.sh` then
+  `run_pipeline.sh csv_only` (mirror not required); drops and rebuilds
+  the DB
 - `--db-only` delegates to `scripts/reset-local-db.sh` (fastest, skips
   phase C/D/E/F/G; see `reset-local-db.sh` warning below)
 - `--dry-run` prints what each mode would run
@@ -294,7 +296,7 @@ cd legacy_data && . footbag_venv/bin/activate
 
 ### Local DB prep for AWS staging (operator)
 ```
-bash scripts/deploy-local-data.sh --from-mirror    # regenerate CSVs + build DB
+bash scripts/deploy-local-data.sh --soup-to-nuts   # regenerate CSVs + build DB
 bash scripts/deploy-local-data.sh --from-csv       # no mirror; build DB from CSVs
 bash scripts/deploy-local-data.sh --db-only        # fast; skip phase C/D/E/F/G
 ```
@@ -314,7 +316,7 @@ bash deploy_to_aws.sh                               # default: rebuild from comm
 bash deploy_to_aws.sh -k                            # code + media only; staging DB untouched
 bash deploy_to_aws.sh -r                            # ship current local DB as-is
 bash deploy_to_aws.sh --from-csv                    # explicit alias for the default rebuild path
-bash deploy_to_aws.sh --from-mirror                 # soup-to-nuts: regenerate from legacy mirror, then ship
+bash deploy_to_aws.sh --soup-to-nuts                # regenerate from legacy mirror, then ship
 bash deploy_to_aws.sh -y                            # accept defaults non-interactively (CI)
 bash deploy_to_aws.sh -n                            # dry run
 bash deploy_to_aws.sh -ryW                          # combined: reuse, yes, no S3 wipe
@@ -323,7 +325,7 @@ The root `deploy_to_aws.sh` wrapper handles preflight (tools, SSH alias,
 disk, DB lock, schema drift, credential file) and forwards args to
 `scripts/deploy-to-aws.sh`. With no flags the orchestrator runs the
 default mode (rebuild + replace), prompting before each destructive step.
-The mirror-driven `--from-mirror` path regenerates committed
+The mirror-driven `--soup-to-nuts` path regenerates committed
 `canonical_input/`, `name_variants.csv`, and `seed/` files; review with
 `git status` before pushing.
 

@@ -20,15 +20,21 @@ usage() {
 Usage: bash scripts/deploy-local-data.sh <mode> [--dry-run]
 
 Modes (exactly one required):
-  --from-mirror   Full rebuild from the legacy mirror. Regenerates canonical
-                  CSVs and rebuilds the local DB with all enrichment phases
-                  (C, D, E, F, G) plus phase NET and V. Delegates to
-                  legacy_data/run_pipeline.sh full.
+  --soup-to-nuts  Full rebuild from the legacy mirror. Drops the DB file,
+                  reapplies schema, regenerates canonical CSVs from the
+                  mirror, and reloads with all enrichment phases (C, D, E,
+                  F, G) plus phase NET and V. Wipes modern operator tables
+                  (members, votes, ballots, news_items, audit_entries, ...).
+                  Delegates to scripts/reset-local-db.sh + legacy_data/
+                  run_pipeline.sh full.
                   Requires: legacy_data/mirror_footbag_org/ present.
 
-  --from-csv      Rebuild the local DB from existing canonical CSVs. Does
-                  not require mirror access. Runs all enrichment phases.
-                  Delegates to legacy_data/run_pipeline.sh csv_only.
+  --from-csv      Rebuild the local DB from existing canonical CSVs. Drops
+                  the DB file and reapplies schema (same modern-operator-
+                  table wipe as --soup-to-nuts). Does not require mirror
+                  access. Runs all enrichment phases. Delegates to
+                  scripts/reset-local-db.sh + legacy_data/run_pipeline.sh
+                  csv_only.
                   Requires: legacy_data/event_results/canonical_input/*.csv
                             and legacy_data/event_results/seed/mvfp_full/*.csv
                             present.
@@ -59,7 +65,7 @@ MODE=""
 DRY_RUN="no"
 for arg in "$@"; do
   case "$arg" in
-    --from-mirror|--from-csv|--db-only)
+    --soup-to-nuts|--from-csv|--db-only)
       if [[ -n "$MODE" ]]; then
         echo "ERROR: only one mode may be specified (got '$MODE' and '$arg')" >&2
         exit 1
@@ -97,40 +103,28 @@ run_or_print() {
   "$@"
 }
 
-# Run scripts/seed_fh_curator.py against the freshly-built local DB. The seed
-# step reads /curated/**/*.meta.json sidecars and INSERT-OR-REPLACE rows into
-# media_items + media_tags + media_sources. Idempotent. Required after every
-# DB rebuild path that ships to staging so the deployed DB reflects current
-# sidecars (the 79-vs-37 incident was caused by this step being skipped).
-# scripts/.venv is the canonical venv for repo-root scripts; reset-local-db.sh
-# also creates and uses it. Mirroring the same setup here keeps both rebuild
-# paths consistent.
-seed_curator() {
-  echo ""
-  echo "==> Running curator seed (sidecars → media_items)"
-  local venv="${REPO_ROOT}/scripts/.venv"
-  local requirements="${REPO_ROOT}/scripts/requirements.txt"
-  if [[ ! -f "${venv}/bin/python3" ]]; then
-    echo "    → Creating Python venv at ${venv}"
-    run_or_print python3 -m venv "${venv}"
-  fi
-  run_or_print "${venv}/bin/pip" install --quiet -r "${requirements}"
-  run_or_print "${venv}/bin/python3" "${REPO_ROOT}/scripts/seed_fh_curator.py" \
-    --db "${REPO_ROOT}/database/footbag.db"
-}
-
-run_from_mirror() {
-  echo "==> deploy-local-data: --from-mirror"
+run_soup_to_nuts() {
+  echo "==> deploy-local-data: --soup-to-nuts"
   local mirror_dir="${REPO_ROOT}/legacy_data/mirror_footbag_org"
   if [[ ! -d "$mirror_dir" ]]; then
     echo "ERROR: mirror not found at ${mirror_dir}" >&2
-    echo "       The legacy mirror must be present for --from-mirror." >&2
+    echo "       The legacy mirror must be present for --soup-to-nuts." >&2
     echo "       Use --from-csv if you do not have the mirror." >&2
     exit 1
   fi
   echo "    Mirror present: $mirror_dir"
+  # reset-local-db.sh first: drops the DB file, reapplies schema, runs the
+  # loader set run_pipeline.sh does not (load_legacy_members_seed, trick
+  # dictionary 17/19/20, freestyle media 21/22/23, seed_fh_curator). Then
+  # run_pipeline.sh full regenerates canonical_input from the mirror,
+  # reloads canonical/legacy tables, and runs phases C-G/H/V to refine
+  # (script 09 DELETE+INSERTs legacy_person_club_affiliations from
+  # clubs/out/, overriding reset-local-db.sh's seed-derived rows). Modern
+  # operator tables (members, votes, ballots, news_items, audit_entries,
+  # etc.) wiped by the schema reapply stay empty because run_pipeline.sh
+  # never touches them.
+  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh"
   ( cd "${REPO_ROOT}/legacy_data" && run_or_print ./run_pipeline.sh full )
-  seed_curator
 }
 
 run_from_csv() {
@@ -150,7 +144,7 @@ run_from_csv() {
     echo "ERROR: csv_only preflight failed. Missing:" >&2
     for m in "${missing[@]}"; do echo "  MISSING: $m" >&2; done
     echo "" >&2
-    echo "These CSVs are produced by a prior --from-mirror run or obtained" >&2
+    echo "These CSVs are produced by a prior --soup-to-nuts run or obtained" >&2
     echo "from a collaborator." >&2
     exit 1
   fi
@@ -172,8 +166,13 @@ run_from_csv() {
     run_or_print cp "${ci}/${f}.csv" "${out_canonical}/${f}.csv"
   done
 
+  # Same ordering as run_soup_to_nuts: reset-local-db.sh first to wipe modern
+  # operator tables and run the loaders run_pipeline.sh does not, then
+  # csv_only re-runs canonical/enrichment phases. csv_only does not
+  # regenerate canonical_input, so both passes load against the committed
+  # snapshot.
+  run_or_print bash "${SCRIPT_DIR}/reset-local-db.sh"
   ( cd "${REPO_ROOT}/legacy_data" && run_or_print ./run_pipeline.sh csv_only )
-  seed_curator
 }
 
 run_db_only() {
@@ -191,7 +190,7 @@ run_db_only() {
 }
 
 case "$MODE" in
-  --from-mirror) run_from_mirror ;;
-  --from-csv)    run_from_csv ;;
-  --db-only)     run_db_only ;;
+  --soup-to-nuts) run_soup_to_nuts ;;
+  --from-csv)     run_from_csv ;;
+  --db-only)      run_db_only ;;
 esac

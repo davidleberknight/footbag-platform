@@ -185,7 +185,7 @@ describe('scripts/reset-local-db.sh preflight', () => {
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
       expect(combined).toMatch(/MISSING:/);
       expect(combined).toMatch(/Recommendation:/);
-      expect(combined).toMatch(/from-mirror|from-csv/);
+      expect(combined).toMatch(/soup-to-nuts|from-csv/);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }

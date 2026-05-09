@@ -136,7 +136,6 @@
       "Read(./.env.staging)",
       "Read(./secrets/**)",
       "Read(./.secrets/**)",
-      "Read(./.claude/settings.local.json)",
       "Read(./**/*.pem)",
       "Read(./**/*.key)",
       "Read(./**/*.p12)",

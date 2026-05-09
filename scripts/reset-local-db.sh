@@ -36,7 +36,7 @@ REQUIREMENTS="scripts/requirements.txt"
 # CSVs (clubs.csv, club_members.csv) are produced upstream by James-owned
 # legacy_data/scripts/extract_*.py and committed under legacy_data/seed/.
 # On a fresh clone, run `bash scripts/deploy-local-data.sh --from-csv` first
-# (or `--from-mirror` if you have the legacy mirror and want to refresh CSVs).
+# (or `--soup-to-nuts` if you have the legacy mirror and want to refresh CSVs).
 _missing=()
 for _f in "${CANONICAL_INPUT_DIR}/events.csv" \
           "${CANONICAL_INPUT_DIR}/event_disciplines.csv" \
@@ -53,7 +53,7 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
   echo "ERROR: required local file(s) not present:" >&2
   for _f in "${_missing[@]}"; do echo "  MISSING: ${_f}" >&2; done
   echo "" >&2
-  echo "Recommendation: bash scripts/deploy-local-data.sh --from-csv   (or --from-mirror if mirror is available and you want fresh CSVs)." >&2
+  echo "Recommendation: bash scripts/deploy-local-data.sh --from-csv   (or --soup-to-nuts if mirror is available and you want fresh CSVs)." >&2
   exit 1
 fi
 

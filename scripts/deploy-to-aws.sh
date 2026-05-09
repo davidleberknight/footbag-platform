@@ -42,18 +42,22 @@ MODES (mutually exclusive)
 
 DATA SOURCE (default rebuild mode only; mutually exclusive)
 ─────────────────────────────────────────────────────────────────────
-  --from-csv                   Rebuild local DB from committed canonical
-                               CSVs (no mirror access). This is the
-                               default when no mode flag is given; the
-                               flag is for explicit symmetry with
-                               --from-mirror.
-  --from-mirror                Soup-to-nuts: rebuild local DB end-to-end
-                               from the legacy mirror
-                               (legacy_data/mirror_footbag_org/).
-                               Regenerates canonical_input CSVs and runs
-                               all enrichment phases. Working tree may
-                               show diffs after the run. Conflicts with
-                               -r and -k.
+  --from-csv                   Full clean rebuild of local DB from
+                               committed canonical CSVs (drops the DB
+                               file, reapplies schema, runs all
+                               enrichment phases). No mirror access. This
+                               is the default when no mode flag is given;
+                               the flag is for explicit symmetry with
+                               --soup-to-nuts.
+  --soup-to-nuts               Full clean rebuild from the legacy mirror
+                               (legacy_data/mirror_footbag_org/). Drops
+                               the DB file, regenerates canonical_input
+                               CSVs from the mirror, runs all enrichment
+                               phases. Wipes modern operator tables
+                               (members, votes, ballots, news_items,
+                               audit_entries, ...). Working tree may show
+                               diffs after the run. Conflicts with -r
+                               and -k.
 
 MODIFIERS
 ─────────────────────────────────────────────────────────────────────
@@ -98,7 +102,7 @@ EXAMPLES
       bash deploy_to_aws.sh -r
 
   Soup-to-nuts deploy (regenerate from the legacy mirror, then ship):
-      bash deploy_to_aws.sh --from-mirror
+      bash deploy_to_aws.sh --soup-to-nuts
 
   Non-interactive default (CI):
       bash deploy_to_aws.sh -y
@@ -116,7 +120,7 @@ YES_TO_ALL="no"
 NO_S3_WIPE_FLAG="no"
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
-FROM_MIRROR="no"     # rebuild from legacy mirror end-to-end
+SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
 
 # Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
 # handle each independently.
@@ -148,7 +152,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -W|--no-s3-wipe)       NO_S3_WIPE_FLAG="yes" ;;
     -n|--dry-run)          DRY_RUN="yes" ;;
     --from-csv)            FROM_CSV="yes" ;;
-    --from-mirror)         FROM_MIRROR="yes" ;;
+    --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
     *)
       echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
@@ -158,18 +162,18 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   esac
 done
 
-# --from-csv / --from-mirror are valid only with the default rebuild mode.
-if [[ "$FROM_CSV" == "yes" && "$FROM_MIRROR" == "yes" ]]; then
-  echo "ERROR: --from-csv and --from-mirror are mutually exclusive." >&2
+# --from-csv / --soup-to-nuts are valid only with the default rebuild mode.
+if [[ "$FROM_CSV" == "yes" && "$SOUP_TO_NUTS" == "yes" ]]; then
+  echo "ERROR: --from-csv and --soup-to-nuts are mutually exclusive." >&2
   exit 1
 fi
-if [[ "$FROM_MIRROR" == "yes" || "$FROM_CSV" == "yes" ]]; then
+if [[ "$SOUP_TO_NUTS" == "yes" || "$FROM_CSV" == "yes" ]]; then
   if [[ "$MODE" == "reuse" ]]; then
-    echo "ERROR: --from-csv / --from-mirror conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
+    echo "ERROR: --from-csv / --soup-to-nuts conflict with -r/--reuse-local-db (cannot rebuild and reuse simultaneously)." >&2
     exit 1
   fi
   if [[ "$MODE" == "keep" ]]; then
-    echo "ERROR: --from-csv / --from-mirror conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --from-mirror to rebuild locally without deploying." >&2
+    echo "ERROR: --from-csv / --soup-to-nuts conflict with -k/--keep-staging-db (rebuild has no effect when staging DB is untouched). Use ./run_dev.sh --soup-to-nuts to rebuild locally without deploying." >&2
     exit 1
   fi
 fi
@@ -401,16 +405,16 @@ fi
 #       legacy_data/out/canonical/ from the canonical_input snapshot before
 #       invoking csv_only, so phase D (which reads out/canonical/events.csv)
 #       has its input without requiring the mirror.
-#   --from-mirror : soup-to-nuts. Runs the full pipeline starting from the
-#       legacy mirror. Regenerates committed canonical_input/*.csv, name
+#   --soup-to-nuts : runs the full pipeline starting from the legacy
+#       mirror. Regenerates committed canonical_input/*.csv, name
 #       variants, and seed/*.csv as a side effect; working tree will show
 #       diffs after the run.
-if [[ "$FROM_MIRROR" == "yes" ]]; then
-  echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-mirror"
-  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-mirror
+if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
+  echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --soup-to-nuts"
+  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --soup-to-nuts
   if [[ "$DRY_RUN" != "yes" ]]; then
     echo ""
-    echo "NOTE: --from-mirror regenerated committed files. Working tree may now show diffs in:"
+    echo "NOTE: --soup-to-nuts regenerated committed files. Working tree may now show diffs in:"
     echo "      legacy_data/event_results/canonical_input/, legacy_data/inputs/name_variants.csv,"
     echo "      legacy_data/seed/. Commit or revert before deploying again."
   fi

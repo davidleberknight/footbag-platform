@@ -846,7 +846,7 @@ Use this when the change requires rebuilding and replacing the host DB from scra
 bash deploy_to_aws.sh
 ```
 
-This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. The default rebuild loads the committed canonical CSVs (no mirror access). Pass `--from-csv` to make that explicit. Pass `--from-mirror` to instead run the soup-to-nuts pipeline starting from the legacy mirror; that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
+This path preserves `/srv/footbag/env` but intentionally destroys and replaces the live host DB. The default rebuild loads the committed canonical CSVs (no mirror access). Pass `--from-csv` to make that explicit. Pass `--soup-to-nuts` to instead rebuild from the legacy mirror; that path regenerates committed canonical_input, name_variants, and seed files as a side effect, so the working tree may show diffs after the run.
 
 For schema changes against a target with non-disposable data (production), follow the migration runbook in §9.3 instead of Option B.
 

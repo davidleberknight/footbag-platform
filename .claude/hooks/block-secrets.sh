@@ -18,7 +18,7 @@ case "$RELATIVE_PATH" in
   .env.example|.env.sample|.env.template)
     # Checked-in template files with placeholders, not real secrets.
     ;;
-  .env|.env.*|*.pem|*.key|*.p12|*.pfx|*.crt|*.cer|secrets/*|.secrets/*|.npmrc|.terraformrc|.aws/*|.ssh/*|*.tfstate|*.tfstate.*|.claude/settings.local.json)
+  .env|.env.*|*.pem|*.key|*.p12|*.pfx|*.crt|*.cer|secrets/*|.secrets/*|.npmrc|.terraformrc|.aws/*|.ssh/*|*.tfstate|*.tfstate.*)
     jq -n --arg file "$RELATIVE_PATH" '{
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
