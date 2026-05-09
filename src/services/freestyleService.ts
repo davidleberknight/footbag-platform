@@ -174,6 +174,28 @@ const SOURCE_LABELS: Record<string, string> = {
   footbagspot_tutorials:'FootbagSpot Tutorials',
 };
 
+// Source-tier classification for the trick-detail Reference Media split
+// (Tutorials vs Demos). Mirrors the tier semantics in the
+// `footbag-curated-media` skill (§11 Tier convention):
+//   - TUTORIAL_SOURCE_IDS: CANONICAL_TUTORIAL + STRONG_TUTORIAL — instructional
+//   - DEMO_SOURCE_IDS:     HIGH_QUALITY_DEMO — named-trick performance footage
+// passback_records is RECORD-tier and renders in the Passback Records table
+// further down the page; it never appears in either subsection here.
+const TUTORIAL_SOURCE_IDS = new Set([
+  'tt_youtube',
+  'anz_trikz',
+  'footbagspot_passback',
+  'footbagspot_tutorials',
+  'shred_global',
+  'polini_pointers',
+  'footbag_foundations',
+  'everything_footbag',
+]);
+const DEMO_SOURCE_IDS = new Set([
+  'footbag_finland',
+  'flipsider_footbag',
+]);
+
 function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
   const adapter = getMediaStorageAdapter();
   const media = expandVideoFromMediaItem(row, {
@@ -326,10 +348,15 @@ export interface FreestyleTrickContent {
   // Previous Tricks: same family + lower ADD; per-bucket-2 sampling, capped at 5.
   // Family base trick (slug == trick_family) is preferred first within its bucket.
   previousTricks: FreestylePreviousTrick[];
-  // Reference Media: curated videos tagged with this trick's slug. Includes
-  // TT lessons, passback records, and source-tutorials together; surfaced as a
-  // single block on the detail page. Most-recent first.
-  referenceMedia: TrickReferenceMediaItem[];
+  // Reference Media — split by source tier:
+  // - tutorialMedia: instructional sources (TT, AnzTrikz, FootbagSpot,
+  //   Shred Global, Polini Pointers, Footbag Foundations, Everything Footbag)
+  // - demoMedia: named-trick performance footage (Footbag Finland, Flipsider)
+  // passback_records media items are filtered out of both arrays and render
+  // in the Passback Records table below instead.
+  tutorialMedia: TrickReferenceMediaItem[];
+  demoMedia: TrickReferenceMediaItem[];
+  hasReferenceMedia: boolean;            // pre-shaped: tutorialMedia.length || demoMedia.length
   // Pathways block: pre-shaped summary of Learn / Watch / Family availability
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
@@ -1024,23 +1051,41 @@ export const freestyleService = {
         ],
       },
       content: (() => {
-        const referenceMedia = runSqliteRead('media.listMediaByTrickTag', () =>
+        // Load all curator-tagged media for this trick once. Split into
+        // three buckets by source tier:
+        //   - tutorialMedia: instructional (TT, AnzTrikz, FootbagSpot, etc.)
+        //   - demoMedia: named-trick performance (Footbag Finland, Flipsider)
+        //   - dropped (passback_records): renders in the Passback Records
+        //     table below instead, to avoid duplicating record-clip data
+        const allRefMedia = runSqliteRead('media.listMediaByTrickTag', () =>
           (media as unknown as { listMediaByTrickTag: { all: (tag: string) => unknown[] } })
             .listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
-        )
-          // PassBack record clips render in the records table below — exclude
-          // here to avoid duplication. Note: passback_records (record clips)
-          // is distinct from footbagspot_passback (PassBack tutorial
-          // curriculum), which still renders.
-          .filter(r => r.source_id !== 'passback_records')
-          .map(shapeReferenceMedia);
+        );
+        const tutorialMedia: TrickReferenceMediaItem[] = [];
+        const demoMedia: TrickReferenceMediaItem[] = [];
+        for (const r of allRefMedia) {
+          if (r.source_id === 'passback_records') continue;
+          const shaped = shapeReferenceMedia(r);
+          if (r.source_id && TUTORIAL_SOURCE_IDS.has(r.source_id)) {
+            tutorialMedia.push(shaped);
+          } else if (r.source_id && DEMO_SOURCE_IDS.has(r.source_id)) {
+            demoMedia.push(shaped);
+          } else {
+            // Unclassified source — default to tutorial bucket so new
+            // sources surface visibly while curator updates the registry.
+            tutorialMedia.push(shaped);
+          }
+        }
+        const hasReferenceMedia = tutorialMedia.length > 0 || demoMedia.length > 0;
 
         const familySlug = dictRow?.trick_family ?? null;
         const familyName = familySlug
           ? familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/-/g, ' ')
           : null;
+        // Pathway "Learn this trick" counts both tutorial and demo media —
+        // both serve the watch-to-learn intent.
         const pathways = shapeTrickPathways({
-          tutorialCount: referenceMedia.length,
+          tutorialCount: tutorialMedia.length + demoMedia.length,
           recordCount: currentRows.length,
           topRecordHolder: currentRows[0]?.holder_name ?? null,
           topRecordValue: topValue,
@@ -1064,7 +1109,9 @@ export const freestyleService = {
           relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
           previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
           nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
-          referenceMedia,
+          tutorialMedia,
+          demoMedia,
+          hasReferenceMedia,
           pathways,
         };
       })(),

@@ -491,11 +491,17 @@ describe('GET /history/:personId — freestyle records section', () => {
 // table (separate surface). Filter lives in freestyleService.getFreestyleTrickPage.
 
 describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
-  it('renders tutorial-tier media (source_id=tt_youtube)', async () => {
+  it('renders tutorial-tier media (source_id=tt_youtube) inside the Tutorials subsection', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/ref-media-audit');
     expect(res.status).toBe(200);
     expect(res.text).toContain('REF_MEDIA_TUTORIAL_MARKER');
+    // The Tutorials subsection wrapper must surround the tutorial marker.
+    const tutSubIdx = res.text.indexOf('reference-media-subsection--tutorials');
+    expect(tutSubIdx).toBeGreaterThan(0);
+    const subsectionEnd = res.text.indexOf('</div>', tutSubIdx);
+    const tutSlice = res.text.slice(tutSubIdx, subsectionEnd + 6);
+    expect(tutSlice).toContain('REF_MEDIA_TUTORIAL_MARKER');
   });
 
   it('does NOT render record-tier media (source_id=passback_records) in Reference Media', async () => {
@@ -504,4 +510,19 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('REF_MEDIA_RECORD_MARKER');
   });
+
+  it('renders the "Tutorials" subheading when tutorial-tier media exists', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
+    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
+  });
+
+  it('omits the "Demos" subsection entirely when no demo-tier media exists for the trick', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
+    // No demo-tier sources are seeded for ref-media-audit → no Demos subheading.
+    expect(res.text).not.toContain('reference-media-subsection--demos');
+    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demos<\/h3>/);
+  });
+
 });

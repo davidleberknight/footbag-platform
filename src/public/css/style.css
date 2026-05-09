@@ -825,6 +825,18 @@ section.home-media { padding-top: 0; }
   border-radius: 6px;
 }
 
+/* Reference Media subsections (Tutorials / Demos split) */
+.reference-media-subsection {
+  margin-top: 16px;
+}
+.reference-media-subsection:first-of-type { margin-top: 8px; }
+.reference-media-subheading {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--text);
+}
+
 /* ── Coming-soon discipline cards ──────────────────────────── */
 .card-coming-soon {
   background: #fafafa;
