@@ -1,0 +1,138 @@
+/* Shared CSS for the notation-grammar prototype suite.
+ * Used by 01-..05-*.html. Inline this when promoting a prototype to
+ * production; for the suite, factor here so design iterations affect
+ * all prototypes uniformly. */
+
+:root {
+  --bg: #fafafa; --bg-card: #ffffff; --border: #e5e7eb;
+  --text: #111827; --text-muted: #6b7280; --text-subtle: #9ca3af;
+  --accent-bg: #f3f4f6;
+  --role-core-fg: #14532d;      --role-core-bg: #d1fae5;
+  --role-set-fg: #1e3a8a;       --role-set-bg: #dbeafe;
+  --role-rotation-fg: #9a3412;  --role-rotation-bg: #fed7aa;
+  --role-modifier-fg: #78350f;  --role-modifier-bg: #fef3c7;
+  --role-delay-fg: #581c87;     --role-delay-bg: #e9d5ff;
+  --role-direction-fg: #374151; --role-direction-bg: #e5e7eb;
+  --role-unusual-fg: #9d174d;   --role-unusual-bg: #fce7f3;
+  --role-policy-fg: #7c2d12;    --role-policy-bg: #fed7aa;
+  --status-exact-bg: #d1fae5; --status-exact-fg: #14532d;
+  --status-approx-bg: #fef3c7; --status-approx-fg: #78350f;
+  --status-policy-bg: #fed7aa; --status-policy-fg: #9a3412;
+  --status-unresolved-bg: #fee2e2; --status-unresolved-fg: #7f1d1d;
+  --status-candidate-bg: #ede9fe; --status-candidate-fg: #5b21b6;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  margin: 0 auto; padding: 24px; max-width: 960px;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+}
+h1 { font-size: 1.5rem; margin: 0 0 4px; }
+h2 {
+  font-size: 1rem; margin: 24px 0 8px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;
+}
+h3 { font-size: 0.9rem; margin: 12px 0 6px; color: var(--text-muted); }
+.header-eyebrow { color: var(--text-muted); font-size: 0.8rem; }
+.card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px 20px; margin-bottom: 12px;
+}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* Semantic role spans */
+.role { padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+.role-core         { color: var(--role-core-fg);      background: var(--role-core-bg);      font-weight: 700; }
+.role-set          { color: var(--role-set-fg);       background: var(--role-set-bg); }
+.role-rotation     { color: var(--role-rotation-fg);  background: var(--role-rotation-bg); }
+.role-modifier     { color: var(--role-modifier-fg);  background: var(--role-modifier-bg); }
+.role-delay        { color: var(--role-delay-fg);     background: var(--role-delay-bg); }
+.role-direction    { color: var(--role-direction-fg); background: var(--role-direction-bg); font-style: italic; }
+.role-unusual      { color: var(--role-unusual-fg);   background: var(--role-unusual-bg); }
+.role-policy       { color: var(--role-policy-fg);    background: var(--role-policy-bg); }
+.role-policy::after { content: " ?"; font-weight: 700; color: var(--role-policy-fg); }
+.role-atom         { color: var(--role-core-fg); background: var(--role-core-bg); font-weight: 700; border: 2px dashed var(--role-core-fg); padding: 2px 8px; }
+.role-atom::after  { content: " ◇"; font-size: 0.8em; color: var(--role-core-fg); }
+
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; }
+.badge-exact      { background: var(--status-exact-bg);      color: var(--status-exact-fg); }
+.badge-approx     { background: var(--status-approx-bg);     color: var(--status-approx-fg); }
+.badge-policy     { background: var(--status-policy-bg);     color: var(--status-policy-fg); }
+.badge-unresolved { background: var(--status-unresolved-bg); color: var(--status-unresolved-fg); }
+.badge-candidate  { background: var(--status-candidate-bg);  color: var(--status-candidate-fg); }
+.badge-speculative { background: #fae8ff; color: #86198f; }
+
+.trick-name-display { font-size: 2.25rem; font-weight: 700; line-height: 1.15; margin: 8px 0 12px; }
+.trick-name-display .role { font-size: 2.25rem; padding: 2px 8px; border-radius: 6px; }
+
+.add-panel { display: flex; gap: 24px; align-items: baseline; flex-wrap: wrap; }
+.add-panel .add-block { display: flex; flex-direction: column; }
+.add-panel .add-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.add-panel .add-value { font-size: 1.5rem; font-weight: 700; }
+.add-panel .add-value-secondary { font-size: 1.25rem; color: var(--text-muted); }
+.add-panel .add-value-conflict { color: var(--status-approx-fg); position: relative; }
+.add-panel .add-value-conflict::after { content: " ⚠"; font-size: 0.9rem; }
+
+.notation-block {
+  font-family: "SF Mono", Menlo, monospace; font-size: 0.95rem;
+  background: var(--accent-bg); padding: 14px 18px; border-radius: 6px;
+  line-height: 1.8; white-space: pre-wrap; word-break: break-word;
+  border-left: 3px solid var(--border);
+}
+.notation-block .role { padding: 2px 6px; }
+.notation-source-tag { font-size: 0.78rem; color: var(--text-subtle); margin-top: 4px; font-style: italic; }
+
+table.decomp { width: 100%; border-collapse: collapse; }
+table.decomp td, table.decomp th { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+table.decomp th { font-weight: 600; color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+table.decomp td.role-cell { width: 130px; }
+table.decomp td.value-cell { font-family: "SF Mono", Menlo, monospace; font-size: 0.9rem; }
+table.decomp tr.empty td { color: var(--text-subtle); font-style: italic; }
+
+.layer { padding: 14px 18px; border-radius: 8px; }
+.layer-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.layer-rotation { background: var(--role-rotation-bg); border: 2px solid var(--role-rotation-fg); }
+.layer-modifier { background: var(--role-modifier-bg); border: 2px solid var(--role-modifier-fg); margin-top: 8px; }
+.layer-set      { background: var(--role-set-bg);      border: 2px solid var(--role-set-fg); }
+.layer-policy   { background: var(--role-policy-bg);   border: 2px solid var(--role-policy-fg); }
+.layer-core     { background: var(--role-core-bg);     border: 2px solid var(--role-core-fg); margin-top: 8px; }
+.layer-atom     { background: var(--role-core-bg);     border: 2px dashed var(--role-core-fg); }
+.layer-content { font-weight: 600; }
+.layer-bonus { color: var(--text-muted); font-weight: 500; font-size: 0.9rem; margin-left: 8px; }
+.layer-conflict { color: var(--status-approx-fg); font-weight: 500; font-size: 0.9rem; margin-left: 8px; }
+.layer-total { text-align: right; font-size: 1rem; padding-top: 12px; }
+
+.lineage { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.lineage .tier {
+  display: grid; grid-template-columns: 60px 1fr; gap: 12px; align-items: baseline;
+  padding: 6px 0; border-bottom: 1px dotted var(--border);
+}
+.lineage .tier:last-child { border-bottom: none; }
+.lineage .tier-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.lineage .tier-rows { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.lineage-row { font-size: 0.92rem; }
+.lineage-row.current { font-weight: 700; padding: 1px 6px; background: var(--role-core-bg); border-radius: 4px; }
+.lineage-row .add-pill { color: var(--text-muted); font-size: 0.78rem; margin-left: 4px; }
+
+.related-tricks { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.related-trick { font-size: 0.92rem; padding: 2px 8px; background: var(--accent-bg); border-radius: 4px; }
+.related-trick .add-pill { color: var(--text-muted); font-size: 0.78rem; margin-left: 4px; }
+
+.qc-panel { font-size: 0.92rem; }
+.qc-panel .qc-empty { color: var(--text-subtle); font-style: italic; }
+.qc-row { padding: 6px 0; }
+.qc-row code { background: var(--accent-bg); padding: 1px 6px; border-radius: 3px; font-size: 0.85rem; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 0.85rem; padding-top: 8px; }
+.legend .role { font-size: 0.85rem; }
+
+.proto-notes {
+  background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;
+  padding: 18px 22px; margin: 24px 0 12px;
+}
+.proto-notes h2 { color: #78350f; margin-top: 0; }
+.proto-notes h4 { font-size: 0.92rem; margin: 14px 0 4px; color: #78350f; }
+.proto-notes p, .proto-notes ul { font-size: 0.92rem; margin: 4px 0; }
+
+footer { color: var(--text-subtle); font-size: 0.78rem; margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); text-align: center; }

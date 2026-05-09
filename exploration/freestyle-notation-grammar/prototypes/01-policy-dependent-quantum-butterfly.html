@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quantum Butterfly — policy-dependent prototype</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+
+<div class="header-eyebrow">freestyle / tricks / butterfly family / <strong style="color: #86198f;">[hypothetical row — see notes]</strong></div>
+<div class="trick-name-display">
+  <span class="role role-set" data-role="set" title="set: quantum (policy-bearing)">quantum</span>
+  <span class="role role-core" data-role="core_family" title="core_family: butterfly">butterfly</span>
+</div>
+
+<div class="card">
+  <div class="add-panel">
+    <div class="add-block"><span class="add-label">Asserted ADD</span><span class="add-value-secondary">— (deferred)</span></div>
+    <div class="add-block"><span class="add-label">Computed ADD</span><span class="add-value">4</span></div>
+    <div class="add-block"><span class="add-label">Status</span><span class="badge badge-policy">policy_dependent</span></div>
+    <div class="add-block"><span class="add-label">Speculative</span><span class="badge badge-speculative">hypothetical</span></div>
+  </div>
+</div>
+
+<h2>Jobs notation (raw)</h2>
+<div class="card">
+  <div class="notation-block">SET (<span class="role role-set">QUANTUM</span>) &gt; SAME OUT [BOD] [DEX] &gt; OP IN-OUT [BOD] [DEX] &gt; SAME CLIP [XBD] [DEL]</div>
+  <div class="notation-source-tag">notation synthesized for prototype illustration. Quantum-set compounds are deferred from the active dictionary pending Red ratification of quantum's ADD weight (currently registered at +1/+1, contested).</div>
+</div>
+
+<h2>Structural decomposition</h2>
+<div class="card">
+  <table class="decomp">
+    <thead><tr><th>Role</th><th>Token(s)</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td><span class="role role-core">core_family</span></td><td class="value-cell">butterfly</td><td>Structural anchor. Non-rotational base; modifier weights use <code>add_bonus</code>.</td></tr>
+      <tr><td><span class="role role-set">set</span></td><td class="value-cell">quantum</td><td>Bag-launch primitive. Currently registered weight: +1 (policy-pending).</td></tr>
+      <tr class="empty"><td><span class="role role-rotation">rotation</span></td><td>—</td><td>(no rotation modifier)</td></tr>
+      <tr class="empty"><td><span class="role role-modifier">modifier</span></td><td>—</td><td>(no body-positional modifier)</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size: 0.92rem; color: var(--text-muted); margin: 12px 0 0;"><strong>Key:</strong> the <code>quantum</code> token classifies into <span class="role role-set">set</span> (its semantic role) AND is recorded in <code>policy_tokens[]</code> (the orthogonal flag). Status is <span class="badge badge-policy">policy_dependent</span> regardless of math agreement, because the set's ADD weight is contested.</p>
+</div>
+
+<h2>Modifier layering</h2>
+<div class="card">
+  <div class="layer layer-set" style="position: relative;">
+    <div class="layer-label">set</div>
+    <div class="layer-content">quantum <span class="layer-bonus">+1 ADD (policy-pending)</span></div>
+    <div style="position: absolute; top: 8px; right: 12px;"><span class="badge badge-policy">policy</span></div>
+    <div class="layer layer-core" style="margin-top: 8px;">
+      <div class="layer-label">core_family</div>
+      <div class="layer-content">butterfly <span class="layer-bonus">3 ADD base</span></div>
+    </div>
+  </div>
+  <div class="layer-total"><span class="add-label">total computed</span> <span class="add-value" style="font-size: 1.25rem;">= 4 ADD <span style="color: var(--status-policy-fg); font-size: 0.85rem; font-weight: 500;">(pending policy ratification)</span></span></div>
+</div>
+
+<h2>ADD derivation</h2>
+<div class="card">
+  <div class="notation-block" style="border-left-color: var(--role-policy-fg);">
+    <span class="role role-set">quantum</span>(+1) +
+    <span class="role role-core">butterfly</span>(3)
+    = <strong>4</strong> <span class="role role-policy" style="font-size: 0.85rem;">policy</span>
+  </div>
+  <p style="font-size: 0.92rem; color: var(--text-muted); margin: 8px 0 0;">
+    The math computes cleanly using current modifier weights. Status is <span class="badge badge-policy">policy_dependent</span> because <code>quantum</code> is in the policy-token registry — its ADD weight is under Red review. This is <em>structurally</em> 4, but the workbook will not promote computed_adds to authoritative without policy ratification.
+  </p>
+</div>
+
+<h2>Family lineage — butterfly (current row sits outside the active dictionary)</h2>
+<div class="card">
+  <div class="lineage">
+    <div class="tier"><div class="tier-label">3 ADD</div><div class="tier-rows"><span class="lineage-row"><span class="role role-core">butterfly</span><span class="add-pill">3</span></span></div></div>
+    <div class="tier"><div class="tier-label">4 ADD</div><div class="tier-rows">
+      <span class="lineage-row"><span class="role role-set">atomic</span> <span class="role role-core">butterfly</span><span class="add-pill">4</span></span>
+      <span class="lineage-row"><span class="role role-rotation">spinning</span> <span class="role role-core">butterfly</span><span class="add-pill">4</span></span>
+      <span class="lineage-row"><span class="role role-modifier">ducking</span> <span class="role role-core">butterfly</span><span class="add-pill">4</span></span>
+      <span class="lineage-row current"><span class="role role-set">quantum</span> <span class="role role-core">butterfly</span><span class="add-pill">4 ← here (deferred)</span></span>
+      <span class="lineage-row">dimwalk<span class="add-pill">4</span></span>
+      <span class="lineage-row">parkwalk<span class="add-pill">4</span></span>
+      <span class="lineage-row">ripwalk<span class="add-pill">4</span></span>
+      <span class="lineage-row">sidewalk<span class="add-pill">4</span></span>
+    </div></div>
+    <div class="tier"><div class="tier-label">5 ADD</div><div class="tier-rows"><span class="lineage-row">bigwalk<span class="add-pill">5</span></span></div></div>
+  </div>
+</div>
+
+<h2>Related tricks</h2>
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <h3>Other <span class="role role-set">quantum</span> tricks (all currently deferred)</h3>
+      <p style="font-size: 0.85rem; color: var(--text-subtle); font-style: italic;">no active quantum-* compound rows yet; expected if Red ratifies the set weight.</p>
+    </div>
+    <div>
+      <h3>Other <span class="role role-set">set</span> compounds on butterfly</h3>
+      <div class="related-tricks">
+        <span class="related-trick">atomic-butterfly<span class="add-pill">4</span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Parse QC</h2>
+<div class="card">
+  <div class="qc-panel">
+    <div class="qc-row"><strong>Parse warnings:</strong> <code>policy_token_encountered:quantum</code></div>
+    <div class="qc-row"><strong>Policy tokens:</strong> <code>quantum</code></div>
+    <div class="qc-row"><strong>Unresolved tokens:</strong> <span class="qc-empty">none</span></div>
+    <div class="qc-row"><strong>Resolved / raw token count:</strong> <code>2 / 2</code></div>
+  </div>
+</div>
+
+<div class="proto-notes">
+  <h2>Prototype notes — policy-dependent</h2>
+
+  <h4>What this prototype is testing</h4>
+  <p>Whether <code>policy_tokens[]</code> can be communicated UI-side without collapsing the structural-parse value. Specifically: a row with a contested-weight token should still parse fully, and the visualization should distinguish "the math agrees but the answer is policy-pending" from both "exact" and "approximate".</p>
+
+  <h4>What feels successful</h4>
+  <ul>
+    <li><span class="role role-set">quantum</span> renders in its primary semantic role (set), not as a separate "policy" role. Orthogonal flagging works.</li>
+    <li>The <code>?</code> suffix on the policy-role span + amber tone of the badge convey "approach with caution" without screaming error.</li>
+    <li>"Asserted ADD: — (deferred)" is honest about the missing editorial value. Many UIs would show "0" or "Unknown" — this version explains.</li>
+    <li>The lineage tier-pill <code>← here (deferred)</code> places the row in its structural neighborhood while signaling its non-active status.</li>
+  </ul>
+
+  <h4>What feels overloaded</h4>
+  <ul>
+    <li>Three concurrent signals on the modifier-layering box: "+1 ADD (policy-pending)", a separate "policy" badge in the corner, AND the role-color underline. Phase-3 reduction: keep the role color and ONE of the textual signals.</li>
+    <li>The "(pending policy ratification)" tail-text on the total feels redundant given the badge above.</li>
+  </ul>
+
+  <h4>Ontology concerns exposed</h4>
+  <ul>
+    <li><strong>Hypothetical-row tension.</strong> This prototype is a synthetic compound; quantum-butterfly doesn't sit in the active dictionary. The visualization works for the speculative case but the UI needs an explicit "synthetic / for-illustration" affordance to prevent confusing real users. Production version: only render real rows; if a row is policy-deferred at upstream curation, show a "candidate" placeholder or 404.</li>
+    <li><strong>Policy weight presented as fact.</strong> The "+1 ADD (policy-pending)" wording assumes the registered weight is approximately right. If Red rules quantum is +2, the formula display is misleading. Phase-3 mitigation: display weights from policy-pending tokens with an explicit "current registered" qualifier.</li>
+    <li><strong>"Quantum" in lineage as gray sibling.</strong> Should deferred rows appear in family lineage at all? Pedagogically yes (shows the shape of the family); editorially uncertain (might confuse "what is and isn't a real trick").</li>
+  </ul>
+</div>
+
+<footer>Prototype 01/05 — policy-dependent · <code>exploration/freestyle-notation-grammar/prototypes/01-policy-dependent-quantum-butterfly.html</code></footer>
+
+</body>
+</html>

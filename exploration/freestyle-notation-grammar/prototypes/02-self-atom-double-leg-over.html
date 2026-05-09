@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Double Leg Over — self-canonical atom prototype</title>
+<link rel="stylesheet" href="_shared.css">
+</head>
+<body>
+
+<div class="header-eyebrow">freestyle / tricks / legover family /</div>
+<div class="trick-name-display">
+  <span class="role role-atom" data-role="core_family" title="self-canonical atom: double-leg-over">double leg over</span>
+</div>
+
+<div class="card">
+  <div class="add-panel">
+    <div class="add-block"><span class="add-label">Asserted ADD</span><span class="add-value">3</span></div>
+    <div class="add-block"><span class="add-label">Computed ADD</span><span class="add-value-secondary">3</span></div>
+    <div class="add-block"><span class="add-label">Status</span><span class="badge badge-exact">exact</span></div>
+    <div class="add-block"><span class="add-label">Atom</span><span class="badge" style="background: var(--role-core-bg); color: var(--role-core-fg);">self-canonical ◇</span></div>
+  </div>
+</div>
+
+<h2>Jobs notation (raw)</h2>
+<div class="card">
+  <div class="notation-block">TOE &gt; SAME OUT [DEX] &gt; SAME OUT [DEX] &gt; SAME TOE [DEL]</div>
+  <div class="notation-source-tag">notation synthesized for prototype illustration. The structural shape is a double dexterity legover ending in a same-side toe stall.</div>
+</div>
+
+<h2>Structural decomposition</h2>
+<div class="card">
+  <table class="decomp">
+    <thead><tr><th>Role</th><th>Token(s)</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><span class="role role-core">core_family</span></td>
+        <td class="value-cell">double-leg-over <span class="role role-atom" style="font-size: 0.78rem;">atom</span></td>
+        <td>Self-canonical atom. The whole name is one indivisible identity, NOT decomposed into <code>double + leg + over</code>. Per CANONICALIZATION_POLICY §10: "named identity persistence overrides compositional decomposition."</td>
+      </tr>
+      <tr class="empty"><td><span class="role role-set">set</span></td><td>—</td><td>(none)</td></tr>
+      <tr class="empty"><td><span class="role role-rotation">rotation</span></td><td>—</td><td>(none)</td></tr>
+      <tr class="empty"><td><span class="role role-modifier">modifier</span></td><td>—</td><td>(none — "double" is NOT registered as a modifier per Red pt3 productive-multiplicity rule)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Modifier layering</h2>
+<div class="card">
+  <p style="font-size: 0.92rem; color: var(--text-muted); margin: 0 0 12px;">Self-canonical atoms have no decomposition. The atom's ADD comes from its own asserted value, not from modifier sums.</p>
+  <div class="layer layer-atom">
+    <div class="layer-label">core_family (self-atom)</div>
+    <div class="layer-content">double-leg-over <span class="layer-bonus">3 ADD (asserted = base)</span></div>
+  </div>
+  <div class="layer-total"><span class="add-label">total computed</span> <span class="add-value" style="font-size: 1.25rem;">= 3 ADD</span></div>
+</div>
+
+<h2>ADD derivation</h2>
+<div class="card">
+  <div class="notation-block" style="border-left-color: var(--role-core-fg);">
+    <span class="role role-atom">double-leg-over</span>(3) [self-atom] = <strong>3</strong>
+  </div>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin: 8px 0 0;">
+    Asserted = computed = 3. Tautological agreement (the row's asserted ADD is the input to its own computed ADD). Status <span class="badge badge-exact">exact</span> here means "no contradiction detected" rather than "math derived from modifiers" — important distinction in QC reporting.
+  </p>
+</div>
+
+<h2>Family lineage — legover</h2>
+<div class="card">
+  <p style="font-size: 0.92rem; color: var(--text-muted); margin: 0 0 12px;">The legover family contains 6 active members. Several are themselves self-atoms (community-named tricks, not modifier-decompositions).</p>
+  <div class="lineage">
+    <div class="tier"><div class="tier-label">2 ADD</div><div class="tier-rows">
+      <span class="lineage-row"><span class="role role-core">legover</span><span class="add-pill">2</span></span>
+    </div></div>
+    <div class="tier"><div class="tier-label">3 ADD</div><div class="tier-rows">
+      <span class="lineage-row current"><span class="role role-atom">double-leg-over</span><span class="add-pill">3 ← here</span></span>
+      <span class="lineage-row"><span class="role role-atom">eggbeater</span><span class="add-pill">3</span></span>
+      <span class="lineage-row"><span class="role role-atom">magellan</span><span class="add-pill">3</span></span>
+      <span class="lineage-row"><span class="role role-atom">merkon</span><span class="add-pill">3</span></span>
+    </div></div>
+    <div class="tier"><div class="tier-label">4 ADD</div><div class="tier-rows">
+      <span class="lineage-row"><span class="role role-atom">flurry</span><span class="add-pill">4</span></span>
+    </div></div>
+  </div>
+  <p style="font-size: 0.85rem; color: var(--text-muted); margin: 12px 0 0;"><strong>Observation:</strong> the legover family is dominated by self-atoms. Modifier-decomposition compounds are absent at higher tiers — this family doesn't have the modifier-stacking lineage that <span class="role role-core">whirl</span> has.</p>
+</div>
+
+<h2>Related tricks</h2>
+<div class="card">
+  <p style="font-size: 0.92rem; color: var(--text-muted); margin: 0 0 12px;">Cross-family lenses are limited for self-atom rows — there are no shared modifier tokens to query against. The atom's structure is fully self-contained.</p>
+  <h3>Other named-identity self-atoms (cross-family)</h3>
+  <div class="related-tricks">
+    <span class="related-trick"><span class="role role-atom" style="font-size: 0.85rem;">atom-smasher</span><span class="add-pill">4</span></span>
+    <span class="related-trick"><span class="role role-atom" style="font-size: 0.85rem;">paradox-symposium-whirl</span><span class="add-pill">5</span></span>
+    <span class="related-trick"><span class="role role-atom" style="font-size: 0.85rem;">surge</span><span class="add-pill">5</span></span>
+    <span class="related-trick"><span class="role role-atom" style="font-size: 0.85rem;">surreal</span><span class="add-pill">6</span></span>
+  </div>
+</div>
+
+<h2>Parse QC</h2>
+<div class="card">
+  <div class="qc-panel">
+    <div class="qc-row"><strong>Parse warnings:</strong> <code>inferred_self_canonical_atom</code></div>
+    <div class="qc-row"><strong>Policy tokens:</strong> <span class="qc-empty">none</span></div>
+    <div class="qc-row"><strong>Unresolved tokens:</strong> <span class="qc-empty">none</span></div>
+    <div class="qc-row"><strong>Resolved / raw token count:</strong> <code>1 / 1</code> <em style="color: var(--text-muted); font-size: 0.85rem;">(post-D1; pre-D1 had 3 tokens classified as unresolved)</em></div>
+    <div class="qc-row"><strong>Additive flags:</strong> <code>atom_subsumed_unresolved_tokens</code></div>
+  </div>
+</div>
+
+<div class="proto-notes">
+  <h2>Prototype notes — self-canonical atom</h2>
+
+  <h4>What this prototype is testing</h4>
+  <p>Whether atom-resolved rows present as a single named identity rather than a fake decomposition. The classifier could have wrongly produced something like <code>double + leg + over → unresolved</code>; D1 self-atom recognition collapses that into a clean atom row.</p>
+
+  <h4>What feels successful</h4>
+  <ul>
+    <li>The <span class="role role-atom">dashed-border atom span</span> visually communicates "this is one indivisible thing" — distinct from modifier-decomposed rows.</li>
+    <li>Empty role rows in the decomposition table aren't padding; they're affirmative ("this row has NO set, NO rotation, NO modifier — it's all atom"). The information density is honest.</li>
+    <li>The "double is NOT a modifier" note inline with the modifier row pre-empts the obvious user question: "but isn't 'double' a count modifier?"</li>
+    <li>The lineage view exposes a real ontology insight — the legover family is dominated by self-atoms, unlike whirl. That's editorially important and surfaces visually.</li>
+  </ul>
+
+  <h4>What feels overloaded</h4>
+  <ul>
+    <li>The modifier-layering section is essentially trivial for atoms (one box). Could be collapsed to a single line in Phase-3 or omitted entirely for self-atom rows.</li>
+    <li>The "Related tricks" section is weak for atoms — there's no obvious cross-family lens. The "other self-atoms" related list is structurally honest but pedagogically thin (atoms don't share semantic structure beyond being atoms).</li>
+  </ul>
+
+  <h4>Ontology concerns exposed</h4>
+  <ul>
+    <li><strong>The atom signals "no further structure," but is that always true?</strong> double-leg-over IS a productive multiplicity (double + legover) per Red pt3 reading; we just chose not to decompose because the community name persists. The UI risks misleading learners into thinking "double leg over has no decomposition" when in reality "the IFPA dictionary chose not to expose the decomposition." Phase-3 consideration: an "ontology footnote" affordance per atom row.</li>
+    <li><strong>"Tautological exact" status.</strong> Self-atom rows always status=exact because computed_adds = asserted_adds by construction. This is technically correct but slightly meaningless as QC. Maybe add a sub-status like <code>exact (self-atom)</code> vs <code>exact (modifier-derived)</code>.</li>
+    <li><strong>Display name vs slug.</strong> The atom span shows "double leg over" (with spaces) but the internal slug is "double-leg-over" (with hyphens). Currently the prototype shows the display form on the atom span and slug form on the lineage card. Pick one for Phase-3 consistency.</li>
+  </ul>
+</div>
+
+<footer>Prototype 02/05 — self-canonical atom · <code>exploration/freestyle-notation-grammar/prototypes/02-self-atom-double-leg-over.html</code></footer>
+
+</body>
+</html>
