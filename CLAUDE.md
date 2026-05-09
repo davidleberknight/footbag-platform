@@ -46,7 +46,7 @@ Read the minimum the task requires. Default: active-slice block + code. Load doc
 ## Non-negotiable rules
 
 1. Never edit documentation, `.github/`, or `.claude/` files without explicit human approval.
-2. Never take a destructive or risky action without explicit human approval.
+2. Never take a destructive or risky action without explicit human approval. This includes bypassing safety checks in scripts (`--force`, `--clobber`, `--clobber-real-data`, `CI=true` overrides on fixture stagers, `--no-verify` on git, schema-drop guards, etc.) — those gates exist to protect work and require the same approval as any other destructive action. The 2026-05-09 mirror-wipe incident is the load-bearing precedent: setting `CI=true` to reproduce a CI failure clobbered hours-to-days of pipeline state because the AI read the guard's "refuses unless --force or CI=true" comment as instructions rather than as a warning.
 3. When asking the human a question, always provide context so the human can understand clearly.
 4. If unclear, escalate to the human. Never guess or silently choose among materially different interpretations.
 5. Never add schema, service methods, or behavioral code without grounding in a user story, design decision, or explicit human direction in the current task. If no acceptance criteria or human approval exist for the behavior, stop and ask.
