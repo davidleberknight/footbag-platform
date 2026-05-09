@@ -1,0 +1,11 @@
+{
+  "id": "gallery_footbag_finland",
+  "name": "Footbag Finland",
+  "description": "High-quality demo videos of named freestyle footbag tricks, hosted on the Footbag Finland YouTube channel.",
+  "sortOrder": "caption_asc",
+  "criteriaTags": [
+    "#curated",
+    "#footbag_finland"
+  ],
+  "excludeTags": []
+}
