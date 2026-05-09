@@ -3619,7 +3619,7 @@ CREATE TABLE freestyle_tricks (
   structural_parse_json     TEXT,                  -- JSON: {core_family, set, rotation, modifier, dex_structure, delay_surface, ...}. Per PROPOSAL §2.
   computed_add_formula      TEXT,                  -- human-readable ADD derivation, e.g. 'spinning(+1 rot) + whirl(3) = 4'. NULL when unresolved.
   computed_adds             INTEGER,               -- numeric ADD when derivable. NULL otherwise. Diagnostic only — does NOT override `adds` above.
-  add_formula_status        TEXT                   -- 'exact' | 'approximate' | 'unresolved' | 'policy_dependent' (no CHECK; see PROPOSAL §7.2)
+  add_formula_status        TEXT                   -- 'exact_modifier_derived' | 'exact_self_atom' | 'approximate' | 'unresolved' | 'policy_dependent' (no CHECK; see PROPOSAL §7.2 + PHASE_2_5_REFINEMENTS §2)
 );
 
 CREATE INDEX idx_freestyle_tricks_category      ON freestyle_tricks(category);
