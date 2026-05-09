@@ -14,7 +14,7 @@ This file tracks the current build: active sprint, accepted temporary dev shortc
 
 ### System health deviations
 
-1. **Readiness probe is SQLite-only.** SERVICE_CATALOG.md `SystemBackgroundJobsService.checkReadiness()` composes the readiness signal for `/health/ready`. Current implementation probes SQLite only; KMS, SES, and S3 backup health are not included. Unblock: when a downstream system's failure mode requires inclusion in readiness.
+1. **Readiness probe limited to SQLite + memory pressure.** SERVICE_CATALOG.md `OperationsPlatformService.checkReadiness()` composes the readiness signal for `/health/ready`. Current implementation probes SQLite and container memory pressure only; KMS, SES, and S3 backup health are not included. Unblock: when a downstream system's failure mode requires inclusion in readiness.
 
 ### Legacy claim deviations
 
