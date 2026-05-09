@@ -27,6 +27,8 @@ export interface AppConfig {
   sesAdapter: 'live' | 'stub';
   sesSandboxMode: boolean;
   sesFromIdentity: string | undefined;
+  safeBrowsingAdapter: 'live' | 'stub';
+  safeBrowsingApiKey: string | undefined;
   imageProcessorUrl: string;
   imageMaxConcurrent: number;
   imagePort: number;
@@ -139,6 +141,25 @@ function loadConfig(): AppConfig {
   const sesFromIdentity = process.env.SES_FROM_IDENTITY || undefined;
   if (sesAdapter === 'live' && !sesFromIdentity) {
     throw new Error('SES_FROM_IDENTITY is required when SES_ADAPTER=live');
+  }
+
+  const rawSafeBrowsingAdapter = process.env.SAFE_BROWSING_ADAPTER;
+  let safeBrowsingAdapter: 'live' | 'stub';
+  if (rawSafeBrowsingAdapter === 'live' || rawSafeBrowsingAdapter === 'stub') {
+    safeBrowsingAdapter = rawSafeBrowsingAdapter;
+  } else if (rawSafeBrowsingAdapter) {
+    throw new Error(
+      `SAFE_BROWSING_ADAPTER must be 'live' or 'stub', got: ${rawSafeBrowsingAdapter}`,
+    );
+  } else if (isProd) {
+    throw new Error('SAFE_BROWSING_ADAPTER must be set explicitly in production (no default)');
+  } else {
+    safeBrowsingAdapter = 'stub';
+  }
+
+  const safeBrowsingApiKey = process.env.SAFE_BROWSING_API_KEY || undefined;
+  if (safeBrowsingAdapter === 'live' && !safeBrowsingApiKey) {
+    throw new Error('SAFE_BROWSING_API_KEY is required when SAFE_BROWSING_ADAPTER=live');
   }
 
   const rawSesSandbox = process.env.SES_SANDBOX_MODE;
@@ -300,6 +321,8 @@ function loadConfig(): AppConfig {
     sesAdapter,
     sesSandboxMode,
     sesFromIdentity,
+    safeBrowsingAdapter,
+    safeBrowsingApiKey,
     imageProcessorUrl,
     imageMaxConcurrent,
     imagePort,

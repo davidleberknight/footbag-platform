@@ -31,6 +31,10 @@ import {
   createLiveSesAdapter,
 } from '../../src/adapters/sesAdapter';
 import {
+  createStubSafeBrowsingAdapter,
+  createLiveSafeBrowsingAdapter,
+} from '../../src/adapters/safeBrowsingAdapter';
+import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -96,6 +100,26 @@ function makeFakeSesClient(): { client: SESClient; captured: SendEmailCommand[] 
     },
   };
   return { client: fake as unknown as SESClient, captured };
+}
+
+interface CapturedFetchCall {
+  url: string;
+  init: RequestInit | undefined;
+}
+
+function makeFakeSafeBrowsingFetch(
+  responseBody: object,
+  status = 200,
+): { fetch: typeof fetch; captured: CapturedFetchCall[] } {
+  const captured: CapturedFetchCall[] = [];
+  const fake: typeof fetch = async (input, init) => {
+    captured.push({ url: String(input), init });
+    return new Response(JSON.stringify(responseBody), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  return { fetch: fake, captured };
 }
 
 function b64urlDecodeJson(seg: string): Record<string, unknown> {
@@ -239,6 +263,84 @@ describe('adapter-parity: SesAdapter (Stub vs. Live interface)', () => {
     // Stub records the original msg (with no from). Live applies the default.
     expect(stub.sentMessages[0].from).toBeUndefined();
     expect(fakeSes.captured[0].input.Source).toBe('default@footbag.org');
+  });
+});
+
+describe('adapter-parity: SafeBrowsingAdapter (Stub vs. Live interface)', () => {
+  it('both return { safe: true, threatTypes: [] } when the URL is not flagged', async () => {
+    const stub = createStubSafeBrowsingAdapter();
+    const fakeFetch = makeFakeSafeBrowsingFetch({}); // empty matches array
+    const live = createLiveSafeBrowsingAdapter({
+      apiKey: 'test-key',
+      fetchClient: fakeFetch.fetch,
+    });
+
+    for (const result of [
+      await stub.lookup('https://example.com/'),
+      await live.lookup('https://example.com/'),
+    ]) {
+      expect(result.safe).toBe(true);
+      expect(result.threatTypes).toEqual([]);
+    }
+  });
+
+  it('both return { safe: false, threatTypes } when a match is reported', async () => {
+    const stub = createStubSafeBrowsingAdapter();
+    stub.addThreat('https://malware.example/', 'MALWARE');
+    const fakeFetch = makeFakeSafeBrowsingFetch({
+      matches: [{ threatType: 'MALWARE', threat: { url: 'https://malware.example/' } }],
+    });
+    const live = createLiveSafeBrowsingAdapter({
+      apiKey: 'test-key',
+      fetchClient: fakeFetch.fetch,
+    });
+
+    const stubResult = await stub.lookup('https://malware.example/');
+    const liveResult = await live.lookup('https://malware.example/');
+
+    for (const result of [stubResult, liveResult]) {
+      expect(result.safe).toBe(false);
+      expect(result.threatTypes.length).toBeGreaterThan(0);
+      expect(result.threatTypes).toContain('MALWARE');
+    }
+  });
+
+  it('live adapter posts the threatMatches:find request shape Google v4 expects', async () => {
+    const fakeFetch = makeFakeSafeBrowsingFetch({});
+    const live = createLiveSafeBrowsingAdapter({
+      apiKey: 'test-key',
+      fetchClient: fakeFetch.fetch,
+    });
+
+    await live.lookup('https://example.com/path');
+
+    expect(fakeFetch.captured).toHaveLength(1);
+    const call = fakeFetch.captured[0];
+    expect(call.url).toContain('safebrowsing.googleapis.com/v4/threatMatches:find');
+    expect(call.url).toContain('key=test-key');
+    expect(call.init?.method).toBe('POST');
+    const body = JSON.parse(String(call.init?.body));
+    expect(body).toHaveProperty('client.clientId');
+    expect(body.threatInfo.threatTypes).toContain('MALWARE');
+    expect(body.threatInfo.threatEntries[0].url).toBe('https://example.com/path');
+  });
+
+  it('live adapter throws on non-2xx HTTP responses (no silent safe-mark)', async () => {
+    const fakeFetch = makeFakeSafeBrowsingFetch({ error: 'rate limited' }, 429);
+    const live = createLiveSafeBrowsingAdapter({
+      apiKey: 'test-key',
+      fetchClient: fakeFetch.fetch,
+    });
+    await expect(live.lookup('https://example.com/')).rejects.toThrow(/HTTP 429/);
+  });
+
+  it('stub failNext throws on the next call and clears after one use', async () => {
+    const stub = createStubSafeBrowsingAdapter();
+    stub.failNext(new Error('boom'));
+    await expect(stub.lookup('https://example.com/')).rejects.toThrow('boom');
+    // Second call recovers.
+    const after = await stub.lookup('https://example.com/');
+    expect(after.safe).toBe(true);
   });
 });
 

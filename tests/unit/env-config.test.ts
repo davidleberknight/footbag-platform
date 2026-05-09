@@ -43,6 +43,8 @@ function clearAwsWiring(): void {
   delete process.env.SES_ADAPTER;
   delete process.env.SES_FROM_IDENTITY;
   delete process.env.SES_SANDBOX_MODE;
+  delete process.env.SAFE_BROWSING_ADAPTER;
+  delete process.env.SAFE_BROWSING_API_KEY;
   delete process.env.AWS_REGION;
   delete process.env.IMAGE_PROCESSOR_URL;
   delete process.env.IMAGE_MAX_CONCURRENT;
@@ -70,13 +72,14 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
   });
   afterEach(() => restoreEnv(snap));
 
-  it('defaults JWT_SIGNER=local and SES_ADAPTER=stub under NODE_ENV=development', async () => {
+  it('defaults JWT_SIGNER=local, SES_ADAPTER=stub, SAFE_BROWSING_ADAPTER=stub under NODE_ENV=development', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'development';
     const { config } = await import('../../src/config/env');
     expect(config.jwtSigner).toBe('local');
     expect(config.sesAdapter).toBe('stub');
+    expect(config.safeBrowsingAdapter).toBe('stub');
   });
 
   it('defaults JWT_SIGNER=local and SES_ADAPTER=stub under NODE_ENV=test', async () => {
@@ -131,6 +134,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'kms';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /JWT_KMS_KEY_ID is required when JWT_SIGNER=kms/,
     );
@@ -163,6 +167,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'live';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SES_FROM_IDENTITY is required when SES_ADAPTER=live/,
@@ -176,6 +181,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'kms';
     process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:0:key/x';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     await expect(import('../../src/config/env')).rejects.toThrow(
@@ -189,6 +195,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.SESSION_SECRET = 'a'.repeat(31);
@@ -203,6 +210,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.SESSION_SECRET = 'a'.repeat(20) + 'changeme' + 'b'.repeat(20);
@@ -219,6 +227,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_KMS_KEY_ID =
       'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.SES_FROM_IDENTITY = 'noreply@footbag.org';
     process.env.AWS_REGION = 'us-east-1';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
@@ -233,6 +242,57 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     expect(config.awsRegion).toBe('us-east-1');
     expect(config.imageProcessorUrl).toBe('http://image:4000');
     expect(config.mediaStorageAdapter).toBe('local');
+    expect(config.safeBrowsingAdapter).toBe('stub');
+  });
+
+  it('throws when SAFE_BROWSING_ADAPTER is unset in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SAFE_BROWSING_ADAPTER must be set explicitly in production/,
+    );
+  });
+
+  it('throws when SAFE_BROWSING_ADAPTER has an invalid value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'bogus';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SAFE_BROWSING_ADAPTER must be 'live' or 'stub', got: bogus/,
+    );
+  });
+
+  it('throws when SAFE_BROWSING_ADAPTER=live but SAFE_BROWSING_API_KEY is unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'live';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SAFE_BROWSING_API_KEY is required when SAFE_BROWSING_ADAPTER=live/,
+    );
+  });
+
+  it('accepts SAFE_BROWSING_ADAPTER=live with SAFE_BROWSING_API_KEY set', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'live';
+    process.env.SAFE_BROWSING_API_KEY = 'test-api-key';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    const { config } = await import('../../src/config/env');
+    expect(config.safeBrowsingAdapter).toBe('live');
+    expect(config.safeBrowsingApiKey).toBe('test-api-key');
   });
 
   it('throws when IMAGE_PROCESSOR_URL is unset in production', async () => {
@@ -241,6 +301,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /IMAGE_PROCESSOR_URL must be set explicitly in production/,
     );
@@ -270,6 +331,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /MEDIA_STORAGE_ADAPTER must be set explicitly in production/,
@@ -324,6 +386,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
@@ -341,6 +404,7 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
@@ -570,6 +634,7 @@ describe('env config: VIDEO_* parsing and defaults', () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /IMAGE_PROCESSOR_URL must be set explicitly in production/,
     );

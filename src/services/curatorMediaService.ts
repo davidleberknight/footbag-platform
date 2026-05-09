@@ -356,8 +356,8 @@ function validateTags(tags: string[]): void {
 // URL on accept, null on absent input, throws ValidationError on invalid.
 // Callers persist the returned value to media_items.external_url and
 // stamp external_url_validated_at on accept.
-function normalizeExternalUrlOrThrow(input: string | null | undefined): string | null {
-  const result = validateExternalUrl(input);
+async function normalizeExternalUrlOrThrow(input: string | null | undefined): Promise<string | null> {
+  const result = await validateExternalUrl(input);
   if (!result.valid) {
     throw new ValidationError(result.error ?? 'Invalid URL.');
   }
@@ -776,7 +776,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadPhoto(input: CuratorPhotoInput): Promise<CuratorUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
-      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
+      const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
         throw new ValidationError('Photo is too large. Maximum size is 25 MB.');
@@ -856,7 +856,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadVideo(input: CuratorVideoInput): Promise<CuratorUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
-      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
+      const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoBuffer.length > VIDEO_MAX_BYTES) {
         throw new ValidationError('Video is too large. Maximum size is 150 MB.');
@@ -1064,7 +1064,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     ): Promise<CuratorUrlReferenceResult> {
       validateCaption(input.title);
       validateTags(input.tags);
-      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
+      const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
         throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
@@ -1188,7 +1188,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // gets persisted.
       let normalizedExternalUrlEdit: string | null | undefined;
       if (input.externalUrl !== undefined) {
-        normalizedExternalUrlEdit = normalizeExternalUrlOrThrow(input.externalUrl);
+        normalizedExternalUrlEdit = await normalizeExternalUrlOrThrow(input.externalUrl);
       }
 
       const row = runSqliteRead('getCuratorMediaItemById', () =>
@@ -1957,7 +1957,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadPhotoForMember(input: MemberPhotoInput): Promise<MemberUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
-      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
+      const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
         throw new ValidationError('Photo is too large. Maximum size is 25 MB.');
@@ -2027,7 +2027,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
-      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
+      const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
         throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
