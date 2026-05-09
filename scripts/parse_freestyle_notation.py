@@ -55,17 +55,19 @@ REPO        = Path(__file__).resolve().parent.parent
 DEFAULT_DB  = REPO / "database" / "footbag.db"
 DEFAULT_OUT_DIR = REPO / "legacy_data" / "reports"
 
-PARSER_VERSION = "1.0-mvp"
+PARSER_VERSION = "2.0"  # Phase 2: full corpus, policy-aware parsing, parse_warnings
 
-DEFAULT_TARGET_FAMILIES = {"whirl", "butterfly", "mirage", "illusion", "legover", "osis"}
+DEFAULT_TARGET_FAMILIES: set[str] = set()  # empty → no family filter (full corpus)
 ROTATIONAL_BASES = {"whirl", "mirage", "torque", "swirl"}
 
-# Role registries. Hard-coded for the MVP; the registered modifiers in
+# Role registries. Hard-coded for now; the registered modifiers in
 # freestyle_trick_modifiers are cross-checked at startup so any modifier
-# that's in the DB but not classified here surfaces as a parser-coverage
-# warning rather than a silent skip.
+# that's in the DB but not classified here surfaces as a warning rather
+# than a silent skip.
 SET_TOKENS = {
-    "atomic", "pixie", "fairy", "pogo", "rooted",
+    "atomic", "pixie", "fairy", "pogo", "rooted", "furious",
+    # Phase 2: policy-bearing tokens still classify by primary role.
+    "quantum", "nuclear", "shooting",
 }
 ROTATION_TOKENS = {
     "spinning", "inspinning", "swirling", "whirling", "gyro",
@@ -73,11 +75,25 @@ ROTATION_TOKENS = {
 MODIFIER_TOKENS = {
     "ducking", "stepping", "symposium", "paradox", "tapping",
     "blazing", "weaving", "barraging", "miraging", "diving",
-    "blurry", "terraging",
+    "blurry", "terraging", "xdex",
 }
-# Tokens whose ADD weight is ontology/Red-policy dependent. Rows
-# containing any of these (in name OR notation OR alt-name) are skipped
-# from the MVP corpus by default.
+# D2: direction-structural shorthand. Distinct from rotation (which
+# names a body-spin modifier). Direction-only variants alter mechanics
+# without implying an ADD bonus.
+DIRECTION_TOKENS = {
+    "rev", "reverse",
+}
+# D3: delay-surface vocabulary. Standard stall surfaces.
+DELAY_SURFACE_TOKENS = {
+    "clipper", "toe", "inside", "heel", "outside",
+}
+# D3: non-standard / unusual surfaces.
+UNUSUAL_SURFACE_TOKENS = {
+    "sole", "knee", "head", "neck", "shoulder", "forehead", "cloud",
+}
+# Tokens whose ADD weight or ontology placement is policy-dependent.
+# Per James 2026-05-09: parse the row into its primary role bucket, AND
+# tag the policy concern in policy_tokens. Status = policy_dependent.
 POLICY_TOKENS = {
     "nuclear", "quantum", "backside", "shooting", "down",
 }
@@ -114,14 +130,21 @@ def tokenize(name: str) -> list[dict]:
 
 def classify_token(tok: str, core_families: set[str]) -> tuple[str, str]:
     """Return (role, normalized_token). Role is one of:
-       set, rotation, modifier, core_family, policy, virtual, unresolved.
+       set, rotation, modifier, directionality, delay_surface,
+       unusual_surface, core_family, virtual, unresolved.
+
+    Policy-token tagging is orthogonal to role and handled separately
+    in parse_trick — a token can land in BOTH a role bucket AND
+    policy_tokens (e.g., quantum → set + policy_tokens).
     """
-    if tok in VIRTUAL_EXPANSIONS:    return ("virtual", tok)
-    if tok in POLICY_TOKENS:         return ("policy", tok)
-    if tok in SET_TOKENS:            return ("set", tok)
-    if tok in ROTATION_TOKENS:       return ("rotation", tok)
-    if tok in MODIFIER_TOKENS:       return ("modifier", tok)
-    if tok in core_families:         return ("core_family", tok)
+    if tok in VIRTUAL_EXPANSIONS:        return ("virtual",         tok)
+    if tok in SET_TOKENS:                return ("set",             tok)
+    if tok in ROTATION_TOKENS:           return ("rotation",        tok)
+    if tok in MODIFIER_TOKENS:           return ("modifier",        tok)
+    if tok in DIRECTION_TOKENS:          return ("directionality",  tok)
+    if tok in DELAY_SURFACE_TOKENS:      return ("delay_surface",   tok)
+    if tok in UNUSUAL_SURFACE_TOKENS:    return ("unusual_surface", tok)
+    if tok in core_families:             return ("core_family",     tok)
     return ("unresolved", tok)
 
 
@@ -132,7 +155,7 @@ def parse_trick(
     core_families: set[str],
 ) -> dict:
     """Run the role mapper on `name`. Returns the structural-parse dict
-    described in PROPOSAL.md §2."""
+    described in PROPOSAL.md §2 + Phase-2 refinements."""
     parse: dict = {
         "core_family":      [],
         "set":              [],
@@ -143,28 +166,27 @@ def parse_trick(
         "unusual_surface":  [],
         "additive_flags":   [],
         "special_cases":    [],
+        "policy_tokens":    [],   # Phase 2: orthogonal flag for tokens with
+                                  #   contested ADD weights or ontology placement.
+        "parse_warnings":   [],   # Phase 2: structured non-fatal QC signals.
         "unresolved_tokens":[],
         "parser_version":   PARSER_VERSION,
         "parsed_at":        datetime.now(timezone.utc).isoformat(),
         "parse_source":     "name_decomposition",
     }
 
-    # Multi-token atom guard: if the canonical_slug itself is a hyphenated
-    # multi-word canonical (e.g. 'double-leg-over'), preserve it as a
-    # single core_family unit rather than decomposing into parts.
-    multi_token_canonicals: set[str] = {
-        s for s in canonicals_by_slug if "-" in s
-    }
+    # Multi-token atom guard: if a different canonical's name (after
+    # space→hyphen) matches the input name, treat that one as a single
+    # core_family unit rather than decomposing into parts.
     name_as_slug = re.sub(r"\s+", "-", normalize_name(name))
-    if name_as_slug in multi_token_canonicals and name_as_slug != canonical_slug:
-        # The full name resolves to a different multi-token canonical.
-        # Treat as single core_family token.
+    if name_as_slug in canonicals_by_slug and name_as_slug != canonical_slug:
         parse["core_family"].append({
             "token":          name_as_slug,
             "span_start":     0,
             "span_end":       len(name),
             "atom_resolved":  True,
         })
+        parse["parse_warnings"].append("inferred_self_canonical_atom")
         parse["raw_token_count"] = 1
         parse["resolved_token_count"] = 1
         return parse
@@ -183,10 +205,6 @@ def parse_trick(
                     **record, "token": expanded_tok, "expanded_from": val,
                 })
             resolved += 1
-        elif role == "policy":
-            parse["special_cases"].append(val)
-            parse["additive_flags"].append("policy_dependent_token_present")
-            resolved += 1
         elif role == "unresolved":
             parse["unresolved_tokens"].append({
                 **record, "reason": "not in any registry",
@@ -194,8 +212,46 @@ def parse_trick(
         else:
             parse[role].append(record)
             resolved += 1
+        # Orthogonal: policy-token tag. A token in POLICY_TOKENS retains
+        # its primary role classification AND gets recorded here for
+        # status-aware downstream handling.
+        if val in POLICY_TOKENS:
+            parse["policy_tokens"].append(val)
+            parse["parse_warnings"].append(f"policy_token_encountered:{val}")
 
     parse["resolved_token_count"] = resolved
+
+    # D1: Self-canonical atom recognition. Two trigger conditions:
+    #   (a) No token classified as core_family — pure self-atom case
+    #       (e.g., 'atomic', 'fairy', 'pogo' — set primitives that are
+    #       their own canonicals).
+    #   (b) Per-token classification produced unresolved_tokens AND the
+    #       row's canonical_slug is itself a registered canonical — the
+    #       slug IS the atom (e.g., 'high-plains-drifter', 'double-spin').
+    # In both cases the slug-as-atom takes precedence; modifier tokens
+    # (if any) become descriptive rather than ADD-contributing.
+    needs_atom = canonical_slug in core_families and (
+        not parse["core_family"] or parse["unresolved_tokens"]
+    )
+    if needs_atom:
+        # Clear partial role classifications — they're descriptive but
+        # the atom owns ADD math.
+        for role in ("set", "rotation", "modifier", "delay_surface", "directionality", "unusual_surface"):
+            parse[role] = []
+        parse["core_family"] = [{
+            "token":         canonical_slug,
+            "span_start":    0,
+            "span_end":      len(name),
+            "atom_resolved": True,
+        }]
+        if parse["unresolved_tokens"]:
+            parse["additive_flags"].append("atom_subsumed_unresolved_tokens")
+            parse["unresolved_tokens"] = []
+        parse["parse_warnings"].append("inferred_self_canonical_atom")
+
+    if parse["unresolved_tokens"]:
+        parse["parse_warnings"].append("unresolved_tokens_present")
+
     return parse
 
 
@@ -206,56 +262,58 @@ def compute_formula(
     parse: dict,
     canonicals_by_slug: dict[str, dict],
     modifier_weights: dict[str, dict],
-) -> tuple[int | None, str | None, str]:
-    """Returns (computed_adds, formula_string, formula_status_hint).
-    formula_status_hint is what the row WOULD be if the only signal were
-    the parse — 'exact' or 'approximate' is decided by the caller after
-    comparing computed vs asserted.
+) -> tuple[int | None, str | None]:
+    """Returns (computed_adds, formula_string). Returns (None, None) when
+    the formula cannot be computed (no core_family or base.adds missing).
+
+    Caller is responsible for status determination (exact vs approximate
+    vs unresolved vs policy_dependent) by comparing this output against
+    asserted_adds AND inspecting parse['policy_tokens'].
     """
     cf_list = parse.get("core_family", [])
     if not cf_list:
-        return (None, None, "unresolved")
+        return (None, None)
     base_slug = cf_list[0]["token"]
     base = canonicals_by_slug.get(base_slug)
     if not base or base.get("adds") is None:
-        return (None, None, "unresolved")
+        return (None, None)
 
     base_adds = base["adds"]
     is_rotational = base_slug in ROTATIONAL_BASES
 
+    # Self-atom rows: the slug IS the trick. Modifier-shaped tokens in
+    # the name (if any) are part of the atom's identity, not stackable
+    # contributions. Use base.adds directly.
+    if cf_list[0].get("atom_resolved"):
+        return (base_adds, f"{base_slug}({base_adds}) [self-atom] = {base_adds}")
+
     bonus = 0
     contributions: list[str] = []
 
-    def add_contribution(tok: str, kind: str) -> bool:
+    def add_contribution(tok: str) -> None:
         nonlocal bonus
         m = modifier_weights.get(tok)
         if not m:
-            return False
+            return
         weight = m["add_bonus_rotational"] if is_rotational else m["add_bonus"]
         bonus += weight
-        contributions.append(f"{tok}(+{weight}{' rot' if is_rotational and m['add_bonus_rotational'] != m['add_bonus'] else ''})")
-        return True
+        rot_label = " rot" if is_rotational and m["add_bonus_rotational"] != m["add_bonus"] else ""
+        contributions.append(f"{tok}(+{weight}{rot_label})")
 
     for s in parse.get("set", []):
-        add_contribution(s["token"], "set")
+        add_contribution(s["token"])
     for r in parse.get("rotation", []):
-        add_contribution(r["token"], "rotation")
+        add_contribution(r["token"])
     for m in parse.get("modifier", []):
-        add_contribution(m["token"], "modifier")
+        add_contribution(m["token"])
 
     if parse.get("unresolved_tokens"):
-        return (None, None, "unresolved")
-
-    # Policy-dependent token short-circuits status; computed is approximate
-    # at best. For the MVP we exclude these rows from corpus, but defensive.
-    if parse.get("special_cases"):
-        formula = " + ".join(contributions + [f"{base_slug}({base_adds})"]) + f" = {base_adds + bonus}"
-        return (base_adds + bonus, formula, "policy_dependent")
+        # Tokens didn't classify; computed math would be wrong.
+        return (None, None)
 
     formula_parts = contributions + [f"{base_slug}({base_adds})"]
     formula = " + ".join(formula_parts) + f" = {base_adds + bonus}"
-    computed = base_adds + bonus
-    return (computed, formula, "computed_ok")
+    return (base_adds + bonus, formula)
 
 
 # ─── DB I/O ────────────────────────────────────────────────────────────────
@@ -311,63 +369,99 @@ def has_policy_token(name: str, notation: str) -> bool:
 # ─── QC report ─────────────────────────────────────────────────────────────
 
 
-def write_qc_report(rows: list[dict], qc_path: Path) -> None:
-    qc_path.parent.mkdir(parents=True, exist_ok=True)
-    by_status: dict[str, list[dict]] = {}
+def _header(rows: list[dict], title: str, body: str) -> list[str]:
+    by_status: dict[str, int] = {}
     for r in rows:
-        by_status.setdefault(r["add_formula_status"], []).append(r)
+        by_status[r["add_formula_status"]] = by_status.get(r["add_formula_status"], 0) + 1
+    out = [
+        f"# {title}\n",
+        f"- Parser version: `{PARSER_VERSION}`",
+        f"- Total rows in corpus: **{len(rows)}**",
+        f"- Status distribution: " + " · ".join(f"`{s}`={by_status.get(s, 0)}" for s in ("exact","approximate","unresolved","policy_dependent")),
+        "",
+        body,
+        "",
+    ]
+    return out
 
-    lines: list[str] = []
-    lines.append(f"# Parser MVP coverage report\n")
-    lines.append(f"- Parser version: `{PARSER_VERSION}`")
-    lines.append(f"- Total rows attempted: **{len(rows)}**")
-    lines.append(f"- Target families: {sorted(DEFAULT_TARGET_FAMILIES)}\n")
-    lines.append("## Status distribution\n")
-    lines.append("| Status | Count |\n|---|---:|")
-    for status in ("exact", "approximate", "unresolved", "policy_dependent"):
-        lines.append(f"| `{status}` | {len(by_status.get(status, []))} |")
-    lines.append("")
 
-    if by_status.get("approximate"):
-        lines.append("## ADD math conflicts (computed != asserted)\n")
-        lines.append("These are NOT errors — the asserted ADD is editorial truth. "
-                     "Each row below indicates either (a) a parser-grammar gap, "
-                     "(b) a Red-endorsed exception (e.g. ADD-only activation per CANONICALIZATION_POLICY §3), "
-                     "or (c) a missing modifier weight. Surface for editorial review.\n")
-        lines.append("| Slug | Asserted | Computed | Formula |")
-        lines.append("|---|---:|---:|---|")
-        for r in sorted(by_status["approximate"], key=lambda x: (x["family"], x["slug"])):
-            lines.append(f"| `{r['slug']}` | {r['asserted_adds']} | {r['computed_adds']} | `{r['computed_add_formula']}` |")
-        lines.append("")
+def write_add_conflict_report(rows: list[dict], path: Path) -> None:
+    """Approximate rows: parse complete, computed != asserted. Editorial review."""
+    targets = [r for r in rows if r["add_formula_status"] == "approximate"]
+    body = (
+        "Rows below have a complete structural parse, but the computed ADD does "
+        "NOT equal the asserted ADD. These are NOT errors — the asserted ADD remains "
+        "editorial truth. Each row indicates either (a) a missing modifier weight, "
+        "(b) a Red-endorsed exception (e.g. ADD-only activation per CANONICALIZATION_POLICY §3), "
+        "or (c) a parser-grammar refinement opportunity. Sent to James's queue first per Phase-2 D4."
+    )
+    lines = _header(rows, "Parser ADD-conflict report", body)
+    if not targets:
+        lines.append("(no approximate rows in current corpus)")
+    else:
+        lines.append("| Slug | Name | Family | Asserted | Computed | Formula | Warnings |")
+        lines.append("|---|---|---|---:|---:|---|---|")
+        for r in sorted(targets, key=lambda x: (x["family"], x["slug"])):
+            warnings = ", ".join(r["structural_parse_json"].get("parse_warnings", []))
+            lines.append(
+                f"| `{r['slug']}` | {r['name']} | {r['family']} | "
+                f"{r['asserted_adds']} | {r['computed_adds']} | `{r['computed_add_formula']}` | {warnings} |"
+            )
+    path.write_text("\n".join(lines) + "\n")
 
-    if by_status.get("unresolved"):
-        lines.append("## Unresolved (parser couldn't decompose)\n")
-        lines.append("Tokens not matched against the role registries. Each is a candidate "
-                     "for adding to a registry OR for a future Red review.\n")
-        lines.append("| Slug | Name | Unresolved tokens |")
-        lines.append("|---|---|---|")
-        for r in sorted(by_status["unresolved"], key=lambda x: (x["family"], x["slug"])):
+
+def write_coverage_report(rows: list[dict], path: Path) -> None:
+    """Unresolved rows + parser-coverage gaps. Grammar-extension candidates."""
+    targets = [r for r in rows if r["add_formula_status"] == "unresolved"]
+    body = (
+        "Rows whose tokens could not be classified against the role registries. "
+        "Each is a candidate for either (a) adding to a registry, "
+        "(b) self-canonical-atom recognition (D1 already on; surfacing rows that still didn't resolve), "
+        "(c) directional / surface vocabulary extension, or "
+        "(d) a future Red review."
+    )
+    lines = _header(rows, "Parser coverage report", body)
+    if not targets:
+        lines.append("(no unresolved rows in current corpus)")
+    else:
+        lines.append("| Slug | Name | Family | Unresolved tokens | Warnings |")
+        lines.append("|---|---|---|---|---|")
+        for r in sorted(targets, key=lambda x: (x["family"], x["slug"])):
             unresolved = [t["token"] for t in r["structural_parse_json"].get("unresolved_tokens", [])]
-            lines.append(f"| `{r['slug']}` | {r['name']} | {', '.join(unresolved) or '(base or modifier weight missing)'} |")
-        lines.append("")
+            warnings = ", ".join(r["structural_parse_json"].get("parse_warnings", []))
+            lines.append(
+                f"| `{r['slug']}` | {r['name']} | {r['family']} | "
+                f"{', '.join(unresolved) or '(base.adds missing)'} | {warnings} |"
+            )
+    path.write_text("\n".join(lines) + "\n")
 
-    if by_status.get("policy_dependent"):
-        lines.append("## Policy-dependent (defensive — should be 0 in MVP corpus)\n")
-        for r in by_status["policy_dependent"]:
-            lines.append(f"- `{r['slug']}` ({r['name']}): contains {r['structural_parse_json'].get('special_cases', [])}")
-        lines.append("")
 
-    if by_status.get("exact"):
-        lines.append("## Exact parses\n")
-        lines.append("Parse complete; computed equals asserted. These rows are candidates "
-                     "for Phase-2 backfill into structural_parse_json + computed_add_formula.\n")
-        lines.append("| Slug | Name | Asserted | Computed | Formula |")
-        lines.append("|---|---|---:|---:|---|")
-        for r in sorted(by_status["exact"], key=lambda x: (x["family"], int(x["asserted_adds"]) if x["asserted_adds"] else 0, x["slug"])):
-            lines.append(f"| `{r['slug']}` | {r['name']} | {r['asserted_adds']} | {r['computed_adds']} | `{r['computed_add_formula']}` |")
-        lines.append("")
-
-    qc_path.write_text("\n".join(lines) + "\n")
+def write_policy_dependent_queue(rows: list[dict], path: Path) -> None:
+    """Policy-dependent rows: parse complete but contains tokens whose ADD weights
+    or ontology placement is contested. Drives Red follow-up packets."""
+    targets = [r for r in rows if r["add_formula_status"] == "policy_dependent"]
+    body = (
+        "Rows whose structural parse resolves cleanly but contain tokens "
+        "(quantum, nuclear, backside, shooting, down-family) with contested "
+        "ADD weights or ontology placement. Per Phase-2 D4 these flow into "
+        "James's review queue first; only distilled policy questions should "
+        "escalate to Red. Per James 2026-05-09: parse output IS preserved "
+        "(don't pretend ADD certainty, but don't suppress structural value either)."
+    )
+    lines = _header(rows, "Parser policy-dependent queue", body)
+    if not targets:
+        lines.append("(no policy_dependent rows in current corpus)")
+    else:
+        lines.append("| Slug | Name | Family | Asserted | Computed | Policy tokens | Formula |")
+        lines.append("|---|---|---|---:|---:|---|---|")
+        for r in sorted(targets, key=lambda x: (x["family"], x["slug"])):
+            policy_tokens = ", ".join(r["structural_parse_json"].get("policy_tokens", []))
+            lines.append(
+                f"| `{r['slug']}` | {r['name']} | {r['family']} | "
+                f"{r['asserted_adds']} | {r['computed_adds']} | {policy_tokens} | "
+                f"`{r['computed_add_formula']}` |"
+            )
+    path.write_text("\n".join(lines) + "\n")
 
 
 # ─── Main ──────────────────────────────────────────────────────────────────
@@ -377,13 +471,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db",       default=str(DEFAULT_DB))
     ap.add_argument("--out-dir",  default=str(DEFAULT_OUT_DIR))
-    ap.add_argument("--families", default=",".join(sorted(DEFAULT_TARGET_FAMILIES)),
-                    help="Comma-separated list of trick_family values to include")
-    ap.add_argument("--include-policy-dependent", action="store_true",
-                    help="Include rows containing policy tokens (defensive testing only)")
+    ap.add_argument("--families", default="",
+                    help="Comma-separated list of trick_family values to include. "
+                         "Default: empty = full corpus (all active non-modifier rows).")
     ap.add_argument("--apply", action="store_true",
                     help="Write structural_parse_json + computed_* fields to DB. "
-                         "NEVER touches `adds` or `notation`. Default: dry-run.")
+                         "NEVER touches `adds` or `notation`. Default: dry-run. "
+                         "Per D5: writes for `exact` and `approximate`; skips `unresolved`. "
+                         "`policy_dependent` rows also write (parse + flagged status).")
     args = ap.parse_args()
 
     families = {f.strip() for f in args.families.split(",") if f.strip()}
@@ -398,7 +493,10 @@ def main() -> int:
     modifier_weights = load_modifier_weights(con)
 
     # Set of all canonical slugs treated as recognizable family-core tokens
-    # for parse classification. Includes names AND slugs.
+    # for parse classification. Modifier-role tokens (set/rotation/modifier)
+    # also remain here so D1 self-atom recognition can resolve modifier-
+    # reference rows like 'atomic', 'fairy', 'pogo' as their own canonicals
+    # without needing a separate exception path.
     family_canonical_tokens: set[str] = set()
     for slug, info in canonicals.items():
         if not info["is_active"]:
@@ -406,11 +504,6 @@ def main() -> int:
         if info["category"] == "modifier":
             continue
         family_canonical_tokens.add(slug)
-        # Also add space-separated form (e.g. 'around-the-world' canonical_name
-        # tokenizes to ['around','the','world'] — multi-token atom check
-        # in parse_trick handles this).
-    # Drop any token that's also in modifier registries; modifier wins.
-    family_canonical_tokens -= MODIFIER_TOKENS | SET_TOKENS | ROTATION_TOKENS
 
     # Sanity-check: every registered modifier is classified.
     unclassified = [m for m in modifier_weights
@@ -419,39 +512,44 @@ def main() -> int:
         print(f"WARN: {len(unclassified)} registered modifiers are not classified into "
               f"a role bucket: {sorted(unclassified)}", file=sys.stderr)
 
-    # Build corpus.
+    # Build corpus. Phase 2: full active dictionary by default.
     corpus: list[tuple[str, dict]] = []
     for slug, info in canonicals.items():
         if not info["is_active"]:
             continue
         if info["category"] == "modifier":
             continue
-        if info["family"] not in families:
-            continue
-        if not args.include_policy_dependent and has_policy_token(info["name"], info["notation"]):
+        if families and info["family"] not in families:
             continue
         corpus.append((slug, info))
 
-    print(f"Parser MVP — {len(corpus)} rows in corpus")
-    print(f"  families: {sorted(families)}")
-    print(f"  policy filter: {'OFF' if args.include_policy_dependent else 'ON'}")
+    print(f"Parser v{PARSER_VERSION} — {len(corpus)} rows in corpus")
+    print(f"  families: {sorted(families) if families else '(all)'}")
+    print(f"  policy rows: included with policy_dependent status")
 
     # Run parser.
     rows: list[dict] = []
     for slug, info in corpus:
         parse = parse_trick(info["name"], slug, canonicals, family_canonical_tokens)
-        computed, formula, hint = compute_formula(parse, canonicals, modifier_weights)
+        computed, formula = compute_formula(parse, canonicals, modifier_weights)
         asserted = info["adds"]
 
-        # Status determination.
-        if parse.get("special_cases"):
-            status = "policy_dependent"
-        elif parse.get("unresolved_tokens") or computed is None:
+        # Status determination — order matters:
+        #   1. unresolved (no usable parse — supersedes everything)
+        #   2. policy_dependent (parse OK but contains policy-bearing tokens)
+        #   3. approximate (parse OK, no policy concerns, math disagrees)
+        #   4. exact (parse OK, no policy concerns, math agrees)
+        if computed is None or parse.get("unresolved_tokens"):
             status = "unresolved"
+        elif parse.get("policy_tokens"):
+            status = "policy_dependent"
         elif asserted is not None and computed == asserted:
             status = "exact"
         else:
             status = "approximate"
+            parse["parse_warnings"].append(
+                f"approximate_add_formula:computed={computed},asserted={asserted}"
+            )
 
         rows.append({
             "slug":     slug,
@@ -464,21 +562,31 @@ def main() -> int:
             "structural_parse_json":   parse,
         })
 
-    # Write JSON output.
-    json_path = out_dir / "parser_mvp_dry_run.json"
-    json_path.parent.mkdir(parents=True, exist_ok=True)
+    # Write JSON output (full parse for every row, regardless of status).
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "parser_phase2_parses.json"
     json_path.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n")
 
-    # Write QC report.
-    qc_path = out_dir / "parser_mvp_coverage.md"
-    write_qc_report(rows, qc_path)
+    # Write the three QC reports per PROPOSAL §7.3.
+    add_conflict_path  = out_dir / "parser_add_conflict_report.md"
+    coverage_path      = out_dir / "parser_coverage_report.md"
+    policy_queue_path  = out_dir / "parser_policy_dependent_queue.md"
+    write_add_conflict_report(rows, add_conflict_path)
+    write_coverage_report(rows, coverage_path)
+    write_policy_dependent_queue(rows, policy_queue_path)
 
     # Optional: apply parses to the new DB columns. Never touches `adds`
     # or `notation`. Idempotent; same row → same parse → same write.
+    # Per D5: write for `exact` and `approximate`. Skip `unresolved`
+    # (no stable parse to persist). Also write for `policy_dependent`
+    # (parse is valid; status field flags the policy concern).
+    applied = skipped = 0
     if args.apply:
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         with con:
             for r in rows:
+                if r["add_formula_status"] == "unresolved":
+                    skipped += 1
+                    continue
                 con.execute(
                     """UPDATE freestyle_tricks
                        SET jobs_notation_raw    = COALESCE(jobs_notation_raw, notation),
@@ -495,7 +603,8 @@ def main() -> int:
                         r["slug"],
                     ),
                 )
-        print(f"  --apply: wrote parses to {len(rows)} freestyle_tricks rows")
+                applied += 1
+        print(f"  --apply: wrote {applied} parses; skipped {skipped} unresolved.")
 
     con.close()
 
@@ -506,8 +615,7 @@ def main() -> int:
     print("Status breakdown:")
     for s in ("exact", "approximate", "unresolved", "policy_dependent"):
         print(f"  {s:<18s} {by_status.get(s, 0)}")
-    print(f"Wrote: {json_path}")
-    print(f"Wrote: {qc_path}")
+    print(f"Wrote: {json_path.name}, {add_conflict_path.name}, {coverage_path.name}, {policy_queue_path.name}")
     return 0
 
 
