@@ -91,11 +91,13 @@ export function createLocalMediaStorageAdapter(opts: {
         return false;
       }
     },
-    // Local dev does not use presigned PUT in production. The async curator
-    // video flow is wired only against S3; the local adapter exposes a stub
-    // URL shape solely so the interface is satisfied and tests can assert
-    // the call site without a real S3 client. The local-mode admin upload
-    // path keeps using the existing synchronous multipart submission.
+    // The async sign + S3 PUT + finalize curator video flow (DD §6.8) runs
+    // only in S3-adapter mode. In local-adapter mode the admin upload form
+    // omits its data-async-enabled opt-in, video uploads submit as standard
+    // multipart, and the service writes a /curated/{category}/ sidecar pair
+    // (DD §1.13). This stub URL is never PUT to at runtime in local mode;
+    // it exists solely so the interface is satisfied for tests that assert
+    // the call site without a real S3 client.
     async generatePresignedPutUrl(
       key: string,
       contentType: string,

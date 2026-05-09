@@ -95,52 +95,15 @@ GALLERY_SORT_ORDERS = ("upload_desc", "upload_asc", "caption_asc")
 GALLERY_NAME_MAX = 150
 GALLERY_DESCRIPTION_MAX = 1000
 
-# Hardcoded manifest of curator items seeded for go-live. Append entries here
-# to extend the seed (e.g. event-pinned photos, /net cartoons, tutorials,
-# historical content). Each entry maps to one media_items row. video items
-# have a poster companion; photo items have variants generated from the
-# source image; avatar items also update members.avatar_media_id on the
-# system member row.
-CURATOR_ITEMS = [
-    {
-        "id_seed": "fh_avatar",
-        "media_type": "photo",
-        "is_avatar": True,
-        "photo_source": "fh-avatar.jpg",
-        "caption": None,
-        "tags": [],
-    },
-    {
-        "id_seed": "demo_freestyle",
-        "media_type": "video",
-        "video_source": "demo-freestyle.mp4",
-        "poster_source": "demo-freestyle-poster.jpg",
-        "caption": "Demonstration of freestyle footbag",
-        "tags": ["#demo_freestyle"],
-    },
-    {
-        "id_seed": "demo_net",
-        "media_type": "video",
-        "video_source": "demo-net.mp4",
-        "poster_source": "demo-net-poster.jpg",
-        "caption": "Demonstration of footbag net",
-        "tags": ["#demo_net"],
-    },
-    {
-        "id_seed": "japan_worlds_2026",
-        "media_type": "photo",
-        "photo_source": "japan-worlds-2026.jpg",
-        "caption": "Japan Worlds 2026",
-        "tags": ["#event_2026_worlds_japan"],
-    },
-    {
-        "id_seed": "beaver_open_2025",
-        "media_type": "photo",
-        "photo_source": "beaver-open-2025.jpg",
-        "caption": "Beaver Open 2025",
-        "tags": ["#event_2025_beaver_open"],
-    },
-]
+# All FH curator items are file-paired sidecars under
+# /curated/{category}/<stem>.meta.json (read by seed_file_paired_sidecars).
+# The avatar lives at /curated/avatars/<stem>.<ext> with no sidecar
+# (the avatars/ subdir is the avatar marker); demo loops live in
+# /curated/landing/, event photos in /curated/events/. This list is
+# kept as an extension hook for future items that intentionally have
+# no source binary on disk (e.g. a placeholder slot wiring up a
+# surface ahead of asset delivery), but has none today.
+CURATOR_ITEMS: list[dict] = []
 
 # ── ffmpeg options: canonical malware-stripping pipeline (DD §6.8) ────────
 FFMPEG_OPTS = [
@@ -370,6 +333,16 @@ def seed_video_item(
 
     abs_video.parent.mkdir(parents=True, exist_ok=True)
 
+    # uploaded_at reflects the source binary's mtime so the admin list's
+    # date sort survives a --reset rebuild — items added recently to
+    # /curated/ stay newest-first instead of all collapsing to the seeder
+    # run's `ts`. ts continues to drive created_at / updated_at (those are
+    # row-bookkeeping fields about the DB write itself).
+    source_video_path = source_dir / item["video_source"]
+    uploaded_at = datetime.fromtimestamp(
+        source_video_path.stat().st_mtime, tz=timezone.utc,
+    ).isoformat()
+
     # Re-encode video.
     print(f"  → Transcoding video for {item['id_seed']}...")
     transcode_video(source_dir / item["video_source"], abs_video)
@@ -381,10 +354,13 @@ def seed_video_item(
     )
     process_thumb(source_dir / item["poster_source"], abs_poster_thumb, THUMB_SIZE)
 
-    # video_id stores the S3 key (render code constructs `/media/{video_id}`
-    # via the adapter). video_url stays NULL per the s3 branch of the video
-    # CHECK introduced for system-account video bytes (DD §1.5 / §6.8).
-    thumbnail_url = f"/media/{rel_poster_display}"
+    # video_id stores the storage key. The adapter (`MediaStorageAdapter`)
+    # owns URL construction; `constructURL(key)` returns `/media-store/{key}`
+    # which matches the static-file route mounted at `/media-store/*` in
+    # `app.ts` (and the prod CloudFront cache behavior). video_url stays
+    # NULL per the s3 branch of the video CHECK for system-account video
+    # bytes (DD §1.5 / §6.8).
+    thumbnail_url = f"/media-store/{rel_poster_display}"
 
     con.execute(
         """
@@ -399,10 +375,14 @@ def seed_video_item(
         """,
         (
             media_id, fh_id,
-            item["caption"], ts,
+            item["caption"], uploaded_at,
             rel_video, thumbnail_url,
             width_px, height_px,
-            item["video_source"],
+            # Basename only: source_filename is the slot identity used by
+            # cleanup_prior_for_item and runtime callers like
+            # loadCuratorDemoVideo('demo-freestyle.mp4'); the subdir prefix
+            # is implementation detail of the on-disk layout.
+            Path(item["video_source"]).name,
             ts, ts,
         ),
     )
@@ -438,6 +418,12 @@ def seed_photo_item(
     )
     process_thumb(source_dir / item["photo_source"], abs_thumb, THUMB_SIZE)
 
+    # See seed_video_item for the rationale on uploaded_at vs ts.
+    source_photo_path = source_dir / item["photo_source"]
+    uploaded_at = datetime.fromtimestamp(
+        source_photo_path.stat().st_mtime, tz=timezone.utc,
+    ).isoformat()
+
     con.execute(
         """
         INSERT OR REPLACE INTO media_items (
@@ -451,10 +437,11 @@ def seed_photo_item(
         """,
         (
             media_id, fh_id, 1 if is_avatar else 0,
-            item.get("caption"), ts,
+            item.get("caption"), uploaded_at,
             rel_thumb, rel_display,
             width_px, height_px,
-            item["photo_source"],
+            # Basename only — see seed_video_item for rationale.
+            Path(item["photo_source"]).name,
             ts, ts,
         ),
     )
@@ -477,30 +464,27 @@ def cleanup_prior_for_item(
     Avatar items: delete the prior FH avatar (any). The members.avatar_media_id
     FK auto-nulls via ON DELETE SET NULL; we re-set it after the new INSERT.
 
-    Tagged items (e.g. demo loops): delete prior FH-owned media tagged with
-    the item's first tag. Disk artifacts under the prior media_id are left
-    in place (harmless orphans in dev).
+    Non-avatar items: delete prior FH-owned row(s) with the same
+    source_filename basename. Slot identity is the binary's filename, not
+    a tag — tags are atomic and shared across items (e.g. #demo applies
+    to multiple demo videos), so they cannot uniquely identify a slot.
+    Disk artifacts under the prior media_id are left in place (harmless
+    orphans in dev).
     """
     if item.get("is_avatar"):
         con.execute(
             "DELETE FROM media_items WHERE uploader_member_id = ? AND is_avatar = 1",
             (fh_id,),
         )
-    elif item.get("tags"):
-        slot_tag = item["tags"][0].lower()
-        con.execute(
-            """
-            DELETE FROM media_items
-            WHERE id IN (
-                SELECT mi.id
-                FROM media_items mi
-                JOIN media_tags mt ON mt.media_id = mi.id
-                JOIN tags t ON t.id = mt.tag_id
-                WHERE mi.uploader_member_id = ? AND t.tag_normalized = ?
-            )
-            """,
-            (fh_id, slot_tag),
-        )
+        return
+    source = item.get("video_source") or item.get("photo_source")
+    if not source:
+        return
+    slot_basename = Path(source).name
+    con.execute(
+        "DELETE FROM media_items WHERE uploader_member_id = ? AND source_filename = ?",
+        (fh_id, slot_basename),
+    )
 
 
 def seed_item(
@@ -553,7 +537,24 @@ def seed_item(
 
     # cleanup_prior_for_item deleted any prior media_tags rows via ON DELETE
     # CASCADE on media_tags.media_id, so we can simply INSERT for the new id.
-    for tag_display in item["tags"]:
+    # Avatars carry exactly one tag, the `#by_<owner_slug>` uploader
+    # marker (FH avatar → `#by_footbag_hacky`). Mirrors the avatarService
+    # rule on the TS side; the marker exists so the avatar surfaces in
+    # the owner's personal gallery via the same tag-AND match every other
+    # member upload uses.
+    # Non-avatar curator items auto-include `#curated` (the FH/admin
+    # uploader marker per SC CuratorMediaService entry). Mirrors the rule
+    # in _seed_one_sidecar and seed_file_paired_sidecars, plus
+    # applyTagsForCurator on the TS service. Idempotent: a hand-curated
+    # entry that already includes `#curated` collapses to one occurrence
+    # via the set.
+    if item.get("is_avatar"):
+        # FH is the only avatar in CURATOR_ITEMS; hardcoded slug matches
+        # the value ensure_fh_member sets on the members row.
+        insert_tags: list[str] = ["#by_footbag_hacky"]
+    else:
+        insert_tags = sorted({"#curated", *item["tags"]})
+    for tag_display in insert_tags:
         tid = tag_id_for(con, tag_display, ts)
         media_tag_id = stable_id("media_tag", media_id, tag_display)
         con.execute(
@@ -564,7 +565,7 @@ def seed_item(
             (media_tag_id, media_id, tid, tag_display, ts, ts),
         )
 
-    print(f"  → Seeded {item['id_seed']} (media_id={media_id}, tags={item['tags']})")
+    print(f"  → Seeded {item['id_seed']} (media_id={media_id}, tags={insert_tags})")
 
 
 # ── Slice 2: URL-reference freestyle trick reference media ─────────────────
@@ -621,13 +622,45 @@ def _url_ref_media_id(url: str, platform: str) -> str:
 
 
 def _bootstrap_media_sources(con: sqlite3.Connection) -> int:
-    """Copy freestyle_media_sources -> media_sources (FK target for sidecar
-    sourceId references). INSERT OR IGNORE so re-runs are idempotent.
+    """Populate media_sources (FK target for freestyle_tricks sidecar
+    sourceId references). Reads the canonical CSV at
+    legacy_data/inputs/curated/media/media_sources.csv directly so the
+    seeder is self-sufficient on a fresh schema (does not require the
+    legacy data load to run first). INSERT OR IGNORE so re-runs and
+    coexistence with the legacy loader (script 21) are idempotent.
 
-    Phase E will remove freestyle_media_sources; that change replaces this
-    bootstrap with a sidecar-driven (or admin-UI-driven) population path.
-    For Phase C parallel-run, this is the simplest atomic copy.
+    Cross-tree dependency on legacy_data/ is acceptable as a temporary
+    measure: Phase E removes freestyle_media_sources entirely and
+    replaces this bootstrap with a sidecar-driven (or admin-UI-driven)
+    population path under /curated/.
+
+    Falls back to the legacy table if the CSV is missing (e.g. an
+    operator running against a checkout without the legacy_data
+    subtree populated).
     """
+    csv_path = REPO_ROOT / "legacy_data" / "inputs" / "curated" / "media" / "media_sources.csv"
+    if csv_path.exists():
+        import csv as _csv
+        rows: list[dict] = []
+        with csv_path.open(newline="", encoding="utf-8") as f:
+            reader = _csv.DictReader(f)
+            for row in reader:
+                rows.append({
+                    "source_id":   row["source_id"].strip(),
+                    "source_name": row["source_name"].strip(),
+                    "source_type": row["source_type"].strip(),
+                    "url":         (row.get("url") or "").strip() or None,
+                    "creator":     (row.get("creator") or "").strip() or None,
+                })
+        cur = con.executemany(
+            "INSERT OR IGNORE INTO media_sources "
+            "(source_id, source_name, source_type, url, creator) "
+            "VALUES (:source_id, :source_name, :source_type, :url, :creator)",
+            rows,
+        )
+        return cur.rowcount
+    # Legacy fallback: copy from freestyle_media_sources (which itself was
+    # loaded from the same CSV by legacy_data script 21).
     cur = con.execute(
         "INSERT OR IGNORE INTO media_sources (source_id, source_name, source_type, url, creator) "
         "SELECT source_id, source_name, source_type, url, creator FROM freestyle_media_sources"
@@ -859,6 +892,15 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
                 f"excludeTags: {sorted(overlap)}"
             )
 
+        # FH-owned named galleries auto-include `#curated` so the criteria
+        # query scopes to FH-uploaded items only (every FH upload carries
+        # the `#curated` tag via applyTagsForCurator). Mirrors the
+        # auto-prepend in curatorMediaService.createGallery / updateGallery
+        # for the FH-owned branch. Idempotent: if the sidecar already lists
+        # `#curated` (existing convention), the seed leaves it in place.
+        if "#curated" not in criteria_tags:
+            criteria_tags = ["#curated", *criteria_tags]
+
         loaded.append({
             "id": gallery_id,
             "name": name,
@@ -995,7 +1037,7 @@ def seed_freestyle_tricks_sidecars(
 
     sources_added = _bootstrap_media_sources(con)
     if sources_added:
-        print(f"  → Bootstrapped media_sources: {sources_added} row(s) copied from freestyle_media_sources")
+        print(f"  → Bootstrapped media_sources: {sources_added} row(s) loaded")
 
     alias_map = load_alias_map(con)
 
@@ -1028,6 +1070,233 @@ def seed_freestyle_tricks_sidecars(
     return n
 
 
+# Subdirectories that have their own bespoke seed pipelines and must NOT
+# be walked by the generic file-paired sidecar pass below. freestyle_tricks
+# carries url-reference sidecars (different schema; handled by
+# seed_freestyle_tricks_sidecars). galleries carries named-gallery sidecars
+# (handled by _load_named_gallery_sidecars). Add new bespoke subdirs here
+# when they appear; everything else is treated as admin-uploaded
+# file-paired content matching the CuratorSidecar shape (caption, tags,
+# optional poster, optional externalUrl) — the same shape the admin
+# upload form writes when local-adapter mode supplies a category.
+FILE_PAIRED_SUBDIR_BLOCKLIST = {"freestyle_tricks", "galleries"}
+
+# Binary extensions recognized as file-paired primaries. Mirrors the
+# enumerator in src/services/curatorSeedService.ts:enumerateMediaSources.
+PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+VIDEO_EXTENSIONS = {".mp4", ".webm", ".mov"}
+
+
+def seed_file_paired_sidecars(
+    con: sqlite3.Connection,
+    fh_id: str,
+    source_dir: Path,
+    media_dir: Path,
+    ts: str,
+) -> int:
+    """Walk /curated/{category}/ subdirs and seed file-paired curator items.
+
+    Two flavors of category:
+
+    - `avatars/` is the avatar marker. Binaries here are seeded as is_avatar
+      photos with no sidecar required; tags are forced to `#by_<owner_slug>`
+      by seed_item. A sidecar in avatars/ is rejected (the directory is the
+      avatar declaration; no metadata field needed).
+    - Every other category requires a sibling `<stem>.meta.json` sidecar
+      (caption, tags, optional poster for videos, optional externalUrl).
+      Each (binary, sidecar) pair becomes one media_items row owned by FH.
+
+    Subdirs in FILE_PAIRED_SUBDIR_BLOCKLIST are skipped (they have their
+    own bespoke pipelines). Files matching `*.poster.*` are skipped as
+    primaries (they are attached to their parent video via the sidecar's
+    `poster` field). Malformed sidecars or invalid tag shapes fail-fast.
+
+    After the walk, runs an orphan-cleanup pass: any FH-owned non-URL-ref
+    media_items row whose `source_filename` no longer corresponds to a
+    sidecar/binary on disk (and is not in the CURATOR_ITEMS placeholder
+    list) is deleted. /curated/ is the source of truth.
+
+    Returns count of items seeded.
+    """
+    seen_basenames: set[str] = set()
+    count = 0
+
+    for category_dir in sorted(p for p in source_dir.iterdir() if p.is_dir()):
+        category = category_dir.name
+        if category in FILE_PAIRED_SUBDIR_BLOCKLIST:
+            continue
+        is_avatar_category = (category == "avatars")
+        for binary_path in sorted(category_dir.iterdir()):
+            if not binary_path.is_file():
+                continue
+            ext = binary_path.suffix.lower()
+            if ext not in PHOTO_EXTENSIONS and ext not in VIDEO_EXTENSIONS:
+                continue
+            # Skip companion posters; they're attached via the parent's
+            # sidecar `poster` field.
+            if binary_path.stem.endswith(".poster"):
+                continue
+
+            is_video = ext in VIDEO_EXTENSIONS
+            sidecar_path = binary_path.with_suffix(".meta.json")
+
+            if is_avatar_category:
+                # avatars/ is the avatar marker; binaries here need no
+                # sidecar. A sidecar present here is a misconfiguration.
+                if is_video:
+                    sys.exit(
+                        f"ERROR: {binary_path}: avatars/ contains a video binary; "
+                        "avatars must be photos."
+                    )
+                if sidecar_path.exists():
+                    sys.exit(
+                        f"ERROR: {sidecar_path}: avatars/ binaries do not take a "
+                        "sidecar (the avatars/ subdir is the avatar declaration)."
+                    )
+                raw_tags: list[str] = []
+                caption = None
+                poster_filename = None
+                external_url = None
+                is_avatar = True
+            else:
+                if not sidecar_path.exists():
+                    # Allows operators to stage a binary before its sidecar
+                    # arrives; subsequent runs pick it up once the sidecar
+                    # lands.
+                    continue
+                try:
+                    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError) as exc:
+                    sys.exit(f"ERROR: {sidecar_path}: malformed sidecar ({exc})")
+                if not isinstance(sidecar, dict):
+                    sys.exit(
+                        f"ERROR: {sidecar_path}: top-level value must be a JSON object"
+                    )
+                if sidecar.get("isAvatar"):
+                    sys.exit(
+                        f"ERROR: {sidecar_path}: 'isAvatar' is implied by the "
+                        f"avatars/ subdir; this binary is in {category}/, not "
+                        "avatars/. Move the binary into avatars/ and drop the "
+                        "sidecar (avatar binaries don't need one)."
+                    )
+                raw_tags = list(sidecar.get("tags") or [])
+                caption = sidecar.get("caption")
+                poster_filename = sidecar.get("poster")
+                external_url = sidecar.get("externalUrl")
+                is_avatar = False
+
+                # Tag shape validation (parity with _seed_one_sidecar).
+                for tag in raw_tags:
+                    if not isinstance(tag, str) or not tag.startswith("#"):
+                        sys.exit(
+                            f"ERROR: {sidecar_path}: tag {tag!r} must be a "
+                            "'#'-prefixed string"
+                        )
+                    if tag != tag.lower():
+                        sys.exit(
+                            f"ERROR: {sidecar_path}: tag {tag!r} must be lowercase"
+                        )
+                # `#curated` is auto-prepended by seed_item; sidecars must not
+                # carry it. Mirrors the rule in _seed_one_sidecar (line ~743)
+                # and applyTagsForCurator on the TS service.
+                if any(t.lower() == "#curated" for t in raw_tags):
+                    sys.exit(
+                        f"ERROR: {sidecar_path}: '#curated' must NOT appear in "
+                        "sidecar tags; the seeder auto-prepends it"
+                    )
+
+            # Build the dict shape expected by seed_item. id_seed must be
+            # stable per (category, binary) so re-runs land on the same
+            # media_id (content-addressed inside seed_item).
+            id_seed = f"file_paired__{category}__{binary_path.stem}"
+            item: dict = {
+                "id_seed": id_seed,
+                "media_type": "video" if is_video else "photo",
+                "caption": caption,
+                # Pass raw_tags (without #curated). seed_item auto-prepends
+                # #curated for non-avatars and forces #by_<owner_slug> for
+                # avatars. cleanup_prior_for_item keys on source_filename
+                # basename (not tags[0]), so atomic shared tags like
+                # #demo work without colliding.
+                "tags": raw_tags,
+            }
+            if is_avatar:
+                item["is_avatar"] = True
+            if is_video:
+                if not poster_filename:
+                    sys.exit(
+                        f"ERROR: {sidecar_path}: video sidecar missing required "
+                        "'poster' field"
+                    )
+                item["video_source"] = str(binary_path.relative_to(source_dir))
+                item["poster_source"] = str(
+                    (category_dir / poster_filename).relative_to(source_dir)
+                )
+            else:
+                item["photo_source"] = str(binary_path.relative_to(source_dir))
+
+            seed_item(con, item, fh_id, source_dir, media_dir, ts)
+            seen_basenames.add(binary_path.name)
+
+            # Apply external_url after seed_item's INSERT OR REPLACE.
+            # Resolved by source_filename basename (set by seed_video_item /
+            # seed_photo_item). validated_at stamps acceptance time.
+            if external_url:
+                con.execute(
+                    """UPDATE media_items
+                          SET external_url = ?, external_url_validated_at = ?
+                        WHERE uploader_member_id = ?
+                          AND source_filename = ?""",
+                    (external_url, ts, fh_id, binary_path.name),
+                )
+
+            count += 1
+
+    # Orphan cleanup. /curated/ is the source of truth: a file-paired row
+    # whose binary is no longer on disk gets removed. Scope:
+    #   - FH-owned only (uploader_member_id = fh_id)
+    #   - Non-URL-ref (video_platform NULL or 's3'); the freestyle_tricks
+    #     pipeline manages 'youtube'/'vimeo' rows separately.
+    #   - source_filename not seen this run AND not a CURATOR_ITEMS
+    #     placeholder basename (CURATOR_ITEMS rows live alongside
+    #     file-paired rows in the same table; preserve them here).
+    curator_basenames = {
+        item.get("photo_source") or item.get("video_source")
+        for item in CURATOR_ITEMS
+        if item.get("photo_source") or item.get("video_source")
+    }
+    keep = seen_basenames | curator_basenames
+    if keep:
+        keep_placeholders = ",".join(["?"] * len(keep))
+        cur = con.execute(
+            f"""
+            DELETE FROM media_items
+            WHERE uploader_member_id = ?
+              AND (video_platform IS NULL OR video_platform = 's3')
+              AND source_filename IS NOT NULL
+              AND source_filename NOT IN ({keep_placeholders})
+            """,
+            (fh_id, *sorted(keep)),
+        )
+    else:
+        cur = con.execute(
+            """
+            DELETE FROM media_items
+            WHERE uploader_member_id = ?
+              AND (video_platform IS NULL OR video_platform = 's3')
+              AND source_filename IS NOT NULL
+            """,
+            (fh_id,),
+        )
+    if cur.rowcount:
+        print(
+            f"  → Removed {cur.rowcount} orphaned file-paired row(s) "
+            "(binary or sidecar removed from /curated/)"
+        )
+
+    return count
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--db", default=None, help="Path to SQLite database")
@@ -1050,12 +1319,14 @@ def main() -> None:
         fh_id = ensure_fh_member(con, ts)
         for item in CURATOR_ITEMS:
             seed_item(con, item, fh_id, source_dir, media_dir, ts)
+        n_file_paired = seed_file_paired_sidecars(con, fh_id, source_dir, media_dir, ts)
         n_sidecars = seed_freestyle_tricks_sidecars(con, fh_id, source_dir, ts)
         named_galleries = _load_named_gallery_sidecars(source_dir)
         ensure_fh_named_galleries(con, fh_id, ts, named_galleries)
         con.commit()
         print(
             f"  → FH curator seed complete: FH member, {len(CURATOR_ITEMS)} curator items, "
+            f"{n_file_paired} file-paired sidecars, "
             f"{n_sidecars} reference videos, {len(named_galleries)} named galleries."
         )
     finally:

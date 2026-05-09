@@ -868,6 +868,7 @@ Maximum 5 video embeds per named gallery (US §3.8 M_Organize_Media_Galleries). 
 
 #### Avatar integrity CHECKs
 - `CHECK (is_avatar = 0 OR media_type = 'photo')`: avatars must be photos (DB-enforced).
+- Avatars (`is_avatar = 1`) carry exactly one `media_tags` row: the uploader marker `#by_<owner_slug>` (e.g., `#by_footbag_hacky` for the FH avatar). No `#curated`, no event/club/freeform tags. The marker is what surfaces the avatar in the owner's personal gallery via the same tag-AND match every other member upload uses; without it, avatars would be the only member-owned media that fails the personal-gallery query. Enforced by `avatarService.uploadAvatar` and `seed_fh_curator.py seed_item`; verified at smoke time by the avatar tag invariant in `scripts/ci/assert_loader_row_counts.py`.
 
 #### Provenance and clip ranges (curator reference media)
 
@@ -876,6 +877,8 @@ Curator-uploaded reference media (videos/images attributed to the system-member 
 - `source_id TEXT NULL REFERENCES media_sources(source_id)`: provenance attribution (DVD title, channel name, creator). NULL for member uploads.
 - `start_seconds INTEGER NULL`: optional clip start within the source video.
 - `end_seconds INTEGER NULL`: optional clip end within the source video.
+
+Beyond the curator-specific columns, `media_items.external_url TEXT NULL` plus `external_url_validated_at TEXT NULL` carry an optional user-supplied external link on every media item (admin curator + member uploads). Validated at the service boundary per DD §3.17.
 
 **Table:** `media_sources`, provenance lookup. Columns: `source_id` (PK), `source_name`, `source_type` (e.g. `'dvd'`, `'website'`, `'youtube'`, `'vimeo'`), `url`, `creator`. `media_items.source_id ON DELETE NO ACTION` (sources are reference data, not deleted in normal flow).
 

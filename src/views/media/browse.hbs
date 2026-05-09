@@ -37,6 +37,29 @@
     </p>
   {{/if}}
 
+  {{#unless (eq content.mode "results")}}
+    <section class="browse-tags-help" aria-labelledby="browse-tags-help-heading">
+      <h2 id="browse-tags-help-heading">About hashtags</h2>
+      <p>Hashtags label every photo and video. They group content into discoverable feeds without a centralized taxonomy.</p>
+      <ul class="browse-tags-help-list">
+        <li><strong><a href="/media/browse?tag=curated" class="tag-chip-link">#curated</a></strong> marks content vetted by IFPA: tutorials, records, and showcase galleries.</li>
+        <li><strong>Community tags</strong> are used by two or more members; they surface in the public hashtag directory.</li>
+        <li><strong>Popular tags</strong> are the most-used community tags across the site.</li>
+        <li><strong>Personal tags</strong> are used by a single member; they stay private to that member's gallery.</li>
+      </ul>
+      <p class="browse-tags-help-try">Try one:</p>
+      <ul class="tag-chip-row">
+        <li><a href="/media/browse?tag=freestyle" class="tag-chip">#freestyle</a></li>
+        <li><a href="/media/browse?tag=net" class="tag-chip">#net</a></li>
+        <li><a href="/media/browse?tag=trick" class="tag-chip">#trick</a></li>
+        <li><a href="/media/browse?tag=tutorial" class="tag-chip">#tutorial</a></li>
+        <li><a href="/media/browse?tag=demo" class="tag-chip">#demo</a></li>
+        <li><a href="/media/browse?tag=tricks_of_the_trade" class="tag-chip">#tricks_of_the_trade</a></li>
+        <li><a href="/media/browse?tag=event_2026_worlds_japan" class="tag-chip">#event_2026_worlds_japan</a></li>
+      </ul>
+    </section>
+  {{/unless}}
+
   {{#if (eq content.mode "results")}}
     {{#if content.items.length}}
       <ul class="gallery-grid">

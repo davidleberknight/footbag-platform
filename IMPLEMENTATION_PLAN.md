@@ -20,3 +20,7 @@ This file tracks the current build: active sprint, accepted temporary dev shortc
 
 1. **`/history/claim` runs the direct-lookup shortcut.** VIEW_CATALOG.md route-rules block specifies a two-step token flow (lookup form, emailed token, confirm-and-merge handler). Current implementation is the early-test shortcut: direct lookup + confirm + merge in-session, no emailed token. Unblock: production-readiness work; cutover prerequisite per MP Phase 4.
 
+### URL validation deviations
+
+1. **Slim external-URL validator only; full DD §3.17 pipeline deferred.** `src/lib/externalUrlValidator.ts` implements scheme allowlist (http/https), length cap (2048), and `URL` parse. DD §3.17 also mandates: private-IP/SSRF block, redirect-follow re-resolution at each hop, Safe Browsing dataset lookup, optional reachability HEAD with 24-hour cache. None implemented yet. Unblock: when the first user-facing surface needs SSRF/Safe Browsing protection (likely member profile URLs or gallery URLs going public). Build the full pipeline behind the existing `validateExternalUrl` signature so existing callers don't change.
+

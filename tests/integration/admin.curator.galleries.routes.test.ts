@@ -277,7 +277,16 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
     expect(res.text).toMatch(/sort order/i);
   });
 
-  it('rejects empty criteria-tag set with 422', async () => {
+  it('FH-owned gallery: empty criteria input auto-prepends #curated and succeeds (does not 422)', async () => {
+    // Per the FH-owned gallery contract, the service auto-prepends
+    // `#curated` to criteriaTags so the gallery scopes to FH-uploaded
+    // content. An admin can therefore "edit" an FH-owned gallery with
+    // empty criteria input — `#curated` alone is a valid criteria set.
+    // This is the parity case for the member-owned `#by_<owner>`
+    // auto-prepend that already prevents empty criteria for member
+    // galleries. The "must declare at least one criteria tag" guard
+    // remains as defensive code; it can no longer fire on either
+    // ownership branch.
     const res = await request(createApp())
       .post(`/admin/curator/galleries/${GALLERY_B}/edit`)
       .set('Cookie', adminCookie())
@@ -289,8 +298,14 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
         criteriaTags: '   ',
         excludeTags: '',
       });
-    expect(res.status).toBe(422);
-    expect(res.text).toMatch(/at least one criteria tag/i);
+    expect(res.status).toBe(302);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const tagRows = db.prepare(
+      `SELECT t.tag_display FROM member_gallery_tags mgt
+       JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ?`,
+    ).all(GALLERY_B) as { tag_display: string }[];
+    db.close();
+    expect(tagRows.map((r) => r.tag_display)).toEqual(['#curated']);
   });
 
   it('rejects invalid tag pattern with 422', async () => {
@@ -417,7 +432,10 @@ describe('POST /admin/curator/galleries (create)', () => {
       name: 'Created Via Admin UI',
       description: 'Smoke test gallery',
       sortOrder: 'upload_desc',
-      criteriaTags: ['#freestyle', '#created'],
+      // FH-owned gallery auto-prepends `#curated` so the criteria query
+      // scopes to FH-uploaded content (every FH upload carries
+      // `#curated` via applyTagsForCurator).
+      criteriaTags: ['#curated', '#freestyle', '#created'],
       excludeTags: [],
     });
   });
@@ -457,6 +475,11 @@ describe('POST /admin/curator/galleries (create)', () => {
   });
 
   it('rejects empty criteria-tag set with 422', async () => {
+    // FH-owned create with empty user-criteria succeeds: the service
+    // auto-prepends `#curated` so the criteria set is `['#curated']`.
+    // Parity with the updateGallery branch above. The
+    // "must declare at least one criteria tag" guard remains as
+    // defensive code; it can no longer fire on either ownership branch.
     const res = await request(createApp())
       .post('/admin/curator/galleries')
       .set('Cookie', adminCookie())
@@ -469,8 +492,14 @@ describe('POST /admin/curator/galleries (create)', () => {
         criteriaTags: '   ',
         excludeTags: '',
       });
-    expect(res.status).toBe(422);
-    expect(res.text).toMatch(/at least one criteria tag/i);
+    expect(res.status).toBe(302);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const tagRows = db.prepare(
+      `SELECT t.tag_display FROM member_gallery_tags mgt
+       JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ?`,
+    ).all('gallery_no_tags') as { tag_display: string }[];
+    db.close();
+    expect(tagRows.map((r) => r.tag_display)).toEqual(['#curated']);
   });
 
   it('rejects invalid sortOrder with 422', async () => {

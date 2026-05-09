@@ -2070,6 +2070,14 @@ CREATE TABLE media_items (
   start_seconds  INTEGER,
   end_seconds    INTEGER,
 
+  -- Optional per-item external URL (e.g. link to original creator page,
+  -- source article, related event). User-supplied, validated at the
+  -- service boundary per DD §3.17 (scheme allowlist, length cap; full
+  -- §3.17 SSRF/SafeBrowsing pipeline tracked separately in IP).
+  -- validated_at stamps acceptance time so re-validation can be scheduled.
+  external_url              TEXT,
+  external_url_validated_at TEXT,
+
   CHECK (media_type <> 'photo'
     OR (s3_key_thumb IS NOT NULL AND s3_key_display IS NOT NULL)),
   CHECK (media_type <> 'video'

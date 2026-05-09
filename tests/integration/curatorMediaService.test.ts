@@ -1376,7 +1376,11 @@ describe('curatorMediaService.updateGallery', () => {
         `SELECT t.tag_display FROM member_gallery_tags mgt
          JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ? ORDER BY t.tag_display`,
       ).all(galleryId);
-      expect(tagRows).toEqual([{ tag_display: '#freestyle' }, { tag_display: '#trick' }]);
+      // FH-owned galleries auto-prepend `#curated` to criteriaTags so the
+      // tag-AND query scopes to FH-uploaded content (every FH upload
+      // carries `#curated` via applyTagsForCurator). Mirrors the
+      // member-owned `#by_<owner_slug>` auto-prepend pattern.
+      expect(tagRows).toEqual([{ tag_display: '#curated' }, { tag_display: '#freestyle' }, { tag_display: '#trick' }]);
       db2.close();
 
       const sidecarPath = path.join(curatedRoot, 'galleries', 'upd_fh.json');
@@ -1386,7 +1390,7 @@ describe('curatorMediaService.updateGallery', () => {
         name: 'After Edit',
         description: 'Edited description',
         sortOrder: 'caption_asc',
-        criteriaTags: ['#freestyle', '#trick'],
+        criteriaTags: ['#curated', '#freestyle', '#trick'],
         excludeTags: ['#tricks_of_the_trade'],
       } as never));
     } finally {

@@ -36,6 +36,7 @@ interface FormValues {
   tags?: string;
   videoUrl?: string;
   videoPlatform?: 'youtube' | 'vimeo' | '';
+  externalUrl?: string;
 }
 
 function isOwnRoute(req: Request): boolean {
@@ -170,6 +171,11 @@ export const memberMediaUploadController = {
       const captionRaw = (fields.caption ?? '').trim();
       const caption = captionRaw.length === 0 ? null : captionRaw;
       const tags = parseTagsField(fields.tags);
+      // External URL: empty string -> null; trimmed value -> service-side
+      // validation (DD §3.17). Validation lives in the service per the
+      // thin-controller rule.
+      const externalUrlRaw = (fields.externalUrl ?? '').trim();
+      const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
 
       if (mediaType !== 'photo' && mediaType !== 'video') {
         throw new ValidationError('Choose a media type (photo or video).');
@@ -204,6 +210,7 @@ export const memberMediaUploadController = {
           sourceFilename: photoFilename ?? '',
           caption,
           tags,
+          ...(externalUrl !== null && { externalUrl }),
         });
         res.redirect(`${listHref(memberKey)}?saved=upload`);
         return;
@@ -229,6 +236,7 @@ export const memberMediaUploadController = {
         videoPlatform,
         caption,
         tags,
+        ...(externalUrl !== null && { externalUrl }),
       });
       res.redirect(`${listHref(memberKey)}?saved=upload`);
     }
@@ -252,5 +260,6 @@ function collectFormValues(fields: Record<string, string>): FormValues {
     tags: fields.tags ?? '',
     videoUrl: fields.videoUrl ?? '',
     videoPlatform,
+    externalUrl: fields.externalUrl ?? '',
   };
 }

@@ -42,6 +42,9 @@ import {
   GallerySidecarValidationError,
   type GallerySidecarData,
 } from '../lib/curatorGallerySidecar';
+import { writeSidecar } from '../lib/curatorSidecar';
+import { promises as fsp } from 'fs';
+import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
@@ -97,6 +100,25 @@ export function isValidCategoryName(value: string): boolean {
   return CATEGORY_NAME_PATTERN.test(value);
 }
 
+// Sanitizes an upload's source filename into a kebab-case slug suitable
+// for use as both the on-disk binary name under /curated/{category}/ and
+// the media_items.source_filename DB value. Strips any path components
+// (defends against `../` traversal hidden in the upload's own filename),
+// drops the original extension, lowercases, normalizes unicode to ASCII
+// where possible, and collapses non-`[a-z0-9]` runs to single hyphens.
+// Falls back to `upload` if the input has no usable characters. Caller
+// reattaches the format-detected extension (e.g. .mp4, .jpg).
+export function deriveCuratorSlug(sourceFilename: string): string {
+  const base = path.basename(sourceFilename ?? '').replace(/\.[^.]*$/, '');
+  const slug = base
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  return slug.length === 0 ? 'upload' : slug;
+}
+
 // Lists subdirectories under the curated root, sorted, for the admin UI's
 // "tick an existing category" picker. Used by `getUpload` in the controller
 // at form-render time. Returns an empty array if the dir is missing.
@@ -137,6 +159,21 @@ export interface CuratorPhotoInput {
   sourceFilename: string;
   caption: string | null;
   tags: string[];
+  // Optional. When provided, the upload is also written as a file-paired
+  // sidecar pair under <curatedRootDir>/<category>/. The seeder reconciles
+  // these into media_items rows on its next run, so the upload survives
+  // a DB or media-store wipe. Per DD §1.13, /curated/ is the source of
+  // truth; the inline storage.put + media_items insert below are the UX
+  // optimization (line 575). The admin upload controller passes this field
+  // in local-adapter mode and omits it in S3 mode; the curator seeder
+  // (which calls in the opposite direction, /curated/ → DB+S3) always
+  // omits it.
+  category?: string;
+  // Optional user-supplied external URL (e.g. link to creator page,
+  // source article). Validated at the service boundary per DD §3.17 via
+  // externalUrlValidator; persisted to media_items.external_url and
+  // emitted on the file-paired sidecar.
+  externalUrl?: string | null;
 }
 
 export interface CuratorVideoInput {
@@ -146,6 +183,11 @@ export interface CuratorVideoInput {
   sourceFilename: string;
   caption: string | null;
   tags: string[];
+  // See CuratorPhotoInput.category. Same semantics; for video, the /curated/
+  // write produces a binary, a sibling poster, and the meta sidecar.
+  category?: string;
+  // See CuratorPhotoInput.externalUrl.
+  externalUrl?: string | null;
 }
 
 export interface CuratorUrlReferenceInput {
@@ -160,6 +202,10 @@ export interface CuratorUrlReferenceInput {
   tier: string | null;
   startSeconds: number | null;
   endSeconds: number | null;
+  // See CuratorPhotoInput.externalUrl. For url-reference items the URL
+  // lives only on the sidecar (no media_items row is written here; the
+  // seeder creates the row).
+  externalUrl?: string | null;
   // User-supplied tags. Must NOT include #curated (auto-prepended by the
   // seeder). Trick-slug, #freestyle, #trick, #demo, #net, etc. all live here.
   tags: string[];
@@ -188,6 +234,10 @@ export interface MemberPhotoInput {
   sourceFilename: string;
   caption: string | null;
   tags: string[];
+  // Optional user-supplied external URL (DD §3.17 vetted). Same
+  // semantics as CuratorPhotoInput.externalUrl. Persisted to
+  // media_items.external_url and stamped at validation time.
+  externalUrl?: string | null;
 }
 
 export interface MemberVideoInput {
@@ -200,6 +250,8 @@ export interface MemberVideoInput {
   videoPlatform: VideoPlatform;
   caption: string | null;
   tags: string[];
+  // See MemberPhotoInput.externalUrl. Optional, validated at boundary.
+  externalUrl?: string | null;
 }
 
 export interface MemberUploadResult {
@@ -298,6 +350,18 @@ function validateTags(tags: string[]): void {
       );
     }
   }
+}
+
+// Service-boundary URL validation per DD §3.17. Returns the normalized
+// URL on accept, null on absent input, throws ValidationError on invalid.
+// Callers persist the returned value to media_items.external_url and
+// stamp external_url_validated_at on accept.
+function normalizeExternalUrlOrThrow(input: string | null | undefined): string | null {
+  const result = validateExternalUrl(input);
+  if (!result.valid) {
+    throw new ValidationError(result.error ?? 'Invalid URL.');
+  }
+  return result.normalizedUrl;
 }
 
 // Gallery-editing tag pattern: leading '#' then alphanumeric + underscores
@@ -462,6 +526,10 @@ export interface CuratorMediaEditInput {
   startSeconds?: number | null;
   endSeconds?: number | null;
   thumbnailUrl?: string | null;
+  // External URL edit. `undefined` leaves the existing value alone;
+  // `null` clears the field; a string sets/replaces it (validated +
+  // normalized by externalUrlValidator at the service boundary).
+  externalUrl?: string | null;
 }
 
 export interface CuratorMediaEditResult {
@@ -478,6 +546,10 @@ export interface CuratorMediaListInput {
   tagFilter?: string;
   page: number;
   pageSize: number;
+  // Sort key for the admin list. Defaults to date_desc (newest first).
+  // Closed enum mirrors db.ts CuratorListSort; controller validates the
+  // query-string value against this set before passing it through.
+  sort?: 'date_desc' | 'date_asc' | 'type_asc' | 'caption_asc';
 }
 
 export interface CuratorMediaListItem {
@@ -500,6 +572,9 @@ export interface CuratorMediaListItem {
   tier: string | null;
   startSeconds: number | null;
   endSeconds: number | null;
+  // External URL on the media_items row (DD §3.17 vetted). NULL when
+  // unset.
+  externalUrl: string | null;
 }
 
 export interface CuratorMediaListResult {
@@ -599,6 +674,7 @@ interface MediaItemRow {
   video_url: string | null;
   thumbnail_url: string | null;
   source_filename: string | null;
+  external_url: string | null;
 }
 
 interface MediaListRow {
@@ -615,6 +691,7 @@ interface MediaListRow {
   width_px: number | null;
   height_px: number | null;
   source_filename?: string | null;
+  external_url: string | null;
 }
 
 export interface MediaPickerItem {
@@ -699,11 +776,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadPhoto(input: CuratorPhotoInput): Promise<CuratorUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
+      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
         throw new ValidationError('Photo is too large. Maximum size is 25 MB.');
       }
-      if (!detectImageType(input.photoBuffer)) {
+      const detectedImage = detectImageType(input.photoBuffer);
+      if (!detectedImage) {
         throw new ValidationError('Only JPEG and PNG photos are accepted.');
       }
 
@@ -717,6 +796,36 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       await storage.put(thumbKey, processed.thumb);
       await storage.put(displayKey, processed.display);
 
+      // /curated/ source-of-truth write per DD §1.13. When a category is
+      // provided, the source bytes plus a sibling sidecar JSON land under
+      // <curatedRootDir>/<category>/ so the upload survives a DB or media-
+      // store wipe and the seeder can rebuild from it. Identity column for
+      // reconcile is media_items.source_filename, set to the same on-disk
+      // name. Without a category, the /curated/ write is skipped (the
+      // storage.put + media_items insert above are then the only writes,
+      // matching the staging+prod direct authoring flow). Done before the
+      // DB transaction so the sidecar identity matches the inserted row.
+      let recordedSourceFilename = input.sourceFilename;
+      if (input.category) {
+        if (!isValidCategoryName(input.category)) {
+          throw new ValidationError(
+            'Category name must be lowercase letters, digits, or underscores.',
+          );
+        }
+        const ext = detectedImage === 'image/png' ? 'png' : 'jpg';
+        const slug = deriveCuratorSlug(input.sourceFilename);
+        const binaryName = `${slug}.${ext}`;
+        const categoryDir = path.join(curatedRootDir, input.category);
+        await fsp.mkdir(categoryDir, { recursive: true });
+        await fsp.writeFile(path.join(categoryDir, binaryName), input.photoBuffer);
+        writeSidecar(categoryDir, binaryName, {
+          caption: input.caption,
+          tags: input.tags,
+          ...(normalizedExternalUrl !== null && { externalUrl: normalizedExternalUrl }),
+        });
+        recordedSourceFilename = binaryName;
+      }
+
       const now = new Date().toISOString();
 
       transaction(() => {
@@ -724,8 +833,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           mediaId, now, now,
           systemMemberId, input.caption, now,
           thumbKey, displayKey, processed.widthPx, processed.heightPx,
-          input.sourceFilename,
+          recordedSourceFilename,
         );
+        if (normalizedExternalUrl !== null) {
+          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+        }
         applyTagsForCurator(mediaId, input.tags, now);
         appendAuditEntry({
           actionType: 'upload_curated_media',
@@ -744,6 +856,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadVideo(input: CuratorVideoInput): Promise<CuratorUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
+      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoBuffer.length > VIDEO_MAX_BYTES) {
         throw new ValidationError('Video is too large. Maximum size is 150 MB.');
@@ -751,10 +864,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (input.posterBuffer.length > POSTER_MAX_BYTES) {
         throw new ValidationError('Poster is too large. Maximum size is 25 MB.');
       }
-      if (!detectVideoFormat(input.videoBuffer)) {
+      const detectedVideo = detectVideoFormat(input.videoBuffer);
+      if (!detectedVideo) {
         throw new ValidationError('Only MP4, WebM, and MOV videos are accepted.');
       }
-      if (!detectImageType(input.posterBuffer)) {
+      const detectedPoster = detectImageType(input.posterBuffer);
+      if (!detectedPoster) {
         throw new ValidationError('Poster must be a JPEG or PNG image.');
       }
 
@@ -784,6 +899,38 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       await storage.put(posterDisplayKey, processed.display);
       await storage.put(posterThumbKey, processed.thumb);
 
+      // /curated/ source-of-truth write per DD §1.13. Mirrors uploadPhoto
+      // (see comment there). Video produces a triple: the source video
+      // binary, a sibling poster, and the meta sidecar referencing the
+      // poster by its `<slug>.poster.<ext>` name. The seeder's enumerator
+      // (curatorSeedService.ts) already knows to skip files matching the
+      // `*.poster.*` pattern as not-a-primary-binary, so the poster is
+      // attached to its parent video via the sidecar's `poster:` field.
+      let recordedSourceFilename = input.sourceFilename;
+      if (input.category) {
+        if (!isValidCategoryName(input.category)) {
+          throw new ValidationError(
+            'Category name must be lowercase letters, digits, or underscores.',
+          );
+        }
+        const videoExt = detectedVideo;
+        const posterExt = detectedPoster === 'image/png' ? 'png' : 'jpg';
+        const slug = deriveCuratorSlug(input.sourceFilename);
+        const binaryName = `${slug}.${videoExt}`;
+        const posterName = `${slug}.poster.${posterExt}`;
+        const categoryDir = path.join(curatedRootDir, input.category);
+        await fsp.mkdir(categoryDir, { recursive: true });
+        await fsp.writeFile(path.join(categoryDir, binaryName), input.videoBuffer);
+        await fsp.writeFile(path.join(categoryDir, posterName), input.posterBuffer);
+        writeSidecar(categoryDir, binaryName, {
+          caption: input.caption,
+          tags: input.tags,
+          poster: posterName,
+          ...(normalizedExternalUrl !== null && { externalUrl: normalizedExternalUrl }),
+        });
+        recordedSourceFilename = binaryName;
+      }
+
       const now = new Date().toISOString();
       const thumbnailUrl = storage.constructURL(posterDisplayKey);
 
@@ -793,8 +940,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           systemMemberId, input.caption, now,
           videoKey, thumbnailUrl,
           processed.widthPx, processed.heightPx,
-          input.sourceFilename,
+          recordedSourceFilename,
         );
+        if (normalizedExternalUrl !== null) {
+          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+        }
         applyTagsForCurator(mediaId, input.tags, now);
         appendAuditEntry({
           actionType: 'upload_curated_media',
@@ -914,6 +1064,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     ): Promise<CuratorUrlReferenceResult> {
       validateCaption(input.title);
       validateTags(input.tags);
+      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
         throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
@@ -963,6 +1114,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         thumbnailUrl,
         startSeconds: input.startSeconds,
         endSeconds: input.endSeconds,
+        ...(normalizedExternalUrl !== null && { externalUrl: normalizedExternalUrl }),
         // Tags are written verbatim (sorted, deduplicated) so a future
         // edit operates on the same set the user submitted. The seeder
         // prepends `#curated` at DB-load time, not at sidecar-write time.
@@ -1030,6 +1182,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (input.tags !== undefined) {
         validateTags(input.tags);
       }
+      // Three-way switch on external URL: undefined = no change, null =
+      // clear, string = validate+normalize. The validator rejects bad
+      // input before we hit the DB; a normalized non-null value is what
+      // gets persisted.
+      let normalizedExternalUrlEdit: string | null | undefined;
+      if (input.externalUrl !== undefined) {
+        normalizedExternalUrlEdit = normalizeExternalUrlOrThrow(input.externalUrl);
+      }
 
       const row = runSqliteRead('getCuratorMediaItemById', () =>
         media.getCuratorMediaItemById.get(input.mediaId),
@@ -1084,6 +1244,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         if (input.startSeconds !== undefined) updated.startSeconds = input.startSeconds;
         if (input.endSeconds !== undefined) updated.endSeconds = input.endSeconds;
         if (input.thumbnailUrl !== undefined) updated.thumbnailUrl = input.thumbnailUrl;
+        if (normalizedExternalUrlEdit !== undefined) {
+          updated.externalUrl = normalizedExternalUrlEdit;
+        }
 
         try {
           validateUrlSidecarData(updated);
@@ -1115,6 +1278,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
           applyTagsForCurator(input.mediaId, dedupedTags, now);
         }
+        if (normalizedExternalUrlEdit !== undefined) {
+          // null clears, string sets. validated_at is set even on clear so
+          // we record when the field was last touched.
+          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId);
+        }
         appendAuditEntry({
           actionType: auditActionType,
           category: 'media',
@@ -1126,6 +1294,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             mediaId: input.mediaId,
             captionChanged: input.caption !== undefined,
             tagsChanged: input.tags !== undefined,
+            externalUrlChanged: input.externalUrl !== undefined,
             ...(input.tags !== undefined && { tags: input.tags }),
           },
         });
@@ -1267,6 +1436,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         tier,
         startSeconds,
         endSeconds,
+        externalUrl: row.external_url,
       };
     },
 
@@ -1274,6 +1444,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const page = Math.max(1, Math.floor(input.page));
       const pageSize = Math.max(1, Math.min(200, Math.floor(input.pageSize)));
       const offset = (page - 1) * pageSize;
+      const sort = input.sort ?? 'date_desc';
 
       let rows: MediaListRow[];
       let total: number;
@@ -1282,16 +1453,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         if (!tagFilter.startsWith('#')) {
           throw new ValidationError(`tagFilter must start with '#': got "${input.tagFilter}"`);
         }
-        rows = runSqliteRead('listCuratorMediaByTag', () =>
-          media.listCuratorMediaByTag.all(tagFilter, pageSize, offset),
+        rows = runSqliteRead('listCuratorMediaByTagSorted', () =>
+          media.listCuratorMediaByTagSorted(sort).all(tagFilter, pageSize, offset),
         ) as MediaListRow[];
         const cnt = runSqliteRead('countCuratorMediaByTag', () =>
           media.countCuratorMediaByTag.get(tagFilter),
         ) as CountRow | undefined;
         total = cnt?.n ?? 0;
       } else {
-        rows = runSqliteRead('listCuratorMedia', () =>
-          media.listCuratorMedia.all(pageSize, offset),
+        rows = runSqliteRead('listCuratorMediaSorted', () =>
+          media.listCuratorMediaSorted(sort).all(pageSize, offset),
         ) as MediaListRow[];
         const cnt = runSqliteRead('countCuratorMedia', () =>
           media.countCuratorMedia.get(),
@@ -1326,6 +1497,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         tier: null,
         startSeconds: null,
         endSeconds: null,
+        externalUrl: r.external_url,
       }));
 
       return { items, total, page, pageSize };
@@ -1465,6 +1637,15 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (existing.is_system !== 1) {
         const uploaderTag = `${UPLOADER_TAG_PREFIX}${existing.owner_slug.toLowerCase()}`;
         validated.criteriaTags = [uploaderTag, ...validated.criteriaTags];
+      } else {
+        // FH-owned galleries auto-include `#curated` so the criteria query
+        // scopes to FH-uploaded items only (every FH upload carries the
+        // `#curated` tag via applyTagsForCurator). Idempotent: if the
+        // sidecar / caller already includes `#curated`, the dedupe below
+        // collapses to one occurrence.
+        if (!validated.criteriaTags.includes(CURATED_TAG)) {
+          validated.criteriaTags = [CURATED_TAG, ...validated.criteriaTags];
+        }
       }
 
       if (validated.criteriaTags.length === 0) {
@@ -1551,9 +1732,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         // the tag-AND query scopes to the owner's uploads. validateGalleryTag
         // rejects `#by_*` from caller input, so the prepended tag is the
         // only `#by_*` in the criteria set. FH-owned galleries are not
-        // uploader-scoped and do not get the prepend.
+        // uploader-scoped (handled below).
         const uploaderTag = `${UPLOADER_TAG_PREFIX}${ownerSlug.toLowerCase()}`;
         validated.criteriaTags = [uploaderTag, ...validated.criteriaTags];
+      }
+      // FH-owned galleries auto-include `#curated` so the criteria query
+      // scopes to FH-uploaded items only. Idempotent: re-create from a
+      // sidecar that already includes `#curated` collapses to one
+      // occurrence. See updateGallery for the matching edit-path branch.
+      if (isFhOwned && !validated.criteriaTags.includes(CURATED_TAG)) {
+        validated.criteriaTags = [CURATED_TAG, ...validated.criteriaTags];
       }
 
       if (validated.criteriaTags.length === 0) {
@@ -1769,6 +1957,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadPhotoForMember(input: MemberPhotoInput): Promise<MemberUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
+      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.photoBuffer.length > PHOTO_MAX_BYTES) {
         throw new ValidationError('Photo is too large. Maximum size is 25 MB.');
@@ -1799,6 +1988,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             thumbKey, displayKey, processed.widthPx, processed.heightPx,
             input.sourceFilename,
           );
+          if (normalizedExternalUrl !== null) {
+            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+          }
           applyTagsForMember(mediaId, input.slug, input.tags, now);
           ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
           appendAuditEntry({
@@ -1835,6 +2027,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
       validateCaption(input.caption);
       validateTags(input.tags);
+      const normalizedExternalUrl = normalizeExternalUrlOrThrow(input.externalUrl);
 
       if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
         throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
@@ -1887,6 +2080,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           input.memberId, input.caption, now,
           input.videoPlatform, videoId, input.videoUrl, thumbnailUrl,
         );
+        if (normalizedExternalUrl !== null) {
+          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+        }
         applyTagsForMember(mediaId, input.slug, input.tags, now);
         ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
         appendAuditEntry({

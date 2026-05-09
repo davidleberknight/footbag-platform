@@ -12,7 +12,9 @@ constant and the bytes match.
 Run directly: `python3 scripts/test_seed_fh_curator.py`.
 """
 
+import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -58,23 +60,17 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
         media_dir = tmp_path / "media"
         source_dir = tmp_path / "curated"
 
-        # Scope the source-dir to only the legacy CURATOR_ITEMS file-backed
-        # entries (avatar + 2 demo loops + Japan Worlds photo). Sidecar-based
+        # File-paired curator items live under category subdirs in /curated/
+        # (avatars/, events/, landing/ for this test). The seeder's walker
+        # treats avatars/ as the avatar marker (no sidecar needed); other
+        # categories require <stem>.meta.json sidecars. Sidecar-based
         # /curated/freestyle_tricks/ content has its own dedicated test
         # below; including it here would also require seeding the legacy
         # `freestyle_media_sources` table (a CSV-loader artefact) so the
-        # sidecar `sourceId` FK on media_sources resolves. Tracked on
-        # legacy_data/IMPLEMENTATION_PLAN.md task 8.
+        # sidecar `sourceId` FK on media_sources resolves.
         source_dir.mkdir()
-        for item_name in (
-            "fh-avatar.jpg",
-            "demo-freestyle.mp4",
-            "demo-freestyle-poster.jpg",
-            "demo-net.mp4",
-            "demo-net-poster.jpg",
-            "japan-worlds-2026.jpg",
-        ):
-            (source_dir / item_name).symlink_to(REPO_ROOT / "curated" / item_name)
+        for subdir in ("avatars", "events", "landing", "galleries"):
+            (source_dir / subdir).symlink_to(REPO_ROOT / "curated" / subdir)
 
         # Apply current schema.sql to a fresh DB.
         subprocess.run(
@@ -117,8 +113,14 @@ def test_seed_fh_curator_against_fresh_schema() -> None:
             ).fetchone()
             assert s3_count == 2, f"expected 2 s3-platform rows, got {s3_count}"
 
-            # Both demo loops must carry their slot tags.
-            for tag in ("#demo_freestyle", "#demo_net"):
+            # Atomic shared tags: both demo loops carry #demo; the
+            # freestyle demo additionally carries #freestyle and the net
+            # demo additionally carries #net.
+            (demo_count,) = con.execute(
+                "SELECT COUNT(*) FROM media_tags WHERE tag_display = '#demo'"
+            ).fetchone()
+            assert demo_count == 2, f"expected 2 rows tagged #demo, got {demo_count}"
+            for tag in ("#freestyle", "#net"):
                 (tagged,) = con.execute(
                     "SELECT COUNT(*) FROM media_tags WHERE tag_display = ?",
                     (tag,),
@@ -332,6 +334,9 @@ def test_freestyle_tricks_seeder_creates_named_gallery_and_criteria_tags() -> No
         media_dir = tmp_path / "media"
         source_dir = tmp_path / "curated"
         sidecar_dir = source_dir / "freestyle_tricks"
+        # galleries/ subdir is required by the named-gallery loader.
+        source_dir.mkdir()
+        (source_dir / "galleries").symlink_to(REPO_ROOT / "curated" / "galleries")
 
         # Fresh schema.
         subprocess.run(
@@ -348,21 +353,9 @@ def test_freestyle_tricks_seeder_creates_named_gallery_and_criteria_tags() -> No
         _write_youtube_sidecar(sidecar_dir, "clipper", "ytClipper2")
         _write_vimeo_sidecar(sidecar_dir, "smear", "987654321")
 
-        # Also place the legacy demo-loop source files so the hardcoded
-        # CURATOR_ITEMS path can run alongside the sidecars; otherwise
-        # the seeder errors on missing demo-freestyle.mp4 etc. We mirror
-        # the structure expected by CURATOR_ITEMS by symlinking the real
-        # /curated/ bytes for the file-backed items.
-        real_curated = REPO_ROOT / "curated"
-        for item_name in (
-            "fh-avatar.jpg",
-            "demo-freestyle.mp4",
-            "demo-freestyle-poster.jpg",
-            "demo-net.mp4",
-            "demo-net-poster.jpg",
-            "japan-worlds-2026.jpg",
-        ):
-            (source_dir / item_name).symlink_to(real_curated / item_name)
+        # No file-paired binaries are needed: this test exercises the
+        # URL-ref pipeline. The CURATOR_ITEMS placeholder (beaver_open_2025)
+        # has no source binary on disk and is silently skipped by seed_item.
 
         rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
         assert rc == 0, f"seeder failed: {stderr}"
@@ -441,6 +434,9 @@ def test_seeder_orphan_cleanup_removes_db_rows_for_deleted_sidecars() -> None:
         media_dir = tmp_path / "media"
         source_dir = tmp_path / "curated"
         sidecar_dir = source_dir / "freestyle_tricks"
+        # galleries/ subdir is required by the named-gallery loader.
+        source_dir.mkdir()
+        (source_dir / "galleries").symlink_to(REPO_ROOT / "curated" / "galleries")
 
         subprocess.run(
             ["sqlite3", str(db_path)],
@@ -454,18 +450,8 @@ def test_seeder_orphan_cleanup_removes_db_rows_for_deleted_sidecars() -> None:
         _write_youtube_sidecar(sidecar_dir, "tricktwo", "ytTrickTwo")
         _write_youtube_sidecar(sidecar_dir, "trickthree", "ytTrickThree")
 
-        # Symlink the file-paired source files (CURATOR_ITEMS) so the
-        # seeder's hardcoded list does not error out.
-        real_curated = REPO_ROOT / "curated"
-        for item_name in (
-            "fh-avatar.jpg",
-            "demo-freestyle.mp4",
-            "demo-freestyle-poster.jpg",
-            "demo-net.mp4",
-            "demo-net-poster.jpg",
-            "japan-worlds-2026.jpg",
-        ):
-            (source_dir / item_name).symlink_to(real_curated / item_name)
+        # No file-paired binaries needed; this test exercises only the
+        # URL-ref orphan-cleanup path.
 
         rc1, stderr1 = _seed_with_source_dir(db_path, media_dir, source_dir)
         assert rc1 == 0, f"first seed run failed: {stderr1}"
@@ -532,6 +518,9 @@ def test_seeder_rejects_vimeo_sidecar_without_thumbnail_url() -> None:
         media_dir = tmp_path / "media"
         source_dir = tmp_path / "curated"
         sidecar_dir = source_dir / "freestyle_tricks"
+        # galleries/ subdir is required by the named-gallery loader.
+        source_dir.mkdir()
+        (source_dir / "galleries").symlink_to(REPO_ROOT / "curated" / "galleries")
 
         subprocess.run(
             ["sqlite3", str(db_path)],
@@ -551,16 +540,8 @@ def test_seeder_rejects_vimeo_sidecar_without_thumbnail_url() -> None:
             "tags": ["#freestyle", "#trick", "#smear"],
         }))
 
-        # Symlink demo bytes so CURATOR_ITEMS doesn't error first.
-        for item_name in (
-            "fh-avatar.jpg",
-            "demo-freestyle.mp4",
-            "demo-freestyle-poster.jpg",
-            "demo-net.mp4",
-            "demo-net-poster.jpg",
-            "japan-worlds-2026.jpg",
-        ):
-            (source_dir / item_name).symlink_to(REPO_ROOT / "curated" / item_name)
+        # No file-paired binaries needed; CURATOR_ITEMS placeholder has
+        # no binary and is silently skipped.
 
         rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
         assert rc != 0, f"seeder must reject vimeo sidecar without thumbnailUrl"
@@ -583,6 +564,9 @@ def test_seeder_rejects_youtube_sidecar_with_thumbnail_url() -> None:
         media_dir = tmp_path / "media"
         source_dir = tmp_path / "curated"
         sidecar_dir = source_dir / "freestyle_tricks"
+        # galleries/ subdir is required by the named-gallery loader.
+        source_dir.mkdir()
+        (source_dir / "galleries").symlink_to(REPO_ROOT / "curated" / "galleries")
 
         subprocess.run(
             ["sqlite3", str(db_path)],
@@ -602,20 +586,336 @@ def test_seeder_rejects_youtube_sidecar_with_thumbnail_url() -> None:
             "tags": ["#freestyle", "#trick", "#ripwalk"],
         }))
 
-        for item_name in (
-            "fh-avatar.jpg",
-            "demo-freestyle.mp4",
-            "demo-freestyle-poster.jpg",
-            "demo-net.mp4",
-            "demo-net-poster.jpg",
-            "japan-worlds-2026.jpg",
-        ):
-            (source_dir / item_name).symlink_to(REPO_ROOT / "curated" / item_name)
+        # No file-paired binaries needed; CURATOR_ITEMS placeholder has
+        # no binary and is silently skipped.
 
         rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
         assert rc != 0, f"seeder must reject youtube sidecar with thumbnailUrl"
         assert "thumbnailUrl" in stderr, (
             f"error must mention thumbnailUrl; got: {stderr}"
+        )
+
+
+# ── Regression tests for the file-paired pipeline (3b–3g) ────────────────
+
+
+def _setup_minimal_source_dir(tmp_path: Path) -> Path:
+    """Create a temp source_dir with the minimum subdirs the seeder
+    needs to run end-to-end. galleries/ is required by the named-gallery
+    loader and is symlinked from the real repo. Tests can add their own
+    subdirs / sidecars on top.
+    """
+    source_dir = tmp_path / "curated"
+    source_dir.mkdir()
+    (source_dir / "galleries").symlink_to(REPO_ROOT / "curated" / "galleries")
+    return source_dir
+
+
+def _apply_schema(db_path: Path) -> None:
+    subprocess.run(
+        ["sqlite3", str(db_path)],
+        input=SCHEMA.read_text(),
+        text=True,
+        check=True,
+    )
+
+
+def test_chilone_external_url_persists_after_seed() -> None:
+    """Regression for the source_filename basename mismatch (fix 3c):
+    chilone's `externalUrl` from misc/chilone.meta.json must end up in
+    media_items.external_url. Before the fix, the INSERT wrote
+    source_filename='misc/chilone.mp4' (relative) and the sibling UPDATE
+    keyed on basename 'chilone.mp4', so the two never matched and
+    external_url stayed NULL.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        # Symlink only misc/; isolate to chilone behavior.
+        (source_dir / "misc").symlink_to(REPO_ROOT / "curated" / "misc")
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc == 0, f"seeder failed: {stderr}"
+        con = sqlite3.connect(db_path)
+        try:
+            row = con.execute(
+                "SELECT external_url, external_url_validated_at "
+                "FROM media_items WHERE source_filename = 'chilone.mp4'"
+            ).fetchone()
+            assert row is not None, "expected chilone media_items row"
+            assert row[0] == "https://en.wikipedia.org/wiki/Chinlone", (
+                f"chilone external_url must be persisted from sidecar; got {row[0]!r}"
+            )
+            assert row[1] is not None, (
+                "external_url_validated_at must be stamped when external_url is set"
+            )
+        finally:
+            con.close()
+
+
+def test_avatars_subdir_implies_is_avatar_without_sidecar() -> None:
+    """Regression for fix 3d: a binary in /curated/avatars/ is seeded as
+    an avatar without any sidecar. The avatars/ subdir is the avatar
+    declaration; the seeder forces is_avatar=1, applies the
+    `#by_<owner_slug>` tag, and updates members.avatar_media_id.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        (source_dir / "avatars").symlink_to(REPO_ROOT / "curated" / "avatars")
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc == 0, f"seeder failed: {stderr}"
+        con = sqlite3.connect(db_path)
+        try:
+            (fh_id, fh_avatar_id) = con.execute(
+                "SELECT id, avatar_media_id FROM members WHERE is_system = 1"
+            ).fetchone()
+            assert fh_avatar_id is not None, (
+                "FH avatar_media_id must point at the seeded avatar row"
+            )
+            row = con.execute(
+                "SELECT media_type, is_avatar, source_filename "
+                "FROM media_items WHERE id = ?",
+                (fh_avatar_id,),
+            ).fetchone()
+            assert row is not None, "FH avatar_media_id references a missing row"
+            assert row == ("photo", 1, "fh-avatar.jpg"), (
+                f"avatar row must be (photo, 1, 'fh-avatar.jpg'); got {row!r}"
+            )
+            (by_count,) = con.execute(
+                "SELECT COUNT(*) FROM media_tags mt "
+                "JOIN tags t ON t.id = mt.tag_id "
+                "WHERE mt.media_id = ? AND t.tag_normalized = '#by_footbag_hacky'",
+                (fh_avatar_id,),
+            ).fetchone()
+            assert by_count == 1, (
+                f"avatar must carry #by_footbag_hacky; got count={by_count}"
+            )
+            # Avatar must NOT carry #curated (avatar branch uses owner marker only).
+            (curated_count,) = con.execute(
+                "SELECT COUNT(*) FROM media_tags mt "
+                "JOIN tags t ON t.id = mt.tag_id "
+                "WHERE mt.media_id = ? AND t.tag_normalized = '#curated'",
+                (fh_avatar_id,),
+            ).fetchone()
+            assert curated_count == 0, (
+                f"avatar must NOT carry #curated; got count={curated_count}"
+            )
+        finally:
+            con.close()
+
+
+def test_avatars_subdir_rejects_sidecar() -> None:
+    """A .meta.json file in /curated/avatars/ is a misconfiguration: the
+    avatars/ subdir is the avatar declaration, no sidecar fields are
+    consumed. The seeder must fail-fast with a clear error.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        avatars = source_dir / "avatars"
+        avatars.mkdir()
+        # Copy a real avatar binary into the temp dir (can't symlink the
+        # subdir because we want to add an extra file).
+        shutil.copy(REPO_ROOT / "curated" / "avatars" / "fh-avatar.jpg",
+                    avatars / "fh-avatar.jpg")
+        (avatars / "fh-avatar.meta.json").write_text("{}")
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc != 0, "seeder must reject sidecar in avatars/"
+        assert "avatars/" in stderr or "sidecar" in stderr.lower(), (
+            f"error must mention avatars/ rule; got: {stderr}"
+        )
+
+
+def test_avatars_subdir_rejects_video_binary() -> None:
+    """A video binary in /curated/avatars/ is invalid (avatars are photos).
+    Seeder must fail-fast.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        avatars = source_dir / "avatars"
+        avatars.mkdir()
+        # Drop in a video binary; bytes don't matter, ext does.
+        (avatars / "bogus.mp4").write_bytes(b"not a real video")
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc != 0, "seeder must reject video in avatars/"
+        assert "avatars" in stderr and ("photo" in stderr.lower() or "video" in stderr.lower()), (
+            f"error must mention avatars/photo rule; got: {stderr}"
+        )
+
+
+def test_isAvatar_in_non_avatars_subdir_rejected() -> None:
+    """A sidecar in any non-avatars/ subdir that sets isAvatar=true is a
+    misconfiguration: avatar declaration belongs to the directory, not
+    a per-file flag. Seeder must fail-fast and tell the operator to move
+    the binary into avatars/.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        misc = source_dir / "misc"
+        misc.mkdir()
+        shutil.copy(REPO_ROOT / "curated" / "avatars" / "fh-avatar.jpg",
+                    misc / "rogue-avatar.jpg")
+        (misc / "rogue-avatar.meta.json").write_text(
+            json.dumps({"isAvatar": True, "tags": ["#whatever"]})
+        )
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc != 0, "seeder must reject isAvatar:true outside avatars/"
+        assert "isAvatar" in stderr and "avatars/" in stderr, (
+            f"error must mention isAvatar/avatars/ rule; got: {stderr}"
+        )
+
+
+def test_file_paired_orphan_cleanup() -> None:
+    """Regression for fix 3e: when a file-paired binary+sidecar disappears
+    from /curated/, the next seed run removes the corresponding
+    media_items row. Mirrors the URL-ref orphan cleanup contract.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        misc = source_dir / "misc"
+        misc.mkdir()
+        # Drop two file-paired entries.
+        (misc / "alpha.jpg").write_bytes(
+            (REPO_ROOT / "curated" / "events" / "japan-worlds-2026.jpg").read_bytes()
+        )
+        (misc / "alpha.meta.json").write_text(
+            json.dumps({"caption": "alpha", "tags": ["#alpha"]})
+        )
+        (misc / "beta.jpg").write_bytes(
+            (REPO_ROOT / "curated" / "events" / "japan-worlds-2026.jpg").read_bytes()
+        )
+        (misc / "beta.meta.json").write_text(
+            json.dumps({"caption": "beta", "tags": ["#beta"]})
+        )
+        _apply_schema(db_path)
+        rc, _ = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc == 0
+        con = sqlite3.connect(db_path)
+        try:
+            (n_first,) = con.execute(
+                "SELECT COUNT(*) FROM media_items WHERE source_filename IN ('alpha.jpg','beta.jpg')"
+            ).fetchone()
+            assert n_first == 2, f"expected both rows after first seed; got {n_first}"
+        finally:
+            con.close()
+        # Delete beta from disk and re-seed.
+        (misc / "beta.jpg").unlink()
+        (misc / "beta.meta.json").unlink()
+        rc2, _ = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc2 == 0
+        con = sqlite3.connect(db_path)
+        try:
+            (alpha_kept,) = con.execute(
+                "SELECT COUNT(*) FROM media_items WHERE source_filename = 'alpha.jpg'"
+            ).fetchone()
+            assert alpha_kept == 1, f"alpha must survive; got {alpha_kept}"
+            (beta_gone,) = con.execute(
+                "SELECT COUNT(*) FROM media_items WHERE source_filename = 'beta.jpg'"
+            ).fetchone()
+            assert beta_gone == 0, f"beta must be removed by orphan cleanup; got {beta_gone}"
+        finally:
+            con.close()
+
+
+def test_file_paired_malformed_sidecar_fails_fast() -> None:
+    """Regression for fix 3f: malformed JSON in a file-paired sidecar
+    must exit non-zero with a clear error. Previously printed "Skipping"
+    and silently dropped the item.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        misc = source_dir / "misc"
+        misc.mkdir()
+        (misc / "bad.jpg").write_bytes(b"\xff\xd8\xff\xe0")  # JPEG magic; fine
+        (misc / "bad.meta.json").write_text("{not: valid json}")
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc != 0, "seeder must fail on malformed sidecar JSON"
+        assert "malformed" in stderr.lower() or "json" in stderr.lower(), (
+            f"error must mention malformed/json; got: {stderr}"
+        )
+
+
+def test_file_paired_tag_shape_validation() -> None:
+    """Regression for fix 3g: file-paired sidecar tags must be
+    '#'-prefixed and lowercase. Mirrors _seed_one_sidecar's shape rules.
+    """
+    if not PYTHON.exists():
+        raise RuntimeError(f"venv python missing at {PYTHON}")
+    # Case 1: missing # prefix.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        misc = source_dir / "misc"
+        misc.mkdir()
+        shutil.copy(REPO_ROOT / "curated" / "misc" / "chilone.poster.jpg",
+                    misc / "thing.jpg")
+        (misc / "thing.meta.json").write_text(
+            json.dumps({"caption": "x", "tags": ["nohash"]})
+        )
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc != 0, "seeder must reject tag without # prefix"
+        assert "#" in stderr or "prefix" in stderr.lower(), (
+            f"error must mention # prefix rule; got: {stderr}"
+        )
+    # Case 2: uppercase tag.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        db_path = tmp_path / "test.db"
+        media_dir = tmp_path / "media"
+        source_dir = _setup_minimal_source_dir(tmp_path)
+        misc = source_dir / "misc"
+        misc.mkdir()
+        shutil.copy(REPO_ROOT / "curated" / "misc" / "chilone.poster.jpg",
+                    misc / "thing.jpg")
+        (misc / "thing.meta.json").write_text(
+            json.dumps({"caption": "x", "tags": ["#NotLower"]})
+        )
+        _apply_schema(db_path)
+        rc, stderr = _seed_with_source_dir(db_path, media_dir, source_dir)
+        assert rc != 0, "seeder must reject uppercase tag"
+        assert "lowercase" in stderr.lower(), (
+            f"error must mention lowercase rule; got: {stderr}"
         )
 
 
@@ -629,3 +929,19 @@ if __name__ == "__main__":
     print("OK: seeder rejects vimeo sidecar without thumbnailUrl")
     test_seeder_rejects_youtube_sidecar_with_thumbnail_url()
     print("OK: seeder rejects youtube sidecar with thumbnailUrl")
+    test_chilone_external_url_persists_after_seed()
+    print("OK: chilone external_url persists from sidecar (3c regression)")
+    test_avatars_subdir_implies_is_avatar_without_sidecar()
+    print("OK: avatars/ subdir implies is_avatar without sidecar (3d positive)")
+    test_avatars_subdir_rejects_sidecar()
+    print("OK: avatars/ rejects sidecar (3d negative)")
+    test_avatars_subdir_rejects_video_binary()
+    print("OK: avatars/ rejects video binary (3d negative)")
+    test_isAvatar_in_non_avatars_subdir_rejected()
+    print("OK: isAvatar:true outside avatars/ rejected (3d negative)")
+    test_file_paired_orphan_cleanup()
+    print("OK: file-paired orphan cleanup removes rows for deleted sidecars (3e)")
+    test_file_paired_malformed_sidecar_fails_fast()
+    print("OK: file-paired malformed sidecar fails fast (3f)")
+    test_file_paired_tag_shape_validation()
+    print("OK: file-paired tag shape validation (3g)")

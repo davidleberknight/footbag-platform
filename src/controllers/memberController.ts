@@ -236,7 +236,7 @@ export const memberController = {
         imageProcessor: getImageProcessingAdapter(),
       });
 
-      avatarService.uploadAvatar(memberId, fileBuffer, uploadedFilename)
+      avatarService.uploadAvatar(memberId, req.user!.slug, fileBuffer, uploadedFilename)
         .then(() => {
           writeFlash(res, req, FLASH_KIND.AVATAR_UPLOADED, uploadedFilename || undefined);
           res.redirect(`/members/${memberKey}/edit`);

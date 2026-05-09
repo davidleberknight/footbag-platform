@@ -1,4 +1,9 @@
-{{!-- Member-owned upload form. Owner-only view (anti-enumeration 404 elsewhere). --}}
+{{!--
+  Member-owned upload form. Owner-only view (anti-enumeration 404
+  elsewhere). 2-tab layout: Photo / Video link. No MP4 upload (members
+  do not host video bytes; see US M_Submit_Video §1110). Same CSS-only
+  tab pattern as the admin curator form. Works without JavaScript.
+--}}
 <div class="wrapper">
   <h1>{{page.title}}</h1>
   <p>
@@ -13,62 +18,75 @@
     <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
 
-  <form action="{{formAction}}" method="POST" enctype="multipart/form-data">
-    <fieldset>
-      <legend>Type</legend>
-      <label>
-        <input type="radio" name="mediaType" value="photo"
-          {{#if (eq formValues.mediaType "video")}}{{else}}checked{{/if}}>
-        Photo (JPEG or PNG, up to 25 MB)
-      </label>
-      <label>
-        <input type="radio" name="mediaType" value="video"
-          {{#if (eq formValues.mediaType "video")}}checked{{/if}}>
-        Video link (YouTube or Vimeo)
-      </label>
-    </fieldset>
+  <form action="{{formAction}}" method="POST" enctype="multipart/form-data" class="upload-form">
+
+    <div class="upload-tabs">
+      {{!-- Hidden radios act as the tab control. --}}
+      <input type="radio" name="mediaType" value="photo" id="member-tab-photo"
+        {{#if (eq formValues.mediaType "video")}}{{else}}checked{{/if}}
+        class="upload-tab-radio">
+      <input type="radio" name="mediaType" value="video" id="member-tab-video"
+        {{#if (eq formValues.mediaType "video")}}checked{{/if}}
+        class="upload-tab-radio">
+
+      <div class="upload-tab-bar" role="tablist">
+        <label for="member-tab-photo" class="upload-tab">Photo</label>
+        <label for="member-tab-video" class="upload-tab">Video link</label>
+      </div>
+
+      <div class="upload-tab-panels">
+        <div class="upload-tab-panel upload-tab-panel-photo">
+          <fieldset>
+            <legend>Photo file</legend>
+            <p>
+              <label>
+                File (JPEG or PNG, up to 25&nbsp;MB):
+                <input type="file" name="photoFile" accept="image/jpeg,image/png">
+              </label>
+            </p>
+          </fieldset>
+        </div>
+
+        <div class="upload-tab-panel upload-tab-panel-video">
+          <fieldset>
+            <legend>YouTube / Vimeo link</legend>
+            <p>
+              <label>
+                Platform:
+                <select name="videoPlatform">
+                  <option value="">--</option>
+                  <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
+                  <option value="vimeo"   {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
+                </select>
+              </label>
+            </p>
+            <p>
+              <label>
+                URL:
+                <input type="url" name="videoUrl" value="{{formValues.videoUrl}}"
+                       placeholder="https://www.youtube.com/watch?v=...">
+              </label>
+            </p>
+          </fieldset>
+        </div>
+      </div>
+    </div>
 
     <fieldset>
-      <legend>Photo</legend>
+      <legend>Details</legend>
       <p>
-        <label>
-          File:
-          <input type="file" name="photoFile" accept="image/jpeg,image/png">
-        </label>
-      </p>
-    </fieldset>
-
-    <fieldset>
-      <legend>Video link</legend>
-      <p>
-        <label>
-          Platform:
-          <select name="videoPlatform">
-            <option value="">--</option>
-            <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
-            <option value="vimeo" {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
-          </select>
-        </label>
+        <label for="member-upload-caption">Caption (optional, up to 500 characters):</label><br>
+        <textarea id="member-upload-caption" name="caption" maxlength="500" rows="3" cols="60">{{formValues.caption}}</textarea>
       </p>
       <p>
-        <label>
-          URL:
-          <input type="url" name="videoUrl" value="{{formValues.videoUrl}}"
-                 placeholder="https://www.youtube.com/watch?v=...">
-        </label>
-      </p>
-    </fieldset>
-
-    <fieldset>
-      <legend>Details (apply to either type)</legend>
-      <p>
-        <label for="caption">Caption (optional, up to 500 characters):</label><br>
-        <textarea id="caption" name="caption" maxlength="500" rows="3" cols="60">{{formValues.caption}}</textarea>
-      </p>
-      <p>
-        <label for="tags">Tags (optional, space-separated <code>#hashtags</code>):</label><br>
-        <input id="tags" type="text" name="tags" value="{{formValues.tags}}"
+        <label for="member-upload-tags">Tags (optional, space-separated <code>#hashtags</code>):</label><br>
+        <input id="member-upload-tags" type="text" name="tags" value="{{formValues.tags}}"
                placeholder="#freestyle #spike">
+      </p>
+      <p>
+        <label for="member-upload-external-url">External URL (optional, link to source page or creator):</label><br>
+        <input id="member-upload-external-url" type="url" name="externalUrl" value="{{formValues.externalUrl}}"
+               placeholder="https://example.com/article">
       </p>
     </fieldset>
 

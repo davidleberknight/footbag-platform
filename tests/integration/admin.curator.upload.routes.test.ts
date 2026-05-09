@@ -17,6 +17,11 @@ import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-${Date.now()}.db`);
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-admin-'));
+// Curator photo + video uploads write to /curated/{category}/ in local-adapter
+// mode (DD §1.13). Redirect that write to a temp directory so tests don't
+// pollute the repo's real /curated/. The url_reference describe block below
+// further overrides this for its scoped tests.
+const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-curated-admin-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
@@ -121,15 +126,25 @@ beforeAll(async () => {
       outputFormat: 'mp4',
     }),
   });
+
+  // Redirect /curated/ writes to the temp dir so this suite never touches
+  // the repo's real /curated/ tree. The url_reference describe block
+  // overrides this further with its own dir to test pre-existing
+  // category subdirectories.
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.setCuratedRootDirForTests(TEST_CURATED_DIR);
 });
 
-afterAll(() => {
+afterAll(async () => {
   resetImageProcessingAdapterForTests();
   resetVideoTranscodingAdapterForTests();
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.resetCuratedRootDirForTests();
   for (const ext of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
   }
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
+  try { fs.rmSync(TEST_CURATED_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
 // ── GET /admin/curator/upload ──────────────────────────────────────────────
@@ -213,21 +228,23 @@ describe('POST /admin/curator/upload — gates', () => {
 });
 
 describe('POST /admin/curator/upload — photo', () => {
-  it('happy path: redirects, inserts media_items + media_tags + audit_entries', async () => {
+  it('happy path: redirects, inserts media_items + media_tags + audit_entries; writes /curated/{category}/ binary + sidecar', async () => {
     const app = createApp();
     const jpeg = await makeJpeg(120, 90);
     const uniqueCaption = `photo-happy-${Date.now()}`;
     const uniqueTag = `#happy_${Date.now()}`;
+    const uniqueFilename = `photo-happy-${Date.now()}.jpg`;
 
     const res = await request(app)
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
       .field('caption', uniqueCaption)
       .field('tags', uniqueTag)
-      .attach('mediaFile', jpeg, 'photo.jpg');
+      .attach('mediaFile', jpeg, uniqueFilename);
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/upload');
+    expect(res.headers.location).toBe('/admin/curator/upload?saved=upload');
 
     const db = openDb();
     const mediaRow = db.prepare(`SELECT * FROM media_items WHERE caption = ?`).get(uniqueCaption) as Record<string, unknown>;
@@ -238,6 +255,9 @@ describe('POST /admin/curator/upload — photo', () => {
     expect(mediaRow.s3_key_display).toMatch(/-display\.jpg$/);
     expect(mediaRow.created_by).toBe('admin-act-as');
     expect(mediaRow.updated_by).toBe('admin-act-as');
+    // In local-adapter mode, source_filename is the slugged on-disk binary
+    // name so the seeder can reconcile media_items rows back to /curated/.
+    expect(mediaRow.source_filename).toMatch(/^photo-happy-\d+\.jpg$/);
 
     // Both the uploader-supplied tag and the auto-applied #curated marker
     // should be present; assert each independently rather than relying on
@@ -253,6 +273,43 @@ describe('POST /admin/curator/upload — photo', () => {
     expect(auditRow.action_type).toBe('upload_curated_media');
     expect(auditRow.entity_type).toBe('media_item');
     db.close();
+
+    // /curated/photos/<slug>.jpg + <slug>.meta.json must exist with the
+    // right shape (DD §1.13 file-paired sidecar).
+    const slug = String(mediaRow.source_filename).replace(/\.jpg$/, '');
+    const binaryPath = path.join(TEST_CURATED_DIR, 'photos', `${slug}.jpg`);
+    const sidecarPath = path.join(TEST_CURATED_DIR, 'photos', `${slug}.meta.json`);
+    expect(fs.existsSync(binaryPath)).toBe(true);
+    expect(fs.existsSync(sidecarPath)).toBe(true);
+    const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf-8'));
+    expect(sidecar.caption).toBe(uniqueCaption);
+    expect(sidecar.tags).toEqual([uniqueTag]);
+    expect(sidecar.poster).toBeUndefined();
+  });
+
+  it('missing category in local mode -> 422', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .attach('mediaFile', jpeg, 'photo-no-cat.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('category');
+  });
+
+  it('invalid category name (uppercase / hyphens) -> 422', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', 'Bad-Category')
+      .attach('mediaFile', jpeg, 'photo-bad-cat.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('lowercase letters, digits');
   });
 
   it('non-image file -> 422 with error message', async () => {
@@ -261,6 +318,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
       .attach('mediaFile', Buffer.from('not an image'), 'fake.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('JPEG and PNG');
@@ -271,7 +329,8 @@ describe('POST /admin/curator/upload — photo', () => {
     const res = await request(app)
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
-      .field('mediaType', 'photo');
+      .field('mediaType', 'photo')
+      .field('newCategory', 'photos');
     expect(res.status).toBe(422);
     expect(res.text).toContain('select a photo');
   });
@@ -283,6 +342,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
       .field('caption', 'x'.repeat(501))
       .attach('mediaFile', jpeg, 'photo.jpg');
     expect(res.status).toBe(422);
@@ -296,23 +356,145 @@ describe('POST /admin/curator/upload — photo', () => {
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
       .field('tags', 'no-hash')
       .attach('mediaFile', jpeg, 'photo.jpg');
     expect(res.status).toBe(422);
     expect(res.text).toContain('must start with');
   });
+
+  it('external URL persists on the row + sidecar', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const uniqueCaption = `photo-ext-url-${Date.now()}`;
+    const uniqueFilename = `photo-ext-url-${Date.now()}.jpg`;
+    const externalUrl = 'https://example.com/photographer';
+
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
+      .field('caption', uniqueCaption)
+      .field('externalUrl', externalUrl)
+      .attach('mediaFile', jpeg, uniqueFilename);
+    expect(res.status).toBe(302);
+
+    const db = openDb();
+    const row = db.prepare(`SELECT external_url, external_url_validated_at FROM media_items WHERE caption = ?`).get(uniqueCaption) as { external_url: string; external_url_validated_at: string };
+    // URL.toString() preserves the input form; no trailing slash is added
+    // when a path component is present.
+    expect(row.external_url).toBe(externalUrl);
+    expect(row.external_url_validated_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    db.close();
+  });
+
+  it('disallowed-scheme external URL -> 422 with DD §3.17 message', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
+      .field('externalUrl', 'javascript:alert(1)')
+      .attach('mediaFile', jpeg, 'photo-bad-url.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('disallowed protocol');
+  });
+
+  it('regression: tags-drop bug — full form post preserves tags (busboy fields cap)', async () => {
+    // Pre-existing bug: busboy `fields: 10` cap silently dropped trailing
+    // form fields. The video form posts up to 12 non-file fields; this test
+    // posts every named field on the photo path to confirm the wider cap
+    // delivers tags + externalUrl all the way to the row + sidecar.
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    const uniqueCaption = `photo-fullpost-${Date.now()}`;
+    const uniqueTag = `#fullpost_${Date.now()}`;
+    const uniqueFilename = `photo-fullpost-${Date.now()}.jpg`;
+
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
+      .field('videoPlatform', '')
+      .field('videoUrl', '')
+      .field('primarySlug', '')
+      .field('title', '')
+      .field('creator', '')
+      .field('sourceId', '')
+      .field('tier', '')
+      .field('caption', uniqueCaption)
+      .field('tags', uniqueTag)
+      .field('externalUrl', 'https://example.com/x')
+      .attach('mediaFile', jpeg, uniqueFilename);
+    expect(res.status).toBe(302);
+
+    const db = openDb();
+    const row = db.prepare(`SELECT id FROM media_items WHERE caption = ?`).get(uniqueCaption) as { id: string };
+    expect(row).toBeDefined();
+    const tagRows = db.prepare(`SELECT t.tag_normalized FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ?`).all(row.id) as { tag_normalized: string }[];
+    const tags = tagRows.map((r) => r.tag_normalized);
+    expect(tags).toContain(uniqueTag.toLowerCase());
+    expect(tags).toContain('#curated');
+    db.close();
+  });
 });
 
-describe('POST /admin/curator/upload — video (legacy multipart, retired)', () => {
-  // Synchronous video upload via the multipart form was retired in DD §6.8.
-  // Video bytes now flow browser → S3 (presigned PUT) → /finalize → worker.
-  // This branch is reachable only when JS is disabled or the client JS fails
-  // to load; the noscript banner on the upload form warns about that. The
-  // server returns 410 Gone with a clear message pointing at the new flow.
-  // Per-type validation (mp4/webm/mov, poster shape, sizes) lives in the new
-  // /admin/curator/upload/sign handler; see admin.curator.upload.async.routes.test.ts.
+describe('POST /admin/curator/upload — video (local-adapter sync path)', () => {
+  // In local-adapter mode the dev curator authoring path accepts video via
+  // standard multipart and writes the source bytes + poster + sidecar to
+  // /curated/{category}/ (DD §1.13). The async sign + S3 PUT + finalize flow
+  // (DD §6.8) is for S3-adapter mode and is exercised in
+  // admin.curator.upload.async.routes.test.ts.
 
-  it('any video mediaType -> 410 Gone with migration message', async () => {
+  it('happy path: redirects, inserts media_items + tags + audit; writes /curated/{category}/ video + poster + sidecar', async () => {
+    const app = createApp();
+    const mp4 = makeFakeMp4();
+    const poster = await makeJpeg(120, 90);
+    const uniqueCaption = `video-happy-${Date.now()}`;
+    const uniqueTag = `#video_happy_${Date.now()}`;
+    const uniqueFilename = `clip-${Date.now()}.mp4`;
+
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'video')
+      .field('newCategory', 'videos')
+      .field('caption', uniqueCaption)
+      .field('tags', uniqueTag)
+      .attach('mediaFile', mp4, uniqueFilename)
+      .attach('poster', poster, 'poster.jpg');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/admin/curator/upload?saved=upload');
+
+    const db = openDb();
+    const mediaRow = db.prepare(`SELECT * FROM media_items WHERE caption = ?`).get(uniqueCaption) as Record<string, unknown>;
+    expect(mediaRow.media_type).toBe('video');
+    expect(mediaRow.uploader_member_id).toBe(SYSTEM_ID);
+    // The video bytes' storage key lands in video_id (video_url is NULL for
+    // s3-platform curator videos per insertCuratorVideo in db.ts).
+    expect(mediaRow.video_id).toMatch(/-video\.mp4$/);
+    expect(mediaRow.video_platform).toBe('s3');
+    expect(mediaRow.source_filename).toMatch(/^clip-\d+\.mp4$/);
+    db.close();
+
+    const slug = String(mediaRow.source_filename).replace(/\.mp4$/, '');
+    const videoPath = path.join(TEST_CURATED_DIR, 'videos', `${slug}.mp4`);
+    const posterPath = path.join(TEST_CURATED_DIR, 'videos', `${slug}.poster.jpg`);
+    const sidecarPath = path.join(TEST_CURATED_DIR, 'videos', `${slug}.meta.json`);
+    expect(fs.existsSync(videoPath)).toBe(true);
+    expect(fs.existsSync(posterPath)).toBe(true);
+    expect(fs.existsSync(sidecarPath)).toBe(true);
+    const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf-8'));
+    expect(sidecar.caption).toBe(uniqueCaption);
+    expect(sidecar.tags).toEqual([uniqueTag]);
+    expect(sidecar.poster).toBe(`${slug}.poster.jpg`);
+  });
+
+  it('missing category in local mode -> 422', async () => {
     const app = createApp();
     const mp4 = makeFakeMp4();
     const poster = await makeJpeg();
@@ -320,24 +502,67 @@ describe('POST /admin/curator/upload — video (legacy multipart, retired)', () 
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'video')
-      .field('caption', 'legacy-cutover')
-      .field('tags', '#legacy_cutover')
-      .attach('mediaFile', mp4, 'clip.mp4')
+      .attach('mediaFile', mp4, 'clip-no-cat.mp4')
       .attach('poster', poster, 'poster.jpg');
-    expect(res.status).toBe(410);
-    expect(res.text).toContain('Synchronous video upload via this form has been removed');
-    expect(res.text).toContain('Enable JavaScript');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('category');
   });
 
-  it('returns 410 even when fields are missing or invalid', async () => {
+  it('missing poster -> 422', async () => {
     const app = createApp();
     const mp4 = makeFakeMp4();
     const res = await request(app)
       .post('/admin/curator/upload')
       .set('Cookie', adminCookie())
       .field('mediaType', 'video')
-      .attach('mediaFile', mp4, 'clip.mp4');
-    expect(res.status).toBe(410);
+      .field('newCategory', 'videos')
+      .attach('mediaFile', mp4, 'clip-no-poster.mp4');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('poster');
+  });
+
+  it('missing video file -> 422', async () => {
+    const app = createApp();
+    const poster = await makeJpeg();
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'video')
+      .field('newCategory', 'videos')
+      .attach('poster', poster, 'poster.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('video');
+  });
+
+  it('regression: poster survives when an empty mediaFile is also posted (mimics browser submitting both photo and video panel inputs)', async () => {
+    // The tabbed upload form has `mediaFile` inputs in BOTH the photo and
+    // video panels (same name, distinct DOM nodes). Browsers submit a
+    // file part for every input, so a video upload arrives as 3 file
+    // parts: empty mediaFile (from the hidden photo input) + real
+    // mediaFile (the video) + poster. busboy `files: 2` silently dropped
+    // the poster; raised to 4. This test simulates the browser by
+    // attaching an empty mediaFile before the real one.
+    const app = createApp();
+    const mp4 = makeFakeMp4();
+    const poster = await makeJpeg(120, 90);
+    const uniqueCaption = `video-multifile-${Date.now()}`;
+    const uniqueFilename = `clip-multifile-${Date.now()}.mp4`;
+
+    const res = await request(app)
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'video')
+      .field('newCategory', 'videos')
+      .field('caption', uniqueCaption)
+      .attach('mediaFile', Buffer.alloc(0), '')
+      .attach('mediaFile', mp4, uniqueFilename)
+      .attach('poster', poster, 'poster.jpg');
+    expect(res.status).toBe(302);
+
+    const db = openDb();
+    const row = db.prepare(`SELECT id FROM media_items WHERE caption = ?`).get(uniqueCaption);
+    expect(row).toBeDefined();
+    db.close();
   });
 });
 

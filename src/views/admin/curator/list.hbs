@@ -44,10 +44,16 @@
       <thead>
         <tr>
           <th>Thumbnail</th>
-          <th>Type</th>
-          <th>Caption</th>
+          <th>
+            <a href="{{sortLinks.type}}">Type</a>{{#if sortIndicator.type}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+          </th>
+          <th>
+            <a href="{{sortLinks.caption}}">Caption</a>{{#if sortIndicator.caption}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+          </th>
           <th>Tags</th>
-          <th>Uploaded</th>
+          <th>
+            <a href="{{sortLinks.date}}">Uploaded</a>{{#if (eq sortIndicator.date "desc")}} <span class="sort-indicator" aria-label="sorted descending">▼</span>{{/if}}{{#if (eq sortIndicator.date "asc")}} <span class="sort-indicator" aria-label="sorted ascending">▲</span>{{/if}}
+          </th>
           <th>Actions</th>
         </tr>
       </thead>
@@ -66,7 +72,7 @@
                 <code class="tag-chip">{{this}}</code>
               {{/each}}
             </td>
-            <td>{{uploadedAt}}</td>
+            <td>{{formatDate uploadedAt}}</td>
             <td>
               <a href="/admin/curator/media/{{mediaId}}/edit">Edit</a>
               <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" style="display:inline" onsubmit="return confirm('Permanently delete this curated media item? This cannot be undone.');">

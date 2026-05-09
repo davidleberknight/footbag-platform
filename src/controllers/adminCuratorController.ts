@@ -52,12 +52,18 @@ function buildSvc(): ReturnType<typeof createCuratorMediaService> {
   });
 }
 
-// Busboy enforces a single per-file ceiling on the legacy multipart endpoint.
-// After DD §6.8 the legacy endpoint only handles photos and URL-references;
-// video upload moved to the async sign+S3-PUT+finalize path. PHOTO_MAX_BYTES
-// (25 MB) is the worst-case here. Per-field size validation against this same
-// constant happens inside curatorMediaService.uploadPhoto.
-const PER_FILE_LIMIT = PHOTO_MAX_BYTES;
+// Busboy enforces a single per-file ceiling on the multipart endpoint.
+// In S3-adapter mode the endpoint serves photos + URL-references only
+// (video upload uses the async sign + PUT + finalize flow per DD §6.8),
+// for which PHOTO_MAX_BYTES would suffice. In local-adapter mode the
+// endpoint also accepts video + poster as a sync multipart submit (the
+// /curated/-first dev authoring path per DD §1.13 + §28.14), so the cap
+// must accommodate VIDEO_MAX_BYTES. The service layer enforces the
+// per-type cap inside uploadPhoto / uploadVideo so the busboy ceiling
+// is just a back-stop. The same constant is used in both modes for
+// uniformity; oversized photos in S3 mode are rejected by the service
+// not by busboy.
+const PER_FILE_LIMIT = VIDEO_MAX_BYTES;
 
 interface FormValues {
   mediaType?: string;
@@ -72,6 +78,7 @@ interface FormValues {
   creator?: string;
   sourceId?: string;
   tier?: string;
+  externalUrl?: string;
 }
 
 function renderForm(
@@ -83,6 +90,13 @@ function renderForm(
     savedFlag?: 'upload' | null;
   } = {},
 ): void {
+  // /curated/-first dev authoring vs direct-S3 staging+prod authoring is the
+  // dev/prod authoring split per DD §1.13 + §28.14. In S3 mode the form opts
+  // into the async sign + S3 PUT + finalize flow (DD §6.8) for video; in
+  // local mode the form omits the opt-in, video uploads submit as standard
+  // multipart, and the service writes the source bytes plus a sidecar to
+  // /curated/{category}/ so the upload survives DB and media-store wipes.
+  const asyncEnabled = config.mediaStorageAdapter === 's3';
   res.render('admin/curator/upload', {
     seo: { title: 'Upload Curated Media' },
     page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media' },
@@ -90,7 +104,32 @@ function renderForm(
     formValues: opts.formValues ?? {},
     existingCategories: opts.existingCategories ?? [],
     savedFlag: opts.savedFlag ?? null,
+    asyncEnabled,
+    requireCategory: !asyncEnabled,
   });
+}
+
+// Resolves the form's mutually-exclusive category fields into a single
+// validated category name. Returns either `{ category }` for the caller
+// to use, or `{ errorMessage }` to render at 422. Shared by the photo,
+// video, and url_reference branches of postUpload because all three need
+// the same rules in local-adapter mode.
+function resolveCategoryFromForm(
+  fields: Record<string, string>,
+): { category: string } | { errorMessage: string } {
+  const existingCategory = (fields.category ?? '').trim();
+  const newCategory = (fields.newCategory ?? '').trim();
+  if (existingCategory.length > 0 && newCategory.length > 0) {
+    return { errorMessage: 'Tick an existing category OR type a new category name, not both.' };
+  }
+  if (existingCategory.length === 0 && newCategory.length === 0) {
+    return { errorMessage: 'Tick a category or type a new category name.' };
+  }
+  const category = existingCategory.length > 0 ? existingCategory : newCategory;
+  if (!isValidCategoryName(category)) {
+    return { errorMessage: 'Category name must be lowercase letters, digits, or underscores.' };
+  }
+  return { category };
 }
 
 export const adminCuratorController = {
@@ -123,11 +162,21 @@ export const adminCuratorController = {
 
     const busboy = Busboy({
       headers: req.headers,
-      // files: 1 — only `mediaFile` is read here. The url_reference branch
-      // attaches no files; the photo branch reads `mediaFile`; video uploads
-      // were retired (return 410 below). Lowering the cap rejects spurious
-      // multi-file submissions early.
-      limits: { fileSize: PER_FILE_LIMIT, files: 1, fields: 10 },
+      // files: 4 — the tabbed form has `mediaFile` inputs in BOTH the
+      // photo panel and the video panel (same name, distinct DOM nodes).
+      // Browsers submit a file part for every file input, even empty ones;
+      // a video upload thus arrives as three file parts (empty mediaFile
+      // from the photo panel + real mediaFile from the video panel +
+      // poster). Capping at 2 silently dropped the poster. 4 has headroom
+      // for the 3 expected parts without admitting genuinely abusive
+      // multi-file submissions.
+      // fields: 24 — the upload form posts up to 12 non-file fields today
+      // (mediaType, newCategory, videoPlatform, videoUrl, primarySlug,
+      // title, creator, sourceId, tier, caption, tags, externalUrl). The
+      // cap was previously 10, which silently dropped the trailing fields
+      // on the wire (busboy emits no warning when truncating). 24 leaves
+      // headroom for near-term form additions without re-tuning.
+      limits: { fileSize: PER_FILE_LIMIT, files: 4, fields: 24 },
     });
 
     busboy.on('field', (name, val) => {
@@ -179,6 +228,11 @@ export const adminCuratorController = {
         .trim()
         .split(/\s+/)
         .filter((t) => t.length > 0);
+      // External URL: empty string -> null; trimmed value -> service-side
+      // validation (DD §3.17). Validation lives in the service per the
+      // thin-controller rule.
+      const externalUrlRaw = (fields.externalUrl ?? '').trim();
+      const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
       const formValues: FormValues = {
         mediaType,
         caption: fields.caption ?? '',
@@ -192,11 +246,13 @@ export const adminCuratorController = {
         creator: fields.creator ?? '',
         sourceId: fields.sourceId ?? '',
         tier: fields.tier ?? '',
+        externalUrl: fields.externalUrl ?? '',
       };
 
       const svc = createCuratorMediaService({
         storage: getMediaStorageAdapter(),
         imageProcessor: getImageProcessingAdapter(),
+        videoTranscoder: getVideoTranscodingAdapter(),
       });
       const existingCategories = await svc.listExistingCategories();
 
@@ -233,12 +289,6 @@ export const adminCuratorController = {
         const sourceId = sourceIdRaw.length === 0 ? null : sourceIdRaw;
         const tierRaw = (fields.tier ?? '').trim();
         const tier = tierRaw.length === 0 ? null : tierRaw;
-        // Category resolution: admin either ticks exactly one existing
-        // category checkbox (`category` field) OR types a new category
-        // name (`newCategory` text). Mutually exclusive. The server is the
-        // trust boundary; the form should also block both cases client-side.
-        const existingCategory = (fields.category ?? '').trim();
-        const newCategory = (fields.newCategory ?? '').trim();
 
         if (videoPlatformRaw !== 'youtube' && videoPlatformRaw !== 'vimeo') {
           renderForm(res.status(422), { errorMessage: 'Choose YouTube or Vimeo.', formValues, existingCategories });
@@ -252,37 +302,16 @@ export const adminCuratorController = {
           renderForm(res.status(422), { errorMessage: 'Provide a primary slug for the sidecar filename.', formValues, existingCategories });
           return;
         }
-        if (existingCategory.length > 0 && newCategory.length > 0) {
-          renderForm(res.status(422), {
-            errorMessage: 'Tick an existing category OR type a new category name, not both.',
-            formValues,
-            existingCategories,
-          });
-          return;
-        }
-        if (existingCategory.length === 0 && newCategory.length === 0) {
-          renderForm(res.status(422), {
-            errorMessage: 'Tick a category or type a new category name.',
-            formValues,
-            existingCategories,
-          });
-          return;
-        }
-        const resolvedCategory = existingCategory.length > 0 ? existingCategory : newCategory;
-        if (!isValidCategoryName(resolvedCategory)) {
-          renderForm(res.status(422), {
-            errorMessage:
-              'Category name must be lowercase letters, digits, or underscores.',
-            formValues,
-            existingCategories,
-          });
+        const categoryResult = resolveCategoryFromForm(fields);
+        if ('errorMessage' in categoryResult) {
+          renderForm(res.status(422), { errorMessage: categoryResult.errorMessage, formValues, existingCategories });
           return;
         }
 
         try {
           await svc.uploadUrlReference({
             adminMemberId,
-            category: resolvedCategory,
+            category: categoryResult.category,
             videoUrl,
             videoPlatform: videoPlatformRaw,
             primarySlug,
@@ -293,6 +322,7 @@ export const adminCuratorController = {
             startSeconds: null,
             endSeconds: null,
             tags,
+            ...(externalUrl !== null && { externalUrl }),
           });
         } catch (err) {
           if (err instanceof ValidationError) {
@@ -307,60 +337,170 @@ export const adminCuratorController = {
 
       const sourceFilename = fileFilenames.mediaFile ?? '';
 
+      // Photo + video: in local-adapter mode the upload writes to
+      // /curated/{category}/ as the source of truth (DD §1.13) plus the
+      // inline storage.put + media_items insert as the read-path UX
+      // optimization (line 575). In S3-adapter mode the upload writes
+      // direct to S3 + DB; no /curated/ involvement. Category is required
+      // in local mode (it picks the /curated/ subdir); ignored in S3 mode.
+      const localCuratedMode = config.mediaStorageAdapter === 'local';
+      let resolvedCategoryForBinary: string | undefined;
+      if (localCuratedMode) {
+        const categoryResult = resolveCategoryFromForm(fields);
+        if ('errorMessage' in categoryResult) {
+          renderForm(res.status(422), { errorMessage: categoryResult.errorMessage, formValues, existingCategories });
+          return;
+        }
+        resolvedCategoryForBinary = categoryResult.category;
+      }
+
       if (mediaType === 'photo') {
         const photoBuffer = fileBuffers.mediaFile;
         if (!photoBuffer || photoBuffer.length === 0) {
           renderForm(res.status(422), { errorMessage: 'Please select a photo to upload.', formValues, existingCategories });
           return;
         }
-        await svc.uploadPhoto({ adminMemberId, photoBuffer, sourceFilename, caption, tags });
-        res.redirect('/admin/curator/upload');
+        try {
+          await svc.uploadPhoto({
+            adminMemberId,
+            photoBuffer,
+            sourceFilename,
+            caption,
+            tags,
+            ...(resolvedCategoryForBinary && { category: resolvedCategoryForBinary }),
+            ...(externalUrl !== null && { externalUrl }),
+          });
+        } catch (err) {
+          if (err instanceof ValidationError) {
+            renderForm(res.status(422), { errorMessage: err.message, formValues, existingCategories });
+            return;
+          }
+          throw err;
+        }
+        res.redirect('/admin/curator/upload?saved=upload');
         return;
       }
 
       // mediaType === 'video'
-      // Legacy synchronous multipart upload was retired in DD §6.8: video
-      // bytes now flow browser → S3 (presigned PUT) → /finalize → worker.
-      // The async path requires JavaScript, which the noscript banner on the
-      // upload form warns about. A request landing here means JS was off or
-      // failed to load. 410 Gone is the right code: the resource (this
-      // synchronous video endpoint) is permanently removed; the new flow is
-      // POST /admin/curator/upload/sign + direct-to-S3 PUT + POST /finalize.
-      // The operator-run curator seeding script still calls
-      // curatorMediaService.uploadVideo directly (not through HTTP).
-      renderForm(res.status(410), {
-        errorMessage:
-          'Synchronous video upload via this form has been removed. Enable JavaScript and reload the page; video uploads now run as background transcode jobs.',
-        formValues,
-        existingCategories,
-      });
+      if (!localCuratedMode) {
+        // S3-adapter mode: synchronous multipart video upload is
+        // unavailable. Video bytes flow browser → S3 (presigned PUT) →
+        // /finalize → worker per DD §6.8. The async path requires
+        // JavaScript; the noscript banner on the form warns about that.
+        // A request landing here means JS was off or failed to load.
+        // 410 Gone is the right code: the sync video endpoint is
+        // permanently removed for S3-mode environments. The operator-run
+        // curator seeding script still calls uploadVideo directly (not
+        // through HTTP), and local-mode dev uses the branch below.
+        renderForm(res.status(410), {
+          errorMessage:
+            'Synchronous video upload via this form is disabled in this environment. Enable JavaScript and reload the page; video uploads run as background transcode jobs.',
+          formValues,
+          existingCategories,
+        });
+        return;
+      }
+
+      // Local-adapter mode video sync upload. Bytes arrive over multipart,
+      // the service writes the source binary + poster + sidecar under
+      // /curated/{category}/, and the inline transcoded copy lands in the
+      // local media store so the dev gallery reflects the upload
+      // immediately. Direct multipart of large videos is acceptable here
+      // because dev runs against localhost (no nginx/CloudFront in the
+      // path).
+      const videoBuffer = fileBuffers.mediaFile;
+      const posterBuffer = fileBuffers.poster;
+      if (!videoBuffer || videoBuffer.length === 0) {
+        renderForm(res.status(422), { errorMessage: 'Please select a video to upload.', formValues, existingCategories });
+        return;
+      }
+      if (!posterBuffer || posterBuffer.length === 0) {
+        renderForm(res.status(422), { errorMessage: 'Please select a poster image for the video.', formValues, existingCategories });
+        return;
+      }
+      try {
+        await svc.uploadVideo({
+          adminMemberId,
+          videoBuffer,
+          posterBuffer,
+          sourceFilename,
+          caption,
+          tags,
+          ...(resolvedCategoryForBinary && { category: resolvedCategoryForBinary }),
+          ...(externalUrl !== null && { externalUrl }),
+        });
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          renderForm(res.status(422), { errorMessage: err.message, formValues, existingCategories });
+          return;
+        }
+        throw err;
+      }
+      res.redirect('/admin/curator/upload?saved=upload');
     }
 
     req.pipe(busboy);
   },
 
-  /** GET /admin/curator/media — paginated list with optional tag filter. */
+  /** GET /admin/curator/media — paginated list with optional tag filter + sort. */
   getList(req: Request, res: Response, next: NextFunction): void {
     try {
       const pageRaw = parseInt(String(req.query.page ?? '1'), 10);
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
       const tagFilterRaw = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
       const tagFilter = tagFilterRaw.length > 0 ? tagFilterRaw : undefined;
+      // Sort: closed enum mirrored from CuratorMediaListInput.sort. Unknown
+      // values silently fall back to date_desc; sort is a UX preference, not
+      // a contract violation worth a 422.
+      const sortRaw = typeof req.query.sort === 'string' ? req.query.sort : '';
+      const sort: 'date_desc' | 'date_asc' | 'type_asc' | 'caption_asc' =
+        sortRaw === 'date_asc' || sortRaw === 'type_asc' || sortRaw === 'caption_asc'
+          ? sortRaw
+          : 'date_desc';
       const savedFlag =
         req.query.saved === 'edit' ? 'edit'
           : req.query.saved === 'delete' ? 'delete'
             : null;
 
       const svc = buildSvc();
-      const result = svc.listMedia({ page, pageSize: LIST_PAGE_SIZE, tagFilter });
+      const result = svc.listMedia({ page, pageSize: LIST_PAGE_SIZE, tagFilter, sort });
 
       const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+      // Pagination links preserve both tag + sort.
+      const queryTail = (p: number): string => {
+        const parts = [`page=${p}`];
+        if (tagFilter) parts.push(`tag=${encodeURIComponent(tagFilter)}`);
+        if (sort !== 'date_desc') parts.push(`sort=${sort}`);
+        return '?' + parts.join('&');
+      };
       const prevPageHref = result.page > 1
-        ? `/admin/curator/media?page=${result.page - 1}${tagFilter ? `&tag=${encodeURIComponent(tagFilter)}` : ''}`
+        ? '/admin/curator/media' + queryTail(result.page - 1)
         : null;
       const nextPageHref = result.page < totalPages
-        ? `/admin/curator/media?page=${result.page + 1}${tagFilter ? `&tag=${encodeURIComponent(tagFilter)}` : ''}`
+        ? '/admin/curator/media' + queryTail(result.page + 1)
         : null;
+
+      // Per-column sort links for the view. Each link toggles to the next
+      // logical sort when clicked: clicking the active Uploaded column
+      // toggles desc <-> asc; the other columns reset to their canonical
+      // ascending sort. Tag filter is preserved.
+      const sortLinkBase = '/admin/curator/media';
+      const sortQuery = (s: string): string => {
+        const parts: string[] = [];
+        if (tagFilter) parts.push(`tag=${encodeURIComponent(tagFilter)}`);
+        if (s !== 'date_desc') parts.push(`sort=${s}`);
+        return parts.length === 0 ? sortLinkBase : `${sortLinkBase}?${parts.join('&')}`;
+      };
+      const sortLinks = {
+        date: sortQuery(sort === 'date_desc' ? 'date_asc' : 'date_desc'),
+        type: sortQuery('type_asc'),
+        caption: sortQuery('caption_asc'),
+      };
+      const sortIndicator = {
+        date: sort === 'date_desc' ? 'desc' : sort === 'date_asc' ? 'asc' : null,
+        type: sort === 'type_asc' ? 'asc' : null,
+        caption: sort === 'caption_asc' ? 'asc' : null,
+      };
 
       res.render('admin/curator/list', {
         seo: { title: 'Curated Media' },
@@ -370,6 +510,9 @@ export const adminCuratorController = {
         currentPage: result.page,
         totalPages,
         tagFilter: tagFilter ?? '',
+        sort,
+        sortLinks,
+        sortIndicator,
         prevPageHref,
         nextPageHref,
         emptyState: result.items.length === 0,
@@ -420,6 +563,7 @@ export const adminCuratorController = {
           tier: item.tier ?? '',
           startSeconds: item.startSeconds ?? '',
           endSeconds: item.endSeconds ?? '',
+          externalUrl: item.externalUrl ?? '',
         },
       });
     } catch (err) {
@@ -458,6 +602,7 @@ export const adminCuratorController = {
       if (req.body?.thumbnailUrl !== undefined) editInput.thumbnailUrl = trimToNull(req.body.thumbnailUrl);
       if (req.body?.startSeconds !== undefined) editInput.startSeconds = parseIntOrNull(req.body.startSeconds);
       if (req.body?.endSeconds !== undefined) editInput.endSeconds = parseIntOrNull(req.body.endSeconds);
+      if (req.body?.externalUrl !== undefined) editInput.externalUrl = trimToNull(req.body.externalUrl);
 
       const svc = buildSvc();
       try {

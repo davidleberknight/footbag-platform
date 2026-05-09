@@ -60,9 +60,9 @@
       }
       xhr.onload = function () {
         if (xhr.status >= 200 && xhr.status < 300) resolve();
-        else reject(new Error('S3 PUT failed: HTTP ' + xhr.status));
+        else reject(new Error('Storage PUT failed: HTTP ' + xhr.status));
       };
-      xhr.onerror = function () { reject(new Error('S3 PUT network error')); };
+      xhr.onerror = function () { reject(new Error('Storage PUT network error')); };
       xhr.send(file);
     });
   }
@@ -77,8 +77,12 @@
     form.addEventListener('submit', async function (event) {
       var mediaTypeInput = form.querySelector('input[name="mediaType"]:checked');
       var mediaType = mediaTypeInput ? mediaTypeInput.value : '';
-      if (mediaType !== 'video') {
-        // Photo and url_reference paths still use the legacy multipart submit.
+      // The async S3 PUT flow runs only when the form opts in via
+      // data-async-enabled (set by the controller in S3-adapter mode). In
+      // local-adapter mode the attribute is absent, video uploads submit
+      // as standard multipart, and the service writes the source bytes
+      // plus a sidecar to /curated/{category}/ on the server side.
+      if (mediaType !== 'video' || !form.hasAttribute('data-async-enabled')) {
         return;
       }
       event.preventDefault();

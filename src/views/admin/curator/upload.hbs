@@ -1,4 +1,16 @@
-{{!-- Admin curator upload form --}}
+{{!--
+  Admin curator upload form.
+
+  Layout: CSS-only tabbed type selector. The mediaType radio inputs sit at
+  the top of `.upload-tabs`; CSS `:checked ~` sibling selectors reveal the
+  matching `.panel-*` block. No JavaScript required for the core flow; the
+  admin-curator-upload.js script enhances S3-mode video uploads with async
+  PUT (still falls back to multipart if JS is disabled in local-adapter
+  mode).
+
+  Without CSS the panels all stay visible and the form submits fine —
+  progressive enhancement per src/public/CLAUDE.md.
+--}}
 <div class="wrapper">
   <h1>{{page.title}}</h1>
   <p>Upload curated photos, videos, or URL references (YouTube / Vimeo). Content is attributed to the system member account (Footbag Hacky).</p>
@@ -14,27 +26,131 @@
     </div>
   {{/if}}
 
-  <noscript>
-    <div class="form-error-banner" role="alert">
-      JavaScript is required to upload videos. Photo and URL-reference uploads
-      work without it; enable JavaScript before selecting Video.
+  {{#if asyncEnabled}}
+    <noscript>
+      <div class="form-error-banner" role="alert">
+        JavaScript is required to upload videos in this environment.
+        Photo and URL-reference uploads work without it.
+      </div>
+    </noscript>
+  {{/if}}
+
+  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data"{{#if asyncEnabled}} data-async-enabled="true"{{/if}} class="upload-form">
+
+    <div class="upload-tabs">
+      {{!-- Hidden radios act as the tab control. The mediaType field is
+           the same form input the server reads; the visual tabs are
+           driven by :checked ~ sibling selectors in CSS. The `checked`
+           attribute mirrors the user's submitted choice on a re-render
+           after a 422, so an error doesn't snap them back to the Photo
+           tab. Photo is the default when no choice has been made yet. --}}
+      <input type="radio" name="mediaType" value="photo"         id="upload-tab-photo"
+        {{#unless (eq formValues.mediaType "video")}}{{#unless (eq formValues.mediaType "url_reference")}}checked{{/unless}}{{/unless}}
+        class="upload-tab-radio">
+      <input type="radio" name="mediaType" value="video"         id="upload-tab-video"
+        {{#if (eq formValues.mediaType "video")}}checked{{/if}}
+        class="upload-tab-radio">
+      <input type="radio" name="mediaType" value="url_reference" id="upload-tab-url"
+        {{#if (eq formValues.mediaType "url_reference")}}checked{{/if}}
+        class="upload-tab-radio">
+
+      <div class="upload-tab-bar" role="tablist">
+        <label for="upload-tab-photo" class="upload-tab">Photo</label>
+        <label for="upload-tab-video" class="upload-tab">Video file{{#if asyncEnabled}} <span class="upload-tab-hint">(JS)</span>{{/if}}</label>
+        <label for="upload-tab-url"   class="upload-tab">Video link</label>
+      </div>
+
+      <div class="upload-tab-panels">
+        <div class="upload-tab-panel upload-tab-panel-photo">
+          <fieldset>
+            <legend>Photo file</legend>
+            <p>
+              <label>
+                File (JPEG or PNG, up to 25&nbsp;MB):
+                <input type="file" name="mediaFile" accept="image/jpeg,image/png">
+              </label>
+            </p>
+          </fieldset>
+        </div>
+
+        <div class="upload-tab-panel upload-tab-panel-video">
+          <fieldset>
+            <legend>Video file + poster</legend>
+            <p>
+              <label>
+                Video file (MP4 / WebM / MOV, up to 150&nbsp;MB):
+                <input type="file" name="mediaFile" accept="video/mp4,video/webm,video/quicktime">
+              </label>
+            </p>
+            <p>
+              <label>
+                Poster image (JPEG or PNG, up to 25&nbsp;MB):
+                <input type="file" name="poster" accept="image/jpeg,image/png">
+              </label>
+            </p>
+          </fieldset>
+        </div>
+
+        <div class="upload-tab-panel upload-tab-panel-url">
+          <fieldset>
+            <legend>YouTube / Vimeo link</legend>
+            <p>
+              <label>
+                Platform:
+                <select name="videoPlatform">
+                  <option value="">--</option>
+                  <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
+                  <option value="vimeo"   {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
+                </select>
+              </label>
+            </p>
+            <p>
+              <label>
+                Video URL:
+                <input type="url" name="videoUrl" value="{{formValues.videoUrl}}" placeholder="https://www.youtube.com/watch?v=...">
+              </label>
+            </p>
+            <p>
+              <label>
+                Primary slug (filename prefix, lowercase letters/digits/hyphens):
+                <input type="text" name="primarySlug" value="{{formValues.primarySlug}}" placeholder="around-the-world">
+              </label>
+            </p>
+            <p>
+              <label>
+                Title (used as caption in the gallery):
+                <input type="text" name="title" maxlength="500" value="{{formValues.title}}">
+              </label>
+            </p>
+            <p>
+              <label>
+                Creator (e.g. video author; optional):
+                <input type="text" name="creator" value="{{formValues.creator}}">
+              </label>
+            </p>
+            <p>
+              <label>
+                Source id (FK into <code>media_sources</code>; optional):
+                <input type="text" name="sourceId" value="{{formValues.sourceId}}">
+              </label>
+            </p>
+            <p>
+              <label>
+                Tier (e.g. <code>CANONICAL_TUTORIAL</code>, <code>HIGH_QUALITY_DEMO</code>; optional):
+                <input type="text" name="tier" value="{{formValues.tier}}">
+              </label>
+            </p>
+          </fieldset>
+        </div>
+      </div>
     </div>
-  </noscript>
-
-  <form action="/admin/curator/upload" method="POST" enctype="multipart/form-data" data-async-curator-upload>
-    <fieldset>
-      <legend>Type</legend>
-      <label><input type="radio" name="mediaType" value="photo" checked> Photo</label>
-      <label><input type="radio" name="mediaType" value="video"> Video (requires JavaScript)</label>
-      <label><input type="radio" name="mediaType" value="url_reference"> URL reference (YouTube / Vimeo)</label>
-    </fieldset>
 
     <fieldset>
-      <legend>Category (URL reference only)</legend>
-      <p>Determines which subdirectory of <code>/curated/</code> the sidecar JSON lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
+      <legend>Category{{#unless requireCategory}} (URL reference only){{/unless}}</legend>
+      <p>{{#if requireCategory}}Required for every upload. {{/if}}Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
       {{#if existingCategories.length}}
         {{#each existingCategories}}
-          <label><input type="checkbox" name="category" value="{{this}}"> {{this}}</label>
+          <label><input type="checkbox" name="category" value="{{this}}"{{#if (eq ../formValues.category this)}} checked{{/if}}> {{this}}</label>
         {{/each}}
       {{else}}
         <p><em>No existing curated category subdirectories found.</em></p>
@@ -48,86 +164,24 @@
     </fieldset>
 
     <fieldset>
-      <legend>File upload (photo / video only)</legend>
+      <legend>Details</legend>
       <p>
-        <label>
-          File:
-          <input type="file" name="mediaFile">
-        </label>
-      </p>
-
-      <p>
-        <label>
-          Poster (video only):
-          <input type="file" name="poster">
-        </label>
-      </p>
-    </fieldset>
-
-    <fieldset>
-      <legend>URL reference (URL reference only)</legend>
-      <p>
-        <label>
-          Platform:
-          <select name="videoPlatform">
-            <option value="">--</option>
-            <option value="youtube" {{#if (eq formValues.videoPlatform "youtube")}}selected{{/if}}>YouTube</option>
-            <option value="vimeo" {{#if (eq formValues.videoPlatform "vimeo")}}selected{{/if}}>Vimeo</option>
-          </select>
-        </label>
+        <label for="curator-upload-caption">
+          Caption (max 500 chars; ignored for Video link, use Title above):
+        </label><br>
+        <textarea id="curator-upload-caption" name="caption" maxlength="500" rows="3" cols="60">{{formValues.caption}}</textarea>
       </p>
       <p>
-        <label>
-          Video URL:
-          <input type="url" name="videoUrl" value="{{formValues.videoUrl}}" placeholder="https://www.youtube.com/watch?v=...">
-        </label>
+        <label for="curator-upload-tags">
+          Tags (space-separated, lowercase, must start with <code>#</code>; do NOT include <code>#curated</code>):
+        </label><br>
+        <input id="curator-upload-tags" type="text" name="tags" value="{{formValues.tags}}" placeholder="#freestyle #trick #around-the-world">
       </p>
       <p>
-        <label>
-          Primary slug (filename prefix, lowercase letters/digits/hyphens):
-          <input type="text" name="primarySlug" value="{{formValues.primarySlug}}" placeholder="around-the-world">
-        </label>
-      </p>
-      <p>
-        <label>
-          Title (used as caption in the gallery):
-          <input type="text" name="title" maxlength="500" value="{{formValues.title}}">
-        </label>
-      </p>
-      <p>
-        <label>
-          Creator (e.g. video author; optional):
-          <input type="text" name="creator" value="{{formValues.creator}}">
-        </label>
-      </p>
-      <p>
-        <label>
-          Source id (FK into <code>media_sources</code>; optional):
-          <input type="text" name="sourceId" value="{{formValues.sourceId}}">
-        </label>
-      </p>
-      <p>
-        <label>
-          Tier (e.g. <code>CANONICAL_TUTORIAL</code>, <code>HIGH_QUALITY_DEMO</code>; optional):
-          <input type="text" name="tier" value="{{formValues.tier}}">
-        </label>
-      </p>
-    </fieldset>
-
-    <fieldset>
-      <legend>Caption + tags (all media types)</legend>
-      <p>
-        <label>
-          Caption (max 500 chars; ignored for URL reference, use Title above):
-          <input type="text" name="caption" maxlength="500" value="{{formValues.caption}}">
-        </label>
-      </p>
-
-      <p>
-        <label>
-          Tags (space-separated, lowercase, must start with #; do NOT include #curated):
-          <input type="text" name="tags" value="{{formValues.tags}}" placeholder="#freestyle #trick #around-the-world">
-        </label>
+        <label for="curator-upload-external-url">
+          External URL (optional, link to source page or creator):
+        </label><br>
+        <input id="curator-upload-external-url" type="url" name="externalUrl" value="{{formValues.externalUrl}}" placeholder="https://example.com/article">
       </p>
     </fieldset>
 
@@ -135,8 +189,8 @@
 
     <p><button type="submit">Upload</button></p>
 
-    {{!-- Video-async UX hooks. Visible only after the JS path takes over;
-         no-JS users see only the noscript banner above. --}}
+    {{!-- Video-async UX hooks. Visible only when the JS enhancement
+         takes over; no-JS users see only the noscript banner above. --}}
     <p data-async-status></p>
     <progress data-async-progress value="0" max="1" hidden></progress>
   </form>

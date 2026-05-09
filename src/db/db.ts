@@ -3680,6 +3680,27 @@ export const outbox = {
   `); },
 };
 
+// Sort enum for the admin curator media list view. The closed set + the
+// per-key prepared-statement cache below make ORDER BY safe even though
+// it cannot be SQL-parameter-bound. New sort modes get added here AND in
+// the corresponding service-layer enum; never accept user-supplied
+// fragments into ORDER BY.
+export type CuratorListSort = 'date_desc' | 'date_asc' | 'type_asc' | 'caption_asc';
+
+const ORDER_BY_BY_SORT: Record<CuratorListSort, string> = {
+  date_desc:   'mi.uploaded_at DESC, mi.id DESC',
+  date_asc:    'mi.uploaded_at ASC, mi.id ASC',
+  type_asc:    "mi.media_type ASC, mi.uploaded_at DESC, mi.id DESC",
+  caption_asc: "COALESCE(mi.caption, '') COLLATE NOCASE ASC, mi.uploaded_at DESC, mi.id DESC",
+};
+
+// Lazy caches — first access of a given sort key triggers the actual
+// db.prepare() call inside listCuratorMediaSorted / ...ByTagSorted. Per
+// src/db/CLAUDE.md "Statement laziness" rule, no prepare runs at module
+// load.
+const listCuratorMediaCache = new Map<CuratorListSort, ReturnType<typeof db.prepare>>();
+const listCuratorMediaByTagCache = new Map<CuratorListSort, ReturnType<typeof db.prepare>>();
+
 export const media = {
   get insertAvatarPhoto() { return db.prepare(`
     INSERT INTO media_items (
@@ -3842,7 +3863,7 @@ export const media = {
     SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
            mi.s3_key_thumb, mi.s3_key_display,
            mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
-           mi.source_filename
+           mi.source_filename, mi.external_url
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
     WHERE mi.id = ?
@@ -3860,11 +3881,14 @@ export const media = {
 
   // Tag-filtered curator media list. Joins through media_tags + tags to
   // filter by tag_normalized. Mirrors listCuratorMedia ordering.
+  // Replaced by listCuratorMediaByTagSorted (sort-aware). Kept temporarily
+  // for any caller that hasn't migrated; new callers use the sorted variant.
   get listCuratorMediaByTag() { return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
            mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
-           mi.width_px, mi.height_px
+           mi.width_px, mi.height_px,
+           mi.external_url
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
     JOIN media_tags mt ON mt.media_id = mi.id
@@ -3875,6 +3899,67 @@ export const media = {
       AND t.tag_normalized = ?
     ORDER BY mi.uploaded_at DESC, mi.id DESC
     LIMIT ? OFFSET ?
+  `); },
+
+  // Sort-aware curator media list. The sort key picks the ORDER BY clause
+  // from a closed whitelist; user-controlled input never reaches SQL. Each
+  // (sort, hasTag) pair has its own prepared statement, cached after first
+  // build. The closed-set guarantee plus better-sqlite3 prepared-statement
+  // semantics keep this safe; do not extend the whitelist with raw user
+  // input.
+  listCuratorMediaSorted(sort: CuratorListSort) {
+    const cached = listCuratorMediaCache.get(sort);
+    if (cached) return cached;
+    const stmt = db.prepare(`
+      SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+             mi.s3_key_thumb, mi.s3_key_display,
+             mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+             mi.width_px, mi.height_px,
+             mi.external_url
+      FROM media_items mi
+      JOIN members m ON m.id = mi.uploader_member_id
+      WHERE m.is_system = 1
+        AND mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+      ORDER BY ${ORDER_BY_BY_SORT[sort]}
+      LIMIT ? OFFSET ?
+    `);
+    listCuratorMediaCache.set(sort, stmt);
+    return stmt;
+  },
+
+  listCuratorMediaByTagSorted(sort: CuratorListSort) {
+    const cached = listCuratorMediaByTagCache.get(sort);
+    if (cached) return cached;
+    const stmt = db.prepare(`
+      SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
+             mi.s3_key_thumb, mi.s3_key_display,
+             mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+             mi.width_px, mi.height_px,
+             mi.external_url
+      FROM media_items mi
+      JOIN members m ON m.id = mi.uploader_member_id
+      JOIN media_tags mt ON mt.media_id = mi.id
+      JOIN tags t ON t.id = mt.tag_id
+      WHERE m.is_system = 1
+        AND mi.moderation_status = 'active'
+        AND mi.is_avatar = 0
+        AND t.tag_normalized = ?
+      ORDER BY ${ORDER_BY_BY_SORT[sort]}
+      LIMIT ? OFFSET ?
+    `);
+    listCuratorMediaByTagCache.set(sort, stmt);
+    return stmt;
+  },
+
+  // Sets external_url and stamps validated_at. Service callers run this
+  // inside the same transaction as the row INSERT for atomicity. URL must
+  // already be validated + normalized by externalUrlValidator at the
+  // service boundary; this statement does no validation of its own.
+  get setMediaItemExternalUrl() { return db.prepare(`
+    UPDATE media_items
+       SET external_url = ?, external_url_validated_at = ?
+     WHERE id = ?
   `); },
 
   get countCuratorMediaByTag() { return db.prepare(`

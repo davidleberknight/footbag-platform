@@ -1,0 +1,11 @@
+{
+  "id": "gallery_chinlone",
+  "name": "Chinlone in Myanmar",
+  "description": "Chinlone in Myanmar",
+  "sortOrder": "upload_desc",
+  "criteriaTags": [
+    "#curated",
+    "#chinlone"
+  ],
+  "excludeTags": []
+}

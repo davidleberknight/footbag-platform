@@ -10,6 +10,7 @@ export interface CuratorSidecar {
   tags: string[];
   isAvatar?: boolean;
   poster?: string | null;
+  externalUrl?: string | null;
 }
 
 export function sidecarPathForSource(sourceFilename: string): string {
@@ -107,5 +108,20 @@ function validateSidecarShape(value: unknown, sourceFilename: string): CuratorSi
     }
   }
 
-  return { caption, tags, ...(isAvatar !== undefined && { isAvatar }), ...(poster !== undefined && { poster }) };
+  let externalUrl: string | null | undefined;
+  if (obj.externalUrl !== undefined) {
+    if (obj.externalUrl === null || typeof obj.externalUrl === 'string') {
+      externalUrl = obj.externalUrl;
+    } else {
+      throw new ValidationError(`Sidecar externalUrl must be string or null: ${sourceFilename}`);
+    }
+  }
+
+  return {
+    caption,
+    tags,
+    ...(isAvatar !== undefined && { isAvatar }),
+    ...(poster !== undefined && { poster }),
+    ...(externalUrl !== undefined && { externalUrl }),
+  };
 }

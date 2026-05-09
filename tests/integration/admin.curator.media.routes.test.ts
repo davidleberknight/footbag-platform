@@ -20,6 +20,10 @@ import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-media-${Date.now()}.db`);
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-admin-list-'));
+// Curator photo + video uploads write to /curated/{category}/ in local-adapter
+// mode (DD §1.13). Redirect that write to a temp directory so tests don't
+// pollute the repo's real /curated/.
+const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-curator-media-curated-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
 process.env.FOOTBAG_MEDIA_DIR = TEST_MEDIA_DIR;
@@ -97,14 +101,22 @@ beforeAll(async () => {
   adapterMod.setImageProcessingAdapterForTests(
     adapterMod.createHttpImageAdapter({ baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
   );
+
+  // Redirect /curated/ writes to the temp dir so this suite never touches
+  // the repo's real /curated/ tree.
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.setCuratedRootDirForTests(TEST_CURATED_DIR);
 });
 
-afterAll(() => {
+afterAll(async () => {
   resetImageProcessingAdapterForTests();
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.resetCuratedRootDirForTests();
   for (const ext of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(TEST_DB_PATH + ext); } catch { /* ignore */ }
   }
   try { fs.rmSync(TEST_MEDIA_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
+  try { fs.rmSync(TEST_CURATED_DIR, { recursive: true, force: true }); } catch { /* ignore */ }
 });
 
 // ── Helper: upload one photo via the existing upload route ──────────────
@@ -120,6 +132,7 @@ async function uploadPhotoViaRoute(caption: string, tags: string[]): Promise<str
     .post('/admin/curator/upload')
     .set('Cookie', adminCookie())
     .field('mediaType', 'photo')
+    .field('newCategory', 'photos')
     .field('caption', caption)
     .field('tags', tags.join(' '))
     .attach('mediaFile', jpeg, filename);
@@ -176,6 +189,58 @@ describe('GET /admin/curator/media', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain(captionMatched);
     expect(res.text).not.toContain(captionUnrelated);
+  });
+
+  it('default sort is date_desc — most recent uploads appear before older ones', async () => {
+    // Capture two captions with a guaranteed order in the DB. Each upload
+    // gets a fresh now-stamp; the second insert is later, so date_desc
+    // puts it before the first.
+    const olderCaption = `LIST_SORT_OLD_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await uploadPhotoViaRoute(olderCaption, []);
+    // Tiny gap to ensure distinct uploaded_at stamps even on coarse clocks.
+    await new Promise((r) => setTimeout(r, 20));
+    const newerCaption = `LIST_SORT_NEW_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await uploadPhotoViaRoute(newerCaption, []);
+
+    const app = createApp();
+    const res = await request(app).get('/admin/curator/media').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    const idxNewer = res.text.indexOf(newerCaption);
+    const idxOlder = res.text.indexOf(olderCaption);
+    expect(idxNewer).toBeGreaterThan(-1);
+    expect(idxOlder).toBeGreaterThan(-1);
+    // date_desc: newer caption renders first (smaller index in HTML).
+    expect(idxNewer).toBeLessThan(idxOlder);
+  });
+
+  it('?sort=date_asc reverses date order', async () => {
+    const olderCaption = `LIST_SORTASC_OLD_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await uploadPhotoViaRoute(olderCaption, []);
+    await new Promise((r) => setTimeout(r, 20));
+    const newerCaption = `LIST_SORTASC_NEW_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await uploadPhotoViaRoute(newerCaption, []);
+
+    const app = createApp();
+    const res = await request(app).get('/admin/curator/media?sort=date_asc').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    const idxNewer = res.text.indexOf(newerCaption);
+    const idxOlder = res.text.indexOf(olderCaption);
+    // date_asc: older renders before newer.
+    expect(idxOlder).toBeLessThan(idxNewer);
+  });
+
+  it('?sort=bogus falls back to default date_desc without 422', async () => {
+    const app = createApp();
+    const res = await request(app).get('/admin/curator/media?sort=bogus').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+  });
+
+  it('renders a sort indicator on the active column', async () => {
+    const app = createApp();
+    const resDefault = await request(app).get('/admin/curator/media').set('Cookie', adminCookie());
+    expect(resDefault.text).toContain('▼');
+    const resAsc = await request(app).get('/admin/curator/media?sort=date_asc').set('Cookie', adminCookie());
+    expect(resAsc.text).toContain('▲');
   });
 });
 

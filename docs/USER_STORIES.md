@@ -1080,6 +1080,7 @@ Success Criteria:
 - JPEG and PNG only; GIF not supported. Animated content should be uploaded to YouTube or Vimeo and embedded via video links.
 - Photo processing generates two variants only: Thumbnail (300×300 pixels) and Display (800px width maximum). Both stored as JPEG at 85% quality, sufficient quality for web viewing and sharing. Original uploaded file is discarded after processing,
 - Add caption to photo optionally (plain text, max 500 chars).
+- Optional external URL on each uploaded photo (media_items.external_url; e.g. link to source article or creator page). Validated at the service boundary per DD §3.17. Upload form works without JavaScript.
 - Tag optionally with hashtags for discovery (standardized tags for events and clubs, plus freeform tags such as tutorial, golf).
 - Hashtag matching is case-insensitive for all tag operations (example: #Event_2025_beaver_open and #event_2025_Beaver_Open match identically).
 - Hashtags stored with original capitalization for display quality (example: #Event_2026_Japan_Worlds displays as entered, not lowercased).
@@ -1106,6 +1107,7 @@ Success Criteria:
 - Accept URL patterns: youtube.com/watch?v=, youtu.be/, vimeo.com/
 - System validates URL format and extracts video ID.
 - Video metadata stored in video entity (uploaderId, platform, videoId, videoUrl, thumbnailUrl, caption, tags, status).
+- Optional external URL on each submitted video (media_items.external_url; e.g. link to creator's own page or article about the video). Validated at the service boundary per DD §3.17. Submission form works without JavaScript.
 - Video thumbnails fetched from YouTube/Vimeo APIs for preview.
 - Members do not upload video files (MP4/WebM/MOV); only YouTube/Vimeo URLs are accepted. Binary video upload is the admin/curator path (see A_Upload_Curated_Media); the member-upload controller rejects `video_platform='s3'` at the boundary per DD §6.8.
 - Hashtag matching is case-insensitive for video tag operations (example: Tutorial and tutorial match identically).
@@ -1726,6 +1728,7 @@ Success Criteria, Upload:
 - Admin assigns the upload to a category subdirectory under /curated/. The admin UI accepts an existing category or a new category name; entering a name not yet used creates the subdirectory on next deploy. Filesystem-driven; any /curated/{name}/ subdirectory is a valid category.
 - Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags appear on /tags/{tag} pages. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Per-category default tag stacks are also auto-applied (e.g. /curated/freestyle_tricks/ adds `#freestyle #trick`; /curated/demos/ adds `#demo`). Filtering by `#curated` returns the all-FH gallery.
 - Tag autocomplete is category-aware: /curated/freestyle_tricks/ uploads autocomplete trick-slugs from the freestyle dictionary (`freestyle_tricks.slug`); admin sees a warning if a tricklike tag matches no known dictionary slug, but the upload still completes. Alias-shaped trick tags (matching `freestyle_trick_aliases.alias_slug`) are canonicalized to the parent trick's slug before insertion; the saved tag set shows the canonical form.
+- Admin can specify an optional external URL on each uploaded item (media_items.external_url; e.g. link to creator page, source article, related event). Validated at the service boundary per DD §3.17. Persists on the row and on the file-paired sidecar (DD §1.13). The upload form works without JavaScript for photo and URL-reference uploads; admin S3-mode video uploads require JavaScript (the noscript banner warns).
 - Admin can specify gallery assignment: detached (no gallery) or attached to a system-member-owned gallery. Curator-gallery management is out of scope for this story; for the initial phase, all curator content uploaded via this path is detached.
 - Upload completion model varies by media type:
     - Photo and URL-reference uploads complete synchronously: admin sees success or failure in the request-response cycle.

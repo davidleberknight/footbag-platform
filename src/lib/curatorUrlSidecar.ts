@@ -25,6 +25,7 @@ export interface UrlSidecarData {
   thumbnailUrl?: string | null;
   startSeconds?: number | null;
   endSeconds?: number | null;
+  externalUrl?: string | null;
   tags: string[];
 }
 
@@ -111,6 +112,7 @@ export function formatUrlSidecarJson(data: UrlSidecarData): string {
   }
   if (data.startSeconds != null) ordered.startSeconds = data.startSeconds;
   if (data.endSeconds != null) ordered.endSeconds = data.endSeconds;
+  if (data.externalUrl != null) ordered.externalUrl = data.externalUrl;
   ordered.tags = data.tags;
   return JSON.stringify(ordered, null, 2) + '\n';
 }

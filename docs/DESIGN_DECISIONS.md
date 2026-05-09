@@ -592,7 +592,7 @@ Trade-offs:
 
 - Operator must re-run the seeder after committing curator changes to see the full DB state on systems where the inline update did not run (for example, a freshly cloned environment, a different host). The admin UI surfaces this with a banner.
 
-- Three sidecar shapes coexist: file-paired sidecars (sibling of a photo or video binary), URL-reference sidecars (standalone, no binary), and gallery sidecars (standalone, declare a `member_galleries` row plus its criteria-tag and exclude-tag sets, one file per gallery under `/curated/galleries/`). All three are validated by the seeder; `src/lib/curatorUrlSidecar.ts` owns URL-reference sidecar I/O and `src/lib/curatorGallerySidecar.ts` owns gallery sidecar I/O.
+- Three sidecar shapes coexist: file-paired sidecars (sibling of a photo or video binary), URL-reference sidecars (standalone, no binary), and gallery sidecars (standalone, declare a `member_galleries` row plus its criteria-tag and exclude-tag sets, one file per gallery under `/curated/galleries/`). All three are validated by the seeder; `src/lib/curatorUrlSidecar.ts` owns URL-reference sidecar I/O and `src/lib/curatorGallerySidecar.ts` owns gallery sidecar I/O. The system avatar is the one no-sidecar exception: any binary under `/curated/avatars/` is treated as an avatar by location alone (the seeder forces `is_avatar = 1` and the `#by_<owner_slug>` uploader marker; a sidecar in `/curated/avatars/` is rejected as a misconfiguration).
 
 Impact:
 
@@ -1636,7 +1636,7 @@ Impact:
 
 Decision:
 
-User-supplied external URLs are validated at the controller boundary at every ingestion path. The validation contract applies to all user-supplied external URL fields: member profile external links (maximum three per profile), club URL, event URL, gallery URL. YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
+User-supplied external URLs are validated at the service boundary at every ingestion path. The validation contract applies to all user-supplied external URL fields: member profile external links (maximum three per profile), club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
 
 Scheme allowlist:
 

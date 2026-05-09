@@ -125,6 +125,69 @@ def main() -> int:
         else:
             rows.append((" OK ", exp.table, count, exp.min_rows, exp.note))
 
+    # Curator-tag invariant. Every active non-avatar media_items row
+    # owned by a is_system=1 member must carry a `#curated` media_tags
+    # entry. If the seeder forgets to auto-prepend `#curated` for any
+    # code path (CURATOR_ITEMS, file-paired sidecars, url-reference
+    # sidecars), FH-owned named galleries that filter by `#curated`
+    # silently render zero items. Avatars (is_avatar=1) are a separate
+    # category and carry no tags by design. Member-owned rows are
+    # excluded entirely.
+    try:
+        leaks = conn.execute(
+            """
+            SELECT mi.id, mi.source_filename, mi.video_url
+              FROM media_items mi
+              JOIN members m ON m.id = mi.uploader_member_id
+             WHERE m.is_system = 1
+               AND mi.moderation_status = 'active'
+               AND mi.is_avatar = 0
+               AND NOT EXISTS (
+                 SELECT 1
+                   FROM media_tags mt
+                   JOIN tags t ON t.id = mt.tag_id
+                  WHERE mt.media_id = mi.id
+                    AND t.tag_normalized = '#curated'
+               )
+            """
+        ).fetchall()
+        if leaks:
+            failures.append(
+                f"#curated tag missing on {len(leaks)} system-owned active media row(s); "
+                f"first: id={leaks[0][0]} source_filename={leaks[0][1]!r} video_url={leaks[0][2]!r}"
+            )
+    except sqlite3.Error as e:
+        failures.append(f"QUERY FAILED on #curated invariant: {e}")
+
+    # Avatar tag invariant. Avatars carry exactly one tag: the
+    # `#by_<owner_slug>` uploader marker. Catches regressions in either
+    # direction (no tag, multiple tags, wrong tag). Without the marker,
+    # the avatar fails the personal-gallery query that every other
+    # member-uploaded item passes.
+    try:
+        avatar_leaks = conn.execute(
+            """
+            SELECT mi.id, m.slug,
+                   (SELECT COUNT(*) FROM media_tags mt WHERE mt.media_id = mi.id) AS tag_count,
+                   (SELECT GROUP_CONCAT(t.tag_normalized) FROM media_tags mt
+                       JOIN tags t ON t.id = mt.tag_id
+                      WHERE mt.media_id = mi.id) AS tags
+              FROM media_items mi
+              JOIN members m ON m.id = mi.uploader_member_id
+             WHERE mi.is_avatar = 1
+               AND mi.moderation_status = 'active'
+            """
+        ).fetchall()
+        for media_id, slug, tag_count, tags in avatar_leaks:
+            expected = f"#by_{slug.lower()}"
+            if tag_count != 1 or tags != expected:
+                failures.append(
+                    f"avatar tag invariant violated on id={media_id} slug={slug!r}: "
+                    f"expected exactly [{expected!r}], got {tag_count} tag(s) {tags!r}"
+                )
+    except sqlite3.Error as e:
+        failures.append(f"QUERY FAILED on avatar invariant: {e}")
+
     conn.close()
 
     name_w = max(len(r[1]) for r in rows)
@@ -136,12 +199,12 @@ def main() -> int:
     print()
 
     if failures:
-        print(f"FAILED: {len(failures)} of {len(EXPECTATIONS)} table assertions:", file=sys.stderr)
+        print(f"FAILED: {len(failures)} assertion(s):", file=sys.stderr)
         for f in failures:
             print(f"  - {f}", file=sys.stderr)
         return 1
 
-    print(f"PASSED: all {len(EXPECTATIONS)} table assertions met thresholds.")
+    print(f"PASSED: all {len(EXPECTATIONS)} table assertions + #curated and avatar tag invariants met.")
     return 0
 
 
