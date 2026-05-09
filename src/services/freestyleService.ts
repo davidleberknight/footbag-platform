@@ -1,6 +1,7 @@
 import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
   FreestyleTrickRowWithStatus, FreestyleTrickAliasRow, FreestyleMediaCoveredSlugRow,
+  FreestyleTrickModifierLinkRow,
   FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
   FreestylePartnershipRow,
   CuratorSlotMediaRow,
@@ -446,7 +447,21 @@ export interface FreestyleTricksCoverageSummary {
   transparencyNote: string;        // pre-shaped: 'External-source placeholders are shown for transparency...'
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'category';
+export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets';
+
+// One row in the ?view=sets projection. Each set/modifier carries the list
+// of canonical tricks that use it via freestyle_trick_modifier_links.
+// modifierType ('set' | 'body' | 'rotational-qualifier') drives the
+// section-header grouping in the template.
+export interface FreestyleSetGroup {
+  modifierSlug: string;
+  modifierName: string;
+  modifierType: string;
+  addBonus: number;
+  addBonusRotational: number;
+  tricks: FreestyleTrickIndexRow[];
+  trickCount: number;
+}
 
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
@@ -457,6 +472,9 @@ export interface FreestyleTricksIndexContent {
   // Existing category-grouped view, preserved for ?view=category.
   groups: FreestyleTrickGroup[];
   familyGroups: FreestyleFamilyGroup[];  // compound tricks grouped by family (for family-browsing section)
+  // Sets-grouped view: dictionary tricks bucketed by which modifier(s) they
+  // use. Drives ?view=sets. Empty when no active tricks have modifier_links.
+  setGroups: FreestyleSetGroup[];
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
   dictNote: string;                      // small subtle note rendered above the categories
@@ -1403,7 +1421,7 @@ export const freestyleService = {
     };
 
     // ---- View toggle --------------------------------------------------
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category'];
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets'];
     const activeView: FreestyleTricksActiveView =
       allowedViews.includes((view ?? 'add') as FreestyleTricksActiveView)
         ? ((view ?? 'add') as FreestyleTricksActiveView)
@@ -1414,6 +1432,60 @@ export const freestyleService = {
       freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
     );
     const modifiers = modifierRows.map(shapeModifierEntry);
+
+    // ---- Set groups (?view=sets projection) ---------------------------
+    // Group active dictionary tricks by which modifier(s) they use via the
+    // freestyle_trick_modifier_links table. Each modifier becomes a section;
+    // tricks within a section are alphabetical. Modifiers with zero matched
+    // tricks are skipped (table-driven, not enumerated). Sets-type
+    // modifiers are surfaced before body-type modifiers via the SQL ORDER BY.
+    const allActiveTrickRowsForSets = allRows.filter(r => r.is_active === 1);
+    const allActiveTrickRowsBySlug = new Map<string, FreestyleTrickRow>();
+    for (const r of allActiveTrickRowsForSets) allActiveTrickRowsBySlug.set(r.slug, r);
+
+    const linkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+      freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+    );
+    const setGroupAccumulator = new Map<string, {
+      modifierSlug: string;
+      modifierName: string;
+      modifierType: string;
+      addBonus: number;
+      addBonusRotational: number;
+      tricks: FreestyleTrickRow[];
+    }>();
+    for (const lr of linkRows) {
+      // Only include tricks that survive the activeFamily filter applied earlier
+      // and that exist in the active set (modifier-category rows excluded).
+      const trickRow = allActiveTrickRowsBySlug.get(lr.trick_slug);
+      if (!trickRow) continue;
+      let bucket = setGroupAccumulator.get(lr.modifier_slug);
+      if (!bucket) {
+        bucket = {
+          modifierSlug: lr.modifier_slug,
+          modifierName: lr.modifier_name,
+          modifierType: lr.modifier_type,
+          addBonus: lr.add_bonus,
+          addBonusRotational: lr.add_bonus_rotational,
+          tricks: [],
+        };
+        setGroupAccumulator.set(lr.modifier_slug, bucket);
+      }
+      // Avoid duplicate tricks within a bucket when a modifier appears at
+      // multiple apply_orders for the same trick.
+      if (!bucket.tricks.some(t => t.slug === trickRow.slug)) {
+        bucket.tricks.push(trickRow);
+      }
+    }
+    const setGroups: FreestyleSetGroup[] = [...setGroupAccumulator.values()].map(b => ({
+      modifierSlug: b.modifierSlug,
+      modifierName: b.modifierName,
+      modifierType: b.modifierType,
+      addBonus: b.addBonus,
+      addBonusRotational: b.addBonusRotational,
+      tricks: b.tricks.map(r => shapeTrickIndexRow(r, ctx)),
+      trickCount: b.tricks.length,
+    }));
 
     return {
       seo: {
@@ -1442,6 +1514,7 @@ export const freestyleService = {
         activeView,
         groups,
         familyGroups,
+        setGroups,
         modifiers,
         activeFamily,
         totalTricks: canonicalCount,

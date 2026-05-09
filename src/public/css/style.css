@@ -2052,6 +2052,13 @@ section.home-media { padding-top: 0; }
 .trick-coverage-note   { margin: 4px 0 0; font-size: 0.82rem; color: var(--text-muted); }
 
 .trick-add-group { margin-bottom: 28px; }
+.trick-set-group { margin-bottom: 28px; }
+.trick-set-type {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: normal;
+  font-style: italic;
+}
 
 .trick-list {
   list-style: none;

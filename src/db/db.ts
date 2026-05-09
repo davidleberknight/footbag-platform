@@ -1038,6 +1038,18 @@ export interface FreestyleTrickModifierRow {
   notes:                string | null;
 }
 
+// Flat row from freestyleTrickModifiers.listTricksByModifier — one row per
+// (modifier, trick) pair. Service groups by modifier_slug and joins each
+// trick_slug back to the full FreestyleTrickRow loaded elsewhere.
+export interface FreestyleTrickModifierLinkRow {
+  modifier_slug:        string;
+  modifier_name:        string;
+  modifier_type:        string;
+  add_bonus:            number;
+  add_bonus_rotational: number;
+  trick_slug:           string;
+}
+
 export const freestyleTricks = {
   get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
@@ -1126,6 +1138,36 @@ export const freestyleTrickModifiers = {
     SELECT slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes
     FROM freestyle_trick_modifiers
     WHERE slug = ?
+  `); },
+
+  // Modifier-grouped view of the trick dictionary. One row per
+  // (modifier, trick) pair, ordered for service-side grouping. Excludes
+  // pending tricks, modifier-category tricks (they're not display-tier),
+  // and modifiers that have zero linked active tricks (filtered later in
+  // the service when grouping). Drives /freestyle/tricks?view=sets.
+  get listTricksByModifier() { return db.prepare(`
+    SELECT
+      m.slug                  AS modifier_slug,
+      m.modifier_name         AS modifier_name,
+      m.modifier_type         AS modifier_type,
+      m.add_bonus             AS add_bonus,
+      m.add_bonus_rotational  AS add_bonus_rotational,
+      t.slug                  AS trick_slug
+    FROM freestyle_trick_modifier_links l
+    INNER JOIN freestyle_trick_modifiers m ON m.slug = l.modifier_slug
+    INNER JOIN freestyle_tricks t          ON t.slug = l.trick_slug
+    WHERE
+      t.is_active = 1
+      AND (t.category IS NULL OR t.category != 'modifier')
+    ORDER BY
+      CASE m.modifier_type
+        WHEN 'set'  THEN 0
+        WHEN 'body' THEN 1
+        ELSE 2
+      END,
+      m.modifier_name COLLATE NOCASE,
+      l.apply_order,
+      t.canonical_name COLLATE NOCASE
   `); },
 };
 

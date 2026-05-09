@@ -46,6 +46,12 @@
     {{else}}
       <a href="/freestyle/tricks?view=category">By category</a>
     {{/if}}
+    <span class="trick-view-toggle-sep">·</span>
+    {{#if (eq content.activeView "sets")}}
+      <span class="trick-view-toggle-active">By sets</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=sets">By sets</a>
+    {{/if}}
   </nav>
 
   {{! ── Coverage summary ─────────────────────────────────────────────────── }}
@@ -145,6 +151,47 @@
       </div>
       {{/each}}
     </div>
+  </section>
+  {{/if}}
+  {{/if}}
+
+  {{! ── Sets view (dictionary projection by which set/modifier each trick uses) ── }}
+  {{#if (eq content.activeView "sets")}}
+  <p class="detail-muted dict-note">
+    <em>Tricks grouped by which set or modifier they use. For set notation
+    (Pixie, Fairy, Atomic, etc.) as a standalone reference, see
+    <a href="/freestyle/moves">Set notation reference</a>.</em>
+  </p>
+  {{#if content.setGroups.length}}
+  {{#each content.setGroups}}
+  <section class="content-section trick-set-group" id="set-{{modifierSlug}}">
+    <div class="section-heading">
+      <h2>{{modifierName}} <span class="trick-set-type">({{modifierType}})</span></h2>
+      <span class="section-count">{{trickCount}}</span>
+    </div>
+    <ul class="trick-list">
+      {{#each tricks}}
+      <li class="trick-row">
+        <div class="trick-row-header">
+          <a class="trick-name" href="{{detailHref}}">{{canonicalName}}</a>
+          {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+          {{#if adds}}<span class="trick-add-chip">{{adds}} ADD</span>{{else}}<span class="trick-add-chip trick-add-chip--unrated">— ADD</span>{{/if}}
+          {{#if trickFamily}}<a class="trick-family-chip" href="/freestyle/tricks?family={{trickFamily}}">{{trickFamily}}</a>{{/if}}
+          {{#if hasMedia}}<span class="trick-media-chip trick-media-chip--available">Video available</span>{{else}}<span class="trick-media-chip trick-media-chip--missing">No video yet</span>{{/if}}
+        </div>
+        {{#if description}}<div class="trick-description">{{description}}</div>{{/if}}
+      </li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/each}}
+  {{else}}
+  <section class="content-section">
+    <p class="detail-muted">
+      <em>No tricks currently link to a registered set or modifier. As the
+      dictionary expands, this view will populate from
+      <code>freestyle_trick_modifier_links</code>.</em>
+    </p>
   </section>
   {{/if}}
   {{/if}}

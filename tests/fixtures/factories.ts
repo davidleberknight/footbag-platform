@@ -1628,6 +1628,53 @@ export interface ActivePlayerVouchOverrides {
   new_active_player_expires_at?: string | null;
 }
 
+// ── Freestyle trick modifier + modifier-link helpers ─────────────────────────
+//
+// Used by the trick-dictionary tests that exercise ?view=sets and the
+// modifier reference table. Both helpers are minimal wrappers over the raw
+// schema; they exist so tests don't have to repeat the INSERT shape.
+
+export interface FreestyleTrickModifierOverrides {
+  slug:                 string;
+  modifier_name?:       string;
+  modifier_type?:       string;        // 'set' | 'body' | 'rotational-qualifier'
+  add_bonus?:           number;
+  add_bonus_rotational?: number;
+  notes?:               string | null;
+}
+
+export function insertFreestyleTrickModifier(
+  db: BetterSqlite3.Database,
+  o: FreestyleTrickModifierOverrides,
+): void {
+  db.prepare(`
+    INSERT INTO freestyle_trick_modifiers
+      (slug, modifier_name, add_bonus, add_bonus_rotational, modifier_type, notes, loaded_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    o.slug,
+    o.modifier_name ?? o.slug,
+    o.add_bonus ?? 1,
+    o.add_bonus_rotational ?? 1,
+    o.modifier_type ?? 'body',
+    o.notes ?? null,
+    TS,
+  );
+}
+
+export function insertFreestyleTrickModifierLink(
+  db: BetterSqlite3.Database,
+  trick_slug: string,
+  modifier_slug: string,
+  apply_order: number = 1,
+): void {
+  db.prepare(`
+    INSERT INTO freestyle_trick_modifier_links
+      (trick_slug, modifier_slug, apply_order)
+    VALUES (?, ?, ?)
+  `).run(trick_slug, modifier_slug, apply_order);
+}
+
 export function insertActivePlayerVouch(
   db: BetterSqlite3.Database,
   o: ActivePlayerVouchOverrides,
