@@ -55,7 +55,7 @@ REPO        = Path(__file__).resolve().parent.parent
 DEFAULT_DB  = REPO / "database" / "footbag.db"
 DEFAULT_OUT_DIR = REPO / "legacy_data" / "reports"
 
-PARSER_VERSION = "2.0"  # Phase 2: full corpus, policy-aware parsing, parse_warnings
+PARSER_VERSION = "2.5"  # Phase 2.5: descriptive vs add_contributing role split, status vocabulary refinement, rotational-escalation policy warning
 
 DEFAULT_TARGET_FAMILIES: set[str] = set()  # empty → no family filter (full corpus)
 ROTATIONAL_BASES = {"whirl", "mirage", "torque", "swirl"}
@@ -148,15 +148,11 @@ def classify_token(tok: str, core_families: set[str]) -> tuple[str, str]:
     return ("unresolved", tok)
 
 
-def parse_trick(
-    name: str,
-    canonical_slug: str,
-    canonicals_by_slug: dict[str, dict],
-    core_families: set[str],
-) -> dict:
-    """Run the role mapper on `name`. Returns the structural-parse dict
-    described in PROPOSAL.md §2 + Phase-2 refinements."""
-    parse: dict = {
+def _empty_descriptive_layer() -> dict:
+    """Descriptive layer: every per-token role bucket + unresolved_tokens.
+    Preserved across D1 self-atom collapse — survives as the visualization
+    record of what the parser saw."""
+    return {
         "core_family":      [],
         "set":              [],
         "rotation":         [],
@@ -164,15 +160,56 @@ def parse_trick(
         "delay_surface":    [],
         "directionality":   [],
         "unusual_surface":  [],
-        "additive_flags":   [],
-        "special_cases":    [],
-        "policy_tokens":    [],   # Phase 2: orthogonal flag for tokens with
-                                  #   contested ADD weights or ontology placement.
-        "parse_warnings":   [],   # Phase 2: structured non-fatal QC signals.
-        "unresolved_tokens":[],
-        "parser_version":   PARSER_VERSION,
-        "parsed_at":        datetime.now(timezone.utc).isoformat(),
-        "parse_source":     "name_decomposition",
+        "unresolved_tokens": [],
+    }
+
+
+def _empty_contributing_layer() -> dict:
+    """Add-contributing layer: only role buckets that feed compute_formula.
+    Self-atom rows have core_family populated and other buckets empty.
+    Excludes unresolved_tokens (which never contribute to ADD math)."""
+    return {
+        "core_family":      [],
+        "set":              [],
+        "rotation":         [],
+        "modifier":         [],
+        "delay_surface":    [],
+        "directionality":   [],
+        "unusual_surface":  [],
+    }
+
+
+def parse_trick(
+    name: str,
+    canonical_slug: str,
+    canonicals_by_slug: dict[str, dict],
+    core_families: set[str],
+) -> dict:
+    """Run the role mapper on `name`. Returns the structural-parse dict
+    described in PROPOSAL.md §2 + Phase-2.5 layer split.
+
+    Phase-2.5 shape: role buckets live in TWO parallel layers.
+      descriptive_roles      — pre-D1; what the parser saw per-token. Used
+                               for visualization, semantic filtering,
+                               cross-family lenses. Survives D1 collapse.
+      add_contributing_roles — post-D1; what compute_formula uses. Self-atom
+                               rows have core_family populated and other
+                               buckets empty.
+    For modifier-decomposed rows (D1 doesn't fire) the two layers are
+    identical. For self-atom rows the descriptive layer preserves
+    per-token classifications while the contributing layer reflects the
+    atom collapse.
+    """
+    descriptive = _empty_descriptive_layer()
+    parse: dict = {
+        "descriptive_roles":      descriptive,
+        "add_contributing_roles": _empty_contributing_layer(),
+        "policy_tokens":          [],
+        "additive_flags":         [],
+        "parse_warnings":         [],
+        "parser_version":         PARSER_VERSION,
+        "parsed_at":              datetime.now(timezone.utc).isoformat(),
+        "parse_source":           "name_decomposition",
     }
 
     # Multi-token atom guard: if a different canonical's name (after
@@ -180,12 +217,14 @@ def parse_trick(
     # core_family unit rather than decomposing into parts.
     name_as_slug = re.sub(r"\s+", "-", normalize_name(name))
     if name_as_slug in canonicals_by_slug and name_as_slug != canonical_slug:
-        parse["core_family"].append({
+        atom_record = {
             "token":          name_as_slug,
             "span_start":     0,
             "span_end":       len(name),
             "atom_resolved":  True,
-        })
+        }
+        descriptive["core_family"].append(atom_record)
+        parse["add_contributing_roles"]["core_family"].append(atom_record)
         parse["parse_warnings"].append("inferred_self_canonical_atom")
         parse["raw_token_count"] = 1
         parse["resolved_token_count"] = 1
@@ -201,55 +240,62 @@ def parse_trick(
         if role == "virtual":
             parse["additive_flags"].append("virtual_modifier_expanded")
             for expanded_role, expanded_tok in VIRTUAL_EXPANSIONS[val]:
-                parse[expanded_role].append({
+                descriptive[expanded_role].append({
                     **record, "token": expanded_tok, "expanded_from": val,
                 })
             resolved += 1
         elif role == "unresolved":
-            parse["unresolved_tokens"].append({
+            descriptive["unresolved_tokens"].append({
                 **record, "reason": "not in any registry",
             })
         else:
-            parse[role].append(record)
+            descriptive[role].append(record)
             resolved += 1
         # Orthogonal: policy-token tag. A token in POLICY_TOKENS retains
-        # its primary role classification AND gets recorded here for
-        # status-aware downstream handling.
+        # its primary role classification AND gets recorded here.
         if val in POLICY_TOKENS:
             parse["policy_tokens"].append(val)
             parse["parse_warnings"].append(f"policy_token_encountered:{val}")
 
     parse["resolved_token_count"] = resolved
 
-    # D1: Self-canonical atom recognition. Two trigger conditions:
-    #   (a) No token classified as core_family — pure self-atom case
-    #       (e.g., 'atomic', 'fairy', 'pogo' — set primitives that are
-    #       their own canonicals).
+    # D1: Self-canonical atom recognition. See §2.5a in PHASE_2_5_REFINEMENTS.md.
+    # Triggers:
+    #   (a) No token classified as core_family (pure self-atom).
     #   (b) Per-token classification produced unresolved_tokens AND the
-    #       row's canonical_slug is itself a registered canonical — the
-    #       slug IS the atom (e.g., 'high-plains-drifter', 'double-spin').
-    # In both cases the slug-as-atom takes precedence; modifier tokens
-    # (if any) become descriptive rather than ADD-contributing.
+    #       row's canonical_slug is itself a registered canonical.
+    # When D1 fires it populates ONLY add_contributing_roles.core_family
+    # with the atom; descriptive_roles preserves the original per-token
+    # classifications so visualization can render them.
     needs_atom = canonical_slug in core_families and (
-        not parse["core_family"] or parse["unresolved_tokens"]
+        not descriptive["core_family"] or descriptive["unresolved_tokens"]
     )
     if needs_atom:
-        # Clear partial role classifications — they're descriptive but
-        # the atom owns ADD math.
-        for role in ("set", "rotation", "modifier", "delay_surface", "directionality", "unusual_surface"):
-            parse[role] = []
-        parse["core_family"] = [{
+        # Atom owns the ADD-contributing layer.
+        parse["add_contributing_roles"]["core_family"] = [{
             "token":         canonical_slug,
             "span_start":    0,
             "span_end":      len(name),
             "atom_resolved": True,
         }]
-        if parse["unresolved_tokens"]:
+        # Descriptive layer is preserved as-is (key Phase-2.5 win):
+        # role buckets that classified retain their content; unresolved_tokens
+        # also retain their content (visualization can show what the parser
+        # saw before the atom subsumed everything). The signal that subsumption
+        # occurred lives in additive_flags.
+        if descriptive["unresolved_tokens"]:
             parse["additive_flags"].append("atom_subsumed_unresolved_tokens")
-            parse["unresolved_tokens"] = []
         parse["parse_warnings"].append("inferred_self_canonical_atom")
+    else:
+        # No D1: contributing layer mirrors descriptive layer for the
+        # role buckets it carries (excludes unresolved_tokens — those
+        # never contribute to ADD math).
+        for role_name in parse["add_contributing_roles"]:
+            parse["add_contributing_roles"][role_name] = list(descriptive[role_name])
 
-    if parse["unresolved_tokens"]:
+    if descriptive["unresolved_tokens"] and not needs_atom:
+        # Unresolved tokens that weren't subsumed by D1 indicate a real
+        # parser-coverage gap that blocks ADD math.
         parse["parse_warnings"].append("unresolved_tokens_present")
 
     return parse
@@ -262,58 +308,70 @@ def compute_formula(
     parse: dict,
     canonicals_by_slug: dict[str, dict],
     modifier_weights: dict[str, dict],
-) -> tuple[int | None, str | None]:
-    """Returns (computed_adds, formula_string). Returns (None, None) when
-    the formula cannot be computed (no core_family or base.adds missing).
+) -> tuple[int | None, str | None, list[str]]:
+    """Returns (computed_adds, formula_string, escalation_warnings).
+    Returns (None, None, []) when the formula cannot be computed.
 
-    Caller is responsible for status determination (exact vs approximate
-    vs unresolved vs policy_dependent) by comparing this output against
-    asserted_adds AND inspecting parse['policy_tokens'].
+    Phase-2.5: reads from `add_contributing_roles` (post-D1). Returns
+    a list of escalation-warning strings so the caller can append to
+    parse_warnings — emitted whenever a modifier's `add_bonus_rotational`
+    differs from its `add_bonus` AND the rotational reading is selected.
+    Architectural separation: `rotational_family` is a property of the
+    base trick; `rotational_modifier_bonus_policy` is a property of the
+    modifier. The warning surfaces uncertainty about that policy until
+    Red ratifies (see PHASE_2_5_REFINEMENTS.md §3).
+
+    Caller is responsible for status determination.
     """
-    cf_list = parse.get("core_family", [])
+    contrib = parse.get("add_contributing_roles", {})
+    cf_list = contrib.get("core_family", [])
     if not cf_list:
-        return (None, None)
+        return (None, None, [])
     base_slug = cf_list[0]["token"]
     base = canonicals_by_slug.get(base_slug)
     if not base or base.get("adds") is None:
-        return (None, None)
+        return (None, None, [])
 
     base_adds = base["adds"]
     is_rotational = base_slug in ROTATIONAL_BASES
 
-    # Self-atom rows: the slug IS the trick. Modifier-shaped tokens in
-    # the name (if any) are part of the atom's identity, not stackable
-    # contributions. Use base.adds directly.
+    # Self-atom rows: the slug IS the trick. Use base.adds directly.
     if cf_list[0].get("atom_resolved"):
-        return (base_adds, f"{base_slug}({base_adds}) [self-atom] = {base_adds}")
+        return (base_adds, f"{base_slug}({base_adds}) [self-atom] = {base_adds}", [])
 
     bonus = 0
     contributions: list[str] = []
+    escalation_warnings: list[str] = []
 
     def add_contribution(tok: str) -> None:
         nonlocal bonus
         m = modifier_weights.get(tok)
-        if not m:
-            return
+        if not m: return
         weight = m["add_bonus_rotational"] if is_rotational else m["add_bonus"]
         bonus += weight
-        rot_label = " rot" if is_rotational and m["add_bonus_rotational"] != m["add_bonus"] else ""
+        rot_used = is_rotational and m["add_bonus_rotational"] != m["add_bonus"]
+        rot_label = " rot" if rot_used else ""
         contributions.append(f"{tok}(+{weight}{rot_label})")
+        if rot_used:
+            # Architectural separation: the +2 escalation rule for this
+            # modifier on this rotational family is policy-dependent.
+            escalation_warnings.append(
+                f"rotational_escalation_policy_pending_red:{tok}+{base_slug}"
+                f"(+{weight} rot vs +{m['add_bonus']} non-rot)"
+            )
 
-    for s in parse.get("set", []):
-        add_contribution(s["token"])
-    for r in parse.get("rotation", []):
-        add_contribution(r["token"])
-    for m in parse.get("modifier", []):
-        add_contribution(m["token"])
+    for s in contrib.get("set", []):       add_contribution(s["token"])
+    for r in contrib.get("rotation", []):  add_contribution(r["token"])
+    for m in contrib.get("modifier", []):  add_contribution(m["token"])
 
-    if parse.get("unresolved_tokens"):
-        # Tokens didn't classify; computed math would be wrong.
-        return (None, None)
+    desc = parse.get("descriptive_roles", {})
+    if desc.get("unresolved_tokens") and not cf_list[0].get("atom_resolved"):
+        # Unresolved tokens in a non-atom row would skew ADD math.
+        return (None, None, [])
 
     formula_parts = contributions + [f"{base_slug}({base_adds})"]
     formula = " + ".join(formula_parts) + f" = {base_adds + bonus}"
-    return (base_adds + bonus, formula)
+    return (base_adds + bonus, formula, escalation_warnings)
 
 
 # ─── DB I/O ────────────────────────────────────────────────────────────────
@@ -377,7 +435,7 @@ def _header(rows: list[dict], title: str, body: str) -> list[str]:
         f"# {title}\n",
         f"- Parser version: `{PARSER_VERSION}`",
         f"- Total rows in corpus: **{len(rows)}**",
-        f"- Status distribution: " + " · ".join(f"`{s}`={by_status.get(s, 0)}" for s in ("exact","approximate","unresolved","policy_dependent")),
+        f"- Status distribution: " + " · ".join(f"`{s}`={by_status.get(s, 0)}" for s in ("exact_modifier_derived","exact_self_atom","approximate","unresolved","policy_dependent")),
         "",
         body,
         "",
@@ -427,7 +485,8 @@ def write_coverage_report(rows: list[dict], path: Path) -> None:
         lines.append("| Slug | Name | Family | Unresolved tokens | Warnings |")
         lines.append("|---|---|---|---|---|")
         for r in sorted(targets, key=lambda x: (x["family"], x["slug"])):
-            unresolved = [t["token"] for t in r["structural_parse_json"].get("unresolved_tokens", [])]
+            desc = r["structural_parse_json"].get("descriptive_roles", {})
+            unresolved = [t["token"] for t in desc.get("unresolved_tokens", [])]
             warnings = ", ".join(r["structural_parse_json"].get("parse_warnings", []))
             lines.append(
                 f"| `{r['slug']}` | {r['name']} | {r['family']} | "
@@ -531,25 +590,44 @@ def main() -> int:
     rows: list[dict] = []
     for slug, info in corpus:
         parse = parse_trick(info["name"], slug, canonicals, family_canonical_tokens)
-        computed, formula = compute_formula(parse, canonicals, modifier_weights)
+        computed, formula, escalation_warnings = compute_formula(
+            parse, canonicals, modifier_weights
+        )
         asserted = info["adds"]
 
-        # Status determination — order matters:
-        #   1. unresolved (no usable parse — supersedes everything)
-        #   2. policy_dependent (parse OK but contains policy-bearing tokens)
-        #   3. approximate (parse OK, no policy concerns, math disagrees)
-        #   4. exact (parse OK, no policy concerns, math agrees)
-        if computed is None or parse.get("unresolved_tokens"):
+        # Append rotational-escalation warnings (Phase-2.5 §3) to parse_warnings.
+        parse["parse_warnings"].extend(escalation_warnings)
+
+        # Status determination — Phase-2.5 vocabulary:
+        #   1. unresolved          — no usable parse (supersedes everything)
+        #   2. policy_dependent    — parse OK, contains policy-bearing tokens
+        #   3. approximate         — parse OK, math disagrees with asserted
+        #   4. exact_self_atom     — parse OK, atom-resolved, computed == asserted
+        #                            (tautological agreement)
+        #   5. exact_modifier_derived — parse OK, modifier-decomposed,
+        #                            computed == asserted (structural confirmation)
+        desc_unresolved = parse["descriptive_roles"].get("unresolved_tokens", [])
+        cf_contrib = parse["add_contributing_roles"]["core_family"]
+        atom_subsumed = bool(cf_contrib and cf_contrib[0].get("atom_resolved"))
+        # Unresolved tokens block the parse only when they weren't subsumed
+        # by a self-canonical atom (D1).
+        if computed is None or (desc_unresolved and not atom_subsumed):
             status = "unresolved"
         elif parse.get("policy_tokens"):
             status = "policy_dependent"
-        elif asserted is not None and computed == asserted:
-            status = "exact"
-        else:
+        elif asserted is not None and computed != asserted:
             status = "approximate"
             parse["parse_warnings"].append(
                 f"approximate_add_formula:computed={computed},asserted={asserted}"
             )
+        else:
+            # Math agrees. Distinguish self-atom tautology from modifier-derived
+            # structural confirmation.
+            cf = parse["add_contributing_roles"]["core_family"]
+            if cf and cf[0].get("atom_resolved"):
+                status = "exact_self_atom"
+            else:
+                status = "exact_modifier_derived"
 
         rows.append({
             "slug":     slug,
@@ -613,8 +691,8 @@ def main() -> int:
     for r in rows:
         by_status[r["add_formula_status"]] = by_status.get(r["add_formula_status"], 0) + 1
     print("Status breakdown:")
-    for s in ("exact", "approximate", "unresolved", "policy_dependent"):
-        print(f"  {s:<18s} {by_status.get(s, 0)}")
+    for s in ("exact_modifier_derived", "exact_self_atom", "approximate", "unresolved", "policy_dependent"):
+        print(f"  {s:<24s} {by_status.get(s, 0)}")
     print(f"Wrote: {json_path.name}, {add_conflict_path.name}, {coverage_path.name}, {policy_queue_path.name}")
     return 0
 

@@ -1,0 +1,144 @@
+# Candidate core-family editorial metadata
+#
+# Five rows whose core-family status is provisional pending Red review
+# (PROPOSAL §13.4). Each row currently sits in `trick_family` and the
+# parser classifies it via the canonical-slug-first rule; the open
+# question is whether it sits at the same hierarchical level as
+# whirl/butterfly/mirage/osis/torque.
+#
+# This file is hand-edited editorial metadata. No parser dependency,
+# no schema dependency. Consumers (future):
+#   - /internal/candidate-cores/<slug> review surface (deferred)
+#   - Red follow-up packet generator (deferred)
+#
+# When Red rules, set red_disposition to answered_a / answered_b
+# and (if B) start the data-side migration tracked in IP.
+
+candidates:
+
+  blur:
+    reading_a:
+      shape: core_family
+      family: mirage
+      status: exact_modifier_derived
+      asserted_adds: 4
+      computed_adds: 4
+    reading_b:
+      shape: structural_decomposition
+      decomposition: [quantum, mirage]
+      status: approximate + policy_dependent
+      computed_adds: 3   # quantum(+1) + mirage(2) = 3, asserted is 4
+    cascade:
+      - row removed from freestyle_tricks; alias added on mirage
+      - status changes from exact_modifier_derived to approximate
+      - introduces policy_dependent flag (quantum)
+      - mirage family gains 1 alias entry
+    red_question: |
+      Per Red pt2, "Toe Blur to Quantum Mirage". Should blur be reduced
+      to a Common alias on mirage (quantum-set decomposition), or
+      retained as its own canonical (current state)?
+    red_disposition: pending
+
+  blender:
+    reading_a:
+      shape: core_family
+      family: osis
+      status: exact_modifier_derived
+      asserted_adds: 4
+      computed_adds: 4
+    reading_b:
+      shape: structural_decomposition
+      decomposition: [whirling, osis]
+      status: approximate
+      computed_adds: 4   # whirling(+1 rot) + osis(3) = 4; agrees, but lineage shifts
+    cascade:
+      - row removed from freestyle_tricks; alias added on osis
+      - structural reading shifts blender into whirling-osis cluster
+      - osis family gains 1 alias entry; whirling-osis modifier ladder gains a known compound
+    red_question: |
+      Per Red pt3 productive-multiplicity reading ("Whirling Blender,
+      two dexes and an Osis"), is blender a Whirling derivative of
+      osis, or its own core?
+    red_disposition: pending
+
+  barfly:
+    reading_a:
+      shape: core_family
+      family: infinity
+      status: exact_modifier_derived
+      asserted_adds: 4
+      computed_adds: 4
+    reading_b:
+      shape: structural_decomposition
+      decomposition: [infinity_compound]
+      status: pending_red_decomposition
+      computed_adds: null
+    cascade:
+      - row removed from freestyle_tricks; alias added on infinity (or its eventual core)
+      - infinity family becomes the anchor; barfly becomes its compound member
+      - decomposition formula awaits Red specification
+    red_question: |
+      Is barfly an Infinity-family compound (modifier-stack on an
+      infinity base) rather than its own core? If so, what is the
+      modifier decomposition?
+    red_disposition: pending
+
+  ripwalk:
+    reading_a:
+      shape: core_family
+      family: butterfly
+      status: exact_modifier_derived
+      asserted_adds: 4
+      computed_adds: 4
+    reading_b:
+      shape: structural_decomposition
+      decomposition: [blurry, butterfly]
+      status: approximate
+      computed_adds: 4   # blurry(+1) + butterfly(3) = 4; agrees, but lineage shifts
+    cascade:
+      - row removed from freestyle_tricks; alias added on butterfly
+      - structural reading shifts ripwalk into blurry-butterfly cluster
+      - butterfly family gains 1 alias entry
+      - butterfly progression (atomic / spinning / ducking / dimwalk / parkwalk / ripwalk / sidewalk) loses one named member
+    red_question: |
+      Is ripwalk a Blurry-Butterfly compound rather than its own core?
+      The current dictionary places it in the butterfly progression as
+      a named member; reading B treats it as the modifier-stack
+      blurry+butterfly with ripwalk as the alias.
+    red_disposition: pending
+
+  stepping_star:
+    # The stepping-* family is a meta-candidate, not a single row.
+    # Members: stepping-osis, stepping-whirl, and any future stepping-X.
+    members: [stepping-osis, stepping-whirl]
+    reading_a:
+      shape: modifier_derived_from_existing_core
+      # Each stepping-X is already classified as `stepping(+1) + X(base)`.
+      # Status quo: no separate "stepping" core family.
+      family: per_member_base
+      status: exact_modifier_derived
+    reading_b:
+      shape: meta_family
+      # An alternative reading would promote stepping-* to its own
+      # meta-family card on the lineage grid, with its own family-detail
+      # surface. This would NOT change ADD math (stepping is already a
+      # registered modifier with weight +1).
+      effect: presentational_only
+    cascade:
+      - no DB schema or row changes (modifier weight unchanged)
+      - lineage-graph rendering gains a "stepping" family card
+      - related-tricks logic could group stepping-X siblings
+      - "risk: every modifier could similarly claim a family card, which would inflate the family-card grid without pedagogical gain"
+    red_question: |
+      Does the stepping modifier propagate enough named tricks to
+      warrant its own family card on the lineage grid, or should
+      stepping-X members continue to anchor under their respective
+      base families (osis, whirl)?
+    red_disposition: pending
+
+# Schema for each candidate:
+#   reading_a:        current dictionary reading (committed; what the parser sees today)
+#   reading_b:        alternate reading (proposed; what changes if Red rules B)
+#   cascade:          downstream effects of choosing reading_b (status / lineage / policy)
+#   red_question:     the editorial question to put to Red (one paragraph)
+#   red_disposition:  pending | answered_a | answered_b | deferred
