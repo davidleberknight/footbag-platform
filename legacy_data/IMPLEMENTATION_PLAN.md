@@ -6,6 +6,8 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 ## Active work
 
+- **CI db-load-smoke gate: `07_load_bootstrap_leaders.py` hard-fails on missing CSV (ASAP).** The loader exits 1 with `ERROR: leaders CSV not found at .../clubs/out/club_bootstrap_leaders.csv` whenever its upstream classifier output is absent (CI runners, fresh clones, anyone who has not run `clubs/scripts/04_build_club_bootstrap_leaders.py` locally). Repo-root `scripts/reset-local-db.sh` now skips the call when the CSV is absent as a temporary mitigation so CI passes, which silently bypasses the loader on every fresh checkout. Proper fix in this tree: either make the loader skip-on-missing-CSV (log + exit 0), then remove the repo-root guard, or commit the produced ~51-row CSV to a path the CI fixture stager can copy from. Until done, the CI gate masks any real loader regression behind the workaround.
+
 - **Curator media unification, slice 2 cleanup (Phase E destructive cleanup).** Phases A through D shipped. Residual tasks tracked in root `IMPLEMENTATION_PLAN.md` §"Active slice now"; cross-track entries here for visibility:
   1. Drop `freestyle_media_*` table definitions from `database/schema.sql`.
   2. Delete legacy loaders 21 / 22 / 23 (the `freestyle_media_*` loaders, not script `21_load_footbag_org_pending_tricks.py` or `22_qc_trick_dictionary.py`).

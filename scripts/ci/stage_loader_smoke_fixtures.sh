@@ -12,29 +12,25 @@
 # script proceeds. Locally, refuses to clobber existing data unless --force or
 # CI=true is set in the environment.
 #
-# REAL-DATA GUARD (defense-in-depth):
-#   The script ALSO refuses to clobber a target that looks like real
-#   (non-fixture) data, EVEN with --force or CI=true. The only escape is
-#   the explicit --clobber-real-data flag, which exists so a developer
-#   who is consciously rebuilding their local dev tree from scratch can
-#   override. Triggers:
+# REAL-DATA GUARD (absolute):
+#   The script refuses to clobber a target that looks like real
+#   (non-fixture) data. NO flag, env var, or CI mode bypasses this
+#   guard — the operator must move the directory aside manually if
+#   they intend to rebuild from scratch. Triggers:
 #     - mirror_footbag_org/ has www.footbag.org/events/show/ with >100 entries
 #     - event_results/canonical_input/events.csv has >50 rows
 #     - out/canonical/events.csv has >50 rows
 #   These thresholds are well above any CI fixture (the fixture ships
 #   <10 events) and well below the real mirror crawl (hundreds to
-#   thousands). Without this guard a stray --force or a devcontainer
-#   defaulting CI=true wipes hours-to-days of mirror-crawl + pipeline
-#   work; the 2026-05-09 incident lost a 60 GB mirror this way.
+#   thousands). The 2026-05-09 incident lost a 60 GB mirror to a
+#   stray --force; no flag path may repeat that.
 
 set -euo pipefail
 
 FORCE=0
-CLOBBER_REAL=0
 for arg in "$@"; do
   case "$arg" in
-    --force)              FORCE=1 ;;
-    --clobber-real-data)  CLOBBER_REAL=1 ;;
+    --force) FORCE=1 ;;
     *) echo "Unknown arg: $arg" >&2; exit 2 ;;
   esac
 done
@@ -90,15 +86,17 @@ _target_holds_real_data() {
 _check_target() {
   local path="$1"
   local label="$2"
-  # Real-data guard runs FIRST and is independent of --force / CI=true.
-  if _target_holds_real_data "${label}" && [[ "${CLOBBER_REAL}" -ne 1 ]]; then
+  # Real-data guard. Absolute: no flag, no env var, no CI mode bypasses
+  # this. If real (non-fixture) data is present the operator must move
+  # the directory aside manually before re-running. The 2026-05-09
+  # incident lost a 60 GB mirror to a stray --force; no flag path may
+  # repeat that.
+  if _target_holds_real_data "${label}"; then
     echo "ERROR: ${label} (${path}) appears to hold real (non-fixture) data." >&2
-    echo "       Refusing to overwrite with the synthetic CI fixture, even" >&2
-    echo "       with --force or CI=true. This guard prevents accidental loss" >&2
-    echo "       of hours-to-days of mirror-crawl / pipeline work (see" >&2
-    echo "       2026-05-09 incident: 60 GB mirror lost to a stray --force)." >&2
-    echo "" >&2
-    echo "       To proceed anyway, pass: --force --clobber-real-data" >&2
+    echo "       Refusing to overwrite with the synthetic CI fixture." >&2
+    echo "       No flag bypasses this guard. Move the directory aside" >&2
+    echo "       manually if you intentionally want to rebuild." >&2
+    echo "       (2026-05-09 incident: 60 GB mirror lost to --force.)" >&2
     exit 1
   fi
   if [[ -L "${path}" ]]; then

@@ -175,9 +175,15 @@ echo "  → Loading club member data into database..."
 
 # Load club bootstrap leaders. Reads legacy_data/clubs/out/club_bootstrap_leaders.csv
 # (~51 rows). Depends on legacy_club_candidates and historical_persons being
-# already loaded by earlier steps.
-echo "  → Loading club bootstrap leaders..."
-"${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py --db "${DB_FILE}"
+# already loaded by earlier steps. Skipped when the CSV is absent (CI smoke
+# fixtures + fresh clones); the CSV is owned by the James-track classifier
+# and is not regenerated here.
+if [[ -f legacy_data/clubs/out/club_bootstrap_leaders.csv ]]; then
+  echo "  → Loading club bootstrap leaders..."
+  "${PYTHON}" legacy_data/clubs/scripts/07_load_bootstrap_leaders.py --db "${DB_FILE}"
+else
+  echo "  → Skipping club bootstrap leaders (legacy_data/clubs/out/club_bootstrap_leaders.csv absent)."
+fi
 
 # Seed Footbag Hacky (FH) and all FH-owned curator content: FH member row,
 # FH avatar, demo loops, event-pinned curator photos, /curated/freestyle_tricks/

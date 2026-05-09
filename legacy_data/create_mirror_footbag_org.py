@@ -20,7 +20,7 @@ What it does
 Requirements
 - Python 3.10+ (likely works on nearby versions)
 - ffmpeg
-- pip packages: requests, beautifulsoup4, pillow
+- pip packages: requests, beautifulsoup4
 
 Quick setup
     sudo apt update
@@ -54,7 +54,6 @@ from urllib.parse import urljoin, urlparse, urlunparse, unquote, parse_qs, unquo
 from pathlib import Path
 import signal
 import sys
-from PIL import Image
 from datetime import datetime, timedelta
 import re
 from bs4 import BeautifulSoup, Comment, NavigableString
@@ -741,12 +740,19 @@ def convert_image_to_jpg(filepath):
             return output_path
 
         logging.info(f"Converting image to JPG: {filepath} → {output_path}")
-        with Image.open(filepath) as img:
-            rgb_img = img.convert('RGB')
-            rgb_img.save(output_path, 'JPEG', quality=85)
+        subprocess.run([
+            'ffmpeg',
+            '-i', filepath,
+            '-q:v', '4',  # ~JPEG quality 85 (scale 2-31, lower is better)
+            '-y',
+            output_path,
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         mirror_state.stats['image_conversions'] += 1
         return output_path
+    except subprocess.CalledProcessError as e:
+        logging.error(f"ffmpeg failed to convert image to JPG: {filepath} → {e}")
+        return None
     except Exception as e:
         logging.error(f"Failed to convert image to JPG: {filepath} → {e}")
         return None
