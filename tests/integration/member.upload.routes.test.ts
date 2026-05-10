@@ -574,6 +574,7 @@ describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
       .field('sortOrder', 'upload_desc')
       .field('criteriaTags', '#event_2025_beach')
       .field('excludeTags', '')
+      .field('uploadTags', '#event_2025_beach')
       .attach('photoFiles', jpeg, 'a.jpg')
       .attach('photoFiles', jpeg, 'b.jpg');
     expect(res.status).toBe(302);

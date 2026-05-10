@@ -1,0 +1,33 @@
+{{!--
+  Read-only display of items currently in the gallery being edited.
+  Each thumbnail links to the item's own edit page (separation of
+  concerns: removing an item from a gallery happens by editing the
+  item's tags, not by mutating the gallery).
+
+  Caller passes:
+    currentItems[] — each:
+      { mediaId, mediaType, thumbnailUrl, caption, sourceFilename, editHref }
+--}}
+<fieldset class="form-row gallery-current-items">
+  <legend class="form-label">Items currently in this gallery ({{currentItems.length}})</legend>
+  <p class="form-help">
+    These items match the gallery's criteria + exclude tags. To remove one,
+    open it via the "Edit item" link and remove the matching criterion tag.
+  </p>
+  <div class="picker-grid">
+    {{#each currentItems}}
+      <div class="picker-cell">
+        <img src="{{thumbnailUrl}}"
+             alt="{{#if caption}}{{caption}}{{else}}{{sourceFilename}}{{/if}}"
+             loading="lazy">
+        <span class="picker-meta">
+          {{#if caption}}{{caption}}{{else}}<code>{{sourceFilename}}</code>{{/if}}
+          {{#if (eq mediaType "video")}} <span class="picker-badge">video</span>{{/if}}
+        </span>
+        {{#if editHref}}
+          <a href="{{editHref}}" class="picker-edit-link">Edit item</a>
+        {{/if}}
+      </div>
+    {{/each}}
+  </div>
+</fieldset>

@@ -52,6 +52,8 @@ htmlcov/
 *.cer
 secrets/
 .secrets/
+.secrets.local.json
+!.secrets.local.json.example
 .ssh/
 .aws/
 .npmrc

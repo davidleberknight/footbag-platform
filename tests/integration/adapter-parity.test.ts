@@ -35,6 +35,20 @@ import {
   createLiveSafeBrowsingAdapter,
 } from '../../src/adapters/safeBrowsingAdapter';
 import {
+  createStubSecretsAdapter,
+  createLiveSecretsAdapter,
+  SecretNotConfiguredError,
+} from '../../src/adapters/secretsAdapter';
+import {
+  GetParameterCommand,
+  ParameterNotFound,
+} from '@aws-sdk/client-ssm';
+import {
+  createStubHttpReachabilityAdapter,
+  createLiveHttpReachabilityAdapter,
+  createDisabledHttpReachabilityAdapter,
+} from '../../src/adapters/httpReachabilityAdapter';
+import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -289,12 +303,139 @@ describe('adapter-parity: SesAdapter (Stub vs. Live interface)', () => {
   });
 });
 
+describe('adapter-parity: SecretsAdapter (Stub vs. Live vs. Local interface)', () => {
+  // Fake SSM client driven by an in-memory map. Stands in for the AWS SDK
+  // call path without mocking the @aws-sdk package itself.
+  function makeFakeSsm(seed: Record<string, string>) {
+    const captured: { Name?: string; WithDecryption?: boolean }[] = [];
+    return {
+      captured,
+      async send(cmd: GetParameterCommand) {
+        captured.push({
+          Name: cmd.input.Name,
+          WithDecryption: cmd.input.WithDecryption,
+        });
+        const name = cmd.input.Name ?? '';
+        const value = seed[name];
+        if (value === undefined) {
+          throw new ParameterNotFound({
+            $metadata: {},
+            message: `Parameter ${name} not found.`,
+          });
+        }
+        return { Parameter: { Value: value } };
+      },
+    };
+  }
+
+  it('both return the value when the key is present', async () => {
+    const stub = createStubSecretsAdapter();
+    stub.setSecret('safe_browsing_api_key', 'value-stub');
+    const fakeSsm = makeFakeSsm({
+      '/footbag/staging/secrets/safe_browsing_api_key': 'value-live',
+    });
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+
+    const stubVal = await stub.get('safe_browsing_api_key');
+    const liveVal = await live.get('safe_browsing_api_key');
+    expect(typeof stubVal).toBe('string');
+    expect(typeof liveVal).toBe('string');
+    expect(stubVal).toBe('value-stub');
+    expect(liveVal).toBe('value-live');
+  });
+
+  it('both return undefined when the key is missing', async () => {
+    const stub = createStubSecretsAdapter();
+    const fakeSsm = makeFakeSsm({});
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+
+    expect(await stub.get('missing')).toBeUndefined();
+    expect(await live.get('missing')).toBeUndefined();
+  });
+
+  it('getRequired throws SecretNotConfiguredError on missing key (both)', async () => {
+    const stub = createStubSecretsAdapter();
+    const fakeSsm = makeFakeSsm({});
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+
+    await expect(stub.getRequired('missing')).rejects.toBeInstanceOf(
+      SecretNotConfiguredError,
+    );
+    await expect(live.getRequired('missing')).rejects.toBeInstanceOf(
+      SecretNotConfiguredError,
+    );
+  });
+
+  it('live adapter calls SSM GetParameter with WithDecryption=true and the prefix-derived name', async () => {
+    const fakeSsm = makeFakeSsm({
+      '/footbag/staging/secrets/some_key': 'value-x',
+    });
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+    await live.get('some_key');
+    expect(fakeSsm.captured).toHaveLength(1);
+    expect(fakeSsm.captured[0].Name).toBe(
+      '/footbag/staging/secrets/some_key',
+    );
+    expect(fakeSsm.captured[0].WithDecryption).toBe(true);
+  });
+
+  it('live adapter caches results: a second get for the same key does not re-fetch from SSM', async () => {
+    const fakeSsm = makeFakeSsm({
+      '/footbag/staging/secrets/cached_key': 'value-once',
+    });
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+    const first = await live.get('cached_key');
+    const second = await live.get('cached_key');
+    expect(first).toBe('value-once');
+    expect(second).toBe('value-once');
+    expect(fakeSsm.captured).toHaveLength(1);
+  });
+
+  it('live adapter caches negative lookup: missing key is fetched once, then undefined returned from cache', async () => {
+    const fakeSsm = makeFakeSsm({});
+    const live = createLiveSecretsAdapter({
+      ssmClient: fakeSsm,
+      ssmPrefix: '/footbag/staging',
+    });
+    expect(await live.get('missing')).toBeUndefined();
+    expect(await live.get('missing')).toBeUndefined();
+    expect(fakeSsm.captured).toHaveLength(1);
+  });
+
+  it('stub failNext throws on the next get and clears after one use', async () => {
+    const stub = createStubSecretsAdapter();
+    stub.setSecret('k', 'v');
+    stub.failNext(new Error('aws unavailable'));
+    await expect(stub.get('k')).rejects.toThrow('aws unavailable');
+    // Second call recovers.
+    const after = await stub.get('k');
+    expect(after).toBe('v');
+  });
+});
+
 describe('adapter-parity: SafeBrowsingAdapter (Stub vs. Live interface)', () => {
   it('both return { safe: true, threatTypes: [] } when the URL is not flagged', async () => {
     const stub = createStubSafeBrowsingAdapter();
     const fakeFetch = makeFakeSafeBrowsingFetch({}); // empty matches array
+    const secretsForLive = createStubSecretsAdapter();
+    secretsForLive.setSecret('safe_browsing_api_key', 'test-key');
     const live = createLiveSafeBrowsingAdapter({
-      apiKey: 'test-key',
+      secrets: secretsForLive,
       fetchClient: fakeFetch.fetch,
     });
 
@@ -313,8 +454,10 @@ describe('adapter-parity: SafeBrowsingAdapter (Stub vs. Live interface)', () => 
     const fakeFetch = makeFakeSafeBrowsingFetch({
       matches: [{ threatType: 'MALWARE', threat: { url: 'https://malware.example/' } }],
     });
+    const secretsForLive = createStubSecretsAdapter();
+    secretsForLive.setSecret('safe_browsing_api_key', 'test-key');
     const live = createLiveSafeBrowsingAdapter({
-      apiKey: 'test-key',
+      secrets: secretsForLive,
       fetchClient: fakeFetch.fetch,
     });
 
@@ -330,8 +473,10 @@ describe('adapter-parity: SafeBrowsingAdapter (Stub vs. Live interface)', () => 
 
   it('live adapter posts the threatMatches:find request shape Google v4 expects', async () => {
     const fakeFetch = makeFakeSafeBrowsingFetch({});
+    const secretsForLive = createStubSecretsAdapter();
+    secretsForLive.setSecret('safe_browsing_api_key', 'test-key');
     const live = createLiveSafeBrowsingAdapter({
-      apiKey: 'test-key',
+      secrets: secretsForLive,
       fetchClient: fakeFetch.fetch,
     });
 
@@ -350,8 +495,10 @@ describe('adapter-parity: SafeBrowsingAdapter (Stub vs. Live interface)', () => 
 
   it('live adapter throws on non-2xx HTTP responses (no silent safe-mark)', async () => {
     const fakeFetch = makeFakeSafeBrowsingFetch({ error: 'rate limited' }, 429);
+    const secretsForLive = createStubSecretsAdapter();
+    secretsForLive.setSecret('safe_browsing_api_key', 'test-key');
     const live = createLiveSafeBrowsingAdapter({
-      apiKey: 'test-key',
+      secrets: secretsForLive,
       fetchClient: fakeFetch.fetch,
     });
     await expect(live.lookup('https://example.com/')).rejects.toThrow(/HTTP 429/);
@@ -364,6 +511,128 @@ describe('adapter-parity: SafeBrowsingAdapter (Stub vs. Live interface)', () => 
     // Second call recovers.
     const after = await stub.lookup('https://example.com/');
     expect(after.safe).toBe(true);
+  });
+
+  it('factory createStubSafeBrowsingAdapter starts with an empty deny list', async () => {
+    // Tests that inspect a clean stub state (no addThreat calls) get the
+    // empty default. Only the singleton-from-config path applies the dev
+    // seed; mixing seeded + unseeded would break test determinism.
+    const stub = createStubSafeBrowsingAdapter();
+    const result = await stub.lookup(
+      'http://malware.testing.google.test/testing/malware/',
+    );
+    expect(result.safe).toBe(true);
+    expect(result.threatTypes).toEqual([]);
+  });
+
+  it('singleton getSafeBrowsingAdapter() pre-seeds the canonical Google malware test URL when SAFE_BROWSING_ADAPTER=stub', async () => {
+    // The stub-mode singleton seeds the canonical malware test URL so a
+    // dev with no API key still sees the rejection UX from a clean
+    // ./run_dev.sh checkout. Tests must reset the singleton because
+    // setup-env.ts also dispatches via the same getter.
+    const { getSafeBrowsingAdapter, resetSafeBrowsingAdapterForTests } =
+      await import('../../src/adapters/safeBrowsingAdapter');
+    resetSafeBrowsingAdapterForTests();
+    try {
+      const adapter = getSafeBrowsingAdapter();
+      const malwareResult = await adapter.lookup(
+        'http://malware.testing.google.test/testing/malware/',
+      );
+      expect(malwareResult.safe).toBe(false);
+      expect(malwareResult.threatTypes).toContain('MALWARE');
+      // Other URLs still pass through the stub unchanged.
+      const benignResult = await adapter.lookup('https://example.com/');
+      expect(benignResult.safe).toBe(true);
+    } finally {
+      resetSafeBrowsingAdapterForTests();
+    }
+  });
+});
+
+describe('adapter-parity: HttpReachabilityAdapter (Stub vs. Live vs. Disabled)', () => {
+  it('stub and live both return reachable=true for a 2xx response', async () => {
+    const stub = createStubHttpReachabilityAdapter();
+    const fakeFetch = (async () =>
+      ({ status: 200, ok: true, headers: new Headers(), url: 'https://example.com/' }) as Response) as unknown as typeof fetch;
+    const live = createLiveHttpReachabilityAdapter({
+      fetchClient: fakeFetch,
+      lookup: async () => ({ address: '8.8.8.8', family: 4 }),
+    });
+
+    const stubResult = await stub.check('https://example.com/');
+    const liveResult = await live.check('https://example.com/');
+
+    for (const result of [stubResult, liveResult]) {
+      expect(result.reachable).toBe(true);
+    }
+  });
+
+  it('stub and live both return reachable=true with status on 4xx (warn-but-allow)', async () => {
+    const stub = createStubHttpReachabilityAdapter();
+    stub.setReachable('https://example.com/', 404);
+    const fakeFetch = (async () =>
+      ({ status: 404, ok: false, headers: new Headers(), url: 'https://example.com/' }) as Response) as unknown as typeof fetch;
+    const live = createLiveHttpReachabilityAdapter({
+      fetchClient: fakeFetch,
+      lookup: async () => ({ address: '8.8.8.8', family: 4 }),
+    });
+
+    const stubResult = await stub.check('https://example.com/');
+    const liveResult = await live.check('https://example.com/');
+
+    for (const result of [stubResult, liveResult]) {
+      expect(result.reachable).toBe(true);
+      expect(result.status).toBe(404);
+    }
+  });
+
+  it('stub and live both return reachable=false on transport failure', async () => {
+    const stub = createStubHttpReachabilityAdapter();
+    stub.setUnreachable('https://example.com/', 'connection refused');
+    const fakeFetch = (async () => {
+      throw new Error('connection refused');
+    }) as unknown as typeof fetch;
+    const live = createLiveHttpReachabilityAdapter({
+      fetchClient: fakeFetch,
+      lookup: async () => ({ address: '8.8.8.8', family: 4 }),
+    });
+
+    const stubResult = await stub.check('https://example.com/');
+    const liveResult = await live.check('https://example.com/');
+
+    for (const result of [stubResult, liveResult]) {
+      expect(result.reachable).toBe(false);
+      expect(result.error).toBeDefined();
+    }
+  });
+
+  it('live adapter issues HEAD with manual redirect (does not auto-follow)', async () => {
+    const captured: string[] = [];
+    const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      captured.push(`${init?.method ?? 'GET'} ${url} redirect=${init?.redirect}`);
+      return { status: 200, ok: true, headers: new Headers(), url } as Response;
+    }) as unknown as typeof fetch;
+    const live = createLiveHttpReachabilityAdapter({
+      fetchClient: fakeFetch,
+      lookup: async () => ({ address: '8.8.8.8', family: 4 }),
+    });
+    await live.check('https://example.com/');
+    expect(captured[0]).toMatch(/^HEAD .* redirect=manual$/);
+  });
+
+  it('disabled adapter satisfies the same interface and returns reachable=true unconditionally', async () => {
+    const disabled = createDisabledHttpReachabilityAdapter();
+    const result = await disabled.check('https://anything.example/');
+    expect(result.reachable).toBe(true);
+  });
+
+  it('stub failNext throws on the next call and clears after one use', async () => {
+    const stub = createStubHttpReachabilityAdapter();
+    stub.failNext(new Error('boom'));
+    await expect(stub.check('https://example.com/')).rejects.toThrow('boom');
+    const after = await stub.check('https://example.com/');
+    expect(after.reachable).toBe(true);
   });
 });
 

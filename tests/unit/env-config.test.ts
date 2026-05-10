@@ -45,6 +45,11 @@ function clearAwsWiring(): void {
   delete process.env.SES_SANDBOX_MODE;
   delete process.env.SAFE_BROWSING_ADAPTER;
   delete process.env.SAFE_BROWSING_API_KEY;
+  delete process.env.SECRETS_ADAPTER;
+  delete process.env.FOOTBAG_ENV;
+  delete process.env.HTTP_REACHABILITY_ADAPTER;
+  delete process.env.ALLOW_CURATED_SIDECAR_WRITES;
+  delete process.env.GALLERY_MAX_EXTERNAL_LINKS;
   delete process.env.AWS_REGION;
   delete process.env.IMAGE_PROCESSOR_URL;
   delete process.env.IMAGE_MAX_CONCURRENT;
@@ -135,6 +140,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'kms';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /JWT_KMS_KEY_ID is required when JWT_SIGNER=kms/,
     );
@@ -168,6 +175,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'live';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.AWS_REGION = 'us-east-1';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SES_FROM_IDENTITY is required when SES_ADAPTER=live/,
@@ -182,6 +191,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:0:key/x';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     await expect(import('../../src/config/env')).rejects.toThrow(
@@ -196,6 +207,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.SESSION_SECRET = 'a'.repeat(31);
@@ -211,6 +224,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.SESSION_SECRET = 'a'.repeat(20) + 'changeme' + 'b'.repeat(20);
@@ -228,6 +243,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
       'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
     process.env.SES_ADAPTER = 'live';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.SES_FROM_IDENTITY = 'noreply@footbag.org';
     process.env.AWS_REGION = 'us-east-1';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
@@ -268,31 +285,94 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     );
   });
 
-  it('throws when SAFE_BROWSING_ADAPTER=live but SAFE_BROWSING_API_KEY is unset', async () => {
+  it('accepts SAFE_BROWSING_ADAPTER=live without SAFE_BROWSING_API_KEY env var (key resolved via SecretsAdapter at first lookup)', async () => {
     baselineRequired();
     clearAwsWiring();
     process.env.NODE_ENV = 'production';
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'live';
-    await expect(import('../../src/config/env')).rejects.toThrow(
-      /SAFE_BROWSING_API_KEY is required when SAFE_BROWSING_ADAPTER=live/,
-    );
-  });
-
-  it('accepts SAFE_BROWSING_ADAPTER=live with SAFE_BROWSING_API_KEY set', async () => {
-    baselineRequired();
-    clearAwsWiring();
-    process.env.NODE_ENV = 'production';
-    process.env.JWT_SIGNER = 'local';
-    process.env.SES_ADAPTER = 'stub';
-    process.env.SAFE_BROWSING_ADAPTER = 'live';
-    process.env.SAFE_BROWSING_API_KEY = 'test-api-key';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     const { config } = await import('../../src/config/env');
     expect(config.safeBrowsingAdapter).toBe('live');
-    expect(config.safeBrowsingApiKey).toBe('test-api-key');
+    expect(config.secretsAdapter).toBe('stub');
+  });
+
+  it('throws when SECRETS_ADAPTER is unset in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SECRETS_ADAPTER must be set explicitly in production/,
+    );
+  });
+
+  it('throws on invalid SECRETS_ADAPTER value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.SECRETS_ADAPTER = 'aws-secrets-manager';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /SECRETS_ADAPTER must be 'live', 'stub', or 'local'/,
+    );
+  });
+
+  it("defaults SECRETS_ADAPTER to 'local' outside production", async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.secretsAdapter).toBe('local');
+  });
+
+  it('throws when SECRETS_ADAPTER=live but FOOTBAG_ENV is unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_ENV is required when SECRETS_ADAPTER=live/,
+    );
+  });
+
+  it('derives ssmPrefix from FOOTBAG_ENV when SECRETS_ADAPTER=live', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    const { config } = await import('../../src/config/env');
+    expect(config.footbagEnv).toBe('staging');
+    expect(config.ssmPrefix).toBe('/footbag/staging');
+  });
+
+  it('throws on invalid FOOTBAG_ENV value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_ENV = 'qa';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /FOOTBAG_ENV must be 'staging', 'production', or 'development'/,
+    );
   });
 
   it('throws when IMAGE_PROCESSOR_URL is unset in production', async () => {
@@ -302,6 +382,8 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /IMAGE_PROCESSOR_URL must be set explicitly in production/,
     );
@@ -332,6 +414,8 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /MEDIA_STORAGE_ADAPTER must be set explicitly in production/,
@@ -387,6 +471,8 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
@@ -405,6 +491,8 @@ describe('env config: MEDIA_STORAGE_*', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 's3';
     process.env.MEDIA_STORAGE_S3_BUCKET = 'footbag-staging-media';
@@ -412,6 +500,38 @@ describe('env config: MEDIA_STORAGE_*', () => {
     await expect(import('../../src/config/env')).rejects.toThrow(
       /INTERNAL_EVENT_SECRET is required when MEDIA_STORAGE_ADAPTER=s3/,
     );
+  });
+
+  it('defaults INTERNAL_EVENT_SECRET in dev so web + image worker share a token without operator config', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.internalEventSecret).toBe('dev-internal-event-secret-not-for-prod');
+  });
+
+  it('honors an explicit INTERNAL_EVENT_SECRET over the dev default', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.INTERNAL_EVENT_SECRET = 'operator-supplied-token';
+    const { config } = await import('../../src/config/env');
+    expect(config.internalEventSecret).toBe('operator-supplied-token');
+  });
+
+  it('does NOT default INTERNAL_EVENT_SECRET in production with local storage', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    const { config } = await import('../../src/config/env');
+    expect(config.internalEventSecret).toBeUndefined();
   });
 });
 
@@ -635,6 +755,8 @@ describe('env config: VIDEO_* parsing and defaults', () => {
     process.env.JWT_SIGNER = 'local';
     process.env.SES_ADAPTER = 'stub';
     process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /IMAGE_PROCESSOR_URL must be set explicitly in production/,
     );
@@ -756,6 +878,189 @@ describe('env config: PORT validation', () => {
     process.env.PORT = '99999';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /PORT must be a valid integer between 1 and 65535/,
+    );
+  });
+});
+
+describe('env config: HTTP_REACHABILITY_ADAPTER', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to stub under NODE_ENV=development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.httpReachabilityAdapter).toBe('stub');
+  });
+
+  it('throws when unset in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /HTTP_REACHABILITY_ADAPTER must be set explicitly in production/,
+    );
+  });
+
+  it('throws when set to an invalid value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'bogus';
+    process.env.SECRETS_ADAPTER = 'stub';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /HTTP_REACHABILITY_ADAPTER must be 'live', 'stub', or 'disabled', got: bogus/,
+    );
+  });
+
+  it('accepts each of live, stub, disabled', async () => {
+    for (const value of ['live', 'stub', 'disabled'] as const) {
+      vi.resetModules();
+      baselineRequired();
+      clearAwsWiring();
+      process.env.NODE_ENV = 'production';
+      process.env.JWT_SIGNER = 'local';
+      process.env.SES_ADAPTER = 'stub';
+      process.env.SAFE_BROWSING_ADAPTER = 'stub';
+      process.env.HTTP_REACHABILITY_ADAPTER = value;
+      process.env.SECRETS_ADAPTER = 'stub';
+      process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+      process.env.MEDIA_STORAGE_ADAPTER = 'local';
+      const { config } = await import('../../src/config/env');
+      expect(config.httpReachabilityAdapter).toBe(value);
+    }
+  });
+});
+
+describe('env config: ALLOW_CURATED_SIDECAR_WRITES', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to true under NODE_ENV=development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.allowCuratedSidecarWrites).toBe(true);
+  });
+
+  it('defaults to false under NODE_ENV=test', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'test';
+    const { config } = await import('../../src/config/env');
+    expect(config.allowCuratedSidecarWrites).toBe(false);
+  });
+
+  it('defaults to false under NODE_ENV=production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'disabled';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    const { config } = await import('../../src/config/env');
+    expect(config.allowCuratedSidecarWrites).toBe(false);
+  });
+
+  it('honors explicit override to true even in production', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'disabled';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
+    const { config } = await import('../../src/config/env');
+    expect(config.allowCuratedSidecarWrites).toBe(true);
+  });
+
+  it('honors explicit override to false in development', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ALLOW_CURATED_SIDECAR_WRITES = '0';
+    const { config } = await import('../../src/config/env');
+    expect(config.allowCuratedSidecarWrites).toBe(false);
+  });
+
+  it('throws on invalid value', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.ALLOW_CURATED_SIDECAR_WRITES = 'bogus';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ALLOW_CURATED_SIDECAR_WRITES must be '1', '0', 'true', or 'false', got: bogus/,
+    );
+  });
+});
+
+describe('env config: GALLERY_MAX_EXTERNAL_LINKS', () => {
+  let snap: EnvSnapshot;
+  beforeEach(() => {
+    snap = snapshotEnv();
+    vi.resetModules();
+  });
+  afterEach(() => restoreEnv(snap));
+
+  it('defaults to 1 when unset', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    const { config } = await import('../../src/config/env');
+    expect(config.galleryMaxExternalLinks).toBe(1);
+  });
+
+  it('honors operator override', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.GALLERY_MAX_EXTERNAL_LINKS = '5';
+    const { config } = await import('../../src/config/env');
+    expect(config.galleryMaxExternalLinks).toBe(5);
+  });
+
+  it('rejects non-integer override', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.GALLERY_MAX_EXTERNAL_LINKS = 'abc';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /GALLERY_MAX_EXTERNAL_LINKS must be a non-negative integer/,
+    );
+  });
+
+  it('rejects out-of-range override', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'development';
+    process.env.GALLERY_MAX_EXTERNAL_LINKS = '999';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /GALLERY_MAX_EXTERNAL_LINKS must be between 0 and 100/,
     );
   });
 });

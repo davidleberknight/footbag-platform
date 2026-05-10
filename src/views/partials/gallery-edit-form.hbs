@@ -7,18 +7,27 @@
     formAction   POST URL the form submits to
     gallery      { name, description, sortOrder, criteriaTagsString, excludeTagsString }
                  (omit or use empty values for the create flow)
-    errorMessage optional validation error to render at the top of the form
-    submitLabel  optional ("Save changes" by default)
-    cancelHref   URL the cancel link points to
-    isCreate     when true, the form submits multipart and renders an
-                 optional file-picker block. Files attached are uploaded
-                 alongside the gallery and inherit its criteria tags.
+    currentItems on edit only: array of { mediaId, thumbnailUrl, caption,
+                 sourceFilename, mediaType, editHref } that already match
+                 the gallery's criteria/exclude. Read-only display; no
+                 picker semantics — adding/removing membership happens via
+                 the item's own edit page (separation of concerns).
+    errorMessage optional validation error banner.
+    submitLabel  optional ("Save changes" by default).
+    cancelHref   URL the cancel link points to.
+    isCreate     true on the create flow; false on edit. Both flows always
+                 submit multipart so an optional photo upload can ride
+                 along. Tags applied to uploaded items come from the
+                 `uploadTags` field below — never auto-stamped from the
+                 gallery's criteria. Auto tags applied by the service
+                 layer remain limited to `#by_<slug>` (uploader
+                 attribution) and `#curated` (FH-owned only).
 
   CSRF protection: per DD §3.3, the platform relies on SameSite=Lax
   session cookies + POST-only state changes; no synchronizer tokens.
 --}}
 <form method="POST" action="{{formAction}}" class="curator-edit-form"
-      {{#if isCreate}}enctype="multipart/form-data"{{/if}}>
+      enctype="multipart/form-data">
   {{#if errorMessage}}
     <div class="form-error-banner" role="alert">{{errorMessage}}</div>
   {{/if}}
@@ -26,11 +35,13 @@
   <label class="form-row">
     <span class="form-label">Name</span>
     <input type="text" name="name" value="{{gallery.name}}" maxlength="150" required>
+    {{#if fieldErrors.name}}<small class="form-field-error" role="alert">{{fieldErrors.name}}</small>{{/if}}
   </label>
 
   <label class="form-row">
     <span class="form-label">Description</span>
     <textarea name="description" rows="3" maxlength="1000">{{gallery.description}}</textarea>
+    {{#if fieldErrors.description}}<small class="form-field-error" role="alert">{{fieldErrors.description}}</small>{{/if}}
   </label>
 
   <label class="form-row">
@@ -40,6 +51,7 @@
       <option value="upload_asc"  {{#if (eq gallery.sortOrder "upload_asc")}}selected{{/if}}>Upload date, oldest first</option>
       <option value="caption_asc" {{#if (eq gallery.sortOrder "caption_asc")}}selected{{/if}}>Caption alphabetical (use for captioned series)</option>
     </select>
+    {{#if fieldErrors.sortOrder}}<small class="form-field-error" role="alert">{{fieldErrors.sortOrder}}</small>{{/if}}
   </label>
 
   <label class="form-row">
@@ -50,27 +62,80 @@
     {{else}}
       <small class="form-help">Whitespace- or newline-separated. An item must carry every one of these tags to appear. Leave empty to show everything you have uploaded; your <code>#by_</code> uploader marker is preserved automatically. Tags starting with <code>#by_</code> or equal to <code>#curated</code> are reserved.</small>
     {{/if}}
+    {{#if fieldErrors.criteriaTags}}<small class="form-field-error" role="alert">{{fieldErrors.criteriaTags}}</small>{{/if}}
   </label>
 
   <label class="form-row">
     <span class="form-label">Exclude tags</span>
     <textarea name="excludeTags" rows="2" placeholder="#tricks_of_the_trade">{{gallery.excludeTagsString}}</textarea>
     <small class="form-help">Whitespace- or newline-separated. An item carrying any of these tags is filtered out. Optional.</small>
+    {{#if fieldErrors.excludeTags}}<small class="form-field-error" role="alert">{{fieldErrors.excludeTags}}</small>{{/if}}
   </label>
 
-  {{#if isCreate}}
-    <fieldset class="form-row">
-      <legend class="form-label">Upload files now (optional)</legend>
-      <input type="file" name="photoFiles" accept="image/jpeg,image/png" multiple>
+  {{#if externalLinkSlots.length}}
+    <fieldset class="form-row gallery-external-links">
+      <legend class="form-label">External links (optional)</legend>
       <small class="form-help">
-        JPEG or PNG, up to 25 MB each, max 3 files. Attached files are tagged
-        with the criteria tags above plus your slug, so they appear in this
-        gallery automatically.
+        Per-gallery off-platform links (e.g. an external album, sponsor page,
+        or event website). URLs are validated for scheme, SSRF safety, Safe
+        Browsing reputation, and reachability. Leave blank to omit.
       </small>
+      {{#each externalLinkSlots}}
+        <div class="gallery-external-link-row{{#if quarantineReason}} gallery-external-link-row-quarantined{{/if}}">
+          {{#if quarantineReason}}
+            <p class="form-field-warning" role="alert">
+              <strong>Flagged by Safe Browsing — not shown publicly.</strong>
+              Reason: {{quarantineReason}}.
+              Replace the URL below or clear both fields to remove this link.
+            </p>
+          {{/if}}
+          <label>
+            <span class="form-sublabel">Label</span>
+            <input type="text" name="externalLinkLabel{{index}}"
+                   value="{{label}}" maxlength="80">
+            {{#if labelError}}<small class="form-field-error" role="alert">{{labelError}}</small>{{/if}}
+          </label>
+          <label>
+            <span class="form-sublabel">URL</span>
+            <input type="url" name="externalLinkUrl{{index}}"
+                   value="{{url}}" maxlength="2048"
+                   placeholder="https://example.com">
+            {{#if urlError}}<small class="form-field-error" role="alert">{{urlError}}</small>{{/if}}
+          </label>
+        </div>
+      {{/each}}
+      {{#if fieldErrors.externalLinks}}<small class="form-field-error" role="alert">{{fieldErrors.externalLinks}}</small>{{/if}}
     </fieldset>
   {{/if}}
 
-  {{> _member-media-picker pickerItems=pickerItems}}
+  {{#unless isCreate}}
+    {{#if currentItems.length}}
+      {{> _gallery-current-items currentItems=currentItems}}
+    {{/if}}
+  {{/unless}}
+
+  <fieldset class="form-row">
+    <legend class="form-label">Upload files now (optional)</legend>
+    <input type="file" name="photoFiles" accept="image/jpeg,image/png" multiple>
+    <small class="form-help">
+      JPEG or PNG, up to 25 MB each, max 3 files.
+    </small>
+    <label class="form-sublabel">
+      <span class="form-label">Tags for these uploads</span>
+      <textarea name="uploadTags" rows="2"
+                placeholder="{{gallery.criteriaTagsString}}">{{uploadTags}}</textarea>
+      <small class="form-help">
+        Whitespace- or newline-separated. Items must carry every one of the
+        gallery's criteria tags above to appear here, so leaving the
+        suggestion in place is the easiest way to make uploads show up.
+        {{#if isFhOwned}}
+          Curated uploads also receive <code>#curated</code> automatically.
+        {{else}}
+          Your <code>#by_</code> uploader marker is added automatically.
+        {{/if}}
+      </small>
+    </label>
+  </fieldset>
 
   <div class="form-actions">
     <button type="submit">{{#if submitLabel}}{{submitLabel}}{{else}}Save changes{{/if}}</button>

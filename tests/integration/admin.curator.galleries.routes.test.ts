@@ -29,11 +29,12 @@ process.env.NODE_ENV        = 'test';
 process.env.LOG_LEVEL       = 'error';
 process.env.PUBLIC_BASE_URL = 'http://localhost:3099';
 process.env.SESSION_SECRET  = 'admin-curator-galleries-routes-test-secret';
+process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: typeof import('../../src/app').createApp;
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 
@@ -168,6 +169,38 @@ describe('GET /admin/curator/galleries', () => {
       .get('/admin/curator/galleries')
       .set('Cookie', memberCookie());
     expect(res.status).toBe(403);
+  });
+
+  // Regression: the controller used to call `getVideoTranscodingAdapter()`
+  // and `getImageProcessingAdapter()` eagerly inside `buildSvc()`. Both
+  // throw "INTERNAL_EVENT_SECRET not configured" at first resolution
+  // when the secret is unset. That made the gallery list 500 on dev
+  // environments without the secret (any route touching buildSvc, even
+  // read-only ones, blew up). The test fixture sets the secret so the
+  // failure mode was invisible to the suite — this regression spies on
+  // both factories so a re-introduction surfaces immediately.
+  it('does not resolve the video or image worker adapter on a read-only gallery list', async () => {
+    const videoMod = await import('../../src/adapters/videoTranscodingAdapter');
+    const imageMod = await import('../../src/adapters/imageProcessingAdapter');
+    const videoSpy = vi.spyOn(videoMod, 'getVideoTranscodingAdapter')
+      .mockImplementation(() => {
+        throw new Error('regression: video adapter resolved on /admin/curator/galleries');
+      });
+    const imageSpy = vi.spyOn(imageMod, 'getImageProcessingAdapter')
+      .mockImplementation(() => {
+        throw new Error('regression: image adapter resolved on /admin/curator/galleries');
+      });
+    try {
+      const res = await request(createApp())
+        .get('/admin/curator/galleries')
+        .set('Cookie', adminCookie());
+      expect(res.status).toBe(200);
+      expect(videoSpy).not.toHaveBeenCalled();
+      expect(imageSpy).not.toHaveBeenCalled();
+    } finally {
+      videoSpy.mockRestore();
+      imageSpy.mockRestore();
+    }
   });
 });
 

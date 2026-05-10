@@ -61,7 +61,12 @@ services:
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER}
-      SAFE_BROWSING_API_KEY: ${SAFE_BROWSING_API_KEY}
+      HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER}
+      # SecretsAdapter selector. Node consumers fetch SSM-stored third-party
+      # secrets through this adapter. FOOTBAG_ENV derives the SSM parameter
+      # prefix (/footbag/{env}/secrets/...).
+      SECRETS_ADAPTER: ${SECRETS_ADAPTER}
+      FOOTBAG_ENV: ${FOOTBAG_ENV}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}
@@ -110,7 +115,12 @@ services:
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY}
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER}
-      SAFE_BROWSING_API_KEY: ${SAFE_BROWSING_API_KEY}
+      HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER}
+      # SecretsAdapter selector. Node consumers fetch SSM-stored third-party
+      # secrets through this adapter. FOOTBAG_ENV derives the SSM parameter
+      # prefix (/footbag/{env}/secrets/...).
+      SECRETS_ADAPTER: ${SECRETS_ADAPTER}
+      FOOTBAG_ENV: ${FOOTBAG_ENV}
       FOOTBAG_DB_PATH: /app/db/footbag.db
       IMAGE_PROCESSOR_URL: ${IMAGE_PROCESSOR_URL:-http://image:4000}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:?must be set in /srv/footbag/env (deploy scripts seed s3)}

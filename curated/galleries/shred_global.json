@@ -1,11 +1,12 @@
 {
   "id": "gallery_shred_global",
   "name": "Shred Global",
-  "description": "Per-trick instructional videos from the Shred Global community — named-trick tutorials by reputable players.",
+  "description": "Per-trick instructional videos from the Shred Global community \u2014 named-trick tutorials by reputable players.",
   "sortOrder": "caption_asc",
   "criteriaTags": [
     "#curated",
     "#shred_global"
   ],
-  "excludeTags": []
+  "excludeTags": [],
+  "externalLinks": []
 }

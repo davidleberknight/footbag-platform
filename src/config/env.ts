@@ -28,7 +28,35 @@ export interface AppConfig {
   sesSandboxMode: boolean;
   sesFromIdentity: string | undefined;
   safeBrowsingAdapter: 'live' | 'stub';
-  safeBrowsingApiKey: string | undefined;
+  // SecretsAdapter: Node consumers read SSM-stored third-party secrets
+  // through this adapter. 'live' calls SSM GetParameter; 'stub' is an
+  // in-memory map for tests; 'local' reads .secrets.local.json at the repo
+  // root. Required to be explicit in production.
+  secretsAdapter: 'live' | 'stub' | 'local';
+  // Environment label used to derive SSM parameter prefixes for the live
+  // SecretsAdapter (e.g. 'staging' → '/footbag/staging/secrets/...').
+  // Required when secretsAdapter === 'live'. Must match the deploy-side
+  // FOOTBAG_ENV reconciled into /srv/footbag/env.
+  footbagEnv: 'staging' | 'production' | 'development' | undefined;
+  // Derived: '/footbag/${footbagEnv}'. Undefined when footbagEnv is unset
+  // (dev with secretsAdapter !== 'live').
+  ssmPrefix: string | undefined;
+  // Outbound-HEAD reachability check for user-supplied external URLs
+  // (DD §3.17). 'live' performs HEAD with redirect-follow + per-hop SSRF
+  // re-check; 'stub' consults in-memory state for tests/dev; 'disabled'
+  // is a no-op for deployments that want zero outbound HTTP from the
+  // validation path. Required to be explicit in production.
+  httpReachabilityAdapter: 'live' | 'stub' | 'disabled';
+  // Curator gallery sidecar writes target /curated/galleries/<slug>.json
+  // which is the seed source-of-truth in git. Permitted in dev only;
+  // staging/prod admin edits mutate the DB but skip the file write
+  // because the deployed /curated/ tree is part of the build artifact.
+  allowCuratedSidecarWrites: boolean;
+  // Maximum number of external URLs that can be attached to a single
+  // gallery. Distinct from the DD §3.17 per-profile cap (3) — galleries
+  // and items have their own caps, tunable by the operator. Service
+  // validates submitted count <= cap; form renders that many slots.
+  galleryMaxExternalLinks: number;
   imageProcessorUrl: string;
   imageMaxConcurrent: number;
   imagePort: number;
@@ -157,9 +185,97 @@ function loadConfig(): AppConfig {
     safeBrowsingAdapter = 'stub';
   }
 
-  const safeBrowsingApiKey = process.env.SAFE_BROWSING_API_KEY || undefined;
-  if (safeBrowsingAdapter === 'live' && !safeBrowsingApiKey) {
-    throw new Error('SAFE_BROWSING_API_KEY is required when SAFE_BROWSING_ADAPTER=live');
+  const rawSecretsAdapter = process.env.SECRETS_ADAPTER;
+  let secretsAdapter: 'live' | 'stub' | 'local';
+  if (
+    rawSecretsAdapter === 'live' ||
+    rawSecretsAdapter === 'stub' ||
+    rawSecretsAdapter === 'local'
+  ) {
+    secretsAdapter = rawSecretsAdapter;
+  } else if (rawSecretsAdapter) {
+    throw new Error(
+      `SECRETS_ADAPTER must be 'live', 'stub', or 'local', got: ${rawSecretsAdapter}`,
+    );
+  } else if (isProd) {
+    throw new Error('SECRETS_ADAPTER must be set explicitly in production (no default)');
+  } else {
+    secretsAdapter = 'local';
+  }
+
+  const rawFootbagEnv = process.env.FOOTBAG_ENV;
+  let footbagEnv: 'staging' | 'production' | 'development' | undefined;
+  if (
+    rawFootbagEnv === 'staging' ||
+    rawFootbagEnv === 'production' ||
+    rawFootbagEnv === 'development'
+  ) {
+    footbagEnv = rawFootbagEnv;
+  } else if (rawFootbagEnv) {
+    throw new Error(
+      `FOOTBAG_ENV must be 'staging', 'production', or 'development', got: ${rawFootbagEnv}`,
+    );
+  } else {
+    footbagEnv = undefined;
+  }
+
+  if (secretsAdapter === 'live' && !footbagEnv) {
+    throw new Error(
+      'FOOTBAG_ENV is required when SECRETS_ADAPTER=live (used to derive the SSM parameter prefix)',
+    );
+  }
+
+  const ssmPrefix = footbagEnv ? `/footbag/${footbagEnv}` : undefined;
+
+  const rawHttpReachability = process.env.HTTP_REACHABILITY_ADAPTER;
+  let httpReachabilityAdapter: 'live' | 'stub' | 'disabled';
+  if (
+    rawHttpReachability === 'live' ||
+    rawHttpReachability === 'stub' ||
+    rawHttpReachability === 'disabled'
+  ) {
+    httpReachabilityAdapter = rawHttpReachability;
+  } else if (rawHttpReachability) {
+    throw new Error(
+      `HTTP_REACHABILITY_ADAPTER must be 'live', 'stub', or 'disabled', got: ${rawHttpReachability}`,
+    );
+  } else if (isProd) {
+    throw new Error(
+      'HTTP_REACHABILITY_ADAPTER must be set explicitly in production (no default)',
+    );
+  } else {
+    httpReachabilityAdapter = 'stub';
+  }
+
+  const rawAllowCuratedSidecar = process.env.ALLOW_CURATED_SIDECAR_WRITES;
+  let allowCuratedSidecarWrites: boolean;
+  if (rawAllowCuratedSidecar === undefined || rawAllowCuratedSidecar === '') {
+    allowCuratedSidecarWrites = nodeEnv === 'development';
+  } else if (rawAllowCuratedSidecar === '1' || rawAllowCuratedSidecar === 'true') {
+    allowCuratedSidecarWrites = true;
+  } else if (rawAllowCuratedSidecar === '0' || rawAllowCuratedSidecar === 'false') {
+    allowCuratedSidecarWrites = false;
+  } else {
+    throw new Error(
+      `ALLOW_CURATED_SIDECAR_WRITES must be '1', '0', 'true', or 'false', got: ${rawAllowCuratedSidecar}`,
+    );
+  }
+
+  const rawGalleryMaxLinks = process.env.GALLERY_MAX_EXTERNAL_LINKS;
+  let galleryMaxExternalLinks: number;
+  if (rawGalleryMaxLinks === undefined || rawGalleryMaxLinks === '') {
+    galleryMaxExternalLinks = 1;
+  } else if (!/^\d+$/.test(rawGalleryMaxLinks)) {
+    throw new Error(
+      `GALLERY_MAX_EXTERNAL_LINKS must be a non-negative integer, got: ${rawGalleryMaxLinks}`,
+    );
+  } else {
+    galleryMaxExternalLinks = parseInt(rawGalleryMaxLinks, 10);
+    if (galleryMaxExternalLinks < 0 || galleryMaxExternalLinks > 100) {
+      throw new Error(
+        `GALLERY_MAX_EXTERNAL_LINKS must be between 0 and 100, got: ${rawGalleryMaxLinks}`,
+      );
+    }
   }
 
   const rawSesSandbox = process.env.SES_SANDBOX_MODE;
@@ -270,7 +386,16 @@ function loadConfig(): AppConfig {
     process.env.WORKER_INTERNAL_URL || `http://localhost:${workerInternalPort}`;
   const webInternalUrl =
     process.env.WEB_INTERNAL_URL || `http://localhost:${port}`;
-  const internalEventSecret = process.env.INTERNAL_EVENT_SECRET || undefined;
+  // INTERNAL_EVENT_SECRET authenticates web<->image-worker and web<->
+  // transcode-worker calls. Dev convenience: default to a known
+  // non-production value when unset under non-production NODE_ENV. Web
+  // and image worker run in the same shell under `./run_dev.sh` so
+  // they read the same env via dotenv and end up with the same token.
+  // Production reaches the existing fail-fast below via
+  // MEDIA_STORAGE_ADAPTER=s3, so no separate prod gate is needed here.
+  const explicitInternalSecret = process.env.INTERNAL_EVENT_SECRET || undefined;
+  const internalEventSecret =
+    explicitInternalSecret ?? (isProd ? undefined : 'dev-internal-event-secret-not-for-prod');
   if (mediaStorageAdapter === 's3' && !internalEventSecret) {
     throw new Error(
       'INTERNAL_EVENT_SECRET is required when MEDIA_STORAGE_ADAPTER=s3 (worker<->web event channel)',
@@ -322,7 +447,12 @@ function loadConfig(): AppConfig {
     sesSandboxMode,
     sesFromIdentity,
     safeBrowsingAdapter,
-    safeBrowsingApiKey,
+    secretsAdapter,
+    footbagEnv,
+    ssmPrefix,
+    httpReachabilityAdapter,
+    allowCuratedSidecarWrites,
+    galleryMaxExternalLinks,
     imageProcessorUrl,
     imageMaxConcurrent,
     imagePort,

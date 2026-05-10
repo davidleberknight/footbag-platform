@@ -1238,11 +1238,21 @@ Rationale:
 
 Threat Model Clarification: Parameter Store does not protect against an attacker who gains shell access inside the production container while usable runtime AWS credentials are available to that container. An attacker in the container can call SSM GetParameter for any SecureString values allowed to the runtime assumed role. For secrets that must remain non-exportable even under container compromise, the system uses KMS/HSM-backed keys (non-exportable asymmetric signing keys) and IAM separation (normal web runtime cannot decrypt ballots).
 
-Implementation: Parameter paths are organized by environment (`/footbag/prod/`, `/footbag/staging/`, `/footbag/dev/`).
+Mitigations against the in-container threat:
 
-In development, Parameter Store is replaced with environment-variable loading from a gitignored `.env` file at the repo root via `dotenv`. A committed `.env.example` template enumerates expected keys with placeholder values (the literal substring `changeme` is reserved for placeholder text and is rejected by production startup guards on `SESSION_SECRET`). Per-host non-secret runtime config and per-host operational secrets like `SESSION_SECRET` live in `/srv/footbag/env` on the production host (root:root 0600).
+- IAM least privilege: the runtime assumed role holds `ssm:GetParameter` (read-only) on `${ssm_prefix}/*`; no `ssm:PutParameter`, `ssm:DeleteParameter`, or cross-environment scope. A compromised runtime can read but cannot tamper with stored values, and cannot reach another environment's namespace.
+- IAM separation by capability: the ballot tally path runs under a distinct role with `kms:Decrypt` on the ballot CMK; the normal web runtime role does not. A compromised web runtime cannot decrypt cast ballots even with full SSM access.
+- KMS at rest: every SecureString parameter is KMS-encrypted at rest under the environment's CMK. The runtime needs `kms:Decrypt` on that CMK to use the parameter; revoking the role's KMS access is sufficient to instantly invalidate stored-secret reads platform-wide.
+- CloudTrail audit: SSM `GetParameter` calls on `${ssm_prefix}/secrets/*` are recorded in CloudTrail. Unusual access patterns (volume spikes, off-hours reads, non-runtime principals) are alarmable per the monitoring policy.
+- Rotation as the recovery primitive: each operator-supplied SSM secret has a documented rotation runbook in DEVOPS_GUIDE that stamps a new version and bounces the runtime to invalidate the in-process cache. Post-incident, the operator rotates the secret at the third party (Stripe Console, Google Cloud Console, etc.); the previously-leaked value stops working at the third party regardless of who still holds it.
+- Process-memory exposure window: the live SecretsAdapter caches resolved values for the life of the process. A container restart drops the cache. Rotation runbooks include a restart or redeploy step so the new value is in effect within minutes.
+- Operator-CLI hygiene: `aws ssm put-parameter` calls use the `--value file://` pattern so the literal secret never lands in shell history, process listings, or terminal scrollback.
 
-Secrets are fetched once at container startup via SecretsAdapter (SSM GetParameter in production, local JSON file in development).
+Implementation: Parameter paths are organized by environment (`/footbag/production/`, `/footbag/staging/`, `/footbag/development/`).
+
+In development, the secret-source split mirrors production. Env-var secrets (`SESSION_SECRET`, host runtime config) load from a gitignored `.env` file at the repo root via `dotenv`; a committed `.env.example` template enumerates expected keys with placeholder values (the literal substring `changeme` is reserved for placeholder text and is rejected by production startup guards on `SESSION_SECRET`). Parameter-Store-class secrets (Stripe keys, Safe Browsing API key, admin bootstrap tokens) load through `SecretsAdapter` in local mode, which reads a gitignored `.secrets.local.json` at the repo root; a committed `.secrets.local.json.example` template enumerates expected keys. Per-host operational secrets like `SESSION_SECRET` live in `/srv/footbag/env` on the production host (root:root 0600).
+
+Secrets are fetched once at container startup via SecretsAdapter (SSM GetParameter in production, local JSON file in development). SecretsAdapter is a Node module; only Node consumers (web, worker, image worker, tests) read through it. Non-Node consumers (nginx config rendering, CloudFront origin-request injection) read SSM-stored values via a deploy-time env-file mirror written by the deploy remote-half rather than at runtime via the adapter. `X_ORIGIN_VERIFY_SECRET` is the canonical example of the mirror path: CloudFront reads it via the Terraform `data.aws_ssm_parameter` lookup at apply time, nginx reads it from `/srv/footbag/env` via the docker entrypoint shim at container startup, and no Node code path consumes it.
 
 Parameter Store contains:
 
@@ -1267,6 +1277,7 @@ Trade-offs:
 - Manual rotation vs automatic (acceptable for a small number of secrets).
 - AWS lock-in for secrets (acceptable given AWS infrastructure commitment).
 - Runtime secret access now depends on explicit host bootstrap and runtime credential wiring on Lightsail.
+- A compromised runtime container can exfiltrate any SecureString value the runtime role can read, for as long as the temporary credentials remain valid. This is the residual risk that drives the KMS-for-cryptographic-keys and IAM-separation-for-ballots designs above; for third-party API keys (Stripe, Safe Browsing, GitHub OAuth, etc.) the residual risk is accepted because the keys must traverse to the third party as cleartext at API-call time anyway. Mitigation is rotation-after-incident, not stronger-encryption-at-rest.
 
 Impact:
 
@@ -2904,7 +2915,7 @@ Required IAM permissions for dev profile:
 
 - SES: SendEmail, SendRawEmail on verified test domain.
 
-- Parameter Store: GetParameter on /footbag/dev/\* path.
+- Parameter Store: GetParameter on /footbag/development/\* path.
 
 - KMS: Sign, GetPublicKey (JWT); GenerateDataKey, Decrypt (ballots, in dev only).
 

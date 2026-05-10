@@ -7,5 +7,6 @@
     "#curated",
     "#passback_records"
   ],
-  "excludeTags": []
+  "excludeTags": [],
+  "externalLinks": []
 }

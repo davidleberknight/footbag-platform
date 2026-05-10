@@ -124,6 +124,53 @@ if ! grep -q '^INTERNAL_EVENT_SECRET=' "$ENV_PATH"; then
   unset generated_secret
 fi
 
+# One-shot migration: HTTP_REACHABILITY_ADAPTER seed. Controls the post-
+# Safe-Browsing reachability HEAD probe in the external-URL validator.
+# Required in prod-mode env.ts; without a seed, web + worker crash-loop on
+# first deploy of any branch carrying this adapter. Default 'live' matches
+# the intended runtime behavior; an operator who wants to disable outbound
+# HEAD probes on a specific host edits this line. This seed is load-bearing
+# for stack startup.
+if ! grep -q '^HTTP_REACHABILITY_ADAPTER=' "$ENV_PATH"; then
+  echo "==> Seeding HTTP_REACHABILITY_ADAPTER=live into $ENV_PATH..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  cp "$ENV_PATH" "$env_tmp"
+  printf 'HTTP_REACHABILITY_ADAPTER=%s\n' 'live' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+fi
+
+# One-shot migration: SECRETS_ADAPTER seed. Selects the live/stub/local impl
+# used by Node consumers to read SSM-stored third-party secrets (Safe
+# Browsing API key, future Stripe keys, admin bootstrap tokens). Required in
+# prod-mode env.ts; without a seed, web + worker crash-loop. 'live' calls
+# SSM GetParameter via the assumed-role chain. Load-bearing for stack startup.
+if ! grep -q '^SECRETS_ADAPTER=' "$ENV_PATH"; then
+  echo "==> Seeding SECRETS_ADAPTER=live into $ENV_PATH..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  cp "$ENV_PATH" "$env_tmp"
+  printf 'SECRETS_ADAPTER=%s\n' 'live' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+fi
+
+# One-shot migration: SAFE_BROWSING_ADAPTER seed. Default 'stub' on first
+# deploy: until the operator has both put-parameter'd the real Safe Browsing
+# API key into SSM AND flipped this to 'live', the validator runs without
+# outbound calls to Google. Two-step opt-in is intentional: a key landing
+# in SSM without the adapter flip stays in standby, not silently in-use.
+if ! grep -q '^SAFE_BROWSING_ADAPTER=' "$ENV_PATH"; then
+  echo "==> Seeding SAFE_BROWSING_ADAPTER=stub into $ENV_PATH (operator flips to live after put-parameter)..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  cp "$ENV_PATH" "$env_tmp"
+  printf 'SAFE_BROWSING_ADAPTER=%s\n' 'stub' >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+fi
+
 echo "==> Promoting release (preserving env, DB, media)..."
 rsync -a --delete \
   --exclude=/env --exclude=/db --exclude=/media \

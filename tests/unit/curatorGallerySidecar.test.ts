@@ -29,6 +29,7 @@ function valid(): GallerySidecarData {
     sortOrder: 'upload_desc',
     criteriaTags: ['#alpha', '#beta'],
     excludeTags: ['#gamma'],
+    externalLinks: [],
   };
 }
 
@@ -188,6 +189,63 @@ describe('formatGallerySidecarJson', () => {
     const data = JSON.parse(onDisk) as GallerySidecarData;
     const reformatted = formatGallerySidecarJson(data);
     expect(reformatted).toBe(onDisk);
+  });
+});
+
+describe('externalLinks (sidecar contract extension)', () => {
+  it('rejects when externalLinks is not an array', () => {
+    const d = valid() as unknown as { externalLinks: unknown };
+    d.externalLinks = 'oops';
+    expect(() => validateGallerySidecarData(d as GallerySidecarData)).toThrow(/externalLinks must be an array/);
+  });
+
+  it('accepts a populated externalLinks array', () => {
+    const d = valid();
+    d.externalLinks = [
+      { label: 'IFPA', url: 'https://footbag.org', sortOrder: 0 },
+      { label: 'Tournament', url: 'https://example.com/event', sortOrder: 1 },
+    ];
+    expect(() => validateGallerySidecarData(d)).not.toThrow();
+  });
+
+  it('rejects link with empty label', () => {
+    const d = valid();
+    d.externalLinks = [{ label: '', url: 'https://x.example/', sortOrder: 0 }];
+    expect(() => validateGallerySidecarData(d)).toThrow(/label is required/);
+  });
+
+  it('rejects link with empty url', () => {
+    const d = valid();
+    d.externalLinks = [{ label: 'X', url: '', sortOrder: 0 }];
+    expect(() => validateGallerySidecarData(d)).toThrow(/url is required/);
+  });
+
+  it('rejects link with non-integer sortOrder', () => {
+    const d = valid();
+    d.externalLinks = [{ label: 'X', url: 'https://x.example/', sortOrder: 1.5 as unknown as number }];
+    expect(() => validateGallerySidecarData(d)).toThrow(/sortOrder must be an integer/);
+  });
+
+  it('formatGallerySidecarJson includes externalLinks in fixed field order', () => {
+    const d = valid();
+    d.externalLinks = [{ label: 'IFPA', url: 'https://footbag.org', sortOrder: 0 }];
+    const json = formatGallerySidecarJson(d);
+    const keysInOrder = Object.keys(JSON.parse(json));
+    expect(keysInOrder).toEqual([
+      'id', 'name', 'description', 'sortOrder',
+      'criteriaTags', 'excludeTags', 'externalLinks',
+    ]);
+  });
+
+  it('shipped /curated/galleries/*.json all have externalLinks: []', async () => {
+    const galleriesDir = path.join(process.cwd(), 'curated', 'galleries');
+    const files = await fs.readdir(galleriesDir);
+    for (const f of files) {
+      if (!f.endsWith('.json')) continue;
+      const txt = await fs.readFile(path.join(galleriesDir, f), 'utf-8');
+      const data = JSON.parse(txt);
+      expect(Array.isArray(data.externalLinks)).toBe(true);
+    }
   });
 });
 

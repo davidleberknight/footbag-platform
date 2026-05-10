@@ -44,6 +44,9 @@ export function setTestEnv(port: string): { dbPath: string; sessionSecret: strin
   process.env.LOG_LEVEL       = 'error';
   process.env.PUBLIC_BASE_URL = `http://localhost:${port}`;
   process.env.SESSION_SECRET  = sessionSecret;
+  // Tests exercise the FH-owned gallery sidecar write/delete contract;
+  // enable explicitly because the prod default for non-dev is off.
+  process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
 
   // JWT_LOCAL_KEYPAIR_PATH / JWT_SIGNER / SES_ADAPTER / AWS_REGION are set by
   // tests/setup-env.ts per-vitest-worker. Integration tests MUST NOT override

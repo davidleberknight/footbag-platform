@@ -484,11 +484,11 @@ All Parameter Store paths must follow:
 Examples:
 
 ```text
-/footbag/prod/stripe/api_key
-/footbag/prod/stripe/webhook_secret
-/footbag/prod/app/bootstrap/admin_token
+/footbag/production/stripe/api_key
+/footbag/production/stripe/webhook_secret
+/footbag/production/app/bootstrap/admin_token
 /footbag/staging/stripe/api_key
-/footbag/dev/test/ses_sender
+/footbag/development/test/ses_sender
 ```
 
 Rules:
@@ -644,6 +644,55 @@ Production rotation procedure parallels this; documented in Path I once producti
 - `aws ssm get-parameter --with-decryption --name /footbag/{env}/secrets/origin_verify_secret --query Parameter.Value --output text` returns a 64-character lowercase hex string (not `TODO-...`).
 - A request through CloudFront returns 200 (`/health/ready`).
 - A request directly to the Lightsail static IP fails with TCP RST or `curl exit 52` (the Lightsail firewall blocks non-CloudFront source IPs at the network layer per `terraform/{env}/lightsail.tf`).
+
+### 5.10 Safe Browsing API key rotation runbook
+
+Bootstrap lives in DEV_ONBOARDING §4.10. This section covers recurring rotation.
+
+#### When to run
+
+- scheduled credential rotation
+- suspected key exposure (key value appeared in logs, was committed by accident, or was shared with an off-platform party)
+- migration to a new Google Cloud project
+- quota tier change
+
+#### Procedure
+
+1. Sign in at `console.cloud.google.com`. Regenerate the API key (or revoke and create new).
+2. Copy the new value to a temp file:
+   ```
+   printf %s '<paste-key>' > /tmp/sb-key && chmod 600 /tmp/sb-key
+   ```
+3. Overwrite the SSM SecureString:
+   ```
+   AWS_PROFILE=footbag-<env>-runtime aws ssm put-parameter \
+     --name /footbag/<env>/secrets/safe_browsing_api_key \
+     --value "file:///tmp/sb-key" \
+     --type SecureString \
+     --key-id alias/footbag-<env> \
+     --overwrite
+   ```
+4. Remove the temp file:
+   ```
+   shred -u /tmp/sb-key
+   ```
+5. Restart the runtime to invalidate the in-process cache:
+   ```
+   sudo systemctl restart footbag.service
+   ```
+
+#### Required verification
+
+- `npm run test:smoke` passes 3/3 from the operator workstation.
+- Submit a known-malware URL through any external-link form on the target host; validation rejects with the user-facing "This URL is not allowed."
+- Application logs show the matched threat category for one operator-review entry.
+
+#### Failure modes and recovery
+
+- `aws ssm put-parameter` returns `AccessDenied`: operator profile is not assuming `*-runtime` correctly, or the runtime role lacks `ssm:PutParameter`. Verify `/root/.aws/credentials` source profile + workstation `~/.aws/config` runtime profile per §3.4.
+- Smoke reports `bootstrap placeholder ("TODO-...")`: step 3 was skipped or pointed at the wrong env. Rerun with the correct profile and parameter path.
+- Validator returns "URL could not be reached" instead of Safe Browsing rejection: the reachability check (preceding gate) is failing first; not a Safe Browsing wiring issue.
+- Quota errors (HTTP 429): rate limit exceeded. Check daily lookup volume in GCP Console; back off and retry. If sustained, application traffic exceeds the free tier; reduce or upgrade the GCP billing tier.
 
 ---
 

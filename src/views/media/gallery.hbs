@@ -15,6 +15,14 @@
     <p class="gallery-description">{{content.gallery.description}}</p>
   {{/if}}
 
+  {{#if content.gallery.externalLinks.length}}
+    <ul class="gallery-references">
+      {{#each content.gallery.externalLinks}}
+        <li>External URL: {{{externalLink url noIcon=true}}}</li>
+      {{/each}}
+    </ul>
+  {{/if}}
+
   {{#if content.items.length}}
     <ul class="gallery-grid">
       {{#each content.items}}

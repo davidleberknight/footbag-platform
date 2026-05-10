@@ -32,6 +32,9 @@ process.env.JWT_LOCAL_KEYPAIR_PATH  ??= path.join(
 );
 process.env.SES_ADAPTER             ??= 'stub';
 process.env.AWS_REGION              ??= 'us-east-1';
+// Tests use the stub SecretsAdapter by default. Tests that exercise the live
+// path inject a fake SSM client via createLiveSecretsAdapter({ ssmClient: fake }).
+process.env.SECRETS_ADAPTER         ??= 'stub';
 // Required by `getImageProcessingAdapter` and `getVideoTranscodingAdapter`
 // (they refuse to construct without a value, mirroring `transcodeDispatchClient`).
 // Tests that inject fakes via the *ForTests setters never reach this value;

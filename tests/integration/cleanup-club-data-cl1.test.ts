@@ -14,11 +14,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { planFixes, applyFixes } from '../../scripts/cleanup-club-data-cl1';
 
-const DB_PATH = path.resolve(
-  process.cwd(),
-  `test-cleanup-cl1-${Date.now()}-${process.pid}.db`,
-);
-
 const TS = '2026-01-01T00:00:00.000Z';
 
 interface ClubSeed {
@@ -47,9 +42,8 @@ const TARGET_SEEDS: ClubSeed[] = [
 ];
 
 function freshDb(): BetterSqlite3.Database {
-  if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
   const schema = fs.readFileSync(path.join(process.cwd(), 'database', 'schema.sql'), 'utf8');
-  const db = new BetterSqlite3(DB_PATH);
+  const db = new BetterSqlite3(':memory:');
   db.pragma('foreign_keys = ON');
   db.exec(schema);
   return db;
@@ -86,7 +80,6 @@ beforeEach(() => {
 
 afterEach(() => {
   db.close();
-  if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
 });
 
 describe('Slice CL-1: planFixes (read-only diagnostic)', () => {

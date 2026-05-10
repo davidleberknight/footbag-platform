@@ -17,8 +17,27 @@ export abstract class ServiceError extends Error {
 }
 
 export class ValidationError extends ServiceError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super('validation_error', message, details);
+  // Optional per-field error map. When present, controllers can render
+  // inline messages next to each offending input instead of (or in
+  // addition to) the top-of-form banner. Keys are the form field names;
+  // values are the human-readable error strings. Absent → fall back to
+  // the single `message` banner.
+  public readonly fieldErrors?: Record<string, string>;
+  constructor(
+    message: string,
+    detailsOrFieldErrors?: Record<string, unknown> | { fieldErrors: Record<string, string> },
+  ) {
+    if (
+      detailsOrFieldErrors &&
+      typeof detailsOrFieldErrors === 'object' &&
+      'fieldErrors' in detailsOrFieldErrors &&
+      typeof detailsOrFieldErrors.fieldErrors === 'object'
+    ) {
+      super('validation_error', message);
+      this.fieldErrors = detailsOrFieldErrors.fieldErrors as Record<string, string>;
+    } else {
+      super('validation_error', message, detailsOrFieldErrors as Record<string, unknown> | undefined);
+    }
   }
 }
 

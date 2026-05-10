@@ -23,6 +23,7 @@ import path from 'path';
 import os from 'os';
 
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-member-gal-${Date.now()}.db`);
+let resetImageProcessingAdapterForTests: (() => void) | null = null;
 process.env.FOOTBAG_DB_PATH = TEST_DB_PATH;
 process.env.PORT            = '3097';
 process.env.NODE_ENV        = 'test';
@@ -36,6 +37,7 @@ let createApp: typeof import('../../src/app').createApp;
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
+import sharp from 'sharp';
 
 import { insertMember, createTestSessionJwt, insertMediaItem } from '../fixtures/factories';
 
@@ -82,11 +84,36 @@ beforeAll(async () => {
   CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'mg-routes-curated-'));
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.setCuratedRootDirForTests(CURATED_TMP_ROOT);
+
+  // In-process Sharp pipeline injected at the HTTP-adapter boundary so
+  // mid-edit / on-create photo uploads run without a real image worker.
+  // Mirrors the upload-route suite.
+  const adapterMod = await import('../../src/adapters/imageProcessingAdapter');
+  const imgMod = await import('../../src/lib/imageProcessing');
+  resetImageProcessingAdapterForTests = adapterMod.resetImageProcessingAdapterForTests;
+  const fakeFetch: typeof fetch = async (_input, init) => {
+    const body = init?.body as Buffer | Uint8Array;
+    const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+    const processed = await imgMod.processPhoto(buf);
+    return new Response(
+      JSON.stringify({
+        thumb: processed.thumb.toString('base64'),
+        display: processed.display.toString('base64'),
+        widthPx: processed.widthPx,
+        heightPx: processed.heightPx,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  };
+  adapterMod.setImageProcessingAdapterForTests(
+    adapterMod.createHttpImageAdapter({ internalSecret: 'test-internal-event-secret', baseUrl: 'http://test-injected', fetchImpl: fakeFetch }),
+  );
 });
 
 afterAll(async () => {
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.resetCuratedRootDirForTests();
+  if (resetImageProcessingAdapterForTests) resetImageProcessingAdapterForTests();
   if (CURATED_TMP_ROOT) {
     fs.rmSync(CURATED_TMP_ROOT, { recursive: true, force: true });
   }
@@ -187,6 +214,35 @@ describe('GET /members/:memberKey/galleries', () => {
       .set('Cookie', otherCookie());
     expect(res.status).toBe(404);
     expect(res.text).toContain('Page Not Found');
+  });
+
+  // Regression: read-only gallery list must not pull the image or video
+  // worker adapters (both throw "INTERNAL_EVENT_SECRET not configured"
+  // at first resolution when the secret is unset). Test fixtures set the
+  // secret so the failure was invisible without spying.
+  it('does not resolve the video or image worker adapter on a read-only gallery list', async () => {
+    const { vi } = await import('vitest');
+    const videoMod = await import('../../src/adapters/videoTranscodingAdapter');
+    const imageMod = await import('../../src/adapters/imageProcessingAdapter');
+    const videoSpy = vi.spyOn(videoMod, 'getVideoTranscodingAdapter')
+      .mockImplementation(() => {
+        throw new Error('regression: video adapter resolved on /members/:slug/galleries');
+      });
+    const imageSpy = vi.spyOn(imageMod, 'getImageProcessingAdapter')
+      .mockImplementation(() => {
+        throw new Error('regression: image adapter resolved on /members/:slug/galleries');
+      });
+    try {
+      const res = await request(createApp())
+        .get(`/members/${OWNER_SLUG}/galleries`)
+        .set('Cookie', ownerCookie());
+      expect(res.status).toBe(200);
+      expect(videoSpy).not.toHaveBeenCalled();
+      expect(imageSpy).not.toHaveBeenCalled();
+    } finally {
+      videoSpy.mockRestore();
+      imageSpy.mockRestore();
+    }
   });
 });
 
@@ -383,6 +439,141 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     expect(res.text).toContain('sort order must be one of');
   });
 
+  it('renders inline field-level error next to the offending input', async () => {
+    await createGalleryViaApi('Inline Error Source');
+    const id = findGalleryIdByName('Inline Error Source')!;
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: '', description: '', sortOrder: 'upload_desc', criteriaTags: '#x', excludeTags: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('form-field-error');
+    expect(res.text).toContain('Gallery name is required');
+  });
+
+  it('renders inline error against criteriaTags when a tag is invalid', async () => {
+    await createGalleryViaApi('Bad Crit Source');
+    const id = findGalleryIdByName('Bad Crit Source')!;
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'X', description: '', sortOrder: 'upload_desc', criteriaTags: '#NotLowercase', excludeTags: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('form-field-error');
+    expect(res.text).toMatch(/criteria tag must be lowercase/i);
+  });
+
+  it('persists a valid external link on update and pre-fills it on the next edit page render', async () => {
+    await createGalleryViaApi('Linked Source', '#linked');
+    const id = findGalleryIdByName('Linked Source')!;
+
+    const post = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: 'Linked Source',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#linked',
+        excludeTags: '',
+        externalLinkLabel0: 'Project page',
+        externalLinkUrl0: 'https://example.com/project',
+      });
+    expect(post.status).toBe(302);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const rows = db.prepare(
+        `SELECT label, url, sort_order FROM gallery_external_links WHERE gallery_id = ? ORDER BY sort_order`,
+      ).all(id) as Array<{ label: string; url: string; sort_order: number }>;
+      expect(rows).toEqual([
+        { label: 'Project page', url: 'https://example.com/project', sort_order: 0 },
+      ]);
+    } finally { db.close(); }
+
+    const get = await request(createApp())
+      .get(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie());
+    expect(get.status).toBe(200);
+    expect(get.text).toContain('value="Project page"');
+    expect(get.text).toContain('value="https://example.com/project"');
+  });
+
+  it('rejects an invalid external link URL with a per-field inline error and persists nothing', async () => {
+    await createGalleryViaApi('Bad URL Source', '#badurl');
+    const id = findGalleryIdByName('Bad URL Source')!;
+
+    const post = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: 'Bad URL Source',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#badurl',
+        excludeTags: '',
+        externalLinkLabel0: 'Bogus',
+        externalLinkUrl0: 'javascript:alert(1)',
+      });
+    expect(post.status).toBe(422);
+    expect(post.text).toContain('form-field-error');
+    expect(post.text).toMatch(/disallowed protocol/i);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const count = db.prepare(
+        `SELECT COUNT(*) as n FROM gallery_external_links WHERE gallery_id = ?`,
+      ).get(id) as { n: number };
+      expect(count.n).toBe(0);
+    } finally { db.close(); }
+  });
+
+  it('clears existing external links on update with empty inputs', async () => {
+    await createGalleryViaApi('Clear Links', '#clearlinks');
+    const id = findGalleryIdByName('Clear Links')!;
+    // Seed one link via service direct.
+    await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: 'Clear Links',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#clearlinks',
+        excludeTags: '',
+        externalLinkLabel0: 'Initial',
+        externalLinkUrl0: 'https://example.com/initial',
+      });
+    // Then re-submit with empty link inputs.
+    const second = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: 'Clear Links',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#clearlinks',
+        excludeTags: '',
+        externalLinkLabel0: '',
+        externalLinkUrl0: '',
+      });
+    expect(second.status).toBe(302);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const count = db.prepare(
+        `SELECT COUNT(*) as n FROM gallery_external_links WHERE gallery_id = ?`,
+      ).get(id) as { n: number };
+      expect(count.n).toBe(0);
+    } finally { db.close(); }
+  });
+
   it('cannot edit another member\'s gallery (404)', async () => {
     await createGalleryViaApi('Locked');
     const id = findGalleryIdByName('Locked')!;
@@ -475,12 +666,10 @@ describe('Member profile "My Galleries" link', () => {
   });
 });
 
-// ── Picker (existing-uploads checkbox grid on new + edit forms) ────────────
+// ── No-picker model: current-items display + uploadTags pass-through ──────
 
-describe('member-media picker', () => {
+describe('gallery edit current-items display + uploadTags', () => {
   beforeEach(() => {
-    // Each picker test seeds its own media; clear leftovers + tag rows
-    // so the prior test's media_tags don't leak into the next assertion.
     const db = new BetterSqlite3(TEST_DB_PATH);
     db.pragma('foreign_keys = ON');
     db.prepare('DELETE FROM media_tags').run();
@@ -498,235 +687,162 @@ describe('member-media picker', () => {
     } finally { db.close(); }
   }
 
-  function findGalleryCriteriaTags(galleryId: string): string[] {
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    try {
-      const rows = db.prepare(
-        `SELECT t.tag_display FROM member_gallery_tags mgt JOIN tags t ON t.id = mgt.tag_id WHERE mgt.gallery_id = ? ORDER BY t.tag_display`,
-      ).all(galleryId) as { tag_display: string }[];
-      return rows.map((r) => r.tag_display);
-    } finally { db.close(); }
-  }
-
-  it('GET /galleries/new includes the picker and the owner\'s own non-avatar uploads only', async () => {
+  it('GET /galleries/new does not render the picker', async () => {
     const db = new BetterSqlite3(TEST_DB_PATH);
     db.pragma('foreign_keys = ON');
-    const ownMedia = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'mine.jpg', caption: null });
-    insertMediaItem(db, { uploader_member_id: OTHER_ID, source_filename: 'theirs.jpg', caption: null });
-    insertMediaItem(db, { uploader_member_id: OWNER_ID, is_avatar: 1, source_filename: 'avatar.jpg', caption: null });
+    insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'mine.jpg', caption: null });
     db.close();
 
     const res = await request(createApp())
       .get(`/members/${OWNER_SLUG}/galleries/new`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('member-media-picker');
-    expect(res.text).toContain('Add items from your existing uploads');
-    expect(res.text).toContain(`value="${ownMedia}"`);
-    expect(res.text).toContain('mine.jpg');
-    expect(res.text).not.toContain('theirs.jpg');
-    expect(res.text).not.toContain('avatar.jpg');
+    expect(res.text).not.toContain('member-media-picker');
+    expect(res.text).not.toContain('Add items from your existing uploads');
+    // Upload widget is still present.
+    expect(res.text).toContain('Upload files now');
+    expect(res.text).toContain('Tags for these uploads');
   });
 
-  it('POST /galleries with mediaIds applies the gallery\'s criteria tags to each picked item', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    db.pragma('foreign_keys = ON');
-    const m1 = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'a.jpg', caption: null });
-    const m2 = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'b.jpg', caption: null });
-    const m3 = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'c.jpg', caption: null });
-    db.close();
-
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Trips', sortOrder: 'upload_desc', criteriaTags: '#trip2024', excludeTags: '', mediaIds: [m1, m2] });
-    expect(res.status).toBe(302);
-
-    // Picker applies the gallery's criteria tags MINUS the auto-prepended
-    // `#by_<owner>` (filtered as defense-in-depth: the uploader-attribution
-    // namespace is system-managed at upload time, never via picker). These
-    // test items were inserted via the test factory which bypasses the
-    // upload service, so they carry no `#by_<owner>` from upload either.
-    expect(findMediaTags(m1)).toEqual(['#trip2024']);
-    expect(findMediaTags(m2)).toEqual(['#trip2024']);
-    expect(findMediaTags(m3)).toEqual([]);
-  });
-
-  it('POST /galleries silently skips mediaIds owned by another member', async () => {
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    db.pragma('foreign_keys = ON');
-    const ownerMedia = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'own.jpg', caption: null });
-    const otherMedia = insertMediaItem(db, { uploader_member_id: OTHER_ID, source_filename: 'other.jpg', caption: null });
-    db.close();
-
-    const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Mix', sortOrder: 'upload_desc', criteriaTags: '#mix', excludeTags: '', mediaIds: [ownerMedia, otherMedia] });
-    expect(res.status).toBe(302);
-
-    expect(findMediaTags(ownerMedia)).toEqual(['#mix']);
-    expect(findMediaTags(otherMedia)).toEqual([]);
-  });
-
-  it('GET /galleries/:id/edit includes the picker', async () => {
-    await createGalleryViaApi('To Edit', '#x');
-    const id = findGalleryIdByName('To Edit')!;
+  it('GET /galleries/:id/edit shows the current-items thumbnail display when items match', async () => {
+    // Create a gallery with criteria #pickedup; insert an item carrying
+    // both #by_<owner> (auto on upload, simulated via factory tags) and
+    // #pickedup so it matches the gallery's tag-AND.
+    await createGalleryViaApi('Picked Up', '#pickedup');
+    const id = findGalleryIdByName('Picked Up')!;
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     db.pragma('foreign_keys = ON');
-    insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'editpick.jpg', caption: null });
+    const m = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'show.jpg', caption: null });
+    // Tag the item with both criteria tags so it appears in the gallery.
+    const insertTag = db.prepare(
+      `INSERT INTO tags (id, created_at, created_by, updated_at, updated_by, version, tag_normalized, tag_display, is_standard, standard_type) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, 0, NULL) ON CONFLICT(tag_normalized) DO NOTHING`,
+    );
+    const findTagId = db.prepare(`SELECT id FROM tags WHERE tag_normalized = ?`);
+    function tagId(display: string): string {
+      const norm = display.toLowerCase();
+      insertTag.run(`tag_${norm.slice(1)}`, '2026-01-01', '2026-01-01', norm, display);
+      const row = findTagId.get(norm) as { id: string };
+      return row.id;
+    }
+    const insertMediaTag = db.prepare(
+      `INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)`,
+    );
+    insertMediaTag.run(`mt_${m}_by`, '2026-01-01', '2026-01-01', m, tagId(`#by_${OWNER_SLUG}`), `#by_${OWNER_SLUG}`);
+    insertMediaTag.run(`mt_${m}_pick`, '2026-01-01', '2026-01-01', m, tagId('#pickedup'), '#pickedup');
     db.close();
 
     const res = await request(createApp())
       .get(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('member-media-picker');
-    expect(res.text).toContain('editpick.jpg');
+    expect(res.text).toContain('Items currently in this gallery');
+    expect(res.text).toContain('show.jpg');
+    expect(res.text).toContain(`/members/${OWNER_SLUG}/media/${m}/edit`);
+    expect(res.text).not.toContain('member-media-picker');
   });
 
-  it('POST /galleries/:id/edit with mediaIds applies the gallery\'s post-update criteria tags', async () => {
-    // Both create and edit auto-prepend `#by_<owner>` (system-managed
-    // uploader-attribution criterion); user-supplied criteria are
-    // freeform after that. Picker stamps non-`#by_*` criteria onto
-    // each picked item.
-    await createGalleryViaApi('Add Later', '#later');
-    const galleryId = findGalleryIdByName('Add Later')!;
-
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    db.pragma('foreign_keys = ON');
-    const m = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'l.jpg', caption: null });
-    db.close();
+  it('multipart POST /galleries with uploadTags applies user-supplied tags to uploads (not auto-stamped from criteria)', async () => {
+    const jpeg = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+    }).jpeg().toBuffer();
 
     const res = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries/${galleryId}/edit`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Add Later', description: '', sortOrder: 'upload_desc', criteriaTags: `#${OWNER_SLUG} #later`, excludeTags: '', mediaIds: m });
-    expect(res.status).toBe(302);
-
-    // Picker applies criteria minus `#by_*`: user-supplied freeform
-    // `#<slug>` and `#later` survive. findMediaTags sorts ASCII;
-    // '#later' < '#mg_owner'.
-    expect(findMediaTags(m)).toEqual(['#later', `#${OWNER_SLUG}`]);
-  });
-
-  it('idempotence: re-posting the same mediaIds does not duplicate media_tags rows', async () => {
-    const db1 = new BetterSqlite3(TEST_DB_PATH);
-    db1.pragma('foreign_keys = ON');
-    const m = insertMediaItem(db1, { uploader_member_id: OWNER_ID, source_filename: 'dup.jpg', caption: null });
-    db1.close();
-
-    const first = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Once', sortOrder: 'upload_desc', criteriaTags: '#once', excludeTags: '', mediaIds: m });
-    expect(first.status).toBe(302);
-
-    const galleryId = findGalleryIdByName('Once')!;
-    const second = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries/${galleryId}/edit`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Once', description: '', sortOrder: 'upload_desc', criteriaTags: '#once', excludeTags: '', mediaIds: m });
-    expect(second.status).toBe(302);
+      .field('name', 'Tag-Pass-Through')
+      .field('description', '')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', '#shouldnotapply')
+      .field('excludeTags', '')
+      .field('uploadTags', '#myuploads')
+      .attach('photoFiles', jpeg, 'pixel.jpg');
+    expect(res.status).toBe(302);
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
-      const rows = db.prepare(
-        `SELECT t.tag_display, COUNT(*) AS n FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? GROUP BY t.tag_display ORDER BY t.tag_display`,
-      ).all(m) as { tag_display: string; n: number }[];
-      // Each tag appears exactly once on the item, even after two POSTs.
-      // Picker filters `#by_*` from gallery criteria before stamping;
-      // the test fixture inserts the item directly (bypassing upload),
-      // so it carries no `#by_<owner>` from upload either. Only `#once`.
-      expect(rows).toEqual([
-        { tag_display: '#once', n: 1 },
-      ]);
+      const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('pixel.jpg') as { id: string } | undefined;
+      expect(row).toBeTruthy();
+      const tags = findMediaTags(row!.id);
+      // Only the user-supplied uploadTags + auto #by_<slug>. Critically NOT
+      // the gallery's criteriaTags (#shouldnotapply).
+      expect(tags).toContain('#myuploads');
+      expect(tags).toContain(`#by_${OWNER_SLUG}`);
+      expect(tags).not.toContain('#shouldnotapply');
     } finally { db.close(); }
   });
 
-  it('Bug 2 regression: re-include a previously-uploaded file via the picker after gallery delete', async () => {
-    // Step 1: pre-existing upload (the user's "I already uploaded fb_182c.jpg")
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    db.pragma('foreign_keys = ON');
-    const sunset = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'sunset.jpg', caption: null });
-    db.close();
-
-    // Step 2: create gallery G1, picking the file
-    const create1 = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Trips', sortOrder: 'upload_desc', criteriaTags: '#trip2024', excludeTags: '', mediaIds: sunset });
-    expect(create1.status).toBe(302);
-    const g1 = findGalleryIdByName('Trips')!;
-
-    // Step 3: delete G1
-    const del = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries/${g1}/delete`)
-      .set('Cookie', ownerCookie());
-    expect(del.status).toBe(302);
-
-    // Step 4: media survived → picker still offers it
-    const newPage = await request(createApp())
-      .get(`/members/${OWNER_SLUG}/galleries/new`)
-      .set('Cookie', ownerCookie());
-    expect(newPage.status).toBe(200);
-    expect(newPage.text).toContain('sunset.jpg');
-    expect(newPage.text).toContain(`value="${sunset}"`);
-
-    // Step 5: re-create gallery using the picker (no re-upload, no error)
-    const create2 = await request(createApp())
-      .post(`/members/${OWNER_SLUG}/galleries`)
-      .set('Cookie', ownerCookie())
-      .type('form')
-      .send({ name: 'Trips Reborn', sortOrder: 'upload_desc', criteriaTags: '#trip2024_reborn', excludeTags: '', mediaIds: sunset });
-    expect(create2.status).toBe(302);
-    expect(create2.text).not.toContain('already uploaded');
-
-    const g2 = findGalleryIdByName('Trips Reborn')!;
-    expect(findGalleryCriteriaTags(g2)).toEqual([`#by_${OWNER_SLUG}`, '#trip2024_reborn']);
-    // The picked item carries each gallery's non-`#by_*` criteria from
-    // the picker apply (G1's #trip2024 from create1; G2's #trip2024_reborn
-    // from create2). G1 was deleted, but media_tags rows survive deletion.
-    expect(findMediaTags(sunset).sort()).toEqual(['#trip2024', '#trip2024_reborn'].sort());
-  });
-
-  it('Bug 3 regression: multipart submit with picker-only (empty file input) creates the gallery', async () => {
-    // Browsers always submit the new-gallery form as multipart/form-data
-    // (the form has enctype set unconditionally for create). When the user
-    // attaches no files and only checks picker items, the browser still
-    // sends an empty multipart part for <input type="file" name="photoFiles">.
-    // Pre-fix, busboy's file-event handler pushed that empty part into
-    // photoFiles[], pre-validation ran detectImageType() on a zero-byte
-    // buffer, and the request was rejected with "Only JPEG and PNG photos
-    // are accepted." This test reproduces that exact shape.
-    const db = new BetterSqlite3(TEST_DB_PATH);
-    db.pragma('foreign_keys = ON');
-    const picked = insertMediaItem(db, { uploader_member_id: OWNER_ID, source_filename: 'fb_182c.jpg', caption: null });
-    db.close();
+  it('multipart POST /galleries with empty uploadTags → uploaded item gets only #by_<slug>', async () => {
+    const jpeg = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+    }).jpeg().toBuffer();
 
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie())
-      .field('name', 'Funky Footbags')
-      .field('description', 'footbags')
+      .field('name', 'Bare Uploads')
+      .field('description', '')
       .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#footbags')
+      .field('criteriaTags', '#somecat')
       .field('excludeTags', '')
-      .field('mediaIds', picked)
-      .attach('photoFiles', Buffer.alloc(0), '');
+      .field('uploadTags', '')
+      .attach('photoFiles', jpeg, 'bare.jpg');
+    expect(res.status).toBe(302);
 
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('bare.jpg') as { id: string } | undefined;
+      expect(row).toBeTruthy();
+      const tags = findMediaTags(row!.id);
+      // Empty uploadTags → only the system-applied attribution tag.
+      expect(tags).toEqual([`#by_${OWNER_SLUG}`]);
+    } finally { db.close(); }
+  });
+
+  it('multipart POST /galleries/:id/edit accepts file uploads with uploadTags', async () => {
+    await createGalleryViaApi('Edit-And-Upload', '#edittag');
+    const id = findGalleryIdByName('Edit-And-Upload')!;
+
+    const jpeg = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+    }).jpeg().toBuffer();
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .field('name', 'Edit-And-Upload')
+      .field('description', 'updated')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', '#edittag')
+      .field('excludeTags', '')
+      .field('uploadTags', '#edittag')
+      .attach('photoFiles', jpeg, 'mid-edit.jpg');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=edit`);
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('mid-edit.jpg') as { id: string } | undefined;
+      expect(row).toBeTruthy();
+      const tags = findMediaTags(row!.id);
+      expect(tags).toContain('#edittag');
+      expect(tags).toContain(`#by_${OWNER_SLUG}`);
+    } finally { db.close(); }
+  });
+
+  it('multipart submit with empty file input does not error (browser sends empty part)', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie())
+      .field('name', 'No File')
+      .field('description', '')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', '#nofile')
+      .field('excludeTags', '')
+      .field('uploadTags', '')
+      .attach('photoFiles', Buffer.alloc(0), '');
     expect(res.status).toBe(302);
     expect(res.text).not.toContain('Only JPEG and PNG');
-
-    const g = findGalleryIdByName('Funky Footbags')!;
-    expect(g).toBeTruthy();
-    expect(findMediaTags(picked)).toEqual(['#footbags']);
+    expect(findGalleryIdByName('No File')).toBeTruthy();
   });
 });

@@ -7,22 +7,23 @@
 //   - SSRF block: literal-IP rejection (private, loopback, link-local; v4 + v6)
 //     followed by DNS resolution and re-check of the resolved IP
 //   - Safe Browsing lookup via SafeBrowsingAdapter (stub or live Google v4)
-//
-// Deferred to a later slice (tracked in IP):
-//   - redirect-follow re-resolution at each hop
-//   - reachability HEAD with 24-hour cache
-//   - Handlebars helper for safe link rendering
+//   - Reachability HEAD with redirect-follow + per-hop SSRF re-check and
+//     24h result cache via HttpReachabilityAdapter (DD §3.17, optional).
 //
 // Service-layer use: call at the service boundary, throw ValidationError
 // with the returned `error` message on invalid input. Persist
 // `normalizedUrl` and stamp `external_url_validated_at` on accept.
 
-import { isIPv4, isIPv6 } from 'node:net';
 import { lookup as dnsLookup } from 'node:dns/promises';
+import { isLiteralIp, isBlockedIp, stripIpv6Brackets } from './ipBlocklist';
 import {
   getSafeBrowsingAdapter,
   type SafeBrowsingAdapter,
 } from '../adapters/safeBrowsingAdapter';
+import {
+  getHttpReachabilityAdapter,
+  type HttpReachabilityAdapter,
+} from '../adapters/httpReachabilityAdapter';
 
 const MAX_URL_LENGTH = 2048;
 const ALLOWED_SCHEMES: ReadonlySet<string> = new Set(['http:', 'https:']);
@@ -45,6 +46,7 @@ export type DnsLookupFn = (
 export interface ValidateExternalUrlOptions {
   lookup?: DnsLookupFn;
   safeBrowsing?: SafeBrowsingAdapter;
+  reachability?: HttpReachabilityAdapter;
 }
 
 export async function validateExternalUrl(
@@ -119,6 +121,20 @@ export async function validateExternalUrl(
     return notAllowed();
   }
 
+  // Reachability check (DD §3.17). The adapter does redirect-follow with
+  // per-hop SSRF re-check and warn-but-allow on 4xx/5xx; only network
+  // failures (timeout, connection refused, redirect-to-blocked-IP) are
+  // rejected. The 'disabled' adapter returns reachable=true unconditionally.
+  const reachability = options.reachability ?? getHttpReachabilityAdapter();
+  const reach = await reachability.check(parsed.toString());
+  if (!reach.reachable) {
+    return {
+      valid: false,
+      normalizedUrl: null,
+      error: 'URL could not be reached. Please verify the link.',
+    };
+  }
+
   return { valid: true, normalizedUrl: parsed.toString() };
 }
 
@@ -128,122 +144,4 @@ function notAllowed(): ValidatedExternalUrl {
     normalizedUrl: null,
     error: 'This URL is not allowed.',
   };
-}
-
-function isLiteralIp(hostname: string): boolean {
-  return isIPv4(hostname) || isIPv6(hostname);
-}
-
-/**
- * Blocks the IP ranges enumerated in DD §3.17 plus IPv6 equivalents.
- *   IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16.
- *   IPv6: ::1 (loopback), fc00::/7 (unique local), fe80::/10 (link-local),
- *         and IPv4-mapped form ::ffff:a.b.c.d that re-enters an IPv4 range.
- */
-function isBlockedIp(address: string): boolean {
-  if (isIPv4(address)) return isBlockedIpv4(address);
-  if (isIPv6(address)) return isBlockedIpv6(address);
-  return false;
-}
-
-function isBlockedIpv4(address: string): boolean {
-  const octets = address.split('.').map(o => Number.parseInt(o, 10));
-  if (octets.length !== 4 || octets.some(o => Number.isNaN(o))) return false;
-  const [a, b] = octets;
-  // 10.0.0.0/8
-  if (a === 10) return true;
-  // 172.16.0.0/12 → 172.16.x.x through 172.31.x.x
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  // 192.168.0.0/16
-  if (a === 192 && b === 168) return true;
-  // 127.0.0.0/8 (loopback)
-  if (a === 127) return true;
-  // 169.254.0.0/16 (link-local)
-  if (a === 169 && b === 254) return true;
-  return false;
-}
-
-function stripIpv6Brackets(hostname: string): string {
-  if (hostname.startsWith('[') && hostname.endsWith(']')) {
-    return hostname.slice(1, -1);
-  }
-  return hostname;
-}
-
-function isBlockedIpv6(address: string): boolean {
-  const bytes = ipv6ToBytes(address);
-  if (bytes === null) return false;
-  // Loopback ::1 — first 15 bytes zero, last byte 0x01.
-  if (bytes.slice(0, 15).every(b => b === 0) && bytes[15] === 1) return true;
-  // Unique local fc00::/7 — first byte top 7 bits == 1111110 → 0xfc or 0xfd.
-  if (bytes[0] === 0xfc || bytes[0] === 0xfd) return true;
-  // Link-local fe80::/10 — first byte 0xfe and top 2 bits of byte 1 == 10.
-  if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true;
-  // IPv4-mapped ::ffff:0:0/96 — first 10 bytes zero, next 2 bytes 0xff,0xff.
-  // Re-check the embedded v4 against the v4 blocklist.
-  if (
-    bytes.slice(0, 10).every(b => b === 0) &&
-    bytes[10] === 0xff && bytes[11] === 0xff
-  ) {
-    const v4 = `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`;
-    if (isBlockedIpv4(v4)) return true;
-  }
-  return false;
-}
-
-/**
- * Parses an IPv6 address into its 16-byte representation, handling the
- * `::` shorthand and the IPv4-mapped trailing form (`::ffff:127.0.0.1`).
- * Returns null on malformed input. Caller should pre-validate via
- * `node:net.isIPv6` for normal flow; this parser tolerates valid forms.
- */
-function ipv6ToBytes(address: string): Uint8Array | null {
-  const lower = address.toLowerCase();
-  // Split on '::' (at most one occurrence).
-  const doubleColonParts = lower.split('::');
-  if (doubleColonParts.length > 2) return null;
-  let leftStr: string, rightStr: string;
-  if (doubleColonParts.length === 2) {
-    [leftStr, rightStr] = doubleColonParts;
-  } else {
-    leftStr = lower;
-    rightStr = '';
-  }
-  const leftGroups = leftStr.length > 0 ? leftStr.split(':') : [];
-  const rightGroups = rightStr.length > 0 ? rightStr.split(':') : [];
-  // Trailing IPv4 dotted-quad (e.g. ::ffff:127.0.0.1). Convert to two 16-bit groups.
-  const lastRight = rightGroups[rightGroups.length - 1];
-  const lastLeft = leftStr === lower ? leftGroups[leftGroups.length - 1] : undefined;
-  const trailingV4 = (rightGroups.length > 0 ? lastRight : lastLeft) ?? '';
-  if (trailingV4.includes('.')) {
-    const v4Octets = trailingV4.split('.').map(o => Number.parseInt(o, 10));
-    if (v4Octets.length !== 4 || v4Octets.some(o => Number.isNaN(o) || o < 0 || o > 255)) {
-      return null;
-    }
-    const hi = ((v4Octets[0] << 8) | v4Octets[1]).toString(16);
-    const lo = ((v4Octets[2] << 8) | v4Octets[3]).toString(16);
-    if (rightGroups.length > 0) {
-      rightGroups.splice(-1, 1, hi, lo);
-    } else {
-      leftGroups.splice(-1, 1, hi, lo);
-    }
-  }
-  const totalGroups = leftGroups.length + rightGroups.length;
-  if (totalGroups > 8) return null;
-  const fillCount = doubleColonParts.length === 2 ? 8 - totalGroups : 0;
-  if (doubleColonParts.length !== 2 && totalGroups !== 8) return null;
-  const allGroups = [
-    ...leftGroups,
-    ...Array(fillCount).fill('0'),
-    ...rightGroups,
-  ];
-  const bytes = new Uint8Array(16);
-  for (let i = 0; i < 8; i++) {
-    const g = allGroups[i];
-    if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
-    const v = Number.parseInt(g, 16);
-    bytes[i * 2] = (v >> 8) & 0xff;
-    bytes[i * 2 + 1] = v & 0xff;
-  }
-  return bytes;
 }

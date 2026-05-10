@@ -2164,6 +2164,11 @@ CREATE TABLE gallery_external_links (
   label      TEXT NOT NULL,
   url        TEXT NOT NULL,
   validated_at TEXT,
+  -- Non-NULL when the runtime boot scan rejected the URL (Safe Browsing match
+  -- or post-write threat-list change). Public render skips quarantined rows;
+  -- admin UI surfaces them with a warning + remove control. Operator clears
+  -- the row by replacing the URL or deleting the link.
+  quarantine_reason TEXT,
   sort_order   INTEGER NOT NULL DEFAULT 0
 );
 

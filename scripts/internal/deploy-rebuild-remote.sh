@@ -201,6 +201,37 @@ if ! grep -q '^INTERNAL_EVENT_SECRET=' "$ENV_PATH"; then
   printf 'INTERNAL_EVENT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "$ENV_PATH"
 fi
 
+# One-shot migration: HTTP_REACHABILITY_ADAPTER seed. Controls the post-
+# Safe-Browsing reachability HEAD probe in the external-URL validator.
+# Required in prod-mode env.ts; without a seed, web + worker crash-loop on
+# first deploy of any branch carrying this adapter. Default 'live' matches
+# the intended runtime behavior; an operator who wants to disable outbound
+# HEAD probes on a specific host edits this line.
+if ! grep -q '^HTTP_REACHABILITY_ADAPTER=' "$ENV_PATH"; then
+  echo "    Seeding HTTP_REACHABILITY_ADAPTER=live into env file..."
+  echo 'HTTP_REACHABILITY_ADAPTER=live' >> "$ENV_PATH"
+fi
+
+# One-shot migration: SECRETS_ADAPTER seed. Selects the live/stub/local impl
+# used by Node consumers to read SSM-stored third-party secrets (Safe
+# Browsing API key, future Stripe keys, admin bootstrap tokens). Required in
+# prod-mode env.ts; without a seed, web + worker crash-loop. 'live' calls
+# SSM GetParameter via the assumed-role chain.
+if ! grep -q '^SECRETS_ADAPTER=' "$ENV_PATH"; then
+  echo "    Seeding SECRETS_ADAPTER=live into env file..."
+  echo 'SECRETS_ADAPTER=live' >> "$ENV_PATH"
+fi
+
+# One-shot migration: SAFE_BROWSING_ADAPTER seed. Default 'stub' on first
+# deploy: until the operator has both put-parameter'd the real Safe Browsing
+# API key into SSM AND flipped this to 'live', the validator runs without
+# outbound calls to Google. Two-step opt-in is intentional: a key landing
+# in SSM without the adapter flip stays in standby, not silently in-use.
+if ! grep -q '^SAFE_BROWSING_ADAPTER=' "$ENV_PATH"; then
+  echo "    Seeding SAFE_BROWSING_ADAPTER=stub into env file (operator flips to live after put-parameter)..."
+  echo 'SAFE_BROWSING_ADAPTER=stub' >> "$ENV_PATH"
+fi
+
 NODE_ENV_VAL=$(require_env NODE_ENV)
 LOG_LEVEL_VAL=$(require_env LOG_LEVEL)
 DB_PATH=$(require_env FOOTBAG_DB_PATH)

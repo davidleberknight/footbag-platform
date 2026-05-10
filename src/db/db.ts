@@ -4152,30 +4152,65 @@ export const media = {
     WHERE id = ?
   `); },
 
-  // Member's own active media for the gallery picker. uploader_member_id
-  // is the authoritative "this member uploaded it" signal — a curator-
-  // uploaded item that happens to carry #<slug> is not the member's own
-  // upload. Avatars are excluded so the picker never offers the
-  // member's profile photo as gallery content.
-  get listMediaForOwnerPicker() { return db.prepare(`
-    SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
-           mi.s3_key_thumb, mi.s3_key_display,
-           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
-           mi.width_px, mi.height_px, mi.source_filename
-    FROM media_items mi
-    WHERE mi.uploader_member_id = ?
-      AND mi.moderation_status = 'active'
-      AND mi.is_avatar = 0
-    ORDER BY mi.uploaded_at DESC, mi.id DESC
+  // ── gallery_external_links ────────────────────────────────────────────
+  // Read in display order (sort_order ASC, then created_at). Caps are
+  // enforced in the service layer (currently max 1 per gallery), so
+  // db.ts stays a flat statement surface.
+  // listGalleryExternalLinks is the admin/operator view: returns every row
+  // including quarantine_reason for surfacing in the admin edit form.
+  // listGalleryExternalLinksForPublic filters out rows with non-NULL
+  // quarantine_reason so public render paths never serve a flagged URL.
+  get listGalleryExternalLinks() { return db.prepare(`
+    SELECT id, label, url, validated_at, quarantine_reason, sort_order
+    FROM gallery_external_links
+    WHERE gallery_id = ?
+    ORDER BY sort_order ASC, created_at ASC
   `); },
 
-  // Existence + ownership probe for addMediaToGallery: confirm the row
-  // is active and surface its uploader_member_id so the service can
-  // enforce actor-owns-media authz on non-admin attaches.
-  get getMediaUploaderById() { return db.prepare(`
-    SELECT mi.id, mi.uploader_member_id
-    FROM media_items mi
-    WHERE mi.id = ? AND mi.moderation_status = 'active'
+  get listGalleryExternalLinksForPublic() { return db.prepare(`
+    SELECT id, label, url, validated_at, sort_order
+    FROM gallery_external_links
+    WHERE gallery_id = ? AND quarantine_reason IS NULL
+    ORDER BY sort_order ASC, created_at ASC
+  `); },
+
+  // Boot-scan input: rows that have not been validated yet (sidecar-seeded)
+  // and have not previously been quarantined. Cross-gallery scope; the boot
+  // scan iterates everything missing validation, not per-gallery.
+  get listGalleryExternalLinksForBootScan() { return db.prepare(`
+    SELECT id, gallery_id, url
+    FROM gallery_external_links
+    WHERE validated_at IS NULL AND quarantine_reason IS NULL
+    ORDER BY created_at ASC
+  `); },
+
+  // Boot-scan output: stamp validated_at on accept; stamp quarantine_reason
+  // on reject. Both update updated_at + updated_by per the row-versioning
+  // convention; updated_by carries a sentinel ('boot-scan') so audit trails
+  // can attribute the change.
+  get stampGalleryExternalLinkValidated() { return db.prepare(`
+    UPDATE gallery_external_links
+    SET validated_at = ?, updated_at = ?, updated_by = ?,
+        version = version + 1
+    WHERE id = ?
+  `); },
+
+  get stampGalleryExternalLinkQuarantine() { return db.prepare(`
+    UPDATE gallery_external_links
+    SET quarantine_reason = ?, updated_at = ?, updated_by = ?,
+        version = version + 1
+    WHERE id = ?
+  `); },
+
+  get deleteGalleryExternalLinks() { return db.prepare(`
+    DELETE FROM gallery_external_links WHERE gallery_id = ?
+  `); },
+
+  get insertGalleryExternalLink() { return db.prepare(`
+    INSERT INTO gallery_external_links (
+      id, created_at, created_by, updated_at, updated_by, version,
+      gallery_id, label, url, validated_at, sort_order
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `); },
 };
 
@@ -4302,6 +4337,49 @@ export function queryGalleryItemsByCriteriaGrouped(
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY ${orderBy}
   `).all(...tagIds, ...excludeTagIds, tagIds.length) as NamedGalleryGroupedRow[];
+}
+
+// Returns slim display rows for the items currently matching a gallery's
+// criteria/exclude tag set. Used by the gallery edit form's read-only
+// "Items currently in this gallery" thumbnail grid. The grid never lets
+// the user mutate item tags (per the no-conflation rule); detach happens
+// on the item's own edit page.
+export interface GalleryItemDisplayRow {
+  id: string;
+  media_type: 'photo' | 'video';
+  caption: string | null;
+  source_filename: string;
+  s3_key_thumb: string | null;
+  video_platform: string | null;
+  video_id: string | null;
+  thumbnail_url: string | null;
+}
+export function listGalleryItemsForDisplay(
+  tagIds: string[],
+  excludeTagIds: string[] = [],
+): GalleryItemDisplayRow[] {
+  if (tagIds.length === 0) return [];
+  const placeholders = tagIds.map(() => '?').join(',');
+  const excludeClause = excludeTagIds.length === 0
+    ? ''
+    : `AND NOT EXISTS (
+         SELECT 1 FROM media_tags mtex
+         WHERE mtex.media_id = mi.id
+           AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
+       )`;
+  return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.caption, mi.source_filename,
+           mi.s3_key_thumb, mi.video_platform, mi.video_id, mi.thumbnail_url
+    FROM media_items mi
+    JOIN media_tags mt ON mt.media_id = mi.id
+    WHERE mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND mt.tag_id IN (${placeholders})
+      ${excludeClause}
+    GROUP BY mi.id
+    HAVING COUNT(DISTINCT mt.tag_id) = ?
+    ORDER BY mi.uploaded_at DESC, mi.id DESC
+  `).all(...tagIds, ...excludeTagIds, tagIds.length) as GalleryItemDisplayRow[];
 }
 
 export function countGalleryItemsByCriteria(

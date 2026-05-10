@@ -5,15 +5,21 @@
  * dev/test. Services and validators call the interface; the getter returns
  * the configured implementation based on `config.safeBrowsingAdapter`.
  *
- * Per DD §3.17: a positive match rejects the URL with a generic
- * "URL is not allowed" message; the matched threat category is logged for
- * operator review.
+ * The live API key is resolved via `SecretsAdapter` (SSM SecureString) at
+ * first call, not threaded as an env var. The placeholder value
+ * `TODO-set-via-cli-after-apply` is treated as "not configured" so an
+ * operator who has applied Terraform but not yet `aws ssm put-parameter`'d
+ * the real key sees a clear error, not a 400 from Google.
  *
- * Per DD §5.3 + tests rule "Dev↔staging adapter parity": the live impl
- * accepts an injected `fetchClient` so the parity test can stand in a fake
- * fetch implementation without mocking globalThis.fetch.
+ * The live impl accepts an injected `fetchClient` so the parity test can
+ * stand in a fake fetch implementation without mocking globalThis.fetch.
  */
 import { config } from '../config/env';
+import {
+  SecretNotConfiguredError,
+  type SecretsAdapter,
+  getSecretsAdapter,
+} from './secretsAdapter';
 
 const SAFE_BROWSING_ENDPOINT =
   'https://safebrowsing.googleapis.com/v4/threatMatches:find';
@@ -56,14 +62,44 @@ interface SafeBrowsingApiResponse {
   matches?: SafeBrowsingApiMatch[];
 }
 
+const SAFE_BROWSING_SECRET_KEY = 'safe_browsing_api_key';
+const TODO_PLACEHOLDER_PREFIX = 'TODO-';
+
 export function createLiveSafeBrowsingAdapter(opts: {
-  apiKey: string;
+  secrets: SecretsAdapter;
+  secretKey?: string;
   fetchClient?: typeof fetch;
 }): SafeBrowsingAdapter {
   const httpFetch = opts.fetchClient ?? fetch;
-  const apiKey = opts.apiKey;
+  const secretKey = opts.secretKey ?? SAFE_BROWSING_SECRET_KEY;
+  let resolvedKey: string | null = null;
+  async function resolveKey(): Promise<string> {
+    if (resolvedKey !== null) return resolvedKey;
+    let value: string;
+    try {
+      value = await opts.secrets.getRequired(secretKey);
+    } catch (err) {
+      if (err instanceof SecretNotConfiguredError) {
+        throw new Error(
+          `Safe Browsing API key not configured. ` +
+            `SSM parameter ".../secrets/${secretKey}" is missing. ` +
+            `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
+        );
+      }
+      throw err;
+    }
+    if (value.startsWith(TODO_PLACEHOLDER_PREFIX)) {
+      throw new Error(
+        `Safe Browsing API key SSM parameter still has the bootstrap placeholder ('${value}'). ` +
+          `Operator: aws ssm put-parameter --name <full-name> --value file://path-to-key --type SecureString --overwrite`,
+      );
+    }
+    resolvedKey = value;
+    return resolvedKey;
+  }
   return {
     async lookup(url) {
+      const apiKey = await resolveKey();
       const body = {
         client: { clientId: CLIENT_ID, clientVersion: CLIENT_VERSION },
         threatInfo: {
@@ -131,19 +167,24 @@ export function createStubSafeBrowsingAdapter(): StubSafeBrowsingAdapter {
 let singleton: SafeBrowsingAdapter | null = null;
 let stubSingleton: StubSafeBrowsingAdapter | null = null;
 
+// Google publishes a stable test URL that always returns a MALWARE match
+// in the live API. Dev seeds it into the stub deny list so the rejection UX
+// ("This URL is not allowed.") is reachable from a clean local checkout
+// with no operator setup. The factory `createStubSafeBrowsingAdapter()`
+// stays empty so tests inspecting an empty stub state remain deterministic;
+// only the singleton-from-config path applies the seed.
+const CANONICAL_MALWARE_TEST_URL =
+  'http://malware.testing.google.test/testing/malware/';
+
 export function getSafeBrowsingAdapter(): SafeBrowsingAdapter {
   if (singleton) return singleton;
   if (config.safeBrowsingAdapter === 'live') {
-    if (!config.safeBrowsingApiKey) {
-      throw new Error(
-        'SAFE_BROWSING_API_KEY is required when SAFE_BROWSING_ADAPTER=live',
-      );
-    }
     singleton = createLiveSafeBrowsingAdapter({
-      apiKey: config.safeBrowsingApiKey,
+      secrets: getSecretsAdapter(),
     });
   } else {
     stubSingleton = createStubSafeBrowsingAdapter();
+    stubSingleton.addThreat(CANONICAL_MALWARE_TEST_URL, 'MALWARE');
     singleton = stubSingleton;
   }
   return singleton;

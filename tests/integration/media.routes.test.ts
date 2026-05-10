@@ -301,6 +301,36 @@ describe('GET /media/:galleryId (named gallery)', () => {
     expect(heroBlock).not.toContain('Reference videos for freestyle footbag tricks');
   });
 
+  it('renders external links as "External URL: <clickable url>" with no icon and no curator label', async () => {
+    const db = openDb();
+    db.prepare(`
+      INSERT INTO gallery_external_links (
+        id, created_at, created_by, updated_at, updated_by, version,
+        gallery_id, label, url, validated_at, quarantine_reason, sort_order
+      ) VALUES (?, ?, 'admin-act-as', ?, 'admin-act-as', 1, ?, 'Chinlone', ?, ?, NULL, 0)
+    `).run(
+      'lnk_wiki_chinlone',
+      TS, TS, FH_GALLERY_ID,
+      'https://en.wikipedia.org/wiki/Chinlone',
+      TS,
+    );
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="gallery-references"');
+    // "External URL:" prefix; URL itself is the clickable anchor text.
+    expect(res.text).toMatch(
+      /External URL: <a [^>]*href="https:\/\/en\.wikipedia\.org\/wiki\/Chinlone"[^>]*>https:\/\/en\.wikipedia\.org\/wiki\/Chinlone<\/a>/,
+    );
+    // No icon, no curator-supplied "Chinlone" label, no invented host text.
+    expect(res.text).not.toMatch(/external-link-icon[\s\S]{0,400}wikipedia\.org\/wiki\/Chinlone/);
+    expect(res.text).not.toMatch(/>Chinlone<\/a>|>Chinlone<svg/);
+    expect(res.text).not.toContain(' on Wikipedia');
+    expect(res.text).not.toContain('Related links');
+  });
+
   it('renders the criteria summary as a hero-subtitle line inside the hero block', async () => {
     const app = createApp();
     const res = await request(app).get(`/media/${FH_GALLERY_ID}`);

@@ -14,6 +14,7 @@ import { adminRouter }    from './routes/adminRoutes';
 import { publicRouter }   from './routes/publicRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
+import { externalLinkHelper } from './web/helpers/externalLink';
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
   { href: '/',          section: 'home',      label: 'Home' },
@@ -156,6 +157,7 @@ export function createApp(): express.Application {
           return parts.join(', ');
         },
         yearFromDate: (iso: string) => String(iso).split('-')[0],
+        externalLink: externalLinkHelper,
       },
     }),
   );

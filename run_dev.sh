@@ -4,7 +4,7 @@
 # together, kills both cleanly on Ctrl+C.
 #
 # Usage:
-#   ./run_dev.sh                  # smart: skip reset if DB up to date
+#   ./run_dev.sh                  # just run dev (no DB work; bootstraps if DB missing)
 #   ./run_dev.sh --reset          # fast reset from committed seeds
 #   ./run_dev.sh --from-csv       # full enrichment rebuild (deploy-parity, no mirror)
 #   ./run_dev.sh --soup-to-nuts   # full rebuild from legacy mirror (clean slate)
@@ -45,7 +45,10 @@ Usage: ./run_dev.sh [MODE]
 
 Local dev launcher.
 
-DB rebuild modes (mutually exclusive; default = smart-skip via mtime):
+Default (no flags): just run the dev stack. No DB rebuild, no reseed.
+If database/footbag.db is missing, bootstrap with --reset first.
+
+DB rebuild modes (mutually exclusive; opt-in only):
   --reset          Fast reset from committed seeds.
                    Calls scripts/reset-local-db.sh.
   --from-csv       Full clean rebuild from committed canonical CSVs (drops
@@ -91,7 +94,9 @@ fi
 scripts/.venv/bin/pip install -q -r scripts/requirements.txt
 
 # 3. DB seed.
-# --from-csv / --soup-to-nuts always rebuild and bypass the mtime smart-skip.
+# Default (no flag): no DB work. Bootstrap with --reset only if the DB file
+# is missing entirely. Explicit --reset / --from-csv / --soup-to-nuts always
+# rebuild.
 if (( SOUP_TO_NUTS == 1 )); then
   echo "→ Soup-to-nuts rebuild from legacy mirror..."
   bash scripts/deploy-local-data.sh --soup-to-nuts
@@ -102,14 +107,14 @@ if (( SOUP_TO_NUTS == 1 )); then
 elif (( FROM_CSV == 1 )); then
   echo "→ Full enrichment rebuild from canonical CSVs (deploy-parity)..."
   bash scripts/deploy-local-data.sh --from-csv
-elif [[ "$RESET" == "1" ]] \
-   || [[ ! -f database/footbag.db ]] \
-   || [[ database/schema.sql -nt database/footbag.db ]]; then
+elif [[ "$RESET" == "1" ]]; then
   echo "→ Resetting local DB..."
   bash scripts/reset-local-db.sh
+elif [[ ! -f database/footbag.db ]]; then
+  echo "→ database/footbag.db missing; bootstrapping with --reset..."
+  bash scripts/reset-local-db.sh
 else
-  echo "→ DB up to date; refreshing FH/curator content (run with --reset, --from-csv, or --soup-to-nuts to force a rebuild)."
-  scripts/.venv/bin/python3 scripts/seed_fh_curator.py --db ./database/footbag.db --media-dir ./data/media
+  echo "→ Skipping DB work (use --reset, --from-csv, or --soup-to-nuts to rebuild)."
 fi
 
 # 4. Launch web + image together; trap-based cleanup is in scripts/dev.sh.

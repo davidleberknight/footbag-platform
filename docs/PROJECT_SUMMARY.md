@@ -343,7 +343,7 @@ Provides abstractions for External Services making them look identical whether r
 
 - SesAdapter: `LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev/test.
 - PaymentAdapter: Stripe SDK in production, mock responses in development.
-- SecretsAdapter: AWS Parameter Store in production (deferred — not yet wired); dev loads secrets from environment variables via the config singleton per DD §1.11.
+- SecretsAdapter: AWS Parameter Store SecureString reads in staging and production (`LiveSecretsAdapter` with KMS decryption and lazy in-process cache); dev reads from a gitignored `.secrets.local.json` at the repo root (`LocalSecretsAdapter`); tests inject `StubSecretsAdapter` directly. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which still load from `.env` via dotenv.
 - CloudTrailAdapter: surfaces AWS CloudTrail audit events for AWS activity; in development, writes simulated audit events to local files.
 - LoggingAdapter: In production, sends structured application and technical logs to CloudWatch Logs; in development, writes the same structured logs to local files.
 - MetricsAdapter: In production, sends metrics (counters, timers, gauges) to CloudWatch Metrics; in development, records the same metrics in local in-memory or file-based storage.

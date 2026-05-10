@@ -4,8 +4,15 @@
   "description": "Chinlone in Myanmar",
   "sortOrder": "upload_desc",
   "criteriaTags": [
-    "#curated",
-    "#chinlone"
+    "#chinlone",
+    "#curated"
   ],
-  "excludeTags": []
+  "excludeTags": [],
+  "externalLinks": [
+    {
+      "label": "Chinlone",
+      "url": "https://en.wikipedia.org/wiki/Chinlone",
+      "sortOrder": 0
+    }
+  ]
 }

@@ -13,6 +13,13 @@ import {
   type CuratorMediaEditInput,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
+import {
+  parseExternalLinkInputs,
+  buildExternalLinkSlots,
+  parseGalleryMultipart,
+  lazyImageProcessor,
+} from './galleryFormHelpers';
+import { detectImageType } from '../lib/imageProcessing';
 import { getMediaJobService } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
 import {
@@ -45,10 +52,18 @@ function parseTagsField(raw: string | undefined): string[] {
 }
 
 function buildSvc(): ReturnType<typeof createCuratorMediaService> {
+  // Lazy adapters: both `getImageProcessingAdapter()` and
+  // `getVideoTranscodingAdapter()` throw "INTERNAL_EVENT_SECRET not
+  // configured" at first resolution if the secret is unset. Pre-
+  // resolving them here used to surface that throw on EVERY route that
+  // builds the service, including read paths (gallery list, browse)
+  // that never reach the image/video workers. The lazyImageProcessor
+  // wrapper defers image-adapter resolution to the actual processAvatar
+  // / processPhoto call; the service does the same for the video
+  // adapter via its internal lazy getter.
   return createCuratorMediaService({
     storage: getMediaStorageAdapter(),
-    imageProcessor: getImageProcessingAdapter(),
-    videoTranscoder: getVideoTranscodingAdapter(),
+    imageProcessor: lazyImageProcessor(),
   });
 }
 
@@ -726,6 +741,10 @@ export const adminCuratorController = {
       const svc = buildSvc();
       try {
         const g = svc.getGalleryForEdit(galleryId);
+        const currentItems = g.currentItems.map((item) => ({
+          ...item,
+          editHref: `/admin/curator/media/${item.mediaId}/edit`,
+        }));
         res.render('admin/curator/galleries/edit', {
           seo: { title: 'Edit Curator Gallery' },
           page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
@@ -738,6 +757,9 @@ export const adminCuratorController = {
             criteriaTagsString: g.criteriaTags.join(' '),
             excludeTagsString: g.excludeTags.join(' '),
           },
+          currentItems,
+          uploadTags: g.criteriaTags.join(' '),
+          externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
         });
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -756,8 +778,15 @@ export const adminCuratorController = {
     }
   },
 
-  /** POST /admin/curator/galleries/:id/edit — apply gallery edit. */
+  /** POST /admin/curator/galleries/:id/edit — apply gallery edit. Multipart
+   * supported so the shared form's optional photo-upload widget can ride
+   * along; uploaded files are routed through `uploadPhoto` (FH-owned) and
+   * receive `#curated` automatically plus user-supplied `uploadTags`. */
   async postGalleryEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    if (req.is('multipart/form-data')) {
+      handleCuratorGalleryEditMultipart(req, res, next);
+      return;
+    }
     try {
       const galleryId = req.params.id;
       const actorMemberId = req.user!.userId;
@@ -766,6 +795,7 @@ export const adminCuratorController = {
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
       const criteriaTags = parseTagsField(req.body?.criteriaTags);
       const excludeTags = parseTagsField(req.body?.excludeTags);
+      const externalLinks = parseExternalLinkInputs(req.body ?? {});
 
       const svc = buildSvc();
       try {
@@ -773,7 +803,7 @@ export const adminCuratorController = {
           actorMemberId,
           actorIsAdmin: true,
           galleryId,
-          updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
+          updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
         });
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -786,19 +816,16 @@ export const adminCuratorController = {
           return;
         }
         if (err instanceof ValidationError) {
-          res.status(422).render('admin/curator/galleries/edit', {
-            seo: { title: 'Edit Curator Gallery' },
-            page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
-            formAction: `/admin/curator/galleries/${galleryId}/edit`,
-            errorMessage: err.message,
-            gallery: {
-              id: galleryId,
-              name,
-              description,
-              sortOrder: sortOrderRaw,
-              criteriaTagsString: (req.body?.criteriaTags ?? '') as string,
-              excludeTagsString: (req.body?.excludeTags ?? '') as string,
-            },
+          renderCuratorGalleryEditError(res, 422, err.message, {
+            galleryId,
+            name,
+            description,
+            sortOrderRaw,
+            criteriaTagsRaw: (req.body?.criteriaTags ?? '') as string,
+            excludeTagsRaw: (req.body?.excludeTags ?? '') as string,
+            uploadTagsRaw: '',
+            externalLinks,
+            fieldErrors: err.fieldErrors,
           });
           return;
         }
@@ -1143,3 +1170,181 @@ export const adminCuratorController = {
   },
 };
 
+// ── Curator-gallery edit error rerender + multipart handler ─────────────
+// Both helpers serve the FH-owned `/admin/curator/galleries/:id/edit` POST
+// path so the form can submit either text-encoded or multipart/form-data
+// (the latter is required when a file is attached for the optional
+// upload widget).
+
+interface CuratorGalleryEditErrorContext {
+  galleryId: string;
+  name: string;
+  description: string;
+  sortOrderRaw: string;
+  criteriaTagsRaw: string;
+  excludeTagsRaw: string;
+  uploadTagsRaw: string;
+  externalLinks: ReturnType<typeof parseExternalLinkInputs>;
+  fieldErrors?: Record<string, string>;
+}
+
+function renderCuratorGalleryEditError(
+  res: Response,
+  status: number,
+  errorMessage: string,
+  ctx: CuratorGalleryEditErrorContext,
+): void {
+  let currentItems: Array<{ mediaId: string; thumbnailUrl: string; caption: string | null; sourceFilename: string; mediaType: 'photo' | 'video'; editHref: string }> = [];
+  try {
+    const reread = buildSvc().getGalleryForEdit(ctx.galleryId);
+    currentItems = reread.currentItems.map((item) => ({
+      ...item,
+      editHref: `/admin/curator/media/${item.mediaId}/edit`,
+    }));
+  } catch {
+    /* gallery may have been deleted concurrently; render with empty items */
+  }
+  res.status(status).render('admin/curator/galleries/edit', {
+    seo: { title: 'Edit Curator Gallery' },
+    page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Edit Curator Gallery' },
+    formAction: `/admin/curator/galleries/${ctx.galleryId}/edit`,
+    errorMessage,
+    fieldErrors: ctx.fieldErrors,
+    gallery: {
+      id: ctx.galleryId,
+      name: ctx.name,
+      description: ctx.description,
+      sortOrder: ctx.sortOrderRaw,
+      criteriaTagsString: ctx.criteriaTagsRaw,
+      excludeTagsString: ctx.excludeTagsRaw,
+    },
+    currentItems,
+    uploadTags: ctx.uploadTagsRaw,
+    externalLinkSlots: buildExternalLinkSlots(ctx.externalLinks, [], ctx.fieldErrors),
+  });
+}
+
+function handleCuratorGalleryEditMultipart(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const galleryId = req.params.id;
+  parseGalleryMultipart(
+    req,
+    (parsed) => {
+      void executeCuratorGalleryEditMultipart({
+        req, res, galleryId, ...parsed,
+      }).catch((err: unknown) => {
+        logger.error('curator gallery multipart edit error', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        next(err);
+      });
+    },
+    (err) => {
+      logger.error('busboy parse error', { error: err.message });
+      next(err);
+    },
+  );
+}
+
+async function executeCuratorGalleryEditMultipart(args: {
+  req: Request;
+  res: Response;
+  galleryId: string;
+  fields: Record<string, string>;
+  photoFiles: Array<{ buffer: Buffer; filename: string }>;
+  limitExceeded: boolean;
+}): Promise<void> {
+  const { req, res, galleryId, fields, photoFiles, limitExceeded } = args;
+  const actorMemberId = req.user!.userId;
+
+  const name = String(fields.name ?? '');
+  const description = String(fields.description ?? '');
+  const sortOrderRaw = String(fields.sortOrder ?? '');
+  const criteriaTags = parseTagsField(fields.criteriaTags);
+  const excludeTags = parseTagsField(fields.excludeTags);
+  const uploadTagsRaw = (fields.uploadTags ?? '') as string;
+  const uploadTags = parseTagsField(uploadTagsRaw);
+  const externalLinks = parseExternalLinkInputs(fields);
+
+  const svc = buildSvc();
+  const errCtx: CuratorGalleryEditErrorContext = {
+    galleryId,
+    name,
+    description,
+    sortOrderRaw,
+    criteriaTagsRaw: fields.criteriaTags ?? '',
+    excludeTagsRaw: fields.excludeTags ?? '',
+    uploadTagsRaw,
+    externalLinks,
+  };
+
+  if (limitExceeded) {
+    renderCuratorGalleryEditError(res, 422, `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`, errCtx);
+    return;
+  }
+  for (const f of photoFiles) {
+    if (f.buffer.length > PHOTO_MAX_BYTES) {
+      renderCuratorGalleryEditError(res, 422, 'Photo is too large. Maximum size is 25 MB.', errCtx);
+      return;
+    }
+    if (!detectImageType(f.buffer)) {
+      renderCuratorGalleryEditError(res, 422, 'Only JPEG and PNG photos are accepted.', errCtx);
+      return;
+    }
+  }
+
+  try {
+    await svc.updateGallery({
+      actorMemberId,
+      actorIsAdmin: true,
+      galleryId,
+      updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
+    });
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      res.status(404).render('admin/curator/galleries/edit', {
+        seo: { title: 'Curator Gallery — Not Found' },
+        page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title: 'Curator Gallery — Not Found' },
+        notFound: true,
+        galleryId,
+      });
+      return;
+    }
+    if (err instanceof ValidationError) {
+      renderCuratorGalleryEditError(res, 422, err.message, { ...errCtx, fieldErrors: err.fieldErrors });
+      return;
+    }
+    throw err;
+  }
+
+  // Curated uploads via the gallery form: each file is added as an FH-
+  // owned media item. uploadPhoto auto-prepends `#curated`; user-supplied
+  // uploadTags are appended after that. Empty uploadTags → only `#curated`.
+  for (const f of photoFiles) {
+    try {
+      await svc.uploadPhoto({
+        adminMemberId: actorMemberId,
+        photoBuffer: f.buffer,
+        sourceFilename: f.filename,
+        caption: null,
+        tags: uploadTags,
+      });
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        renderCuratorGalleryEditError(
+          res,
+          422,
+          `Gallery saved, but uploading "${f.filename}" failed: ${err.message}`,
+          errCtx,
+        );
+        return;
+      }
+      throw err;
+    }
+  }
+
+  res.redirect('/admin/curator/galleries?saved=edit');
+}

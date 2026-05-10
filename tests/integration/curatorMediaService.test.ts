@@ -4,7 +4,7 @@
  * worker + video transcoder so tests run hermetically (no S3, no Sharp,
  * no ffmpeg).
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertCuratorUrlReference } from '../fixtures/factories';
@@ -1392,6 +1392,7 @@ describe('curatorMediaService.updateGallery', () => {
         sortOrder: 'caption_asc',
         criteriaTags: ['#curated', '#freestyle', '#trick'],
         excludeTags: ['#tricks_of_the_trade'],
+        externalLinks: [],
       } as never));
     } finally {
       await fsp.rm(curatedRoot, { recursive: true, force: true });
@@ -1603,6 +1604,7 @@ describe('curatorMediaService.createGallery', () => {
         sortOrder: 'upload_desc',
         criteriaTags: ['#curated', '#x'],
         excludeTags: [],
+        externalLinks: [],
       } as never);
       expect(onDisk).toBe(reformatted);
     } finally {
@@ -1984,150 +1986,6 @@ describe('curatorMediaService.listGalleriesForOwner', () => {
   });
 });
 
-describe('curatorMediaService.addMediaToGallery', () => {
-  function seedMember(memberId: string, slug: string): void {
-    const db = openDb();
-    try {
-      insertMember(db, { id: memberId, slug, login_email: `${slug}@example.com` });
-    } finally { db.close(); }
-  }
-
-  function seedGallery(galleryId: string, ownerId: string, criteriaTagDisplays: string[]): void {
-    const ts = '2026-05-06T00:00:00Z';
-    const db = openDb();
-    try {
-      db.prepare(
-        `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
-                                       created_at, created_by, updated_at, updated_by, version)
-         VALUES (?, ?, ?, '', 'upload_desc', ?, ?, ?, ?, 1)`,
-      ).run(galleryId, ownerId, `gal-${galleryId.slice(-6)}`, ts, ownerId, ts, ownerId);
-      for (const tagDisplay of criteriaTagDisplays) {
-        const tagId = `tag-amg-${tagDisplay.replace(/[^a-z0-9]/gi, '_')}`;
-        db.prepare(
-          `INSERT OR IGNORE INTO tags (id, created_at, created_by, updated_at, updated_by, version,
-                                       tag_normalized, tag_display)
-           VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?)`,
-        ).run(tagId, ts, ts, tagDisplay.toLowerCase(), tagDisplay);
-        db.prepare(
-          `INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
-           VALUES (?, ?, ?, 'seed')`,
-        ).run(galleryId, tagId, ts);
-      }
-    } finally { db.close(); }
-  }
-
-  function seedMedia(mediaId: string, uploaderId: string): void {
-    const ts = '2026-05-06T00:00:00Z';
-    const db = openDb();
-    try {
-      db.prepare(
-        `INSERT INTO media_items (
-           id, created_at, created_by, updated_at, updated_by, version,
-           uploader_member_id, media_type, is_avatar, caption, uploaded_at,
-           s3_key_thumb, s3_key_display, width_px, height_px, source_filename,
-           moderation_status
-         ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'photo', 0, NULL, ?, ?, ?, 800, 600, NULL, 'active')`,
-      ).run(mediaId, ts, ts, uploaderId, ts, `${mediaId}-thumb`, `${mediaId}-display`);
-    } finally { db.close(); }
-  }
-
-  function getMediaTags(mediaId: string): string[] {
-    const db = openDb();
-    try {
-      return (db.prepare(
-        `SELECT t.tag_display FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? ORDER BY t.tag_display`,
-      ).all(mediaId) as { tag_display: string }[]).map((r) => r.tag_display);
-    } finally { db.close(); }
-  }
-
-  it('happy path: applies the gallery\'s criteria tags to each media id', async () => {
-    seedMember('amg-owner-1', 'amg_owner_1');
-    seedMedia('media_amg_h1', 'amg-owner-1');
-    seedMedia('media_amg_h2', 'amg-owner-1');
-    seedGallery('gallery_m_amgh001', 'amg-owner-1', ['#amg_owner_1', '#beach']);
-
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    const out = svc.addMediaToGallery({
-      actorMemberId: 'amg-owner-1', actorIsAdmin: false, galleryId: 'gallery_m_amgh001',
-      mediaIds: ['media_amg_h1', 'media_amg_h2'],
-    });
-    expect(out).toEqual({ added: 2, skipped: 0 });
-    expect(getMediaTags('media_amg_h1')).toEqual(['#amg_owner_1', '#beach']);
-    expect(getMediaTags('media_amg_h2')).toEqual(['#amg_owner_1', '#beach']);
-  });
-
-  it('skips media owned by another member when actor is non-admin', async () => {
-    seedMember('amg-owner-2', 'amg_owner_2');
-    seedMember('amg-other-2', 'amg_other_2');
-    seedMedia('media_amg_skip_own', 'amg-owner-2');
-    seedMedia('media_amg_skip_oth', 'amg-other-2');
-    seedGallery('gallery_m_amgsk001', 'amg-owner-2', ['#amg_owner_2']);
-
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    const out = svc.addMediaToGallery({
-      actorMemberId: 'amg-owner-2', actorIsAdmin: false, galleryId: 'gallery_m_amgsk001',
-      mediaIds: ['media_amg_skip_own', 'media_amg_skip_oth'],
-    });
-    expect(out).toEqual({ added: 1, skipped: 1 });
-    expect(getMediaTags('media_amg_skip_own')).toEqual(['#amg_owner_2']);
-    expect(getMediaTags('media_amg_skip_oth')).toEqual([]);
-  });
-
-  it('admin actor can attach media owned by other members', async () => {
-    seedMember('amg-owner-3', 'amg_owner_3');
-    seedMember('amg-other-3', 'amg_other_3');
-    seedMedia('media_amg_admin_x', 'amg-other-3');
-    seedGallery('gallery_m_amgad001', 'amg-owner-3', ['#admin_attach']);
-
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    const out = svc.addMediaToGallery({
-      actorMemberId: ADMIN_ID, actorIsAdmin: true, galleryId: 'gallery_m_amgad001',
-      mediaIds: ['media_amg_admin_x'],
-    });
-    expect(out).toEqual({ added: 1, skipped: 0 });
-    expect(getMediaTags('media_amg_admin_x')).toEqual(['#admin_attach']);
-  });
-
-  it('idempotent on already-applied tags: no duplicate media_tags rows', async () => {
-    seedMember('amg-owner-4', 'amg_owner_4');
-    seedMedia('media_amg_idem', 'amg-owner-4');
-    seedGallery('gallery_m_amgid001', 'amg-owner-4', ['#repeat']);
-
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    svc.addMediaToGallery({ actorMemberId: 'amg-owner-4', actorIsAdmin: false, galleryId: 'gallery_m_amgid001', mediaIds: ['media_amg_idem'] });
-    svc.addMediaToGallery({ actorMemberId: 'amg-owner-4', actorIsAdmin: false, galleryId: 'gallery_m_amgid001', mediaIds: ['media_amg_idem'] });
-
-    const db = openDb();
-    try {
-      const rows = db.prepare(
-        `SELECT t.tag_display, COUNT(*) AS n FROM media_tags mt JOIN tags t ON t.id = mt.tag_id WHERE mt.media_id = ? GROUP BY t.tag_display`,
-      ).all('media_amg_idem') as { tag_display: string; n: number }[];
-      expect(rows).toEqual([{ tag_display: '#repeat', n: 1 }]);
-    } finally { db.close(); }
-  });
-
-  it('empty mediaIds is a no-op', async () => {
-    seedMember('amg-owner-5', 'amg_owner_5');
-    seedGallery('gallery_m_amgnp001', 'amg-owner-5', ['#noop']);
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    expect(svc.addMediaToGallery({ actorMemberId: 'amg-owner-5', actorIsAdmin: false, galleryId: 'gallery_m_amgnp001', mediaIds: [] })).toEqual({ added: 0, skipped: 0 });
-  });
-
-  it('rejects more than 50 mediaIds with ValidationError', async () => {
-    seedMember('amg-owner-6', 'amg_owner_6');
-    seedGallery('gallery_m_amgmx001', 'amg-owner-6', ['#bulk']);
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    const ids = Array.from({ length: 51 }, (_, i) => `media_amg_bulk_${i}`);
-    expect(() => svc.addMediaToGallery({ actorMemberId: 'amg-owner-6', actorIsAdmin: false, galleryId: 'gallery_m_amgmx001', mediaIds: ids })).toThrow(/more than 50/);
-  });
-
-  it('throws NotFoundError on unknown galleryId', async () => {
-    seedMember('amg-owner-7', 'amg_owner_7');
-    seedMedia('media_amg_nf', 'amg-owner-7');
-    const svc = svcModule.createCuratorMediaService({ storage: makeStubStorage(), imageProcessor: makeStubImageProcessor() });
-    expect(() => svc.addMediaToGallery({ actorMemberId: 'amg-owner-7', actorIsAdmin: false, galleryId: 'gallery_m_does_not_exist_xx', mediaIds: ['media_amg_nf'] })).toThrow(/gallery .* not found/);
-  });
-});
 
 describe('curatorMediaService.finalizeTranscodeForJob', () => {
   function makeJobRow(overrides: Partial<import('../../src/db/db').MediaJobRow> = {}): import('../../src/db/db').MediaJobRow {
@@ -2285,5 +2143,35 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
       source_poster_key: 'pending/job-badposter/source-poster.jpg',
     });
     await expect(svc.finalizeTranscodeForJob(job)).rejects.toThrow(/Poster must be a JPEG or PNG/);
+  });
+});
+
+describe('curatorMediaService: lazy video adapter resolution', () => {
+  // Regression: building the service eagerly resolved the video adapter
+  // singleton at construction (`getVideoTranscodingAdapter()`), which
+  // throws when `INTERNAL_EVENT_SECRET` is unset. That made every read
+  // route that calls `buildSvc()` (gallery list, media list, member
+  // gallery list) 500 in dev environments running the web server alone
+  // without the image worker. The fix is lazy resolution: resolve on
+  // first use of `transcode` / `transcodeFromStorage`, not at construction.
+  it('does not call getVideoTranscodingAdapter when no video method is invoked', async () => {
+    const adapterMod = await import('../../src/adapters/videoTranscodingAdapter');
+    const spy = vi.spyOn(adapterMod, 'getVideoTranscodingAdapter')
+      .mockImplementation(() => {
+        throw new Error('regression: video adapter resolved during construction');
+      });
+    try {
+      // Build the service WITHOUT injecting videoTranscoder. If construction
+      // is eager, the spy fires and the test fails.
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+      });
+      // Read paths must not trigger the video adapter either.
+      svc.listOwnedGalleries();
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

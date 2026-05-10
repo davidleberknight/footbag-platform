@@ -86,6 +86,11 @@ VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 #   excludeTags   list of '#'-prefixed lowercase tag strings, disjoint
 #                 from criteriaTags (an item carrying any of these is
 #                  filtered out)
+#   externalLinks list of {label, url, sortOrder} objects rendered
+#                 alongside the gallery on its public view. May be
+#                 empty. Cross-language parity with the TypeScript
+#                 GallerySidecarData interface in
+#                 src/lib/curatorGallerySidecar.ts.
 #
 # Filename rule: <slug>.json where <slug> = id with the 'gallery_'
 # prefix stripped. So id 'gallery_curated_freestyle_tricks' lives in
@@ -94,6 +99,8 @@ GALLERY_ID_RE = re.compile(r"^gallery_[a-z0-9_]+$")
 GALLERY_SORT_ORDERS = ("upload_desc", "upload_asc", "caption_asc")
 GALLERY_NAME_MAX = 150
 GALLERY_DESCRIPTION_MAX = 1000
+GALLERY_LINK_LABEL_MAX = 80
+GALLERY_LINK_URL_MAX = 2048
 
 # All FH curator items are file-paired sidecars under
 # /curated/{category}/<stem>.meta.json (read by seed_file_paired_sidecars).
@@ -892,6 +899,44 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
                 f"excludeTags: {sorted(overlap)}"
             )
 
+        external_links = data.get("externalLinks", [])
+        if not isinstance(external_links, list):
+            sys.exit(f"ERROR: {path}: externalLinks must be a list")
+        validated_links: list[dict] = []
+        for i, link in enumerate(external_links):
+            if not isinstance(link, dict):
+                sys.exit(f"ERROR: {path}: externalLinks[{i}] must be an object")
+            label = link.get("label")
+            if not isinstance(label, str) or not label.strip():
+                sys.exit(
+                    f"ERROR: {path}: externalLinks[{i}].label is required and must be non-empty"
+                )
+            if len(label) > GALLERY_LINK_LABEL_MAX:
+                sys.exit(
+                    f"ERROR: {path}: externalLinks[{i}].label must be "
+                    f"{GALLERY_LINK_LABEL_MAX} characters or fewer"
+                )
+            url = link.get("url")
+            if not isinstance(url, str) or not url.strip():
+                sys.exit(
+                    f"ERROR: {path}: externalLinks[{i}].url is required and must be non-empty"
+                )
+            if len(url) > GALLERY_LINK_URL_MAX:
+                sys.exit(
+                    f"ERROR: {path}: externalLinks[{i}].url must be "
+                    f"{GALLERY_LINK_URL_MAX} characters or fewer"
+                )
+            sort_order_link = link.get("sortOrder")
+            if not isinstance(sort_order_link, int) or isinstance(sort_order_link, bool):
+                sys.exit(
+                    f"ERROR: {path}: externalLinks[{i}].sortOrder must be an integer"
+                )
+            validated_links.append({
+                "label": label,
+                "url": url,
+                "sort_order": sort_order_link,
+            })
+
         # FH-owned named galleries auto-include `#curated` so the criteria
         # query scopes to FH-uploaded items only (every FH upload carries
         # the `#curated` tag via applyTagsForCurator). Mirrors the
@@ -908,6 +953,9 @@ def _load_named_gallery_sidecars(source_dir: Path) -> list[dict]:
             "sort_order": sort_order,
             "criteria_tags": tuple(criteria_tags),
             "exclude_tags": tuple(exclude_tags),
+            "external_links": tuple(
+                (lk["label"], lk["url"], lk["sort_order"]) for lk in validated_links
+            ),
         })
 
     return loaded
@@ -924,15 +972,18 @@ def ensure_named_gallery(
     sort_order: str,
     criteria_tags: tuple,
     exclude_tags: tuple = (),
+    external_links: tuple = (),
 ) -> None:
     """Ensure an FH-owned named gallery row exists in member_galleries with
     the given metadata, AND its criteria-tag and exclude-tag sets match
     `criteria_tags` / `exclude_tags` exactly. An item appears in the
     gallery iff it carries every criteria tag AND no exclude tag.
+    External links are reconciled by DELETE-then-INSERT against
+    gallery_external_links.
 
     INSERT OR REPLACE on the parent so re-runs pick up metadata tweaks;
-    DELETE-then-INSERT on the tag rows so set changes in this file
-    propagate cleanly without leaving orphan rows.
+    DELETE-then-INSERT on the tag and link rows so set changes in this
+    file propagate cleanly without leaving orphan rows.
     """
     con.execute(
         """
@@ -974,6 +1025,22 @@ def ensure_named_gallery(
             (gallery_id, tid, ts),
         )
 
+    con.execute(
+        "DELETE FROM gallery_external_links WHERE gallery_id = ?",
+        (gallery_id,),
+    )
+    for label, url, link_sort in external_links:
+        link_id = f"glink_{gallery_id}_{link_sort}"
+        con.execute(
+            """
+            INSERT INTO gallery_external_links (
+                id, created_at, created_by, updated_at, updated_by, version,
+                gallery_id, label, url, validated_at, sort_order
+            ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, NULL, ?)
+            """,
+            (link_id, ts, ts, gallery_id, label, url, link_sort),
+        )
+
 
 def ensure_fh_named_galleries(
     con: sqlite3.Connection,
@@ -995,6 +1062,7 @@ def ensure_fh_named_galleries(
             sort_order=g["sort_order"],
             criteria_tags=g["criteria_tags"],
             exclude_tags=g["exclude_tags"],
+            external_links=g.get("external_links", ()),
         )
 
     kept_ids = [g["id"] for g in galleries]

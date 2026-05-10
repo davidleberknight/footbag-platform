@@ -473,6 +473,36 @@ What matters here:
 - the health endpoints return clean liveness/readiness responses
 - you can click around the public slice locally without stack traces or route confusion
 
+### 1.10A Optional: exercise Safe Browsing in dev
+
+Default dev behavior: stub `SafeBrowsingAdapter` with the canonical Google
+malware test URL pre-seeded. Submitting `http://malware.testing.google.test/testing/malware/`
+through any external-link form (gallery edit, member profile) rejects with
+"This URL is not allowed." No setup required, no outbound call, no API key.
+
+To exercise the live Google Safe Browsing v4 API end-to-end locally:
+
+1. Get an API key (5 min): in the Google Cloud Console, create or sign in to
+   a project, enable the "Safe Browsing API" under APIs & Services → Library,
+   then APIs & Services → Credentials → Create Credentials → API key. Free
+   tier: 10,000 lookups/day.
+2. From the project root: `cp .secrets.local.json.example .secrets.local.json`.
+   Edit `.secrets.local.json` (gitignored): set `"safe_browsing_api_key": "<your-key>"`.
+3. In your local `.env`: `SAFE_BROWSING_ADAPTER=live` (uncomment the line
+   that ships in `.env.example`).
+4. `./run_dev.sh`. The validator now calls Google for every external URL
+   submitted through the admin/curator/member gallery edit flows.
+
+To run the staging-pinned `safe-browsing.smoke.test.ts` against a personal
+key (bypasses the staging-AWS runner):
+
+```
+SAFE_BROWSING_API_KEY="<your-key>" RUN_STAGING_SMOKE=1 \
+  node_modules/.bin/vitest run tests/smoke/safe-browsing.smoke.test.ts
+```
+
+Expects 3/3 pass.
+
 ### 1.11 Optional deterministic checks
 
 The primary local proof already includes `/events/event_2025_beaver_open`, because that is the canonical event detail/results page. It is not optional.
@@ -1710,6 +1740,63 @@ If CloudFront returns 403 or 502:
 - the origin domain may not be resolving correctly
 - wait a few minutes and retry
 - if the problem persists, inspect the CloudFront origin settings and confirm the configured DNS name resolves to the Lightsail IP
+
+### 4.10 Optional: enable Safe Browsing live mode
+
+Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external URLs pass scheme + SSRF + reachability checks but no Google call is made. Enabling live mode requires a Google Cloud project with the Safe Browsing v4 API and an operator-provisioned API key. The runbook below covers a one-time bootstrap; rotation lives in DEVOPS_GUIDE §5.10.
+
+#### Prerequisites
+
+- §4.6 has run (Terraform creates the SSM SecureString shell with a TODO placeholder under `/footbag/<env>/secrets/safe_browsing_api_key`).
+- §4.8 has succeeded (first deploy is healthy with stub Safe Browsing).
+- Operator workstation has the AWS CLI configured with the staging assumed-role profile.
+
+#### Procedure
+
+1. Sign in at `console.cloud.google.com` with the operator Google account. Create a new project (suggested name `footbag-staging` for staging, `footbag-production` for production); note the project ID.
+2. Enable the Safe Browsing API: APIs & Services → Library → search "Safe Browsing API" → Enable. Free tier is 10,000 lookups per day.
+3. Generate the API key: APIs & Services → Credentials → Create Credentials → API key.
+3a. Persist the canonical operator copy in either:
+   - KeePassXC (or equivalent encrypted-at-rest password manager): preferred for new keys; encrypted at rest, no plaintext on disk.
+   - `AWS_PROJECT_SPECIFICS.md` (gitignored, local-only): matches the existing project convention if you already keep operator-local secrets there.
+   The local copy is for recovery and recreating the put-parameter call if SSM is wiped or another environment is later provisioned with the same key. SSM remains the runtime source of truth.
+3b. Copy the value to a temp file with restrictive mode for the put-parameter call:
+   ```
+   printf %s '<paste-key>' > /tmp/sb-key && chmod 600 /tmp/sb-key
+   ```
+4. (Optional) Restrict the key. API restrictions: select "Safe Browsing API" only. Application restrictions: leave "None" at first; the smoke test runs from the operator workstation, so any IP allowlist must include both the staging Lightsail IP and the operator workstation IP.
+5. Put the value into SSM with shell-history-safe hygiene per DEVOPS_GUIDE §5.4:
+   ```
+   AWS_PROFILE=footbag-staging-runtime aws ssm put-parameter \
+     --name /footbag/staging/secrets/safe_browsing_api_key \
+     --value "file:///tmp/sb-key" \
+     --type SecureString \
+     --key-id alias/footbag-staging \
+     --overwrite
+   ```
+   For production, swap `staging` → `production` in both the profile and the parameter path.
+6. Remove the temp file:
+   ```
+   shred -u /tmp/sb-key
+   ```
+7. SSH to the target host and flip the adapter to live:
+   ```
+   sudo sed -i 's/^SAFE_BROWSING_ADAPTER=stub/SAFE_BROWSING_ADAPTER=live/' /srv/footbag/env
+   ```
+8. Redeploy via the entry-point script:
+   ```
+   ./deploy_to_aws.sh staging
+   ```
+   The deploy preserves the operator's `SAFE_BROWSING_ADAPTER=live` line.
+
+#### Verification
+
+- From the operator workstation:
+  ```
+  npm run test:smoke
+  ```
+  All three `safe-browsing.smoke.test.ts` cases pass (key non-placeholder; benign URL returns safe; canonical Google malware-test URL matches). Failure here means step 5 did not land or the GCP project does not have Safe Browsing API enabled.
+- Submit a known-malware URL through any external-link form. Validation rejects with the user-facing message "This URL is not allowed."
 
 ## 5. Path E — From first success to the repeatable staging baseline
 

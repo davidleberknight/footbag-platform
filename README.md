@@ -18,13 +18,13 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 ## Current Project State
 
-Some functionality is done and deployed on AWS. This is the baseline for ongoing work.
+A lot of functionality is done and deployed on AWS. This is the baseline for ongoing work.
 
 Sneak Preview: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
 
 - The legacy-data pipeline under `legacy_data/` is reproducible. It mirrors the live site, loads canonical events and results, populates the freestyle trick dictionary and curated media links, builds the net enrichment layer (teams, appearances, review queue), loads freestyle and consecutive-kicks records, runs QC gates, and supports staging deploy orchestration. Club, person, and member data cleanup is multi-step and partly registration-driven; see `docs/MIGRATION_PLAN.md` §9.
-- Active sprint scope, accepted shortcuts, and known temporary deviations are tracked in `IMPLEMENTATION_PLAN.md`.
-- Official rule/policy simplification proposals approved by IFPA Board Decision; awaiting final IFPA language.
+- Active sprint scope and known temporary deviations are tracked in `IMPLEMENTATION_PLAN.md`.
+- Technical and Functional requirements specs are complete.
 
 ## Contributing
 

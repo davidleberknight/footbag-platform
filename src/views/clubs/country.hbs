@@ -57,7 +57,7 @@
         <span class="club-location">{{city}}</span>
         <span class="club-hashtag">{{standardTagDisplay}}</span>
         {{#if externalUrl}}
-        <a href="{{externalUrl}}" class="club-external-link" target="_blank" rel="noopener noreferrer">website</a>
+        {{{externalLink externalUrl label="website" class="club-external-link"}}}
         {{/if}}
         {{#if leaders.length}}
         <div class="club-leaders-summary">

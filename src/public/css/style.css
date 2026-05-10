@@ -1032,6 +1032,16 @@ section.home-media { padding-top: 0; }
   margin-top: 8px;
 }
 
+.gallery-references {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 16px;
+}
+.gallery-references li {
+  margin: 4px 0;
+  word-break: break-all;
+}
+
 /* ── Disciplines list ───────────────────────────────────────── */
 .disciplines-list {
   display: flex;

@@ -75,7 +75,13 @@ services:
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
-      SAFE_BROWSING_API_KEY: ${SAFE_BROWSING_API_KEY:-}
+      HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
+      # SecretsAdapter selector. Local-default reads .secrets.local.json at
+      # repo root for dev parity; staging/prod override to 'live' via
+      # /srv/footbag/env. FOOTBAG_ENV is required when SECRETS_ADAPTER=live;
+      # it derives the SSM parameter prefix (/footbag/{env}/secrets/...).
+      SECRETS_ADAPTER: ${SECRETS_ADAPTER:-local}
+      FOOTBAG_ENV: ${FOOTBAG_ENV:-development}
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
@@ -155,7 +161,13 @@ services:
       SES_FROM_IDENTITY: ${SES_FROM_IDENTITY:-}
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
-      SAFE_BROWSING_API_KEY: ${SAFE_BROWSING_API_KEY:-}
+      HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
+      # SecretsAdapter selector. Local-default reads .secrets.local.json at
+      # repo root for dev parity; staging/prod override to 'live' via
+      # /srv/footbag/env. FOOTBAG_ENV is required when SECRETS_ADAPTER=live;
+      # it derives the SSM parameter prefix (/footbag/{env}/secrets/...).
+      SECRETS_ADAPTER: ${SECRETS_ADAPTER:-local}
+      FOOTBAG_ENV: ${FOOTBAG_ENV:-development}
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}

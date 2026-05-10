@@ -64,6 +64,28 @@ data "aws_ssm_parameter" "origin_verify_secret" {
   with_decryption = true
 }
 
+# ── Safe Browsing v4 API key (operator-supplied) ─────────────────────────────
+# SecureString + KMS-encrypted. Terraform owns the resource shell with a TODO
+# placeholder; the real value is operator-supplied via:
+#   AWS_PROFILE=footbag-staging-runtime aws ssm put-parameter \
+#     --name "/footbag/staging/secrets/safe_browsing_api_key" \
+#     --value "file:///tmp/sb-key" --type SecureString \
+#     --key-id alias/footbag-staging --overwrite
+# (file:// hygiene keeps the literal value out of shell history and process
+# listings.)
+# `lifecycle { ignore_changes = [value] }` because Terraform never owns the
+# real value, only the resource existence + KMS reference. The runtime live
+# SecretsAdapter reads it lazily on first SafeBrowsing lookup. The TODO
+# placeholder string is rejected by the live adapter so a deploy without the
+# put-parameter step fails loudly, not silently.
+resource "aws_ssm_parameter" "safe_browsing_api_key" {
+  name   = "${local.ssm_prefix}/secrets/safe_browsing_api_key"
+  type   = "SecureString"
+  key_id = aws_kms_alias.main.name
+  value  = "TODO-set-via-cli-after-apply"
+  lifecycle { ignore_changes = [value] }
+}
+
 # ── Stripe (placeholder — payment deferred) ───────────────────────────────────
 # TODO: Uncomment and populate when payment integration is implemented.
 # resource "aws_ssm_parameter" "stripe_api_key" {

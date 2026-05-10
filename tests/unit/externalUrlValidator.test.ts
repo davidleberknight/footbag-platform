@@ -15,6 +15,10 @@ import {
   type SafeBrowsingAdapter,
   type StubSafeBrowsingAdapter,
 } from '../../src/adapters/safeBrowsingAdapter';
+import {
+  createStubHttpReachabilityAdapter,
+  type StubHttpReachabilityAdapter,
+} from '../../src/adapters/httpReachabilityAdapter';
 
 // Default stubs: a public-IP DNS lookup and an always-safe Safe Browsing
 // adapter. Tests override one or the other when exercising a specific
@@ -25,8 +29,13 @@ const PUBLIC_LOOKUP: DnsLookupFn = async () => ({ address: PUBLIC_IP, family: 4 
 function makeStubs(): {
   lookup: DnsLookupFn;
   safeBrowsing: StubSafeBrowsingAdapter;
+  reachability: StubHttpReachabilityAdapter;
 } {
-  return { lookup: PUBLIC_LOOKUP, safeBrowsing: createStubSafeBrowsingAdapter() };
+  return {
+    lookup: PUBLIC_LOOKUP,
+    safeBrowsing: createStubSafeBrowsingAdapter(),
+    reachability: createStubHttpReachabilityAdapter(),
+  };
 }
 
 function lookupReturning(address: string, family: 4 | 6 = 4): DnsLookupFn {
@@ -308,6 +317,41 @@ describe('validateExternalUrl', () => {
       void _typeCheck;
       const result = await validateExternalUrl('http://93.184.216.34/');
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('reachability check (DD §3.17)', () => {
+    it('rejects with the DD-verbatim message when reachability returns false', async () => {
+      const stubs = makeStubs();
+      stubs.reachability.setUnreachable('https://example.com/', 'timeout');
+      const result = await validateExternalUrl('https://example.com/', stubs);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('URL could not be reached. Please verify the link.');
+      expect(result.normalizedUrl).toBeNull();
+    });
+
+    it('passes through when reachability returns true with a 4xx status (warn-but-allow)', async () => {
+      const stubs = makeStubs();
+      stubs.reachability.setReachable('https://example.com/', 404);
+      const result = await validateExternalUrl('https://example.com/', stubs);
+      expect(result.valid).toBe(true);
+      expect(result.normalizedUrl).toBe('https://example.com/');
+    });
+
+    it('passes through with default 200 when no override is set', async () => {
+      const stubs = makeStubs();
+      const result = await validateExternalUrl('https://example.com/', stubs);
+      expect(result.valid).toBe(true);
+    });
+
+    it('runs reachability AFTER Safe Browsing so a flagged URL is rejected first', async () => {
+      const stubs = makeStubs();
+      stubs.safeBrowsing.addThreat('https://example.com/');
+      stubs.reachability.setUnreachable('https://example.com/', 'should-not-see');
+      const result = await validateExternalUrl('https://example.com/', stubs);
+      expect(result.valid).toBe(false);
+      // Generic SSRF-style message wins; reachability message must not surface.
+      expect(result.error).toBe('This URL is not allowed.');
     });
   });
 });

@@ -33,6 +33,12 @@ export const GALLERY_DESCRIPTION_MAX_LEN = 1000;
 
 const GALLERY_ID_RE = /^gallery_[a-z0-9_]+$/;
 
+export interface GalleryExternalLink {
+  label: string;
+  url: string;
+  sortOrder: number;
+}
+
 export interface GallerySidecarData {
   id: string;
   name: string;
@@ -40,7 +46,16 @@ export interface GallerySidecarData {
   sortOrder: GallerySortOrderValue;
   criteriaTags: string[];
   excludeTags: string[];
+  // External URLs displayed alongside the gallery on its public view.
+  // Per DD §3.17, each URL passes the validator at write time. The list
+  // may be empty. Cross-language parity invariant: the Python seeder
+  // (`scripts/seed_fh_curator.py::_load_named_gallery_sidecars`) reads
+  // this field by the same name and shape.
+  externalLinks: GalleryExternalLink[];
 }
+
+export const GALLERY_LINK_LABEL_MAX_LEN = 80;
+export const GALLERY_LINK_URL_MAX_LEN = 2048;
 
 export class GallerySidecarValidationError extends Error {
   constructor(message: string) {
@@ -119,6 +134,42 @@ export function validateGallerySidecarData(data: GallerySidecarData): void {
       `tag(s) appear in both criteriaTags and excludeTags: ${JSON.stringify(overlap.sort())}`,
     );
   }
+  if (!Array.isArray(data.externalLinks)) {
+    throw new GallerySidecarValidationError('externalLinks must be an array');
+  }
+  for (let i = 0; i < data.externalLinks.length; i++) {
+    const link = data.externalLinks[i];
+    if (!link || typeof link !== 'object') {
+      throw new GallerySidecarValidationError(
+        `externalLinks[${i}] must be an object`,
+      );
+    }
+    if (typeof link.label !== 'string' || link.label.trim().length === 0) {
+      throw new GallerySidecarValidationError(
+        `externalLinks[${i}].label is required and must be non-empty`,
+      );
+    }
+    if (link.label.length > GALLERY_LINK_LABEL_MAX_LEN) {
+      throw new GallerySidecarValidationError(
+        `externalLinks[${i}].label must be ${GALLERY_LINK_LABEL_MAX_LEN} characters or fewer`,
+      );
+    }
+    if (typeof link.url !== 'string' || link.url.trim().length === 0) {
+      throw new GallerySidecarValidationError(
+        `externalLinks[${i}].url is required and must be non-empty`,
+      );
+    }
+    if (link.url.length > GALLERY_LINK_URL_MAX_LEN) {
+      throw new GallerySidecarValidationError(
+        `externalLinks[${i}].url must be ${GALLERY_LINK_URL_MAX_LEN} characters or fewer`,
+      );
+    }
+    if (typeof link.sortOrder !== 'number' || !Number.isInteger(link.sortOrder)) {
+      throw new GallerySidecarValidationError(
+        `externalLinks[${i}].sortOrder must be an integer`,
+      );
+    }
+  }
 }
 
 // Filename rule: <slug>.json where <slug> = id with the 'gallery_' prefix
@@ -136,9 +187,9 @@ export function deriveGallerySidecarPath(curatedRoot: string, id: string): strin
 }
 
 // Two-space JSON with trailing newline. Field order is fixed (id, name,
-// description, sortOrder, criteriaTags, excludeTags) so files written
-// by the admin UI diff cleanly against the existing sidecars in
-// /curated/galleries/.
+// description, sortOrder, criteriaTags, excludeTags, externalLinks) so
+// files written by the admin UI diff cleanly against the existing
+// sidecars in /curated/galleries/.
 export function formatGallerySidecarJson(data: GallerySidecarData): string {
   const ordered: Record<string, unknown> = {
     id: data.id,
@@ -147,6 +198,7 @@ export function formatGallerySidecarJson(data: GallerySidecarData): string {
     sortOrder: data.sortOrder,
     criteriaTags: data.criteriaTags,
     excludeTags: data.excludeTags,
+    externalLinks: data.externalLinks,
   };
   return JSON.stringify(ordered, null, 2) + '\n';
 }

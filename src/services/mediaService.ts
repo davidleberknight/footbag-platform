@@ -187,6 +187,7 @@ export interface NamedGalleryHero {
   criteriaTags: TagChip[];
   excludeTags: TagChip[];
   owner: GalleryOwner;
+  externalLinks: Array<{ label: string; url: string }>;
 }
 
 export interface NamedGalleryContent {
@@ -422,6 +423,9 @@ export const mediaService = {
             criteriaTags: chips.criteriaTags,
             excludeTags: chips.excludeTags,
             owner: shapeOwner(gallery),
+            externalLinks: (media.listGalleryExternalLinksForPublic.all(galleryId) as Array<{
+              label: string; url: string;
+            }>).map((r) => ({ label: r.label, url: r.url })),
           },
           items,
           totalItems: rows.length,

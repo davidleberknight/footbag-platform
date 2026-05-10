@@ -442,7 +442,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 │  SesAdapter           AWS SES (LiveSesAdapter)   StubSesAdapter     │
 │  MediaStorageAdapter  S3 (staging/prod impl)     LocalMediaStorage  │
 │  PaymentAdapter       Stripe live/test SDK       Configurable mock  │
-│  SecretsAdapter       Parameter Store (SSM)      local .env         │
+│  SecretsAdapter       Parameter Store (SSM)      .secrets.local.json│
 │  JwtSigningAdapter    AWS KMS (KmsJwtAdapter)    LocalJwtAdapter    │
 │  LoggingAdapter       CloudWatch Logs            Local log files    │
 │  MetricsAdapter       CloudWatch Metrics         In-memory store    │

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { countGalleryItemsByCriteria, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction, type MediaJobRow } from '../db/db';
+import { countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction, type MediaJobRow } from '../db/db';
+import { config } from '../config/env';
 import { detectImageType } from '../lib/imageProcessing';
 import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
 import { Semaphore } from '../lib/semaphore';
@@ -406,26 +407,6 @@ function applyTags(mediaId: string, tags: string[], now: string): void {
   }
 }
 
-// Idempotent variant of applyTags: skip the media_tags insert when the
-// (media_id, tag_id) row already exists. Used by addMediaToGallery,
-// where the picked media items may already carry one or more of the
-// gallery's criteria tags. The non-idempotent applyTags path stays in
-// place for upload flows (freshly inserted media has no prior tags).
-function applyTagsIdempotent(mediaId: string, tags: string[], now: string): void {
-  for (const tag of tags) {
-    const existingTag = mediaTagsDb.findTagByNormalized.get(tag) as { id: string } | undefined;
-    let tagId: string;
-    if (existingTag) {
-      tagId = existingTag.id;
-    } else {
-      tagId = newTagId();
-      mediaTagsDb.insertTag.run(tagId, now, now, tag, tag);
-    }
-    if (mediaTagsDb.findMediaTag.get(mediaId, tagId)) continue;
-    mediaTagsDb.insertMediaTag.run(newMediaTagId(), now, now, mediaId, tagId, tag);
-  }
-}
-
 // Curator tag application: appends #curated to the user-supplied tags.
 // Caller has already passed userTags through validateTags (which rejects
 // #curated from input). This is the only path that adds #curated to a
@@ -605,10 +586,42 @@ export interface CuratorGalleryEditView {
   sortOrder: GallerySortOrderValue;
   criteriaTags: string[];   // tag-display strings e.g. '#curated'
   excludeTags: string[];
+  // Items currently matching the gallery's criteria/exclude. Drives the
+  // edit-form's read-only thumbnail display. Detach (and other item
+  // mutations) happen on the item's own edit page; the gallery edit
+  // page never modifies item tags.
+  currentItems: Array<{
+    mediaId: string;
+    mediaType: 'photo' | 'video';
+    thumbnailUrl: string;
+    caption: string | null;
+    sourceFilename: string;
+  }>;
+  // External URLs already attached to the gallery; pre-fills the edit
+  // form's external-link fieldset. Empty when none have been set.
+  // `quarantineReason` is non-null when the runtime boot scan rejected the
+  // URL via Safe Browsing; the admin form surfaces these inline with a
+  // warning so the operator can replace the URL or remove the link.
+  externalLinks: Array<{
+    label: string;
+    url: string;
+    quarantineReason: string | null;
+  }>;
 }
 
-export interface CuratorGallerySummary extends CuratorGalleryEditView {
+export interface CuratorGallerySummary {
+  id: string;
+  name: string;
+  description: string;
+  sortOrder: GallerySortOrderValue;
+  criteriaTags: string[];
+  excludeTags: string[];
   itemCount: number;
+}
+
+export interface CuratorGalleryExternalLinkInput {
+  label: string;
+  url: string;
 }
 
 export interface CuratorGalleryUpdates {
@@ -620,6 +633,11 @@ export interface CuratorGalleryUpdates {
   sortOrder: string;
   criteriaTags: string[];
   excludeTags: string[];
+  // External URLs displayed alongside the gallery on its public view.
+  // Validated through DD §3.17 (validateExternalUrl) at the service
+  // boundary. Cap is `config.galleryMaxExternalLinks`. May be empty
+  // (caller passes []) or omitted (treated as []) for back-compat.
+  externalLinks?: CuratorGalleryExternalLinkInput[];
 }
 
 export interface CuratorGalleryUpdateInput {
@@ -694,27 +712,23 @@ interface MediaListRow {
   external_url: string | null;
 }
 
-export interface MediaPickerItem {
-  mediaId: string;
-  mediaType: 'photo' | 'video';
-  thumbnailUrl: string;
-  caption: string | null;
-  sourceFilename: string | null;
-  uploadedAt: string;
-  tags: string[];
-}
-
-export interface MediaPickerListResult {
-  items: MediaPickerItem[];
-}
-
 interface CountRow {
   n: number;
 }
 
 export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   const { storage, imageProcessor } = deps;
-  const videoTranscoder = deps.videoTranscoder ?? getVideoTranscodingAdapter();
+  // Lazy: resolve the video adapter on first use, not at service
+  // construction. Read paths (gallery list, member page renders) build
+  // the service via `buildSvc()` but never touch video transcoding;
+  // pulling the adapter eagerly forced an INTERNAL_EVENT_SECRET load on
+  // routes that don't need it, surfacing as a 500 on gallery views in
+  // dev environments without the worker secret configured.
+  let _videoTranscoder: VideoTranscodingAdapter | null = deps.videoTranscoder ?? null;
+  function videoTranscoder(): VideoTranscodingAdapter {
+    if (!_videoTranscoder) _videoTranscoder = getVideoTranscodingAdapter();
+    return _videoTranscoder;
+  }
   const findSystemMemberId = deps.findSystemMemberId ?? defaultFindSystemMemberId;
   const videoUrlVerifier =
     deps.videoUrlVerifier ?? videoUrlVerifierOverrideForTests ?? verifyExternalVideoUrl;
@@ -883,7 +897,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
       try {
         [transcoded, processed] = await Promise.all([
-          videoTranscoder.transcode(input.videoBuffer),
+          videoTranscoder().transcode(input.videoBuffer),
           imageProcessor.processPhoto(input.posterBuffer),
         ]);
       } finally {
@@ -1014,7 +1028,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       let processed: Awaited<ReturnType<ImageProcessingAdapter['processPhoto']>>;
       try {
         [, processed] = await Promise.all([
-          videoTranscoder.transcodeFromStorage(job.source_video_key, videoKey),
+          videoTranscoder().transcodeFromStorage(job.source_video_key, videoKey),
           imageProcessor.processPhoto(posterBuffer),
         ]);
       } finally {
@@ -1503,34 +1517,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       return { items, total, page, pageSize };
     },
 
-    // Member's own active media for the gallery-create / gallery-edit
-    // picker. Ownership is read directly off uploader_member_id (the
-    // authoritative signal), not via the slug-tag — a curator-uploaded
-    // item that happens to carry #<slug> is not the member's own
-    // upload. Avatars are excluded so the picker never offers the
-    // member's profile photo as gallery content.
-    listMediaForPicker(input: { ownerMemberId: string }): MediaPickerListResult {
-      return runSqliteRead('listMediaForPicker', () => {
-        const rows = media.listMediaForOwnerPicker.all(input.ownerMemberId) as MediaListRow[];
-        const ids = rows.map((r) => r.id);
-        const tagsById = new Map<string, string[]>();
-        for (const id of ids) tagsById.set(id, []);
-        for (const pair of queryCuratorMediaTags(ids)) {
-          tagsById.get(pair.media_id)?.push(pair.tag_display);
-        }
-        const items: MediaPickerItem[] = rows.map((r) => ({
-          mediaId: r.id,
-          mediaType: r.media_type,
-          thumbnailUrl: deriveListThumbnail(r),
-          caption: r.caption,
-          sourceFilename: r.source_filename ?? null,
-          uploadedAt: r.uploaded_at,
-          tags: tagsById.get(r.id) ?? [],
-        }));
-        return { items };
-      });
-    },
-
     // ── Admin gallery-edit surface ──────────────────────────────────────
     // Lists every FH-owned named gallery with its criteria + exclude tag
     // sets and item count. Drives the /admin/curator/galleries index.
@@ -1593,6 +1579,29 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           id: string;
           tag_display: string;
         }>;
+        const criteriaTagIds = criteriaTagRows.map((t) => t.id);
+        const excludeTagIds = excludeTagRows.map((t) => t.id);
+        const itemRows = listGalleryItemsForDisplay(criteriaTagIds, excludeTagIds);
+        const currentItems = itemRows.map((r) => ({
+          mediaId: r.id,
+          mediaType: r.media_type,
+          thumbnailUrl: deriveListThumbnail(r),
+          caption: r.caption,
+          sourceFilename: r.source_filename,
+        }));
+        const linkRows = media.listGalleryExternalLinks.all(galleryId) as Array<{
+          id: string;
+          label: string;
+          url: string;
+          validated_at: string | null;
+          quarantine_reason: string | null;
+          sort_order: number;
+        }>;
+        const externalLinks = linkRows.map((r) => ({
+          label: r.label,
+          url: r.url,
+          quarantineReason: r.quarantine_reason,
+        }));
         return {
           id: g.id,
           name: g.name,
@@ -1600,6 +1609,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           sortOrder: g.sort_order,
           criteriaTags: criteriaTagRows.map((t) => t.tag_display),
           excludeTags: excludeTagRows.map((t) => t.tag_display),
+          currentItems,
+          externalLinks,
         };
       });
     },
@@ -1618,7 +1629,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async updateGallery(input: CuratorGalleryUpdateInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId, updates } = input;
 
-      const validated = validateGalleryUpdates(updates);
+      const validated = await validateGalleryUpdates(updates);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
         | { id: string; owner_member_id: string; is_system: number; owner_slug: string }
@@ -1666,6 +1677,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           galleryId,
         );
         rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
+        rewriteGalleryExternalLinks(galleryId, validated.externalLinks, now, actorMemberId);
       });
 
       if (existing.is_system === 1) {
@@ -1676,6 +1688,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           sortOrder: validated.sortOrder,
           criteriaTags: validated.criteriaTags,
           excludeTags: validated.excludeTags,
+          externalLinks: validated.externalLinks.map((lk, i) => ({
+            label: lk.label,
+            url: lk.url,
+            sortOrder: i,
+          })),
         });
       }
     },
@@ -1691,7 +1708,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     ): Promise<CuratorGalleryCreateResult> {
       const { actorMemberId, actorIsAdmin, ownerMemberId, suggestedId, ownerSlug, updates } = input;
 
-      const validated = validateGalleryUpdates(updates);
+      const validated = await validateGalleryUpdates(updates);
 
       const systemMemberId = resolveSystemMemberIdOrThrow();
       const isFhOwned = ownerMemberId === systemMemberId;
@@ -1772,6 +1789,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
               ownerMemberId, validated.name, validated.description, validated.sortOrder,
             );
             rewriteGalleryTagSets(galleryId, validated, now, actorMemberId);
+            rewriteGalleryExternalLinks(galleryId, validated.externalLinks, now, actorMemberId);
           });
           break;
         } catch (err) {
@@ -1805,6 +1823,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           sortOrder: validated.sortOrder,
           criteriaTags: validated.criteriaTags,
           excludeTags: validated.excludeTags,
+          externalLinks: validated.externalLinks.map((lk, i) => ({
+            label: lk.label,
+            url: lk.url,
+            sortOrder: i,
+          })),
         });
       }
 
@@ -1830,7 +1853,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       media.deleteMemberGalleryById.run(galleryId);
 
-      if (existing.is_system === 1) {
+      if (existing.is_system === 1 && config.allowCuratedSidecarWrites) {
         const sidecarPath = deriveGallerySidecarPath(curatedRootDir, galleryId);
         try {
           await deleteGallerySidecarFile(sidecarPath);
@@ -1845,71 +1868,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
     },
 
-    // Attach existing media to a gallery by applying the gallery's
-    // CURRENT criteria tags to each picked item. The picker UI on
-    // /members/:slug/galleries/{new,:id/edit} drives this method.
-    //
-    // Cross-gallery side-effect: tags are global metadata, not per-
-    // gallery membership tokens. Applying e.g. `#event_2024_eugene`
-    // here adds the item to every gallery whose criteria include that
-    // tag. This is intentional under the tag-AND model.
-    //
-    // Authz: actor must own the gallery (or be admin). Per-item
-    // ownership is also enforced — a non-admin actor cannot attach
-    // another member's media to their gallery; mismatched items are
-    // silently skipped (and surface in `skipped`).
-    addMediaToGallery(input: {
-      actorMemberId: string;
-      actorIsAdmin: boolean;
-      galleryId: string;
-      mediaIds: string[];
-    }): { added: number; skipped: number } {
-      if (input.mediaIds.length === 0) return { added: 0, skipped: 0 };
-      if (input.mediaIds.length > 50) {
-        throw new ValidationError('Cannot add more than 50 items in one operation.');
-      }
-      const gallery = media.getNamedGalleryById.get(input.galleryId) as
-        | { id: string; owner_member_id: string }
-        | undefined;
-      if (!gallery) {
-        throw new NotFoundError(`gallery ${input.galleryId} not found`);
-      }
-      authorizeGalleryActor(input.actorMemberId, input.actorIsAdmin, gallery.owner_member_id);
-
-      // Strip `#by_*` from the gallery's criteria tags before stamping
-      // them on picked items: the uploader-attribution namespace is
-      // system-managed at upload time, so the picker must never apply
-      // it. Without this, an admin picking another member's item into
-      // a gallery whose criteria includes `#by_<owner>` would forge
-      // uploader attribution on the picked item.
-      const criteriaTags = (
-        media.listFhNamedGalleryTags.all(input.galleryId) as Array<{ tag_display: string }>
-      )
-        .map((t) => t.tag_display)
-        .filter((t) => !t.startsWith(UPLOADER_TAG_PREFIX));
-
-      let added = 0;
-      let skipped = 0;
-      const now = new Date().toISOString();
-      transaction(() => {
-        for (const mediaId of input.mediaIds) {
-          const row = media.getMediaUploaderById.get(mediaId) as
-            | { id: string; uploader_member_id: string }
-            | undefined;
-          if (!row) {
-            skipped++;
-            continue;
-          }
-          if (!input.actorIsAdmin && row.uploader_member_id !== input.actorMemberId) {
-            skipped++;
-            continue;
-          }
-          applyTagsIdempotent(mediaId, criteriaTags, now);
-          added++;
-        }
-      });
-      return { added, skipped };
-    },
 
     // Lists every gallery owned by a given member, including item count.
     // Public read; no authz gate. Used by the member profile "Galleries"
@@ -2126,33 +2084,32 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   // Validates a CuratorGalleryUpdates payload and returns a normalized
   // shape (trimmed strings, narrowed sortOrder type). Shared between
   // updateGallery and createGallery.
-  function validateGalleryUpdates(updates: CuratorGalleryUpdates): {
+  async function validateGalleryUpdates(updates: CuratorGalleryUpdates): Promise<{
     name: string;
     description: string;
     sortOrder: GallerySortOrderValue;
     criteriaTags: string[];
     excludeTags: string[];
-  } {
+    externalLinks: Array<{ label: string; url: string }>;
+  }> {
     const name = updates.name.trim();
     if (!name) {
-      throw new ValidationError('Gallery name is required.');
+      const m = 'Gallery name is required.';
+      throw new ValidationError(m, { fieldErrors: { name: m } });
     }
     if (name.length > GALLERY_NAME_MAX_LEN) {
-      throw new ValidationError(
-        `Gallery name must be ${GALLERY_NAME_MAX_LEN} characters or fewer.`,
-      );
+      const m = `Gallery name must be ${GALLERY_NAME_MAX_LEN} characters or fewer.`;
+      throw new ValidationError(m, { fieldErrors: { name: m } });
     }
     const description = (updates.description ?? '').trim();
     if (description.length > GALLERY_DESCRIPTION_MAX_LEN) {
-      throw new ValidationError(
-        `Gallery description must be ${GALLERY_DESCRIPTION_MAX_LEN} characters or fewer.`,
-      );
+      const m = `Gallery description must be ${GALLERY_DESCRIPTION_MAX_LEN} characters or fewer.`;
+      throw new ValidationError(m, { fieldErrors: { description: m } });
     }
     const validSortOrders: readonly string[] = GALLERY_SORT_ORDER_VALUES;
     if (!validSortOrders.includes(updates.sortOrder)) {
-      throw new ValidationError(
-        `Gallery sort order must be one of: ${GALLERY_SORT_ORDER_VALUES.join(', ')}.`,
-      );
+      const m = `Gallery sort order must be one of: ${GALLERY_SORT_ORDER_VALUES.join(', ')}.`;
+      throw new ValidationError(m, { fieldErrors: { sortOrder: m } });
     }
     const sortOrder = updates.sortOrder as GallerySortOrderValue;
     // The >=1 criteria invariant is enforced by createGallery/updateGallery
@@ -2161,31 +2118,84 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // galleries (the auto-prepend always supplies at least one).
     const seenCriteria = new Set<string>();
     for (const tag of updates.criteriaTags) {
-      validateGalleryTag(tag, 'criteria');
+      try {
+        validateGalleryTag(tag, 'criteria');
+      } catch (err) {
+        const m = (err as Error).message;
+        throw new ValidationError(m, { fieldErrors: { criteriaTags: m } });
+      }
       if (seenCriteria.has(tag)) {
-        throw new ValidationError(`Duplicate criteria tag: ${tag}`);
+        const m = `Duplicate criteria tag: ${tag}`;
+        throw new ValidationError(m, { fieldErrors: { criteriaTags: m } });
       }
       seenCriteria.add(tag);
     }
     const seenExclude = new Set<string>();
     for (const tag of updates.excludeTags) {
-      validateGalleryTag(tag, 'exclude');
+      try {
+        validateGalleryTag(tag, 'exclude');
+      } catch (err) {
+        const m = (err as Error).message;
+        throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
+      }
       if (seenExclude.has(tag)) {
-        throw new ValidationError(`Duplicate exclude tag: ${tag}`);
+        const m = `Duplicate exclude tag: ${tag}`;
+        throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
       }
       if (seenCriteria.has(tag)) {
-        throw new ValidationError(
-          `Tag "${tag}" cannot be both a criteria tag and an exclude tag.`,
-        );
+        const m = `Tag "${tag}" cannot be both a criteria tag and an exclude tag.`;
+        throw new ValidationError(m, { fieldErrors: { excludeTags: m } });
       }
       seenExclude.add(tag);
     }
+    const submittedLinks = updates.externalLinks ?? [];
+    if (submittedLinks.length > config.galleryMaxExternalLinks) {
+      const m = `At most ${config.galleryMaxExternalLinks} external link(s) allowed per gallery; got ${submittedLinks.length}.`;
+      throw new ValidationError(m, { fieldErrors: { externalLinks: m } });
+    }
+    const validatedLinks: Array<{ label: string; url: string }> = [];
+    for (let i = 0; i < submittedLinks.length; i++) {
+      const link = submittedLinks[i];
+      const label = (link.label ?? '').trim();
+      const rawUrl = (link.url ?? '').trim();
+      // Skip rows the user cleared (both empty). Empty label + empty url
+      // is a no-op; the form may submit empty pairs for unfilled slots.
+      if (!label && !rawUrl) continue;
+      if (!label) {
+        const m = 'Link label is required when a URL is provided.';
+        throw new ValidationError(m, {
+          fieldErrors: { [`externalLinks[${i}].label`]: m },
+        });
+      }
+      if (label.length > 80) {
+        const m = 'Link label must be 80 characters or fewer.';
+        throw new ValidationError(m, {
+          fieldErrors: { [`externalLinks[${i}].label`]: m },
+        });
+      }
+      if (!rawUrl) {
+        const m = 'Link URL is required when a label is provided.';
+        throw new ValidationError(m, {
+          fieldErrors: { [`externalLinks[${i}].url`]: m },
+        });
+      }
+      const result = await validateExternalUrl(rawUrl);
+      if (!result.valid || !result.normalizedUrl) {
+        const m = result.error ?? 'Invalid URL.';
+        throw new ValidationError(m, {
+          fieldErrors: { [`externalLinks[${i}].url`]: m },
+        });
+      }
+      validatedLinks.push({ label, url: result.normalizedUrl });
+    }
+
     return {
       name,
       description,
       sortOrder,
       criteriaTags: updates.criteriaTags,
       excludeTags: updates.excludeTags,
+      externalLinks: validatedLinks,
     };
   }
 
@@ -2245,12 +2255,40 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     }
   }
 
+  // Replaces the gallery's external-link rows. Caller wraps in the same
+  // transaction as the metadata + tag rewrites so the gallery is never
+  // observably half-updated. Each link gets a deterministic id derived
+  // from the gallery and its position so re-saves stay diff-friendly.
+  function rewriteGalleryExternalLinks(
+    galleryId: string,
+    links: Array<{ label: string; url: string }>,
+    now: string,
+    actorMemberId: string,
+  ): void {
+    media.deleteGalleryExternalLinks.run(galleryId);
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i];
+      const id = `glink_${galleryId}_${i}`;
+      media.insertGalleryExternalLink.run(
+        id, now, actorMemberId, now, actorMemberId,
+        galleryId, link.label, link.url, now, i,
+      );
+    }
+  }
+
   // Writes (or rewrites) the JSON sidecar for an FH-owned gallery.
   // Sidecar I/O happens AFTER the DB transaction commits; failure here
   // is logged but does not propagate, so a transient FS error never
   // corrupts a successful DB-side edit. The seeder reconciles on next
   // run.
   async function writeFhGallerySidecar(data: GallerySidecarData): Promise<void> {
+    // Sidecar writes target /curated/galleries/<slug>.json which is the
+    // git-tracked seed source-of-truth. Permitted in dev only; staging /
+    // prod admin edits mutate the DB but the deployed /curated/ tree is
+    // part of the build artifact, not a runtime mutable surface.
+    if (!config.allowCuratedSidecarWrites) {
+      return;
+    }
     try {
       validateGallerySidecarData(data);
       await writeGallerySidecarFile(curatedRootDir, data);
