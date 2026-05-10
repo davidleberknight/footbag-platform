@@ -80,3 +80,6 @@ flying-inside,notation,,FLYING INSIDE,Phase 4 Tier 1 expansion 2026-05-10: B4 bo
 flying-outside,notation,,FLYING OUTSIDE,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
 walk-over,notation,,WALK OVER,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
 hop-over,notation,,HOP OVER,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
+spinning-whirl,adds,5,4,Phase pt10-followup 2026-05-10: align asserted_adds with new spinning rotational rule (spinning is flat +1 on rotational base). Computed: spinning(+1) + whirl(3) = 4. Resolves Red Review Queue id 11.
+spinning-symposium-whirl,adds,6,5,Phase pt10-followup 2026-05-10: align with new spinning rotational rule. Computed: spinning(+1) + symposium(+1) + whirl(3) = 5. Matches pt10 email example. Resolves Red Review Queue id 11.
+spinning-torque,adds,6,5,Phase pt10-followup 2026-05-10: align with new spinning rotational rule. Computed: spinning(+1) + torque(4) = 5. Resolves Red Review Queue id 11.
