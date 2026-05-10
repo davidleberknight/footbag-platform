@@ -52,3 +52,31 @@ sumo,notation,,SUMO,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUI
 sailing,notation,,SAILING,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
 whirl,description,Rotational dexterity move.,Rotational body-spin dex; anchor of the whirl family.,Description normalization 2026-05-09: base-trick anchor convention (Sub-batch 1)
 swirl,description,reverse swirl motion,Reverse-direction rotational dex; anchor of the swirl family.,Description normalization 2026-05-09: base-trick anchor convention (Sub-batch 1)
+clipper-stall,notation,,CLIPPER STALL,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (clipper-stall family, 6 members)
+barfly,notation,,BARFLY,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (barfly family, 4 members; self-atom name-form per NOTATION_STYLE_GUIDE §5.7)
+double-leg-over,notation,,DOUBLE LEGOVER,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (productive multiplicity per §5.6)
+blender,notation,,BLENDER,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (osis sub-family); self-atom per §5.7
+pickup,notation,,PICKUP,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (pickup family)
+reverse-drifter,notation,,REV DRIFTER,Phase 4 Tier 1 expansion 2026-05-10: B1 family head (reverse-drifter family); REV per §3.10 community-canonical
+pixie,notation,,PIXIE,Phase 4 Tier 1 expansion 2026-05-10: B2 /freestyle/moves cross-link target
+fairy,notation,,FAIRY,Phase 4 Tier 1 expansion 2026-05-10: B2 /freestyle/moves cross-link target
+quantum,notation,,QUANTUM,Phase 4 Tier 1 expansion 2026-05-10: B2 /freestyle/moves cross-link target
+atomic,notation,,ATOMIC,Phase 4 Tier 1 expansion 2026-05-10: B2 /freestyle/moves cross-link target
+shooting,notation,,SHOOTING,Phase 4 Tier 1 expansion 2026-05-10: B2 /freestyle/moves cross-link target
+furious,notation,,FURIOUS,Phase 4 Tier 1 expansion 2026-05-10: B2 /freestyle/moves cross-link target; self-atom per §5.7
+eclipse,notation,,ECLIPSE,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized)
+ripstein,notation,,RIPSTEIN,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized)
+dyno,notation,,DYNO,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized)
+vortex,notation,,VORTEX,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized; drifter family)
+superfly,notation,,SUPERFLY,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized; barfly family)
+sidewalk,notation,,SIDEWALK,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized; butterfly family)
+smear,notation,,PIXIE MIRAGE,Phase 4 Tier 1 expansion 2026-05-10: B3 record+media (user-prioritized); per NOTATION_STYLE_GUIDE §6.5 LOCKED
+cloud-kick,notation,,CLOUD KICK,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive
+dragonfly-kick,notation,,DRAGONFLY KICK,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive
+sole-kick,notation,,SOLE KICK,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive
+spin,notation,,SPIN,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
+spyro,notation,,SPYRO,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
+flying-inside,notation,,FLYING INSIDE,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
+flying-outside,notation,,FLYING OUTSIDE,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
+walk-over,notation,,WALK OVER,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
+hop-over,notation,,HOP OVER,Phase 4 Tier 1 expansion 2026-05-10: B4 body primitive (per §6.3)
