@@ -28,12 +28,23 @@ Scope: outstanding questions and current state for the freestyle trick dictionar
 |---|---|
 | sumo | adds=5, base=mirage, modifier_links=nuclear, expert_reviewed, active. Red pt9: "Nuclear Mirage = Sumo. Sumo gets an X dex ADD on the Mirage, making it a 5 ADD move." Alias: nuclear mirage. |
 | shooting | rotational caveat resolved. Red pt9 confirms +3 holds on rotational tricks (Yes to "Does Shooting stay +3 on rotational tricks too?"). trick_modifiers values (3,3,set) unchanged. |
-| nuclear | trick_modifiers note appended with pt9 framing. Red pt9 resolves Sumo specifically (5 ADD via X-Dex escalation on the Mirage); does NOT establish a generic flat Nuclear ADD bonus. (+2,+2) Uncertain caveat retained per James adjudication 2026-05-09. Generic Nuclear-as-modifier value still pending. |
+| nuclear | RESOLVED by pt10 (2026-05-10): generic Nuclear modifier value confirmed +2 (Yes to "Should Nuclear itself still be treated as a flat +2 set modifier generally?"). Structural definition volunteered: "Nuclear is a Paradox Atomic set" (= Paradox(+1) + Atomic(+1) = +2). trick_modifiers.csv nuclear (+2,+2) Uncertain caveat retired. Sumo (Nuclear Mirage=5) X-Dex construction-specific escalation per pt9 still applies; not subsumed by the generic rule. |
 | backside | new row in trick_modifiers: backside,1,1,body. Red pt9 promotes from pending (modifier vs naming-adjective) to confirmed +1 body modifier. The "Stepping Paradox Symposium Mirage" expansion is explanatory decomposition for the "Backside Blur" compound, NOT additive +3 (James adjudication 2026-05-09). |
 | sailing | new row in red_additions: sailing,2,sailing,set, expert_reviewed, active. Red pt9: "Sailing as a set is 2 ADDS. It is Pixie Quantum set." Set-as-modifier behavior NOT yet classified (Red's wording was set-only). |
 | blistering | NOT resolved by pt9 (Red grouped with sailing but answered only for sailing). Promoted to lone pt9-pending item — see §2 HIGH. |
 
 Audit log: `red_corrections_pt9.csv`. Strong recommendation per James 2026-05-09: pt9 wave is ontology enrichment; do NOT rebuild parser logic, alter policy-dependent machinery, or change rotational escalation weights yet.
+
+## 1C. Post-pt10 resolutions integrated (2026-05-10)
+
+| Slug / item | State |
+|---|---|
+| quantum | RESOLVED. Red pt10 confirms Quantum is +1 generically. trick_modifiers.csv quantum (1,1,set) values unchanged; uncertainty caveat note retired. Existing examples re-validated: Quantum Mirage=3, Quantum Butterfly=4. Sailing pt9 cross-reference holds (Pixie Quantum set = 1+1 = 2). |
+| nuclear | RESOLVED. Red pt10 confirms Nuclear is +2 generically + volunteers structural definition "Nuclear is a Paradox Atomic set". trick_modifiers.csv nuclear (2,2,set) values unchanged; uncertainty caveat note retired. Sumo X-Dex construction (pt9) preserved as the named exception. |
+| rotational_escalation | RESOLVED. Red pt10 example "Spinning Symposium Whirl = Whirl(3) + Spinning(1) + Symposium(1) = 5" + James adjudication 2026-05-10 ("Whirl's 3 ADD already includes the delay/stall component; do not count a separate stall ADD") finalize the rule: Spinning / Whirling / Swirling stay flat +1 even on rotational bases. trick_modifiers.csv migration applied: spinning add_bonus_rotational 2→1, swirling add_bonus_rotational 2→1 (whirling already 1,1). parse_freestyle_notation.py rotational_escalation_policy_pending_red warning retired. Spinning Whirl ADD shifts 5→4 (and parallel for spinning-rotational + swirling-rotational compounds). |
+| candidate-core families (blur, blender, barfly, ripwalk, stepping_*) | RESOLVED at the disposition level. Red pt10 'b' to all five — each is a named compound built from another base, NOT a true base family. Per James adjudication 2026-05-10: blur decomposition is Stepping Paradox Mirage (= +1+1+2 = 4 ADD), superseding the candidate yaml's provisional 'quantum mirage' reading_b. Barfly operational decomposition approved (specifics carried into planning/audit artifacts). candidate_core_families.yaml dispositions updated (blur/blender/barfly/ripwalk → answered_b; stepping_star → answered_a). Data-side migrations (dictionary row removal + alias on resolved base) deferred to S5 staged commits. |
+
+Audit log: `red_corrections_pt10.csv`. James adjudication 2026-05-10 confirms it is now safe to apply modifier-value migration + parser-warning retirement (S3 + S4 from the pt10 plan).
 
 ## 2. Remaining dictionary questions
 

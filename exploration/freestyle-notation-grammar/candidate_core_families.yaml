@@ -37,7 +37,12 @@ candidates:
       Per Red pt2, "Toe Blur to Quantum Mirage". Should blur be reduced
       to a Common alias on mirage (quantum-set decomposition), or
       retained as its own canonical (current state)?
-    red_disposition: pending
+    red_disposition: answered_b
+    # pt10 (2026-05-10): Red answered 'b' for all five candidates. James
+    # adjudication 2026-05-10: blur decomposition is Stepping Paradox
+    # Mirage (= +1+1+2 = 4 ADD), supersedes the reading_b 'quantum mirage'
+    # provisional decomposition above. Reading_b's computed_adds=3 is now
+    # stale; the operational decomposition is stepping+paradox+mirage=4.
 
   blender:
     reading_a:
@@ -59,7 +64,11 @@ candidates:
       Per Red pt3 productive-multiplicity reading ("Whirling Blender,
       two dexes and an Osis"), is blender a Whirling derivative of
       osis, or its own core?
-    red_disposition: pending
+    red_disposition: answered_b
+    # pt10 (2026-05-10): Red answered 'b'. Decomposition whirling+osis
+    # (= +1+3 = 4) agrees with asserted_adds. Math holds independent of
+    # the pt10 rotational-escalation migration since whirling is already
+    # a flat +1 (1,1) modifier.
 
   barfly:
     reading_a:
@@ -81,7 +90,13 @@ candidates:
       Is barfly an Infinity-family compound (modifier-stack on an
       infinity base) rather than its own core? If so, what is the
       modifier decomposition?
-    red_disposition: pending
+    red_disposition: answered_b
+    # pt10 (2026-05-10): Red answered 'b'. James adjudication
+    # 2026-05-10: barfly operational decomposition approved; specifics
+    # carry into the /freestyle/moves planning/audit artifacts and the
+    # workbook External Reconciliation evidence trail. The yaml's
+    # decomposition: [infinity_compound] placeholder preserved as the
+    # historical record.
 
   ripwalk:
     reading_a:
@@ -105,7 +120,12 @@ candidates:
       The current dictionary places it in the butterfly progression as
       a named member; reading B treats it as the modifier-stack
       blurry+butterfly with ripwalk as the alias.
-    red_disposition: pending
+    red_disposition: answered_b
+    # pt10 (2026-05-10): Red answered 'b'. Decomposition blurry+butterfly
+    # (= +1+3 = 4) agrees with asserted_adds. Note: the pt10 rotational-
+    # escalation migration drops spinning/swirling rotational columns 2->1
+    # but does NOT touch blurry's rotational column (still 1,2); blurry-
+    # butterfly is the non-rotational form so unaffected here.
 
   stepping_star:
     # The stepping-* family is a meta-candidate, not a single row.
@@ -134,7 +154,14 @@ candidates:
       warrant its own family card on the lineage grid, or should
       stepping-X members continue to anchor under their respective
       base families (osis, whirl)?
-    red_disposition: pending
+    red_disposition: answered_a
+    # pt10 (2026-05-10): Red answered 'b' to "stepping tricks generally"
+    # in the candidate-cores question framing — i.e. stepping-X are
+    # named compounds, not a true base family. This maps to reading_a
+    # in the yaml's schema (each stepping-X is already a modifier-derived
+    # compound under its base; no separate 'stepping' core family).
+    # Reading_b's meta_family/lineage-card alternative was a presentational
+    # variant not endorsed by pt10.
 
 # Schema for each candidate:
 #   reading_a:        current dictionary reading (committed; what the parser sees today)
