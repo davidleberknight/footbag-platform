@@ -298,6 +298,7 @@ function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
 // detail-page sections.
 function shapeTrickPathways(args: {
   tutorialCount: number;
+  demoCount: number;
   recordCount: number;
   topRecordHolder: string | null;
   topRecordValue: number;
@@ -305,15 +306,30 @@ function shapeTrickPathways(args: {
   familyName: string | null;
   familyMemberCount: number;  // already-rendered-on-page family ladder size
 }): TrickPathways {
-  const { tutorialCount, recordCount, topRecordHolder, topRecordValue,
+  const { tutorialCount, demoCount, recordCount, topRecordHolder, topRecordValue,
           familySlug, familyName, familyMemberCount } = args;
 
-  // Learn pathway
-  const learn: TrickPathwaySummary = tutorialCount > 0
+  // Learn pathway. Tutorial- and demo-tier counts surface separately so the
+  // wording cannot conflate them (Phase 3). When only demos exist the user
+  // can still learn-by-watching, so the link to Reference Media still renders.
+  const learnTotal = tutorialCount + demoCount;
+  const tutorialFragment = `${tutorialCount} tutorial${tutorialCount === 1 ? '' : 's'}`;
+  const demoFragment     = `${demoCount} demonstration${demoCount === 1 ? '' : 's'}`;
+  let learnPrimaryText: string;
+  if (tutorialCount > 0 && demoCount > 0) {
+    learnPrimaryText = `${tutorialFragment} and ${demoFragment} available`;
+  } else if (tutorialCount > 0) {
+    learnPrimaryText = `${tutorialFragment} available`;
+  } else if (demoCount > 0) {
+    learnPrimaryText = `${demoFragment} available`;
+  } else {
+    learnPrimaryText = 'No tutorials yet';
+  }
+  const learn: TrickPathwaySummary = learnTotal > 0
     ? {
         available: true,
-        count: tutorialCount,
-        primaryText: `${tutorialCount} tutorial${tutorialCount === 1 ? '' : 's'} available`,
+        count: learnTotal,
+        primaryText: learnPrimaryText,
         secondaryText: null,
         href: '#reference-media',
         hrefLabel: 'Jump to Reference Media',
@@ -321,7 +337,7 @@ function shapeTrickPathways(args: {
     : {
         available: false,
         count: 0,
-        primaryText: 'No tutorials yet',
+        primaryText: learnPrimaryText,
         secondaryText: null,
         href: null,
         hrefLabel: null,
@@ -439,6 +455,13 @@ export interface FreestyleTrickContent {
   tutorialMedia: TrickReferenceMediaItem[];
   demoMedia: TrickReferenceMediaItem[];
   hasReferenceMedia: boolean;            // pre-shaped: tutorialMedia.length || demoMedia.length
+  // Section heading reflects what's actually inside the Reference Media block
+  // so wording cannot conflate tutorials with demos:
+  //   - 'Tutorials and demonstrations' when both are present
+  //   - 'Tutorials'                     when tutorial-tier only
+  //   - 'Demonstrations'                when demo-tier only
+  //   - null                            when neither (section omitted via hasReferenceMedia)
+  referenceMediaHeading: string | null;
   // Pathways block: pre-shaped summary of Learn / Watch / Family availability
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
@@ -1589,15 +1612,21 @@ export const freestyleService = {
           }
         }
         const hasReferenceMedia = tutorialMedia.length > 0 || demoMedia.length > 0;
+        const referenceMediaHeading: string | null =
+          tutorialMedia.length > 0 && demoMedia.length > 0 ? 'Tutorials and demonstrations'
+          : tutorialMedia.length > 0                       ? 'Tutorials'
+          : demoMedia.length > 0                           ? 'Demonstrations'
+          : null;
 
         const familySlug = dictRow?.trick_family ?? null;
         const familyName = familySlug
           ? familySlug.charAt(0).toUpperCase() + familySlug.slice(1).replace(/-/g, ' ')
           : null;
-        // Pathway "Learn this trick" counts both tutorial and demo media —
-        // both serve the watch-to-learn intent.
+        // Pathway "Learn this trick" surfaces tutorial- and demo-tier counts
+        // separately — wording must not conflate them (Phase 3 fix).
         const pathways = shapeTrickPathways({
-          tutorialCount: tutorialMedia.length + demoMedia.length,
+          tutorialCount: tutorialMedia.length,
+          demoCount:     demoMedia.length,
           recordCount: currentRows.length,
           topRecordHolder: currentRows[0]?.holder_name ?? null,
           topRecordValue: topValue,
@@ -1624,6 +1653,7 @@ export const freestyleService = {
           tutorialMedia,
           demoMedia,
           hasReferenceMedia,
+          referenceMediaHeading,
           pathways,
           notationGrammar: dictRow
             ? shapeNotationGrammar(

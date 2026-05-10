@@ -610,11 +610,15 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
     expect(res.text).toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
   });
 
-  it('omits the "Demos" subsection entirely when no demo-tier media exists for the trick', async () => {
+  it('omits the "Demonstrations" subsection entirely when no demo-tier media exists for the trick', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/ref-media-audit');
-    // No demo-tier sources are seeded for ref-media-audit → no Demos subheading.
+    // No demo-tier sources are seeded for ref-media-audit → no Demonstrations subheading.
     expect(res.text).not.toContain('reference-media-subsection--demos');
+    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
+    // The legacy "Demos" subheading wording was renamed to "Demonstrations"
+    // in Phase 3 to avoid conflating tutorials and demos in trick-detail
+    // language. Guard against regression.
     expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demos<\/h3>/);
   });
 

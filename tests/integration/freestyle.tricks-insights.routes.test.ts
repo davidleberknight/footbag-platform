@@ -200,6 +200,45 @@ beforeAll(async () => {
            ('fma-finland-lego', 'trick', 'legover', 1)
   `).run();
 
+  // ── Phase 3 fixtures: trick-detail Reference Media wording cases ─────────
+  // The trick-detail page reads `listMediaByTrickTag` (curator channel:
+  // media_items + media_tags + tags). Three dedicated tricks with curator-
+  // channel coverage exercise the three Reference Media heading states.
+  const phase3Uploader = insertMember(db, { slug: 'phase3-uploader' });
+  insertFreestyleTrick(db, {
+    slug: 'phase3-tutorial-only', canonical_name: 'phase3-tutorial-only', adds: '3', sort_order: 96,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'phase3-demo-only', canonical_name: 'phase3-demo-only', adds: '3', sort_order: 97,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'phase3-mixed-media', canonical_name: 'phase3-mixed-media', adds: '3', sort_order: 98,
+  });
+  // Tutorial-only: one tt_youtube clip.
+  insertTtLesson(db, {
+    uploader_member_id: phase3Uploader, ttNumber: 700,
+    trickSlug: 'phase3-tutorial-only', videoId: 'phase3-tut-only',
+    lessonTitle: 'Phase3 Tutorial Only',
+  });
+  // Demo-only: one footbag_finland clip (insertTtLesson is generic; the
+  // source_id override drives tier classification).
+  insertTtLesson(db, {
+    uploader_member_id: phase3Uploader, ttNumber: 701,
+    trickSlug: 'phase3-demo-only', videoId: 'phase3-demo-only',
+    lessonTitle: 'Phase3 Demo Only', source_id: 'footbag_finland',
+  });
+  // Mixed: one tutorial-tier + one demo-tier clip.
+  insertTtLesson(db, {
+    uploader_member_id: phase3Uploader, ttNumber: 702,
+    trickSlug: 'phase3-mixed-media', videoId: 'phase3-mixed-tut',
+    lessonTitle: 'Phase3 Mixed Tutorial',
+  });
+  insertTtLesson(db, {
+    uploader_member_id: phase3Uploader, ttNumber: 703,
+    trickSlug: 'phase3-mixed-media', videoId: 'phase3-mixed-demo',
+    lessonTitle: 'Phase3 Mixed Demo', source_id: 'footbag_finland',
+  });
+
   // ── Phase 6: role-aware notation rendering fixtures ──────────────────────
   // Exercises shapeNotationDisplay's classification path. Adds modifier rows
   // (paradox/blurry/ducking/stepping) and trick rows for the 6 test cases
@@ -555,6 +594,82 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
     // trick-pathway--empty modifier and a "no X yet" / placeholder text.
     expect(res.text).toContain('class="content-section trick-pathways"');
     expect(res.text).toMatch(/trick-pathway[^"]*--family[^"]*trick-pathway--empty/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 3: media visibility polish — trick-detail wording must distinguish
+// tutorials from demonstrations, never conflate them. Three states: tutorial-
+// only, demo-only, and mixed.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway wording (Phase 3)', () => {
+  it('tutorial-only trick: heading is "Tutorials"; Learn pathway counts only tutorials', async () => {
+    const app = createApp();
+    // 'phase3-tutorial-only' has one tt_youtube curator-tagged clip and no
+    // demo-tier coverage.
+    const res = await request(app).get('/freestyle/tricks/phase3-tutorial-only');
+    expect(res.status).toBe(200);
+    // Reference Media section heading reflects content: only Tutorials.
+    expect(res.text).toMatch(/<h2>\s*Tutorials\s*<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>\s*Tutorials and demonstrations\s*<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>\s*Demonstrations\s*<\/h2>/);
+    // Demonstrations subsection absent.
+    expect(res.text).not.toContain('reference-media-subsection--demos');
+    // Learn pathway counts ONLY tutorials. Anchor on the pathway li.
+    const learnIdx = res.text.indexOf('trick-pathway--learn');
+    expect(learnIdx).toBeGreaterThan(0);
+    const learnEnd = res.text.indexOf('</li>', learnIdx);
+    const learnSlice = res.text.slice(learnIdx, learnEnd);
+    expect(learnSlice).toMatch(/\d+ tutorials? available/);
+    expect(learnSlice).not.toMatch(/demonstrations? available/);
+  });
+
+  it('demo-only trick: heading is "Demonstrations"; Learn pathway counts only demos', async () => {
+    const app = createApp();
+    // 'phase3-demo-only' has one footbag_finland curator-tagged clip and no
+    // tutorial-tier coverage.
+    const res = await request(app).get('/freestyle/tricks/phase3-demo-only');
+    expect(res.status).toBe(200);
+    // Reference Media section heading reflects content: only Demonstrations.
+    expect(res.text).toMatch(/<h2>\s*Demonstrations\s*<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>\s*Tutorials\s*<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>\s*Tutorials and demonstrations\s*<\/h2>/);
+    // Tutorials subsection absent.
+    expect(res.text).not.toContain('reference-media-subsection--tutorials');
+    // Learn pathway counts ONLY demos. The legacy "X tutorials available"
+    // wording must NOT render here — that was the Phase 3 conflation bug.
+    const learnIdx = res.text.indexOf('trick-pathway--learn');
+    expect(learnIdx).toBeGreaterThan(0);
+    const learnEnd = res.text.indexOf('</li>', learnIdx);
+    const learnSlice = res.text.slice(learnIdx, learnEnd);
+    expect(learnSlice).toMatch(/\d+ demonstrations? available/);
+    expect(learnSlice).not.toMatch(/tutorials? available/);
+    expect(learnSlice).not.toContain('No tutorials yet');
+  });
+
+  it('mixed-tier trick: heading is "Tutorials and demonstrations"; Learn pathway counts both separately', async () => {
+    const app = createApp();
+    // 'phase3-mixed-media' has BOTH a tt_youtube and a footbag_finland clip
+    // in the curator-tagged channel.
+    const res = await request(app).get('/freestyle/tricks/phase3-mixed-media');
+    expect(res.status).toBe(200);
+    // Reference Media section heading reflects mixed content.
+    expect(res.text).toMatch(/<h2>\s*Tutorials and demonstrations\s*<\/h2>/);
+    expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
+    // Both subsections render.
+    expect(res.text).toContain('reference-media-subsection--tutorials');
+    expect(res.text).toContain('reference-media-subsection--demos');
+    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
+    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
+    // Learn pathway carries BOTH counts in distinct fragments — no conflation.
+    const learnIdx = res.text.indexOf('trick-pathway--learn');
+    expect(learnIdx).toBeGreaterThan(0);
+    const learnEnd = res.text.indexOf('</li>', learnIdx);
+    const learnSlice = res.text.slice(learnIdx, learnEnd);
+    expect(learnSlice).toMatch(/\d+ tutorials? and \d+ demonstrations? available/);
   });
 });
 

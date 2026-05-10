@@ -349,11 +349,11 @@
   </section>
   {{/if}}
 
-  {{! ── Reference Media — split by tier: Tutorials (instructional) vs Demos (named-trick performance) ── }}
+  {{! ── Reference Media — split by tier: Tutorials (instructional) vs Demonstrations (named-trick performance) ── }}
   {{#if content.hasReferenceMedia}}
   <section id="reference-media" class="content-section">
     <div class="section-heading">
-      <h2>Reference Media</h2>
+      <h2>{{content.referenceMediaHeading}}</h2>
       <p class="section-intro">Curated videos referencing {{content.trickName}}.</p>
     </div>
 
@@ -376,7 +376,7 @@
 
     {{#if content.demoMedia.length}}
     <div class="reference-media-subsection reference-media-subsection--demos">
-      <h3 class="reference-media-subheading">Demos</h3>
+      <h3 class="reference-media-subheading">Demonstrations</h3>
       <ul class="reference-media-grid">
         {{#each content.demoMedia}}
           <li class="reference-media-tile">
