@@ -25,3 +25,28 @@ sole-kick,base_trick,sole kick,sole-kick,Phase 5e Tier A1 name-form-to-slug (sel
 sole-stall,base_trick,sole stall,sole-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 toe-stall,base_trick,toe stall,toe-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
 walk-over,base_trick,walk over,walk-over,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+head-stall,notation,,HEAD STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+toe-stall,notation,,TOE STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+heel-stall,notation,,HEEL STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+inside-stall,notation,,INSIDE STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+outside-stall,notation,,OUTSIDE STALL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+mirage,notation,,MIRAGE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+whirl,notation,,WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+butterfly,notation,,BUTTERFLY,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+osis,notation,,OSIS,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+illusion,notation,,ILLUSION,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+legover,notation,,LEGOVER,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+torque,notation,,TORQUE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+drifter,notation,,DRIFTER,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+clipper,notation,,CLIPPER,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+swirl,notation,,SWIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+around-the-world,notation,,ATW,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+paradox-whirl,notation,,PARADOX WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+spinning-whirl,notation,,SPINNING WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+blur,notation,,BLURRY MIRAGE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+ripwalk,notation,,BLURRY BUTTERFLY,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+spinning-symposium-whirl,notation,,SPINNING SYMPOSIUM WHIRL,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+gauntlet,notation,,STEPPING DUCKING PARADOX TORQUE,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+mobius,notation,,MOBIUS,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+sumo,notation,,SUMO,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+sailing,notation,,SAILING,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
