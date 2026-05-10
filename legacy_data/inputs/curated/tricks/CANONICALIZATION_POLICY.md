@@ -173,8 +173,7 @@ Stands alone as a 0–2 ADD entity AND acts as a +0 to +3 modifier on a base.
 
 ### E. Pending classification (Red has not ruled)
 
-- **backside** — appears in PassBack ("BS Magellan", "BS Paste") and fb.org ("Backside Symposium Toe Blur"). Pending: modifier vs naming-adjective. Do not classify until Red rules.
-- **sailing**, **blistering** — no internal source mention. Pending existence confirmation.
+- **blistering** — no internal source mention. Pending existence + ADD confirmation. Red pt9 2026-05-09 grouped Blistering with Sailing in same question batch but answered only for Sailing; re-ask in next expert-review packet.
 
 ### Concrete decisions captured (Red-confirmed)
 
@@ -184,7 +183,9 @@ Stands alone as a 0–2 ADD entity AND acts as a +0 to +3 modifier on a base.
 | terraging | body modifier | +3 / +3 | Red pt8 |
 | furious | set | +1 / +2 | Red pt6 |
 | pogo | set | +0 / +0 | Red pt6 |
-| shooting | set | +3 (rotational pending) | Red pt7 |
+| shooting | set | +3 / +3 | Red pt7 + pt9 |
+| backside | body modifier | +1 / +1 | Red pt9 |
+| sailing | set | +2 standalone (modifier ADD not classified) | Red pt9 |
 
 ---
 
@@ -402,6 +403,7 @@ In the absence of clear community-fixed identity, productive multiplicity rows d
 | 2026-05-07 | CD-1: PassBack-source sidecar caption format established as `<canonical_trick_name> — <Creator> (<N> kicks, <YYYY-MM-DD>)`. Disambiguates same-trick same-player record clips in the Passback gallery via player + count + date + (where applicable) `(ss)`/`(op)` qualifier inherited from canonical name. | James Leberknight (explicit instruction) |
 | 2026-05-07 | Adopted display-time year-1970 floor for `achieved_date` rendering: when parsed year < 1970, suppress the date suffix in caption (Excel-epoch placeholder artifacts like `1905-MM-DD` would otherwise render as visually catastrophic dates). Source data is NOT modified — sanitization is presentation-only. Pattern lives in `fmt_date()` of caption-generator scripts. | James Leberknight (explicit instruction) |
 | 2026-05-08 | Added §10 "Productive multiplicity patterns" codifying Red pt3 principle: *"Double / Triple describes repetition unless community usage stabilizes a distinct name."* Captures the named-identity test, stabilized vs. descriptive examples (canonical: `double-leg-over`, `double-around-the-world`, `double-spin`; descriptive: Double Fairy, Double Blender, Double Spinning Osis), adjudication checklist, default disposition (external residue), and reference to the detector in `build_freestyle_dict_coverage_diff.py`. | James Leberknight (explicit instruction) |
+| 2026-05-09 | Pt9 incorporation. §5 confirmed table: Shooting rotational caveat resolved (Red pt9 confirms +3 holds on rotational tricks); Backside registered as +1 body modifier (Red pt9 "Symposium ADD"; the "Stepping Paradox Symposium Mirage" expansion treated as explanatory decomposition for the named "Backside Blur" compound, NOT additive replacement of the +1 value); Sailing registered as 2-ADD set primitive (Red pt9 "Pixie Quantum set" equivalence). §5E: Backside and Sailing removed from pending; Blistering remains lone pt9-pending item. Sumo activated in `red_additions_2026_04_20.csv` as 5-ADD compound (Nuclear Mirage via construction-specific X-Dex escalation; flat Nuclear modifier value remains uncertain per James adjudication — not flipped to generic +3). Audit log: `red_corrections_pt9.csv`. | James Leberknight (explicit instruction) |
 
 ---
 

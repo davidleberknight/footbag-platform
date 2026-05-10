@@ -12,7 +12,7 @@ Targets:
   whirl, butterfly, mirage, illusion, legover, osis
 
 Excludes from this MVP (handled in later phases):
-  nuclear, quantum, backside, shooting, down-family
+  nuclear, quantum, down-family
 
 Outputs (read-only by default; no DB writes):
   legacy_data/reports/parser_mvp_dry_run.json   — per-row parse JSON
@@ -75,7 +75,7 @@ ROTATION_TOKENS = {
 MODIFIER_TOKENS = {
     "ducking", "stepping", "symposium", "paradox", "tapping",
     "blazing", "weaving", "barraging", "miraging", "diving",
-    "blurry", "terraging", "xdex",
+    "blurry", "terraging", "xdex", "backside",
 }
 # D2: direction-structural shorthand. Distinct from rotation (which
 # names a body-spin modifier). Direction-only variants alter mechanics
@@ -95,7 +95,7 @@ UNUSUAL_SURFACE_TOKENS = {
 # Per James 2026-05-09: parse the row into its primary role bucket, AND
 # tag the policy concern in policy_tokens. Status = policy_dependent.
 POLICY_TOKENS = {
-    "nuclear", "quantum", "backside", "shooting", "down",
+    "nuclear", "quantum", "down",
 }
 # Virtual modifier expansions per skill §2 (surging = spinning + stepping).
 VIRTUAL_EXPANSIONS = {
@@ -501,7 +501,7 @@ def write_policy_dependent_queue(rows: list[dict], path: Path) -> None:
     targets = [r for r in rows if r["add_formula_status"] == "policy_dependent"]
     body = (
         "Rows whose structural parse resolves cleanly but contain tokens "
-        "(quantum, nuclear, backside, shooting, down-family) with contested "
+        "(quantum, nuclear, down-family) with contested "
         "ADD weights or ontology placement. Per Phase-2 D4 these flow into "
         "James's review queue first; only distilled policy questions should "
         "escalate to Red. Per James 2026-05-09: parse output IS preserved "

@@ -14,13 +14,26 @@ Scope: outstanding questions and current state for the freestyle trick dictionar
 | atom-smasher | adds=4, locked (X-Dex contributes the +1) |
 | flurry | adds=4, locked (3 dexes + 1 stall) |
 | double-leg-over | adds=3, curated, active. Canonical: "Double Leg Over". Aliases: dlo, miraging legover |
-| sumo | canonical slug; pending (no ADD given yet by the expert reviewer); alias: nuclear mirage |
+| sumo | adds=5, base=mirage, modifier_links=nuclear, expert_reviewed, active. Resolved Red pt9 2026-05-09 (Nuclear Mirage via X-Dex escalation on the Mirage; see §1B). Alias: nuclear mirage |
 | baroque | alias on `barraging-osis` (canonical) |
 | silo | alias on `atomic-torque` (canonical) |
 | barroque | typo absorbed via alias to `barraging-osis` |
 | X-Dex | only fires in specific named tricks (atom-smasher); not a broad modifier |
 | illusioning legover | alias rejected (expert pt2: eggbeater = atomic legover, not illusioning) |
 | atomsmasher (no hyphen) | media link renamed to canonical `atom-smasher` |
+
+## 1B. Post-pt9 resolutions integrated (2026-05-09)
+
+| Slug / item | State |
+|---|---|
+| sumo | adds=5, base=mirage, modifier_links=nuclear, expert_reviewed, active. Red pt9: "Nuclear Mirage = Sumo. Sumo gets an X dex ADD on the Mirage, making it a 5 ADD move." Alias: nuclear mirage. |
+| shooting | rotational caveat resolved. Red pt9 confirms +3 holds on rotational tricks (Yes to "Does Shooting stay +3 on rotational tricks too?"). trick_modifiers values (3,3,set) unchanged. |
+| nuclear | trick_modifiers note appended with pt9 framing. Red pt9 resolves Sumo specifically (5 ADD via X-Dex escalation on the Mirage); does NOT establish a generic flat Nuclear ADD bonus. (+2,+2) Uncertain caveat retained per James adjudication 2026-05-09. Generic Nuclear-as-modifier value still pending. |
+| backside | new row in trick_modifiers: backside,1,1,body. Red pt9 promotes from pending (modifier vs naming-adjective) to confirmed +1 body modifier. The "Stepping Paradox Symposium Mirage" expansion is explanatory decomposition for the "Backside Blur" compound, NOT additive +3 (James adjudication 2026-05-09). |
+| sailing | new row in red_additions: sailing,2,sailing,set, expert_reviewed, active. Red pt9: "Sailing as a set is 2 ADDS. It is Pixie Quantum set." Set-as-modifier behavior NOT yet classified (Red's wording was set-only). |
+| blistering | NOT resolved by pt9 (Red grouped with sailing but answered only for sailing). Promoted to lone pt9-pending item — see §2 HIGH. |
+
+Audit log: `red_corrections_pt9.csv`. Strong recommendation per James 2026-05-09: pt9 wave is ontology enrichment; do NOT rebuild parser logic, alter policy-dependent machinery, or change rotational escalation weights yet.
 
 ## 2. Remaining dictionary questions
 
@@ -29,6 +42,7 @@ Scope: outstanding questions and current state for the freestyle trick dictionar
 - `royale` ADD value. Expert pt4: "?" (will look into). Currently pending, not active.
 - Eggbeater construction. Expert pt2 says "Eggbeater = Atomic Legover". Current canonical row description says "Illusion-modified legover". Either the description is wrong, or "atomic" and "illusioning" are interchangeable in the legover branch. Needs expert confirmation.
 - `flail` and `omelette` canonical mappings. Expert pt1 said both "should be added". footbag.org suggests Symposium Illusion (flail) and Atomic Illusion (omelette). Expert pt4 silent. Re-ask.
+- Blistering existence + ADD value. Red pt9 2026-05-09 silently skipped this when answering Sailing in same question batch ("Sailing and Blistering: real freestyle modifiers in actual usage / historical terms only / or effectively nonexistent?"). Sailing resolved as 2-ADD set primitive (Pixie Quantum equivalence); Blistering remains unresolved. Re-ask in next expert-review packet.
 
 ### MED (improves system)
 
