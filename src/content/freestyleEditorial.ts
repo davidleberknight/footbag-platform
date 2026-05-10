@@ -109,6 +109,11 @@ export interface FreestyleHistoryPioneer {
   name: string;
   note: string;
   profileHref: string | null;  // /history/:personId if person is in canonical DB
+  // Recognition badges (BAP, HOF, etc.). Populated only when the existing
+  // editorial note text or external community documentation explicitly
+  // attests the recognition — do NOT invent attribution. Empty array
+  // means recognition data hasn't been confirmed for this entry yet.
+  recognitions?: string[];
 }
 
 export interface FreestyleHistoryEra {
@@ -316,6 +321,10 @@ export const HISTORY_PIONEERS: FreestyleHistoryPioneer[] = [
     name: 'Joey Schaeffer (Za Za)',
     note: 'Originated the BAP\'s "Stand Clear of the Blades" branding at the 1992 Worlds; conceptualized the symposium modifier.',
     profileHref: '/history/50799219-0327-5a7e-9542-53c37b63ce66',
+    // Joey's note explicitly attests BAP-era contribution at the 1992 Worlds.
+    // Other entries in this list lack equivalently explicit attestation and
+    // are left without recognitions until curator review confirms.
+    recognitions: ['BAP'],
   },
 ];
 

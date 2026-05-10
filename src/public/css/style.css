@@ -2278,6 +2278,32 @@ section.home-media { padding-top: 0; }
 }
 .trick-pathway-link:hover { text-decoration: underline; }
 
+/* ── Glossary: inline notation examples (reuses .notation-token + role classes) */
+.glossary-inline-notation {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95em;
+  letter-spacing: 0.02em;
+  padding: 2px 5px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 3px;
+}
+
+/* ── Freestyle history: pioneer recognition badge ─────────────────────── */
+.pioneer-recognition {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent, #1a5a8a);
+  background: rgba(26, 90, 138, 0.08);
+  border: 1px solid rgba(26, 90, 138, 0.2);
+  border-radius: 9px;
+  vertical-align: middle;
+}
+
 /* ── Freestyle history: media panels + evolution strip ────────────────── */
 .history-media {
   margin: 16px 0;

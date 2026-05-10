@@ -69,6 +69,39 @@
     </div>
   </section>
 
+  {{! ── How combos grew ───────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>How Combos Grew</h2>
+      <p class="section-intro">
+        The story of how multi-trick sequences evolved from isolated kicks
+        into the linked, density-driven runs that define modern competition.
+      </p>
+    </div>
+    {{#each content.comboEvolution}}<p>{{this}}</p>{{/each}}
+    <p class="detail-muted">
+      Run-quality terms used here — <strong>guiltless</strong>, <strong>fearless</strong>,
+      <strong>density</strong> — are defined in the
+      <a href="/freestyle/glossary#1-add-system--run-quality">glossary's run-quality section</a>.
+    </p>
+  </section>
+
+  {{! ── From routines to guiltless: how judging evolved ──────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>From Routines to Guiltless: How Judging Evolved</h2>
+      <p class="section-intro">
+        Why a 1985 freestyle routine and a 2025 fearless run can both be the
+        peak of their era — and how the language for "good" expanded along the way.
+      </p>
+    </div>
+    {{#each content.earlyRoutineEvolution}}<p>{{this}}</p>{{/each}}
+    <p class="detail-muted">
+      See the <a href="/freestyle/glossary#1-add-system--run-quality">run-quality vocabulary</a>
+      for the definitions of Tiltless, Guiltless, Tripless, Fearless, Beastly, and Godly.
+    </p>
+  </section>
+
   {{! ── Pioneers ────────────────────────────────────────────────────────────── }}
   <section class="content-section">
     <div class="section-heading">
@@ -109,6 +142,9 @@
                 <a href="{{profileHref}}">{{name}}</a>
               {{else}}
                 {{name}}
+              {{/if}}
+              {{#if recognitions.length}}
+              {{#each recognitions}}<span class="pioneer-recognition" title="Recognition: {{this}}">{{this}}</span>{{/each}}
               {{/if}}
             </td>
             <td>{{note}}</td>

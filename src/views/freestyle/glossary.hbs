@@ -220,40 +220,41 @@
       <li>Which <em>family</em> the trick belongs to, by virtue of its base.</li>
     </ul>
 
-    <h3>A beginner example: WHIRL</h3>
+    <h3>A beginner example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.whirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
     <p>
-      A trick whose notation is just <code>WHIRL</code> is itself the family
-      anchor. It carries one body rotation and resolves at its catch — no
-      modifiers stacked on, no set primitive prefacing it. A single token
-      tells you: this is the structural root.
+      A trick whose notation is just <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.whirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{/each}}{{/with}}</code>
+      is itself the family anchor. It carries one body rotation and resolves
+      at its catch — no modifiers stacked on, no set primitive prefacing it.
+      A single token tells you: this is the structural root.
     </p>
 
-    <h3>A compound example: PARADOX WHIRL</h3>
+    <h3>A compound example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.paradoxWhirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
     <p>
       A whirl with the paradox modifier applied. The notation reads
-      left-to-right exactly as the trick is built: the <code>PARADOX</code>
-      modifier shapes the body position; the <code>WHIRL</code> base provides
-      the rotation and structural anchor. Adds 1 ADD on top of whirl's base
-      difficulty.
+      left-to-right exactly as the trick is built: the modifier (yellow-olive)
+      shapes the body position; the base anchor (green) provides the rotation
+      and family identity. Adds 1 ADD on top of whirl's base difficulty.
     </p>
 
-    <h3>A modifier-heavy example: STEPPING DUCKING PARADOX TORQUE</h3>
+    <h3>A modifier-heavy example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.gauntlet}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
     <p>
       Three body modifiers stacked on a torque base — known to the community
       as Gauntlet, a 7-ADD trick. Reading the notation left-to-right reveals
-      the layered construction: stepping, then ducking, then paradox, then
-      finally the torque base. Each modifier contributes its own +1 to the
-      total difficulty. Compound notation like this is one of the clearest
-      demonstrations of the language: the visible structural decomposition
-      is the trick.
+      the layered construction: each modifier (yellow-olive) shapes the body,
+      then the base anchor (green) closes the structural sentence. Each
+      modifier contributes its own +1 to the total difficulty. Compound
+      notation like this is one of the clearest demonstrations of the
+      language: the visible structural decomposition is the trick.
     </p>
 
     <h3>Color-coded structural roles</h3>
     <p>
-      Per-trick pages render notation with role-aware coloring — base anchor,
-      sets, rotations, and body modifiers each get a distinct visual treatment.
-      The structural shape becomes readable at a glance, without needing to
-      memorize what each token means.
+      The examples above use the same role-aware rendering you'll see on
+      every trick-detail page. Hover any token to see its role and resolved
+      family name. The visual hierarchy is intentionally restrained — only
+      the four primary roles (core family, set, rotation, body modifier)
+      carry color saturation; surfaces, suffixes, and structural markers
+      render muted so the structural shape stays legible at a glance.
     </p>
   </section>
 

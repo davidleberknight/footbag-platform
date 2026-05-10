@@ -979,6 +979,18 @@ export interface FreestylePartnershipsContent {
 // History content types (editorial service-layer constants)
 // ---------------------------------------------------------------------------
 
+// Glossary view-model. Carries the shaped notation examples so the §8
+// notation explainers render with the same role-aware classification the
+// trick-detail page uses. Keeps the glossary's promise ("color-coded
+// structural roles") visible on the page itself.
+export interface FreestyleGlossaryContent {
+  notationExamples: {
+    whirl:        NotationDisplay | null;
+    paradoxWhirl: NotationDisplay | null;
+    gauntlet:     NotationDisplay | null;
+  };
+}
+
 export interface FreestyleHistoryEvolutionEntry {
   period: string;
   label: string;
@@ -1005,6 +1017,14 @@ export interface FreestyleHistoryContent {
   // "Evolution of difficulty" framing — not a new ontology layer; an editorial
   // pass through the same eras with a difficulty-arc lens.
   evolution: FreestyleHistoryEvolutionEntry[];
+  // Combo-evolution narrative (2026-05-10 second pass): how multi-trick
+  // sequences grew from isolated kicks into linked dexterity combinations
+  // through to modern density-driven runs. Editorial paragraphs.
+  comboEvolution: string[];
+  // Early-routine → guiltless framing: how judging and audience expectations
+  // evolved from "creative routine" to ADD-aware combo-density baselines,
+  // while keeping creativity and execution in the picture.
+  earlyRoutineEvolution: string[];
   // Media slots. Each is null-safe so the template can render a placeholder
   // hook when no curated asset is available. Prefer existing curated/media
   // assets already in the platform; do NOT invent new YouTube IDs here.
@@ -1755,14 +1775,32 @@ export const freestyleService = {
             summary: 'New-trick invention slowed; competitive depth grew. The frontier moved from "what new structure exists?" to "how cleanly can the established vocabulary be performed under pressure?" Sequencing, transitions, and routine architecture became the differentiators.',
           },
         ],
-        // Hero/intro media: the existing routine reference for the modern era
-        // works as an evocative opener — it's already a curated asset in the
-        // platform via the landing page's competitionFormats. No new URLs
-        // invented here.
+        comboEvolution: [
+          'In the earliest period of the sport, freestyle wasn\'t really about combos at all. Players showed individual tricks within an open-floor performance, with kicks and stalls strung loosely between them. A "combo" was something audiences and judges noticed when it happened — not yet a structural unit you built and named.',
+          'Through the late 1980s and into the early 1990s, players began linking dexterity tricks intentionally. Two-trick chains became the working unit: a clipper-set dex into a body trick, or a mirage into a butterfly. The community started naming patterns rather than just patches of execution.',
+          'The paradox-and-symposium era of the mid-1990s expanded what a single trick could carry — modifiers gave you a way to layer body positions onto a base — and that, in turn, gave linking new richness. A run could now move from one well-defined compound to another, instead of dropping back to a base trick between every difficulty spike.',
+          'The 2000s were the blurry/fearless density era. The blurry modifier reshaped the top of the curve, and "fearless" runs (every trick at 5 ADD or higher) became the marker of a top-tier performance. The combo question shifted from "how many tricks?" to "how high a sustained density can you hold across a run?"',
+          'Modern competitive freestyle reads as a flow-and-execution sport. Trick vocabulary settled years ago; the differentiators are sequencing, transitions, musicality, and consistency over a full routine\'s length. "Guiltless" (≥3 ADD per trick) and "fearless" (≥5 ADD per trick) are baseline expectations at the top tier rather than highlights. The art now is in how the established palette is played.',
+        ],
+        earlyRoutineEvolution: [
+          'Early freestyle judging was about routines first. Players choreographed a run, set it to music or mood, and were judged on creativity, execution, and the energy a performance carried. Difficulty mattered, but as a felt quality the judges and audience read together — not yet as a number.',
+          'The ADD system, formalized in the early 1990s, gave the community a shared scale for that felt quality. Routines didn\'t stop being creative; they got a second axis. Players could now talk about a run\'s difficulty independently of its choreography, and the run-quality vocabulary in the glossary — Tiltless, Guiltless, Tripless, Fearless, Beastly, Godly — emerged to describe routines by the floor of difficulty they sustained.',
+          'Today the vocabulary still works on both axes. Creative routines remain a competition format and an art form. Alongside them, ADD-aware difficulty standards (guiltless or fearless throughout, transitions held under pressure) describe what serious competitive runs look like at the top. The two ways of judging haven\'t replaced each other — they share the same competitive culture.',
+        ],
+        // Hero/intro media: per the 2026-05-10 rebalance, the hero slot does
+        // NOT lead with a modern routine (that bias was crowding the
+        // historically-spread tone the page is meant to carry). Restraint:
+        // render a placeholder hook signaling that archival visuals are in
+        // curation. The modern reference still lives in `modernEraMedia`
+        // below for those who want a contemporary anchor. No new media
+        // ingested.
         heroMedia: {
-          media:   expandYouTubeVideo('Z-KkyOpoBhM', 'Modern routine — Yoshihito Yamamoto, Worlds Online 2020'),
-          caption: 'A modern routine (Yoshihito Yamamoto, Worlds Online 2020) — useful as a reference point for what the contemporary game looks like at its top level. Routine footage from the 1980s–1990s is being curated separately.',
-          placeholderNote: null,
+          media:   null,
+          caption: '',
+          placeholderNote:
+            'Archival imagery, event photos, and historical routine footage from the 1980s–2000s ' +
+            'are being curated separately. This slot will carry era-spanning visuals once that ' +
+            'curation lands; for now the page tells the story in text and links to player profiles.',
         },
         // Pioneers/early-era media: no curated archival footage of the 1980s
         // pioneers exists yet in the platform. Render a placeholder hook so
@@ -2147,7 +2185,29 @@ export const freestyleService = {
     };
   },
 
-  getGlossaryPage(): PageViewModel<Record<string, never>> {
+  getGlossaryPage(): PageViewModel<FreestyleGlossaryContent> {
+    // Build the same lookup context the trick-detail renderer uses, so the
+    // glossary's notation examples are classified by the SAME role registries
+    // — keeping the page's claim ("color-coded structural roles") visibly
+    // true at the site of the claim.
+    const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const allModifiers = runSqliteRead('freestyleTrickModifiers.listAll', () =>
+      freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
+    );
+    const allAliases = runSqliteRead('freestyleTrickAliases.listAll', () =>
+      freestyleTrickAliases.listAll.all() as FreestyleTrickAliasRow[],
+    );
+    const ctx = buildNotationLookupContext(allDictRows, allModifiers, allAliases);
+
+    // Three illustrative examples per the bootstrap plan + style guide:
+    // beginner (single base), compound (modifier + base), modifier-heavy
+    // (3 modifiers + base). Each shaped through the same renderer.
+    const whirlExample        = shapeNotationDisplay('WHIRL', ctx);
+    const paradoxWhirlExample = shapeNotationDisplay('PARADOX WHIRL', ctx);
+    const gauntletExample     = shapeNotationDisplay('STEPPING DUCKING PARADOX TORQUE', ctx);
+
     return {
       seo: {
         title: 'Freestyle Glossary',
@@ -2166,7 +2226,13 @@ export const freestyleService = {
           { label: 'Glossary' },
         ],
       },
-      content: {},
+      content: {
+        notationExamples: {
+          whirl:        whirlExample,
+          paradoxWhirl: paradoxWhirlExample,
+          gauntlet:     gauntletExample,
+        },
+      },
     };
   },
 
