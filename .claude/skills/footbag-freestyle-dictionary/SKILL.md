@@ -172,7 +172,7 @@ Use aliases for naming evolution, abbreviations, and alternate terms.
 
 Examples:
 
-- Toe Blur → Quantum Mirage
+- Toe Blur → Stepping Paradox Mirage (per James pt10 adjudication 2026-05-10; supersedes the earlier Red pt2 "Quantum Mirage" reading which gave 3 ADD vs asserted 4 — see pt10 candidate-core resolution)
 - Toe Ripwalk → Quantum Butterfly
 - Spyro → Inspin
 - PS Whirl → Paradox Symposium Whirl
@@ -285,8 +285,8 @@ Source priority for primary selection:
 1. AnzTrikz single/double-trick tutorial (`anz_trikz`)
 2. TT / Tricks of the Trade single-trick lesson (`tt_youtube`)
 3. PassBack tutorial (`footbagspot_passback`)
-4. Other verified tutorial source (`shred_global`, `footbagspot_tutorials`, `flipsider_footbag`, `footbag_finland`, etc.)
-5. Clear demo (named-trick demos from community channels — currently classified as tutorial-tier when registered)
+4. Other verified tutorial source (`footbagspot_tutorials`, `polini_pointers`, `footbag_foundations`, `everything_footbag`)
+5. Demonstration-tier source (`shred_global`, `flipsider_footbag`, `footbag_finland`) — single-trick demos; no teaching breakdown. Per Phase 2b 2026-05-10, `shred_global` moved from tutorial-tier to demo-tier; SOURCE_TIER in `freestyleService.ts` is the load-bearing classification.
 6. Record / performance clip (`passback_records`) — never primary if a tutorial alternative exists
 
 ### Primary-promotion rules (load-bearing — applied before every media-link write)

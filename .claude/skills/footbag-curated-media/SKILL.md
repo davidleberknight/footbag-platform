@@ -251,7 +251,7 @@ The tier registry is **not codified in code or schema**. Each sidecar's tier is 
 | `anz_trikz` | CANONICAL_TUTORIAL | Anssi Sundberg AnzTrikz tutorials |
 | `footbagspot_passback` | CANONICAL_TUTORIAL | PassBack Levels 1–5 curriculum |
 | `footbagspot_tutorials` | CANONICAL_TUTORIAL | FootbagSpot tutorial library proper |
-| `shred_global` | STRONG_TUTORIAL | Single-trick demos by named players (Boychuk, Digges, Miley, Monistere, Ścierski, etc.) |
+| `shred_global` | HIGH_QUALITY_DEMO | Single-trick demos by named players (Boychuk, Digges, Miley, Monistere, Ścierski, etc.). **Reclassified 2026-05-10 (Phase 2b):** moved from STRONG_TUTORIAL to demo-tier. Caption pattern is uniformly "Footbag Freestyle Trick: <name> (<add>add) by <player>" — single-trick demo, no teaching breakdown. SOURCE_TIER in `freestyleService.ts` mirrors this as DEMONSTRATION. |
 | `polini_pointers` | STRONG_TUTORIAL | Nick Polini's instructional content |
 | `everything_footbag` | STRONG_TUTORIAL | Hardik's educational content |
 | `footbag_foundations` | STRONG_TUTORIAL | Erik Chan's content |
@@ -269,9 +269,9 @@ The tier registry is **not codified in code or schema**. Each sidecar's tier is 
 
 The default tier is a starting point, not a mandate. Curator may set a different tier on a per-sidecar basis when the content quality justifies it. Document the override reason in the sidecar's `notes` field if the deviation isn't self-evident.
 
-### Audit observation (2026-05-07)
+### Audit observation (2026-05-07; superseded by 2026-05-10 reclass)
 
-The media linkage integrity audit found 14 sidecars whose tier didn't match the audit's source-default expectation. Most cases were `footbag_finland` and `shred_global` sidecars labeled `HIGH_QUALITY_DEMO` instead of the expected default. **The defaults above codify what the audit's source-tier expectations should have been.** Existing sidecars do NOT need bulk updating; the convention applies forward to new sidecar emissions and to any curator-paced consistency pass.
+The media linkage integrity audit (2026-05-07) found 14 sidecars whose tier didn't match the audit's then-source-default expectation. Most cases were `footbag_finland` and `shred_global` sidecars labeled `HIGH_QUALITY_DEMO` instead of the then-expected STRONG_TUTORIAL default. **Phase 2b (2026-05-10) reclassified `shred_global` to demo-tier, which means those `HIGH_QUALITY_DEMO` sidecars are now the correct tier — the original audit expectation was the side that drifted, not the sidecars.** The table above reflects the post-reclass defaults. Existing sidecars do NOT need bulk updating; the convention applies forward.
 
 ### Tier is presentation, not data integrity
 
