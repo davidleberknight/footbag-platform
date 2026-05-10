@@ -258,8 +258,103 @@
     </p>
   </section>
 
+  <section class="content-section" id="operational-notation">
+    <h2 class="section-heading">9. Operational Notation</h2>
+    <p>
+      Operational notation is the second of two notation surfaces. While
+      the Jobs notation in the section above describes a trick's structural
+      identity (semantic), <strong>operational notation</strong> describes
+      its <em>execution mechanics</em> — the sequence of plant, dex, body
+      movements, and delays the body actually performs. The two surfaces
+      are complementary; neither replaces the other. Trick-detail pages
+      render both side-by-side when both are authored.
+    </p>
+    <p class="detail-muted">
+      Operational notation lives behind the &ldquo;Set notation
+      (operational)&rdquo; section on per-trick pages. This section is
+      the token reference for that surface.
+    </p>
+
+    <h3>Component flags</h3>
+    <p>Square-bracket annotations on a move that mark which structural component is in play. Multiple flags may stack on a single move.</p>
+    <dl class="operational-glossary">
+      <dt id="op-flag-dex"><code>[DEX]</code></dt>
+      <dd>Dexterity component — the move involves bag-foot interaction (the foot circles around or contacts the bag).</dd>
+      <dt id="op-flag-del"><code>[DEL]</code></dt>
+      <dd>Delay component — the move ends in a stall on a foot or surface. Typically the final segment of an operational notation string.</dd>
+      <dt id="op-flag-bod"><code>[BOD]</code></dt>
+      <dd>Body-position component — the move includes a body pose change (spin, duck, dive, paradox).</dd>
+      <dt id="op-flag-xbd"><code>[XBD]</code></dt>
+      <dd>Cross-body component — the delay or move sits on the opposite-side surface from the plant foot. Typically appears with <code>[DEL]</code> on the landing.</dd>
+      <dt id="op-flag-pdx"><code>[PDX]</code></dt>
+      <dd>Paradox component — the dex is performed in the paradox direction. Equivalent to the <code>paradox</code> body modifier in semantic notation.</dd>
+      <dt id="op-flag-xdex"><code>[XDEX]</code></dt>
+      <dd>X-Dex component — a full-circle dex variant. In IFPA's ontology, X-Dex fires only in specific named tricks (per Red pt1); FootbagMoves uses the flag more broadly.</dd>
+    </dl>
+
+    <h3>Sides</h3>
+    <p>The side prefix on a move tells you which leg performs it relative to the plant foot.</p>
+    <dl class="operational-glossary">
+      <dt id="op-side-same"><code>SAME</code></dt>
+      <dd>Same side as the plant foot. Roughly equivalent to the <code>SS</code> abbreviation seen in some trick names.</dd>
+      <dt id="op-side-op"><code>OP</code></dt>
+      <dd>Opposite side from the plant foot. The non-plant leg performs the move.</dd>
+    </dl>
+
+    <h3>Directions</h3>
+    <p>The arc-direction tokens describe the bag's path during the dex.</p>
+    <dl class="operational-glossary">
+      <dt id="op-direction-in"><code>IN</code></dt>
+      <dd>Inward arc — the bag travels toward the body.</dd>
+      <dt id="op-direction-out"><code>OUT</code></dt>
+      <dd>Outward arc — the bag travels away from the body.</dd>
+      <dt id="op-direction-front"><code>FRONT</code> / <code>BACK</code></dt>
+      <dd>
+        Forward / backward direction. Standalone <code>FRONT</code> or
+        <code>BACK</code> describes the arc; when followed by
+        <code>WHIRL</code> or <code>SWIRL</code>, the two tokens fuse
+        into a single rotational-variant move (e.g.
+        <code>FRONT WHIRL</code>, <code>BACK SWIRL</code>).
+      </dd>
+    </dl>
+
+    <h3 id="op-sequence-operators">Sequence operators</h3>
+    <p>The arrow tokens segment the operational notation into discrete sub-actions.</p>
+    <dl class="operational-glossary">
+      <dt id="op-seq-minor"><code>&gt;</code></dt>
+      <dd>Sub-step boundary — continuous flow within a beat group. The next move follows directly from the previous one without major pause or replant.</dd>
+      <dt id="op-seq-major"><code>&gt;&gt;</code></dt>
+      <dd>Major step boundary — often signals a no-plant break, a beat change, or a body-action transition. Visually heavier than <code>&gt;</code>; typically pairs with <code>(no plant while)</code> on a following move.</dd>
+    </dl>
+
+    <h3 id="op-pre-states">Pre-move state flags</h3>
+    <p>Lowercase parenthesized annotations that describe the body state during the next move.</p>
+    <dl class="operational-glossary">
+      <dt id="op-prestate-back"><code>(back)</code> / <code>(front)</code></dt>
+      <dd>Backward / forward direction of the next body action. Most often seen with <code>SPIN</code>: <code>(back) SPIN [BOD]</code> = backward body spin.</dd>
+      <dt id="op-prestate-no-plant"><code>(no plant while)</code></dt>
+      <dd>The support leg does not plant during this segment. Common in dense compounds where the body is mid-air during the move.</dd>
+      <dt id="op-prestate-rooted"><code>(rooted)</code></dt>
+      <dd>Held / rooted position; no plant. Corresponds to the <code>rooted</code> set primitive in IFPA's modifier table.</dd>
+    </dl>
+
+    <h3 id="op-surfaces">Surfaces &amp; body actions (reference)</h3>
+    <p>The remaining vocabulary is small enough to list verbatim:</p>
+    <ul>
+      <li><code>CLIP</code>, <code>TOE</code> &mdash; plant or landing surfaces</li>
+      <li><code>SPIN</code>, <code>DUCK</code>, <code>DIVE</code> &mdash; body actions</li>
+      <li><code>FRONT WHIRL</code> / <code>BACK WHIRL</code> / <code>FRONT SWIRL</code> / <code>BACK SWIRL</code> &mdash; rotational dex variants on a rotational base</li>
+    </ul>
+
+    <p class="detail-muted">
+      For the broader set notation reference (set primitives like Pixie,
+      Fairy, Atomic, Quantum and how they decompose), see
+      <a href="/freestyle/moves">Set notation reference</a>.
+    </p>
+  </section>
+
   <section class="content-section">
-    <h2 class="section-heading">9. Foundational Tricks</h2>
+    <h2 class="section-heading">10. Foundational Tricks</h2>
     <p>
       A small set of base tricks act as the structural primitives most other
       named tricks descend from. Learning them gives you the building blocks
@@ -287,7 +382,7 @@
   </section>
 
   <section class="content-section">
-    <h2 class="section-heading">10. Competitive &amp; Format Terms</h2>
+    <h2 class="section-heading">11. Competitive &amp; Format Terms</h2>
     <p>These describe event formats and play contexts.</p>
     <ul>
       <li><strong>Freestyle Routine</strong>: a choreographed performance to music.</li>
@@ -299,7 +394,7 @@
   </section>
 
   <section class="content-section">
-    <h2 class="section-heading">11. Sources</h2>
+    <h2 class="section-heading">12. Sources</h2>
     <p>
       Definitions on this page draw on long-standing freestyle community
       usage, expert-reviewed terminology established across decades of play

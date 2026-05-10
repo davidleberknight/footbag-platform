@@ -2299,6 +2299,33 @@ section.home-media { padding-top: 0; }
   border-radius: 3px;
 }
 
+/* ── Glossary §9: operational notation token definitions (O1c) ─────────
+ * Definition list rendering. dt holds the token (monospace, slight emphasis);
+ * dd holds the explanation (regular weight). Per-token IDs (#op-flag-dex
+ * etc.) provide deep-link targets from trick-detail page glossary links. */
+.operational-glossary {
+  margin: 8px 0 16px;
+}
+.operational-glossary dt {
+  margin-top: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.operational-glossary dt code {
+  font-weight: 600;
+}
+.operational-glossary dd {
+  margin: 2px 0 6px 24px;
+  color: #444;
+}
+/* Honor :target highlighting when the glossary link deep-links to a token. */
+.operational-glossary dt:target {
+  background: rgba(180, 83, 9, 0.06);  /* warm amber tint to match palette */
+  border-left: 3px solid #b45309;
+  padding-left: 8px;
+  border-radius: 2px;
+  scroll-margin-top: 80px;
+}
+
 /* ── Freestyle history: pioneer recognition badge ─────────────────────── */
 .pioneer-recognition {
   display: inline-block;
@@ -2462,6 +2489,24 @@ section.home-media { padding-top: 0; }
 /* Unknown — pass-through, no visual styling. Renders verbatim so curator
  * can spot tokens that fell outside the closed vocabulary. */
 .op-token--unknown { color: inherit; }
+
+/* O1c: glossary deeplink at the section foot. Subtle; recedes so the
+ * token block remains the visual focus. Single link per section
+ * (not per token) keeps the token block's restraint intact. */
+.operational-notation-glossary-link {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #555);
+}
+.operational-notation-glossary-link a {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.operational-notation-glossary-link a:hover {
+  text-decoration: underline;
+  color: #b45309;  /* match operational palette primary on hover */
+}
 .notation-token {
   padding: 0 0.15em;
   border-radius: 2px;

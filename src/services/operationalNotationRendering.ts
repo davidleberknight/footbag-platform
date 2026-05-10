@@ -56,7 +56,8 @@ const ROTATION_NOUNS  = new Set(['WHIRL', 'SWIRL']);
 const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX']);
 
 // Educational tooltip text per role. Used in the `title` attribute of each
-// rendered <span> for native browser hover-disclosure.
+// rendered <span> for native browser hover-disclosure. Generic fallbacks;
+// per-token overrides below where specificity adds learner clarity.
 const ROLE_LABELS: Record<OperationalTokenRole, string> = {
   surface:          'Plant or landing surface',
   side:             'Plant-foot side',
@@ -69,26 +70,49 @@ const ROLE_LABELS: Record<OperationalTokenRole, string> = {
   unknown:          'Unrecognized token',
 };
 
+// Per-word-token specific tooltip overrides (O1c). Surfacing per-token
+// pedagogy makes each hover educational without coupling to the glossary
+// page. Keyed on the UPPERCASE form for case-insensitive lookup.
+const WORD_TOKEN_LABELS: Record<string, string> = {
+  // Surfaces
+  CLIP:  'Clipper-stall surface (inside of support foot)',
+  TOE:   'Toe-stall surface',
+  // Sides
+  SAME:  'Same side as the plant foot',
+  OP:    'Opposite side from the plant foot',
+  // Directions (when standalone — front/back fuse with WHIRL/SWIRL)
+  IN:    'Inward arc (toward the body)',
+  OUT:   'Outward arc (away from the body)',
+  FRONT: 'Forward direction',
+  BACK:  'Backward direction',
+  // Body actions
+  SPIN:  'Body spin (rotation in place)',
+  DUCK:  'Duck body action',
+  DIVE:  'Dive body action',
+  // Standalone whirl/swirl (rare)
+  WHIRL: 'Whirl variant',
+  SWIRL: 'Swirl variant',
+};
+
 // Component-flag specific tooltip overrides. The 6 flags carry meaningfully
-// different educational content; surfacing per-flag tooltips supports the
-// O1c future glossary integration without committing to it yet.
+// different educational content.
 const COMPONENT_FLAG_LABELS: Record<string, string> = {
-  DEX:  'Dexterity component',
-  DEL:  'Delay / stall component',
-  BOD:  'Body-position component',
-  XBD:  'Cross-body component',
-  PDX:  'Paradox component',
-  XDEX: 'X-Dex component',
+  DEX:  'Dexterity component (bag-foot interaction)',
+  DEL:  'Delay component (lands on a stall surface)',
+  BOD:  'Body-position component (pose/spin/duck/dive)',
+  XBD:  'Cross-body component (delay on opposite-side surface)',
+  PDX:  'Paradox component (paradox-direction dex)',
+  XDEX: 'X-Dex component (full-circle dex variant)',
 };
 
 // Pre-state flag specific tooltip overrides — same rationale as
 // COMPONENT_FLAG_LABELS. Lowercase since pre-state flags are lowercase by
 // convention per OPERATIONAL_NOTATION_GRAMMAR §2.2.
 const PRE_STATE_LABELS: Record<string, string> = {
-  '(back)':            'Backward direction',
-  '(front)':           'Forward direction',
+  '(back)':            'Backward direction (next move oriented backward)',
+  '(front)':           'Forward direction (next move oriented forward)',
   '(no plant while)':  'No support-leg plant during this segment',
-  '(rooted)':          'Rooted / held; no plant',
+  '(rooted)':          'Rooted / held position; no plant',
 };
 
 /**
@@ -172,17 +196,17 @@ export function shapeOperationalNotationDisplay(
 
       // Surface (CLIP, TOE)
       if (SURFACES.has(upper)) {
-        tokens.push({ text: word, role: 'surface', cssRole: 'surface', label: ROLE_LABELS.surface });
+        tokens.push({ text: word, role: 'surface', cssRole: 'surface', label: WORD_TOKEN_LABELS[upper] ?? ROLE_LABELS.surface });
         continue;
       }
       // Side (SAME, OP)
       if (SIDES.has(upper)) {
-        tokens.push({ text: word, role: 'side', cssRole: 'side', label: ROLE_LABELS.side });
+        tokens.push({ text: word, role: 'side', cssRole: 'side', label: WORD_TOKEN_LABELS[upper] ?? ROLE_LABELS.side });
         continue;
       }
       // Body action (SPIN, DUCK, DIVE)
       if (BODY_ACTIONS.has(upper)) {
-        tokens.push({ text: word, role: 'body_action', cssRole: 'body-action', label: ROLE_LABELS.body_action });
+        tokens.push({ text: word, role: 'body_action', cssRole: 'body-action', label: WORD_TOKEN_LABELS[upper] ?? ROLE_LABELS.body_action });
         continue;
       }
       // FRONT/BACK — lookahead for WHIRL/SWIRL to fuse into rotation_variant
@@ -192,24 +216,28 @@ export function shapeOperationalNotationDisplay(
           // Consume the whitespace + the rotation noun
           const fused = `${word} ${ahead[1]}`;
           pos += ahead[0]!.length;
+          // Compose a per-fused-token tooltip to avoid the generic
+          // "Rotational variant" fallback.
+          const dirLabel = upper === 'FRONT' ? 'forward' : 'backward';
+          const nounLabel = ahead[1]!.toUpperCase() === 'WHIRL' ? 'whirl' : 'swirl';
           tokens.push({
             text: fused, role: 'rotation_variant', cssRole: 'rotation-variant',
-            label: ROLE_LABELS.rotation_variant,
+            label: `Rotational dex — ${dirLabel}-direction ${nounLabel}`,
           });
           continue;
         }
         // Standalone direction
-        tokens.push({ text: word, role: 'direction', cssRole: 'direction', label: ROLE_LABELS.direction });
+        tokens.push({ text: word, role: 'direction', cssRole: 'direction', label: WORD_TOKEN_LABELS[upper] ?? ROLE_LABELS.direction });
         continue;
       }
       // Plain direction (IN, OUT)
       if (DIRECTIONS.has(upper)) {
-        tokens.push({ text: word, role: 'direction', cssRole: 'direction', label: ROLE_LABELS.direction });
+        tokens.push({ text: word, role: 'direction', cssRole: 'direction', label: WORD_TOKEN_LABELS[upper] ?? ROLE_LABELS.direction });
         continue;
       }
       // Standalone WHIRL/SWIRL (no preceding FRONT/BACK) — still rotation_variant
       if (ROTATION_NOUNS.has(upper)) {
-        tokens.push({ text: word, role: 'rotation_variant', cssRole: 'rotation-variant', label: ROLE_LABELS.rotation_variant });
+        tokens.push({ text: word, role: 'rotation_variant', cssRole: 'rotation-variant', label: WORD_TOKEN_LABELS[upper] ?? ROLE_LABELS.rotation_variant });
         continue;
       }
 

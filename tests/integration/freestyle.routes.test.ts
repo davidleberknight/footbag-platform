@@ -652,20 +652,21 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () => {
-  it('renders the section with role-classified token spans (O1b)', async () => {
+  it('renders the section with role-classified token spans (O1b/O1c — refined per-token tooltips)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
     // Section wrapper present
     expect(res.text).toContain('class="content-section operational-notation-display"');
     expect(res.text).toContain('<h2>Set notation (operational)</h2>');
-    // O1b: each token rendered as a span with role class. Sample tokens
-    // (escaped square brackets in regex; > escaped to &gt; by Handlebars).
-    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="Plant or landing surface">CLIP<\/span>/);
+    // O1b: each token rendered as a span with role class. O1c refined the
+    // per-token tooltips (e.g. CLIP gets "Clipper-stall surface (...)" not
+    // the generic "Plant or landing surface").
+    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="Clipper-stall surface \(inside of support foot\)">CLIP<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--sequence-op-major" data-role="sequence_op"[^>]*>&gt;&gt;<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side"[^>]*>SAME<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--direction" data-role="direction"[^>]*>OUT<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-dex" data-role="component_flag" title="Dexterity component">\[DEX\]<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-dex" data-role="component_flag" title="Dexterity component \(bag-foot interaction\)">\[DEX\]<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-xbd" data-role="component_flag"[^>]*>\[XBD\]<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-del" data-role="component_flag"[^>]*>\[DEL\]<\/span>/);
   });
@@ -692,5 +693,71 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     expect(opIdx).toBeGreaterThan(-1);
     if (editIdx > -1) expect(opIdx).toBeLessThan(editIdx);
     if (structIdx > -1) expect(opIdx).toBeLessThan(structIdx);
+  });
+
+  it('renders the O1c "Token reference" glossary deeplink below the notation block', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    expect(res.text).toContain('class="operational-notation-glossary-link"');
+    expect(res.text).toMatch(/<a href="\/freestyle\/glossary#operational-notation">Token reference/);
+  });
+
+  it('uses the refined per-token tooltip for OP (O1c)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    // Pre-O1c the tooltip was the generic "Plant-foot side"; O1c specializes
+    // SAME and OP per-token.
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="Opposite side from the plant foot">OP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="Same side as the plant foot">SAME<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="Clipper-stall surface \(inside of support foot\)">CLIP<\/span>/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// O1c (2026-05-10) — operational notation glossary subsection on
+// /freestyle/glossary. Adds §9 "Operational Notation" with per-token
+// anchor IDs for deep-linking from trick-detail Token-reference link.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/glossary — operational notation subsection (O1c)', () => {
+  it('renders the new §9 "Operational Notation" section with the deep-link target id', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('id="operational-notation"');
+    expect(res.text).toMatch(/<h2 class="section-heading">9\. Operational Notation<\/h2>/);
+  });
+
+  it('defines per-token anchors for the 6 component flags', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    for (const flag of ['dex', 'del', 'bod', 'xbd', 'pdx', 'xdex']) {
+      expect(res.text).toContain(`id="op-flag-${flag}"`);
+    }
+  });
+
+  it('defines per-token anchors for both sides (SAME, OP)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('id="op-side-same"');
+    expect(res.text).toContain('id="op-side-op"');
+  });
+
+  it('defines anchors for sequence operators and pre-states', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('id="op-seq-minor"');
+    expect(res.text).toContain('id="op-seq-major"');
+    expect(res.text).toContain('id="op-prestate-back"');
+    expect(res.text).toContain('id="op-prestate-no-plant"');
+    expect(res.text).toContain('id="op-prestate-rooted"');
+  });
+
+  it('renumbered subsequent sections (Foundational Tricks → §10; Competitive → §11; Sources → §12)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toMatch(/<h2 class="section-heading">10\. Foundational Tricks<\/h2>/);
+    expect(res.text).toMatch(/<h2 class="section-heading">11\. Competitive[^<]*<\/h2>/);
+    expect(res.text).toMatch(/<h2 class="section-heading">12\. Sources<\/h2>/);
   });
 });

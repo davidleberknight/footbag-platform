@@ -114,10 +114,10 @@ describe('shapeOperationalNotationDisplay — component flags', () => {
     expect(flags[4]!.cssRole).toBe('component-flag component-flag-pdx');
     expect(flags[5]!.cssRole).toBe('component-flag component-flag-xdex');
   });
-  it('attaches per-flag tooltip labels', () => {
+  it('attaches per-flag tooltip labels (O1c — per-token specificity)', () => {
     const out = shapeOperationalNotationDisplay('[DEX] [PDX]');
-    expect(out!.tokens[0]!.label).toBe('Dexterity component');
-    expect(out!.tokens[1]!.label).toBe('Paradox component');
+    expect(out!.tokens[0]!.label).toBe('Dexterity component (bag-foot interaction)');
+    expect(out!.tokens[1]!.label).toBe('Paradox component (paradox-direction dex)');
   });
 });
 
@@ -125,7 +125,8 @@ describe('shapeOperationalNotationDisplay — pre-state flags', () => {
   it('classifies single-word pre-state flags', () => {
     const out = shapeOperationalNotationDisplay('(back) SPIN [BOD]');
     expect(out!.tokens[0]).toEqual(expect.objectContaining({
-      text: '(back)', role: 'pre_state', label: 'Backward direction',
+      text: '(back)', role: 'pre_state',
+      label: 'Backward direction (next move oriented backward)',
     }));
   });
   it('classifies multi-word pre-state flags including (no plant while)', () => {
@@ -135,9 +136,9 @@ describe('shapeOperationalNotationDisplay — pre-state flags', () => {
       label: 'No support-leg plant during this segment',
     }));
   });
-  it('classifies (rooted) with its specific tooltip', () => {
+  it('classifies (rooted) with its specific tooltip (O1c)', () => {
     const out = shapeOperationalNotationDisplay('(rooted) SAME IN [DEX]');
-    expect(out!.tokens[0]!.label).toBe('Rooted / held; no plant');
+    expect(out!.tokens[0]!.label).toBe('Rooted / held position; no plant');
   });
 });
 
@@ -209,10 +210,10 @@ describe('shapeOperationalNotationDisplay — Blur worked example', () => {
     ]);
   });
 
-  it('Blur PDX flag receives the violet micro-distinguisher cssRole', () => {
+  it('Blur PDX flag receives the violet micro-distinguisher cssRole (O1c per-flag tooltip)', () => {
     const pdx = out!.tokens.find(t => t.text === '[PDX]');
     expect(pdx!.cssRole).toBe('component-flag component-flag-pdx');
-    expect(pdx!.label).toBe('Paradox component');
+    expect(pdx!.label).toBe('Paradox component (paradox-direction dex)');
   });
 
   it('Blur has two distinct dex segments separated by >> (matches the IFPA Stepping-Paradox-Mirage reading)', () => {

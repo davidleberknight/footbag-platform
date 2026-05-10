@@ -130,6 +130,12 @@
       <p class="section-intro">Execution mechanics — how the body performs the trick. Independent of the semantic notation above.</p>
     </div>
     <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+    {{! O1c: single glossary-deeplink at the section foot. Kept as one link  }}
+    {{! per section (not per token) to preserve the token block's restraint  }}
+    {{! and avoid link-style overrides fighting the role colour palette.     }}
+    <p class="operational-notation-glossary-link">
+      <a href="/freestyle/glossary#operational-notation">Token reference &rarr;</a>
+    </p>
   </section>
   {{/if}}
 
