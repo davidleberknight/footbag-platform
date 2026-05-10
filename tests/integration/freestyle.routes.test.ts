@@ -145,6 +145,23 @@ beforeAll(async () => {
     caption: 'REF_MEDIA_RECORD_MARKER',
   });
 
+  // ── Seeds for /freestyle/moves cross-link tests ─────────────────────────
+  // The moves page resolves trick links by slugifying the displayed label
+  // and matching strictly against freestyle_tricks.slug. Seed enough trick
+  // slugs to cover at least one matching label per section, plus 'terraging'
+  // to verify that compound labels (e.g. "Terraging (Double Pixie)") still
+  // render as plain text — slugify yields "terraging-double-pixie", which
+  // does NOT equal the seeded 'terraging' slug.
+  for (const slug of [
+    'pixie', 'fairy', 'stepping',                 // basic-set links
+    'surging',                                    // spinning-variant link
+    'blazing', 'pogo',                            // whirl/swirl link
+    'ducking', 'spinning', 'gyro',                // components link
+    'terraging',                                  // exists, but compound label stays plain
+  ]) {
+    insertFreestyleTrick(db, { slug, canonical_name: slug, adds: '3' });
+  }
+
   db.close();
   createApp = await importApp();
 });
@@ -303,6 +320,82 @@ describe('GET /freestyle/moves', () => {
     expect(res.text).toContain('Fairy');
     expect(res.text).toContain('Nuclear');
     expect(res.text).toContain('Stepping');
+  });
+
+  // ── Phase 1: cross-link moves → dictionary ───────────────────────────────
+  // Strict rule: slugify(label) must exactly equal a public freestyle_tricks
+  // slug. Compound labels and modifier-only matches stay plain text. Every
+  // row carries a stable id="move-<slug>" anchor for future backlinking.
+
+  it('renders trick-matched basic-set labels as anchors to /freestyle/tricks/:slug', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/moves');
+    expect(res.text).toContain('<a href="/freestyle/tricks/pixie">Pixie</a>');
+    expect(res.text).toContain('<a href="/freestyle/tricks/fairy">Fairy</a>');
+    expect(res.text).toContain('<a href="/freestyle/tricks/stepping">Stepping</a>');
+  });
+
+  it('renders unmatched basic-set labels as plain text (no anchor)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/moves');
+    // Slapping, Bubba, Frantic, Flailing, Infracting are in the table but
+    // not seeded as trick slugs — should render without /freestyle/tricks/ links.
+    expect(res.text).not.toContain('/freestyle/tricks/slapping');
+    expect(res.text).not.toContain('/freestyle/tricks/bubba');
+    expect(res.text).not.toContain('/freestyle/tricks/frantic');
+    expect(res.text).not.toContain('/freestyle/tricks/flailing');
+  });
+
+  it('keeps compound-label rows plain even when the bare slug exists', async () => {
+    // 'terraging' IS seeded as a trick slug, but the row label is
+    // "Terraging (Double Pixie)". slugify yields "terraging-double-pixie",
+    // which does not match 'terraging' — so the row stays plain text under
+    // the strict-match rule. No representative-link guess.
+    const app = createApp();
+    const res = await request(app).get('/freestyle/moves');
+    expect(res.text).toContain('Terraging (Double Pixie)');
+    expect(res.text).not.toContain('/freestyle/tricks/terraging-double-pixie');
+    expect(res.text).not.toMatch(/<a[^>]+href="\/freestyle\/tricks\/terraging"[^>]*>Terraging \(Double Pixie\)/);
+  });
+
+  it('keeps modifier-only labels plain (no link to hidden modifier surface)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/moves');
+    // Nuclear, Miraging, Blurry, Swirling, Whirling, Diving slugify to
+    // freestyle_trick_modifiers slugs but NOT to freestyle_tricks slugs;
+    // they must not render as /freestyle/tricks/* links and must not
+    // expose any /freestyle/modifiers/* surface either.
+    expect(res.text).not.toContain('/freestyle/tricks/nuclear');
+    expect(res.text).not.toContain('/freestyle/tricks/miraging');
+    expect(res.text).not.toContain('/freestyle/tricks/blurry');
+    expect(res.text).not.toContain('/freestyle/tricks/swirling');
+    expect(res.text).not.toContain('/freestyle/tricks/whirling');
+    expect(res.text).not.toContain('/freestyle/tricks/diving');
+    expect(res.text).not.toContain('/freestyle/modifiers/');
+  });
+
+  it('cross-links variant-tag list items where the label matches', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/moves');
+    expect(res.text).toContain('<a href="/freestyle/tricks/surging">Surging</a>');
+    expect(res.text).toContain('<a href="/freestyle/tricks/blazing">Blazing</a>');
+    expect(res.text).toContain('<a href="/freestyle/tricks/pogo">Pogo</a>');
+    expect(res.text).toContain('<a href="/freestyle/tricks/ducking">Ducking</a>');
+    expect(res.text).toContain('<a href="/freestyle/tricks/spinning">Spinning</a>');
+    expect(res.text).toContain('<a href="/freestyle/tricks/gyro">Gyro</a>');
+  });
+
+  it('emits stable move-<slug> anchor ids on every row and tag', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/moves');
+    // Anchor-id derives from slugify(label) regardless of whether the row
+    // links anywhere; this gives future trick-detail backlinking a stable
+    // target without requiring a re-author pass on the moves page.
+    expect(res.text).toContain('id="move-pixie"');
+    expect(res.text).toContain('id="move-terraging-double-pixie"');
+    expect(res.text).toContain('id="move-rooting-rooted"');
+    expect(res.text).toContain('id="move-fairy-atomic"');
+    expect(res.text).toContain('id="move-go-go"');
   });
 });
 

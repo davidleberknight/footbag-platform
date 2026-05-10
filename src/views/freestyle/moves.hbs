@@ -26,12 +26,12 @@
     <p>
       Each set prefix describes the arc of the bag from plant to catch. The notation uses four
       components: the <strong>set type</strong> (TOE, CLIP, or SET), the <strong>side</strong>
-      (SAME or OP — same side as the plant foot, or opposite), the <strong>direction</strong>
+      (SAME or OP &mdash; same side as the plant foot, or opposite), the <strong>direction</strong>
       (IN or OUT), and optional <strong>modifiers</strong> ([DEX] for dexterity, [BOD] for body
       move). A &ldquo;&gt;&rdquo; between components means the next element follows before the catch.
     </p>
     <p>
-      Example: <code>Pixie = TOE &gt; SAME IN [DEX] &gt;</code> — toe set, dexterity on the same
+      Example: <code>Pixie = TOE &gt; SAME IN [DEX] &gt;</code> &mdash; toe set, dexterity on the same
       side inward arc.
     </p>
   </section>
@@ -44,26 +44,12 @@
           <tr><th>Set Name</th><th>Notation</th></tr>
         </thead>
         <tbody>
-          <tr><td>Pixie</td><td><code>TOE &gt; SAME IN [DEX] &gt;</code></td></tr>
-          <tr><td>Fairy</td><td><code>TOE &gt; SAME OUT [DEX] &gt;</code></td></tr>
-          <tr><td>Nuclear</td><td><code>CLIP &gt; SAME OUT &gt;</code></td></tr>
-          <tr><td>Miraging</td><td><code>SET &gt; OP IN [DEX] &gt;</code></td></tr>
-          <tr><td>Stepping</td><td><code>CLIP &gt; OP IN [DEX] &gt;</code></td></tr>
-          <tr><td>Quantum</td><td><code>TOE &gt; OP IN [DEX] &gt;</code> (op side component)</td></tr>
-          <tr><td>Slapping</td><td><code>TOE &gt; OP IN [DEX] &gt;</code> (same side component)</td></tr>
-          <tr><td>Bubba</td><td><code>CLIP &gt; OP OUT [DEX] &gt;</code></td></tr>
-          <tr><td>Atomic</td><td><code>TOE &gt; OP OUT [DEX] &gt;</code> (op side component)</td></tr>
-          <tr><td>Tapping</td><td><code>TOE &gt; OP OUT [DEX] (plant) &gt;</code> (same side component)</td></tr>
-          <tr><td>Terraging (Double Pixie)</td><td><code>TOE &gt; SAME IN [DEX] &gt; SAME IN [DEX] &gt;</code></td></tr>
-          <tr><td>Barraging (High Stepping)</td><td><code>CLIP &gt; OP IN [DEX] &gt; SAME IN [DEX] &gt;</code></td></tr>
-          <tr><td>Sailing (Pixie Illusion)</td><td><code>TOE &gt; SAME IN [DEX] &gt; OP OUT [DEX] &gt;</code></td></tr>
-          <tr><td>Blurry (Stepping Paradox)</td><td><code>CLIP &gt; OP IN [DEX] &gt; OP OUT [DEX] &gt;</code> (op side)</td></tr>
-          <tr><td>Frantic</td><td><code>TOE &gt; SAME IN [DEX] &gt; OP IN [DEX] &gt;</code></td></tr>
-          <tr><td>Flailing</td><td><code>SET &gt; (no plant while) OP OUT [BOD] [DEX] &gt;</code></td></tr>
-          <tr><td>Fairy Atomic</td><td><code>TOE &gt; SAME OUT [DEX] &gt; OP OUT [DEX] &gt;</code></td></tr>
-          <tr><td>Shooting</td><td><code>CLIP &gt; OP IN [DEX] &gt; OP OUT [PDX][DEX] &gt;</code></td></tr>
-          <tr><td>Furious</td><td><code>CLIP &gt; OP IN [DEX] &gt; SAME IN [DEX] &gt; OP IN [DEX] &gt;</code></td></tr>
-          <tr><td>Infracting</td><td>Opposite of a Refraction, done as a set</td></tr>
+          {{#each content.basicSets}}
+          <tr id="{{anchorId}}">
+            <td>{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</td>
+            <td>{{#if notation}}<code>{{notation}}</code>{{/if}}</td>
+          </tr>
+          {{/each}}
         </tbody>
       </table>
     </div>
@@ -72,48 +58,36 @@
   <section class="content-section">
     <h2 class="section-heading">Spinning Variants</h2>
     <div class="moves-tag-list">
-      <span class="moves-tag">Fairy Spinning</span>
-      <span class="moves-tag">Pixie Inspinning</span>
-      <span class="moves-tag">Sonic</span>
-      <span class="moves-tag">Peeking</span>
-      <span class="moves-tag">Leaning</span>
-      <span class="moves-tag">Go-Go</span>
-      <span class="moves-tag">Surging</span>
-      <span class="moves-tag">Twinspinning</span>
-      <span class="moves-tag">Neutron</span>
+      {{#each content.spinningVariants}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
     </div>
   </section>
 
   <section class="content-section">
     <h2 class="section-heading">Whirl / Swirl Variants</h2>
     <div class="moves-tag-list">
-      <span class="moves-tag">Swirling</span>
-      <span class="moves-tag">Whirling</span>
-      <span class="moves-tag">Blazing</span>
-      <span class="moves-tag">Scattered</span>
-      <span class="moves-tag">Shattered</span>
-      <span class="moves-tag">Pogo</span>
-      <span class="moves-tag">Blistering</span>
-      <span class="moves-tag">Broken</span>
+      {{#each content.whirlSwirlVariants}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
     </div>
   </section>
 
   <section class="content-section">
     <h2 class="section-heading">UNS Set Variants</h2>
     <div class="moves-tag-list">
-      <span class="moves-tag">Finchy</span>
-      <span class="moves-tag">Pixie Pinching</span>
-      <span class="moves-tag">Twisted</span>
-      <span class="moves-tag">Snapping</span>
-      <span class="moves-tag">Arctic</span>
+      {{#each content.unsVariants}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
     </div>
   </section>
 
   <section class="content-section">
     <h2 class="section-heading">Antisymposium</h2>
     <div class="moves-tag-list">
-      <span class="moves-tag">Rooting / Rooted</span>
-      <span class="moves-tag">Zoid</span>
+      {{#each content.antisymposium}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
     </div>
   </section>
 
@@ -121,11 +95,9 @@
     <h2 class="section-heading">Components</h2>
     <p>These are modifiers or partial sets, not standalone set prefixes.</p>
     <div class="moves-tag-list">
-      <span class="moves-tag">Ducking</span>
-      <span class="moves-tag">Diving</span>
-      <span class="moves-tag">Spinning</span>
-      <span class="moves-tag">Inspinning</span>
-      <span class="moves-tag">Gyro</span>
+      {{#each content.components}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
     </div>
   </section>
 

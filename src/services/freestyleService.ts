@@ -179,6 +179,45 @@ interface TrickRefMediaRow {
   source_id: string | null;
 }
 
+// Phase 1 cross-link surface for /freestyle/moves. Each row carries the
+// display label, its set/operational notation (or null for variant-tag list
+// items that have no notation column), a stable anchor id, and an optional
+// `trickHref` resolved against the active trick dictionary. The match rule
+// is strict: slugify(label) must equal a public freestyle_tricks.slug. No
+// representative-link guesses, no modifier-page links, no compound-label
+// editorial mapping.
+export interface FreestyleMoveLabel {
+  label:     string;
+  notation:  string | null;
+  matchSlug: string | null;     // slugified label when it matches a public trick slug; else null
+  trickHref: string | null;     // /freestyle/tricks/<matchSlug> when matchSlug; else null
+  anchorId:  string;            // move-<slugified-label>; stable for every row
+}
+
+export interface FreestyleMovesContent {
+  basicSets:          FreestyleMoveLabel[];
+  spinningVariants:   FreestyleMoveLabel[];
+  whirlSwirlVariants: FreestyleMoveLabel[];
+  unsVariants:        FreestyleMoveLabel[];
+  antisymposium:      FreestyleMoveLabel[];
+  components:         FreestyleMoveLabel[];
+}
+
+// Kebab-case slug derivation for /freestyle/moves labels. Distinct from the
+// underscore-style slugify in src/services/slugify.ts because trick slugs in
+// the dictionary are kebab-case. Anchor ids on this page derive from this
+// function regardless of whether the label matches a trick — every row gets
+// a stable id for future backlinking.
+function movesAnchorSlug(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/\s*\/\s*/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 const SOURCE_LABELS: Record<string, string> = {
   tt_youtube:           'Tricks of the Trade',
   passback_records:     'Passback record',
@@ -2236,7 +2275,25 @@ export const freestyleService = {
     };
   },
 
-  getMovesPage(): PageViewModel<Record<string, never>> {
+  getMovesPage(): PageViewModel<FreestyleMovesContent> {
+    const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const trickSlugs = new Set<string>(trickRows.map(r => r.slug));
+
+    const shape = (label: string, notation: string | null): FreestyleMoveLabel => {
+      const slug = movesAnchorSlug(label);
+      const isTrick = trickSlugs.has(slug);
+      return {
+        label,
+        notation,
+        matchSlug: isTrick ? slug : null,
+        trickHref: isTrick ? `/freestyle/tricks/${slug}` : null,
+        anchorId:  `move-${slug}`,
+      };
+    };
+    const shapeBare = (label: string): FreestyleMoveLabel => shape(label, null);
+
     return {
       seo: {
         title: 'Freestyle Move Sets',
@@ -2255,7 +2312,47 @@ export const freestyleService = {
           { label: 'Move Sets' },
         ],
       },
-      content: {},
+      content: {
+        basicSets: [
+          shape('Pixie',                       'TOE > SAME IN [DEX] >'),
+          shape('Fairy',                       'TOE > SAME OUT [DEX] >'),
+          shape('Nuclear',                     'CLIP > SAME OUT >'),
+          shape('Miraging',                    'SET > OP IN [DEX] >'),
+          shape('Stepping',                    'CLIP > OP IN [DEX] >'),
+          shape('Quantum',                     'TOE > OP IN [DEX] > (op side component)'),
+          shape('Slapping',                    'TOE > OP IN [DEX] > (same side component)'),
+          shape('Bubba',                       'CLIP > OP OUT [DEX] >'),
+          shape('Atomic',                      'TOE > OP OUT [DEX] > (op side component)'),
+          shape('Tapping',                     'TOE > OP OUT [DEX] (plant) > (same side component)'),
+          shape('Terraging (Double Pixie)',    'TOE > SAME IN [DEX] > SAME IN [DEX] >'),
+          shape('Barraging (High Stepping)',   'CLIP > OP IN [DEX] > SAME IN [DEX] >'),
+          shape('Sailing (Pixie Illusion)',    'TOE > SAME IN [DEX] > OP OUT [DEX] >'),
+          shape('Blurry (Stepping Paradox)',   'CLIP > OP IN [DEX] > OP OUT [DEX] > (op side)'),
+          shape('Frantic',                     'TOE > SAME IN [DEX] > OP IN [DEX] >'),
+          shape('Flailing',                    'SET > (no plant while) OP OUT [BOD] [DEX] >'),
+          shape('Fairy Atomic',                'TOE > SAME OUT [DEX] > OP OUT [DEX] >'),
+          shape('Shooting',                    'CLIP > OP IN [DEX] > OP OUT [PDX][DEX] >'),
+          shape('Furious',                     'CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] >'),
+          shape('Infracting',                  'Opposite of a Refraction, done as a set'),
+        ],
+        spinningVariants: [
+          'Fairy Spinning', 'Pixie Inspinning', 'Sonic', 'Peeking', 'Leaning',
+          'Go-Go', 'Surging', 'Twinspinning', 'Neutron',
+        ].map(shapeBare),
+        whirlSwirlVariants: [
+          'Swirling', 'Whirling', 'Blazing', 'Scattered', 'Shattered',
+          'Pogo', 'Blistering', 'Broken',
+        ].map(shapeBare),
+        unsVariants: [
+          'Finchy', 'Pixie Pinching', 'Twisted', 'Snapping', 'Arctic',
+        ].map(shapeBare),
+        antisymposium: [
+          'Rooting / Rooted', 'Zoid',
+        ].map(shapeBare),
+        components: [
+          'Ducking', 'Diving', 'Spinning', 'Inspinning', 'Gyro',
+        ].map(shapeBare),
+      },
     };
   },
 
