@@ -126,6 +126,7 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
                 "aliases_json": json.dumps(aliases),
                 "notation": None,
                 "operational_notation": None,
+                "operational_notation_source": None,
                 "review_status": "curated",
                 "is_core": is_core,
                 "is_active": 1,
@@ -140,11 +141,13 @@ def load_tricks(conn: sqlite3.Connection, tricks_csv: Path, loaded_at: str) -> t
         INSERT INTO freestyle_tricks
           (slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, operational_notation,
+           operational_notation_source,
            review_status, is_core, is_active,
            sort_order, loaded_at, updated_at)
         VALUES
           (:slug, :canonical_name, :adds, :base_trick, :trick_family, :category,
            :description, :aliases_json, :notation, :operational_notation,
+           :operational_notation_source,
            :review_status, :is_core, :is_active,
            :sort_order, :loaded_at, :updated_at)
         """,

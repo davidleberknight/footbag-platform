@@ -1017,13 +1017,14 @@ export interface FreestyleTrickRow {
 // (heavy parse JSON not loaded on grids; operational_notation is light but
 // only the trick-detail page needs it). All seven extra fields are nullable.
 export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
-  jobs_notation_raw:        string | null;
-  jobs_notation_normalized: string | null;
-  structural_parse_json:    string | null;
-  computed_add_formula:     string | null;
-  computed_adds:            number | null;
-  add_formula_status:       string | null;
-  operational_notation:     string | null;
+  jobs_notation_raw:           string | null;
+  jobs_notation_normalized:    string | null;
+  structural_parse_json:       string | null;
+  computed_add_formula:        string | null;
+  computed_adds:               number | null;
+  add_formula_status:          string | null;
+  operational_notation:        string | null;
+  operational_notation_source: string | null;
 }
 
 // Extension of FreestyleTrickRow returned by listAllWithPending; carries the
@@ -1107,7 +1108,7 @@ export const freestyleTricks = {
            jobs_notation_raw, jobs_notation_normalized,
            structural_parse_json, computed_add_formula,
            computed_adds, add_formula_status,
-           operational_notation
+           operational_notation, operational_notation_source
     FROM freestyle_tricks
     WHERE slug = ? AND is_active = 1
   `); },

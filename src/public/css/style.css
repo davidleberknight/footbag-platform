@@ -2507,6 +2507,20 @@ section.home-media { padding-top: 0; }
   text-decoration: underline;
   color: #b45309;  /* match operational palette primary on hover */
 }
+
+/* O1d: curator-authored provenance / citation line. Muted italic so it
+ * recedes below the token block; sits between the notation and the
+ * glossary deeplink. Free-form text — supports the three real states
+ * (FM curator-reviewed / IFPA-authored / FM alternative-reading) plus
+ * ontology-conflict transparency. Omits entirely when null. */
+.operational-notation-source-note {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #555);
+  font-style: italic;
+  line-height: 1.5;
+  max-width: 720px;
+}
 .notation-token {
   padding: 0 0.15em;
   border-radius: 2px;

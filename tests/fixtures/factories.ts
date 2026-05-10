@@ -1025,7 +1025,10 @@ export interface FreestyleTrickOverrides {
   computed_adds?:            number | null;
   add_formula_status?:       string | null;
   // O1a (2026-05-10) operational notation column (nullable; default NULL).
-  operational_notation?:     string | null;
+  operational_notation?:        string | null;
+  // O1d (2026-05-10) free-form curator-authored provenance / citation
+  // line for operational_notation. Nullable; default NULL.
+  operational_notation_source?: string | null;
 }
 
 export function insertFreestyleTrick(
@@ -1039,8 +1042,8 @@ export function insertFreestyleTrick(
        description, aliases_json, notation, sort_order, review_status, is_active, loaded_at,
        jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
        computed_add_formula, computed_adds, add_formula_status,
-       operational_notation)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       operational_notation, operational_notation_source)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -1055,13 +1058,14 @@ export function insertFreestyleTrick(
     o.review_status  ?? 'curated',
     o.is_active      ?? 1,
     TS,
-    o.jobs_notation_raw        ?? null,
-    o.jobs_notation_normalized ?? null,
-    o.structural_parse_json    ?? null,
-    o.computed_add_formula     ?? null,
-    o.computed_adds            ?? null,
-    o.add_formula_status       ?? null,
-    o.operational_notation     ?? null,
+    o.jobs_notation_raw         ?? null,
+    o.jobs_notation_normalized  ?? null,
+    o.structural_parse_json     ?? null,
+    o.computed_add_formula      ?? null,
+    o.computed_adds             ?? null,
+    o.add_formula_status        ?? null,
+    o.operational_notation      ?? null,
+    o.operational_notation_source ?? null,
   );
   return slug;
 }

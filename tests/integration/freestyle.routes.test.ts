@@ -162,16 +162,26 @@ beforeAll(async () => {
     insertFreestyleTrick(db, { slug, canonical_name: slug, adds: '3' });
   }
 
-  // ── Seeds for O1a operational-notation rendering tests ─────────────────
-  // Two tricks: one with operational_notation populated (renders the new
-  // "Set notation (operational)" section) and one without (section omitted).
-  // The op-notation string mirrors the post-normalization shape proposed in
+  // ── Seeds for O1a/O1b/O1c/O1d operational-notation rendering tests ────
+  // Three tricks:
+  //   - op-notation-seeded:        operational_notation populated; no source-note
+  //   - op-notation-with-source:   operational_notation + source-note populated (O1d)
+  //   - op-notation-empty:         neither populated (section must omit)
+  // Op-notation string mirrors the post-normalization shape proposed in
   // exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md §4.
   insertFreestyleTrick(db, {
     slug: 'op-notation-seeded',
     canonical_name: 'op-notation-seeded',
     adds: '4',
     operational_notation: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',
+    // operational_notation_source intentionally omitted → null → source-note <p> must NOT render
+  });
+  insertFreestyleTrick(db, {
+    slug: 'op-notation-with-source',
+    canonical_name: 'op-notation-with-source',
+    adds: '4',
+    operational_notation: 'CLIP > OP IN [DEX] >> OP IN [DEX] [PDX] > OP TOE [DEL]',
+    operational_notation_source: 'Source: FootbagMoves.com (curator-reviewed 2026-05-10). Demo source-note for O1d.',
   });
   insertFreestyleTrick(db, {
     slug: 'op-notation-empty',
@@ -710,6 +720,35 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="Opposite side from the plant foot">OP<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="Same side as the plant foot">SAME<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="Clipper-stall surface \(inside of support foot\)">CLIP<\/span>/);
+  });
+
+  it('renders the curator-authored source-note when operational_notation_source is populated (O1d)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-with-source');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="operational-notation-source-note"');
+    expect(res.text).toContain('Source: FootbagMoves.com (curator-reviewed 2026-05-10). Demo source-note for O1d.');
+  });
+
+  it('omits the source-note element when operational_notation_source is null (O1d)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    expect(res.status).toBe(200);
+    // op-notation-seeded has operational_notation but NO source — the
+    // operational section must render but the source-note <p> must NOT.
+    expect(res.text).toContain('class="content-section operational-notation-display"');
+    expect(res.text).not.toContain('class="operational-notation-source-note"');
+  });
+
+  it('places source-note between the token block and the Token-reference link (O1d)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-with-source');
+    const tokensIdx  = res.text.indexOf('class="operational-notation-tokens"');
+    const sourceIdx  = res.text.indexOf('class="operational-notation-source-note"');
+    const linkIdx    = res.text.indexOf('class="operational-notation-glossary-link"');
+    expect(tokensIdx).toBeGreaterThan(-1);
+    expect(sourceIdx).toBeGreaterThan(tokensIdx);
+    expect(linkIdx).toBeGreaterThan(sourceIdx);
   });
 });
 

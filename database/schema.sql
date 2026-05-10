@@ -3600,6 +3600,7 @@ CREATE TABLE freestyle_tricks (
   aliases_json    TEXT,                            -- JSON array of alias strings; DEPRECATED — see freestyle_trick_aliases
   notation        TEXT,                            -- v2.1: Jobs notation (semantic), opaque text from sources
   operational_notation TEXT,                       -- O1a (2026-05-10): set-arc operational notation (execution mechanics; FootbagMoves-style). Independent of `notation` (semantic Jobs notation). Curator-authored or curator-reviewed FM-derived. NEVER read by parser; NEVER overrides editorial truth. Renders in the trick-detail "Set notation (operational)" section when populated.
+  operational_notation_source TEXT,                -- O1d (2026-05-10): free-form curator-authored provenance/citation for operational_notation. Renders as a muted italic line beneath the notation block. Supports three real states (FM curator-reviewed / IFPA-authored / FM alternative-reading) plus ontology-conflict transparency notes (e.g. blur "Blurry Mirage" vs IFPA "Stepping Paradox Mirage"). Omitted entirely from the page when null. NEVER read by parser; presentation-layer only.
   review_status   TEXT NOT NULL DEFAULT 'curated', -- v2.1: 'curated' | 'scraped' | 'expert_reviewed' | 'pending' (no CHECK)
   is_core         INTEGER NOT NULL DEFAULT 0,      -- v2.1: 1 for irreducible dex/body/set primitives only (not modifiers)
   is_active       INTEGER NOT NULL DEFAULT 1,      -- v2.1: 0 hides from public listings (used for review_status='pending' rows)

@@ -130,6 +130,14 @@
       <p class="section-intro">Execution mechanics — how the body performs the trick. Independent of the semantic notation above.</p>
     </div>
     <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+    {{! O1d: curator-authored provenance/citation line. Renders muted +     }}
+    {{! italic between the notation block and the glossary deeplink. Omits  }}
+    {{! entirely when sourceNote is null (most tricks). Free-form text per  }}
+    {{! curator authoring; supports FM curator-reviewed / IFPA-authored /   }}
+    {{! FM alternative-reading + ontology-conflict transparency notes.      }}
+    {{#if content.operationalNotation.sourceNote}}
+    <p class="operational-notation-source-note">{{content.operationalNotation.sourceNote}}</p>
+    {{/if}}
     {{! O1c: single glossary-deeplink at the section foot. Kept as one link  }}
     {{! per section (not per token) to preserve the token block's restraint  }}
     {{! and avoid link-style overrides fighting the role colour palette.     }}

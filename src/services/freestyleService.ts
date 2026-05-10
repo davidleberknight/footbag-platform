@@ -488,8 +488,9 @@ export interface FreestyleTrickContent {
 }
 
 export interface OperationalNotation {
-  raw:    string;                            // verbatim string from freestyle_tricks.operational_notation
-  tokens: OperationalToken[];                // O1b: role-classified spans for highlighted rendering
+  raw:        string;                            // verbatim string from freestyle_tricks.operational_notation
+  tokens:     OperationalToken[];                // O1b: role-classified spans for highlighted rendering
+  sourceNote: string | null;                     // O1d: free-form curator-authored provenance/citation; null when absent
 }
 
 export interface TrickPathwaySummary {
@@ -1694,12 +1695,18 @@ export const freestyleService = {
               )
             : null,
           operationalNotation: (() => {
-            // O1a/O1b: shape into role-classified tokens for the trick-detail
-            // template. Null when the row has no operational_notation populated;
-            // section omits entirely. shapeOperationalNotationDisplay handles
-            // null/empty/whitespace-only input safely.
+            // O1a/O1b/O1d: shape into role-classified tokens for the trick-
+            // detail template. Null when the row has no operational_notation
+            // populated; section omits entirely. shapeOperationalNotationDisplay
+            // handles null/empty/whitespace-only input safely. O1d adds the
+            // optional curator-authored sourceNote (provenance/citation line);
+            // null when the operational_notation_source column is empty —
+            // the source-note <p> renders only when populated.
             const display = shapeOperationalNotationDisplay(dictRow?.operational_notation);
-            return display ? { raw: display.raw, tokens: display.tokens } : null;
+            if (!display) return null;
+            const rawSource = dictRow?.operational_notation_source;
+            const sourceNote = rawSource && rawSource.trim() ? rawSource.trim() : null;
+            return { raw: display.raw, tokens: display.tokens, sourceNote };
           })(),
         };
       })(),
