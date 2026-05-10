@@ -229,27 +229,54 @@ const SOURCE_LABELS: Record<string, string> = {
   footbagspot_tutorials:'FootbagSpot Tutorials',
 };
 
-// Source-tier classification for the trick-detail Reference Media split
-// (Tutorials vs Demos). Mirrors the tier semantics in the
-// `footbag-curated-media` skill (§11 Tier convention):
-//   - TUTORIAL_SOURCE_IDS: CANONICAL_TUTORIAL + STRONG_TUTORIAL — instructional
-//   - DEMO_SOURCE_IDS:     HIGH_QUALITY_DEMO — named-trick performance footage
-// passback_records is RECORD-tier and renders in the Passback Records table
-// further down the page; it never appears in either subsection here.
-const TUTORIAL_SOURCE_IDS = new Set([
-  'tt_youtube',
-  'anz_trikz',
-  'footbagspot_passback',
-  'footbagspot_tutorials',
-  'shred_global',
-  'polini_pointers',
-  'footbag_foundations',
-  'everything_footbag',
-]);
-const DEMO_SOURCE_IDS = new Set([
-  'footbag_finland',
-  'flipsider_footbag',
-]);
+// Single source-of-truth tier registry for the badge logic and the
+// trick-detail Reference Media split (Tutorials vs Demos). Phase 2a
+// consolidated the prior TUTORIAL_SOURCE_IDS / DEMO_SOURCE_IDS Sets here
+// so all source-id classification reads from one map; per-clip override
+// (sidecar `tier` field → DB) is deferred to Phase 2c.
+//
+// Tier semantics:
+//   - TUTORIAL:      explicit teaching intent (technique cues, breakdown).
+//                    Drives "Tutorial available" badge and tutorialMedia bucket.
+//   - DEMONSTRATION: single-clip "what the trick looks like done well" —
+//                    no teaching intent. Drives "Demo only" badge.
+//   - RECORD:        competitive consecutive-completion clips. Surfaced via
+//                    /freestyle/records and the Passback Records table on
+//                    trick-detail; never appears in the Reference Media
+//                    Tutorial/Demo split.
+export type MediaTier = 'TUTORIAL' | 'DEMONSTRATION' | 'RECORD';
+
+export const SOURCE_TIER: Record<string, MediaTier> = {
+  // Canonical / strong tutorial sources.
+  tt_youtube:            'TUTORIAL',
+  footbagspot_tutorials: 'TUTORIAL',
+  polini_pointers:       'TUTORIAL',
+  footbag_foundations:   'TUTORIAL',
+  everything_footbag:    'TUTORIAL',
+
+  // Mixed-character sources held at TUTORIAL pending Phase 2d per-clip
+  // review. Blanket reclass would lose real instructional clips; the
+  // proper fix needs the per-clip override path landing in Phase 2c.
+  anz_trikz:             'TUTORIAL',
+  footbagspot_passback:  'TUTORIAL',
+
+  // Demonstration sources — single-trick showcase clips with no teaching
+  // intent. shred_global reclassified Phase 2b (was TUTORIAL): every
+  // entry is a single-trick demo by Paweł Ścierski / Will Digges /
+  // Mike Angeski et al. with the caption pattern
+  //   "Footbag Freestyle Trick: <name> (<add>add) by <player>".
+  shred_global:          'DEMONSTRATION',
+  footbag_finland:       'DEMONSTRATION',
+  flipsider_footbag:     'DEMONSTRATION',
+
+  // Record-tier — never bucketed as Tutorial/Demo on trick-detail.
+  passback_records:      'RECORD',
+};
+
+export function tierOf(sourceId: string | null | undefined): MediaTier | null {
+  if (!sourceId) return null;
+  return SOURCE_TIER[sourceId] ?? null;
+}
 
 function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
   const adapter = getMediaStorageAdapter();
@@ -1548,11 +1575,12 @@ export const freestyleService = {
         const tutorialMedia: TrickReferenceMediaItem[] = [];
         const demoMedia: TrickReferenceMediaItem[] = [];
         for (const r of allRefMedia) {
-          if (r.source_id === 'passback_records') continue;
+          const tier = tierOf(r.source_id);
+          if (tier === 'RECORD') continue;
           const shaped = shapeReferenceMedia(r);
-          if (r.source_id && TUTORIAL_SOURCE_IDS.has(r.source_id)) {
+          if (tier === 'TUTORIAL') {
             tutorialMedia.push(shaped);
-          } else if (r.source_id && DEMO_SOURCE_IDS.has(r.source_id)) {
+          } else if (tier === 'DEMONSTRATION') {
             demoMedia.push(shaped);
           } else {
             // Unclassified source — default to tutorial bucket so new
@@ -1904,7 +1932,7 @@ export const freestyleService = {
     );
     const mediaCoverageBySlug = new Map<string, TrickMediaCoverage>();
     for (const r of mediaCoverageRows) {
-      const isTutorial = TUTORIAL_SOURCE_IDS.has(r.source_id);
+      const isTutorial = tierOf(r.source_id) === 'TUTORIAL';
       const current = mediaCoverageBySlug.get(r.slug);
       // 'tutorial' wins over 'demo'; once tutorial set, never downgrade.
       if (isTutorial) {
