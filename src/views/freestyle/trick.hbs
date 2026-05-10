@@ -112,21 +112,24 @@
   </section>
   {{/if}}
 
-  {{! ── Set notation (operational) — O1a (2026-05-10) ──────────────────────── }}
+  {{! ── Set notation (operational) — O1a (2026-05-10) + O1b (token highlight) }}
   {{! Operational notation = execution mechanics (plant, dex, body, delays in   }}
   {{! sequence). Independent of semantic notation above and the parser-derived  }}
   {{! decomposition below. Curator-authored; never read by the parser. Section  }}
   {{! omitted entirely when content.operationalNotation is null.                }}
-  {{! O1a is minimum-viable: verbatim string in <code>; no token highlighting   }}
-  {{! (see exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md    }}
-  {{! for the O1b+ token-highlighting plan).                                    }}
+  {{! O1b: each token rendered as a span with role class. Warm palette          }}
+  {{! (amber/orange/teal saturated for primary roles: surface / body-action /   }}
+  {{! rotation-variant); secondary muted (gray) for sides / directions /        }}
+  {{! component-flags / pre-states / sequence-ops. Restraint-first per          }}
+  {{! RENDERING_SURFACE_PROPOSAL §3. Native title-tooltip educational hooks     }}
+  {{! per §5.1. Each space-separated token sits inline; CSS handles spacing.    }}
   {{#if content.operationalNotation}}
   <section class="content-section operational-notation-display" aria-label="Set notation (operational)">
     <div class="section-heading">
       <h2>Set notation (operational)</h2>
       <p class="section-intro">Execution mechanics — how the body performs the trick. Independent of the semantic notation above.</p>
     </div>
-    <code class="operational-notation-tokens">{{content.operationalNotation.raw}}</code>
+    <code class="operational-notation-tokens">{{#each content.operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
   </section>
   {{/if}}
 

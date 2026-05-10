@@ -30,6 +30,10 @@ import {
   buildNotationLookupContext,
 } from './notationRendering';
 import {
+  OperationalToken,
+  shapeOperationalNotationDisplay,
+} from './operationalNotationRendering';
+import {
   FreestyleRelatedTrick,
   FreestyleNextTrick,
   FreestylePreviousTrick,
@@ -473,18 +477,19 @@ export interface FreestyleTrickContent {
   // classification + educational tooltip text. Null when notation is empty.
   // Display-only; never affects parser output or ADD math.
   notationDisplay: NotationDisplay | null;
-  // O1a (2026-05-10) operational notation block. Renders in the
+  // O1a/O1b (2026-05-10) operational notation block. Renders in the
   // "Set notation (operational)" section between semantic notation and
   // editorial decomposition. Null when the row has no operational_notation
-  // populated; section omits entirely when null. No token highlighting in
-  // O1a (string is rendered verbatim inside <code>); see
-  // exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md
-  // for the O1b+ token-highlighting plan.
+  // populated; section omits entirely when null. O1b adds role-classified
+  // token highlighting (warm palette, distinct from semantic's cool palette);
+  // see exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md
+  // and src/services/operationalNotationRendering.ts.
   operationalNotation: OperationalNotation | null;
 }
 
 export interface OperationalNotation {
-  raw: string;                  // verbatim string from freestyle_tricks.operational_notation
+  raw:    string;                            // verbatim string from freestyle_tricks.operational_notation
+  tokens: OperationalToken[];                // O1b: role-classified spans for highlighted rendering
 }
 
 export interface TrickPathwaySummary {
@@ -1688,10 +1693,14 @@ export const freestyleService = {
                 ),
               )
             : null,
-          operationalNotation:
-            dictRow && dictRow.operational_notation && dictRow.operational_notation.trim()
-              ? { raw: dictRow.operational_notation.trim() }
-              : null,
+          operationalNotation: (() => {
+            // O1a/O1b: shape into role-classified tokens for the trick-detail
+            // template. Null when the row has no operational_notation populated;
+            // section omits entirely. shapeOperationalNotationDisplay handles
+            // null/empty/whitespace-only input safely.
+            const display = shapeOperationalNotationDisplay(dictRow?.operational_notation);
+            return display ? { raw: display.raw, tokens: display.tokens } : null;
+          })(),
         };
       })(),
     };

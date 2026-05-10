@@ -2402,12 +2402,16 @@ section.home-media { padding-top: 0; }
   border-radius: 3px;
 }
 
-/* O1a (2026-05-10) — operational notation block. Minimum-viable styling:
- * monospace block matching .notation-display-tokens shape; NO token-level
- * coloring (deferred to O1b per RENDERING_SURFACE_PROPOSAL.md). The block's
- * neutral palette reads visually as "different layer" from semantic notation
- * even without per-token coloring, because the entire block is a single
- * neutral monospace string rather than a span of color-coded tokens. */
+/* O1a/O1b (2026-05-10) — operational notation block.
+ *
+ * Warm palette for token-role coloring (amber / orange / teal) deliberately
+ * distinct from semantic notation's cool palette (blue / teal / green). A
+ * reader who scrolls past both notation sections sees the layer change at a
+ * glance. Restraint-first per RENDERING_SURFACE_PROPOSAL §3: only the four
+ * primary roles (surface, body-action, rotation-variant) carry color
+ * saturation; secondary roles (side, direction, component-flag, pre-state,
+ * sequence-op) render muted gray.
+ */
 .operational-notation-display .operational-notation-tokens {
   display: inline-block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -2422,6 +2426,42 @@ section.home-media { padding-top: 0; }
   max-width: 100%;
   word-break: break-word;
 }
+
+.op-token {
+  padding: 0 0.15em;
+  border-radius: 2px;
+}
+/* Primary three — color-saturated, load-bearing operational distinctions. */
+.op-token--surface           { color: #b45309; font-weight: 600; }   /* amber-700 */
+.op-token--body-action       { color: #c2410c; font-weight: 600; }   /* orange-700 */
+.op-token--rotation-variant  { color: #0f766e; font-weight: 600; }   /* teal-700 */
+/* Secondary — muted; visible but recede. */
+.op-token--side              { color: #525252; }                     /* neutral-600 */
+.op-token--direction         { color: #525252; }                     /* neutral-600 */
+/* Component flags render at slightly smaller font (annotation-shape). */
+.op-token--component-flag {
+  color: #737373;                                                    /* neutral-500 */
+  font-size: 0.85em;
+  letter-spacing: 0;
+}
+/* Optional micro-distinguishers for the high-frequency 3 flags via dotted
+ * underline border. Per RENDERING_SURFACE_PROPOSAL §3.2 — DEX green, BOD
+ * orange, PDX violet. Other flags render plain. */
+.op-token--component-flag-dex { border-bottom: 1px dotted #16a34a; } /* green-600 */
+.op-token--component-flag-bod { border-bottom: 1px dotted #ea580c; } /* orange-600 */
+.op-token--component-flag-pdx { border-bottom: 1px dotted #7c3aed; } /* violet-600 */
+/* Pre-state flags render italic — they're annotation language, not structural tokens. */
+.op-token--pre-state {
+  color: #737373;                                                    /* neutral-500 */
+  font-style: italic;
+  font-weight: 400;
+}
+/* Sequence operators. >> is slightly heavier weight than > (major boundary). */
+.op-token--sequence-op-minor { color: #a3a3a3; }                     /* neutral-400 */
+.op-token--sequence-op-major { color: #525252; font-weight: 600; }   /* neutral-600 */
+/* Unknown — pass-through, no visual styling. Renders verbatim so curator
+ * can spot tokens that fell outside the closed vocabulary. */
+.op-token--unknown { color: inherit; }
 .notation-token {
   padding: 0 0.15em;
   border-radius: 2px;

@@ -652,16 +652,22 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () => {
-  it('renders the section with the verbatim operational_notation string when populated', async () => {
+  it('renders the section with role-classified token spans (O1b)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     expect(res.status).toBe(200);
     // Section wrapper present
     expect(res.text).toContain('class="content-section operational-notation-display"');
     expect(res.text).toContain('<h2>Set notation (operational)</h2>');
-    // Verbatim notation string rendered inside <code class="operational-notation-tokens">.
-    // Note: Handlebars HTML-escapes '>' to '&gt;'; assertion accounts for that.
-    expect(res.text).toMatch(/<code class="operational-notation-tokens">CLIP &gt;&gt; SAME OUT \[DEX\] &gt; SAME OUT \[DEX\] &gt; OP CLIP \[DEL\] \[XBD\]<\/code>/);
+    // O1b: each token rendered as a span with role class. Sample tokens
+    // (escaped square brackets in regex; > escaped to &gt; by Handlebars).
+    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="Plant or landing surface">CLIP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--sequence-op-major" data-role="sequence_op"[^>]*>&gt;&gt;<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side"[^>]*>SAME<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--direction" data-role="direction"[^>]*>OUT<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-dex" data-role="component_flag" title="Dexterity component">\[DEX\]<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-xbd" data-role="component_flag"[^>]*>\[XBD\]<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-del" data-role="component_flag"[^>]*>\[DEL\]<\/span>/);
   });
 
   it('omits the section entirely when operational_notation is null', async () => {
