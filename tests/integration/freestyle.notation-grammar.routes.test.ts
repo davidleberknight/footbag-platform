@@ -12,7 +12,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3115');
 
@@ -238,6 +242,109 @@ beforeAll(async () => {
     }),
     computed_add_formula: 'symposium(5) [self-atom] = 5',
     computed_adds:        5,
+    add_formula_status:   'exact_self_atom',
+  });
+
+  // ── Phase 5a editorial-decomposition fixtures ────────────────────────────
+  // 11) sumo-style fixture — the load-bearing case. Row has BOTH a base_trick
+  //     that resolves to a real dictionary row AND a modifier-link row in the
+  //     join table. Editorial decomposition should render with base, modifier,
+  //     composed math, and matchesAsserted=false (deliberately) to exercise
+  //     the "asserted-trumps-editorial-composition" honest-disagreement case
+  //     (mirrors sumo: nuclear(+2) + mirage(2) = 4 but asserted = 5).
+  //
+  //     Base row + modifier row + link row inserted as supporting test data.
+  insertFreestyleTrick(db, {
+    slug:           'trick-ed-base',
+    canonical_name: 'trick ed base',
+    adds:           '2',
+    base_trick:     'trick-ed-base',
+    trick_family:   'trick-ed-base',
+    description:    'editorial decomposition base trick',
+  });
+  insertFreestyleTrickModifier(db, {
+    slug:           'trick-ed-mod',
+    modifier_name:  'trick-ed-mod',
+    add_bonus:      2,
+    add_bonus_rotational: 2,
+    modifier_type:  'set',
+    notes:          'Uncertain: test fixture; flat value pending review',
+  });
+  insertFreestyleTrick(db, {
+    slug:           'trick-ed-sumo',
+    canonical_name: 'trick ed sumo',
+    adds:           '5',                  // asserted; editorial composes to 4 → divergence
+    base_trick:     'trick-ed-base',
+    trick_family:   'trick-ed-base',
+    description:    'sumo-style editorial-decomposition fixture',
+    structural_parse_json: JSON.stringify({
+      descriptive_roles: {
+        core_family: [{ token: 'trick-ed-sumo', atom_resolved: true }],
+      },
+      add_contributing_roles: {
+        core_family: [{ token: 'trick-ed-sumo', atom_resolved: true }],
+      },
+      parse_warnings: [],
+      policy_tokens:  [],
+      additive_flags: [],
+    }),
+    computed_add_formula: 'trick-ed-sumo(5) = 5',
+    computed_adds:        5,
+    add_formula_status:   'exact_modifier_derived',
+  });
+  insertFreestyleTrickModifierLink(db, 'trick-ed-sumo', 'trick-ed-mod', 1);
+
+  // 12) Broken-upstream-link fixture — base_trick references a slug that does
+  //     NOT exist in the dictionary (mirrors barfly→infinity). Editorial
+  //     decomposition should render with baseStatus='broken_link', no
+  //     modifiers, and no composed math.
+  insertFreestyleTrick(db, {
+    slug:           'trick-ed-broken',
+    canonical_name: 'trick ed broken',
+    adds:           '4',
+    base_trick:     'nonexistent-base',   // no row with this slug — broken link
+    trick_family:   'trick-ed-broken',
+    description:    'broken-upstream-link editorial-decomposition fixture',
+    structural_parse_json: JSON.stringify({
+      descriptive_roles: {
+        core_family: [{ token: 'trick-ed-broken', atom_resolved: true }],
+      },
+      add_contributing_roles: {
+        core_family: [{ token: 'trick-ed-broken', atom_resolved: true }],
+      },
+      parse_warnings: [],
+      policy_tokens:  [],
+      additive_flags: [],
+    }),
+    computed_add_formula: 'trick-ed-broken(4) = 4',
+    computed_adds:        4,
+    add_formula_status:   'exact_modifier_derived',
+  });
+
+  // 13) No-editorial-metadata fixture — base_trick is self-reference and the
+  //     row has no modifier links. Editorial decomposition block must be
+  //     OMITTED from the panel (rendered as null by the service). Parser-
+  //     derived blocks still render normally.
+  insertFreestyleTrick(db, {
+    slug:           'trick-ed-clean',
+    canonical_name: 'trick ed clean',
+    adds:           '3',
+    base_trick:     'trick-ed-clean',     // self-reference
+    trick_family:   'trick-ed-clean',
+    description:    'no-editorial-metadata fixture (self-reference, no links)',
+    structural_parse_json: JSON.stringify({
+      descriptive_roles: {
+        core_family: [{ token: 'trick-ed-clean', atom_resolved: true }],
+      },
+      add_contributing_roles: {
+        core_family: [{ token: 'trick-ed-clean', atom_resolved: true }],
+      },
+      parse_warnings: [],
+      policy_tokens:  [],
+      additive_flags: [],
+    }),
+    computed_add_formula: 'trick-ed-clean(3) [self-atom] = 3',
+    computed_adds:        3,
     add_formula_status:   'exact_self_atom',
   });
 
@@ -579,5 +686,114 @@ describe('GET /freestyle/tricks/:slug — Diagnostic details disclosure (warning
     expect(res.text).not.toContain('Diagnostic details');
     // Sanity: the panel itself is still present.
     expect(res.text).toContain('Structural decomposition');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 5a — editorial decomposition view-model (Architecture B1 strict)
+
+describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: full editorial state)', () => {
+  it('renders the Editorial decomposition block with base, modifiers, and composed math', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-sumo');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Editorial decomposition');
+    // Block carries the explicit editorial-source attribution so the reader
+    // never confuses it with parser output.
+    expect(res.text).toContain('data-source="editorial"');
+    expect(res.text).toContain('Curator-asserted lineage');
+    // Base resolved to the real fixture row.
+    expect(res.text).toMatch(/<code>trick-ed-base<\/code>/);
+    expect(res.text).toContain('(2)');
+    // Modifier surfaced from the join table.
+    expect(res.text).toContain('trick-ed-mod');
+    expect(res.text).toContain('+2');
+    // Modifier notes (Uncertain caveat) surface verbatim.
+    expect(res.text).toContain('Uncertain');
+  });
+
+  it('flags editorial-vs-asserted divergence honestly without claiming editorial wins', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-sumo');
+    // Composed: trick-ed-mod(+2) + trick-ed-base(2) = 4. Asserted=5. The
+    // block must say "differs from asserted" with the editorial-truth caveat,
+    // and never auto-update or hide the asserted value.
+    expect(res.text).toContain('differs from asserted');
+    expect(res.text).toContain('asserted is editorial truth');
+    // Asserted ADD = 5 still shown as authoritative in the parser-derived block.
+    expect(res.text).toMatch(/<dt>Asserted ADD<\/dt>\s*<dd>5<\/dd>/);
+  });
+
+  it('does NOT mutate the parser-derived status, formula, or computed_adds based on editorial state', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-sumo');
+    // Parser produced exact_modifier_derived with formula trick-ed-sumo(5)=5,
+    // computed=5. Editorial-derived disagreement (composed=4) must NOT push
+    // the status to approximate or rewrite the formula.
+    expect(res.text).toContain('Exact: structurally derived');
+    expect(res.text).toContain('(exact_modifier_derived)');
+    expect(res.text).toContain('trick-ed-sumo(5)');
+    // Parser-derived agree phrase (asserted=5, computed=5) still fires — the
+    // editorial divergence and the parser agree-state are independent.
+    expect(res.text).toContain('agrees with asserted');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /freestyle/tricks/:slug — editorial decomposition (broken-upstream-link case)', () => {
+  it('renders the Editorial decomposition block with broken_link state', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-broken');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Editorial decomposition');
+    // The base slug appears (so the reader can see what editorial state asserts)
+    // but explicitly flagged as broken.
+    expect(res.text).toContain('nonexistent-base');
+    expect(res.text).toContain('broken upstream link');
+    expect(res.text).toContain('not in the dictionary');
+  });
+
+  it('reports modifier coverage absent when the join table has no rows for the trick', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-broken');
+    expect(res.text).toContain('modifier coverage absent');
+  });
+
+  it('omits composed math when the base cannot be resolved', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-broken');
+    // No <dt>Composed</dt> entry should render — composedAdds is null when
+    // baseAdds can't be resolved. The presence of "Composed" elsewhere in
+    // unrelated copy isn't expected here; assert against the explicit dt.
+    expect(res.text).not.toMatch(/<dt>Composed<\/dt>/);
+    expect(res.text).not.toContain('matches asserted');
+    expect(res.text).not.toContain('differs from asserted');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /freestyle/tricks/:slug — editorial decomposition (no-editorial-metadata case)', () => {
+  it('omits the Editorial decomposition block entirely when base_trick is self-reference', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-clean');
+    expect(res.status).toBe(200);
+    // The parser-derived panel itself still renders.
+    expect(res.text).toContain('Structural decomposition');
+    // But the editorial decomposition block must NOT appear — neither header
+    // nor the data-source hook.
+    expect(res.text).not.toContain('Editorial decomposition');
+    expect(res.text).not.toContain('data-source="editorial"');
+    expect(res.text).not.toContain('Curator-asserted lineage');
+  });
+
+  it('still renders the Editorial context (description) block independently', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/trick-ed-clean');
+    // Phase 4's editorial-context block is a SEPARATE feature from Phase 5a's
+    // editorial-decomposition block — description rendering is unaffected.
+    expect(res.text).toContain('Editorial context');
+    expect(res.text).toContain('no-editorial-metadata fixture');
   });
 });

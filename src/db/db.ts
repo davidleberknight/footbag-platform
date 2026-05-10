@@ -1062,6 +1062,20 @@ export interface FreestyleTrickModifierLinkRow {
   trick_slug:           string;
 }
 
+// Detailed row for the inverse direction — modifier-link rows for ONE trick,
+// joined to the modifier table so a single fetch carries the modifier weight,
+// type, and notes alongside the per-link apply order. Drives the editorial-
+// decomposition view-model in the notation-grammar diagnostic surface.
+export interface FreestyleTrickModifierLinkDetailRow {
+  modifier_slug:        string;
+  modifier_name:        string;
+  modifier_type:        string;
+  add_bonus:            number;
+  add_bonus_rotational: number;
+  modifier_notes:       string | null;
+  apply_order:          number;
+}
+
 export const freestyleTricks = {
   get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
@@ -1203,6 +1217,25 @@ export const freestyleTrickModifiers = {
       m.modifier_name COLLATE NOCASE,
       l.apply_order,
       t.canonical_name COLLATE NOCASE
+  `); },
+
+  // Inverse of listTricksByModifier — modifier-link rows for ONE trick. Used
+  // by the editorial-decomposition view-model in the notation-grammar panel.
+  // Joins to freestyle_trick_modifiers so a single fetch carries the modifier
+  // weight, type, and notes alongside the per-link apply order.
+  get listLinksByTrickSlug() { return db.prepare(`
+    SELECT
+      m.slug                  AS modifier_slug,
+      m.modifier_name         AS modifier_name,
+      m.modifier_type         AS modifier_type,
+      m.add_bonus             AS add_bonus,
+      m.add_bonus_rotational  AS add_bonus_rotational,
+      m.notes                 AS modifier_notes,
+      l.apply_order           AS apply_order
+    FROM freestyle_trick_modifier_links l
+    INNER JOIN freestyle_trick_modifiers m ON m.slug = l.modifier_slug
+    WHERE l.trick_slug = ?
+    ORDER BY l.apply_order ASC
   `); },
 };
 

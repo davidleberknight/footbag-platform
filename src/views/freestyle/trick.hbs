@@ -163,6 +163,54 @@
     </div>
     {{/if}}
 
+    {{#if content.notationGrammar.editorialDecomposition}}
+    <div class="notation-grammar-editorial-decomposition" data-source="editorial">
+      <h3>Editorial decomposition</h3>
+      <p class="notation-grammar-layer-intro">Curator-asserted lineage from this row's <code>base_trick</code> and modifier links. Independent of the parser-derived structural decomposition above. Asserted ADD remains editorial truth.</p>
+
+      <dl class="detail-list">
+        <dt>Base</dt>
+        <dd>
+          {{#if content.notationGrammar.editorialDecomposition.baseSlug}}<code>{{content.notationGrammar.editorialDecomposition.baseSlug}}</code>{{else}}—{{/if}}
+          {{#if content.notationGrammar.editorialDecomposition.baseAdds}}({{content.notationGrammar.editorialDecomposition.baseAdds}}){{/if}}
+          {{#unless (eq content.notationGrammar.editorialDecomposition.baseStatus 'resolved')}}
+          <span class="notation-grammar-editorial-flag">— broken upstream link (<code>{{content.notationGrammar.editorialDecomposition.baseSlug}}</code> is not in the dictionary)</span>
+          {{/unless}}
+        </dd>
+
+        {{#if content.notationGrammar.editorialDecomposition.modifiers.length}}
+        <dt>Modifiers</dt>
+        <dd>
+          <ul class="notation-grammar-role-list">
+            {{#each content.notationGrammar.editorialDecomposition.modifiers}}
+            <li>
+              <strong>{{name}}</strong>
+              <span class="notation-grammar-editorial-modifier-meta">({{modifierType}}; +{{effectiveBonus}}{{#if rotBonusApplied}} on rotational base{{/if}})</span>
+              {{#if notes}}<p class="notation-grammar-editorial-modifier-notes">{{notes}}</p>{{/if}}
+            </li>
+            {{/each}}
+          </ul>
+        </dd>
+        {{else}}
+        <dt>Modifiers</dt>
+        <dd><span class="notation-grammar-editorial-flag">modifier coverage absent — no entries in <code>freestyle_trick_modifier_links</code> for this row</span></dd>
+        {{/if}}
+
+        {{#if content.notationGrammar.editorialDecomposition.derivationText}}
+        <dt>Composed</dt>
+        <dd>
+          <code>{{content.notationGrammar.editorialDecomposition.derivationText}}</code>
+          {{#if (eq content.notationGrammar.editorialDecomposition.matchesAsserted true)}}
+          <span class="notation-grammar-agree">(matches asserted)</span>
+          {{else if (eq content.notationGrammar.editorialDecomposition.matchesAsserted false)}}
+          <span class="notation-grammar-disagree">(differs from asserted; asserted is editorial truth)</span>
+          {{/if}}
+        </dd>
+        {{/if}}
+      </dl>
+    </div>
+    {{/if}}
+
     {{#if content.notationGrammar.editorialContext}}
     <div class="notation-grammar-editorial">
       <h3>Editorial context</h3>

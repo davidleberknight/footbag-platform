@@ -2,7 +2,7 @@ import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
   FreestyleTrickRowWithStatus, FreestyleTrickRowWithParse,
   FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
-  FreestyleTrickModifierLinkRow,
+  FreestyleTrickModifierLinkRow, FreestyleTrickModifierLinkDetailRow,
   FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
   FreestylePartnershipRow,
   CuratorSlotMediaRow,
@@ -437,6 +437,54 @@ export interface NotationGrammarRoleBucket {
   tokens: NotationGrammarRoleToken[]; // empty list omitted by the template
 }
 
+// Editorial decomposition — surfaces curator-asserted structural lineage
+// (base_trick + freestyle_trick_modifier_links) as a SECOND, parallel
+// decomposition view alongside the parser-derived one. Phase 5a (Architecture
+// B1 strict): consults ONLY the explicit join table + base column. Does NOT
+// re-tokenize canonical_name and does NOT parse description text. Always
+// labeled `sourceLabel='editorial'` so the template can never present this
+// claim as parser output.
+//
+// Forever-rules preserved (per PHASE5_STATUS_SHAPE_CONSULTS.md §7):
+//   - Editorial-derived `composedAdds` NEVER overrides asserted_adds.
+//   - Editorial-derived `composedAdds` NEVER overrides parser `computed_adds`.
+//   - No slug-specific branches anywhere in the shaping path.
+//   - Broken-link / sparse-coverage states surface honestly; never invented.
+export interface EditorialDecompositionModifier {
+  slug:           string;
+  name:           string;
+  modifierType:   string;          // 'body' | 'set'
+  addBonus:       number;          // non-rotational weight from trick_modifiers
+  addBonusRot:    number;          // rotational weight from trick_modifiers
+  effectiveBonus: number;          // selected based on parent's isRotationalBase
+  rotBonusApplied:boolean;         // true iff parent is rotational AND addBonusRot != addBonus
+  notes:          string | null;   // verbatim from trick_modifiers.notes
+}
+
+export interface EditorialDecomposition {
+  // Base lineage — drawn from `freestyle_tricks.base_trick` and resolved
+  // against the dictionary at shape time.
+  baseSlug:           string | null;
+  baseAdds:           number | null;
+  baseStatus:         'resolved' | 'broken_link';
+  isRotationalBase:   boolean;
+
+  // Modifier composition — drawn from freestyle_trick_modifier_links (strict).
+  // Empty when the join table has no rows for this trick — surfaced honestly
+  // as `modifierCoverage='absent'`, not silently elided.
+  modifiers:          EditorialDecompositionModifier[];
+  modifierCoverage:   'present' | 'absent';
+
+  // Composed math from the editorial layer.
+  composedAdds:       number | null;   // base.adds + Σ(modifier.effectiveBonus); null if unresolvable
+  matchesAsserted:    boolean | null;  // composedAdds === assertedAdds; null when composedAdds null
+  derivationText:     string | null;   // pretty-printed; null when composedAdds null
+
+  // Always 'editorial'. Single-purpose attribution so the template never has
+  // to infer the source of a decomposition claim.
+  sourceLabel:        'editorial';
+}
+
 export interface NotationGrammarPanel {
   // Status — service-shaped label and one-line description for the badge.
   status:            string;     // raw status value: exact_modifier_derived | exact_self_atom | approximate | unresolved | policy_dependent
@@ -475,6 +523,12 @@ export interface NotationGrammarPanel {
   // True when there is any content (parse warnings or jobs notation) to put
   // behind the disclosure; false suppresses the wrapper entirely.
   hasDiagnosticDetails: boolean;
+
+  // Editorial decomposition — curator-asserted structural lineage. Null when
+  // the row has no usable editorial decomposition data (no base_trick, or
+  // self-reference base_trick AND no modifier links). When present, ALWAYS
+  // labeled as editorial; never claims parser provenance.
+  editorialDecomposition: EditorialDecomposition | null;
 }
 
 const ROLE_BUCKET_ORDER: ReadonlyArray<{ key: string; label: string }> = [
@@ -536,8 +590,107 @@ function shapeRoleBuckets(
   return buckets;
 }
 
+// Editorial-decomposition shaping. Phase 5a (Architecture B1 strict):
+//
+// Inputs:
+//   row             — the active trick row (carries base_trick, adds, slug)
+//   dictBySlug      — lookup map from slug → FreestyleTrickRow for base resolution
+//   modifierLinks   — explicit join-table rows for THIS trick (already fetched)
+//
+// Output:
+//   EditorialDecomposition when the row has structural editorial data worth
+//   surfacing; null otherwise.
+//
+// Render-rule: returns non-null when base_trick is set AND base_trick is not
+// a self-reference. Self-referencing rows (e.g. sailing's base_trick=sailing)
+// have nothing structural to decompose into; the parser-derived view + the
+// description (Editorial context block) are sufficient.
+//
+// Forever-rules (PHASE5_STATUS_SHAPE_CONSULTS.md §7):
+//   - Reads ONLY base_trick + freestyle_trick_modifier_links.
+//   - Never re-tokenizes canonical_name. Never parses description.
+//   - Never claims parser provenance (sourceLabel always 'editorial').
+//   - composedAdds is presentation-only; never feeds back into asserted_adds.
+function shapeEditorialDecomposition(
+  row: FreestyleTrickRowWithParse,
+  dictBySlug: Map<string, FreestyleTrickRow>,
+  modifierLinks: FreestyleTrickModifierLinkDetailRow[],
+): EditorialDecomposition | null {
+  const baseSlugRaw = row.base_trick;
+  if (!baseSlugRaw || baseSlugRaw.trim().length === 0) return null;
+  const baseSlug = baseSlugRaw.trim();
+  // Self-reference: sailing→sailing, surging→surging style. Editorial layer
+  // has nothing to decompose; suppress.
+  if (baseSlug === row.slug) return null;
+
+  // Try to resolve the base. Editorial state is honest about broken links.
+  const baseRow = dictBySlug.get(baseSlug) ?? null;
+  const baseStatus: 'resolved' | 'broken_link' = baseRow ? 'resolved' : 'broken_link';
+  const baseAdds = baseRow && baseRow.adds && /^\d+$/.test(baseRow.adds)
+    ? parseInt(baseRow.adds, 10)
+    : null;
+  const isRotationalBase = ROTATIONAL_BASES.has(baseSlug);
+
+  // Modifier list — strict B1: only the explicit join table.
+  const modifiers: EditorialDecompositionModifier[] = modifierLinks.map(link => {
+    const effective = isRotationalBase ? link.add_bonus_rotational : link.add_bonus;
+    return {
+      slug:           link.modifier_slug,
+      name:           link.modifier_name,
+      modifierType:   link.modifier_type,
+      addBonus:       link.add_bonus,
+      addBonusRot:    link.add_bonus_rotational,
+      effectiveBonus: effective,
+      rotBonusApplied: isRotationalBase && link.add_bonus_rotational !== link.add_bonus,
+      notes:          link.modifier_notes,
+    };
+  });
+  const modifierCoverage: 'present' | 'absent' = modifiers.length > 0 ? 'present' : 'absent';
+
+  // Composed math. Null when base couldn't resolve to a numeric ADD.
+  let composedAdds: number | null = null;
+  let derivationText: string | null = null;
+  if (baseAdds !== null) {
+    const totalBonus = modifiers.reduce((s, m) => s + m.effectiveBonus, 0);
+    composedAdds = baseAdds + totalBonus;
+    if (modifiers.length > 0) {
+      const rotSuffix = (m: EditorialDecompositionModifier) => {
+        const rotApplied = isRotationalBase && m.addBonus !== m.addBonusRot;
+        return rotApplied ? ' rot' : '';
+      };
+      const parts = modifiers
+        .map(m => `${m.slug}(+${m.effectiveBonus}${rotSuffix(m)})`)
+        .join(' + ');
+      derivationText = `${parts} + ${baseSlug}(${baseAdds}) = ${composedAdds}`;
+    } else {
+      derivationText = `${baseSlug}(${baseAdds}) = ${composedAdds}`;
+    }
+  }
+
+  // matchesAsserted: only meaningful when both numbers are known.
+  const assertedAdds = row.adds && /^\d+$/.test(row.adds) ? parseInt(row.adds, 10) : null;
+  const matchesAsserted = composedAdds !== null && assertedAdds !== null
+    ? composedAdds === assertedAdds
+    : null;
+
+  return {
+    baseSlug,
+    baseAdds,
+    baseStatus,
+    isRotationalBase,
+    modifiers,
+    modifierCoverage,
+    composedAdds,
+    matchesAsserted,
+    derivationText,
+    sourceLabel: 'editorial',
+  };
+}
+
 function shapeNotationGrammar(
   row: FreestyleTrickRowWithParse,
+  dictBySlug: Map<string, FreestyleTrickRow>,
+  modifierLinks: FreestyleTrickModifierLinkDetailRow[],
 ): NotationGrammarPanel | null {
   if (!row.structural_parse_json) return null;
   let parsed: Record<string, unknown>;
@@ -588,6 +741,8 @@ function shapeNotationGrammar(
   const hasDiagnosticDetails = parseWarnings.length > 0
     || (typeof row.jobs_notation_raw === 'string' && row.jobs_notation_raw.length > 0);
 
+  const editorialDecomposition = shapeEditorialDecomposition(row, dictBySlug, modifierLinks);
+
   return {
     status,
     statusLabel:       statusEntry.label,
@@ -606,6 +761,7 @@ function shapeNotationGrammar(
     unresolvedTokens,
     editorialContext,
     hasDiagnosticDetails,
+    editorialDecomposition,
   };
 }
 
@@ -1337,7 +1493,15 @@ export const freestyleService = {
           demoMedia,
           hasReferenceMedia,
           pathways,
-          notationGrammar: dictRow ? shapeNotationGrammar(dictRow) : null,
+          notationGrammar: dictRow
+            ? shapeNotationGrammar(
+                dictRow,
+                new Map(allDictRows.map(r => [r.slug, r])),
+                runSqliteRead('freestyleTrickModifiers.listLinksByTrickSlug', () =>
+                  freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as FreestyleTrickModifierLinkDetailRow[],
+                ),
+              )
+            : null,
         };
       })(),
     };
