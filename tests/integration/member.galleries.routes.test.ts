@@ -13,10 +13,11 @@
  * defensively so a forged ownerMemberId in the form body cannot
  * escape the controller's slug check.
  *
- * CSRF middleware is not yet wired in this codebase (only one
- * placeholder field exists in the admin gallery form, with
- * `csrfToken` undefined at render time). When CSRF lands, this file
- * will gain rejection tests; today there is nothing to enforce.
+ * CSRF posture: SameSite=Lax session cookie + POST-only state changes,
+ * verified centrally by tests/integration/csrf.test.ts. No synchronizer
+ * tokens are used, so this file does not assert a token-rejection
+ * branch — the cross-site-POST and verb-discipline invariants live
+ * with the central CSRF tests.
  */
 import fs from 'fs';
 import path from 'path';
@@ -597,8 +598,8 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     // The admin route at /admin/curator/galleries/:id/edit is wired
     // through the same service.updateGallery; an admin actor passes
     // service-layer authz on any owner. This test exercises that path
-    // against a member-owned gallery to confirm slice 2a's moderation
-    // behavior remains intact after slice 2b widening.
+    // against a member-owned gallery to confirm admin moderation works
+    // on member-owned rows alongside FH-owned rows.
     await createGalleryViaApi('To Be Moderated');
     const id = findGalleryIdByName('To Be Moderated')!;
     const res = await request(createApp())

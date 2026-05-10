@@ -181,8 +181,8 @@ describe('formatGallerySidecarJson', () => {
 
   it('matches the canonical /curated/galleries/curated_freestyle_tricks.json bytes', async () => {
     // Drift check: if this fails, the lib's formatter has diverged from
-    // the on-disk canonical sidecar created in slice 1. Fix the lib,
-    // not the file (the seeder reads the file).
+    // the on-disk canonical sidecar. Fix the lib, not the file (the
+    // seeder reads the file).
     const repoRoot = path.resolve(__dirname, '..', '..');
     const canonicalPath = path.join(repoRoot, 'curated', 'galleries', 'curated_freestyle_tricks.json');
     const onDisk = await fs.readFile(canonicalPath, { encoding: 'utf-8' });

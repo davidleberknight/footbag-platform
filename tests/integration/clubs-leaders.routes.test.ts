@@ -1,13 +1,13 @@
 /**
  * Integration tests for the Leaders section on /clubs/:key.
  *
- * Phase 1: bootstrap leaders are pipeline-derived (status='provisional').
- * They render publicly with a "Provisional leader" badge and an
- * "imported from historical records" note. Contact email is gated and
- * MUST NOT appear in HTML for provisional rows.
+ * Bootstrap leaders are pipeline-derived (status='provisional'). They
+ * render publicly with a "Provisional leader" badge and an "imported
+ * from historical records" note. Contact email is gated and MUST NOT
+ * appear in HTML for provisional rows.
  *
- * Future phases will land claimed/verified statuses; the contract
- * (ClubLeader fields) doesn't change — only the service mapping does.
+ * Other status values (claimed, verified) share the same ClubLeader
+ * shape; only the service mapping varies by status.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

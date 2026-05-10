@@ -108,9 +108,9 @@ describe('validateExternalUrl', () => {
     });
 
     it('treats DNS lookup failure as non-blocking (does not pre-reject)', async () => {
-      // Per DD §3.17 the resolution is a snapshot; lookup failure does not
-      // mandate rejection. The URL passes validation here; reachability
-      // (deferred) would catch true 404s.
+      // The DNS resolution is a snapshot; lookup failure does not mandate
+      // rejection here. The URL passes the validator and any true 404s are
+      // caught by the reachability check downstream.
       const result = await validateExternalUrl(
         'https://no-such-host.invalid/',
         { ...makeStubs(), lookup: lookupThrowing(new Error('ENOTFOUND')) },

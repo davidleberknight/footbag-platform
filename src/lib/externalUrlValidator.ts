@@ -103,8 +103,8 @@ export async function validateExternalUrl(
       resolved = await lookup(hostname);
     } catch {
       // Unresolvable hostnames don't get pre-rejected here; they will fail
-      // any reachability check (deferred) or 404 at click-through. DD does
-      // not mandate rejection on lookup failure, only on resolution to a
+      // the reachability check below or 404 at click-through. DD does not
+      // mandate rejection on lookup failure, only on resolution to a
       // blocked range.
       resolved = { address: '', family: 0 };
     }

@@ -1,9 +1,9 @@
 /**
- * Integration tests for the Phase 3 read-only notation-grammar diagnostic
- * panel rendered on GET /freestyle/tricks/:slug.
+ * Integration tests for the read-only notation-grammar diagnostic panel
+ * rendered on GET /freestyle/tricks/:slug.
  *
  * The panel is fed by `freestyleService.shapeNotationGrammar`, which reads the
- * Phase-0 parser columns (jobs_notation_raw, structural_parse_json,
+ * parser columns (jobs_notation_raw, structural_parse_json,
  * computed_add_formula, computed_adds, add_formula_status) loaded by
  * `freestyleTricks.getBySlug`. Asserted ADD remains editorial truth; the panel
  * surfaces parser output for diagnostic review only.
@@ -245,7 +245,7 @@ beforeAll(async () => {
     add_formula_status:   'exact_self_atom',
   });
 
-  // ── Phase 5a editorial-decomposition fixtures ────────────────────────────
+  // ── Editorial-decomposition fixtures ─────────────────────────────────────
   // 11) sumo-style fixture — the load-bearing case. Row has BOTH a base_trick
   //     that resolves to a real dictionary row AND a modifier-link row in the
   //     join table. Editorial decomposition should render with base, modifier,
@@ -389,13 +389,14 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
     expect(res.text).toContain('notation-grammar-panel');
   });
 
-  it('shows the exact_self_atom status label and raw key (Phase 4 wording: distinguishes from structurally-derived)', async () => {
+  it('shows the exact_self_atom status label and raw key (label distinguishes self-atom from structurally-derived)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).toContain('Exact: named trick / self-atom');
     expect(res.text).toContain('(exact_self_atom)');
-    // Pre-Phase-4 wording must not appear; Phase 4 distinguishes self-atom
-    // tautological agreement from modifier-derived structural confirmation.
+    // The earlier "Exact (self-atom)" wording must not appear; the current
+    // labels distinguish self-atom tautological agreement from modifier-
+    // derived structural confirmation.
     expect(res.text).not.toContain('Exact (self-atom)');
   });
 
@@ -451,8 +452,8 @@ describe('GET /freestyle/tricks/:slug — exact_self_atom (computed agrees with 
     const res = await request(app).get('/freestyle/tricks/trick-self-atom');
     expect(res.text).not.toContain('Policy tokens');
     expect(res.text).not.toContain('Parse warnings');
-    // Standalone "Unresolved tokens" section was removed in Phase 4 (deduped
-    // — descriptive layer carries them when present). Self-atom row has no
+    // Standalone "Unresolved tokens" section is deduped — the descriptive
+    // layer carries those entries when present. Self-atom row has no
     // unresolved entries in descriptive either, so the label string never
     // appears anywhere in the panel.
     expect(res.text).not.toContain('Unresolved tokens');
@@ -508,8 +509,8 @@ describe('GET /freestyle/tricks/:slug — approximate (computed disagrees with a
     const res = await request(app).get('/freestyle/tricks/trick-approx');
     expect(res.text).toContain('Parse warnings');
     expect(res.text).toContain('ambiguous_modifier_attachment');
-    // Phase 4: parse_warnings live inside the <details> block, not as a
-    // top-level sibling next to the role layers. Anchor on the disclosure.
+    // parse_warnings live inside the <details> block, not as a top-level
+    // sibling next to the role layers. Anchor on the disclosure.
     const detailsStart   = res.text.indexOf('<details');
     const detailsEnd     = res.text.indexOf('</details>', detailsStart);
     const warningsIndex  = res.text.indexOf('Parse warnings');
@@ -550,10 +551,10 @@ describe('GET /freestyle/tricks/:slug — policy_dependent', () => {
   it('uses a generic policy-token narrative; does NOT leak the hardcoded post-pt9-stale list (backside, shooting)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-policy');
-    // The pre-Phase-4 narrative listed all examples ("(quantum, nuclear,
-    // backside, shooting, down-family)") in the status sentence — stale
-    // post-pt9 (shooting and backside no longer policy tokens) and high-
-    // density. Phase 4 made the wording generic.
+    // The status sentence intentionally avoids enumerating example tokens.
+    // An earlier narrative listed "(quantum, nuclear, backside, shooting,
+    // down-family)" inline, which became stale once shooting and backside
+    // were removed from the policy-token set; current wording is generic.
     expect(res.text).not.toContain('quantum, nuclear, backside, shooting, down-family');
     expect(res.text).not.toContain('backside, shooting');
     // The status description ON THE ROW should still say something honest
@@ -579,8 +580,8 @@ describe('GET /freestyle/tricks/:slug — unresolved', () => {
     // Token + label still present, surfaced in the descriptive role layer.
     expect(res.text).toContain('Unresolved tokens');
     expect(res.text).toMatch(/<code>zzunknown<\/code>/);
-    // Phase 4 dedupe: the standalone "Unresolved tokens" section (and its
-    // class hook) must not render. Descriptive layer uses <strong>, not <h3>.
+    // Dedupe: the standalone "Unresolved tokens" section (and its class
+    // hook) must not render. Descriptive layer uses <strong>, not <h3>.
     expect(res.text).not.toContain('<h3>Unresolved tokens</h3>');
     expect(res.text).not.toContain('notation-grammar-unresolved');
     // Label appears once total, attached to the descriptive bucket.
@@ -604,16 +605,16 @@ describe('GET /freestyle/tricks/:slug — unknown add_formula_status falls back 
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/tricks/:slug — exact_modifier_derived (Phase 4 label distinction)', () => {
+describe('GET /freestyle/tricks/:slug — exact_modifier_derived (label distinct from self-atom)', () => {
   it('shows the new exact_modifier_derived label "Exact: structurally derived"', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-mod-derived');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Exact: structurally derived');
     expect(res.text).toContain('(exact_modifier_derived)');
-    // Pre-Phase-4 wording must not appear; the new wording exists to
-    // distinguish modifier-derived structural confirmation from self-atom
-    // tautological agreement.
+    // The earlier "Exact (modifier-derived)" wording must not appear; the
+    // current label distinguishes modifier-derived structural confirmation
+    // from self-atom tautological agreement.
     expect(res.text).not.toContain('Exact (modifier-derived)');
     // Self-atom wording must not leak onto a modifier-derived row.
     expect(res.text).not.toContain('Exact: named trick / self-atom');
@@ -690,7 +691,7 @@ describe('GET /freestyle/tricks/:slug — Diagnostic details disclosure (warning
 });
 
 // ---------------------------------------------------------------------------
-// Phase 5a — editorial decomposition view-model (Architecture B1 strict)
+// Editorial decomposition view-model (Architecture B1 strict)
 
 describe('GET /freestyle/tricks/:slug — editorial decomposition (sumo-style: full editorial state)', () => {
   it('renders the Editorial decomposition block with base, modifiers, and composed math', async () => {
@@ -791,8 +792,9 @@ describe('GET /freestyle/tricks/:slug — editorial decomposition (no-editorial-
   it('still renders the Editorial context (description) block independently', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/trick-ed-clean');
-    // Phase 4's editorial-context block is a SEPARATE feature from Phase 5a's
-    // editorial-decomposition block — description rendering is unaffected.
+    // The editorial-context block (description prose) is a SEPARATE feature
+    // from the editorial-decomposition block — description rendering is
+    // unaffected by the no-decomposition path.
     expect(res.text).toContain('Editorial context');
     expect(res.text).toContain('no-editorial-metadata fixture');
   });

@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Phase 3B auto-link classifier in
+ * Integration tests for the auto-link classifier in
  * identityAccessService.verifyEmailByToken.
  *
  * Contract under test: combining the email-anchor check with

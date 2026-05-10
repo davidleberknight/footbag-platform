@@ -1327,12 +1327,12 @@ describe('curatorMediaService.listExistingCategories', () => {
 
 // ── Gallery CRUD tests ──────────────────────────────────────────────────────
 //
-// These exercise the slice 2a service contract: updateGallery generalized
+// Exercises the gallery CRUD service contract: updateGallery generalized
 // for both FH-owned (system member) and member-owned galleries with
-// JSON sidecar write-through for the FH cohort, plus new createGallery/
-// deleteGallery/listGalleriesForOwner methods. The sidecar I/O is
-// redirected to a per-test temp dir so the suite never mutates the
-// repo's real /curated/ tree.
+// JSON sidecar write-through for the FH cohort, plus createGallery /
+// deleteGallery / listGalleriesForOwner. The sidecar I/O is redirected
+// to a per-test temp dir so the suite never mutates the repo's real
+// /curated/ tree.
 
 describe('curatorMediaService.updateGallery', () => {
   it('FH-owned: writes DB metadata + tag sets AND writes a JSON sidecar at /curated/galleries/<slug>.json', async () => {

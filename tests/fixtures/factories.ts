@@ -1467,9 +1467,9 @@ export function insertMemberClubAffiliation(
 // ── Payment ───────────────────────────────────────────────────────────────────
 //
 // Minimal `payments` row factory. Sufficient for tests that need a real FK
-// target (e.g. member_tier_grants.related_payment_id). Phase B will add the
-// full payment lifecycle (status transitions, Stripe identifiers, refund
-// handling); this factory covers the Phase A test surface.
+// target (e.g. member_tier_grants.related_payment_id). Does not exercise
+// the full payment lifecycle (status transitions, Stripe identifiers,
+// refund handling); extend this factory when those land.
 
 export interface PaymentOverrides {
   id?: string;

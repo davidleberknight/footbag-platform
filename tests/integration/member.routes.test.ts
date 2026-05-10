@@ -258,7 +258,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
 
 describe('GET /members/:memberKey/:section — stub pages', () => {
   // `password` is no longer a stub section — it has a real form at
-  // /members/:slug/edit/password (Phase 5).
+  // /members/:slug/edit/password.
   const VALID_SECTIONS = ['media', 'settings', 'download', 'delete'];
 
   it('unauthenticated → 302 to /login with returnTo', async () => {

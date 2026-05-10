@@ -1,11 +1,11 @@
 /**
- * Integration tests for the Phase 3B verification-time auto-link confirmation
- * flow. Covers the routing decisions made in authController.getVerify and
- * the read-only GET /history/auto-link page.
+ * Integration tests for the verification-time auto-link confirmation flow.
+ * Covers the routing decisions made in authController.getVerify and the
+ * read-only GET /history/auto-link page.
  *
- * Tier 1 / Tier 2 classifications route to the new confirmation UI.
- * Tier 3 continues to the existing /history/claim manual lookup form.
- * tier: 'none' continues to the existing dashboard redirect.
+ * Tier 1 / Tier 2 classifications route to the auto-link confirmation UI.
+ * Tier 3 routes to the /history/claim manual lookup form.
+ * tier: 'none' routes to the dashboard.
  *
  * Also asserts the PRE-confirmation no-write invariant: neither /verify
  * nor GET /history/auto-link creates any link on the member row.

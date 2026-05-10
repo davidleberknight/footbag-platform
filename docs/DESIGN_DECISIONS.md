@@ -1745,7 +1745,7 @@ Error responses:
 Display attributes:
 
 - All external links rendered with `target="_blank" rel="nofollow noopener noreferrer"`.
-- A small external-link icon indicates click-out.
+- A small external-link icon indicates click-out, suppressed only where the URL itself is the visible anchor text.
 - The full URL is shown via the `title` attribute when JavaScript is enabled.
 
 Rationale:

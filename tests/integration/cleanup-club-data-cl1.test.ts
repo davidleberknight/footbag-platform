@@ -1,5 +1,5 @@
 /**
- * Integration tests for the Slice CL-1 club-data cleanup script.
+ * Integration tests for `scripts/cleanup-club-data-cl1`.
  *
  * Exercises the read-only `planFixes` and the write `applyFixes` against a
  * fresh schema-only DB seeded with all 11 target rows, plus a few drift
@@ -82,7 +82,7 @@ afterEach(() => {
   db.close();
 });
 
-describe('Slice CL-1: planFixes (read-only diagnostic)', () => {
+describe('cleanup-club-data-cl1: planFixes (read-only diagnostic)', () => {
   it('plans all 11 fixes against a fresh fixture with no drift', () => {
     const { applicable, result } = planFixes(db);
     expect(applicable).toHaveLength(11);
@@ -121,7 +121,7 @@ describe('Slice CL-1: planFixes (read-only diagnostic)', () => {
   });
 });
 
-describe('Slice CL-1: applyFixes (transactional write)', () => {
+describe('cleanup-club-data-cl1: applyFixes (transactional write)', () => {
   it('writes all expected new values, bumps version, and updates the actor', () => {
     const { applicable, result } = planFixes(db);
     applyFixes(db, applicable, result);
