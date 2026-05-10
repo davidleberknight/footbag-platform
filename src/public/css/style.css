@@ -2278,6 +2278,16 @@ section.home-media { padding-top: 0; }
 }
 .trick-pathway-link:hover { text-decoration: underline; }
 
+/* ── Freestyle landing: featured video fallback styling ──────────────── */
+.freestyle-featured-fallback {
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.03);
+  border-left: 3px solid var(--text-muted, #999);
+  border-radius: 3px;
+  font-style: italic;
+  color: var(--text-muted, #555);
+}
+
 /* ── Glossary: inline notation examples (reuses .notation-token + role classes) */
 .glossary-inline-notation {
   display: inline-block;

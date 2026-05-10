@@ -43,6 +43,25 @@
     </div>
   </section>
 
+  {{! ── Featured video ─────────────────────────────────────────────────── }}
+  {{#if content.featuredVideo}}
+  <section class="content-section freestyle-featured-video">
+    <div class="section-heading">
+      <h2>{{content.featuredVideo.title}}</h2>
+      {{#if content.featuredVideo.caption}}<p class="section-intro">{{content.featuredVideo.caption}}</p>{{/if}}
+    </div>
+    {{#if content.featuredVideo.media}}
+    <figure class="demo-video">
+      <div class="video-embed">
+        {{> video-facade media=content.featuredVideo.media}}
+      </div>
+    </figure>
+    {{else}}
+    <p class="freestyle-featured-fallback">Video temporarily unavailable. Try again later.</p>
+    {{/if}}
+  </section>
+  {{/if}}
+
   {{! ── Three-layer reference orientation ─────────────────────────────────── }}
   <section class="content-section">
     <h2>The Freestyle Reference</h2>

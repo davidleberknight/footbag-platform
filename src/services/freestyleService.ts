@@ -143,11 +143,21 @@ export interface FreestyleDemoVideo {
   caption: string;
 }
 
+export interface FreestyleFeaturedVideo {
+  title: string;
+  caption: string;
+  media: VideoMedia | null;
+}
+
 export interface FreestyleLandingContent {
   mascotSrc: string;
   mascotAlt: string;
   intro: FreestyleLandingExplainer;
   demoVideo: FreestyleDemoVideo | null;
+  // Featured public-facing YouTube video — distinct from the local mp4
+  // demoVideo. Surfaced as a prominent panel near the top of the landing
+  // page. Null-safe: template omits the panel when null.
+  featuredVideo: FreestyleFeaturedVideo | null;
   getStartedTiles: FreestyleGetStartedTile[];
   competitionFormats: FreestyleCompetitionFormat[];
   totalRecords: number;
@@ -1787,13 +1797,12 @@ export const freestyleService = {
           'The ADD system, formalized in the early 1990s, gave the community a shared scale for that felt quality. Routines didn\'t stop being creative; they got a second axis. Players could now talk about a run\'s difficulty independently of its choreography, and the run-quality vocabulary in the glossary — Tiltless, Guiltless, Tripless, Fearless, Beastly, Godly — emerged to describe routines by the floor of difficulty they sustained.',
           'Today the vocabulary still works on both axes. Creative routines remain a competition format and an art form. Alongside them, ADD-aware difficulty standards (guiltless or fearless throughout, transitions held under pressure) describe what serious competitive runs look like at the top. The two ways of judging haven\'t replaced each other — they share the same competitive culture.',
         ],
-        // Hero/intro media: per the 2026-05-10 rebalance, the hero slot does
-        // NOT lead with a modern routine (that bias was crowding the
-        // historically-spread tone the page is meant to carry). Restraint:
-        // render a placeholder hook signaling that archival visuals are in
-        // curation. The modern reference still lives in `modernEraMedia`
-        // below for those who want a contemporary anchor. No new media
-        // ingested.
+        // History-page visuals are reserved for archival imagery (BAP / Hall
+        // of Fame photos and similar). Until those assets are curated, every
+        // media slot here renders without media rather than borrowing from
+        // landing-page video — the landing page already carries the modern
+        // routine references, and duplicating them here was crowding the
+        // historically-spread tone this page should carry.
         heroMedia: {
           media:   null,
           caption: '',
@@ -1802,21 +1811,12 @@ export const freestyleService = {
             'are being curated separately. This slot will carry era-spanning visuals once that ' +
             'curation lands; for now the page tells the story in text and links to player profiles.',
         },
-        // Pioneers/early-era media: no curated archival footage of the 1980s
-        // pioneers exists yet in the platform. Render a placeholder hook so
-        // the section reads honestly until curated assets land.
         pioneersMedia: {
           media:   null,
           caption: '',
           placeholderNote: 'Archival photos and event footage from the 1980s–1990s pioneers era are being curated. Player profile pages link to documented competition records in the meantime.',
         },
-        // Modern-era media: re-uses the existing Worlds 2017 Open Circle Finals
-        // reference from the landing page's competitionFormats. Curated; verified.
-        modernEraMedia: {
-          media:   expandYouTubeVideo('aMr5e5wlgeE', 'Worlds 2017 Open Circle Finals'),
-          caption: 'Modern competitive freestyle in motion — the Worlds 2017 Open Circle Finals. The structural grammar settled in the 2000s; the depth of execution and creative recombination on display in current play is where the sport keeps growing.',
-          placeholderNote: null,
-        },
+        modernEraMedia: null,
       },
     };
   },
@@ -2308,6 +2308,16 @@ export const freestyleService = {
           ],
         },
         demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),
+        // Featured panel: a recent community-sourced overview video. Hardcoded
+        // so the panel render is durable even if the curated sidecar isn't
+        // ingested in a particular environment. The matching curated sidecar
+        // lives at curated/freestyle_tricks/footbag-2026-san-marino_*.meta.json
+        // for archival/discoverability via the curator-tagged channel.
+        featuredVideo: {
+          title:   'Footbag 2026: San Marino',
+          caption: 'A community overview from Footbag 2026 in San Marino. Footage by jay7bah.',
+          media:   expandYouTubeVideo('U6J2LXxUWro', 'Footbag 2026: San Marino'),
+        },
         getStartedTiles: [
           { label: 'Where to buy footbags', href: '#', comingSoon: true },
           { label: 'Where to buy shoes',    href: '#', comingSoon: true },
