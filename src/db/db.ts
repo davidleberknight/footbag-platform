@@ -1160,6 +1160,18 @@ export const freestyleMediaLinks = {
   // chip on the trick-dictionary ADD view: service classifies each trick
   // as 'tutorial' (any tutorial-tier source linked), 'demo' (only
   // demo-/record-tier), or 'none' (no rows here at all).
+  // Drives the dictionary-index media-coverage chip ('Tutorial available' /
+  // 'Demo only' / 'No video yet'). Returns one row per (trick slug, source_id)
+  // pair across BOTH parallel media surfaces:
+  //   1. Legacy curated channel (freestyle_media_* tables; loaders 21/22/23
+  //      from inputs/curated/media/*.csv).
+  //   2. Curator-tagged channel (media_items + media_tags + tags; seeded
+  //      from curated/freestyle_tricks/*.json sidecars).
+  // The two channels are intentionally NOT merged at the storage layer per
+  // CURATED_MEDIA_PLAN (Option A separation). They ARE merged at this read
+  // surface so the dictionary index sees coverage from either source.
+  // Service-layer 'tutorial beats demo' precedence handles deduplication when
+  // the same slug surfaces from both channels.
   get listCoveredTrickSlugsWithSource() { return db.prepare(`
     SELECT DISTINCT
       l.entity_id   AS slug,
@@ -1168,6 +1180,18 @@ export const freestyleMediaLinks = {
     INNER JOIN freestyle_media_assets AS a ON a.id = l.media_id
     WHERE l.entity_type = 'trick'
       AND a.source_id IS NOT NULL
+
+    UNION
+
+    SELECT DISTINCT
+      ft.slug       AS slug,
+      mi.source_id  AS source_id
+    FROM media_items mi
+    INNER JOIN media_tags mt ON mt.media_id = mi.id
+    INNER JOIN tags t        ON t.id        = mt.tag_id
+    INNER JOIN freestyle_tricks ft ON ('#' || ft.slug) = t.tag_normalized
+    WHERE mi.source_id IS NOT NULL
+      AND ft.is_active = 1
   `); },
 };
 

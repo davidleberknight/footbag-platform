@@ -17,6 +17,8 @@ import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
+  insertMember,
+  insertTtLesson,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3110');
@@ -196,6 +198,29 @@ beforeAll(async () => {
     VALUES ('fma-tt-whirl',     'trick', 'whirl',   1),
            ('fma-finland-lego', 'trick', 'legover', 1)
   `).run();
+
+  // Curator-tagged channel — covers a trick that has NO legacy
+  // freestyle_media_links row but DOES have curator-tagged tutorial media
+  // via media_items + media_tags + tags. Exercises the Option-A UNION fix
+  // in `freestyleMediaLinks.listCoveredTrickSlugsWithSource` (db.ts).
+  insertFreestyleTrick(db, {
+    slug:           'curator-only-trick',
+    canonical_name: 'curator only trick',
+    adds:           '4',
+    base_trick:     'curator-only-trick',
+    trick_family:   'curator-only-trick',
+    category:       'compound',
+    description:    'curator-tagged tutorial coverage only; no legacy freestyle_media_links row',
+    aliases_json:   '[]',
+    sort_order:     200,
+  });
+  const memberIdForCuratorMedia = insertMember(db);
+  insertTtLesson(db, {
+    uploader_member_id: memberIdForCuratorMedia,
+    ttNumber:           99,
+    trickSlug:          'curator-only-trick',
+    videoId:            'CURATOR-ONLY-TEST',
+  });
 
   db.close();
   createApp = await importApp();
@@ -695,6 +720,31 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     // Fixture seeds a footbag_finland-only row for legover (demo tier).
     expect(res.text).toContain('trick-media-chip--demo');
     expect(res.text).toContain('Demo only');
+  });
+
+  it('renders the "Tutorial available" chip when a trick has only curator-tagged tutorial media (UNION fix)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks');
+    // `curator-only-trick` has no row in freestyle_media_links; its only
+    // tutorial-tier coverage is via media_items + media_tags + tags
+    // (curator-tagged channel with source_id='tt_youtube'). Pre-fix this
+    // trick would render "No video yet"; post-fix the UNION'd
+    // listCoveredTrickSlugsWithSource query surfaces it as 'tutorial'.
+    //
+    // Anchor on the row block: locate the trick-row containing the slug,
+    // then assert the tutorial chip is INSIDE that row (not stolen from
+    // some other trick's row earlier in the page).
+    const slugIdx = res.text.indexOf('curator-only-trick');
+    expect(slugIdx).toBeGreaterThan(-1);
+    // Walk forward to the next </li> closing the row's wrapper to scope the
+    // assertion. trick-row entries render as <li class="trick-row...">...</li>.
+    const rowOpen  = res.text.lastIndexOf('<li class="trick-row', slugIdx);
+    const rowClose = res.text.indexOf('</li>', slugIdx);
+    expect(rowOpen).toBeGreaterThan(-1);
+    expect(rowClose).toBeGreaterThan(rowOpen);
+    const rowBlock = res.text.slice(rowOpen, rowClose);
+    expect(rowBlock).toContain('Tutorial available');
+    expect(rowBlock).toContain('trick-media-chip--tutorial');
   });
 
   it('renders aliases inline on the row when available', async () => {

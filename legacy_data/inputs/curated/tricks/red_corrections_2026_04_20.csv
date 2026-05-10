@@ -50,3 +50,5 @@ gauntlet,notation,,STEPPING DUCKING PARADOX TORQUE,Notation bootstrap Tier 1 202
 mobius,notation,,MOBIUS,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
 sumo,notation,,SUMO,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
 sailing,notation,,SAILING,Notation bootstrap Tier 1 2026-05-09: per NOTATION_STYLE_GUIDE LOCKED exemplars
+whirl,description,Rotational dexterity move.,Rotational body-spin dex; anchor of the whirl family.,Description normalization 2026-05-09: base-trick anchor convention (Sub-batch 1)
+swirl,description,reverse swirl motion,Reverse-direction rotational dex; anchor of the swirl family.,Description normalization 2026-05-09: base-trick anchor convention (Sub-batch 1)
