@@ -16,10 +16,27 @@
 
 <div class="wrapper">
 
+  {{! ── Hero/intro media panel ──────────────────────────────────────────── }}
+  {{#if content.heroMedia}}
+  <section class="content-section history-media history-media--hero">
+    {{#if content.heroMedia.media}}
+    <div class="video-embed">
+      {{> video-facade media=content.heroMedia.media}}
+    </div>
+    {{/if}}
+    {{#if content.heroMedia.caption}}<p class="history-media-caption">{{content.heroMedia.caption}}</p>{{/if}}
+    {{#if content.heroMedia.placeholderNote}}<p class="history-media-placeholder">{{content.heroMedia.placeholderNote}}</p>{{/if}}
+  </section>
+  {{/if}}
+
   {{! ── Competitive Eras ──────────────────────────────────────────────────────── }}
   <section class="content-section">
     <div class="section-heading">
       <h2>Competitive Eras</h2>
+      <p class="section-intro">
+        Five overlapping chapters in the sport's competitive life — each shaped by
+        the players, technology, and cultural energy of its time.
+      </p>
     </div>
     {{#each content.eras}}
     <div class="history-era">
@@ -32,16 +49,50 @@
     {{/each}}
   </section>
 
+  {{! ── Evolution of Difficulty ────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading">
+      <h2>Evolution of Difficulty</h2>
+      <p class="section-intro">
+        A more focused lens on the same history: how the sport's working
+        difficulty grammar grew, decade by decade.
+      </p>
+    </div>
+    <div class="evolution-strip">
+      {{#each content.evolution}}
+      <div class="evolution-card">
+        <div class="evolution-period">{{period}}</div>
+        <h3 class="evolution-label">{{label}}</h3>
+        <p>{{summary}}</p>
+      </div>
+      {{/each}}
+    </div>
+  </section>
+
   {{! ── Pioneers ────────────────────────────────────────────────────────────── }}
   <section class="content-section">
     <div class="section-heading">
       <h2>Founders &amp; Pioneers</h2>
     </div>
     <p class="section-intro">
-      The early BAP (Big ADD Posse) inductees (1992–1996) were establishing freestyle's visual identity,
-      trick taxonomy, and competition culture before the ADD table was widely standardized.
-      They built the language the sport still speaks.
+      The early BAP (Big ADD Posse) inductees of the early 1990s were establishing
+      freestyle's visual identity, trick taxonomy, and competition culture in the
+      years before the ADD table was widely standardized. They built the language
+      the sport still speaks — and the contests, friendships, and recordings that
+      kept it alive.
     </p>
+
+    {{#if content.pioneersMedia}}
+    <div class="history-media history-media--pioneers">
+      {{#if content.pioneersMedia.media}}
+      <div class="video-embed">
+        {{> video-facade media=content.pioneersMedia.media}}
+      </div>
+      {{/if}}
+      {{#if content.pioneersMedia.caption}}<p class="history-media-caption">{{content.pioneersMedia.caption}}</p>{{/if}}
+      {{#if content.pioneersMedia.placeholderNote}}<p class="history-media-placeholder">{{content.pioneersMedia.placeholderNote}}</p>{{/if}}
+    </div>
+    {{/if}}
     <div class="records-table-wrap">
       <table class="records-table records-table-sm">
         <thead>
@@ -99,10 +150,22 @@
       <h2>The Modern Game</h2>
     </div>
     <p>{{content.modernEra}}</p>
+
+    {{#if content.modernEraMedia}}
+    <div class="history-media history-media--modern">
+      {{#if content.modernEraMedia.media}}
+      <div class="video-embed">
+        {{> video-facade media=content.modernEraMedia.media}}
+      </div>
+      {{/if}}
+      {{#if content.modernEraMedia.caption}}<p class="history-media-caption">{{content.modernEraMedia.caption}}</p>{{/if}}
+      {{#if content.modernEraMedia.placeholderNote}}<p class="history-media-placeholder">{{content.modernEraMedia.placeholderNote}}</p>{{/if}}
+    </div>
+    {{/if}}
   </section>
 
   <p class="source-note">
-    Based on analysis of 774 documented competitive events (1980–2026) and 395 Sick3 format sequences.
+    Based on analysis of 774 documented competitive events (1980–2026) and 395 Sick 3 format sequences.
     Player descriptions draw from competition records and community documentation.
   </p>
 

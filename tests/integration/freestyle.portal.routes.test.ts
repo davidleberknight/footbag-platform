@@ -207,9 +207,14 @@ describe('GET /freestyle/history', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/history');
     expect(res.text).toContain('Competitive Eras');
+    // Era labels per the post-2026-05-10 editorial refinement (softened from
+    // the prior absolutist phrasing). Foundation Era is preserved; the others
+    // gained more historically-grounded names.
     expect(res.text).toContain('Foundation Era');
-    expect(res.text).toContain('Technical Peak');
-    expect(res.text).toContain('European Dominance');
+    expect(res.text).toContain('Codifying the Language');
+    expect(res.text).toContain('Technical Acceleration');
+    expect(res.text).toContain('European Center of Gravity');
+    expect(res.text).toContain('Refinement &amp; Reconnection');
   });
 
   it('shows era dates', async () => {
@@ -341,50 +346,55 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('rel="noopener noreferrer"');
   });
 
-  it('shows the six portal cards (intent-ordered)', async () => {
+  it('shows the portal cards (intent-ordered, post-2026-05-10 editorial refinement)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
+    // Each card's heading is asserted by its title text. The editorial pass
+    // elevated Glossary and Notation Reference to peer cards alongside the
+    // existing pillars; the Records card was renamed from "Freestyle World
+    // Records" to the simpler "World Records".
     expect(res.text).toContain('Tutorials &amp; Learning');
-    expect(res.text).toContain('Freestyle World Records');
-    expect(res.text).toContain('Competition');
+    expect(res.text).toContain('Glossary');
     expect(res.text).toContain('Trick Dictionary');
+    expect(res.text).toContain('Notation Reference');
+    expect(res.text).toContain('World Records');
+    expect(res.text).toContain('Competition');
     expect(res.text).toContain('History &amp; ADD System');
     expect(res.text).toContain('Insights');
-    // Prior card titles must not survive the renames.
+    // Prior phrasings must not survive.
     expect(res.text).not.toContain('Passback Records');
+    expect(res.text).not.toContain('Freestyle World Records');
     expect(res.text).not.toMatch(/<div class="card-title">Learn Tricks<\/div>/);
   });
 
-  it('Tutorials & Learning card consolidates TT + AnzTrikz tutorial series and surfaces Glossary as a reference', async () => {
+  it('Tutorials card lists the curated tutorial series; Glossary lives on its own peer card (no longer a subordinate link)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // All three links must be present on the page.
+    // All TT/AnzTrikz tutorial-series links remain present on the page.
     expect(res.text).toContain('/media/gallery_tricks_of_the_trade');
     expect(res.text).toContain('/media/gallery_anz_trikz');
     expect(res.text).toContain('/freestyle/glossary');
-    // All three must sit inside the Tutorials & Learning card, anchored
-    // between that card title and the next card title.
+    // The TT + AnzTrikz links sit inside the Tutorials & Learning card.
     const tutIdx = res.text.indexOf('Tutorials &amp; Learning');
-    const recordsIdx = res.text.indexOf('Freestyle World Records');
+    const glossaryCardIdx = res.text.indexOf('<div class="card-title">Glossary</div>');
     expect(tutIdx).toBeGreaterThan(0);
-    expect(recordsIdx).toBeGreaterThan(tutIdx);
-    const tutSlice = res.text.slice(tutIdx, recordsIdx);
+    expect(glossaryCardIdx).toBeGreaterThan(tutIdx);
+    const tutSlice = res.text.slice(tutIdx, glossaryCardIdx);
     expect(tutSlice).toContain('/media/gallery_tricks_of_the_trade');
     expect(tutSlice).toContain('/media/gallery_anz_trikz');
-    expect(tutSlice).toContain('/freestyle/glossary');
+    // The glossary link is NOT inside the Tutorials card anymore — it sits
+    // on its own peer card with a normal action button.
+    expect(tutSlice).not.toContain('/freestyle/glossary');
+    expect(tutSlice).not.toMatch(/class="card-secondary-link"/);
   });
 
-  it('Glossary renders as a subordinate reference link, not as a peer button', async () => {
+  it('Glossary card carries its own peer action button (not a subordinate reference link)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    const tutIdx = res.text.indexOf('Tutorials &amp; Learning');
-    const recordsIdx = res.text.indexOf('Freestyle World Records');
-    const tutSlice = res.text.slice(tutIdx, recordsIdx);
-    // Glossary anchor must sit inside the .card-secondary-link paragraph,
-    // NOT the .card-actions button row. The .btn-outline class indicates
-    // peer-button rendering; the glossary link must NOT carry it.
-    expect(tutSlice).toMatch(/class="card-secondary-link"[\s\S]*?\/freestyle\/glossary/);
-    expect(tutSlice).not.toMatch(/<a[^>]*class="btn btn-outline"[^>]*href="\/freestyle\/glossary"/);
+    // The Glossary card has a btn-outline action linking to /freestyle/glossary.
+    expect(res.text).toMatch(/<a href="\/freestyle\/glossary" class="btn btn-outline">Open glossary &rarr;<\/a>/);
+    // The pre-2026-05-10 subordinate-reference pattern must NOT survive.
+    expect(res.text).not.toMatch(/class="card-secondary-link"[\s\S]*?\/freestyle\/glossary/);
   });
 
   it('links to all portal pillar pages', async () => {

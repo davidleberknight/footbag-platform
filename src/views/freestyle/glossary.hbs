@@ -18,10 +18,32 @@
 
   <section class="content-section">
     <p>
-      This glossary explains freestyle footbag terminology: run quality, trick
-      components, style, and community vocabulary. It is an explanatory layer
-      only. Canonical definitions (ADD values, trick structure, modifier rules)
-      live in the freestyle dictionary, not here.
+      Freestyle footbag has its own structural vocabulary, refined across decades
+      of community use. This glossary is the plain-English layer of that vocabulary:
+      run-quality terms, components of a trick, set and catch concepts, and the
+      abbreviations you'll meet in tutorials and contests. It's written for
+      newcomers who want a foothold and for experienced players who want a
+      reference page that matches their mental model.
+    </p>
+
+    <h3 class="section-heading">Glossary, Dictionary, and Notation — three layers</h3>
+    <p>
+      The site treats freestyle vocabulary as three complementary layers. Each
+      one gives you a different angle on the same body of knowledge:
+    </p>
+    <ul class="reference-layer-list">
+      <li><strong>Glossary</strong> (this page) — plain-English explanations of terms,
+        styles, and community vocabulary. Read this first if a word is unfamiliar.</li>
+      <li><strong><a href="/freestyle/tricks">Dictionary</a></strong> — the canonical
+        catalog of named tricks with their ADD values, modifier links, family relationships,
+        and structural decomposition. The structural source of truth.</li>
+      <li><strong><a href="/freestyle/moves">Notation</a></strong> — Jobs notation, the
+        community's compact symbolic shorthand for trick structure. Builds the bridge
+        between a trick's name and its mechanical anatomy.</li>
+    </ul>
+    <p class="detail-muted">
+      The glossary explains <em>terms</em>; the dictionary defines <em>tricks</em>;
+      the notation describes <em>structure</em>.
     </p>
   </section>
 
@@ -160,15 +182,88 @@
   </section>
 
   <section class="content-section">
-    <h2 class="section-heading">7. Notation (Jobs Notation)</h2>
-    <p>A symbolic system describing trick structure.</p>
-    <pre><code>(clipper) &gt; whirl &gt; butterfly</code></pre>
-    <p>This represents the starting surface, intermediate components, and final catch. In this project, notation is stored as text and not yet fully parsed.</p>
+    <h2 class="section-heading">7. Trick Families</h2>
+    <p>
+      A <strong>family</strong> is a group of tricks that share a common
+      structural anchor — usually a base trick like whirl, butterfly, mirage,
+      osis, or torque. The family name is the anchor; modifiers and sets
+      branch off from it to create the full lineage of named compounds.
+    </p>
+    <p>Families matter because they tell you:</p>
+    <ul>
+      <li><strong>Where a trick comes from</strong> — paradox-whirl, spinning-whirl, and symposium-whirl all live in the whirl family because they're whirl with a different modifier on top.</li>
+      <li><strong>What's nearby</strong> — when you learn a family's anchor, you've unlocked a path into many compounds at once. Whirl opens the door to roughly a dozen tricks; butterfly anchors another dozen.</li>
+      <li><strong>How difficulty scales</strong> — within a family, ADD difficulty climbs as more modifiers stack on top of the anchor. The family becomes a difficulty ladder.</li>
+    </ul>
+    <p>
+      The <a href="/freestyle/tricks">Trick Dictionary</a> groups by family
+      (use the family-view toggle). The trick-detail page for any compound
+      shows its family ladder so you can see siblings at a glance.
+    </p>
   </section>
 
   <section class="content-section">
-    <h2 class="section-heading">8. Foundational Tricks</h2>
-    <p>These are the key primitives that anchor freestyle. Many advanced tricks are built from them.</p>
+    <h2 class="section-heading">8. Notation (Jobs Notation)</h2>
+    <p>
+      Jobs notation is the community's compact symbolic shorthand for what a
+      trick actually <em>does</em>. The trick's name tells you its identity;
+      Jobs notation tells you its structural anatomy — which set begins it,
+      which modifiers shape it, which base trick anchors it, and where it
+      catches.
+    </p>
+    <p>It exists because the same trick name can hide a lot of structure. Notation makes that structure visible:</p>
+    <ul>
+      <li>What goes in the <em>set</em> — the launch position the trick begins from (atomic, pixie, quantum, and so on).</li>
+      <li>What <em>modifiers</em> are layered on — body-position modifiers (paradox, ducking, symposium) and rotational modifiers (spinning, blurry, gyro).</li>
+      <li>What the <em>base trick</em> is — the structural anchor the move resolves to (whirl, mirage, butterfly, torque…).</li>
+      <li>How the trick <em>catches</em> — toe stall, clipper stall, or one of the body-position delays.</li>
+      <li>Which <em>family</em> the trick belongs to, by virtue of its base.</li>
+    </ul>
+
+    <h3>A beginner example: WHIRL</h3>
+    <p>
+      A trick whose notation is just <code>WHIRL</code> is itself the family
+      anchor. It carries one body rotation and resolves at its catch — no
+      modifiers stacked on, no set primitive prefacing it. A single token
+      tells you: this is the structural root.
+    </p>
+
+    <h3>A compound example: PARADOX WHIRL</h3>
+    <p>
+      A whirl with the paradox modifier applied. The notation reads
+      left-to-right exactly as the trick is built: the <code>PARADOX</code>
+      modifier shapes the body position; the <code>WHIRL</code> base provides
+      the rotation and structural anchor. Adds 1 ADD on top of whirl's base
+      difficulty.
+    </p>
+
+    <h3>A modifier-heavy example: STEPPING DUCKING PARADOX TORQUE</h3>
+    <p>
+      Three body modifiers stacked on a torque base — known to the community
+      as Gauntlet, a 7-ADD trick. Reading the notation left-to-right reveals
+      the layered construction: stepping, then ducking, then paradox, then
+      finally the torque base. Each modifier contributes its own +1 to the
+      total difficulty. Compound notation like this is one of the clearest
+      demonstrations of the language: the visible structural decomposition
+      is the trick.
+    </p>
+
+    <h3>Color-coded structural roles</h3>
+    <p>
+      Per-trick pages render notation with role-aware coloring — base anchor,
+      sets, rotations, and body modifiers each get a distinct visual treatment.
+      The structural shape becomes readable at a glance, without needing to
+      memorize what each token means.
+    </p>
+  </section>
+
+  <section class="content-section">
+    <h2 class="section-heading">9. Foundational Tricks</h2>
+    <p>
+      A small set of base tricks act as the structural primitives most other
+      named tricks descend from. Learning them gives you the building blocks
+      for the much larger catalog of compounds:
+    </p>
     <ul class="grid-list">
       <li>clipper</li>
       <li>mirage</li>
@@ -183,10 +278,15 @@
       <li>fairy</li>
       <li>around-the-world</li>
     </ul>
+    <p>
+      Each of these is a family anchor. Most named compound tricks resolve to one
+      of these primitives (or a small set of derivative bases like blender or
+      torque) once their modifiers and sets are stripped away.
+    </p>
   </section>
 
   <section class="content-section">
-    <h2 class="section-heading">9. Competitive &amp; Format Terms</h2>
+    <h2 class="section-heading">10. Competitive &amp; Format Terms</h2>
     <p>These describe event formats and play contexts.</p>
     <ul>
       <li><strong>Freestyle Routine</strong>: a choreographed performance to music.</li>
@@ -198,8 +298,16 @@
   </section>
 
   <section class="content-section">
-    <h2 class="section-heading">10. Attribution</h2>
-    <p>Concepts adapted from footbag.org reference materials, freestyle community usage, and expert input from Red Husted. Definitions rewritten for clarity and consistency. The authoritative system lives in the freestyle dictionary.</p>
+    <h2 class="section-heading">11. Sources</h2>
+    <p>
+      Definitions on this page draw on long-standing freestyle community
+      usage, expert-reviewed terminology established across decades of play
+      and contests, and historical reference materials (footbag.org and
+      community documentation). They've been rewritten for clarity and
+      consistency. Authoritative trick-level definitions — ADD values,
+      structural decomposition, modifier relationships — live in the
+      <a href="/freestyle/tricks">Trick Dictionary</a>.
+    </p>
   </section>
 
 </div>

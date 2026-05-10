@@ -979,12 +979,38 @@ export interface FreestylePartnershipsContent {
 // History content types (editorial service-layer constants)
 // ---------------------------------------------------------------------------
 
+export interface FreestyleHistoryEvolutionEntry {
+  period: string;
+  label: string;
+  summary: string;
+}
+
+export interface FreestyleHistoryMediaPanel {
+  // Either a YouTube video (preferred when an existing curated reference is
+  // available) OR a placeholder caption when no asset is yet curated.
+  // Templates render the video when `media` is non-null; otherwise they
+  // render the placeholder hook with the caption text.
+  media:           VideoMedia | null;
+  caption:         string;
+  placeholderNote: string | null;  // shown when media is null
+}
+
 export interface FreestyleHistoryContent {
   eras: FreestyleHistoryEra[];
   pioneers: FreestyleHistoryPioneer[];
   addSystem: string[];
   regionalShift: string;
   modernEra: string;
+  // Phase: history-page editorial refinement (2026-05-10).
+  // "Evolution of difficulty" framing — not a new ontology layer; an editorial
+  // pass through the same eras with a difficulty-arc lens.
+  evolution: FreestyleHistoryEvolutionEntry[];
+  // Media slots. Each is null-safe so the template can render a placeholder
+  // hook when no curated asset is available. Prefer existing curated/media
+  // assets already in the platform; do NOT invent new YouTube IDs here.
+  heroMedia:        FreestyleHistoryMediaPanel | null;
+  pioneersMedia:    FreestyleHistoryMediaPanel | null;
+  modernEraMedia:   FreestyleHistoryMediaPanel | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1689,16 +1715,70 @@ export const freestyleService = {
         pioneers:      HISTORY_PIONEERS,
         addSystem:     HISTORY_ADD_SYSTEM,
         regionalShift:
-          'While early freestyle innovation was driven largely by North American players, the post-2005 era ' +
-          'is characterized by European dominance in both performance and participation density. Václav Klouda ' +
-          '(Czech Republic) accumulated 109 podium finishes — more than any other player in the dataset. ' +
-          'Damian Gielnicki, Mariusz Wilk, Stefan Siegert, Honza Weber, and Andreas Nawrath represent a ' +
-          'European technical cluster that produced both the highest-ADD sequences and the most diverse trick vocabularies.',
+          'Early freestyle innovation was driven largely by North American players. From the mid-2000s ' +
+          'onward the competitive center of gravity shifted toward Europe, both in performance and in ' +
+          'participation density. Václav Klouda (Czech Republic) has accumulated 109 podium finishes — ' +
+          'more than any other player in the dataset. Damian Gielnicki, Mariusz Wilk, Stefan Siegert, ' +
+          'Honza Weber, and Andreas Nawrath form a European technical cluster whose work produced both ' +
+          'the highest-ADD sequences on record and some of the most diverse trick vocabularies in the data.',
         modernEra:
-          'Freestyle has reached structural completeness. The core trick vocabulary established by 2007–2008 ' +
-          'remains the competitive language today. Progress is defined not by new elements, but by the ' +
-          'refinement and recombination of existing ones — execution quality, sequence architecture, and ' +
-          'the depth of players capable of reaching the established difficulty frontier.',
+          'Modern freestyle is a refined, recombinational sport. The trick grammar settled into recognizable ' +
+          'form by the late 2000s; today\'s competitive edge sits in how the established vocabulary is ' +
+          'sequenced, executed, and made musical. Within the existing palette, the space of meaningful ' +
+          'combinations is enormous — players continue to find new arrangements, new transitions, and new ' +
+          'expressive possibilities inside it. The question hasn\'t become "what trick is left to invent?" ' +
+          'so much as "how cleanly, how creatively, and how consistently can this language be played?"',
+        evolution: [
+          {
+            period: '1980s',
+            label:  'Clipper & Mirage',
+            summary: 'The foundational vocabulary — clipper-set tricks, mirage and its dex variants, the early whirl and butterfly motifs. Routines were judged on execution and creativity rather than a difficulty score.',
+          },
+          {
+            period: 'Early 1990s',
+            label:  'Paradox & Symposium',
+            summary: 'Modifiers entered the formal vocabulary. Paradox, symposium, and the body-position grammar that lets the same base trick branch into many distinct named compounds.',
+          },
+          {
+            period: 'Mid-1990s — 2000s',
+            label:  'ADD & Modifier Stacking',
+            summary: 'The ADD system named what players had been doing intuitively. Modifier stacking — paradox + symposium, ducking + paradox — made multi-modifier compounds the heart of competitive routines.',
+          },
+          {
+            period: '2000s',
+            label:  'Blurry & Fearless',
+            summary: 'The blurry modifier reshaped the top of the difficulty curve, anchoring runs that pushed past 5 ADD. "Fearless" runs (every trick at 5 ADD or more) became the marker of a top-tier performance.',
+          },
+          {
+            period: '2010s — present',
+            label:  'Consistency & Execution',
+            summary: 'New-trick invention slowed; competitive depth grew. The frontier moved from "what new structure exists?" to "how cleanly can the established vocabulary be performed under pressure?" Sequencing, transitions, and routine architecture became the differentiators.',
+          },
+        ],
+        // Hero/intro media: the existing routine reference for the modern era
+        // works as an evocative opener — it's already a curated asset in the
+        // platform via the landing page's competitionFormats. No new URLs
+        // invented here.
+        heroMedia: {
+          media:   expandYouTubeVideo('Z-KkyOpoBhM', 'Modern routine — Yoshihito Yamamoto, Worlds Online 2020'),
+          caption: 'A modern routine (Yoshihito Yamamoto, Worlds Online 2020) — useful as a reference point for what the contemporary game looks like at its top level. Routine footage from the 1980s–1990s is being curated separately.',
+          placeholderNote: null,
+        },
+        // Pioneers/early-era media: no curated archival footage of the 1980s
+        // pioneers exists yet in the platform. Render a placeholder hook so
+        // the section reads honestly until curated assets land.
+        pioneersMedia: {
+          media:   null,
+          caption: '',
+          placeholderNote: 'Archival photos and event footage from the 1980s–1990s pioneers era are being curated. Player profile pages link to documented competition records in the meantime.',
+        },
+        // Modern-era media: re-uses the existing Worlds 2017 Open Circle Finals
+        // reference from the landing page's competitionFormats. Curated; verified.
+        modernEraMedia: {
+          media:   expandYouTubeVideo('aMr5e5wlgeE', 'Worlds 2017 Open Circle Finals'),
+          caption: 'Modern competitive freestyle in motion — the Worlds 2017 Open Circle Finals. The structural grammar settled in the 2000s; the depth of execution and creative recombination on display in current play is where the sport keeps growing.',
+          placeholderNote: null,
+        },
       },
     };
   },

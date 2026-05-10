@@ -43,15 +43,30 @@
     </div>
   </section>
 
-  {{! ── Portal cards (intent-ordered: learn → records → competition → reference → context → analysis) ── }}
+  {{! ── Three-layer reference orientation ─────────────────────────────────── }}
+  <section class="content-section">
+    <h2>The Freestyle Reference</h2>
+    <p>
+      Freestyle footbag has its own structural language. Three reference layers explain it,
+      each at a different depth — start where it suits you and follow links between them.
+    </p>
+    <ul class="reference-layer-list">
+      <li><strong>Glossary</strong> — plain-English vocabulary for newcomers and returning players. Run-quality terms, trick components, style words, common abbreviations.</li>
+      <li><strong>Dictionary</strong> — the canonical catalog of named tricks with ADD values, modifier links, and family relationships. The structural source of truth.</li>
+      <li><strong>Notation</strong> — Jobs notation: a compact symbolic shorthand that decomposes a trick into the sets, modifiers, and base components that build it.</li>
+    </ul>
+  </section>
+
+  {{! ── Portal cards (intent-ordered: learn → reference → records → competition → context → analysis) ── }}
   <section class="content-section">
     <div class="card-grid card-grid-2col">
 
       <div class="card">
         <div class="card-title">Tutorials &amp; Learning</div>
         <p>
-          Tutorial video series for newcomers and returning players. Each video walks through
-          one or more named tricks. The glossary covers freestyle vocabulary as a reference.
+          Curated video series for newcomers and returning players. Each tutorial
+          walks through one or more named tricks, with technique cues and
+          progression paths into harder material.
         </p>
         <div class="card-actions">
           <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade &rarr;</a>
@@ -59,16 +74,56 @@
           <a href="/media/gallery_shred_global" class="btn btn-outline">Shred Global &rarr;</a>
           <a href="/media/gallery_footbag_finland" class="btn btn-outline">Footbag Finland &rarr;</a>
         </div>
-        <p class="card-secondary-link">
-          Reference: <a href="/freestyle/glossary">Freestyle vocabulary glossary &rarr;</a>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Glossary</div>
+        <p>
+          Beginner-friendly explanations of freestyle vocabulary: run-quality terms,
+          components of a trick, set / modifier / catch concepts, and the abbreviations
+          you'll encounter in tutorials and contests.
         </p>
+        <div class="card-actions">
+          <a href="/freestyle/glossary" class="btn btn-outline">Open glossary &rarr;</a>
+        </div>
+      </div>
+
+      <div class="card{{#unless content.totalTricks}} card-coming-soon{{/unless}}">
+        <div class="card-title">Trick Dictionary</div>
+        <p>
+          Canonical reference for named tricks: ADD difficulty values, structural decomposition,
+          modifier links, and family groupings. Browse by ADD bucket, by family, or by the
+          set/modifier each trick uses.
+        </p>
+        {{#if content.totalTricks}}
+        <div class="card-actions">
+          <a href="/freestyle/tricks" class="btn btn-outline">Browse tricks &rarr;</a>
+          <a href="/freestyle/tricks?view=sets" class="btn btn-outline">Browse by sets &rarr;</a>
+        </div>
+        {{else}}
+        <span class="badge badge-coming-soon">Coming soon</span>
+        {{/if}}
+      </div>
+
+      <div class="card">
+        <div class="card-title">Notation Reference</div>
+        <p>
+          Jobs notation is the community's compact shorthand for trick structure —
+          how a set, modifiers, and a base combine into a named move. The reference
+          page shows the conventions in use; per-trick pages render notation with
+          color-coded structural roles.
+        </p>
+        <div class="card-actions">
+          <a href="/freestyle/moves" class="btn btn-outline">Notation reference &rarr;</a>
+        </div>
       </div>
 
       <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
-        <div class="card-title">Freestyle World Records</div>
+        <div class="card-title">World Records</div>
         <p>
-          Per-trick consecutive-completion records, sourced from the Passback record community.
-          Browse records by trick or see the all-time leaderboard.
+          Per-trick consecutive-completion records, drawn from the long-running
+          Passback record community. Browse by trick, or see the all-time leaderboard
+          across record-holders.
         </p>
         {{#if content.totalRecords}}
         <div class="card-actions">
@@ -83,9 +138,9 @@
       <div class="card">
         <div class="card-title">Competition</div>
         <p>
-          Top competitors, podium counts, and event history from
-          documented freestyle events (1980 to present).
-          Derived from canonical competition records.
+          Top competitors, podium counts, and event history across documented
+          freestyle events from the 1980s to the present. Includes solo and
+          partnership records.
         </p>
         <div class="card-actions">
           <a href="/freestyle/competition" class="btn btn-outline">Competition history &rarr;</a>
@@ -93,27 +148,12 @@
         </div>
       </div>
 
-      <div class="card{{#unless content.totalTricks}} card-coming-soon{{/unless}}">
-        <div class="card-title">Trick Dictionary</div>
-        <p>
-          ADD values, decompositions, and modifier relationships. Browse the full set,
-          or jump into named groupings via Move sets.
-        </p>
-        {{#if content.totalTricks}}
-        <div class="card-actions">
-          <a href="/freestyle/tricks" class="btn btn-outline">Browse tricks &rarr;</a>
-          <a href="/freestyle/tricks?view=sets" class="btn btn-outline">Browse by sets &rarr;</a>
-        </div>
-        {{else}}
-        <span class="badge badge-coming-soon">Coming soon</span>
-        {{/if}}
-      </div>
-
       <div class="card">
         <div class="card-title">History &amp; ADD System</div>
         <p>
-          ADD (Additional Degree of Difficulty) scoring and the evolution of freestyle
-          vocabulary from the 1980s foundation through modifier stacking in the 2000s.
+          How freestyle's vocabulary, scoring, and competitive geography evolved —
+          from the foundational 1980s clipper-and-mirage era through modifier stacking
+          in the 2000s and the modern European-led refinement.
         </p>
         <div class="card-actions">
           <a href="/freestyle/history" class="btn btn-outline">Full history &rarr;</a>
@@ -123,8 +163,9 @@
       <div class="card">
         <div class="card-title">Insights</div>
         <p>
-          Data-driven sequence analysis across the history of freestyle footbag,
-          from the foundational 1980s vocabulary to the modern European era.
+          Data-driven sequence analysis across decades of competitive freestyle:
+          how trick combinations evolved, which modifiers anchored each era, and
+          the patterns visible in the long-form record.
         </p>
         <div class="card-actions">
           <a href="/freestyle/insights" class="btn btn-outline">Insights &rarr;</a>

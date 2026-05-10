@@ -2278,6 +2278,77 @@ section.home-media { padding-top: 0; }
 }
 .trick-pathway-link:hover { text-decoration: underline; }
 
+/* ── Freestyle history: media panels + evolution strip ────────────────── */
+.history-media {
+  margin: 16px 0;
+}
+.history-media--hero { margin-top: 0; }
+.history-media-caption {
+  font-size: 0.95rem;
+  color: var(--text-muted, #555);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.history-media-placeholder {
+  font-size: 0.92rem;
+  font-style: italic;
+  color: var(--text-muted, #777);
+  background: rgba(0, 0, 0, 0.03);
+  padding: 10px 12px;
+  border-left: 3px solid var(--text-muted, #999);
+  border-radius: 3px;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.evolution-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.evolution-card {
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-left: 3px solid var(--accent, #1a5a8a);
+  border-radius: 3px;
+  line-height: 1.5;
+}
+.evolution-period {
+  font-size: 0.85rem;
+  color: var(--text-muted, #777);
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+}
+.evolution-label {
+  margin: 4px 0 8px 0;
+  font-size: 1.05rem;
+  color: var(--primary, #1bb36b);
+}
+.evolution-card p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* ── Freestyle landing: three-layer reference orientation list ──────────── */
+.reference-layer-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reference-layer-list li {
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.02);
+  border-left: 3px solid var(--accent, #1a5a8a);
+  border-radius: 3px;
+  line-height: 1.5;
+}
+.reference-layer-list li strong {
+  color: var(--primary, #1bb36b);
+}
+
 /* ── Trick detail: role-aware notation display (Phase 6) ──────────────────
  * Restraint-first palette per PHASE6 §0: only the four primary roles
  * (core_family, set, rotation, modifier) carry color saturation. Secondary
