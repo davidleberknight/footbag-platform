@@ -95,6 +95,23 @@
   </section>
   {{/if}}
 
+  {{! ── Notation (Phase 6 role-aware rendering) ─────────────────────────── }}
+  {{! Reads the authored notation field and renders each whitespace-separated }}
+  {{! token with role-aware styling. Display-only — never affects parser or  }}
+  {{! ADD math. Restraint-first palette per PHASE6 §0: only the four primary }}
+  {{! roles (core_family, set, rotation, modifier) carry color saturation;   }}
+  {{! others render muted. Unresolved is amber dashed (community-evolving),  }}
+  {{! NOT red error styling. Section omitted when notationDisplay is null.   }}
+  {{#if content.notationDisplay}}
+  <section class="content-section notation-display" aria-label="Trick notation">
+    <div class="section-heading">
+      <h2>Notation</h2>
+      <p class="section-intro">A token-level reading of this trick, color-coded by structural role. Parser-derived structural decomposition appears below.</p>
+    </div>
+    <code class="notation-display-tokens">{{#each content.notationDisplay.tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+  </section>
+  {{/if}}
+
   {{! ── Notation grammar (Phase 3 read-only diagnostic) ──────────────────── }}
   {{! Renders only when the parser has produced a structural decomposition for }}
   {{! this row. Asserted ADD remains authoritative; computed values here are }}

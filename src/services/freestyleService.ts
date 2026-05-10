@@ -25,6 +25,11 @@ import {
   trickNameToSlug,
 } from './freestyleRecordShaping';
 import {
+  NotationDisplay,
+  shapeNotationDisplay,
+  buildNotationLookupContext,
+} from './notationRendering';
+import {
   FreestyleRelatedTrick,
   FreestyleNextTrick,
   FreestylePreviousTrick,
@@ -365,6 +370,10 @@ export interface FreestyleTrickContent {
   // Notation grammar diagnostic panel (Phase 3 read-only surface). Null when
   // the row has no structural_parse_json — page renders identically to before.
   notationGrammar: NotationGrammarPanel | null;
+  // Phase 6 role-aware notation rendering. Pre-shaped tokens with role
+  // classification + educational tooltip text. Null when notation is empty.
+  // Display-only; never affects parser output or ADD math.
+  notationDisplay: NotationDisplay | null;
 }
 
 export interface TrickPathwaySummary {
@@ -1499,6 +1508,18 @@ export const freestyleService = {
                 new Map(allDictRows.map(r => [r.slug, r])),
                 runSqliteRead('freestyleTrickModifiers.listLinksByTrickSlug', () =>
                   freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as FreestyleTrickModifierLinkDetailRow[],
+                ),
+              )
+            : null,
+          notationDisplay: dictRow
+            ? shapeNotationDisplay(
+                dictRow.notation,
+                buildNotationLookupContext(
+                  allDictRows,
+                  allModifierRows,
+                  runSqliteRead('freestyleTrickAliases.listAll', () =>
+                    freestyleTrickAliases.listAll.all() as FreestyleTrickAliasRow[],
+                  ),
                 ),
               )
             : null,

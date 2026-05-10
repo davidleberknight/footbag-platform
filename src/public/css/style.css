@@ -2278,6 +2278,46 @@ section.home-media { padding-top: 0; }
 }
 .trick-pathway-link:hover { text-decoration: underline; }
 
+/* ── Trick detail: role-aware notation display (Phase 6) ──────────────────
+ * Restraint-first palette per PHASE6 §0: only the four primary roles
+ * (core_family, set, rotation, modifier) carry color saturation. Secondary
+ * roles render muted gray; unresolved is amber dashed (community-evolving),
+ * NOT red error styling.
+ */
+.notation-display .notation-display-tokens {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  line-height: 1.6;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 3px;
+}
+.notation-token {
+  padding: 0 0.15em;
+  border-radius: 2px;
+}
+/* Primary four — color-saturated, load-bearing semantic distinctions. */
+.notation-core-family       { color: #2a7a3a; font-weight: bold; }
+.notation-set               { color: #1f5fa8; }
+.notation-rotation          { color: #c46a1a; }
+.notation-modifier          { color: #8a7a14; }
+/* Secondary — muted, low-saturation; visible but recede. */
+.notation-delay-surface     { color: #555; }
+.notation-unusual-surface   { color: #555; }
+.notation-directionality    { color: #777; font-style: italic; }
+.notation-body-component    { color: #666; }
+.notation-footedness        { color: #777; font-style: italic; }
+.notation-multiplicity      { color: #555; font-weight: 600; }
+.notation-suffix            { color: #888; }
+/* Unresolved — soft amber dashed; "evolving" not "error". */
+.notation-unresolved {
+  color: #8a6a14;
+  text-decoration: underline dashed #c4a73c;
+  text-underline-offset: 2px;
+}
+
 .related-tricks-list {
   list-style: none;
   padding: 0;

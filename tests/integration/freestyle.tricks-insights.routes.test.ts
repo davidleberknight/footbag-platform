@@ -17,6 +17,7 @@ import {
   insertFreestyleTrick,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
+  insertFreestyleTrickAlias,
   insertMember,
   insertTtLesson,
 } from '../fixtures/factories';
@@ -47,7 +48,7 @@ beforeAll(async () => {
     category:      'compound',
     description:   'rotational dex trick; most connected trick in the network',
     aliases_json:  '["spinning whirl (with modifier)"]',
-    notation:      'CLIP > OP IN [DEX] > OP CLIP [XBD] [DEL]',
+    notation:      'WHIRL',
     sort_order:    0,
   });
 
@@ -199,6 +200,77 @@ beforeAll(async () => {
            ('fma-finland-lego', 'trick', 'legover', 1)
   `).run();
 
+  // ── Phase 6: role-aware notation rendering fixtures ──────────────────────
+  // Exercises shapeNotationDisplay's classification path. Adds modifier rows
+  // (paradox/blurry/ducking/stepping) and trick rows for the 6 test cases
+  // James named: WHIRL (already above), PARADOX WHIRL, BLURRY MIRAGE, ATW
+  // (alias resolution), HEAD STALL (unusual_surface + suffix), and GAUNTLET
+  // (multi-modifier showcase).
+  insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_name: 'paradox',  modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
+  insertFreestyleTrickModifier(db, { slug: 'blurry',   modifier_name: 'blurry',   modifier_type: 'set',  add_bonus: 1, add_bonus_rotational: 2 });
+  insertFreestyleTrickModifier(db, { slug: 'ducking',  modifier_name: 'ducking',  modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
+  insertFreestyleTrickModifier(db, { slug: 'stepping', modifier_name: 'stepping', modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
+
+  // Supporting base-family trick rows the renderer's slug lookup needs to
+  // resolve tokens like MIRAGE, BUTTERFLY, TORQUE, AROUND-THE-WORLD as
+  // core_family. Notation set to the LOCKED Tier 1 exemplar where defined.
+  insertFreestyleTrick(db, {
+    slug: 'mirage', canonical_name: 'mirage', adds: '2', base_trick: 'mirage', trick_family: 'mirage',
+    category: 'dex', description: 'core mirage', notation: 'MIRAGE', sort_order: 50,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'butterfly', canonical_name: 'butterfly', adds: '3', base_trick: 'butterfly', trick_family: 'butterfly',
+    category: 'compound', description: 'core butterfly', notation: 'BUTTERFLY', sort_order: 51,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'torque', canonical_name: 'torque', adds: '4', base_trick: 'torque', trick_family: 'torque',
+    category: 'compound', description: 'core torque', notation: 'TORQUE', sort_order: 52,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'around-the-world', canonical_name: 'around the world', adds: '2',
+    base_trick: 'around-the-world', trick_family: 'around-the-world', category: 'dex',
+    description: 'full leg circle around the bag', notation: 'ATW', sort_order: 53,
+  });
+  insertFreestyleTrickAlias(db, 'atw', 'around-the-world', 'atw');
+
+  // The 6 test fixtures themselves — each carries its LOCKED Tier 1 notation.
+  insertFreestyleTrick(db, {
+    slug: 'paradox-whirl', canonical_name: 'paradox whirl', adds: '4',
+    base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+    description: 'Paradox-modified whirl.', notation: 'PARADOX WHIRL', sort_order: 60,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'blur', canonical_name: 'blur', adds: '4', base_trick: 'mirage', trick_family: 'mirage',
+    category: 'compound', description: 'Blurry-modified mirage.', notation: 'BLURRY MIRAGE', sort_order: 61,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'head-stall', canonical_name: 'head stall', adds: '1',
+    base_trick: 'head-stall', trick_family: 'head-stall', category: 'surface',
+    description: 'Head-based delay surface.', notation: 'HEAD STALL', sort_order: 62,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'gauntlet', canonical_name: 'gauntlet', adds: '7',
+    base_trick: 'torque', trick_family: 'torque', category: 'compound',
+    description: 'Stepping-ducking-paradox-modified torque.',
+    notation: 'STEPPING DUCKING PARADOX TORQUE', sort_order: 63,
+  });
+
+  // Edge-case fixture: notation contains an unrecognized token alongside
+  // known ones. Exercises mixed-classification rendering.
+  insertFreestyleTrick(db, {
+    slug: 'phase6-mixed', canonical_name: 'phase6 mixed', adds: '4',
+    base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+    description: 'mixed known + unknown tokens',
+    notation: 'WEIRD-TOKEN PARADOX WHIRL', sort_order: 64,
+  });
+
+  // Edge-case fixture: notation NULL — section must be omitted entirely.
+  insertFreestyleTrick(db, {
+    slug: 'phase6-no-notation', canonical_name: 'phase6 no notation', adds: '3',
+    base_trick: 'whirl', trick_family: 'whirl', category: 'compound',
+    description: 'no notation populated', notation: null, sort_order: 65,
+  });
+
   // Curator-tagged channel — covers a trick that has NO legacy
   // freestyle_media_links row but DOES have curator-tagged tutorial media
   // via media_items + media_tags + tags. Exercises the Option-A UNION fix
@@ -308,7 +380,10 @@ describe('public dictionary presentation', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('<th>Notation</th>');
     // 'whirl' was seeded with a notation; expect it to render in a <code> cell.
-    expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
+    // whirl was seeded with notation 'WHIRL' (Tier 1 LOCKED form per
+     // NOTATION_STYLE_GUIDE §6.2). The dictionary-list page renders it inside a
+     // <code> cell.
+     expect(res.text).toContain('>WHIRL<');
   });
 
   it('renders notation inline in the default ADD view (no table header)', async () => {
@@ -317,7 +392,10 @@ describe('public dictionary presentation', () => {
     expect(res.status).toBe(200);
     // ADD view replaces the column-table layout with per-row sections.
     expect(res.text).not.toContain('<th>Notation</th>');
-    expect(res.text).toContain('CLIP &gt; OP IN [DEX]');
+    // whirl was seeded with notation 'WHIRL' (Tier 1 LOCKED form per
+     // NOTATION_STYLE_GUIDE §6.2). The dictionary-list page renders it inside a
+     // <code> cell.
+     expect(res.text).toContain('>WHIRL<');
   });
 
   it('does not list modifier rows in the category groups', async () => {
@@ -1031,5 +1109,98 @@ describe('GET /freestyle — landing page highlights', () => {
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('Trick Dictionary');
     expect(res.text).toContain('Insights');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 6 — role-aware notation rendering on trick-detail
+
+describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
+  it('renders the notation section with the role-aware <code> block when notation is populated', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="content-section notation-display"');
+    expect(res.text).toContain('aria-label="Trick notation"');
+    expect(res.text).toContain('class="notation-display-tokens"');
+  });
+
+  it('omits the notation section entirely when the row has no notation', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/phase6-no-notation');
+    expect(res.status).toBe(200);
+    // Section header must not render; aria-label must not appear.
+    expect(res.text).not.toContain('aria-label="Trick notation"');
+    expect(res.text).not.toContain('notation-display-tokens');
+  });
+
+  it('classifies WHIRL as core_family with educational tooltip', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/whirl');
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: whirl">WHIRL<\/span>/);
+  });
+
+  it('classifies PARADOX WHIRL as modifier + core_family in left-to-right order', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/paradox-whirl');
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">PARADOX<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: whirl">WHIRL<\/span>/);
+    const idxParadox = res.text.indexOf('>PARADOX<');
+    const idxWhirl   = res.text.indexOf('>WHIRL<');
+    expect(idxParadox).toBeGreaterThan(-1);
+    expect(idxWhirl).toBeGreaterThan(idxParadox);
+  });
+
+  it('classifies BLURRY MIRAGE as set + core_family (BLURRY rendered as set, not modifier)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/blur');
+    expect(res.text).toMatch(/<span class="notation-token notation-set" data-role="set" title="Set primitive">BLURRY<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: mirage">MIRAGE<\/span>/);
+    // Important: BLURRY must NOT render as modifier (would lose set-vs-modifier semantic distinction).
+    expect(res.text).not.toMatch(/<span class="notation-token notation-modifier"[^>]*>BLURRY<\/span>/);
+  });
+
+  it('classifies ATW as core_family via alias resolution to around-the-world', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/around-the-world');
+    // Alias 'atw' resolves to slug 'around-the-world'; tooltip carries the
+    // resolved canonical name per the §5.4a ratification.
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: around-the-world">ATW<\/span>/);
+  });
+
+  it('classifies HEAD STALL as unusual_surface + suffix', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/head-stall');
+    expect(res.text).toMatch(/<span class="notation-token notation-unusual-surface" data-role="unusual_surface" title="Surface \(non-standard\)">HEAD<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-suffix" data-role="suffix" title="Surface suffix">STALL<\/span>/);
+  });
+
+  it('classifies STEPPING DUCKING PARADOX TORQUE (gauntlet) as 3 modifiers + core_family in order', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/gauntlet');
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">STEPPING<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">DUCKING<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">PARADOX<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: torque">TORQUE<\/span>/);
+    const indices = ['STEPPING', 'DUCKING', 'PARADOX', 'TORQUE'].map(t => res.text.indexOf(`>${t}<`));
+    expect(indices.every(i => i > -1)).toBe(true);
+    expect(indices).toEqual([...indices].sort((a, b) => a - b)); // monotonic left-to-right
+  });
+
+  it('classifies unrecognized tokens as unresolved without affecting recognized neighbors', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/phase6-mixed');
+    // WEIRD-TOKEN matches no registry → unresolved with the educational tooltip.
+    expect(res.text).toMatch(/<span class="notation-token notation-unresolved" data-role="unresolved" title="Unrecognized — community notation may be evolving">WEIRD-TOKEN<\/span>/);
+    // Recognized tokens still classify normally.
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier"[^>]*>PARADOX<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family"[^>]*>WHIRL<\/span>/);
+  });
+
+  it('preserves single-space separators between tokens in rendered HTML', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/paradox-whirl');
+    // Tokens are separated by exactly one space (Handlebars {{#unless @last}}).
+    expect(res.text).toMatch(/<\/span> <span class="notation-token notation-core-family"/);
   });
 });
