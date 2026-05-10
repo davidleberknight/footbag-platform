@@ -1,2 +1,27 @@
 slug,field,old_value,new_value,source_note
 flurry,adds,3,4,Red 2026-04-20: Flurry has three dexes + 1 ADD stall = 4 ADD
+around-the-world,base_trick,atw,around-the-world,Phase 5e Tier A2 alias-to-self normalization 2026-05-09
+clipper-stall,base_trick,clipper stall,clipper-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+cloud-kick,base_trick,cloud kick,cloud-kick,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+cloud-stall,base_trick,cloud stall,cloud-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+cross-body-sole-stall,base_trick,cross-body sole stall,cross-body-sole-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+double-around-the-world,base_trick,atw,around-the-world,Phase 5e Tier A2 alias-to-canonical normalization 2026-05-09
+double-spin,base_trick,double spin,double-spin,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+dragonfly-kick,base_trick,dragonfly kick,dragonfly-kick,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+drifter,base_trick,clipper stall,clipper-stall,Phase 5e Tier A2 cross-base format mismatch normalization 2026-05-09
+flying-inside,base_trick,flying inside,flying-inside,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+flying-outside,base_trick,flying outside,flying-outside,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+forehead-stall,base_trick,forehead stall,forehead-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+heel-stall,base_trick,heel stall,heel-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+high-plains-drifter,base_trick,clipper stall,clipper-stall,Phase 5e Tier A2 cross-base format mismatch normalization 2026-05-09
+hop-over,base_trick,hop over,hop-over,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+inside-stall,base_trick,inside stall,inside-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+knee-stall,base_trick,knee stall,knee-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+neck-stall,base_trick,neck stall,neck-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+outside-stall,base_trick,outside stall,outside-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+reaper,base_trick,clipper stall,clipper-stall,Phase 5e Tier A2 cross-base format mismatch normalization 2026-05-09
+reverse-around-the-world,base_trick,atw,around-the-world,Phase 5e Tier A2 alias-to-canonical normalization 2026-05-09
+sole-kick,base_trick,sole kick,sole-kick,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+sole-stall,base_trick,sole stall,sole-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+toe-stall,base_trick,toe stall,toe-stall,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
+walk-over,base_trick,walk over,walk-over,Phase 5e Tier A1 name-form-to-slug (self-ref) normalization 2026-05-09
