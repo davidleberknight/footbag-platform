@@ -119,6 +119,115 @@ CONFIDENCE_MEDIUM_MIN = 2
 
 CONFIDENCE_LABELS = ("LOW", "MEDIUM", "HIGH")
 
+# ─── R1 sheet schemas ────────────────────────────────────────────────────────
+#
+# Phase R1 (2026-05-10) introduces three additional sheets alongside the
+# existing Reconciliation / Summary / Evidence Summary. Schemas are pinned
+# here as module-level constants so they're easy to review in one place.
+#
+# Authority layering across the Tricks sheet's column groups:
+#   Identity / Editorial truth  → cols 1–7
+#   Notation                    → cols 8–12   (semantic vs operational vs conflict)
+#   Parser-derived              → cols 13–15
+#   Media                       → cols 16–18
+#   External evidence           → cols 19–22  (fborg, fmoves)
+#   Conflict + decision + review → cols 23–28
+#   Audit                       → cols 29–30
+#
+# R1 populates: Identity, Editorial, Notation (semantic only), Parser, Media,
+# External (fborg only), Adoption, Red review status. Reserved-for-later
+# columns render with sentinel defaults (operational notation, fmoves match,
+# conflict columns). Schema reservation now means R2/R4 don't need to
+# re-shape the workbook.
+
+# Source-tier registry for the Tricks sheet's tutorial_status / media_count
+# computation. Mirrors src/services/freestyleService.ts SOURCE_TIER (post-
+# Phase 2b: shred_global is DEMONSTRATION). Kept small + explicit so it's
+# easy to keep in sync with the platform service when sources move tiers.
+TUTORIAL_TIER_SOURCES: frozenset[str] = frozenset({
+    "tt_youtube", "footbagspot_tutorials", "polini_pointers",
+    "footbag_foundations", "everything_footbag",
+    "anz_trikz", "footbagspot_passback",  # held at TUTORIAL pending Phase 2d review
+})
+DEMO_TIER_SOURCES: frozenset[str] = frozenset({
+    "shred_global", "footbag_finland", "flipsider_footbag",
+})
+
+# Tricks sheet — one row per active freestyle_tricks row.
+# (column_name, width). Visual grouping is by intent; see authority-layer
+# comment above for which span belongs to which group.
+TRICKS_COLUMNS: list[tuple[str, int]] = [
+    # Identity (1–6)
+    ("slug",                          22),
+    ("display_name",                  24),
+    ("add",                            5),
+    ("family",                        18),
+    ("category",                      11),
+    ("aliases_count",                  7),
+    # Editorial (7)
+    ("description",                   48),
+    # Notation (8–12)
+    ("semantic_notation",             32),
+    ("semantic_notation_status",      18),
+    ("operational_notation",          28),
+    ("operational_notation_status",   20),
+    ("notation_conflict",             20),
+    # Parser-derived (13–15)
+    ("parser_status",                 22),
+    ("parser_computed_add",            7),
+    ("add_conflict",                  18),
+    # Media (16–18)
+    ("tutorial_status",               18),
+    ("media_count",                    7),
+    ("record_count",                   7),
+    # External evidence (19–22)
+    ("fborg_match",                   18),
+    ("fborg_name",                    24),
+    ("fborg_add",                      6),
+    ("fmoves_match",                  18),
+    # Conflict + decision + review (23–28)
+    ("ontology_conflict",             20),
+    ("adoption_status",               14),
+    ("james_decision",                30),
+    ("red_review_needed",              8),
+    ("red_review_topic",              18),
+    ("red_review_id",                  6),
+    # Audit (29–30)
+    ("page_completeness",             14),
+    ("notes",                         40),
+]
+
+# Aliases sheet — one row per alias, joined to canonical via trick_slug.
+ALIASES_COLUMNS: list[tuple[str, int]] = [
+    ("canonical_slug",                22),
+    ("alias",                         28),
+    ("alias_source",                  16),
+    ("display_priority",               7),
+    ("confidence",                    11),
+    ("notes",                         40),
+]
+
+# Red Review Queue sheet — pending adjudication items. R1 carries a small
+# representative seed (~6–8 rows) hand-picked from OPEN_QUESTIONS.md and
+# red-followup-*.md. R3 replaces the seed with a file-backed reader.
+RED_QUEUE_COLUMNS: list[tuple[str, int]] = [
+    ("id",                             5),
+    ("topic",                         18),
+    ("slug_affected",                 24),
+    ("claim",                         60),
+    ("evidence_links",                40),
+    ("proposed_resolution",           60),
+    ("red_status",                    14),
+    ("red_response",                  40),
+    ("decision_date",                 12),
+    ("notes",                         30),
+]
+
+# Page-completeness band thresholds (Tricks column 29). Pure-derived from
+# existing fields; populated in R1. Reader scans this single column to see
+# where each canonical sits on a 5-band readiness ladder.
+PAGE_COMPLETENESS_BANDS = ("minimal", "educational", "media-backed", "advanced", "showcase")
+
 
 def parse_int(value: str | None) -> int | None:
     if not value: return None
@@ -192,6 +301,300 @@ def load_trick_video_set(db: sqlite3.Connection) -> set[str]:
         WHERE l.entity_type = 'trick' AND a.media_type = 'video'
     """).fetchall()
     return {r[0] for r in rows}
+
+
+# ─── R1 loaders ──────────────────────────────────────────────────────────────
+
+def _classify_page_completeness(
+    description: str, family: str, semantic_notation: str,
+    parser_status: str, tutorial_status: str, media_count: int,
+    record_count: int, operational_notation: str, review_status: str,
+) -> str:
+    """Pure-derived 5-band readiness classification — see PAGE_COMPLETENESS_BANDS.
+    R1 surfaces only minimal/educational/media-backed/advanced; showcase
+    requires operational_notation populated (R4)."""
+    has_description = bool(description and description.strip())
+    has_family      = bool(family)
+    has_notation    = bool(semantic_notation and semantic_notation.strip())
+    has_parser      = parser_status in {"exact_modifier_derived", "exact_self_atom"}
+    has_media       = media_count > 0 or record_count > 0 or tutorial_status != "no-video"
+    has_op_notation = bool(operational_notation and operational_notation.strip())
+    is_red_endorsed = review_status == "expert_reviewed"
+
+    if has_op_notation and has_notation and has_parser and has_media and is_red_endorsed and media_count >= 2:
+        return "showcase"
+    if has_notation and has_parser and has_media:
+        return "advanced"
+    if has_description and has_family and has_media:
+        return "media-backed"
+    if has_description and has_family:
+        return "educational"
+    return "minimal"
+
+
+def load_trick_index_for_workbook(db: sqlite3.Connection) -> list[dict]:
+    """One row per active freestyle_tricks row. Joined to per-trick aggregates
+    needed by the Tricks sheet: alias count, media counts by tier, record
+    count, parser status. Reads from BOTH legacy (freestyle_media_*) and
+    curator (media_items + media_tags) channels for media-coverage counts.
+    Read-only."""
+
+    base_rows = db.execute("""
+        SELECT slug, canonical_name, adds, base_trick, trick_family, category,
+               description, notation, is_active, review_status,
+               jobs_notation_raw, computed_adds, add_formula_status
+        FROM freestyle_tricks
+        WHERE is_active = 1
+        ORDER BY CAST(adds AS INTEGER), slug
+    """).fetchall()
+
+    alias_counts: dict[str, int] = dict(db.execute("""
+        SELECT trick_slug, COUNT(*) FROM freestyle_trick_aliases GROUP BY trick_slug
+    """).fetchall())
+
+    media_counts: dict[str, int] = {}
+    tutorial_slugs: set[str] = set()
+    demo_slugs:     set[str] = set()
+
+    # Channel 1: legacy freestyle_media_*
+    for slug, source_id in db.execute("""
+        SELECT l.entity_id, a.source_id
+        FROM freestyle_media_links l
+        JOIN freestyle_media_assets a ON a.id = l.media_id
+        WHERE l.entity_type = 'trick' AND a.is_active = 1
+    """).fetchall():
+        media_counts[slug] = media_counts.get(slug, 0) + 1
+        if source_id in TUTORIAL_TIER_SOURCES:
+            tutorial_slugs.add(slug)
+        elif source_id in DEMO_TIER_SOURCES:
+            demo_slugs.add(slug)
+
+    # Channel 2: curator-tagged media_items + media_tags + tags + freestyle_tricks
+    for slug, source_id in db.execute("""
+        SELECT ft.slug, mi.source_id
+        FROM media_items mi
+        JOIN media_tags mt ON mt.media_id = mi.id
+        JOIN tags t ON t.id = mt.tag_id
+        JOIN freestyle_tricks ft ON ('#' || ft.slug) = t.tag_normalized
+        WHERE mi.moderation_status = 'active'
+          AND mi.source_id IS NOT NULL
+          AND ft.is_active = 1
+    """).fetchall():
+        media_counts[slug] = media_counts.get(slug, 0) + 1
+        if source_id in TUTORIAL_TIER_SOURCES:
+            tutorial_slugs.add(slug)
+        elif source_id in DEMO_TIER_SOURCES:
+            demo_slugs.add(slug)
+
+    # Records (probable + verified only — public-filter parity)
+    record_counts: dict[str, int] = dict(db.execute("""
+        SELECT LOWER(REPLACE(trick_name,' ','-')) AS slug, COUNT(*)
+        FROM freestyle_records
+        WHERE confidence IN ('probable','verified')
+          AND superseded_by IS NULL
+        GROUP BY slug
+    """).fetchall())
+
+    out: list[dict] = []
+    for row in base_rows:
+        slug, canonical_name, adds, base_trick, trick_family, category, \
+            description, notation, is_active, review_status, \
+            jobs_notation_raw, computed_adds, add_formula_status = row
+
+        # Adoption status (derived from is_active + review_status)
+        if is_active and review_status == "expert_reviewed":
+            adoption = "live"
+        elif is_active and review_status in ("pending", "curated"):
+            adoption = "draft"
+        elif not is_active:
+            adoption = "hidden"
+        else:
+            adoption = "live"
+
+        # Tutorial status (post-Phase 2 taxonomy)
+        if slug in tutorial_slugs:
+            tutorial_status = "tutorial-coverage"
+        elif slug in demo_slugs:
+            tutorial_status = "demo-only"
+        else:
+            tutorial_status = "no-video"
+
+        # Semantic-notation authoring status
+        if notation and notation.strip():
+            notation_status = "authored"
+        elif add_formula_status in ("exact_modifier_derived", "exact_self_atom"):
+            notation_status = "parser-derived"
+        else:
+            notation_status = "pending"
+
+        page_completeness = _classify_page_completeness(
+            description=description or "", family=trick_family or "",
+            semantic_notation=notation or "",
+            parser_status=add_formula_status or "",
+            tutorial_status=tutorial_status,
+            media_count=media_counts.get(slug, 0),
+            record_count=record_counts.get(slug, 0),
+            operational_notation="",  # R1: always empty
+            review_status=review_status or "",
+        )
+
+        out.append({
+            # Identity
+            "slug":                       slug,
+            "display_name":               canonical_name,
+            "add":                        parse_int(adds) if adds else "",
+            "family":                     trick_family or "",
+            "category":                   category or "",
+            "aliases_count":              alias_counts.get(slug, 0),
+            # Editorial
+            "description":                description or "",
+            # Notation
+            "semantic_notation":          notation or "",
+            "semantic_notation_status":   notation_status,
+            "operational_notation":       "",                # R4
+            "operational_notation_status":"not-applicable",  # R4
+            "notation_conflict":          "none",            # R2
+            # Parser-derived
+            "parser_status":              add_formula_status or "not-run",
+            "parser_computed_add":        computed_adds if computed_adds is not None else "",
+            "add_conflict":               "none",            # R2
+            # Media
+            "tutorial_status":            tutorial_status,
+            "media_count":                media_counts.get(slug, 0),
+            "record_count":               record_counts.get(slug, 0),
+            # External evidence (R1: fborg only; populated downstream from diff_rows)
+            "fborg_match":                "",
+            "fborg_name":                 "",
+            "fborg_add":                  "",
+            "fmoves_match":               "no_external_match",  # R4
+            # Conflict + decision + review
+            "ontology_conflict":          "none",            # R2
+            "adoption_status":            adoption,
+            "james_decision":             "",                # R5
+            "red_review_needed":          "FALSE",           # populated from queue join
+            "red_review_topic":           "",
+            "red_review_id":              "",
+            # Audit
+            "page_completeness":          page_completeness,
+            "notes":                      "",
+        })
+
+    return out
+
+
+def load_aliases_for_workbook(db: sqlite3.Connection) -> list[dict]:
+    """One row per alias on an active trick. Sorted by canonical_slug then
+    alias for predictable scan order."""
+    rows = db.execute("""
+        SELECT a.trick_slug, a.alias_text, a.alias_type
+        FROM freestyle_trick_aliases a
+        JOIN freestyle_tricks t ON t.slug = a.trick_slug
+        WHERE t.is_active = 1
+        ORDER BY a.trick_slug, a.alias_text
+    """).fetchall()
+    out: list[dict] = []
+    for trick_slug, alias_text, alias_type in rows:
+        out.append({
+            "canonical_slug":   trick_slug,
+            "alias":            alias_text or "",
+            "alias_source":     "curated",
+            "display_priority": "",
+            "confidence":       "HIGH",
+            "notes":            (alias_type or ""),
+        })
+    return out
+
+
+def seed_red_queue() -> list[dict]:
+    """Hand-picked representative Red review queue (R1 seed). Lifted from
+    OPEN_QUESTIONS.md §2 + red-followup-down-family-2026-05.md.
+    R3 replaces this with a file-backed reader."""
+    return [
+        {
+            "id":                  1,
+            "topic":               "add_dispute",
+            "slug_affected":       "royale",
+            "claim":               "royale ADD value uncertain. Red pt4 replied '?' (will look into); row remains pending+inactive.",
+            "evidence_links":      "OPEN_QUESTIONS.md §2 HIGH",
+            "proposed_resolution": "Hold pending; re-ask in next Red packet.",
+            "red_status":          "pending",
+            "red_response":        "",
+            "decision_date":       "",
+            "notes":               "",
+        },
+        {
+            "id":                  2,
+            "topic":               "decomposition",
+            "slug_affected":       "eggbeater",
+            "claim":               "Construction conflict: Red pt2 says Eggbeater = Atomic Legover; current row description says 'Illusion-modified legover'. Either description is wrong or atomic/illusioning are interchangeable in legover branch.",
+            "evidence_links":      "OPEN_QUESTIONS.md §2 HIGH; red-corrections-pt2.txt",
+            "proposed_resolution": "Confirm atomic-legover form with Red; correct description.",
+            "red_status":          "pending",
+            "red_response":        "",
+            "decision_date":       "",
+            "notes":               "",
+        },
+        {
+            "id":                  3,
+            "topic":               "new_trick",
+            "slug_affected":       "flail",
+            "claim":               "flail and omelette canonical mappings — Red pt1 said both 'should be added'. footbag.org suggests Symposium Illusion (flail) and Atomic Illusion (omelette). Red pt4 silent.",
+            "evidence_links":      "OPEN_QUESTIONS.md §2 HIGH; red-corrections-pt1.txt",
+            "proposed_resolution": "Confirm canonical forms + ADD values; promote to active.",
+            "red_status":          "pending",
+            "red_response":        "",
+            "decision_date":       "",
+            "notes":               "Pair adjudication; same source ontology branch.",
+        },
+        {
+            "id":                  4,
+            "topic":               "add_dispute",
+            "slug_affected":       "blistering",
+            "claim":               "Blistering existence + ADD value. Red pt9 silently skipped this when answering Sailing in same batch. Sailing resolved (Pixie Quantum equivalence, 2 ADD); Blistering remains unresolved.",
+            "evidence_links":      "OPEN_QUESTIONS.md §1B + §2 HIGH; red_corrections_pt9.csv",
+            "proposed_resolution": "Re-ask in next Red packet.",
+            "red_status":          "pending",
+            "red_response":        "",
+            "decision_date":       "",
+            "notes":               "",
+        },
+        {
+            "id":                  5,
+            "topic":               "family",
+            "slug_affected":       "down",
+            "claim":               "Down-family deferred at canonical layer (down / double-down / plant patterns). External corpus has rows; cannot resolve until policy unblocks.",
+            "evidence_links":      "red-followup-down-family-2026-05.md",
+            "proposed_resolution": "Policy decision needed before any down-* row promotes.",
+            "red_status":          "pending",
+            "red_response":        "",
+            "decision_date":       "",
+            "notes":               "Policy-blocked; affects multiple external rows.",
+        },
+        {
+            "id":                  6,
+            "topic":               "category",
+            "slug_affected":       "pogo",
+            "claim":               "Pogo set handling. Red pt2: Pogo is a set, no ADD bonus. Many pogo-* rows are pending; decide whether to mark non-scoring set entries or leave pending.",
+            "evidence_links":      "OPEN_QUESTIONS.md §2 LOW",
+            "proposed_resolution": "Promote pogo-* rows with ADD=0 marker, OR keep pending until usage emerges.",
+            "red_status":          "pending",
+            "red_response":        "",
+            "decision_date":       "",
+            "notes":               "Low priority; nice-to-have.",
+        },
+        {
+            "id":                  7,
+            "topic":               "notation_form",
+            "slug_affected":       "sumo",
+            "claim":               "Notation form for Sumo (= Nuclear Mirage). Pedagogical-clarity name-form 'SUMO' currently authored; alternative 'NUCLEAR MIRAGE' would expose the structural decomposition.",
+            "evidence_links":      "NOTATION_STYLE_GUIDE §5.7; red_corrections_pt9.csv",
+            "proposed_resolution": "Keep SUMO (humans-first per §0); decomposition stays in description + editorial layer.",
+            "red_status":          "pending",
+            "red_response":        "",
+            "decision_date":       "",
+            "notes":               "Already-applied per §5.7 default; flagging for visibility.",
+        },
+    ]
 
 
 def evaluate_evidence(
@@ -456,12 +859,41 @@ def build_workbook(
     canonical     = load_canonical(db)
     trick_sources = load_trick_source_index(db)
     video_set     = load_trick_video_set(db)
+    # R1 additions — load Tricks/Aliases data for the new sheets.
+    trick_rows = load_trick_index_for_workbook(db)
+    alias_rows = load_aliases_for_workbook(db)
     db.close()
+
+    red_queue_rows = seed_red_queue()
 
     adjudication = load_adjudication(adj_path)
 
     with diff_path.open(newline="", encoding="utf-8") as f:
         diff_rows = list(csv.DictReader(f))
+
+    # R1 — fborg cross-reference for the Tricks sheet. Index matched diff
+    # rows by canonical_slug so each Tricks row can carry the externally-
+    # asserted name + ADD without re-running the reconciliation pipeline.
+    fborg_by_slug: dict[str, dict] = {}
+    for d in diff_rows:
+        if d.get("canonical_match") == "yes":
+            cs = d.get("canonical_slug") or ""
+            if cs and cs not in fborg_by_slug:
+                fborg_by_slug[cs] = {
+                    "fborg_name": d.get("external_name", ""),
+                    "fborg_add":  parse_int(d.get("external_ADD", "")) or "",
+                }
+
+    # R1 — Red queue cross-reference: which slugs have a pending review row,
+    # and what topic/id to surface on the corresponding Tricks row.
+    red_lookup: dict[str, dict] = {}
+    for q in red_queue_rows:
+        slug = q.get("slug_affected") or ""
+        if slug and slug not in red_lookup:
+            red_lookup[slug] = {
+                "red_review_topic": q.get("topic", ""),
+                "red_review_id":    q.get("id", ""),
+            }
 
     # Column layout. Source-presence columns are generated from SOURCES
     # so adding a future source extends the registry, not the list here.
@@ -508,12 +940,110 @@ def build_workbook(
     ]
 
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Reconciliation"
 
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="2A4D70")
     align_top   = Alignment(vertical="top", wrap_text=True)
+
+    # R1 — column-group banding on the Tricks sheet header row. Visual only;
+    # no data dependency. Row stripes use a separate palette below.
+    tricks_group_fills = {
+        "identity":       PatternFill("solid", fgColor="EAEAEA"),
+        "editorial":      PatternFill("solid", fgColor="F5F5F5"),
+        "notation":       PatternFill("solid", fgColor="DCEEF7"),  # light blue
+        "parser":         PatternFill("solid", fgColor="FFF6CC"),  # light yellow
+        "media":          PatternFill("solid", fgColor="DDEED9"),  # light green
+        "external":       PatternFill("solid", fgColor="FCE5CD"),  # peach
+        "decision":       PatternFill("solid", fgColor="E5DBF0"),  # light purple
+        "audit":          PatternFill("solid", fgColor="F5F5F5"),
+    }
+    # Map each TRICKS_COLUMNS index to its group (1-based).
+    tricks_col_groups = (
+        ["identity"]*6 + ["editorial"]*1 + ["notation"]*5 + ["parser"]*3 +
+        ["media"]*3 + ["external"]*4 + ["decision"]*6 + ["audit"]*2
+    )
+    assert len(tricks_col_groups) == len(TRICKS_COLUMNS), (
+        f"tricks_col_groups ({len(tricks_col_groups)}) must match "
+        f"TRICKS_COLUMNS ({len(TRICKS_COLUMNS)})"
+    )
+
+    pending_fill        = PatternFill("solid", fgColor="FFF2CC")  # yellow — *_status = pending / red_review_needed
+    notation_authored_fill = PatternFill("solid", fgColor="FFFFFF")
+    advanced_fill       = PatternFill("solid", fgColor="E8F0F7")  # light blue — page_completeness = advanced
+    showcase_fill       = PatternFill("solid", fgColor="D9EAD3")  # green — page_completeness = showcase
+    minimal_fill        = PatternFill("solid", fgColor="F5F5F5")  # gray — page_completeness = minimal
+
+    # ─── Sheet 1: Tricks ────────────────────────────────────────────────────
+    tricks_ws = wb.active
+    tricks_ws.title = "Tricks"
+    for idx, (name, width) in enumerate(TRICKS_COLUMNS, start=1):
+        c = tricks_ws.cell(row=1, column=idx, value=name)
+        c.font = header_font
+        c.fill = tricks_group_fills[tricks_col_groups[idx - 1]]
+        c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+        tricks_ws.column_dimensions[get_column_letter(idx)].width = width
+    tricks_ws.row_dimensions[1].height = 30
+    tricks_ws.freeze_panes = "C2"  # keep slug + display_name visible while scrolling
+
+    tricks_summary = {b: 0 for b in PAGE_COMPLETENESS_BANDS}
+    notation_status_counts: dict[str, int] = {}
+    tutorial_status_counts: dict[str, int] = {}
+    parser_status_counts:   dict[str, int] = {}
+    adoption_status_counts: dict[str, int] = {}
+
+    for tr in trick_rows:
+        # Cross-references discovered above
+        slug = tr["slug"]
+        if slug in fborg_by_slug:
+            tr["fborg_match"] = "matched"
+            tr["fborg_name"]  = fborg_by_slug[slug]["fborg_name"]
+            tr["fborg_add"]   = fborg_by_slug[slug]["fborg_add"]
+        else:
+            tr["fborg_match"] = "no_external_match"
+        if slug in red_lookup:
+            tr["red_review_needed"] = "TRUE"
+            tr["red_review_topic"]  = red_lookup[slug]["red_review_topic"]
+            tr["red_review_id"]     = red_lookup[slug]["red_review_id"]
+
+        target = tricks_ws.max_row + 1
+        for col_idx, (name, _) in enumerate(TRICKS_COLUMNS, start=1):
+            c = tricks_ws.cell(row=target, column=col_idx, value=tr.get(name, ""))
+            c.alignment = align_top
+
+        # Visual cues:
+        # 1. Whole-row tint by page_completeness band (most important reader signal).
+        # 2. Yellow on red_review_needed cell (focus filter).
+        # 3. Yellow on semantic_notation_status when 'pending'.
+        band = tr["page_completeness"]
+        if band == "showcase":
+            row_fill = showcase_fill
+        elif band == "advanced":
+            row_fill = advanced_fill
+        elif band == "minimal":
+            row_fill = minimal_fill
+        else:
+            row_fill = None
+        if row_fill is not None:
+            for col_idx in range(1, len(TRICKS_COLUMNS) + 1):
+                tricks_ws.cell(row=target, column=col_idx).fill = row_fill
+        # Focused cell tints (override row tint where attention is warranted).
+        if tr["red_review_needed"] == "TRUE":
+            col_idx = [c[0] for c in TRICKS_COLUMNS].index("red_review_needed") + 1
+            tricks_ws.cell(row=target, column=col_idx).fill = pending_fill
+        if tr["semantic_notation_status"] == "pending":
+            col_idx = [c[0] for c in TRICKS_COLUMNS].index("semantic_notation_status") + 1
+            tricks_ws.cell(row=target, column=col_idx).fill = pending_fill
+
+        tricks_summary[band] += 1
+        notation_status_counts[tr["semantic_notation_status"]] = notation_status_counts.get(tr["semantic_notation_status"], 0) + 1
+        tutorial_status_counts[tr["tutorial_status"]]          = tutorial_status_counts.get(tr["tutorial_status"], 0) + 1
+        parser_status_counts[tr["parser_status"]]              = parser_status_counts.get(tr["parser_status"], 0) + 1
+        adoption_status_counts[tr["adoption_status"]]          = adoption_status_counts.get(tr["adoption_status"], 0) + 1
+
+    tricks_ws.auto_filter.ref = f"A1:{get_column_letter(len(TRICKS_COLUMNS))}{tricks_ws.max_row}"
+
+    # ─── Sheet 2: Reconciliation (existing logic, additive — sheet ordering only) ─
+    ws = wb.create_sheet("Reconciliation")
 
     james_review_fill  = PatternFill("solid", fgColor="FFF2CC")  # yellow
     needs_red_fill     = PatternFill("solid", fgColor="F4CCCC")  # red
@@ -667,6 +1197,46 @@ def build_workbook(
             overlap_counts.get(evidence["supporting_sources"], 0) + 1
         )
 
+    # ─── Sheet 3: Aliases ───────────────────────────────────────────────────
+    aliases_ws = wb.create_sheet("Aliases")
+    for idx, (name, width) in enumerate(ALIASES_COLUMNS, start=1):
+        c = aliases_ws.cell(row=1, column=idx, value=name)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal="left", vertical="center")
+        aliases_ws.column_dimensions[get_column_letter(idx)].width = width
+    aliases_ws.row_dimensions[1].height = 22
+    aliases_ws.freeze_panes = "A2"
+    for ar in alias_rows:
+        target = aliases_ws.max_row + 1
+        for col_idx, (name, _) in enumerate(ALIASES_COLUMNS, start=1):
+            c = aliases_ws.cell(row=target, column=col_idx, value=ar.get(name, ""))
+            c.alignment = align_top
+    if alias_rows:
+        aliases_ws.auto_filter.ref = f"A1:{get_column_letter(len(ALIASES_COLUMNS))}{aliases_ws.max_row}"
+
+    # ─── Sheet 4: Red Review Queue ──────────────────────────────────────────
+    rrq_ws = wb.create_sheet("Red Review Queue")
+    for idx, (name, width) in enumerate(RED_QUEUE_COLUMNS, start=1):
+        c = rrq_ws.cell(row=1, column=idx, value=name)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = Alignment(horizontal="left", vertical="center")
+        rrq_ws.column_dimensions[get_column_letter(idx)].width = width
+    rrq_ws.row_dimensions[1].height = 22
+    rrq_ws.freeze_panes = "B2"
+    for q in red_queue_rows:
+        target = rrq_ws.max_row + 1
+        for col_idx, (name, _) in enumerate(RED_QUEUE_COLUMNS, start=1):
+            c = rrq_ws.cell(row=target, column=col_idx, value=q.get(name, ""))
+            c.alignment = align_top
+        # Yellow tint on row when status is pending.
+        if q.get("red_status") == "pending":
+            for col_idx in range(1, len(RED_QUEUE_COLUMNS) + 1):
+                rrq_ws.cell(row=target, column=col_idx).fill = pending_fill
+    if red_queue_rows:
+        rrq_ws.auto_filter.ref = f"A1:{get_column_letter(len(RED_QUEUE_COLUMNS))}{rrq_ws.max_row}"
+
     # Summary sheet.
     s = wb.create_sheet("Summary")
     s["A1"] = "Footbag.org × IFPA reconciliation — counts"
@@ -703,6 +1273,59 @@ def build_workbook(
     s["A25"] = "Green: James pre-decided"; s["A25"].fill = pre_decided_fill
     s["A26"] = "Red: needs_red (HIGH/MEDIUM evidence + conflict)"; s["A26"].fill = needs_red_fill
     s["A27"] = "Mauve: quarantine (LOW evidence + conflict)"; s["A27"].fill = quarantine_fill
+
+    # R1 — Tricks-sheet aggregates (new section appended below the existing
+    # Reconciliation legend so the original counts stay where curators
+    # already know to look).
+    s["A29"] = "Tricks sheet — aggregates (R1)"; s["A29"].font = Font(bold=True, size=12)
+    s["A30"] = "Total active tricks";                                s["B30"] = len(trick_rows)
+    row = 32
+    s.cell(row=row, column=1, value="Page completeness band").font = Font(bold=True)
+    s.cell(row=row, column=2, value="Count").font = Font(bold=True)
+    row += 1
+    for band in PAGE_COMPLETENESS_BANDS:
+        s.cell(row=row, column=1, value=band)
+        s.cell(row=row, column=2, value=tricks_summary.get(band, 0))
+        row += 1
+    row += 1
+    s.cell(row=row, column=1, value="Semantic notation status").font = Font(bold=True)
+    s.cell(row=row, column=2, value="Count").font = Font(bold=True)
+    row += 1
+    for stat in ("authored", "parser-derived", "pending"):
+        s.cell(row=row, column=1, value=stat)
+        s.cell(row=row, column=2, value=notation_status_counts.get(stat, 0))
+        row += 1
+    row += 1
+    s.cell(row=row, column=1, value="Tutorial status").font = Font(bold=True)
+    s.cell(row=row, column=2, value="Count").font = Font(bold=True)
+    row += 1
+    for stat in ("tutorial-coverage", "demo-only", "no-video"):
+        s.cell(row=row, column=1, value=stat)
+        s.cell(row=row, column=2, value=tutorial_status_counts.get(stat, 0))
+        row += 1
+    row += 1
+    s.cell(row=row, column=1, value="Parser status").font = Font(bold=True)
+    s.cell(row=row, column=2, value="Count").font = Font(bold=True)
+    row += 1
+    for stat in ("exact_modifier_derived", "exact_self_atom", "approximate", "policy_dependent", "unresolved", "not-run"):
+        n = parser_status_counts.get(stat, 0)
+        if n == 0 and stat in ("approximate", "policy_dependent", "unresolved", "not-run"):
+            continue
+        s.cell(row=row, column=1, value=stat)
+        s.cell(row=row, column=2, value=n)
+        row += 1
+    row += 1
+    s.cell(row=row, column=1, value="Adoption status").font = Font(bold=True)
+    s.cell(row=row, column=2, value="Count").font = Font(bold=True)
+    row += 1
+    for stat in ("live", "draft", "hidden", "deprecated"):
+        s.cell(row=row, column=1, value=stat)
+        s.cell(row=row, column=2, value=adoption_status_counts.get(stat, 0))
+        row += 1
+    row += 1
+    s.cell(row=row, column=1, value="Red review queue size (R1 seed)").font = Font(bold=True)
+    s.cell(row=row, column=2, value=len(red_queue_rows))
+
     s.column_dimensions["A"].width = 80
     s.column_dimensions["B"].width = 12
 
