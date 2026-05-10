@@ -131,11 +131,6 @@
       <dt>Derivation</dt>
       <dd><code>{{content.notationGrammar.formula}}</code></dd>
       {{/if}}
-
-      {{#if content.notationGrammar.jobsNotationRaw}}
-      <dt>Jobs notation</dt>
-      <dd><code>{{content.notationGrammar.jobsNotationRaw}}</code></dd>
-      {{/if}}
     </dl>
 
     {{#if content.notationGrammar.descriptiveRoles.length}}
@@ -168,6 +163,13 @@
     </div>
     {{/if}}
 
+    {{#if content.notationGrammar.editorialContext}}
+    <div class="notation-grammar-editorial">
+      <h3>Editorial context</h3>
+      <p class="notation-grammar-editorial-text">{{content.notationGrammar.editorialContext}}</p>
+    </div>
+    {{/if}}
+
     {{#if content.notationGrammar.policyTokens.length}}
     <div class="notation-grammar-policy">
       <h3>Policy tokens</h3>
@@ -180,27 +182,28 @@
     </div>
     {{/if}}
 
-    {{#if content.notationGrammar.parseWarnings.length}}
-    <div class="notation-grammar-warnings">
-      <h3>Parse warnings</h3>
-      <ul class="notation-grammar-flat-list">
-        {{#each content.notationGrammar.parseWarnings}}
-        <li><code>{{this}}</code></li>
-        {{/each}}
-      </ul>
-    </div>
-    {{/if}}
+    {{#if content.notationGrammar.hasDiagnosticDetails}}
+    <details class="notation-grammar-diagnostics">
+      <summary>Diagnostic details</summary>
 
-    {{#if content.notationGrammar.unresolvedTokens.length}}
-    <div class="notation-grammar-unresolved">
-      <h3>Unresolved tokens</h3>
-      <p class="notation-grammar-layer-intro">Tokens that did not classify against any role registry. May be subsumed by a self-canonical atom (see ADD-contributing roles above).</p>
-      <ul class="notation-grammar-flat-list">
-        {{#each content.notationGrammar.unresolvedTokens}}
-        <li><code>{{this}}</code></li>
-        {{/each}}
-      </ul>
-    </div>
+      {{#if content.notationGrammar.jobsNotationRaw}}
+      <dl class="detail-list">
+        <dt>Jobs notation</dt>
+        <dd><code>{{content.notationGrammar.jobsNotationRaw}}</code></dd>
+      </dl>
+      {{/if}}
+
+      {{#if content.notationGrammar.parseWarnings.length}}
+      <div class="notation-grammar-warnings">
+        <h3>Parse warnings</h3>
+        <ul class="notation-grammar-flat-list">
+          {{#each content.notationGrammar.parseWarnings}}
+          <li><code>{{this}}</code></li>
+          {{/each}}
+        </ul>
+      </div>
+      {{/if}}
+    </details>
     {{/if}}
   </section>
   {{/if}}

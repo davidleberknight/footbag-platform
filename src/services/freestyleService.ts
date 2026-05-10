@@ -464,6 +464,17 @@ export interface NotationGrammarPanel {
   policyTokens:     string[];
   additiveFlags:    string[];
   unresolvedTokens: string[];   // raw token strings; convenience flat list for the template
+
+  // Editorial context — surfaces the row's `description` column so named compounds
+  // (sumo, sailing, blur, barfly, etc.) carry their human explanation in the panel
+  // even when the parser-derived formula is just `slug(N) = N`. Null when the row
+  // has no description or the description is empty/whitespace.
+  editorialContext: string | null;
+
+  // Pre-shaped predicate driving the "Diagnostic details" disclosure block.
+  // True when there is any content (parse warnings or jobs notation) to put
+  // behind the disclosure; false suppresses the wrapper entirely.
+  hasDiagnosticDetails: boolean;
 }
 
 const ROLE_BUCKET_ORDER: ReadonlyArray<{ key: string; label: string }> = [
@@ -479,12 +490,12 @@ const ROLE_BUCKET_ORDER: ReadonlyArray<{ key: string; label: string }> = [
 
 const STATUS_LABELS: Record<string, { label: string; description: string }> = {
   exact_modifier_derived: {
-    label:       'Exact (modifier-derived)',
+    label:       'Exact: structurally derived',
     description: 'The structural decomposition reproduces the asserted ADD from a base trick plus modifier weights.',
   },
   exact_self_atom: {
-    label:       'Exact (self-atom)',
-    description: 'The trick is its own canonical anchor; computed ADD equals the asserted value tautologically.',
+    label:       'Exact: named trick / self-atom',
+    description: 'The trick is its own canonical anchor; computed ADD equals the asserted value tautologically — a different kind of agreement than a structural derivation.',
   },
   approximate: {
     label:       'Approximate',
@@ -496,7 +507,7 @@ const STATUS_LABELS: Record<string, { label: string; description: string }> = {
   },
   policy_dependent: {
     label:       'Policy-dependent',
-    description: 'The parse contains tokens (quantum, nuclear, backside, shooting, down-family) whose ADD weights are subject to expert review.',
+    description: 'The parse contains a token whose ADD weight or ontology placement is contested and pending expert review.',
   },
 };
 
@@ -570,6 +581,13 @@ function shapeNotationGrammar(
         .filter((x): x is string => typeof x === 'string')
     : [];
 
+  const editorialContext = typeof row.description === 'string' && row.description.trim().length > 0
+    ? row.description.trim()
+    : null;
+
+  const hasDiagnosticDetails = parseWarnings.length > 0
+    || (typeof row.jobs_notation_raw === 'string' && row.jobs_notation_raw.length > 0);
+
   return {
     status,
     statusLabel:       statusEntry.label,
@@ -586,6 +604,8 @@ function shapeNotationGrammar(
     policyTokens,
     additiveFlags,
     unresolvedTokens,
+    editorialContext,
+    hasDiagnosticDetails,
   };
 }
 
