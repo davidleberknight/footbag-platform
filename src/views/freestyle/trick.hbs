@@ -112,6 +112,24 @@
   </section>
   {{/if}}
 
+  {{! ── Set notation (operational) — O1a (2026-05-10) ──────────────────────── }}
+  {{! Operational notation = execution mechanics (plant, dex, body, delays in   }}
+  {{! sequence). Independent of semantic notation above and the parser-derived  }}
+  {{! decomposition below. Curator-authored; never read by the parser. Section  }}
+  {{! omitted entirely when content.operationalNotation is null.                }}
+  {{! O1a is minimum-viable: verbatim string in <code>; no token highlighting   }}
+  {{! (see exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md    }}
+  {{! for the O1b+ token-highlighting plan).                                    }}
+  {{#if content.operationalNotation}}
+  <section class="content-section operational-notation-display" aria-label="Set notation (operational)">
+    <div class="section-heading">
+      <h2>Set notation (operational)</h2>
+      <p class="section-intro">Execution mechanics — how the body performs the trick. Independent of the semantic notation above.</p>
+    </div>
+    <code class="operational-notation-tokens">{{content.operationalNotation.raw}}</code>
+  </section>
+  {{/if}}
+
   {{! ── Notation grammar (Phase 3 read-only diagnostic) ──────────────────── }}
   {{! Renders only when the parser has produced a structural decomposition for }}
   {{! this row. Asserted ADD remains authoritative; computed values here are }}

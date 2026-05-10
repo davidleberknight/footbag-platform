@@ -473,6 +473,18 @@ export interface FreestyleTrickContent {
   // classification + educational tooltip text. Null when notation is empty.
   // Display-only; never affects parser output or ADD math.
   notationDisplay: NotationDisplay | null;
+  // O1a (2026-05-10) operational notation block. Renders in the
+  // "Set notation (operational)" section between semantic notation and
+  // editorial decomposition. Null when the row has no operational_notation
+  // populated; section omits entirely when null. No token highlighting in
+  // O1a (string is rendered verbatim inside <code>); see
+  // exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md
+  // for the O1b+ token-highlighting plan.
+  operationalNotation: OperationalNotation | null;
+}
+
+export interface OperationalNotation {
+  raw: string;                  // verbatim string from freestyle_tricks.operational_notation
 }
 
 export interface TrickPathwaySummary {
@@ -1676,6 +1688,10 @@ export const freestyleService = {
                 ),
               )
             : null,
+          operationalNotation:
+            dictRow && dictRow.operational_notation && dictRow.operational_notation.trim()
+              ? { raw: dictRow.operational_notation.trim() }
+              : null,
         };
       })(),
     };

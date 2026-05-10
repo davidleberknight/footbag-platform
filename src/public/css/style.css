@@ -2401,6 +2401,27 @@ section.home-media { padding-top: 0; }
   background: rgba(0, 0, 0, 0.02);
   border-radius: 3px;
 }
+
+/* O1a (2026-05-10) — operational notation block. Minimum-viable styling:
+ * monospace block matching .notation-display-tokens shape; NO token-level
+ * coloring (deferred to O1b per RENDERING_SURFACE_PROPOSAL.md). The block's
+ * neutral palette reads visually as "different layer" from semantic notation
+ * even without per-token coloring, because the entire block is a single
+ * neutral monospace string rather than a span of color-coded tokens. */
+.operational-notation-display .operational-notation-tokens {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.0rem;
+  letter-spacing: 0.02em;
+  line-height: 1.7;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 3px;
+  color: #444;
+  white-space: pre-wrap;
+  max-width: 100%;
+  word-break: break-word;
+}
 .notation-token {
   padding: 0 0.15em;
   border-radius: 2px;

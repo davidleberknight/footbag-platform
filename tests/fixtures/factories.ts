@@ -1024,6 +1024,8 @@ export interface FreestyleTrickOverrides {
   computed_add_formula?:     string | null;
   computed_adds?:            number | null;
   add_formula_status?:       string | null;
+  // O1a (2026-05-10) operational notation column (nullable; default NULL).
+  operational_notation?:     string | null;
 }
 
 export function insertFreestyleTrick(
@@ -1036,8 +1038,9 @@ export function insertFreestyleTrick(
       (slug, canonical_name, adds, base_trick, trick_family, category,
        description, aliases_json, notation, sort_order, review_status, is_active, loaded_at,
        jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
-       computed_add_formula, computed_adds, add_formula_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       computed_add_formula, computed_adds, add_formula_status,
+       operational_notation)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -1058,6 +1061,7 @@ export function insertFreestyleTrick(
     o.computed_add_formula     ?? null,
     o.computed_adds            ?? null,
     o.add_formula_status       ?? null,
+    o.operational_notation     ?? null,
   );
   return slug;
 }

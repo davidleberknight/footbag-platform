@@ -162,6 +162,24 @@ beforeAll(async () => {
     insertFreestyleTrick(db, { slug, canonical_name: slug, adds: '3' });
   }
 
+  // ── Seeds for O1a operational-notation rendering tests ─────────────────
+  // Two tricks: one with operational_notation populated (renders the new
+  // "Set notation (operational)" section) and one without (section omitted).
+  // The op-notation string mirrors the post-normalization shape proposed in
+  // exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md §4.
+  insertFreestyleTrick(db, {
+    slug: 'op-notation-seeded',
+    canonical_name: 'op-notation-seeded',
+    adds: '4',
+    operational_notation: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'op-notation-empty',
+    canonical_name: 'op-notation-empty',
+    adds: '3',
+    // operational_notation omitted → defaults to NULL → section must omit
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -622,4 +640,51 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
     expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demos<\/h3>/);
   });
 
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// O1a (2026-05-10) — operational notation rendering surface on trick-detail.
+// New "Set notation (operational)" section between semantic Notation and the
+// Notation grammar diagnostic. Section is conditional on the trick row's
+// freestyle_tricks.operational_notation column being non-empty. O1a renders
+// the string verbatim inside <code> with no token highlighting (deferred to
+// O1b per RENDERING_SURFACE_PROPOSAL.md).
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () => {
+  it('renders the section with the verbatim operational_notation string when populated', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    expect(res.status).toBe(200);
+    // Section wrapper present
+    expect(res.text).toContain('class="content-section operational-notation-display"');
+    expect(res.text).toContain('<h2>Set notation (operational)</h2>');
+    // Verbatim notation string rendered inside <code class="operational-notation-tokens">.
+    // Note: Handlebars HTML-escapes '>' to '&gt;'; assertion accounts for that.
+    expect(res.text).toMatch(/<code class="operational-notation-tokens">CLIP &gt;&gt; SAME OUT \[DEX\] &gt; SAME OUT \[DEX\] &gt; OP CLIP \[DEL\] \[XBD\]<\/code>/);
+  });
+
+  it('omits the section entirely when operational_notation is null', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-empty');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('operational-notation-display');
+    expect(res.text).not.toContain('Set notation (operational)');
+  });
+
+  it('places the operational section between Notation and the structural-decomposition diagnostic', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
+    // Find the indices in the rendered HTML; assert ordering Notation < operational < diagnostic.
+    // The semantic Notation section may not render for this fixture (notation column
+    // is null), so we use the operational section's position relative to a known later
+    // section ("Editorial decomposition" / "Structural decomposition") as the lower bound.
+    const opIdx     = res.text.indexOf('operational-notation-display');
+    const editIdx   = res.text.indexOf('editorial-decomposition');
+    const structIdx = res.text.indexOf('notation-grammar-panel');
+    // Operational MUST appear; at least one of editorial/structural may follow.
+    expect(opIdx).toBeGreaterThan(-1);
+    if (editIdx > -1) expect(opIdx).toBeLessThan(editIdx);
+    if (structIdx > -1) expect(opIdx).toBeLessThan(structIdx);
+  });
 });
