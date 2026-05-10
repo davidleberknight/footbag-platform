@@ -414,10 +414,15 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).not.toMatch(/\d+\s+documented tricks/);
   });
 
-  it('omits the demo-video figure when no curator-tagged FH media is seeded', async () => {
+  it('omits the curator-owned demo-video native player when no FH media is seeded', async () => {
+    // The curator demo-video is the unique surface that emits a native HTML5
+    // `<video autoplay loop muted ...>` block sourced from /media-store. The
+    // `.demo-video` figure class itself is also reused by the featured-video
+    // section, so this test asserts against the curator-specific marker.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).not.toContain('class="demo-video"');
+    expect(res.text).not.toMatch(/<video[^>]*\bautoplay\b[^>]*\bloop\b[^>]*\bmuted\b/);
+    expect(res.text).not.toContain('/media-store/');
   });
 
   it('renders the curator-owned demo video when an FH-owned #demo_freestyle item is seeded', async () => {

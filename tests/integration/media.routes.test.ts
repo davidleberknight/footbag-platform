@@ -31,6 +31,7 @@ let CURATED_TAG_ID = '';
 let FREESTYLE_TAG_ID = '';
 let TRICK_TAG_ID = '';
 let UNRANKED_TAG_ID = '';
+let UNAVAILABLE_TAG_ID = '';
 
 interface PhotoOverrides {
   id?: string;
@@ -199,6 +200,7 @@ beforeAll(async () => {
   FREESTYLE_TAG_ID = insertFreeformTag('#freestyle');
   TRICK_TAG_ID     = insertFreeformTag('#trick');
   UNRANKED_TAG_ID  = insertFreeformTag('#unranked');
+  UNAVAILABLE_TAG_ID = insertFreeformTag('#unavailable_embed');
 
   // FH-owned named gallery — the URL bookmark for the curated freestyle
   // tricks corpus. Mirrors what scripts/seed_fh_curator.py creates in
@@ -824,5 +826,47 @@ describe('GET /gallery (removed)', () => {
     const app = createApp();
     const res = await request(app).get('/gallery');
     expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unavailable-embed exclusion: items tagged `#unavailable_embed` (curator-
+// applied when an upstream YouTube video is private/deleted/blocked) must NOT
+// surface in the public gallery output, regardless of per-gallery config.
+// Enforced at the DB layer in `queryGalleryItemsByCriteria` +
+// `queryGalleryItemsByCriteriaGrouped` (always-on AND-NOT-EXISTS clause).
+
+describe('GET /media/:galleryId — #unavailable_embed always-on exclusion', () => {
+  it('renders an available curated video and excludes an unavailable-tagged sibling', async () => {
+    const db = openDb();
+    // Available control: standard FH-gallery curated trick video.
+    const availableId = insertVideo(db, {
+      caption:  'control-available-marker',
+      platform: 'youtube',
+      video_id: 'AVAILABLE_FIXTURE_ID',
+    });
+    tagAsCuratedFreestyleTrick(db, availableId);
+
+    // Unavailable variant: same gallery criteria tags, plus the
+    // `#unavailable_embed` tag that should hide it from public surfaces.
+    const unavailableId = insertVideo(db, {
+      caption:  'unavailable-marker-should-not-appear',
+      platform: 'youtube',
+      video_id: 'UNAVAILABLE_FIXTURE_ID',
+    });
+    tagAsCuratedFreestyleTrick(db, unavailableId);
+    attachTag(db, unavailableId, UNAVAILABLE_TAG_ID, '#unavailable_embed');
+    db.close();
+
+    const app = createApp();
+    const res = await request(app).get(`/media/${FH_GALLERY_ID}`);
+    expect(res.status).toBe(200);
+    // Available video's caption + thumbnail render as a normal tile.
+    expect(res.text).toContain('control-available-marker');
+    expect(res.text).toContain('https://i.ytimg.com/vi/AVAILABLE_FIXTURE_ID/hqdefault.jpg');
+    // Unavailable video must NOT render — neither its caption nor its
+    // thumbnail nor its YouTube ID appears anywhere on the page.
+    expect(res.text).not.toContain('unavailable-marker-should-not-appear');
+    expect(res.text).not.toContain('UNAVAILABLE_FIXTURE_ID');
   });
 });

@@ -3916,7 +3916,8 @@ export const media = {
   // tagged with the trick's canonical slug hashtag (e.g. '#butterfly').
   // Returns most-recent first. The caller filters per their policy
   // (e.g. /freestyle/tricks/:slug includes TT items; the public gallery
-  // grouping path excludes them).
+  // grouping path excludes them). Always-on exclusion: items tagged
+  // `#unavailable_embed` are filtered out.
   get listMediaByTrickTag() { return db.prepare(`
     SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
            mi.video_platform, mi.uploaded_at, mi.source_id
@@ -3925,6 +3926,11 @@ export const media = {
     WHERE mt.tag_display = ?
       AND mi.media_type = 'video'
       AND mi.moderation_status = 'active'
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
     ORDER BY mi.uploaded_at DESC, mi.id ASC
   `); },
 
@@ -4328,6 +4334,11 @@ export function queryGalleryItemsByCriteria(
          WHERE mtex.media_id = mi.id
            AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
        )`;
+  // Always-on exclusion: items tagged `#unavailable_embed` (curator-applied
+  // when an upstream YouTube video is private/deleted/blocked) never appear
+  // in public galleries. Curators remain able to find them via direct tag
+  // search; admin tooling shows them in their own status. See
+  // `tests/integration/freestyle.curated-media-availability.routes.test.ts`.
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
@@ -4339,6 +4350,11 @@ export function queryGalleryItemsByCriteria(
       AND mi.is_avatar = 0
       AND mt.tag_id IN (${placeholders})
       ${excludeClause}
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY mi.uploaded_at DESC, mi.id DESC
@@ -4378,6 +4394,8 @@ export function queryGalleryItemsByCriteriaGrouped(
          WHERE mtex.media_id = mi.id
            AND mtex.tag_id IN (${excludeTagIds.map(() => '?').join(',')})
        )`;
+  // Always-on exclusion: items tagged `#unavailable_embed` never appear in
+  // public galleries. Same enforcement as `queryGalleryItemsByCriteria`.
   return db.prepare(`
     SELECT mi.id, mi.media_type, mi.caption, mi.uploaded_at,
            mi.s3_key_thumb, mi.s3_key_display,
@@ -4390,6 +4408,11 @@ export function queryGalleryItemsByCriteriaGrouped(
       AND mi.is_avatar = 0
       AND mt.tag_id IN (${placeholders})
       ${excludeClause}
+      AND NOT EXISTS (
+        SELECT 1 FROM media_tags mtu
+        JOIN tags tu ON tu.id = mtu.tag_id
+        WHERE mtu.media_id = mi.id AND tu.tag_normalized = '#unavailable_embed'
+      )
     GROUP BY mi.id
     HAVING COUNT(DISTINCT mt.tag_id) = ?
     ORDER BY ${orderBy}
