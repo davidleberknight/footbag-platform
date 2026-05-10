@@ -1016,6 +1016,14 @@ export interface FreestyleTrickOverrides {
   sort_order?:     number;
   review_status?:  string;
   is_active?:      0 | 1;
+  // Phase-0 notation-grammar columns (all nullable; default NULL preserves
+  // the pre-Phase-3 behavior for tests that don't opt in).
+  jobs_notation_raw?:        string | null;
+  jobs_notation_normalized?: string | null;
+  structural_parse_json?:    string | null;
+  computed_add_formula?:     string | null;
+  computed_adds?:            number | null;
+  add_formula_status?:       string | null;
 }
 
 export function insertFreestyleTrick(
@@ -1026,8 +1034,10 @@ export function insertFreestyleTrick(
   db.prepare(`
     INSERT INTO freestyle_tricks
       (slug, canonical_name, adds, base_trick, trick_family, category,
-       description, aliases_json, notation, sort_order, review_status, is_active, loaded_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       description, aliases_json, notation, sort_order, review_status, is_active, loaded_at,
+       jobs_notation_raw, jobs_notation_normalized, structural_parse_json,
+       computed_add_formula, computed_adds, add_formula_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     slug,
     o.canonical_name ?? slug.replace(/-/g, ' '),
@@ -1042,6 +1052,12 @@ export function insertFreestyleTrick(
     o.review_status  ?? 'curated',
     o.is_active      ?? 1,
     TS,
+    o.jobs_notation_raw        ?? null,
+    o.jobs_notation_normalized ?? null,
+    o.structural_parse_json    ?? null,
+    o.computed_add_formula     ?? null,
+    o.computed_adds            ?? null,
+    o.add_formula_status       ?? null,
   );
   return slug;
 }

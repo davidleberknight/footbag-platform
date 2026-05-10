@@ -1012,6 +1012,18 @@ export interface FreestyleTrickRow {
   sort_order:     number;
 }
 
+// Extension of FreestyleTrickRow that also carries the Phase-0 notation-grammar
+// columns. Returned only by `getBySlug` (heavy parse JSON not loaded on grids).
+// All six are nullable; rows whose parser run hasn't happened yet read NULL.
+export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
+  jobs_notation_raw:        string | null;
+  jobs_notation_normalized: string | null;
+  structural_parse_json:    string | null;
+  computed_add_formula:     string | null;
+  computed_adds:            number | null;
+  add_formula_status:       string | null;
+}
+
 // Extension of FreestyleTrickRow returned by listAllWithPending; carries the
 // activity / review-status flags that drive the external-placeholder branch
 // in the index view.
@@ -1075,7 +1087,10 @@ export const freestyleTricks = {
 
   get getBySlug() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-           description, aliases_json, notation, sort_order
+           description, aliases_json, notation, sort_order,
+           jobs_notation_raw, jobs_notation_normalized,
+           structural_parse_json, computed_add_formula,
+           computed_adds, add_formula_status
     FROM freestyle_tricks
     WHERE slug = ? AND is_active = 1
   `); },

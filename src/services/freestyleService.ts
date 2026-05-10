@@ -1,6 +1,7 @@
 import {
   FreestyleLeaderRow, FreestyleRecordRow, FreestyleTrickRow, FreestyleTrickModifierRow,
-  FreestyleTrickRowWithStatus, FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
+  FreestyleTrickRowWithStatus, FreestyleTrickRowWithParse,
+  FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
   FreestyleTrickModifierLinkRow,
   FreestyleCompetitorRow, FreestyleEraRow, FreestyleRecentEventRow,
   FreestylePartnershipRow,
@@ -361,6 +362,9 @@ export interface FreestyleTrickContent {
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
   pathways: TrickPathways;
+  // Notation grammar diagnostic panel (Phase 3 read-only surface). Null when
+  // the row has no structural_parse_json — page renders identically to before.
+  notationGrammar: NotationGrammarPanel | null;
 }
 
 export interface TrickPathwaySummary {
@@ -412,6 +416,177 @@ export interface AppliedModifier {
   addBonusRotational: number;
   isRotationalBase: boolean;
   effectiveBonus: number;       // the actual bonus applied given whether base is rotational
+}
+
+// ── Notation grammar (Phase 3, read-only display) ────────────────────────────
+// Diagnostic surface for the structured-parse columns (Phase 0 schema, Phase 1/2/2.5
+// parser fills). Read-only: asserted `adds` remains authoritative; computed values
+// here are diagnostic only and never override editorial truth.
+//
+// Returns null on the page view-model when structural_parse_json is missing or
+// unparseable — the trick-detail page renders exactly as before in that case.
+
+export interface NotationGrammarRoleToken {
+  token: string;       // e.g. 'spinning', 'symposium', 'whirl'
+  atomResolved: boolean; // true when this token represents a self-canonical atom
+}
+
+export interface NotationGrammarRoleBucket {
+  key:    string;     // 'core_family' | 'set' | 'rotation' | 'modifier' | 'delay_surface' | 'directionality' | 'unusual_surface' | 'unresolved_tokens'
+  label:  string;     // human-readable bucket label (e.g. 'Core family', 'Modifier')
+  tokens: NotationGrammarRoleToken[]; // empty list omitted by the template
+}
+
+export interface NotationGrammarPanel {
+  // Status — service-shaped label and one-line description for the badge.
+  status:            string;     // raw status value: exact_modifier_derived | exact_self_atom | approximate | unresolved | policy_dependent
+  statusLabel:       string;     // human-readable label, e.g. 'Exact (modifier-derived)'
+  statusDescription: string;     // one-sentence explanation suitable for a tooltip or caption
+
+  // ADD reconciliation. Asserted is authoritative; computed is diagnostic.
+  assertedAdds:      number | null;
+  computedAdds:      number | null;
+  addsAgree:         boolean;    // true when both present and equal; false otherwise (including either null)
+  formula:           string | null;
+
+  // Raw notation source (when present in DB).
+  jobsNotationRaw:        string | null;
+  jobsNotationNormalized: string | null;
+
+  // Two role layers per Phase 2.5: descriptive (what each token classified as
+  // pre-D1) and add-contributing (post-D1, used for ADD math). Empty buckets
+  // are omitted so the template can render only present roles.
+  descriptiveRoles:     NotationGrammarRoleBucket[];
+  addContributingRoles: NotationGrammarRoleBucket[];
+
+  // Honesty signals.
+  parseWarnings:    string[];
+  policyTokens:     string[];
+  additiveFlags:    string[];
+  unresolvedTokens: string[];   // raw token strings; convenience flat list for the template
+}
+
+const ROLE_BUCKET_ORDER: ReadonlyArray<{ key: string; label: string }> = [
+  { key: 'core_family',      label: 'Core family' },
+  { key: 'set',              label: 'Set' },
+  { key: 'rotation',         label: 'Rotation' },
+  { key: 'modifier',         label: 'Modifier' },
+  { key: 'delay_surface',    label: 'Delay surface' },
+  { key: 'directionality',   label: 'Directionality' },
+  { key: 'unusual_surface',  label: 'Unusual surface' },
+  { key: 'unresolved_tokens', label: 'Unresolved tokens' },
+];
+
+const STATUS_LABELS: Record<string, { label: string; description: string }> = {
+  exact_modifier_derived: {
+    label:       'Exact (modifier-derived)',
+    description: 'The structural decomposition reproduces the asserted ADD from a base trick plus modifier weights.',
+  },
+  exact_self_atom: {
+    label:       'Exact (self-atom)',
+    description: 'The trick is its own canonical anchor; computed ADD equals the asserted value tautologically.',
+  },
+  approximate: {
+    label:       'Approximate',
+    description: 'The structural decomposition resolves cleanly but the computed ADD disagrees with the asserted value.',
+  },
+  unresolved: {
+    label:       'Unresolved',
+    description: 'The parser could not classify enough tokens to compute an ADD from the structural decomposition.',
+  },
+  policy_dependent: {
+    label:       'Policy-dependent',
+    description: 'The parse contains tokens (quantum, nuclear, backside, shooting, down-family) whose ADD weights are subject to expert review.',
+  },
+};
+
+function shapeRoleBuckets(
+  layer: Record<string, unknown> | undefined,
+): NotationGrammarRoleBucket[] {
+  if (!layer || typeof layer !== 'object') return [];
+  const buckets: NotationGrammarRoleBucket[] = [];
+  for (const { key, label } of ROLE_BUCKET_ORDER) {
+    const raw = (layer as Record<string, unknown>)[key];
+    if (!Array.isArray(raw) || raw.length === 0) continue;
+    const tokens: NotationGrammarRoleToken[] = [];
+    for (const t of raw) {
+      if (t && typeof t === 'object') {
+        const tok = (t as { token?: unknown }).token;
+        if (typeof tok === 'string' && tok.length > 0) {
+          tokens.push({
+            token: tok,
+            atomResolved: (t as { atom_resolved?: unknown }).atom_resolved === true,
+          });
+        }
+      }
+    }
+    if (tokens.length > 0) buckets.push({ key, label, tokens });
+  }
+  return buckets;
+}
+
+function shapeNotationGrammar(
+  row: FreestyleTrickRowWithParse,
+): NotationGrammarPanel | null {
+  if (!row.structural_parse_json) return null;
+  let parsed: Record<string, unknown>;
+  try {
+    const candidate = JSON.parse(row.structural_parse_json);
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      return null;
+    }
+    parsed = candidate as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const status = row.add_formula_status ?? 'unresolved';
+  const statusEntry = STATUS_LABELS[status]
+    ?? { label: status, description: 'Status produced by the parser. See PROPOSAL §7.2.' };
+
+  const assertedAdds = row.adds !== null && /^\d+$/.test(row.adds) ? parseInt(row.adds, 10) : null;
+  const computedAdds = row.computed_adds;
+  const addsAgree    = assertedAdds !== null && computedAdds !== null && assertedAdds === computedAdds;
+
+  const descriptive = parsed.descriptive_roles as Record<string, unknown> | undefined;
+  const contributing = parsed.add_contributing_roles as Record<string, unknown> | undefined;
+
+  const parseWarningsRaw = parsed.parse_warnings;
+  const policyTokensRaw  = parsed.policy_tokens;
+  const additiveFlagsRaw = parsed.additive_flags;
+  const parseWarnings = Array.isArray(parseWarningsRaw)
+    ? parseWarningsRaw.filter((x): x is string => typeof x === 'string') : [];
+  const policyTokens = Array.isArray(policyTokensRaw)
+    ? policyTokensRaw.filter((x): x is string => typeof x === 'string') : [];
+  const additiveFlags = Array.isArray(additiveFlagsRaw)
+    ? additiveFlagsRaw.filter((x): x is string => typeof x === 'string') : [];
+
+  // Unresolved tokens live inside descriptive_roles (Phase 2.5); flatten the
+  // string list for the template's convenience.
+  const unresolvedRaw = descriptive ? descriptive['unresolved_tokens'] : undefined;
+  const unresolvedTokens: string[] = Array.isArray(unresolvedRaw)
+    ? unresolvedRaw
+        .map(t => (t && typeof t === 'object' ? (t as { token?: unknown }).token : null))
+        .filter((x): x is string => typeof x === 'string')
+    : [];
+
+  return {
+    status,
+    statusLabel:       statusEntry.label,
+    statusDescription: statusEntry.description,
+    assertedAdds,
+    computedAdds,
+    addsAgree,
+    formula:           row.computed_add_formula,
+    jobsNotationRaw:        row.jobs_notation_raw,
+    jobsNotationNormalized: row.jobs_notation_normalized,
+    descriptiveRoles:     shapeRoleBuckets(descriptive),
+    addContributingRoles: shapeRoleBuckets(contributing),
+    parseWarnings,
+    policyTokens,
+    additiveFlags,
+    unresolvedTokens,
+  };
 }
 
 export interface FreestyleFamilyMember {
@@ -995,9 +1170,12 @@ export const freestyleService = {
       freestyleRecords.listPublic.all() as FreestyleRecordRow[],
     );
 
-    // Also check dictionary for slug resolution (trick may have no records)
+    // Also check dictionary for slug resolution (trick may have no records).
+    // getBySlug returns Phase-0 parser columns (jobs_notation_raw, structural
+    // _parse_json, computed_*) alongside the base trick fields; only this
+    // statement loads them — grids stay lean.
     const dictRow = runSqliteRead('freestyleTricks.getBySlug', () =>
-      freestyleTricks.getBySlug.get(slug) as FreestyleTrickRow | undefined,
+      freestyleTricks.getBySlug.get(slug) as FreestyleTrickRowWithParse | undefined,
     );
 
     const trickName = publicRows.find(r => r.trick_name && trickNameToSlug(r.trick_name) === slug)?.trick_name
@@ -1139,6 +1317,7 @@ export const freestyleService = {
           demoMedia,
           hasReferenceMedia,
           pathways,
+          notationGrammar: dictRow ? shapeNotationGrammar(dictRow) : null,
         };
       })(),
     };

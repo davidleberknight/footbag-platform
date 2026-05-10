@@ -95,6 +95,116 @@
   </section>
   {{/if}}
 
+  {{! ── Notation grammar (Phase 3 read-only diagnostic) ──────────────────── }}
+  {{! Renders only when the parser has produced a structural decomposition for }}
+  {{! this row. Asserted ADD remains authoritative; computed values here are }}
+  {{! diagnostic only. Hidden when content.notationGrammar is null. }}
+  {{#if content.notationGrammar}}
+  <section class="content-section notation-grammar-panel" aria-label="Structural decomposition">
+    <div class="section-heading">
+      <h2>Structural decomposition</h2>
+      <p class="section-intro">A token-level reading of this trick's name. Asserted ADD is editorial truth; the computed value below is diagnostic.</p>
+    </div>
+
+    <dl class="detail-list">
+      <dt>Status</dt>
+      <dd>
+        <strong>{{content.notationGrammar.statusLabel}}</strong>
+        <span class="notation-grammar-status-key"> ({{content.notationGrammar.status}})</span>
+        <p class="notation-grammar-status-description">{{content.notationGrammar.statusDescription}}</p>
+      </dd>
+
+      <dt>Asserted ADD</dt>
+      <dd>{{#if content.notationGrammar.assertedAdds}}{{content.notationGrammar.assertedAdds}}{{else}}—{{/if}}</dd>
+
+      <dt>Computed ADD</dt>
+      <dd>
+        {{#if content.notationGrammar.computedAdds}}{{content.notationGrammar.computedAdds}}{{else}}—{{/if}}
+        {{#if content.notationGrammar.addsAgree}}
+        <span class="notation-grammar-agree">(agrees with asserted)</span>
+        {{else}}
+        <span class="notation-grammar-disagree">(disagrees with asserted; asserted value is editorial truth)</span>
+        {{/if}}
+      </dd>
+
+      {{#if content.notationGrammar.formula}}
+      <dt>Derivation</dt>
+      <dd><code>{{content.notationGrammar.formula}}</code></dd>
+      {{/if}}
+
+      {{#if content.notationGrammar.jobsNotationRaw}}
+      <dt>Jobs notation</dt>
+      <dd><code>{{content.notationGrammar.jobsNotationRaw}}</code></dd>
+      {{/if}}
+    </dl>
+
+    {{#if content.notationGrammar.descriptiveRoles.length}}
+    <div class="notation-grammar-layer">
+      <h3>Descriptive roles</h3>
+      <p class="notation-grammar-layer-intro">Per-token classification before any self-canonical-atom collapse. Preserves what the parser saw at each position.</p>
+      <ul class="notation-grammar-role-list">
+        {{#each content.notationGrammar.descriptiveRoles}}
+        <li>
+          <strong>{{label}}:</strong>
+          {{#each tokens}}{{#unless @first}}, {{/unless}}<code>{{token}}</code>{{#if atomResolved}} <em>(atom)</em>{{/if}}{{/each}}
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
+    {{#if content.notationGrammar.addContributingRoles.length}}
+    <div class="notation-grammar-layer">
+      <h3>ADD-contributing roles</h3>
+      <p class="notation-grammar-layer-intro">Tokens whose weights feed the ADD math. May differ from the descriptive layer when a self-atom subsumes its components.</p>
+      <ul class="notation-grammar-role-list">
+        {{#each content.notationGrammar.addContributingRoles}}
+        <li>
+          <strong>{{label}}:</strong>
+          {{#each tokens}}{{#unless @first}}, {{/unless}}<code>{{token}}</code>{{#if atomResolved}} <em>(atom)</em>{{/if}}{{/each}}
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
+    {{#if content.notationGrammar.policyTokens.length}}
+    <div class="notation-grammar-policy">
+      <h3>Policy tokens</h3>
+      <p class="notation-grammar-layer-intro">Tokens whose ADD weight or ontology placement is contested and pending expert review.</p>
+      <ul class="notation-grammar-flat-list">
+        {{#each content.notationGrammar.policyTokens}}
+        <li><code>{{this}}</code></li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
+    {{#if content.notationGrammar.parseWarnings.length}}
+    <div class="notation-grammar-warnings">
+      <h3>Parse warnings</h3>
+      <ul class="notation-grammar-flat-list">
+        {{#each content.notationGrammar.parseWarnings}}
+        <li><code>{{this}}</code></li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+
+    {{#if content.notationGrammar.unresolvedTokens.length}}
+    <div class="notation-grammar-unresolved">
+      <h3>Unresolved tokens</h3>
+      <p class="notation-grammar-layer-intro">Tokens that did not classify against any role registry. May be subsumed by a self-canonical atom (see ADD-contributing roles above).</p>
+      <ul class="notation-grammar-flat-list">
+        {{#each content.notationGrammar.unresolvedTokens}}
+        <li><code>{{this}}</code></li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+  </section>
+  {{/if}}
+
   {{! ── Pathways — Learn / Watch / Family cross-link summary ─────────────── }}
   <section class="content-section trick-pathways" aria-label="What you can do with this trick">
     <div class="section-heading">
