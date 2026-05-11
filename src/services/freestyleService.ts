@@ -1197,43 +1197,40 @@ const CATEGORY_LABELS: Record<string, string> = {
 const FAMILY_NOTES: Record<string, string> = {
   whirl:
     'The whirl is the central rotational base in advanced freestyle. More compound tricks ' +
-    'are built on whirl than any other base. Its rotational character means modifiers like ' +
-    'blurry and spinning each add +2 (rather than +1) — giving the family the steepest ' +
-    'ADD gradient of any trick family. The blurry whirl (5 ADD) is the single most ' +
-    'referenced high-difficulty trick in documented competition sequences.',
+    'are built on whirl than any other base, ranging from single-modifier entries (paradox ' +
+    'whirl, ducking whirl, blurry whirl) to dense compounds like mullet (3-modifier, 6 ADD) ' +
+    'and montage (4-modifier, 7 ADD).',
   butterfly:
     'The butterfly sits at the intersection of dexterity and compound technique. It underlies ' +
-    'ripwalk (blurry butterfly) and dimwalk (pixie butterfly), two of the most commonly ' +
+    'ripwalk (Stepping Butterfly) and dimwalk (pixie butterfly), two of the most commonly ' +
     'performed 4-ADD tricks. Its 3-ADD starting point and moderate complexity make it the ' +
     'most common entry point into the compound vocabulary.',
   osis:
-    'The osis spawns two major sub-families via named modifiers: torque (miraging osis) and ' +
-    'blender (whirling osis). These in turn have their own high-ADD compounds — paradox torque, ' +
-    'blurry torque, food processor — making the osis one of the most generative bases in the ' +
-    'advanced trick vocabulary.',
+    'The osis spawns two major named sub-families: torque (miraging osis) and blender ' +
+    '(whirling osis). These in turn anchor their own clusters — paradox torque and mobius ' +
+    'on the torque side, paradox blender and spender on the blender side — making the osis ' +
+    'one of the most generative bases in the advanced trick vocabulary.',
   mirage:
-    'The mirage is one of the two foundational 2-ADD rotational bases alongside clipper. ' +
-    'As a rotational base, modifiers apply the higher bonus — paradox mirage is a rare 3-ADD ' +
-    'result of paradox on a rotational base. The family includes blur (blurry mirage) and ' +
-    'atom smasher (atomic mirage), both at 4 ADD.',
+    'The mirage is the foundational 2-ADD rotational base. Compounds include smear (pixie ' +
+    'mirage) and tap (tapping mirage) at 3 ADD; atom smasher (atomic mirage) and blur ' +
+    '(canonically Stepping Paradox Mirage) at 4 ADD.',
   clipper:
-    'The clipper is the foundational inside cross-body delay and one of the most universally ' +
-    'performed tricks in freestyle. As a non-rotational base, its compounds are capped at ' +
-    'lower ADD values — the highest canonical clipper compound is 3 ADD (ducking clipper, ' +
-    'spinning clipper, drifter).',
+    'The clipper is a 1-ADD body kick into clipper position. Its primary compound derivative ' +
+    'is flying-clipper. Stall-based compounds (ducking clipper, spinning clipper, drifter) ' +
+    'live under the clipper-stall family per the 2026-05-08 clipper migration.',
   legover:
-    'The legover base yields a compact family: eggbeater (illusioning legover) and flurry ' +
+    'The legover base yields a compact family: eggbeater (atomic legover) and flurry ' +
     '(barraging legover) are the primary 3-ADD entries. The family is notable for producing ' +
     'DLO-style combinations at 5 ADD (fog).',
   torque:
-    'Torque (miraging osis) is the most important intermediate base in advanced freestyle. ' +
-    'It sits at 4 ADD and supports a dense cluster of high-difficulty tricks: paradox torque ' +
-    'and mobius at 5 ADD, blurry torque, atomic torque, and spinning torque at 6 ADD. ' +
-    'More 6-ADD tricks are built on torque than any other base.',
+    'Torque is the most important intermediate base in advanced freestyle. Canonically ' +
+    'Miraging Osis, it sits at 4 ADD and supports a dense cluster of high-difficulty ' +
+    'derivatives: paradox torque and mobius (Spinning Torque) at 5 ADD, atomic torque ' +
+    'at 6 ADD, and several 6-7 ADD compounds.',
   blender:
-    'Blender (whirling osis) is the other major 4-ADD osis compound. Its primary derivative ' +
-    'is food processor (blurry blender) at 6 ADD — one of the highest ADD values in the ' +
-    'documented trick vocabulary.',
+    'Blender is the other major 4-ADD osis compound (canonically Whirling Osis). ' +
+    'Derivatives include paradox blender (5 ADD), spender (Spinning Paradox Blender, 6 ADD), ' +
+    'and food processor (blurry blender).',
 };
 
 // Rotational base tricks, these receive the higher modifier bonus (add_bonus_rotational)
