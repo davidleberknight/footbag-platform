@@ -485,6 +485,29 @@ export interface FreestyleTrickContent {
   // see exploration/footbagmoves-federation/RENDERING_SURFACE_PROPOSAL.md
   // and src/services/operationalNotationRendering.ts.
   operationalNotation: OperationalNotation | null;
+  // UX2 single-page pilot (2026-05-11). Populated only for the flagship
+  // pilot trick (montage). Null for every other trick so the legacy template
+  // continues to render unchanged. When populated, the controller picks
+  // freestyle/trick-ux2.hbs in place of freestyle/trick.hbs. No schema
+  // backing; prose lives in a service-layer constant during the pilot.
+  ux2Pilot: Ux2PilotData | null;
+}
+
+export interface Ux2PilotData {
+  shortDescription: string | null;                  // one-sentence elevator pitch for the hero
+  executionParagraphs: string[];                    // pre-split paragraphs; empty array hides the section
+  learningParagraphs: string[];                     // pre-split paragraphs; empty array hides the section
+  prerequisiteParagraphs: string[];                 // pre-split paragraphs; empty array hides the section
+  featuredMedia: TrickReferenceMediaItem | null;    // single featured media; null = empty state
+  featuredMediaEmptyState: string | null;           // copy shown when featuredMedia is null
+}
+
+function splitProseParagraphs(prose: string | null): string[] {
+  if (!prose) return [];
+  return prose
+    .split(/\n{2,}/)
+    .map(p => p.replace(/\s+/g, ' ').trim())
+    .filter(p => p.length > 0);
 }
 
 export interface OperationalNotation {
@@ -1436,6 +1459,74 @@ function shapeModifierEntry(row: FreestyleTrickModifierRow): FreestyleModifierEn
 // src/content/freestyleEditorial.ts; imported at the top of this file.
 
 // ---------------------------------------------------------------------------
+// UX2 single-page pilot (2026-05-11)
+// ---------------------------------------------------------------------------
+// Validation scope: layout hierarchy + restraint-first editorial rhythm for
+// a single flagship trick (montage). Prose lives here, not in the schema,
+// until pilot review concludes. Adding more pilot trick slugs is intentional
+// flag-gating; do not expand without explicit human direction.
+
+interface Ux2PilotRawProse {
+  shortDescription: string;
+  executionSummary: string;
+  learningNotes: string;
+  prerequisiteNotes: string;
+  featuredMediaEmptyState: string;
+}
+
+const UX2_PILOT_RAW: Record<string, Ux2PilotRawProse> = {
+  montage: {
+    shortDescription:
+      "A 7-ADD whirl compound: ducking, paradox, symposium, and spinning all layered onto the whirl base in a single continuous rotation.",
+    executionSummary:
+      "Begin from a clipper set with the supporting leg planted under the bag. The whirl rotation carries the body around the planted leg while the body simultaneously holds the symposium body line, the paradox same-side reset, and the ducking head-low compression. The body-spin (spinning) completes the figure as the bag returns to the clipper position.\n\nThe four modifiers are composed onto the whirl frame, not sequenced. Difficulty comes from holding all four body positions through one continuous rotation rather than chaining them.",
+    learningNotes:
+      "Most practitioners reach montage after each of its constituents (ducking-whirl, paradox-whirl, symposium-whirl, spinning-whirl) is clean in isolation. The symposium body line combined with the ducking head-low compression is the load-bearing junction; if either drifts, the spinning rotation tends to flatten and the paradox reset is lost. Practice the body posture before adding rotation.",
+    prerequisiteNotes:
+      "Confident execution of the 4-ADD whirl compounds (ducking-whirl, paradox-whirl, symposium-whirl) is the natural prerequisite. Spinning-whirl at 5 ADD introduces the body-spin component that montage rides on top of.",
+    featuredMediaEmptyState:
+      "Curated tutorial coming soon. Until then, see family-adjacent demonstrations below.",
+  },
+  matador: {
+    shortDescription:
+      "A 5-ADD butterfly compound: nuclear's paradox-atomic +2 weighting layered onto the butterfly base.",
+    executionSummary:
+      "From a clipper set, body opens with a same-side out kick carrying both dex and paradox direction. Body completes with an opposite-side out kick and lands cross-body in a clipper delay. The nuclear modifier is what makes this a 5-ADD trick rather than a 4-ADD same-out-then-op-out butterfly: nuclear's +2 ADD comes from the paradox-atomic body weighting that the same-out kick carries explicitly.\n\nOperationally the trick is four steps: clipper start, same-out (dex)(pdx), op-out (dex), op-clip cross-body delay.",
+    learningNotes:
+      "Nuclear's +2 ADD weighting reflects the paradox-atomic body commitment. The most common miss is the same-out paradox: practitioners reach for the kick without committing the body direction first. The paradox marker in the operational notation is where the +2 anchors -- ensure body weight is committed before the dex.",
+    prerequisiteNotes:
+      "Comfortable execution of any 4-ADD butterfly compound is the natural entry point. Atomic-butterfly (4 ADD) shares the most body mechanics with Matador. Nuclear's +2 ADD weight (the paradox-atomic body commitment) is what carries the trick from 4 to 5 ADD.",
+    featuredMediaEmptyState:
+      "Curated tutorial coming soon. See the record-holder demonstration in Passback Records below.",
+  },
+  "mind-bender": {
+    shortDescription:
+      "A 6-ADD blender compound: ducking and paradox layered onto the Whirling-Osis rotational base.",
+    executionSummary:
+      "From a clipper set, drop into a ducking body compression, then execute a same-side front whirl with both dex and paradox direction. Body reverses to a back-facing spin, then lands cross-body in a same-side clipper delay. Five operational steps: clip, duck, same-front-whirl (dex)(pdx), (back)-spin (bod), same-clip cross-body.\n\nThe blender base (transitively Whirling Osis) carries 4 ADD; ducking + paradox add 2 more. The (front) and (back) annotations in the operational notation track the body orientation across the spin transition -- this is the load-bearing rotational signature of the blender family.",
+    learningNotes:
+      "Pairs naturally with Spender (Spinning + Paradox + Blender; also 6 ADD). Both are 6-ADD blender compounds; both carry paradox; the difference is body-modifier: Spender carries spinning (body rotation), Mind Bender carries ducking (body compression). Compare the two side-by-side for cross-modifier feel.",
+    prerequisiteNotes:
+      "Comfortable execution of blender (4 ADD) and paradox-blender (5 ADD) is the natural entry point. The ducking modifier should be solid on a separate base (ducking-whirl, ducking-butterfly) before attempting Mind Bender. Spender is the natural same-tier sibling to study alongside.",
+    featuredMediaEmptyState:
+      "Curated tutorial coming soon. Until then, see family-adjacent demonstrations below.",
+  },
+};
+
+function lookupUx2Pilot(slug: string): Ux2PilotData | null {
+  const raw = UX2_PILOT_RAW[slug];
+  if (!raw) return null;
+  return {
+    shortDescription:        raw.shortDescription || null,
+    executionParagraphs:     splitProseParagraphs(raw.executionSummary),
+    learningParagraphs:      splitProseParagraphs(raw.learningNotes),
+    prerequisiteParagraphs:  splitProseParagraphs(raw.prerequisiteNotes),
+    featuredMedia:           null,
+    featuredMediaEmptyState: raw.featuredMediaEmptyState || null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -1705,6 +1796,7 @@ export const freestyleService = {
             const sourceNote = rawSource && rawSource.trim() ? rawSource.trim() : null;
             return { raw: display.raw, tokens: display.tokens, sourceNote };
           })(),
+          ux2Pilot: lookupUx2Pilot(slug),
         };
       })(),
     };

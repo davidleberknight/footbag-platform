@@ -3091,3 +3091,152 @@ section.home-media { padding-top: 0; }
   color: var(--accent, #1a5a8a);
 }
 
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX2 single-page pilot (2026-05-11) -- flagship editorial trick layout.
+   Active only on freestyle/trick-ux2.hbs (today: /freestyle/tricks/montage).
+   Restraint-first additions; no token / palette redesign.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-hero-summary {
+  margin: 14px 0 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 60ch;
+}
+
+.trick-featured-preview { margin-top: 28px; }
+.trick-featured-preview-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 16px;
+}
+@media (max-width: 768px) {
+  .trick-featured-preview-card { grid-template-columns: 1fr; }
+}
+.trick-featured-preview-thumb { position: relative; }
+.trick-featured-preview-meta { padding-top: 4px; }
+.trick-featured-preview-title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #64748b);
+}
+.trick-featured-preview-caption {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+.trick-featured-preview-source {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+.trick-featured-preview-jump {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}
+
+.trick-featured-preview-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+}
+.trick-featured-preview-empty-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #64748b);
+}
+.trick-featured-preview-empty-text {
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.trick-prose-paragraph {
+  margin: 0 0 12px;
+  line-height: 1.6;
+  font-size: 1rem;
+  max-width: 70ch;
+}
+.trick-prose-paragraph:last-child { margin-bottom: 0; }
+
+.trick-prereq-anchor {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+
+.trick-media-block .trick-featured-media-card {
+  margin: 12px 0 24px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+}
+.trick-media-block .trick-featured-media-empty {
+  margin: 12px 0 24px;
+  padding: 18px 20px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #475569;
+  font-size: 0.95rem;
+}
+.trick-media-block .trick-featured-media-empty p { margin: 0; }
+
+/* Structural decomposition collapsed-by-default in the REFERENCE tail.
+   The legacy template renders this same panel inline; UX2 wraps it in
+   <details> so the diagnostic surface stays accessible without leading. */
+.notation-grammar-collapsible {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0;
+}
+.notation-grammar-collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.notation-grammar-collapsible > summary::-webkit-details-marker { display: none; }
+.notation-grammar-collapsible > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted, #64748b);
+  transition: transform 0.15s ease;
+}
+.notation-grammar-collapsible[open] > summary::before { transform: rotate(90deg); }
+.notation-grammar-collapsible[open] > summary {
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.notation-grammar-summary-title {
+  font-weight: 600;
+  font-size: 1.05rem;
+  display: inline;
+}
+.notation-grammar-summary-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+  padding-left: 22px;
+}
+.notation-grammar-collapsible > *:not(summary) {
+  padding-left: 18px;
+  padding-right: 18px;
+}
+.notation-grammar-collapsible > *:not(summary):first-of-type { padding-top: 14px; }
+.notation-grammar-collapsible > *:last-child { padding-bottom: 14px; }

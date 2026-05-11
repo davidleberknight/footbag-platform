@@ -1,0 +1,19 @@
+rank,slug,fm_display_name,fm_technical_name,add_value,family,base_trick,modifier_links,ifpa_decomposition,ontology_confidence,editorial_value,media_potential,red_dependency,category_primary,category_tags,parser_risk,flagship_tier,red_question_ref,notes
+1,matador,Matador,Nuclear Butterfly,5,butterfly,butterfly,nuclear,nuclear(2)+butterfly(3)=5,high,flagship,video,none,ready_now,editorially_high_value,none,1,,Wave-1 held back for media-link opportunity; nuclear-modifier intro
+2,phoenix,Phoenix,Pixie Ducking Butterfly,5,butterfly,butterfly,pixie|ducking,pixie(1)+ducking(1)+butterfly(3)=5,high,flagship,video,none,ready_now,editorially_high_value,none,1,,3-modifier butterfly compound; pairs with Matador on 5-ADD tier
+3,mind-bender,Mind Bender,Ducking Paradox Blender,6,blender,blender,ducking|paradox,ducking(1)+paradox(1)+blender(4)=6,high,flagship,none,none,ready_now,editorially_high_value,none,1,,Completes blender 6-ADD tier alongside Wave-1 Spender
+4,tripwalk,Tripwalk,Quantum Butterfly,4,butterfly,butterfly,quantum,quantum(1)+butterfly(3)=4,high,high,video,none,ready_now,editorially_high_value,none,2,,Clean quantum-modifier intro on butterfly
+5,tapdown,Tapdown,Tapping Butterfly,4,butterfly,butterfly,tapping,tapping(1)+butterfly(3)=4,high,medium,none,none,ready_now,,none,2,,Tapping into butterfly cross-family bridge
+6,spinal-tap,Spinal Tap,Tapping Torque,5,torque,torque,tapping,tapping(1)+torque(4)=5,high,medium,none,none,ready_now,,none,2,,Torque family tapping intro
+7,tremor,Tremor,Tapping Drifter,4,drifter,drifter,tapping,tapping(1)+drifter(3)=4,high,medium,none,none,ready_now,,none,3,,Drifter family (4 members today) expansion
+8,legeater,Legeater,Quantum Pickup,3,pickup,pickup,quantum,quantum(1)+pickup(2)=3,high,medium,none,none,ready_now,,none,3,,Pickup-family pair with Wave-1 Paste
+9,shmoe,Shmoe,Stepping Legover,3,legover,legover,stepping,stepping(1)+legover(2)=3,high,medium,none,none,ready_now,,none,3,,Legover-family gateway below Pigbeater
+10,twirl,Twirl,Reverse Swirling Osis,4,osis,osis,swirling,swirling(1)+osis(3)=4,high,medium,video,none,ready_now,parser-risk,direction-strip,3,Q7,Direction `reverse` stripped; validates direction-strip pattern
+11,symposium-eggbeater,Symposium Eggbeater,,4,legover,eggbeater,symposium,symposium(1)+eggbeater(3)=4,medium,medium,none,none,ready_now,parser-risk,no-tech-name,3,Q8,FM lacks technical_name; canonicalization via IFPA decomp only
+12,conniption-city,Conniption City,Quantum Symposium Mirage,5,mirage,mirage,quantum|symposium,quantum(1)+symposium(1)+mirage(2)=4_FM=5,medium,medium,none,Q2,ready_after_red,,off-by-one,,Q2,Symposium-on-mirage math pending Red
+13,hurl,Hurl,Nuclear ss Whirl,4,whirl,whirl,nuclear,nuclear(2)+whirl(3)=5_FM=4_ss,medium,medium,none,Q1,ready_after_red,parser-risk,same-side,,Q1,Same-side weighting unresolved
+14,casket,Casket,Fairy ss Drifter,4,drifter,drifter,fairy,fairy(?)+drifter(3)_FM=4_ss,low,medium,none,Q1+Q4,ready_after_red,parser-risk,fairy+same-side,,Q1|Q4,Fairy FM-vocab plus same-side; double dependency
+15,bedwetter,Bedwetter,Blurry Eggbeater,5,eggbeater,eggbeater,blurry,blurry(1)+eggbeater(3)=4_FM=5,medium,medium,video,Q3,ready_after_red,,off-by-one,,Q3,Blurry on non-rotational base math pending Red
+16,marius,Marius,Spinning Paradox Torque,6,torque,spinning-torque,n/a,alias_on_spinning-torque(5)_FM=6,high,low,none,none,federation_conflict,,alias-only,,,ADD_ALIAS on existing spinning-torque canonical
+17,whirlwind,Whirlwind,Spinning Paradox Symposium Whirl,6,whirl,spinning-symposium-whirl,n/a,alias_on_spinning-symposium-whirl(5)_FM=6,high,low,none,none,federation_conflict,,alias-only,,,ADD_ALIAS on existing spinning-symposium-whirl canonical
+18,ripped-warrior,Ripped Warrior,Stepping Ducking Far Butterfly,5,butterfly,butterfly,stepping|ducking,stepping(1)+ducking(1)+butterfly(3)=5_dir-far-stripped,high,medium,video,Q7,ready_after_red,parser-risk,direction-strip,2,Q7,Held back from Wave-1 for direction-strip pattern review
