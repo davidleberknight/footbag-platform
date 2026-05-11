@@ -98,24 +98,26 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
 };
 
 // Component-flag specific tooltip overrides. The 6 flags carry meaningfully
-// different educational content.
+// different educational content. Labels are user-facing prose ("<Name>
+// component (clarifier)"); the raw token text already renders inside the
+// pill, so the tooltip avoids repeating it.
 const COMPONENT_FLAG_LABELS: Record<string, string> = {
-  DEX:  'DEX — controlled-flick step (+1 to ADD)',
-  DEL:  'DEL — final stall / landing (+1 to ADD)',
-  BOD:  'BOD — body-position step (no bag-foot interaction)',
-  XBD:  'XBD — cross-body delay step',
-  PDX:  'PDX — paradox-direction marker',
-  XDEX: 'XDEX — full-circle dex variant',
+  DEX:  'Dexterity component (bag-foot interaction)',
+  DEL:  'Delay component (final stall / landing)',
+  BOD:  'Body component (body-position step, no bag-foot interaction)',
+  XBD:  'Cross-body component (delay step across the body)',
+  PDX:  'Paradox component (paradox-direction dex)',
+  XDEX: 'Cross-dex component (full-circle dex variant)',
 };
 
 // Pre-state flag specific tooltip overrides — same rationale as
 // COMPONENT_FLAG_LABELS. Lowercase since pre-state flags are lowercase by
 // convention per OPERATIONAL_NOTATION_GRAMMAR §2.2.
 const PRE_STATE_LABELS: Record<string, string> = {
-  '(back)':            '(back) — next move oriented backward',
-  '(front)':           '(front) — next move oriented forward',
-  '(no plant while)':  '(no plant while) — no support-leg plant during this segment',
-  '(rooted)':          '(rooted) — held position, no plant',
+  '(back)':            'Backward direction (next move oriented backward)',
+  '(front)':           'Forward direction (next move oriented forward)',
+  '(no plant while)':  'No support-leg plant during this segment',
+  '(rooted)':          'Rooted / held position; no plant',
 };
 
 /**
