@@ -1252,14 +1252,14 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
   it('classifies WHIRL as core_family with educational tooltip', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/whirl');
-    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: whirl">WHIRL<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Whirl — base trick family \(3 ADD\)">WHIRL<\/span>/);
   });
 
   it('classifies PARADOX WHIRL as modifier + core_family in left-to-right order', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/paradox-whirl');
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">PARADOX<\/span>/);
-    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: whirl">WHIRL<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox — body modifier \(\+1 ADD\)">PARADOX<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Whirl — base trick family \(3 ADD\)">WHIRL<\/span>/);
     const idxParadox = res.text.indexOf('>PARADOX<');
     const idxWhirl   = res.text.indexOf('>WHIRL<');
     expect(idxParadox).toBeGreaterThan(-1);
@@ -1269,8 +1269,8 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
   it('classifies BLURRY MIRAGE as set + core_family (BLURRY rendered as set, not modifier)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/blur');
-    expect(res.text).toMatch(/<span class="notation-token notation-set" data-role="set" title="Set primitive">BLURRY<\/span>/);
-    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: mirage">MIRAGE<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-set" data-role="set" title="Blurry — set modifier \(\+1 ADD\)">BLURRY<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Mirage — base trick family \(2 ADD\)">MIRAGE<\/span>/);
     // Important: BLURRY must NOT render as modifier (would lose set-vs-modifier semantic distinction).
     expect(res.text).not.toMatch(/<span class="notation-token notation-modifier"[^>]*>BLURRY<\/span>/);
   });
@@ -1280,23 +1280,23 @@ describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
     const res = await request(app).get('/freestyle/tricks/around-the-world');
     // Alias 'atw' resolves to slug 'around-the-world'; tooltip carries the
     // resolved canonical name per the §5.4a ratification.
-    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: around-the-world">ATW<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Base trick family: around-the-world">ATW<\/span>/);
   });
 
   it('classifies HEAD STALL as unusual_surface + suffix', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/head-stall');
-    expect(res.text).toMatch(/<span class="notation-token notation-unusual-surface" data-role="unusual_surface" title="Surface \(non-standard\)">HEAD<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-unusual-surface" data-role="unusual_surface" title="Head — unusual delay surface">HEAD<\/span>/);
     expect(res.text).toMatch(/<span class="notation-token notation-suffix" data-role="suffix" title="Surface suffix">STALL<\/span>/);
   });
 
   it('classifies STEPPING DUCKING PARADOX TORQUE (gauntlet) as 3 modifiers + core_family in order', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/gauntlet');
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">STEPPING<\/span>/);
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">DUCKING<\/span>/);
-    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Body modifier">PARADOX<\/span>/);
-    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Core trick family: torque">TORQUE<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Stepping — body modifier \(\+1 ADD\)">STEPPING<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Ducking — body modifier \(\+1 ADD\)">DUCKING<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-modifier" data-role="modifier" title="Paradox — body modifier \(\+1 ADD\)">PARADOX<\/span>/);
+    expect(res.text).toMatch(/<span class="notation-token notation-core-family" data-role="core_family" title="Torque — base trick family \(4 ADD; miraging osis\)">TORQUE<\/span>/);
     const indices = ['STEPPING', 'DUCKING', 'PARADOX', 'TORQUE'].map(t => res.text.indexOf(`>${t}<`));
     expect(indices.every(i => i > -1)).toBe(true);
     expect(indices).toEqual([...indices].sort((a, b) => a - b)); // monotonic left-to-right

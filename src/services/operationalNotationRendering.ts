@@ -58,61 +58,64 @@ const COMPONENT_FLAGS = new Set(['DEX', 'DEL', 'BOD', 'XBD', 'PDX', 'XDEX']);
 // Educational tooltip text per role. Used in the `title` attribute of each
 // rendered <span> for native browser hover-disclosure. Generic fallbacks;
 // per-token overrides below where specificity adds learner clarity.
+// UX1 Phase A 2026-05-11: harmonized with semantic notationRendering for
+// cross-layer consistency; ambiguous tokens carry layer-disambiguated text.
 const ROLE_LABELS: Record<OperationalTokenRole, string> = {
-  surface:          'Plant or landing surface',
-  side:             'Plant-foot side',
+  surface:          'Set position or landing surface',
+  side:             'Step side (relative to plant foot)',
   direction:        'Arc direction',
-  body_action:      'Body action',
-  rotation_variant: 'Rotational variant',
-  component_flag:   'Body component',
-  sequence_op:      'Sequence operator',
-  pre_state:        'Pre-move state',
-  unknown:          'Unrecognized token',
+  body_action:      'Body action within the trick',
+  rotation_variant: 'Rotational dex step within the trick',
+  component_flag:   'Component flag',
+  sequence_op:      'Sequence step indicator',
+  pre_state:        'Pre-state flag',
+  unknown:          'Unrecognized — community notation may be evolving',
 };
 
-// Per-word-token specific tooltip overrides (O1c). Surfacing per-token
-// pedagogy makes each hover educational without coupling to the glossary
-// page. Keyed on the UPPERCASE form for case-insensitive lookup.
+// Per-word-token specific tooltip overrides (UX1 Phase A). Layer-disambiguated
+// for tokens that also appear in semantic notation (WHIRL, SWIRL, TOE, SAME,
+// OP, IN, OUT) per UX1_NOTATION_INTERACTION_AUDIT.md §4. Keyed UPPERCASE for
+// case-insensitive lookup.
 const WORD_TOKEN_LABELS: Record<string, string> = {
   // Surfaces
-  CLIP:  'Clipper-stall surface (inside of support foot)',
-  TOE:   'Toe-stall surface',
-  // Sides
-  SAME:  'Same side as the plant foot',
-  OP:    'Opposite side from the plant foot',
-  // Directions (when standalone — front/back fuse with WHIRL/SWIRL)
-  IN:    'Inward arc (toward the body)',
-  OUT:   'Outward arc (away from the body)',
-  FRONT: 'Forward direction',
-  BACK:  'Backward direction',
+  CLIP:  'CLIP — clipper set position (start of trick)',
+  TOE:   'TOE (operational) — toe set position (start of trick)',
+  // Sides — layer-disambiguated (semantic notation uses footedness role)
+  SAME:  'SAME (operational) — step on same side as plant foot',
+  OP:    'OP (operational) — step on opposite side from plant foot',
+  // Directions — IN/OUT layer-disambiguated; FRONT/BACK fuse with WHIRL/SWIRL
+  IN:    'IN (operational) — inward arc (toward body)',
+  OUT:   'OUT (operational) — outward arc (away from body)',
+  FRONT: 'FRONT — forward direction (fuses with WHIRL/SWIRL)',
+  BACK:  'BACK — backward direction (fuses with WHIRL/SWIRL)',
   // Body actions
-  SPIN:  'Body spin (rotation in place)',
-  DUCK:  'Duck body action',
-  DIVE:  'Dive body action',
-  // Standalone whirl/swirl (rare)
-  WHIRL: 'Whirl variant',
-  SWIRL: 'Swirl variant',
+  SPIN:  'SPIN — body rotation in place',
+  DUCK:  'DUCK — body action (downward)',
+  DIVE:  'DIVE — body action (forward-downward)',
+  // Standalone WHIRL/SWIRL — layer-disambiguated from semantic core_family
+  WHIRL: 'WHIRL (operational) — rotational dex step within the trick',
+  SWIRL: 'SWIRL (operational) — rotational dex step within the trick',
 };
 
 // Component-flag specific tooltip overrides. The 6 flags carry meaningfully
 // different educational content.
 const COMPONENT_FLAG_LABELS: Record<string, string> = {
-  DEX:  'Dexterity component (bag-foot interaction)',
-  DEL:  'Delay component (lands on a stall surface)',
-  BOD:  'Body-position component (pose/spin/duck/dive)',
-  XBD:  'Cross-body component (delay on opposite-side surface)',
-  PDX:  'Paradox component (paradox-direction dex)',
-  XDEX: 'X-Dex component (full-circle dex variant)',
+  DEX:  'DEX — controlled-flick step (+1 to ADD)',
+  DEL:  'DEL — final stall / landing (+1 to ADD)',
+  BOD:  'BOD — body-position step (no bag-foot interaction)',
+  XBD:  'XBD — cross-body delay step',
+  PDX:  'PDX — paradox-direction marker',
+  XDEX: 'XDEX — full-circle dex variant',
 };
 
 // Pre-state flag specific tooltip overrides — same rationale as
 // COMPONENT_FLAG_LABELS. Lowercase since pre-state flags are lowercase by
 // convention per OPERATIONAL_NOTATION_GRAMMAR §2.2.
 const PRE_STATE_LABELS: Record<string, string> = {
-  '(back)':            'Backward direction (next move oriented backward)',
-  '(front)':           'Forward direction (next move oriented forward)',
-  '(no plant while)':  'No support-leg plant during this segment',
-  '(rooted)':          'Rooted / held position; no plant',
+  '(back)':            '(back) — next move oriented backward',
+  '(front)':           '(front) — next move oriented forward',
+  '(no plant while)':  '(no plant while) — no support-leg plant during this segment',
+  '(rooted)':          '(rooted) — held position, no plant',
 };
 
 /**

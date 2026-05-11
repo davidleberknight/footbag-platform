@@ -2508,6 +2508,24 @@ section.home-media { padding-top: 0; }
   color: #b45309;  /* match operational palette primary on hover */
 }
 
+/* UX1 Phase B 2026-05-11: parallel glossary deeplink for the semantic
+ * notation block. Same styling shape; hover color picks the cool-palette
+ * primary (notation-core-family green) to maintain layer distinction. */
+.notation-glossary-link {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #555);
+}
+.notation-glossary-link a {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.notation-glossary-link a:hover {
+  text-decoration: underline;
+  color: #2a7a3a;  /* match notation-core-family cool palette on hover */
+}
+
 /* O1d: curator-authored provenance / citation line. Muted italic so it
  * recedes below the token block; sits between the notation and the
  * glossary deeplink. Free-form text — supports the three real states

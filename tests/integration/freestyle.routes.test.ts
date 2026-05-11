@@ -672,11 +672,11 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     // O1b: each token rendered as a span with role class. O1c refined the
     // per-token tooltips (e.g. CLIP gets "Clipper-stall surface (...)" not
     // the generic "Plant or landing surface").
-    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="Clipper-stall surface \(inside of support foot\)">CLIP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP — clipper set position \(start of trick\)">CLIP<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--sequence-op-major" data-role="sequence_op"[^>]*>&gt;&gt;<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side"[^>]*>SAME<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--direction" data-role="direction"[^>]*>OUT<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-dex" data-role="component_flag" title="Dexterity component \(bag-foot interaction\)">\[DEX\]<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-dex" data-role="component_flag" title="DEX — controlled-flick step \(\+1 to ADD\)">\[DEX\]<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-xbd" data-role="component_flag"[^>]*>\[XBD\]<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--component-flag component-flag-del" data-role="component_flag"[^>]*>\[DEL\]<\/span>/);
   });
@@ -717,9 +717,9 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     const res = await request(app).get('/freestyle/tricks/op-notation-seeded');
     // Pre-O1c the tooltip was the generic "Plant-foot side"; O1c specializes
     // SAME and OP per-token.
-    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="Opposite side from the plant foot">OP<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="Same side as the plant foot">SAME<\/span>/);
-    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="Clipper-stall surface \(inside of support foot\)">CLIP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="OP \(operational\) — step on opposite side from plant foot">OP<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side" data-role="side" title="SAME \(operational\) — step on same side as plant foot">SAME<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--surface" data-role="surface" title="CLIP — clipper set position \(start of trick\)">CLIP<\/span>/);
   });
 
   it('renders the curator-authored source-note when operational_notation_source is populated (O1d)', async () => {

@@ -109,6 +109,11 @@
       <p class="section-intro">A token-level reading of this trick, color-coded by structural role. Parser-derived structural decomposition appears below.</p>
     </div>
     <code class="notation-display-tokens">{{#each content.notationDisplay.tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+    {{! UX1 Phase B 2026-05-11: parallel glossary deeplink to the operational }}
+    {{! block's. Subtle, restraint-first — single section-level link.        }}
+    <p class="notation-glossary-link">
+      <a href="/freestyle/glossary#notation">Token reference &rarr;</a>
+    </p>
   </section>
   {{/if}}
 

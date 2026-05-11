@@ -1,0 +1,83 @@
+token,layer,role,short_label,plain_english,weight,example_in_context,glossary_anchor_id
+WHIRL,semantic,core_family,Whirl (base trick),"Whirl base family: a 3-ADD rotational trick used as the foundation for many compounds.",base=3,SPINNING SYMPOSIUM WHIRL,notation-base-whirl
+MIRAGE,semantic,core_family,Mirage (base trick),"Mirage base family: a 2-ADD foundational rotational trick.",base=2,STEPPING PARADOX MIRAGE,notation-base-mirage
+OSIS,semantic,core_family,Osis (base trick),"Osis base family: a 3-ADD compound that anchors torque + blender sub-families.",base=3,WHIRLING OSIS,notation-base-osis
+TORQUE,semantic,core_family,Torque (base trick),"Torque base family: a 4-ADD compound; canonically miraging osis.",base=4,SPINNING TORQUE,notation-base-torque
+BUTTERFLY,semantic,core_family,Butterfly (base trick),"Butterfly base family: a 3-ADD intersection of dexterity and compound technique.",base=3,STEPPING BUTTERFLY,notation-base-butterfly
+EGGBEATER,semantic,core_family,Eggbeater (base trick),"Eggbeater (canonically atomic legover): a 3-ADD compound.",base=3,PIXIE EGGBEATER,notation-base-eggbeater
+LEGOVER,semantic,core_family,Legover (base trick),"Legover base family: a 2-ADD body trick anchoring eggbeater + flurry.",base=2,BARRAGING LEGOVER,notation-base-legover
+PICKUP,semantic,core_family,Pickup (base trick),"Pickup base family: a 2-ADD foundational trick (a core entry).",base=2,PIXIE PICKUP,notation-base-pickup
+BLENDER,semantic,core_family,Blender (base trick),"Blender (canonically whirling osis): a 4-ADD compound.",base=4,SPINNING PARADOX BLENDER,notation-base-blender
+DRIFTER,semantic,core_family,Drifter (base trick),"Drifter (canonically miraging clipper): a 3-ADD compound.",base=3,PARADOX DRIFTER,notation-base-drifter
+BARFLY,semantic,core_family,Barfly (base trick),"Barfly: a 4-ADD named compound (infinity family).",base=4,BLURRY BARFLY,notation-base-barfly
+SWIRL,semantic,core_family,Swirl (base trick),"Swirl base family: a 3-ADD rotational trick.",base=3,STEPPING PARADOX SWIRL,notation-base-swirl
+WHIRL,operational,rotation_variant,Whirl (here: rotational dex step),"Within operational notation: a rotational dex-component step (NOT the base trick). Fuses with FRONT/BACK as a 2-token rotation variant.",,OP FRONT WHIRL [DEX] [PDX],operational-notation-rotation-variants
+SWIRL,operational,rotation_variant,Swirl (here: rotational dex step),"Within operational notation: a rotational dex-component step (NOT the base trick). Fuses with FRONT/BACK.",,SAME BACK SWIRL [DEX],operational-notation-rotation-variants
+PARADOX,semantic,modifier,Paradox (body modifier; +1),"Body modifier adding +1 ADD. Structurally an in-then-out dex pair.",+1,PARADOX MIRAGE = 3,notation-modifier-paradox
+SYMPOSIUM,semantic,modifier,Symposium (body modifier; +1),"Body modifier adding +1 ADD. Structurally a forward-then-back paradox.",+1,SYMPOSIUM WHIRL = 4,notation-modifier-symposium
+DUCKING,semantic,modifier,Ducking (body modifier; +1),"Body modifier adding +1 ADD. Duck body action interleaved between dexes.",+1,DUCKING WHIRL = 4,notation-modifier-ducking
+STEPPING,semantic,modifier,Stepping (body modifier; +1),"Body modifier adding +1 ADD. A step action interleaved into the trick.",+1,STEPPING BUTTERFLY = 4,notation-modifier-stepping
+TAPPING,semantic,modifier,Tapping (body modifier; +1),"Body modifier adding +1 ADD. Distinct from Stepping per Red pt3.",+1,TAPPING MIRAGE = 3,notation-modifier-tapping
+DIVING,semantic,modifier,Diving (body modifier; +1),"Body modifier adding +1 ADD. Dive body action interleaved.",+1,DIVING WHIRL = 4,notation-modifier-diving
+BLAZING,semantic,modifier,Blazing (body modifier; +1),"Body modifier adding +1 ADD.",+1,BLAZING LEGOVER = 3,notation-modifier-blazing
+BARRAGING,semantic,modifier,Barraging (body modifier; +1),"Body modifier adding +1 ADD. The Flurry name decomposes as Barraging Legover.",+1,BARRAGING LEGOVER = 3,notation-modifier-barraging
+WEAVING,semantic,modifier,Weaving (body modifier; +1),"Body modifier adding +1 ADD.",+1,WEAVING CLIPPER = 3,notation-modifier-weaving
+MIRAGING,semantic,modifier,Miraging (body modifier; +1),"Body modifier adding +1 ADD. Underlies named tricks: drifter (miraging clipper), torque (miraging osis), DLO (miraging legover).",+1,MIRAGING OSIS = 4,notation-modifier-miraging
+BACKSIDE,semantic,modifier,Backside (body modifier; +1),"Body modifier adding +1 ADD (Symposium-equivalent per Red pt9). NOT a direction term.",+1,BACKSIDE BLUR,notation-modifier-backside
+TERRAGING,semantic,modifier,Terraging (body modifier; +3),"Body modifier adding +3 ADD per Red pt8.",+3,TERRAGING LEGOVER,notation-modifier-terraging
+SPINNING,semantic,rotation,Spinning (rotation modifier; +1),"Rotation modifier adding +1 ADD (flat per pt10; was +2 on rotational base).",+1,SPINNING WHIRL = 4,notation-rotation-spinning
+WHIRLING,semantic,rotation,Whirling (rotation modifier; +1),"Rotation modifier adding +1 ADD (flat per pt10). Underlies blender (whirling osis).",+1,WHIRLING OSIS = blender = 4,notation-rotation-whirling
+SWIRLING,semantic,rotation,Swirling (rotation modifier; +1),"Rotation modifier adding +1 ADD (flat per pt10).",+1,SWIRLING WHIRL = 4,notation-rotation-swirling
+INSPINNING,semantic,rotation,Inspinning (rotation modifier),"Rotation modifier distinct from Spinning per Red pt3.",+1,INSPINNING WHIRL,notation-rotation-inspinning
+GYRO,semantic,rotation,Gyro (rotation modifier; +1),"Rotation modifier adding +1 ADD. Underlies mobius (gyro torque).",+1,GYRO TORQUE = mobius = 5,notation-rotation-gyro
+BLURRY,semantic,set,Blurry (set modifier; +1),"Set modifier adding +1 ADD (flat per pt11; was +2 on rotational base).",+1,BLURRY MIRAGE = blur = 4,notation-set-blurry
+ATOMIC,semantic,set,Atomic (set modifier; +1/+2 rot),"Set modifier adding +1 non-rotational / +2 on rotational base.",+1/+2,ATOMIC BUTTERFLY = legbeater = 4,notation-set-atomic
+NUCLEAR,semantic,set,Nuclear (set modifier; +2),"Set modifier adding +2 ADD. Structurally Paradox + Atomic per Red pt10.",+2,NUCLEAR MIRAGE = sumo = 5,notation-set-nuclear
+QUANTUM,semantic,set,Quantum (set modifier; +1),"Set modifier adding +1 ADD universally per Red pt10.",+1,QUANTUM MIRAGE = 3,notation-set-quantum
+PIXIE,semantic,set,Pixie (set modifier; +1),"Set modifier adding +1 ADD universally.",+1,PIXIE MIRAGE = smear = 3,notation-set-pixie
+FAIRY,semantic,set,Fairy (set modifier; +1),"Set modifier adding +1 ADD universally.",+1,FAIRY BUTTERFLY = 4,notation-set-fairy
+FURIOUS,semantic,set,Furious (set modifier; +1/+2 rot),"Set modifier adding +1 non-rotational / +2 on rotational base. Parallel to Atomic.",+1/+2,FURIOUS PARADOX MIRAGE = fury = 5,notation-set-furious
+POGO,semantic,set,Pogo (set modifier; 0 ADD),"Set modifier that does NOT contribute ADD per Red pt6.",0,POGO MIRAGE,notation-set-pogo
+SHOOTING,semantic,set,Shooting (set modifier; +3),"Set modifier adding +3 ADD per Red pt7/pt9.",+3,SHOOTING BUTTERFLY = 6,notation-set-shooting
+ROOTED,semantic,set,Rooted (set modifier; 0 ADD),"Set modifier with 0 ADD per Red pt8. Held position; no plant.",0,ROOTED MIRAGE,notation-set-rooted
+XDEX,semantic,modifier,X-Dex (component flag; +1),"Adds +1 to specific construction tricks (Atom Smasher per pt1). Narrow scope; not a broad modifier.",+1,(see atom-smasher),notation-modifier-xdex
+CLIPPER,semantic,delay_surface,Clipper (delay surface),"Inside cross-body delay surface; one of the foundational stalls.",,CLIPPER STALL,notation-surface-clipper
+TOE,semantic,delay_surface,Toe (delay surface),"Toe delay surface (top of foot).",,TOE STALL,notation-surface-toe
+HEEL,semantic,delay_surface,Heel (delay surface),"Heel delay surface.",,HEEL STALL,notation-surface-heel
+INSIDE,semantic,delay_surface,Inside (delay surface),"Inside-of-foot delay surface.",,INSIDE STALL,notation-surface-inside
+OUTSIDE,semantic,delay_surface,Outside (delay surface),"Outside-of-foot delay surface.",,OUTSIDE STALL,notation-surface-outside
+SOLE,semantic,unusual_surface,Sole (unusual surface),"Sole-of-foot delay surface (non-standard).",,SOLE STALL,notation-surface-sole
+KNEE,semantic,unusual_surface,Knee (unusual surface),"Knee delay surface.",,KNEE STALL,notation-surface-knee
+HEAD,semantic,unusual_surface,Head (unusual surface),"Head delay surface.",,HEAD STALL,notation-surface-head
+CLOUD,semantic,unusual_surface,Cloud (unusual surface),"Cloud delay surface (back of shin).",,CLOUD KICK,notation-surface-cloud
+REV,semantic,directionality,Rev (direction prefix),"Reverse-direction prefix. Community-canonical abbreviation per NOTATION_STYLE_GUIDE §3.10.",,REV WHIRL,notation-direction-rev
+REVERSE,semantic,directionality,Reverse (direction prefix),"Reverse-direction prefix; same meaning as REV.",,REVERSE WHIRL,notation-direction-reverse
+SAME,semantic,footedness,Same (footedness; semantic context),"Same-foot indicator in semantic notation. Used in productive-multiplicity context per pt8.",,(rare in semantic),notation-footedness-same
+OP,semantic,footedness,Opposite (footedness; semantic context),"Opposite-foot indicator in semantic notation.",,(rare in semantic),notation-footedness-op
+IN,semantic,footedness,In (direction; semantic context),"Inward-arc indicator in semantic notation.",,(rare in semantic),notation-footedness-in
+OUT,semantic,footedness,Out (direction; semantic context),"Outward-arc indicator in semantic notation.",,(rare in semantic),notation-footedness-out
+DOUBLE,semantic,multiplicity,Double (productive-multiplicity prefix),"Multiplicity prefix per pt8: stabilized examples only (double-leg-over).",,DOUBLE LEGOVER,notation-multiplicity-double
+TRIPLE,semantic,multiplicity,Triple (productive-multiplicity prefix),"Multiplicity prefix per pt8: usually rejected as canonical unless community-stabilized.",,TRIPLE ATW,notation-multiplicity-triple
+CLIP,operational,surface,Clipper (set position),"Set position: clipper-stall surface used to start the trick.",,CLIP > ...,operational-notation-clip
+TOE,operational,surface,Toe (set position),"Set position: toe-stall surface used to start the trick.",,TOE > ...,operational-notation-toe
+SAME,operational,side,Same side,"Step on same side as the plant foot.",,SAME IN [DEX],operational-notation-side-same
+OP,operational,side,Opposite side,"Step on opposite side from the plant foot.",,OP OUT [DEX],operational-notation-side-op
+IN,operational,direction,In (inward arc),"Inward arc direction (toward the body).",,SAME IN [DEX],operational-notation-direction-in
+OUT,operational,direction,Out (outward arc),"Outward arc direction (away from the body).",,OP OUT [DEX],operational-notation-direction-out
+FRONT,operational,direction,Front (forward direction),"Forward direction. Fuses with WHIRL/SWIRL into a 2-token rotation variant.",,FRONT WHIRL,operational-notation-direction-front
+BACK,operational,direction,Back (backward direction),"Backward direction. Fuses with WHIRL/SWIRL into a 2-token rotation variant.",,BACK WHIRL,operational-notation-direction-back
+SPIN,operational,body_action,Spin (body rotation),"Body spin (rotation in place).",,(BACK) SPIN [BOD],operational-notation-body-spin
+DUCK,operational,body_action,Duck (body action),"Duck body action.",,DUCK [BOD],operational-notation-body-duck
+DIVE,operational,body_action,Dive (body action),"Dive body action (forward-downward).",,DIVE [BOD],operational-notation-body-dive
+[DEX],operational,component_flag,DEX (dexterity component),"A controlled-flick step contributing 1 to ADD. Foundational trick component.",ADD-bearing,SAME IN [DEX],operational-notation-flag-dex
+[DEL],operational,component_flag,DEL (delay component),"The trick's final stall (landing). One [DEL] per trick.",ADD-bearing,OP TOE [DEL],operational-notation-flag-del
+[BOD],operational,component_flag,BOD (body component),"Body-position step (pose / spin / duck / dive). No bag-foot interaction.",,(BACK) SPIN [BOD],operational-notation-flag-bod
+[XBD],operational,component_flag,XBD (cross-body component),"Cross-body delay on the opposite-side surface.",,OP CLIP [XBD] [DEL],operational-notation-flag-xbd
+[PDX],operational,component_flag,PDX (paradox component),"Paradox-direction dex marker on the step.",,OP IN [DEX] [PDX],operational-notation-flag-pdx
+[XDEX],operational,component_flag,XDEX (X-Dex component),"Full-circle dex variant (Atom Smasher per pt1).",ADD-bearing,(see atom-smasher),operational-notation-flag-xdex
+>,operational,sequence_op,Sequence step (>),"Next step in the trick sequence.",,A > B,operational-notation-sequence
+>>,operational,sequence_op,Sequence step major (>>),"Major sequence boundary; often separates the set-source from the trick body.",,CLIP >> SPIN,operational-notation-sequence
+(back),operational,pre_state,Pre-state: (back),"Backward direction (next move oriented backward).",,(back) Spin (BOD),operational-notation-prestate-back
+(front),operational,pre_state,Pre-state: (front),"Forward direction (next move oriented forward).",,(front) Whirl,operational-notation-prestate-front
+(no plant while),operational,pre_state,"Pre-state: (no plant while)","No support-leg plant during this segment.",,(no plant while) OP IN,operational-notation-prestate-no-plant
+(rooted),operational,pre_state,Pre-state: (rooted),"Rooted / held position; no plant. Per Red pt8.",,(rooted) ...,operational-notation-prestate-rooted
