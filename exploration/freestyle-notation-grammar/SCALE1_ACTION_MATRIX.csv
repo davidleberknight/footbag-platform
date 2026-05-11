@@ -1,0 +1,17 @@
+slug,canonical_name,adds,family,family_size,modifier_links,op_notation,prose,media_links,records,aliases,risk,recommended_action,scale1_batch
+tap,tap,3,mirage,11,1,Y,-,0,0,-,LOW,enrich,1
+legeater,legeater,3,pickup,5,1,Y,-,0,0,-,LOW,enrich,1
+paste,paste,3,pickup,5,1,Y,-,0,0,-,LOW,enrich,1
+scrambled-eggbeater,scrambled eggbeater,3,pickup,5,1,Y,-,0,0,-,LOW,enrich,1
+hatchet,hatchet,4,whirl,17,1,Y,-,0,0,-,LOW,enrich,1
+tripwalk,tripwalk,4,butterfly,12,1,Y,-,0,0,-,LOW,enrich,1
+pigbeater,pigbeater,4,legover,7,1,Y,-,0,0,-,LOW,enrich,1
+spinal-tap,spinal tap,5,torque,8,1,Y,-,0,0,-,LOW,enrich,1
+phoenix,phoenix,5,butterfly,12,2,Y,-,0,0,-,LOW,enrich,1
+spender,spender,6,blender,4,2,Y,-,0,0,-,LOW,enrich,1
+mullet,mullet,6,whirl,17,3,Y,-,0,0,-,LOW,defer-scale2,
+barfly,barfly,4,infinity,1,0,Y,-,2,0,Y,HIGH,defer-federation,
+blur,blur,4,mirage,11,1,Y,-,1,0,Y,HIGH,defer-ontology,
+matador,matador,5,butterfly,12,1,Y,PILOT,0,0,-,n/a,already-enriched,
+mind-bender,mind bender,6,blender,4,2,Y,PILOT,0,0,-,n/a,already-enriched,
+montage,montage,7,whirl,17,4,Y,PILOT,0,0,-,n/a,already-enriched,
