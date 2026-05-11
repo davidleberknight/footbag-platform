@@ -1,0 +1,18 @@
+{{!--
+  UX3d-b modifier-layering section. Activates only when
+  content.modifierLayering is non-null (modifier_links.length >= 3). Renders
+  the nested-box visualisation between the operational-notation block and the
+  prose / family sections.
+--}}
+{{#if content.modifierLayering}}
+<section class="content-section trick-modifier-layering-panel" aria-label="Modifier layering">
+  <div class="section-heading">
+    <h2>Modifier layering</h2>
+    <p class="section-intro">Outermost first; core last. Each modifier wraps the next and contributes its weight to the total.</p>
+  </div>
+  <div class="modifier-layer-stack">
+    {{> trick-modifier-layer layer=content.modifierLayering.rootLayer}}
+  </div>
+  <p class="modifier-layer-total">Total &equiv; <strong>{{content.modifierLayering.totalLabel}}</strong></p>
+</section>
+{{/if}}

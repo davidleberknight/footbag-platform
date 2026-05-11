@@ -516,6 +516,11 @@ export interface FreestyleTrickContent {
   // prominent coloured-token row mirroring the original prototype's title
   // decomposition. Pure presentation; augments the title, does not replace.
   heroDecomposition: HeroDecompositionToken[] | null;
+  // UX3d-b (2026-05-11) nested modifier-layering visualisation; null when
+  // modifier_links.length < 3. The single panel renders below the operational
+  // notation block; only Montage clears the threshold in the current
+  // dictionary. Pure presentation.
+  modifierLayering: ModifierLayering | null;
 }
 
 export interface Ux2PilotData {
@@ -618,6 +623,25 @@ export interface HeroDecompositionToken {
   text: string;          // modifier or base name (lowercase, as in canonical_name)
   cssRole: string;       // 'set' | 'rotation' | 'modifier' | 'core-family'
   kind: 'modifier' | 'base';
+}
+
+// UX3d-b (2026-05-11) modifier layering. Prototype-inspired nested-box
+// visualisation surfacing how modifiers stack onto the base trick. Activates
+// only when modifier_links.length >= 3 (flagship-density threshold from the
+// UX3 north-star §9.4). Each ModifierLayer wraps the next deeper layer; the
+// innermost layer is the base trick (kind='base'). Rendered by the recursive
+// partial src/views/partials/trick-modifier-layer.hbs. Pure presentation.
+export interface ModifierLayer {
+  kind: 'modifier' | 'base';
+  name: string;            // lowercase token
+  weight: string;          // '(+1)' for modifiers; '(3)' for base; empty when unknown
+  cssRole: string;         // 'set' | 'rotation' | 'modifier' | 'core-family'
+  inner: ModifierLayer | null;  // deeper layer; null at the base
+}
+
+export interface ModifierLayering {
+  rootLayer: ModifierLayer; // outermost wrapper; recurse via `inner` to the base
+  totalLabel: string;       // 'N ADD' summary line under the nested boxes
 }
 
 // ── Notation grammar (Phase 3, read-only display) ────────────────────────────
@@ -1633,6 +1657,59 @@ function buildHeroFormula(
   return tokens;
 }
 
+// UX3d-b (2026-05-11) modifier-layering builder. Activates only when
+// modifier_links.length >= 3 (flagship-density threshold). Builds an
+// innermost-out nested structure: the base trick is the innermost layer; each
+// modifier wraps the next one outward; modifier_links[0] becomes the outermost
+// wrapper (preserves canonical IFPA reading order: leftmost modifier = applied
+// last / outermost in the visual stack). Returns null otherwise (atoms,
+// 1-modifier or 2-modifier compounds, modifier-only rows, no base trick, no
+// numeric adds).
+function buildModifierLayering(
+  modifierLinks: FreestyleTrickModifierLinkDetailRow[],
+  baseTrick: string | null,
+  baseAdds: string | null,
+  isRotationalBase: boolean,
+  tricksAdds: string | null,
+  isModifier: boolean,
+): ModifierLayering | null {
+  if (isModifier) return null;
+  if (modifierLinks.length < 3) return null;
+  if (!baseTrick || !baseTrick.trim()) return null;
+  const numericAdds = tricksAdds && /^\d+$/.test(tricksAdds) ? tricksAdds : null;
+  if (numericAdds === null) return null;
+
+  // Innermost = base trick.
+  let layer: ModifierLayer = {
+    kind:    'base',
+    name:    baseTrick.toLowerCase(),
+    weight:  baseAdds ? `(${baseAdds})` : '',
+    cssRole: 'core-family',
+    inner:   null,
+  };
+
+  // Wrap outward: iterate modifier_links in reverse so the first entry ends up
+  // as the outermost wrapper.
+  for (let i = modifierLinks.length - 1; i >= 0; i--) {
+    const link = modifierLinks[i];
+    const effectiveBonus = isRotationalBase
+      ? link.add_bonus_rotational
+      : link.add_bonus;
+    layer = {
+      kind:    'modifier',
+      name:    link.modifier_name.toLowerCase(),
+      weight:  `(+${effectiveBonus})`,
+      cssRole: modifierCssRole(link.modifier_slug, link.modifier_type),
+      inner:   layer,
+    };
+  }
+
+  return {
+    rootLayer:  layer,
+    totalLabel: `${numericAdds} ADD`,
+  };
+}
+
 // UX3d-a (2026-05-11) hero decomposition builder. Returns a role-coloured
 // token sequence (modifier(s) + base) for compound tricks where
 // modifierLinks.length >= 2. Returns null otherwise (atoms, 1-modifier rows,
@@ -2041,6 +2118,16 @@ export const freestyleService = {
             ? buildHeroDecomposition(
                 modifierLinks,
                 dictEntry.baseTrick,
+                dictEntry.isModifier,
+              )
+            : null,
+          modifierLayering: dictEntry
+            ? buildModifierLayering(
+                modifierLinks,
+                dictEntry.baseTrick,
+                dictEntry.baseTrickAdds,
+                ROTATIONAL_BASES.has(dictEntry.baseTrickSlug ?? ''),
+                dictEntry.adds,
                 dictEntry.isModifier,
               )
             : null,

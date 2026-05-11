@@ -3423,3 +3423,99 @@ section.home-media { padding-top: 0; }
     padding: 2px 7px;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3d-b (2026-05-11) nested modifier-layering panel. Activates only when
+   modifier_links.length >= 3 (current dictionary: Montage only). Restraint:
+   one panel; no client JS; pure CSS for nesting. Each layer is a coloured
+   bordered box wrapping the next deeper layer; innermost is the base trick.
+   Mobile-safe: padding tightens, font shrinks, no horizontal scroll.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-modifier-layering-panel .modifier-layer-stack {
+  margin: 4px 0 12px;
+}
+.modifier-layer {
+  position: relative;
+  border: 1.5px solid;
+  border-radius: 8px;
+  padding: 12px 14px 10px;
+  margin-top: 8px;
+}
+.modifier-layer:first-child { margin-top: 0; }
+.modifier-layer-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 4px;
+}
+.modifier-layer-role-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  opacity: 0.82;
+}
+.modifier-layer-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.modifier-layer-weight {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  opacity: 0.78;
+  font-weight: 500;
+}
+
+/* Per-role coloration. Cool palette, harmonised with notation + family
+   surfaces. Each role uses a tinted background + matching border. */
+.modifier-layer-set {
+  border-color: #93c5fd;
+  background: rgba(219, 234, 254, 0.42);
+  color: #1e3a8a;
+}
+.modifier-layer-rotation {
+  border-color: #fdba74;
+  background: rgba(255, 237, 213, 0.55);
+  color: #9a3412;
+}
+.modifier-layer-modifier {
+  border-color: #fcd34d;
+  background: rgba(254, 243, 199, 0.52);
+  color: #78350f;
+}
+.modifier-layer-core-family {
+  border-color: #4ade80;
+  background: rgba(209, 250, 229, 0.65);
+  color: #14532d;
+}
+.modifier-layer-core-family .modifier-layer-name { font-weight: 800; }
+
+.modifier-layer-total {
+  margin: 12px 0 0;
+  text-align: right;
+  font-size: 0.95rem;
+  color: var(--text-muted, #4b5563);
+}
+.modifier-layer-total strong {
+  font-size: 1.1rem;
+  color: #14532d;
+  margin-left: 4px;
+}
+
+@media (max-width: 600px) {
+  .modifier-layer {
+    padding: 8px 10px 8px;
+    margin-top: 6px;
+    border-radius: 6px;
+  }
+  .modifier-layer-head {
+    gap: 2px 6px;
+  }
+  .modifier-layer-role-label { font-size: 0.68rem; }
+  .modifier-layer-name { font-size: 0.98rem; }
+  .modifier-layer-weight { font-size: 0.85rem; }
+  .modifier-layer-total { font-size: 0.9rem; }
+}

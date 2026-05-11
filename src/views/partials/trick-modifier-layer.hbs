@@ -1,0 +1,22 @@
+{{!--
+  UX3d-b recursive layer partial. Renders one modifier-layering box and
+  recursively renders the deeper layer until `inner` is null. Outermost
+  modifier is the entry point; innermost is the base trick (kind='base').
+
+  Required param:
+    layer - ModifierLayer object { kind, name, weight, cssRole, inner }
+--}}
+<div class="modifier-layer modifier-layer-{{layer.cssRole}}" data-kind="{{layer.kind}}">
+  <div class="modifier-layer-head">
+    {{#if (eq layer.kind "base")}}
+    <span class="modifier-layer-role-label">core</span>
+    {{else}}
+    <span class="modifier-layer-role-label">{{layer.cssRole}}</span>
+    {{/if}}
+    <span class="modifier-layer-name">{{layer.name}}</span>
+    {{#if layer.weight}}<span class="modifier-layer-weight">{{layer.weight}}</span>{{/if}}
+  </div>
+  {{#if layer.inner}}
+  {{> trick-modifier-layer layer=layer.inner}}
+  {{/if}}
+</div>
