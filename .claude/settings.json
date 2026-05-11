@@ -196,6 +196,7 @@
       "Bash(git worktree remove*)"
     ]
   },
+  "enabledMcpjsonServers": ["playwright"],
   "hooks": {
     "PreToolUse": [
       {
