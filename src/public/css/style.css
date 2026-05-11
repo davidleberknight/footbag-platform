@@ -3519,3 +3519,81 @@ section.home-media { padding-top: 0; }
   .modifier-layer-weight { font-size: 0.85rem; }
   .modifier-layer-total { font-size: 0.9rem; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3d-d (2026-05-11) semantic-density convergence for trick-detail pages.
+   Scoped to .trick-shell so non-trick pages are unaffected. Brings the
+   per-section rhythm closer to the prototype's "semantic instrument panel"
+   feel: quieter h2, tighter section padding, smaller section intros,
+   denser prose spacing. Pure typography + spacing; no colour, layout,
+   or structural changes.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-shell .content-section {
+  margin: 20px 0;
+}
+.trick-shell .section-heading {
+  margin-bottom: 12px;
+}
+.trick-shell .section-heading h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #6b7280);
+  margin: 0;
+}
+.trick-shell .section-intro {
+  font-size: 0.88rem;
+  color: var(--text-muted, #6b7280);
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+.trick-shell .trick-prose-paragraph {
+  margin: 0 0 8px;
+}
+.trick-shell .trick-prose-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .trick-shell .content-section { margin: 16px 0; }
+  .trick-shell .section-heading h2 { font-size: 0.92rem; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3d-e (2026-05-11) semantic-cluster shared chrome. Three structural
+   surfaces (notation, operational notation, modifier layering) render as
+   matching cards. Shared chrome + tighter spacing communicates "single
+   integrated analysis cluster" without HTML restructuring. Atom pages with
+   notation-only render the standalone card; the cluster feel emerges only
+   when 2+ surfaces are present. Prose sections (Execution / Learning /
+   Before you try this) continue with no card chrome -- preserves the
+   structural-vs-editorial visual distinction.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-shell .notation-display,
+.trick-shell .operational-notation-display,
+.trick-shell .trick-modifier-layering-panel {
+  padding: 14px 18px;
+  border: 1px solid var(--border, #e5e7eb);
+  background: #fff;
+  border-radius: 8px;
+  margin: 12px 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+.trick-shell .notation-display .section-heading,
+.trick-shell .operational-notation-display .section-heading,
+.trick-shell .trick-modifier-layering-panel .section-heading {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 600px) {
+  .trick-shell .notation-display,
+  .trick-shell .operational-notation-display,
+  .trick-shell .trick-modifier-layering-panel {
+    padding: 10px 12px;
+    margin: 10px 0;
+    border-radius: 6px;
+  }
+}
