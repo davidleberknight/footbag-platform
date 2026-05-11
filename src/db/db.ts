@@ -1025,6 +1025,12 @@ export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
   add_formula_status:          string | null;
   operational_notation:        string | null;
   operational_notation_source: string | null;
+  // UX3b1 (2026-05-11) editorial prose + featured-media columns.
+  short_description:           string | null;
+  execution_summary:           string | null;
+  learning_notes:              string | null;
+  prerequisite_notes:          string | null;
+  featured_media_id:           string | null;
 }
 
 // Extension of FreestyleTrickRow returned by listAllWithPending; carries the
@@ -1108,7 +1114,9 @@ export const freestyleTricks = {
            jobs_notation_raw, jobs_notation_normalized,
            structural_parse_json, computed_add_formula,
            computed_adds, add_formula_status,
-           operational_notation, operational_notation_source
+           operational_notation, operational_notation_source,
+           short_description, execution_summary, learning_notes,
+           prerequisite_notes, featured_media_id
     FROM freestyle_tricks
     WHERE slug = ? AND is_active = 1
   `); },

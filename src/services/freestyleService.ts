@@ -487,10 +487,16 @@ export interface FreestyleTrickContent {
   operationalNotation: OperationalNotation | null;
   // UX2 single-page pilot (2026-05-11). Populated only for the flagship
   // pilot trick (montage). Null for every other trick so the legacy template
-  // continues to render unchanged. When populated, the controller picks
-  // freestyle/trick-ux2.hbs in place of freestyle/trick.hbs. No schema
-  // backing; prose lives in a service-layer constant during the pilot.
+  // continues to render unchanged. When populated, the universal shell
+  // renders the UX2 section sequence instead of the legacy ordering.
   ux2Pilot: Ux2PilotData | null;
+  // UX3b0 density classification (2026-05-11). Derived from existing data only
+  // (modifier count, notation presence, operational notation presence, records,
+  // media, ux2Pilot data presence). Read-only signal at UX3b0; future phases
+  // use this to gate flagship-only visual surfaces (token-coloured h1,
+  // modifier-layering visualisation, modifier-ecosystem panel) without per-slug
+  // allowlists. Does not change rendering in UX3b0.
+  densityTier: 'sparse' | 'standard' | 'flagship';
 }
 
 export interface Ux2PilotData {
@@ -1459,71 +1465,85 @@ function shapeModifierEntry(row: FreestyleTrickModifierRow): FreestyleModifierEn
 // src/content/freestyleEditorial.ts; imported at the top of this file.
 
 // ---------------------------------------------------------------------------
-// UX2 single-page pilot (2026-05-11)
+// UX3b1 editorial prose surface (2026-05-11)
 // ---------------------------------------------------------------------------
-// Validation scope: layout hierarchy + restraint-first editorial rhythm for
-// a single flagship trick (montage). Prose lives here, not in the schema,
-// until pilot review concludes. Adding more pilot trick slugs is intentional
-// flag-gating; do not expand without explicit human direction.
+// Curator-authored prose backing the universal-shell template's UX2 ordering.
+// Prose lives in freestyle_tricks columns (short_description / execution_summary
+// / learning_notes / prerequisite_notes / featured_media_id). Service shapes
+// the row into Ux2PilotData when ANY of the prose columns is populated. A row
+// with all five columns null falls through to the legacy ordering branch in
+// the shell. No service-layer allowlist; section presence is data-driven.
 
-interface Ux2PilotRawProse {
-  shortDescription: string;
-  executionSummary: string;
-  learningNotes: string;
-  prerequisiteNotes: string;
-  featuredMediaEmptyState: string;
+// Featured-media empty-state copy is derived from whether the trick has a
+// record holder. Rows with records steer the reader to the Passback Records
+// section below; rows without records steer to family-adjacent demonstrations.
+const FEATURED_MEDIA_EMPTY_GENERIC =
+  "Curated tutorial coming soon. Until then, see family-adjacent demonstrations below.";
+const FEATURED_MEDIA_EMPTY_WITH_RECORD =
+  "Curated tutorial coming soon. See the record-holder demonstration in Passback Records below.";
+
+function shapeUx2PilotFromRow(
+  row: FreestyleTrickRowWithParse | undefined,
+  recordCount: number,
+): Ux2PilotData | null {
+  if (!row) return null;
+  const hasProse =
+    !!row.short_description ||
+    !!row.execution_summary ||
+    !!row.learning_notes ||
+    !!row.prerequisite_notes;
+  if (!hasProse) return null;
+  return {
+    shortDescription:        row.short_description ?? null,
+    executionParagraphs:     splitProseParagraphs(row.execution_summary),
+    learningParagraphs:      splitProseParagraphs(row.learning_notes),
+    prerequisiteParagraphs:  splitProseParagraphs(row.prerequisite_notes),
+    featuredMedia:           null,
+    featuredMediaEmptyState:
+      recordCount > 0
+        ? FEATURED_MEDIA_EMPTY_WITH_RECORD
+        : FEATURED_MEDIA_EMPTY_GENERIC,
+  };
 }
 
-const UX2_PILOT_RAW: Record<string, Ux2PilotRawProse> = {
-  montage: {
-    shortDescription:
-      "A 7-ADD whirl compound: ducking, paradox, symposium, and spinning all layered onto the whirl base in a single continuous rotation.",
-    executionSummary:
-      "Begin from a clipper set with the supporting leg planted under the bag. The whirl rotation carries the body around the planted leg while the body simultaneously holds the symposium body line, the paradox same-side reset, and the ducking head-low compression. The body-spin (spinning) completes the figure as the bag returns to the clipper position.\n\nThe four modifiers are composed onto the whirl frame, not sequenced. Difficulty comes from holding all four body positions through one continuous rotation rather than chaining them.",
-    learningNotes:
-      "Most practitioners reach montage after each of its constituents (ducking-whirl, paradox-whirl, symposium-whirl, spinning-whirl) is clean in isolation. The symposium body line combined with the ducking head-low compression is the load-bearing junction; if either drifts, the spinning rotation tends to flatten and the paradox reset is lost. Practice the body posture before adding rotation.",
-    prerequisiteNotes:
-      "Confident execution of the 4-ADD whirl compounds (ducking-whirl, paradox-whirl, symposium-whirl) is the natural prerequisite. Spinning-whirl at 5 ADD introduces the body-spin component that montage rides on top of.",
-    featuredMediaEmptyState:
-      "Curated tutorial coming soon. Until then, see family-adjacent demonstrations below.",
-  },
-  matador: {
-    shortDescription:
-      "A 5-ADD butterfly compound: nuclear's paradox-atomic +2 weighting layered onto the butterfly base.",
-    executionSummary:
-      "From a clipper set, body opens with a same-side out kick carrying both dex and paradox direction. Body completes with an opposite-side out kick and lands cross-body in a clipper delay. The nuclear modifier is what makes this a 5-ADD trick rather than a 4-ADD same-out-then-op-out butterfly: nuclear's +2 ADD comes from the paradox-atomic body weighting that the same-out kick carries explicitly.\n\nOperationally the trick is four steps: clipper start, same-out (dex)(pdx), op-out (dex), op-clip cross-body delay.",
-    learningNotes:
-      "Nuclear's +2 ADD weighting reflects the paradox-atomic body commitment. The most common miss is the same-out paradox: practitioners reach for the kick without committing the body direction first. The paradox marker in the operational notation is where the +2 anchors -- ensure body weight is committed before the dex.",
-    prerequisiteNotes:
-      "Comfortable execution of any 4-ADD butterfly compound is the natural entry point. Atomic-butterfly (4 ADD) shares the most body mechanics with Matador. Nuclear's +2 ADD weight (the paradox-atomic body commitment) is what carries the trick from 4 to 5 ADD.",
-    featuredMediaEmptyState:
-      "Curated tutorial coming soon. See the record-holder demonstration in Passback Records below.",
-  },
-  "mind-bender": {
-    shortDescription:
-      "A 6-ADD blender compound: ducking and paradox layered onto the Whirling-Osis rotational base.",
-    executionSummary:
-      "From a clipper set, drop into a ducking body compression, then execute a same-side front whirl with both dex and paradox direction. Body reverses to a back-facing spin, then lands cross-body in a same-side clipper delay. Five operational steps: clip, duck, same-front-whirl (dex)(pdx), (back)-spin (bod), same-clip cross-body.\n\nThe blender base (transitively Whirling Osis) carries 4 ADD; ducking + paradox add 2 more. The (front) and (back) annotations in the operational notation track the body orientation across the spin transition -- this is the load-bearing rotational signature of the blender family.",
-    learningNotes:
-      "Pairs naturally with Spender (Spinning + Paradox + Blender; also 6 ADD). Both are 6-ADD blender compounds; both carry paradox; the difference is body-modifier: Spender carries spinning (body rotation), Mind Bender carries ducking (body compression). Compare the two side-by-side for cross-modifier feel.",
-    prerequisiteNotes:
-      "Comfortable execution of blender (4 ADD) and paradox-blender (5 ADD) is the natural entry point. The ducking modifier should be solid on a separate base (ducking-whirl, ducking-butterfly) before attempting Mind Bender. Spender is the natural same-tier sibling to study alongside.",
-    featuredMediaEmptyState:
-      "Curated tutorial coming soon. Until then, see family-adjacent demonstrations below.",
-  },
-};
-
-function lookupUx2Pilot(slug: string): Ux2PilotData | null {
-  const raw = UX2_PILOT_RAW[slug];
-  if (!raw) return null;
-  return {
-    shortDescription:        raw.shortDescription || null,
-    executionParagraphs:     splitProseParagraphs(raw.executionSummary),
-    learningParagraphs:      splitProseParagraphs(raw.learningNotes),
-    prerequisiteParagraphs:  splitProseParagraphs(raw.prerequisiteNotes),
-    featuredMedia:           null,
-    featuredMediaEmptyState: raw.featuredMediaEmptyState || null,
-  };
+// UX3b0 density classification (2026-05-11). Derived from existing data only;
+// no schema dependency. Inputs: modifier-link count, semantic notation presence,
+// operational notation presence, record count, media availability, ux2Pilot
+// presence. Stays read-only at UX3b0; future UX3 phases consume this signal
+// to gate flagship-only surfaces (token-coloured h1, modifier-layering panel,
+// modifier-ecosystem block) without per-slug allowlists.
+function classifyDensityTier(args: {
+  modifierLinkCount: number;
+  hasSemanticNotation: boolean;
+  hasOperationalNotation: boolean;
+  recordCount: number;
+  hasReferenceMedia: boolean;
+  hasUx2Prose: boolean;
+}): 'sparse' | 'standard' | 'flagship' {
+  // Flagship: a row has been authored to flagship-tier richness, OR it carries
+  // 3+ modifier-links AND has operational notation AND has records (the
+  // densest naturally-occurring signal in the live dictionary).
+  if (args.hasUx2Prose) return 'flagship';
+  if (
+    args.modifierLinkCount >= 3 &&
+    args.hasOperationalNotation &&
+    args.recordCount > 0
+  ) {
+    return 'flagship';
+  }
+  // Sparse: atom rows (no modifier-links) with no operational notation, no
+  // record holders, and no tagged reference media. Toe Stall, base butterfly,
+  // base mirage, etc. The page reads short and focused.
+  if (
+    args.modifierLinkCount === 0 &&
+    !args.hasOperationalNotation &&
+    args.recordCount === 0 &&
+    !args.hasReferenceMedia
+  ) {
+    return 'sparse';
+  }
+  // Standard: everything in between. Most compound tricks land here.
+  return 'standard';
 }
 
 // ---------------------------------------------------------------------------
@@ -1796,7 +1816,17 @@ export const freestyleService = {
             const sourceNote = rawSource && rawSource.trim() ? rawSource.trim() : null;
             return { raw: display.raw, tokens: display.tokens, sourceNote };
           })(),
-          ux2Pilot: lookupUx2Pilot(slug),
+          ux2Pilot: shapeUx2PilotFromRow(dictRow, currentRows.length),
+          densityTier: classifyDensityTier({
+            modifierLinkCount: dictEntry?.appliedModifiers?.length ?? 0,
+            hasSemanticNotation: !!(dictRow?.notation && dictRow.notation.trim()),
+            hasOperationalNotation: !!(
+              dictRow?.operational_notation && dictRow.operational_notation.trim()
+            ),
+            recordCount: currentRows.length,
+            hasReferenceMedia,
+            hasUx2Prose: shapeUx2PilotFromRow(dictRow, currentRows.length) !== null,
+          }),
         };
       })(),
     };

@@ -1,0 +1,31 @@
+{{!--
+  Hero-adjacent featured-media preview (UX2 pilot only).
+  Renders the featured-media card when content.ux2Pilot.featuredMedia is present,
+  or the dashed empty-state pill when null.
+--}}
+<section class="content-section trick-featured-preview" aria-label="Featured demonstration preview">
+  {{#if content.ux2Pilot.featuredMedia}}
+    <div class="trick-featured-preview-card">
+      <div class="trick-featured-preview-thumb">
+        {{#if content.ux2Pilot.featuredMedia.media}}
+          {{> video-facade media=content.ux2Pilot.featuredMedia.media}}
+        {{/if}}
+      </div>
+      <div class="trick-featured-preview-meta">
+        <h2 class="trick-featured-preview-title">Featured demonstration</h2>
+        {{#if content.ux2Pilot.featuredMedia.caption}}
+        <p class="trick-featured-preview-caption">{{content.ux2Pilot.featuredMedia.caption}}</p>
+        {{/if}}
+        {{#if content.ux2Pilot.featuredMedia.sourceLabel}}
+        <p class="trick-featured-preview-source">{{content.ux2Pilot.featuredMedia.sourceLabel}}</p>
+        {{/if}}
+        <p class="trick-featured-preview-jump"><a href="#media">Full media gallery &darr;</a></p>
+      </div>
+    </div>
+  {{else}}
+    <div class="trick-featured-preview-empty">
+      <span class="trick-featured-preview-empty-label">Featured demonstration</span>
+      <span class="trick-featured-preview-empty-text">{{content.ux2Pilot.featuredMediaEmptyState}}</span>
+    </div>
+  {{/if}}
+</section>

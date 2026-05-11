@@ -1,0 +1,16 @@
+{{!--
+  Semantic notation block (cool palette). Renders only when notationDisplay is non-null.
+  Token coloration + glossary deeplink unchanged from prior templates.
+--}}
+{{#if content.notationDisplay}}
+<section class="content-section notation-display" aria-label="Trick notation">
+  <div class="section-heading">
+    <h2>Notation</h2>
+    <p class="section-intro">A token-level reading of this trick, color-coded by structural role.</p>
+  </div>
+  <code class="notation-display-tokens">{{#each content.notationDisplay.tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+  <p class="notation-glossary-link">
+    <a href="/freestyle/glossary#notation">Token reference &rarr;</a>
+  </p>
+</section>
+{{/if}}

@@ -1,0 +1,18 @@
+{{!--
+  Related tricks list. Auto-derived by service-layer R1/R2/R3 rules.
+--}}
+{{#if content.relatedTricks.length}}
+<section class="content-section">
+  <div class="section-heading">
+    <h2>Related Tricks</h2>
+  </div>
+  <ul class="related-tricks-list">
+    {{#each content.relatedTricks}}
+    <li>
+      <a href="{{detailHref}}">{{canonicalName}}</a>
+      <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
+    </li>
+    {{/each}}
+  </ul>
+</section>
+{{/if}}

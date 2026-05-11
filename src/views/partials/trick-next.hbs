@@ -1,0 +1,20 @@
+{{!--
+  Next (higher-ADD same-family) tricks list. Auto-derived.
+--}}
+{{#if content.nextTricks.length}}
+<section class="content-section">
+  <div class="section-heading">
+    <h2>Next Tricks</h2>
+    <p class="section-intro">Higher-ADD tricks in the same family -- natural next steps.</p>
+  </div>
+  <ul class="next-tricks-list">
+    {{#each content.nextTricks}}
+    <li>
+      <a href="{{detailHref}}">{{canonicalName}}</a>
+      <span class="next-tricks-adds">{{adds}} ADD</span>
+      <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
+    </li>
+    {{/each}}
+  </ul>
+</section>
+{{/if}}

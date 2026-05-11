@@ -1,0 +1,34 @@
+{{!--
+  Trick hero block. Shared between legacy and UX2 pilot render.
+  UX2 pilot variant adds an editorial summary paragraph; legacy omits.
+  Pass `summary` to render the UX2 hero-summary paragraph.
+--}}
+<div class="hero hero-sm{{#if summary}} trick-hero-ux2{{/if}}">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    {{#if page.eyebrow}}<p class="hero-eyebrow">{{page.eyebrow}}</p>{{/if}}
+    <h1>{{page.title}}</h1>
+    {{#if content.dictEntry.trickFamily}}
+    <p><a class="family-badge" href="/freestyle/tricks?family={{content.dictEntry.trickFamily}}">{{content.dictEntry.trickFamily}} family</a></p>
+    {{/if}}
+    {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
+    <div class="hero-stats">
+      {{#if content.dictEntry}}
+        {{#unless content.dictEntry.isModifier}}
+          {{#if content.dictEntry.adds}}<span>{{content.dictEntry.adds}} ADD</span>{{/if}}
+        {{/unless}}
+        {{#if content.dictEntry.category}}<span class="hero-stat-label">{{content.dictEntry.category}}</span>{{/if}}
+      {{/if}}
+      {{#if content.recordCount}}<span>{{content.topValue}} kicks (record)</span>{{/if}}
+    </div>
+    {{#if summary}}
+    <p class="trick-hero-summary">{{summary}}</p>
+    {{/if}}
+  </div>
+</div>

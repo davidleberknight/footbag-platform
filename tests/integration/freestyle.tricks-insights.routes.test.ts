@@ -1069,10 +1069,10 @@ describe('GET /freestyle/tricks/:slug — with dictionary entry', () => {
     expect(res.text).toContain('Passback Records');
   });
 
-  it('shows About This Trick section', async () => {
+  it('shows About this trick section', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/whirl');
-    expect(res.text).toContain('About This Trick');
+    expect(res.text).toContain('About this trick');
   });
 
   it('shows breadcrumb with Trick Dictionary link', async () => {
@@ -1116,7 +1116,7 @@ describe('GET /freestyle/tricks/:slug — with dictionary entry', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('mystery-trick');
     // No dict entry, so no About section
-    expect(res.text).not.toContain('About This Trick');
+    expect(res.text).not.toContain('About this trick');
   });
 });
 

@@ -42,11 +42,9 @@ export const freestyleController = {
   trick(req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = freestyleService.getTrickDetailPage(req.params['slug'] ?? '');
-      // UX2 single-page pilot (2026-05-11): when the service populates
-      // content.ux2Pilot, render the pilot template; otherwise fall through
-      // to the legacy template. Gate is single-trick today (montage).
-      const template = vm.content.ux2Pilot ? 'freestyle/trick-ux2' : 'freestyle/trick';
-      res.render(template, vm);
+      // UX3b0 universal shell (2026-05-11): one template renders every trick;
+      // pilot/legacy ordering branch lives inside the shell via content.ux2Pilot.
+      res.render('freestyle/trick-shell', vm);
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {

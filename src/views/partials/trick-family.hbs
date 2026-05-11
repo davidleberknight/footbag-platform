@@ -1,0 +1,27 @@
+{{!--
+  Family ladder. Renders when hasFamilyMembers is true.
+--}}
+{{#if content.hasFamilyMembers}}
+<section class="content-section">
+  <div class="section-heading">
+    <h2>{{page.title}} Family</h2>
+    <p class="section-intro">Tricks in this family, from simplest to most complex.</p>
+  </div>
+  <div class="family-ladder">
+    {{#each content.familyMembers}}
+    <div class="family-ladder-item{{#if isCurrentTrick}} family-ladder-current{{/if}}">
+      <span class="family-ladder-adds">{{#if adds}}{{adds}}{{else}}mod{{/if}}</span>
+      <span class="family-ladder-name">
+        {{#if isCurrentTrick}}
+          <strong>{{canonicalName}}</strong>
+        {{else}}
+          <a href="{{detailHref}}">{{canonicalName}}</a>
+        {{/if}}
+        {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+      </span>
+      {{#if isCurrentTrick}}<span class="family-ladder-here">&larr;</span>{{/if}}
+    </div>
+    {{/each}}
+  </div>
+</section>
+{{/if}}

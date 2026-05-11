@@ -1,0 +1,24 @@
+{{!--
+  Parameterized prose section. Used by UX2 pilot for execution / learning / prerequisite blocks.
+  Required params:
+    heading      - section title (e.g. "Execution")
+    paragraphs   - array of strings; pre-split by service layer
+  Optional params:
+    intro        - short paragraph below heading (italic muted)
+    extraLink    - { href, label } for an anchor link after paragraphs (used by prerequisite block)
+    sectionClass - extra class on the wrapping <section>
+--}}
+<section class="content-section{{#if sectionClass}} {{sectionClass}}{{/if}}">
+  <div class="section-heading">
+    <h2>{{heading}}</h2>
+    {{#if intro}}<p class="section-intro">{{intro}}</p>{{/if}}
+  </div>
+  {{#each paragraphs}}
+  <p class="trick-prose-paragraph">{{this}}</p>
+  {{/each}}
+  {{#if extraLink}}
+  <p class="trick-prereq-anchor">
+    <a href="{{extraLink.href}}">{{{extraLink.label}}}</a>
+  </p>
+  {{/if}}
+</section>

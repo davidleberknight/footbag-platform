@@ -3626,7 +3626,20 @@ CREATE TABLE freestyle_tricks (
   structural_parse_json     TEXT,                  -- JSON: {core_family, set, rotation, modifier, dex_structure, delay_surface, ...}. Per PROPOSAL §2.
   computed_add_formula      TEXT,                  -- human-readable ADD derivation, e.g. 'spinning(+1 rot) + whirl(3) = 4'. NULL when unresolved.
   computed_adds             INTEGER,               -- numeric ADD when derivable. NULL otherwise. Diagnostic only — does NOT override `adds` above.
-  add_formula_status        TEXT                   -- 'exact_modifier_derived' | 'exact_self_atom' | 'approximate' | 'unresolved' | 'policy_dependent' (no CHECK; see PROPOSAL §7.2 + PHASE_2_5_REFINEMENTS §2)
+  add_formula_status        TEXT,                  -- 'exact_modifier_derived' | 'exact_self_atom' | 'approximate' | 'unresolved' | 'policy_dependent' (no CHECK; see PROPOSAL §7.2 + PHASE_2_5_REFINEMENTS §2)
+
+  -- ── UX3 editorial prose + featured-media columns (UX3b1, 2026-05-11) ────
+  -- Curator-authored editorial prose backing the universal-shell template
+  -- (src/views/freestyle/trick-shell.hbs) UX2-tier rendering. Service-layer
+  -- shaping pre-splits prose paragraphs and exposes them via
+  -- FreestyleTrickContent.ux2Pilot. All columns nullable; section render gates
+  -- on column presence so sparse rows continue to render cleanly. Replaces the
+  -- prior service-layer UX2_PILOT_RAW constant.
+  short_description    TEXT,                       -- one-sentence elevator pitch rendered in the hero
+  execution_summary    TEXT,                       -- plain-English mechanics; multi-paragraph (split by service on \n\n)
+  learning_notes       TEXT,                       -- gotchas + progression tips; multi-paragraph
+  prerequisite_notes   TEXT,                       -- prereq prose; falls back to "Previous Tricks" anchor when absent
+  featured_media_id    TEXT                        -- optional FK soft-reference to freestyle_media_assets(id); service validates the asset is tagged to this trick before surfacing it as featured. NULL = empty-state featured-media slot.
 );
 
 CREATE INDEX idx_freestyle_tricks_category      ON freestyle_tricks(category);
