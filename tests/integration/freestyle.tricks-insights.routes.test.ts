@@ -677,11 +677,13 @@ describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway word
 });
 
 describe('GET /freestyle/tricks/:slug — family badge in hero', () => {
-  it('renders a family badge linking to the family filter', async () => {
+  it('renders a family chip linking to the family filter', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="family-badge"[^>]*href="\/freestyle\/tricks\?family=whirl"[^>]*>whirl family</);
+    // UX3f-b unified the family badge into the hero metadata ribbon as
+    // .trick-hero-meta-chip-family with the same link semantics.
+    expect(res.text).toMatch(/class="trick-hero-meta-chip trick-hero-meta-chip-family"[^>]*href="\/freestyle\/tricks\?family=whirl"[^>]*>whirl family</);
   });
 
   it('Related Tricks hashtags are identity links (not family links)', async () => {

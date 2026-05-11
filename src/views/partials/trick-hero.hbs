@@ -1,7 +1,13 @@
 {{!--
-  Trick hero block. Shared between legacy and UX2 pilot render.
-  UX2 pilot variant adds an editorial summary paragraph; legacy omits.
-  Pass `summary` to render the UX2 hero-summary paragraph.
+  Trick hero block. UX3f-b (2026-05-11) consolidation: the family badge,
+  ADD chip, and record chip merge into a single metadata ribbon directly
+  below the h1. The previous standalone eyebrow + hero-stats div + family-
+  badge paragraph rendered as 3 separate rows; the ribbon collapses them
+  into one. The "compound" category chip is dropped (low-signal; conveyed
+  implicitly by the rest of the hero). Decomposition strip (UX3d-a),
+  formula (UX3c-c), and summary continue to render in their established
+  positions below the ribbon. Sparse pages without a heroDecomposition
+  fall back to the records-side sortname subtitle for identity continuity.
 --}}
 <div class="hero hero-sm{{#if summary}} trick-hero-ux2{{/if}}">
   <div>
@@ -12,26 +18,32 @@
       {{/each}}
     </nav>
     {{/if}}
-    {{#if page.eyebrow}}<p class="hero-eyebrow">{{page.eyebrow}}</p>{{/if}}
     <h1>{{page.title}}</h1>
+    <p class="trick-hero-meta-ribbon" aria-label="Trick metadata">
+      {{#if content.dictEntry.trickFamily}}
+      <a class="trick-hero-meta-chip trick-hero-meta-chip-family" href="/freestyle/tricks?family={{content.dictEntry.trickFamily}}">{{content.dictEntry.trickFamily}} family</a>
+      {{/if}}
+      {{#if content.dictEntry}}
+        {{#if content.dictEntry.isModifier}}
+        <span class="trick-hero-meta-chip trick-hero-meta-chip-modifier">Modifier</span>
+        {{else}}
+          {{#if content.dictEntry.adds}}
+          <span class="trick-hero-meta-chip trick-hero-meta-chip-adds">{{content.dictEntry.adds}} ADD</span>
+          {{/if}}
+        {{/if}}
+      {{/if}}
+      {{#if content.recordCount}}
+      <span class="trick-hero-meta-chip trick-hero-meta-chip-record">{{content.topValue}} kicks &middot; record</span>
+      {{/if}}
+    </p>
     {{#if content.heroDecomposition}}
     <p class="trick-hero-decomposition" aria-label="Structural decomposition: {{#each content.heroDecomposition}}{{text}}{{#unless @last}} {{/unless}}{{/each}}">
       {{#each content.heroDecomposition}}<span class="hero-decomp-token hero-decomp-{{cssRole}}" data-kind="{{kind}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}
     </p>
     {{/if}}
-    {{#if content.dictEntry.trickFamily}}
-    <p><a class="family-badge" href="/freestyle/tricks?family={{content.dictEntry.trickFamily}}">{{content.dictEntry.trickFamily}} family</a></p>
-    {{/if}}
-    {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
-    <div class="hero-stats">
-      {{#if content.dictEntry}}
-        {{#unless content.dictEntry.isModifier}}
-          {{#if content.dictEntry.adds}}<span>{{content.dictEntry.adds}} ADD</span>{{/if}}
-        {{/unless}}
-        {{#if content.dictEntry.category}}<span class="hero-stat-label">{{content.dictEntry.category}}</span>{{/if}}
-      {{/if}}
-      {{#if content.recordCount}}<span>{{content.topValue}} kicks (record)</span>{{/if}}
-    </div>
+    {{#unless content.heroDecomposition}}
+      {{#if content.sortName}}<p class="hero-subtitle">{{content.sortName}}</p>{{/if}}
+    {{/unless}}
     {{#if content.heroFormula}}
     <p class="trick-hero-formula" aria-label="ADD derivation">
       {{#each content.heroFormula}}{{#if (eq kind "operator")}}<span class="hero-formula-op">{{text}}</span>{{else if (eq kind "result")}}<span class="hero-formula-result">{{text}}</span>{{else}}<span class="hero-formula-token hero-formula-{{cssRole}}">{{text}}</span>{{#if weight}}<span class="hero-formula-weight">{{weight}}</span>{{/if}}{{/if}}{{#unless @last}} {{/unless}}{{/each}}

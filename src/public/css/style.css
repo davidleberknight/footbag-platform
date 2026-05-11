@@ -3712,3 +3712,69 @@ section.home-media { padding-top: 0; }
   .trick-substitutions-row { padding: 8px 0; }
   .trick-substitutions-swap { font-size: 0.88rem; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3f-b (2026-05-11) hero metadata ribbon. Consolidates the previous
+   standalone eyebrow + hero-stats div + family-badge paragraph into a
+   single flex-wrapping chip row directly below the h1. Each chip carries
+   a semi-opaque white tint on the dark hero gradient; family chip is a
+   link (hover-emphasised); ADD + record chips are static. Mobile flex-
+   wraps the chips; gap tightens. Drops the "compound" category chip
+   universally on trick-detail pages (low-signal per UX3f-a §12).
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-hero-meta-ribbon {
+  margin: 6px 0 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.trick-hero-meta-chip {
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.trick-hero-meta-chip-family {
+  background: rgba(255, 255, 255, 0.18);
+}
+.trick-hero-meta-chip-family:hover {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  text-decoration: none;
+}
+
+.trick-hero-meta-chip-adds {
+  font-weight: 600;
+  background: rgba(180, 240, 200, 0.22);
+}
+
+.trick-hero-meta-chip-record {
+  background: rgba(255, 220, 180, 0.20);
+}
+
+@media (max-width: 600px) {
+  .trick-hero-meta-ribbon {
+    gap: 4px 6px;
+    font-size: 0.8rem;
+    margin: 4px 0 10px;
+  }
+  .trick-hero-meta-chip { padding: 2px 9px; }
+}
+
+/* Modifier-classification chip on modifier-trick pages (e.g. /freestyle/tricks/ducking).
+   Surfaces the page's classification in the ribbon since modifier pages have
+   no ADD chip (no fixed ADD value). */
+.trick-hero-meta-chip-modifier {
+  background: rgba(255, 245, 200, 0.22);
+  font-weight: 600;
+}
