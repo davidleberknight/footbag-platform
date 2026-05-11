@@ -3778,3 +3778,46 @@ section.home-media { padding-top: 0; }
   background: rgba(255, 245, 200, 0.22);
   font-weight: 600;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3f-b F8 (2026-05-11) substitution inline-compact mode. Activates when
+   content.substitutions.length >= 3 (Matador's 4-row case + similar
+   1-modifier flagships). Collapses the per-substitution two-row layout
+   (swap on top, result below) into a single row: swap pills + bullet +
+   result name + ADD chip. 1-2 row panels (Mind Bender, Spender) keep
+   the existing two-row pedagogical format because pair-level emphasis
+   reads stronger at low counts.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-substitutions-compact .trick-substitutions-row {
+  grid-template-columns: 1fr;
+  align-items: baseline;
+  gap: 0;
+  padding: 6px 0;
+}
+.trick-substitutions-compact .trick-substitutions-swap,
+.trick-substitutions-compact .trick-substitutions-result {
+  display: inline-flex;
+  align-items: baseline;
+}
+.trick-substitutions-compact .trick-substitutions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.trick-substitutions-compact .trick-substitutions-result::before {
+  content: "\00b7";
+  margin-right: 4px;
+  color: var(--text-muted, #9ca3af);
+  font-weight: 500;
+}
+.trick-substitutions-compact .trick-substitutions-swap {
+  font-size: 0.88rem;
+}
+
+@media (max-width: 600px) {
+  .trick-substitutions-compact .trick-substitutions-row {
+    padding: 5px 0;
+    gap: 4px 8px;
+  }
+}

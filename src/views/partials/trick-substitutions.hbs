@@ -5,7 +5,7 @@
   surface ("replace X with Y to get..."), not a recommendation list.
 --}}
 {{#if content.substitutions.length}}
-<section class="content-section trick-substitutions" aria-label="Modifier substitutions">
+<section class="content-section trick-substitutions{{#if (gt content.substitutions.length 2)}} trick-substitutions-compact{{/if}}" aria-label="Modifier substitutions">
   <div class="section-heading">
     <h2>Modifier substitutions</h2>
     <p class="section-intro">Same base, same modifier count -- one modifier swapped.</p>
