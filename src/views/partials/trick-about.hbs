@@ -26,25 +26,18 @@
     <dt>How it's built</dt>
     <dd class="add-composition">{{content.dictEntry.addComposition}}</dd>
     {{else if content.dictEntry.baseTrick}}
-    <dt>Base trick</dt>
-    <dd>
-      {{#if content.dictEntry.baseTrickSlug}}
-        <a href="/freestyle/tricks/{{content.dictEntry.baseTrickSlug}}">{{content.dictEntry.baseTrick}}</a>
-      {{else}}
-        {{content.dictEntry.baseTrick}}
-      {{/if}}
-      {{#if content.dictEntry.baseTrickAdds}} ({{content.dictEntry.baseTrickAdds}} ADD){{/if}}
-    </dd>
-    {{/if}}
-
-    {{#unless content.dictEntry.addComposition}}
-      {{#unless content.dictEntry.isModifier}}
-        {{#if content.dictEntry.adds}}
-        <dt>ADD value</dt>
-        <dd>{{content.dictEntry.adds}}</dd>
+      {{#unless content.modifierLayering}}
+      <dt>Base trick</dt>
+      <dd>
+        {{#if content.dictEntry.baseTrickSlug}}
+          <a href="/freestyle/tricks/{{content.dictEntry.baseTrickSlug}}">{{content.dictEntry.baseTrick}}</a>
+        {{else}}
+          {{content.dictEntry.baseTrick}}
         {{/if}}
+        {{#if content.dictEntry.baseTrickAdds}} ({{content.dictEntry.baseTrickAdds}} ADD){{/if}}
+      </dd>
       {{/unless}}
-    {{/unless}}
+    {{/if}}
 
     {{#if content.dictEntry.aliases.length}}
     <dt>Also known as</dt>

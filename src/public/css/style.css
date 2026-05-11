@@ -870,6 +870,29 @@ section.home-media { padding-top: 0; }
   border-radius: 6px;
 }
 
+/* Reference Media grid — compact thumbnails (UX3 QC follow-up 2026-05-11).
+   Default <ul> would stack tiles full-width; constrain to a responsive grid
+   with ~220px columns so trick-detail pages stay scan-friendly. */
+.reference-media-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.reference-media-grid .reference-media-tile { margin: 0; }
+.reference-media-grid .reference-media-caption {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+.reference-media-grid .reference-media-source {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted, #64748b);
+}
+
 /* Reference Media subsections (Tutorials / Demos split) */
 .reference-media-subsection {
   margin-top: 16px;

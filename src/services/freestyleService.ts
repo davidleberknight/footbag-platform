@@ -1859,9 +1859,9 @@ function buildSubstitutions(
 }
 
 // UX3d-a (2026-05-11) hero decomposition builder. Returns a role-coloured
-// token sequence (modifier(s) + base) for compound tricks where
-// modifierLinks.length >= 2. Returns null otherwise (atoms, 1-modifier rows,
-// modifier-only rows). Tokens render in lowercase to match the canonical_name
+// token sequence (modifier(s) + base) for any compound trick with at least
+// one modifier link. Returns null for atoms (zero modifier links) and
+// modifier-only rows. Tokens render in lowercase to match the canonical_name
 // convention. The builder is defensive: any missing data (no base trick name,
 // modifier-only row) yields null, falling back to the plain h1.
 function buildHeroDecomposition(
@@ -1870,7 +1870,7 @@ function buildHeroDecomposition(
   isModifier: boolean,
 ): HeroDecompositionToken[] | null {
   if (isModifier) return null;
-  if (modifierLinks.length < 2) return null;
+  if (modifierLinks.length < 1) return null;
   if (!baseTrick || !baseTrick.trim()) return null;
   const tokens: HeroDecompositionToken[] = modifierLinks.map(link => ({
     text:    link.modifier_name.toLowerCase(),
@@ -2048,9 +2048,9 @@ export const freestyleService = {
       freestyleTricks.getBySlug.get(slug) as FreestyleTrickRowWithParse | undefined,
     );
 
-    const trickName = publicRows.find(r => r.trick_name && trickNameToSlug(r.trick_name) === slug)?.trick_name
-      ?? dictRow?.canonical_name
-      ?? null;
+    const recordTrickName = publicRows.find(r => r.trick_name && trickNameToSlug(r.trick_name) === slug)?.trick_name;
+    const trickName = recordTrickName
+      ?? (dictRow ? dictRow.canonical_name.replace(/\b\w/g, c => c.toUpperCase()) : null);
 
     if (!trickName) {
       throw new NotFoundError(`No freestyle trick found for slug: ${slug}`);
