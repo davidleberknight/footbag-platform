@@ -1,14 +1,14 @@
 {{!--
-  /freestyle/tricks/:slug -- universal trick-detail shell (UX3b0 convergence).
-  Replaces the prior legacy/pilot split (trick.hbs + trick-ux2.hbs). One
-  template, composed from named partials, with conditional ORDERING based on
-  content.ux2Pilot presence. Functional equivalence is preserved: pilot pages
-  render the UX2 section sequence; non-pilot pages render the legacy sequence.
+  /freestyle/tricks/:slug -- universal trick-detail shell (UX3c-a, 2026-05-11).
 
-  Future phases (UX3c+) collapse the ordering branch by gating section presence
-  on data alone, but the convergence prototype keeps both shapes side by side
-  so the prior pilot rendering is bit-for-bit preserved during the partial
-  extraction pass.
+  Single canonical section flow. No pilot-vs-legacy branch. Each section
+  partial gates internally on its own data; sparse rows skip silently.
+
+  Sections appear in scan -> study -> diagnostic order. Featured-media
+  preview surfaces only when editorial prose is authored. Media block
+  surfaces when curated reference media exists or when prose is authored.
+  Structural decomposition collapses behind a <details> universally;
+  grammar-aware visitors expand on demand.
 --}}
 
 {{> trick-hero summary=content.ux2Pilot.shortDescription}}
@@ -16,54 +16,54 @@
 <div class="wrapper">
 
   {{#if content.ux2Pilot}}
-    {{!-- ───────────────────────────────── UX2 SEQUENCE ──────────────────── --}}
+  {{> trick-featured-preview}}
+  {{/if}}
 
-    {{> trick-featured-preview}}
+  {{> trick-about}}
 
-    {{> trick-about}}
+  {{> trick-notation}}
 
-    {{> trick-notation}}
+  {{> trick-operational}}
 
-    {{> trick-operational}}
+  {{#if content.ux2Pilot.executionParagraphs.length}}
+  {{> trick-prose
+      heading="Execution"
+      intro="A plain-English walkthrough of the mechanics."
+      paragraphs=content.ux2Pilot.executionParagraphs
+      sectionClass="trick-execution-summary"}}
+  {{/if}}
 
-    {{#if content.ux2Pilot.executionParagraphs.length}}
-    {{> trick-prose
-        heading="Execution"
-        intro="A plain-English walkthrough of the mechanics."
-        paragraphs=content.ux2Pilot.executionParagraphs
-        sectionClass="trick-execution-summary"}}
-    {{/if}}
+  {{#if content.ux2Pilot.learningParagraphs.length}}
+  {{> trick-prose
+      heading="Learning notes"
+      paragraphs=content.ux2Pilot.learningParagraphs
+      sectionClass="trick-learning-notes"}}
+  {{/if}}
 
-    {{#if content.ux2Pilot.learningParagraphs.length}}
-    {{> trick-prose
-        heading="Learning notes"
-        paragraphs=content.ux2Pilot.learningParagraphs
-        sectionClass="trick-learning-notes"}}
-    {{/if}}
+  {{#if content.ux2Pilot.prerequisiteParagraphs.length}}
+  {{> trick-prose
+      heading="Before you try this"
+      paragraphs=content.ux2Pilot.prerequisiteParagraphs
+      sectionClass="trick-prerequisites"
+      extraLink=content.ux2Pilot.prereqExtraLink}}
+  {{/if}}
 
-    {{#if content.ux2Pilot.prerequisiteParagraphs.length}}
-    {{> trick-prose
-        heading="Before you try this"
-        paragraphs=content.ux2Pilot.prerequisiteParagraphs
-        sectionClass="trick-prerequisites"
-        extraLink=content.ux2Pilot.prereqExtraLink}}
-    {{/if}}
+  {{> trick-family}}
 
-    {{> trick-family}}
+  {{> trick-related}}
 
-    {{> trick-related}}
+  {{#if content.hasMediaBlock}}
+  <section id="media" class="content-section trick-media-block" aria-label="Media">
+    <div class="section-heading">
+      <h2>Media</h2>
+      {{#if content.hasReferenceMedia}}
+      <p class="section-intro">Curated videos referencing {{content.trickName}}.</p>
+      {{else}}
+      <p class="section-intro">Tutorials and demonstrations referencing this trick will appear here as they are added.</p>
+      {{/if}}
+    </div>
 
-    {{!-- MEDIA block: UX2 always renders the section with empty state + grid --}}
-    <section id="media" class="content-section trick-media-block" aria-label="Media">
-      <div class="section-heading">
-        <h2>Media</h2>
-        {{#if content.hasReferenceMedia}}
-        <p class="section-intro">Curated videos referencing {{content.trickName}}.</p>
-        {{else}}
-        <p class="section-intro">Tutorials and demonstrations referencing this trick will appear here as they are added.</p>
-        {{/if}}
-      </div>
-
+    {{#if content.ux2Pilot}}
       {{#if content.ux2Pilot.featuredMedia}}
         <div class="trick-featured-media-card">
           {{#if content.ux2Pilot.featuredMedia.media}}
@@ -81,59 +81,23 @@
           <p>{{content.ux2Pilot.featuredMediaEmptyState}}</p>
         </div>
       {{/if}}
-
-      {{> trick-media-grid}}
-    </section>
-
-    {{> trick-pathways}}
-
-    {{> trick-previous}}
-
-    {{> trick-next}}
-
-    {{> trick-records}}
-
-    {{> trick-progression}}
-
-    {{> trick-structural collapsed=true}}
-
-  {{else}}
-    {{!-- ──────────────────────────────── LEGACY SEQUENCE ────────────────── --}}
-
-    {{> trick-about}}
-
-    {{> trick-notation}}
-
-    {{> trick-operational}}
-
-    {{> trick-structural collapsed=false}}
-
-    {{> trick-pathways}}
-
-    {{> trick-related}}
-
-    {{> trick-previous}}
-
-    {{!-- Reference Media (legacy: omits section entirely when no media) --}}
-    {{#if content.hasReferenceMedia}}
-    <section id="reference-media" class="content-section">
-      <div class="section-heading">
-        <h2>{{content.referenceMediaHeading}}</h2>
-        <p class="section-intro">Curated videos referencing {{content.trickName}}.</p>
-      </div>
-      {{> trick-media-grid}}
-    </section>
     {{/if}}
 
-    {{> trick-next}}
-
-    {{> trick-family}}
-
-    {{> trick-records}}
-
-    {{> trick-progression}}
-
+    {{> trick-media-grid}}
+  </section>
   {{/if}}
+
+  {{> trick-pathways}}
+
+  {{> trick-previous}}
+
+  {{> trick-next}}
+
+  {{> trick-records}}
+
+  {{> trick-progression}}
+
+  {{> trick-structural collapsed=true}}
 
   <p class="source-note">
     Records sourced from the freestyle passback video archive.

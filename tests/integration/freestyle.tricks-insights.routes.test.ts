@@ -604,17 +604,18 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway wording (Phase 3)', () => {
-  it('tutorial-only trick: heading is "Tutorials"; Learn pathway counts only tutorials', async () => {
+  it('tutorial-only trick: Media section + Tutorials subheading; Learn pathway counts only tutorials', async () => {
     const app = createApp();
     // 'phase3-tutorial-only' has one tt_youtube curator-tagged clip and no
     // demo-tier coverage.
     const res = await request(app).get('/freestyle/tricks/phase3-tutorial-only');
     expect(res.status).toBe(200);
-    // Reference Media section heading reflects content: only Tutorials.
-    expect(res.text).toMatch(/<h2>\s*Tutorials\s*<\/h2>/);
+    // UX3c-a unified shell: section h2 is always "Media"; per-tier presence
+    // surfaces via the inner h3 subheadings (Tutorials / Demonstrations).
+    expect(res.text).toMatch(/<h2>Media<\/h2>/);
+    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
+    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    expect(res.text).not.toMatch(/<h2>\s*Tutorials and demonstrations\s*<\/h2>/);
-    expect(res.text).not.toMatch(/<h2>\s*Demonstrations\s*<\/h2>/);
     // Demonstrations subsection absent.
     expect(res.text).not.toContain('reference-media-subsection--demos');
     // Learn pathway counts ONLY tutorials. Anchor on the pathway li.
@@ -626,17 +627,18 @@ describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway word
     expect(learnSlice).not.toMatch(/demonstrations? available/);
   });
 
-  it('demo-only trick: heading is "Demonstrations"; Learn pathway counts only demos', async () => {
+  it('demo-only trick: Media section + Demonstrations subheading; Learn pathway counts only demos', async () => {
     const app = createApp();
     // 'phase3-demo-only' has one footbag_finland curator-tagged clip and no
     // tutorial-tier coverage.
     const res = await request(app).get('/freestyle/tricks/phase3-demo-only');
     expect(res.status).toBe(200);
-    // Reference Media section heading reflects content: only Demonstrations.
-    expect(res.text).toMatch(/<h2>\s*Demonstrations\s*<\/h2>/);
+    // UX3c-a unified shell: section h2 is always "Media"; per-tier presence
+    // surfaces via the inner h3 subheadings.
+    expect(res.text).toMatch(/<h2>Media<\/h2>/);
+    expect(res.text).toMatch(/<h3 class="reference-media-subheading">Demonstrations<\/h3>/);
+    expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Tutorials<\/h3>/);
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
-    expect(res.text).not.toMatch(/<h2>\s*Tutorials\s*<\/h2>/);
-    expect(res.text).not.toMatch(/<h2>\s*Tutorials and demonstrations\s*<\/h2>/);
     // Tutorials subsection absent.
     expect(res.text).not.toContain('reference-media-subsection--tutorials');
     // Learn pathway counts ONLY demos. The legacy "X tutorials available"
@@ -650,14 +652,15 @@ describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway word
     expect(learnSlice).not.toContain('No tutorials yet');
   });
 
-  it('mixed-tier trick: heading is "Tutorials and demonstrations"; Learn pathway counts both separately', async () => {
+  it('mixed-tier trick: Media section + both subheadings; Learn pathway counts both separately', async () => {
     const app = createApp();
     // 'phase3-mixed-media' has BOTH a tt_youtube and a footbag_finland clip
     // in the curator-tagged channel.
     const res = await request(app).get('/freestyle/tricks/phase3-mixed-media');
     expect(res.status).toBe(200);
-    // Reference Media section heading reflects mixed content.
-    expect(res.text).toMatch(/<h2>\s*Tutorials and demonstrations\s*<\/h2>/);
+    // UX3c-a unified shell: section h2 is always "Media"; per-tier subheadings
+    // surface internally.
+    expect(res.text).toMatch(/<h2>Media<\/h2>/);
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
     // Both subsections render.
     expect(res.text).toContain('reference-media-subsection--tutorials');
@@ -700,11 +703,14 @@ describe('GET /freestyle/tricks/:slug — Previous Tricks section', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Previous Tricks');
     expect(res.text).toContain('Lower-ADD variations in the same family');
-    // Previous Tricks must appear before Trick Family ladder (template order)
+    // UX3c-a unified shell flow: Family ladder appears in the LEARN block;
+    // Previous Tricks lives in the lateral-navigation portion below. Both
+    // render; Family precedes Previous in document order.
     const prevIdx = res.text.indexOf('Previous Tricks');
     const familyIdx = res.text.indexOf('Family</h2>');
     expect(prevIdx).toBeGreaterThan(0);
-    expect(familyIdx).toBeGreaterThan(prevIdx);
+    expect(familyIdx).toBeGreaterThan(0);
+    expect(familyIdx).toBeLessThan(prevIdx);
   });
 
   it('Previous Tricks links the family base trick (whirl) for spinning-whirl', async () => {

@@ -1,25 +1,32 @@
 {{!--
-  Family ladder. Renders when hasFamilyMembers is true.
+  Family lineage, grouped by ADD tier (UX3c-b, 2026-05-11). Renders only when
+  hasFamilyMembers is true. Numeric tiers ascend; non-numeric rows collapse
+  into a "Modifiers" tier rendered last. Current trick row highlighted within
+  its tier; tier rows linked to their respective detail pages.
 --}}
 {{#if content.hasFamilyMembers}}
-<section class="content-section">
+<section class="content-section trick-family-lineage">
   <div class="section-heading">
     <h2>{{page.title}} Family</h2>
-    <p class="section-intro">Tricks in this family, from simplest to most complex.</p>
+    <p class="section-intro">Tricks in this family, grouped by ADD value.</p>
   </div>
-  <div class="family-ladder">
-    {{#each content.familyMembers}}
-    <div class="family-ladder-item{{#if isCurrentTrick}} family-ladder-current{{/if}}">
-      <span class="family-ladder-adds">{{#if adds}}{{adds}}{{else}}mod{{/if}}</span>
-      <span class="family-ladder-name">
-        {{#if isCurrentTrick}}
-          <strong>{{canonicalName}}</strong>
-        {{else}}
-          <a href="{{detailHref}}">{{canonicalName}}</a>
-        {{/if}}
-        {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
-      </span>
-      {{#if isCurrentTrick}}<span class="family-ladder-here">&larr;</span>{{/if}}
+  <div class="family-lineage">
+    {{#each content.familyTiers}}
+    <div class="family-lineage-tier{{#if hasCurrent}} family-lineage-tier-current{{/if}}">
+      <div class="family-lineage-tier-label">{{addsLabel}}</div>
+      <div class="family-lineage-tier-members">
+        {{#each members}}
+        <span class="family-lineage-member{{#if isCurrentTrick}} family-lineage-member-current{{/if}}">
+          {{#if isCurrentTrick}}
+            <strong>{{canonicalName}}</strong>
+            <span class="family-lineage-here">&larr; here</span>
+          {{else}}
+            <a href="{{detailHref}}">{{canonicalName}}</a>
+          {{/if}}
+          {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
+        </span>
+        {{/each}}
+      </div>
     </div>
     {{/each}}
   </div>

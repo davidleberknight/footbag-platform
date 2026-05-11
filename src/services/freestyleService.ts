@@ -441,6 +441,10 @@ export interface FreestyleTrickContent {
   // Family members: siblings or derivatives, sorted by ADD value
   familyMembers: FreestyleFamilyMember[];   // empty when family has only one member
   hasFamilyMembers: boolean;
+  // UX3c-b (2026-05-11): same family-member set as `familyMembers`, regrouped
+  // by ADD value for tier-grouped rendering. Numeric tiers sort ascending;
+  // non-numeric/null tier renders last as "Modifiers".
+  familyTiers: FreestyleFamilyTier[];
   // Related Tricks (R1 same-family → R2 modifier-prefix → R3 grandparent),
   // ADD-bucket sampled within each rule, capped at 8. Empty when no dict entry.
   relatedTricks: FreestyleRelatedTrick[];
@@ -497,6 +501,16 @@ export interface FreestyleTrickContent {
   // modifier-layering visualisation, modifier-ecosystem panel) without per-slug
   // allowlists. Does not change rendering in UX3b0.
   densityTier: 'sparse' | 'standard' | 'flagship';
+  // UX3c-a (2026-05-11): pre-shaped gate signal for the unified Media block.
+  // True when either curated reference media exists (tutorial/demo grids
+  // populated) OR editorial prose is authored (ux2Pilot non-null, signalling
+  // the row deserves a flagship Media section with empty-state body).
+  hasMediaBlock: boolean;
+  // UX3c-c (2026-05-11) hero quick-stat ADD-derivation strip tokens; null when
+  // the trick is a modifier-only row or has no numeric adds. Built from
+  // freestyle_trick_modifier_links + base_trick adds + this row's adds.
+  // Renders in the hero immediately below the hero-stats chips.
+  heroFormula: HeroFormulaToken[] | null;
 }
 
 export interface Ux2PilotData {
@@ -571,6 +585,23 @@ export interface AppliedModifier {
   addBonusRotational: number;
   isRotationalBase: boolean;
   effectiveBonus: number;       // the actual bonus applied given whether base is rotational
+  // UX3c-c (2026-05-11) display-only fields for hero quick-stat formula.
+  modifierType: string;         // 'body' | 'set' | other; sourced from freestyle_trick_modifiers.modifier_type
+  cssRole: string;              // semantic-notation cssRole for token coloration: 'set' | 'rotation' | 'modifier'
+}
+
+// UX3c-c (2026-05-11): hero quick-stat ADD-derivation strip.
+// One token sequence rendered in the hero, immediately below the hero-stats
+// chips, summarising "modifier(+w) + ... + base(N) = TOTAL ADD" with each
+// operand role-coloured (cool palette). Atom rows (no modifiers) render the
+// short form: "trick-name = N ADD". Rendered by trick-hero.hbs as a single
+// quiet line; no h2; no surrounding card. Pure presentation; never affects
+// ADD math (asserted ADD remains editorial truth).
+export interface HeroFormulaToken {
+  kind: 'modifier' | 'base' | 'operator' | 'result';
+  text: string;          // displayed token text
+  weight: string | null; // muted parenthetical weight, e.g. "(+2)" or "(3)"; null for operators/result
+  cssRole: string | null;// 'set' | 'rotation' | 'modifier' | 'core-family'; null for operators/result
 }
 
 // ── Notation grammar (Phase 3, read-only display) ────────────────────────────
@@ -927,6 +958,16 @@ export interface FreestyleFamilyMember {
   isCurrentTrick: boolean;   // true for the trick being viewed
   detailHref: string;        // always /freestyle/tricks/:slug (dict entry exists)
   hasRecords: boolean;       // true when passback records exist for this trick
+}
+
+// UX3c-b (2026-05-11): family lineage grouped by ADD value. Numeric tiers sort
+// ascending; rows with non-numeric or null ADD ("modifier", unrated) collapse
+// into a single "Modifiers" tier rendered after the numeric tiers.
+export interface FreestyleFamilyTier {
+  addsLabel: string;                       // e.g. "3 ADD", "4 ADD", "Modifiers"
+  addsNumeric: number | null;              // null for the non-numeric tier
+  members: FreestyleFamilyMember[];        // members in this tier (preserves source order)
+  hasCurrent: boolean;                     // true if the current trick sits in this tier
 }
 
 export interface FreestyleModifierEntry {
@@ -1408,12 +1449,15 @@ function shapeDictEntry(
         const mod = modifierMap.get(slug);
         if (!mod) return null;
         const effectiveBonus = isRotational ? mod.add_bonus_rotational : mod.add_bonus;
+        const cssRole = modifierCssRole(mod.slug, mod.modifier_type);
         return {
           name:                mod.modifier_name,
           addBonus:            mod.add_bonus,
           addBonusRotational:  mod.add_bonus_rotational,
           isRotationalBase:    isRotational,
           effectiveBonus,
+          modifierType:        mod.modifier_type,
+          cssRole,
         };
       })
       .filter((m): m is AppliedModifier => m !== null);
@@ -1504,6 +1548,108 @@ function shapeUx2PilotFromRow(
         ? FEATURED_MEDIA_EMPTY_WITH_RECORD
         : FEATURED_MEDIA_EMPTY_GENERIC,
   };
+}
+
+// UX3c-c (2026-05-11) cssRole lookup for the hero quick-stat formula.
+// Maps a modifier's slug + type to one of three semantic-notation cssRole
+// classes: 'set', 'rotation', 'modifier'. Rotation cssRole reserved for the
+// three rotational-flavour body modifiers (spinning/whirling/swirling); other
+// body modifiers and unrecognised types fall through to 'modifier'.
+const ROTATION_BODY_MODIFIERS = new Set(['spinning', 'whirling', 'swirling']);
+
+function modifierCssRole(slug: string, modifierType: string): string {
+  if (modifierType === 'set') return 'set';
+  if (ROTATION_BODY_MODIFIERS.has(slug)) return 'rotation';
+  return 'modifier';
+}
+
+// UX3c-c (2026-05-11) hero quick-stat formula builder. Atom rows render the
+// short form "trick-name = N ADD". Compound rows render the additive form
+// "modifier(+w) + ... + base(N) = TOTAL ADD" with role-coloured operands.
+// Source of modifier data is freestyle_trick_modifier_links (authoritative for
+// Wave-1/Wave-2 single-token canonical names like "matador" / "phoenix").
+// Returns null when the trick is a modifier-only row or has no numeric adds.
+function buildHeroFormula(
+  canonicalName: string,
+  isModifier: boolean,
+  modifierLinks: FreestyleTrickModifierLinkDetailRow[],
+  baseTrick: string | null,
+  baseAdds: string | null,
+  isRotationalBase: boolean,
+  tricksAdds: string | null,
+): HeroFormulaToken[] | null {
+  if (isModifier) return null;
+  const numericAdds = tricksAdds && /^\d+$/.test(tricksAdds) ? tricksAdds : null;
+  if (numericAdds === null) return null;
+  // Atom form: no modifier links OR no resolvable base distinct from self
+  if (modifierLinks.length === 0 || !baseTrick) {
+    return [
+      { kind: 'base',     text: canonicalName, weight: null, cssRole: 'core-family' },
+      { kind: 'operator', text: '=',           weight: null, cssRole: null },
+      { kind: 'result',   text: `${numericAdds} ADD`, weight: null, cssRole: null },
+    ];
+  }
+  // Compound form: modifiers + base = total
+  const tokens: HeroFormulaToken[] = [];
+  modifierLinks.forEach((link, i) => {
+    if (i > 0) {
+      tokens.push({ kind: 'operator', text: '+', weight: null, cssRole: null });
+    }
+    const effectiveBonus = isRotationalBase
+      ? link.add_bonus_rotational
+      : link.add_bonus;
+    tokens.push({
+      kind:    'modifier',
+      text:    link.modifier_name,
+      weight:  `(+${effectiveBonus})`,
+      cssRole: modifierCssRole(link.modifier_slug, link.modifier_type),
+    });
+  });
+  tokens.push({ kind: 'operator', text: '+', weight: null, cssRole: null });
+  tokens.push({
+    kind:    'base',
+    text:    baseTrick,
+    weight:  baseAdds ? `(${baseAdds})` : null,
+    cssRole: 'core-family',
+  });
+  tokens.push({ kind: 'operator', text: '=', weight: null, cssRole: null });
+  tokens.push({ kind: 'result', text: `${numericAdds} ADD`, weight: null, cssRole: null });
+  return tokens;
+}
+
+// UX3c-b family-tier grouping (2026-05-11). Reorganises the flat family-member
+// list into ADD-tier groups; preserves source order within each tier. Numeric
+// tiers ascending; the non-numeric tier (rows with `adds` null or "modifier")
+// renders last under a "Modifiers" label. Returns an empty array when the
+// caller has not populated familyMembers (i.e., when the family has only one
+// row -- itself; the shell omits the section anyway via hasFamilyMembers).
+function buildFamilyTiers(members: FreestyleFamilyMember[]): FreestyleFamilyTier[] {
+  if (members.length === 0) return [];
+  const byTier = new Map<string, FreestyleFamilyMember[]>();
+  for (const m of members) {
+    const key = m.adds && /^\d+$/.test(m.adds) ? m.adds : 'modifier';
+    if (!byTier.has(key)) byTier.set(key, []);
+    byTier.get(key)!.push(m);
+  }
+  const numericTiers: FreestyleFamilyTier[] = Array.from(byTier.entries())
+    .filter(([k]) => k !== 'modifier')
+    .map(([k, list]) => ({
+      addsLabel:   `${k} ADD`,
+      addsNumeric: parseInt(k, 10),
+      members:     list,
+      hasCurrent:  list.some(m => m.isCurrentTrick),
+    }))
+    .sort((a, b) => (a.addsNumeric ?? 0) - (b.addsNumeric ?? 0));
+  const modList = byTier.get('modifier');
+  if (modList && modList.length > 0) {
+    numericTiers.push({
+      addsLabel:   'Modifiers',
+      addsNumeric: null,
+      members:     modList,
+      hasCurrent:  modList.some(m => m.isCurrentTrick),
+    });
+  }
+  return numericTiers;
 }
 
 // UX3b0 density classification (2026-05-11). Derived from existing data only;
@@ -1711,6 +1857,14 @@ export const freestyleService = {
         ],
       },
       content: (() => {
+        // Load modifier_links once; consumed by both notationGrammar (editorial
+        // decomposition table) and the UX3c-c hero quick-stat formula.
+        const modifierLinks: FreestyleTrickModifierLinkDetailRow[] = dictRow
+          ? runSqliteRead('freestyleTrickModifiers.listLinksByTrickSlug', () =>
+              freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as FreestyleTrickModifierLinkDetailRow[],
+            )
+          : [];
+
         // Load all curator-tagged media for this trick once. Split into
         // three buckets by source tier:
         //   - tutorialMedia: instructional (TT, AnzTrikz, FootbagSpot, etc.)
@@ -1773,6 +1927,7 @@ export const freestyleService = {
           dictEntry,
           familyMembers,
           hasFamilyMembers: familyMembers.length > 1,
+          familyTiers:      buildFamilyTiers(familyMembers),
           relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
           previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
           nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
@@ -1785,9 +1940,7 @@ export const freestyleService = {
             ? shapeNotationGrammar(
                 dictRow,
                 new Map(allDictRows.map(r => [r.slug, r])),
-                runSqliteRead('freestyleTrickModifiers.listLinksByTrickSlug', () =>
-                  freestyleTrickModifiers.listLinksByTrickSlug.all(slug) as FreestyleTrickModifierLinkDetailRow[],
-                ),
+                modifierLinks,
               )
             : null,
           notationDisplay: dictRow
@@ -1827,6 +1980,20 @@ export const freestyleService = {
             hasReferenceMedia,
             hasUx2Prose: shapeUx2PilotFromRow(dictRow, currentRows.length) !== null,
           }),
+          hasMediaBlock:
+            hasReferenceMedia ||
+            shapeUx2PilotFromRow(dictRow, currentRows.length) !== null,
+          heroFormula: dictEntry
+            ? buildHeroFormula(
+                dictEntry.canonicalName,
+                dictEntry.isModifier,
+                modifierLinks,
+                dictEntry.baseTrick,
+                dictEntry.baseTrickAdds,
+                ROTATIONAL_BASES.has(dictEntry.baseTrickSlug ?? ''),
+                dictEntry.adds,
+              )
+            : null,
         };
       })(),
     };

@@ -27,6 +27,11 @@
       {{/if}}
       {{#if content.recordCount}}<span>{{content.topValue}} kicks (record)</span>{{/if}}
     </div>
+    {{#if content.heroFormula}}
+    <p class="trick-hero-formula" aria-label="ADD derivation">
+      {{#each content.heroFormula}}{{#if (eq kind "operator")}}<span class="hero-formula-op">{{text}}</span>{{else if (eq kind "result")}}<span class="hero-formula-result">{{text}}</span>{{else}}<span class="hero-formula-token hero-formula-{{cssRole}}">{{text}}</span>{{#if weight}}<span class="hero-formula-weight">{{weight}}</span>{{/if}}{{/if}}{{#unless @last}} {{/unless}}{{/each}}
+    </p>
+    {{/if}}
     {{#if summary}}
     <p class="trick-hero-summary">{{summary}}</p>
     {{/if}}

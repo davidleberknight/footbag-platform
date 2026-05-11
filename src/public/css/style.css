@@ -3240,3 +3240,128 @@ section.home-media { padding-top: 0; }
 }
 .notation-grammar-collapsible > *:not(summary):first-of-type { padding-top: 14px; }
 .notation-grammar-collapsible > *:last-child { padding-bottom: 14px; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3c-b ADD-tiered family lineage (2026-05-11). Replaces the flat
+   .family-ladder list with tier-grouped rows: numeric ADD tiers ascending,
+   "Modifiers" tier last. Current trick row highlighted within its tier.
+   Restraint-first: muted tier labels, sentence-cased member names, single
+   star indicator for record-bearing rows.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-family-lineage .family-lineage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.family-lineage-tier {
+  display: grid;
+  grid-template-columns: 78px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px dotted #e5e7eb;
+}
+.family-lineage-tier:last-child { border-bottom: none; }
+.family-lineage-tier-current {
+  background: rgba(34, 197, 94, 0.05);
+  border-radius: 4px;
+  padding-left: 6px;
+}
+.family-lineage-tier-label {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  font-weight: 600;
+}
+.family-lineage-tier-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.family-lineage-member {
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.family-lineage-member-current {
+  font-weight: 700;
+  color: #14532d;
+}
+.family-lineage-member-current strong {
+  background: #d1fae5;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.family-lineage-here {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-left: 4px;
+  font-weight: 500;
+}
+.family-lineage-member .record-indicator {
+  font-size: 0.78rem;
+  color: #ca8a04;
+  margin-left: 2px;
+}
+
+@media (max-width: 600px) {
+  .family-lineage-tier {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .family-lineage-tier-label {
+    font-size: 0.78rem;
+    color: #4b5563;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3c-c (2026-05-11) hero quick-stat ADD-derivation strip. Renders below
+   the hero-stats chips and above the editorial summary. Each operand is a
+   role-coloured token (cool palette); operators (+, =) are muted; weight
+   parentheticals are dimmed. Atom rows render the short form. Restraint:
+   single line; no card; no background; harmonised with hero colour scheme.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-hero-formula {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.6;
+  letter-spacing: 0.01em;
+}
+.hero-formula-token {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.10);
+}
+.hero-formula-set         { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.hero-formula-rotation    { background: rgba(255, 230, 200, 0.20); color: #fff; }
+.hero-formula-modifier    { background: rgba(255, 255, 200, 0.18); color: #fff; }
+.hero-formula-core-family { background: rgba(208, 255, 220, 0.22); color: #fff; font-weight: 700; }
+.hero-formula-weight {
+  margin-left: 2px;
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 400;
+  font-size: 0.88em;
+}
+.hero-formula-op {
+  margin: 0 2px;
+  color: rgba(255, 255, 255, 0.66);
+  font-weight: 400;
+}
+.hero-formula-result {
+  margin-left: 4px;
+  color: #fff;
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .trick-hero-formula {
+    font-size: 0.88rem;
+    line-height: 1.7;
+  }
+}
