@@ -3597,3 +3597,118 @@ section.home-media { padding-top: 0; }
     border-radius: 6px;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3e-b (2026-05-11) relationship intelligence panels: parallel tricks +
+   modifier substitutions. Renders below Related Tricks, above the Media
+   block. Compact lists; visually lighter than prose sections; no hashtags;
+   role-coloured swap tokens for the substitutions panel.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-parallels-list,
+.trick-substitutions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Parallels: one-line rows with name, ADD, and decomposition snippet. */
+.trick-parallels-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-bottom: 1px dotted var(--border, #e5e7eb);
+}
+.trick-parallels-row:last-child { border-bottom: none; }
+.trick-parallels-name {
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text, #111827);
+}
+.trick-parallels-name:hover { text-decoration: underline; }
+.trick-parallels-adds {
+  font-size: 0.82rem;
+  color: var(--text-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+  justify-self: end;
+}
+.trick-parallels-decomp {
+  grid-column: 1 / -1;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  color: var(--text-muted, #6b7280);
+  letter-spacing: 0.01em;
+}
+
+/* Substitutions: two-row grid -- swap on top, result trick below. */
+.trick-substitutions-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px dotted var(--border, #e5e7eb);
+}
+.trick-substitutions-row:last-child { border-bottom: none; }
+.trick-substitutions-swap {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+}
+.substitution-token {
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+}
+.substitution-arrow {
+  color: var(--text-muted, #9ca3af);
+  font-weight: 500;
+  font-size: 0.92rem;
+}
+
+/* Role coloration for swap tokens, matching the hero decomposition strip
+   palette but on light backdrop. */
+.substitution-from-set, .substitution-to-set {
+  background: rgba(219, 234, 254, 0.55);
+  color: #1e3a8a;
+  border-bottom-color: #93c5fd;
+}
+.substitution-from-rotation, .substitution-to-rotation {
+  background: rgba(255, 237, 213, 0.65);
+  color: #9a3412;
+  border-bottom-color: #fdba74;
+}
+.substitution-from-modifier, .substitution-to-modifier {
+  background: rgba(254, 243, 199, 0.62);
+  color: #78350f;
+  border-bottom-color: #fcd34d;
+}
+
+.trick-substitutions-result {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.trick-substitutions-name {
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text, #111827);
+}
+.trick-substitutions-name:hover { text-decoration: underline; }
+.trick-substitutions-adds {
+  font-size: 0.82rem;
+  color: var(--text-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .trick-parallels-row { padding: 6px 0; }
+  .trick-parallels-decomp { font-size: 0.82rem; }
+  .trick-substitutions-row { padding: 8px 0; }
+  .trick-substitutions-swap { font-size: 0.88rem; }
+}

@@ -1,0 +1,29 @@
+{{!--
+  UX3e-b modifier substitutions panel. Renders when content.substitutions is
+  non-empty. Each row exposes the explicit modifier swap with role-coloured
+  tokens, plus the substitute trick name + ADD. Reads as a transformation
+  surface ("replace X with Y to get..."), not a recommendation list.
+--}}
+{{#if content.substitutions.length}}
+<section class="content-section trick-substitutions" aria-label="Modifier substitutions">
+  <div class="section-heading">
+    <h2>Modifier substitutions</h2>
+    <p class="section-intro">Same base, same modifier count -- one modifier swapped.</p>
+  </div>
+  <ul class="trick-substitutions-list">
+    {{#each content.substitutions}}
+    <li class="trick-substitutions-row">
+      <div class="trick-substitutions-swap">
+        <span class="substitution-token substitution-from substitution-from-{{swapFromCssRole}}">{{swapFromName}}</span>
+        <span class="substitution-arrow" aria-label="swapped with">&rarr;</span>
+        <span class="substitution-token substitution-to substitution-to-{{swapToCssRole}}">{{swapToName}}</span>
+      </div>
+      <div class="trick-substitutions-result">
+        <a class="trick-substitutions-name" href="{{detailHref}}">{{canonicalName}}</a>
+        <span class="trick-substitutions-adds">{{adds}} ADD</span>
+      </div>
+    </li>
+    {{/each}}
+  </ul>
+</section>
+{{/if}}

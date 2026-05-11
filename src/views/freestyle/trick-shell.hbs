@@ -13,7 +13,7 @@
 
 {{> trick-hero summary=content.ux2Pilot.shortDescription}}
 
-<div class="wrapper">
+<div class="wrapper trick-shell">
 
   {{#if content.ux2Pilot}}
   {{> trick-featured-preview}}
@@ -53,6 +53,10 @@
   {{> trick-family}}
 
   {{> trick-related}}
+
+  {{> trick-parallels}}
+
+  {{> trick-substitutions}}
 
   {{#if content.hasMediaBlock}}
   <section id="media" class="content-section trick-media-block" aria-label="Media">

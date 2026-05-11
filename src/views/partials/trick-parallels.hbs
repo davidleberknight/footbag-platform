@@ -1,0 +1,23 @@
+{{!--
+  UX3e-b parallel tricks panel. Renders when content.parallelTricks is non-
+  empty. Compact list rows: trick name + ADD + decomposition snippet. No
+  hashtags. No giant cards. Reads as navigational intelligence, not a
+  recommendation widget.
+--}}
+{{#if content.parallelTricks.length}}
+<section class="content-section trick-parallels" aria-label="Parallel tricks">
+  <div class="section-heading">
+    <h2>Parallel tricks</h2>
+    <p class="section-intro">Same family and same ADD value -- different decompositions reach the same difficulty.</p>
+  </div>
+  <ul class="trick-parallels-list">
+    {{#each content.parallelTricks}}
+    <li class="trick-parallels-row">
+      <a class="trick-parallels-name" href="{{detailHref}}">{{canonicalName}}</a>
+      <span class="trick-parallels-adds">{{adds}} ADD</span>
+      <span class="trick-parallels-decomp">{{decompSummary}}</span>
+    </li>
+    {{/each}}
+  </ul>
+</section>
+{{/if}}

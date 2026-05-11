@@ -521,6 +521,21 @@ export interface FreestyleTrickContent {
   // notation block; only Montage clears the threshold in the current
   // dictionary. Pure presentation.
   modifierLayering: ModifierLayering | null;
+  // UX3d-c (2026-05-11) pre-shaped flag: true when the trick has at least one
+  // modifier_links row. Used by trick-about.hbs to suppress the redundant
+  // "ADD value" dl row on compound rows where the hero formula + modifier
+  // layering already surface the total.
+  hasModifierLinks: boolean;
+  // UX3e-b (2026-05-11) parallel tricks panel data; empty array when no
+  // parallels exist (atoms; tricks at unique adds within their family).
+  // Cap 4 rows. Rendered between Related Tricks and the Media block as a
+  // navigation surface, not a recommendation surface.
+  parallelTricks: ParallelTrick[];
+  // UX3e-b (2026-05-11) modifier substitutions panel data; empty array when
+  // no substitution candidates exist. Cap 4 rows. Rendered immediately after
+  // parallelTricks. The swap visualisation is the load-bearing signal:
+  // "replace ducking with spinning and you get Spender."
+  substitutions: ModifierSubstitution[];
 }
 
 export interface Ux2PilotData {
@@ -623,6 +638,35 @@ export interface HeroDecompositionToken {
   text: string;          // modifier or base name (lowercase, as in canonical_name)
   cssRole: string;       // 'set' | 'rotation' | 'modifier' | 'core-family'
   kind: 'modifier' | 'base';
+}
+
+// UX3e-b (2026-05-11) relationship surfaces.
+// Parallel tricks: same family + same ADD value + different slug. Up to 4
+// rows. Pedagogical lens: "alternative structural solutions at the same
+// difficulty tier." Each row carries the canonical name, ADD value, and a
+// concise decomposition string showing the modifier set + base.
+export interface ParallelTrick {
+  slug: string;
+  canonicalName: string;
+  detailHref: string;
+  adds: string;             // numeric string for display
+  decompSummary: string;    // e.g. "pixie + ducking + butterfly" -- no weights, no equals
+  modifierCount: number;    // 0-N
+}
+
+// Modifier substitution: same base + same modifier count + share N-1 modifiers.
+// Up to 4 rows. Pedagogical lens: "replace this modifier with this modifier
+// and you get..." Each row exposes the explicit swap (one slug out, one in)
+// alongside the substitute trick's name + ADD.
+export interface ModifierSubstitution {
+  slug: string;
+  canonicalName: string;
+  detailHref: string;
+  adds: string;
+  swapFromName: string;     // current trick's unique modifier (lowercase)
+  swapFromCssRole: string;
+  swapToName: string;       // substitute trick's unique modifier (lowercase)
+  swapToCssRole: string;
 }
 
 // UX3d-b (2026-05-11) modifier layering. Prototype-inspired nested-box
@@ -1710,6 +1754,110 @@ function buildModifierLayering(
   };
 }
 
+// UX3e-b (2026-05-11) per-trick modifier-link map. Built once per request from
+// the existing listTricksByModifier query (which returns one row per
+// (modifier, trick) pair joined to modifier metadata). Used by buildParallel
+// Tricks + buildSubstitutions to look up any trick's modifier set without
+// hitting the DB per candidate.
+interface ModifierLinkInfo {
+  slug: string;          // modifier slug
+  name: string;          // modifier_name (lowercase by service convention)
+  type: string;          // 'body' | 'set'
+  cssRole: string;       // 'set' | 'rotation' | 'modifier'
+}
+
+function buildModifierLinkMap(
+  rows: FreestyleTrickModifierLinkRow[],
+): Map<string, ModifierLinkInfo[]> {
+  const map = new Map<string, ModifierLinkInfo[]>();
+  for (const r of rows) {
+    if (!map.has(r.trick_slug)) map.set(r.trick_slug, []);
+    map.get(r.trick_slug)!.push({
+      slug:    r.modifier_slug,
+      name:    r.modifier_name.toLowerCase(),
+      type:    r.modifier_type,
+      cssRole: modifierCssRole(r.modifier_slug, r.modifier_type),
+    });
+  }
+  return map;
+}
+
+// UX3e-b (2026-05-11) parallel tricks builder. Definition: same trick_family
+// + same adds value + different slug. Restricted to numeric adds (parallels
+// only make sense at a defined difficulty tier). Cap at 4 results. Returns
+// rows sorted by canonical_name for stable rendering.
+function buildParallelTricks(
+  trick: FreestyleTrickRow,
+  allDictRows: FreestyleTrickRow[],
+  modifierLinkMap: Map<string, ModifierLinkInfo[]>,
+): ParallelTrick[] {
+  if (!trick.adds || !/^\d+$/.test(trick.adds)) return [];
+  if (!trick.trick_family) return [];
+  return allDictRows
+    .filter(r =>
+      r.slug !== trick.slug &&
+      r.trick_family === trick.trick_family &&
+      r.adds === trick.adds,
+    )
+    .sort((a, b) => a.canonical_name.localeCompare(b.canonical_name))
+    .slice(0, 4)
+    .map(r => {
+      const mods = modifierLinkMap.get(r.slug) ?? [];
+      const decompParts = mods.map(m => m.name);
+      decompParts.push((r.base_trick ?? r.canonical_name).toLowerCase());
+      return {
+        slug:           r.slug,
+        canonicalName:  r.canonical_name,
+        detailHref:     `/freestyle/tricks/${r.slug}`,
+        adds:           r.adds ?? '',
+        decompSummary:  decompParts.join(' + '),
+        modifierCount:  mods.length,
+      };
+    });
+}
+
+// UX3e-b (2026-05-11) modifier substitutions builder. Definition: same
+// base_trick + same modifier_count + share N-1 modifiers + different slug.
+// The "share N-1" rule isolates exactly one modifier swap; substitutes with
+// 2+ different modifiers fall outside the substitution lens. Cap at 4 results;
+// sort by substitute's modifier_name for stable rendering.
+function buildSubstitutions(
+  trick: FreestyleTrickRow,
+  currentTrickMods: ModifierLinkInfo[],
+  allDictRows: FreestyleTrickRow[],
+  modifierLinkMap: Map<string, ModifierLinkInfo[]>,
+): ModifierSubstitution[] {
+  if (!trick.base_trick) return [];
+  if (currentTrickMods.length === 0) return [];
+  const ourSlugSet = new Set(currentTrickMods.map(m => m.slug));
+  const out: ModifierSubstitution[] = [];
+  for (const r of allDictRows) {
+    if (r.slug === trick.slug) continue;
+    if (r.base_trick !== trick.base_trick) continue;
+    const theirMods = modifierLinkMap.get(r.slug) ?? [];
+    if (theirMods.length !== currentTrickMods.length) continue;
+    const theirSlugSet = new Set(theirMods.map(m => m.slug));
+    let shared = 0;
+    for (const s of ourSlugSet) if (theirSlugSet.has(s)) shared++;
+    if (shared !== currentTrickMods.length - 1) continue;
+    const fromMod = currentTrickMods.find(m => !theirSlugSet.has(m.slug));
+    const toMod = theirMods.find(m => !ourSlugSet.has(m.slug));
+    if (!fromMod || !toMod) continue;
+    out.push({
+      slug:            r.slug,
+      canonicalName:   r.canonical_name,
+      detailHref:      `/freestyle/tricks/${r.slug}`,
+      adds:            r.adds ?? '',
+      swapFromName:    fromMod.name,
+      swapFromCssRole: fromMod.cssRole,
+      swapToName:      toMod.name,
+      swapToCssRole:   toMod.cssRole,
+    });
+  }
+  out.sort((a, b) => a.swapToName.localeCompare(b.swapToName));
+  return out.slice(0, 4);
+}
+
 // UX3d-a (2026-05-11) hero decomposition builder. Returns a role-coloured
 // token sequence (modifier(s) + base) for compound tricks where
 // modifierLinks.length >= 2. Returns null otherwise (atoms, 1-modifier rows,
@@ -1985,6 +2133,16 @@ export const freestyleService = {
             )
           : [];
 
+        // UX3e-b: load all (modifier, trick) pairs once and build a Map for
+        // parallel + substitution shaping. Reuses an existing prepared
+        // statement (listTricksByModifier); no new query needed.
+        const allLinkRows = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
+          freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
+        );
+        const modifierLinkMap = buildModifierLinkMap(allLinkRows);
+        const currentTrickMods: ModifierLinkInfo[] =
+          dictRow ? (modifierLinkMap.get(slug) ?? []) : [];
+
         // Load all curator-tagged media for this trick once. Split into
         // three buckets by source tier:
         //   - tutorialMedia: instructional (TT, AnzTrikz, FootbagSpot, etc.)
@@ -2131,6 +2289,18 @@ export const freestyleService = {
                 dictEntry.isModifier,
               )
             : null,
+          hasModifierLinks: modifierLinks.length > 0,
+          parallelTricks: dictRow
+            ? buildParallelTricks(dictRow, allDictRows, modifierLinkMap)
+            : [],
+          substitutions: dictRow
+            ? buildSubstitutions(
+                dictRow,
+                currentTrickMods,
+                allDictRows,
+                modifierLinkMap,
+              )
+            : [],
         };
       })(),
     };
