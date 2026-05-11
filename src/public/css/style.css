@@ -3365,3 +3365,61 @@ section.home-media { padding-top: 0; }
     line-height: 1.7;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   UX3d-a (2026-05-11) hero decomposition strip. Prominent role-coloured
+   token row rendered between h1 and the family badge for compound tricks
+   where modifier_links.length >= 2. Augments (not replaces) the title.
+   Cool-palette tokens adapted to the dark hero gradient with semi-opaque
+   white-tinted backgrounds; each role carries a thin underline for
+   accessibility independence from colour.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.trick-hero-decomposition {
+  margin: 8px 0 12px;
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: baseline;
+}
+.hero-decomp-token {
+  padding: 2px 9px;
+  border-radius: 5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  display: inline-block;
+  border-bottom: 2px solid transparent;
+}
+.hero-decomp-set {
+  background: rgba(255, 255, 255, 0.20);
+  color: #fff;
+  border-bottom-color: rgba(190, 220, 255, 0.85);
+}
+.hero-decomp-rotation {
+  background: rgba(255, 220, 180, 0.22);
+  color: #fff;
+  border-bottom-color: rgba(255, 200, 140, 0.85);
+}
+.hero-decomp-modifier {
+  background: rgba(255, 245, 200, 0.20);
+  color: #fff;
+  border-bottom-color: rgba(255, 230, 150, 0.85);
+}
+.hero-decomp-core-family {
+  background: rgba(180, 240, 200, 0.26);
+  color: #fff;
+  border-bottom-color: rgba(140, 230, 180, 0.95);
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .trick-hero-decomposition {
+    font-size: 0.95rem;
+    gap: 4px 6px;
+  }
+  .hero-decomp-token {
+    padding: 2px 7px;
+  }
+}

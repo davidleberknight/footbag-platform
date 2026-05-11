@@ -14,6 +14,11 @@
     {{/if}}
     {{#if page.eyebrow}}<p class="hero-eyebrow">{{page.eyebrow}}</p>{{/if}}
     <h1>{{page.title}}</h1>
+    {{#if content.heroDecomposition}}
+    <p class="trick-hero-decomposition" aria-label="Structural decomposition: {{#each content.heroDecomposition}}{{text}}{{#unless @last}} {{/unless}}{{/each}}">
+      {{#each content.heroDecomposition}}<span class="hero-decomp-token hero-decomp-{{cssRole}}" data-kind="{{kind}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}
+    </p>
+    {{/if}}
     {{#if content.dictEntry.trickFamily}}
     <p><a class="family-badge" href="/freestyle/tricks?family={{content.dictEntry.trickFamily}}">{{content.dictEntry.trickFamily}} family</a></p>
     {{/if}}

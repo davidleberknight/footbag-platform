@@ -511,6 +511,11 @@ export interface FreestyleTrickContent {
   // freestyle_trick_modifier_links + base_trick adds + this row's adds.
   // Renders in the hero immediately below the hero-stats chips.
   heroFormula: HeroFormulaToken[] | null;
+  // UX3d-a (2026-05-11) hero decomposition strip tokens; null when
+  // modifier_links.length < 2. Renders between h1 and family-badge as a
+  // prominent coloured-token row mirroring the original prototype's title
+  // decomposition. Pure presentation; augments the title, does not replace.
+  heroDecomposition: HeroDecompositionToken[] | null;
 }
 
 export interface Ux2PilotData {
@@ -602,6 +607,17 @@ export interface HeroFormulaToken {
   text: string;          // displayed token text
   weight: string | null; // muted parenthetical weight, e.g. "(+2)" or "(3)"; null for operators/result
   cssRole: string | null;// 'set' | 'rotation' | 'modifier' | 'core-family'; null for operators/result
+}
+
+// UX3d-a (2026-05-11) hero decomposition strip. Prominent role-coloured token
+// row rendered between the h1 and the family badge for compound tricks where
+// modifier_links.length >= 2. Augments the existing plain h1 (preserves
+// readability and accessibility); does not replace the title text. Atom rows
+// and 1-modifier compounds render null (plain h1 only). Pure presentation.
+export interface HeroDecompositionToken {
+  text: string;          // modifier or base name (lowercase, as in canonical_name)
+  cssRole: string;       // 'set' | 'rotation' | 'modifier' | 'core-family'
+  kind: 'modifier' | 'base';
 }
 
 // ── Notation grammar (Phase 3, read-only display) ────────────────────────────
@@ -1617,6 +1633,33 @@ function buildHeroFormula(
   return tokens;
 }
 
+// UX3d-a (2026-05-11) hero decomposition builder. Returns a role-coloured
+// token sequence (modifier(s) + base) for compound tricks where
+// modifierLinks.length >= 2. Returns null otherwise (atoms, 1-modifier rows,
+// modifier-only rows). Tokens render in lowercase to match the canonical_name
+// convention. The builder is defensive: any missing data (no base trick name,
+// modifier-only row) yields null, falling back to the plain h1.
+function buildHeroDecomposition(
+  modifierLinks: FreestyleTrickModifierLinkDetailRow[],
+  baseTrick: string | null,
+  isModifier: boolean,
+): HeroDecompositionToken[] | null {
+  if (isModifier) return null;
+  if (modifierLinks.length < 2) return null;
+  if (!baseTrick || !baseTrick.trim()) return null;
+  const tokens: HeroDecompositionToken[] = modifierLinks.map(link => ({
+    text:    link.modifier_name.toLowerCase(),
+    cssRole: modifierCssRole(link.modifier_slug, link.modifier_type),
+    kind:    'modifier' as const,
+  }));
+  tokens.push({
+    text:    baseTrick.toLowerCase(),
+    cssRole: 'core-family',
+    kind:    'base' as const,
+  });
+  return tokens;
+}
+
 // UX3c-b family-tier grouping (2026-05-11). Reorganises the flat family-member
 // list into ADD-tier groups; preserves source order within each tier. Numeric
 // tiers ascending; the non-numeric tier (rows with `adds` null or "modifier")
@@ -1992,6 +2035,13 @@ export const freestyleService = {
                 dictEntry.baseTrickAdds,
                 ROTATIONAL_BASES.has(dictEntry.baseTrickSlug ?? ''),
                 dictEntry.adds,
+              )
+            : null,
+          heroDecomposition: dictEntry
+            ? buildHeroDecomposition(
+                modifierLinks,
+                dictEntry.baseTrick,
+                dictEntry.isModifier,
               )
             : null,
         };
