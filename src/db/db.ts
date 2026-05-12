@@ -3402,6 +3402,14 @@ export const account = {
     WHERE id = ? AND personal_data_purged_at IS NULL
   `); },
 
+  // Used by support-flow email replies: fetch the member's login email + slug
+  // for resolution notifications. Excludes purged members.
+  get findContactInfoById() { return db.prepare(`
+    SELECT id, slug, display_name, login_email
+    FROM members_active
+    WHERE id = ? AND personal_data_purged_at IS NULL
+  `); },
+
   get listAdminMemberIds() { return db.prepare(`
     SELECT id FROM members_active
     WHERE is_admin = 1
@@ -5365,6 +5373,44 @@ export const workQueue = {
     SELECT id FROM work_queue_items
     WHERE task_type = ? AND entity_type = ? AND entity_id = ? AND status = 'open'
     LIMIT 1
+  `); },
+
+  // Member-side rate limiter for contact-IFPA-admin requests: caps the number
+  // of open items a single member can hold open at a time, across task_types.
+  get countOpenForMember() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM work_queue_items
+    WHERE entity_type = 'member' AND entity_id = ? AND status = 'open' AND task_type = ?
+  `); },
+
+  // Admin-side listing of open items, ordered by category then opened_at.
+  get listOpenForAdmin() { return db.prepare(`
+    SELECT id, created_at, opened_at, queue_category, task_type,
+           entity_type, entity_id, priority, reason_text
+    FROM work_queue_items
+    WHERE status = 'open'
+    ORDER BY queue_category, opened_at
+  `); },
+
+  // Resolve an open item: transition to status=resolved with decision and note.
+  get resolve() { return db.prepare(`
+    UPDATE work_queue_items
+    SET status = 'resolved',
+        resolved_at = ?,
+        resolved_by_member_id = ?,
+        decision_label = ?,
+        reason_text = ?,
+        updated_at = ?,
+        updated_by = ?,
+        version = version + 1
+    WHERE id = ? AND status = 'open'
+  `); },
+
+  // Look up a single queue row by id (for resolve-flow validation).
+  get findById() { return db.prepare(`
+    SELECT id, queue_category, task_type, entity_type, entity_id, status,
+           reason_text, opened_at
+    FROM work_queue_items
+    WHERE id = ?
   `); },
 };
 

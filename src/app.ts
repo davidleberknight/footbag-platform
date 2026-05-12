@@ -24,6 +24,7 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/net',       section: 'net',       label: 'Net' },
   { href: '/freestyle', section: 'freestyle', label: 'Freestyle' },
   { href: '/sideline',  section: 'sideline',  label: 'Sideline' },
+  { href: '/ifpa',      section: 'ifpa',      label: 'IFPA' },
   { href: '/rules',     section: 'rules',     label: 'Rules' },
   { href: '/records',   section: 'records',   label: 'Records' },
   { href: '/hof',       section: 'hof',       label: 'HoF' },
@@ -229,6 +230,7 @@ export function createApp(): express.Application {
       : req.path.startsWith('/records') ? 'records'
       : req.path.startsWith('/net') ? 'net'
       : req.path.startsWith('/sideline') ? 'sideline'
+      : req.path.startsWith('/ifpa') ? 'ifpa'
       : req.path.startsWith('/rules') ? 'rules'
       : req.path.startsWith('/admin') ? 'admin'
       : '';

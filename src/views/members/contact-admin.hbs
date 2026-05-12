@@ -1,0 +1,50 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#each navigation.contextLinks}}
+      <a href="{{href}}" class="back-link">&#8592; {{label}}</a>
+    {{/each}}
+
+    {{#if content.successFlag}}
+      <p class="form-success-banner" role="status">Your request has been sent to the IFPA administrator. We will reply by email.</p>
+    {{/if}}
+
+    {{#if content.errorMessage}}
+      <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+    {{/if}}
+
+    <p>Use this form for issues the self-service tools do not handle (name corrections, profile URL corrections, tier-status questions, identity-link disputes). The IFPA administrator will see your request in the admin work queue and reply by email.</p>
+
+    <form method="POST" action="{{content.formAction}}" class="form-block">
+      <fieldset class="form-fieldset">
+        <legend>What can we help with?</legend>
+
+        <div class="form-field">
+          <label for="category">Topic</label>
+          <select id="category" name="category" required>
+            <option value="" disabled {{#unless content.prefilledCategory}}selected{{/unless}}>Choose a topic&hellip;</option>
+            {{#each content.categories}}
+              <option value="{{value}}"{{#if (eq value ../content.prefilledCategory)}} selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+        </div>
+
+        <div class="form-field">
+          <label for="message">Your message</label>
+          <textarea id="message" name="message" rows="6" minlength="1" maxlength="2000" required placeholder="Describe the issue or correction you need...">{{content.prefilledMessage}}</textarea>
+          <small class="form-hint">Up to 2000 characters.</small>
+        </div>
+      </fieldset>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Submit request</button>
+        <a href="{{content.cancelHref}}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>

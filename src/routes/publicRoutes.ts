@@ -8,6 +8,7 @@ import { memberController } from '../controllers/memberController';
 import { memberGalleryController } from '../controllers/memberGalleryController';
 import { memberMediaUploadController } from '../controllers/memberMediaUploadController';
 import { claimController } from '../controllers/claimController';
+import { contactRequestController } from '../controllers/contactRequestController';
 import { authController } from '../controllers/authController';
 import { hofController } from '../controllers/hofController';
 import { bapController } from '../controllers/bapController';
@@ -16,6 +17,7 @@ import { recordsController } from '../controllers/recordsController';
 import { netController } from '../controllers/netController';
 import { sidelineController } from '../controllers/sidelineController';
 import { rulesController } from '../controllers/rulesController';
+import { ifpaController } from '../controllers/ifpaController';
 import { legalController } from '../controllers/legalController';
 import { requireAuth } from '../middleware/auth';
 import { requireTier1Benefits } from '../middleware/requireTier';
@@ -64,6 +66,9 @@ publicRouter.get('/sideline',              sidelineController.landing);
 
 publicRouter.get('/rules',                                          rulesController.index);
 publicRouter.get('/rules/:disciplineSlug/:ruleSlug',                rulesController.detail);
+
+publicRouter.get('/ifpa',           ifpaController.index);
+publicRouter.get('/ifpa/:docSlug',  ifpaController.detail);
 
 // IMPORTANT: /events/year/:year MUST be registered before /events/:eventKey.
 // Express matches routes in registration order. Without this ordering,
@@ -118,6 +123,8 @@ publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberControl
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
 publicRouter.get('/members/:memberKey/link-history',  requireAuth, claimController.getLinkHistory);
 publicRouter.post('/members/:memberKey/link-history/find', requireAuth, claimController.postLinkHistoryFind);
+publicRouter.get('/members/:memberKey/contact-admin',  requireAuth, contactRequestController.getForm);
+publicRouter.post('/members/:memberKey/contact-admin', requireAuth, contactRequestController.postSubmit);
 
 // Owner-only named-gallery management. Order matters: literal `new`
 // must precede `:id`; literal `edit`/`delete` sub-paths sit at a deeper

@@ -39,6 +39,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_Review_Legacy_Club_Data_During_Claim](#m_review_legacy_club_data_during_claim)
   - [3.2 Profile Management](#32-profile-management)
     - [M_Edit_Profile](#m_edit_profile)
+    - [M_Contact_IFPA_Admin](#m_contact_ifpa_admin)
     - [M_Search_Members](#m_search_members)
     - [M_View_Profile](#m_view_profile)
   - [3.3 Club Membership](#33-club-membership)
@@ -135,6 +136,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [Retention / Cleanup](#retention-cleanup)
   - [6.8 Monitoring and Audit](#68-monitoring-and-audit)
     - [A_View_Dashboard](#a_view_dashboard)
+    - [A_Resolve_Contact_IFPA_Admin_Request](#a_resolve_contact_ifpa_admin_request)
     - [A_View_System_Health](#a_view_system_health)
     - [A_View_Audit_Logs](#a_view_audit_logs)
     - [A_Acknowledge_Alarm](#a_acknowledge_alarm)
@@ -730,6 +732,24 @@ Success Criteria:
 - Key actions are recorded in the audit log.
 - Member profile will automatically show club affiliation, media galleries, and links to event results, if participated.
 - Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
+
+### M_Contact_IFPA_Admin
+
+Access: Authenticated members can submit a structured contact request to the IFPA administrator for issues the self-service tools do not handle (display-name corrections, profile-URL corrections, tier-status questions, identity-link disputes, anything else that requires admin action).
+
+Story: As a member, I can submit a structured contact request to the IFPA administrator from my profile edit page so that I can resolve account issues without leaving the platform and so the administrator sees my request alongside other admin work.
+
+Success Criteria:
+
+- The profile edit page surfaces a "Contact IFPA admin" link next to the read-only identity block.
+- The link opens a slug-scoped owner-only form (`/members/:slug/contact-admin`) with: a category dropdown (Display name correction, Profile URL correction, Tier-status question, Identity-link issue, Other), a free-text message textarea (required, up to 2000 characters), and a submit button.
+- On submit, the member sees a confirmation banner: "Your request has been sent to the IFPA administrator. We will reply by email."
+- Submitting writes one `work_queue_items` row with `queue_category='membership'`, `task_type='member_contact_request'`, `entity_type='member'`, `entity_id=<requesting_member_id>`, `status='open'`, `priority=5`, and `reason_text=<category-label>: <first 200 chars of message>`.
+- Submitting writes one `audit_entries` row with `actor_type='member'`, `action_type='support.contact_request_submitted'`, `category='support'`, `reason_text=<category-label>`, and `metadata_json` carrying the full message body and the category enum value.
+- A member can hold at most 3 `status='open'` contact requests at a time. A 4th submission returns HTTP 429 with a clear error message that points to the member's open requests.
+- Anonymous visitors do not see this form. The visitor-facing contact path remains the `admin@footbag.org` address surfaced on `/legal`.
+- The form is not exposed on any other member's profile: slug mismatch returns 404 (anti-enumeration), matching the link-history wizard pattern.
+- HTML, unicode, and other adversarial input in the message body is stored verbatim in audit metadata and escaped when rendered on the admin queue view.
 
 ### M_Search_Members
 
@@ -2033,6 +2053,24 @@ Success Criteria:
 - Dashboard highlights any categories with urgent items (for example, failed backups, alarmed cost thresholds, many failed payments, email outbox dead-letter growth) using a simple visual indicator.
 - Admin sees only data they are permitted to act on; no member personal data beyond what existing admin stories allow.
 - Dashboard view is read-only; all state changes happen in the underlying queues and flows already defined in other admin stories.
+
+### A_Resolve_Contact_IFPA_Admin_Request
+
+Access: Administrators can review, respond to, and resolve `member_contact_request` items in the admin work queue.
+
+Story: As an administrator, I can review a member's contact request from the admin work queue, take the requested action (or document why no action is taken), and resolve the queue item so that the member's account issue is handled and the resolution is auditable.
+
+Success Criteria:
+
+- The admin work-queue dashboard at `/admin/work-queue` lists every `work_queue_items` row with `status='open'`, grouped by `queue_category`, including `task_type='member_contact_request'` items under Membership.
+- Each item displays the task-type label, the member's display name with a link to their profile, the opened date, and the `reason_text` (category label + first 200 chars of the message).
+- Each item carries an inline resolve form with a decision-label dropdown (Corrected, Denied, Duplicate, Out of scope) and a required free-text resolution note (up to 500 characters).
+- On resolve, `work_queue_items` is updated with `status='resolved'`, `resolved_at`, `resolved_by_member_id=<admin>`, `decision_label`, and `reason_text=<resolution note>`.
+- On resolve, one `audit_entries` row is written with `actor_type='admin'`, `action_type='support.contact_request_resolved'`, `category='support'`, `reason_text=<decision_label>`, and `metadata_json` carrying the resolution note and original queue item id.
+- On resolve, an email reply is dispatched to the member's `login_email` via the `SesAdapter` containing the decision label, the resolution note, the original request text, and instructions to submit a new request if further assistance is needed.
+- If the resolution requires changing a member field (display_name, slug, tier, identity link), the admin performs that change through the relevant admin tool. The contact-request resolution itself never mutates member rows; it only transitions queue state, writes audit, and sends email.
+- Resolving an item with an invalid decision label or empty resolution note returns 422 with a field-level error. Resolving an unknown or already-resolved queue id returns 404.
+- Non-admin authenticated users receive 403 from `/admin/work-queue` and the resolve action; unauthenticated traffic is redirected to login.
 
 ### A_View_System_Health
 

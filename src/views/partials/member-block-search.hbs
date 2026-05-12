@@ -1,8 +1,8 @@
 <section>
-  <div class="card member-search-card">
+  <div id="find-members" class="card member-search-card">
     <div class="card-title">Find Members</div>
     <div class="member-search-section">
-      <form method="GET" action="{{formAction}}" class="member-search-form">
+      <form method="GET" action="{{formAction}}#find-members" class="member-search-form">
         <input type="text" name="q" minlength="2" maxlength="100"
                placeholder="Search by name..."
                value="{{query}}"

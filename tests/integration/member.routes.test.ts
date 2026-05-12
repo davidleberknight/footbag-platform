@@ -266,7 +266,7 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`href="/members/${OWN_SLUG}/link-history"`);
-    expect(res.text).toContain('Link your history');
+    expect(res.text).toContain('Link your legacy account, results, and clubs');
   });
 
   it('fully-linked member: link-history CTA is hidden', async () => {
@@ -276,9 +276,9 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .set('Cookie', linkedCookie());
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('/link-history');
-    expect(res.text).not.toContain('Link your history');
-    expect(res.text).not.toContain('Link your past account');
-    expect(res.text).not.toContain('Link your competition record');
+    expect(res.text).not.toContain('Link your legacy account, results, and clubs');
+    expect(res.text).not.toContain('Link your old footbag.org account');
+    expect(res.text).not.toContain('Link your competition history');
   });
 });
 

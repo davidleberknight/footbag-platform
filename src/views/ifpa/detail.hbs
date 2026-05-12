@@ -1,0 +1,30 @@
+{{! /ifpa/:docSlug — single IFPA governance doc rendered from markdown }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{content.doc.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper ifpa-detail">
+
+  {{#if content.doc.headings.length}}
+  <nav class="rules-toc" aria-label="On this page">
+    <strong>On this page</strong>
+    <ul>
+      {{#each content.doc.headings}}
+      <li><a href="#{{id}}">{{text}}</a></li>
+      {{/each}}
+    </ul>
+  </nav>
+  {{/if}}
+
+  <article class="markdown-body">
+    {{{content.doc.bodyHtml}}}
+  </article>
+
+  <section class="ifpa-footer-back">
+    <p><a href="/ifpa" class="btn btn-outline">&larr; Back to IFPA hub</a></p>
+  </section>
+
+</div>

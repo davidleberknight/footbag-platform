@@ -388,8 +388,11 @@ th.sortable:hover { color: var(--primary); }
   border-radius: 20px;
 }
 
+/* ── Profile membership block tiers link ────────────────────── */
+.membership-tiers-link { margin-top: 6px; font-size: 0.9rem; }
+
 /* ── Find Members card (member dashboard) ───────────────────── */
-.member-search-card { padding: 16px; }
+.member-search-card { padding: 16px; scroll-margin-top: 80px; }
 .member-search-card .member-search-section { margin-bottom: 8px; }
 .member-search-card-results-head {
   display: flex;

@@ -100,7 +100,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Identity');
     expect(res.text).toContain('No past account or competition record linked.');
-    expect(res.text).toContain('Link your history');
+    expect(res.text).toContain('Link your legacy account, results, and clubs');
     expect(res.text).toContain(`href="/members/${NO_NO_SLUG}/link-history"`);
     expect(res.text).not.toContain('Legacy account: linked');
     expect(res.text).not.toContain('Competition record:');
@@ -111,7 +111,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/Legacy account: linked.*Jan.*2024/);
     expect(res.text).toContain('Competition record: not yet linked.');
-    expect(res.text).toContain('Link your competition record');
+    expect(res.text).toContain('Link your competition history');
     expect(res.text).toContain(`href="/members/${YES_NO_SLUG}/link-history"`);
   });
 
@@ -120,7 +120,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Legacy account: none on file.');
     expect(res.text).toContain(`Competition record: ${HP_NAME}.`);
-    expect(res.text).toContain('Link your past account');
+    expect(res.text).toContain('Link your old footbag.org account');
   });
 
   it('yes/yes: shows both linked summaries, no CTA', async () => {

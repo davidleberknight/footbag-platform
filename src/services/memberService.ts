@@ -538,13 +538,13 @@ function tierBenefitsBlurb(tier: MemberTier, isAp: boolean): string {
   }
   switch (tier) {
     case 'tier0':
-      return 'Registered Members can browse the platform and search the membership. Tier 1 members are listed on the Official IFPA Roster.';
+      return 'You can browse the platform, search the membership, and earn Active Player status through qualifying event attendance, vouching, or a one-time club-join grant.';
     case 'tier1':
-      return 'Tier 1 IFPA Members support the IFPA and are listed on the Official IFPA Roster.';
+      return 'You support the IFPA, are listed on the Official IFPA Roster, vote in IFPA elections, and can create clubs and basic events.';
     case 'tier2':
-      return 'Tier 2 IFPA Organizer Members can vouch for Active Player status and participate in IFPA governance.';
+      return 'You can create sanctioned events, request IFPA sponsorship, send community announcements, vouch for Tier 0 Active Player status, and access the Official IFPA Roster.';
     case 'tier3':
-      return 'IFPA Directors hold full IFPA governance authority.';
+      return 'You hold full IFPA governance authority and revert to your underlying membership tier when governance status ends.';
   }
 }
 
@@ -613,10 +613,10 @@ function buildIdentityCta(
   // is missing without bouncing between separate forms.
   const href = slug ? `/members/${slug}/link-history` : '/history/claim';
   const label = !legacyLinked && !hpLinked
-    ? 'Link your history'
+    ? 'Link your legacy account, results, and clubs'
     : !legacyLinked
-    ? 'Link your past account'
-    : 'Link your competition record';
+    ? 'Link your old footbag.org account'
+    : 'Link your competition history';
   return { href, label };
 }
 

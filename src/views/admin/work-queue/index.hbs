@@ -1,0 +1,61 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p>{{content.totalOpen}} open item{{#unless (eq content.totalOpen 1)}}s{{/unless}}.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.resolvedFlag}}
+    <p class="form-success-banner" role="status">Item resolved and email reply dispatched.</p>
+  {{/if}}
+  {{#if content.errorMessage}}
+    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
+  {{/if}}
+
+  {{#unless content.groups.length}}
+    <section>
+      <p class="text-muted">No open work-queue items.</p>
+    </section>
+  {{/unless}}
+
+  {{#each content.groups}}
+    <section>
+      <div class="section-heading">
+        <h2>{{categoryLabel}}</h2>
+        <span class="section-count">{{items.length}}</span>
+      </div>
+      {{#each items}}
+        <div class="card work-queue-item">
+          <div class="card-title">{{taskTypeLabel}}</div>
+          <p class="card-meta">
+            Opened {{openedAtDisplay}}
+            {{#if entityDisplayName}}
+              &middot; {{#if entityHref}}<a href="{{entityHref}}">{{entityDisplayName}}</a>{{else}}{{entityDisplayName}}{{/if}}
+            {{/if}}
+          </p>
+          {{#if reasonText}}
+            <p>{{reasonText}}</p>
+          {{/if}}
+
+          <form method="POST" action="/admin/work-queue/{{id}}/resolve" class="form-block work-queue-resolve">
+            <div class="form-field">
+              <label for="decision_label_{{id}}">Decision</label>
+              <select id="decision_label_{{id}}" name="decision_label" required>
+                <option value="" disabled selected>Choose a decision&hellip;</option>
+                {{#each decisionLabels}}
+                  <option value="{{value}}">{{label}}</option>
+                {{/each}}
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="resolution_note_{{id}}">Resolution note</label>
+              <textarea id="resolution_note_{{id}}" name="resolution_note" rows="2" maxlength="500" required placeholder="Sent to the member by email"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Resolve</button>
+          </form>
+        </div>
+      {{/each}}
+    </section>
+  {{/each}}
+</div>

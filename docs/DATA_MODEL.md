@@ -386,7 +386,7 @@ At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` m
 **Views:** `system_config_current`
 
 #### Work queue
-Admin task queue with `queue_category` and `task_type`. When any task is added, the application sends a notification to the admin-alerts mailing list containing task type and entity ID only (no sensitive data).
+Admin task queue with `queue_category` and `task_type`. Active `task_type` values include `member_contact_request` (member-submitted IFPA-admin contact requests under `queue_category='membership'`; see `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`). When any task is added, the application sends a notification to the admin-alerts mailing list containing task type and entity ID only (no sensitive data).
 
 #### System config
 `system_config` is an append-only effective-dated key-value store. Each row represents the value of a config key from a given `effective_start_at` forward. The current effective value per key is provided by the `system_config_current` view (latest row with `effective_start_at <= now`). Changing a config value means inserting a new row; old rows are immutable (UPDATE and DELETE blocked by triggers).

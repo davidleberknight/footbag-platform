@@ -42,8 +42,8 @@ const AUTO_LINK_FORM_VM = {
 // is now a 301 redirect to the wizard, so getClaim is also unused.
 
 const LINK_HISTORY_VM = {
-  seo:  { title: 'Link your history' },
-  page: { sectionKey: 'members', pageKey: 'link_history_wizard', title: 'Link your history' },
+  seo:  { title: 'Find your past records and clubs' },
+  page: { sectionKey: 'members', pageKey: 'link_history_wizard', title: 'Find your past records and clubs' },
 };
 
 function renderNotFound(res: Response): void {

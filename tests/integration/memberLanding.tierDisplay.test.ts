@@ -93,6 +93,11 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     expect(res.text).toContain('Tier 0 Registered Member');
     expect(res.text).toContain('Upgrade to Tier 1 (Coming soon)');
     expect(res.text).toContain('Upgrade to Tier 2 (Coming soon)');
+    // Blurb uses second-person "You..." form (no tier-name duplication).
+    expect(res.text).toContain('You can browse the platform');
+    // Rules link points to the IFPA hub.
+    expect(res.text).toContain('href="/ifpa"');
+    expect(res.text).toContain('View IFPA membership rules');
     // No Active Player badge for the no-AP case.
     expect(res.text).not.toMatch(/Active Player\s*—/);
   });

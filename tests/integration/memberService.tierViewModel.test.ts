@@ -52,7 +52,7 @@ describe('getOwnProfile().content.membership', () => {
     expect(vm.content.membership!.underlyingTierBadgeText).toBeNull();
     expect(vm.content.membership!.showTier1Upgrade).toBe(true);
     expect(vm.content.membership!.showTier2Upgrade).toBe(true);
-    expect(vm.content.membership!.benefitsBlurb).toMatch(/Registered Members/);
+    expect(vm.content.membership!.benefitsBlurb).toMatch(/You can browse the platform/);
   });
 
   it('tier0 with current AP: AP block carries the formatted expiry date', () => {

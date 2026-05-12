@@ -1,0 +1,28 @@
+{{! /ifpa — IFPA governance hub }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper ifpa-index">
+
+  <section>
+    <div class="card-grid card-grid-2col">
+      {{#each content.docs}}
+        <div class="card">
+          <div class="card-title"><a href="{{href}}">{{title}}</a></div>
+          <p class="card-description">{{summary}}</p>
+          <a href="{{href}}" class="btn btn-outline">Read</a>
+        </div>
+      {{/each}}
+    </div>
+  </section>
+
+  <section class="ifpa-footer-link">
+    <p>Looking for the rules of competition? <a href="/rules">Footbag sport rules &rarr;</a></p>
+  </section>
+
+</div>

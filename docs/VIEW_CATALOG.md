@@ -274,6 +274,7 @@ Visual token baseline (from `src/public/css/style.css`): font stack Inter, Helve
 | `GET /members/:memberKey/media/upload` | Member upload | Owner-only form to upload one photo or submit one video URL |
 | `GET /members/:memberKey/link-history` | Link-history wizard | Owner-only one-page mixed candidate list (legacy + HP + back-linked "both") plus manual-id input |
 | `POST /members/:memberKey/link-history/find` | Link-history manual-id lookup | Owner-only manual-id form action; tries legacy_members then historical_persons |
+| `GET /members/:memberKey/contact-admin` | Contact IFPA admin form | Owner-only structured contact-request form (category + message); inserts a `member_contact_request` row in the admin work queue |
 | `GET /history/auto-link` | (deprecated) | 301 redirect to the link-history wizard, query string preserved |
 | `GET /members/:memberKey/:section` | Member account stub | Placeholder pages for future account subsections |
 | `GET /history` | Historical players redirect | 301 redirect to `/members` |
@@ -317,6 +318,8 @@ Visual token baseline (from `src/public/css/style.css`): font stack Inter, Helve
 | `GET /sideline` | Sideline landing | Casual / social footbag games portal |
 | `GET /rules` | Rules index | Top-level index of rule pages, grouped by discipline |
 | `GET /rules/:disciplineSlug/:ruleSlug` | Rule detail | Single rule page from `ifpa/rules/{discipline}.md` |
+| `GET /ifpa` | IFPA hub | Top-level index of IFPA governance documents (membership rules, bylaws, articles of incorporation) |
+| `GET /ifpa/:docSlug` | IFPA doc detail | Single governance doc rendered from `ifpa/*.md` with TOC anchors |
 | `GET /legal` | Legal | Privacy, Terms of Use, Copyright and Trademarks single page |
 | `GET /health/live` | Operational endpoint | Liveness check (not a cataloged page) |
 | `GET /health/ready` | Operational endpoint | Readiness check (not a cataloged page) |
