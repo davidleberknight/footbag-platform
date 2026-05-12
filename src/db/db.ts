@@ -4036,6 +4036,32 @@ export const media = {
     WHERE id = ?
   `); },
 
+  // Member-uploaded media lookup, scoped by the requesting member id.
+  // The owner-id filter is the gate: a row owned by anyone else returns
+  // undefined, which controllers translate to 404 (anti-enumeration).
+  // Excludes is_system rows so admin/FH-uploaded media is never reachable
+  // through the member-self edit surface.
+  get getMemberMediaItemById() { return db.prepare(`
+    SELECT mi.id, mi.uploader_member_id, mi.media_type, mi.caption,
+           mi.s3_key_thumb, mi.s3_key_display,
+           mi.video_platform, mi.video_id, mi.video_url, mi.thumbnail_url,
+           mi.source_filename, mi.external_url
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE mi.id = ?
+      AND mi.uploader_member_id = ?
+      AND m.is_system = 0
+      AND mi.moderation_status = 'active'
+  `); },
+
+  // Caption-only update for member-self edits. Mirrors
+  // updateCuratorMediaCaption but stamps updated_by='member-self'.
+  get updateMemberMediaCaption() { return db.prepare(`
+    UPDATE media_items
+    SET caption = ?, updated_at = ?, updated_by = 'member-self', version = version + 1
+    WHERE id = ?
+  `); },
+
   // Tag-filtered curator media list. Joins through media_tags + tags to
   // filter by tag_normalized. Mirrors listCuratorMedia ordering.
   // Replaced by listCuratorMediaByTagSorted (sort-aware). Kept temporarily

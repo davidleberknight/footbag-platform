@@ -17,11 +17,12 @@
     cancelHref   URL the cancel link points to.
     isCreate     true on the create flow; false on edit. Both flows always
                  submit multipart so an optional photo upload can ride
-                 along. Tags applied to uploaded items come from the
-                 `uploadTags` field below — never auto-stamped from the
-                 gallery's criteria. Auto tags applied by the service
-                 layer remain limited to `#by_<slug>` (uploader
-                 attribution) and `#curated` (FH-owned only).
+                 along. Tags applied to uploaded items are the gallery's
+                 non-`#by_*` criteria tags (auto-stamped at submit time
+                 in the controller) merged with anything the user typed
+                 into the `uploadTags` field below. Auto tags applied
+                 by the service layer remain limited to `#by_<slug>`
+                 (uploader attribution) and `#curated` (FH-owned only).
 
   CSRF protection: per DD §3.3, the platform relies on SameSite=Lax
   session cookies + POST-only state changes; no synchronizer tokens.
@@ -121,17 +122,15 @@
       JPEG or PNG, up to 25 MB each, max 3 files.
     </small>
     <label class="form-sublabel">
-      <span class="form-label">Tags for these uploads</span>
-      <textarea name="uploadTags" rows="2"
-                placeholder="{{gallery.criteriaTagsString}}">{{uploadTags}}</textarea>
+      <span class="form-label">Extra tags for these uploads (optional)</span>
+      <textarea name="uploadTags" rows="2" placeholder="#extra #optional">{{uploadTags}}</textarea>
       <small class="form-help">
-        Whitespace- or newline-separated. Items must carry every one of the
-        gallery's criteria tags above to appear here, so leaving the
-        suggestion in place is the easiest way to make uploads show up.
+        Files uploaded here are automatically tagged with this gallery's
+        criteria tags{{#unless isFhOwned}} plus your <code>#by_</code> uploader
+        marker{{/unless}}, so they appear in this gallery. Use this box only
+        to apply additional hashtags beyond the criteria above.
         {{#if isFhOwned}}
           Curated uploads also receive <code>#curated</code> automatically.
-        {{else}}
-          Your <code>#by_</code> uploader marker is added automatically.
         {{/if}}
       </small>
     </label>

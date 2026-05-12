@@ -1,0 +1,41 @@
+{{!--
+  Member-owned per-item media edit form. Owner-only (anti-enumeration
+  404 elsewhere). Mirrors the form rows of the admin curator edit
+  page; sidecar / creator / tier / clip-range fields are admin-only
+  and not surfaced here.
+--}}
+<div class="wrapper">
+  <h1>{{page.title}}</h1>
+  <p>
+    Update this item's caption, tags, or external URL. The auto-applied
+    <code>#by_&lt;your-slug&gt;</code> uploader marker is preserved across saves
+    and is not editable. Tags starting with <code>#by_</code> or <code>#curated</code>
+    are system-managed and rejected as input.
+  </p>
+
+  {{#if errorMessage}}
+    <div class="form-error-banner" role="alert">{{errorMessage}}</div>
+  {{/if}}
+
+  <form action="{{formAction}}" method="POST">
+    <p>
+      <label for="member-media-caption">Caption (optional, up to 500 characters):</label><br>
+      <textarea id="member-media-caption" name="caption" maxlength="500" rows="3" cols="60">{{formValues.caption}}</textarea>
+    </p>
+
+    <p>
+      <label for="member-media-tags">Tags (space-separated <code>#hashtags</code>):</label><br>
+      <input id="member-media-tags" type="text" name="tags" value="{{formValues.tags}}" placeholder="#freestyle #spike">
+    </p>
+
+    <p>
+      <label for="member-media-external-url">External URL (optional, link to source page or creator):</label><br>
+      <input id="member-media-external-url" type="url" name="externalUrl" value="{{formValues.externalUrl}}" placeholder="https://example.com/article">
+    </p>
+
+    <p>
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a href="{{cancelHref}}" class="btn btn-link">Cancel</a>
+    </p>
+  </form>
+</div>

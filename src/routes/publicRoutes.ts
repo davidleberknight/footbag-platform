@@ -7,6 +7,7 @@ import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
 import { memberGalleryController } from '../controllers/memberGalleryController';
 import { memberMediaUploadController } from '../controllers/memberMediaUploadController';
+import { memberMediaEditController } from '../controllers/memberMediaEditController';
 import { claimController } from '../controllers/claimController';
 import { contactRequestController } from '../controllers/contactRequestController';
 import { authController } from '../controllers/authController';
@@ -151,6 +152,12 @@ publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, re
 // defense-in-depth in curatorMediaService.assertTier1Benefits.
 publicRouter.get('/members/:memberKey/media/upload',  requireAuth, memberMediaUploadController.getUpload);
 publicRouter.post('/members/:memberKey/media/upload', requireAuth, requireTier1Benefits(), memberMediaUploadController.postUpload);
+
+// Per-item edit (caption + tags + external URL). MUST be registered
+// after /media/upload so the literal `upload` segment wins on POST;
+// controller also defends with an `:mediaId === 'upload'` 404.
+publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireAuth, memberMediaEditController.getEdit);
+publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireAuth, requireTier1Benefits(), memberMediaEditController.postUpdate);
 
 publicRouter.get('/members/:memberKey/:section',      requireAuth, memberController.getStub);
 

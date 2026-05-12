@@ -261,6 +261,35 @@ export interface MemberUploadResult {
   displayUrl: string;
 }
 
+// Member-self edit form's view-model shape (caption + tags + external URL).
+// Sidecar / creator / tier / clip-range fields are admin-only and not
+// surfaced on the member edit page.
+export interface MemberMediaItem {
+  mediaId: string;
+  mediaType: 'photo' | 'video';
+  caption: string | null;
+  tags: string[];
+  externalUrl: string | null;
+}
+
+export interface MemberMediaEditInput {
+  memberId: string;
+  // Slug of the authenticated member. Used by applyTagsForMember when
+  // rewriting tags so the auto-applied #by_<slug> stays consistent.
+  slug: string;
+  mediaId: string;
+  // Three-way semantics match CuratorMediaEditInput: undefined leaves the
+  // field alone, null clears, string/array sets.
+  caption?: string | null;
+  tags?: string[];
+  externalUrl?: string | null;
+}
+
+export interface MemberMediaEditResult {
+  mediaId: string;
+  updatedAt: string;
+}
+
 interface SystemMemberRow {
   id: string;
 }
@@ -2059,6 +2088,86 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       return { mediaId, displayUrl: storage.constructURL(displayKey) };
+    },
+
+    // Member-self read for the per-item edit form. Owner-scoped: the
+    // db.ts statement filters by uploader_member_id, so a row owned by
+    // anyone else returns undefined → caller renders 404. Returns the
+    // minimal shape the edit view needs (caption, tags, external URL);
+    // FH-curator sidecar fields (creator/tier/clip range) are not
+    // surfaced on the member surface.
+    getMemberMediaItem(mediaId: string, ownerMemberId: string): MemberMediaItem | null {
+      const row = runSqliteRead('getMemberMediaItemById', () =>
+        media.getMemberMediaItemById.get(mediaId, ownerMemberId),
+      ) as MediaItemRow | undefined;
+      if (!row) return null;
+      const tagPairs = queryCuratorMediaTags([mediaId]);
+      return {
+        mediaId: row.id,
+        mediaType: row.media_type,
+        caption: row.caption,
+        tags: tagPairs.map((p) => p.tag_display),
+        externalUrl: row.external_url,
+      };
+    },
+
+    // Member-self edit. Mirrors the validation surface of editMedia but
+    // skips the FH-curator sidecar branches entirely (member uploads are
+    // photos only; no URL-ref sidecars). Owner-scoped: the row load is
+    // gated by uploader_member_id, so a non-owner gets NotFoundError. Tag
+    // rewrites go through applyTagsForMember so the auto-applied
+    // `#by_<slug>` uploader marker is re-attached every save.
+    async editMemberMedia(input: MemberMediaEditInput): Promise<MemberMediaEditResult> {
+      assertTier1Benefits(input.memberId);
+      if (input.caption !== undefined) {
+        validateCaption(input.caption);
+      }
+      if (input.tags !== undefined) {
+        validateTags(input.tags);
+      }
+      let normalizedExternalUrlEdit: string | null | undefined;
+      if (input.externalUrl !== undefined) {
+        normalizedExternalUrlEdit = await normalizeExternalUrlOrThrow(input.externalUrl);
+      }
+
+      const row = runSqliteRead('getMemberMediaItemById', () =>
+        media.getMemberMediaItemById.get(input.mediaId, input.memberId),
+      ) as MediaItemRow | undefined;
+      if (!row) {
+        throw new NotFoundError(`Member media not found: ${input.mediaId}`);
+      }
+
+      const now = new Date().toISOString();
+      const dedupedTags =
+        input.tags !== undefined ? Array.from(new Set(input.tags)) : undefined;
+
+      transaction(() => {
+        if (input.caption !== undefined) {
+          media.updateMemberMediaCaption.run(input.caption, now, input.mediaId);
+        }
+        if (dedupedTags !== undefined) {
+          mediaTagsDb.deleteMediaTagsByMediaId.run(input.mediaId);
+          applyTagsForMember(input.mediaId, input.slug, dedupedTags, now);
+        }
+        if (normalizedExternalUrlEdit !== undefined) {
+          media.setMediaItemExternalUrl.run(normalizedExternalUrlEdit, now, input.mediaId);
+        }
+        appendAuditEntry({
+          actionType: 'edit_member_media',
+          category: 'media',
+          actorType: 'member',
+          actorMemberId: input.memberId,
+          entityType: 'media_item',
+          entityId: input.mediaId,
+          metadata: {
+            caption: input.caption !== undefined ? input.caption : null,
+            tags: dedupedTags ?? null,
+            externalUrl: normalizedExternalUrlEdit !== undefined ? normalizedExternalUrlEdit : null,
+          },
+        });
+      });
+
+      return { mediaId: input.mediaId, updatedAt: now };
     },
 
     // Member-attributed video URL submission. URL-reference only (no

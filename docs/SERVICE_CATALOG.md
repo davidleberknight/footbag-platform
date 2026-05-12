@@ -309,6 +309,18 @@ Persistence: none (filesystem-backed).
 
 Side effects: none.
 
+**`IfpaService`** (`src/services/ifpaService.ts`)
+
+Owns the public IFPA governance hub reads (`GET /ifpa` index and `GET /ifpa/:docSlug` detail). Renders the canonical IFPA membership rules, bylaws, and articles of incorporation. Does not own sport rules (delegated to `RulesService`), membership-tier ledger writes, or governance editing.
+
+Required patterns: governance doc source of truth in `ifpa/{IFPAMembershipStructure_2026,BYLAWS,ArticlesOfIncorporation}.md`; rendered HTML is derived (verbatim from canonical IFPA source). Slug is the file basename without `.md`, lowercased (`membership-structure`, `bylaws`, `articles`). Markdown rendered with `marked` by `src/lib/ifpaLoader.ts`; H1-H6 headings receive `id` attributes via post-process; H2 entries surface as the on-page TOC. Cache is process-lifetime; `_resetIfpaCache()` test hook exported. Hub-page summaries are hard-coded in the service for editorial control (not pulled from markdown). `NotFoundError` on unknown doc slug.
+
+Method roster: `getIfpaIndexPage`, `getIfpaDocPage`.
+
+Persistence: none (filesystem-backed).
+
+Side effects: none.
+
 ### 6.3 Payments and membership
 
 **`PaymentService`** (`src/services/paymentService.ts`)
@@ -458,6 +470,18 @@ Method roster: `getLegalPage`.
 Persistence: none.
 
 Side effects: none.
+
+**`ContactRequestService`** (`src/services/contactRequestService.ts`)
+
+Owns the member-to-IFPA-admin support flow per `M_Contact_IFPA_Admin` and `A_Resolve_Contact_IFPA_Admin_Request`: contact-request submission, admin work-queue listing, and resolution (status transition plus audit plus email reply). Does not own member field mutations (the admin performs those through their own tools; this service only transitions queue state and writes audit), nor the visitor-side contact path (visitors continue to use the `/legal` `admin@footbag.org` mailto:).
+
+Required patterns: contact requests persist as `work_queue_items` rows with `queue_category='membership'`, `task_type='member_contact_request'`, and `entity_type='member'`. Categories are an enumerated TypeScript constant (`display_name_correction`, `profile_url_correction`, `tier_status_question`, `identity_link_issue`, `other`). Decision labels are an enumerated TypeScript constant (`corrected`, `denied`, `duplicate`, `out_of_scope`); no thread or clarification loop in the first cut. Per-member open-count cap of 3 enforced via `workQueue.countOpenForMember`; the 4th submission throws `RateLimitedError`. Message body length capped at 2000 characters; resolution note length capped at 500. Full message body lives in `audit_entries.metadata_json` (immutable ledger), not in `work_queue_items.reason_text` (which carries the category label + first 200 chars). Resolution emails dispatched via `SesAdapter.sendEmail` with the decision-label-keyed subject and a self-contained reply body that includes the original request text. Categories enum stays in TypeScript until shape stabilizes; DB CHECK constraint deferred.
+
+Method roster: `submit`, `resolve`, `listOpenForAdmin`.
+
+Persistence: `work_queue_items`, `audit_entries`, `members_active` (read-only for resolution email lookup).
+
+Side effects: audit append (member-side submit + admin-side resolve); SES email send on resolve.
 
 **`CuratorMediaService`** (`src/services/curatorMediaService.ts`)
 

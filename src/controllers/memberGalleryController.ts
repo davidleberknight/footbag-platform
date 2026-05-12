@@ -29,6 +29,30 @@ function parseTagsField(raw: string | undefined): string[] {
   return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
 }
 
+// Strip the auto-applied uploader marker from a criteria-tag list so
+// the merge into per-file upload tags doesn't double-add it (the
+// service's applyTagsForMember re-prepends it on every upload).
+function nonUploaderCriteria(criteriaTags: string[]): string[] {
+  return criteriaTags.filter((t) => !t.toLowerCase().startsWith(UPLOADER_TAG_PREFIX));
+}
+
+// Case-insensitive uniq-merge across multiple tag lists. Preserves
+// the first-seen casing of each tag and the cross-list order.
+function mergeTags(...lists: string[][]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const list of lists) {
+    for (const t of list) {
+      const key = t.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        out.push(t);
+      }
+    }
+  }
+  return out;
+}
+
 // Member-owned galleries scope to their owner via `#by_<slug>`, the
 // system-managed uploader-attribution tag (parallel to `#curated` for
 // FH uploads). The service's createGallery / updateGallery auto-prepend
@@ -524,10 +548,12 @@ async function executeMultipartCreate(args: {
     throw err;
   }
 
-  // Uploaded files get the user-supplied uploadTags. The service
-  // auto-prepends #by_<slug> for uploader attribution; no other tag is
-  // automatic. If uploadTags is empty, items get only #by_<slug> and
-  // do NOT appear in the gallery — user's explicit choice.
+  // Uploaded files get the gallery's non-#by_* criteria tags (auto-
+  // stamped so files land in the gallery without the user having to
+  // re-type them) merged with any explicit uploadTags the user added.
+  // The service's applyTagsForMember re-prepends #by_<slug> on save.
+  const autoStampTags = nonUploaderCriteria(criteriaTags);
+  const finalUploadTags = mergeTags(autoStampTags, uploadTags);
   for (const f of photoFiles) {
     try {
       await svc.uploadPhotoForMember({
@@ -536,7 +562,7 @@ async function executeMultipartCreate(args: {
         photoBuffer: f.buffer,
         sourceFilename: f.filename,
         caption: null,
-        tags: uploadTags,
+        tags: finalUploadTags,
       });
     } catch (err) {
       if (err instanceof ValidationError) {
@@ -653,6 +679,11 @@ async function executeMultipartUpdate(args: {
     throw err;
   }
 
+  // Auto-stamp the gallery's current criteria (post-update) onto each
+  // upload so files land in the gallery without the user re-typing.
+  // Mirrors handleMultipartCreate.
+  const autoStampTags = nonUploaderCriteria(criteriaTags);
+  const finalUploadTags = mergeTags(autoStampTags, uploadTags);
   for (const f of photoFiles) {
     try {
       await svc.uploadPhotoForMember({
@@ -661,7 +692,7 @@ async function executeMultipartUpdate(args: {
         photoBuffer: f.buffer,
         sourceFilename: f.filename,
         caption: null,
-        tags: uploadTags,
+        tags: finalUploadTags,
       });
     } catch (err) {
       if (err instanceof ValidationError) {

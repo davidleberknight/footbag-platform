@@ -720,7 +720,7 @@ describe('gallery edit current-items display + uploadTags', () => {
     expect(res.text).not.toContain('Add items from your existing uploads');
     // Upload widget is still present.
     expect(res.text).toContain('Upload files now');
-    expect(res.text).toContain('Tags for these uploads');
+    expect(res.text).toContain('Extra tags for these uploads');
   });
 
   it('GET /galleries/:id/edit shows the current-items thumbnail display when items match', async () => {
@@ -761,7 +761,7 @@ describe('gallery edit current-items display + uploadTags', () => {
     expect(res.text).not.toContain('member-media-picker');
   });
 
-  it('multipart POST /galleries with uploadTags applies user-supplied tags to uploads (not auto-stamped from criteria)', async () => {
+  it('multipart POST /galleries auto-stamps gallery criteria + merges uploadTags onto uploaded files', async () => {
     const jpeg = await sharp({
       create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
     }).jpeg().toBuffer();
@@ -769,10 +769,10 @@ describe('gallery edit current-items display + uploadTags', () => {
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie())
-      .field('name', 'Tag-Pass-Through')
+      .field('name', 'Tag-Auto-Stamp')
       .field('description', '')
       .field('sortOrder', 'upload_desc')
-      .field('criteriaTags', '#shouldnotapply')
+      .field('criteriaTags', '#footbags')
       .field('excludeTags', '')
       .field('uploadTags', '#myuploads')
       .attach('photoFiles', jpeg, 'pixel.jpg');
@@ -783,15 +783,15 @@ describe('gallery edit current-items display + uploadTags', () => {
       const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('pixel.jpg') as { id: string } | undefined;
       expect(row).toBeTruthy();
       const tags = findMediaTags(row!.id);
-      // Only the user-supplied uploadTags + auto #by_<slug>. Critically NOT
-      // the gallery's criteriaTags (#shouldnotapply).
+      // Auto-stamped from gallery's non-#by_* criteria + merged with
+      // user-supplied uploadTags + service-prepended #by_<slug>.
+      expect(tags).toContain('#footbags');
       expect(tags).toContain('#myuploads');
       expect(tags).toContain(`#by_${OWNER_SLUG}`);
-      expect(tags).not.toContain('#shouldnotapply');
     } finally { db.close(); }
   });
 
-  it('multipart POST /galleries with empty uploadTags → uploaded item gets only #by_<slug>', async () => {
+  it('multipart POST /galleries with empty uploadTags still auto-stamps the gallery criteria onto uploads', async () => {
     const jpeg = await sharp({
       create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
     }).jpeg().toBuffer();
@@ -813,8 +813,8 @@ describe('gallery edit current-items display + uploadTags', () => {
       const row = db.prepare(`SELECT id FROM media_items WHERE source_filename = ? ORDER BY uploaded_at DESC LIMIT 1`).get('bare.jpg') as { id: string } | undefined;
       expect(row).toBeTruthy();
       const tags = findMediaTags(row!.id);
-      // Empty uploadTags → only the system-applied attribution tag.
-      expect(tags).toEqual([`#by_${OWNER_SLUG}`]);
+      // Empty uploadTags + auto-stamped criteria + auto #by_<slug>.
+      expect(tags.sort()).toEqual([`#by_${OWNER_SLUG}`, '#somecat'].sort());
     } finally { db.close(); }
   });
 

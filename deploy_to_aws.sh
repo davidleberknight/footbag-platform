@@ -90,12 +90,19 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]] \
   echo "═══════════════════════════════════════════════════════════════" >&2
   echo "" >&2
   if [[ "${FOOTBAG_PROD_DB_REPLACE_ACK:-}" != "1" ]]; then
-    # Detect TTY availability via the read itself: `[[ -r /dev/tty ]]`
-    # returns true on systems where /dev/tty exists but no controlling
-    # terminal is attached (CI runners, sandboxed test execs), and the
-    # subsequent read fails with "No such device or address." Branch on
-    # the read's success so the error message accurately reflects the
-    # cause when no terminal is attached.
+    # Detect TTY availability via [[ -t ]] tests against fds 0/1/2 BEFORE
+    # attempting any read. Reading from /dev/tty can succeed even in
+    # subprocess contexts by picking up buffered terminal input from
+    # an earlier prompt the operator answered in the parent shell; that
+    # makes a read-success/empty-result check unreliable. When none of
+    # stdin/stdout/stderr is a TTY (Vitest spawnSync, CI runners,
+    # systemd units), refuse with a clear message instead of prompting.
+    if ! { [[ -t 0 ]] && [[ -t 1 ]] && [[ -t 2 ]]; }; then
+      echo "" >&2
+      echo "ERROR: production DB-replace requires interactive confirmation, but stdin/stdout/stderr are not all TTYs." >&2
+      echo "Recommendation: run from a TTY, or set FOOTBAG_PROD_DB_REPLACE_ACK=1 to bypass (scripted runs only)." >&2
+      exit 1
+    fi
     printf "  Type 'REPLACE PRODUCTION DB' to confirm: " >&2
     if ! read -r _ack </dev/tty 2>/dev/null; then
       echo "" >&2
