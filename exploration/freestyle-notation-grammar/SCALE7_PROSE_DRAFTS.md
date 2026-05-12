@@ -1,0 +1,236 @@
+# SCALE-7a Prose Drafts — Mixed Bridge-Extension (Option B)
+
+Ten-row batch spanning 6 modifier bridges (pixie / spinning / paradox /
+symposium / atomic / furious-NEW) + 1 foundation row (pickup) + 1 records-rich
+multi-modifier (fury). Cadence-design carries SCALE-1 / SCALE-5 / SCALE-6
+lessons forward.
+
+## Cadence design (pre-authoring)
+
+| row | opening cadence | coaching emphasis | failure mode |
+|---|---|---|---|
+| pickup | mechanic-led foundation | controlled catch | timing/sharpness mismatch |
+| flail | base+modifier ("Symposium body line on illusion") | posture preservation through reverse dex | drift through dex |
+| merkon | dual-axis-led ("A second rotation axis layered onto legover") | dual-axis discipline on leg-pass | spin drags behind leg-pass |
+| smudge | bridge-extension-led ("Pixie on illusion") | same-inside compactness on out-to-in dex | pixie opener clips supporting leg |
+| spinning-clipper | foundation-extension ("Spinning's body-spin on the simplest delay surface") | dual-axis on stationary base | spin finishes before clipper lands |
+| royale | bridge-cohort-led ("Paradox direction commits across reverse-drifter…") | direction commitment + direction-reversal | applying paradox-drifter habit to reversed base |
+| smog | family-completion ("Pixie meets the double-legover") | pixie opener feeds into deep leg crossings | opener crowds the double crossings |
+| spinning-osis | dual-rotation-on-rotation ("Two rotations turn through osis's two-stall…") | axis distinctness on already-rotational base | spin merges with osis quarter-rotation |
+| fury | multi-modifier-canonical ("Two modifiers compose on mirage…") | sequencing three named components | drift toward natural mirage direction |
+| atomic-torque | pt10-rotational-bonus-extension | atomic body angle on rotational base | half-committing atomic body angle |
+
+Templated tells avoided (carried-forward exclusion list):
+- `Practitioners with clean X tend to…` / `Practitioners coming from X tend to…` — 0
+- `tend to` verb — minimized
+- `is the foundation` exact phrase — 0
+- `From a toe set` opener — 0 (used mid-sentence in some rows, never as opener)
+- pt## / Red / adjudication / federation-not-adoption — 0
+
+---
+
+## 1. pickup — 2 ADD, pickup family
+
+**Rationale.** Foundation row closing the pickup-family SCALE-1 prereq chain. 4 compounds rooted (omelette, paste, scrambled-eggbeater, legeater); 3 of those 4 are SCALE-1 pilots.
+
+**short_description**
+Pickup dexterity — the foot catches the bag from below as it descends, redirecting the bag upward in a controlled bounce off the toe.
+
+**execution_summary**
+As the bag descends, the kicking foot rises from underneath; the toe meets the bag at the catch point and bounces it back upward in a controlled redirect. The foot returns to support after the catch; the bag continues its arc to the next contact point. Pickup is a foundational under-the-bag dex pattern that anchors the pickup family.
+
+**learning_notes**
+The catch must be controlled — too soft and the bag drops past the toe; too sharp and the bag bounces off-line. The catch surface is the toe-pad, not the toe-tip; let the bag descend onto the foot rather than rising to meet it.
+
+**prerequisite_notes**
+Toe-set dexterity and balance with the supporting leg planted. Pickup (2 ADD) anchors the pickup-family compounds: omelette + paste + scrambled-eggbeater + legeater (3 ADD set-modifier variants; 3 of 4 are SCALE-1 pilots).
+
+---
+
+## 2. flail — 3 ADD, illusion family (symposium + illusion)
+
+**Rationale.** Symposium bridge extends to the illusion family. Note: IFPA row name `flail` is distinct from FM-vocab set name `Flailing` (which is Symposium Atomic per FM extract).
+
+**short_description**
+Symposium body line on the illusion base — illusion's out-to-in dex executed with the symposium frame held through both kicks.
+
+**execution_summary**
+Set the symposium posture; the first kick reaches outside the supporting leg in illusion's standard outside dex; the second kick comes inside, completing the out-to-in pattern. The symposium body line stays locked across the rotation; recovery lands on the opposite-toe delay with the posture intact.
+
+**learning_notes**
+Symposium on illusion is structurally tighter than symposium on mirage — illusion's dex direction (out-to-in) is the reverse of mirage's (in-to-out), so the symposium frame fights the natural body shift. Lock the posture before the first kick, not after.
+
+**prerequisite_notes**
+Illusion (2 ADD) is the out-to-in rotational dex. Symposium-mirage (3 ADD; SCALE-5b pilot) is the cross-family pair — same modifier on the reverse-direction dex. Symposium-whirl (4 ADD; SCALE-2 pilot) extends symposium to a rotational base.
+
+---
+
+## 3. merkon — 3 ADD, legover family (spinning + legover)
+
+**Rationale.** Spinning bridge extends to legover. The spinning axis runs orthogonal to the leg-pass mechanic.
+
+**short_description**
+A second rotation axis layered onto legover — the spinning body-spin runs alongside the leg-pass, the body completing both rotations in one motion.
+
+**execution_summary**
+The second leg lifts and passes over the supporting leg as the bag rises from a toe set (legover's standard motion). Simultaneously, the body initiates a spinning axis — a body-spin rotation orthogonal to the leg-pass. The two motions complete together; the foot strikes the bag mid-crossover with the body-spin still resolving.
+
+**learning_notes**
+The spin and the leg-pass operate on different axes. The common miss is letting the body-spin drag behind the leg-pass instead of running parallel — both must resolve at the kick window; the kick happens when both rotations meet.
+
+**prerequisite_notes**
+Legover (2 ADD; SCALE-6 pilot) carries the leg-pass mechanic. Spinning-clipper (3 ADD; this batch) gives the simplest spinning compound; merkon adds the leg-pass on top. Spinning-whirl (4 ADD; SCALE-2 pilot) demonstrates the dual-axis pattern on a rotational base.
+
+---
+
+## 4. smudge — 3 ADD, illusion family (pixie + illusion)
+
+**Rationale.** Pixie bridge extends to illusion — 7th family base for pixie. Mirror of smear (pixie + mirage, SCALE-5) since illusion is the reverse-direction dex.
+
+**short_description**
+Pixie on illusion — the same-inside set carries through the out-to-in dex pattern characteristic of the illusion family, with the bag passing behind the planted leg before the body completes the rotation.
+
+**execution_summary**
+The opening kick lands same-side inside (pixie), sending the bag behind the supporting leg. The body opens for an opposite-side outside dex on the second kick — completing the out-to-in illusion pattern in reverse from pixie's same-inside opener. Recovery lands on the opposite-toe delay.
+
+**learning_notes**
+Pixie on illusion is the mirror of pixie on mirage (smear, SCALE-5 pilot): same modifier, opposite-direction base. The pixie compactness rule is identical, but the second-kick direction reverses from inside (smear) to outside (smudge).
+
+**prerequisite_notes**
+Illusion (2 ADD) is the out-to-in rotational dex foundation. Smear (3 ADD, pixie + mirage; SCALE-5 pilot) is the cross-family mirror — pixie on the in-to-out direction. Dimwalk (4 ADD, pixie + butterfly; SCALE-4 pilot) gives pixie on a non-rotational base. Smudge extends the pixie bridge to its 7th family base.
+
+---
+
+## 5. spinning-clipper — 3 ADD, clipper-stall family (spinning + clipper-stall)
+
+**Rationale.** Simplest spinning compound — spinning on a stationary delay surface, no base rotation to merge with.
+
+**short_description**
+Spinning's body-spin axis on the simplest delay surface — the body initiates a body-spin as the foot crosses for the clipper-stall, the spin completing as the bag settles.
+
+**execution_summary**
+The kicking foot rotates inward toward the cross-body clipper position; simultaneously the body initiates a body-spin axis. The clipper landing accepts the bag as the body-spin completes; the foot settles in cross-body position with the body unwound back to neutral.
+
+**learning_notes**
+Spinning on a non-rotational surface is the simplest dual-rotation case — there's no base rotation to merge with the spin. The miss is rushing the spin so it finishes before the clipper lands; let the body-spin and the foot-cross resolve together.
+
+**prerequisite_notes**
+Clipper-stall (2 ADD; SCALE-6 pilot) is the cross-body delay foundation. Spinning-butterfly (4 ADD; SCALE-5 pilot) extends spinning to a non-rotational wing base; spinning-whirl (4 ADD; SCALE-2 pilot) demonstrates the dual-axis pattern on a rotational base. Spinning-clipper is the simplest spinning compound — the entry into the spinning bridge.
+
+---
+
+## 6. royale — 4 ADD, reverse-drifter family (paradox + reverse-drifter)
+
+**Rationale.** Paradox bridge extends to the reverse-drifter family — 5th rotational base for paradox. Aliased as FM "paradox grifter".
+
+**short_description**
+Paradox direction commits across the reverse-drifter's rotation-stall pairing — the body resets same-side at the clipper landing against the reverse-direction drift.
+
+**execution_summary**
+Open in clipper-stall position; reverse-drifter's rotation initiates in the direction opposite to standard drifter. The paradox marker forces the body to commit same-side across the rotation, against the reverse-direction drift. The clipper landing accepts the bag with the body weight on the kicking-foot side; recovery holds the paradox commitment.
+
+**learning_notes**
+Reverse-drifter's drift is opposite to drifter's; paradox-grifter (FM alias) flips both the rotation direction and the body-direction commitment. The miss: applying paradox-drifter habit (commit against drifter's drift) on the reverse direction — the paradox direction must flip with the base's direction reversal.
+
+**prerequisite_notes**
+Reverse-drifter (3 ADD; not yet pilot) is the direction-reversed base. Paradox-drifter (4 ADD; SCALE-5 pilot) is the natural-direction pair. The paradox bridge spans 12 pilots across 5 rotational bases after SCALE-5b; royale extends the bridge to the reverse-drifter family.
+
+---
+
+## 7. smog — 4 ADD, double-leg-over family (pixie + double-leg-over)
+
+**Rationale.** Pixie bridge extends to double-legover. Pixie's same-inside opener feeds into the deep DLO crossings.
+
+**short_description**
+Pixie meets the double-legover — same-inside opener before the bag passes through both leg-crossings of the DLO base.
+
+**execution_summary**
+Open with the pixie set; the first kick crosses behind the supporting leg before the body commits to the double-legover sequence. Two consecutive leg-over crossings carry the bag through the kick window; recovery lands on a same-toe delay after both crossings complete.
+
+**learning_notes**
+Smog combines pixie's compact opener with double-legover's deep leg crossings — the body must traverse more lateral distance than in pigbeater (4 ADD, pixie + eggbeater; SCALE-1 pilot). The opener compactness rule still applies, but the trailing leg work is more athletic.
+
+**prerequisite_notes**
+Double-legover (3 ADD; not yet pilot) is the parent compound. Pigbeater (4 ADD, pixie + eggbeater; SCALE-1 pilot) is the cousin — pixie on the related eggbeater variant. The pixie bridge spans 8 family bases after SCALE-7 (butterfly + drifter + pickup + legover-eggbeater + butterfly-2mod + mirage + illusion + double-legover).
+
+---
+
+## 8. spinning-osis — 4 ADD, osis family (spinning + osis)
+
+**Rationale.** Spinning bridge extends to the rotational-stall family (osis). Demonstrates spinning on an already-rotational base where the axes must stay distinct.
+
+**short_description**
+Two rotations turn through osis's two-stall sequence — osis's own rotational frame and the spinning body-spin axis layered on top.
+
+**execution_summary**
+Osis's stall sequence initiates from the toe set — inside-stall first, then quarter-rotation to outside-stall. The body simultaneously adds a spinning axis orthogonal to osis's rotation; both rotations turn together through the inside-to-outside transition. The kick lands at the outside stall with both axes resolving in sync.
+
+**learning_notes**
+Osis already carries a quarter-rotation between its two stalls; spinning adds a second axis on top. The miss is letting the spinning axis merge with osis's rotation — the trick degenerates to a fast osis rather than gaining the spinning modifier. Keep the two axes distinct, even though both are rotational.
+
+**prerequisite_notes**
+Osis (3 ADD; SCALE-6 pilot) is the two-stall rotational frame. Spinning-whirl + spinning-butterfly + spinning-torque + spinning-clipper (this batch) all carry the dual-axis pattern on different bases. Spinning-osis extends the spinning bridge to the rotational-stall family.
+
+---
+
+## 9. fury — 5 ADD, mirage family (furious + paradox)
+
+**Rationale.** First furious-modifier pilot. Three-component compound (furious + paradox + mirage) per the canonical multi-modifier reading. Demonstrates the canonical furious +2 rotational bonus alongside paradox same-side commitment.
+
+**short_description**
+Two modifiers compose on the mirage rotational base — furious adds +2 via the rotational bonus, paradox adds +1 same-side body commitment; the result is a 5-ADD mirage flagship.
+
+**execution_summary**
+Open with a toe set; the body sets the furious angle (analogous to atomic's body weighting but at higher commitment) as the first kick drives outside in mirage's pattern. The paradox marker holds same-side body commitment across the rotation; the second kick comes inside, completing the in-to-out mirage motion with both modifier weightings preserved. Recovery lands on the opposite-toe delay with the paradox commitment held.
+
+**learning_notes**
+Fury is one of the dictionary's cleanest three-component compounds — furious + paradox + mirage compose to 5 ADD via the canonical multi-modifier reading. The integration challenge: the furious body angle wants to drift opposite-side (natural mirage direction), while paradox forces same-side. Commit paradox first; the furious angle layers on top.
+
+**prerequisite_notes**
+Mirage (2 ADD; SCALE-6 pilot) is the rotational base. Paradox-mirage (3 ADD; SCALE-5 pilot) gives paradox on mirage; atom-smasher (4 ADD, atomic + mirage; SCALE-5b pilot) demonstrates the +2 rotational bonus on the same base (atomic and furious both follow the +1 non-rotational / +2 rotational rule). Fury combines both modifier mechanics on the same mirage frame.
+
+---
+
+## 10. atomic-torque — 6 ADD, torque family (atomic, FM alias `Silo`)
+
+**Rationale.** Extends the atomic rotational-bonus demonstration from atom-smasher (mirage) + atomic-butterfly (non-rotational) to the torque base.
+
+**short_description**
+Atomic on the torque rotational base — the +2 rotational bonus applies (per the canonical atomic-on-rotational rule), reaching 6 ADD through atomic's body-angle weighting on torque's miraging-osis frame.
+
+**execution_summary**
+The body sets the atomic angle as torque's rotational frame initiates; the kick sequence executes torque's miraging-osis pattern while the atomic body weighting commits across both stalls. The outside-then-inside dex completes with the body still in the atomic angle; recovery lands on the outside-stall surface as the rotation resolves. FM records this row under the alternate name 'Silo'.
+
+**learning_notes**
+Atomic-torque extends the atomic-rotational-bonus demonstration from atom-smasher (atomic + mirage, 4 ADD; SCALE-5b pilot) and atomic-butterfly (4 ADD non-rotational, +1; SCALE-5b pilot) to the torque base. Same atomic body weighting, deeper rotational frame — the +2 bonus carries through torque's two-stall transition.
+
+**prerequisite_notes**
+Torque (4 ADD; SCALE-6 pilot) is the rotational base. Atom-smasher (4 ADD; SCALE-5b pilot) demonstrates atomic's +2 on a simpler rotational base (mirage); atomic-butterfly (4 ADD; SCALE-5b pilot) is the non-rotational pair. Atomic-torque completes the atomic-on-rotational demonstration across three bases. FM alias: 'Silo'.
+
+---
+
+## Cross-batch coherence
+
+| pairing | rows | shared element |
+|---|---|---|
+| pickup-family chain completion | pickup + omelette/paste/scrambled-eggbeater/legeater (SCALE-1 pilots) | foundation row closes 3 pilot prereq chains |
+| pixie bridge expansion | smudge + smog | 7th + 8th family bases for pixie (illusion + double-legover); pairs with smear pilot |
+| spinning bridge expansion | spinning-clipper + spinning-osis + merkon | 3 new family bases (clipper-stall, osis, legover) |
+| symposium bridge expansion | flail | illusion family entry |
+| atomic 3-base demonstration | atomic-torque + atom-smasher (pilot) + atomic-butterfly (pilot) | pt10 +1/+2 rule across mirage / butterfly / torque |
+| furious bridge opening | fury | first furious-modifier pilot; canonical 3-component compound |
+| paradox bridge → reverse-drifter | royale | direction-reversal nuance |
+
+## Cadence self-audit (pre-load)
+
+The pre-load audit will catch any remaining templated tells. SCALE-6 lesson: catch `From a toe set` openers + similar before load to avoid post-load rewrites.
+
+## Apply pipeline
+
+Standard SCALE pattern: audit + rollback + transaction-wrapped UPDATEs +
+render verification + full 6-axis cadence audit.
+
+## Files produced
+
+- `exploration/freestyle-notation-grammar/SCALE7_PROSE_DRAFTS.md` (this file)
+- `exploration/freestyle-notation-grammar/SCALE7_PROSE_APPLY.csv` (loader-ready)
