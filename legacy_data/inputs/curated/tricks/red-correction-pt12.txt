@@ -1,0 +1,38 @@
+
+On [DATE TBD] James Leberknight <jeleberknight@gmail.com> wrote:
+Hi Red. Pt12 round — one focused question this batch, building directly on the pt11 Blur ruling.
+
+Blurry (transitive expansion):
+We now have (from pt11):
+
+IFPA semantic reading: Blur = Stepping Paradox Mirage (4)
+
+That ruling decomposed the folk name "Blurry Mirage" into a 3-modifier compound (stepping +1, paradox +1, mirage 2). Math closes at 4.
+
+Three other "Blurry X" rows in the dictionary currently fail the additive +1 model under the pt11 flat-blurry rule:
+
+  Blurry Whirl     asserted ADD 5   blurry(+1) + whirl(3) = 4   gap +1
+  Blurry Torque    asserted ADD 6   blurry(+1) + torque(4) = 5  gap +1
+  Food Processor   asserted ADD 6   ("Blurry-modified blender") gap +2 from blender(4) alone
+
+Candidate canonical decompositions, by direct transitive application of the pt11 Blur ruling:
+
+  Blurry Whirl   = Stepping Paradox Whirl     (1+1+3 = 5)
+  Blurry Torque  = Stepping Paradox Torque    (1+1+4 = 6)
+                   [equivalent deep form: Stepping Paradox Miraging Osis
+                    = 1+1+1+3 = 6 under pt11 Torque = Miraging Osis]
+  Food Processor = Stepping Paradox Blender   (1+1+4 = 6)
+                   [equivalent deep form: Stepping Paradox Whirling Osis
+                    = 1+1+1+3 = 6 under pt11 Blender = Whirling Osis]
+
+Question:
+Does the pt11 "Blur = Stepping Paradox Mirage" expansion apply transitively to every other "Blurry X" folk-named trick — i.e. are the three candidate decompositions above the IFPA canonical readings for Blurry Whirl, Blurry Torque, and Food Processor?
+
+-->
+transitive — apply Stepping Paradox + base to all three rows
+
+per-row — each blurry-named row needs its own canonical decomposition; do not assume transitivity (please provide preferred decomp for any row you'd rule differently)
+
+culturally atomic — Food Processor / Blurry Whirl / Blurry Torque should stay as named compounds with no canonical multi-modifier decomposition
+
+other
