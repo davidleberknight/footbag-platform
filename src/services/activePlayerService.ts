@@ -25,6 +25,7 @@ import {
 import { appendAuditEntry, type AuditActorType } from './auditService';
 import { readIntConfig } from './configReader';
 import { ConflictError, RateLimitedError, ValidationError } from './serviceErrors';
+import { uuidv7Hex } from './uuidv7';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
 const ACTIVE_PLAYER_DURATION_DAYS_DEFAULT = 730;
@@ -32,14 +33,11 @@ const VOUCH_RATE_LIMIT_MAX_DEFAULT = 5;
 const VOUCH_RATE_LIMIT_WINDOW_MINUTES_DEFAULT = 60;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// See membershipTieringService for the rationale on counter-prefixed IDs.
-// Same approach for active_player_grants: member_active_player_current orders
-// by (created_at, id) and id-string ties decide the latest row.
-let _grantSeq = 0;
+// UUIDv7-suffixed id. The 48-bit ms timestamp prefix gives lex-ordered
+// sort under the member_active_player_current view's (created_at, id)
+// tiebreaker. Same reasoning as membershipTieringService.newGrantId.
 function newGrantId(): string {
-  _grantSeq += 1;
-  const seq = _grantSeq.toString().padStart(12, '0');
-  return `apg_${seq}_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  return `apg_${uuidv7Hex()}`;
 }
 
 function readCurrent(memberId: string): MemberActivePlayerCurrentRow | undefined {
@@ -423,6 +421,28 @@ export function applyVouch(
 
   return transaction(() => {
     const nowIso = now.toISOString();
+    // Defensive re-check inside the transaction: the target's tier may have
+    // upgraded between the pre-tx read at line 382 and now (concurrent
+    // applyPurchaseGrant from another worker, etc.). Without this check, a
+    // race window would write a spurious AP grant for a tier1+ member,
+    // consume the voucher's rate-limit slot, and leave an audit ghost.
+    const targetTierInTx = readTier(targetId);
+    if (!targetTierInTx || targetTierInTx.tier_status !== 'tier0') {
+      appendAuditEntry({
+        actionType: 'active_player.vouch_noop',
+        category: 'active_player_change',
+        actorType: 'member',
+        actorMemberId: voucherId,
+        entityType: 'member',
+        entityId: targetId,
+        reasonText: validatedReason,
+        metadata: {
+          reason: 'tier_upgraded_in_race',
+          target_tier: targetTierInTx?.tier_status ?? 'unknown',
+        },
+      });
+      return { status: 'noop' as const, reason: 'tier_upgraded_in_race' };
+    }
     const latest = readLatestGrant(targetId);
     const oldExpires = latest?.new_active_player_expires_at ?? null;
 
@@ -616,9 +636,10 @@ export function applyClubJoin(
  * Internal helper called by SYS_Check_Active_Player_Expiry (Phase C job).
  * Writes an `expire` row when the latest AP row for a member has an expiry
  * in the past and is not already `expire` or `end`. Returns whether a row
- * was written.
+ * was written. `now` defaults to wall-clock time; tests may inject a fixed
+ * value to keep expiry decisions deterministic.
  */
-export function applyExpiry(memberId: string): { ok: true; expired: boolean } {
+export function applyExpiry(memberId: string, now?: Date): { ok: true; expired: boolean } {
   const latest = readLatestGrant(memberId);
   if (!latest) return { ok: true, expired: false };
   if (latest.change_type === 'expire' || latest.change_type === 'end') {
@@ -626,36 +647,42 @@ export function applyExpiry(memberId: string): { ok: true; expired: boolean } {
   }
   if (!latest.new_active_player_expires_at) return { ok: true, expired: false };
 
-  const nowIso = new Date().toISOString();
+  const nowIso = (now ?? new Date()).toISOString();
   if (latest.new_active_player_expires_at > nowIso) {
     return { ok: true, expired: false };
   }
 
   const id = newGrantId();
-  activePlayer.insertGrant.run(
-    id,
-    nowIso,
-    memberId,
-    null,
-    'expire',
-    latest.new_active_player_expires_at,
-    null,
-    'active_player_expired',
-    null,
-    null, null, null, null, null,
-  );
-  appendAuditEntry({
-    actionType: 'active_player.expire',
-    category: 'active_player_change',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'member',
-    entityId: memberId,
-    reasonText: null,
-    metadata: {
-      reason_code: 'active_player_expired',
-      previous_expires_at: latest.new_active_player_expires_at,
-    },
+  // Grant insert + audit entry land in one transaction. Without the wrapper,
+  // a SIGKILL between the two statements left an expired AP grant with no
+  // matching audit row, breaking traceability of who/when status changed.
+  // Matches the applyVouch / applyAttendance patterns elsewhere in this file.
+  transaction(() => {
+    activePlayer.insertGrant.run(
+      id,
+      nowIso,
+      memberId,
+      null,
+      'expire',
+      latest.new_active_player_expires_at,
+      null,
+      'active_player_expired',
+      null,
+      null, null, null, null, null,
+    );
+    appendAuditEntry({
+      actionType: 'active_player.expire',
+      category: 'active_player_change',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'member',
+      entityId: memberId,
+      reasonText: null,
+      metadata: {
+        reason_code: 'active_player_expired',
+        previous_expires_at: latest.new_active_player_expires_at,
+      },
+    });
   });
   return { ok: true, expired: true };
 }

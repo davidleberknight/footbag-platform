@@ -28,6 +28,15 @@
 # and outbound AWS credentials for the aws-* subcommands (already present via
 # /root/.aws on staging).
 #
+# argv-leak rule: when invoking `compose exec -T web sh -c '...'` with a value
+# read from /srv/footbag/env, the operator's argv, or another sensitive
+# source, pipe the value to stdin and rebind inside the in-container shell
+# (e.g. `printf '%s' "$val" | compose exec -T web sh -c 'v=$(cat); cmd "$v"'`).
+# Do NOT inline the value into the `sh -c` string (interpolation lands the
+# value in argv of the docker compose subprocess on the staging host, visible
+# to any `ps -ef` reader). This matches the SUDO_PASS cat-pipe pattern in
+# scripts/internal/deploy-*-remote.sh.
+#
 # ----------------------------------------------------------------------------
 
 set -euo pipefail
@@ -194,7 +203,13 @@ cmd_ses_identity() {
     return
   fi
   echo "Identity: $ident"
-  compose exec -T web sh -c "aws ses get-identity-verification-attributes --identities '$ident' 2>&1" || true
+  # argv-leak hardening: pipe the identity into the container via stdin and
+  # rebind inside the in-container shell. Avoids inlining $ident into the
+  # `sh -c` argument (which lands the value in argv of the docker compose
+  # subprocess on the staging host).
+  printf '%s' "$ident" \
+    | compose exec -T web sh -c 'ident=$(cat); aws ses get-identity-verification-attributes --identities "$ident" 2>&1' \
+    || true
 }
 
 cmd_ses_quota() {
@@ -205,7 +220,11 @@ cmd_ses_quota() {
 cmd_ses_suppression() {
   local email="${1:?usage: ses-suppression <email>}"
   banner "SES suppression for $email"
-  compose exec -T web sh -c "aws sesv2 get-suppressed-destination --email-address '$email' 2>&1" || true
+  # argv-leak hardening: pipe the email into the container via stdin and
+  # rebind inside the in-container shell. Same pattern as cmd_ses_identity.
+  printf '%s' "$email" \
+    | compose exec -T web sh -c 'email=$(cat); aws sesv2 get-suppressed-destination --email-address "$email" 2>&1' \
+    || true
 }
 
 cmd_ses_bounces() {
@@ -220,7 +239,12 @@ cmd_kms_probe() {
 
 cmd_jwt_kid() {
   banner "JWT_KMS_KEY_ID the signer is configured to use"
-  grep '^JWT_KMS_KEY_ID=' "$ENV_FILE" 2>/dev/null | sudo cat || echo "(cannot read $ENV_FILE)"
+  # ENV_FILE is root:root 0600, so a non-root grep returns nothing and the
+  # subsequent `sudo cat` reads an empty pipe. Use sudo for the grep itself
+  # so the diagnostic actually returns the value. The KMS key id is not a
+  # secret (it is logged by `aws kms describe-key` against any principal
+  # with kms:DescribeKey), so reading it via sudo is operationally safe.
+  sudo grep '^JWT_KMS_KEY_ID=' "$ENV_FILE" 2>/dev/null || echo "(cannot read $ENV_FILE)"
 }
 
 # ---------------- Data integrity ----------------
@@ -284,6 +308,294 @@ JS
 }
 
 # ---------------- Audit ----------------
+
+cmd_worker_status() {
+  # Worker container health: restart count, last restart timestamp, current
+  # process inside the container. Distinct from worker-logs (which tails
+  # stdout); this is "is the process actually running and how often does it
+  # crash."
+  banner "worker container status"
+  compose ps worker
+  echo ""
+  banner "worker container restart history (last 5)"
+  # docker inspect surfaces RestartCount and the timestamps of the last
+  # state transitions. Useful to detect crash-loops.
+  local cid
+  cid=$(compose ps -q worker || true)
+  if [[ -z "$cid" ]]; then
+    echo "worker container not running."
+    return
+  fi
+  docker inspect --format \
+    'RestartCount: {{.RestartCount}}
+StartedAt:    {{.State.StartedAt}}
+FinishedAt:   {{.State.FinishedAt}}
+Status:       {{.State.Status}}
+ExitCode:     {{.State.ExitCode}}
+Error:        {{.State.Error}}' \
+    "$cid"
+  echo ""
+  banner "process tree inside worker"
+  compose exec -T worker ps -ef 2>/dev/null || true
+}
+
+cmd_image_status() {
+  # Image worker container health (the standalone Sharp pipeline served via
+  # HTTP). Same shape as worker-status. Confirms the image:4000 service is
+  # alive on the docker network so web's avatar processing doesn't 502.
+  banner "image container status"
+  compose ps image
+  echo ""
+  local cid
+  cid=$(compose ps -q image || true)
+  if [[ -z "$cid" ]]; then
+    echo "image container not running."
+    return
+  fi
+  docker inspect --format \
+    'RestartCount: {{.RestartCount}}
+StartedAt:    {{.State.StartedAt}}
+Status:       {{.State.Status}}
+Health:       {{.State.Health.Status}}' \
+    "$cid"
+  echo ""
+  banner "image worker /health probe (from inside web container)"
+  compose exec -T web wget -qO- http://image:4000/health 2>&1 || echo "image /health unreachable"
+}
+
+cmd_legacy_claims() {
+  # Recent claim merges (audit-trail). Shows both legacy-account claims and
+  # HP claims, ordered by most recent. Useful for verifying claim flow is
+  # exercised in staging and for investigating disputed merges.
+  local n="${1:-20}"
+  banner "audit_entries — recent claim merges (last $n)"
+  compose exec -T -e N="$n" web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const n = parseInt(process.env.N || '20', 10);
+const rows = db.prepare(`
+  SELECT occurred_at, action_type, actor_member_id, entity_id,
+         substr(metadata_json, 1, 200) metadata
+  FROM audit_entries
+  WHERE action_type IN ('claim.legacy_account', 'claim.historical_person')
+  ORDER BY occurred_at DESC LIMIT ?
+`).all(n);
+console.log(rows);
+JS
+}
+
+cmd_account_tokens() {
+  # Recent account_tokens for a member (or all if no arg). Surfaces token
+  # state (used vs unused vs expired) for the two-step claim, password reset,
+  # email verify, and data export flows. Useful for "the user says their
+  # claim link doesn't work" investigations.
+  local member="${1:-}"
+  banner "account_tokens${member:+ for $member}"
+  compose exec -T -e MEMBER="$member" web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const member = process.env.MEMBER || '';
+const sql = member
+  ? `SELECT id, member_id, token_type, target_legacy_member_id,
+            issued_at, expires_at, used_at,
+            CASE
+              WHEN used_at IS NOT NULL THEN 'used'
+              WHEN expires_at < strftime('%Y-%m-%dT%H:%M:%fZ','now') THEN 'expired'
+              ELSE 'active'
+            END AS state
+     FROM account_tokens WHERE member_id = ? ORDER BY issued_at DESC LIMIT 20`
+  : `SELECT id, member_id, token_type, issued_at, expires_at, used_at,
+            CASE
+              WHEN used_at IS NOT NULL THEN 'used'
+              WHEN expires_at < strftime('%Y-%m-%dT%H:%M:%fZ','now') THEN 'expired'
+              ELSE 'active'
+            END AS state
+     FROM account_tokens ORDER BY issued_at DESC LIMIT 20`;
+const rows = member ? db.prepare(sql).all(member) : db.prepare(sql).all();
+console.log(rows);
+JS
+}
+
+cmd_work_queue() {
+  # work_queue_items inspection. Surfaces the batch auto-link queue and any
+  # other work-queue-driven flows. Filter by item_type ('auto_link_match',
+  # etc.) to focus on a specific producer.
+  local item_type="${1:-}"
+  banner "work_queue_items${item_type:+ type=$item_type}"
+  compose exec -T -e ITEM_TYPE="$item_type" web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const t = process.env.ITEM_TYPE || '';
+const sql = t
+  ? `SELECT id, queue, item_type, entity_type, entity_id, priority,
+            ready_at, started_at, completed_at, substr(notes, 1, 80) notes
+     FROM work_queue_items WHERE item_type = ?
+     ORDER BY ready_at DESC LIMIT 20`
+  : `SELECT id, queue, item_type, entity_type, entity_id, priority,
+            ready_at, started_at, completed_at
+     FROM work_queue_items
+     ORDER BY ready_at DESC LIMIT 20`;
+const rows = t ? db.prepare(sql).all(t) : db.prepare(sql).all();
+console.log(rows);
+JS
+}
+
+cmd_tier_status() {
+  # Effective member tier — what the predicates (hasTier1Benefits / isTier2Plus
+  # / isTier3) actually return for a given member, including admin
+  # short-circuit. Resolves the gap between "what's in member_tier_grants"
+  # (raw data) and "what does the gate decide" (effective behavior).
+  local member="${1:?usage: tier-status <member-id-or-slug>}"
+  banner "tier predicates for $member"
+  compose exec -T -e MEMBER="$member" web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const m = process.env.MEMBER;
+const memberRow = db.prepare(`
+  SELECT id, slug, is_admin FROM members
+  WHERE id = ? OR slug = ? AND personal_data_purged_at IS NULL
+  LIMIT 1
+`).get(m, m);
+if (!memberRow) {
+  console.error(`No member found for '${m}'.`);
+  process.exit(2);
+}
+console.log('member          :', memberRow);
+const tier = db.prepare(`
+  SELECT * FROM member_tier_current WHERE member_id = ?
+`).get(memberRow.id);
+console.log('tier_current    :', tier);
+const ap = db.prepare(`
+  SELECT * FROM active_player_current WHERE member_id = ?
+`).get(memberRow.id);
+console.log('ap_current      :', ap);
+console.log('admin short-circuit:', memberRow.is_admin === 1
+  ? 'YES — predicates return true regardless of tier_current/ap_current'
+  : 'no — predicates evaluate tier_current and ap_current');
+JS
+}
+
+cmd_ap_reminders() {
+  # active_player_reminder_sent inspection — which members have received
+  # which reminders (idempotency-marker-table for the AP expiry worker).
+  local member="${1:-}"
+  banner "active_player_reminder_sent${member:+ for $member}"
+  compose exec -T -e MEMBER="$member" web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const m = process.env.MEMBER || '';
+const sql = m
+  ? `SELECT id, member_id, expires_at, offset_days, sent_at
+     FROM active_player_reminder_sent WHERE member_id = ?
+     ORDER BY sent_at DESC LIMIT 20`
+  : `SELECT id, member_id, expires_at, offset_days, sent_at
+     FROM active_player_reminder_sent ORDER BY sent_at DESC LIMIT 20`;
+const rows = m ? db.prepare(sql).all(m) : db.prepare(sql).all();
+console.log(rows);
+JS
+}
+
+cmd_stale_runs() {
+  # Stale 'running' rows in system_job_runs — left behind by SIGKILL / OOM
+  # of a worker pass. The next runBatchAutoLink reaps these (>1h old)
+  # automatically; this command surfaces them so operators can investigate
+  # the cause (worker crash? host reboot? OOM?) before the auto-reap fires.
+  banner "system_job_runs status='running' older than 1h (likely stale)"
+  compose exec -T web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+const rows = db.prepare(`
+  SELECT id, job_name, started_at, version
+  FROM system_job_runs
+  WHERE status = 'running' AND started_at < ?
+  ORDER BY started_at DESC
+`).all(cutoff);
+if (rows.length === 0) {
+  console.log('OK: no stale running rows.');
+} else {
+  console.log(`FOUND ${rows.length} stale running row(s):`);
+  console.log(rows);
+}
+JS
+}
+
+cmd_rate_limit_status() {
+  # Process-local in-memory rate-limit buckets aren't persisted to the DB
+  # (rateLimitService.ts uses a Map<string, Bucket>). They reset on container
+  # restart. There is no on-host inspection; this command reports the design
+  # so operators don't waste time looking for a table that doesn't exist.
+  # If a future implementation moves rate-limits to a persisted table, this
+  # command becomes the inspection surface.
+  banner "rate-limit buckets (in-memory; no persisted state to query)"
+  cat <<'EOF'
+Rate-limit state lives in process memory (rateLimitService.ts: const buckets
+= new Map<string, Bucket>()). Buckets reset on container restart. There is
+no per-key persistence to inspect.
+
+Common keys:
+  legclaim-init:<member_id>           5/hr per member (legacy claim init)
+  legclaim-target:<legacy_member_id>  3/hr per target (per-mailbox cap)
+  verify-resend:<email_normalized>    3/hr per email (verify resend)
+  login:<...>                         login attempt limit (see env-config tests)
+
+To diagnose "why did X get rate-limited?": container-restart resets all
+buckets immediately. To diagnose "is X at the limit right now?": no
+inspection possible without code change.
+EOF
+}
+
+cmd_job_runs() {
+  # SYS-job lifecycle inspection. The AP expiry worker writes a row per pass;
+  # operator checks here to confirm the worker is alive and not silently
+  # failing. A missing recent row means the worker isn't running; a 'failed'
+  # status means the work threw and the operator needs to chase the error.
+  local job_filter="${1:-}"
+  banner "system_job_runs (latest 10${job_filter:+ for $job_filter})"
+  compose exec -T -e JOB_FILTER="$job_filter" web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const filter = process.env.JOB_FILTER || '';
+const sql = filter
+  ? `SELECT id, job_name, status, started_at, finished_at, substr(last_error,1,80) err
+     FROM system_job_runs WHERE job_name = ? ORDER BY started_at DESC LIMIT 10`
+  : `SELECT id, job_name, status, started_at, finished_at, substr(last_error,1,80) err
+     FROM system_job_runs ORDER BY started_at DESC LIMIT 10`;
+const rows = filter ? db.prepare(sql).all(filter) : db.prepare(sql).all();
+console.log(rows);
+JS
+}
+
+cmd_ap_expiry_health() {
+  # Single-purpose health gate for the AP expiry worker. Asserts a recent
+  # successful pass exists (within ~26h, slightly above the 24h tick interval).
+  # Useful as a post-deploy smoke from the operator workstation:
+  #   bash scripts/staging_diagnostics.sh ap-expiry-health
+  banner "AP expiry worker health (SYS_Check_Active_Player_Expiry)"
+  compose exec -T web node <<'JS'
+const db = require('better-sqlite3')('/app/db/footbag.db', { readonly: true });
+const row = db.prepare(`
+  SELECT id, status, started_at, finished_at, substr(last_error,1,200) err, substr(details_json, 1, 200) details
+  FROM system_job_runs
+  WHERE job_name = 'SYS_Check_Active_Player_Expiry'
+  ORDER BY started_at DESC LIMIT 1
+`).get();
+if (!row) {
+  console.error('FAIL: no SYS_Check_Active_Player_Expiry row in system_job_runs.');
+  console.error('Cause: worker has not run yet, or rows were truncated.');
+  process.exit(2);
+}
+console.log(row);
+const ageMs = Date.now() - new Date(row.started_at).getTime();
+const ageHours = ageMs / 3600000;
+if (row.status === 'failed') {
+  console.error(`FAIL: latest pass status='failed' (started_at=${row.started_at}). last_error: ${row.err}`);
+  process.exit(2);
+}
+if (row.status === 'running' && ageHours > 1) {
+  console.error(`WARN: latest pass status='running' for ${ageHours.toFixed(1)}h (likely stale; reaped on next run).`);
+  process.exit(2);
+}
+if (row.status === 'succeeded' && ageHours > 26) {
+  console.error(`FAIL: latest succeeded pass is ${ageHours.toFixed(1)}h old (interval is 24h).`);
+  process.exit(2);
+}
+console.log(`OK: latest pass status='${row.status}', age=${ageHours.toFixed(1)}h.`);
+JS
+}
 
 cmd_admin_audit() {
   local n="${1:-20}"
@@ -445,6 +757,17 @@ staging_diagnostics.sh — subcommands
     disk                     df -h plus DB file sizes
     systemd                  systemctl status footbag.service
 
+  Workers
+    worker-status            worker container status + restart history
+    image-status             image worker container status + /health probe
+
+  Background jobs
+    job-runs [job-name]      latest 10 system_job_runs (optionally filtered)
+    ap-expiry-health         single-purpose health gate for AP expiry worker
+    stale-runs               'running' rows older than 1h (likely stale)
+    ap-reminders [member]    active_player_reminder_sent rows
+    work-queue [item-type]   work_queue_items (optionally filtered)
+
   AWS
     aws-whoami               aws sts get-caller-identity (inside web)
     ses-identity             SES identity verification state
@@ -461,6 +784,12 @@ staging_diagnostics.sh — subcommands
     merge-drift              members vs HP field drift
     slug-collisions          case-insensitive slug dupes
     email-dupes              login_email_normalized dupes
+
+  Identity & claims
+    legacy-claims [n]        recent claim merges (last n audit_entries)
+    account-tokens [member]  account_tokens with state (active/used/expired)
+    tier-status <member>     effective tier predicates incl. admin short-circuit
+    rate-limit-status        notes on in-memory rate-limit state (no inspection)
 
   Audit
     admin-audit [n]          last n admin audit_entries
@@ -531,6 +860,18 @@ main() {
     email-dupes)          cmd_email_dupes ;;
 
     admin-audit)          cmd_admin_audit "${1:-20}" ;;
+    job-runs)             cmd_job_runs "${1:-}" ;;
+    ap-expiry-health)     cmd_ap_expiry_health ;;
+    legacy-claims)        cmd_legacy_claims "${1:-20}" ;;
+    account-tokens)       cmd_account_tokens "${1:-}" ;;
+    work-queue)           cmd_work_queue "${1:-}" ;;
+    tier-status)          cmd_tier_status "${1:?usage: tier-status <member-id-or-slug>}" ;;
+    ap-reminders)         cmd_ap_reminders "${1:-}" ;;
+    stale-runs)           cmd_stale_runs ;;
+    rate-limit-status)    cmd_rate_limit_status ;;
+    worker-status)        cmd_worker_status ;;
+    image-status)         cmd_image_status ;;
+
 
     db-sizes)             cmd_db_sizes ;;
     wal-size)             cmd_wal_size ;;

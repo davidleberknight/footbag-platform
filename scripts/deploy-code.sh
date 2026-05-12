@@ -76,16 +76,19 @@ SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "Serve
 
 # Derive FOOTBAG_ENV from the SSH alias so the remote-half can read the right
 # /footbag/{env}/secrets/origin_verify_secret SSM parameter without the
-# operator having to hand-edit /srv/footbag/env. Convention: ssh alias is
-# `footbag-staging` or `footbag-production`. The remote-half writes this value
-# into /srv/footbag/env if absent and fails fast if a different value is
-# already present (catches a wrong DEPLOY_TARGET pointed at the wrong host).
+# operator having to hand-edit /srv/footbag/env. Exact match against the
+# canonical alias names — substring patterns (e.g. *prod*) silently accept
+# aliases like footbag-prod or footbag-prd that are NOT the canonical names.
+# The deploy_to_aws.sh wrapper allowlists DEPLOY_TARGET to the same two
+# values. The remote-half writes this value into /srv/footbag/env if absent
+# and fails fast if a different value is already present (catches a wrong
+# DEPLOY_TARGET pointed at the wrong host).
 case "$REMOTE" in
-  *production*|*-prod) FOOTBAG_ENV="production" ;;
-  *staging*)           FOOTBAG_ENV="staging"    ;;
+  footbag-production) FOOTBAG_ENV="production" ;;
+  footbag-staging)    FOOTBAG_ENV="staging"    ;;
   *)
     echo "ERROR: cannot derive FOOTBAG_ENV from REMOTE='$REMOTE'." >&2
-    echo "       Expected an alias containing 'staging' or 'production'." >&2
+    echo "       Expected exactly 'footbag-staging' or 'footbag-production'." >&2
     exit 1
     ;;
 esac
@@ -132,6 +135,17 @@ echo "==> Building Docker images locally (workstation)..."
 # Build with the base compose only. The prod overlay is runtime-only (mounts,
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
+#
+# CUTOVER-REMOVE: dev-admin-shortcuts inclusion. Dev/staging images bake
+# `dist/dev-admin-shortcuts/` so the seed script is runnable in-container.
+# Production images must exclude it so the seed script cannot be invoked
+# even by an operator who manually execs into the container. The
+# Dockerfile ARG defaults to 0; the base compose default of 1 is
+# overridden here when building for production. Mirrors the same gate in
+# deploy-rebuild.sh.
+if [[ "$FOOTBAG_ENV" == "production" ]]; then
+  export INCLUDE_DEV_ADMIN_SHORTCUTS=0
+fi
 ( cd "$REPO_ROOT" && docker compose \
     -f docker/docker-compose.yml \
     build )
@@ -195,11 +209,13 @@ fi
 # root. Argv on every hop stays free of secrets. Layer DiffIDs are
 # space-separated sha256:[0-9a-f]{64} tokens and contain no shell metacharacters.
 
-# Parse .local/initial-admins.txt -> CSV for FOOTBAG_INITIAL_ADMIN_EMAILS env
-# var. Same parsing rules as src/services/initialAdminBootstrap.ts: strip '#'
-# comments, trim, lowercase, skip blank lines. Empty/missing file produces an
-# empty value, which clears the env var on staging so a stale list cannot
-# persist after the operator empties the file.
+# CUTOVER-REMOVE: parse .local/initial-admins.txt -> CSV for
+# FOOTBAG_DEV_INITIAL_ADMIN_EMAILS env var. Same parsing rules as
+# src/dev-admin-shortcuts/runtime.ts: strip '#' comments, trim, lowercase,
+# skip blank lines. Empty/missing file produces an empty value, which
+# clears the env var on staging so a stale list cannot persist after the
+# operator empties the file. The remote-half refuses to write the value
+# on production hosts; only dev + staging use this allowlist mechanism.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
 if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
@@ -212,6 +228,25 @@ if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
   ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
 fi
 
+# CUTOVER-REMOVE: parse .local/staging-admin-seed.json -> compact JSON
+# for the FOOTBAG_DEV_ADMIN_SEED_JSON env var. Only when
+# SEED_DEV_ADMINS=yes (set by the orchestrator from the
+# --seed-dev-admins flag). The seed runs transiently inside the web
+# container post-deploy; the env var is NOT persisted to
+# /srv/footbag/env, so a stale value cannot re-seed on future restarts.
+# Empty/missing file produces an empty value which the remote half
+# treats as a no-op skip. JSONC tolerance: strip `//` line comments
+# before jq.
+DEV_ADMIN_SEED_JSON=""
+LOCAL_SEED_FILE="$REPO_ROOT/.local/staging-admin-seed.json"
+if [[ "${SEED_DEV_ADMINS:-no}" == "yes" && -f "$LOCAL_SEED_FILE" ]]; then
+  if ! DEV_ADMIN_SEED_JSON=$(grep -v '^[[:space:]]*//' "$LOCAL_SEED_FILE" | jq -c -e . 2>/dev/null); then
+    echo "ERROR: $LOCAL_SEED_FILE is not valid JSON (after JSONC comment strip)." >&2
+    echo "Recommendation: grep -v '^[[:space:]]*//' $LOCAL_SEED_FILE | jq -e . to see the parse error." >&2
+    exit 1
+  fi
+fi
+
 echo "==> Running remote-as-root deploy (promote, restart)..."
 {
   printf '%s\n' "$SUDO_PASS"
@@ -220,7 +255,8 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"
   printf 'FOOTBAG_ENV=%q\n'                  "$FOOTBAG_ENV"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
-  printf 'FOOTBAG_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
+  printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
+  printf 'FOOTBAG_DEV_ADMIN_SEED_JSON=%q\n' "$DEV_ADMIN_SEED_JSON"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 

@@ -39,6 +39,15 @@ RUN npm ci --omit=dev
 # Copy compiled JS from builder stage
 COPY --from=builder /app/dist ./dist
 
+# CUTOVER-REMOVE: dev-admin shortcuts subtree, kept out of the runtime
+# image unless the build explicitly opts in (staging only). Production
+# builds default to excluded so `node dist/dev-admin-shortcuts/...` is
+# unreachable inside the prod container.
+ARG INCLUDE_DEV_ADMIN_SHORTCUTS=0
+RUN if [ "$INCLUDE_DEV_ADMIN_SHORTCUTS" != "1" ]; then \
+      rm -rf dist/dev-admin-shortcuts; \
+    fi
+
 # Copy non-compiled assets that tsc does not process.
 # IMPORTANT: these must be explicitly copied — tsc only emits .js files.
 # Views path: process.cwd()/src/views  → /app/src/views

@@ -33,6 +33,11 @@
         </div>
       </dl>
       <p class="identity-note">Name and profile URL are set at registration. Email changes coming soon.</p>
+      {{#if content.legacyClaimCtaHref}}
+        <p class="identity-claim-link">
+          <a href="{{content.legacyClaimCtaHref}}">{{content.legacyClaimCtaLabel}}</a>
+        </p>
+      {{/if}}
     </div>
 
     {{!-- Avatar upload (separate form, multipart) --}}

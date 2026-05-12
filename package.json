@@ -14,12 +14,13 @@
     "compose:dev": "bash scripts/compose-dev.sh",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
-    "test": "vitest run --exclude 'tests/smoke/**'",
-    "test:watch": "vitest --exclude 'tests/smoke/**'",
+    "test": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'",
+    "test:watch": "vitest --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'",
     "test:unit": "vitest run tests/unit/",
     "test:integration": "vitest run tests/integration/",
     "test:smoke": "scripts/test-smoke.sh",
-    "test:coverage": "vitest run --exclude 'tests/smoke/**' --coverage"
+    "test:e2e": "playwright test -c tests/playwright.config.ts",
+    "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1031.0",

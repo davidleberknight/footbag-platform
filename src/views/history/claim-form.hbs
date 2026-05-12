@@ -3,49 +3,80 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>If you had a user account on the original footbag.org forum, you can link that <em>old-site account</em> to your current profile. This is different from your historical <em>competitive record</em>; if you played IFPA tournaments, claim that from the player's history page (link on your profile). A future update will require email verification to complete this claim.</p>
   </div>
 </div>
 
 <div class="wrapper">
 
   <section>
-    {{#if content.error}}
-      <p class="form-error" role="alert">{{content.error}}</p>
-    {{/if}}
+    <p>Link your old footbag.org user account to your current profile. (To claim your <em>competitive record</em>, use the player's history page instead.)</p>
 
-    {{#if content.message}}
-      <p class="form-notice" role="status">{{content.message}}</p>
-    {{/if}}
-
-    {{#if content.candidates}}
-      <div class="card mb-6">
-        <p class="m-0 mb-2 fw-500">Possible matches for your name:</p>
-        <ul class="m-0 pl-5">
-          {{#each content.candidates}}
-            <li><a href="/history/{{this.personId}}/claim">{{this.personName}}</a></li>
-          {{/each}}
-        </ul>
-      </div>
-    {{/if}}
-
-    <form method="POST" action="/history/claim" class="login-form">
-      <div class="form-field">
-        <label for="identifier">Legacy identifier</label>
-        <input
-          type="text"
-          id="identifier"
-          name="identifier"
-          value="{{content.identifier}}"
-          placeholder="Legacy email, username, or member ID"
-          required
-        />
+    {{#if content.sent}}
+      <div class="form-success-banner" role="status">
+        If an eligible legacy record was found, a confirmation link has been sent to its legacy email address. Open the link while signed in to this account to complete the claim. The link expires in 24 hours.
       </div>
 
-      <button type="submit" class="btn btn-primary">Look up legacy account</button>
-    </form>
+      {{#if content.outcomeNote}}
+        <p class="form-notice" role="status">{{content.outcomeNote}}</p>
+      {{/if}}
+
+      {{#if content.emailPreview}}
+        {{> simulated-email-card content.emailPreview}}
+      {{/if}}
+    {{else}}
+      {{#if content.lowConfidenceBanner}}
+        <p class="form-notice" role="status">We searched for a possible match and didn't find one we could confirm. You can search by name below, or skip and complete this later.</p>
+      {{/if}}
+
+      {{#if content.error}}
+        <p class="form-error" role="alert">{{content.error}}</p>
+      {{/if}}
+
+      {{#if content.message}}
+        <p class="form-notice" role="status">{{content.message}}</p>
+      {{/if}}
+
+      {{#if content.candidates}}
+        <div class="card mb-6">
+          <p class="m-0 mb-2 fw-500">Possible matches for your name:</p>
+          <ul class="m-0 pl-5">
+            {{#each content.candidates}}
+              <li><a href="/history/{{this.personId}}/claim">{{this.personName}}</a></li>
+            {{/each}}
+          </ul>
+        </div>
+      {{/if}}
+
+      <form method="POST" action="/history/claim" class="login-form">
+        {{#if content.skipHref}}
+          {{! Round-trip the registration-context flag through the POST so the }}
+          {{! sent-state and error renders can keep the skip affordance and }}
+          {{! low-confidence banner visible without re-deriving from referer. }}
+          <input type="hidden" name="from" value="register" />
+        {{/if}}
+        <div class="form-field">
+          <label for="identifier">Legacy identifier</label>
+          <input
+            type="text"
+            id="identifier"
+            name="identifier"
+            value="{{content.identifier}}"
+            placeholder="Legacy email, username, or member ID"
+            required
+          />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Send confirmation email</button>
+      </form>
+    {{/if}}
 
     <p class="mt-6"><a href="/members/{{user.slug}}">Back to profile</a></p>
+
+    {{#if content.skipHref}}
+      <p class="mt-2">
+        <a href="{{content.skipHref}}" class="text-muted">Skip and complete this later</a>
+      </p>
+    {{/if}}
   </section>
 
 </div>

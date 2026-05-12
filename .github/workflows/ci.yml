@@ -95,9 +95,43 @@ jobs:
       - name: Assert per-table row counts
         run: python3 scripts/ci/assert_loader_row_counts.py --db ./database/footbag-ci.db
 
+  e2e:
+    name: E2E click-through
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install sqlite3 CLI
+        # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: test-results/
+          if-no-files-found: ignore
+
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, unit-tests, integration-tests, db-load-smoke]
+    needs: [typecheck, unit-tests, integration-tests, db-load-smoke, e2e]
     runs-on: ubuntu-latest
     if: always()
 
@@ -107,12 +141,14 @@ jobs:
           if [ "${{ needs.typecheck.result }}" != "success" ] || \
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
-             [ "${{ needs.db-load-smoke.result }}" != "success" ]; then
+             [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
+             [ "${{ needs.e2e.result }}" != "success" ]; then
             echo "One or more jobs failed:"
             echo "  typecheck: ${{ needs.typecheck.result }}"
             echo "  unit-tests: ${{ needs.unit-tests.result }}"
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"
+            echo "  e2e: ${{ needs.e2e.result }}"
             exit 1
           fi
 

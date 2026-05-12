@@ -3330,6 +3330,13 @@ export interface MemberSearchRow {
   is_board: number;
 }
 
+export interface IdentityLinksRow {
+  legacy_member_id:       string | null;
+  legacy_claimed_at:      string | null;
+  historical_person_id:   string | null;
+  historical_person_name: string | null;
+}
+
 export const account = {
   get findMemberBySlug() { return db.prepare(`
     SELECT
@@ -3386,6 +3393,32 @@ export const account = {
     FROM members_active AS m
     LEFT JOIN media_items AS mi
       ON mi.id = m.avatar_media_id
+    WHERE m.id = ?
+      AND m.personal_data_purged_at IS NULL
+  `); },
+
+  get getIsAdmin() { return db.prepare(`
+    SELECT is_admin FROM members_active
+    WHERE id = ? AND personal_data_purged_at IS NULL
+  `); },
+
+  get listAdminMemberIds() { return db.prepare(`
+    SELECT id FROM members_active
+    WHERE is_admin = 1
+      AND personal_data_purged_at IS NULL
+  `); },
+
+  get findIdentityLinks() { return db.prepare(`
+    SELECT
+      m.legacy_member_id,
+      lm.claimed_at  AS legacy_claimed_at,
+      m.historical_person_id,
+      hp.person_name AS historical_person_name
+    FROM members_active AS m
+    LEFT JOIN legacy_members AS lm
+      ON lm.legacy_member_id = m.legacy_member_id
+    LEFT JOIN historical_persons AS hp
+      ON hp.person_id = m.historical_person_id
     WHERE m.id = ?
       AND m.personal_data_purged_at IS NULL
   `); },
@@ -3590,6 +3623,22 @@ export const auth = {
       AND m.email_verified_at IS NOT NULL
   `); },
 
+  // Dev-autologin convenience: accept a slug when the env var doesn't hold a
+  // raw member id. Used only by authMiddleware's dev branch (gated behind
+  // FOOTBAG_ENV='development'). Returns the same row shape as
+  // findMemberForSession so the dev branch can hand it directly to req.user.
+  get findMemberForSessionBySlug() { return db.prepare(`
+    SELECT
+      m.id,
+      m.slug,
+      m.display_name,
+      m.password_version,
+      m.is_admin
+    FROM members_active AS m
+    WHERE m.slug = ?
+      AND m.email_verified_at IS NOT NULL
+  `); },
+
   get updateMemberLastLogin() { return db.prepare(`
     UPDATE members
     SET
@@ -3641,6 +3690,7 @@ export interface OutboxRow {
 export interface AccountTokenRow {
   id: string;
   member_id: string;
+  target_legacy_member_id: string | null;
   token_type: string;
   expires_at: string;
   used_at: string | null;
@@ -3660,7 +3710,7 @@ export const accountTokens = {
   `); },
 
   get findByHash() { return db.prepare(`
-    SELECT id, member_id, token_type, expires_at, used_at
+    SELECT id, member_id, target_legacy_member_id, token_type, expires_at, used_at
     FROM account_tokens
     WHERE token_hash = ? AND token_type = ?
   `); },
@@ -3672,6 +3722,15 @@ export const accountTokens = {
         updated_by = 'system',
         version    = version + 1
     WHERE id = ? AND used_at IS NULL
+  `); },
+
+  get consumeIfUnusedAndUnexpired() { return db.prepare(`
+    UPDATE account_tokens
+    SET used_at    = ?,
+        updated_at = ?,
+        updated_by = 'system',
+        version    = version + 1
+    WHERE id = ? AND used_at IS NULL AND expires_at > ?
   `); },
 };
 
@@ -4883,9 +4942,11 @@ export const legacyClaim = {
 
   // Read the identifying fields needed to evaluate a claim: the member's slug
   // (for post-claim redirect), real_name (for surname reconciliation against
-  // the HP or legacy account), and existing linkage state.
+  // the HP or legacy account), existing linkage state, and the verified-email
+  // signal used by the email-equality fast path in initiateLegacyClaim.
   get findClaimingMember() { return db.prepare(`
-    SELECT id, slug, real_name, legacy_member_id, historical_person_id
+    SELECT id, slug, real_name, legacy_member_id, historical_person_id,
+           login_email_normalized, email_verified_at
     FROM members
     WHERE id = ?
       AND deleted_at IS NULL
@@ -5232,6 +5293,148 @@ export const activePlayerVouches = {
     SELECT COUNT(*) AS n
     FROM active_player_vouches
     WHERE voucher_member_id = ? AND vouched_at >= ?
+  `); },
+};
+
+export interface ActivePlayerExpiryCandidateRow {
+  member_id:    string;
+  expires_at:   string;
+  login_email:  string | null;
+  email_status: string;
+}
+
+export const activePlayerExpiry = {
+  // Candidate set for SYS_Check_Active_Player_Expiry: Tier 0 members whose
+  // latest AP grant still carries a non-null expires_at and whose expiry is
+  // not beyond the worker's forward window. Members with an expire/end
+  // latest row drop out via the view (active_player_expires_at = NULL).
+  get listCandidates() { return db.prepare(`
+    SELECT v.member_id,
+           v.active_player_expires_at AS expires_at,
+           m.login_email,
+           m.email_status
+    FROM member_membership_status_current v
+    JOIN members_active m ON m.id = v.member_id
+    WHERE v.tier_status = 'tier0'
+      AND v.active_player_expires_at IS NOT NULL
+      AND v.active_player_expires_at <= ?
+    ORDER BY v.active_player_expires_at ASC
+  `); },
+
+  // INSERT only; duplicate (member_id, expires_at, offset_label) raises
+  // SQLITE_CONSTRAINT_UNIQUE, which the service treats as "already sent."
+  get insertReminderSent() { return db.prepare(`
+    INSERT INTO active_player_reminder_sent (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, expires_at, offset_label, sent_at
+    ) VALUES (?, ?, 'system', ?, 'system', 1,
+              ?, ?, ?, ?)
+  `); },
+};
+
+export const mailingListSubscriptions = {
+  get findStatus() { return db.prepare(`
+    SELECT status
+    FROM mailing_list_subscriptions
+    WHERE mailing_list_id = ? AND member_id = ?
+  `); },
+
+  get insertSubscription() { return db.prepare(`
+    INSERT INTO mailing_list_subscriptions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      mailing_list_id, member_id, status, status_updated_at
+    ) VALUES (?, ?, 'system', ?, 'system', 1,
+              ?, ?, ?, ?)
+  `); },
+};
+
+export const workQueue = {
+  get insertItem() { return db.prepare(`
+    INSERT INTO work_queue_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      queue_category, task_type, entity_type, entity_id,
+      status, priority, opened_at, reason_text
+    ) VALUES (?, ?, ?, ?, ?, 1,
+      ?, ?, ?, ?,
+      'open', ?, ?, ?)
+  `); },
+
+  // De-dupe probe for the batch auto-link pass: skip emitting a second open
+  // item for the same (task_type, entity) pair when one is already queued.
+  get findOpenByEntity() { return db.prepare(`
+    SELECT id FROM work_queue_items
+    WHERE task_type = ? AND entity_type = ? AND entity_id = ? AND status = 'open'
+    LIMIT 1
+  `); },
+};
+
+export const batchAutoLink = {
+  // Tier 0 candidate set for the cutover batch auto-link pass. Excludes
+  // already-linked members (either anchor present) and members without a
+  // verifiable email (the classifier's anchor).
+  get listCandidates() { return db.prepare(`
+    SELECT m.id
+    FROM members_active AS m
+    JOIN member_tier_current AS mt ON mt.member_id = m.id
+    WHERE mt.tier_status = 'tier0'
+      AND m.legacy_member_id IS NULL
+      AND m.historical_person_id IS NULL
+      AND m.login_email IS NOT NULL
+      AND m.email_verified_at IS NOT NULL
+  `); },
+};
+
+export const systemJobRuns = {
+  // Insert a new run row in the 'running' state. UPDATE-on-finish writes
+  // status, finished_at, details_json, and last_error. The single-row
+  // update keeps the audit chain on one row per execution.
+  get insertRun() { return db.prepare(`
+    INSERT INTO system_job_runs (
+      id, created_at, created_by, updated_at, updated_by, version,
+      job_name, started_at, status, details_json
+    ) VALUES (?, ?, 'system', ?, 'system', 1,
+              ?, ?, 'running', '{}')
+  `); },
+
+  get markSucceeded() { return db.prepare(`
+    UPDATE system_job_runs
+    SET status       = 'succeeded',
+        finished_at  = ?,
+        details_json = ?,
+        updated_at   = ?,
+        updated_by   = 'system',
+        version      = version + 1
+    WHERE id = ?
+  `); },
+
+  get markFailed() { return db.prepare(`
+    UPDATE system_job_runs
+    SET status       = 'failed',
+        finished_at  = ?,
+        last_error   = ?,
+        updated_at   = ?,
+        updated_by   = 'system',
+        version      = version + 1
+    WHERE id = ?
+  `); },
+
+  // Reaping for stale 'running' rows after a process kill / OOM. The
+  // markSucceeded / markFailed UPDATEs only fire when the work callback
+  // returns or throws cleanly; a SIGKILL leaves the row in 'running' state
+  // forever. The next runBatchAutoLink (or any caller of this) sweeps stale
+  // rows older than the threshold and marks them 'aborted' so admin tooling
+  // sees an accurate picture.
+  get reapStaleRunning() { return db.prepare(`
+    UPDATE system_job_runs
+    SET status       = 'aborted',
+        finished_at  = ?,
+        last_error   = 'stale_running_reaped',
+        updated_at   = ?,
+        updated_by   = 'system',
+        version      = version + 1
+    WHERE job_name = ?
+      AND status = 'running'
+      AND started_at < ?
   `); },
 };
 

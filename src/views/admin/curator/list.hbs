@@ -75,7 +75,7 @@
             <td>{{formatDate uploadedAt}}</td>
             <td>
               <a href="/admin/curator/media/{{mediaId}}/edit">Edit</a>
-              <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" style="display:inline" onsubmit="return confirm('Permanently delete this curated media item? This cannot be undone.');">
+              <form method="POST" action="/admin/curator/media/{{mediaId}}/delete" class="inline-form" data-confirm="Permanently delete this curated media item? This cannot be undone.">
                 <button type="submit" class="delete-button">Delete</button>
               </form>
             </td>

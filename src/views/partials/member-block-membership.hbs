@@ -1,0 +1,36 @@
+<section>
+  <div class="section-heading">
+    <h2>Membership</h2>
+  </div>
+  <div class="membership-block">
+    <div class="membership-badges">
+      <span class="badge badge-tier">{{tierBadgeText}}</span>
+      {{#if activePlayer}}
+        {{#if activePlayer.isCurrent}}
+          <span class="badge badge-honor">
+            Active Player
+            {{#if activePlayer.expiresAtDisplay}}
+              — through {{activePlayer.expiresAtDisplay}}
+            {{/if}}
+          </span>
+        {{else}}
+          <span class="badge badge-coming-soon">Active Player expired</span>
+        {{/if}}
+      {{/if}}
+    </div>
+    {{#if underlyingTierBadgeText}}
+      <p class="text-muted">{{underlyingTierBadgeText}}</p>
+    {{/if}}
+    <p>{{benefitsBlurb}}</p>
+    {{#if showTier1Upgrade}}
+      <button class="btn btn-primary" disabled aria-disabled="true" title="Stripe Checkout integration is not yet wired">
+        Upgrade to Tier 1 (Coming soon)
+      </button>
+    {{/if}}
+    {{#if showTier2Upgrade}}
+      <button class="btn btn-primary" disabled aria-disabled="true" title="Stripe Checkout integration is not yet wired">
+        Upgrade to Tier 2 (Coming soon)
+      </button>
+    {{/if}}
+  </div>
+</section>

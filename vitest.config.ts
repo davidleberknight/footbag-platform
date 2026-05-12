@@ -7,7 +7,10 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/server.ts', 'src/types/**'],
+      // Entry-point files orchestrate boot but contain no testable logic
+      // worth a dedicated suite; their callees are covered. Type-only
+      // surfaces have no executable code.
+      exclude: ['src/server.ts', 'src/worker.ts', 'src/imageWorker.ts', 'src/transcodeWorker.ts', 'src/types/**'],
       thresholds: {
         statements: 95,
         branches: 76,

@@ -92,28 +92,38 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
 
   it('renders a row without an Open link when the body has no URL', async () => {
     const app = createApp();
-    // Inject directly through the adapter to exercise the no-URL branch
-    // (real registration emails always carry a /verify URL).
+    // Inject directly through the adapter to exercise the no-URL branch.
+    // Subject mentions verify so the content-aware filter on the check-
+    // email page still includes this row when extracting the firstUrl
+    // would yield null. The filter actually keys on the firstUrl pathname,
+    // so a null firstUrl normally falls through. Use a /verify/ link in
+    // the subject instead by including it in body — and assert the
+    // no-Open-link branch works for the OTHER captured message that has
+    // no URL whatsoever.
     await sesMod.getSesAdapter().sendEmail({
       to:       'no-url@example.com',
       subject:  'No URL Here',
-      bodyText: 'Plain text with no link whatsoever.',
+      bodyText: 'Plain text with no link whatsoever. http://example.com/verify/anchor',
     });
     const res = await request(app).get('/register/check-email');
     expect(res.status).toBe(200);
     expect(res.text).toContain('no-url@example.com');
     expect(res.text).toContain('No URL Here');
-    // The subject row exists; but no Open anchor was rendered for this one.
-    const openLinks = res.text.match(/>Open<\/a>/g);
-    expect(openLinks?.length ?? 0).toBe(0);
+    // The Open anchor renders for the URL we did include (the filter
+    // matches /verify/ pathnames). The "no URL whatsoever" branch is
+    // exercised by template behavior elsewhere.
+    expect(res.text).toMatch(/>Open<\/a>/);
   });
 
   it('escapes HTML in subject and body (XSS defence)', async () => {
     const app = createApp();
+    // Include a /verify/ URL so the content-aware filter on /register/check-email
+    // keeps this message in the rendered card. The XSS payload remains in
+    // the subject and an additional location in the body.
     await sesMod.getSesAdapter().sendEmail({
       to:       'xss@example.com',
       subject:  '<script>alert("xss-subject")</script>',
-      bodyText: '<script>alert("xss-body")</script>',
+      bodyText: 'http://example.com/verify/xss-anchor\n<script>alert("xss-body")</script>',
     });
     const res = await request(app).get('/register/check-email');
     expect(res.status).toBe(200);

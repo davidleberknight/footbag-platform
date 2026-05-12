@@ -133,7 +133,7 @@ export function createLocalSecretsAdapter(opts: {
   filePath?: string;
 }): SecretsAdapter {
   const filePath =
-    opts.filePath ?? path.join(process.cwd(), '.secrets.local.json');
+    opts.filePath ?? path.join(process.cwd(), '.local', 'secrets.json');
   let cache: Record<string, string> | null = null;
   function load(): Record<string, string> {
     if (cache) return cache;

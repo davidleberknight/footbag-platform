@@ -115,6 +115,9 @@ describe('shapeOperationalNotationDisplay — component flags', () => {
     expect(flags[5]!.cssRole).toBe('component-flag component-flag-xdex');
   });
   it('attaches per-flag tooltip labels (O1c — per-token specificity)', () => {
+    // Verbose-label format per commit 619d653 ("<Name> component
+    // (clarifier)"); the raw token text already renders in the pill,
+    // so the tooltip avoids repeating it.
     const out = shapeOperationalNotationDisplay('[DEX] [PDX]');
     expect(out!.tokens[0]!.label).toBe('Dexterity component (bag-foot interaction)');
     expect(out!.tokens[1]!.label).toBe('Paradox component (paradox-direction dex)');

@@ -18,6 +18,7 @@ import { sidelineController } from '../controllers/sidelineController';
 import { rulesController } from '../controllers/rulesController';
 import { legalController } from '../controllers/legalController';
 import { requireAuth } from '../middleware/auth';
+import { requireTier1Benefits } from '../middleware/requireTier';
 
 export const publicRouter = Router();
 
@@ -76,10 +77,26 @@ publicRouter.get('/events/:eventKey',    eventController.event);
 publicRouter.get('/history', (_req, res) => { res.redirect(301, '/members'); });
 // IMPORTANT: /history/claim routes MUST be registered before /history/:personId.
 // Without this ordering, "claim" would be captured as the :personId param.
-publicRouter.get('/history/auto-link',            requireAuth, claimController.getAutoLinkConfirm);
+// 301 redirects: GET /history/auto-link and GET /history/claim collapse into
+// the unified link-history wizard at /members/:slug/link-history. Round-2
+// "one place to link" decision: the standalone forms are no longer navigable.
+// POST endpoints stay (form action targets); GET handlers redirect. Bookmark
+// hits, stale emails, and accidental link clicks all flow through the wizard.
+// Owner slug for the redirect target is read from the auth payload; an
+// unauthenticated visit hits requireAuth FIRST and bounces to /login.
+publicRouter.get('/history/auto-link',            requireAuth, (req, res) => {
+  // 302 (not 301) because the redirect target depends on the current
+  // session's slug. A cached 301 would let a later visit bypass requireAuth
+  // and route a previous-session-owner's slug into the URL bar.
+  res.redirect(302, `/members/${encodeURIComponent(req.user!.slug)}/link-history${req.url.includes('?') ? `?${req.url.split('?')[1]}` : ''}`);
+});
 publicRouter.post('/history/auto-link/confirm',   requireAuth, claimController.postAutoLinkConfirm);
-publicRouter.get('/history/claim',                requireAuth, claimController.getClaim);
+publicRouter.get('/history/claim',                requireAuth, (req, res) => {
+  // 302 (not 301) — same rationale as /history/auto-link above.
+  res.redirect(302, `/members/${encodeURIComponent(req.user!.slug)}/link-history${req.url.includes('?') ? `?${req.url.split('?')[1]}` : ''}`);
+});
 publicRouter.post('/history/claim',               requireAuth, claimController.postClaim);
+publicRouter.get('/history/claim/confirm/:token', requireAuth, claimController.getClaimToken);
 publicRouter.post('/history/claim/confirm',       requireAuth, claimController.postClaimConfirm);
 // HP-only self-serve claim (scenarios D and E). /history/:personId/claim routes
 // sit at a deeper path than /history/:personId, so ordering is not strictly
@@ -99,6 +116,8 @@ publicRouter.post('/members/:memberKey/edit',         requireAuth, memberControl
 publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
+publicRouter.get('/members/:memberKey/link-history',  requireAuth, claimController.getLinkHistory);
+publicRouter.post('/members/:memberKey/link-history/find', requireAuth, claimController.postLinkHistoryFind);
 
 // Owner-only named-gallery management. Order matters: literal `new`
 // must precede `:id`; literal `edit`/`delete` sub-paths sit at a deeper
@@ -107,18 +126,24 @@ publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberControl
 // authenticated user's slug does not match :memberKey.
 publicRouter.get('/members/:memberKey/galleries',                requireAuth, memberGalleryController.getList);
 publicRouter.get('/members/:memberKey/galleries/new',            requireAuth, memberGalleryController.getNew);
-publicRouter.post('/members/:memberKey/galleries',               requireAuth, memberGalleryController.postCreate);
+publicRouter.post('/members/:memberKey/galleries',               requireAuth, requireTier1Benefits(), memberGalleryController.postCreate);
 publicRouter.get('/members/:memberKey/galleries/:id/edit',       requireAuth, memberGalleryController.getEdit);
-publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireAuth, memberGalleryController.postUpdate);
-publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, memberGalleryController.postDelete);
+publicRouter.post('/members/:memberKey/galleries/:id/edit',      requireAuth, requireTier1Benefits(), memberGalleryController.postUpdate);
+publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireAuth, requireTier1Benefits(), memberGalleryController.postDelete);
 
 // Owner-only member upload. Same anti-enumeration 404 pattern as the
 // gallery routes above. POST is multipart/form-data (busboy in the
 // controller); the service layer auto-applies #<slug> as the
 // uploader tag and materializes the per-member Personal Gallery on
 // first upload.
+// GET stays open to all authenticated owners as a read-only form preview
+// (intentional UX; the under-tiered member can see the upload affordance,
+// the form copy can communicate the tier requirement, and they get an
+// actionable upgrade path without hitting a bare 403). POST is the gate:
+// requireTier1Benefits returns 403 to under-tiered submissions, with
+// defense-in-depth in curatorMediaService.assertTier1Benefits.
 publicRouter.get('/members/:memberKey/media/upload',  requireAuth, memberMediaUploadController.getUpload);
-publicRouter.post('/members/:memberKey/media/upload', requireAuth, memberMediaUploadController.postUpload);
+publicRouter.post('/members/:memberKey/media/upload', requireAuth, requireTier1Benefits(), memberMediaUploadController.postUpload);
 
 publicRouter.get('/members/:memberKey/:section',      requireAuth, memberController.getStub);
 

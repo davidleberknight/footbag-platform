@@ -4,7 +4,7 @@
  * Drives every scenario in `tests/fixtures/autoLinkScenarios.ts` through its
  * declared `driver`:
  *   - 'verify':  POST /verify/:token → assert redirect.
- *   - 'direct':  identityAccessService.getAutoLinkClassificationForMember → assert tier.
+ *   - 'direct':  identityAccessService.getAutoLinkClassificationForMember → assert confidence.
  *
  * Read-only: the seeded rows exist to exercise classification branches.
  * No rows are modified by the tests; the "already linked" case pre-seeds
@@ -35,14 +35,14 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-function branchOf(classification: { tier: string; reason?: string }): ExpectedBranch {
-  if (classification.tier === 'none')  return 'none';
-  if (classification.tier === 'tier1') return 'tier1';
-  if (classification.tier === 'tier2') return 'tier2';
-  if (classification.tier === 'tier3') {
-    return `tier3_${classification.reason}` as ExpectedBranch;
+function branchOf(classification: { confidence: string; reason?: string }): ExpectedBranch {
+  if (classification.confidence === 'none')   return 'none';
+  if (classification.confidence === 'high')   return 'high';
+  if (classification.confidence === 'medium') return 'medium';
+  if (classification.confidence === 'low') {
+    return `low_${classification.reason}` as ExpectedBranch;
   }
-  throw new Error(`unknown tier: ${classification.tier}`);
+  throw new Error(`unknown confidence: ${classification.confidence}`);
 }
 
 describe('auto-link scenarios — verify-driven branches', () => {
@@ -90,7 +90,7 @@ describe('auto-link scenarios — direct-driven branches (cannot go through veri
       // via getAutoLinkClassificationForMember. That's intentional: the
       // helper collapses both guard paths to the same neutral response so
       // /history/auto-link falls through to /history/claim in either case.
-      expect(classification).toEqual({ tier: 'none' });
+      expect(classification).toEqual({ confidence: 'none' });
     });
   }
 });

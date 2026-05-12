@@ -23,14 +23,28 @@ resource "aws_ssm_parameter" "app_log_level" {
 resource "aws_ssm_parameter" "app_public_base_url" {
   name = "${local.ssm_prefix}/app/public_base_url"
   type = "String"
-  # TODO: Set to the actual public URL once CloudFront is provisioned
+  # Initial seed value tied to the configured domain. Operators may rotate
+  # the actual URL during a pre-DNS-cutover phase (e.g. point at the
+  # CloudFront placeholder URL) via `aws ssm put-parameter`; the
+  # ignore_changes lifecycle keeps that change durable across re-applies
+  # of Terraform. Matches the staging pattern at terraform/staging/ssm.tf.
   value = "https://${var.domain_name}"
+  lifecycle { ignore_changes = [value] }
 }
 
 resource "aws_ssm_parameter" "app_db_path" {
-  name  = "${local.ssm_prefix}/app/db_path"
-  type  = "String"
-  value = "/srv/footbag/footbag.db"
+  name = "${local.ssm_prefix}/app/db_path"
+  type = "String"
+  # /srv/footbag/db/footbag.db matches the host bind mount declared in
+  # docker/docker-compose.prod.yml. The earlier value (/srv/footbag/footbag.db)
+  # predated the directory-mount migration and would cause the app to look
+  # for the database outside the container's mounted directory on first
+  # boot, crash-looping the stack. Staging carries the same corrected value
+  # in terraform/staging/ssm.tf.
+  value = "/srv/footbag/db/footbag.db"
+  # Operators may switch the path on the host during a maintenance window;
+  # terraform re-apply must not clobber that change without explicit intent.
+  lifecycle { ignore_changes = [value] }
 }
 
 # Origin-bypass secret. CloudFront injects this as X-Origin-Verify; nginx
@@ -82,6 +96,39 @@ resource "aws_ssm_parameter" "safe_browsing_api_key" {
   key_id = aws_kms_alias.main.name
   value  = "TODO-set-via-cli-after-apply"
   lifecycle { ignore_changes = [value] }
+}
+
+# ── SESSION_SECRET (cookie-parser signing + env.ts boot-time check) ──────────
+# Terraform owns the canonical value via random_id below (32 bytes → 64 hex
+# chars, well past the env.ts ≥32 floor and never matches 'changeme'). The
+# deploy script (scripts/internal/deploy-{rebuild,code}-remote.sh) fetches
+# this parameter on every deploy and writes it into /srv/footbag/env, where
+# systemd picks it up and Docker Compose forwards it into each container.
+#
+# Mirrors the origin_verify_secret pattern below for the same reasons:
+# Terraform-as-single-source-of-truth, no operator put-parameter step
+# required at first apply, rotation is `terraform apply -replace=
+# random_id.session_secret` followed by any subsequent deploy. A manual
+# `aws ssm put-parameter --overwrite` would be reverted on the next
+# terraform apply; the value is not operator-overridable by design.
+#
+# No `ignore_changes`: Terraform IS the writer. Any out-of-band drift
+# (operator put-parameter, console edit) is undone on next apply, which
+# is the intended posture for this secret.
+resource "random_id" "session_secret" {
+  byte_length = 32
+}
+
+resource "aws_ssm_parameter" "app_session_secret" {
+  name   = "${local.ssm_prefix}/secrets/session_secret"
+  type   = "SecureString"
+  key_id = aws_kms_alias.main.name
+  value  = random_id.session_secret.hex
+}
+
+data "aws_ssm_parameter" "app_session_secret" {
+  name            = aws_ssm_parameter.app_session_secret.name
+  with_decryption = true
 }
 
 # ── Stripe (placeholder — payment deferred) ───────────────────────────────────

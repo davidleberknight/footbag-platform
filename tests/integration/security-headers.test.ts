@@ -49,7 +49,7 @@ describe('Security headers (helmet defaults)', () => {
       "img-src 'self' data: https://i.ytimg.com",
       "font-src 'self'",
       "connect-src 'self'",
-      'frame-src https://www.youtube-nocookie.com',
+      'frame-src https://www.youtube-nocookie.com https://player.vimeo.com',
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

@@ -20,31 +20,45 @@ resource "aws_cloudwatch_log_group" "worker" {
 }
 
 # ── Alarms ────────────────────────────────────────────────────────────────────
-# Lightsail does not natively push metrics to CloudWatch.
-# TODO: Install the CloudWatch agent on the Lightsail instance and configure
-# it to push CPU, memory, and disk metrics to the namespace below.
+# Lightsail does not natively push metrics to CloudWatch. The CloudWatch
+# agent runs on the Lightsail host (install via scripts/install-cwagent-*).
+# Alarm dimensions match what the agent's telegraf inputs actually emit:
+# CWAgent namespace, cpu_usage_active / mem_used_percent / disk_used_percent,
+# with cpu/path/fstype dimensions. InstanceId is NOT a dimension on these
+# metrics because the agent's fetch-config translator drops append_dimensions.
+# When a second environment publishes to namespace CWAgent, disambiguate via
+# per-environment namespace, not via dim.
+#
 # Reference: docs/DEVOPS_GUIDE.md §4.4
+#
+# Alarms are count-gated by enable_cwagent_alarms (default false): enable
+# only after the agent is installed and confirmed to be emitting the
+# metrics referenced below. Enabling before the agent exists creates
+# alarms that immediately enter INSUFFICIENT_DATA and train operators to
+# ignore monitoring.
 
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
+  count               = var.enable_cwagent_alarms ? 1 : 0
   alarm_name          = "${local.prefix}-high-cpu"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
-  metric_name         = "CPUUtilization"
-  # TODO: Replace with Lightsail/CWAgent namespace once agent is configured
-  namespace         = "CWAgent"
-  period            = 60
-  statistic         = "Average"
-  threshold         = 85
-  alarm_description = "CPU utilization above 85% for 3 consecutive minutes"
-  alarm_actions     = [aws_sns_topic.alarms.arn]
-  ok_actions        = [aws_sns_topic.alarms.arn]
+  metric_name         = "cpu_usage_active"
+  namespace           = "CWAgent"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "CPU utilization above 85% for 3 consecutive minutes"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    InstanceId = aws_lightsail_instance.web.id
+    cpu = "cpu-total"
   }
 }
 
 resource "aws_cloudwatch_metric_alarm" "high_memory" {
+  count               = var.enable_cwagent_alarms ? 1 : 0
   alarm_name          = "${local.prefix}-high-memory"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
@@ -53,16 +67,38 @@ resource "aws_cloudwatch_metric_alarm" "high_memory" {
   period              = 60
   statistic           = "Average"
   threshold           = 85
+  treat_missing_data  = "notBreaching"
   alarm_description   = "Memory utilization above 85% for 3 consecutive minutes"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
+# Disk used % on root filesystem. CWAgent config sets drop_device:true so
+# the device dim does not appear; fstype is pinned to xfs (AL2023 default).
+# A future filesystem change is loud (alarm flips to INSUFFICIENT_DATA).
+resource "aws_cloudwatch_metric_alarm" "high_disk" {
+  count               = var.enable_cwagent_alarms ? 1 : 0
+  alarm_name          = "${local.prefix}-high-disk"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "disk_used_percent"
+  namespace           = "CWAgent"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Root filesystem usage above 85% for 3 consecutive minutes"
   alarm_actions       = [aws_sns_topic.alarms.arn]
   ok_actions          = [aws_sns_topic.alarms.arn]
 
   dimensions = {
-    InstanceId = aws_lightsail_instance.web.id
+    path   = "/"
+    fstype = "xfs"
   }
 }
 
 resource "aws_cloudwatch_metric_alarm" "db_backup_age" {
+  count               = var.enable_backup_alarm ? 1 : 0
   alarm_name          = "${local.prefix}-db-backup-stale"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
@@ -96,6 +132,10 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
 }
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
+# Five widgets mirror staging: CloudFront error rates, DB backup age, CPU,
+# memory, root disk. CPU/memory/disk widgets render no-data until the
+# CWAgent is installed and emitting; that is acceptable for at-a-glance
+# operator visibility once the agent comes online.
 
 resource "aws_cloudwatch_dashboard" "main" {
   dashboard_name = local.prefix
@@ -128,6 +168,48 @@ resource "aws_cloudwatch_dashboard" "main" {
             ["Footbag/${var.environment}", "BackupAgeMinutes"]
           ]
           period = 300
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title  = "CPU utilization (active %)"
+          region = var.aws_region
+          metrics = [
+            ["CWAgent", "cpu_usage_active", "cpu", "cpu-total"]
+          ]
+          period = 60
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Memory used %"
+          region = var.aws_region
+          metrics = [
+            ["CWAgent", "mem_used_percent"]
+          ]
+          period = 60
+          view   = "timeSeries"
+        }
+      },
+      {
+        type   = "metric"
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Root disk used %"
+          region = var.aws_region
+          metrics = [
+            ["CWAgent", "disk_used_percent", "path", "/", "fstype", "xfs"]
+          ]
+          period = 60
           view   = "timeSeries"
         }
       }

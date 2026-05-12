@@ -22,6 +22,10 @@ process.env.FOOTBAG_DB_PATH          = TEST_DB_PATH;
 process.env.FOOTBAG_INITIAL_ADMIN_FILE = TEST_ADMIN_FILE;
 process.env.PORT                     = '3004';
 process.env.NODE_ENV                 = 'test';
+// applyDevStagingBootstrapAdmin gates on FOOTBAG_ENV; the bootstrap suite
+// below exercises the dev/staging path, so the test process advertises
+// development to enable the allowlist behavior.
+process.env.FOOTBAG_ENV              = 'development';
 process.env.LOG_LEVEL                = 'error';
 process.env.PUBLIC_BASE_URL          = 'http://localhost:3004';
 process.env.SESSION_SECRET           = 'register-test-secret';
@@ -352,9 +356,9 @@ describe('POST /register', () => {
 // When the operator places `.local/initial-admins.txt` (path injectable via
 // FOOTBAG_INITIAL_ADMIN_FILE) listing one email per line, registering with a
 // listed email auto-grants is_admin=1 on the new row plus a
-// 'grant_admin_bootstrap' audit row. Listed emails not yet registered have no
-// effect; production mode disables the file read entirely (covered by unit
-// tests since this suite runs with NODE_ENV='test').
+// 'grant_admin_dev_register_allowlist' audit row. Listed emails not yet
+// registered have no effect; production mode disables the file read entirely
+// (covered by unit tests since this suite runs with NODE_ENV='test').
 
 describe('POST /register — initial-admin bootstrap', () => {
   it('email listed in admin file → registered with is_admin=1 + audit row', async () => {
@@ -379,14 +383,32 @@ describe('POST /register — initial-admin bootstrap', () => {
       ).get('bootstrap-admin@example.com') as { id: string; is_admin: number } | undefined;
       const auditRows = db.prepare(
         `SELECT action_type, actor_type FROM audit_entries
-           WHERE entity_id = ? AND action_type = 'grant_admin_bootstrap'`,
+           WHERE entity_id = ? AND action_type = 'grant_admin_dev_register_allowlist'`,
       ).all(member!.id) as Array<{ action_type: string; actor_type: string }>;
+      // P1.11 / M-4: unified bootstrap also writes the Tier 2 grant atomically.
+      // Verify the ledger row carries the bootstrap reason_code so a future
+      // refactor cannot silently regress to the pre-unification "admin without
+      // Tier 2" state.
+      const tierGrantRow = db.prepare(
+        `SELECT new_tier_status, reason_code FROM member_tier_grants
+           WHERE member_id = ?
+           ORDER BY created_at DESC, id DESC
+           LIMIT 1`,
+      ).get(member!.id) as
+        | { new_tier_status: string; reason_code: string }
+        | undefined;
       db.close();
 
       expect(member).toBeDefined();
       expect(member!.is_admin).toBe(1);
-      expect(auditRows).toHaveLength(1);
+      // Two grant_admin_dev_register_allowlist audit rows: one for the is_admin
+      // flag set and one for the atomic Tier 2 grant. Both are system-actor entries.
+      expect(auditRows).toHaveLength(2);
       expect(auditRows[0].actor_type).toBe('system');
+      expect(auditRows[1].actor_type).toBe('system');
+      expect(tierGrantRow).toBeDefined();
+      expect(tierGrantRow!.new_tier_status).toBe('tier2');
+      expect(tierGrantRow!.reason_code).toBe('dev_admin_register_allowlist.admin_tier2');
     } finally {
       clearAdminFile();
     }
@@ -413,7 +435,7 @@ describe('POST /register — initial-admin bootstrap', () => {
       ).get('plain-member@example.com') as { id: string; is_admin: number } | undefined;
       const auditCount = db.prepare(
         `SELECT COUNT(*) AS n FROM audit_entries
-           WHERE entity_id = ? AND action_type = 'grant_admin_bootstrap'`,
+           WHERE entity_id = ? AND action_type = 'grant_admin_dev_register_allowlist'`,
       ).get(member!.id) as { n: number };
       db.close();
 
@@ -444,7 +466,7 @@ describe('POST /register — initial-admin bootstrap', () => {
     ).get('no-file@example.com') as { id: string; is_admin: number } | undefined;
     const auditCount = db.prepare(
       `SELECT COUNT(*) AS n FROM audit_entries
-         WHERE entity_id = ? AND action_type = 'grant_admin_bootstrap'`,
+         WHERE entity_id = ? AND action_type = 'grant_admin_dev_register_allowlist'`,
     ).get(member!.id) as { n: number };
     db.close();
 

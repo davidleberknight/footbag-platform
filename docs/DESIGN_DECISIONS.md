@@ -37,7 +37,7 @@ Current implementation status and accepted temporary deviations are tracked in `
 - [3. Security, Authentication, and Sessions](#3-security-authentication-and-sessions)
   - [3.1 Password Hashing](#31-password-hashing)
   - [3.2 JWT sessions](#32-jwt-sessions)
-  - [3.3 CSRF Protection via SameSite Cookies](#33-csrf-protection-via-samesite-cookies)
+  - [3.3 CSRF Protection via SameSite Cookies and Origin Pinning](#33-csrf-protection-via-samesite-cookies-and-origin-pinning)
   - [3.4 JWT Token Lifecycle and Configuration](#34-jwt-token-lifecycle-and-configuration)
   - [3.5 JWT Signing with AWS KMS Asymmetric Keys](#35-jwt-signing-with-aws-kms-asymmetric-keys)
   - [3.6 Secrets Management via AWS Parameter Store](#36-secrets-management-via-aws-parameter-store)
@@ -82,6 +82,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [7.4 GitHub](#74-github)
   - [7.5 Local Development](#75-local-development)
   - [7.6 Health Endpoints](#76-health-endpoints)
+  - [7.7 Environment Naming Convention](#77-environment-naming-convention)
 - [8. Logging, Monitoring & Abuse Prevention](#8-logging-monitoring--abuse-prevention)
   - [8.1 Structured Logging](#81-structured-logging)
   - [8.2 Monitoring and Alerting](#82-monitoring-and-alerting)
@@ -952,7 +953,7 @@ Requirements:
 
 - Exactly one row in `members` has `is_system=1`. Enforced by partial UNIQUE index on `members(is_system) WHERE is_system=1`.
 
-- The default `display_name` is `Footbag Hacky`. The system-member row is created by operational seeding (`legacy_data/scripts/seed_members.py` or successor); no admin web-UI action is required to instantiate the row.
+- The default `display_name` is `Footbag Hacky`. The system-member row is created by operational seeding (`scripts/seed_fh_curator.py`); no admin web-UI action is required to instantiate the row.
 
 - The system-member row has all credential fields NULL (`login_email`, `login_email_normalized`, `password_hash`, `password_changed_at`) and `personal_data_purged_at` NULL. Enforced by a third branch on the members credential CHECK.
 
@@ -990,37 +991,49 @@ Impact:
 
 Decision:
 
-The administrator role on `members.is_admin` is granted through two paths: the steady-state in-app path (`A_Manage_Admin_Role`) and an out-of-band bootstrap path used only at platform inception or after total admin loss. Both paths share identical per-row DB write and audit shape; they differ in actor identity and the source of the target identity.
+The administrator role on `members.is_admin` is granted through two paths: the steady-state in-app path (`A_Manage_Admin_Role`) and an out-of-band bootstrap path used only at platform inception or after total admin loss. Both paths produce identical per-row DB write and audit shape; they differ in actor identity, source of the target identity, and the environment-specific mechanism that expresses operator intent for the bootstrap path.
 
 Rationale:
 
 - The steady-state path is the lifetime path: an admin selects a member, supplies a reason, the request is gated on Tier 2 / Tier 3 status per `A_Manage_Admin_Role`, and the system writes `is_admin=1` plus an `audit_entries` row with `actor_type='admin'`.
 
-- The bootstrap path covers the chicken-and-egg case: no app UI can produce the initial admins because no admin can authorize them. The grant therefore crosses the role boundary in DEVOPS §3.2: a System Administrator with host access acts on behalf of the system to provision initial Application Administrators.
+- The bootstrap path covers the chicken-and-egg case: no app UI can produce the initial admins because no admin can authorize them. The grant therefore crosses the role boundary in DEVOPS §3.2: a System Administrator with host or AWS-console access acts on behalf of the system to provision initial Application Administrators.
 
-- The audit log is the authoritative grant trail in both cases. Steady-state grants record `actor_type='admin'`; bootstrap grants record `actor_type='system'` with `action_type='grant_admin_bootstrap'`.
+- Bootstrap expresses operator intent through environment-isolated mechanisms. Dev and staging use a workstation-supplied email allowlist (gitignored on the workstation; injected as `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` by the deploy pipeline) that auto-promotes matching registrations. Production uses a single-shot SSM-stored claim token consumed via an in-app endpoint by an already-registered member. The two mechanisms share no env vars and no code paths beyond the shared service primitive that writes the resulting `is_admin=1` plus Tier 2 grant.
+
+- The audit log is the authoritative grant trail in both cases. Steady-state grants record `actor_type='admin'`; bootstrap grants record `actor_type='system'`. The action_type is mechanism-specific so audits can be partitioned per source: `grant_admin_bootstrap` for the production SSM-token path, `grant_admin_dev_register_allowlist` for the dev/staging email-allowlist, `grant_admin_dev_seed` for the dev/staging direct-insert seed.
 
 Requirements:
 
 - Two grant paths exist: in-app `A_Manage_Admin_Role` (steady state) and out-of-band bootstrap (initial admins only). No third path.
 
-- Bootstrap is exempt from the Tier 2 / Tier 3 gate that `A_Manage_Admin_Role` enforces: tier data may not exist on day one, and the gate exists to govern admin-to-admin grants, not first-admin provisioning.
+- Bootstrap and steady-state share identical per-row write semantics: in one transaction, `is_admin=1` plus an `audit_entries` row plus a `member_tier_grants` row that satisfies the admin↔Tier 2 prerequisite. Bootstrap uses `actor_type='system'` for both the admin flag and the tier grant, with the mechanism-specific action_type described above; steady-state uses `actor_type='admin'`.
 
-- Steady-state and bootstrap paths share identical per-row write semantics: `is_admin=1` plus one `audit_entries` row in the same transaction. Steady-state uses `actor_type='admin'`; bootstrap uses `actor_type='system'` with `action_type='grant_admin_bootstrap'`.
+- The Tier 2 prerequisite from `A_Manage_Admin_Role` is satisfied as a side effect of every successful grant. Bootstrap does not check Tier 2 as a precondition (tier data may not exist on day one); it writes the Tier 2 row atomically alongside the admin flag. Steady-state checks the prerequisite at request time.
+
+- Dev and staging bootstrap is an email allowlist matched at registration time. Source: the workstation file `.local/initial-admins.txt` (gitignored), parsed by the deploy pipeline into the `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` env var written to `/srv/footbag/env` on the target host. The env-config layer fails fast at boot if the var is set on a production host, and the deploy pipeline refuses to write the value to a production host. The runtime mechanism lives in `src/dev-admin-shortcuts/runtime.ts`.
+
+- Production bootstrap is a single-shot SSM-stored claim token. Source: `/footbag/production/app/bootstrap/admin_token` as a SecureString parameter, generated and stored by a System Administrator during initial provisioning. A logged-in member submits the token at `/admin/bootstrap-claim`; the endpoint reads the SSM value via `SecretsAdapter`, performs constant-time comparison, writes the `is_admin=1` plus Tier 2 grant plus audit row atomically, then deletes the SSM parameter. The parameter's absence closes the bootstrap; a second claim attempt returns the same response shape regardless of token validity.
 
 - Revocation is steady-state only via `A_Manage_Admin_Role`. There is no bootstrap revocation path.
 
 - The bootstrap mechanism's input is operator-supplied at runtime and is never committed to the repository. Canonical docs, plans, code, and tests refer to the input by role only.
 
+- Admin entitlement implies tier entitlement. Tier predicates (`hasTier1Benefits`, `isTier2Plus`, `isTier3`) short-circuit to `true` when `members.is_admin = 1`, regardless of whether a `member_tier_grants` row exists for that member. The Tier 2 / Tier 3 gate on the grant path is the source of truth for the invariant; the predicate short-circuit makes the invariant explicit at every downstream gate site (curator media operations, member-owned gallery writes, member upload) so an admin acting in their admin capacity is not 403'd by a missing tier-grant row.
+
 Trade-offs:
 
 - Total admin loss requires SysAdmin re-bootstrap rather than self-service recovery. Acceptable because total admin loss is a recovery scenario and the audit-row mitigation is identical to inception.
+
+- Environment-isolated bootstrap mechanisms cost one additional code surface (SSM-token claim endpoint) compared to a single shared mechanism. Acceptable because the alternative is sharing a privileged env-var allowlist across dev/staging/production, where an operator typo or workstation-file leak could land an unintended admin on production.
 
 Impact:
 
 - `A_Manage_Admin_Role` (US §6.6) covers the steady-state grant flow and is enforced in the app.
 
-- Bootstrap mechanism is operator-facing; current implementation is documented in DEV_ONBOARDING.
+- Dev/staging bootstrap mechanism is operator-facing; the workstation file and deploy-pipeline plumbing are documented in DEV_ONBOARDING.
+
+- Production bootstrap mechanism is operator-facing; the SSM-token provisioning and claim flow are documented in DEVOPS_GUIDE.
 
 - The bootstrap grant satisfies the "could be done also by a System Administrator (a developer role not a user role)" clause in US §6.
 
@@ -1107,21 +1120,23 @@ Impact:
 
 - Authorization from database, not JWT claims: While JWTs contain tier and role claims for routing efficiency, authorization middleware queries the member table and current-state views on every authenticated request to retrieve current membership tier, Active Player status, passwordVersion, and flags. This ensures Active Player expiration, permission changes, and password resets take effect immediately on the next request. JWT claims serve as performance hints, not authoritative access control data.
 
-## 3.3 CSRF Protection via SameSite Cookies
+## 3.3 CSRF Protection via SameSite Cookies and Origin Pinning
 
 Decision:
 
-CSRF protection relies on SameSite=Lax cookie attribute combined with proper HTTP verb semantics. No synchronizer tokens required.
+CSRF protection combines three layers: SameSite=Lax session cookies, strict HTTP verb discipline (no state change over GET), and Origin-header pinning on state-changing requests. Synchronizer tokens are not used.
 
 Rationale:
 
-- SameSite=Lax prevents cookies from being sent with cross-site POST requests, blocking CSRF attacks at browser level.
+- SameSite=Lax prevents cookies from being sent with cross-site POST requests, blocking the classic CSRF attack at the browser level.
 
 - Modern browsers have 97%+ support for SameSite (CSRF dropped from OWASP Top 10 in 2017).
 
 - Proper HTTP verb discipline (GETs are non-side-effecting; mutations use POST) ensures GET requests cannot perform state changes.
 
-- Content-Type validation on JSON endpoints (require application/json) prevents simple form-based CSRF.
+- The legacy archive at archive.footbag.org shares the session cookie via `Domain=.footbag.org` (see §6.4). SameSite=Lax does not isolate same-site subdomain POSTs, so a static malicious form or future XSS in legacy archive content could otherwise issue authenticated POSTs to footbag.org. Origin-header pinning closes this subdomain-CSRF surface by rejecting any state-changing request whose `Origin` header does not match the canonical `PUBLIC_BASE_URL` origin exactly.
+
+- The Origin header is a browser-controlled forbidden-header-name; it cannot be spoofed by client-side script. Modern browsers send Origin reliably on POST (Chrome 80+, Firefox 70+, Safari 12.1+).
 
 Requirements:
 
@@ -1131,17 +1146,23 @@ Requirements:
 
 - All state-changing operations use POST.
 
-- JSON-only routes (webhooks and explicitly-designated JSON-only progressive-enhancement endpoints) validate Content-Type: application/json.
+- JSON-only routes (webhooks and explicitly-designated JSON-only progressive-enhancement endpoints) validate `Content-Type: application/json`.
 
-- Forms that change auth state (login, logout, password change, password reset, email change, account-claim confirm) carry a per-session synchronizer token alongside the SameSite=Lax defense. The synchronizer covers the residual cross-site POST surface that SameSite=Lax does not (top-level navigations, browser bugs, and historical edge cases).
+- State-changing browser requests (POST, PUT, PATCH, DELETE) must include an `Origin` header that exactly matches the canonical `PUBLIC_BASE_URL` origin. Requests with a mismatched `Origin` are rejected with 403. Requests lacking `Origin` fall back to `Referer` validation against the same origin; requests lacking both are rejected.
+
+- Server-to-server endpoints that legitimately omit `Origin` (intra-cluster `/ipc/*` shared-secret routes, future webhook routes with their own HMAC authentication) are explicitly exempt from the Origin check.
 
 Trade-offs:
 
 - Requires discipline in HTTP verb usage. No protection for ancient browsers (IE 10 and older); acceptable given browser baseline.
 
+- A small fraction of legitimate user-agents (privacy plugins that strip both `Origin` and `Referer`, `file://` pages, certain redirect chains) cannot submit state-changing forms. Acceptable given the protected surface.
+
+- Does not protect against same-origin XSS on footbag.org itself; that surface is addressed by the Content Security Policy and input sanitization layers (§3.12, §3.14, §3.15).
+
 Cookie integrity for display state:
 
-- Server-issued cookies that carry display state (flash banners today; preferences or remember-me in the future) are HMAC-signed with the per-host `SESSION_SECRET` via `cookie-parser`'s signed-cookie mechanism. This is distinct from synchronizer tokens, which are not used: signing defends against client-side cookie-jar tampering of state the server will later echo, not against cross-site request forgery (which SameSite handles).
+- Server-issued cookies that carry display state (flash banners today; preferences or remember-me in the future) are HMAC-signed with the per-host `SESSION_SECRET` via `cookie-parser`'s signed-cookie mechanism. This signing defends against client-side cookie-jar tampering of state the server will later echo. Cookie signing is independent of CSRF protection (which is handled by SameSite=Lax plus Origin pinning).
 
 - Cookie policy (name, format, options) lives in `src/lib/*Cookie.ts` helpers; controllers and middleware call helpers rather than hand-rolling cookie options. Services are unaware of flash cookies (HTTP-layer concern).
 
@@ -1159,7 +1180,7 @@ Rationale:
 
 - Secure flag enforces HTTPS-only transmission.
 
-- SameSite=Lax prevents CSRF via cookie isolation.
+- SameSite=Lax and Origin-header pinning together prevent CSRF (§3.3): SameSite=Lax blocks cross-site POSTs at the browser; Origin-header pinning blocks same-site subdomain POSTs from the archive.footbag.org cookie-sharing surface.
 
 - passwordVersion enables immediate token invalidation without token blacklist.
 
@@ -1185,7 +1206,7 @@ Impact:
 
 - The middleware checks expiration time on each authenticated request and generates a new JWT when needed, setting the session cookie with httpOnly, secure, sameSite lax attributes and 24-hour maxAge. This provides simple implementation without separate refresh tokens, good user experience preventing logout during active use, and security through short expiry for inactive sessions.
 
-- Cookie configuration: name is 'footbag_session', httpOnly true prevents JavaScript access, secure true enforces HTTPS only, sameSite lax provides CSRF protection, and maxAge is 86400000 milliseconds for 24 hours.
+- Cookie configuration: name is 'footbag_session', httpOnly true prevents JavaScript access, secure true enforces HTTPS only, sameSite lax (combined with Origin-header pinning per §3.3) protects against CSRF, and maxAge is 86400000 milliseconds for 24 hours.
 
 - Password change atomicity: Password changes update the password hash and increment passwordVersion in a single atomic transaction. Authorization middleware checks passwordVersion on every request, comparing the JWT's embedded passwordVersion claim against the current database value. If they differ, the JWT is rejected immediately, forcing re-authentication. This pattern invalidates all existing JWTs instantly when a password changes, preventing use of stolen tokens after password reset.
 
@@ -1250,7 +1271,7 @@ Mitigations against the in-container threat:
 
 Implementation: Parameter paths are organized by environment (`/footbag/production/`, `/footbag/staging/`, `/footbag/development/`).
 
-In development, the secret-source split mirrors production. Env-var secrets (`SESSION_SECRET`, host runtime config) load from a gitignored `.env` file at the repo root via `dotenv`; a committed `.env.example` template enumerates expected keys with placeholder values (the literal substring `changeme` is reserved for placeholder text and is rejected by production startup guards on `SESSION_SECRET`). Parameter-Store-class secrets (Stripe keys, Safe Browsing API key, admin bootstrap tokens) load through `SecretsAdapter` in local mode, which reads a gitignored `.secrets.local.json` at the repo root; a committed `.secrets.local.json.example` template enumerates expected keys. Per-host operational secrets like `SESSION_SECRET` live in `/srv/footbag/env` on the production host (root:root 0600).
+In development, the secret-source split mirrors production. Env-var secrets (`SESSION_SECRET`, host runtime config) load from a gitignored `.env` file at the repo root via `dotenv`; a committed `.env.example` template enumerates expected keys with placeholder values (the literal substring `changeme` is reserved for placeholder text and is rejected by production startup guards on `SESSION_SECRET`). Parameter-Store-class secrets (Stripe keys, Safe Browsing API key, admin bootstrap tokens) load through `SecretsAdapter` in local mode, which reads a gitignored `.local/secrets.json` co-located with other operator-local files. Per-host operational secrets like `SESSION_SECRET` live in `/srv/footbag/env` on the production host (root:root 0600).
 
 Secrets are fetched once at container startup via SecretsAdapter (SSM GetParameter in production, local JSON file in development). SecretsAdapter is a Node module; only Node consumers (web, worker, image worker, tests) read through it. Non-Node consumers (nginx config rendering, CloudFront origin-request injection) read SSM-stored values via a deploy-time env-file mirror written by the deploy remote-half rather than at runtime via the adapter. `X_ORIGIN_VERIFY_SECRET` is the canonical example of the mirror path: CloudFront reads it via the Terraform `data.aws_ssm_parameter` lookup at apply time, nginx reads it from `/srv/footbag/env` via the docker entrypoint shim at container startup, and no Node code path consumes it.
 
@@ -1409,8 +1430,9 @@ No auth-bypass toggles: environment variables must not gate route-level authoriz
 Legacy migration security rules:
 
 - Legacy passwords are never imported, stored, or used regardless of how they were stored on the legacy system.
-- `legacy_email` is migration metadata only, not a login credential. It is used solely to deliver the one-time claim link during the self-serve claim flow.
-- Mailbox control is the proof step for self-serve claim regardless of which identifier type (email address, username, or member ID) the member submitted. Submitting a username or member ID still requires proving control of the matched `legacy_email` before any merge occurs.
+- `legacy_email` is migration metadata only, not a login credential. It is used to deliver the one-time claim link during the self-serve claim flow, and as the equality target against the requesting member's verified `login_email` when evaluating the email-equality fast path.
+- Mailbox control is the proof step for self-serve claim regardless of which identifier type (email address, username, or member ID) the member submitted. Submitting a username or member ID still requires proving control of the matched `legacy_email` before any merge occurs. When the requesting member's verified `login_email` already equals the matched row's `legacy_email` (case-insensitive, trimmed), the registration-time email-verify step satisfies the proof step and the second token-email is skipped; the merge runs synchronously inside the initiation call. Anti-enumeration is preserved because the fast path is reachable only after a positive lookup.
+- Production has no admin email-skip; admins requiring manual recovery use `manualLegacyClaimRecovery` (with the audit trail and access controls that flow implies). A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. All four vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev-admin shortcut lives in `src/dev-admin-shortcuts/runtime.ts`.
 - Imported placeholder rows cannot log in, are not searchable, and do not receive any member communications before claim.
 
 Rationale:
@@ -2373,7 +2395,7 @@ The platform absorbs legacy data from two sources before or at production go-liv
 
 The two sources share the same identity key (`legacy_member_id`) and converge via FK: `historical_persons.legacy_member_id` and `legacy_members.legacy_member_id` point at the same namespace, and a modern `members` row links into both at claim time via `members.legacy_member_id` and `members.historical_person_id`.
 
-**Self-serve legacy claim flow.** A logged-in member visits "Link Legacy Account" in profile settings and submits a legacy identifier (email address, username, or member ID). The system looks up the matching `legacy_members` row and, if eligible, emails a time-limited single-use claim link to the `legacy_email` on that row. Mailbox control is the proof step regardless of which identifier type was submitted. On confirmation, the merge transaction runs atomically: `legacy_member_id` and allowed profile fields are merged into the active account, a single tier grant is written via the blanket mapping in `MIGRATION_PLAN.md` §3, confirmed club affiliations are written to `member_club_affiliations`, bootstrap leadership may be promoted to `club_leaders`, and the `legacy_members` row is marked claimed (`claimed_by_member_id` + `claimed_at` set; the row is preserved as the permanent archival record). User-visible messaging never reveals whether the submitted identifier matched zero rows, multiple rows, or an ineligible row.
+**Self-serve legacy claim flow.** A logged-in member visits the unified "Link your history" page (reached from every post-verify funnel branch, from the profile-edit CTA when either link is missing, and from the dashboard) and either clicks a suggested-match card or submits a manual identifier (old footbag.org member ID, legacy username, legacy email, or historical-record ID). The page collapses the legacy_members and historical_persons tables into one user-facing concept: each candidate carries a provenance label, and back-linked "both" candidates render as one card with a single Claim action that runs the transitive merge in one transaction. The schema and services remain split (the two tables persist with their distinct semantics); the unification is a presentation decision in the controller and view layer, not a data-model change. The system looks up the matching `legacy_members` row and, if eligible, takes one of two paths. **Email-equality fast path:** when the requesting member's verified `login_email` equals the matched row's `legacy_email` (case-insensitive, trimmed), the merge runs synchronously inside the initiation call; no second token-email is issued because mailbox control was already proven at registration verify. **Token-email path:** otherwise, the system emails a time-limited single-use claim link to the `legacy_email` on the matched row, and the member completes the claim by clicking the link. On confirmation (either path), the merge transaction runs atomically: `legacy_member_id` and allowed profile fields are merged into the active account, a single tier grant is written via the blanket mapping in `MIGRATION_PLAN.md` §3, confirmed club affiliations are written to `member_club_affiliations`, bootstrap leadership may be promoted to `club_leaders`, and the `legacy_members` row is marked claimed (`claimed_by_member_id` + `claimed_at` set; the row is preserved as the permanent archival record). User-visible messaging never reveals whether the submitted identifier matched zero rows, multiple rows, or an ineligible row; the fast path's observable redirect is gated by a positive lookup, so a non-matching attacker still receives the silent generic banner.
 
 **Tier handling.** Tier state is written as a single `member_tier_grants` ledger row at claim time (`reason_code = 'legacy.claim_tier_grant'`), applying the blanket "annual to lifetime" mapping defined in `MIGRATION_PLAN.md` §3. Unclaimed `legacy_members` rows have no ledger row. No tier cache columns exist on `members`; membership-tier reads go through `MembershipTieringService.getTierStatus(memberId)`; Active Player reads go through `ActivePlayerService.getStatus(memberId)`.
 
@@ -2963,6 +2985,56 @@ Constraints:
 Impact:  
 - Deployment runbooks and any load balancer, target health checks use these endpoints.  
 - Alarms may trigger on sustained readiness failures.
+
+## 7.7 Environment Naming Convention
+
+Decision:
+
+The platform uses one canonical environment name per environment (`development`, `staging`, `production`) and composes a project-prefixed form (`footbag-{env}`) only for identifiers that share a namespace with other projects or other operators. The unprefixed short form is the only name in code; the prefixed form is a Terraform composition (`local.prefix = "footbag-${var.environment}"`). The two forms are never interchangeable.
+
+Rationale:
+
+- AWS namespaces with cross-project collision (S3 bucket names globally, IAM users and roles account-wide, KMS aliases account-and-region-wide, Lightsail resource names account-wide) require a project prefix to prevent name collision when multiple projects share an AWS account or compete in a global namespace.
+
+- SSH aliases live in the operator's workstation `~/.ssh/config`, which is shared across all projects the operator works on. Prefixing the alias prevents a `production` alias from another project shadowing this project's.
+
+- Project-internal identifiers do not face the same collision pressure. `FOOTBAG_ENV` is read by an env var whose own name already starts with `FOOTBAG_`; SSM parameter paths are rooted at `/footbag/`; Terraform tag values live alongside an explicit `Project = "footbag"` tag. Adding `footbag-` to the value in those contexts is redundant noise.
+
+- Composing the prefixed form from the unprefixed canonical name (rather than maintaining two separate constants) keeps the rule mechanical: there is one source of truth (`var.environment`), and the prefix appears wherever AWS or SSH requires it.
+
+Requirements:
+
+- The canonical environment values are `development`, `staging`, and `production`. No abbreviations (`dev`, `stage`, `prod`) appear as configuration values anywhere in code, schema, IaC, or operational scripts.
+
+- `FOOTBAG_ENV` accepts only the canonical short forms; `src/config/env.ts` rejects anything else at boot, including the prefixed forms.
+
+- `DEPLOY_TARGET` accepts only the prefixed forms `footbag-staging` and `footbag-production`. Entry-point scripts (`deploy_to_aws.sh`, `scripts/deploy-rebuild.sh`, `scripts/deploy-code.sh`) hard-refuse any other value before the SSH connection, including the unprefixed short forms and near-miss substrings (`footbag-prod`, `footbag-prd`, `footbag-live`).
+
+- Terraform composes the prefix exactly once per module: `local.prefix = "footbag-${var.environment}"`. AWS resource names use `${local.prefix}` (or interpolate `var.environment` via `local.prefix`); they never hand-write `"footbag-production"` as a literal.
+
+- SSM parameter paths use `${local.ssm_prefix}/...` where `local.ssm_prefix = "/footbag/${var.environment}"`. The path interpolates the unprefixed name; the project is already in the literal `/footbag/` segment.
+
+- Tag values use `var.environment` (unprefixed). The `Project = "footbag"` tag carries the project identity separately.
+
+- IAM user, role, and policy names; KMS aliases; S3 bucket names; Lightsail resource names; and CloudFormation/CloudWatch identifiers use `${local.prefix}-...` (prefixed).
+
+- SSH aliases in `~/.ssh/config` are `footbag-staging` and `footbag-production` (prefixed); operator-facing documentation never references unprefixed alternatives.
+
+Trade-offs:
+
+- Two visible forms (short and prefixed) require a one-time rule to learn. The trade-off is acceptable because the rule is mechanical (prefix added in shared namespaces, omitted in project-scoped namespaces) and the alternatives are worse: unifying on the unprefixed short form causes S3 bucket name collisions globally and IAM collisions account-wide; unifying on the prefixed form produces redundant identifiers (`FOOTBAG_ENV=footbag-production`, `/footbag/footbag-production/...`, `footbag-footbag-production-runtime`).
+
+- The composition rule depends on `var.environment` being the only canonical input. A module that introduces a second separate `environment` variable or a hard-coded `"footbag-production"` literal breaks the rule and must be refactored.
+
+Impact:
+
+- Adding a new environment (e.g., a pre-prod or QA tier) is a single Terraform input change plus an SSH alias addition; the prefix and SSM-path composition follow automatically.
+
+- New AWS resources land with the correct prefix by default because they use `${local.prefix}`. Hand-written literal names are a review-time smell and must be changed to the composition.
+
+- Operators who maintain SSH config across multiple projects can keep all alias names project-prefixed without conflict.
+
+- Defense-in-depth allowlists at each deploy entry point catch operator typos (`footbag-prod`, `footbag-prd`) before any destructive action. The allowlist is the canonical enforcement mechanism for SSH alias and `DEPLOY_TARGET` shape.
 
 # 8. Logging, Monitoring & Abuse Prevention
 

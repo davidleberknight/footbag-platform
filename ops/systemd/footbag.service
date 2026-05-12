@@ -60,7 +60,14 @@ ExecReload=/usr/bin/docker compose \
     -f docker/docker-compose.prod.yml \
     up --detach --remove-orphans --no-build
 
-Restart=on-failure
+# Container self-healing is handled inside Docker Compose via each service's
+# `restart: unless-stopped` policy in docker-compose.yml. ExecStart above runs
+# `docker compose up --detach` which exits 0 immediately after spawning
+# containers; systemd has no post-startup visibility into individual container
+# failures (OOM, crash-loop, healthcheck flip). A systemd-level Restart=
+# directive on this Type=oneshot unit would never fire on container failure
+# because ExecStart already succeeded. Container restart policy is in
+# docker/docker-compose.yml; this unit only owns start/stop of the stack.
 RestartSec=10s
 TimeoutStartSec=120s
 TimeoutStopSec=60s

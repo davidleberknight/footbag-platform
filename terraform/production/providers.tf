@@ -5,7 +5,9 @@
 # =============================================================================
 
 terraform {
-  required_version = ">= 1.7"
+  # Minimum 1.11: native S3 backend locking (use_lockfile in backend.tf)
+  # was introduced in Terraform 1.10. The staging module pins the same floor.
+  required_version = ">= 1.11"
 
   required_providers {
     aws = {
@@ -39,6 +41,21 @@ provider "aws" {
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project     = "footbag"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+# us-west-2 alias for the DR bucket (cross-region replication target).
+# Per AWS_PROJECT_SPECIFICS backup region: us-west-2.
+provider "aws" {
+  alias  = "us_west_2"
+  region = "us-west-2"
 
   default_tags {
     tags = {

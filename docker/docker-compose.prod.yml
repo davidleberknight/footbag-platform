@@ -5,7 +5,7 @@
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
 #
 # Key differences from local dev:
-#   - restart: always on nginx and web; worker intentionally restart: "no" (stub in v0.1)
+#   - restart: always on nginx and web; worker is unless-stopped (long-running)
 #   - Explicit memory limits to prevent OOM runaway
 #   - DB volume path from env (not a hardcoded local path)
 #   - No host port binding for web — traffic flows through nginx only
@@ -35,6 +35,16 @@ services:
           memory: 64M
 
   web:
+    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
+    # subtree into the image. The base compose default is 1 (so dev/staging
+    # images bundle the dev-admin seed script); this override forces the
+    # Dockerfile ARG back to 0 for any build that uses the prod overlay.
+    # The workstation deploy-rebuild.sh also exports
+    # INCLUDE_DEV_ADMIN_SHORTCUTS=0 when FOOTBAG_ENV=production
+    # (belt-and-suspenders).
+    build:
+      args:
+        INCLUDE_DEV_ADMIN_SHORTCUTS: 0
     restart: always
     logging: *log-rotation
     volumes:
@@ -53,7 +63,7 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       TRUST_PROXY: "loopback, linklocal, uniquelocal"
       SESSION_SECRET: ${SESSION_SECRET}
-      AWS_PROFILE: ${AWS_PROFILE}
+      AWS_PROFILE: ${AWS_PROFILE:?must be set in /srv/footbag/env (assumed-role source profile)}
       AWS_REGION: ${AWS_REGION}
       JWT_SIGNER: ${JWT_SIGNER}
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}
@@ -78,18 +88,32 @@ services:
       WORKER_INTERNAL_URL: ${WORKER_INTERNAL_URL:-http://worker:3100}
       WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://web:3000}
       INTERNAL_EVENT_SECRET: ${INTERNAL_EVENT_SECRET:?must be set in /srv/footbag/env (worker<->web auth)}
-      FOOTBAG_INITIAL_ADMIN_EMAILS: ${FOOTBAG_INITIAL_ADMIN_EMAILS:-}
+      # This overlay is applied on BOTH staging and production hosts (per the
+      # header comment). The env-var passthrough below is required for staging
+      # (where the dev/staging admin-bootstrap allowlist is active) and is a
+      # no-op on production: the deploy pipeline refuses to write the value
+      # into /srv/footbag/env on a production host (scripts/internal/deploy-*-
+      # remote.sh), and env.ts boot-fail-fasts if the var is set with
+      # FOOTBAG_ENV=production. Production-first-admin uses the separate SSM-
+      # token claim path documented in DESIGN_DECISIONS §3.6.
+      FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: ${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS:-}
     deploy:
       resources:
         limits:
-          # Scaled to 192M for single-image-at-a-time avatar testing on
-          # Lightsail nano_3_0 (512M host). Production target is 512M.
-          # Bump back to 512M after the host bundle is upgraded to a 2GB+
-          # instance. Web no longer runs Sharp inline (image worker handles
-          # it via HTTP), so this trim is safe at the current load.
-          memory: 192M
+          # Memory limit is env-driven so the same compose overlay works for
+          # staging (nano_3_0, 512M host) and production (small_3_0, 2GB host)
+          # without manual edits. Default 192M fits staging; production
+          # /srv/footbag/env sets WEB_MEMORY_LIMIT=512M. Web no longer runs
+          # Sharp inline (image worker handles it via HTTP), so the staging
+          # trim is safe at the current load.
+          memory: ${WEB_MEMORY_LIMIT:-192M}
 
   worker:
+    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
+    # subtree into the image (same rationale as the web override above).
+    build:
+      args:
+        INCLUDE_DEV_ADMIN_SHORTCUTS: 0
     # Email-outbox polling loop (src/worker.ts). Restart on crash or host
     # reboot so the outbox keeps draining. SIGTERM-clean exit loop in
     # src/worker.ts handles graceful shutdown on `docker compose down` and
@@ -107,7 +131,7 @@ services:
       PORT: "3000"
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       SESSION_SECRET: ${SESSION_SECRET}
-      AWS_PROFILE: ${AWS_PROFILE}
+      AWS_PROFILE: ${AWS_PROFILE:?must be set in /srv/footbag/env (assumed-role source profile)}
       AWS_REGION: ${AWS_REGION}
       JWT_SIGNER: ${JWT_SIGNER}
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}
@@ -136,10 +160,12 @@ services:
     deploy:
       resources:
         limits:
-          # Scaled to 96M for nano_3_0 (512M host). Production target is 384M;
-          # bump back to 384M after the host bundle upgrade. Worker is a
-          # minimal email-outbox polling loop and handles the trim fine.
-          memory: 96M
+          # Memory limit is env-driven (see web service). Default 96M fits
+          # staging (nano_3_0); production /srv/footbag/env sets
+          # WORKER_MEMORY_LIMIT=384M. Worker is a minimal email-outbox
+          # polling loop plus AP-expiry daily loop plus transcode HTTP
+          # dispatch; the staging trim is safe at the current load.
+          memory: ${WORKER_MEMORY_LIMIT:-96M}
 
   # Image processing worker. Scaled-down sizing for single-image-at-a-time
   # avatar testing on Lightsail nano_3_0 (512M host); production target is
@@ -154,6 +180,12 @@ services:
   #   - in-flight web requests see ECONNRESET, mapped to ImageProcessingError
   #     and a 5xx user-facing response by the HTTP adapter
   image:
+    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
+    # subtree into the image (same rationale as the web/worker overrides
+    # above).
+    build:
+      args:
+        INCLUDE_DEV_ADMIN_SHORTCUTS: 0
     restart: always
     logging: *log-rotation
     # No /root/.aws mount: this container holds NO AWS credentials. The from-
@@ -182,5 +214,8 @@ services:
     deploy:
       resources:
         limits:
-          # Scaled to 256M for nano_3_0; production target is 896M.
-          memory: 256M
+          # Memory limit is env-driven (see web service). Default 256M fits
+          # staging (nano_3_0); production /srv/footbag/env sets
+          # IMAGE_MEMORY_LIMIT=896M plus IMAGE_MAX_CONCURRENT=2 to take full
+          # advantage of the production 2GB host.
+          memory: ${IMAGE_MEMORY_LIMIT:-256M}

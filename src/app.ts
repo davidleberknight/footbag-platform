@@ -15,11 +15,11 @@ import { publicRouter }   from './routes/publicRoutes';
 import { redactTokenPaths } from './lib/redactTokenPaths';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
+import { ForbiddenError } from './services/serviceErrors';
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
   { href: '/',          section: 'home',      label: 'Home' },
   { href: '/events',    section: 'events',    label: 'Events' },
-  { href: '/members',   section: 'members',   label: 'Members' },
   { href: '/clubs',     section: 'clubs',     label: 'Clubs' },
   { href: '/net',       section: 'net',       label: 'Net' },
   { href: '/freestyle', section: 'freestyle', label: 'Freestyle' },
@@ -57,8 +57,9 @@ export function createApp(): express.Application {
   // added only when a template or a script references them — currently
   // i.ytimg.com and i.vimeocdn.com (YouTube/Vimeo thumbnail CDNs used by the
   // curator gallery tiles for external-platform reference videos),
-  // www.youtube-nocookie.com (the privacy-friendly embed iframe loaded after
-  // the user clicks a facade), and the configured S3 media bucket origin
+  // www.youtube-nocookie.com (the privacy-friendly YouTube embed iframe loaded
+  // after the user clicks a facade), player.vimeo.com (the Vimeo embed iframe,
+  // same facade pattern), and the configured S3 media bucket origin
   // (admin curator video upload PUTs source bytes directly to S3 via a
   // presigned URL, bypassing nginx and CloudFront). data: is allowed in
   // img-src as a future allowance for small inline SVG icons (no current
@@ -81,12 +82,18 @@ export function createApp(): express.Application {
         imgSrc:         ["'self'", 'data:', 'https://i.ytimg.com', 'https://i.vimeocdn.com'],
         fontSrc:        ["'self'"],
         connectSrc:     ["'self'", ...(s3MediaOrigin ? [s3MediaOrigin] : [])],
-        frameSrc:       ['https://www.youtube-nocookie.com'],
+        frameSrc:       ['https://www.youtube-nocookie.com', 'https://player.vimeo.com'],
         objectSrc:      ["'none'"],
         baseUri:        ["'self'"],
         formAction:     ["'self'"],
         frameAncestors: ["'none'"],
         upgradeInsecureRequests: [],
+        // Browser POSTs CSP violation reports to this path so the
+        // /csp-report handler (below, before route mounting) can log them.
+        // Catches regressions of the inline-attr ban (DD §3.3 / HIGH-2)
+        // and missing-origin gaps (HIGH-1) at runtime without any
+        // operator visibility loss.
+        reportUri: ['/csp-report'],
       },
     },
     hsts: { maxAge: 15552000, includeSubDomains: true, preload: false },
@@ -169,6 +176,27 @@ export function createApp(): express.Application {
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser(config.sessionSecret));
 
+  // ── CSP violation reports ────────────────────────────────────────────────
+  // Browser POSTs here with `Content-Type: application/csp-report` (legacy)
+  // or `application/reports+json` (modern Reporting API) when an inline
+  // event handler, an inline style, an unauthorized frame origin, or any
+  // other CSP directive is violated. Logged at warn level so operators
+  // can spot regressions of HIGH-1 (frame-src) and HIGH-2 (inline attrs)
+  // without manual template scanning. Mounted before auth so unauthenticated
+  // page renders that violate CSP still get reported. Body is unauthenticated
+  // input; the only consumer is the logger, which does its own redaction.
+  app.post(
+    '/csp-report',
+    express.json({ type: ['application/csp-report', 'application/reports+json', 'application/json'] }),
+    (req, res) => {
+      logger.warn('csp violation reported', {
+        body: req.body,
+        userAgent: req.get('User-Agent'),
+      });
+      res.status(204).end();
+    },
+  );
+
   // ── Auth (JWT session + per-request passwordVersion check) ──────────────
   app.use(authMiddleware());
 
@@ -246,6 +274,21 @@ export function createApp(): express.Application {
     });
   });
 
+  // ── ServiceError → HTTP mapping (must precede the catch-all 500) ─────
+  // Controllers `next(err)` on errors they don't recognize. Service-layer
+  // ForbiddenError (e.g. defense-in-depth tier check in curatorMediaService)
+  // maps to a 403 render; everything else falls through to the 500 handler.
+  app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (err instanceof ForbiddenError) {
+      res.status(403).render('errors/forbidden', {
+        seo: { title: 'Forbidden' },
+        page: { sectionKey: '', pageKey: 'error_403', title: 'Forbidden' },
+      });
+      return;
+    }
+    next(err);
+  });
+
   // ── 500 error handler ────────────────────────────────────────────────────
   app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error('unhandled error', {
@@ -255,7 +298,8 @@ export function createApp(): express.Application {
     });
     res.status(500).render('errors/unavailable', {
       seo:  { title: 'Service Unavailable' },
-      page: { sectionKey: '', pageKey: 'error_503', title: 'Service Unavailable' },
+      page: { sectionKey: '', pageKey: 'error_500', title: 'Service Unavailable' },
+      statusCode: 500,
     });
   });
 

@@ -131,41 +131,41 @@ describe('lookupLegacyAccount — union shape', () => {
 });
 
 describe('verifyEmailByToken — ambiguous-email classification', () => {
-  it('classifies ambiguous email as tier3/ambiguous_email_anchor with legacyMatch=null', async () => {
+  it('classifies ambiguous email as low/ambiguous_email_anchor with legacyMatch=null', async () => {
     const token = issueVerifyToken(MEM_AMBIG);
     const result = await identitySvc.identityAccessService.verifyEmailByToken(token);
     expect(result).not.toBeNull();
     expect(result!.legacyMatch).toBeNull();
     expect(result!.autoLinkClassification).toEqual({
-      tier: 'tier3',
+      confidence: 'low',
       reason: 'ambiguous_email_anchor',
     });
   });
 
-  it('still classifies a clean single-match member as tier1 (regression check)', async () => {
+  it('still classifies a clean single-match member as high confidence (regression check)', async () => {
     const token = issueVerifyToken(MEM_SINGLE);
     const result = await identitySvc.identityAccessService.verifyEmailByToken(token);
-    expect(result!.autoLinkClassification.tier).toBe('tier1');
+    expect(result!.autoLinkClassification.confidence).toBe('high');
   });
 
   it('still classifies no-anchor member as none (regression check)', async () => {
     const token = issueVerifyToken(MEM_NONE);
     const result = await identitySvc.identityAccessService.verifyEmailByToken(token);
-    expect(result!.autoLinkClassification).toEqual({ tier: 'none' });
+    expect(result!.autoLinkClassification).toEqual({ confidence: 'none' });
   });
 });
 
 describe('verify → routing for ambiguous email', () => {
-  it('routes ambiguous-email verify to /history/claim (manual disambiguation)', async () => {
+  it('routes ambiguous-email verify to the link-history wizard with low-confidence banner', async () => {
     const token = issueVerifyToken(MEM_AMBIG);
     const res = await request(createApp()).get(`/verify/${token}`);
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/history/claim');
+    expect(res.headers.location).toBe('/members/mem_ambig/link-history?from=register&reason=low_confidence');
   });
 });
 
-describe('manual claim form — ambiguous email error', () => {
-  it('renders a helpful error when the submitted identifier matches multiple rows', async () => {
+describe('manual claim form — non-revealing on ambiguous email', () => {
+  it('renders the SAME "sent" banner as a match or miss (no leak of ambiguity)', async () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
     const res = await request(createApp())
       .post('/history/claim')
@@ -173,8 +173,7 @@ describe('manual claim form — ambiguous email error', () => {
       .type('form')
       .send({ identifier: AMBIG_EMAIL });
     expect(res.status).toBe(200);
-    expect(res.text).toContain('matches multiple legacy accounts');
-    expect(res.text).toContain('username or member ID');
+    expect(res.text).toMatch(/confirmation link has been sent/);
   });
 
   it('does NOT render the confirm page on ambiguous email', async () => {

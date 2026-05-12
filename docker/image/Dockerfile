@@ -38,6 +38,14 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+# CUTOVER-REMOVE: dev-admin shortcuts subtree, kept out of the runtime
+# image unless the build explicitly opts in (staging only). See
+# docker/web/Dockerfile for the same guard on the web image.
+ARG INCLUDE_DEV_ADMIN_SHORTCUTS=0
+RUN if [ "$INCLUDE_DEV_ADMIN_SHORTCUTS" != "1" ]; then \
+      rm -rf dist/dev-admin-shortcuts; \
+    fi
+
 ENV NODE_ENV=production
 ENV IMAGE_PORT=4000
 

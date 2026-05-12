@@ -849,7 +849,7 @@ CREATE TABLE system_job_runs (
   job_name    TEXT NOT NULL,
   started_at  TEXT NOT NULL,
   finished_at TEXT,
-  status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running','succeeded','failed')),
+  status TEXT NOT NULL DEFAULT 'running' CHECK (status IN ('running','succeeded','failed','aborted')),
   details_json TEXT NOT NULL DEFAULT '{}',
   last_error   TEXT
 );
@@ -1449,6 +1449,55 @@ CREATE UNIQUE INDEX ux_active_player_grants_vouch_once
 CREATE UNIQUE INDEX ux_active_player_club_join_once
   ON active_player_grants(member_id)
   WHERE reason_code = 'club_join_one_time_active_player_grant';
+
+-- ---------------------------------------------------------------------------
+-- active_player_reminder_sent: per-member, per-expiry, per-offset dedup table
+-- for the SYS_Check_Active_Player_Expiry daily worker. One row written each
+-- time the worker enqueues a reminder email; a repeat run within the same
+-- offset window is a no-op. expires_at is the AP grant's
+-- new_active_player_expires_at at send time, so a renewal (fresh grant row
+-- with a later expires_at) generates a fresh reminder cycle automatically:
+-- the (member_id, expires_at, offset_label) key has not been used yet.
+-- offset_label values: 'days_1' / 'days_2' for the configured pre-expiry
+-- offsets in system_config; 'day_of' for the built-in T+0 reminder.
+-- ---------------------------------------------------------------------------
+CREATE TABLE active_player_reminder_sent (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  member_id    TEXT NOT NULL REFERENCES members(id) ON DELETE NO ACTION,
+  expires_at   TEXT NOT NULL,
+  offset_label TEXT NOT NULL
+    CHECK (offset_label IN ('days_1','days_2','day_of')),
+  sent_at      TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX ux_active_player_reminder_sent
+  ON active_player_reminder_sent(member_id, expires_at, offset_label);
+
+CREATE INDEX idx_active_player_reminder_sent_member
+  ON active_player_reminder_sent(member_id);
+
+-- Append-only enforcement. The table is a dedup ledger (one row per
+-- enqueued reminder, keyed by (member_id, expires_at, offset_label)); any
+-- UPDATE or DELETE silently breaks dedup and risks double-sending the
+-- member a reminder. Triggers match the pattern at lines 214-227 for
+-- active_player_vouches.
+CREATE TRIGGER trg_active_player_reminder_sent_no_update
+BEFORE UPDATE ON active_player_reminder_sent
+BEGIN
+  SELECT RAISE(ABORT, 'active_player_reminder_sent rows are immutable (append-only dedup ledger)');
+END;
+
+CREATE TRIGGER trg_active_player_reminder_sent_no_delete
+BEFORE DELETE ON active_player_reminder_sent
+BEGIN
+  SELECT RAISE(ABORT, 'active_player_reminder_sent rows are immutable (append-only dedup ledger)');
+END;
 
 -- =============================================================================
 -- SECTION 13: MEMBER TIER CURRENT VIEW
@@ -2569,6 +2618,13 @@ VALUES
    'technical-updates', 'Technical Updates',
    'Platform and technical notices. Members may subscribe or unsubscribe.',
    'active', 1
+  ),
+
+  (
+   '2000-01-01T00:00:00.000Z',
+   'active-player-reminders', 'Active Player Reminders',
+   'Reminders sent before and on the day your Active Player status expires. Members may unsubscribe.',
+   'active', 1
   );
 
 -- ---------------------------------------------------------------------------
@@ -2591,6 +2647,7 @@ VALUES
 --   active_player_duration_days            Active Player grant duration (IFPA-rule-derived)
 --   active_player_expiry_reminder_days_1   First Active Player expiry reminder offset (days)
 --   active_player_expiry_reminder_days_2   Second Active Player expiry reminder offset (days)
+--   active_player_expiry_check_interval_seconds   Worker tick interval for the AP expiry sweep (seconds)
 --   vouch_rate_limit_max_per_hour          Max vouch submissions per voucher per window
 --   vouch_rate_limit_window_minutes        Sliding window (minutes) for vouch rate limiting
 --   outbox_max_retry_attempts       Max email retries before dead-letter queue
@@ -2980,6 +3037,15 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'Second Active Player expiry reminder offset in days before expiry (default: 7 days).',
    NULL
+  ),
+
+  (
+   'seed-active-player-expiry-check-interval-seconds',
+   '2000-01-01T00:00:00.000Z',
+   'active_player_expiry_check_interval_seconds', '86400',
+   '2000-01-01T00:00:00.000Z',
+   'Worker tick interval for the AP expiry sweep, in seconds (default: 86400 = 24h).',
+   NULL
   );
 
 -- ---------------------------------------------------------------------------
@@ -3162,7 +3228,7 @@ CREATE TABLE legacy_person_club_affiliations (
   version    INTEGER NOT NULL DEFAULT 1,
 
   historical_person_id     TEXT REFERENCES historical_persons(person_id),
-  legacy_member_id         TEXT,
+  legacy_member_id         TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
   legacy_club_candidate_id TEXT NOT NULL REFERENCES legacy_club_candidates(id),
   inferred_role            TEXT NOT NULL
     CHECK (inferred_role IN ('member','contact','leader','co-leader')),
@@ -3191,10 +3257,15 @@ CREATE INDEX idx_legacy_person_club_affiliations_resolution
 CREATE UNIQUE INDEX ux_lpca_by_person
   ON legacy_person_club_affiliations(historical_person_id, legacy_club_candidate_id, inferred_role)
   WHERE historical_person_id IS NOT NULL;
--- Uniqueness by legacy_member_id when historical_person_id is absent.
+-- Uniqueness by legacy_member_id whenever legacy_member_id is present.
+-- The original WHERE clause also required historical_person_id IS NULL, which
+-- left a gap when both columns were set: ux_lpca_by_person enforced
+-- (person, candidate, role) uniqueness but allowed two rows with the same
+-- (legacy_member, candidate, role) provided their historical_person_id values
+-- differed. Dropping the historical_person_id-IS-NULL clause closes the gap.
 CREATE UNIQUE INDEX ux_lpca_by_member
   ON legacy_person_club_affiliations(legacy_member_id, legacy_club_candidate_id, inferred_role)
-  WHERE legacy_member_id IS NOT NULL AND historical_person_id IS NULL;
+  WHERE legacy_member_id IS NOT NULL;
 
 -- Operational table (migration-origin): provisional legacy leadership for bootstrapped clubs.
 -- Does not grant live club-management permissions.
@@ -3258,7 +3329,7 @@ CREATE TABLE name_variants (
   variant_normalized   TEXT NOT NULL,
   source               TEXT NOT NULL DEFAULT 'mirror_mined'
                          CHECK (source IN ('mirror_mined', 'admin_added', 'member_submitted')),
-  created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at           TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
 
   PRIMARY KEY (canonical_normalized, variant_normalized),
   CHECK (canonical_normalized <> variant_normalized),

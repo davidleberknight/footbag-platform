@@ -22,9 +22,13 @@ set -euo pipefail
 : "${CWAGENT_AKID:?missing CWAGENT_AKID variable in pipe}"
 : "${CWAGENT_SAK:?missing CWAGENT_SAK variable in pipe}"
 
-INSTANCE_NAME="footbag-staging-web"
-NAMESPACE="CWAgent"
-CWAGENT_PROFILE="footbag-staging-cwagent"
+# Operator can override per env; defaults match staging. Production install
+# should pass these via env (e.g. INSTANCE_NAME=footbag-production-web
+# CWAGENT_PROFILE=footbag-production-cwagent bash install-cwagent-remote.sh).
+# Mechanical, follows the env-naming convention documented in DD §7.7.
+INSTANCE_NAME="${INSTANCE_NAME:-footbag-staging-web}"
+NAMESPACE="${CWAGENT_NAMESPACE:-CWAgent}"
+CWAGENT_PROFILE="${CWAGENT_PROFILE:-footbag-staging-cwagent}"
 RPM_URL="https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm"
 
 # Write stdin to a destination file via a user-owned tmpfile, then promote

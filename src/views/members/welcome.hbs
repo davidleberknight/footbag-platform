@@ -10,6 +10,24 @@
 <div class="wrapper">
 
   <section>
+    <h2>Why join?</h2>
+    <p>The International Footbag Players Association is the global governing body for footbag, supporting players, clubs, and competitions since 1983. Membership is free at Tier 0 and unlocks tournament eligibility, club leadership roles, and IFPA governance participation at higher tiers.</p>
+  </section>
+
+  <section>
+    <h2>Membership Tiers</h2>
+    <ul class="tier-explainer">
+      {{#each content.tiers}}
+        <li>
+          <strong>{{this.label}}</strong>
+          <p>{{this.blurb}}</p>
+        </li>
+      {{/each}}
+    </ul>
+  </section>
+
+  {{#if content.showJoinCtas}}
+  <section>
     <div class="card">
       <div class="card-title">Become a Member</div>
       <p class="card-description">Become an IFPA Member to join a club, compete in a tournament, share photos and videos, and participate in the global footbag community.</p>
@@ -22,5 +40,6 @@
       <a href="/login?returnTo=%2Fmembers" class="btn btn-outline">Log In</a>
     </div>
   </section>
+  {{/if}}
 
 </div>

@@ -84,13 +84,16 @@ SSH_OPTS=(-o "StrictHostKeyChecking=accept-new" -o "ConnectTimeout=10" -o "Serve
 
 # Derive FOOTBAG_ENV from the SSH alias; passed to the remote-half so it can
 # fetch the matching /footbag/{env}/secrets/origin_verify_secret from SSM.
-# See scripts/deploy-code.sh for the derivation comment.
+# Exact match against the canonical alias names — substring patterns
+# (e.g. *prod*) silently accept aliases like footbag-prod or footbag-prd
+# that are NOT the canonical names. The deploy_to_aws.sh wrapper allowlists
+# DEPLOY_TARGET to the same two values, so anything else here is a bug.
 case "$REMOTE" in
-  *production*|*-prod) FOOTBAG_ENV="production" ;;
-  *staging*)           FOOTBAG_ENV="staging"    ;;
+  footbag-production) FOOTBAG_ENV="production" ;;
+  footbag-staging)    FOOTBAG_ENV="staging"    ;;
   *)
     echo "ERROR: cannot derive FOOTBAG_ENV from REMOTE='$REMOTE'." >&2
-    echo "       Expected an alias containing 'staging' or 'production'." >&2
+    echo "       Expected exactly 'footbag-staging' or 'footbag-production'." >&2
     exit 1
     ;;
 esac
@@ -229,6 +232,16 @@ echo "==> Building Docker images locally (workstation)..."
 # Build with the base compose only. The prod overlay is runtime-only (mounts,
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
+#
+# CUTOVER-REMOVE: dev-admin-shortcuts inclusion. Dev/staging images bake
+# `dist/dev-admin-shortcuts/` so the seed script is runnable in-container.
+# Production images must exclude it so the seed script cannot be invoked
+# even by an operator who manually execs into the container. The
+# Dockerfile ARG defaults to 0; the base compose default of 1 is overridden
+# here when building for production.
+if [[ "$FOOTBAG_ENV" == "production" ]]; then
+  export INCLUDE_DEV_ADMIN_SHORTCUTS=0
+fi
 ( cd "$REPO_ROOT" && docker compose \
     -f docker/docker-compose.yml \
     build )
@@ -277,9 +290,11 @@ else
     | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" docker load'
 fi
 
-# Parse .local/initial-admins.txt -> CSV for FOOTBAG_INITIAL_ADMIN_EMAILS env
-# var. Same parsing rules as src/services/initialAdminBootstrap.ts. Mirrors
-# scripts/deploy-code.sh.
+# CUTOVER-REMOVE: parse .local/initial-admins.txt -> CSV for
+# FOOTBAG_DEV_INITIAL_ADMIN_EMAILS env var. Same parsing rules as
+# src/dev-admin-shortcuts/runtime.ts. Mirrors scripts/deploy-code.sh.
+# Dev + staging only; the remote-half refuses to write the value on
+# production hosts.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
 if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
@@ -290,6 +305,20 @@ if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
       if (length($0) > 0) print tolower($0)
     }
   ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
+fi
+
+# CUTOVER-REMOVE: parse .local/staging-admin-seed.json -> compact JSON
+# for FOOTBAG_DEV_ADMIN_SEED_JSON env var. Only when SEED_DEV_ADMINS=yes
+# (set by the orchestrator from --seed-dev-admins). Mirrors
+# deploy-code.sh. JSONC tolerance: strip `//` line comments before jq.
+DEV_ADMIN_SEED_JSON=""
+LOCAL_SEED_FILE="$REPO_ROOT/.local/staging-admin-seed.json"
+if [[ "${SEED_DEV_ADMINS:-no}" == "yes" && -f "$LOCAL_SEED_FILE" ]]; then
+  if ! DEV_ADMIN_SEED_JSON=$(grep -v '^[[:space:]]*//' "$LOCAL_SEED_FILE" | jq -c -e . 2>/dev/null); then
+    echo "ERROR: $LOCAL_SEED_FILE is not valid JSON (after JSONC comment strip)." >&2
+    echo "Recommendation: grep -v '^[[:space:]]*//' $LOCAL_SEED_FILE | jq -e . to see the parse error." >&2
+    exit 1
+  fi
 fi
 
 echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
@@ -307,7 +336,8 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'SYNC_MEDIA=%q\n'                   "${SYNC_MEDIA:-no}"
   printf 'CURATOR_SEED=%q\n'                 "${CURATOR_SEED:-yes}"
   printf 'DEPLOY_TARGET=%q\n'                "$REMOTE"
-  printf 'FOOTBAG_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
+  printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%q\n' "$INITIAL_ADMIN_EMAILS_CSV"
+  printf 'FOOTBAG_DEV_ADMIN_SEED_JSON=%q\n' "$DEV_ADMIN_SEED_JSON"
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 

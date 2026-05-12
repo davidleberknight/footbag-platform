@@ -59,6 +59,12 @@ export class ConflictError extends ServiceError {
   }
 }
 
+export class ForbiddenError extends ServiceError {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('forbidden', message, details);
+  }
+}
+
 export class RateLimitedError extends ServiceError {
   public readonly retryAfterSeconds?: number;
   constructor(message: string, retryAfterSeconds?: number) {

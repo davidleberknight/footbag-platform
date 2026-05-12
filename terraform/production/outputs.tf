@@ -37,9 +37,34 @@ output "maintenance_bucket_name" {
   value       = aws_s3_bucket.maintenance.bucket
 }
 
+output "media_bucket_name" {
+  description = "S3 bucket for processed photo objects (CloudFront /media-store/* origin via OAC)"
+  value       = aws_s3_bucket.media.bucket
+}
+
+output "media_dr_bucket_name" {
+  description = "us-west-2 cross-region replication target for the media bucket"
+  value       = aws_s3_bucket.media_dr.bucket
+}
+
 output "kms_key_arn" {
   description = "ARN of the KMS key used for SSM parameter encryption"
   value       = aws_kms_key.main.arn
+}
+
+output "jwt_signing_key_arn" {
+  description = "ARN of the KMS asymmetric signing key used for session JWT signing. Read by scripts/test-smoke.sh."
+  value       = aws_kms_key.jwt_signing.arn
+}
+
+output "ses_sender_identity" {
+  description = "SES verified sender identity used as the From: header for outbound mail. Read by scripts/test-smoke.sh."
+  value       = var.ses_sender_identity
+}
+
+output "lightsail_instance_name" {
+  description = "Name of the Lightsail web instance. Used by operator scripts to look up the instance."
+  value       = aws_lightsail_instance.web.name
 }
 
 output "alarm_topic_arn" {

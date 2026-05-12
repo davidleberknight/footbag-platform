@@ -76,4 +76,23 @@ describe.skipIf(!RUN)('SecretsAdapter live SSM round-trip (staging)', () => {
       SecretNotConfiguredError,
     );
   });
+
+  it('reads safe_browsing_api_key (operator-supplied SSM param, used by SafeBrowsingAdapter live mode)', async () => {
+    // This param is operator-put-once via `aws ssm put-parameter`; not
+    // Terraform-generated. After the operator runs the put, the live
+    // SafeBrowsingAdapter reads this on every URL validation. Failures here
+    // are typically: param name typo at put time, runtime role missing
+    // ssm:GetParameter on /footbag/staging/secrets/safe_browsing_api_key,
+    // or the SSM resource was deleted out-of-band.
+    //
+    // Existence + non-emptiness only — the value's shape is opaque (Google
+    // API keys are arbitrary alphanumeric strings) and we never log it.
+    const adapter = createLiveSecretsAdapter({ ssmPrefix: SSM_PREFIX });
+    const value = await adapter.get('safe_browsing_api_key');
+    const exists = typeof value === 'string' && value.length > 0;
+    expect(
+      exists,
+      'safe_browsing_api_key missing — has the operator run aws ssm put-parameter for /footbag/staging/secrets/safe_browsing_api_key?',
+    ).toBe(true);
+  });
 });

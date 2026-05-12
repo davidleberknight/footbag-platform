@@ -17,7 +17,12 @@ import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import {
+  insertMember,
+  insertLegacyMember,
+  insertHistoricalPerson,
+  createTestSessionJwt,
+} from '../fixtures/factories';
 
 const TEST_DB_PATH      = path.join(process.cwd(), `test-member-profile-${Date.now()}.db`);
 
@@ -37,6 +42,8 @@ const OWN_ID      = 'member-profile-test-001';
 const OWN_SLUG    = 'test_member';
 const OTHER_ID    = 'member-other-test-001';
 const OTHER_SLUG  = 'other_member';
+const LINKED_ID   = 'member-profile-test-linked';
+const LINKED_SLUG = 'linked_member';
 
 function ownCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: OWN_ID })}`;
@@ -44,6 +51,10 @@ function ownCookie(): string {
 
 function otherCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
+}
+
+function linkedCookie(): string {
+  return `footbag_session=${createTestSessionJwt({ memberId: LINKED_ID })}`;
 }
 
 beforeAll(async () => {
@@ -58,6 +69,21 @@ beforeAll(async () => {
 
   insertMember(db, { id: OWN_ID,   slug: OWN_SLUG,   display_name: 'Test Member',  login_email: 'testmember@example.com' });
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Other Member', login_email: 'othermember@example.com' });
+
+  // Fully-linked fixture: legacy account claimed + historical person attached.
+  const linkedLegacy = insertLegacyMember(db, { real_name: 'Linked Legacy' });
+  const linkedHp = insertHistoricalPerson(db, { person_name: 'Linked Historical' });
+  insertMember(db, {
+    id: LINKED_ID,
+    slug: LINKED_SLUG,
+    display_name: 'Linked Member',
+    login_email: 'linkedmember@example.com',
+    legacy_member_id: linkedLegacy,
+  });
+  db.prepare(
+    'UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = ? WHERE legacy_member_id = ?',
+  ).run(LINKED_ID, '2024-01-12T10:00:00.000Z', linkedLegacy);
+  db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?').run(linkedHp, LINKED_ID);
 
   db.close();
 
@@ -82,18 +108,22 @@ describe('GET /members — landing page', () => {
     expect(res.text).toContain('/register');
   });
 
-  it('authenticated → 200 with landing page', async () => {
+  it('authenticated → 200 with welcome page (tier explainer, no join CTAs)', async () => {
+    // Personal-home affordances (Welcome banner, Membership, Quick Actions,
+    // Find Members, Coming Soon) live on the profile at /members/<slug>;
+    // /members renders the same public welcome to everyone, with the join
+    // CTAs hidden for authenticated visitors.
     const app = createApp();
     const res = await request(app)
       .get('/members')
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Welcome,');
-    expect(res.text).toContain('My Profile');
-    expect(res.text).toContain(`/members/${OWN_SLUG}`);
-    expect(res.text).toContain('Search for IFPA Members and Historical Players');
-    expect(res.text).toContain('Member Features');
-    expect(res.text).toContain('card-coming-soon');
+    expect(res.text).toContain('Why join?');
+    expect(res.text).toContain('Tier 0 Registered Member');
+    expect(res.text).not.toContain('Welcome,');
+    expect(res.text).not.toContain('Become a Member');
+    expect(res.text).not.toContain('Quick Actions');
+    expect(res.text).not.toContain('Find Members');
   });
 });
 
@@ -179,6 +209,28 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Edit Profile');
+  });
+
+  it('unlinked member: renders link-history wizard CTA', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${OWN_SLUG}/edit`)
+      .set('Cookie', ownCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`href="/members/${OWN_SLUG}/link-history"`);
+    expect(res.text).toContain('Link your history');
+  });
+
+  it('fully-linked member: link-history CTA is hidden', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${LINKED_SLUG}/edit`)
+      .set('Cookie', linkedCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('/link-history');
+    expect(res.text).not.toContain('Link your history');
+    expect(res.text).not.toContain('Link your past account');
+    expect(res.text).not.toContain('Link your competition record');
   });
 });
 

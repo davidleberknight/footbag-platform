@@ -1,14 +1,17 @@
 /**
  * Worker entry point.
  *
- * Hosts two concerns in one Node process:
- *   1. Email-outbox polling loop (existing): drains transactional emails.
- *      Polling is fine here because outbound email is not a foreground UX.
- *   2. Curator video transcode HTTP server (new): receives /transcode/dispatch
+ * Hosts three concerns in one Node process:
+ *   1. Email-outbox polling loop: drains transactional emails. Polling is
+ *      fine here because outbound email is not a foreground UX.
+ *   2. SYS_Check_Active_Player_Expiry daily loop: scans Tier 0 members,
+ *      enqueues reminder emails per configured offsets, and applies expiry
+ *      ledger rows for lapsed grants. system_job_runs row per pass.
+ *   3. Curator video transcode HTTP server: receives /transcode/dispatch
  *      pushes from the web container, runs ffmpeg, posts state events back.
  *      No polling — strictly event-driven.
  *
- * Both shut down cleanly on SIGTERM/SIGINT.
+ * All three shut down cleanly on SIGTERM/SIGINT.
  */
 import 'dotenv/config';
 import type { Server } from 'node:http';
@@ -45,6 +48,23 @@ async function emailOutboxLoop(): Promise<void> {
     await sleep(intervalMs);
   }
   logger.info('worker: email-outbox loop stopped');
+}
+
+async function activePlayerExpiryLoop(): Promise<void> {
+  logger.info('worker: AP expiry daily loop started');
+  while (!stopping) {
+    try {
+      await operationsPlatformService.runActivePlayerExpiryCheck();
+    } catch (err) {
+      logger.error('worker: AP expiry unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    if (stopping) break;
+    const intervalMs = operationsPlatformService.getActivePlayerExpiryIntervalMs();
+    await sleep(intervalMs);
+  }
+  logger.info('worker: AP expiry daily loop stopped');
 }
 
 async function startTranscodeServer(): Promise<{ close: () => Promise<void> }> {
@@ -94,6 +114,12 @@ process.on('SIGINT', shutdown);
   }
   emailOutboxLoop().catch((err) => {
     logger.error('worker: fatal email-outbox error', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    process.exit(1);
+  });
+  activePlayerExpiryLoop().catch((err) => {
+    logger.error('worker: fatal AP expiry loop error', {
       error: err instanceof Error ? err.message : String(err),
     });
     process.exit(1);

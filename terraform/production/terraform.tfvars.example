@@ -18,4 +18,34 @@ ssh_public_key = "ssh-ed25519 AAAAC3Nza... TODO-your-production-deploy-key"
 
 alarm_email = "TODO-ops-alert@footbag.org"
 
-state_bucket_suffix = "TODO-match-shared-suffix"
+state_bucket_suffix = "a1b2c3d4e5"            # Matches the suffix used in terraform/shared/terraform.tfvars
+
+# Operator-supplied; verification happens via the SES email loop after apply.
+# Real verified address (e.g. noreply@footbag.org). The TODO- prefix is
+# rejected by ses_sender_identity's variable validation in ses.tf.
+ses_sender_identity = "noreply@footbag.org"
+
+# Aggregate-report mailbox for DMARC reports. Receives daily XML summaries
+# of SPF/DKIM pass/fail rates. Empty string omits the rua= field from the
+# DMARC record (acceptable initial state; recommended to set before
+# extended production traffic).
+ses_dmarc_rua_email = ""
+
+# CIDR ranges permitted to SSH into the production Lightsail instance.
+operator_cidrs = ["TODO-your-public-ip/32"]
+
+# Resolvable DNS hostname used as the CloudFront custom origin.
+# For production: a real A record pointing to the Lightsail static IP
+# (e.g. origin.footbag.org). Do NOT use nip.io in production.
+lightsail_origin_dns = "TODO-origin.footbag.org"
+
+# ── Phased-apply feature gates ────────────────────────────────────────────────
+# Pass 1 (first apply): both false. Pass 2: enable_cwagent_alarms = true
+# AFTER scripts/install-cwagent-remote.sh has run and CWAgent is confirmed
+# emitting metrics. Pass 3: enable_backup_alarm = true AFTER the snapshot
+# job emits BackupAgeMinutes. ses_enable_domain_auth stays true (default)
+# once route53_zone_id is populated; set to false only if applying without
+# a hosted zone.
+enable_cwagent_alarms  = false
+enable_backup_alarm    = false
+ses_enable_domain_auth = true

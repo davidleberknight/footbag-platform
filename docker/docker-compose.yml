@@ -52,6 +52,12 @@ services:
     build:
       context: ..
       dockerfile: docker/web/Dockerfile
+      args:
+        # CUTOVER-REMOVE: dev-admin shortcuts subtree ships in the staging
+        # image (default 1 here), excluded from prod by overriding to 0. The
+        # Dockerfile's own ARG defaults to 0; this compose file's default
+        # keeps the staging build self-sufficient.
+        INCLUDE_DEV_ADMIN_SHORTCUTS: ${INCLUDE_DEV_ADMIN_SHORTCUTS:-1}
     expose:
       - "3000"
     environment:
@@ -76,16 +82,16 @@ services:
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
-      # SecretsAdapter selector. Local-default reads .secrets.local.json at
-      # repo root for dev parity; staging/prod override to 'live' via
-      # /srv/footbag/env. FOOTBAG_ENV is required when SECRETS_ADAPTER=live;
-      # it derives the SSM parameter prefix (/footbag/{env}/secrets/...).
+      # SecretsAdapter selector. Local-default reads .local/secrets.json for
+      # dev parity; staging/prod override to 'live' via /srv/footbag/env.
+      # FOOTBAG_ENV is required when SECRETS_ADAPTER=live; it derives the
+      # SSM parameter prefix (/footbag/{env}/secrets/...).
       SECRETS_ADAPTER: ${SECRETS_ADAPTER:-local}
       FOOTBAG_ENV: ${FOOTBAG_ENV:-development}
       AWS_REGION: ${AWS_REGION:-}
       MEDIA_STORAGE_ADAPTER: ${MEDIA_STORAGE_ADAPTER:-local}
       MEDIA_STORAGE_S3_BUCKET: ${MEDIA_STORAGE_S3_BUCKET:-}
-      FOOTBAG_INITIAL_ADMIN_EMAILS: ${FOOTBAG_INITIAL_ADMIN_EMAILS:-}
+      FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: ${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS:-}
       # Shared secret for web<->image auth (and web<->worker, in s3 mode).
       # Local-default is fine here because the parity stack runs on a private
       # docker network; override via project-root .env when running against
@@ -118,6 +124,8 @@ services:
     build:
       context: ..
       dockerfile: docker/image/Dockerfile
+      args:
+        INCLUDE_DEV_ADMIN_SHORTCUTS: ${INCLUDE_DEV_ADMIN_SHORTCUTS:-1}
     expose:
       - "4000"
     environment:
@@ -135,12 +143,13 @@ services:
       retries: 3
 
   # ── Background worker ─────────────────────────────────────────────────────
-  # MVFP v0.1: exits immediately (no jobs configured yet).
-  # Will become a long-running process once job processing is implemented.
+  # Runs the AP expiry loop and the email outbox drain. Long-running.
   worker:
     build:
       context: ..
       dockerfile: docker/worker/Dockerfile
+      args:
+        INCLUDE_DEV_ADMIN_SHORTCUTS: ${INCLUDE_DEV_ADMIN_SHORTCUTS:-1}
     environment:
       # Worker imports src/config/env.ts the same way web does, so it must
       # supply the same prod-mode env.ts contract (PORT, PUBLIC_BASE_URL,
@@ -162,10 +171,10 @@ services:
       SES_SANDBOX_MODE: ${SES_SANDBOX_MODE:-0}
       SAFE_BROWSING_ADAPTER: ${SAFE_BROWSING_ADAPTER:-stub}
       HTTP_REACHABILITY_ADAPTER: ${HTTP_REACHABILITY_ADAPTER:-stub}
-      # SecretsAdapter selector. Local-default reads .secrets.local.json at
-      # repo root for dev parity; staging/prod override to 'live' via
-      # /srv/footbag/env. FOOTBAG_ENV is required when SECRETS_ADAPTER=live;
-      # it derives the SSM parameter prefix (/footbag/{env}/secrets/...).
+      # SecretsAdapter selector. Local-default reads .local/secrets.json for
+      # dev parity; staging/prod override to 'live' via /srv/footbag/env.
+      # FOOTBAG_ENV is required when SECRETS_ADAPTER=live; it derives the
+      # SSM parameter prefix (/footbag/{env}/secrets/...).
       SECRETS_ADAPTER: ${SECRETS_ADAPTER:-local}
       FOOTBAG_ENV: ${FOOTBAG_ENV:-development}
       AWS_REGION: ${AWS_REGION:-}
@@ -175,4 +184,16 @@ services:
     volumes:
       # Directory bind mount — must match web so WAL/SHM sidecars are shared.
       - ../database:/app/db:rw
-    restart: "no"
+    restart: unless-stopped
+    # Worker exposes GET /health on workerInternalPort (default 3100) from
+    # transcodeWorker.ts. Probes the same endpoint the web container uses
+    # to dispatch transcode jobs, so a worker that can't accept dispatches
+    # is also reported unhealthy here. Default 30s interval is conservative;
+    # tighten in the prod overlay if AP-expiry latency demands faster
+    # failure detection.
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:'+(process.env.WORKER_INTERNAL_PORT||3100)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

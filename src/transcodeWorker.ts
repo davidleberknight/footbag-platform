@@ -12,6 +12,11 @@
  * No polling. The only DB scan anywhere in this design is recoverOnBoot,
  * called once at worker startup to reset rows orphaned by a previous crash.
  */
+// dotenv MUST be imported first, before any module that reads process.env.
+// Matches src/server.ts / src/worker.ts / src/imageWorker.ts. Without this
+// the transcode worker spawned outside the docker compose context misses
+// .env-supplied INTERNAL_EVENT_SECRET and rejects every web push with 503.
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import { logger } from './config/logger';
 import { config } from './config/env';

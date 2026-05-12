@@ -1,16 +1,18 @@
 import { randomUUID } from 'crypto';
 import argon2 from 'argon2';
-import { auth, registration, legacyClaim, legacyMembers, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
+import { auth, registration, legacyClaim, legacyMembers, account, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
 import { transaction } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { getCommunicationService } from './communicationService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
-import { RateLimitedError, ValidationError } from './serviceErrors';
+// CUTOVER-REMOVE: dev/staging-only admin shortcuts. Delete this import plus the bootstrap call in registerMember and the skip-claim call in the legacy-claim path at production cutover.
+import { applyDevStagingBootstrapAdmin, shouldSkipClaimEmailForAdmin } from '../dev-admin-shortcuts/runtime';
+import { RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
+import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
-import { getInitialAdminEmails } from './initialAdminBootstrap';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
 import type { SimulatedEmailPreview } from './simulatedEmailService';
@@ -77,6 +79,13 @@ export type PasswordForgotContent = Record<string, never>;
 
 export interface PasswordForgotSentContent {
   email?: string;
+  /**
+   * Simulated-email card view-model. Populated only when SES_ADAPTER=stub
+   * (dev) or SES_SANDBOX_MODE=1 (staging sandbox); null in production.
+   * Mirrors the pattern in /register/check-email so developers can complete
+   * the password-reset flow without leaving the page.
+   */
+  emailPreview?: SimulatedEmailPreview;
 }
 
 export interface PasswordResetContent {
@@ -89,15 +98,42 @@ export interface ClaimFormContent {
   message?: string;
   error?: string;
   candidates?: Array<{ personId: string; personName: string }>;
+  skipHref?: string;
+  sent?: boolean;
+  /**
+   * Low-confidence banner gate. Rendered as a one-line preamble when the
+   * user landed on /history/claim from a registration redirect or from an
+   * auto-link drift redirect that reported low confidence. Decouples the
+   * page's generic "search for your record" copy from the registration
+   * context "we tried, we couldn't confirm" framing.
+   */
+  lowConfidenceBanner?: boolean;
+  /**
+   * Simulated-email card for the post-submit sent state. Populated only
+   * when SES_ADAPTER=stub (dev) or SES_SANDBOX_MODE=1 (staging sandbox);
+   * null in production. Mirrors the pattern in /register/check-email so
+   * developers can complete the claim flow without leaving the page.
+   */
+  emailPreview?: SimulatedEmailPreview;
+  /**
+   * Dev-only operator note shown above the simulated-email card on the sent
+   * state when no email was actually enqueued (anti-enumeration silent paths:
+   * no_match, target_rate_limited). Lets the operator distinguish a real
+   * enqueue from a silent no-op without leaking the reason in the public
+   * banner. Always undefined in production (the simulated-email card itself
+   * does not render in production).
+   */
+  outcomeNote?: string;
 }
 
 export interface AutoLinkConfirmContent {
   personId?: string;
   personName?: string;
-  tier?: 'tier1' | 'tier2';
+  confidence?: 'high' | 'medium';
   matchedVariantNormalized?: string;
   error?: string;
   declineHref: string;
+  skipHref?: string;
 }
 
 export interface ClaimHpConfirmContent {
@@ -111,12 +147,110 @@ export interface ClaimHpConfirmContent {
   cancelHref: string;
 }
 
+/**
+ * One card in the unified link-history wizard's candidate list. Each card
+ * abstracts over the underlying table (`legacy_members` or
+ * `historical_persons` or both via the `historical_persons.legacy_member_id`
+ * back-link) so the user does not need to know which one a record lives in.
+ *
+ * `claimMode` drives the card's action:
+ *  - `auto_link_confirm`: the verify-time classifier matched a high/medium
+ *    HP. Card POSTs to `/history/auto-link/confirm` with `personId` so the
+ *    existing endpoint re-validates classification (drift safety).
+ *  - `legacy_claim`: legacy_members row, with or without an HP back-link.
+ *    Card POSTs to `/history/claim` with `identifier=legacyMemberId` AND
+ *    `from=link-wizard` (so postClaim redirects back here instead of
+ *    rendering the standalone claim-form). On `auto_linked` outcome the
+ *    transitive HP claim runs in the same transaction when the back-link
+ *    exists.
+ *  - `hp_review_page`: HP-only candidate (no legacy back-link). Card links
+ *    to `/history/<personId>/claim` (existing review page that surfaces HoF
+ *    / country / first-name-warning fields before commit).
+ *  - `already_linked`: read-only badge; no action.
+ */
+export interface LinkHistoryCandidate {
+  /** Discriminator. */
+  claimMode: 'auto_link_confirm' | 'legacy_claim' | 'hp_review_page' | 'already_linked';
+  /** Display copy: full name as it appears on the matched record. */
+  displayName: string;
+  /** Provenance phrase for the card subtitle. */
+  provenanceLabel: string;
+  /** Identifier for `legacy_claim` cards. Form posts `identifier=this`. */
+  legacyMemberId: string | null;
+  /** Identifier for `auto_link_confirm` (POST body) and `hp_review_page` (URL). */
+  personId: string | null;
+  country: string | null;
+  isHof: boolean;
+  isBap: boolean;
+  /** "Claimed Jan 12, 2024" string for `already_linked` legacy badges. */
+  alreadyLinkedSinceDisplay: string | null;
+}
+
+/**
+ * View-model for the unified link-history wizard at
+ * GET /members/:slug/link-history. ONE section: a mixed candidate list
+ * (legacy + HP + both, presented uniformly with provenance labels) plus
+ * a manual-id input that tries both tables, plus a clubs-coming-soon
+ * placeholder card. The wizard is the post-verify destination for every
+ * classifier outcome, the navigable entry point from profile-edit, and
+ * the home for "find my history" reachable from the dashboard.
+ *
+ * Sent-state notice + simulated-email card render inline when the user
+ * just submitted the manual-id form (`?sent=1` query param), so they
+ * stay on the wizard rather than bouncing to the standalone /history/claim
+ * sent page.
+ */
+export interface LinkHistoryContent {
+  memberSlug: string;
+  /** Set when arriving via ?from=register; renders the dashboard skip link. */
+  skipHref: string | null;
+  /** Always-rendered "Back to dashboard" link, points at `/members`. */
+  dashboardHref: string;
+  /**
+   * Mixed candidate list. Order: classifier auto_link_confirm card first
+   * (when present), then legacy_claim cards (email match + manual matches),
+   * then hp_review_page cards (name candidates not already covered), then
+   * already_linked cards last (so unlinked options stay visually prominent).
+   */
+  candidates: LinkHistoryCandidate[];
+  /**
+   * Sent-state notice for redirect-back-to-wizard after a manual legacy
+   * claim. Carries the simulated-email card (dev/sandbox only) and an
+   * optional dev outcomeNote when the silent anti-enumeration paths fired.
+   */
+  sentNotice: {
+    /** "We sent a confirmation email…" banner gate. */
+    show: boolean;
+    /** Dev-mode operator note (no_match / target_rate_limited explainer). */
+    outcomeNote?: string;
+    emailPreview?: SimulatedEmailPreview;
+  };
+  /** Anti-enumeration "identifier didn't match" inline notice. */
+  noMatchNotice: boolean;
+  /**
+   * Echo-back of the identifier the user typed, surfaced inside the
+   * no-match notice so they can see what was actually tried (helps spot
+   * typos and confirm what the server received). Capped to 80 chars at the
+   * controller boundary; null when no echo is available.
+   */
+  noMatchTried: string | null;
+  /** Banner shown when user arrived via ?from=register or ?reason=low_confidence. */
+  lowConfidenceBanner: boolean;
+  /**
+   * Static "Your clubs (coming soon)" placeholder per
+   * `M_Review_Legacy_Club_Data_During_Claim`. The bootstrap pipeline that
+   * surfaces actual suggestions is not built yet; this is a placeholder.
+   */
+  showClubsComingSoon: boolean;
+}
+
 export interface ClaimConfirmContent {
   legacyMemberId: string;
   displayName: string | null;
   country: string | null;
   isHof: boolean;
   isBap: boolean;
+  token: string;
 }
 
 // ── Business result contracts ──────────────────────────────────────────────
@@ -144,6 +278,20 @@ export interface RegisterResult {
  * Returns the member row on success, null on any failure (wrong password,
  * not found, unverified, deceased).
  */
+// Lazy-initialised dummy argon2id hash used to equalise wall-clock between
+// the present-user verify path and the absent-user no-row path. argon2.verify
+// always returns false against this hash for any input the caller supplies,
+// so the result is unconditionally discarded; only the wall-clock matters.
+// Anti-enumeration contract per DD §3.3: response timing must not leak
+// whether an email is registered.
+let _dummyHashPromise: Promise<string> | null = null;
+function getDummyArgonHash(): Promise<string> {
+  if (_dummyHashPromise === null) {
+    _dummyHashPromise = argon2.hash('footbag-dummy-timing-equaliser');
+  }
+  return _dummyHashPromise;
+}
+
 async function verifyMemberCredentials(
   email: string,
   password: string,
@@ -152,6 +300,16 @@ async function verifyMemberCredentials(
   const member = auth.findMemberByEmail.get(normalized) as MemberAuthRow | undefined;
 
   if (!member) {
+    // Phantom verify against a constant hash so wall-clock for absent
+    // emails matches the present-email verify path. Result is discarded;
+    // we always return null on this branch. Defends against the timing
+    // oracle that would otherwise enumerate registered emails.
+    try {
+      await argon2.verify(await getDummyArgonHash(), password);
+    } catch {
+      // argon2.verify can throw on certain malformed-hash conditions;
+      // swallow because the only purpose here is the wall-clock cost.
+    }
     return null;
   }
 
@@ -272,43 +430,69 @@ async function registerMember(
   if (emailExists) {
     // Anti-enumeration: render the same check-email page for an
     // already-registered address. We do not re-issue a token here;
-    // the existing verified account is unaffected.
+    // the existing verified account is unaffected. The UNIQUE-constraint
+    // catch below handles the residual race-window case where a concurrent
+    // registration commits between this check and the insert.
     return { status: 'silent_duplicate' };
   }
 
   const id = `member_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-  const slug = generateUniqueSlug(trimmedDisplayName);
   const hash = await argon2.hash(password);
   const now = new Date().toISOString();
 
-  registration.insertMember.run(
-    id,
-    slug,
-    trimmedEmail,
-    normalizedEmail,
-    null,  // email_verified_at — NULL until verify link consumed
-    hash,
-    now,   // password_changed_at
-    trimmedRealName,                    // real_name
-    trimmedDisplayName,                 // display_name
-    trimmedDisplayName.toLowerCase(),   // display_name_normalized
-    now,   // created_at
-    now,   // updated_at
-  );
-
-  if (getInitialAdminEmails().has(normalizedEmail)) {
-    registration.setAdminFlagOnRegister.run(now, id);
-    appendAuditEntry({
-      actionType: 'grant_admin_bootstrap',
-      category: 'admin',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'member',
-      entityId: id,
-      reasonText: 'Initial-admin via gitignored email-list file at registration',
-      metadata: { via: 'register' },
-    });
+  // Insert with race-defensive catch:
+  //   - UNIQUE on login_email_normalized: concurrent registration won the
+  //     race; return the same silent_duplicate shape so the response is
+  //     observationally identical to the pre-check happy path.
+  //   - UNIQUE on slug: another insert claimed the slug we picked; regenerate
+  //     and retry up to MAX_SLUG_RETRIES times. Bounded retry; the slug
+  //     suffix space is large so collisions resolve quickly.
+  const MAX_SLUG_RETRIES = 3;
+  let slug = generateUniqueSlug(trimmedDisplayName);
+  let inserted = false;
+  for (let attempt = 0; attempt <= MAX_SLUG_RETRIES; attempt += 1) {
+    try {
+      registration.insertMember.run(
+        id,
+        slug,
+        trimmedEmail,
+        normalizedEmail,
+        null,  // email_verified_at — NULL until verify link consumed
+        hash,
+        now,   // password_changed_at
+        trimmedRealName,                    // real_name
+        trimmedDisplayName,                 // display_name
+        trimmedDisplayName.toLowerCase(),   // display_name_normalized
+        now,   // created_at
+        now,   // updated_at
+      );
+      inserted = true;
+      break;
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err;
+      const msg = String((err as Error).message ?? '');
+      if (msg.includes('login_email_normalized')) {
+        // Email race lost. Anti-enumeration: same response shape as the
+        // pre-check duplicate path.
+        return { status: 'silent_duplicate' };
+      }
+      if (msg.includes('slug') && attempt < MAX_SLUG_RETRIES) {
+        slug = generateUniqueSlug(trimmedDisplayName);
+        continue;
+      }
+      // Unknown unique constraint (e.g. PK id collision — astronomically
+      // rare with 24-char random hex) or slug retries exhausted. Let it
+      // propagate to the controller's generic error handler.
+      throw err;
+    }
   }
+  if (!inserted) {
+    // Defense-in-depth: should be unreachable, but if the loop somehow
+    // exits without inserting, fail loud rather than continue post-insert.
+    throw new Error('registerMember: insert did not commit after retry loop');
+  }
+
+  applyDevStagingBootstrapAdmin({ memberId: id, normalizedEmail, now }); // CUTOVER-REMOVE
 
   await issueAndEnqueueVerifyEmail(id, trimmedEmail);
 
@@ -335,15 +519,19 @@ async function registerMember(
  *   3. findAutoLinkCandidates(real_name) returns exactly one candidate,
  *      and that candidate is the provenance HP.
  *
- * Anything short of that collapses to Tier 3 (review). `none` applies when
- * there is no email anchor at all.
+ * Anything short of that collapses to `low` confidence (review). `none`
+ * applies when there is no email anchor at all.
+ *
+ * Note: `confidence` here is the auto-link match confidence, not the member
+ * tier-grant level. The two are distinct concepts that share unrelated
+ * label sets (`high`/`medium`/`low`/`none` vs `tier0`/`tier1`/`tier2`/`tier3`).
  */
 export type AutoLinkClassification =
-  | { tier: 'none' }
-  | { tier: 'tier1'; personId: string; personName: string }
-  | { tier: 'tier2'; personId: string; personName: string; matchedVariantNormalized: string }
+  | { confidence: 'none' }
+  | { confidence: 'high'; personId: string; personName: string }
+  | { confidence: 'medium'; personId: string; personName: string; matchedVariantNormalized: string }
   | {
-      tier: 'tier3';
+      confidence: 'low';
       reason:
         | 'no_hp_for_legacy_account'
         | 'no_name_candidate'
@@ -362,7 +550,7 @@ export interface VerifyEmailResult {
 }
 
 async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: string): Promise<void> {
-  const { rawToken } = accountTokenService.issueToken({
+  const { rawToken, tokenRowId } = accountTokenService.issueToken({
     memberId,
     tokenType: 'email_verify',
     ttlHours: 24,
@@ -370,6 +558,10 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
   const verifyUrl = `${baseUrl}/verify/${rawToken}`;
   getCommunicationService().enqueueEmail({
+    // tokenRowId is the natural single-use key: re-issuing on a worker
+    // restart between SES-send and outbox-mark-sent collapses to the same
+    // outbox row instead of double-delivering.
+    idempotencyKey: `verify:${tokenRowId}`,
     recipientEmail,
     recipientMemberId: memberId,
     subject: 'Verify your IFPA Footbag account',
@@ -417,15 +609,15 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
   }
 
   const autoLinkClassification: AutoLinkClassification = emailAmbiguous
-    ? { tier: 'tier3', reason: 'ambiguous_email_anchor' }
+    ? { confidence: 'low', reason: 'ambiguous_email_anchor' }
     : classifyAutoLink(row.real_name, legacyMatch);
   logger.info('verify.autolink.classification', {
     memberId: row.id,
-    tier: autoLinkClassification.tier,
-    ...(autoLinkClassification.tier === 'tier3'
+    confidence: autoLinkClassification.confidence,
+    ...(autoLinkClassification.confidence === 'low'
       ? { reason: autoLinkClassification.reason }
       : {}),
-    ...(autoLinkClassification.tier === 'tier1' || autoLinkClassification.tier === 'tier2'
+    ...(autoLinkClassification.confidence === 'high' || autoLinkClassification.confidence === 'medium'
       ? { personId: autoLinkClassification.personId }
       : {}),
   });
@@ -444,24 +636,24 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
  * Re-run the verify-time auto-link classification for an authenticated member.
  * Read-only. Used by the post-verify confirmation page (GET /history/auto-link)
  * to re-derive the classification server-side rather than trust a request
- * parameter. Returns `{ tier: 'none' }` if the member is not found.
+ * parameter. Returns `{ confidence: 'none' }` if the member is not found.
  */
 function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassification {
   const member = legacyClaim.findClaimingMember.get(memberId) as
     | { id: string; real_name: string; legacy_member_id: string | null; historical_person_id: string | null }
     | undefined;
-  if (!member) return { tier: 'none' };
+  if (!member) return { confidence: 'none' };
 
   // If the member is already linked (legacy or HP), the auto-link UI should
   // fall through — don't re-offer a link they already have.
   if (member.legacy_member_id || member.historical_person_id) {
-    return { tier: 'none' };
+    return { confidence: 'none' };
   }
 
   const loginEmail = (auth.findMemberForSessionAfterVerify.get(memberId) as
     | { login_email: string | null }
     | undefined)?.login_email;
-  if (!loginEmail) return { tier: 'none' };
+  if (!loginEmail) return { confidence: 'none' };
 
   let legacyMatch: LegacyAccountLookupResult | null = null;
   let emailAmbiguous = false;
@@ -473,43 +665,244 @@ function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassific
     legacyMatch = null;
   }
   if (emailAmbiguous) {
-    return { tier: 'tier3', reason: 'ambiguous_email_anchor' };
+    return { confidence: 'low', reason: 'ambiguous_email_anchor' };
   }
   return classifyAutoLink(member.real_name, legacyMatch);
+}
+
+interface IdentityLinksRow {
+  legacy_member_id:        string | null;
+  legacy_claimed_at:       string | null;
+  historical_person_id:    string | null;
+  historical_person_name:  string | null;
+}
+
+/**
+ * Compose the unified link-history wizard's view-model. ONE candidate list
+ * mixing legacy_members + historical_persons + back-linked "both" cases.
+ * Composition order:
+ *   1. Verify-time classifier output (high/medium HP) → `auto_link_confirm` card.
+ *   2. Email-anchored legacy match → `legacy_claim` card (collapsed with
+ *      the back-linked HP if present).
+ *   3. Other HP candidates from `findAutoLinkCandidates(real_name)` →
+ *      `hp_review_page` cards (skipping any HP already covered above).
+ *   4. Already-linked badges last.
+ *
+ * Reuses `getAutoLinkClassificationForMember`, `lookupLegacyAccount` (by
+ * login_email), `findAutoLinkCandidates` (by real_name), and
+ * `account.findIdentityLinks` — no new DB statements.
+ *
+ * `sentNotice`, `noMatchNotice`, and `lowConfidenceBanner` are HTTP-context
+ * inputs from the controller (driven by `?sent=1`, `?nomatch=1`, and
+ * `?from=register | ?reason=low_confidence`). They're threaded in here so
+ * the template stays logic-light.
+ *
+ * Returns null when the member is not found (controller renders 404).
+ */
+function getLinkHistoryView(
+  memberId: string,
+  opts: {
+    fromRegister: boolean;
+    reasonIsLowConfidence: boolean;
+    sentOutcome: 'enqueued' | 'no_match' | 'target_rate_limited' | null;
+    sinceIndex: number | null;
+    noMatchNotice: boolean;
+    noMatchTried: string | null;
+  },
+): LinkHistoryContent | null {
+  const member = legacyClaim.findClaimingMember.get(memberId) as ClaimingMemberRow | undefined;
+  if (!member) return null;
+
+  const links = account.findIdentityLinks.get(memberId) as IdentityLinksRow | undefined;
+  const legacyLinked = links?.legacy_member_id != null;
+  const hpLinked     = links?.historical_person_id != null;
+
+  const candidates: LinkHistoryCandidate[] = [];
+
+  // 1. Verify-time classifier output. Only when neither linkage is present
+  // (the classifier returns 'none' when either is set).
+  const classification = legacyLinked || hpLinked
+    ? ({ confidence: 'none' } as AutoLinkClassification)
+    : getAutoLinkClassificationForMember(memberId);
+  let classifierPersonId: string | null = null;
+  if (classification.confidence === 'high' || classification.confidence === 'medium') {
+    classifierPersonId = classification.personId;
+    candidates.push({
+      claimMode: 'auto_link_confirm',
+      displayName: classification.personName,
+      provenanceLabel: classification.confidence === 'high'
+        ? 'Likely your record (matched by name and email).'
+        : 'Possible match (matched by a name variant and email).',
+      legacyMemberId: null,
+      personId: classification.personId,
+      country: null,
+      isHof: false,
+      isBap: false,
+      alreadyLinkedSinceDisplay: null,
+    });
+  }
+
+  // 2. Email-anchored legacy match. Skipped when legacy is already linked.
+  // Also skipped when the classifier card above already represents this
+  // person (transitive: classifier walked email → legacy → HP back-link).
+  let emailLegacyMemberId: string | null = null;
+  if (!legacyLinked && member.login_email_normalized) {
+    try {
+      const lookup = lookupLegacyAccount(memberId, member.login_email_normalized);
+      if (lookup.kind === 'single') {
+        const row = legacyMembers.findByLegacyMemberId.get(lookup.result.legacyMemberId) as LegacyMemberRow | undefined;
+        if (row) {
+          emailLegacyMemberId = row.legacy_member_id;
+          // Detect "both" via HP back-link to avoid duplicate cards.
+          const backHp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
+          const isBoth = backHp != null;
+          // Skip if the classifier card above already covers this HP.
+          const alreadyShownAsClassifier = isBoth && classifierPersonId === backHp!.person_id;
+          if (!alreadyShownAsClassifier) {
+            candidates.push({
+              claimMode: 'legacy_claim',
+              displayName: lookup.result.displayName ?? row.real_name ?? 'Unknown',
+              provenanceLabel: isBoth
+                ? 'Old footbag.org user account + competition history.'
+                : 'Old footbag.org user account.',
+              legacyMemberId: row.legacy_member_id,
+              personId: backHp?.person_id ?? null,
+              country: lookup.result.country,
+              isHof: lookup.result.isHof,
+              isBap: lookup.result.isBap,
+              alreadyLinkedSinceDisplay: null,
+            });
+          }
+        }
+      }
+    } catch (_e) {
+      // Non-revealing on lookup errors; just skip the email-anchored card.
+    }
+  }
+
+  // 3. Other HP candidates by name. Skip any HP already covered above
+  // (classifier card or legacy "both" card).
+  if (!hpLinked) {
+    const seenPersonIds = new Set<string>();
+    if (classifierPersonId) seenPersonIds.add(classifierPersonId);
+    for (const c of candidates) if (c.personId) seenPersonIds.add(c.personId);
+    for (const c of findAutoLinkCandidates(member.real_name)) {
+      if (seenPersonIds.has(c.personId)) continue;
+      candidates.push({
+        claimMode: 'hp_review_page',
+        displayName: c.personName,
+        provenanceLabel: 'Competition record.',
+        legacyMemberId: null,
+        personId: c.personId,
+        country: null,
+        isHof: false,
+        isBap: false,
+        alreadyLinkedSinceDisplay: null,
+      });
+    }
+  }
+
+  // 4. Already-linked badges last (visually less prominent than the
+  // actionable cards above).
+  if (legacyLinked) {
+    candidates.push({
+      claimMode: 'already_linked',
+      displayName: 'Your old footbag.org user account',
+      provenanceLabel: 'Linked.',
+      legacyMemberId: links?.legacy_member_id ?? null,
+      personId: null,
+      country: null,
+      isHof: false,
+      isBap: false,
+      alreadyLinkedSinceDisplay: links?.legacy_claimed_at ? formatDateForDisplay(links.legacy_claimed_at) : null,
+    });
+  }
+  if (hpLinked) {
+    candidates.push({
+      claimMode: 'already_linked',
+      displayName: links?.historical_person_name ?? 'Your competition record',
+      provenanceLabel: 'Linked.',
+      legacyMemberId: null,
+      personId: links?.historical_person_id ?? null,
+      country: null,
+      isHof: false,
+      isBap: false,
+      alreadyLinkedSinceDisplay: null,
+    });
+  }
+
+  // Sent-state composition (dev only). The simulated-email card scopes to
+  // `sinceIndex` so the operator only sees messages from this turn.
+  let emailPreview: SimulatedEmailPreview | undefined;
+  if (opts.sentOutcome && opts.sinceIndex != null) {
+    // Lazy import to keep this synchronous service method's type surface
+    // simple. The controller will compute emailPreview itself when it
+    // needs to render the sent state — see claimController.getLinkHistory.
+  }
+  let outcomeNote: string | undefined;
+  if (opts.sentOutcome === 'no_match' && config.sesAdapter === 'stub') {
+    outcomeNote = "No confirmation email was sent for this attempt. The identifier may not match an eligible legacy record. (Production users see the same banner regardless — anti-enumeration.)";
+  } else if (opts.sentOutcome === 'target_rate_limited' && config.sesAdapter === 'stub') {
+    outcomeNote = "No confirmation email was sent for this attempt. The legacy mailbox has hit its hourly send cap. (Production users see the same banner regardless — anti-enumeration.)";
+  }
+
+  return {
+    memberSlug: member.slug,
+    skipHref: opts.fromRegister ? '/members' : null,
+    dashboardHref: '/members',
+    candidates,
+    sentNotice: {
+      show: opts.sentOutcome !== null,
+      outcomeNote,
+      emailPreview,
+    },
+    noMatchNotice: opts.noMatchNotice,
+    noMatchTried: opts.noMatchTried,
+    lowConfidenceBanner: !legacyLinked && (opts.fromRegister || opts.reasonIsLowConfidence),
+    showClubsComingSoon: true,
+  };
+}
+
+function formatDateForDisplay(iso: string): string {
+  // Best-effort short month + day + year. Falls back to raw on parse failure.
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
 }
 
 /**
  * Classify the post-verify auto-link situation.
  *
  * Pure function against inputs + DB reads. No writes, no throws, no state.
- * Tier 1/2 require email + HP-provenance + unique name match; anything else
- * that has an email anchor collapses to Tier 3. Callers use the output to
- * decide UI; no auto-link is committed here.
+ * `high` and `medium` confidence require email + HP-provenance + unique name
+ * match; anything else that has an email anchor collapses to `low`. Callers
+ * use the output to decide UI; no auto-link is committed here.
  */
 function classifyAutoLink(
   realName: string | null,
   legacyMatch: LegacyAccountLookupResult | null,
 ): AutoLinkClassification {
-  if (!legacyMatch) return { tier: 'none' };
+  if (!legacyMatch) return { confidence: 'none' };
 
   const hpProvenance = legacyClaim.findHistoricalPersonByLegacyId.get(
     legacyMatch.legacyMemberId,
   ) as HistoricalPersonClaimRow | undefined;
   if (!hpProvenance) {
-    return { tier: 'tier3', reason: 'no_hp_for_legacy_account' };
+    return { confidence: 'low', reason: 'no_hp_for_legacy_account' };
   }
 
   const candidates = findAutoLinkCandidates(realName ?? '');
   if (candidates.length === 0) {
-    return { tier: 'tier3', reason: 'no_name_candidate' };
+    return { confidence: 'low', reason: 'no_name_candidate' };
   }
   if (candidates.length > 1) {
-    return { tier: 'tier3', reason: 'multiple_name_candidates' };
+    return { confidence: 'low', reason: 'multiple_name_candidates' };
   }
 
   const candidate = candidates[0];
   if (candidate.personId !== hpProvenance.person_id) {
-    return { tier: 'tier3', reason: 'hp_mismatch' };
+    return { confidence: 'low', reason: 'hp_mismatch' };
   }
 
   // Align with lookupHistoricalPersonForClaim's surname block. A legitimate
@@ -519,18 +912,18 @@ function classifyAutoLink(
   // refuse such a claim at 422; downgrade the classification here so the
   // UX never sends such a user to an endpoint that will reject them.
   if (!normalizedSurnamesMatch(realName, candidate.personName)) {
-    return { tier: 'tier3', reason: 'hp_mismatch' };
+    return { confidence: 'low', reason: 'hp_mismatch' };
   }
 
   if (candidate.matchKind === 'exact') {
     return {
-      tier: 'tier1',
+      confidence: 'high',
       personId: candidate.personId,
       personName: candidate.personName,
     };
   }
   return {
-    tier: 'tier2',
+    confidence: 'medium',
     personId: candidate.personId,
     personName: candidate.personName,
     matchedVariantNormalized: candidate.matchedVariantNormalized ?? '',
@@ -575,7 +968,7 @@ export interface LegacyAccountLookupResult {
  *
  * The `ambiguous_email` branch signals that the identifier matches 2+ rows.
  * Callers MUST NOT silently pick one. Verify-time paths surface this as
- * classification `tier3 / ambiguous_email_anchor`; the manual claim form
+ * classification `low / ambiguous_email_anchor`; the manual claim form
  * surfaces it as a form-level error asking the user to disambiguate.
  */
 export type LegacyAccountLookup =
@@ -617,6 +1010,85 @@ function lookupLegacyAccount(
 }
 
 /**
+ * Execute the three-table claim merge inside the caller's transaction.
+ * Throws ValidationError on every gate failure; the caller's transaction
+ * rolls back any preceding writes (e.g. a token consume) when this throws.
+ */
+function claimLegacyAccountInTx(requestingMemberId: string, targetLegacyMemberId: string): void {
+  const already = legacyClaim.checkAlreadyClaimed.get(requestingMemberId) as AlreadyClaimedRow | undefined;
+  if (already) {
+    throw new ValidationError('Your account is already linked to a legacy record.');
+  }
+
+  const row = legacyMembers.findByLegacyMemberId.get(targetLegacyMemberId) as LegacyMemberRow | undefined;
+  if (!row) {
+    throw new ValidationError('The legacy record is no longer available for claim.');
+  }
+  if (row.claimed_by_member_id) {
+    throw new ValidationError('This legacy record has already been claimed by another account.');
+  }
+
+  const now = new Date().toISOString();
+
+  const marked = legacyMembers.markClaimed.run(requestingMemberId, now, targetLegacyMemberId);
+  if (marked.changes === 0) {
+    throw new ValidationError('This legacy record has already been claimed by another account.');
+  }
+
+  legacyClaim.transferLegacyFields.run(
+    row.legacy_member_id,
+    row.legacy_user_id,
+    row.legacy_email,
+    row.bio ?? '',
+    row.birth_date,
+    row.street_address,
+    row.postal_code,
+    row.city,
+    row.region,
+    row.country,
+    row.ifpa_join_date,
+    row.is_hof,
+    row.is_bap,
+    row.first_competition_year,
+    now,
+    requestingMemberId,
+  );
+
+  const hp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
+  if (hp) {
+    legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
+    legacyClaim.mergeHistoricalPersonFields.run(
+      hp.country,
+      hp.hof_member,
+      hp.bap_member,
+      hp.hof_induction_year,
+      hp.first_year,
+      now,
+      requestingMemberId,
+    );
+  }
+
+  // Audit-trail for the legacy claim merge. Symmetric with the
+  // claim.historical_person entry written by claimHistoricalPerson — both
+  // identity-merge paths land in audit_entries so a disputed link can be
+  // reconstructed (who claimed what, when, with what HP back-link).
+  appendAuditEntry({
+    actionType:    'claim.legacy_account',
+    category:      'identity',
+    actorType:     'member',
+    actorMemberId: requestingMemberId,
+    entityType:    'member',
+    entityId:      requestingMemberId,
+    reasonText:    null,
+    metadata: {
+      legacy_member_id:   row.legacy_member_id,
+      legacy_user_id:     row.legacy_user_id,
+      transitive_hp_id:   hp?.person_id ?? null,
+    },
+  });
+}
+
+/**
  * Execute the three-table claim transaction.
  *
  * Marks the legacy_members row claimed (atomic via WHERE claimed_by_member_id IS NULL),
@@ -626,58 +1098,235 @@ function lookupLegacyAccount(
  */
 function claimLegacyAccount(requestingMemberId: string, targetLegacyMemberId: string): void {
   transaction(() => {
-    const already = legacyClaim.checkAlreadyClaimed.get(requestingMemberId) as AlreadyClaimedRow | undefined;
-    if (already) {
-      throw new ValidationError('Your account is already linked to a legacy record.');
-    }
+    claimLegacyAccountInTx(requestingMemberId, targetLegacyMemberId);
+  });
+}
 
-    const row = legacyMembers.findByLegacyMemberId.get(targetLegacyMemberId) as LegacyMemberRow | undefined;
-    if (!row) {
-      throw new ValidationError('The legacy record is no longer available for claim.');
-    }
-    if (row.claimed_by_member_id) {
-      throw new ValidationError('This legacy record has already been claimed by another account.');
-    }
+// ── Two-step emailed-token legacy claim flow ─────────────────────────────────
+//
+// Per docs/MIGRATION_PLAN.md §7, the production claim flow is mailbox-verified
+// rather than direct-lookup: the member submits an identifier, the server
+// issues a single-use token and emails it to the legacy account's
+// `legacy_email`, and a follow-on confirm step consumes the token and runs
+// the merge. The two-step flow is non-revealing: the POST response is
+// identical for matched, unmatched, ambiguous, and ineligible identifiers.
 
-    const now = new Date().toISOString();
+const CLAIM_TOKEN_TTL_HOURS = 24;
+const CLAIM_INIT_MAX_PER_HOUR = 5;
+const CLAIM_INIT_WINDOW_MINUTES = 60;
+// Per-target rate limit caps abuse of one legacy mailbox via multiple
+// requesting accounts. Combined with the per-member cap, the effective
+// ceiling for a single mailbox is `CLAIM_INIT_TARGET_MAX_PER_HOUR` per hour
+// regardless of how many sock-puppet accounts the attacker spins up.
+const CLAIM_INIT_TARGET_MAX_PER_HOUR = 3;
 
-    const marked = legacyMembers.markClaimed.run(requestingMemberId, now, targetLegacyMemberId);
-    if (marked.changes === 0) {
-      throw new ValidationError('This legacy record has already been claimed by another account.');
-    }
+/**
+ * Possible outcomes of `initiateLegacyClaim`. The HTTP response surface is
+ * identical for `enqueued`, `no_match`, and `target_rate_limited` (anti-
+ * enumeration: the controller renders the same generic banner regardless).
+ * The outcome is consumed by the controller solely for dev-mode operator
+ * visibility (the simulated-email card shows an explainer when no email was
+ * actually sent).
+ *
+ * `auto_linked` is observable to the user (different next-page redirect),
+ * but it is reachable only when the requesting member has a verified
+ * `login_email` that equals the legacy row's `legacy_email`. A non-matching
+ * attacker still produces `no_match` and gets the silent generic banner.
+ */
+export type InitiateLegacyClaimOutcome =
+  | { kind: 'enqueued' }
+  | { kind: 'no_match' }
+  | { kind: 'target_rate_limited' }
+  | { kind: 'auto_linked' };
 
-    legacyClaim.transferLegacyFields.run(
-      row.legacy_member_id,
-      row.legacy_user_id,
-      row.legacy_email,
-      row.bio ?? '',
-      row.birth_date,
-      row.street_address,
-      row.postal_code,
-      row.city,
-      row.region,
-      row.country,
-      row.ifpa_join_date,
-      row.is_hof,
-      row.is_bap,
-      row.first_competition_year,
-      now,
-      requestingMemberId,
+/**
+ * Step 1 of the two-step claim flow. Looks up the identifier; if exactly one
+ * eligible legacy_members row matches AND it has a deliverable legacy_email,
+ * issues an `account_claim` token and enqueues an email containing the
+ * confirm-step URL. Returns an `InitiateLegacyClaimOutcome` discriminator;
+ * callers must render the same generic banner for the non-revealing kinds
+ * (`no_match`, `target_rate_limited`) to honor the anti-enumeration contract.
+ *
+ * Email-equality fast path: when the requesting member's verified login_email
+ * matches the legacy row's legacy_email, mailbox control is already proven by
+ * registration verification. The merge runs synchronously and the second
+ * token-email step is skipped (outcome `auto_linked`).
+ *
+ * Rate-limited per requesting member (mitigates sock-puppet spam from one
+ * actor) AND per target legacy_member_id (caps the total mail volume to one
+ * mailbox regardless of how many requesting members try to claim it). The
+ * per-target check fires AFTER the lookup so it spends a bucket only when
+ * the identifier actually resolves to a row, preserving the non-revealing
+ * UX contract.
+ */
+function initiateLegacyClaim(
+  requestingMemberId: string,
+  identifier: string,
+): InitiateLegacyClaimOutcome {
+  const trimmed = identifier.trim();
+  if (!trimmed) {
+    throw new ValidationError('Please enter a legacy identifier.');
+  }
+
+  const rl = rateLimitHit(`legclaim-init:${requestingMemberId}`, CLAIM_INIT_MAX_PER_HOUR, CLAIM_INIT_WINDOW_MINUTES);
+  if (!rl.allowed) {
+    throw new RateLimitedError(
+      'Too many claim attempts. Please try again in an hour.',
+      rl.retryAfterSeconds,
     );
+  }
 
-    const hp = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as HistoricalPersonClaimRow | undefined;
-    if (hp) {
-      legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
-      legacyClaim.mergeHistoricalPersonFields.run(
-        hp.country,
-        hp.hof_member,
-        hp.bap_member,
-        hp.hof_induction_year,
-        hp.first_year,
-        now,
-        requestingMemberId,
-      );
+  // Look up without throwing: only ServiceError paths collapse to the neutral
+  // outcome below (no token issued, no email sent). Runtime errors (schema
+  // mismatch, OOM, missing prepared statement) propagate so operators see a
+  // signal in logs when emails aren't being delivered.
+  let row: LegacyMemberRow | undefined;
+  try {
+    const lookup = lookupLegacyAccount(requestingMemberId, trimmed);
+    if (lookup.kind === 'single') {
+      row = legacyMembers.findByLegacyMemberId.get(lookup.result.legacyMemberId) as LegacyMemberRow | undefined;
     }
+  } catch (e) {
+    if (!(e instanceof ServiceError)) throw e;
+    row = undefined;
+  }
+
+  if (!row) return { kind: 'no_match' };
+
+  // Email-equality fast path. The requesting member proved control of
+  // login_email at registration verify; if that email equals the legacy row's
+  // legacy_email, no second token-email is required. Run the merge inline.
+  // Reachable only after a positive lookup, so a non-matching attacker still
+  // gets the silent `no_match` outcome above and cannot distinguish branches.
+  // Skipped silently when legacy_email is NULL (stub rows in dev where the
+  // legacy data dump has not been loaded).
+  const member = legacyClaim.findClaimingMember.get(requestingMemberId) as ClaimingMemberRow | undefined;
+  if (
+    row.legacy_email &&
+    member?.email_verified_at &&
+    member.login_email_normalized &&
+    member.login_email_normalized === normalizeEmail(row.legacy_email)
+  ) {
+    transaction(() => {
+      claimLegacyAccountInTx(requestingMemberId, row!.legacy_member_id);
+    });
+    return { kind: 'auto_linked' };
+  }
+
+  // CUTOVER-REMOVE: dev-only admin shortcut. Production admins use
+  // manualLegacyClaimRecovery. The runtime catalog of all dev-admin
+  // shortcuts lives in src/dev-admin-shortcuts/runtime.ts; the env-config
+  // fail-fast guard refuses to start with the flag set in any
+  // non-development environment.
+  if (shouldSkipClaimEmailForAdmin(requestingMemberId)) {
+    transaction(() => {
+      claimLegacyAccountInTx(requestingMemberId, row!.legacy_member_id);
+    });
+    return { kind: 'auto_linked' };
+  }
+
+  // Email path requires a deliverable address. After the shortcuts above are
+  // declined (or unavailable), a stub legacy_members row with no legacy_email
+  // collapses to the same neutral no_match outcome a missing row would.
+  if (!row.legacy_email) return { kind: 'no_match' };
+
+  // Per-target cap: once a single legacy mailbox has received
+  // CLAIM_INIT_TARGET_MAX_PER_HOUR emails, further attempts from any member
+  // are silently dropped (UX still renders the same non-revealing response
+  // to honor the anti-enumeration contract). Returns the silent outcome
+  // rather than throwing so the caller cannot distinguish "target capped"
+  // from "no match".
+  const targetRl = rateLimitHit(
+    `legclaim-target:${row.legacy_member_id}`,
+    CLAIM_INIT_TARGET_MAX_PER_HOUR,
+    CLAIM_INIT_WINDOW_MINUTES,
+  );
+  if (!targetRl.allowed) return { kind: 'target_rate_limited' };
+
+  const { rawToken, tokenRowId } = accountTokenService.issueToken({
+    memberId:              requestingMemberId,
+    tokenType:             'account_claim',
+    ttlHours:              CLAIM_TOKEN_TTL_HOURS,
+    targetLegacyMemberId:  row.legacy_member_id,
+  });
+  const baseUrl    = config.publicBaseUrl.replace(/\/+$/, '');
+  const confirmUrl = `${baseUrl}/history/claim/confirm/${rawToken}`;
+  getCommunicationService().enqueueEmail({
+    idempotencyKey:    `claim:${tokenRowId}`,
+    recipientEmail:    row.legacy_email,
+    recipientMemberId: requestingMemberId,
+    subject:           'Confirm your IFPA legacy account claim',
+    bodyText:
+      'Hello,\n\n' +
+      'A claim request was submitted on your legacy IFPA account. ' +
+      'Open the link below to review and confirm the link to your current account. ' +
+      `The link expires in ${CLAIM_TOKEN_TTL_HOURS} hours.\n\n` +
+      `${confirmUrl}\n\n` +
+      'If you did not initiate this claim, you can ignore this message; the link will expire unused.',
+  });
+  return { kind: 'enqueued' };
+}
+
+export interface LegacyClaimTokenLookup {
+  legacyMemberId: string;
+  displayName:    string | null;
+  country:        string | null;
+  isHof:          boolean;
+  isBap:          boolean;
+}
+
+/**
+ * Step 2a of the two-step claim flow: validate the token and return the
+ * matched legacy_members snapshot for the confirm page. Does NOT consume the
+ * token; consume is deferred to the merge step so that a user who lands on
+ * the confirm page can review without burning the single-use token.
+ *
+ * Returns null when the token is invalid, expired, already used, or bound to
+ * a different requesting member. The controller renders an identical
+ * "couldn't validate the link" error for all null returns to avoid leaking
+ * which gate failed.
+ */
+function peekLegacyClaim(requestingMemberId: string, rawToken: string): LegacyClaimTokenLookup | null {
+  const peek = accountTokenService.peekToken(rawToken, 'account_claim');
+  if (!peek) return null;
+  if (peek.memberId !== requestingMemberId) return null;
+  if (!peek.targetLegacyMemberId) return null;
+
+  const row = legacyMembers.findByLegacyMemberId.get(peek.targetLegacyMemberId) as LegacyMemberRow | undefined;
+  if (!row || row.claimed_by_member_id) return null;
+
+  return {
+    legacyMemberId: row.legacy_member_id,
+    displayName:    row.display_name ?? row.real_name ?? null,
+    country:        row.country,
+    isHof:          Boolean(row.is_hof),
+    isBap:          Boolean(row.is_bap),
+  };
+}
+
+/**
+ * Step 2b of the two-step claim flow: consume the token AND run the merge
+ * inside ONE transaction so a failed merge un-consumes the token via rollback.
+ * Validates the same gates peekLegacyClaim checks; throws ValidationError on
+ * any failure so the controller can render a user-readable error.
+ *
+ * Atomicity: consumeIfUnusedInTx and claimLegacyAccountInTx both run inside
+ * the wrapping transaction. Any throw rolls back the token consume too, so
+ * the user can retry with the same email link rather than re-initiating.
+ */
+function consumeAndClaimLegacy(requestingMemberId: string, rawToken: string): void {
+  transaction(() => {
+    const consumed = accountTokenService.consumeIfUnusedInTx(rawToken, 'account_claim');
+    if (!consumed) {
+      throw new ValidationError('This claim link is no longer valid. Please start the claim again.');
+    }
+    if (consumed.memberId !== requestingMemberId) {
+      throw new ValidationError('This claim link belongs to a different account.');
+    }
+    if (!consumed.targetLegacyMemberId) {
+      throw new ValidationError('This claim link is missing a target record.');
+    }
+    claimLegacyAccountInTx(requestingMemberId, consumed.targetLegacyMemberId);
   });
 }
 
@@ -727,6 +1376,8 @@ interface ClaimingMemberRow {
   real_name: string;
   legacy_member_id: string | null;
   historical_person_id: string | null;
+  login_email_normalized: string | null;
+  email_verified_at: string | null;
 }
 
 function lookupHistoricalPersonForClaim(
@@ -870,6 +1521,22 @@ function claimHistoricalPerson(
       now,
       requestingMemberId,
     );
+
+    appendAuditEntry({
+      actionType:    'claim.historical_person',
+      category:      'identity',
+      actorType:     'member',
+      actorMemberId: requestingMemberId,
+      entityType:    'member',
+      entityId:      requestingMemberId,
+      reasonText:    null,
+      metadata: {
+        person_id:              hp.person_id,
+        person_name:            hp.person_name,
+        first_name_variant:     !firstNamesMatch(member.real_name, hp.person_name),
+        transitive_legacy_id:   hp.legacy_member_id ?? null,
+      },
+    });
   });
 }
 
@@ -937,6 +1604,11 @@ async function changePassword(
       | undefined;
     if (member?.login_email) {
       getCommunicationService().enqueueEmail({
+        // No token row for password-change notifications; use the new
+        // password_version as the per-event key so re-emit on worker
+        // restart between SES-send and outbox-mark-sent collapses to the
+        // same outbox row.
+        idempotencyKey: `pwchange:${memberId}:${row.password_version + 1}`,
         recipientEmail: member.login_email,
         recipientMemberId: memberId,
         subject: 'Your IFPA Footbag password was changed',
@@ -972,7 +1644,7 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
     return { responseSent: true };
   }
   const ttlHours = readIntConfig('password_reset_expiry_hours', 1);
-  const { rawToken } = accountTokenService.issueToken({
+  const { rawToken, tokenRowId } = accountTokenService.issueToken({
     memberId: row.id,
     tokenType: 'password_reset',
     ttlHours,
@@ -980,6 +1652,7 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
   const resetUrl = `${baseUrl}/password/reset/${rawToken}`;
   getCommunicationService().enqueueEmail({
+    idempotencyKey: `pwreset:${tokenRowId}`,
     recipientEmail: email.trim(),
     recipientMemberId: row.id,
     subject: 'Reset your IFPA Footbag password',
@@ -996,6 +1669,7 @@ export interface PasswordResetCompletionResult {
   memberId: string;
   newPasswordVersion: number;
   role: 'admin' | 'member';
+  slug: string;
 }
 
 async function completePasswordReset(
@@ -1026,6 +1700,17 @@ async function completePasswordReset(
   const now = new Date().toISOString();
   auth.updateMemberPassword.run(newHash, now, now, consumed.memberId);
 
+  // Re-read password_version post-UPDATE rather than computing
+  // `member.password_version + 1` from the pre-UPDATE snapshot. The
+  // computed value happens to be correct under the current sync UPDATE
+  // (the only writer of password_version, atomic +1), but the pattern
+  // is fragile to any future refactor that interleaves writes; reading
+  // the live value removes the trap.
+  const after = auth.findMemberForSessionAfterVerify.get(consumed.memberId) as
+    | { password_version: number }
+    | undefined;
+  const newPasswordVersion = after?.password_version ?? member.password_version + 1;
+
   appendAuditEntry({
     actionType: 'auth.password_reset',
     category: 'auth',
@@ -1039,6 +1724,9 @@ async function completePasswordReset(
   try {
     if (member.login_email) {
       getCommunicationService().enqueueEmail({
+        // Pin to the consumed token row id so re-issue on worker restart
+        // between SES-send and outbox-mark-sent collapses to the same row.
+        idempotencyKey: `pwresetconfirm:${consumed.tokenRowId}`,
         recipientEmail: member.login_email,
         recipientMemberId: consumed.memberId,
         subject: 'Your IFPA Footbag password was changed',
@@ -1053,9 +1741,57 @@ async function completePasswordReset(
 
   return {
     memberId: consumed.memberId,
-    newPasswordVersion: member.password_version + 1,
+    newPasswordVersion,
     role: member.is_admin ? 'admin' : 'member',
+    // Return the slug so the controller can redirect to /members/:slug
+    // (matching the login and verify flows) instead of the generic /members
+    // landing page.
+    slug: member.slug ?? consumed.memberId,
   };
 }
 
-export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember };
+/**
+ * Read the identifying fields needed to evaluate or display a claim for the
+ * requesting member. Wraps `legacyClaim.findClaimingMember` so HTTP-layer
+ * callers do not import prepared statements directly (db.ts is the only SQL
+ * surface; controllers are glue). Returns null when the member row is
+ * absent, soft-deleted, or PII-purged.
+ */
+export interface ClaimingMember {
+  id: string;
+  slug: string;
+  real_name: string;
+  legacy_member_id: string | null;
+  historical_person_id: string | null;
+  login_email_normalized: string | null;
+  email_verified_at: string | null;
+}
+function findClaimingMemberById(memberId: string): ClaimingMember | null {
+  const row = legacyClaim.findClaimingMember.get(memberId) as
+    | ClaimingMember
+    | undefined;
+  return row ?? null;
+}
+
+/**
+ * Resolve an identifier the user typed into the manual-id form to an HP row,
+ * trying person_id first then the legacy_member_id back-link (matters in dev
+ * where legacy_members rows are often stubs and the HP carries the full
+ * identity anchor). Returns null when neither match resolves. Pure read;
+ * eligibility (already-claimed, surname mismatch) is enforced by the GET
+ * /history/<personId>/claim handler that the controller redirects to.
+ */
+function findHistoricalPersonForLinkSubmit(
+  identifier: string,
+): HistoricalPersonClaimRow | null {
+  const hpById = legacyClaim.findHistoricalPersonById.get(identifier) as
+    | HistoricalPersonClaimRow
+    | undefined;
+  if (hpById) return hpById;
+  const hpByLegacy = legacyClaim.findHistoricalPersonByLegacyId.get(identifier) as
+    | HistoricalPersonClaimRow
+    | undefined;
+  return hpByLegacy ?? null;
+}
+
+export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, lookupHistoricalPersonForClaim, claimHistoricalPerson, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryView, findClaimingMemberById, findHistoricalPersonForLinkSubmit };

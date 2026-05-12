@@ -1,0 +1,45 @@
+<section>
+  <div class="section-heading">
+    <h2>Find Members</h2>
+  </div>
+  <div class="member-search-section">
+    <form method="GET" action="{{formAction}}" class="member-search-form">
+      <input type="text" name="q" minlength="2" maxlength="100"
+             placeholder="Search by name..."
+             value="{{query}}"
+             aria-label="Search members by name"
+             class="member-search-input" />
+      <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+  </div>
+</section>
+
+{{#if hasQuery}}
+<section>
+  {{#if tooShort}}
+    <p class="text-muted">Please enter at least 2 characters.</p>
+  {{else if results.length}}
+    <div class="section-heading">
+      <h2>Results</h2>
+      <span class="section-count">{{results.length}}{{#if hasMore}}+{{/if}}</span>
+    </div>
+    {{#if hasMore}}
+      <p class="text-muted">Too many results. Please refine your search.</p>
+    {{/if}}
+    <div class="member-search-results">
+      {{#each results}}
+        <div class="member-search-result">
+          <a href="{{href}}">{{displayName}}</a>
+          {{#if country}}<span class="text-muted">{{country}}</span>{{/if}}
+          {{#if isHistorical}}<span class="badge badge-historical">Historical</span>{{else}}<span class="badge badge-member">Member</span>{{/if}}
+          {{#if isHof}}<span class="badge badge-honor">HoF</span>{{/if}}
+          {{#if isBap}}<span class="badge badge-honor">BAP</span>{{/if}}
+          {{#if isBoard}}<span class="badge badge-honor">Board</span>{{/if}}
+        </div>
+      {{/each}}
+    </div>
+  {{else}}
+    <p class="text-muted">No members found matching "{{query}}".</p>
+  {{/if}}
+</section>
+{{/if}}

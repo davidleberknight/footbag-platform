@@ -1,0 +1,26 @@
+<section>
+  <div class="section-heading">
+    <h2>Identity &amp; History</h2>
+  </div>
+  <div class="identity-block">
+    {{#if legacyAccount.linked}}
+      <p>Legacy account: linked{{#if legacyAccount.sinceDisplay}} (since {{legacyAccount.sinceDisplay}}){{/if}}.</p>
+    {{else}}
+      {{#if historicalPerson.linked}}
+        <p>Legacy account: none on file.</p>
+      {{else}}
+        <p>No past account or competition record linked.</p>
+      {{/if}}
+    {{/if}}
+    {{#if historicalPerson.linked}}
+      <p>Competition record: {{historicalPerson.summary}}.</p>
+    {{else}}
+      {{#if legacyAccount.linked}}
+        <p>Competition record: not yet linked.</p>
+      {{/if}}
+    {{/if}}
+    {{#if cta}}
+      <a href="{{cta.href}}" class="btn btn-primary">{{cta.label}}</a>
+    {{/if}}
+  </div>
+</section>

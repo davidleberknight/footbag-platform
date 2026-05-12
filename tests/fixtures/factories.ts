@@ -1636,6 +1636,100 @@ export function insertActivePlayerGrant(
   return id;
 }
 
+// ── Tier + AP composition helpers ─────────────────────────────────────────────
+//
+// Ergonomic wrappers around insertMember + insertMemberTierGrant +
+// insertActivePlayerGrant for tests that need a member at a known tier or
+// AP state. These are pure compositions of the existing factories — no new
+// schema knowledge here.
+
+export interface CreateMemberAtTierOpts {
+  id: string;
+  slug: string;
+  tier: 'tier0' | 'tier1' | 'tier2' | 'tier3';
+  /** Required when tier === 'tier3'; the post-governance underlying tier. */
+  underlying_tier_status?: 'tier1' | 'tier2';
+  /** Forwarded to insertMember (admin/system flags, display name, etc.). */
+  memberOverrides?: Omit<MemberOverrides, 'id' | 'slug'>;
+  /** Actor on the tier grant ledger (e.g. an admin id for governance_set). */
+  actor_member_id?: string | null;
+}
+
+export function createMemberAtTier(
+  db: BetterSqlite3.Database,
+  o: CreateMemberAtTierOpts,
+): string {
+  insertMember(db, { id: o.id, slug: o.slug, ...(o.memberOverrides ?? {}) });
+  if (o.tier === 'tier0') {
+    return o.id;
+  }
+  if (o.tier === 'tier3') {
+    if (!o.underlying_tier_status) {
+      throw new Error('createMemberAtTier(tier3) requires underlying_tier_status');
+    }
+    insertMemberTierGrant(db, {
+      member_id: o.id,
+      actor_member_id: o.actor_member_id ?? null,
+      change_type: 'governance_set',
+      new_tier_status: 'tier3',
+      new_underlying_tier_status: o.underlying_tier_status,
+      reason_code: 'governance.tier3_set',
+    });
+    return o.id;
+  }
+  insertMemberTierGrant(db, {
+    member_id: o.id,
+    new_tier_status: o.tier,
+    reason_code: o.tier === 'tier1' ? 'purchase.tier1' : 'purchase.tier2',
+  });
+  return o.id;
+}
+
+export interface CreateTier0WithActivePlayerOpts {
+  id: string;
+  slug: string;
+  /** ISO timestamp for the AP grant's new_active_player_expires_at. */
+  expiresAt: string;
+  reason_code?: string;
+  memberOverrides?: Omit<MemberOverrides, 'id' | 'slug'>;
+}
+
+export function createTier0WithActivePlayer(
+  db: BetterSqlite3.Database,
+  o: CreateTier0WithActivePlayerOpts,
+): string {
+  insertMember(db, { id: o.id, slug: o.slug, ...(o.memberOverrides ?? {}) });
+  insertActivePlayerGrant(db, {
+    member_id: o.id,
+    change_type: 'grant',
+    new_active_player_expires_at: o.expiresAt,
+    reason_code: o.reason_code ?? 'official_event_attendance',
+  });
+  return o.id;
+}
+
+export interface CreateTier3WithUnderlyingOpts {
+  id: string;
+  slug: string;
+  underlying_tier_status: 'tier1' | 'tier2';
+  actor_member_id?: string | null;
+  memberOverrides?: Omit<MemberOverrides, 'id' | 'slug'>;
+}
+
+export function createTier3WithUnderlying(
+  db: BetterSqlite3.Database,
+  o: CreateTier3WithUnderlyingOpts,
+): string {
+  return createMemberAtTier(db, {
+    id: o.id,
+    slug: o.slug,
+    tier: 'tier3',
+    underlying_tier_status: o.underlying_tier_status,
+    actor_member_id: o.actor_member_id ?? null,
+    memberOverrides: o.memberOverrides,
+  });
+}
+
 // ── Active Player vouch ───────────────────────────────────────────────────────
 //
 // Append-only direct vouch action by Tier 2 / Tier 3 for a Tier 0 target.

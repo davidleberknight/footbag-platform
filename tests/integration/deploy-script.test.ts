@@ -143,8 +143,95 @@ describe('deploy_to_aws.sh wrapper', () => {
   );
 
   it.skipIf(!HAS_DOCKER)(
-    '-k with bogus DEPLOY_TARGET exits 1 with SSH-alias Recommendation',
+    'production DB-replace requires the explicit confirmation phrase (no TTY → refuses)',
     () => {
+      // F.1 prod-plumbing: a default-mode (DB-rebuild) deploy against
+      // footbag-production must not proceed without the operator typing the
+      // confirmation phrase. Test environment has no TTY, so the gate
+      // refuses with a clear "no TTY available" recommendation.
+      const tmpFile = path.join(os.tmpdir(), `op-prod-${Date.now()}.txt`);
+      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      try {
+        const r = run('bash', ['deploy_to_aws.sh'], {
+          env: {
+            AWS_OPERATOR_FILE: tmpFile,
+            DEPLOY_TARGET: 'footbag-production',
+          },
+        });
+        expect(r.status).toBe(1);
+        const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        expect(combined).toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
+        expect(combined).toMatch(/requires interactive confirmation/);
+      } finally {
+        fs.unlinkSync(tmpFile);
+      }
+    },
+  );
+
+  it.skipIf(!HAS_DOCKER)(
+    'production DB-replace with FOOTBAG_PROD_DB_REPLACE_ACK=1 bypasses the prompt and proceeds past the gate',
+    () => {
+      // The FOOTBAG_PROD_DB_REPLACE_ACK=1 escape hatch lets scripted deploys
+      // (rare, by design) skip the interactive prompt. The deploy will still
+      // fail downstream on the SSH alias / docker preflight, but the prod
+      // gate itself is past — proven by the absence of the "requires
+      // interactive confirmation" message and presence of the "Confirmed"
+      // log line OR a downstream preflight failure.
+      const tmpFile = path.join(os.tmpdir(), `op-prod-ack-${Date.now()}.txt`);
+      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      try {
+        const r = run('bash', ['deploy_to_aws.sh'], {
+          env: {
+            AWS_OPERATOR_FILE: tmpFile,
+            DEPLOY_TARGET: 'footbag-production',
+            FOOTBAG_PROD_DB_REPLACE_ACK: '1',
+          },
+        });
+        // Exit 1 from a downstream preflight (SSH alias resolution against a
+        // non-configured 'footbag-production' alias on test runners).
+        expect(r.status).toBe(1);
+        const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        expect(combined).toMatch(/skipping interactive confirmation/);
+        expect(combined).not.toMatch(/requires interactive confirmation/);
+      } finally {
+        fs.unlinkSync(tmpFile);
+      }
+    },
+  );
+
+  it.skipIf(!HAS_DOCKER)(
+    '-k against footbag-production skips the DB-replace gate (code-only never touches DB)',
+    () => {
+      // -k mode does not touch the DB, so the production hard-confirm gate
+      // does not fire. The deploy proceeds past the gate and fails later
+      // on SSH alias resolution (no footbag-production alias on test runners).
+      const tmpFile = path.join(os.tmpdir(), `op-prod-k-${Date.now()}.txt`);
+      fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
+      try {
+        const r = run('bash', ['deploy_to_aws.sh', '-k'], {
+          env: {
+            AWS_OPERATOR_FILE: tmpFile,
+            DEPLOY_TARGET: 'footbag-production',
+          },
+        });
+        // Exits 1 from the SSH alias / docker preflight, not from the gate.
+        expect(r.status).toBe(1);
+        const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        expect(combined).not.toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
+      } finally {
+        fs.unlinkSync(tmpFile);
+      }
+    },
+  );
+
+  it.skipIf(!HAS_DOCKER)(
+    '-k with non-allowlisted DEPLOY_TARGET exits 1 at the allowlist gate',
+    () => {
+      // After F.1 prod-plumbing, DEPLOY_TARGET is allowlisted to exactly
+      // 'footbag-staging' or 'footbag-production'. Any other value is
+      // refused at the entry-point allowlist check, before the SSH-alias
+      // resolve preflight ever runs. Substring patterns and typos cannot
+      // sneak through.
       const tmpFile = path.join(os.tmpdir(), `op-${Date.now()}.txt`);
       fs.writeFileSync(tmpFile, 'fake-password\n', { mode: 0o600 });
       try {
@@ -156,7 +243,7 @@ describe('deploy_to_aws.sh wrapper', () => {
         });
         expect(r.status).toBe(1);
         const combined = (r.stderr ?? '') + (r.stdout ?? '');
-        expect(combined).toMatch(/SSH alias/);
+        expect(combined).toMatch(/DEPLOY_TARGET must be 'footbag-staging' or 'footbag-production'/);
         expect(combined).toMatch(/Recommendation:/);
       } finally {
         fs.unlinkSync(tmpFile);
@@ -227,6 +314,32 @@ describe('legacy_data/run_pipeline.sh identity-lock preflight', () => {
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
+  });
+});
+
+// ── remote-half script source guards (static text scan) ──────────────────────
+//
+// Permanent contract: scripts/internal/deploy-{rebuild,code}-remote.sh refuse
+// to write FOOTBAG_DEV_INITIAL_ADMIN_EMAILS into /srv/footbag/env when
+// FOOTBAG_ENV is not 'development' or 'staging'. env.ts trips the same boot-
+// fail-fast at container start, but the script-level guard is the first line
+// of defense and prevents the value from ever landing on disk on a production
+// host. Loss of the guard would let a workstation with a non-empty
+// .local/initial-admins.txt accidentally seed admin emails on production.
+
+describe('remote-half script production refusal guards (static-text)', () => {
+  it.each([
+    'scripts/internal/deploy-rebuild-remote.sh',
+    'scripts/internal/deploy-code-remote.sh',
+  ])('%s contains the FOOTBAG_DEV_INITIAL_ADMIN_EMAILS production-refusal guard', (relPath) => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    // The guard refuses any non-development, non-staging FOOTBAG_ENV when
+    // the value is non-empty. Match the literal error-message text and the
+    // exit so a partial removal still trips the test.
+    expect(content).toMatch(/FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev\/staging-only/);
+    expect(content).toMatch(
+      /\[\[\s*-n\s*"\$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS"\s*&&\s*"\$FOOTBAG_ENV"\s*!=\s*"development"\s*&&\s*"\$FOOTBAG_ENV"\s*!=\s*"staging"\s*\]\]/,
+    );
   });
 });
 

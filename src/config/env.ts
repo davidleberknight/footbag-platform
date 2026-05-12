@@ -30,8 +30,9 @@ export interface AppConfig {
   safeBrowsingAdapter: 'live' | 'stub';
   // SecretsAdapter: Node consumers read SSM-stored third-party secrets
   // through this adapter. 'live' calls SSM GetParameter; 'stub' is an
-  // in-memory map for tests; 'local' reads .secrets.local.json at the repo
-  // root. Required to be explicit in production.
+  // in-memory map for tests; 'local' reads .local/secrets.json (gitignored
+  // operator-local file co-located with .local/initial-admins.txt and the
+  // .local/*-admin-seed.json files). Required to be explicit in production.
   secretsAdapter: 'live' | 'stub' | 'local';
   // Environment label used to derive SSM parameter prefixes for the live
   // SecretsAdapter (e.g. 'staging' → '/footbag/staging/secrets/...').
@@ -104,9 +105,10 @@ export interface AppConfig {
   // browser sends a heartbeat event at this interval to keep nginx and
   // CloudFront from idle-killing the connection during long transcodes.
   sseHeartbeatSeconds: number;
-  // Path to the operator-supplied initial-admin email list. Each member
-  // who registers with an email listed here gets `is_admin=1` set on their
-  // newly-inserted row plus a `grant_admin_bootstrap` audit row.
+  // CUTOVER-REMOVE: path to the operator-supplied initial-admin email list.
+  // Each member who registers with an email listed here gets `is_admin=1`
+  // set on their newly-inserted row plus a
+  // `grant_admin_dev_register_allowlist` audit row.
   // Default: `.local/initial-admins.txt` (gitignored). Production reads of
   // this file are refused at the helper level regardless of this value.
   initialAdminFile: string;
@@ -114,6 +116,23 @@ export interface AppConfig {
   // comma-separated subnet/IP list — anything Express's setting accepts.
   // Default: 2 in production (CloudFront + nginx), 0 elsewhere.
   trustProxy: number | boolean | string;
+  // CUTOVER-REMOVE: dev-only. When true, admin members can complete a
+  // legacy account claim via the unified link-history wizard's manual-id
+  // input WITHOUT the mailbox-control email roundtrip. Strictly additive;
+  // disabled by default. Boot-time guard refuses to start in non-development
+  // environments. Used for dev testing of the legacy claim flow when the
+  // operator's admin email isn't seeded as a `legacy_email` in the dev
+  // fixture set. Production admins use `manualLegacyClaimRecovery` instead.
+  devAdminSkipClaimEmail: boolean;
+  // CUTOVER-REMOVE: dev-only. When true, the boot orchestrator
+  // (src/dev-admin-shortcuts/runtime.ts) ensures every member with
+  // is_admin=1 has a current Tier 2 ledger row, inserting a
+  // `dev_admin_invariant_repair` grant when the ledger lags. The
+  // admin-as-Tier-2 invariant is a platform requirement; in dev workstations
+  // without the legacy data dump or full seed flow, admins may be flagged
+  // is_admin=1 without the matching Tier 2 grant. Boot-time guard refuses
+  // to start in any non-development environment. Default off; opt-in only.
+  devAdminGrantTier2: boolean;
 }
 
 function requireEnv(name: string): string {
@@ -222,6 +241,95 @@ function loadConfig(): AppConfig {
   if (secretsAdapter === 'live' && !footbagEnv) {
     throw new Error(
       'FOOTBAG_ENV is required when SECRETS_ADAPTER=live (used to derive the SSM parameter prefix)',
+    );
+  }
+
+  // CUTOVER-REMOVE: boot-time guard for the dev autologin bypass in
+  // src/middleware/auth.ts. The middleware also gates on FOOTBAG_ENV at
+  // every request, but a process that boots with this env var set in a
+  // non-development environment is mis-configured and must fail fast
+  // rather than start serving traffic.
+  if (process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID && footbagEnv !== 'development') {
+    throw new Error(
+      `FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+    );
+  }
+
+  // CUTOVER-REMOVE: companion var to FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID;
+  // consumed by src/dev-admin-shortcuts/runtime.ts:applyDevAutologin to
+  // refuse autologin unless the member's password_version matches.
+  // Dev-only; same fail-fast posture as the member-id guard so a
+  // misconfigured prod/staging process cannot boot with the value present
+  // and silently rely on the per-request gate alone.
+  if (
+    process.env.FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION &&
+    footbagEnv !== 'development'
+  ) {
+    throw new Error(
+      `FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+    );
+  }
+
+  // CUTOVER-REMOVE: parse FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL. Same shape
+  // as the autologin guard above: dev-only, fail-fast in non-development
+  // environments.
+  const rawDevAdminSkip = process.env.FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL;
+  let devAdminSkipClaimEmail: boolean;
+  if (rawDevAdminSkip === undefined || rawDevAdminSkip === '') {
+    devAdminSkipClaimEmail = false;
+  } else if (rawDevAdminSkip === '1' || rawDevAdminSkip === 'true') {
+    devAdminSkipClaimEmail = true;
+  } else if (rawDevAdminSkip === '0' || rawDevAdminSkip === 'false') {
+    devAdminSkipClaimEmail = false;
+  } else {
+    throw new Error(
+      `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL must be '1', '0', 'true', or 'false', got: ${rawDevAdminSkip}`,
+    );
+  }
+  if (devAdminSkipClaimEmail && footbagEnv !== 'development') {
+    throw new Error(
+      `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+    );
+  }
+
+  // CUTOVER-REMOVE: parse FOOTBAG_DEV_ADMIN_GRANT_TIER2. Same shape as
+  // the two dev-only guards above: dev-only, fail-fast in non-development
+  // environments.
+  const rawDevAdminTier2 = process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2;
+  let devAdminGrantTier2: boolean;
+  if (rawDevAdminTier2 === undefined || rawDevAdminTier2 === '') {
+    devAdminGrantTier2 = false;
+  } else if (rawDevAdminTier2 === '1' || rawDevAdminTier2 === 'true') {
+    devAdminGrantTier2 = true;
+  } else if (rawDevAdminTier2 === '0' || rawDevAdminTier2 === 'false') {
+    devAdminGrantTier2 = false;
+  } else {
+    throw new Error(
+      `FOOTBAG_DEV_ADMIN_GRANT_TIER2 must be '1', '0', 'true', or 'false', got: ${rawDevAdminTier2}`,
+    );
+  }
+  if (devAdminGrantTier2 && footbagEnv !== 'development') {
+    throw new Error(
+      `FOOTBAG_DEV_ADMIN_GRANT_TIER2 is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
+    );
+  }
+
+  // CUTOVER-REMOVE: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is the dev/staging
+  // admin-allowlist shortcut owned by src/dev-admin-shortcuts/runtime.ts.
+  // Production first-admin uses a separate single-shot SSM-token claim path;
+  // any production process that sees this var set is misconfigured and must
+  // refuse to start. Deploy pipeline also refuses to write the value into
+  // /srv/footbag/env on a production host; this is the second line of
+  // defense.
+  const rawDevInitialAdminEmails = process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS;
+  if (
+    rawDevInitialAdminEmails &&
+    rawDevInitialAdminEmails.trim() &&
+    footbagEnv !== 'development' &&
+    footbagEnv !== 'staging'
+  ) {
+    throw new Error(
+      `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev/staging-only; set FOOTBAG_ENV to development or staging, or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'}). Production-first-admin uses the SSM-token claim path.`,
     );
   }
 
@@ -472,6 +580,8 @@ function loadConfig(): AppConfig {
     sseHeartbeatSeconds,
     initialAdminFile: process.env.FOOTBAG_INITIAL_ADMIN_FILE || '.local/initial-admins.txt',
     trustProxy,
+    devAdminSkipClaimEmail,
+    devAdminGrantTier2,
   };
 }
 

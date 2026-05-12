@@ -72,3 +72,33 @@ variable "lightsail_origin_dns" {
   description = "Resolvable DNS hostname used as the CloudFront custom origin. Production must use a real A record (e.g. origin.footbag.org); CloudFront does not accept raw IPs."
   type        = string
 }
+
+# ── Phased-apply feature gates ───────────────────────────────────────────────
+# Production mirrors the staging gates so apply can land in phases:
+#   pass 1: infra-only, alarms/dashboard/backup-alarm off
+#   pass 2: enable CW agent alarms once the agent is installed and emitting
+#   pass 3: enable backup alarm once the snapshot job emits BackupAgeMinutes
+# Without these gates, alarms fire INSUFFICIENT_DATA or breaching from the
+# first apply and train operators to ignore monitoring.
+
+variable "enable_cwagent_alarms" {
+  description = <<-EOT
+    Set to true only after the CloudWatch agent is installed on the
+    Lightsail host and is confirmed to be emitting cpu_usage_active and
+    mem_used_percent metrics under the CWAgent namespace. Enabling earlier
+    creates alarms that immediately enter INSUFFICIENT_DATA.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "enable_backup_alarm" {
+  description = <<-EOT
+    Set to true only after the SQLite backup job runs on schedule and emits
+    BackupAgeMinutes to the Footbag/{environment} namespace. The alarm uses
+    treat_missing_data = "breaching"; enabling before metric data exists
+    fires the alarm on apply.
+  EOT
+  type        = bool
+  default     = false
+}

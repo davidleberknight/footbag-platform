@@ -193,6 +193,13 @@ const STAGING_FIXTURE: Record<string, string> = {
   IMAGE_MAX_CONCURRENT: '1',
   MEDIA_STORAGE_ADAPTER: 'local',
   INTERNAL_EVENT_SECRET: 'a'.repeat(48),
+  // Match PRODUCTION_FIXTURE for the intra-docker URL vars. Without these,
+  // the staging-side compose-overlay parity check silently uses the compose
+  // `:-` defaults instead of exercising the env-explicit path; an
+  // operator that sets these in /srv/footbag/env to invalid values would
+  // not be caught by this test.
+  WORKER_INTERNAL_URL: 'http://worker:3100',
+  WEB_INTERNAL_URL: 'http://web:3000',
 };
 
 /**
@@ -430,13 +437,47 @@ describe('docker-compose.prod.yml structural invariants', () => {
     }
   });
 
-  it('memory limits match documented nano_3_0 values', () => {
-    // Documented in the compose file's deviation comments. If these
-    // change, update the compose-file comments alongside.
+  it('memory limits are env-var-driven with nano_3_0 defaults', () => {
+    // Memory limits are env-driven so the same overlay sizes correctly for
+    // staging (nano_3_0, 512M host) and production (small_3_0, 2GB host).
+    // Defaults must match the nano_3_0 sizing so staging keeps working
+    // without env overrides. Production sets WEB_MEMORY_LIMIT=512M /
+    // WORKER_MEMORY_LIMIT=384M / IMAGE_MEMORY_LIMIT=896M in /srv/footbag/env.
+    // If defaults change, update docs/DEVOPS_GUIDE.md memory table alongside.
     const overlay = loadCompose('docker/docker-compose.prod.yml');
     expect(overlay.services.nginx.deploy?.resources?.limits?.memory).toBe('64M');
-    expect(overlay.services.web.deploy?.resources?.limits?.memory).toBe('192M');
-    expect(overlay.services.worker.deploy?.resources?.limits?.memory).toBe('96M');
-    expect(overlay.services.image.deploy?.resources?.limits?.memory).toBe('256M');
+    expect(overlay.services.web.deploy?.resources?.limits?.memory).toBe('${WEB_MEMORY_LIMIT:-192M}');
+    expect(overlay.services.worker.deploy?.resources?.limits?.memory).toBe('${WORKER_MEMORY_LIMIT:-96M}');
+    expect(overlay.services.image.deploy?.resources?.limits?.memory).toBe('${IMAGE_MEMORY_LIMIT:-256M}');
+  });
+});
+
+describe('FOOTBAG_DEV_* placement (dev/staging admin allowlist scope)', () => {
+  // Long-term contract: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is the dev/staging
+  // admin allowlist consumed at registration time by src/dev-admin-shortcuts/runtime.ts.
+  // The worker and image containers have no consumer (no registration
+  // surface, no auth surface). Plumbing the var into worker/image would be
+  // misleading at best and a regression risk at worst — env.ts trips a
+  // boot-fail-fast if the var is set with FOOTBAG_ENV=production, so an
+  // accidental copy into a service container that doesn't consume it
+  // narrows nothing and adds a foot-gun. This test pins the asymmetry.
+  it('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is declared on web only in docker-compose.yml', () => {
+    const base = loadCompose('docker/docker-compose.yml');
+    const webEnv = normalizeEnv(base.services.web.environment);
+    const workerEnv = normalizeEnv(base.services.worker.environment);
+    const imageEnv = normalizeEnv(base.services.image.environment);
+    expect(webEnv).toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
+    expect(workerEnv).not.toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
+    expect(imageEnv).not.toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
+  });
+
+  it('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is declared on web only in docker-compose.prod.yml', () => {
+    const overlay = loadCompose('docker/docker-compose.prod.yml');
+    const webEnv = normalizeEnv(overlay.services.web.environment);
+    const workerEnv = normalizeEnv(overlay.services.worker.environment);
+    const imageEnv = normalizeEnv(overlay.services.image.environment);
+    expect(webEnv).toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
+    expect(workerEnv).not.toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
+    expect(imageEnv).not.toHaveProperty('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS');
   });
 });

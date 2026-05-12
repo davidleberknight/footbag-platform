@@ -64,6 +64,37 @@ data "aws_ssm_parameter" "origin_verify_secret" {
   with_decryption = true
 }
 
+# ── SESSION_SECRET (cookie-parser signing + env.ts boot-time check) ──────────
+# Terraform owns the canonical value via random_id below (32 bytes → 64 hex
+# chars, well past the env.ts ≥32 floor and never matches 'changeme'). The
+# deploy script (scripts/internal/deploy-{rebuild,code}-remote.sh) fetches
+# this parameter on every deploy and writes it into /srv/footbag/env, where
+# systemd picks it up and Docker Compose forwards it into each container.
+#
+# Rotation: `terraform apply -replace=random_id.session_secret` regenerates
+# the value, the SSM parameter updates, the next deploy fetches the new
+# value from SSM and rewrites SESSION_SECRET in /srv/footbag/env. All
+# active sessions are invalidated by the rotation (cookie signatures fail
+# verification under the new secret).
+#
+# No `ignore_changes`: Terraform IS the writer. A manual `aws ssm
+# put-parameter --overwrite` would be reverted on the next apply.
+resource "random_id" "session_secret" {
+  byte_length = 32
+}
+
+resource "aws_ssm_parameter" "app_session_secret" {
+  name   = "${local.ssm_prefix}/secrets/session_secret"
+  type   = "SecureString"
+  key_id = aws_kms_alias.main.name
+  value  = random_id.session_secret.hex
+}
+
+data "aws_ssm_parameter" "app_session_secret" {
+  name            = aws_ssm_parameter.app_session_secret.name
+  with_decryption = true
+}
+
 # ── Safe Browsing v4 API key (operator-supplied) ─────────────────────────────
 # SecureString + KMS-encrypted. Terraform owns the resource shell with a TODO
 # placeholder; the real value is operator-supplied via:

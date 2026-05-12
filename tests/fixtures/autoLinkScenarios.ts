@@ -8,22 +8,22 @@
  * resemble real competitor patterns (BAP honorees, diacritic-bearing
  * European names, display-name shortenings, compound surnames).
  *
- * | # | Scenario id              | Member real_name            | HP person_name                | Variant row                                | Expected tier                      | Expected verify redirect   | Driver     |
+ * | # | Scenario id              | Member real_name            | HP person_name                | Variant row                                | Expected confidence                | Expected verify redirect   | Driver     |
  * |---|--------------------------|-----------------------------|-------------------------------|--------------------------------------------|------------------------------------|----------------------------|------------|
  * | 1 | `none`                   | Matti Lehto                 | Matti Lehto                   | —                                          | `none`                             | `/members/sc_none`         | verify     |
- * | 2 | `tier1`                  | Kenny Shults                | Kenny Shults                  | —                                          | `tier1`                            | `/history/auto-link`       | verify     |
- * | 3 | `tier2_diacritic`        | Alex Martinez               | Alex Martínez                 | `alex martinez ↔ alex martínez`            | `tier2`                            | `/history/auto-link`       | verify     |
- * | 4 | `tier2_display_name`     | Chris Siebert               | Christopher Michael Siebert   | `chris siebert ↔ christopher michael …`    | `tier2`                            | `/history/auto-link`       | verify     |
- * | 5 | `tier3_no_hp`            | Jesper Karlsson             | — (legacy row exists, no HP)  | —                                          | `tier3 / no_hp_for_legacy_account` | `/history/claim`           | verify     |
- * | 6 | `tier3_no_name`          | Completely Different Name   | Provenance Target             | —                                          | `tier3 / no_name_candidate`        | `/history/claim`           | verify     |
- * | 7 | `tier3_multi`            | Pat Common                  | Pat Common (x2)               | —                                          | `tier3 / multiple_name_candidates` | `/history/claim`           | verify     |
- * | 8 | `tier3_hp_mismatch_decoy`| Decoy Claimer               | Correct Owner                 | —                                          | `tier3 / hp_mismatch`              | `/history/claim`           | verify     |
- * | 9 | `tier3_surname_split`    | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `tier3 / hp_mismatch`              | `/history/claim`           | verify     |
+ * | 2 | `high`                  | Kenny Shults                | Kenny Shults                  | —                                          | `high`                            | `/history/auto-link`       | verify     |
+ * | 3 | `medium_diacritic`        | Alex Martinez               | Alex Martínez                 | `alex martinez ↔ alex martínez`            | `medium`                            | `/history/auto-link`       | verify     |
+ * | 4 | `medium_display_name`     | Chris Siebert               | Christopher Michael Siebert   | `chris siebert ↔ christopher michael …`    | `medium`                            | `/history/auto-link`       | verify     |
+ * | 5 | `low_no_hp`            | Jesper Karlsson             | — (legacy row exists, no HP)  | —                                          | `low / no_hp_for_legacy_account` | `/history/claim`           | verify     |
+ * | 6 | `low_no_name`          | Completely Different Name   | Provenance Target             | —                                          | `low / no_name_candidate`        | `/history/claim`           | verify     |
+ * | 7 | `low_multi`            | Pat Common                  | Pat Common (x2)               | —                                          | `low / multiple_name_candidates` | `/history/claim`           | verify     |
+ * | 8 | `low_hp_mismatch_decoy`| Decoy Claimer               | Correct Owner                 | —                                          | `low / hp_mismatch`              | `/history/claim`           | verify     |
+ * | 9 | `low_surname_split`    | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `low / hp_mismatch`              | `/history/claim`           | verify     |
  * |10 | `already_linked`         | Linked Already              | —                             | —                                          | `none` (already has link)          | n/a                        | direct     |
  * |11 | `missing_login_email`    | (irrelevant)                | —                             | —                                          | `none` (member not found)          | n/a                        | direct     |
  *
  * `verify` driver: seed → issue email_verify token → GET /verify/:token → assert redirect.
- * `direct` driver: seed → call `identityAccessService.getAutoLinkClassificationForMember(memberId)` → assert tier.
+ * `direct` driver: seed → call `identityAccessService.getAutoLinkClassificationForMember(memberId)` → assert confidence.
  */
 import BetterSqlite3 from 'better-sqlite3';
 import {
@@ -35,12 +35,12 @@ import {
 
 export type ExpectedBranch =
   | 'none'
-  | 'tier1'
-  | 'tier2'
-  | 'tier3_no_hp_for_legacy_account'
-  | 'tier3_no_name_candidate'
-  | 'tier3_multiple_name_candidates'
-  | 'tier3_hp_mismatch'
+  | 'high'
+  | 'medium'
+  | 'low_no_hp_for_legacy_account'
+  | 'low_no_name_candidate'
+  | 'low_multiple_name_candidates'
+  | 'low_hp_mismatch'
   | 'already_linked'
   | 'missing_login_email';
 
@@ -74,7 +74,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_none',
     description: 'No legacy_members row matches login_email; real_name alone is insufficient.',
     expected: 'none',
-    expectedVerifyRedirect: '/members/sc_none',
+    expectedVerifyRedirect: '/members/sc_none/link-history?from=register',
     driver: 'verify',
     seed: (db) => {
       // An unrelated HP exists — proves name similarity alone is not an anchor.
@@ -90,120 +90,120 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     },
   },
 
-  // ── 2. tier1 — exact name match ──────────────────────────────────────────
+  // ── 2. high — exact name match ──────────────────────────────────────────
   {
-    id: 'sc-tier1',
-    slug: 'sc_tier1',
+    id: 'sc-high',
+    slug: 'sc_high',
     description: 'Email anchor + HP provenance + exact name match (BAP honoree).',
-    expected: 'tier1',
-    expectedVerifyRedirect: '/history/auto-link',
+    expected: 'high',
+    expectedVerifyRedirect: '/members/sc_high/link-history?from=register',
     driver: 'verify',
     seed: (db) => {
-      insertLegacyMember(db, { legacy_member_id: 'lm-sc-tier1', legacy_email: 'sc-tier1@example.com' });
+      insertLegacyMember(db, { legacy_member_id: 'lm-sc-high', legacy_email: 'sc-high@example.com' });
       insertHistoricalPerson(db, {
-        person_id: 'hp-sc-tier1',
+        person_id: 'hp-sc-high',
         person_name: 'Kenny Shults',
-        legacy_member_id: 'lm-sc-tier1',
+        legacy_member_id: 'lm-sc-high',
       });
       insertMember(db, {
-        id: 'sc-tier1',
-        slug: 'sc_tier1',
-        login_email: 'sc-tier1@example.com',
+        id: 'sc-high',
+        slug: 'sc_high',
+        login_email: 'sc-high@example.com',
         real_name: 'Kenny Shults',
         email_verified_at: null,
       });
-      return 'sc-tier1';
+      return 'sc-high';
     },
   },
 
-  // ── 3. tier2 — diacritic variant ─────────────────────────────────────────
+  // ── 3. medium — diacritic variant ─────────────────────────────────────────
   {
-    id: 'sc-tier2-diacritic',
-    slug: 'sc_tier2_diacritic',
+    id: 'sc-medium-diacritic',
+    slug: 'sc_medium_diacritic',
     description: 'ASCII-folded name resolves to diacritic-bearing canonical via name_variants.',
-    expected: 'tier2',
-    expectedVerifyRedirect: '/history/auto-link',
+    expected: 'medium',
+    expectedVerifyRedirect: '/members/sc_medium_diacritic/link-history?from=register',
     driver: 'verify',
     seed: (db) => {
-      insertLegacyMember(db, { legacy_member_id: 'lm-sc-tier2-dia', legacy_email: 'sc-tier2-dia@example.com' });
+      insertLegacyMember(db, { legacy_member_id: 'lm-sc-medium-dia', legacy_email: 'sc-medium-dia@example.com' });
       insertHistoricalPerson(db, {
-        person_id: 'hp-sc-tier2-dia',
+        person_id: 'hp-sc-medium-dia',
         person_name: 'Alex Martínez',
-        legacy_member_id: 'lm-sc-tier2-dia',
+        legacy_member_id: 'lm-sc-medium-dia',
       });
       insertNameVariant(db, {
         canonical_normalized: 'alex martínez',
         variant_normalized:   'alex martinez',
       });
       insertMember(db, {
-        id: 'sc-tier2-diacritic',
-        slug: 'sc_tier2_diacritic',
-        login_email: 'sc-tier2-dia@example.com',
+        id: 'sc-medium-diacritic',
+        slug: 'sc_medium_diacritic',
+        login_email: 'sc-medium-dia@example.com',
         real_name: 'Alex Martinez',
         email_verified_at: null,
       });
-      return 'sc-tier2-diacritic';
+      return 'sc-medium-diacritic';
     },
   },
 
-  // ── 4. tier2 — display-name shortening ───────────────────────────────────
+  // ── 4. medium — display-name shortening ───────────────────────────────────
   {
-    id: 'sc-tier2-display',
-    slug: 'sc_tier2_display',
+    id: 'sc-medium-display',
+    slug: 'sc_medium_display',
     description: 'Informal display name resolves to full legal canonical via curated display_name variant.',
-    expected: 'tier2',
-    expectedVerifyRedirect: '/history/auto-link',
+    expected: 'medium',
+    expectedVerifyRedirect: '/members/sc_medium_display/link-history?from=register',
     driver: 'verify',
     seed: (db) => {
-      insertLegacyMember(db, { legacy_member_id: 'lm-sc-tier2-disp', legacy_email: 'sc-tier2-disp@example.com' });
+      insertLegacyMember(db, { legacy_member_id: 'lm-sc-medium-disp', legacy_email: 'sc-medium-disp@example.com' });
       insertHistoricalPerson(db, {
-        person_id: 'hp-sc-tier2-disp',
+        person_id: 'hp-sc-medium-disp',
         person_name: 'Christopher Michael Siebert',
-        legacy_member_id: 'lm-sc-tier2-disp',
+        legacy_member_id: 'lm-sc-medium-disp',
       });
       insertNameVariant(db, {
         canonical_normalized: 'christopher michael siebert',
         variant_normalized:   'christopher siebert',
       });
       insertMember(db, {
-        id: 'sc-tier2-display',
-        slug: 'sc_tier2_display',
-        login_email: 'sc-tier2-disp@example.com',
+        id: 'sc-medium-display',
+        slug: 'sc_medium_display',
+        login_email: 'sc-medium-disp@example.com',
         real_name: 'Christopher Siebert',
         email_verified_at: null,
       });
-      return 'sc-tier2-display';
+      return 'sc-medium-display';
     },
   },
 
-  // ── 5. tier3 no_hp_for_legacy_account ────────────────────────────────────
+  // ── 5. low no_hp_for_legacy_account ────────────────────────────────────
   {
-    id: 'sc-tier3-no-hp',
-    slug: 'sc_tier3_no_hp',
+    id: 'sc-low-no-hp',
+    slug: 'sc_low_no_hp',
     description: 'Email anchor matches a legacy_members row, but no HP back-links to it.',
-    expected: 'tier3_no_hp_for_legacy_account',
-    expectedVerifyRedirect: '/history/claim',
+    expected: 'low_no_hp_for_legacy_account',
+    expectedVerifyRedirect: '/members/sc_low_no_hp/link-history?from=register&reason=low_confidence',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-nohp', legacy_email: 'sc-nohp@example.com' });
       insertMember(db, {
-        id: 'sc-tier3-no-hp',
-        slug: 'sc_tier3_no_hp',
+        id: 'sc-low-no-hp',
+        slug: 'sc_low_no_hp',
         login_email: 'sc-nohp@example.com',
         real_name: 'Jesper Karlsson',
         email_verified_at: null,
       });
-      return 'sc-tier3-no-hp';
+      return 'sc-low-no-hp';
     },
   },
 
-  // ── 6. tier3 no_name_candidate ───────────────────────────────────────────
+  // ── 6. low no_name_candidate ───────────────────────────────────────────
   {
-    id: 'sc-tier3-no-name',
-    slug: 'sc_tier3_no_name',
+    id: 'sc-low-no-name',
+    slug: 'sc_low_no_name',
     description: 'Email anchor + HP provenance, but real_name matches no HP directly or via variants.',
-    expected: 'tier3_no_name_candidate',
-    expectedVerifyRedirect: '/history/claim',
+    expected: 'low_no_name_candidate',
+    expectedVerifyRedirect: '/members/sc_low_no_name/link-history?from=register&reason=low_confidence',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-noname', legacy_email: 'sc-noname@example.com' });
@@ -213,23 +213,23 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
         legacy_member_id: 'lm-sc-noname',
       });
       insertMember(db, {
-        id: 'sc-tier3-no-name',
-        slug: 'sc_tier3_no_name',
+        id: 'sc-low-no-name',
+        slug: 'sc_low_no_name',
         login_email: 'sc-noname@example.com',
         real_name: 'Completely Different Name',
         email_verified_at: null,
       });
-      return 'sc-tier3-no-name';
+      return 'sc-low-no-name';
     },
   },
 
-  // ── 7. tier3 multiple_name_candidates ────────────────────────────────────
+  // ── 7. low multiple_name_candidates ────────────────────────────────────
   {
-    id: 'sc-tier3-multi',
-    slug: 'sc_tier3_multi',
+    id: 'sc-low-multi',
+    slug: 'sc_low_multi',
     description: 'Email anchor + HP provenance, but two HPs share the normalized name.',
-    expected: 'tier3_multiple_name_candidates',
-    expectedVerifyRedirect: '/history/claim',
+    expected: 'low_multiple_name_candidates',
+    expectedVerifyRedirect: '/members/sc_low_multi/link-history?from=register&reason=low_confidence',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-multi', legacy_email: 'sc-multi@example.com' });
@@ -243,23 +243,23 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
         person_name: 'Pat Common',
       });
       insertMember(db, {
-        id: 'sc-tier3-multi',
-        slug: 'sc_tier3_multi',
+        id: 'sc-low-multi',
+        slug: 'sc_low_multi',
         login_email: 'sc-multi@example.com',
         real_name: 'Pat Common',
         email_verified_at: null,
       });
-      return 'sc-tier3-multi';
+      return 'sc-low-multi';
     },
   },
 
-  // ── 8. tier3 hp_mismatch (decoy path) ────────────────────────────────────
+  // ── 8. low hp_mismatch (decoy path) ────────────────────────────────────
   {
-    id: 'sc-tier3-decoy',
-    slug: 'sc_tier3_decoy',
+    id: 'sc-low-decoy',
+    slug: 'sc_low_decoy',
     description: 'Email provenances to one HP, but real_name resolves to a different HP.',
-    expected: 'tier3_hp_mismatch',
-    expectedVerifyRedirect: '/history/claim',
+    expected: 'low_hp_mismatch',
+    expectedVerifyRedirect: '/members/sc_low_decoy/link-history?from=register&reason=low_confidence',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-decoy', legacy_email: 'sc-decoy@example.com' });
@@ -273,23 +273,23 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
         person_name: 'Decoy Claimer',
       });
       insertMember(db, {
-        id: 'sc-tier3-decoy',
-        slug: 'sc_tier3_decoy',
+        id: 'sc-low-decoy',
+        slug: 'sc_low_decoy',
         login_email: 'sc-decoy@example.com',
         real_name: 'Decoy Claimer',
         email_verified_at: null,
       });
-      return 'sc-tier3-decoy';
+      return 'sc-low-decoy';
     },
   },
 
-  // ── 9. tier3 hp_mismatch via surname-split (surnameKey block) ────────────
+  // ── 9. low hp_mismatch via surname-split (surnameKey block) ────────────
   {
-    id: 'sc-tier3-surname-split',
-    slug: 'sc_tier3_surname_split',
+    id: 'sc-low-surname-split',
+    slug: 'sc_low_surname_split',
     description: 'name_variants row links two forms whose surnameKeys differ; classifier defers to claim policy.',
-    expected: 'tier3_hp_mismatch',
-    expectedVerifyRedirect: '/history/claim',
+    expected: 'low_hp_mismatch',
+    expectedVerifyRedirect: '/members/sc_low_surname_split/link-history?from=register&reason=low_confidence',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-split', legacy_email: 'sc-split@example.com' });
@@ -303,13 +303,13 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
         variant_normalized:   'boris belouin ollivier',
       });
       insertMember(db, {
-        id: 'sc-tier3-surname-split',
-        slug: 'sc_tier3_surname_split',
+        id: 'sc-low-surname-split',
+        slug: 'sc_low_surname_split',
         login_email: 'sc-split@example.com',
         real_name: 'Boris Belouin Ollivier',
         email_verified_at: null,
       });
-      return 'sc-tier3-surname-split';
+      return 'sc-low-surname-split';
     },
   },
 

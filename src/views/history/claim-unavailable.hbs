@@ -1,0 +1,25 @@
+{{! Uniform "claim unavailable" page.
+
+    Rendered when a claim against a historical-person record cannot proceed
+    for any reason: the record does not exist, has already been claimed, is
+    already linked to a legacy account, the surname on the record does not
+    match the requesting account, the requesting account is linked to an
+    incompatible legacy record, or any other validation failure. The page
+    intentionally does NOT distinguish between these cases (anti-enumeration:
+    DD §3.X / MIGRATION_PLAN §6.5). The operator can resolve the specific
+    cause from the application log written at render time.
+}}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p>We could not link this historical record to your account. If you believe this is your record, please contact an IFPA administrator and reference the URL of this page.</p>
+
+    <p class="mt-6"><a href="{{content.cancelHref}}">Back</a></p>
+  </section>
+</div>

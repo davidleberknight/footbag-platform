@@ -1,10 +1,7 @@
 # =============================================================================
 # Cache & origin-request policies
 # Managed policies (data sources) for HTML and static assets; one custom cache
-# policy for /media-store/* (query string in cache key, URL-versioned cache-bust)
-# reserved for the future production media S3 backend (production currently
-# has no S3 origin; staging has migrated to S3-served /media-store/*, production
-# follows at cutover).
+# policy for /media-store/* (query string in cache key, URL-versioned cache-bust).
 # =============================================================================
 
 data "aws_cloudfront_cache_policy" "caching_disabled" {
@@ -15,8 +12,8 @@ data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
 
-data "aws_cloudfront_origin_request_policy" "all_viewer" {
-  name = "Managed-AllViewer"
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host_header" {
+  name = "Managed-AllViewerExceptHostHeader"
 }
 
 data "aws_cloudfront_origin_request_policy" "cors_s3_origin" {
@@ -25,7 +22,7 @@ data "aws_cloudfront_origin_request_policy" "cors_s3_origin" {
 
 resource "aws_cloudfront_cache_policy" "media_assets" {
   name        = "${local.prefix}-media-assets"
-  comment     = "Edge cache for /media-store/* with query string in cache key (URL-versioned cache-bust). Reserved for the future production S3 media backend; not yet attached to any cache behavior."
+  comment     = "Edge cache for /media-store/* with query string in cache key (URL-versioned cache-bust)"
   min_ttl     = 0
   default_ttl = 604800   # 7 days; matches express.static maxAge
   max_ttl     = 31536000 # 1 year ceiling
@@ -43,6 +40,59 @@ resource "aws_cloudfront_cache_policy" "media_assets" {
     query_strings_config {
       query_string_behavior = "all"
     }
+  }
+}
+
+# =============================================================================
+# Origin Access Control for the maintenance bucket.
+# Lets the CloudFront distribution read the maintenance.html object via SigV4
+# without exposing the bucket publicly. Paired with aws_s3_bucket_policy.maintenance
+# in s3.tf.
+# =============================================================================
+
+resource "aws_cloudfront_origin_access_control" "maintenance" {
+  name                              = "${local.prefix}-maintenance-oac"
+  description                       = "OAC for maintenance bucket"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# =============================================================================
+# Origin Access Control for the media bucket.
+# Lets the CloudFront distribution read media objects via SigV4 without
+# making the bucket public. Paired with aws_s3_bucket_policy.media in s3.tf.
+# =============================================================================
+
+resource "aws_cloudfront_origin_access_control" "media" {
+  name                              = "${local.prefix}-media-oac"
+  description                       = "OAC for media bucket (URL-versioned cache-bust + immutable PUTs)"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# =============================================================================
+# CloudFront Function: strip /media-store/ prefix from viewer-request URI
+# DD §1.5 says local-fs and S3 layouts mirror exactly, so S3 keys do NOT
+# have a /media-store/ prefix. The prefix is purely a URL convention. When
+# CloudFront forwards to S3, this function rewrites the URI so the origin
+# sees the actual S3 key. Without it, S3 looks up media-store/avatars/...
+# and 404s.
+# =============================================================================
+
+resource "aws_cloudfront_function" "strip_media_store_prefix" {
+  name    = "${local.prefix}-strip-media-store-prefix"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  comment = "Strips /media-store/ from viewer-request URI before forwarding to S3 origin (DD §1.5)"
+  code    = file("${path.module}/cloudfront-functions/strip-media-store-prefix.js")
+
+  # CloudFront Functions cannot be deleted while a distribution still
+  # references them, so renames or code changes that force replacement must
+  # use create-before-destroy.
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -83,15 +133,21 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # ── Origin: S3 maintenance page ───────────────────────────────────────────
+  # ── Origin: S3 maintenance page (OAC-protected) ──────────────────────────
   origin {
-    origin_id   = "s3-maintenance"
-    domain_name = aws_s3_bucket.maintenance.bucket_regional_domain_name
+    origin_id                = "s3-maintenance"
+    domain_name              = aws_s3_bucket.maintenance.bucket_regional_domain_name
+    origin_access_control_id = aws_cloudfront_origin_access_control.maintenance.id
+  }
 
-    s3_origin_config {
-      # TODO: Create an OAC and reference it here
-      origin_access_identity = ""
-    }
+  # ── Origin: media bucket via OAC ─────────────────────────────────────────
+  # CloudFront reads processed photo objects directly from S3. App writes
+  # are handled by the app_runtime IAM policy (Put/Delete/Head only); reads
+  # flow exclusively through this origin via OAC, never via direct S3 GetObject.
+  origin {
+    origin_id                = "media-s3-origin"
+    domain_name              = aws_s3_bucket.media.bucket_regional_domain_name
+    origin_access_control_id = aws_cloudfront_origin_access_control.media.id
   }
 
   # ── Default cache behaviour ───────────────────────────────────────────────
@@ -105,7 +161,7 @@ resource "aws_cloudfront_distribution" "main" {
     compress               = true
 
     cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
   }
 
   # ── Static assets — longer cache ─────────────────────────────────────────
@@ -160,22 +216,34 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.cors_s3_origin.id
   }
 
-  # ── Binary media storage (Lightsail origin until S3 cutover) ─────────────
-  # /media-store/* serves binary media bytes via the express.static mount on
-  # the lightsail origin until production cuts over to the S3 media backend
-  # (paralleling staging). At cutover, this behavior switches target_origin_id
-  # to the S3 origin and adopts the media_assets cache policy plus the
-  # strip-media-store-prefix CloudFront function.
+  # ── Member photos and system-account media (S3 origin) — query-string in cache key (URL-versioned cache-bust) ─
+  # Binary media is served under the dedicated `/media-store/*` URL prefix,
+  # disjoint from the `/media` user-facing app section (routes `/media`,
+  # `/media/:galleryId`, `/media/browse`). The app section flows through the
+  # default cache behavior to lightsail-origin; only `/media-store/*` is
+  # diverted to S3.
+  #
+  # No origin_request_policy: OAC handles SigV4 signing, and forwarding the
+  # viewer Host header to an S3 origin breaks virtual-host bucket routing.
+  # AllViewer forwarded Host=<cloudfront-domain> to S3, so S3 could not map
+  # the Host to any bucket and returned generic NotFound before the bucket
+  # policy was even evaluated. With no origin request policy plus a cache
+  # policy that forwards no headers/cookies, CloudFront sets Host to the S3
+  # origin domain and the OAC signature matches.
   ordered_cache_behavior {
     path_pattern           = "/media-store/*"
-    target_origin_id       = "lightsail-origin"
+    target_origin_id       = "media-s3-origin"
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
     compress               = true
 
-    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_optimized.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    cache_policy_id = aws_cloudfront_cache_policy.media_assets.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.strip_media_store_prefix.arn
+    }
   }
 
   # ── Health probes — pass through uncached ────────────────────────────────
@@ -187,7 +255,24 @@ resource "aws_cloudfront_distribution" "main" {
     cached_methods         = ["GET", "HEAD"]
 
     cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
+  }
+
+  # ── Maintenance page (S3 origin via OAC) ─────────────────────────────────
+  # CloudFront serves /maintenance.html from the maintenance S3 bucket via
+  # OAC. No origin_request_policy: OAC handles SigV4 signing, and forwarding
+  # the viewer Host header to an S3 origin breaks virtual-host bucket routing.
+  # Referenced by the custom_error_response blocks below to serve a static
+  # maintenance page during origin 5xx outages.
+  ordered_cache_behavior {
+    path_pattern           = "/maintenance.html"
+    target_origin_id       = "s3-maintenance"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    compress               = true
+
+    cache_policy_id = data.aws_cloudfront_cache_policy.caching_optimized.id
   }
 
   # ── Custom error: serve maintenance page on 5xx ──────────────────────────

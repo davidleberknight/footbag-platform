@@ -37,7 +37,11 @@ import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import {
+  insertMember,
+  insertMemberTierGrant,
+  createTestSessionJwt,
+} from '../fixtures/factories';
 
 const OWNER_ID    = 'member-mu-owner-001';
 const OWNER_SLUG  = 'mu_owner';
@@ -70,6 +74,14 @@ beforeAll(async () => {
 
   insertMember(db, { id: OWNER_ID, slug: OWNER_SLUG, display_name: 'Upload Owner' });
   insertMember(db, { id: OTHER_ID, slug: OTHER_SLUG, display_name: 'Other Member' });
+
+  // Grant Tier 1 to OWNER and OTHER so the requireTier1Benefits gate on
+  // POST /members/:slug/media/upload passes. Without this, every POST 403s
+  // from the gate before reaching the controller's owner check, and the
+  // cross-member 404 anti-enumeration test would no longer reach the
+  // owner-check branch it exists to verify.
+  insertMemberTierGrant(db, { member_id: OWNER_ID, new_tier_status: 'tier1' });
+  insertMemberTierGrant(db, { member_id: OTHER_ID, new_tier_status: 'tier1' });
   // System member row required by createGallery (it computes isFhOwned by
   // comparing ownerMemberId to the system member id). Member-owned galleries
   // never match this id but the lookup must succeed.

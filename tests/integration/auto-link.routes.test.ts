@@ -215,77 +215,118 @@ function linkageCounts() {
 }
 
 describe('verify → auto-link routing', () => {
-  it('Tier 1 verify redirects to /history/auto-link', async () => {
+  it('Tier 1 verify redirects to the unified wizard with the from=register flag', async () => {
     const token = issueVerifyToken('mem-rt-tier1');
     const res = await request(createApp()).get(`/verify/${token}`);
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/history/auto-link');
+    expect(res.headers.location).toBe('/members/rt_tier1/link-history?from=register');
   });
 
-  it('Tier 2 verify redirects to /history/auto-link', async () => {
+  it('Tier 2 verify redirects to the unified wizard with the from=register flag', async () => {
     const token = issueVerifyToken('mem-rt-tier2');
     const res = await request(createApp()).get(`/verify/${token}`);
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/history/auto-link');
+    expect(res.headers.location).toBe('/members/rt_tier2/link-history?from=register');
   });
 
-  it('Tier 3 verify continues to the existing manual /history/claim path', async () => {
+  it('low-confidence verify continues to the link-history wizard with the from=register flag and reason banner', async () => {
     const token = issueVerifyToken('mem-rt-tier3');
     const res = await request(createApp()).get(`/verify/${token}`);
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/history/claim');
+    expect(res.headers.location).toBe('/members/rt_tier3/link-history?from=register&reason=low_confidence');
   });
 
-  it("tier: 'none' verify continues to the existing /members/:slug dashboard", async () => {
+  it("tier: 'none' verify continues to the link-history wizard so the user sees Section B candidates", async () => {
     const token = issueVerifyToken('mem-rt-none');
     const res = await request(createApp()).get(`/verify/${token}`);
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/members/rt_none');
+    expect(res.headers.location).toBe('/members/rt_none/link-history?from=register');
   });
 });
 
-describe('GET /history/auto-link', () => {
-  async function verifyAndFollow(memberId: string) {
-    const token = issueVerifyToken(memberId);
-    const agent = request.agent(createApp());
-    const verifyRes = await agent.get(`/verify/${token}`);
-    expect(verifyRes.status).toBe(302);
-    return agent.get('/history/auto-link');
-  }
+describe('GET /history/auto-link — 301 to wizard (round-2 unification)', () => {
+  // The standalone /history/auto-link confirm page was deleted from the
+  // navigable surface as part of the "one place to link" decision. The
+  // verify-time classifier output now renders as a "This is me" card at
+  // the top of the unified wizard at /members/<slug>/link-history. The
+  // POST /history/auto-link/confirm endpoint stays (form action target).
 
-  it('Tier 1 renders the confirm UI naming the candidate HP', async () => {
-    const res = await verifyAndFollow('mem-rt-tier1');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Jordan Alpha');
-    expect(res.text).toContain('We found a match');
-    // "Yes" form POSTs to the one-turn commit endpoint with the personId
-    // carried in a hidden input (no GET bounce through /history/:personId/claim).
-    expect(res.text).toContain('action="/history/auto-link/confirm"');
-    expect(res.text).toContain(`value="${HP_TIER1}"`);
-  });
-
-  it('Tier 2 renders the confirm UI naming the canonical HP (diacritic preserved)', async () => {
-    const res = await verifyAndFollow('mem-rt-tier2');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Alex Martínez');
-    expect(res.text).toContain('action="/history/auto-link/confirm"');
-    expect(res.text).toContain(`value="${HP_TIER2}"`);
-  });
-
-  it('redirects to /login when unauthenticated', async () => {
+  it('redirects to /login when unauthenticated (auth gate before 301)', async () => {
     const res = await request(createApp()).get('/history/auto-link');
     expect(res.status).toBe(302);
     expect(res.headers.location).toMatch(/^\/login(\?.*)?$/);
   });
 
-  it('falls through to /history/claim when classification is no longer tier1/tier2', async () => {
-    // Tier 3 member who somehow reaches /history/auto-link (e.g. bookmark).
-    const token = issueVerifyToken('mem-rt-tier3');
+  it('Tier 1 verify lands on the wizard; auto_link_confirm card names the candidate HP', async () => {
+    const token = issueVerifyToken('mem-rt-tier1');
+    const agent = request.agent(createApp());
+    const verifyRes = await agent.get(`/verify/${token}`);
+    expect(verifyRes.status).toBe(302);
+    expect(verifyRes.headers.location).toBe('/members/rt_tier1/link-history?from=register');
+    const wiz = await agent.get(verifyRes.headers.location);
+    expect(wiz.status).toBe(200);
+    expect(wiz.text).toContain('Jordan Alpha');
+    // The "This is me" form posts to the one-turn auto-link confirm endpoint.
+    expect(wiz.text).toContain('action="/history/auto-link/confirm"');
+    expect(wiz.text).toContain(`value="${HP_TIER1}"`);
+  });
+
+  it('Tier 2 verify lands on the wizard; canonical HP name (diacritic) is preserved', async () => {
+    const token = issueVerifyToken('mem-rt-tier2');
+    const agent = request.agent(createApp());
+    const verifyRes = await agent.get(`/verify/${token}`);
+    expect(verifyRes.status).toBe(302);
+    const wiz = await agent.get(verifyRes.headers.location);
+    expect(wiz.status).toBe(200);
+    expect(wiz.text).toContain('Alex Martínez');
+    expect(wiz.text).toContain(`value="${HP_TIER2}"`);
+  });
+
+  it('Tier 2 wizard copy discloses the name-variant match', async () => {
+    const token = issueVerifyToken('mem-rt-tier2');
+    const agent = request.agent(createApp());
+    const verifyRes = await agent.get(`/verify/${token}`);
+    const wiz = await agent.get(verifyRes.headers.location);
+    expect(wiz.status).toBe(200);
+    expect(wiz.text).toMatch(/name variant/i);
+  });
+
+  it('Tier 1 wizard copy does not surface the name-variant disclosure', async () => {
+    const token = issueVerifyToken('mem-rt-tier1');
+    const agent = request.agent(createApp());
+    const verifyRes = await agent.get(`/verify/${token}`);
+    const wiz = await agent.get(verifyRes.headers.location);
+    expect(wiz.status).toBe(200);
+    expect(wiz.text).not.toMatch(/name variant/i);
+  });
+
+  it('arriving via ?from=register renders the "Skip and complete this later" affordance on the wizard', async () => {
+    const token = issueVerifyToken('mem-rt-tier1');
     const agent = request.agent(createApp());
     await agent.get(`/verify/${token}`);
-    const res = await agent.get('/history/auto-link');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/history/claim');
+    const wiz = await agent.get('/members/rt_tier1/link-history?from=register');
+    expect(wiz.status).toBe(200);
+    expect(wiz.text).toMatch(/Skip and complete this later/);
+  });
+
+  it('direct navigation to the wizard (no from=register) hides the skip affordance', async () => {
+    const token = issueVerifyToken('mem-rt-tier1');
+    const agent = request.agent(createApp());
+    await agent.get(`/verify/${token}`);
+    const wiz = await agent.get('/members/rt_tier1/link-history');
+    expect(wiz.status).toBe(200);
+    expect(wiz.text).not.toMatch(/Skip and complete this later/);
+  });
+
+  it('low-confidence verify lands on the wizard with the low-confidence banner (no auto_link_confirm card)', async () => {
+    const token = issueVerifyToken('mem-rt-tier3');
+    const agent = request.agent(createApp());
+    const verifyRes = await agent.get(`/verify/${token}`);
+    expect(verifyRes.headers.location).toBe('/members/rt_tier3/link-history?from=register&reason=low_confidence');
+    const wiz = await agent.get(verifyRes.headers.location);
+    expect(wiz.status).toBe(200);
+    expect(wiz.text).toContain("We searched for a confident match and didn't find one");
+    expect(wiz.text).not.toContain('action="/history/auto-link/confirm"');
   });
 });
 
@@ -331,29 +372,29 @@ describe('POST /history/auto-link/confirm', () => {
     return row ?? { hp: null, lm: null };
   }
 
-  it('Tier 1 + matching personId commits and redirects to /members/:slug', async () => {
+  it('Tier 1 + matching personId commits and redirects to wizard (linked badge visible)', async () => {
     const agent = await verifiedAgent('mem-pc-t1');
     const res = await agent
       .post('/history/auto-link/confirm')
       .type('form')
       .send({ personId: HP_PC_T1 });
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/members/pc_t1');
+    expect(res.headers.location).toBe('/members/pc_t1/link-history');
     expect(memberLink('mem-pc-t1').hp).toBe(HP_PC_T1);
   });
 
-  it('Tier 2 + matching personId commits and redirects to /members/:slug', async () => {
+  it('Tier 2 + matching personId commits and redirects to wizard (linked badge visible)', async () => {
     const agent = await verifiedAgent('mem-pc-t2');
     const res = await agent
       .post('/history/auto-link/confirm')
       .type('form')
       .send({ personId: HP_PC_T2 });
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/members/pc_t2');
+    expect(res.headers.location).toBe('/members/pc_t2/link-history');
     expect(memberLink('mem-pc-t2').hp).toBe(HP_PC_T2);
   });
 
-  it('classifier now tier3: 302 /history/claim?reason=classification_changed, no commit', async () => {
+  it('classifier now tier3: 302 to wizard with reason=low_confidence (drift collapsed), no commit', async () => {
     const before = memberLink('mem-rt-tier3');
     const agent = await verifiedAgent('mem-rt-tier3');
     const res = await agent
@@ -361,11 +402,11 @@ describe('POST /history/auto-link/confirm', () => {
       .type('form')
       .send({ personId: 'anything-random' });
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/history/claim?reason=classification_changed');
+    expect(res.headers.location).toBe('/members/rt_tier3/link-history?reason=low_confidence');
     expect(memberLink('mem-rt-tier3')).toEqual(before);
   });
 
-  it("classifier now 'none': 302 /members/:slug, no commit", async () => {
+  it("classifier now 'none': 302 to wizard, no commit", async () => {
     const before = memberLink('mem-rt-none');
     const agent = await verifiedAgent('mem-rt-none');
     const res = await agent
@@ -373,11 +414,11 @@ describe('POST /history/auto-link/confirm', () => {
       .type('form')
       .send({ personId: 'anything-random' });
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/members/rt_none');
+    expect(res.headers.location).toBe('/members/rt_none/link-history');
     expect(memberLink('mem-rt-none')).toEqual(before);
   });
 
-  it('personId mismatch (classifier sees a different tier1 HP): 302 /history/claim?reason=classification_changed, no commit', async () => {
+  it('personId mismatch: 302 to wizard with reason=low_confidence (drift collapsed), no commit', async () => {
     const before = memberLink('mem-pc-mismatch');
     const agent = await verifiedAgent('mem-pc-mismatch');
     const res = await agent
@@ -385,44 +426,27 @@ describe('POST /history/auto-link/confirm', () => {
       .type('form')
       .send({ personId: HP_PC_STRANGER });
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/history/claim?reason=classification_changed');
+    expect(res.headers.location).toBe('/members/pc_mismatch/link-history?reason=low_confidence');
     expect(memberLink('mem-pc-mismatch')).toEqual(before);
   });
 
-  it('follow the drift redirect: GET /history/claim?reason=classification_changed renders the explainer', async () => {
+  it('follow the drift redirect: lands on the wizard with the low-confidence banner (drift collapsed)', async () => {
+    // Round-2 collapse: classification drift no longer routes to a separate
+    // explainer page. It renders the same low-confidence banner as the
+    // verify-time low classifier output, on the same wizard, since both
+    // signal "we couldn't confirm a match."
     const agent = await verifiedAgent('mem-pc-mismatch');
     const redirect = await agent
       .post('/history/auto-link/confirm')
       .type('form')
       .send({ personId: HP_PC_STRANGER });
     expect(redirect.status).toBe(302);
+    expect(redirect.headers.location).toBe('/members/pc_mismatch/link-history?reason=low_confidence');
 
     const rendered = await agent.get(redirect.headers.location);
     expect(rendered.status).toBe(200);
-    expect(rendered.text).toContain(
-      "We couldn&#x27;t automatically confirm your match. Please review and select your record manually.",
-    );
-    // Uses the existing form-notice pattern (role="status"), not a new one.
+    expect(rendered.text).toContain("We searched for a confident match and didn't find one");
     expect(rendered.text).toContain('class="form-notice"');
-  });
-
-  it('tier3 reason-aware message wins over the drift copy when both would apply', async () => {
-    // mem-rt-tier3 arrives at /history/claim?reason=classification_changed
-    // AND the classifier currently returns tier3/no_hp_for_legacy_account.
-    // The more specific tier3 message should render; the generic drift
-    // copy should NOT appear.
-    const agent = await verifiedAgent('mem-rt-tier3');
-    const res = await agent.get('/history/claim?reason=classification_changed');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('yet linked to a competition profile');
-    expect(res.text).not.toContain('automatically confirm your match');
-  });
-
-  it('drift copy does not render without the query param', async () => {
-    const agent = await verifiedAgent('mem-rt-none');
-    const res = await agent.get('/history/claim');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('automatically confirm your match');
   });
 
   it('ValidationError (HP already claimed by another member): 422 re-renders confirm with error', async () => {

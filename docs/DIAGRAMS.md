@@ -1,6 +1,6 @@
 # Footbag Website Modernization Project -- Diagrams
 
-Visual aids for understanding the system design. Eight diagrams cover production infrastructure, software layer architecture, authentication flows, request routing, the data model, read/write request lifecycles, development environment parity, and background worker jobs.
+Visual aids for understanding the system design. Six diagrams cover production infrastructure, software layer architecture, authentication flows, request routing, read/write request lifecycles, and development environment parity.
 
 **Table of Contents**
 
@@ -55,10 +55,10 @@ Visual aids for understanding the system design. Eight diagrams cover production
     SQLite snapshots (every 5 min)       photo variants (on upload)
              ↓                                      ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│  S3: footbag-data-prod              S3: footbag-media-prod          │
+│  S3: footbag-production-snapshots   S3: footbag-production-media    │
 │  SQLite backup snapshots (30d)      Thumbnail + display JPEG        │
 │  WORM Object Lock protection        → auto-replicated to            │
-│                                     footbag-media-backup (us-east-1)│
+│                                     footbag-production-dr (other rgn)│
 └─────────────────────────────────────────────────────────────────────┘
 
   AWS managed services (accessed via IAM role — no hardcoded secrets):
@@ -134,7 +134,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 ║                                                                     ║
 ║  Adapters  (same interface; implementation switches by env):        ║
 ║    SesAdapter  ·  MediaStorageAdapter  ·  PaymentAdapter            ║
-║    SecretsAdapter  ·  JwtSigningAdapter  ·  LoggingAdapter          ║
+║    SecretsAdapter  ·  JwtSigningAdapter  ·  SafeBrowsingAdapter     ║
 ╚═════════════════════════════════════════════════════════════════════╝
 
   ↕
@@ -152,7 +152,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 ════════════════════════════  LOGIN FLOW  ═════════════════════════════
 
   Browser:  POST /auth/login  { email, password }
-  (No CSRF token needed — SameSite=Lax blocks cross-site POST)
+  (No CSRF token needed; SameSite=Lax blocks cross-site POST, Origin pinning blocks same-site subdomain POST)
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  web Controller                                                     │
@@ -240,7 +240,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
   Current device stays logged in — response carries fresh JWT.
 ```
 
-**Caption:** Login signs a JWT via AWS KMS (`kms:Sign`) — the signing key never leaves KMS. The token carries a `passwordVersion` field that enables immediate cross-device logout: every authenticated request reads the member row from SQLite and compares the JWT's `passwordVersion` against the current database value. A mismatch immediately invalidates all sessions without maintaining a token blacklist. On password change, a fresh JWT with the new `passwordVersion` is issued to the current device so it remains logged in; all other devices are rejected on their next request. Cookies are `SameSite=Lax` — sufficient CSRF protection when combined with strict HTTP verb discipline; no synchronizer tokens are needed.
+**Caption:** Login signs a JWT via AWS KMS (`kms:Sign`); the signing key never leaves KMS. The token carries a `passwordVersion` field that enables immediate cross-device logout: every authenticated request reads the member row from SQLite and compares the JWT's `passwordVersion` against the current database value. A mismatch immediately invalidates all sessions without maintaining a token blacklist. On password change, a fresh JWT with the new `passwordVersion` is issued to the current device so it remains logged in; all other devices are rejected on their next request. Cookies are `SameSite=Lax`; combined with strict HTTP verb discipline and Origin-header pinning on state-changing requests, this provides full CSRF protection without synchronizer tokens.
 
 ---
 
@@ -379,7 +379,7 @@ Visual aids for understanding the system design. Eight diagrams cover production
 ════════  WRITE PATH  (e.g.  POST /events/123 — update event)  ════════
 
   Browser:  POST /events/123  { title, description, expectedVersion: 5 }
-  Cookie:   session=<JWT>  |  SameSite=Lax blocks cross-site POST
+  Cookie:   session=<JWT>  |  SameSite=Lax + Origin pin block CSRF
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  CloudFront → nginx → web container                                 │
@@ -437,16 +437,17 @@ Visual aids for understanding the system design. Eight diagrams cover production
 ════════════  ADAPTER SWITCHES  (controlled by NODE_ENV)  ═════════════
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Adapter               Production                Development        │
+│  Adapter                  Production                Development     │
 │  ───────────────────────────────────────────────────────────────────│
-│  SesAdapter           AWS SES (LiveSesAdapter)   StubSesAdapter     │
-│  MediaStorageAdapter  S3 (staging/prod impl)     LocalMediaStorage  │
-│  PaymentAdapter       Stripe live/test SDK       Configurable mock  │
-│  SecretsAdapter       Parameter Store (SSM)      .secrets.local.json│
-│  JwtSigningAdapter    AWS KMS (KmsJwtAdapter)    LocalJwtAdapter    │
-│  LoggingAdapter       CloudWatch Logs            Local log files    │
-│  MetricsAdapter       CloudWatch Metrics         In-memory store    │
-│  URLValidationAdapter Google Safe Browsing API   Syntax check only  │
+│  SesAdapter              LiveSesAdapter             StubSesAdapter  │
+│  MediaStorageAdapter     S3 (staging/prod impl)     LocalFS impl    │
+│  PaymentAdapter          Stripe live/test SDK       Configurable mock│
+│  SecretsAdapter          LiveSecretsAdapter (SSM)   LocalSecretsAdapter│
+│  JwtSigningAdapter       KmsJwtSigningAdapter (KMS) LocalJwtSigningAdapter│
+│  SafeBrowsingAdapter     LiveSafeBrowsingAdapter    StubSafeBrowsingAdapter│
+│  HttpReachabilityAdapter LiveHttpReachabilityAdapter StubHttpReachabilityAdapter│
+│  ImageProcessingAdapter  HttpImageAdapter           HttpImageAdapter│
+│  VideoTranscodingAdapter HttpVideoTranscodingAdapter HttpVideoTranscodingAdapter│
 └─────────────────────────────────────────────────────────────────────┘
 
 ═══════════════════════════  NOT SWITCHED  ════════════════════════════
@@ -454,8 +455,10 @@ Visual aids for understanding the system design. Eight diagrams cover production
 ┌─────────────────────────────────────────────────────────────────────┐
 │  SQLite database                                                    │
 │    Same footbag.db schema and db.ts on local filesystem.            │
-│    S3 backup disabled via  ENABLE_S3_BACKUP=false.                  │
-│    Migrations run identically:  node migrate.js                     │
+│    S3 backup is environment-aware via MEDIA_STORAGE_ADAPTER and     │
+│    OperationsPlatformService config; disabled by default in dev.    │
+│    Initial schema bootstrap from schema.sql; no migration chain in  │
+│    scope (DD §1.1).                                                 │
 │                                                                     │
 │  Image processing                                                   │
 │    Same image container with Sharp — identical re-encoding.         │

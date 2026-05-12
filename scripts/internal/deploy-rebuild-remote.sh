@@ -173,10 +173,20 @@ if grep -q '^FOOTBAG_DB_PATH=/srv/footbag/footbag.db$' "$ENV_PATH"; then
   rm -f /srv/footbag/footbag.db /srv/footbag/footbag.db-wal /srv/footbag/footbag.db-shm
 fi
 
-# One-shot migration: SES_SANDBOX_MODE seed
+# One-shot migration: SES_SANDBOX_MODE seed. Default 1 on first deploy of either
+# environment: SES is in sandbox on day 0 until AWS grants production access.
+# After SES production access is granted, the operator edits /srv/footbag/env
+# to set SES_SANDBOX_MODE=0 and redeploys; the if-not-already-set check below
+# preserves that operator edit on subsequent deploys.
 if ! grep -q '^SES_SANDBOX_MODE=' "$ENV_PATH"; then
-  echo "    Seeding SES_SANDBOX_MODE=1 into env file (staging sandbox default)..."
+  echo "    Seeding SES_SANDBOX_MODE=1 into env file (initial SES sandbox default)..."
   echo 'SES_SANDBOX_MODE=1' >> "$ENV_PATH"
+  if [[ "$FOOTBAG_ENV" == "production" ]]; then
+    echo "    NOTE: production seed is also 1 because SES is in sandbox on day 0." >&2
+    echo "    NOTE: after AWS grants SES production access, edit /srv/footbag/env" >&2
+    echo "          to set SES_SANDBOX_MODE=0 and redeploy. Without this flip," >&2
+    echo "          /register/check-email shows a stale sandbox warning banner." >&2
+  fi
 fi
 
 # One-shot migration: MEDIA_STORAGE_ADAPTER seed. Both staging and production
@@ -236,7 +246,12 @@ NODE_ENV_VAL=$(require_env NODE_ENV)
 LOG_LEVEL_VAL=$(require_env LOG_LEVEL)
 DB_PATH=$(require_env FOOTBAG_DB_PATH)
 PUBLIC_BASE_URL_VAL=$(require_env PUBLIC_BASE_URL)
-SESSION_SECRET_VAL=$(require_env SESSION_SECRET)
+# SESSION_SECRET is intentionally NOT pulled from /srv/footbag/env here.
+# Terraform owns the canonical value (random_id.session_secret in
+# terraform/{env}/ssm.tf); the SSM-sync block below fetches that value,
+# writes it into /srv/footbag/env, and sets SESSION_SECRET_VAL. First-
+# deploy bootstrap: the host's /srv/footbag/env does not need a manual
+# SESSION_SECRET= line ahead of time.
 JWT_SIGNER_VAL=$(require_env JWT_SIGNER)
 JWT_KMS_KEY_ID_VAL=$(require_env JWT_KMS_KEY_ID)
 SES_ADAPTER_VAL=$(require_env SES_ADAPTER)
@@ -299,20 +314,97 @@ chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 unset ORIGIN_VERIFY_SECRET_VAL
 
-# Update FOOTBAG_INITIAL_ADMIN_EMAILS from the workstation's
-# .local/initial-admins.txt content (passed via cat-pipe). Empty value clears
-# the var so removing an email from the file and redeploying correctly drops
-# admin from a future registration.
-: "${FOOTBAG_INITIAL_ADMIN_EMAILS=}"
-echo "    Updating FOOTBAG_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
+# Sync SESSION_SECRET from SSM to /srv/footbag/env. Mirrors the
+# X_ORIGIN_VERIFY_SECRET pattern above: the canonical value is generated
+# by random_id.session_secret in terraform/{env}/ssm.tf; this fetch
+# keeps the host env in sync after a `terraform apply
+# -replace=random_id.session_secret`. SESSION_SECRET rotation invalidates
+# every active session (cookie signatures fail under the new secret).
+# IAM: same as X_ORIGIN_VERIFY_SECRET — app_runtime holds ssm:GetParameter
+# on /footbag/{env}/* and kms:Decrypt on the main key.
+ssm_session_param="/footbag/${FOOTBAG_ENV_VAL}/secrets/session_secret"
+echo "    Syncing SESSION_SECRET from $ssm_session_param ..."
+SESSION_SECRET_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_session_param" \
+    --with-decryption \
+    --query 'Parameter.Value' \
+    --output text
+) || { echo "ERROR: aws ssm get-parameter failed for $ssm_session_param" >&2; exit 1; }
+
+# Defense-in-depth shape check (the env.ts boot guard at src/config/env.ts
+# applies the same rules; we catch them here so a broken SSM value fails
+# the deploy loud rather than crash-looping the stack on restart).
+if [[ "$SESSION_SECRET_VAL" == TODO-* ]]; then
+  echo "ERROR: SSM $ssm_session_param still has the bootstrap placeholder." >&2
+  echo "       From the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  echo "       This swaps the placeholder for a random_id-generated 64-hex value, then re-run this deploy." >&2
+  exit 1
+fi
+if [[ "$SESSION_SECRET_VAL" == *'#'* ]]; then
+  echo "ERROR: SSM $ssm_session_param contains '#' which breaks systemd EnvironmentFile parsing." >&2
+  exit 1
+fi
+if [[ "${SESSION_SECRET_VAL,,}" == *changeme* ]]; then
+  echo "ERROR: SSM $ssm_session_param contains 'changeme'; generate a fresh value via terraform apply -replace=random_id.session_secret." >&2
+  exit 1
+fi
+if (( ${#SESSION_SECRET_VAL} < 32 )); then
+  echo "ERROR: SSM $ssm_session_param is ${#SESSION_SECRET_VAL} chars; minimum is 32." >&2
+  exit 1
+fi
+
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^FOOTBAG_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
-printf 'FOOTBAG_INITIAL_ADMIN_EMAILS=%s\n' "$FOOTBAG_INITIAL_ADMIN_EMAILS" >> "$env_tmp"
+grep -v '^SESSION_SECRET=' "$ENV_PATH" > "$env_tmp" || true
+printf 'SESSION_SECRET=%s\n' "$SESSION_SECRET_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
+
+# Update FOOTBAG_DEV_INITIAL_ADMIN_EMAILS from the workstation's
+# .local/initial-admins.txt content (passed via cat-pipe). Empty value clears
+# the var so removing an email from the file and redeploying correctly drops
+# admin from a future registration.
+#
+# Production refusal: this allowlist is a dev/staging-only shortcut. Production
+# first-admin uses the separate SSM-token claim mechanism documented in
+# DESIGN_DECISIONS §3.6 ("Production first-admin design"). Refuse the value
+# unless FOOTBAG_ENV is explicitly 'development' or 'staging' — production OR an
+# unset/misspelled FOOTBAG_ENV both trip this guard before anything lands on
+# disk. (env.ts also boot-fail-fasts under the same condition; this
+# script-level guard catches the misconfiguration earlier.)
+: "${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=}"
+if [[ -n "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" && "$FOOTBAG_ENV" != "development" && "$FOOTBAG_ENV" != "staging" ]]; then
+  echo "ERROR: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev/staging-only but was passed with FOOTBAG_ENV=${FOOTBAG_ENV:-<unset>}." >&2
+  echo "       Production-first-admin uses the SSM-token claim path; see DESIGN_DECISIONS §3.6." >&2
+  echo "       Either empty .local/initial-admins.txt on this workstation before redeploying," >&2
+  echo "       or use a workstation that does not have the file present." >&2
+  exit 1
+fi
+if [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
+  echo "    Updating FOOTBAG_DEV_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
+  printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%s\n' "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+  # Defense in depth: drop any legacy FOOTBAG_INITIAL_ADMIN_EMAILS line that
+  # may persist from before the rename, so an old key cannot resurrect itself.
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^FOOTBAG_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+fi
 
 if [[ "$SESSION_SECRET_VAL" == *'#'* ]]; then
   echo "SESSION_SECRET contains '#' which breaks systemd EnvironmentFile parsing" >&2
@@ -434,3 +526,39 @@ if ! systemctl is-active --quiet footbag.service; then
 fi
 
 systemctl status footbag.service --no-pager -l
+
+# CUTOVER-REMOVE: post-deploy dev-admin seed. Runs only when the workstation
+# passed a non-empty FOOTBAG_DEV_ADMIN_SEED_JSON via cat-pipe (set by
+# --seed-dev-admins; otherwise the var arrives empty and we skip). The env
+# var is transient: it is NOT written to /srv/footbag/env, so a future
+# restart cannot replay it. The seed script's own marker-based idempotency
+# makes a replay harmless even if the var were persisted, but transient is
+# cleaner.
+#
+# Runs inside the web container via `node dist/dev-admin-shortcuts/seed.js`
+# (compiled at build time; no tsx in the runtime image). The container
+# reads FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts
+# throws on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh
+# wrapper also allowlists --seed-dev-admins to DEPLOY_TARGET=footbag-staging
+# only.
+#
+# argv-leak hardening: the seed JSON content is piped to the container via
+# stdin and reassigned to the env-var inside the container's shell. Passing it
+# via `docker compose exec -e "VAR=value"` would put the JSON in the exec
+# subprocess's argv where `ps -ef` on the host can read it. Stdin keeps the
+# value off any process's argv on the host. Mirrors the sudo-password pattern
+# at the top of every remote-half script.
+if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
+  echo "    Running dev-admin seed (transient stdin-piped input)..."
+  # FOOTBAG_ENV is NOT overridden here: the container's /srv/footbag/env sets
+  # it per host. seedConfig.ts throws on import when FOOTBAG_ENV='production',
+  # which is the in-app guard. Overriding FOOTBAG_ENV here would defeat that
+  # guard if this code ever ran on a production host.
+  if ! printf '%s' "$FOOTBAG_DEV_ADMIN_SEED_JSON" \
+      | compose_cmd exec -T \
+        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-admin-shortcuts/seed.js'; then
+    echo "    WARNING: dev-admin seed step exited non-zero." >&2
+    echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
+    echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
+  fi
+fi

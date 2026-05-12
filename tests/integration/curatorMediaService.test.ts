@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertCuratorUrlReference } from '../fixtures/factories';
+import { insertMember, insertMemberTierGrant, insertCuratorUrlReference } from '../fixtures/factories';
 import sharp from 'sharp';
 import { promises as fsp } from 'fs';
 import path from 'path';
@@ -30,6 +30,10 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'curator_admin', is_admin: 1 });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky', is_system: 1, real_name: 'Footbag Hacky', display_name: 'Footbag Hacky' });
+  // Admin Tier 2 per USER_STORIES §3.6 — required so the
+  // assertTier1Benefits defense-in-depth check in curatorMediaService
+  // does not block admin-actor service calls in this suite.
+  insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier2', reason_code: 'purchase.tier2' });
   db.close();
   svcModule = await import('../../src/services/curatorMediaService');
 });
@@ -1405,6 +1409,7 @@ describe('curatorMediaService.updateGallery', () => {
     const galleryId = 'gallery_m_updmember01';
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal-upd-m', login_email: 'gal-upd-m@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.prepare(
       `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
                                      created_at, created_by, updated_at, updated_by, version)
@@ -1452,6 +1457,7 @@ describe('curatorMediaService.updateGallery', () => {
     const db = openDb();
     for (const [id, slug] of [[ownerId, 'gal-upd-own'], [otherId, 'gal-upd-other']] as const) {
       insertMember(db, { id, slug, login_email: `${slug}@example.com` });
+      insertMemberTierGrant(db, { member_id: id, new_tier_status: 'tier1' });
     }
     db.prepare(
       `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
@@ -1484,6 +1490,7 @@ describe('curatorMediaService.updateGallery', () => {
     const galleryId = 'gallery_m_updmod01';
     const db = openDb();
     insertMember(db, { id: ownerId, slug: 'gal-upd-mod', login_email: 'gal-upd-mod@example.com' });
+    insertMemberTierGrant(db, { member_id: ownerId, new_tier_status: 'tier1' });
     db.prepare(
       `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
                                      created_at, created_by, updated_at, updated_by, version)
@@ -1541,6 +1548,7 @@ describe('curatorMediaService.createGallery', () => {
     const memberId = 'member-gal-create-m';
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal_create_m', login_email: 'gal-create-m@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-m-'));
@@ -1617,6 +1625,7 @@ describe('curatorMediaService.createGallery', () => {
     const memberId = 'member-gal-create-fh-deny';
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal-fh-deny', login_email: 'gal-fh-deny@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-create-fh-deny-'));
@@ -1645,6 +1654,7 @@ describe('curatorMediaService.createGallery', () => {
     const db = openDb();
     for (const [id, slug] of [[memberA, 'gal-fA'], [memberB, 'gal-fB']] as const) {
       insertMember(db, { id, slug, login_email: `${slug}@example.com` });
+      insertMemberTierGrant(db, { member_id: id, new_tier_status: 'tier1' });
     }
     db.close();
 
@@ -1691,6 +1701,7 @@ describe('curatorMediaService.createGallery', () => {
     const ownerSlug = 'gal_validate';
     const db = openDb();
     insertMember(db, { id: memberId, slug: ownerSlug, login_email: 'gal-validate@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-validate-'));
@@ -1723,6 +1734,7 @@ describe('curatorMediaService.createGallery', () => {
     const memberId = 'member-gal-conflict';
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal_conflict', login_email: 'gal-conflict@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-conflict-'));
@@ -1758,6 +1770,8 @@ describe('curatorMediaService.createGallery', () => {
     const db = openDb();
     insertMember(db, { id: ownerA, slug: 'gal_slug_a', login_email: 'gsa@example.com' });
     insertMember(db, { id: ownerB, slug: 'gal_slug_b', login_email: 'gsb@example.com' });
+    insertMemberTierGrant(db, { member_id: ownerA, new_tier_status: 'tier1' });
+    insertMemberTierGrant(db, { member_id: ownerB, new_tier_status: 'tier1' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-slug-'));
@@ -1801,6 +1815,7 @@ describe('curatorMediaService.createGallery', () => {
     const memberId = 'member-gal-noslug';
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal_noslug', login_email: 'gns@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.close();
 
     const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'svc-gal-noslug-'));
@@ -1871,6 +1886,7 @@ describe('curatorMediaService.deleteGallery', () => {
     const galleryId = 'gallery_m_delmember01';
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal-del-m', login_email: 'gal-del-m@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     db.prepare(
       `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
                                      created_at, created_by, updated_at, updated_by, version)
@@ -1921,6 +1937,7 @@ describe('curatorMediaService.deleteGallery', () => {
     const db = openDb();
     for (const [id, slug] of [[ownerId, 'gal-del-own'], [otherId, 'gal-del-other']] as const) {
       insertMember(db, { id, slug, login_email: `${slug}@example.com` });
+      insertMemberTierGrant(db, { member_id: id, new_tier_status: 'tier1' });
     }
     db.prepare(
       `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,
@@ -1953,6 +1970,7 @@ describe('curatorMediaService.listGalleriesForOwner', () => {
     const otherGalleryId = 'gallery_m_listowner02';
     const db = openDb();
     insertMember(db, { id: memberId, slug: 'gal-list-owner', login_email: 'gal-list-owner@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
     for (const [id, name] of [[galleryId, 'Bravo'], [otherGalleryId, 'Alpha']] as const) {
       db.prepare(
         `INSERT INTO member_galleries (id, owner_member_id, name, description, sort_order,

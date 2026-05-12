@@ -65,6 +65,13 @@ MODIFIERS
                                default-yes answer. CI / scripted use.
   -W, --no-s3-wipe             When media sync runs, skip the S3 wipe;
                                still rsync new bytes additively.
+  --seed-dev-admins            After the deploy completes, run the
+                               dev-admin seed inside the web container.
+                               Reads .local/staging-admin-seed.json
+                               (gitignored, per-maintainer) and inserts
+                               maintainer admin accounts. Allowlisted to
+                               DEPLOY_TARGET=footbag-staging only.
+                               CUTOVER-REMOVE.
   -n, --dry-run                Print planned actions; run nothing.
   -h, --help                   Show this message.
 
@@ -121,6 +128,7 @@ NO_S3_WIPE_FLAG="no"
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
+SEED_DEV_ADMINS="no"  # --seed-dev-admins: post-deploy dev-admin seed (CUTOVER-REMOVE)
 
 # Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
 # handle each independently.
@@ -153,6 +161,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     -n|--dry-run)          DRY_RUN="yes" ;;
     --from-csv)            FROM_CSV="yes" ;;
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
+    --seed-dev-admins)     SEED_DEV_ADMINS="yes" ;;
     *)
       echo "ERROR: unknown flag '$arg'" >&2
       echo "" >&2
@@ -287,6 +296,7 @@ echo "    rebuild local DB: ${REBUILD_LOCAL}"
 echo "    replace staging:  ${REPLACE_STAGING}"
 echo "    sync media:       yes (additive)"
 echo "    wipe S3 first:    ${WIPE_S3}"
+echo "    seed dev admins:  ${SEED_DEV_ADMINS}"
 echo "    dry run:          ${DRY_RUN}"
 echo ""
 
@@ -368,6 +378,14 @@ fi
 # -----------------------------------------------------------------------------
 # CURATOR_SEED defaults to yes; honor the env override (CURATOR_SEED=no).
 export CURATOR_SEED="${CURATOR_SEED:-yes}"
+
+# CUTOVER-REMOVE: SEED_DEV_ADMINS, explicit opt-in; defaults to no. The
+# leaf scripts (deploy-code.sh / deploy-rebuild.sh) read this and, if
+# yes, validate .local/staging-admin-seed.json and pipe its content
+# through the SSH cat-pipe alongside FOOTBAG_DEV_INITIAL_ADMIN_EMAILS.
+# The staging-side remote scripts then run the seed inside the web
+# container.
+export SEED_DEV_ADMINS
 
 # SYNC_MEDIA: always yes when shipping anything (additive rsync).
 export SYNC_MEDIA="yes"

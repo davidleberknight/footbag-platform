@@ -175,32 +175,42 @@ describe('GET /history/:personId/claim', () => {
     expect(res.text).toContain('NZ'); // country surfaced
   });
 
-  it('authenticated, surname mismatch -> 422 with mismatch error', async () => {
+  // Anti-enumeration (DD §7.7 / §3.X + MIGRATION_PLAN §6.5): every failure
+  // mode on /history/:personId/claim must produce an observationally
+  // identical response so an attacker probing personIds cannot enumerate HP
+  // claim status. All four cases below render the same uniform
+  // claim-unavailable page (200, no per-reason text, no per-reason redirect).
+  // The specific reason is captured in the application log for operator
+  // forensics; it is not surfaced in the response.
+  it('authenticated, surname mismatch -> uniform claim-unavailable page', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('does not match');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).not.toContain('does not match');
   });
 
-  it('HP already claimed by another member -> 422', async () => {
+  it('HP already claimed by another member -> uniform claim-unavailable page', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_TAKEN}/claim`).set('Cookie', claimerCookie());
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already been claimed');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).not.toContain('already been claimed');
   });
 
-  it('HP tied to a legacy_member claimed by someone else -> 422', async () => {
+  it('HP tied to a legacy_member claimed by someone else -> uniform claim-unavailable page', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_LM_TAKEN}/claim`).set('Cookie', claimerCookie());
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('legacy account');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim unavailable');
+    expect(res.text).not.toContain('legacy account');
   });
 
-  it('unknown HP -> 302 redirect to /history/:id (which will 404)', async () => {
+  it('unknown HP -> uniform claim-unavailable page (anti-enumeration: same as ineligible-HP responses)', async () => {
     const app = createApp();
     const res = await request(app).get('/history/does-not-exist/claim').set('Cookie', claimerCookie());
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain('/history/does-not-exist');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Claim unavailable');
   });
 });
 

@@ -28,6 +28,18 @@ export function isBusyOrLockedSqliteError(error: unknown): boolean {
   return code === 'SQLITE_BUSY' || code === 'SQLITE_LOCKED';
 }
 
+/**
+ * True when the error is a UNIQUE-constraint violation surfaced by
+ * better-sqlite3. Used by services that race the DB to a unique key
+ * (registration email, registration slug) and want to convert the
+ * SQLITE_CONSTRAINT_UNIQUE into a typed "already exists" outcome rather
+ * than let the constraint error propagate as a 500 to the controller.
+ */
+export function isUniqueConstraintError(error: unknown): boolean {
+  const code = getSqliteErrorCode(error);
+  return code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY';
+}
+
 export function runSqliteRead<T>(operationName: string, work: () => T): T {
   try {
     return work();

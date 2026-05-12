@@ -1,10 +1,13 @@
-import { account, publicPlayers, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow } from '../db/db';
+import { account, publicPlayers, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { PageViewModel } from '../types/page';
 import { groupPlayerResults } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
+import { getTierStatus, type MemberTier, type UnderlyingTier } from './membershipTieringService';
+import { getStatus as getActivePlayerStatus } from './activePlayerService';
+import { formatDateDisplay } from './dateFormat';
 
 const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
@@ -26,10 +29,57 @@ export interface MemberSearchResult {
   tooShort: boolean;
 }
 
-export interface MembersLandingContent {
-  profileSlug: string;
-  displayName: string;
-  search: MemberSearchResult | null;
+export interface ActivePlayerView {
+  isCurrent: boolean;
+  expiresAtDisplay: string | null;
+}
+
+export interface TierStatusView {
+  tierBadgeText: string;
+  benefitsBlurb: string;
+  /** Tier 0 only; null for Tier 1+ since AP is irrelevant there. */
+  activePlayer: ActivePlayerView | null;
+  /** Tier 3 only; null otherwise. */
+  underlyingTierBadgeText: string | null;
+  showTier1Upgrade: boolean;
+  showTier2Upgrade: boolean;
+}
+
+export interface QuickAction {
+  label: string;
+  href: string;
+}
+
+export interface ComingSoonFeature {
+  label: string;
+  description: string;
+}
+
+export interface IdentityLinkView {
+  legacyAccount: {
+    linked: boolean;
+    sinceDisplay: string | null;
+  };
+  historicalPerson: {
+    linked: boolean;
+    summary: string | null;
+  };
+  cta: {
+    href: string;
+    label: string;
+  } | null;
+}
+
+export interface MemberWelcomeTier {
+  label: string;
+  blurb: string;
+}
+
+export interface MemberWelcomeContent {
+  /** Sign Up + Log In cards render only for unauthenticated visitors. */
+  showJoinCtas: boolean;
+  /** Tier 0 → 3 in canonical order, with display labels and benefit blurbs. */
+  tiers: ReadonlyArray<MemberWelcomeTier>;
 }
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members', 'public']);
 
@@ -54,12 +104,33 @@ export interface OwnProfileContent {
   profileBase?: string;
   avatarThumbUrl: string | null;
   eventGroups?: PlayerEventGroup[];
+  /** Personal-home dashboard composition. Profile absorbs the dashboard. */
+  membership?: TierStatusView;
+  identity?: IdentityLinkView;
+  quickActions?: QuickAction[];
+  search?: SearchBlockView;
+  comingSoon?: ComingSoonFeature[];
+  memberSlug?: string;
+}
+
+/** Wraps MemberSearchResult with the form action so the partial can render
+ *  the search form unconditionally (form always present, results conditional). */
+export interface SearchBlockView {
+  formAction: string;
+  query: string;
+  results: ReadonlyArray<MemberSearchEntry>;
+  hasMore: boolean;
+  tooShort: boolean;
+  /** True when a search was performed (query was non-empty). */
+  hasQuery: boolean;
 }
 
 export interface ProfileEditContent extends OwnProfileContent {
   memberKey: string;
   loginEmail: string;
   profileUrl: string;
+  legacyClaimCtaHref:  string | null;
+  legacyClaimCtaLabel: string | null;
   error?: string;
   avatarError?: string;
   avatarSuccess?: string;
@@ -184,17 +255,44 @@ function fetchMemberBySlug(slug: string): MemberProfileRow {
 }
 
 export const memberService = {
-  getOwnProfile(slug: string): PageViewModel<OwnProfileContent> {
+  getOwnProfile(
+    slug: string,
+    opts?: { query?: string },
+  ): PageViewModel<OwnProfileContent> {
     const row = fetchMemberBySlug(slug);
     const eventGroups = fetchEventGroups(row);
     const heroData = buildMemberHeroData(row);
+    const query = opts?.query;
+    const searchResult =
+      query !== undefined && query !== ''
+        ? this.searchMembers(query)
+        : null;
+    const search: SearchBlockView = {
+      formAction: `/members/${slug}`,
+      query: searchResult?.query ?? '',
+      results: searchResult?.results ?? [],
+      hasMore: searchResult?.hasMore ?? false,
+      tooShort: searchResult?.tooShort ?? false,
+      hasQuery: searchResult !== null,
+    };
     return {
       seo:  { title: row.display_name, fullTitle: `IFPA Member ${row.display_name}` },
       page: { sectionKey: 'members', pageKey: 'member_profile', title: 'My Profile' },
       navigation: {
         contextLinks: [{ label: 'Edit Profile', href: `/members/${slug}/edit`, variant: 'outline' }],
       },
-      content: { ...rowToContent(row), heroData, profileBase: `/members/${slug}`, eventGroups },
+      content: {
+        ...rowToContent(row),
+        heroData,
+        profileBase: `/members/${slug}`,
+        eventGroups,
+        membership:   buildTierStatusView(row.id),
+        identity:     buildIdentityLinkView(row.id, slug),
+        quickActions: buildQuickActions(slug),
+        search,
+        comingSoon:   COMING_SOON_FEATURES,
+        memberSlug:   slug,
+      },
     };
   },
 
@@ -239,6 +337,7 @@ export const memberService = {
     avatarSuccess?: string,
   ): PageViewModel<ProfileEditContent> {
     const row = fetchMemberBySlug(slug);
+    const cta = buildIdentityCta(row.legacy_member_id !== null, row.historical_person_id !== null, slug);
     return {
       seo:  { title: 'Edit Profile' },
       page: { sectionKey: 'members', pageKey: 'member_profile_edit', title: 'Edit Profile' },
@@ -250,6 +349,8 @@ export const memberService = {
         memberKey: slug,
         loginEmail: row.login_email,
         profileUrl: `/members/${slug}`,
+        legacyClaimCtaHref:  cta?.href  ?? null,
+        legacyClaimCtaLabel: cta?.label ?? null,
         error,
         avatarError,
         avatarSuccess,
@@ -354,19 +455,142 @@ export const memberService = {
     return { query: trimmed, results, hasMore, tooShort: false };
   },
 
-  getMembersLandingPage(
-    slug: string,
-    displayName: string,
-    query?: string,
-  ): PageViewModel<MembersLandingContent> {
-    const search = query !== undefined && query !== ''
-      ? this.searchMembers(query)
-      : null;
+  getMembersWelcomePage(
+    opts: { isAuthenticated: boolean },
+  ): PageViewModel<MemberWelcomeContent> {
+    const tiers: MemberWelcomeTier[] = (['tier0', 'tier1', 'tier2', 'tier3'] as const).map(
+      (t) => ({ label: TIER_BADGE_TEXT[t], blurb: tierBenefitsBlurb(t, false) }),
+    );
     return {
-      seo: { title: 'Member Dashboard' },
-      page: { sectionKey: 'members', pageKey: 'member_landing', title: 'Member Dashboard' },
+      seo:  { title: 'Members' },
+      page: { sectionKey: 'members', pageKey: 'member_welcome', title: 'Members' },
       navigation: { contextLinks: [] },
-      content: { profileSlug: slug, displayName, search },
+      content: {
+        showJoinCtas: !opts.isAuthenticated,
+        tiers,
+      },
     };
   },
+
 };
+
+// ── Membership view-model helpers ───────────────────────────────────────────
+//
+// Implements `M_View_Tier_Status` shaping for the member dashboard. Pure
+// composition over `getTierStatus` + `getActivePlayerStatus`; no new SQL.
+
+const TIER_BADGE_TEXT: Record<MemberTier, string> = {
+  tier0: 'Tier 0 Registered Member',
+  tier1: 'Tier 1 IFPA Member',
+  tier2: 'Tier 2 IFPA Organizer Member',
+  tier3: 'Tier 3 IFPA Director',
+};
+
+function tierBenefitsBlurb(tier: MemberTier, isAp: boolean): string {
+  if (tier === 'tier0' && isAp) {
+    return 'You enjoy Tier 1 benefits while Active Player status is current, including Official IFPA Roster inclusion.';
+  }
+  switch (tier) {
+    case 'tier0':
+      return 'Registered Members can browse the platform and search the membership. Tier 1 members are listed on the Official IFPA Roster.';
+    case 'tier1':
+      return 'Tier 1 IFPA Members support the IFPA and are listed on the Official IFPA Roster.';
+    case 'tier2':
+      return 'Tier 2 IFPA Organizer Members can vouch for Active Player status and participate in IFPA governance.';
+    case 'tier3':
+      return 'IFPA Directors hold full IFPA governance authority.';
+  }
+}
+
+function formatExpiryDate(iso: string): string {
+  return formatDateDisplay(iso);
+}
+
+function underlyingTierText(underlying: UnderlyingTier): string {
+  return `Reverts to ${TIER_BADGE_TEXT[underlying]} when governance ends.`;
+}
+
+function buildTierStatusView(memberId: string): TierStatusView {
+  const tier = getTierStatus(memberId);
+  const ap = getActivePlayerStatus(memberId);
+  const isAp = ap.is_active_player === 1;
+
+  let activePlayer: ActivePlayerView | null = null;
+  if (tier.tier_status === 'tier0') {
+    activePlayer = {
+      isCurrent: isAp,
+      expiresAtDisplay: ap.active_player_expires_at
+        ? formatExpiryDate(ap.active_player_expires_at)
+        : null,
+    };
+  }
+
+  let underlyingTierBadgeText: string | null = null;
+  if (tier.tier_status === 'tier3' && tier.underlying_tier_status) {
+    underlyingTierBadgeText = underlyingTierText(tier.underlying_tier_status);
+  }
+
+  return {
+    tierBadgeText: TIER_BADGE_TEXT[tier.tier_status],
+    benefitsBlurb: tierBenefitsBlurb(tier.tier_status, isAp),
+    activePlayer,
+    underlyingTierBadgeText,
+    showTier1Upgrade: tier.tier_status === 'tier0',
+    showTier2Upgrade: tier.tier_status === 'tier0' || tier.tier_status === 'tier1',
+  };
+}
+
+function buildQuickActions(slug: string): QuickAction[] {
+  return [
+    { label: 'My Profile',    href: `/members/${slug}/edit` },
+    { label: 'My Galleries',  href: `/members/${slug}/galleries` },
+    { label: 'Upload Media',  href: `/members/${slug}/media/upload` },
+  ];
+}
+
+const COMING_SOON_FEATURES: ComingSoonFeature[] = [
+  { label: 'My Club',             description: 'Confirm your old footbag.org club affiliations and leadership roles, then see your club roster and current standing.' },
+  { label: 'My Events',           description: 'View your upcoming registrations and past event history.' },
+  { label: 'Payments & Donations', description: 'View your payment history and donation receipts.' },
+  { label: 'Voting & HoF',        description: 'Participate in active IFPA votes and Hall of Fame nominations.' },
+  { label: 'Email Subscriptions', description: 'Manage your email notifications and preferences.' },
+];
+
+function buildIdentityCta(
+  legacyLinked: boolean,
+  hpLinked: boolean,
+  slug?: string,
+): IdentityLinkView['cta'] {
+  if (legacyLinked && hpLinked) return null;
+  // Both pre-existing CTA labels collapse onto a single wizard entry; the
+  // wizard renders both linking sections so the user can address whichever
+  // is missing without bouncing between separate forms.
+  const href = slug ? `/members/${slug}/link-history` : '/history/claim';
+  const label = !legacyLinked && !hpLinked
+    ? 'Link your history'
+    : !legacyLinked
+    ? 'Link your past account'
+    : 'Link your competition record';
+  return { href, label };
+}
+
+function buildIdentityLinkView(memberId: string, slug: string): IdentityLinkView {
+  const row = runSqliteRead('findIdentityLinks', () =>
+    account.findIdentityLinks.get(memberId),
+  ) as IdentityLinksRow | undefined;
+  const claimedAt  = row?.legacy_claimed_at      ?? null;
+  const personName = row?.historical_person_name ?? null;
+  const legacyLinked = claimedAt !== null;
+  const hpLinked     = personName !== null;
+  return {
+    legacyAccount: {
+      linked: legacyLinked,
+      sinceDisplay: claimedAt ? formatExpiryDate(claimedAt) : null,
+    },
+    historicalPerson: {
+      linked: hpLinked,
+      summary: personName,
+    },
+    cta: buildIdentityCta(legacyLinked, hpLinked, slug),
+  };
+}

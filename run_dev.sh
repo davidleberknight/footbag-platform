@@ -12,6 +12,17 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Pin the env identity for the dev stack. config.footbagEnv (src/config/env.ts)
+# gates dev-only shortcuts on this value: applyDevAutologin, the
+# .local/initial-admins.txt reader (devShortcuts.ts:154), the Tier-2 invariant
+# repair, and the boot-time guards for FOOTBAG_DEV_AUTOLOGIN_* env vars. Without
+# this export the dev shortcuts silently no-op. Staging/production set
+# FOOTBAG_ENV via /srv/footbag/env on the host (deploy-rebuild-remote.sh:151);
+# the dev workstation has no host env file, so the launcher exports here.
+# `dotenv` does not override existing env vars, so a stray .env entry won't
+# clobber this.
+export FOOTBAG_ENV=development
+
 # Free any port already held by a leaked prior dev process.
 kill_port() {
   local port=$1
@@ -34,14 +45,16 @@ kill_port 4001
 RESET=0
 FROM_CSV=0
 SOUP_TO_NUTS=0
+SEED_DEV_ADMINS=0
 for arg in "$@"; do
   case "$arg" in
-    --reset)         RESET=1 ;;
-    --from-csv)      FROM_CSV=1 ;;
-    --soup-to-nuts)  SOUP_TO_NUTS=1 ;;
+    --reset)            RESET=1 ;;
+    --from-csv)         FROM_CSV=1 ;;
+    --soup-to-nuts)     SOUP_TO_NUTS=1 ;;
+    --seed-dev-admins)  SEED_DEV_ADMINS=1 ;;
     -h|--help)
       cat <<'USAGE'
-Usage: ./run_dev.sh [MODE]
+Usage: ./run_dev.sh [MODE] [--seed-dev-admins]
 
 Local dev launcher.
 
@@ -61,6 +74,13 @@ DB rebuild modes (mutually exclusive; opt-in only):
                    (members, votes, ballots, news_items, audit_entries, ...).
                    Requires legacy_data/mirror_footbag_org/ to be present.
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
+
+Dev-admin seeding (CUTOVER-REMOVE; opt-in; combinable with any rebuild mode):
+  --seed-dev-admins Reads .local/dev-admin-seed.json (JSONC-tolerant,
+                   gitignored, per-maintainer) and seeds maintainer admin
+                   accounts via scripts/manage-dev-admin-seed.sh. Runs
+                   after DB bootstrap, before the dev stack starts. Fails
+                   loudly if no seed input is present.
 
   -h, --help       Show this message.
 
@@ -117,5 +137,26 @@ else
   echo "→ Skipping DB work (use --reset, --from-csv, or --soup-to-nuts to rebuild)."
 fi
 
-# 4. Launch web + image together; trap-based cleanup is in scripts/dev.sh.
+# CUTOVER-REMOVE: optional dev-admin seed. Runs after DB bootstrap so the
+# seed has rows to insert against. Refuses on production
+# (manage-dev-admin-seed.sh enforces); allowed on development (the default
+# here) and staging.
+if (( SEED_DEV_ADMINS == 1 )); then
+  # Pre-validate the dev seed JSON if present, parity with the staging
+  # path (deploy_to_aws.sh validates .local/staging-admin-seed.json before
+  # the SSH connection). A malformed JSON blob otherwise crashes the seed
+  # mid-run after the DB bootstrap completes. JSONC tolerance: strip `//`
+  # line comments before jq.
+  if [[ -f .local/dev-admin-seed.json ]]; then
+    if ! grep -v '^[[:space:]]*//' .local/dev-admin-seed.json | jq -e . >/dev/null 2>&1; then
+      echo "ERROR: .local/dev-admin-seed.json is not valid JSON (after JSONC comment strip)." >&2
+      echo "Recommendation: grep -v '^[[:space:]]*//' .local/dev-admin-seed.json | jq -e . to see the parse error." >&2
+      exit 1
+    fi
+  fi
+  echo "→ Seeding dev-admin accounts..."
+  bash scripts/manage-dev-admin-seed.sh --seed-dev-admins
+fi
+
+# 5. Launch web + image together; trap-based cleanup is in scripts/dev.sh.
 exec bash scripts/dev.sh

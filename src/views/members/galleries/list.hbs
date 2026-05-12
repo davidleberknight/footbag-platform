@@ -53,7 +53,7 @@
             <td>
               <a href="{{editHref}}">Edit</a>
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              <form method="POST" action="{{deleteHref}}" class="inline-form" onsubmit="return confirm('Delete this gallery? This cannot be undone.');">
+              <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete this gallery? This cannot be undone.">
                 <button type="submit" class="btn-link-danger">Delete</button>
               </form>
             </td>

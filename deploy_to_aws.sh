@@ -36,22 +36,104 @@ done
 MODE_CODE_ONLY=0   # -k / --keep-staging-db: no DB ops at all.
 MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; no rebuild.
 DB_REBUILD_INVOLVED=0   # default mode runs the full pipeline → DB rebuild.
+SEED_DEV_ADMINS=0   # --seed-dev-admins: opt-in dev-admin seed after deploy (CUTOVER-REMOVE).
 
 HAS_MODE=0
 for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
   case "$arg" in
     -k|--keep-staging-db)  MODE_CODE_ONLY=1; HAS_MODE=1 ;;
     -r|--reuse-local-db)   MODE_REUSE=1;     HAS_MODE=1 ;;
+    --seed-dev-admins)     SEED_DEV_ADMINS=1 ;;
   esac
 done
 if (( HAS_MODE == 0 )); then
   DB_REBUILD_INVOLVED=1
 fi
 
-# TODO(F.1, prod): production target plumbing is deferred. When terraform/production
-# applies, add a hard-confirm gate here for any DB-rebuild mode (default,
-# --from-csv, or --from-mirror) against any DEPLOY_TARGET matching footbag-prod*.
-# Auto mode is staging-only today.
+# DEPLOY_TARGET allowlist. Only two values are accepted: footbag-staging and
+# footbag-production. Any other value (typo, alias confusion, copy-paste
+# error like 'footbag-prod' or 'footbag-live') is refused at the entry
+# point so a misconfigured operator alias cannot route the deploy to an
+# unintended host. The corresponding SSH alias must exist in ~/.ssh/config;
+# the alias-resolve preflight below will catch missing aliases.
+case "${DEPLOY_TARGET:-footbag-staging}" in
+  footbag-staging|footbag-production) ;;
+  *)
+    echo "ERROR: DEPLOY_TARGET must be 'footbag-staging' or 'footbag-production' (got '${DEPLOY_TARGET:-}')." >&2
+    echo "Recommendation: set DEPLOY_TARGET=footbag-staging or DEPLOY_TARGET=footbag-production explicitly." >&2
+    exit 1
+    ;;
+esac
+
+# Production DB-replace hard-confirm gate. Any DB-touching mode against
+# production requires a deliberate operator confirmation. DB-rebuild
+# (default mode, no -k/-r flag) and reuse-local (-r) both REPLACE the
+# on-host production database with the workstation-built file. -k
+# (code-only) is permitted without this gate because it does not touch the
+# DB. The gate fires here, before any preflight, so the operator sees the
+# warning before incidental tools like ssh/jq/sqlite checks consume time.
+if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]] \
+    && (( DB_REBUILD_INVOLVED == 1 || MODE_REUSE == 1 )); then
+  echo "" >&2
+  echo "═══════════════════════════════════════════════════════════════" >&2
+  echo "  PRODUCTION DB-TOUCHING DEPLOY" >&2
+  echo "═══════════════════════════════════════════════════════════════" >&2
+  echo "  Target:     footbag-production" >&2
+  if (( MODE_REUSE == 1 )); then
+    echo "  Mode:       reuse local DB (-r) — ships current ./database/footbag.db" >&2
+  else
+    echo "  Mode:       full rebuild from sources" >&2
+  fi
+  echo "  Effect:     The on-host production database will be REPLACED" >&2
+  echo "              with the workstation-built file. This is irreversible" >&2
+  echo "              without an off-host backup taken before the deploy." >&2
+  echo "═══════════════════════════════════════════════════════════════" >&2
+  echo "" >&2
+  if [[ "${FOOTBAG_PROD_DB_REPLACE_ACK:-}" != "1" ]]; then
+    # Detect TTY availability via the read itself: `[[ -r /dev/tty ]]`
+    # returns true on systems where /dev/tty exists but no controlling
+    # terminal is attached (CI runners, sandboxed test execs), and the
+    # subsequent read fails with "No such device or address." Branch on
+    # the read's success so the error message accurately reflects the
+    # cause when no terminal is attached.
+    printf "  Type 'REPLACE PRODUCTION DB' to confirm: " >&2
+    if ! read -r _ack </dev/tty 2>/dev/null; then
+      echo "" >&2
+      echo "ERROR: production DB-replace requires interactive confirmation, but no TTY is available." >&2
+      echo "Recommendation: run from a TTY, or set FOOTBAG_PROD_DB_REPLACE_ACK=1 to bypass (scripted runs only)." >&2
+      exit 1
+    fi
+    if [[ "$_ack" != "REPLACE PRODUCTION DB" ]]; then
+      echo "Aborted. Confirmation phrase did not match." >&2
+      exit 1
+    fi
+    echo "  → Confirmed. Proceeding." >&2
+    echo "" >&2
+  else
+    echo "  FOOTBAG_PROD_DB_REPLACE_ACK=1 → skipping interactive confirmation." >&2
+  fi
+fi
+
+# CUTOVER-REMOVE: --seed-dev-admins is allowlisted to a single explicit
+# deploy target: DEPLOY_TARGET=footbag-staging. Any other target is
+# refused before the SSH connection. Defense in depth: seedConfig.ts still
+# throws on import when FOOTBAG_ENV=production, but this is the first and
+# most explicit guard.
+if (( SEED_DEV_ADMINS == 1 )); then
+  _seed_target="${DEPLOY_TARGET:-footbag-staging}"
+  if [[ "$_seed_target" != "footbag-staging" ]]; then
+    echo "ERROR: --seed-dev-admins is allowlisted to DEPLOY_TARGET=footbag-staging only (got '$_seed_target')." >&2
+    echo "Recommendation: dev-admin shortcuts must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to seed staging." >&2
+    exit 1
+  fi
+  if [[ -f .local/staging-admin-seed.json ]]; then
+    if ! grep -v '^[[:space:]]*//' .local/staging-admin-seed.json | jq -e . >/dev/null 2>&1; then
+      echo "ERROR: .local/staging-admin-seed.json is not valid JSON (after JSONC comment strip)." >&2
+      echo "Recommendation: grep -v '^[[:space:]]*//' .local/staging-admin-seed.json | jq -e . to see the parse error." >&2
+      exit 1
+    fi
+  fi
+fi
 
 # -----------------------------------------------------------------------------
 # Preflight. Each check exits 1 with a one-line Recommendation. Mode-aware:
@@ -195,9 +277,14 @@ fi
 # We compare actual column-sets (not mtimes): a crashed pipeline run leaves
 # the live DB with a fresh mtime even though its schema is still stale, so
 # mtime-based checks pass silently after every failed attempt.
-if (( DB_REBUILD_INVOLVED == 1 )) \
+if (( DB_REBUILD_INVOLVED == 1 || MODE_REUSE == 1 )) \
     && [[ "${FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK:-}" != "1" ]] \
     && [[ -f database/footbag.db ]] && [[ -f database/schema.sql ]]; then
+# Both DB-rebuild (default) AND reuse-local (-r) modes ship the local DB
+# file to the host; both must verify the local DB's schema matches
+# database/schema.sql before pushing. -r without this gate silently
+# shipped a stale local DB that would crash the deployed app on any new
+# column or table.
   _drift_tmp_db=$(mktemp -t schema_check.XXXXXX.db)
   # shellcheck disable=SC2064
   trap "rm -f '${_drift_tmp_db}' '${_drift_tmp_db}-wal' '${_drift_tmp_db}-shm'" EXIT
@@ -207,6 +294,7 @@ if (( DB_REBUILD_INVOLVED == 1 )) \
     _expected_tables=$(sqlite3 "${_drift_tmp_db}" "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;")
     _live_tables=$(sqlite3 database/footbag.db "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;" 2>/dev/null || true)
     _drift_lines=()
+    # First pass: report items in schema.sql that are missing from the live DB.
     while IFS= read -r _t; do
       [[ -z "$_t" ]] && continue
       if ! printf '%s\n' "${_live_tables}" | grep -qx "$_t"; then
@@ -221,6 +309,27 @@ if (( DB_REBUILD_INVOLVED == 1 )) \
         _drift_lines+=("  ${_t}: missing column(s): ${_cols_str}")
       fi
     done <<< "${_expected_tables}"
+    # Second pass: bi-directional drift detection. Report items in the live
+    # DB that are NOT in schema.sql. Catches the case where schema.sql
+    # dropped a column or table but the live DB still carries it (could
+    # mean a stale local rebuild, a manually-applied schema patch, or
+    # an upstream merge that lost a removal). Code that no longer
+    # references the removed item is the silent risk; the loud message
+    # here gives the operator a chance to reset before pushing.
+    while IFS= read -r _t; do
+      [[ -z "$_t" ]] && continue
+      if ! printf '%s\n' "${_expected_tables}" | grep -qx "$_t"; then
+        _drift_lines+=("  extra table not in schema.sql: ${_t}")
+        continue
+      fi
+      _expected_cols=$(sqlite3 "${_drift_tmp_db}" "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;")
+      _live_cols=$(sqlite3 database/footbag.db "SELECT name FROM pragma_table_info('${_t}') ORDER BY name;" 2>/dev/null || true)
+      _extra_cols=$(comm -13 <(printf '%s\n' "${_expected_cols}") <(printf '%s\n' "${_live_cols}"))
+      if [[ -n "${_extra_cols}" ]]; then
+        _cols_str=$(printf '%s\n' "${_extra_cols}" | paste -sd ',' - | sed 's/,/, /g')
+        _drift_lines+=("  ${_t}: extra column(s) not in schema.sql: ${_cols_str}")
+      fi
+    done <<< "${_live_tables}"
     if (( ${#_drift_lines[@]} > 0 )); then
       echo "ERROR: database/footbag.db schema is out of sync with database/schema.sql." >&2
       echo "       Drift detected (live DB is missing items declared in schema.sql):" >&2
@@ -262,19 +371,52 @@ if (( DB_REBUILD_INVOLVED == 1 )) \
   trap - EXIT
 fi
 
-# Operator credential source. Path env-overridable for future production use.
-# Generic error: never print the resolved path.
-AWS_OPERATOR_FILE="${AWS_OPERATOR_FILE:-$HOME/AWS/AWS_OPERATOR.txt}"
+# Operator credential source. Default path is per-environment so a stale
+# AWS_OPERATOR env var bleed cannot accidentally feed staging credentials
+# into a production deploy (or vice versa). Explicit AWS_OPERATOR_FILE
+# overrides both defaults. Generic error: never print the resolved path.
+if [[ -z "${AWS_OPERATOR_FILE:-}" ]]; then
+  if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
+    AWS_OPERATOR_FILE="$HOME/AWS/AWS_OPERATOR_PRODUCTION.txt"
+  else
+    AWS_OPERATOR_FILE="$HOME/AWS/AWS_OPERATOR.txt"
+  fi
+fi
 if [[ ! -r "$AWS_OPERATOR_FILE" ]]; then
   echo "ERROR: operator credential source unavailable." >&2
   echo "Recommendation: verify the configured credential location is readable." >&2
   exit 1
 fi
 
-# TODO(F.2, S3 snapshot): pre-deploy snapshot of staging DB to S3. Activates
-# when staging holds user-generated content from dev testing. Insertion point
-# is in scripts/internal/deploy-rebuild-remote.sh just before the DB replace.
-# TODO(F.8, S3 restore): paired --restore-from <s3-key> subcommand.
+# --keep-staging-db (-k): warn when schema.sql has uncommitted changes (or
+# changes since the last deploy commit). Code-only deploys ship the new TS
+# but DO NOT reapply schema.sql on the host, so a code path that depends on
+# a new column or table will crash at runtime. The operator should choose
+# either a full rebuild or accept the risk after reviewing the schema drift.
+# Runs after the AWS_OPERATOR_FILE check so the more fundamental credential
+# error fires first.
+if (( MODE_CODE_ONLY == 1 )) && command -v git >/dev/null 2>&1; then
+  _schema_changes=$(git diff HEAD -- database/schema.sql 2>/dev/null | head -5 || true)
+  if [[ -n "$_schema_changes" ]]; then
+    echo "WARNING: --keep-staging-db (-k) selected, but database/schema.sql has uncommitted changes." >&2
+    echo "         Code-only deploys do not reapply schema.sql on the host. New tables or" >&2
+    echo "         columns added in this batch will not exist on staging, and any code path" >&2
+    echo "         that touches them will crash at runtime." >&2
+    echo "" >&2
+    echo "         Either run a full rebuild deploy (omit -k) to reapply schema, or accept" >&2
+    echo "         the risk after reviewing the schema diff:" >&2
+    echo "           git diff HEAD -- database/schema.sql" >&2
+    echo "" >&2
+    if [[ "${FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT:-}" != "1" ]] && [[ -r /dev/tty ]]; then
+      printf "  Continue with -k deploy despite schema drift? [y/N] " >&2
+      read -r _ans </dev/tty || _ans=""
+      if ! [[ "${_ans:-}" =~ ^[Yy]$ ]]; then
+        echo "Aborted. Set FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT=1 to bypass this prompt." >&2
+        exit 1
+      fi
+    fi
+  fi
+fi
 
 # -----------------------------------------------------------------------------
 # Pre-deploy summary. No paths, no secrets; just mode + target + host IP.

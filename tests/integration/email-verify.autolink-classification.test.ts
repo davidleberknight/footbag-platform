@@ -201,77 +201,77 @@ async function verifyFor(memberId: string) {
 }
 
 describe('verifyEmailByToken auto-link classification', () => {
-  it('Tier 1: email match + HP provenance + unique exact name candidate', async () => {
+  it('high confidence: email match + HP provenance + unique exact name candidate', async () => {
     const result = await verifyFor('mem-tier1');
     expect(result).not.toBeNull();
     expect(result!.legacyMatch).not.toBeNull();
     expect(result!.autoLinkClassification).toMatchObject({
-      tier: 'tier1',
+      confidence: 'high',
       personId: HP_EXACT,
       personName: 'Jordan Alpha',
     });
   });
 
-  it('Tier 2: email match + HP provenance + unique variant name candidate', async () => {
+  it('medium confidence: email match + HP provenance + unique variant name candidate', async () => {
     const result = await verifyFor('mem-tier2');
     expect(result).not.toBeNull();
     expect(result!.legacyMatch).not.toBeNull();
     expect(result!.autoLinkClassification).toMatchObject({
-      tier: 'tier2',
+      confidence: 'medium',
       personId: HP_VARIANT,
       personName: 'Alex Martínez',
       matchedVariantNormalized: 'alex martinez',
     });
   });
 
-  it('Tier 3: multiple HP candidates for the same real_name never auto-link', async () => {
+  it('low confidence: multiple HP candidates for the same real_name never auto-link', async () => {
     const result = await verifyFor('mem-tier3-multi');
     expect(result!.autoLinkClassification).toEqual({
-      tier: 'tier3',
+      confidence: 'low',
       reason: 'multiple_name_candidates',
     });
   });
 
-  it('Tier 3: email anchor + no name candidate', async () => {
+  it('low confidence: email anchor + no name candidate', async () => {
     const result = await verifyFor('mem-tier3-nocand');
     expect(result!.autoLinkClassification).toEqual({
-      tier: 'tier3',
+      confidence: 'low',
       reason: 'no_name_candidate',
     });
   });
 
-  it('Tier 3: name candidate points to a different HP than the email provenance', async () => {
+  it('low confidence: name candidate points to a different HP than the email provenance', async () => {
     const result = await verifyFor('mem-tier3-mismatch');
     expect(result!.autoLinkClassification).toEqual({
-      tier: 'tier3',
+      confidence: 'low',
       reason: 'hp_mismatch',
     });
   });
 
-  it('Tier 3: email anchor exists but no HP back-links to the legacy account', async () => {
+  it('low confidence: email anchor exists but no HP back-links to the legacy account', async () => {
     const result = await verifyFor('mem-tier3-nohp');
     expect(result!.autoLinkClassification).toEqual({
-      tier: 'tier3',
+      confidence: 'low',
       reason: 'no_hp_for_legacy_account',
     });
   });
 
-  it('Tier 3: variant match whose surnames do not align by claim-policy surnameKey', async () => {
+  it('low confidence: variant match whose surnames do not align by claim-policy surnameKey', async () => {
     // The name_variants row says these two forms are the same person, but
     // claim policy (lookupHistoricalPersonForClaim) surname-blocks the pair.
-    // Classifier must refuse tier1/tier2 so the UX does not route the user
+    // Classifier must refuse high/medium so the UX does not route the user
     // to an endpoint that will reject them.
     const result = await verifyFor('mem-surname-split');
     expect(result!.autoLinkClassification).toEqual({
-      tier: 'tier3',
+      confidence: 'low',
       reason: 'hp_mismatch',
     });
   });
 
-  it("tier: 'none' when no email anchor exists, even when the real_name would have matched an HP", async () => {
+  it("confidence: 'none' when no email anchor exists, even when the real_name would have matched an HP", async () => {
     const result = await verifyFor('mem-none');
     expect(result!.legacyMatch).toBeNull();
-    expect(result!.autoLinkClassification).toEqual({ tier: 'none' });
+    expect(result!.autoLinkClassification).toEqual({ confidence: 'none' });
   });
 
   it('preserves existing legacyMatch field shape on Tier 1 path (regression)', async () => {

@@ -16,6 +16,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import argon2 from 'argon2';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, createTestSessionJwt } from '../fixtures/factories';
+import { resetRateLimitForTests } from '../../src/services/rateLimitService';
 
 const { dbPath } = setTestEnv('3083');
 
@@ -43,6 +44,28 @@ function readLegacy(): Record<string, unknown> {
   const row = db.prepare('SELECT * FROM legacy_members WHERE legacy_member_id = ?').get(LEGACY_ID) as Record<string, unknown>;
   db.close();
   return row;
+}
+
+async function issueClaimToken(memberId: string, identifier: string): Promise<string> {
+  // Reads the claim-confirm URL from the rendered POST response (which now
+  // includes the simulated-email card on dev). The post-render drain in
+  // simulatedEmailService.getEmailPreview() marks the outbox row sent and
+  // NULLs body_text per scrub-safety, so the DB-row read path is not
+  // reliable. The HTML response is the authoritative source for the URL.
+  const cookie = `footbag_session=${createTestSessionJwt({ memberId })}`;
+  const app = createApp();
+  const res = await request(app).post('/history/claim').set('Cookie', cookie).type('form').send({ identifier });
+  expect(res.status).toBe(200);
+  const m = res.text.match(/\/history\/claim\/confirm\/([A-Za-z0-9_-]+)/);
+  if (!m) throw new Error(`No claim URL in response HTML for member ${memberId}`);
+  return m[1];
+}
+
+// Clear outbox between tests so token-extraction picks this iteration's row.
+function clearOutboxFor(memberId: string): void {
+  const db = new BetterSqlite3(dbPath);
+  db.prepare('DELETE FROM outbox_emails WHERE recipient_member_id = ?').run(memberId);
+  db.close();
 }
 
 beforeAll(async () => {
@@ -76,12 +99,12 @@ beforeEach(() => {
 // ── claimLegacyAccount atomicity ──────────────────────────────────────────────
 
 describe('claimLegacyAccount — atomicity invariants', () => {
-  it('throws on unknown legacy id → no member or legacy-member state changed', async () => {
+  it('throws on bad token → no member or legacy-member state changed', async () => {
     const res = await request(createApp())
       .post('/history/claim/confirm')
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ legacyMemberId: 'does-not-exist' });
+      .send({ token: 'not-a-real-token' });
     // Service throws ValidationError, controller renders error view.
     expect(res.status).toBeLessThan(500);
 
@@ -93,45 +116,18 @@ describe('claimLegacyAccount — atomicity invariants', () => {
     expect(legacy.claimed_at).toBeNull();
   });
 
-  it('throws when legacy already claimed → requesting member unchanged', async () => {
-    // Pre-claim the legacy by a different member.
-    const db = new BetterSqlite3(dbPath);
-    insertMember(db, {
-      id: 'other-member-001',
-      slug: 'other_member',
-      login_email: 'other@example.com',
-      display_name: 'Other Member',
-    });
-    db.prepare(
-      'UPDATE legacy_members SET claimed_by_member_id = ?, claimed_at = ? WHERE legacy_member_id = ?',
-    ).run('other-member-001', '2025-01-01T00:00:00Z', LEGACY_ID);
-    db.close();
-
-    const res = await request(createApp())
-      .post('/history/claim/confirm')
-      .set('Cookie', ownCookie())
-      .type('form')
-      .send({ legacyMemberId: LEGACY_ID });
-    expect(res.status).toBeLessThan(500);
-
-    // Our requesting member row unchanged; the other member's claim still in place.
-    const member = readMember();
-    expect(member.legacy_member_id).toBeNull();
-    const legacy = readLegacy();
-    expect(legacy.claimed_by_member_id).toBe('other-member-001');
-  });
-
   it('successful claim writes all three state changes together', async () => {
+    clearOutboxFor(MEMBER_ID);
+    const token = await issueClaimToken(MEMBER_ID, LEGACY_ID);
     const res = await request(createApp())
       .post('/history/claim/confirm')
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ legacyMemberId: LEGACY_ID });
+      .send({ token });
     expect(res.status).toBeLessThan(500);
 
     const member = readMember();
     const legacy = readLegacy();
-    // Both sides of the claim transaction landed.
     expect(member.legacy_member_id).toBe(LEGACY_ID);
     expect(legacy.claimed_by_member_id).toBe(MEMBER_ID);
     expect(legacy.claimed_at).toBeTruthy();
@@ -179,18 +175,61 @@ describe('claimLegacyAccount — two-actor race', () => {
     db.close();
   });
 
+  it('deterministic: B\'s confirm POST after A wins leaves B unchanged + still-claimed legacy row intact', async () => {
+    // Sequential variant of the race below. Pins the deterministic invariant
+    // that even when actor A has already won, actor B's confirm POST is a
+    // no-op on B's member row and the legacy row's claimed_by_member_id
+    // stays at A. The earlier `it('throws when legacy already claimed → ...')`
+    // covered this for the old direct-lookup API; this is its replacement
+    // for the new two-step token API.
+    clearOutboxFor(MEMBER_ID);
+    clearOutboxFor(MEMBER_B_ID);
+    resetRateLimitForTests();
+    const tokenA = await issueClaimToken(MEMBER_ID,   LEGACY_ID);
+    const tokenB = await issueClaimToken(MEMBER_B_ID, LEGACY_ID);
+    const app = createApp();
+
+    // A goes first and commits cleanly.
+    const resA = await request(app)
+      .post('/history/claim/confirm')
+      .set('Cookie', ownCookie())
+      .type('form')
+      .send({ token: tokenA });
+    expect(resA.status).toBeLessThan(500);
+    expect(readMember().legacy_member_id).toBe(LEGACY_ID);
+    expect(readLegacy().claimed_by_member_id).toBe(MEMBER_ID);
+
+    // B's POST arrives after the legacy row is already claimed. The merge
+    // throws ValidationError ('this legacy record has already been claimed
+    // by another account'), the controller renders 422, and the rollback
+    // un-consumes B's token leaving B's member row untouched.
+    const resB = await request(app)
+      .post('/history/claim/confirm')
+      .set('Cookie', cookieB())
+      .type('form')
+      .send({ token: tokenB });
+    expect(resB.status).toBeLessThan(500);
+    expect(readMemberB().legacy_member_id).toBeNull();
+    // Legacy row's winner is unchanged (still A, not overwritten).
+    expect(readLegacy().claimed_by_member_id).toBe(MEMBER_ID);
+  });
+
   it('two actors targeting the same legacy_member_id → exactly one wins', async () => {
+    clearOutboxFor(MEMBER_ID);
+    clearOutboxFor(MEMBER_B_ID);
+    const tokenA = await issueClaimToken(MEMBER_ID,   LEGACY_ID);
+    const tokenB = await issueClaimToken(MEMBER_B_ID, LEGACY_ID);
     const app = createApp();
     const reqA = request(app)
       .post('/history/claim/confirm')
       .set('Cookie', ownCookie())
       .type('form')
-      .send({ legacyMemberId: LEGACY_ID });
+      .send({ token: tokenA });
     const reqB = request(app)
       .post('/history/claim/confirm')
       .set('Cookie', cookieB())
       .type('form')
-      .send({ legacyMemberId: LEGACY_ID });
+      .send({ token: tokenB });
 
     const [resA, resB] = await Promise.all([reqA, reqB]);
     expect(resA.status).toBeLessThan(500);
@@ -218,16 +257,24 @@ describe('claimLegacyAccount — two-actor race', () => {
     const app = createApp();
     for (let i = 0; i < 5; i++) {
       // Reset state before each iteration (beforeEach only fires once).
+      // The rate-limit reset is required because initiateLegacyClaim now
+      // caps per-target attempts at CLAIM_INIT_TARGET_MAX_PER_HOUR; without
+      // a reset, iteration 2+ silently drop the outbox email and the
+      // issueClaimToken helper throws "no outbox row".
+      resetRateLimitForTests();
       const resetDb = new BetterSqlite3(dbPath);
       resetDb.prepare('UPDATE legacy_members SET claimed_by_member_id = NULL, claimed_at = NULL WHERE legacy_member_id = ?').run(LEGACY_ID);
       resetDb.prepare('UPDATE members SET legacy_member_id = NULL, historical_person_id = NULL WHERE id IN (?, ?)').run(MEMBER_ID, MEMBER_B_ID);
+      resetDb.prepare('DELETE FROM outbox_emails WHERE recipient_member_id IN (?, ?)').run(MEMBER_ID, MEMBER_B_ID);
       resetDb.close();
 
+      const tokenA = await issueClaimToken(MEMBER_ID,   LEGACY_ID);
+      const tokenB = await issueClaimToken(MEMBER_B_ID, LEGACY_ID);
       const [resA, resB] = await Promise.all([
         request(app).post('/history/claim/confirm').set('Cookie', ownCookie())
-          .type('form').send({ legacyMemberId: LEGACY_ID }),
+          .type('form').send({ token: tokenA }),
         request(app).post('/history/claim/confirm').set('Cookie', cookieB())
-          .type('form').send({ legacyMemberId: LEGACY_ID }),
+          .type('form').send({ token: tokenB }),
       ]);
       expect(resA.status).toBeLessThan(500);
       expect(resB.status).toBeLessThan(500);
@@ -271,17 +318,11 @@ describe('completePasswordReset — atomicity', () => {
       .send({ email: MEMBER_EMAIL });
     expect(forgot.status).toBe(200);
 
-    // Extract the token from the outbox.
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    const row = db.prepare(
-      `SELECT body_text FROM outbox_emails
-         WHERE recipient_email = ?
-         ORDER BY created_at DESC LIMIT 1`,
-    ).get(MEMBER_EMAIL) as { body_text: string } | undefined;
-    db.close();
-    if (!row) throw new Error('no reset email in outbox');
-    const match = row.body_text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
-    if (!match) throw new Error('no reset link in body');
+    // Extract the token from the rendered HTML (which now includes the
+    // simulated-email card on dev). The DB-row body_text is NULLed by the
+    // post-render outbox drain in simulatedEmailService.getEmailPreview().
+    const match = forgot.text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
+    if (!match) throw new Error('no reset link in response HTML');
     const token = match[1];
 
     const before = readMember();

@@ -224,20 +224,96 @@ chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 unset ORIGIN_VERIFY_SECRET_VAL
 
-# Update FOOTBAG_INITIAL_ADMIN_EMAILS from the workstation's
-# .local/initial-admins.txt content (passed via cat-pipe). Empty value clears
-# the var so removing an email from the file and redeploying correctly drops
-# admin from a future registration.
-: "${FOOTBAG_INITIAL_ADMIN_EMAILS=}"
-echo "==> Updating FOOTBAG_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
+# Sync SESSION_SECRET from SSM to /srv/footbag/env. Mirrors the
+# X_ORIGIN_VERIFY_SECRET pattern above: random_id.session_secret in
+# terraform/{env}/ssm.tf is the canonical value; this fetch keeps the
+# host env in sync after a `terraform apply -replace=random_id.session_secret`.
+# A rotation invalidates every active session (cookie signatures fail
+# under the new secret), which is the intended security behavior.
+echo "==> Syncing SESSION_SECRET from SSM to $ENV_PATH..."
+ssm_session_param="/footbag/${FOOTBAG_ENV_VAL}/secrets/session_secret"
+SESSION_SECRET_VAL=$(
+  AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
+    --region "$AWS_REGION_VAL" \
+    --name "$ssm_session_param" \
+    --with-decryption \
+    --query 'Parameter.Value' \
+    --output text
+) || { echo "ERROR: aws ssm get-parameter failed for $ssm_session_param" >&2; exit 1; }
+
+# Defense-in-depth shape check (the env.ts boot guard at src/config/env.ts
+# applies the same rules; we catch them here so a broken SSM value fails
+# the deploy loud rather than crash-looping the stack on restart).
+if [[ "$SESSION_SECRET_VAL" == TODO-* ]]; then
+  echo "ERROR: SSM $ssm_session_param still has the bootstrap placeholder." >&2
+  echo "       From the workstation run:" >&2
+  echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
+  echo "       This swaps the placeholder for a random_id-generated 64-hex value, then re-run this deploy." >&2
+  exit 1
+fi
+if [[ "$SESSION_SECRET_VAL" == *'#'* ]]; then
+  echo "ERROR: SSM $ssm_session_param contains '#' which breaks systemd EnvironmentFile parsing." >&2
+  exit 1
+fi
+if [[ "${SESSION_SECRET_VAL,,}" == *changeme* ]]; then
+  echo "ERROR: SSM $ssm_session_param contains 'changeme'; generate a fresh value via terraform apply -replace=random_id.session_secret." >&2
+  exit 1
+fi
+if (( ${#SESSION_SECRET_VAL} < 32 )); then
+  echo "ERROR: SSM $ssm_session_param is ${#SESSION_SECRET_VAL} chars; minimum is 32." >&2
+  exit 1
+fi
+
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
-grep -v '^FOOTBAG_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
-printf 'FOOTBAG_INITIAL_ADMIN_EMAILS=%s\n' "$FOOTBAG_INITIAL_ADMIN_EMAILS" >> "$env_tmp"
+grep -v '^SESSION_SECRET=' "$ENV_PATH" > "$env_tmp" || true
+printf 'SESSION_SECRET=%s\n' "$SESSION_SECRET_VAL" >> "$env_tmp"
 mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
+unset SESSION_SECRET_VAL
+
+# Update FOOTBAG_DEV_INITIAL_ADMIN_EMAILS from the workstation's
+# .local/initial-admins.txt content (passed via cat-pipe). Empty value clears
+# the var so removing an email from the file and redeploying correctly drops
+# admin from a future registration.
+#
+# Production refusal: this allowlist is a dev/staging-only shortcut. Production
+# first-admin uses the separate SSM-token claim mechanism documented in
+# DESIGN_DECISIONS §3.6 ("Production first-admin design"). Refuse the value
+# unless FOOTBAG_ENV is explicitly 'development' or 'staging' — production OR an
+# unset/misspelled FOOTBAG_ENV both trip this guard before anything lands on
+# disk. (env.ts also boot-fail-fasts under the same condition; this
+# script-level guard catches the misconfiguration earlier.)
+: "${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=}"
+if [[ -n "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" && "$FOOTBAG_ENV" != "development" && "$FOOTBAG_ENV" != "staging" ]]; then
+  echo "ERROR: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev/staging-only but was passed with FOOTBAG_ENV=${FOOTBAG_ENV:-<unset>}." >&2
+  echo "       Production-first-admin uses the SSM-token claim path; see DESIGN_DECISIONS §3.6." >&2
+  echo "       Either empty .local/initial-admins.txt on this workstation before redeploying," >&2
+  echo "       or use a workstation that does not have the file present." >&2
+  exit 1
+fi
+if [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
+  echo "==> Updating FOOTBAG_DEV_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
+  printf 'FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=%s\n' "$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS" >> "$env_tmp"
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+  # Defense in depth: drop any legacy FOOTBAG_INITIAL_ADMIN_EMAILS line that
+  # may persist from before the rename, so an old key cannot resurrect itself.
+  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+  chmod 600 "$env_tmp"
+  chown root:root "$env_tmp"
+  grep -v '^FOOTBAG_INITIAL_ADMIN_EMAILS=' "$ENV_PATH" > "$env_tmp" || true
+  mv "$env_tmp" "$ENV_PATH"
+  chmod 600 "$ENV_PATH"
+  chown root:root "$ENV_PATH"
+fi
 
 echo "==> Reinstalling systemd service unit..."
 cp "$LIVE_DIR/ops/systemd/footbag.service" /etc/systemd/system/
@@ -251,5 +327,63 @@ systemctl daemon-reload
 echo "==> Restarting service (compose up via systemctl, --no-build)..."
 cd "$LIVE_DIR"
 systemctl restart footbag
-sleep 3
+
+# Active-check + healthcheck poll. `docker compose up --detach` exits 0 the
+# moment containers are spawned; nginx is gated on web's healthcheck which
+# has a 15s start_period. A bare `sleep 3` reports success while the stack
+# may still be 502/503 to traffic for another 12+ seconds, which then causes
+# the workstation-side smoke check to false-fail. Poll up to ~20s for
+# systemd-active AND /health/ready returning 2xx, matching the pattern in
+# deploy-rebuild-remote.sh.
+_stack_healthy=0
+for _i in 1 2 3 4 5 6 7 8 9 10; do
+  if systemctl is-active --quiet footbag.service \
+     && curl -sf -o /dev/null --max-time 3 http://localhost/health/ready; then
+    _stack_healthy=1
+    break
+  fi
+  sleep 2
+done
+if (( _stack_healthy == 0 )); then
+  echo "    ERROR: stack did not reach healthy state within ~20s after restart." >&2
+  systemctl status footbag --no-pager -l >&2 || true
+  exit 1
+fi
+
 systemctl status footbag --no-pager -l
+
+# CUTOVER-REMOVE: post-deploy dev-admin seed. Mirrors the same block in
+# deploy-rebuild-remote.sh. Runs only when the workstation passed a
+# non-empty FOOTBAG_DEV_ADMIN_SEED_JSON (set by --seed-dev-admins).
+# Transient: not written to /srv/footbag/env. Runs inside the web
+# container via `node dist/dev-admin-shortcuts/seed.js` (compiled at
+# build time; no tsx in the runtime image). The container reads
+# FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts throws
+# on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
+# also allowlists --seed-dev-admins to DEPLOY_TARGET=footbag-staging
+# only.
+#
+# argv-leak hardening: the seed JSON content is piped to the container via
+# stdin and reassigned to the env-var inside the container's shell. Passing it
+# via `docker compose exec -e "VAR=value"` would put the JSON in the exec
+# subprocess's argv where `ps -ef` on the host can read it. Stdin keeps the
+# value off any process's argv on the host. Mirrors the sudo-password pattern
+# at the top of every remote-half script.
+if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
+  echo "==> Running dev-admin seed (transient stdin-piped input)..."
+  # FOOTBAG_ENV is NOT overridden here: the container's /srv/footbag/env sets
+  # it per host. seedConfig.ts throws on import when FOOTBAG_ENV='production',
+  # which is the in-app guard. Overriding FOOTBAG_ENV here would defeat that
+  # guard if this code ever ran on a production host.
+  if ! printf '%s' "$FOOTBAG_DEV_ADMIN_SEED_JSON" \
+      | docker compose \
+        --env-file "$ENV_PATH" \
+        -f "$LIVE_DIR/docker/docker-compose.yml" \
+        -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
+        exec -T \
+        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-admin-shortcuts/seed.js'; then
+    echo "    WARNING: dev-admin seed step exited non-zero." >&2
+    echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
+    echo "    after resolving the failure, or use staging diagnostics to inspect." >&2
+  fi
+fi

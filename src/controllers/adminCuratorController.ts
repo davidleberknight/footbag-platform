@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { logger } from '../config/logger';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { getImageProcessingAdapter, ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { getVideoTranscodingAdapter } from '../adapters/videoTranscodingAdapter';
 import {
   createCuratorMediaService,
@@ -13,6 +13,7 @@ import {
   type CuratorMediaEditInput,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
+import { renderServiceUnavailable } from '../lib/controllerErrors';
 import {
   parseExternalLinkInputs,
   buildExternalLinkSlots,
@@ -223,6 +224,14 @@ export const adminCuratorController = {
             errorMessage: err.message,
             formValues: { mediaType: fields.mediaType, caption: fields.caption, tags: fields.tags },
           });
+          return;
+        }
+        if (err instanceof ImageProcessingError) {
+          logger.error('admin upload: image worker unavailable', {
+            error: err.message,
+            status: err.status,
+          });
+          renderServiceUnavailable(res);
           return;
         }
         logger.error('admin upload error', { error: err instanceof Error ? err.message : String(err) });

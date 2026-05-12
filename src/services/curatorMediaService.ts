@@ -46,7 +46,8 @@ import {
 import { writeSidecar } from '../lib/curatorSidecar';
 import { promises as fsp } from 'fs';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
-import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
+import { hasTier1Benefits } from './tierPredicates';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 
@@ -266,6 +267,41 @@ interface SystemMemberRow {
 
 function newMediaId(): string {
   return `media_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+}
+
+/**
+ * Compensating-delete helper for cross-service-transaction failure.
+ *
+ * The upload paths (uploadPhoto, uploadVideo, uploadPhotoForMember) commit
+ * storage objects to S3 / local-FS BEFORE the DB transaction so that the
+ * better-sqlite3 sync transaction does not span async storage I/O (which
+ * would extend wall-clock past the storage put and hold WAL locks
+ * unnecessarily). If the DB transaction then throws (UNIQUE constraint,
+ * FK violation, CHECK failure), the storage objects are orphaned. This
+ * helper deletes the just-uploaded objects on transaction failure.
+ *
+ * A failure inside the compensating delete itself (network blip, adapter
+ * error) is logged at warn level and otherwise swallowed: the original
+ * transaction failure is the operator-actionable signal and must
+ * propagate, while a residual orphan can be reconciled by the broader
+ * S3 lifecycle (DD §6.8) or an operator sweep.
+ */
+async function compensatingStorageDelete(
+  storage: MediaStorageAdapter,
+  keys: string[],
+): Promise<void> {
+  for (const key of keys) {
+    try {
+      await storage.delete(key);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[curatorMediaService] compensating storage.delete failed; orphaned object at ${key}: ${
+          (err as Error).message ?? String(err)
+        }`,
+      );
+    }
+  }
 }
 
 function newTagId(): string {
@@ -716,6 +752,20 @@ interface CountRow {
   n: number;
 }
 
+// Defense-in-depth (DD §2020) tier gate applied at every member-write
+// service entry point. Mirrors the requireTier1Benefits route middleware
+// so a programmatic call, an admin curator-route call, or any future
+// caller that bypasses the route layer still cannot mutate member-owned
+// media without Tier 1+ benefits. Admins satisfy hasTier1Benefits
+// naturally per USER_STORIES §3.6 (Tier 2+ required).
+function assertTier1Benefits(actorMemberId: string): void {
+  if (!hasTier1Benefits(actorMemberId)) {
+    throw new ForbiddenError(
+      'Tier 1 benefits required to manage member-owned media.',
+    );
+  }
+}
+
 export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   const { storage, imageProcessor } = deps;
   // Lazy: resolve the video adapter on first use, not at service
@@ -842,27 +892,34 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       const now = new Date().toISOString();
 
-      transaction(() => {
-        media.insertCuratorPhoto.run(
-          mediaId, now, now,
-          systemMemberId, input.caption, now,
-          thumbKey, displayKey, processed.widthPx, processed.heightPx,
-          recordedSourceFilename,
-        );
-        if (normalizedExternalUrl !== null) {
-          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
-        }
-        applyTagsForCurator(mediaId, input.tags, now);
-        appendAuditEntry({
-          actionType: 'upload_curated_media',
-          category: 'media',
-          actorType: 'admin',
-          actorMemberId: input.adminMemberId,
-          entityType: 'media_item',
-          entityId: mediaId,
-          metadata: { mediaType: 'photo', tags: input.tags },
+      // Compensating-delete: storage objects already committed above; on tx
+      // failure (UNIQUE, FK, CHECK) we delete them so they don't orphan.
+      try {
+        transaction(() => {
+          media.insertCuratorPhoto.run(
+            mediaId, now, now,
+            systemMemberId, input.caption, now,
+            thumbKey, displayKey, processed.widthPx, processed.heightPx,
+            recordedSourceFilename,
+          );
+          if (normalizedExternalUrl !== null) {
+            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+          }
+          applyTagsForCurator(mediaId, input.tags, now);
+          appendAuditEntry({
+            actionType: 'upload_curated_media',
+            category: 'media',
+            actorType: 'admin',
+            actorMemberId: input.adminMemberId,
+            entityType: 'media_item',
+            entityId: mediaId,
+            metadata: { mediaType: 'photo', tags: input.tags },
+          });
         });
-      });
+      } catch (err) {
+        await compensatingStorageDelete(storage, [thumbKey, displayKey]);
+        throw err;
+      }
 
       return { mediaId, displayUrl: storage.constructURL(displayKey) };
     },
@@ -948,28 +1005,40 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const now = new Date().toISOString();
       const thumbnailUrl = storage.constructURL(posterDisplayKey);
 
-      transaction(() => {
-        media.insertCuratorVideo.run(
-          mediaId, now, now,
-          systemMemberId, input.caption, now,
-          videoKey, thumbnailUrl,
-          processed.widthPx, processed.heightPx,
-          recordedSourceFilename,
-        );
-        if (normalizedExternalUrl !== null) {
-          media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
-        }
-        applyTagsForCurator(mediaId, input.tags, now);
-        appendAuditEntry({
-          actionType: 'upload_curated_media',
-          category: 'media',
-          actorType: 'admin',
-          actorMemberId: input.adminMemberId,
-          entityType: 'media_item',
-          entityId: mediaId,
-          metadata: { mediaType: 'video', tags: input.tags },
+      // Compensating-delete on tx failure (video + poster pair). Same
+      // pattern as uploadPhoto: storage objects committed above; clean
+      // them up if the DB insert rejects.
+      try {
+        transaction(() => {
+          media.insertCuratorVideo.run(
+            mediaId, now, now,
+            systemMemberId, input.caption, now,
+            videoKey, thumbnailUrl,
+            processed.widthPx, processed.heightPx,
+            recordedSourceFilename,
+          );
+          if (normalizedExternalUrl !== null) {
+            media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId);
+          }
+          applyTagsForCurator(mediaId, input.tags, now);
+          appendAuditEntry({
+            actionType: 'upload_curated_media',
+            category: 'media',
+            actorType: 'admin',
+            actorMemberId: input.adminMemberId,
+            entityType: 'media_item',
+            entityId: mediaId,
+            metadata: { mediaType: 'video', tags: input.tags },
+          });
         });
-      });
+      } catch (err) {
+        await compensatingStorageDelete(storage, [
+          videoKey,
+          posterDisplayKey,
+          posterThumbKey,
+        ]);
+        throw err;
+      }
 
       return { mediaId, displayUrl: storage.constructURL(posterDisplayKey) };
     },
@@ -1628,6 +1697,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // gallery.
     async updateGallery(input: CuratorGalleryUpdateInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId, updates } = input;
+      assertTier1Benefits(actorMemberId);
 
       const validated = await validateGalleryUpdates(updates);
 
@@ -1707,6 +1777,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       input: CuratorGalleryCreateInput,
     ): Promise<CuratorGalleryCreateResult> {
       const { actorMemberId, actorIsAdmin, ownerMemberId, suggestedId, ownerSlug, updates } = input;
+      assertTier1Benefits(actorMemberId);
 
       const validated = await validateGalleryUpdates(updates);
 
@@ -1716,13 +1787,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // Authorization: admin can create on behalf of anyone (in practice
       // FH-owned curator galleries); a non-admin actor can only create
       // galleries owned by themselves.
-      // DEVIATION: today, any authenticated member is allowed to be the
-      // actor for `actorMemberId === ownerMemberId` (the route layer in
-      // slice 2b applies only `requireAuth`, no tier gate). Target:
-      // re-narrow to a tier-eligible cohort once the tier feature
-      // lands. The tier ledger (`member_tier_grants` /
-      // `member_tier_current`) exists in schema; no tier-required
-      // middleware or service-level tier check exists yet.
       if (!actorIsAdmin && actorMemberId !== ownerMemberId) {
         throw new ValidationError('Not authorized to create a gallery for this owner.');
       }
@@ -1841,6 +1905,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // unauthorized actor; NotFoundError on unknown gallery.
     async deleteGallery(input: CuratorGalleryDeleteInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId } = input;
+      assertTier1Benefits(actorMemberId);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
         | { id: string; owner_member_id: string; is_system: number }
@@ -1851,7 +1916,29 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
 
-      media.deleteMemberGalleryById.run(galleryId);
+      // Delete + audit land in one transaction. Every other write method in
+      // this service wraps in transaction(...) + appendAuditEntry; gallery
+      // delete was the lone outlier, leaving deletions untraceable and
+      // unrolled-back on audit failure. Mirrors the deleteMedia pattern at
+      // ~line 1366.
+      transaction(() => {
+        media.deleteMemberGalleryById.run(galleryId);
+        appendAuditEntry({
+          actionType: existing.is_system === 1
+            ? 'delete_curated_gallery'
+            : 'delete_member_gallery',
+          category: 'media',
+          actorType: actorIsAdmin ? 'admin' : 'member',
+          actorMemberId,
+          entityType: 'gallery',
+          entityId: galleryId,
+          metadata: {
+            galleryId,
+            ownerMemberId: existing.owner_member_id,
+            isSystem: existing.is_system === 1,
+          },
+        });
+      });
 
       if (existing.is_system === 1 && config.allowCuratedSidecarWrites) {
         const sidecarPath = deriveGallerySidecarPath(curatedRootDir, galleryId);
@@ -1909,10 +1996,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // applyTagsForMember so #<slug> auto-applies. Synchronous from the
     // caller's perspective: image processing, S3 put, DB insert, and
     // Personal Gallery materialization all complete before return.
-    //
-    // DEVIATION: no tier gate (target: Tier 1+ required to upload).
-    // Tier ledger exists in schema but no enforcement anywhere yet.
     async uploadPhotoForMember(input: MemberPhotoInput): Promise<MemberUploadResult> {
+      assertTier1Benefits(input.memberId);
       validateCaption(input.caption);
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
@@ -1935,9 +2020,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       const now = new Date().toISOString();
 
-      // Storage puts run before the DB transaction (above), so a UNIQUE
-      // constraint reject here orphans the thumb/display objects. Same
-      // small window the curator path has had; cleanup is a follow-up.
+      // Compensating-delete on tx failure: storage objects already committed
+      // above; on UNIQUE / FK / CHECK violation we delete them so they don't
+      // orphan. Same pattern as uploadPhoto / uploadVideo.
       try {
         transaction(() => {
           media.insertMemberPhoto.run(
@@ -1962,6 +2047,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           });
         });
       } catch (err) {
+        await compensatingStorageDelete(storage, [thumbKey, displayKey]);
         const msg = (err as Error).message ?? '';
         if (msg.includes('UNIQUE') && msg.includes('source_filename')) {
           throw new ValidationError(
@@ -1983,6 +2069,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // body (Vimeo thumbnails are not derivable from id; YouTube ids
     // are derived at render time).
     async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
+      assertTier1Benefits(input.memberId);
       validateCaption(input.caption);
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);

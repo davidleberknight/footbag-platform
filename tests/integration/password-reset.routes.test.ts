@@ -45,18 +45,23 @@ beforeEach(async () => {
   db.close();
 });
 
-function latestResetToken(): string {
-  const db = new BetterSqlite3(dbPath, { readonly: true });
-  const row = db.prepare(
-    `SELECT body_text FROM outbox_emails
-       WHERE recipient_email = ?
-       ORDER BY created_at DESC LIMIT 1`,
-  ).get(MEMBER_EMAIL) as { body_text: string } | undefined;
-  db.close();
-  if (!row) throw new Error('no reset email in outbox');
-  const match = row.body_text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
-  if (!match) throw new Error('no reset link in body');
+/**
+ * Extracts the reset token from the password-forgot-sent response HTML
+ * (which now includes the simulated-email card on dev). The DB-row
+ * body_text is NULLed by the post-render outbox drain in
+ * simulatedEmailService.getEmailPreview(), so the HTML response is the
+ * authoritative source for the just-sent token URL.
+ */
+function tokenFromForgotResponse(res: { text: string }): string {
+  const match = res.text.match(/\/password\/reset\/([A-Za-z0-9_-]+)/);
+  if (!match) throw new Error('no reset link in response HTML');
   return match[1];
+}
+
+async function issueAndExtractResetToken(app: ReturnType<typeof createApp>, email: string): Promise<string> {
+  const res = await request(app).post('/password/forgot').type('form').send({ email });
+  expect(res.status).toBe(200);
+  return tokenFromForgotResponse(res);
 }
 
 function countOutboxFor(email: string): number {
@@ -107,17 +112,16 @@ describe('POST /password/forgot', () => {
 });
 
 describe('POST /password/reset/:token', () => {
-  it('valid token + matching passwords → 302 to /members, reissues session cookie, new password works, password_version bumped', async () => {
+  it('valid token + matching passwords → 302 to /members/:slug, reissues session cookie, new password works, password_version bumped', async () => {
     const app = createApp();
-    await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
-    const token = latestResetToken();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
 
     const res = await request(app)
       .post(`/password/reset/${token}`)
       .type('form')
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/members');
+    expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
 
@@ -147,8 +151,7 @@ describe('POST /password/reset/:token', () => {
 
   it('token is single-use: second consume → 422', async () => {
     const app = createApp();
-    await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
-    const token = latestResetToken();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
     const first = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
     });
@@ -162,8 +165,7 @@ describe('POST /password/reset/:token', () => {
 
   it('mismatched passwords → 422', async () => {
     const app = createApp();
-    await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
-    const token = latestResetToken();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
     const res = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: NEW_PASSWORD, confirmPassword: 'Different!4',
     });
@@ -182,8 +184,7 @@ describe('POST /password/reset/:token', () => {
 
   it('POST /password/reset/:token 422 sends Cache-Control: no-store (token in re-rendered HTML must not be cached)', async () => {
     const app = createApp();
-    await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
-    const token = latestResetToken();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
     const res = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: NEW_PASSWORD, confirmPassword: 'Different!4',
     });
@@ -194,8 +195,7 @@ describe('POST /password/reset/:token', () => {
 
   it('stale session cookie (pre-reset passwordVersion) is rejected after reset', async () => {
     const app = createApp();
-    await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
-    const token = latestResetToken();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
     await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
     });

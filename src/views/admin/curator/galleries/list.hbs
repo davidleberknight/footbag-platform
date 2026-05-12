@@ -61,7 +61,7 @@
             <td>
               <a href="/admin/curator/galleries/{{id}}/edit">Edit</a>
               <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
-              <form method="POST" action="/admin/curator/galleries/{{id}}/delete" class="inline-form" onsubmit="return confirm('Delete gallery {{id}}? This removes both the DB row and the JSON sidecar at /curated/galleries/&lt;slug&gt;.json on disk.');">
+              <form method="POST" action="/admin/curator/galleries/{{id}}/delete" class="inline-form" data-confirm="Delete gallery {{id}}? This removes both the DB row and the JSON sidecar at /curated/galleries/<slug>.json on disk.">
                 <button type="submit" class="btn-link-danger">Delete</button>
               </form>
             </td>

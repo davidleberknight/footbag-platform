@@ -1980,6 +1980,12 @@ section.home-media { padding-top: 0; }
 .rc-rejected { background: #fbe9e7; }
 .rc-deferred { background: #fff8e1; }
 
+/* ── Inline forms (delete buttons next to their items) ─────────── */
+/* Class used by templates whose form should flow inline with surrounding
+   text instead of breaking onto its own line. Replaces inline style="" so
+   CSP `style-src 'self'` can stay strict. */
+.inline-form { display: inline; }
+
 /* ── Internal QC: net review item edit UI ────────────────────── */
 .review-edit-row td { padding: 0 0.5rem 0.5rem; background: #f8f8f8; }
 .review-edit-row details summary { cursor: pointer; font-size: 0.85em; color: #666; padding: 0.25rem 0; }

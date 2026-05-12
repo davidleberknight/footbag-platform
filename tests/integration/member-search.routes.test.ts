@@ -1,5 +1,8 @@
 /**
- * Integration tests for GET /members (landing + search).
+ * Integration tests for the public welcome at GET /members and the
+ * member-search affordance on the personal home at GET /members/<slug>?q=…
+ * (the dashboard search was relocated to the profile when /members
+ * reverted to a public welcome page).
  *
  * Port 3060 — unique to this file.
  */
@@ -57,8 +60,8 @@ afterAll(() => cleanupTestDb(dbPath));
 
 // ── Landing page ──────────────────────────────────────────────────────────────
 
-describe('GET /members — landing', () => {
-  it('unauthenticated → 200 with welcome page', async () => {
+describe('GET /members — welcome', () => {
+  it('unauthenticated → 200 with welcome page (Sign Up CTA)', async () => {
     const app = createApp();
     const res = await request(app).get('/members');
     expect(res.status).toBe(200);
@@ -66,28 +69,49 @@ describe('GET /members — landing', () => {
     expect(res.text).toContain('/register');
   });
 
-  it('authenticated → 200 with search form and profile link', async () => {
+  it('authenticated → 200 with welcome page (no search form on /members)', async () => {
+    // The Find Members search lives on the personal home now. The welcome
+    // page renders the same tier explainer to everyone; only the join CTAs
+    // are hidden for authenticated visitors.
     const app = createApp();
     const res = await request(app).get('/members').set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Search');
-    expect(res.text).toContain(`/members/${SEARCHER_SLUG}`);
-  });
-
-  it('no search results section when no query', async () => {
-    const app = createApp();
-    const res = await request(app).get('/members').set('Cookie', searcherCookie());
-    expect(res.text).not.toContain('Results');
-    expect(res.text).not.toContain('No members found');
+    expect(res.text).toContain('Why join?');
+    expect(res.text).not.toContain('Find Members');
   });
 });
 
 // ── Search ────────────────────────────────────────────────────────────────────
 
-describe('GET /members?q= — member search', () => {
+describe('GET /members/<slug>?q= — member search on personal home', () => {
+  it('no search results section when no query', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${SEARCHER_SLUG}`)
+      .set('Cookie', searcherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Find Members');
+    expect(res.text).not.toContain('No members found');
+  });
+
+  // USER_STORIES line 723: member search is authenticated members only.
+  // Search affordance moved from /members to /members/:slug?q=. The route is
+  // protected by controller-internal logic (own-profile check), not by
+  // route-level middleware; this regression test pins the auth gate so a
+  // future refactor cannot silently expose member search to anonymous
+  // visitors via the query parameter.
+  it('unauthenticated → 302 to login, no search results leaked', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=foo`);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toMatch(/^\/login(\?|$)/);
+    expect(res.text).not.toContain('Find Members');
+    expect(res.text).not.toContain('search-result');
+  });
+
   it('prefix match returns matching members', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=ja').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=ja`).set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Jane Footbag');
     expect(res.text).toContain('Janet Kicks');
@@ -96,77 +120,77 @@ describe('GET /members?q= — member search', () => {
 
   it('shows country in results', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=ja').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=ja`).set('Cookie', searcherCookie());
     expect(res.text).toContain('US');
     expect(res.text).toContain('CA');
   });
 
   it('shows honor badge for HoF member', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=jane+le').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane+le`).set('Cookie', searcherCookie());
     expect(res.text).toContain('HoF');
   });
 
   it('links to member profile for current members', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=bob').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=bob`).set('Cookie', searcherCookie());
     expect(res.text).toContain('/members/bob_hackysack');
   });
 
   it('no results for unknown name', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=zzzzz').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=zzzzz`).set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('No members found');
   });
 
   it('query too short (1 char) shows validation message', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=j').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=j`).set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('at least 2 characters');
   });
 
   it('excludes opted-out members (searchable=0)', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=jane').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane`).set('Cookie', searcherCookie());
     expect(res.text).not.toContain('Jane Hidden');
   });
 
   it('excludes deceased members', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=jane').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane`).set('Cookie', searcherCookie());
     expect(res.text).not.toContain('Jane Departed');
   });
 
   it('excludes deleted members', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=jane').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane`).set('Cookie', searcherCookie());
     expect(res.text).not.toContain('Jane Deleted');
   });
 
   it('excludes unverified placeholder members', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=jane').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane`).set('Cookie', searcherCookie());
     expect(res.text).not.toContain('Jane Placeholder');
   });
 
   it('matches substring anywhere in name', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=footbag').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=footbag`).set('Cookie', searcherCookie());
     expect(res.text).toContain('Jane Footbag');
   });
 
   it('includes historical persons in results', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=lebe').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=lebe`).set('Cookie', searcherCookie());
     expect(res.text).toContain('Dave Leberknight');
     expect(res.text).toContain('/history/person-dave-001');
   });
 
   it('links historical person to /history/:personId', async () => {
     const app = createApp();
-    const res = await request(app).get('/members?q=zane').set('Cookie', searcherCookie());
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=zane`).set('Cookie', searcherCookie());
     expect(res.text).toContain('Zane Footbag');
     expect(res.text).toContain('/history/person-zane-001');
   });

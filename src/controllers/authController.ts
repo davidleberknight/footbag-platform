@@ -126,7 +126,10 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
 
 async function getCheckEmail(_req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const emailPreview = (await simulatedEmailService.getEmailPreview()) ?? undefined;
+    // Filter to verify-email URLs only so a stale verify card from a prior
+    // session doesn't bleed into a fresh registration's check-email page.
+    const emailPreview =
+      (await simulatedEmailService.getEmailPreview({ urlPathPrefix: '/verify/' })) ?? undefined;
     res.render('auth/check-email', {
       seo: { title: 'Check Your Email' },
       page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
@@ -152,18 +155,27 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
     const role = result.isAdmin ? 'admin' : 'member';
     const cookieValue = await createSessionJwt(result.memberId, role, result.passwordVersion);
     issueSessionCookie(res, cookieValue, req);
-    const tier = result.autoLinkClassification.tier;
-    if (tier === 'tier1' || tier === 'tier2') {
-      res.redirect('/history/auto-link');
+    const confidence = result.autoLinkClassification.confidence;
+    // `?from=register` flags the destination page to render a "Skip and
+    // complete this later" affordance pointing back at the member's dashboard,
+    // so a registrant who doesn't want to engage the claim flow during signup
+    // is not forced through the detour.
+    // All three classifier branches land at the unified link-history wizard
+    // ("one place to link" — round-2 maintainer decision). High/medium
+    // confidence renders an auto_link_confirm "This is me" card at the top
+    // of the wizard; low confidence renders the low-confidence banner +
+    // candidates; no-match renders the empty candidate list + manual-id
+    // input. The wizard's "Back to dashboard" footer keeps /members reachable.
+    const wizard = `/members/${result.slug}/link-history`;
+    if (confidence === 'high' || confidence === 'medium') {
+      res.redirect(`${wizard}?from=register`);
       return;
     }
-    // tier3 without a legacyMatch is the ambiguous-email case: route to the
-    // manual claim form so the user can disambiguate with a unique identifier.
-    if (tier === 'tier3' || result.legacyMatch) {
-      res.redirect('/history/claim');
+    if (confidence === 'low' || result.legacyMatch) {
+      res.redirect(`${wizard}?from=register&reason=low_confidence`);
       return;
     }
-    res.redirect(`/members/${result.slug}`);
+    res.redirect(`${wizard}?from=register`);
   } catch (err) {
     next(err);
   }
@@ -180,7 +192,8 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
     next(err);
     return;
   }
-  const emailPreview = (await simulatedEmailService.getEmailPreview()) ?? undefined;
+  const emailPreview =
+    (await simulatedEmailService.getEmailPreview({ urlPathPrefix: '/verify/' })) ?? undefined;
   res.render('auth/check-email', {
     seo: { title: 'Check Your Email' },
     page: { sectionKey: '', pageKey: 'check_email', title: 'Check your email' },
@@ -189,7 +202,16 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
 }
 
 function postLogout(req: Request, res: Response): void {
-  res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+  // Match the attributes used when the cookie was set so RFC 6265-strict
+  // browsers (and proxies that enforce attribute parity on clear) honor
+  // the clear. Without secure/sameSite matching the set, some clients
+  // silently ignore the clear and the cookie persists until natural expiry.
+  res.clearCookie(SESSION_COOKIE_NAME, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: req.secure || req.headers['x-forwarded-proto'] === 'https',
+  });
   writeFlash(res, req, FLASH_KIND.LOGOUT);
   const referer = req.get('Referer');
   if (referer) {
@@ -216,10 +238,16 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
   const { email } = req.body as { email?: string };
   try {
     await identityAccessService.requestPasswordReset(email ?? '');
+    // Simulated email card on dev / sandbox so the operator can complete the
+    // reset flow without leaving the page; null in production. Filtered to
+    // password-reset URLs so a stale verify-email card from earlier in the
+    // session doesn't confuse the operator.
+    const emailPreview =
+      (await simulatedEmailService.getEmailPreview({ urlPathPrefix: '/password/reset/' })) ?? undefined;
     res.render('auth/password-forgot-sent', {
       seo: { title: 'Reset Your Password' },
       page: { sectionKey: '', pageKey: 'password_forgot_sent', title: 'Reset your password' },
-      content: {},
+      content: { emailPreview },
     } satisfies PageViewModel<PasswordForgotSentContent>);
   } catch (err) {
     next(err);
@@ -254,7 +282,10 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     );
     const cookieValue = await createSessionJwt(result.memberId, result.role, result.newPasswordVersion);
     issueSessionCookie(res, cookieValue, req);
-    res.redirect('/members');
+    // Redirect to the member's own profile, matching login + verify flows.
+    // Previously redirected to the generic /members landing page, which was
+    // inconsistent UX after a successful credential change.
+    res.redirect(`/members/${encodeURIComponent(result.slug)}`);
   } catch (err) {
     if (err instanceof ValidationError) {
       setNoStore(res);

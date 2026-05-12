@@ -3,6 +3,7 @@ import {
   ValidationError,
   NotFoundError,
   ServiceUnavailableError,
+  ForbiddenError,
   isServiceError,
 } from '../../src/services/serviceErrors';
 
@@ -50,6 +51,24 @@ describe('ServiceUnavailableError', () => {
   });
 });
 
+describe('ForbiddenError', () => {
+  it('has correct code and message', () => {
+    const err = new ForbiddenError('not allowed');
+    expect(err.code).toBe('forbidden');
+    expect(err.message).toBe('not allowed');
+    expect(err.name).toBe('ForbiddenError');
+  });
+
+  it('stores details', () => {
+    const err = new ForbiddenError('not allowed', { reason: 'tier_gate' });
+    expect(err.details).toEqual({ reason: 'tier_gate' });
+  });
+
+  it('extends Error', () => {
+    expect(new ForbiddenError('x')).toBeInstanceOf(Error);
+  });
+});
+
 describe('isServiceError', () => {
   it('returns true for ValidationError', () => {
     expect(isServiceError(new ValidationError('x'))).toBe(true);
@@ -61,6 +80,10 @@ describe('isServiceError', () => {
 
   it('returns true for ServiceUnavailableError', () => {
     expect(isServiceError(new ServiceUnavailableError('x'))).toBe(true);
+  });
+
+  it('returns true for ForbiddenError', () => {
+    expect(isServiceError(new ForbiddenError('x'))).toBe(true);
   });
 
   it('returns false for plain Error', () => {

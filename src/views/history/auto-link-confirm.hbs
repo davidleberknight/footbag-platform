@@ -1,17 +1,18 @@
 {{! Verification-time auto-link confirmation. }}
-{{! Renders the Tier 1 / Tier 2 candidate HP with explicit yes/no actions. }}
+{{! Renders the high / medium confidence candidate HP with explicit yes/no actions. }}
 {{! The "yes" form POSTs to /history/auto-link/confirm, which re-validates }}
 {{! the classifier output and commits via claimHistoricalPerson in one turn. }}
 
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>Based on the email and name on your account, we believe this historical player record refers to you. Confirm to carry Hall of Fame status, country, and career results onto your profile.</p>
   </div>
 </div>
 
 <div class="wrapper">
   <section>
+    <p>Based on the email and name on your account, we believe this historical player record refers to you. Confirm to carry Hall of Fame status, country, and career results onto your profile.</p>
+
     {{#if content.error}}
       <p class="form-error" role="alert">{{content.error}}</p>
     {{/if}}
@@ -19,12 +20,20 @@
     {{#if content.personName}}
       <div class="card mb-6">
         <p class="m-0 fw-500">Historical record: {{content.personName}}</p>
+        {{#if (eq content.confidence 'medium')}}
+          <p class="m-0 mt-2 text-muted">We matched on a name variant (for example, Dave / David). Please double-check this is your record before confirming.</p>
+        {{/if}}
       </div>
 
       <p>Clicking confirm will link this historical record to your account.</p>
 
       <form method="POST" action="/history/auto-link/confirm">
         <input type="hidden" name="personId" value="{{content.personId}}" />
+        {{#if content.skipHref}}
+          {{! Round-trip the registration-context flag so a drift redirect }}
+          {{! from this POST keeps the skip affordance visible at /history/claim. }}
+          <input type="hidden" name="from" value="register" />
+        {{/if}}
         <button type="submit" class="btn btn-primary">Yes, this is me — link my account</button>
       </form>
     {{/if}}
@@ -32,5 +41,11 @@
     <p class="mt-4">
       <a href="{{content.declineHref}}">No, not me — take me to my dashboard</a>
     </p>
+
+    {{#if content.skipHref}}
+      <p class="mt-2">
+        <a href="{{content.skipHref}}" class="text-muted">Skip and complete this later</a>
+      </p>
+    {{/if}}
   </section>
 </div>

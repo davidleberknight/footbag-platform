@@ -378,7 +378,7 @@ At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` m
 `email_templates` stores admin-editable subject and body templates keyed by `template_key`. The `email_templates_enabled` view exposes only templates where `is_enabled = 1`. Setting `is_enabled = 0` suppresses the corresponding automated email type without deleting the content.
 
 #### Mailing list column
-`mailing_lists.is_member_manageable` controls whether members can self-subscribe/unsubscribe. Six core lists are seeded at initialization; see §4.23.
+`mailing_lists.is_member_manageable` controls whether members can self-subscribe/unsubscribe. Seven core lists are seeded at initialization; see §4.23.
 
 ### 4.9 Admin Operations
 
@@ -1033,6 +1033,7 @@ Required default rows are included at the end of `schema.sql` (Section 23) and a
 | `board-announcements` | Board Announcements | `1` |
 | `event-notifications` | Event Notifications | `1` |
 | `technical-updates` | Technical Updates | `1` |
+| `active-player-reminders` | Active Player Reminders | `1` |
 
 #### System config defaults
 
@@ -1054,6 +1055,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `active_player_duration_days` | `730` | Active Player grant duration in days (IFPA-rule-derived) |
 | `active_player_expiry_reminder_days_1` | `30` | First Active Player expiry reminder offset (days before expiry) |
 | `active_player_expiry_reminder_days_2` | `7` | Second Active Player expiry reminder offset (days before expiry) |
+| `active_player_expiry_check_interval_seconds` | `86400` | Worker tick interval for the AP expiry sweep (seconds) |
 | `vouch_rate_limit_max_per_hour` | `5` | Max vouch submissions per voucher per window |
 | `vouch_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting vouch submissions per voucher |
 | `outbox_max_retry_attempts` | `5` | Max email retry attempts before moving to dead-letter queue |

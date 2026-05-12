@@ -13,7 +13,6 @@
  * Multi-row writes (tier grant + AP end) are wrapped in transaction() to land
  * atomically.
  */
-import { randomUUID } from 'node:crypto';
 import {
   memberTier,
   transaction,
@@ -23,6 +22,7 @@ import {
 import { appendAuditEntry, type AuditActorType } from './auditService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
+import { uuidv7Hex } from './uuidv7';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
 
@@ -34,17 +34,16 @@ export interface TierStatus {
   underlying_tier_status: UnderlyingTier | null;
 }
 
-// Counter-prefixed ID so back-to-back grants (same wall-clock ms) sort in
+// UUIDv7-suffixed ID so back-to-back grants (same wall-clock ms) sort in
 // insertion order under the view's (created_at, id) tiebreaker. The view
 // definition in member_tier_current relies on id-string comparison when
-// created_at ties; without a sortable prefix, two grants in the same ms
-// resolve to whichever uuid happens to be lex-greater. Counter is per-process
-// only — across processes the random suffix preserves uniqueness.
-let _grantSeq = 0;
+// created_at ties. UUIDv7 carries a 48-bit ms timestamp prefix that makes
+// any two ids generated in different ms lex-comparable; same-ms ids resolve
+// by the random tail (consistent across processes, no shared state needed).
+// Replaces the prior per-process counter scheme that silently collided
+// across the web/worker container boundary.
 function newGrantId(): string {
-  _grantSeq += 1;
-  const seq = _grantSeq.toString().padStart(12, '0');
-  return `mtg_${seq}_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+  return `mtg_${uuidv7Hex()}`;
 }
 
 function getCurrent(memberId: string): TierStatus {
@@ -189,6 +188,103 @@ export function applyPurchaseGrant(
 
     return { ok: true as const };
   });
+}
+
+/**
+ * Bring an admin member up to Tier 2. The platform admin role requires Tier 2+
+ * as a prerequisite; this method enforces the invariant on the data side.
+ * Writes a standard 'grant' row plus a system-actor audit entry, both serving
+ * as greppable markers. Skips silently when the member is already at Tier 2 or
+ * higher.
+ *
+ * No environment gate; callers gate on FOOTBAG_ENV (or other appropriate
+ * triggers like SSM-token presence) where required:
+ *   - dev/staging registration bootstrap (src/dev-admin-shortcuts/runtime.ts) —
+ *     passes reason_code='dev_admin_register_allowlist.admin_tier2'. CUTOVER-REMOVE.
+ *   - dev-only backfill repair pass (src/dev-admin-shortcuts/runtime.ts) —
+ *     passes reason_code='dev_admin_invariant_repair'. CUTOVER-REMOVE.
+ *   - production single-shot bootstrap (deferred slice) — passes
+ *     reason_code='prod.admin_bootstrap_tier2'
+ *
+ * The audit action_type is derived from reason_code. Each
+ * dev-admin-shortcut caller keeps its distinctive action_type so a single
+ * audit search by action_type catches the full bootstrap event
+ * (admin-flag + tier grant rows, both written in the same transaction by
+ * the caller). The production-bootstrap reason_code falls through to the
+ * canonical `grant_admin_bootstrap` action_type.
+ */
+export function applyAdminTier2InvariantGrant(
+  memberId: string,
+  reasonCode: string,
+  auditMetadata: Record<string, unknown>,
+): { applied: boolean } {
+  return transaction(() =>
+    applyAdminTier2InvariantGrantInTx(memberId, reasonCode, auditMetadata),
+  );
+}
+
+/**
+ * Same as `applyAdminTier2InvariantGrant` but assumes the caller has already
+ * opened a transaction. Use this when the admin grant must be atomic with
+ * another set of writes (e.g. the dev/staging bootstrap that combines
+ * `is_admin=1` + audit + tier grant + tier audit in one transaction). The
+ * caller is responsible for the transaction() wrapper.
+ */
+export function applyAdminTier2InvariantGrantInTx(
+  memberId: string,
+  reasonCode: string,
+  auditMetadata: Record<string, unknown>,
+): { applied: boolean } {
+  const current = getCurrent(memberId);
+  if (current.tier_status === 'tier2' || current.tier_status === 'tier3') {
+    return { applied: false };
+  }
+  const now = new Date().toISOString();
+  if (current.tier_status === 'tier0') {
+    endOnTierUpgrade(memberId, now);
+  }
+  const reasonText = reasonCode === 'dev_admin_invariant_repair'
+    ? 'Dev-mode admin Tier 2 invariant repair (admin role requires Tier 2+).'
+    : 'Admin Tier 2 invariant grant (admin role requires Tier 2+).';
+  insertGrant({
+    actorId: null,
+    memberId,
+    changeType: 'grant',
+    oldTier: current.tier_status,
+    newTier: 'tier2',
+    oldUnderlying: null,
+    newUnderlying: null,
+    reasonCode,
+    reasonText,
+    relatedPaymentId: null,
+    now,
+  });
+  // CUTOVER-REMOVE: dev-admin-shortcut reason_codes route to distinctive
+  // action_types so the audit trail can be partitioned and zero-checked
+  // before production deploy. The default branch is the production
+  // single-shot bootstrap path.
+  let actionType: string;
+  let category: 'admin' | 'tier_change';
+  if (reasonCode === 'dev_admin_invariant_repair') {
+    actionType = 'dev_admin_invariant_repair';
+    category = 'tier_change';
+  } else if (reasonCode === 'dev_admin_register_allowlist.admin_tier2') {
+    actionType = 'grant_admin_dev_register_allowlist';
+    category = 'admin';
+  } else {
+    actionType = 'grant_admin_bootstrap';
+    category = 'admin';
+  }
+  audit({
+    actionType,
+    category,
+    actorType: 'system',
+    actorId: null,
+    memberId,
+    reasonText,
+    metadata: { from: current.tier_status, to: 'tier2', ...auditMetadata },
+  });
+  return { applied: true };
 }
 
 /**

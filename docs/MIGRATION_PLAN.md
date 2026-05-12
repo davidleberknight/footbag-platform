@@ -297,6 +297,15 @@ At first registration, when a member's email matches a `legacy_members.legacy_em
 - On confirm, the registration flow writes `members.legacy_member_id` to the matched `legacy_members.legacy_member_id` and sets `legacy_members.claimed_by_member_id` + `claimed_at` atomically. If the claimed `legacy_members` row has a matching `historical_persons.legacy_member_id`, `members.historical_person_id` is also set in the same transaction.
 - Decision is audit-logged. No admin queue is involved at registration time; the user is the authority on their own identity.
 
+### Platform code gated on legacy data dump arrival
+
+The following platform-code surfaces are designed against the dump's production-shaped fields. The application code is already in place; what remains gated is the data-side validation against the real dump payload (e.g. `legacy_email` coverage, `name_variants` seeding). Each is a cutover blocker; the gate clears when the code-side smoke runs cleanly against the loaded dump.
+
+1. **Two-step emailed-token claim flow** (G22). `/history/claim` runs the spec'd flow described in §7: lookup form (POST issues a single-use `account_claim` token, non-revealing response) → emailed confirmation link → GET `/history/claim/confirm/:token` peek page → POST `/history/claim/confirm` consume-and-merge handler. Token storage uses `account_tokens.target_legacy_member_id` (SHA-256 hash only); rate-limited per requesting member at 5 attempts per hour. Data-side gate: the dump must populate `legacy_email` on enough rows that token delivery is the operative anchor.
+2. **Three-key auto-link classification** (G23). `getAutoLinkClassificationForMember` already queries all three anchors (`legacy_email`, `legacy_user_id`, `legacy_member_id`) per the known-name-variants table above. Data-side gate: the dump payload must populate at least one anchor per identity and the `name_variants` seed (G11) must be in place to drive the Tier 1 / Tier 2 / Tier 3 distinction.
+3. **Batch auto-link at cutover** (G24). `OperationsPlatformService.runBatchAutoLink` is the one-time SYS job per "Batch auto-link at cutover" above. It scans every unlinked Tier 0 verified-email member, runs the classifier, and queues high-confidence (Tier 1 / Tier 2) matches into `work_queue_items` (`task_type='auto_link_match'`, `queue_category='membership'`) for `A_Review_Auto_Link_Matches`. Wrapped by `OperationsPlatformService.recordJobRun` for `system_job_runs` lifecycle tracking. Idempotent: re-runs do not double-queue. Data-side gate: must run after the dump load and before §23 State 3 → State 4 transition.
+4. **Direct HP claim refinements** (G25). `/history/:personId/claim` confirm page renders the first-name-warning inline; surname-mismatch returns a user-readable error; `claimHistoricalPerson` writes an `audit_entries` row with `first_name_variant` and `transitive_legacy_id` metadata. Data-side gate: full value depends on `name_variants` being seeded (G11) for the first-name-variant detection.
+
 ---
 
 ## 7. Self-serve legacy claim flow
@@ -902,6 +911,10 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | G19 | Registration-time auto-link wired and exercised | §24 | State 2 → State 3 |
 | G20 | Data review sign-off: legacy data complete, member-list presentation reviewed | §24 | State 1 → State 2 |
 | G21 | `legacy_user_id` and `legacy_email` populated on canonical `persons.csv` where mirror provides them | §24 | State 1 → State 2 |
+| G22 | Two-step emailed-token claim flow live; direct-lookup shortcut retired | §24 | State 2 → State 3 |
+| G23 | Three-key auto-link classification wired (`legacy_email` + `legacy_user_id` + `legacy_member_id`); name_variants in play | §24 | State 2 → State 3 |
+| G24 | Batch auto-link SYS job ready to run at cutover; results queue into `A_Review_Auto_Link_Matches` | §24 | State 3 → State 4 |
+| G25 | Direct HP claim refinements live: first-name warning UX, surname-mismatch messaging, audit metadata | §24 | State 2 → State 3 |
 
 ### External dependencies
 
@@ -959,11 +972,13 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 |---|---|---|---|
 | PC1 | JWT TTL revert to DD §3.4 24h baseline | §28.8 | State 3 → State 4 |
 | PC2 | SES sender cutover to `noreply@footbag.org` | §28.8 | State 3 → State 4 |
-| PC3 | STUB_PASSWORD rotation | §28.8 | State 3 → State 4 |
-| PC4 | Lightsail SSH firewall rule restore | §28.8 | State 3 → State 4 |
-| PC5 | SES sandbox-mode flip | §28.8 | State 3 → State 4 |
-| PC6 | Production Terraform region fix (us-east-1) | §28.8 | State 3 → State 4 |
-| PC7 | Preview fixture scrub | §28.8 | State 3 → State 4 |
+| PC3 | Lightsail SSH firewall rule restore | §28.8 | State 3 → State 4 |
+| PC4 | SES sandbox-mode flip | §28.8 | State 3 → State 4 |
+| PC5 | Production Terraform region fix (us-east-1) | §28.8 | State 3 → State 4 |
+| PC6 | Preview fixture scrub | §28.8 | State 3 → State 4 |
+| PC7 | Origin-header CSRF middleware lands per DD §3.3 | DD §3.3 | State 3 → State 4 |
+| PC8 | Production-first-admin SSM-token route lands per DD §2.9 | DD §2.9, DEVOPS_GUIDE §17.8 | State 3 → State 4 |
+| PC9 | Admin-seeding shortcuts removed from staging deploy path | §28.8 item 8 | State 3 → State 4 |
 
 ### Retirement gate
 
@@ -1003,7 +1018,6 @@ External prerequisites that must land before Phase 4 starts:
 - **`noreply@footbag.org` verified in SES** (sender identity) and runtime-role `ses:SendEmail` IAM policy pinned to that sender identity ARN (post-production-access, the recipient-identity permission check goes away, so the sender-only pin is sufficient and least-privilege).
 - **JWT session TTL at the DD §3.5 baseline** (24h). Staging observability-tuned values must be reverted in code before the cutover deploy.
 - **Email-delivery smoke passes end-to-end** on the final pre-cutover release: enqueue a test row via the outbox, worker drains, SES accepts, recipient inbox receives. See §24 gate G10.
-- **STUB_PASSWORD rotated** for the staging preview-user; vault entry updated before any external tester receives the credential. See §28.8.
 - **Lightsail SSH firewall rule restored** via `terraform apply` from `terraform/staging/` (removes Console override of the port-22 rule and returns to `operator_cidrs`-constrained ingress). See §28.8.
 
 Phase 4 activities:
@@ -1113,6 +1127,10 @@ The following must be confirmed at the test load before go-live. These are not o
 | G19 | Registration-time auto-link per §6 wired into `verifyEmailByToken`; Tier 1, Tier 2, and Tier 3 paths all exercised at test load | Registration remains a manual cleanup path for legacy-match cases; admin Tier 3 queue grows |
 | G20 | Data review sign-off: confirmation that legacy data is complete and member-list presentation is reviewed (unblocks members ungating) | Withhold members ungating until sign-off; historical-pipeline maintainer owns sign-off per §19 item 5 |
 | G21 | `legacy_user_id` and `legacy_email` populated on canonical `persons.csv` where mirror provides them | Claim flow lookup falls back to `legacy_member_id` only; auto-link Tier 1/2 coverage drops because the email anchor is missing |
+| G22 | Two-step emailed-token claim flow live: `/history/claim` lookup form enqueues a token; token link routes to confirm-and-merge handler; SHA-256 token storage; rate-limited per requesting member, per target row, per session/IP per §6 | Block cutover; the direct-lookup shortcut leaks claim outcome to the requester without mailbox proof of ownership. Closes the corresponding `IMPLEMENTATION_PLAN.md` entry when it lands |
+| G23 | Three-key auto-link classification covers `legacy_email`, `legacy_user_id`, `legacy_member_id` anchors with the seeded `name_variants` table driving Tier 1 / Tier 2 differentiation per §6 | Auto-link coverage drops to the email-only mirror baseline; Tier 2 variant matches surface as Tier 3 admin-queue work |
+| G24 | `OperationsPlatformService` batch auto-link SYS job ready to run once at cutover; high-confidence matches queue into `A_Review_Auto_Link_Matches`; one `system_job_runs` row recorded per run | Batch auto-link defers to per-member registration-time auto-link only; admins absorb the unmatched-population review load |
+| G25 | `/history/:personId/claim` confirm page renders the first-name-variant warning inline; surname-mismatch messaging is user-readable; audit metadata captures the variant used for direct-HP claims per §7 scenarios D / E | Direct HP claim remains usable but klunky; surname-block failures surface as raw `ValidationError` text rather than the spec'd confirm-page warning |
 
 **Tuning authority for G8:** Bootstrap threshold adjustments at test load are a joint decision between the primary maintainer and the historical-pipeline maintainer. Raising the threshold (more conservative) is routine and requires no additional sign-off. Lowering the threshold below a minimum acceptable value (to be set during State 2 review if lowering is needed) requires IFPA board sign-off, because lowering materially expands who gains bootstrap leadership and the live club-management permissions that follow at first claim.
 
@@ -1190,12 +1208,14 @@ Before Phase 4 cutover, the following staging-observability-only deviations must
 
 1. JWT TTL revert: `DEFAULT_TTL_SECONDS` in `src/services/jwtService.ts` and `SESSION_COOKIE_MAX_AGE_MS` in `src/middleware/auth.ts` restored to the DD §3.4 24h baseline. Session JWT refresh (§28.7) must land before this revert to avoid silent mid-session logouts at the 24h boundary.
 2. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical address; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` IAM policy `Resource` ARN from the staging sender to the canonical `noreply@footbag.org` identity; restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
-3. STUB_PASSWORD rotation: staging preview-user credential rotated in local `.env`, redeployed, and the vault entry updated before any external tester receives the credential.
-4. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove the Path H §8.10 browser-SSH override (loosened beyond `operator_cidrs`) and return to the `operator_cidrs`-constrained ingress.
-5. SES sandbox-mode flip: `SES_SANDBOX_MODE` in `/srv/footbag/env` cleared (removed or set to `0`) once SES production access has been granted for the account. Clears the staging-warning card rendered on email-gated pages (DD §5.6).
-6. Production Terraform region fix: change `terraform/production/variables.tf:14` region default from `us-east-2` to `us-east-1` before any `terraform apply` from `terraform/production/`. Staging is `us-east-1` per §28.2 / `docs/DEVOPS_GUIDE.md` §3.3; applying as-is would create cross-region production resources.
-7. Preview fixture scrub: `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` inserts a "Footbag Hacky" fixture (fake event, discipline, result, HP record with HoF flag, and result-entry participant) alongside the preview-user account. Acceptable in staging for UX preview; must not reach the production DB. Either condition the fixture block on an env flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`) or delete the block in the production-cutover data pass.
-8. Restore live `mailto:admin@footbag.org` in `/legal`: swap the `.contact-pending` span used in Privacy, Terms, and Copyright contact lines for a live `mailto:admin@footbag.org` once SES sender cutover (item 2) is complete and the canonical mailbox is active. Template-only change; no service or DB work.
+3. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove the Path H §8.10 browser-SSH override (loosened beyond `operator_cidrs`) and return to the `operator_cidrs`-constrained ingress.
+4. SES sandbox-mode flip: `SES_SANDBOX_MODE` in `/srv/footbag/env` cleared (removed or set to `0`) once SES production access has been granted for the account. Clears the staging-warning card rendered on email-gated pages (DD §5.6).
+5. Production Terraform region fix: change `terraform/production/variables.tf:14` region default from `us-east-2` to `us-east-1` before any `terraform apply` from `terraform/production/`. Staging is `us-east-1` per §28.2 / `docs/DEVOPS_GUIDE.md` §3.3; applying as-is would create cross-region production resources.
+6. Preview fixture scrub: `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` inserts a "Footbag Hacky" fixture (fake event, discipline, result, HP record with HoF flag, and result-entry participant) alongside the preview-user account. Acceptable in staging for UX preview; must not reach the production DB. Either condition the fixture block on an env flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`) or delete the block in the production-cutover data pass.
+7. Restore live `mailto:admin@footbag.org` in `/legal`: swap the `.contact-pending` span used in Privacy, Terms, and Copyright contact lines for a live `mailto:admin@footbag.org` once SES sender cutover (item 2) is complete and the canonical mailbox is active. Template-only change; no service or DB work.
+8. Dev autologin revert + dev-admin shortcuts scrub:
+    - **Dev autologin** (`FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID`) is a dev-only surface admitted by `authMiddleware()` only when `FOOTBAG_ENV=development`. The boot-time `env.ts` guard refuses the marker outside development. Revert: delete the dev branch in `src/middleware/auth.ts` and the env-config guard.
+    - **Dev-admin shortcuts (register-allowlist + dev-admin seed).** Both `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` (registration-time allowlist via `src/dev-admin-shortcuts/runtime.ts`) and `--seed-dev-admins` (direct-insert via `src/dev-admin-shortcuts/seed.ts`) are migration-window-only on the staging path and must be removed at cutover. Replacement: production-first-admin via the SSM-token `/admin/bootstrap-claim` route (DD §2.9, DEVOPS_GUIDE §17.8); staging adopts the same SSM-token path post-cutover. At cutover, the deploy script stops writing `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` into the staging `/srv/footbag/env`, and `deploy_to_aws.sh --seed-dev-admins` is tightened to dev-only target. Both mechanisms remain in code for dev workstations, gated by `FOOTBAG_ENV=development`. Production-DB verification per DEVOPS_GUIDE §17.7 still applies: marker counts for `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-admin-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'` must all be zero before the cutover deploy (cf. `scripts/audit-dev-admin-shortcuts.sh`). SSM-token route implementation is a prerequisite tracked in `IMPLEMENTATION_PLAN.md`.
 
 Sign-off on this checklist is a prerequisite for §23 State 3 → State 4 transition.
 

@@ -343,7 +343,7 @@ Provides abstractions for External Services making them look identical whether r
 
 - SesAdapter: `LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev/test.
 - PaymentAdapter: Stripe SDK in production, mock responses in development.
-- SecretsAdapter: AWS Parameter Store SecureString reads in staging and production (`LiveSecretsAdapter` with KMS decryption and lazy in-process cache); dev reads from a gitignored `.secrets.local.json` at the repo root (`LocalSecretsAdapter`); tests inject `StubSecretsAdapter` directly. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which still load from `.env` via dotenv.
+- SecretsAdapter: AWS Parameter Store SecureString reads in staging and production (`LiveSecretsAdapter` with KMS decryption and lazy in-process cache); dev reads from a gitignored `.local/secrets.json` (`LocalSecretsAdapter`); tests inject `StubSecretsAdapter` directly. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which still load from `.env` via dotenv.
 - CloudTrailAdapter: surfaces AWS CloudTrail audit events for AWS activity; in development, writes simulated audit events to local files.
 - LoggingAdapter: In production, sends structured application and technical logs to CloudWatch Logs; in development, writes the same structured logs to local files.
 - MetricsAdapter: In production, sends metrics (counters, timers, gauges) to CloudWatch Metrics; in development, records the same metrics in local in-memory or file-based storage.
@@ -596,7 +596,7 @@ Benefits Gained: Zero antivirus maintenance, Standardized image quality, Simple 
 
 ## 6.3 Additional Security Protections
 
-**CSRF Protection:** The application uses SameSite=Lax cookies combined with strict HTTP verb discipline (no state change over GET) rather than synchronizer CSRF tokens. SameSite=Lax prevents cookies from being sent with cross-site POST requests while allowing them on same-site requests and top-level navigations.
+**CSRF Protection:** The application uses SameSite=Lax cookies, strict HTTP verb discipline (no state change over GET), and Origin-header pinning on state-changing requests, rather than synchronizer CSRF tokens. SameSite=Lax prevents cookies from being sent with cross-site POSTs; Origin-header pinning blocks same-site subdomain POSTs from the legacy archive subdomain, which shares the session cookie via `Domain=.footbag.org`.
 
 **Content Security Policy:** The platform implements Content Security Policy headers restricting which sources can load scripts, styles, and resources. This prevents cross-site scripting attacks by rendering injected malicious code inert even if input validation were bypassed.
 
@@ -664,7 +664,7 @@ Customer-managed keys via AWS KMS were considered but rejected. Benefits (more c
 **Primary Threats Mitigated:**
 
 - Account takeover via credential theft: argon2id password hashing + HttpOnly JWT.
-- CSRF attacks: SameSite=Lax cookies + strict HTTP verb discipline.
+- CSRF attacks: SameSite=Lax cookies, strict HTTP verb discipline, and Origin-header pinning on state-changing requests.
 - Malicious file uploads: Isolated image processor + format validation.
 - Ballot tampering: AES-256-GCM encryption + audit logging.
 - SQL injection: Mitigated by prepared statements with parameter binding.

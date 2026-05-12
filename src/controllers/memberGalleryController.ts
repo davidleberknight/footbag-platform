@@ -6,18 +6,16 @@
  *
  * Authz model:
  *   - `requireAuth` middleware redirects unauthenticated requests to /login.
+ *   - `requireTier1Benefits` middleware returns 403 for under-tiered
+ *     members on the four POST routes (create / edit / delete / upload).
  *   - This controller asserts `req.user.slug === req.params.memberKey`;
  *     a mismatch returns 404 (anti-enumeration; matches the existing
  *     memberController convention so a probe for another member's
  *     gallery surface looks identical to a missing route).
- *   - The service layer (curatorMediaService) re-asserts ownership on
- *     every mutating call: actorIsAdmin OR actorMemberId === ownerMemberId.
- *
- * DEVIATION: today, any authenticated member may create/edit/delete
- * their own galleries — there is no tier gate at this level. Target:
- * gate on tier eligibility once the tier feature lands. The tier
- * ledger (member_tier_grants / member_tier_current) exists in schema;
- * no tier-required middleware or service-level tier check exists yet.
+ *   - The service layer (curatorMediaService) re-asserts both the tier
+ *     check and ownership on every mutating call (defense-in-depth).
+ *     A ForbiddenError surfaced from the service is mapped to a 403
+ *     render by the central error middleware in app.ts.
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';

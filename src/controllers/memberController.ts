@@ -4,14 +4,13 @@ import { memberService, ProfileEditInput } from '../services/memberService';
 import { AVATAR_MAX_BYTES, createAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { getImageProcessingAdapter, ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { RateLimitedError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
-
-type MemberWelcomeContent = Record<string, never>;
+import { renderServiceUnavailable } from '../lib/controllerErrors';
 
 interface MemberPasswordEditContent {
   memberKey: string;
@@ -50,26 +49,13 @@ function renderNotFound(res: Response): void {
 }
 
 export const memberController = {
-  /** GET /members, members landing; public welcome or authenticated search. */
+  /** GET /members, public informational landing (welcome + tier explainer). */
   landing(req: Request, res: Response, next: NextFunction): void {
-    if (!req.isAuthenticated) {
-      res.render('members/welcome', {
-        seo: { title: 'Members' },
-        page: { sectionKey: 'members', pageKey: 'member_welcome', title: 'Members' },
-        content: {},
-      } satisfies PageViewModel<MemberWelcomeContent>);
-      return;
-    }
     try {
-      const query = typeof req.query.q === 'string' ? req.query.q : undefined;
-      const vm = memberService.getMembersLandingPage(
-        req.user!.slug,
-        req.user!.displayName ?? 'Member',
-        query,
-      );
-      res.render('members/landing', vm);
+      const vm = memberService.getMembersWelcomePage({ isAuthenticated: req.isAuthenticated });
+      res.render('members/welcome', vm);
     } catch (err) {
-      logger.error('members landing error', { error: err instanceof Error ? err.message : String(err) });
+      logger.error('members welcome error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
     }
   },
@@ -80,7 +66,8 @@ export const memberController = {
 
     if (isOwnProfile(req)) {
       try {
-        const vm = memberService.getOwnProfile(memberKey);
+        const query = typeof req.query.q === 'string' ? req.query.q : undefined;
+        const vm = memberService.getOwnProfile(memberKey, { query });
         res.render('members/profile', vm);
       } catch (err) {
         if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -246,6 +233,18 @@ export const memberController = {
             renderError(err.message);
             return;
           }
+          if (err instanceof ImageProcessingError) {
+            // Image worker unreachable / misconfigured / overloaded. Surface
+            // as a real 503 with the unavailable page instead of falling
+            // through to the 500 handler. Operator log line above the render
+            // still carries the detail.
+            logger.error('avatar upload: image worker unavailable', {
+              error: err.message,
+              status: err.status,
+            });
+            renderServiceUnavailable(res);
+            return;
+          }
           logger.error('avatar upload error', { error: err instanceof Error ? err.message : String(err) });
           next(err);
         });
@@ -333,7 +332,14 @@ export const memberController = {
       return;
     }
     const config = STUB_SEGMENTS[req.params.section];
-    if (!config) { next(); return; }
+    if (!config) {
+      // Explicit 404 render rather than falling through to the Express
+      // 404 handler. The non-owner branch above already does this; the
+      // own-profile branch should behave symmetrically. Falling through
+      // via next() risks a future route silently matching `/:section`.
+      renderNotFound(res);
+      return;
+    }
     try {
       res.render('members/stub', {
         seo:  { title: config.title },

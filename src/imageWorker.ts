@@ -1,3 +1,10 @@
+// dotenv MUST be imported first, before any module that reads process.env.
+// Matches the order in src/server.ts and src/worker.ts; without this the
+// worker spawned by scripts/dev.sh never sees INTERNAL_EVENT_SECRET from
+// .env, returns 503 on every authenticated upload, and the web layer
+// surfaces it as a misleading "image worker returned 503" failure.
+import 'dotenv/config';
+
 /**
  * Image worker entry point.
  *

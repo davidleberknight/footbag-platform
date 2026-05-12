@@ -46,5 +46,16 @@ export function readFlash(
 }
 
 export function clearFlash(res: Response): void {
-  res.clearCookie(FLASH_COOKIE, { path: '/' });
+  // RFC 6265-strict browsers may require the clear cookie's attributes
+  // (path, httpOnly, sameSite, secure) to match the set; pass the same
+  // shape as writeFlash above so the clear is honored everywhere. `secure`
+  // is derived from the response's request context: we do not have direct
+  // access to req here, so use the same conservative posture as writeFlash
+  // uses (sameSite Lax, httpOnly, path /). The signed-cookie machinery
+  // does not require `secure` to match for the clear to take effect.
+  res.clearCookie(FLASH_COOKIE, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+  });
 }

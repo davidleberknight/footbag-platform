@@ -1,7 +1,8 @@
-{{! 503 Service Unavailable }}
+{{! Service-unavailable / unexpected-error page. The error-code is rendered
+    from the locals so a 500 handler shows "500" and a 503 handler shows "503". }}
 <div class="wrapper">
   <div class="error-page">
-    <div class="error-code">503</div>
+    <div class="error-code">{{statusCode}}</div>
     <h2>{{page.title}}</h2>
     <p>The site is temporarily unavailable. Please try again in a moment.</p>
     <a href="/events" class="btn btn-primary">Try Again</a>

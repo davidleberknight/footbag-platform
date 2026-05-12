@@ -40,7 +40,12 @@ import request from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 
-import { insertMember, createTestSessionJwt, insertMediaItem } from '../fixtures/factories';
+import {
+  insertMember,
+  insertMemberTierGrant,
+  createTestSessionJwt,
+  insertMediaItem,
+} from '../fixtures/factories';
 
 const OWNER_ID    = 'member-mg-owner-001';
 const OWNER_SLUG  = 'mg_owner';
@@ -73,6 +78,19 @@ beforeAll(async () => {
   insertMember(db, { id: OTHER_ID,  slug: OTHER_SLUG,  display_name: 'Other Member' });
   insertMember(db, { id: ADMIN_ID,  slug: ADMIN_SLUG,  display_name: 'MG Admin', is_admin: 1 });
   insertMember(db, { id: SYSTEM_ID, slug: 'fh_mg', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });
+
+  // Grant Tier 1 to OWNER and OTHER so the requireTier1Benefits gate on
+  // POST /members/:slug/galleries{,/...} passes. Without this, every POST
+  // 403s from the gate before reaching the controller's owner check, and
+  // the cross-member 404 anti-enumeration tests would no longer reach the
+  // owner-check branch they exist to verify.
+  insertMemberTierGrant(db, { member_id: OWNER_ID, new_tier_status: 'tier1' });
+  insertMemberTierGrant(db, { member_id: OTHER_ID, new_tier_status: 'tier1' });
+  // Admin must hold Tier 2+ per USER_STORIES §3.6 to pass the
+  // assertTier1Benefits defense-in-depth check in curatorMediaService
+  // (admin moderation test exercises updateGallery via the admin curator
+  // route, which routes through the same service method).
+  insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier2', reason_code: 'purchase.tier2' });
 
   db.close();
 

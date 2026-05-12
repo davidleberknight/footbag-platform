@@ -10,22 +10,27 @@
  *   - Service-layer auto-applies the uploader tag (#<slug>) and
  *     materializes the per-member Personal Gallery on first upload.
  *
- * DEVIATION: any authenticated member may upload — there is no tier
- * gate at this level. Target: gate on tier eligibility once the tier
- * feature lands. Tier ledger exists in schema; no enforcement
- * anywhere yet.
+ * Tier gating: POST /members/:memberKey/media/upload is gated by
+ * `requireTier1Benefits()`. GET is intentionally open to all authenticated
+ * owners so the form is visible as a read-only preview (the form copy
+ * surfaces the tier requirement; the user gets an actionable upgrade path
+ * rather than a bare 403). Defense in depth: the service layer's
+ * `assertTier1Benefits` enforces the same predicate at upload-time so a
+ * forged POST that bypasses the middleware (e.g. test seam misuse) still
+ * fails before any media is written.
  */
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { logger } from '../config/logger';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { getImageProcessingAdapter, ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
   createCuratorMediaService,
   PHOTO_MAX_BYTES,
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { hit as rateLimitHit } from '../services/rateLimitService';
+import { renderServiceUnavailable } from '../lib/controllerErrors';
 
 const PHOTO_RATE_LIMIT_PER_HOUR = 10;   // US M_Upload_Photo
 const VIDEO_RATE_LIMIT_PER_HOUR = 5;    // US M_Submit_Video
@@ -154,6 +159,14 @@ export const memberMediaUploadController = {
             errorMessage: err.message,
             formValues: collectFormValues(fields),
           });
+          return;
+        }
+        if (err instanceof ImageProcessingError) {
+          logger.error('member upload: image worker unavailable', {
+            error: err.message,
+            status: err.status,
+          });
+          renderServiceUnavailable(res);
           return;
         }
         logger.error('member upload error', { error: err instanceof Error ? err.message : String(err) });

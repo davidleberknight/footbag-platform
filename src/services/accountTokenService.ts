@@ -18,6 +18,14 @@ export interface IssuedToken {
 export interface ConsumedToken {
   memberId: string;
   tokenRowId: string;
+  targetLegacyMemberId: string | null;
+}
+
+export interface PeekedToken {
+  memberId: string;
+  tokenRowId: string;
+  targetLegacyMemberId: string | null;
+  expiresAt: string;
 }
 
 function b64url(buf: Buffer): string {
@@ -91,11 +99,89 @@ export function consumeToken(
   if (row.used_at !== null) return null;
   if (new Date(row.expires_at).getTime() <= Date.now()) return null;
 
+  // The expiry pre-check above is a fast-fail; the UPDATE below re-checks
+  // expiry in SQL via consumeIfUnusedAndUnexpired so a token that expires
+  // between the JS check and the UPDATE cannot be consumed (TOCTOU close).
+  // Same statement is used by the Tx variant for the claim flow.
   const nowIso = new Date().toISOString();
-  const result = accountTokens.consumeIfUnused.run(nowIso, nowIso, row.id);
+  const result = accountTokens.consumeIfUnusedAndUnexpired.run(nowIso, nowIso, row.id, nowIso);
   if (result.changes !== 1) return null;
 
-  return { memberId: row.member_id, tokenRowId: row.id };
+  return {
+    memberId: row.member_id,
+    tokenRowId: row.id,
+    targetLegacyMemberId: row.target_legacy_member_id,
+  };
 }
 
-export const accountTokenService = { issueToken, consumeToken };
+/**
+ * Atomic consume-or-fail for use inside an existing caller transaction.
+ * Returns the token's bound member info if the UPDATE succeeded; null if
+ * the token is unknown, expired, already used, or wrong type.
+ *
+ * Designed for callers that need consume + downstream work to commit-or-
+ * rollback together. The caller wraps the entire flow in transaction(...)
+ * and invokes this; if the downstream work throws, the rollback un-consumes
+ * the token automatically (the UPDATE rolls back with the rest).
+ *
+ * The expiry check is included in the UPDATE WHERE clause, closing the
+ * check-then-update TOCTOU window that the standalone consumeToken has.
+ */
+export function consumeIfUnusedInTx(
+  rawToken: string,
+  tokenType: AccountTokenType,
+): ConsumedToken | null {
+  if (!rawToken) return null;
+  const tokenHash = hashToken(rawToken);
+  const row = accountTokens.findByHash.get(tokenHash, tokenType) as
+    | AccountTokenRow
+    | undefined;
+  if (!row) return null;
+  // Snapshot bindings before the UPDATE so we can return them if it wins.
+  const memberId = row.member_id;
+  const tokenRowId = row.id;
+  const targetLegacyMemberId = row.target_legacy_member_id;
+  const nowIso = new Date().toISOString();
+  const result = accountTokens.consumeIfUnusedAndUnexpired.run(
+    nowIso,
+    nowIso,
+    tokenRowId,
+    nowIso,
+  );
+  if (result.changes !== 1) return null;
+  return { memberId, tokenRowId, targetLegacyMemberId };
+}
+
+/**
+ * Look up a token without marking it used. Returns null when the token is
+ * unknown, expired, or already consumed. Used by confirm-page renders that
+ * defer the consume step to the subsequent POST (so a single email link can
+ * present a review screen before any DB mutation).
+ */
+export function peekToken(
+  rawToken: string,
+  tokenType: AccountTokenType,
+): PeekedToken | null {
+  if (!rawToken) return null;
+  const tokenHash = hashToken(rawToken);
+  const row = accountTokens.findByHash.get(tokenHash, tokenType) as
+    | AccountTokenRow
+    | undefined;
+  if (!row) return null;
+  if (row.used_at !== null) return null;
+  if (new Date(row.expires_at).getTime() <= Date.now()) return null;
+
+  return {
+    memberId: row.member_id,
+    tokenRowId: row.id,
+    targetLegacyMemberId: row.target_legacy_member_id,
+    expiresAt: row.expires_at,
+  };
+}
+
+export const accountTokenService = {
+  issueToken,
+  consumeToken,
+  consumeIfUnusedInTx,
+  peekToken,
+};
