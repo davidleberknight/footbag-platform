@@ -6,6 +6,7 @@ export default defineConfig({
     setupFiles: ['./tests/setup-env.ts'],
     coverage: {
       provider: 'v8',
+      reportsDirectory: './tests/coverage',
       include: ['src/**/*.ts'],
       // Entry-point files orchestrate boot but contain no testable logic
       // worth a dedicated suite; their callees are covered. Type-only

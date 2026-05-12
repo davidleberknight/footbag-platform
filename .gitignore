@@ -105,7 +105,7 @@ Thumbs.db
 # =========================
 # Test coverage
 # =========================
-coverage/
+tests/coverage/
 
 # =========================
 # Terraform
@@ -137,6 +137,8 @@ CLAUDE.local.md
 
 # Playwright MCP browser session artifacts (logs, screenshots)
 .playwright-mcp/
+# Playwright test runner output (per-run results, traces, screenshots)
+tests/test-results/
 # Defensive: stray screenshots / page snapshots that escape into the repo root
 /*.png
 /page-*.yml

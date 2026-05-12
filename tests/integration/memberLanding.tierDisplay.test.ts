@@ -164,7 +164,7 @@ describe('GET /members — public welcome page', () => {
   it('renders the tier explainer + Sign Up / Log In CTAs for anonymous visitors', async () => {
     const res = await request(createApp()).get('/members');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Why join?');
+    expect(res.text).toContain('global governing body for footbag');
     // Tier explainer enumerates all four tiers using the canonical labels.
     expect(res.text).toContain('Tier 0 Registered Member');
     expect(res.text).toContain('Tier 1 IFPA Member');
@@ -183,7 +183,7 @@ describe('GET /members — public welcome page', () => {
       .get('/members')
       .set('Cookie', cookieFor(T1_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Why join?');
+    expect(res.text).toContain('global governing body for footbag');
     expect(res.text).not.toContain('Become a Member');
     expect(res.text).not.toContain('Already a Member');
   });

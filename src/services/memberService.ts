@@ -72,13 +72,14 @@ export interface IdentityLinkView {
 
 export interface MemberWelcomeTier {
   label: string;
-  blurb: string;
+  price: string;
+  benefits: ReadonlyArray<string>;
 }
 
 export interface MemberWelcomeContent {
   /** Sign Up + Log In cards render only for unauthenticated visitors. */
   showJoinCtas: boolean;
-  /** Tier 0 → 3 in canonical order, with display labels and benefit blurbs. */
+  /** Tier 0 → 3 in canonical order, with display labels, prices, and benefits. */
   tiers: ReadonlyArray<MemberWelcomeTier>;
 }
 const VALID_EMAIL_VISIBILITY = new Set(['private', 'members', 'public']);
@@ -458,9 +459,7 @@ export const memberService = {
   getMembersWelcomePage(
     opts: { isAuthenticated: boolean },
   ): PageViewModel<MemberWelcomeContent> {
-    const tiers: MemberWelcomeTier[] = (['tier0', 'tier1', 'tier2', 'tier3'] as const).map(
-      (t) => ({ label: TIER_BADGE_TEXT[t], blurb: tierBenefitsBlurb(t, false) }),
-    );
+    const tiers: MemberWelcomeTier[] = welcomeTierContent();
     return {
       seo:  { title: 'Members' },
       page: { sectionKey: 'members', pageKey: 'member_welcome', title: 'Members' },
@@ -485,6 +484,53 @@ const TIER_BADGE_TEXT: Record<MemberTier, string> = {
   tier2: 'Tier 2 IFPA Organizer Member',
   tier3: 'Tier 3 IFPA Director',
 };
+
+function welcomeTierContent(): MemberWelcomeTier[] {
+  return [
+    {
+      label: TIER_BADGE_TEXT.tier0,
+      price: 'Free',
+      benefits: [
+        'Browse the platform and search the membership',
+        'Earn Active Player status (730 days) through qualifying event attendance, vouching, or a one-time club-join grant',
+        'Active Player status unlocks Tier 1 benefits while current, including Official IFPA Roster inclusion',
+      ],
+    },
+    {
+      label: TIER_BADGE_TEXT.tier1,
+      price: '$10 USD',
+      benefits: [
+        'Lifetime IFPA membership, no annual renewals',
+        'Listed on the Official IFPA Roster',
+        'Upload photos and videos and manage your media galleries',
+        'Create a club and become a Club Leader',
+        'Create basic events and become an Event Organizer',
+        'Vote in IFPA elections and serve on IFPA committees',
+      ],
+    },
+    {
+      label: TIER_BADGE_TEXT.tier2,
+      price: '$50 USD',
+      benefits: [
+        'Includes all Tier 1 benefits',
+        'Create sanctioned events and enable paid event registration',
+        'Request IFPA sponsorship and send community announcements via announce@footbag.org',
+        'Vouch for Tier 0 members to earn or extend Active Player status',
+        'Access the Official IFPA Roster for organizer purposes',
+        'Granted automatically by Hall of Fame or Big Add Posse induction',
+      ],
+    },
+    {
+      label: TIER_BADGE_TEXT.tier3,
+      price: 'Assigned by IFPA',
+      benefits: [
+        'Director or board-level status assigned by IFPA governance, not purchasable',
+        'Holds full IFPA governance authority',
+        'Reverts to underlying membership tier (Tier 1 or Tier 2) when governance status ends',
+      ],
+    },
+  ];
+}
 
 function tierBenefitsBlurb(tier: MemberTier, isAp: boolean): string {
   if (tier === 'tier0' && isAp) {

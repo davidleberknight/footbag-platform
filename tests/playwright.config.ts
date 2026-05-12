@@ -25,6 +25,7 @@ export default defineConfig({
   retries: 0,
   timeout: 30_000,
   expect: { timeout: 3_000 },
+  outputDir: path.resolve(__dirname, 'test-results'),
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

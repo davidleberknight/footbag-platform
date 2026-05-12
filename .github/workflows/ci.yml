@@ -126,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-trace
-          path: test-results/
+          path: tests/test-results/
           if-no-files-found: ignore
 
   ci-complete:

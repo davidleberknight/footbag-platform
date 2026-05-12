@@ -76,7 +76,7 @@ describe('GET /members — welcome', () => {
     const app = createApp();
     const res = await request(app).get('/members').set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Why join?');
+    expect(res.text).toContain('global governing body for footbag');
     expect(res.text).not.toContain('Find Members');
   });
 });
@@ -92,6 +92,15 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Find Members');
     expect(res.text).not.toContain('No members found');
+  });
+
+  it('search feature is wrapped in a card on the dashboard', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/members/${SEARCHER_SLUG}`)
+      .set('Cookie', searcherCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('member-search-card');
   });
 
   // USER_STORIES line 723: member search is authenticated members only.

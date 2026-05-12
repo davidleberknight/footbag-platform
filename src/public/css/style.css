@@ -388,6 +388,63 @@ th.sortable:hover { color: var(--primary); }
   border-radius: 20px;
 }
 
+/* ── Find Members card (member dashboard) ───────────────────── */
+.member-search-card { padding: 16px; }
+.member-search-card .member-search-section { margin-bottom: 8px; }
+.member-search-card-results-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 12px 0 8px;
+}
+.member-search-card .member-search-results {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* ── Members welcome page (tight rhythm, no dividers) ───────── */
+.members-welcome section { padding: 6px 0; border-top: none !important; }
+.members-welcome section h2 { margin-bottom: 8px; font-size: 1.4rem; }
+.members-welcome .card { padding: 12px 14px; }
+.members-welcome .card .card-description { margin-bottom: 8px; }
+.members-welcome-intro { margin: 14px 0 10px; }
+.hero.hero-sm.hero-welcome { padding: 22px 24px; }
+
+/* ── Tier explainer (/members welcome) ──────────────────────── */
+.tier-explainer {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tier-explainer-item {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.tier-explainer-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.tier-explainer-head strong { font-size: 1.05rem; }
+.tier-explainer-price {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.tier-explainer-benefits {
+  margin: 0;
+  padding-left: 20px;
+}
+.tier-explainer-benefits li { margin-bottom: 2px; line-height: 1.4; }
+
 /* ── Section headings ───────────────────────────────────────── */
 .section-heading {
   display: flex;
