@@ -1,6 +1,6 @@
-<p align="center">**BYLAWS OF**</p>
+<h1 align="center">BYLAWS OF</h1>
 
-<p align="center">**INTERNATIONAL FOOTBAG PLAYERS' ASSOCIATION, INC.**</p>
+<h2 align="center">INTERNATIONAL FOOTBAG PLAYERS' ASSOCIATION, INC.</h2>
 
 <p align="center">A California Public Benefit Corporation</p>
 
