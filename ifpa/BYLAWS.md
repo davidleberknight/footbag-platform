@@ -318,6 +318,3 @@ Bylaws of International Footbag Players' Association, Inc. have been accepted an
 
 
 
-  
-
-
