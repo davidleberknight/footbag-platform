@@ -313,9 +313,7 @@ On file.
 
 ---
 
-
-*These Bylaws of the International Footbag Players' Association, Inc. were originally filed with the State of California in 1994, then amended with the State in 2000, and again in 2022. *
-  
+Bylaws of International Footbag Players' Association, Inc. have been accepted and filed with the State of California, 2001. There were amended in 2022.  
 
 
 
