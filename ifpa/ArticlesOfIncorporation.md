@@ -15,7 +15,7 @@ The specific purpose of this corporation is to promote the growth of footbag pla
 - To act as the official representative for International Footbag Players' Association members and other footbag players to other entities seeking to patronize or gain information on the sport.
 - To foster and conduct international, national, state, regional, and area footbag competitions.
 
-**THREE:** The name and address in the State of California of this corporation's initial agent for service of process is Julie Symons, 228 Marinda Dr, Fairfax, CA 94930.
+**THREE:** The name and address in the State of California of this corporation's initial agent for service of process is Julie Symons, 93 Sacramento Ave, San Anselmo, CA 94960.
 
 **FOUR:**
 
