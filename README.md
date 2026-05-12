@@ -14,7 +14,7 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
 - **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
-- **Work done already, near-term plan, and current scope:** read [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
+- **AT tools, also for sprint scoping and temporary deviations from long-term design:** read [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)
 
 ## Current Project State
 
@@ -22,9 +22,8 @@ A lot of functionality is done and deployed on AWS. This is the baseline for ong
 
 Sneak Preview: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open](https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_open)
 
-- The legacy-data pipeline under `legacy_data/` is reproducible. It mirrors the live site, loads canonical events and results, populates the freestyle trick dictionary and curated media links, builds the net enrichment layer (teams, appearances, review queue), loads freestyle and consecutive-kicks records, runs QC gates, and supports staging deploy orchestration. Club, person, and member data cleanup is multi-step and partly registration-driven; see `docs/MIGRATION_PLAN.md` §9.
-- Active sprint scope and known temporary deviations are tracked in `IMPLEMENTATION_PLAN.md`.
-- Technical and Functional requirements specs are complete.
+- The legacy-data pipeline is reproducible, and we are ready to receive  a full data dump from the live footbag.org webmaster. Club data is stale and needs to be cleaned up, along with member data in a multi-step and partly registration-driven process; see `docs/MIGRATION_PLAN.md` §9.
+- Technical and Functional requirements specs are complete, refer to User Stories and Design Decisions.
 
 ## Contributing
 

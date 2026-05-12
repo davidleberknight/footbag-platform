@@ -24,6 +24,7 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 ## Current substitute mechanisms
 
 - **`legacy_members` population.** Mirror-derived via `legacy_data/scripts/load_legacy_members_seed.py` (2,507 rows; columns limited to PK + `display_name` + `import_source='mirror'`). Unblock: legacy-site data dump received.
+- **`name_variants` table unseeded.** Every successful auto-link match is currently `confidence: 'high'` (exact normalized name). The `confidence: 'medium'` branch (name-variant-aware) produces no hits because the name_variants table has no rows yet. Unblock: ~290-pair name_variants seed from legacy data.
 
 ---
 
