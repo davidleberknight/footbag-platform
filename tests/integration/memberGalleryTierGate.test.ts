@@ -12,7 +12,7 @@
  * middleware decision logic by tests/unit/requireTier.test.ts (Phase 2).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import {
   setTestEnv,

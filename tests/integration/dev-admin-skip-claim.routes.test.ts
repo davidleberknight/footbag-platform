@@ -11,7 +11,7 @@
  * refuses to start the app with this flag in non-development environments.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertLegacyMember, createTestSessionJwt } from '../fixtures/factories';
 

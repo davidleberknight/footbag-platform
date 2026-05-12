@@ -174,7 +174,7 @@
 
 **S3 One Zone-IA**: S3 storage class storing data in a single availability zone at lower cost than standard S3, suitable for data that can be recreated if lost. Footbag.org uses One Zone-IA for the photo backup bucket (cross-region replication target) to reduce backup storage costs.
 
-**SameSite=Lax**: Cookie attribute instructing browsers to send the cookie on same-site requests and top-level navigations, but not on cross-site subrequests (e.g., image or form loads from other domains). Footbag.org relies on SameSite=Lax as its primary CSRF protection mechanism, replacing the synchronizer token pattern used in older applications; all session cookies are set with this attribute.
+**SameSite=Lax**: Cookie attribute instructing browsers to send the cookie on same-site requests and top-level navigations, but not on cross-site subrequests (e.g., image or form loads from other domains). Footbag.org pairs SameSite=Lax with strict HTTP verb discipline and Origin-header pinning on state-changing requests (see the CSRF entry) instead of synchronizer tokens; all session cookies are set with this attribute.
 
 **Service Layer**: Business logic layer implementing domain rules and coordinating data operations. Footbag.org services contain all business logic (membership tier validation, event state transitions, payment processing workflows) isolated from controllers (HTTP concerns) and adapters (storage concerns). Services are pure TypeScript functions for easy testing.
 

@@ -21,7 +21,7 @@
  * Bug B (controllers route ImageProcessingError through 503) together.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import sharp from 'sharp';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';

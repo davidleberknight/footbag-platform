@@ -35,7 +35,7 @@ process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
 let createApp: typeof import('../../src/app').createApp;
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { insertMember, insertMemberTierGrant, createTestSessionJwt } from '../fixtures/factories';

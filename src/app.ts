@@ -6,6 +6,7 @@ import { engine } from 'express-handlebars';
 import { logger } from './config/logger';
 import { config } from './config/env';
 import { authMiddleware } from './middleware/auth';
+import { requireOriginPin } from './middleware/requireOriginPin';
 import { FLASH_KIND, readFlash, clearFlash } from './lib/flashCookie';
 import { healthRouter }   from './routes/healthRoutes';
 import { internalRouter } from './routes/internalRoutes';
@@ -197,6 +198,12 @@ export function createApp(): express.Application {
       res.status(204).end();
     },
   );
+
+  // ── CSRF: Origin-header pinning on state-changing requests (DD §3.3) ─────
+  // Mounted after /csp-report (so violation beacons reach their handler) and
+  // before authMiddleware (so a cross-site POST is rejected at the perimeter
+  // before any session work).
+  app.use(requireOriginPin);
 
   // ── Auth (JWT session + per-request passwordVersion check) ──────────────
   app.use(authMiddleware());

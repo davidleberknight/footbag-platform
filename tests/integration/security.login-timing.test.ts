@@ -19,7 +19,7 @@
  * Anti-enumeration contract per DD §3.3.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';

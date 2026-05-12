@@ -8,7 +8,7 @@
  *   - login rate-limit threshold crossing → auth.login_rate_limited
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import { createHash } from 'crypto';
 import BetterSqlite3 from 'better-sqlite3';

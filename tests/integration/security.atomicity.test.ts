@@ -11,7 +11,7 @@
  * verify DB state is consistent after the throw.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import argon2 from 'argon2';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';

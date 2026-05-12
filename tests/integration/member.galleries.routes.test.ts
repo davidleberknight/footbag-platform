@@ -36,7 +36,7 @@ process.env.SESSION_SECRET  = 'member-galleries-routes-test-secret';
 let createApp: typeof import('../../src/app').createApp;
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 

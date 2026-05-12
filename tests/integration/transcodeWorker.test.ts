@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertMediaItem } from '../fixtures/factories';
 import type { MediaJobRow } from '../../src/db/db';

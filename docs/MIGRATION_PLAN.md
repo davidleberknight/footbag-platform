@@ -976,9 +976,8 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 | PC4 | SES sandbox-mode flip | §28.8 | State 3 → State 4 |
 | PC5 | Production Terraform region fix (us-east-1) | §28.8 | State 3 → State 4 |
 | PC6 | Preview fixture scrub | §28.8 | State 3 → State 4 |
-| PC7 | Origin-header CSRF middleware lands per DD §3.3 | DD §3.3 | State 3 → State 4 |
-| PC8 | Production-first-admin SSM-token route lands per DD §2.9 | DD §2.9, DEVOPS_GUIDE §17.8 | State 3 → State 4 |
-| PC9 | Admin-seeding shortcuts removed from staging deploy path | §28.8 item 8 | State 3 → State 4 |
+| PC7 | Production-first-admin SSM-token route lands per DD §2.9 | DD §2.9, DEVOPS_GUIDE §17.8 | State 3 → State 4 |
+| PC8 | Admin-seeding shortcuts removed from staging deploy path | §28.8 item 8 | State 3 → State 4 |
 
 ### Retirement gate
 

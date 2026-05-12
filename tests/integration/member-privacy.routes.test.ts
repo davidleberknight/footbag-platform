@@ -9,7 +9,7 @@
  *   - Deceased members cannot log in
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertHistoricalPerson, insertTag, insertEvent, insertDiscipline, insertResultsUpload, insertResultEntry, insertResultParticipant, createTestSessionJwt } from '../fixtures/factories';

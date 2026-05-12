@@ -8,7 +8,7 @@
  *  - Authenticated admin requests pass through to the controller.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 
 import {
   setTestEnv,

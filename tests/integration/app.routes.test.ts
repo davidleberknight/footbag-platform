@@ -8,7 +8,7 @@
  * test data via factories. afterAll removes the temp DB and WAL sidecars.
  */
 import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';

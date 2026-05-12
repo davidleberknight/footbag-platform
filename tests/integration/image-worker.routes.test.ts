@@ -6,7 +6,7 @@
  * concurrency semaphore returns 503 when the in-flight cap is exhausted.
  */
 import { describe, it, expect } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import sharp from 'sharp';
 import { createImageWorkerApp } from '../../src/imageWorker';
 import { processAvatar, processPhoto } from '../../src/lib/imageProcessing';

@@ -29,7 +29,7 @@ process.env.INTERNAL_EVENT_SECRET = TEST_SECRET;
 process.env.SSE_HEARTBEAT_SECONDS = '5';
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 

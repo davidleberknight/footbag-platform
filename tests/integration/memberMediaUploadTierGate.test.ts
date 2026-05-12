@@ -10,7 +10,7 @@
  * tests/integration/tierPredicates.service.test.ts (Phase 1).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import {
   setTestEnv,
   createTestDb,

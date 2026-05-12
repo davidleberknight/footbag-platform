@@ -30,7 +30,7 @@ process.env.SESSION_SECRET  = 'member-media-edit-routes-test-secret';
 let createApp: typeof import('../../src/app').createApp;
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {

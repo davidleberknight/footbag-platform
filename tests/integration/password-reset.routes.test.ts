@@ -2,7 +2,7 @@
  * Integration tests for the password-reset flow + confirmation emails.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';

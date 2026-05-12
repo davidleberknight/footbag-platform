@@ -10,7 +10,7 @@
  * Passwords are hashed at test-setup time via argon2; no hash is stored in git.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';

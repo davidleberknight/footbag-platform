@@ -24,7 +24,7 @@
  *   - No forbidden public-stat language: "head-to-head", "ranking", "win/loss", "rating"
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {

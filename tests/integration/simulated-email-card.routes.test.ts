@@ -10,7 +10,7 @@
  * toggled within a single file.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3071');
