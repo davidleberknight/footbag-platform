@@ -3762,7 +3762,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_landing',
         title:      'Freestyle Footbag',
-        intro: 'Tricks, combos, and choreographed routines set to music.',
+        intro: 'A compositional movement language built from sets, dexes, and body operators.',
       },
       content: {
         mascotSrc: '/img/freestyle-mascot.svg',
@@ -3770,11 +3770,10 @@ export const freestyleService = {
         intro: {
           heading: 'What is Freestyle Footbag?',
           paragraphs: [
-            'Freestyle footbag began with informal Hacky Sack kicking circles in the 1970s and 1980s, evolving from casual fun exercise into a technical sport. It is a discipline built on creativity, technical difficulty, and individual style. Freestyle footbag is a great way to exercise due to its versatility and fun, cooperative flow, plus it can be practiced anywhere and anytime.',
-            'Players show off their skills by performing sequences of tricks, combining components such as spinning the body, ducking the bag with the head and neck, and dexterities (circling the bag with a leg).',
-            'Tricks are linked naturally from one to the next to create flowing, free-form, and expressive strings and combos. The list of tricks is nearly endless and can be combined in any order, leading to a huge variety of combos and styles.',
-            'The ADD (Additional Degree of Difficulty) system assigns a numerical value to each trick, enabling objective difficulty scoring alongside subjective execution judging. The core vocabulary was established by the early 1990s and it continues to evolve as players innovate.',
-            'Practicing freestyle footbag is like having a gym in your pocket! When first learning the basics, all you need is casual clothes, shoes, and a footbag. Once you gain experience and begin to learn more difficult tricks, athletic clothes and a professional footbag with purpose-built shoes will help you play your best.',
+            'Freestyle footbag is a compositional movement language. Players combine a small vocabulary of body actions — sets, dexes, spins, ducks, hip pivots — into named tricks, and tricks into flowing combos. The list of trick names is large, but the underlying language is small: once you can read a trick, you can read all of them.',
+            'Three movement primitives anchor the language. A set sends the bag into the air. A dex is the leg circling the bag while it is in the air, either hippy (hip-driven thigh sweep) or leggy (knee-driven calf circle). A catch lands the bag on a surface — toe, clipper, inside, sole.',
+            'Modifiers transform these primitives. Spinning adds a full-body rotation. Paradox inserts a hip pivot between two dexes. Stepping relocates a foot in the uptime. Each modifier is an operator that takes a base trick and produces a new one. Ripwalk is stepping applied to butterfly; Mobius is spinning applied to torque; Phoenix is pixie + ducking applied to butterfly. Names get long when the composition is dense — and the naming is readable.',
+            'The community vocabulary stabilized in the late 1980s and early 1990s, as Hacky Sack kicking circles from the 1970s evolved into a technical discipline. The ADD (Additional Degree of Difficulty) system gives a numerical weight to each composed trick. Together with execution judging, ADD captures both the structure and the style of a routine.',
           ],
         },
         demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),

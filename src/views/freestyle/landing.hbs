@@ -89,11 +89,12 @@
       <div class="card">
         <div class="card-title">Tutorials &amp; Learning</div>
         <p>
-          Curated video series for newcomers and returning players. Each tutorial
-          walks through one or more named tricks, with technique cues and
-          progression paths into harder material.
+          Start with the educational pathways — modifier-family pedagogy pages,
+          family progressions, glossary connective panels. Then dig into curated
+          tutorial series for specific tricks.
         </p>
         <div class="card-actions">
+          <a href="/freestyle/learn" class="btn btn-outline">Educational pathways &rarr;</a>
           <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade &rarr;</a>
           <a href="/media/gallery_anz_trikz" class="btn btn-outline">AnzTrikz &rarr;</a>
           <a href="/media/gallery_shred_global" class="btn btn-outline">Shred Global &rarr;</a>
@@ -123,24 +124,11 @@
         {{#if content.totalTricks}}
         <div class="card-actions">
           <a href="/freestyle/tricks" class="btn btn-outline">Browse tricks &rarr;</a>
-          <a href="/freestyle/tricks?view=sets" class="btn btn-outline">Browse by sets &rarr;</a>
+          <a href="/freestyle/tricks?view=component" class="btn btn-outline">Browse by component &rarr;</a>
         </div>
         {{else}}
         <span class="badge badge-coming-soon">Coming soon</span>
         {{/if}}
-      </div>
-
-      <div class="card">
-        <div class="card-title">Notation Reference</div>
-        <p>
-          Jobs notation is the community's compact shorthand for trick structure —
-          how a set, modifiers, and a base combine into a named move. The reference
-          page shows the conventions in use; per-trick pages render notation with
-          color-coded structural roles.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/moves" class="btn btn-outline">Notation reference &rarr;</a>
-        </div>
       </div>
 
       <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">

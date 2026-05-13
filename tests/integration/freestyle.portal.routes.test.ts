@@ -346,21 +346,22 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('rel="noopener noreferrer"');
   });
 
-  it('shows the portal cards (intent-ordered, post-2026-05-10 editorial refinement)', async () => {
+  it('shows the portal cards (intent-ordered, post-2026-05-13 philosophy realignment)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Each card's heading is asserted by its title text. The editorial pass
-    // elevated Glossary and Notation Reference to peer cards alongside the
-    // existing pillars; the Records card was renamed from "Freestyle World
-    // Records" to the simpler "World Records".
+    // Each card's heading is asserted by its title text. The 2026-05-13 pass
+    // demoted the standalone Notation Reference card (notation is integrated
+    // into trick pages + the glossary, no longer a top-level portal pillar)
+    // and routed learners to /freestyle/learn from the Tutorials card.
     expect(res.text).toContain('Tutorials &amp; Learning');
     expect(res.text).toContain('Glossary');
     expect(res.text).toContain('Trick Dictionary');
-    expect(res.text).toContain('Notation Reference');
     expect(res.text).toContain('World Records');
     expect(res.text).toContain('Competition');
     expect(res.text).toContain('History &amp; ADD System');
     expect(res.text).toContain('Insights');
+    // Notation Reference no longer rendered as a standalone portal card.
+    expect(res.text).not.toMatch(/<div class="card-title">Notation Reference<\/div>/);
     // Prior phrasings must not survive.
     expect(res.text).not.toContain('Passback Records');
     expect(res.text).not.toContain('Freestyle World Records');
