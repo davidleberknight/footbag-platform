@@ -3910,3 +3910,638 @@ section.home-media { padding-top: 0; }
     gap: 4px 8px;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Symbolic-layer styling (observational; visually subordinate to canonical)
+ *
+ * Used by:
+ *   - .symbolic-related-topology (Related Topology panel on trick pages)
+ *   - .symbolic-walking-progression (Walking Family Progression page)
+ *   - .symbolic-modifier-family (Modifier-family teaching page)
+ *   - .glossary-connective-panel (Glossary §13 connective panels)
+ *
+ * Design goals:
+ *   - muted background tint to signal non-canonical attribution
+ *   - subordinate to canonical sections (smaller heading, lighter type)
+ *   - dim "observational" badge to label the layer explicitly
+ *   - readable footer disclaiming non-canonical status
+ *
+ * Per UX-SHIP-1 Phases 4-7; consolidated per UX-CONSOLIDATION-1.
+ * Keep additive — never overrides canonical styles already used by
+ * `.related-tricks-list` etc.
+ * ────────────────────────────────────────────────────────────────────── */
+
+/* Shared symbolic-card pattern — muted background + warm-tone left border.
+ * Future symbolic surfaces should use this directly in HTML.
+ * Existing surfaces (related-topology / progression-step / confusion-card /
+ * connective-panel) still ship their own rules with the same declarations;
+ * HTML refactor to `.symbolic-card` is intentionally deferred. */
+.symbolic-card {
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+}
+
+/* Shared ADD-value chip — used by every symbolic surface that surfaces ADD
+ * counts next to a trick name. Per UX-CONSOLIDATION-1 visual unification. */
+.symbolic-adds-chip,
+.symbolic-topology-adds,
+.symbolic-walking-progression .step-adds,
+.symbolic-modifier-family .cross-base-adds,
+.glossary-connective-panel .panel-trick-adds {
+  font-size: 0.78rem;
+  color: #6e6850;
+  background: #ede9d8;
+  padding: 0 5px;
+  border-radius: 2px;
+}
+
+.symbolic-related-topology {
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  padding: 12px 16px;
+  margin-top: 12px;
+  border-radius: 0 4px 4px 0;
+}
+.symbolic-related-topology .section-heading {
+  margin-bottom: 8px;
+}
+.symbolic-related-topology .section-heading h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5a5644;
+  margin: 0 0 4px 0;
+}
+.symbolic-related-topology .section-intro {
+  font-size: 0.86rem;
+  color: #7a7560;
+  font-style: italic;
+  margin: 0 0 8px 0;
+}
+.symbolic-layer-badge {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #e8e4d3;
+  color: #6e6850;
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.symbolic-topology-members-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.symbolic-topology-members-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.92rem;
+}
+.symbolic-topology-members-list li > a { font-weight: 500; }
+/* .symbolic-topology-adds — see consolidated .symbolic-adds-chip rule above */
+.symbolic-layer-footer {
+  font-size: 0.78rem;
+  color: #8a8470;
+  font-style: italic;
+  margin-top: 10px;
+  margin-bottom: 0;
+  line-height: 1.4;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Walking-family progression page (UX-SHIP-1 Phase 5)
+ * ────────────────────────────────────────────────────────────────────── */
+
+.symbolic-walking-progression {
+  max-width: 920px;
+}
+.symbolic-walking-progression .progression-intro {
+  font-size: 1.0rem;
+  line-height: 1.55;
+  color: #3a3a30;
+  margin-bottom: 24px;
+}
+.symbolic-walking-progression .progression-chain {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.symbolic-walking-progression .progression-step {
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+  padding: 14px 18px;
+  position: relative;
+}
+.symbolic-walking-progression .progression-step.is-anchor {
+  border-left-color: #b8b29a;
+  background: #f5f1e3;
+}
+.symbolic-walking-progression .step-header {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.symbolic-walking-progression .step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: #d6d2c4;
+  color: #4a4636;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.symbolic-walking-progression .step-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #2d2d24;
+}
+.symbolic-walking-progression .step-adds {
+  background: #ede9d8;
+  color: #6e6850;
+  font-size: 0.82rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.symbolic-walking-progression .step-modifier {
+  font-size: 0.86rem;
+  color: #7a7560;
+  font-style: italic;
+}
+.symbolic-walking-progression .step-rationale {
+  font-size: 0.94rem;
+  line-height: 1.5;
+  color: #3a3a30;
+  margin: 0;
+}
+.symbolic-walking-progression .step-symbolic {
+  font-size: 0.82rem;
+  color: #7a7560;
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+.symbolic-walking-progression .step-glossary-links {
+  font-size: 0.82rem;
+  margin-top: 6px;
+  margin-bottom: 0;
+  color: #7a7560;
+}
+.symbolic-walking-progression .step-glossary-links a {
+  color: #5a5644;
+  text-decoration: underline dotted;
+}
+
+@media (max-width: 600px) {
+  .symbolic-walking-progression .step-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .symbolic-walking-progression .progression-step {
+    padding: 12px 14px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Modifier-family teaching page (UX-SHIP-1 Phase 6 — spinning pilot)
+ *
+ * Single template; per-modifier content authored in
+ * src/services/symbolicModifierEducation.ts.
+ *
+ * Visual rhythm:
+ *   - Mechanical lead reads like body paragraphs (not a table)
+ *   - Anchor sentence visually elevated (italic + larger)
+ *   - Diagram placeholder: dotted frame; reserves vertical space + signals
+ *     "diagram planned" without faking artwork
+ *   - Confusion blocks are short prose cards
+ *   - Progression chain reuses the walking-progression visual rhythm
+ *   - "The same idea on other bases" is a prose list, not a chip grid
+ *   - Related modifiers is a small definition list at the bottom
+ *
+ * Subordinate palette inherited from the symbolic-layer styles above.
+ * ────────────────────────────────────────────────────────────────────── */
+
+.symbolic-modifier-family {
+  max-width: 920px;
+}
+.symbolic-modifier-family .modifier-subtitle {
+  font-size: 1.05rem;
+  color: #3a3a30;
+  font-style: italic;
+  margin: 4px 0 24px 0;
+  line-height: 1.5;
+}
+.symbolic-modifier-family .modifier-section {
+  margin-bottom: 28px;
+}
+.symbolic-modifier-family .modifier-section h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #2d2d24;
+  margin: 0 0 10px 0;
+}
+.symbolic-modifier-family .modifier-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5a5644;
+  margin: 14px 0 6px 0;
+}
+.symbolic-modifier-family .mechanical-lead p {
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: #3a3a30;
+  margin: 0 0 10px 0;
+}
+.symbolic-modifier-family .mechanical-lead p strong {
+  color: #2d2d24;
+}
+.symbolic-modifier-family .anchor-sentence {
+  font-size: 1.1rem;
+  font-weight: 500;
+  font-style: italic;
+  line-height: 1.5;
+  background: #f5f1e3;
+  border-left: 4px solid #b8b29a;
+  padding: 14px 18px;
+  border-radius: 0 4px 4px 0;
+  margin: 18px 0 24px 0;
+  color: #2d2d24;
+}
+.symbolic-modifier-family .diagram-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  border: 2px dashed #d6d2c4;
+  background: #fafaf7;
+  border-radius: 4px;
+  color: #7a7560;
+  font-size: 0.86rem;
+  font-style: italic;
+  text-align: center;
+  padding: 16px 20px;
+  margin: 0 0 24px 0;
+}
+.symbolic-modifier-family .confusion-card {
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border-radius: 0 4px 4px 0;
+}
+.symbolic-modifier-family .confusion-card h3 {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+.symbolic-modifier-family .confusion-card p {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #3a3a30;
+  margin: 0;
+}
+.symbolic-modifier-family .cross-base-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.symbolic-modifier-family .cross-base-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid #ede9d8;
+}
+.symbolic-modifier-family .cross-base-list li:last-child {
+  border-bottom: none;
+}
+.symbolic-modifier-family .cross-base-name {
+  font-weight: 600;
+  color: #2d2d24;
+}
+.symbolic-modifier-family .cross-base-base {
+  color: #7a7560;
+  font-size: 0.86rem;
+  font-style: italic;
+  margin-left: 8px;
+}
+.symbolic-modifier-family .cross-base-adds {
+  background: #ede9d8;
+  color: #6e6850;
+  font-size: 0.78rem;
+  padding: 1px 6px;
+  border-radius: 2px;
+  margin-left: 6px;
+}
+.symbolic-modifier-family .cross-base-prose {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #3a3a30;
+  margin: 4px 0 0 0;
+}
+.symbolic-modifier-family .related-modifiers-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.symbolic-modifier-family .related-modifiers-list li {
+  padding: 6px 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #3a3a30;
+}
+.symbolic-modifier-family .related-modifiers-list .related-name {
+  font-weight: 600;
+  color: #2d2d24;
+}
+
+@media (max-width: 600px) {
+  .symbolic-modifier-family .anchor-sentence {
+    font-size: 1.0rem;
+    padding: 12px 14px;
+  }
+  .symbolic-modifier-family .diagram-placeholder {
+    min-height: 100px;
+    padding: 14px 16px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Glossary connective panels (UX-SHIP-1 Phase 7)
+ *
+ * Six small per-term panels rendered as a new section near the bottom of
+ * the freestyle glossary. Each panel surfaces a short coach-tone definition
+ * plus related tricks + related symbolic groups + a notation hint, and
+ * optionally a deep-link to a modifier-family page.
+ *
+ * Visual rhythm:
+ *   - Small cards in a 2-up grid on desktop, single column on mobile
+ *   - Inherit the symbolic-layer muted palette
+ *   - Related-tricks list uses inline chips, NOT a vertical list
+ *   - Subordinate to the canonical glossary sections above
+ * ────────────────────────────────────────────────────────────────────── */
+
+.glossary-connective-section .section-intro {
+  font-size: 0.92rem;
+  color: #5a5644;
+  font-style: italic;
+  margin-bottom: 18px;
+}
+.glossary-connective-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.glossary-connective-panel {
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  padding: 12px 14px;
+  border-radius: 0 4px 4px 0;
+}
+.glossary-connective-panel h3 {
+  font-size: 1.0rem;
+  font-weight: 600;
+  color: #2d2d24;
+  margin: 0 0 6px 0;
+}
+.glossary-connective-panel .panel-definition {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #3a3a30;
+  margin: 0 0 10px 0;
+}
+.glossary-connective-panel .panel-section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #7a7560;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 8px 0 4px 0;
+  display: block;
+}
+.glossary-connective-panel .panel-tricks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0 0 4px 0;
+  padding: 0;
+  list-style: none;
+}
+.glossary-connective-panel .panel-tricks li {
+  font-size: 0.86rem;
+}
+.glossary-connective-panel .panel-trick-adds {
+  color: #8a8470;
+  font-size: 0.74rem;
+  margin-left: 3px;
+}
+.glossary-connective-panel .panel-symbolic-groups {
+  font-size: 0.82rem;
+  color: #5a5644;
+  margin: 0 0 6px 0;
+}
+.glossary-connective-panel .panel-symbolic-groups span {
+  background: #ede9d8;
+  color: #6e6850;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 0.74rem;
+  margin-right: 4px;
+}
+.glossary-connective-panel .panel-notation-hint {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #5a5644;
+  margin: 6px 0 0 0;
+}
+.glossary-connective-panel .panel-notation-hint code {
+  font-size: 0.78rem;
+  background: #ede9d8;
+  color: #4a4636;
+  padding: 0 4px;
+  border-radius: 2px;
+}
+.glossary-connective-panel .panel-deep-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 0.86rem;
+  color: #5a5644;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+@media (max-width: 680px) {
+  .glossary-connective-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Symbolic learn index page (/freestyle/learn) — DISCOVERABILITY phase
+ * Single entry-point page listing the observational educational subsystem.
+ * ────────────────────────────────────────────────────────────────────── */
+
+.symbolic-learn-index {
+  max-width: 920px;
+}
+.symbolic-learn-index .learn-intro {
+  font-size: 1.0rem;
+  line-height: 1.55;
+  color: #3a3a30;
+  margin: 0 0 28px 0;
+}
+.symbolic-learn-index .learn-section {
+  margin-bottom: 26px;
+}
+.symbolic-learn-index .learn-section-heading {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #2d2d24;
+  margin: 0 0 6px 0;
+}
+.symbolic-learn-index .learn-section-intro {
+  font-size: 0.9rem;
+  color: #5a5644;
+  margin: 0 0 12px 0;
+  font-style: italic;
+}
+.symbolic-learn-index .learn-entries {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.symbolic-learn-index .learn-entry {
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  padding: 12px 16px;
+  border-radius: 0 4px 4px 0;
+}
+.symbolic-learn-index .learn-entry-planned {
+  opacity: 0.6;
+  border-left-color: #e8e4d3;
+}
+.symbolic-learn-index .learn-entry-title {
+  font-weight: 600;
+  font-size: 1.0rem;
+  color: #2d2d24;
+  display: block;
+  margin-bottom: 4px;
+}
+.symbolic-learn-index a.learn-entry-title { text-decoration: none; }
+.symbolic-learn-index a.learn-entry-title:hover { text-decoration: underline; }
+.symbolic-learn-index .learn-entry-status {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: #ede9d8;
+  color: #6e6850;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.symbolic-learn-index .learn-entry-blurb {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #3a3a30;
+  margin: 0;
+}
+
+/* Trick-page educational CTAs (DISCOVERABILITY phase). Small subordinate
+ * affordances rendered before the Related Topology panel for trick slugs
+ * that belong to butterfly-wing-topology or spinning/whirl-rotational. */
+.symbolic-trick-ctas-block {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #fafaf7;
+  border-left: 2px solid #e8e4d3;
+  border-radius: 0 4px 4px 0;
+}
+.symbolic-trick-ctas-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7a7560;
+  margin-bottom: 4px;
+  display: block;
+}
+.symbolic-trick-ctas {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.symbolic-trick-ctas li { font-size: 0.86rem; }
+.symbolic-trick-ctas a {
+  color: #5a5644;
+  text-decoration: underline dotted;
+}
+.symbolic-trick-ctas a:hover { text-decoration: underline solid; }
+
+/* Symbolic-surface cross-links footer (walking-progression + modifier-family) */
+.symbolic-crosslinks {
+  margin-top: 28px;
+  padding: 14px 18px;
+  background: #fafaf7;
+  border-top: 1px solid #e8e4d3;
+  border-bottom: 1px solid #e8e4d3;
+}
+.symbolic-crosslinks-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7a7560;
+  margin-bottom: 6px;
+}
+.symbolic-crosslinks ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.symbolic-crosslinks a {
+  color: #3a3a30;
+  text-decoration: underline dotted;
+  font-size: 0.92rem;
+}
+.symbolic-crosslinks a:hover { text-decoration: underline solid; }
+
+/* Freestyle landing — pointer paragraph into /freestyle/learn */
+.freestyle-learn-pointer {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #3a3a30;
+}
+
+/* Migrated from inline style on glossary §13 connective panels footer (CSP). */
+.symbolic-layer-footer--glossary { margin-top: 14px; }
+
+/* Migrated from inline style on modifier-family glossary-link p (CSP). */
+.modifier-glossary-link { margin-top: 10px; font-size: 0.86rem; }

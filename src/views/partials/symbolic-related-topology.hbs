@@ -1,0 +1,48 @@
+{{!--
+  Symbolic Related Topology panel — observational symbolic-grammar layer.
+
+  This panel sits BESIDE the canonical Related Tricks list (trick-related.hbs)
+  and is clearly labelled as observational/non-canonical. It surfaces tricks
+  that share the current trick's mechanical topology, which may cross-cut
+  the IFPA trick_family. Source: staging CSV from SYMBOLIC-GRAMMAR-2.
+
+  Renders only when `content.symbolicRelatedTopology` is non-null (allow-listed
+  flagship slugs only at Phase 1). All data is pre-shaped by the service layer.
+
+  Per UX-SHIP-1 Phase 4 (Task B). Visually subordinate to canonical sections:
+    - secondary heading level (h3 inside the wrapper section)
+    - "Observational" badge in header
+    - footer note explaining non-canonical status
+--}}
+{{#if content.symbolicEducationCtas.length}}
+<aside class="symbolic-trick-ctas-block" aria-label="Educational pages for this trick">
+  <span class="symbolic-trick-ctas-label">Educational</span>
+  <ul class="symbolic-trick-ctas">
+    {{#each content.symbolicEducationCtas}}
+    <li><a href="{{href}}">{{label}} →</a></li>
+    {{/each}}
+  </ul>
+</aside>
+{{/if}}
+
+{{#if content.symbolicRelatedTopology}}
+<section class="content-section symbolic-related-topology" aria-label="Related topology tricks">
+  <div class="section-heading">
+    <h3>
+      Related topology tricks
+      <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
+    </h3>
+    <p class="section-intro">{{content.symbolicRelatedTopology.reasonText}}.</p>
+  </div>
+  <ul class="symbolic-topology-members-list">
+    {{#each content.symbolicRelatedTopology.members}}
+    <li>
+      <a href="{{detailHref}}">{{canonicalName}}</a>
+      {{#if adds}}<span class="symbolic-topology-adds">{{adds}}</span>{{/if}}
+      <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
+    </li>
+    {{/each}}
+  </ul>
+  <p class="symbolic-layer-footer">Observational symbolic-grammar layer. Topology groups describe mechanical similarity and may cross-cut the IFPA trick family. Canonical relating lives in the Related Tricks section above.</p>
+</section>
+{{/if}}

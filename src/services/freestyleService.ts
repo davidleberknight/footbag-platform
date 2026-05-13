@@ -42,6 +42,29 @@ import {
   buildPreviousTricks,
 } from './freestyleRelatedTricks';
 import {
+  SymbolicRelatedTopologyPanel,
+  SymbolicEducationCta,
+  buildSymbolicRelatedTopologyPanel,
+  buildSymbolicEducationCtas,
+} from './symbolicTrickPanels';
+import {
+  WalkingFamilyProgressionContent,
+  buildWalkingFamilyProgression,
+} from './symbolicProgressions';
+import {
+  ModifierFamilyPageContent,
+  buildModifierFamilyPage,
+  hasModifierFamilyPage,
+} from './symbolicModifierEducation';
+import {
+  GlossaryConnectivePanel,
+  buildGlossaryConnectivePanels,
+} from './symbolicGlossaryPanels';
+import {
+  SymbolicLearnIndexContent,
+  buildSymbolicLearnIndex,
+} from './symbolicLearnIndex';
+import {
   InsightsTrick,
   InsightsTransition,
   InsightsSequence,
@@ -447,7 +470,22 @@ export interface FreestyleTrickContent {
   familyTiers: FreestyleFamilyTier[];
   // Related Tricks (R1 same-family → R2 modifier-prefix → R3 grandparent),
   // ADD-bucket sampled within each rule, capped at 8. Empty when no dict entry.
+  // This is the CANONICAL (Layer 1) IFPA-family-based relating.
   relatedTricks: FreestyleRelatedTrick[];
+  // Observational symbolic-grammar topology panel (Layer 3). Null when:
+  //   - slug is not in the UX-SHIP-1 Phase 1 allow-list (8 flagship slugs)
+  //   - slug has no topology-axis group membership in the staging CSVs
+  //   - the resolved topology group has no other active members after self-exclude
+  // Distinct from `relatedTricks`: this surfaces SYMBOLIC topology (cross-cuts
+  // IFPA family) rather than canonical family-based relating.
+  // Per UX-SHIP-1 Phase 4 (Task B); observational layer per SYMBOLIC-GRAMMAR-2.
+  symbolicRelatedTopology: SymbolicRelatedTopologyPanel | null;
+  // Observational educational CTAs (DISCOVERABILITY phase). Trick-membership-
+  // driven; empty array when no symbolic surface is relevant for this slug.
+  // Renders subordinate to the canonical Related Tricks + Related Topology
+  // panels. Currently triggers: butterfly-wing-topology → walking progression;
+  // spinning-family / whirl-rotational-topology → spinning modifier page.
+  symbolicEducationCtas: SymbolicEducationCta[];
   // Next Tricks: same family + higher ADD; per-bucket-2 sampling, capped at 5.
   // Family-scoped progression; cross-family progression intentionally excluded.
   nextTricks: FreestyleNextTrick[];
@@ -1260,6 +1298,13 @@ export interface FreestyleGlossaryContent {
     paradoxWhirl: NotationDisplay | null;
     gauntlet:     NotationDisplay | null;
   };
+  // Connective-tissue panels (observational symbolic-grammar layer) for
+  // 6 high-value terms: paradox / symposium / ducking / spinning / whirl /
+  // pixie. Each panel surfaces related tricks + related symbolic groups +
+  // a notation hint + optional deep-link to a modifier-family page.
+  // Per UX-SHIP-1 Phase 7 (Task E). Always populated (length=6); panels
+  // may have empty relatedTricks arrays when staging CSVs are missing.
+  connectivePanels: GlossaryConnectivePanel[];
 }
 
 export interface FreestyleHistoryEvolutionEntry {
@@ -2207,6 +2252,8 @@ export const freestyleService = {
           hasFamilyMembers: familyMembers.length > 1,
           familyTiers:      buildFamilyTiers(familyMembers),
           relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
+          symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows),
+          symbolicEducationCtas:   buildSymbolicEducationCtas(slug),
           previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
           nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
           tutorialMedia,
@@ -2907,6 +2954,106 @@ export const freestyleService = {
     };
   },
 
+  /**
+   * GET /freestyle/learn
+   *
+   * Observational symbolic-grammar layer — index of all educational surfaces.
+   * Per DISCOVERABILITY phase. Hand-authored content; no DB access.
+   */
+  getSymbolicLearnPage(): PageViewModel<SymbolicLearnIndexContent> {
+    const content = buildSymbolicLearnIndex();
+    return {
+      seo: {
+        title:       'Educational pathways — Freestyle',
+        description:
+          'Index of observational educational surfaces alongside the canonical freestyle trick dictionary: progressions, modifier pedagogy, and glossary connective panels.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_learn',
+        title:      content.pageHeading,
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Learn' },
+        ],
+      },
+      content,
+    };
+  },
+
+  /**
+   * GET /freestyle/modifier/:slug
+   *
+   * Observational symbolic-grammar layer — hand-authored modifier-family
+   * teaching page. Per UX-SHIP-1 Phase 6 (Task D), pilot scope: spinning only.
+   * Throws NotFoundError when no authored page exists for the requested slug.
+   */
+  getModifierFamilyPage(slug: string): PageViewModel<ModifierFamilyPageContent> {
+    if (!hasModifierFamilyPage(slug)) {
+      throw new NotFoundError(`No modifier-family page for slug "${slug}"`);
+    }
+    const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const content = buildModifierFamilyPage(slug, allDictRows);
+    if (!content) {
+      throw new NotFoundError(`No modifier-family page for slug "${slug}"`);
+    }
+    return {
+      seo: {
+        title:       `${content.displayName} — Freestyle modifier`,
+        description: content.pageSubtitle,
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    `freestyle_modifier_${slug}`,
+        title:      content.pageTitle,
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: content.displayName },
+        ],
+      },
+      content,
+    };
+  },
+
+  /**
+   * GET /freestyle/progression/walking-family
+   *
+   * Observational symbolic-grammar layer — hand-authored Walking Family
+   * progression chain. Per UX-SHIP-1 Phase 5. Returns null content when any
+   * required dictionary slug is missing (curated chain expects all 7 rows).
+   */
+  getWalkingFamilyProgressionPage(): PageViewModel<WalkingFamilyProgressionContent | null> {
+    const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const content = buildWalkingFamilyProgression(allDictRows);
+    return {
+      seo: {
+        title: 'Walking-family progression — Freestyle',
+        description:
+          'Educational symbolic-grammar progression for the walking family: butterfly through ripwalk, dimwalk, sidewalk, dada-curve, matador, and phoenix. Observational layer.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_walking_progression',
+        title:      'Walking-family progression',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Walking-family progression' },
+        ],
+      },
+      content,
+    };
+  },
+
   getGlossaryPage(): PageViewModel<FreestyleGlossaryContent> {
     // Build the same lookup context the trick-detail renderer uses, so the
     // glossary's notation examples are classified by the SAME role registries
@@ -2954,6 +3101,7 @@ export const freestyleService = {
           paradoxWhirl: paradoxWhirlExample,
           gauntlet:     gauntletExample,
         },
+        connectivePanels: buildGlossaryConnectivePanels(allDictRows),
       },
     };
   },

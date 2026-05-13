@@ -139,4 +139,41 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/progression/walking-family — observational symbolic-grammar layer */
+  walkingProgression(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getWalkingFamilyProgressionPage();
+      res.render('freestyle/walking-progression', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
+  /** GET /freestyle/learn — observational symbolic-grammar layer index */
+  symbolicLearn(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getSymbolicLearnPage();
+      res.render('freestyle/learn', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
+  /** GET /freestyle/modifier/:slug — observational symbolic-grammar layer */
+  modifierFamily(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getModifierFamilyPage(req.params['slug'] ?? '');
+      res.render('freestyle/modifier-family', vm);
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        res.status(404).render('errors/not-found', {
+          seo:  { title: 'Page Not Found' },
+          page: { sectionKey: '', pageKey: 'error_404', title: 'Page Not Found' },
+        });
+        return;
+      }
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
 };

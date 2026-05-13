@@ -1,0 +1,49 @@
+{{!--
+  /freestyle/learn — symbolic-subsystem index.
+
+  Per DISCOVERABILITY phase. Lists the four observational symbolic surfaces
+  shipped in UX-SHIP-1 (Phases 4-7) plus planned future entries (paradox,
+  ducking). All content pre-shaped in symbolicLearnIndex.ts; template is
+  logic-light.
+--}}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{content.pageHeading}} <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span></h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <article class="content-section symbolic-learn-index">
+
+    <p class="learn-intro">{{content.pageIntro}}</p>
+
+    {{#each content.sections}}
+    <section class="learn-section">
+      <h2 class="learn-section-heading">{{heading}}</h2>
+      <p class="learn-section-intro">{{introBlurb}}</p>
+      <ul class="learn-entries">
+        {{#each entries}}
+        <li class="learn-entry{{#unless isShipped}} learn-entry-planned{{/unless}}">
+          {{#if isShipped}}
+          <a class="learn-entry-title" href="{{href}}">{{title}} →</a>
+          {{else}}
+          <span class="learn-entry-title">{{title}} <span class="learn-entry-status">planned</span></span>
+          {{/if}}
+          <p class="learn-entry-blurb">{{shortBlurb}}</p>
+        </li>
+        {{/each}}
+      </ul>
+    </section>
+    {{/each}}
+
+    <p class="symbolic-layer-footer">Observational symbolic-grammar layer. The canonical reference for trick definitions, ADD values, and modifier rules remains the <a href="/freestyle/tricks">trick dictionary</a> and the <a href="/freestyle/glossary">glossary</a>.</p>
+  </article>
+</div>

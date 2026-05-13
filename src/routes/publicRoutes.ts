@@ -51,6 +51,9 @@ publicRouter.get('/freestyle/moves',       freestyleController.moves);
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/insights',    freestyleController.insights);
+publicRouter.get('/freestyle/learn',       freestyleController.symbolicLearn);
+publicRouter.get('/freestyle/progression/walking-family', freestyleController.walkingProgression);
+publicRouter.get('/freestyle/modifier/:slug', freestyleController.modifierFamily);
 publicRouter.get('/freestyle/tricks/:slug', freestyleController.trick);
 publicRouter.get('/freestyle',             freestyleController.landing);
 

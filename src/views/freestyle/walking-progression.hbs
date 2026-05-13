@@ -1,0 +1,69 @@
+{{!--
+  Walking-family progression — observational symbolic-grammar layer.
+
+  Per UX-SHIP-1 Phase 5 (Task C). Hand-authored 7-step chain that teaches the
+  butterfly-wing topology through progressive modifier additions. All data is
+  pre-shaped by freestyleService.getWalkingFamilyProgressionPage(); template is
+  logic-light. Renders nothing when content is null (graceful fail).
+--}}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content}}
+  <section class="content-section symbolic-walking-progression" aria-label="Walking-family progression">
+    <div class="section-heading">
+      <h2>
+        {{content.pageHeading}}
+        <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
+      </h2>
+    </div>
+    <p class="progression-intro">{{content.pageIntro}}</p>
+
+    <ol class="progression-chain" role="list">
+      {{#each content.steps}}
+      <li class="progression-step{{#if isAnchor}} is-anchor{{/if}}" id="step-{{stepNumber}}-{{slug}}">
+        <div class="step-header">
+          <span class="step-number" aria-hidden="true">{{stepNumber}}</span>
+          <a class="step-name" href="{{detailHref}}">{{canonicalName}}</a>
+          {{#if adds}}<span class="step-adds" aria-label="ADD {{adds}}">{{adds}} ADD</span>{{/if}}
+          <span class="step-modifier">{{modifierAdded}}</span>
+        </div>
+        <p class="step-rationale">{{rationale}}</p>
+        <p class="step-symbolic"><strong>Symbolic note:</strong> {{symbolicNote}}</p>
+        {{#if glossaryLinks.length}}
+        <p class="step-glossary-links">Related glossary terms:
+          {{#each glossaryLinks}}<a href="{{href}}">{{term}}</a>{{#unless @last}}, {{/unless}}{{/each}}.
+        </p>
+        {{/if}}
+      </li>
+      {{/each}}
+    </ol>
+
+    <nav class="symbolic-crosslinks" aria-label="Related symbolic surfaces">
+      <span class="symbolic-crosslinks-label">Related educational pages</span>
+      <ul>
+        <li><a href="/freestyle/modifier/spinning">Spinning modifier — body mechanics and cross-base examples →</a></li>
+        <li><a href="/freestyle/learn">All symbolic educational pages →</a></li>
+      </ul>
+    </nav>
+
+    <p class="symbolic-layer-footer">Observational symbolic-grammar layer. This progression surfaces mechanical similarity across the butterfly-wing topology. It does not change canonical IFPA family classifications.</p>
+  </section>
+  {{else}}
+  <section class="content-section">
+    <p>The walking-family progression page is temporarily unavailable.</p>
+  </section>
+  {{/if}}
+</div>

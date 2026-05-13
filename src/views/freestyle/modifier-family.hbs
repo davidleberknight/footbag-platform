@@ -1,0 +1,121 @@
+{{!--
+  Modifier-family teaching page — single template, per-modifier content.
+
+  Per UX-SHIP-1 Phase 6 (Task D). Pilot scope: spinning only.
+
+  Design philosophy: this is a TEACHING SURFACE, not a symbolic report.
+  Leads with the body and the mechanics; the cohort of tricks is supporting
+  evidence, not the primary content. Coach-like prose; "the same idea on
+  other bases" phrasing; observational-layer attribution preserved.
+
+  Template is logic-light. All content pre-shaped in
+  src/services/symbolicModifierEducation.ts.
+--}}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if navigation.breadcrumbs}}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+      {{#each navigation.breadcrumbs}}
+        {{#if href}}<a href="{{href}}">{{label}}</a> <span class="breadcrumb-sep">/</span> {{else}}<span>{{label}}</span>{{/if}}
+      {{/each}}
+    </nav>
+    {{/if}}
+    <h1>{{page.title}} <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span></h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content}}
+  <article class="content-section symbolic-modifier-family" aria-label="{{content.displayName}} modifier teaching page">
+
+    <p class="modifier-subtitle">{{content.pageSubtitle}}</p>
+
+    {{!-- Section 1: Mechanical lead --}}
+    <section class="modifier-section mechanical-lead" aria-label="The body and the motion">
+      <h2>The body and the motion</h2>
+      <p><strong>Where the motion lives.</strong> {{content.mechanicalLead.whereTheMotionLives}}</p>
+      <p><strong>When it happens.</strong> {{content.mechanicalLead.whenItHappens}}</p>
+      <p><strong>What good execution feels like.</strong> {{content.mechanicalLead.whatItFeelsLike}}</p>
+      <p><strong>What goes wrong.</strong> {{content.mechanicalLead.commonFailure}}</p>
+    </section>
+
+    {{!-- Section 2: Anchor sentence --}}
+    <blockquote class="anchor-sentence" aria-label="Anchor sentence">{{content.anchorSentence}}</blockquote>
+
+    {{!-- Section 2.5: Diagram placeholder --}}
+    <div class="diagram-placeholder" role="img" aria-label="Diagram placeholder — diagram planned">{{content.diagramPlaceholder}}</div>
+
+    {{!-- Section 3: Common confusions --}}
+    <section class="modifier-section" aria-label="Common confusions">
+      <h2>Common confusions</h2>
+      {{#each content.confusions}}
+      <div class="confusion-card">
+        <h3>{{heading}}</h3>
+        <p>{{prose}}</p>
+      </div>
+      {{/each}}
+    </section>
+
+    {{!-- Section 4: Progression --}}
+    <section class="modifier-section symbolic-walking-progression" aria-label="Progression {{content.progression.anchorBaseLabel}}">
+      <h2>Progression {{content.progression.anchorBaseLabel}}</h2>
+      <ol class="progression-chain" role="list">
+        {{#each content.progression.steps}}
+        <li class="progression-step{{#if isAnchor}} is-anchor{{/if}}" id="modifier-step-{{stepNumber}}-{{slug}}">
+          <div class="step-header">
+            <span class="step-number" aria-hidden="true">{{stepNumber}}</span>
+            {{#if isPilot}}<a class="step-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="step-name">{{canonicalName}}</span>{{/if}}
+            {{#if adds}}<span class="step-adds" aria-label="ADD {{adds}}">{{adds}} ADD</span>{{/if}}
+            <span class="step-modifier">{{modifierAdded}}</span>
+          </div>
+          <p class="step-rationale">{{rationale}}</p>
+        </li>
+        {{/each}}
+      </ol>
+    </section>
+
+    {{!-- Section 5: The same idea on other bases --}}
+    <section class="modifier-section" aria-label="The same idea on other bases">
+      <h2>The same idea on other bases</h2>
+      <p class="cross-base-framing">{{content.crossBase.framingLine}}</p>
+      <ul class="cross-base-list">
+        {{#each content.crossBase.examples}}
+        <li>
+          {{#if isPilot}}<a class="cross-base-name" href="{{detailHref}}">{{canonicalName}}</a>{{else}}<span class="cross-base-name">{{canonicalName}}</span>{{/if}}
+          <span class="cross-base-base">{{baseLabel}}</span>
+          {{#if adds}}<span class="cross-base-adds">{{adds}} ADD</span>{{/if}}
+          <p class="cross-base-prose">{{prose}}</p>
+        </li>
+        {{/each}}
+      </ul>
+    </section>
+
+    {{!-- Section 6: Related modifiers --}}
+    <section class="modifier-section" aria-label="Related modifiers">
+      <h2>Related modifiers</h2>
+      <ul class="related-modifiers-list">
+        {{#each content.relatedModifiers}}
+        <li><span class="related-name">{{name}}</span> — {{prose}}</li>
+        {{/each}}
+      </ul>
+      <p class="modifier-glossary-link"><a href="{{content.glossaryHref}}">Browse the glossary →</a></p>
+    </section>
+
+    <nav class="symbolic-crosslinks" aria-label="Related symbolic surfaces">
+      <span class="symbolic-crosslinks-label">Related educational pages</span>
+      <ul>
+        <li><a href="/freestyle/progression/walking-family">Walking-family progression — butterfly-base step-by-step →</a></li>
+        <li><a href="/freestyle/learn">All symbolic educational pages →</a></li>
+      </ul>
+    </nav>
+
+    <p class="symbolic-layer-footer">Observational symbolic-grammar layer. This page is educational and describes the {{content.displayName}} modifier physically and mechanically. It does not change canonical IFPA family classifications or modifier-table ADD rules.</p>
+
+  </article>
+  {{else}}
+  <section class="content-section">
+    <p>This modifier-family page is temporarily unavailable.</p>
+  </section>
+  {{/if}}
+</div>
