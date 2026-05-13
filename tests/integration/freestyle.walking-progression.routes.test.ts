@@ -122,11 +122,12 @@ describe('GET /freestyle/progression/walking-family', () => {
     expect(res.text).toContain('Symbolic note');
   });
 
-  it('renders related glossary links for each step', async () => {
+  it('renders related glossary links for each step (deep-linked via fragments)', async () => {
     const res = await request(createApp()).get('/freestyle/progression/walking-family');
     expect(res.text).toMatch(/Related glossary terms:/);
-    // All steps reference /freestyle/glossary in their glossary links
-    expect(res.text.match(/href="\/freestyle\/glossary"/g)?.length ?? 0).toBeGreaterThanOrEqual(7);
+    // All step-glossary links deep-link via fragment (#term-X or #glossary-panel-X).
+    const fragmentLinks = res.text.match(/href="\/freestyle\/glossary#[^"]+"/g) ?? [];
+    expect(fragmentLinks.length).toBeGreaterThanOrEqual(7);
   });
 
   it('observational-layer attribution rendered', async () => {

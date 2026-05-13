@@ -20,6 +20,7 @@
  * before extension to paradox + ducking.
  */
 import type { FreestyleTrickRow } from '../db/db';
+import { glossaryHrefForTerm } from './glossaryAnchors';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -577,7 +578,7 @@ export function buildModifierFamilyPage(
       examples:    resolvedCrossBase,
     },
     relatedModifiers: input.relatedModifiers,
-    glossaryHref:     '/freestyle/glossary',
+    glossaryHref:     glossaryHrefForTerm(input.slug),
     layerSource:      'observational',
   };
 }

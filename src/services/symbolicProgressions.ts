@@ -19,6 +19,7 @@
  */
 import type { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
+import { glossaryHrefForTerm } from './glossaryAnchors';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -177,7 +178,7 @@ export function buildWalkingFamilyProgression(
       symbolicNote:  def.symbolicNote,
       glossaryLinks: def.glossaryTerms.map(term => ({
         term,
-        href: '/freestyle/glossary',
+        href: glossaryHrefForTerm(term),
       })),
       isAnchor: def.isAnchor,
     });

@@ -185,9 +185,9 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
     expect(res.text).toMatch(/does not change canonical IFPA family classifications/i);
   });
 
-  it('renders glossary link', async () => {
+  it('renders glossary link deep-linking to the §13 spinning connective panel', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/spinning');
-    expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/glossary#glossary-panel-spinning"');
   });
 
   it('breadcrumb back to /freestyle', async () => {
