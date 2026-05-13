@@ -30,7 +30,12 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickAlias,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3095');
 
@@ -118,6 +123,13 @@ beforeAll(async () => {
     category:             'compound',
     operational_notation: null,
   });
+
+  // Minimal modifier-link seeding so the component view (slice 3A) renders
+  // at least one body-modifier group, exercising the dict-card-stack assertion
+  // in the slice-by-slice regression guard below.
+  insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body', add_bonus: 1, add_bonus_rotational: 1 });
+  insertFreestyleTrickModifierLink(db, 'mobius',  'spinning', 1);
+  insertFreestyleTrickModifierLink(db, 'montage', 'spinning', 1);
 
   db.close();
   createApp = await importApp();
@@ -328,20 +340,26 @@ describe('other dictionary views — slice-by-slice migration', () => {
     expect(res.text).toContain('dict-card-stack');
   });
 
+  it('/freestyle/tricks?view=component returns 200 and uses the shared card (slice 3A migrated)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('dict-card-stack');
+  });
+
+  it('/freestyle/tricks?view=sets returns 200 and resolves to ?view=component (legacy alias)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=sets');
+    expect(res.status).toBe(200);
+    // Alias resolves server-side; same component-view markup renders.
+    expect(res.text).toContain('dict-card-stack');
+  });
+
   it('/freestyle/tricks?view=category still returns 200 (not yet migrated)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
   });
 
-  it('/freestyle/tricks?view=sets still returns 200 (not yet migrated)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks?view=sets');
-    expect(res.status).toBe(200);
-  });
-
-  it('not-yet-migrated views (category, sets) do NOT use the dict-card-stack container', async () => {
+  it('not-yet-migrated views (category) do NOT use the dict-card-stack container', async () => {
     const category = await request(createApp()).get('/freestyle/tricks?view=category');
-    const sets     = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(category.text).not.toContain('dict-card-stack');
-    expect(sets.text).not.toContain('dict-card-stack');
   });
 });

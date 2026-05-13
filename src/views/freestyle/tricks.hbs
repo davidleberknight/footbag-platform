@@ -55,10 +55,10 @@
       <a href="/freestyle/tricks?view=category">By category</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "sets")}}
-      <span class="trick-view-toggle-active">By sets</span>
+    {{#if (eq content.activeView "component")}}
+      <span class="trick-view-toggle-active">By component</span>
     {{else}}
-      <a href="/freestyle/tricks?view=sets">By sets</a>
+      <a href="/freestyle/tricks?view=component">By component</a>
     {{/if}}
   </nav>
 
@@ -116,45 +116,57 @@
   {{/if}}
   {{/if}}
 
-  {{! ── Sets view (dictionary projection by which set/modifier each trick uses) ── }}
-  {{#if (eq content.activeView "sets")}}
-  <p class="detail-muted dict-note">
-    <em>Tricks grouped by which set or modifier they use. For set notation
-    (Pixie, Fairy, Atomic, etc.) as a standalone reference, see
-    <a href="/freestyle/moves">Set notation reference</a>.</em>
-  </p>
-  {{#if content.setGroups.length}}
-  {{#each content.setGroups}}
-  <section class="content-section trick-set-group" id="set-{{modifierSlug}}">
-    <div class="section-heading">
-      <h2>{{modifierName}} <span class="trick-set-type">({{modifierType}})</span></h2>
-      <span class="section-count">{{trickCount}}</span>
-    </div>
-    <ul class="trick-list">
-      {{#each tricks}}
-      <li class="trick-row">
-        <div class="trick-row-header">
-          <a class="trick-name" href="{{detailHref}}">{{canonicalName}}</a>
-          {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
-          {{#if adds}}<span class="trick-add-chip">{{adds}} ADD</span>{{else}}<span class="trick-add-chip trick-add-chip--unrated">— ADD</span>{{/if}}
-          {{#if trickFamily}}<a class="trick-family-chip" href="/freestyle/tricks?family={{trickFamily}}">{{trickFamily}}</a>{{/if}}
-          {{#if (eq mediaCoverage "tutorial")}}<span class="trick-media-chip trick-media-chip--tutorial">Tutorial available</span>{{else if (eq mediaCoverage "demo")}}<span class="trick-media-chip trick-media-chip--demo">Demo only</span>{{else}}<span class="trick-media-chip trick-media-chip--missing">No video yet</span>{{/if}}
+  {{! ── Component view — symbolic trick cards (DSC-2 slice 3A) ───────────── }}
+  {{#if (eq content.activeView "component")}}
+  <p class="component-view-note">{{content.componentView.duplicationNote}}</p>
+
+  {{! Axis-jump nav. Static; no JS. Hash anchors only. }}
+  <nav class="component-axis-jump" aria-label="Component axes">
+    {{#each content.componentView.axes}}
+      {{#if groups.length}}
+      <a href="#{{anchorId}}">{{axisLabel}}</a>{{#unless @last}} <span class="component-axis-jump-sep">·</span> {{/unless}}
+      {{/if}}
+    {{/each}}
+  </nav>
+
+  {{#each content.componentView.axes}}
+    {{#if groups.length}}
+    <section class="content-section trick-component-axis" id="{{anchorId}}">
+      <div class="section-heading">
+        <h2>{{axisLabel}}</h2>
+        <span class="section-count">{{groups.length}}</span>
+      </div>
+      {{#each groups}}
+      <section class="trick-component-group" id="{{anchorId}}">
+        <div class="component-group-heading">
+          <h3><a href="/freestyle/tricks?view=component#{{anchorId}}">{{componentName}}</a></h3>
+          <span class="section-count">{{memberCount}}</span>
         </div>
-        {{#if description}}<div class="trick-description">{{description}}</div>{{/if}}
-      </li>
+        {{#if bodyDefinition}}
+        <p class="component-group-definition">{{bodyDefinition}}</p>
+        {{/if}}
+        <div class="dict-card-stack">
+          {{#each cards}}
+            {{> dictionary-trick-card}}
+          {{/each}}
+        </div>
+      </section>
       {{/each}}
-    </ul>
-  </section>
+    </section>
+    {{/if}}
   {{/each}}
-  {{else}}
+
+  {{#unless content.componentView.axes.0.groups.length}}
+  {{#unless content.componentView.axes.1.groups.length}}
   <section class="content-section">
     <p class="detail-muted">
-      <em>No tricks currently link to a registered set or modifier. As the
+      <em>No tricks currently link to a registered body or set modifier. As the
       dictionary expands, this view will populate from
       <code>freestyle_trick_modifier_links</code>.</em>
     </p>
   </section>
-  {{/if}}
+  {{/unless}}
+  {{/unless}}
   {{/if}}
 
   {{! ── Category view (alternate, preserves the legacy layout) ───────────── }}

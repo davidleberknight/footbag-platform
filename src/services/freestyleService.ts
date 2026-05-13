@@ -1181,7 +1181,7 @@ export interface FreestyleTricksCoverageSummary {
   transparencyNote: string;        // pre-shaped: 'External-source placeholders are shown for transparency...'
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets';
+export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component';
 
 // One row in the ?view=sets projection. Each set/modifier carries the list
 // of canonical tricks that use it via freestyle_trick_modifier_links.
@@ -1209,6 +1209,40 @@ export interface FreestyleRelatedSetLink {
   href: string;           // /freestyle/tricks?view=sets#set-{modifierSlug}
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// ComponentBrowseView (DSC-2 slice 3A).
+//
+// Browses tricks grouped by the structural component they share. Slice 3A
+// scope: body modifiers + set modifiers only. Topology groups and movement
+// archetypes are deferred to a future slice.
+//
+// A trick may appear in multiple groups (intentional duplication; a single
+// trick can carry multiple modifier links of different types). This is the
+// load-bearing browse path the slice unlocks.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ComponentGroup {
+  componentSlug:   string;          // modifier_slug
+  componentName:   string;          // display name (lowercase canonical or display-cased)
+  bodyDefinition:  string | null;   // one-line body-mechanics definition; null when curator hasn't authored one
+  memberCount:     number;          // post-filter trick count
+  anchorId:        string;          // `component-{slug}` for hash-anchor navigation
+  cards:           DictionaryTrickCard[];   // ADD ascending, then name
+}
+
+export interface ComponentAxis {
+  axisKey:    'body' | 'set';
+  axisLabel:  string;
+  anchorId:   string;                // `axis-body` / `axis-set`
+  groups:     ComponentGroup[];      // priority-ordered, then alphabetical
+}
+
+export interface ComponentBrowseView {
+  axes:  ComponentAxis[];
+  // Explanatory note rendered above the axes. Static prose — kept short.
+  duplicationNote: string;
+}
+
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
@@ -1221,6 +1255,9 @@ export interface FreestyleTricksIndexContent {
   // Sets-grouped view: dictionary tricks bucketed by which modifier(s) they
   // use. Drives ?view=sets. Empty when no active tricks have modifier_links.
   setGroups: FreestyleSetGroup[];
+  // DSC-2 slice 3A: component view (?view=component). Body + set modifier
+  // axes only; topology + archetype axes deferred to a later slice.
+  componentView: ComponentBrowseView;
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
   dictNote: string;                      // small subtle note rendered above the categories
@@ -2909,11 +2946,15 @@ export const freestyleService = {
     };
 
     // ---- View toggle --------------------------------------------------
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets'];
-    const activeView: FreestyleTricksActiveView =
-      allowedViews.includes((view ?? 'add') as FreestyleTricksActiveView)
-        ? ((view ?? 'add') as FreestyleTricksActiveView)
-        : 'add';
+    // DSC-2 slice 3A: ?view=sets is an alias of ?view=component. Both
+    // requests resolve to the same activeView so the new component browse
+    // experience renders for inbound legacy links without breaking them.
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component'];
+    const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
+    const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
+      ? (requestedView === 'sets' ? 'component' : requestedView)
+      : 'add';
+    const activeView = resolvedView;
 
     // Load modifier reference table (still shaped; rendering currently disabled)
     const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
@@ -2975,6 +3016,131 @@ export const freestyleService = {
       trickCount: b.tricks.length,
     }));
 
+    // ---- Component view (?view=component projection, DSC-2 slice 3A) ----
+    // Body + set modifier axes only. Topology and movement-archetype axes
+    // are deferred. Within each axis, groups render in priority order
+    // (curator-tagged); remaining groups follow alphabetical. Within each
+    // group, cards sort ADD ascending, then trick name alphabetical.
+    // Empty groups are hidden.
+
+    const BODY_PRIORITY = ['paradox', 'symposium', 'spinning', 'ducking', 'diving', 'weaving', 'gyro', 'stepping'];
+    const SET_PRIORITY  = ['pixie', 'atomic', 'quantum', 'nuclear', 'fairy', 'furious'];
+
+    // One-line body-mechanics definitions for the priority modifiers. Curator-authored;
+    // a future slice may expand this map to additional modifiers.
+    const COMPONENT_DEFINITIONS: Record<string, string> = {
+      paradox:   'A hip pivot between two dexes on the same set — the body changes sides without changing the set foot.',
+      symposium: 'A no-plant body discipline — the support leg stays off the ground during the dex.',
+      spinning:  'A full-body 360° rotation carried through the dex moment.',
+      ducking:   'A head dip that lets the bag pass around the neck; head moves toward the bag, bag falls opposite.',
+      diving:    'A head arc — over and under the bag — with the bag falling to the same side.',
+      weaving:   'Head moves toward the bag, bag falls to the same side.',
+      gyro:      'A half-body 180° rotation carried through the dex moment.',
+      stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
+      pixie:     'A compressed pre-base uptime set; tighter motion than stepping.',
+      atomic:    'A cross-body uptime set with x-dex character.',
+      quantum:   'The compressed form of atomic — a tighter uptime treatment.',
+      nuclear:   'A +2 set modifier; structurally paradox + atomic.',
+      fairy:     'A pre-base uptime set treatment closely related to pixie.',
+      furious:   'A +2 set modifier with a heavier uptime treatment.',
+    };
+
+    const componentSortByAddThenName = (
+      a: { row: FreestyleTrickRow; indexRow: FreestyleTrickIndexRow },
+      b: { row: FreestyleTrickRow; indexRow: FreestyleTrickIndexRow },
+    ): number => {
+      const an = parseAddNumeric(a.row.adds);
+      const bn = parseAddNumeric(b.row.adds);
+      const ai = an ?? Number.POSITIVE_INFINITY;
+      const bi = bn ?? Number.POSITIVE_INFINITY;
+      if (ai !== bi) return ai - bi;
+      return a.row.canonical_name.localeCompare(b.row.canonical_name, undefined, { sensitivity: 'base' });
+    };
+
+    interface ComponentBucket {
+      modifierSlug: string;
+      modifierName: string;
+      modifierType: string;
+      entries:      { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow }[];
+    }
+
+    const componentAccumulator = new Map<string, ComponentBucket>();
+    const allActiveByStatus = new Map<string, FreestyleTrickRowWithStatus>();
+    for (const r of activeRows) allActiveByStatus.set(r.slug, r);
+    for (const lr of linkRows) {
+      const row = allActiveByStatus.get(lr.trick_slug);
+      if (!row) continue;
+      // Only body + set axes in slice 3A.
+      if (lr.modifier_type !== 'body' && lr.modifier_type !== 'set') continue;
+      let bucket = componentAccumulator.get(lr.modifier_slug);
+      if (!bucket) {
+        bucket = {
+          modifierSlug: lr.modifier_slug,
+          modifierName: lr.modifier_name,
+          modifierType: lr.modifier_type,
+          entries:      [],
+        };
+        componentAccumulator.set(lr.modifier_slug, bucket);
+      }
+      if (!bucket.entries.some(e => e.row.slug === row.slug)) {
+        bucket.entries.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
+      }
+    }
+
+    const buildComponentGroup = (bucket: ComponentBucket): ComponentGroup => {
+      const sorted = bucket.entries.slice().sort(componentSortByAddThenName);
+      return {
+        componentSlug:  bucket.modifierSlug,
+        componentName:  bucket.modifierName,
+        bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
+        memberCount:    sorted.length,
+        anchorId:       `component-${bucket.modifierSlug}`,
+        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow)),
+      };
+    };
+
+    const orderByPriorityThenAlpha = (
+      buckets: ComponentBucket[],
+      priority: string[],
+    ): ComponentGroup[] => {
+      const ordered: ComponentGroup[] = [];
+      const claimed = new Set<string>();
+      for (const slug of priority) {
+        const bucket = buckets.find(b => b.modifierSlug === slug);
+        if (bucket && bucket.entries.length > 0) {
+          ordered.push(buildComponentGroup(bucket));
+          claimed.add(slug);
+        }
+      }
+      const remaining = buckets
+        .filter(b => !claimed.has(b.modifierSlug) && b.entries.length > 0)
+        .sort((a, b) => a.modifierName.localeCompare(b.modifierName, undefined, { sensitivity: 'base' }));
+      for (const bucket of remaining) ordered.push(buildComponentGroup(bucket));
+      return ordered;
+    };
+
+    const bodyBuckets = [...componentAccumulator.values()].filter(b => b.modifierType === 'body');
+    const setBuckets  = [...componentAccumulator.values()].filter(b => b.modifierType === 'set');
+
+    const componentView: ComponentBrowseView = {
+      duplicationNote:
+        'Compounds appear in every component group they belong to. A trick with paradox AND spinning shows up under both — the duplication is intentional, since each grouping is a separate browse path.',
+      axes: [
+        {
+          axisKey:   'body',
+          axisLabel: 'Body modifiers',
+          anchorId:  'axis-body',
+          groups:    orderByPriorityThenAlpha(bodyBuckets, BODY_PRIORITY),
+        },
+        {
+          axisKey:   'set',
+          axisLabel: 'Set modifiers',
+          anchorId:  'axis-set',
+          groups:    orderByPriorityThenAlpha(setBuckets, SET_PRIORITY),
+        },
+      ],
+    };
+
     // Cross-link block: when the dictionary is filtered to one family, surface
     // the modifiers used by tricks in that family as deep-links into the sets
     // projection. The accumulator is already family-scoped (allRows was
@@ -3018,6 +3184,7 @@ export const freestyleService = {
         groups,
         familyGroups,
         setGroups,
+        componentView,
         modifiers,
         activeFamily,
         relatedSetGroups,

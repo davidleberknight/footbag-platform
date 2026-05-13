@@ -4681,6 +4681,81 @@ a.dict-card-title:hover { text-decoration: underline; }
 }
 .trick-family-cross-link a:hover { text-decoration: underline solid; }
 
+/* Component view (DSC-2 slice 3A). Two axes (body modifiers + set modifiers);
+ * intentional duplication; axis-jump nav at top; per-group heading with
+ * one-line body-mechanics definition above the dict-card-stack. */
+.component-view-note {
+  margin: 8px 0 16px 0;
+  padding: 10px 14px;
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #3a3a30;
+  font-style: italic;
+}
+.component-axis-jump {
+  margin: 0 0 24px 0;
+  padding: 8px 12px;
+  background: transparent;
+  border-bottom: 1px solid #e8e4d3;
+  font-size: 0.9rem;
+}
+.component-axis-jump a {
+  color: #2d2d24;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+.component-axis-jump a:hover { text-decoration: underline; }
+.component-axis-jump-sep {
+  color: #a3a3a3;
+  margin: 0 2px;
+}
+.trick-component-axis {
+  margin-top: 32px;
+}
+.trick-component-group {
+  margin: 28px 0 12px 0;
+}
+.component-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 6px 0;
+}
+.component-group-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #2d2d24;
+}
+.component-group-heading h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+.component-group-heading h3 a:hover { text-decoration: underline; }
+.component-group-definition {
+  margin: 0 0 14px 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #5a5644;
+  line-height: 1.55;
+}
+
+@media (max-width: 480px) {
+  .component-axis-jump { font-size: 0.85rem; }
+  .component-group-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+
 /* Mobile: stack title + ADD vertically on narrow viewports so the
  * operational notation still has horizontal room. */
 @media (max-width: 480px) {

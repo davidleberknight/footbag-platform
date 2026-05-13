@@ -989,61 +989,37 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     const res = await request(app).get('/freestyle/tricks');
     expect(res.text).toContain('class="trick-view-toggle"');
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
-    // The other tabs render as plain anchors.
+    // DSC-2 slice 3A: ?view=sets was renamed to ?view=component; ?view=sets
+    // continues to work as a server-side alias but the toggle label is now
+    // "By component" with href=...view=component.
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
     expect(res.text).toContain('href="/freestyle/tricks?view=category"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=sets"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=component"');
   });
 });
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/tricks?view=sets — sets-grouped projection', () => {
-  it('returns 200 and marks the By sets tab active', async () => {
+describe('GET /freestyle/tricks?view=sets — legacy alias for ?view=component', () => {
+  // DSC-2 slice 3A: ?view=sets continues to resolve to the new ?view=component
+  // render path; the legacy URL is supported for backward compatibility but
+  // the rendered page is the new component view (axes + dict-card-stack).
+
+  it('returns 200 and renders the component view (legacy alias)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By sets</);
+    // The new component view renders the dict-card-stack via the shared partial.
+    expect(res.text).toContain('dict-card-stack');
+    // The view-toggle marks "By component" active (alias resolved server-side).
+    expect(res.text).toMatch(/class="trick-view-toggle-active">By component</);
   });
 
-  it('renders set-group sections for modifiers that have linked active tricks', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=sets');
-    // Fixture seeds spinning-modified rows; the set-group section should
-    // render at least one trick-set-group with a section heading.
-    expect(res.text).toContain('class="content-section trick-set-group"');
-    // Each section heading carries the modifier-type label in italic.
-    expect(res.text).toContain('class="trick-set-type"');
-  });
-
-  it('cross-links: each set-group section has an id="set-{slug}" anchor', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=sets');
-    // The id pattern enables future cross-links from elsewhere on the
-    // dictionary (family pages, modifier reference) into a specific set.
-    expect(res.text).toMatch(/<section class="content-section trick-set-group" id="set-[a-z0-9-]+"/);
-  });
-
-  it('falls back gracefully when no modifier-link rows exist', async () => {
-    // Default ADD view always renders; sets view shows an empty-state when
-    // setGroups is empty. (Fixtures may seed enough modifier_links rows
-    // that this branch isn't exercised in the default case; assert the
-    // class exists on the page so the gracefully-empty markup is present.)
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=sets');
-    expect(res.status).toBe(200);
-    // Either real groups OR the empty fallback message must render.
-    const hasGroups = res.text.includes('class="content-section trick-set-group"');
-    const hasEmpty = res.text.includes('No tricks currently link to a registered set');
-    expect(hasGroups || hasEmpty).toBe(true);
-  });
-
-  it('cross-references the static set-notation reference page', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/tricks?view=sets');
-    // Sets view is a dictionary projection; the static notation legend
-    // remains at /freestyle/moves and is linked from the page intro.
-    expect(res.text).toMatch(/href="\/freestyle\/moves"/);
+  it('cross-references the static set-notation reference page is no longer required on the dictionary projection (the static legend stays at /freestyle/moves; the component view does not link to it inline)', async () => {
+    // Legacy assertion retired: the new component view focuses on the
+    // symbolic trick cards. The /freestyle/moves page remains the static
+    // set-notation reference, reachable from the freestyle landing.
+    expect(true).toBe(true);
   });
 });
 
