@@ -1,0 +1,241 @@
+Nickname(s) / Primary Name(s)	Technical Name(s) / Description	Uptime Component	Downtime Component	Dex Count	Notes
+Anonymous	Spinning far Miraging Symp. Miraging Refraction	Spinning		3	
+Archnemesis	Barraging near Double Down	Barraging	Double Down	4	
+Armaggedon	Miraging Symp. Eggbeater			3	
+Assassin	Pixie Ducking far Mirage	Pixie	Mirage	2	
+Atom Bomb	Flailing far Symp. Mirage, Full Symp. Atomsmasher	Flailing	Symp Mirage	2	
+Atomsmasher	Atomic far Mirage	Atomic	Mirage	2	
+ATW, Around the World	toe>ss leggy in dex>ss toe			1	
+Badger	Symp. Butterfly Swirl		Symp. Butterfly Swirl	2	
+Barfly	Clipper far Double Down		Double Down	2	
+Barfry	Nuclear near Butterfly	Nuclear	Butterfly	2	
+Barrage	double-dex Mirage		Barrage	2	
+Barroque	double-dex Torque, (downtime) Barraging far Osis			2	
+Bedwetter	Stepping far Eggbeater	Stepping	Eggbeater	3	
+Big Apple	Spinning near Symp. Torque, Symp. Mobius			1	
+Big Applesauce	Spinning far Miraging Symp. Torque			2	
+Big Orange	Spinning near Symp. Flux, Rev. Big Apple			1	
+Blackula	Toe near Symp. Double Down, Symp DOD		Symp. Double Down	2	
+Bladerunner	Atomic far Eggbeater	Atomic	Eggbeater	3	sister trick to Predator
+Blaze	Whirling far Mirage	Whirling	Mirage	2	
+Blender	(downtime) Whirling Osis		Whirl, Osis	1	
+Bling Blang	(uptime) Whirling near Whip	Whirling	Whip/Rev Whirl	2	
+Blink	(downtime) Twisting near Toe		Twist/Rev Swirl	1	
+Blizzard	Stepping far Illusion	Stepping	Illusion	2	
+Blur	Stepping far Mirage	Stepping	Mirage	2	
+Blurrage	Stepping far Barrage	Stepping	Barrage	3	
+Blurrier	Stepping near Double Down	Stepping	Double Down	3	
+Blurriest	Stepping far Double Down	Stepping	Double Down	3	
+Blurtigo	Stepping Ducking far Drifter	Stepping	Drifter	2	portmanteau of "blurry" and "vertigo"
+Bullwhip	Spinning near Double Down	Spinning	Double Down	2	
+Butterfly, Down	(downtime) hippy out dex>ss clipper		Butterfly	1	
+Cardinal Swirl, Tripstein	triple-dex Swirl			3	
+Catacomb	Pixie near Drifter	Pixie	Drifter	2	
+Chainsaw Massacre	(downtime) Illusioning Symp. Illusioning Legover, (downtime) Illusioning Symp. Eggbeater			3	
+Cheese Processor	Surging Ducking far Blender	Surging	Blender	2	
+Clipper	xbd inside stall			0	
+Cloud	Calf Stall w/ leg in "Whirl" position				
+Clownface	Barraging far Eggbeater	Barraging	Eggbeater	4	
+Cold Fusion	Nuclear far Double Down, Pdx. Fusion	Nuclear	Double Down	3	
+Colossus	Spinning Diving near Symp. Whirl	Spinning	Symp. Whirl	1	
+Creature	(downtime) Miraging Symp. Illusion			2	
+Dada Curve	(downtime) Miraging far Symp. Butterfly			2	
+Darkwalk	Pixie Diving near Butterfly	Pixie	Butterfly	2	
+DATW/Double ATW	double-dex ATW			2	
+DDD/Down Double Down	Clipper near Double Down		Double Down	2	
+Delusion	double-dex Illusion			2	
+Dimmier	Pixie near Double Down	Pixie	Double Down	3	
+Dimmiest	Pixie far Double Down	Pixie	Double Down	3	
+Dimwalk	Pixie far Butterfly	Pixie	Butterfly	2	
+DLO ("dee-ell-oh"), Double Legover	(downtime) Miraging far Legover		Mirage, Legover	2	"Double" Legover is not to be confused with DSO, which is a double-dex Legover
+DOD/Double Over Down	Toe near Double Down		Double Down	2	
+Dolomite	Toe far Symp. Double Down		Symp. Double Down	2	
+Double Down	double-dex Butterfly		Double Down	2	
+Dragon	Xbd Outside Stall				
+Drifter	(downtime) Miraging far Clipper		Drifter	1	
+DSO, Double Switch, Double Switchover	double-dex Legover		DSO	2	
+Dyno	(downtime) Whipping Osis		Dyno	1	
+E-Walk	Frantic op Butterfly	Frantic			
+Eggbeater	(downtime) Illusioning Legover		Eggbeater	2	
+Ego	Atomic far Blender	Atomic	Blender	2	
+Enterrage	Terraging Legover, (midtime) Toe near Flurry			3	
+Fairy (archaic)	Midtime Toe near Illusion				
+Fairy Beater, Shutdown	Fairy far Butterfly	Fairy	Butterfly	2	
+Fear	Fairy far Mirage	Fairy	Mirage	2	
+Fission	Barraging far Illusion	Barraging	Illusion	3	
+Flail	Symp. Illusion			1	
+Flapper	Xbd Sole Stall				
+Flare	Symp. Whirling far Mirage	Symp. Whirling	Mirage	2	
+Flurricane	Gyro Flurry	Spinning	Flurry	3	
+Flurry	(midtime) Barraging far Legover			3	
+Flux	(downtime) Illusioning far Osis		Flux	1	
+Fog	Stepping far DLO	Stepping	DLO	3	
+Food Processor, Food	Stepping far Blender	Stepping	Blender	2	
+Frankenstein	Fairy near Swirling near Swirl, Phasing near Swirl, Fairy Ripstein	Phasing	Swirl	3	
+Fudge	Fairy far Illusion	Fairy	Illusion	2	
+Fury	Barraging far Mirage	Barraging	Mirage	3	
+Fusion	Atomic far Double Down	Atomic	Double Down	3	
+Gangsta Party	Spinning Ducking far Blender	Spinning	Blender	1	
+Gary Coleman	BS Reactor, Atomic far Symp. Whirl	Atomic	Symp. Whirl	2	
+Gauntlet	Stepping Ducking Torque	Stepping	Torque	2	
+GDLO ("gee-dee-ell-oh"), Whale Tail	Gyro DLO	Spinning	DLO	2	
+Genesis	Barraging far Whirl	Barraging	Whirl	3	
+Ghost	Whirling Rake				
+Golden Shower	Stepping Ducking far Symp. Eggbeater	Stepping	Symp. Eggbeater	3	
+Goliath	Pixie Ducking far DLO, Alpine Smog	Pixie	DLO	3	
+Gravedigger	Stepping near Torque	Stepping	Torque	2	
+Green Eggs and Ham	Stepping Ducking far Swivel	Stepping	Symp. Twirl	2	
+Grifter	(downtime) Illusioning far Clipper		Grifter	1	
+Guay	Pickup				
+GYBAS/Grab Your Balls and Squeeze	Stepping far Dyno	Stepping	Dyno	2	
+Hatchet	Clipper Diving near Whirl		Whirl	1	
+Heart	Frantic far Double Down Swirl			5	
+High Plains Drifter	double-dex Drifter/(midtime) Barraging far Clipper			2	
+Icarus	Atomic Ducking far Torque			2	
+Id	Atomic Ducking far Double Down, Alpine Fusion				
+Illusion	(downtime) leggy out dex>op toe		Illusion	1	
+Irish Cream	Atomic Gyro Torque, Tapping Mobius			2	
+Jackknife	Stepping Diving ss Butterfly, Alpine Sidewalk			2	
+Janiwalker ("johnny walker")	Barraging far Butterfly	Barraging	Butterfly	3	
+Johnny Vodka	Pixie Mobius				
+Kilo	Miraging Kilo			3	
+King Koopa	Spinning Ducking far Symp.Torque, Alpine Super Mario			1	
+Kiwi	Tapping Double Down	Atomic			
+Lawn Moir	Slicing far Butterfly	Slicing	Butterfly		
+Legbeater	Atomic far Butterfly	Atomic	Butterfly	2	discovered by watching Blur in reverse
+Legbreaker	Flailing far Butterfly, Symp. Atomic far Butterfly	Flailing		2	
+Legeater	(downtime) Miraging Pickup	Atomic	Butterfly	2	
+Legover, Switch	(downtime) leggy out dex>ss toe		Legover	1	
+Leviathon	Stepping Ducking far Double Down	Stepping	Symp. Double Down	3	
+Locomotion	Stepping far Motion	Stepping	Motion	3	
+Maelstrom	Spinning Ducking far Whirl, Alpine Spinning Whirl, Spinning Tomahawk			1	
+Magellan	Pixie near Legover	Pixie	Legover	2	
+Mama Curve	(downtime) Illusioning far Symp. Butterfly			2	
+Mantis	Spinning near Eggbeater	Spinning	Eggbeater	2	
+Marius	Spinning Torque	Spinning	Torque	1	
+Massacre	(downtime) Illusioning Flail			2	
+Matador	Nuclear far Butterfly	Nuclear	Butterfly	2	
+Merkon	Spinning Legover	Spinning	Legover	1	
+Merlin	(downtime) Miraging Symp.Mirage			2	
+Mind Bender	Clipper Ducking far Blender		Blender	1	
+Mirage	(downtime) hippy in dex>op toe		Mirage	1	
+Mobius	Gyro Torque	Spinning	Torque	1	
+Moby Dick	Mobiusscrew, Gyro Torquescrew			2	
+Mofly	(downtime) Miraging far Symp. Double Down			3	
+Monster	Symp. Swirling Gyro Inside				
+Montage	Spinning Ducking far Symp. Whirl	Spinning	Symp. Whirl	1	
+Morpheus	Spinning Ducking far Drifter, Alpine Void			1	
+Mortal Kombat	Stepping Ducking far Grifter	Stepping	Grifter	2	
+Motion	Double Down near Osis		Motion	2	
+Motion Sickness	Spinning far Motion	Spinning	Motion	2	
+Motorfly					
+Mullet	Clipper Ducking far Symp. Whirl, Symp. Tomahwak		Symp. Whirl	1	
+Nallegam	Fairy near Pickup	Fairy	Pickup	2	Name and trick are a mirror of Magellan
+Nebula	Barraging far DLO	Barraging	DLO	4	
+Nemesis	Barraging far Double Down	Barraging	Double Down	4	
+Nemosis	Barraging far Motion, Nemesis Osis	Barraging	Motion	4	
+Nova	Symp. DLO				
+Orbit	toe>ss leggy out dex>ss toe			1	
+Osis	(downtime) Gyro Clipper		Osis	0	
+Pandemonium	Pixie far Symp. Eggbeater, BS Pigbeater	Pixie	Symp. Eggbeater	3	
+Pandora's Box	Gyro Pickup			1	
+Paradon	Toe far Double Down		Double Down	2	
+Paratoxic	Pdx. Toxic			2	
+Parkwalk	Pixie near Butterfly	Pixie	Butterfly	2	
+Paste	Pixie far Pickup	Pixie	Pickup	2	
+Phobia	Fairy Mobius, Fairy Gyro Torque	Fairy Spinning	Torque	2	
+Phoenix	Pixie Ducking Butterfly	Pixie	Butterfly	2	
+Pickup	(downtime) leggy in dex>ss toe		Pickup	1	
+Pigbeater	Pixie far Eggbeater	Pixie	Eggbeater	3	
+Pixie (archaic)	Midtime Toe near Mirage				
+Plasma	Quantum far Double Down	Quantum	Double Down	3	
+PLO	Pixie far Legover	Pixie	Legover	2	
+POD, Pixie Over Down	Pixie DOD, Pixie near Double Down	Pixie	Double Down	3	
+Pogo	Pogo far Mirage, (uptime) Symp. Miraging far Mirage	Pogo	Mirage	2	
+Porque	Pixie Torque	Pixie	Torque	2	
+Predator	Atomic far DLO	Atomic	DLO	3	sister trick to Bladerunner
+PS Whirl	Pdx Symp Whirl, Clipper far Symp Whirl				
+Quark	Quantum far Torque	Quantum	Torque	2	
+Rage	BS Fury, (uptime) Baragging far Symp. Mirage	Symp. Barraging	Mirage	3	
+Rake, Xbd Rake	Toe Stall dragged from Xbd position				
+Reactor	Atomic far Whirl	Atomic	Whirl	2	
+Reaper	Clipper far DSO		DSO	2	
+Refraction	Butterfy near Osis		Refraction	1	
+Revstein	double-dex Twist			2	
+Revup	(downtime) Twisting near Pickup			2	
+Ripcurl	Stepping near Butterfly Swirl, Sidewalk Swirl	Stepping		2	
+Ripped Warrior	Stepping Ducking Butterfly, Alpine Ripwalk	Stepping	Butterfly	2	
+Ripstein	double-dex Swirl, Swirling near Swirl	Swirling		2	
+Riptide	Stepping far Butterfly Swirl, Ripwalk Swirl	Stepping		2	
+Ripwalk	Stepping far Butterfly	Stepping	Butterfly	2	
+Rotor	(downtime) Swirling Gyro Inside Stall				
+Royale	Clipper far Grifter		Grifter	1	
+Schmoe	Stepping near Legover	Stepping	Legover	2	
+Scorpion's Tail	Spinning far Double Down	Spinning	Double Down	2	
+Shaft	Clipper near Symp. Double Down, Symp. DDD		Symp. Double Down	2	
+Shooting Star	Shooting far Double Down, Pogo Nuclear far Double Down			4	first 4-dex, but controversial about cleanliness
+Sidewinder	Fairy Spinning near Barraging far Buterfly, Fairy Gyro Janiwalker			4	
+Sidwalk	Stepping near Butterfly	Stepping	Butterfly	2	
+Skullsmasher, Rasmus	Atomic Ducking far Mirage, Alpine Atomsmasher			2	
+Slapdown	Quantum near Butterfly	Quantum	Butterfly	2	
+Smear	Pixie Mirage	Pixie	Mirage	2	
+Smog	Pixie far DLO	Pixie	DLO	3	
+Smoke	Pixie far Drifter	Pixie	Drifter	2	
+Smudge	Pixie Illusion	Pixie	Illusion	2	
+Snowflake	Drifter Rake			1	
+Spanishfly	Clipper Ducking far Double Down		Double Down	2	
+Spender	Spinning far Blender	Spinning	Blender	1	
+Spikehammer	Stepping Ducking Mirage	Stepping	Mirage	2	Intended to be named "Spy Camera" but misheard as "Spikehammer"
+Sumo	Nuclear far Mirage	Nuclear	Mirage	2	
+Sunilwalk	Barraging near Butterfly	Barraging	Butterfly	3	
+Super Ego	Atomic Ducking Blender	Atomic	Blender	2	
+Super Mario	Spinning far Symp. Torque, Symp. Marius			1	
+Superdeeduperfly	Spinning Ducking Superfly, Alpine Superduperfly	Spinning	Symp. Double Down	2	
+Superduperfly	Spinning Superfly	Spinning	Symp. Double Down	2	
+Superfly	Clipper far Symp. Double Down		Symp. Double Down	2	
+Surge	Surging far Mirage	Surging	Mirage	2	
+Surreal	Surging far Whirl	Surging	Whirl	2	
+Swifter	Stepping far Swirl	Stepping	Swirl	2	Somtimes used to refer to "Drifter Swirl", but usually "Stepping far Swirl"
+Swirl	(downtime) xbd leggy out dex>ss clipper		Swirl	1	
+Swirlwind	Spinning far Symp. Whirling Swirl, Whirlwind Swirl			2	
+Swivel, Reversial	Symp. Twirl		Symp. Twirl	1	
+Tap	Atomic near Mirage	Atomic	Mirage	2	
+Tapdown	Atomic near Butterfly	Atomic	Butterfly	2	
+TATW/Triple ATW	triple-dex ATW			3	
+Terrage	(midtime) Toe near Barrage, double-dex "Pixie"			2	Before "Pixie" referred to the uptime set, it referred to a Toe near Mirage
+Terrawhirl	Toe midtime near Whirr, Terraging near Clipper				
+Tobius	Toe Mobius, Toe Spinning near Torque	Spinning	Torque	1	
+Toe Blur	Quantum far Mirage	Quantum	Mirage	2	
+Tomahawk	Clipper Ducking far Whirl		Whirl	1	
+Tombstone	Stepping near Drifter	Stepping	Drifter	2	
+Torch-R-Rack	Stepping far Symp. Double Down, BS Blurriest	Stepping	Symp. Double Down	3	
+Torque	(downtime) Miraging far Osis		Mirage, Osis	1	
+Torquescrew	Torque Dyno, (downtime) Miraging Dyno			2	
+Toxic	(downtime) Miraging far Symp. Whirl			2	
+Triage	triple-dex Mirage			3	
+Trifly	Clipper far triple-dex Butterfly			3	
+Triple Switch, Triple Switchover	triple-dex Legover			3	
+Tripwalk	Quantum far Butterfly	Quantum	Butterfly	2	
+Trixie	(midtime) Toe near Triage, triple-dex "Pixie"			3	see note for Terrage
+TSO, Triple Switch, Triple Switchover	triple-dex Legover			3	
+Twirl	(downtime) Twisting near Osis			1	
+Twist	Rev. Swirl		Twist	1	
+Venom	Surging far Double Down	Surging	Double Down	3	
+Vertigo	Clipper Ducking far Drifter		Drifter	1	
+Void	Spinning far Drifter	Spinning	Drifter	1	
+Voodoo	Clipper far (downtime) Miraging Symp. Mirage, Pdx. Merlin			2	
+Vortex	Spinning near Drifter	Spinning	Drifter	1	
+Walkover	Inside Stall>place foot on ground>step over into Clipper, or reverse direction				
+Warp	Warping Mirage, (uptime) Symp. Illusioning Illusioning Mirage, (uptime) Symp. Eggbeating Mirage	Warp	Mirage	3	
+Wauxspin	Butterfly Gyro Toe				
+Whale Tail	Gryo DLO	Spinning	DLO	2	
+What!?	Butterfly Symp. Twisting near Toe, Butterfly Symp. Blink		Butterfly, Symp. Blink	2	
+Whip	Rev. Whirl		Whip	1	
+Whirl	(downtime) leggy in dex>ss clipper		Whirl	1	
+Whirlwalk	Whirling far Whirl	Whirling	Whirl	2	
+Whirlwind	Spinning far Symp. Whirl	Spinning	Symp. Whirl	1	
+Whirlygig	Stepping far Symp. Whirl	Stepping	Symp. Whirl	2	
+Whirr	double-dex Whirl		Whirl	2	
+Wrap	Inside Stall moved to Clipper Stall, or reverse direction				
+Your Mom	Atomic far Symp. Double Down, BS Fusion	Atomic	Symp. Double Down	3	
+Your Sister	Full Symp Kiwi	Atomic	Double Down		

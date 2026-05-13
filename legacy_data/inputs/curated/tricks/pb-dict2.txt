@@ -1,0 +1,43 @@
+Freestyle Footbag Trick/Concept	Freestyle Football Trick/Concept	Notes
+>	-	Combo notation; footbag ex: legover>atw, football ex: htw-atw
+Atomic DSO	AHMLATW (Alternative Homie Mitch Lemmens ATW)	
+ATW	Outside ATW	Dex/Rev directions are reversed between sports
+Bladerunner (Atomic Eggbeater)	AEATW (Alternative Eldo Around The World)	
+Clipper	Clipper	
+Contact	Touch	
+Dex, Dexterity	Rev, Revolution	
+DLO	Alternative Homie Touzani	
+Double ATW	Outside Lemmens ATW	Dex/Rev directions are reversed between sports
+Double Orbit	Inside Lemmens ATW	Dex/Rev directions are reversed between sports
+Double Pickup	ALATW (Out)	
+DSO (Double Switchover)	ALATW (Alternative Lemmens ATW)	
+Eggbeater (Illusioning Legover)	Alternative Homie Mitch	
+Fairy Eggbeater	EATW (Eldo ATW)	
+Fairy Legover / Toe ss Eggbeater	Homie Mitch ATW	Footbag version could be interpreted in two ways, depending on how "uptime" or "midtime" the first dex is, so both are listed ("uptime"/"midtime")
+Fairy ss Legover	Magellan (out)	
+Flip side (flip)	Weak foot (wf)	
+Flurry (Barraging Legover)	SzATW (Szymo ATW)	
+Gyro, Spinning, Spinning Gyro, Double Spinning	180, 360, 540, 720	
+Illusion	Half HTW	
+In(-Out) Dex	Out Rev	Dex/rev directions reversed between sports
+Legover	HTW (Hop the World)	
+Magellan (Pixie ss Legover)	Magellan ATW	
+Mirage	Reverse Crossover	
+Nagellam	Reverse Magellan	
+Orbit	Inside ATW	
+Out(-In) Dex	In Rev	Dex/rev directions reversed between sports
+Paradon Swirl	ALFATW (Alternative Lemmens Filip ATW)	
+Pickup	RHTW (Reverse Hop the World)	
+Pigbeater (Pixie op Eggbeater)	Skala ATW	
+Pixie DSO	HTLATW (Homie Touzani Lemmens ATW)	
+Pixie op Toe / Toe ss Mirage	Half ATW	Footbag version could be interpreted in two ways, depending on how "uptime" or "midtime" the first dex is, so both are listed ("uptime"/"midtime")
+Pixie ss Mirage	Lebioda ATW	Footbag version doesn't have ATW at the end
+Pixie ss Pickup	Magellan (in)	
+PLO (Pixie Legover) / Toe ss DLO	Homie Touzani ATW	Footbag version could be interpreted in two ways, depending on how "uptime" or "midtime" the first dex is, so both are listed ("uptime"/"midtime")
+Smear (Pixie op Mirage)	BATW (Beck Around The World)	Football version often continues on with another trick; footbag version stops after the Mirage/Rev Crossover
+Smear>Fairy ss [Legover/Pickup]	Beck Magellan [(in)/(out)]	Football trick/variation is counted as 1, but in footbag it's a 2-trick combo
+Smog (Pixie op DLO)	Skora Move	
+Strong side (strong)	Strong foot (sf)	
+Toe ss Symp Swirl	Dore ATW	Football trick ends on heel touch, footbag trick ends on clipper
+Triple ATW	Palle ATW (out)	
+Triple Orbit	Palle ATW (in)
