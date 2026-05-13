@@ -7,6 +7,27 @@
 
 ---
 
+## 0. Why this matters
+
+The 8-layer representation model defined below is the single most important conceptual breakthrough in the freestyle-dictionary project so far. It separates **movement structure**, **semantic compression**, **folk naming**, **aliases**, **operational mechanics**, and **educational rendering** without conflating them. Each becomes its own first-class concept.
+
+That separation unlocks almost everything downstream:
+
+- **Symbolic search** — a query for "spinning" returns every trick that has spinning at any representation layer, not just tricks whose name contains the word
+- **Decomposition** — a trick can be rendered from any layer back to its underlying structure, then forward to any other layer
+- **Progression** — symbolic progressions become first-class chains anchored on operational deltas, not prose narratives
+- **Alternate notation rendering** — PassBack and FM renderings cohabit with canonical without competing for primacy
+- **Glossary integration** — glossary terms map directly to layers; definitions become layer-attribution rather than ad-hoc prose
+- **Future parser work** — the parser produces and consumes layer values explicitly; it doesn't have to invent ad-hoc shapes
+- **Multi-view rendering** — every browse mode (By ADD, By Family, By Component, By Category) consumes the same layered view-model and chooses which layers to surface
+- **Topology relationships** — symbolic equivalence clusters (already shipped) sit *above* the layer model: members share an underlying structure even when their layer values differ
+
+Everything in `SYMBOLIC_CARD_SPEC.md`, `COMPONENT_VIEW_REDESIGN.md`, `UNIFIED_DICTIONARY_VIEW_PLAN.md`, and (later) the future-capabilities deliverable depends on this model. Without it, the dictionary remains a flat list of named things with prose decorations. With it, the dictionary becomes a symbolic movement-language system.
+
+The model is conceptual architecture, not schema. No DB columns are added in Batch 1. The 5-phase migration path in §10 is the long-form roadmap; none of it is in scope yet. The point of this document is to make the architecture *explicit* so subsequent code, schema, and UI work can reference one shared model rather than inventing per-feature representations.
+
+---
+
 ## 1. Reframing the question
 
 The original Task C scoped the layer question as **semantic vs operational**. The architectural correction received with Batch 1 reframes this:

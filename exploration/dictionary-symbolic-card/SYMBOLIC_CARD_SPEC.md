@@ -18,6 +18,38 @@ aliases: stepping butterfly, blurry butterfly
 
 The card has **four primary visual slots**. The operational notation is the visually central element — co-equal with the trick name, never secondary metadata.
 
+### 1.0 Critical design rule — one card system; progressive density
+
+**There is exactly one card renderer.** It renders sparse single-token tricks AND deep multi-layer compounds through the same template, distinguished only by which optional slots are populated. The system explicitly forbids:
+
+- Special-case templates for any single trick or trick class
+- Mobius-only / Torque-only "showcase" layouts
+- A separate "showcase mode" toggled on for prominent tricks
+- View-mode branching that picks among multiple card components
+
+Progressive density is the **only** mechanism. The card receives a `TrickCardViewModel` (§11) with optional fields populated as available; the template renders each populated slot, omits each empty slot. Sparse and deep are the same shape with different populations.
+
+Worked sparse example:
+
+```
+TOE STALL                                                    1 ADD
+[toe] > toe
+```
+
+Worked deep example (same card system):
+
+```
+MOBIUS                                                       5 ADD
+[clip] > spinning > ss miraging op osis
+
+semantic:    gyro torque
+expanded:    spinning ss miraging op osis
+
+aliases: gyro torque
+```
+
+Same component. Same template. Same CSS. Same wrapping behaviour. The only difference is which slots have content. **This invariant is load-bearing for the entire dictionary architecture.** Any future card-extension proposal that requires a new template breaks the model and must be rejected.
+
 ### 1.1 Required slots
 
 | Slot | Content | Visibility |
@@ -115,6 +147,26 @@ The card explicitly does NOT carry:
 
 Notation must visually feel like *language*, not body text. The font choice for notation is the load-bearing typographic decision.
 
+### 4.0 The operational notation line is the visual center of gravity
+
+The operational notation row is **the** load-bearing slot on the card. Across the entire dictionary system, that line is becoming:
+
+- The **movement signature** — a glance at it tells the reader what the body actually does
+- The **symbolic fingerprint** — the shape that identifies a trick across alternate names
+- The visual element users **recognise and scan for**
+
+The card's typography must encode this. The operational notation row is:
+
+- **Larger than aliases** (1.05–1.1× base vs aliases at 0.85× base)
+- **Typographically stronger than metadata** (monospace with role colour vs muted body type)
+- **Easier to scan than prose** (token-separated rhythm vs paragraph flow)
+- **Consistent in wrapping** (always wraps at sequence operators; never mid-token; hanging indent on continuation)
+- **Consistent in indentation** (the hanging-indent pattern from §6 is non-negotiable)
+
+The title row identifies *which trick*. The operational notation row says *what the trick is, mechanically*. These two are the dominant visual elements; everything else is secondary.
+
+When a card is glanced-at-and-moved-past, the reader should retain the operational line as a visual impression. The title is the label; the notation is the *recognition*.
+
 ### 4.1 Typeface
 
 - **Notation tokens**: monospace family (system stack: `ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace`) with a slight tabular feel. Monospace establishes "this is a notation language."
@@ -205,6 +257,8 @@ Phase-2 enhancements that the card structure should accommodate without restruct
 ---
 
 ## 8. Density modes (`browse` vs `detail`)
+
+Density modes are **NOT separate templates.** They are progressive disclosure on the same template: more populated slots render in `detail` density; fewer in `browse`. The renderer never branches; it iterates the populated slot set.
 
 The same component renders in two density modes:
 
