@@ -4756,6 +4756,69 @@ a.dict-card-title:hover { text-decoration: underline; }
   }
 }
 
+/* Trick-detail reverse-semantic-membership panels (UX-SHIP-1 Phase 5).
+ * Two small subordinate panels — Topology + Component — surfacing the
+ * browse-view groups the current trick belongs to. Observational layer. */
+.trick-semantic-memberships {
+  margin: 28px 0;
+  padding: 14px 16px;
+  background: #fafaf7;
+  border-left: 3px solid #e8e4d3;
+  border-radius: 0 4px 4px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.trick-semantic-memberships-panel { min-width: 0; }
+.trick-semantic-memberships-heading {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6e6850;
+  margin: 0 0 8px 0;
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.trick-semantic-memberships-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trick-semantic-memberships-list li {
+  font-size: 0.9rem;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #3a3a30;
+}
+.trick-semantic-memberships-list a {
+  color: #2d2d24;
+  text-decoration: underline dotted;
+}
+.trick-semantic-memberships-list a:hover { text-decoration: underline solid; }
+.trick-semantic-memberships-axis-chip {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a8670;
+  background: #ede9d8;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+@media (max-width: 640px) {
+  .trick-semantic-memberships {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
 /* Topology view (DSC-2 topology slice). Observational symbolic-grammar layer.
  * Six pedagogically-grounded educational groups; layer attribution visible. */
 .topology-view-note {

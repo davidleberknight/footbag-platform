@@ -1,0 +1,52 @@
+{{!--
+  trick-semantic-memberships.hbs — UX-SHIP-1 Phase 5.
+
+  Surfaces the topology + component groups the current trick belongs to.
+  Two small panels rendered together; each panel hides when its membership
+  list is empty.
+
+  Each membership is a deep-link to the corresponding browse-view group
+  anchor. No new query is performed by the template; the data is shaped
+  in freestyleService.computeTrickSymbolicMemberships.
+
+  Visually subordinate — small panels, dotted-underline link affordance,
+  preserves the trick page's existing visual hierarchy. Observational
+  layer: badge inline so readers see the canonical/observational
+  distinction.
+--}}
+{{#if content.symbolicMemberships}}
+{{#if (or content.symbolicMemberships.topology.length content.symbolicMemberships.component.length)}}
+<aside class="trick-semantic-memberships" aria-label="Semantic group memberships for this trick">
+  {{#if content.symbolicMemberships.topology.length}}
+  <section class="trick-semantic-memberships-panel" aria-label="Topology memberships">
+    <h3 class="trick-semantic-memberships-heading">
+      Topology memberships
+      <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
+    </h3>
+    <ul class="trick-semantic-memberships-list">
+      {{#each content.symbolicMemberships.topology}}
+      <li><a href="/freestyle/tricks?view=topology#topology-{{topologySlug}}">{{topologyName}}</a></li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
+  {{#if content.symbolicMemberships.component.length}}
+  <section class="trick-semantic-memberships-panel" aria-label="Component memberships">
+    <h3 class="trick-semantic-memberships-heading">
+      Component memberships
+      <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
+    </h3>
+    <ul class="trick-semantic-memberships-list">
+      {{#each content.symbolicMemberships.component}}
+      <li>
+        <a href="/freestyle/tricks?view=component#component-{{componentSlug}}">{{componentName}}</a>
+        <span class="trick-semantic-memberships-axis-chip" title="{{axisKey}} axis">{{axisKey}}</span>
+      </li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
+</aside>
+{{/if}}
+{{/if}}

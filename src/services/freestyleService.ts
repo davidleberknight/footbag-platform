@@ -486,6 +486,10 @@ export interface FreestyleTrickContent {
   // panels. Currently triggers: butterfly-wing-topology → walking progression;
   // spinning-family / whirl-rotational-topology → spinning modifier page.
   symbolicEducationCtas: SymbolicEducationCta[];
+  // UX-SHIP-1 Phase 5: reverse semantic linkage. Topology + component
+  // groups this trick belongs to. Each renders as a small inline link to
+  // its browse-view anchor. Empty arrays mean no memberships; the panel hides.
+  symbolicMemberships: TrickSemanticMemberships;
   // Next Tricks: same family + higher ADD; per-bucket-2 sampling, capped at 5.
   // Family-scoped progression; cross-family progression intentionally excluded.
   nextTricks: FreestyleNextTrick[];
@@ -1969,6 +1973,136 @@ interface ModifierLinkInfo {
   cssRole: string;       // 'set' | 'rotation' | 'modifier'
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Topology grouping primitives (module-scoped so both the dictionary index
+// builder and the trick-detail builder consume the same definitions).
+//
+// Per DSC-2 topology slice — six pedagogically-grounded educational groups.
+// Membership is computed deterministically from base_trick + modifier_links;
+// no schema, no CSV.
+// ─────────────────────────────────────────────────────────────────────────
+
+const HIPPY_BASES = new Set(['mirage', 'butterfly']);
+const LEGGY_BASES = new Set(['legover', 'pickup', 'whirl', 'swirl', 'illusion']);
+const CLIPPER_LANDING_BASES = new Set(['butterfly', 'whirl', 'swirl', 'osis', 'blender']);
+
+interface TopologyGroupDef {
+  slug:        string;
+  name:        string;
+  definition:  string;
+  // Membership predicate. Takes the trick row and a `hasModifierLink`
+  // function (closure over the caller's link data). Returns true when this
+  // group includes the trick.
+  matches(
+    row: { slug: string; base_trick: string | null },
+    hasModifierLink: (modifierSlug: string) => boolean,
+  ): boolean;
+}
+
+const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
+  {
+    slug:       'hippy-downtime-dex',
+    name:       'Hippy downtime dex',
+    definition: 'Tricks whose downtime dex comes from the hip — the thigh swings broadly around the bag while the chest opens. Anchored on Mirage and Butterfly.',
+    matches:    row => !!(row.base_trick && HIPPY_BASES.has(row.base_trick)),
+  },
+  {
+    slug:       'leggy-dex',
+    name:       'Leggy dex',
+    definition: 'Tricks whose dex comes from the knee — the calf circles the bag while the thigh stays composed. Anchored on Legover, Pickup, Whirl, Swirl, Illusion.',
+    matches:    row => !!(row.base_trick && LEGGY_BASES.has(row.base_trick)),
+  },
+  {
+    slug:       'whirl-swirl-structures',
+    name:       'Whirl / swirl structures',
+    definition: 'Tricks built on the rotational dex pair — Whirl (leggy in to clipper) and Swirl (leggy out with crossbody entry to clipper).',
+    matches:    row => row.base_trick === 'whirl' || row.base_trick === 'swirl',
+  },
+  {
+    slug:       'pixie-uptime-dex',
+    name:       'Pixie uptime dex',
+    definition: 'Tricks with a pixie set treatment in the uptime — compressed pre-base set that compresses the rising-bag window.',
+    matches:    (_row, hasLink) => hasLink('pixie'),
+  },
+  {
+    slug:       'symposium-clipper-structures',
+    name:       'Symposium clipper structures',
+    definition: 'Clipper-landing tricks performed with a symposium discipline — the support leg leaves the ground during the dex.',
+    matches:    (row, hasLink) => hasLink('symposium')
+      && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
+  },
+  {
+    slug:       'ducking-clipper-structures',
+    name:       'Ducking clipper structures',
+    definition: 'Clipper-landing tricks with a ducking head-dip in the midtime — the bag passes around the neck while the rest of the trick continues.',
+    matches:    (row, hasLink) => hasLink('ducking')
+      && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
+  },
+];
+
+// ─────────────────────────────────────────────────────────────────────────
+// Per-trick reverse semantic-membership lookup. Used by the trick-detail
+// page to close the discovery loop between browse views and trick pages
+// (UX-SHIP-1 Phase 5).
+//
+// Reuses the same TOPOLOGY_GROUPS predicates the dictionary index uses;
+// component memberships read off the trick's existing modifier links.
+// No new query; the modifier links are already loaded by the caller.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface TrickTopologyMembership {
+  topologySlug: string;
+  topologyName: string;
+  href:         string;
+}
+
+export interface TrickComponentMembership {
+  componentSlug: string;
+  componentName: string;
+  axisKey:       'body' | 'set';
+  href:          string;
+}
+
+export interface TrickSemanticMemberships {
+  topology:  TrickTopologyMembership[];
+  component: TrickComponentMembership[];
+}
+
+function computeTrickSymbolicMemberships(
+  row: { slug: string; base_trick: string | null },
+  modifierLinks: ModifierLinkInfo[],
+): TrickSemanticMemberships {
+  const linkSlugs = new Set(modifierLinks.map(l => l.slug));
+  const hasModifierLink = (modifierSlug: string): boolean => linkSlugs.has(modifierSlug);
+
+  const topology: TrickTopologyMembership[] = TOPOLOGY_GROUPS
+    .filter(def => def.matches(row, hasModifierLink))
+    .map(def => ({
+      topologySlug: def.slug,
+      topologyName: def.name,
+      href:         `/freestyle/tricks?view=topology#topology-${def.slug}`,
+    }));
+
+  // Component memberships from modifier links. Filter to body + set axes;
+  // sort deterministically (axis then component name) so the rendered list
+  // is stable across requests.
+  const component: TrickComponentMembership[] = modifierLinks
+    .filter(l => l.type === 'body' || l.type === 'set')
+    .map(l => ({
+      componentSlug: l.slug,
+      componentName: l.name,
+      axisKey:       l.type as 'body' | 'set',
+      href:          `/freestyle/tricks?view=component#component-${l.slug}`,
+    }))
+    .sort((a, b) => {
+      // Body axis first, then set axis; within axis, alphabetical by name.
+      if (a.axisKey !== b.axisKey) return a.axisKey === 'body' ? -1 : 1;
+      return a.componentName.localeCompare(b.componentName, undefined, { sensitivity: 'base' });
+    });
+
+  return { topology, component };
+}
+
 function buildModifierLinkMap(
   rows: FreestyleTrickModifierLinkRow[],
 ): Map<string, ModifierLinkInfo[]> {
@@ -2412,6 +2546,12 @@ export const freestyleService = {
           relatedTricks:    dictRow ? buildRelatedTricks(dictRow, allDictRows) : [],
           symbolicRelatedTopology: buildSymbolicRelatedTopologyPanel(slug, allDictRows),
           symbolicEducationCtas:   buildSymbolicEducationCtas(slug),
+          symbolicMemberships:     dictRow
+            ? computeTrickSymbolicMemberships(
+                { slug: dictRow.slug, base_trick: dictRow.base_trick },
+                currentTrickMods.map(m => ({ slug: m.slug, name: m.name, type: m.type, cssRole: m.cssRole })),
+              )
+            : { topology: [], component: [] },
           previousTricks:   dictRow ? buildPreviousTricks(dictRow, allDictRows) : [],
           nextTricks:       dictRow ? buildNextTricks(dictRow, allDictRows) : [],
           tutorialMedia,
@@ -3183,74 +3323,20 @@ export const freestyleService = {
     const setBuckets  = [...componentAccumulator.values()].filter(b => b.modifierType === 'set');
 
     // ---- Topology view (?view=topology projection, DSC-2 slice 3-topology) ----
-    // Six pedagogically-grounded educational groups. Membership computed
-    // deterministically from existing data; no new schema, no new CSV.
-    // Curator-tagged dex-class base sets per CORE_TRICK_GRAMMAR_DRAFT.md §5.
+    // Six pedagogically-grounded educational groups. TOPOLOGY_GROUPS +
+    // HIPPY_BASES / LEGGY_BASES / CLIPPER_LANDING_BASES live at module scope
+    // so the trick-detail page (UX-SHIP-1 Phase 5) can reuse the same defs.
 
-    // Bases whose canonical downtime dex is HIPPY (hip-driven thigh swing).
-    const HIPPY_BASES = new Set(['mirage', 'butterfly']);
-    // Bases whose canonical downtime dex is LEGGY (knee-driven calf swing).
-    const LEGGY_BASES = new Set(['legover', 'pickup', 'whirl', 'swirl', 'illusion']);
-    // Bases whose canonical landing is on the clipper surface.
-    const CLIPPER_LANDING_BASES = new Set(['butterfly', 'whirl', 'swirl', 'osis', 'blender']);
-
-    const hasModifierLink = (slug: string, modifierSlug: string): boolean => {
+    const trickHasModifierLinkInAccumulator = (slug: string, modifierSlug: string): boolean => {
       const bucket = componentAccumulator.get(modifierSlug);
       if (!bucket) return false;
       return bucket.entries.some(e => e.row.slug === slug);
     };
 
-    interface TopologyGroupDef {
-      slug:           string;
-      name:           string;
-      definition:     string;
-      members:        (row: FreestyleTrickRowWithStatus) => boolean;
-    }
-
-    const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
-      {
-        slug:       'hippy-downtime-dex',
-        name:       'Hippy downtime dex',
-        definition: 'Tricks whose downtime dex comes from the hip — the thigh swings broadly around the bag while the chest opens. Anchored on Mirage and Butterfly.',
-        members:    row => !!(row.base_trick && HIPPY_BASES.has(row.base_trick)),
-      },
-      {
-        slug:       'leggy-dex',
-        name:       'Leggy dex',
-        definition: 'Tricks whose dex comes from the knee — the calf circles the bag while the thigh stays composed. Anchored on Legover, Pickup, Whirl, Swirl, Illusion.',
-        members:    row => !!(row.base_trick && LEGGY_BASES.has(row.base_trick)),
-      },
-      {
-        slug:       'whirl-swirl-structures',
-        name:       'Whirl / swirl structures',
-        definition: 'Tricks built on the rotational dex pair — Whirl (leggy in to clipper) and Swirl (leggy out with crossbody entry to clipper).',
-        members:    row => row.base_trick === 'whirl' || row.base_trick === 'swirl',
-      },
-      {
-        slug:       'pixie-uptime-dex',
-        name:       'Pixie uptime dex',
-        definition: 'Tricks with a pixie set treatment in the uptime — compressed pre-base set that compresses the rising-bag window.',
-        members:    row => hasModifierLink(row.slug, 'pixie'),
-      },
-      {
-        slug:       'symposium-clipper-structures',
-        name:       'Symposium clipper structures',
-        definition: 'Clipper-landing tricks performed with a symposium discipline — the support leg leaves the ground during the dex.',
-        members:    row => hasModifierLink(row.slug, 'symposium')
-          && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
-      },
-      {
-        slug:       'ducking-clipper-structures',
-        name:       'Ducking clipper structures',
-        definition: 'Clipper-landing tricks with a ducking head-dip in the midtime — the bag passes around the neck while the rest of the trick continues.',
-        members:    row => hasModifierLink(row.slug, 'ducking')
-          && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
-      },
-    ];
-
     const buildTopologyGroup = (def: TopologyGroupDef): TopologyGroup => {
       const matched = activeRows
-        .filter(r => r.category !== 'modifier' && def.members(r))
+        .filter(r => r.category !== 'modifier'
+                  && def.matches(r, mod => trickHasModifierLinkInAccumulator(r.slug, mod)))
         .sort((a, b) => {
           const an = parseAddNumeric(a.adds);
           const bn = parseAddNumeric(b.adds);
