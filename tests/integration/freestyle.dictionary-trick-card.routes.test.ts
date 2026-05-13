@@ -1,0 +1,290 @@
+/**
+ * Integration tests for DSC-2 slice 1: the By ADD view migrated to the
+ * shared dictionary-trick-card partial.
+ *
+ * Sample tricks (per the user spec):
+ *   - toe stall   — sparse base trick, low ADD
+ *   - mirage      — base trick, simple operational notation
+ *   - ripwalk     — compound with aliases
+ *   - mobius      — compound with folk-name alias (gyro torque)
+ *   - montage     — flagship deep compound
+ *
+ * Invariants verified:
+ *   - /freestyle/tricks (By ADD default) returns 200
+ *   - Each seeded trick renders the dictionary-trick-card partial
+ *   - Card renders: title link, ADD label, operational notation (or "Notation pending"), aliases when present
+ *   - Card does NOT render prose description (browse cards never carry description prose)
+ *   - Sparse tricks (Toe Stall) render safely without aliases / extra slots
+ *   - Compound tricks render with role-tagged token spans
+ *   - Notation tokens carry the op-token CSS class + cssRole modifier
+ *   - The card stack is scoped to its ADD group via section id
+ *   - Other browse views (By Family / By Category / By Sets) still return 200
+ *     (regression guard; not migrated in this slice)
+ */
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+
+import {
+  setTestEnv,
+  createTestDb,
+  cleanupTestDb,
+  importApp,
+} from '../fixtures/testDb';
+import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
+
+const { dbPath } = setTestEnv('3095');
+
+let createApp: Awaited<ReturnType<typeof importApp>>;
+
+beforeAll(async () => {
+  const db = createTestDb(dbPath);
+
+  // Toe Stall — sparse base trick; minimal notation; no aliases
+  insertFreestyleTrick(db, {
+    slug:                 'toe-stall',
+    canonical_name:       'toe stall',
+    adds:                 '1',
+    base_trick:           'toe-stall',
+    trick_family:         'toe-stall',
+    category:             'base',
+    operational_notation: '[toe] > toe',
+  });
+
+  // Mirage — base trick; classic in-to-out hippy-dex
+  insertFreestyleTrick(db, {
+    slug:                 'mirage',
+    canonical_name:       'mirage',
+    adds:                 '2',
+    base_trick:           'mirage',
+    trick_family:         'mirage',
+    category:             'compound',
+    operational_notation: '[set] > op in dex > op toe',
+  });
+
+  // Ripwalk — compound; aliases populated; full operational
+  insertFreestyleTrick(db, {
+    slug:                 'ripwalk',
+    canonical_name:       'ripwalk',
+    adds:                 '4',
+    base_trick:           'butterfly',
+    trick_family:         'butterfly',
+    category:             'compound',
+    operational_notation: '[clip] > op in dex > butterfly wing > ss clipper',
+  });
+  insertFreestyleTrickAlias(db, 'stepping-butterfly', 'ripwalk', 'stepping butterfly');
+  insertFreestyleTrickAlias(db, 'blurry-butterfly', 'ripwalk', 'blurry butterfly');
+
+  // Mobius — folk-name alias is the trick's semantic compressed form
+  insertFreestyleTrick(db, {
+    slug:                 'mobius',
+    canonical_name:       'mobius',
+    adds:                 '5',
+    base_trick:           'osis',
+    trick_family:         'osis',
+    category:             'compound',
+    operational_notation: '[clip] > spinning > ss miraging op osis',
+  });
+  insertFreestyleTrickAlias(db, 'gyro-torque', 'mobius', 'gyro torque');
+
+  // Montage — flagship deep compound; no alias
+  insertFreestyleTrick(db, {
+    slug:                 'montage',
+    canonical_name:       'montage',
+    adds:                 '7',
+    base_trick:           'whirl',
+    trick_family:         'whirl',
+    category:             'compound',
+    operational_notation: '[clip] > spinning > ducking > paradox symposium whirl > ss clipper',
+  });
+
+  // A trick WITHOUT operational notation — pending state branch
+  insertFreestyleTrick(db, {
+    slug:                 'somenewtrick',
+    canonical_name:       'somenewtrick',
+    adds:                 '3',
+    base_trick:           'whirl',
+    trick_family:         'whirl',
+    category:             'compound',
+    operational_notation: null,
+  });
+
+  db.close();
+  createApp = await importApp();
+});
+
+afterAll(() => cleanupTestDb(dbPath));
+
+// ─────────────────────────────────────────────────────────────────────────
+// 1. Route stability + partial rendering
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/tricks (By ADD) — route stability', () => {
+  it('returns 200', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+  });
+
+  it('renders the dict-card stack container', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toContain('dict-card-stack');
+  });
+
+  it('renders ADD-group sections with anchor IDs', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toContain('id="add-1"');
+    expect(res.text).toContain('id="add-2"');
+    expect(res.text).toContain('id="add-4"');
+    expect(res.text).toContain('id="add-5"');
+    expect(res.text).toContain('id="add-7"');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 2. Card structure (per SYMBOLIC_CARD_SPEC.md §1)
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('dictionary-trick-card — required slots', () => {
+  it('renders title slot as a link to the trick detail page', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/ripwalk">ripwalk<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/mobius">mobius<\/a>/);
+    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/montage">montage<\/a>/);
+  });
+
+  it('renders ADD label slot for every seeded trick', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>1 ADD<\/span>/);
+    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>2 ADD<\/span>/);
+    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>4 ADD<\/span>/);
+    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>5 ADD<\/span>/);
+    expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>7 ADD<\/span>/);
+  });
+
+  it('renders operational notation as role-tagged token spans', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Each notation token carries op-token class + cssRole modifier + data-role attr.
+    // Spot-check the role taxonomy on Ripwalk: [clip] (component_flag) > op (side) in (direction) dex (...) butterfly wing (rotation_variant... actually 'butterfly wing' is fused as rotation_variant; check class).
+    expect(res.text).toMatch(/<span class="op-token op-token--component-flag[^"]*"[^>]*>\[clip\]<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--sequence-op-minor"[^>]*data-role="sequence_op"[^>]*>&gt;<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--side"[^>]*data-role="side"[^>]*>op<\/span>/);
+    expect(res.text).toMatch(/<span class="op-token op-token--direction"[^>]*data-role="direction"[^>]*>in<\/span>/);
+  });
+
+  it('renders aliases when present, prefixed by "aliases:"', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Ripwalk has two aliases (order is alphabetical per the listAll query).
+    expect(res.text).toMatch(/<p class="dict-card-aliases">[\s\S]*?aliases:<\/span>[\s\S]*?blurry butterfly[\s\S]*?stepping butterfly/i);
+    // Mobius has the folk-name alias
+    expect(res.text).toMatch(/<p class="dict-card-aliases">[\s\S]*?aliases:<\/span>[\s\S]*?gyro torque/i);
+  });
+
+  it('renders "Notation pending" for tricks with null operational notation', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toContain('dict-card-notation--pending');
+    expect(res.text).toMatch(/<em>Notation pending<\/em>/);
+  });
+
+  it('does NOT render prose description in the browse card', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // The legacy By ADD view emitted .trick-description; the migrated card never renders it.
+    expect(res.text).not.toContain('trick-description');
+  });
+
+  it('renders the dict-card article element for every seeded trick', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Each card renders as <article class="dict-card" data-trick-slug="...">.
+    const slugAttrCount = (res.text.match(/data-trick-slug="/g) ?? []).length;
+    expect(slugAttrCount).toBeGreaterThanOrEqual(6);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 3. Sparse + deep cards through the SAME card
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('dictionary-trick-card — sparse and deep render through the same template', () => {
+  it('Toe Stall (sparse) renders cleanly: title + ADD + minimal operational notation', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Title row
+    expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe-stall">toe stall<\/a>/);
+    // Operational notation: [toe] > toe
+    expect(res.text).toMatch(/data-trick-slug="toe-stall"[\s\S]*?\[toe\][\s\S]*?op-token--sequence-op-minor[\s\S]*?>toe</);
+  });
+
+  it('Montage (deep) renders cleanly: title + ADD + multi-modifier operational notation', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // The card markup carries data-trick-slug; scope assertions within that block
+    const montageStart = res.text.indexOf('data-trick-slug="montage"');
+    expect(montageStart).toBeGreaterThan(-1);
+    const montageEnd = res.text.indexOf('</article>', montageStart);
+    expect(montageEnd).toBeGreaterThan(montageStart);
+    const montageRegion = res.text.substring(montageStart, montageEnd);
+
+    // Title + ADD
+    expect(montageRegion).toContain('montage');
+    expect(montageRegion).toContain('7 ADD');
+    // Multi-modifier operational tokens
+    expect(montageRegion).toMatch(/spinning/);
+    expect(montageRegion).toMatch(/ducking/);
+    expect(montageRegion).toMatch(/paradox/);
+    expect(montageRegion).toMatch(/symposium/);
+    // Each token carries op-token class
+    const tokenSpans = (montageRegion.match(/<span class="op-token /g) ?? []);
+    expect(tokenSpans.length).toBeGreaterThanOrEqual(8);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 4. Card placement within ADD groups
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('dictionary-trick-card — grouping', () => {
+  it('Ripwalk card lands inside the 4-ADD section', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const sectionStart = res.text.indexOf('id="add-4"');
+    const nextSectionStart = res.text.indexOf('id="add-5"', sectionStart);
+    expect(sectionStart).toBeGreaterThan(-1);
+    expect(nextSectionStart).toBeGreaterThan(sectionStart);
+    const region = res.text.substring(sectionStart, nextSectionStart);
+    expect(region).toContain('data-trick-slug="ripwalk"');
+  });
+
+  it('Mobius card lands inside the 5-ADD section', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const sectionStart = res.text.indexOf('id="add-5"');
+    const nextSectionStart = res.text.indexOf('id="add-7"', sectionStart);
+    expect(sectionStart).toBeGreaterThan(-1);
+    const region = res.text.substring(sectionStart, nextSectionStart > sectionStart ? nextSectionStart : res.text.length);
+    expect(region).toContain('data-trick-slug="mobius"');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// 5. Regression — other views still respond 200
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('other dictionary views — not migrated in this slice', () => {
+  it('/freestyle/tricks?view=family still returns 200', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.status).toBe(200);
+  });
+
+  it('/freestyle/tricks?view=category still returns 200', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    expect(res.status).toBe(200);
+  });
+
+  it('/freestyle/tricks?view=sets still returns 200', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=sets');
+    expect(res.status).toBe(200);
+  });
+
+  it('other views do NOT use the dict-card-stack container (only By ADD migrated)', async () => {
+    const family   = await request(createApp()).get('/freestyle/tricks?view=family');
+    const category = await request(createApp()).get('/freestyle/tricks?view=category');
+    const sets     = await request(createApp()).get('/freestyle/tricks?view=sets');
+    expect(family.text).not.toContain('dict-card-stack');
+    expect(category.text).not.toContain('dict-card-stack');
+    expect(sets.text).not.toContain('dict-card-stack');
+  });
+});

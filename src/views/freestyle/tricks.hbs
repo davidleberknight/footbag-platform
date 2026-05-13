@@ -77,49 +77,19 @@
   <p class="detail-muted dict-note"><em>{{content.dictNote}}</em></p>
   {{/if}}
 
-  {{! ── Default ADD-grouped view (beginner) ──────────────────────────────── }}
+  {{! ── Default ADD-grouped view — symbolic trick cards (DSC-2 slice 1) ── }}
   {{#if (eq content.activeView "add")}}
   {{#each content.addGroups}}
   <section class="content-section trick-add-group" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
-      <span class="section-count">{{tricks.length}}</span>
+      <span class="section-count">{{cards.length}}</span>
     </div>
-    <ul class="trick-list">
-      {{#each tricks}}
-      <li class="trick-row{{#if isExternalOnly}} trick-row--external-placeholder{{/if}}">
-        <div class="trick-row-header">
-          {{#if isExternalOnly}}
-            <span class="trick-name">{{canonicalName}}</span>
-          {{else}}
-            <a class="trick-name" href="{{detailHref}}">{{canonicalName}}</a>
-          {{/if}}
-          {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
-          {{#if adds}}<span class="trick-add-chip">{{adds}} ADD</span>{{else}}<span class="trick-add-chip trick-add-chip--unrated">— ADD</span>{{/if}}
-          {{#if trickFamily}}<a class="trick-family-chip" href="/freestyle/tricks?family={{trickFamily}}">{{trickFamily}}</a>{{/if}}
-          {{#if category}}<span class="trick-category-chip">{{category}}</span>{{/if}}
-          {{#if (eq mediaCoverage "tutorial")}}<span class="trick-media-chip trick-media-chip--tutorial">Tutorial available</span>{{else if (eq mediaCoverage "demo")}}<span class="trick-media-chip trick-media-chip--demo">Demo only</span>{{else}}<span class="trick-media-chip trick-media-chip--missing">No video yet</span>{{/if}}
-          {{#if statusBadge}}<span class="trick-status-badge">{{statusBadge}}</span>{{/if}}
-        </div>
-        {{#if notation}}
-          <div class="trick-notation"><code>{{notation}}</code></div>
-        {{else}}
-          <div class="trick-notation trick-notation--missing"><em>Notation pending</em></div>
-        {{/if}}
-        {{#if description}}
-          <div class="trick-description">{{description}}</div>
-        {{else}}
-          <div class="trick-description trick-description--missing"><em>Description pending</em></div>
-        {{/if}}
-        {{#if aliases.length}}
-          <div class="trick-aliases">Aliases: {{#each aliases}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</div>
-        {{/if}}
-        {{#if placeholderNote}}
-          <div class="trick-placeholder-note">{{placeholderNote}}</div>
-        {{/if}}
-      </li>
+    <div class="dict-card-stack">
+      {{#each cards}}
+        {{> dictionary-trick-card}}
       {{/each}}
-    </ul>
+    </div>
   </section>
   {{/each}}
   {{/if}}

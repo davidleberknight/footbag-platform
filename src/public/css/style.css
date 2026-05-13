@@ -4545,3 +4545,140 @@ section.home-media { padding-top: 0; }
 
 /* Migrated from inline style on modifier-family glossary-link p (CSP). */
 .modifier-glossary-link { margin-top: 10px; font-size: 0.86rem; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Dictionary trick card (DSC-2 slice 1).
+ *
+ * The canonical symbolic trick card. Operational notation is the visual
+ * center of gravity: larger than aliases, typographically stronger than
+ * metadata. The card renders sparse single-token tricks (Toe Stall) and
+ * deep compounds (Mobius, Montage) through the same template — no special-
+ * case templates allowed.
+ * ────────────────────────────────────────────────────────────────────── */
+
+.dict-card {
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: #fafaf7;
+  border-left: 3px solid #e8e4d3;
+  border-radius: 0 4px 4px 0;
+}
+.dict-card--external-placeholder {
+  opacity: 0.65;
+  border-left-color: #d4d0bf;
+}
+
+.dict-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.dict-card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2d2d24;
+  text-decoration: none;
+}
+a.dict-card-title:hover { text-decoration: underline; }
+.dict-card-add {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5a5644;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dict-card-add--unrated { color: #a3a3a3; font-weight: 500; }
+
+/* The operational notation row is the card's visual center of gravity. */
+.dict-card-notation {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  background: transparent;
+  color: #2d2d24;
+  /* Hanging indent so wrapped continuation lines sit under the leading token. */
+  text-indent: -1.4em;
+  padding-inline-start: 1.4em;
+  word-break: normal;
+  overflow-wrap: break-word;
+  margin: 0;
+}
+.dict-card-notation .op-token {
+  display: inline-block;
+  white-space: nowrap;       /* prevent mid-token wrapping (incl. fused tokens like "front whirl") */
+}
+.dict-card-notation--pending {
+  font-family: inherit;
+  font-style: italic;
+  color: #8a8670;
+  text-indent: 0;
+  padding-inline-start: 0;
+}
+
+.dict-card-aliases {
+  margin: 8px 0 0 0;
+  font-size: 0.86rem;
+  color: #6e6850;
+  line-height: 1.5;
+}
+.dict-card-aliases-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a8670;
+  margin-right: 4px;
+}
+
+.dict-card-status-badge {
+  margin: 8px 0 0 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6e6850;
+  background: #ede9d8;
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.dict-card-placeholder-note {
+  margin: 6px 0 0 0;
+  font-size: 0.82rem;
+  color: #6e6850;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.dict-card-media-chip {
+  display: inline-block;
+  margin: 8px 0 0 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.dict-card-media-chip--tutorial {
+  background: #dcfce7;       /* green-100 */
+  color: #166534;            /* green-800 */
+}
+.dict-card-media-chip--demo {
+  background: #fef3c7;       /* amber-100 */
+  color: #92400e;            /* amber-800 */
+}
+
+/* Mobile: stack title + ADD vertically on narrow viewports so the
+ * operational notation still has horizontal room. */
+@media (max-width: 480px) {
+  .dict-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    margin-bottom: 6px;
+  }
+  .dict-card-title { font-size: 1.05rem; }
+  .dict-card-add { font-size: 0.85rem; }
+  .dict-card-notation { font-size: 0.92rem; }
+}

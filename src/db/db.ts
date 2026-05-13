@@ -1039,6 +1039,11 @@ export interface FreestyleTrickRowWithParse extends FreestyleTrickRow {
 export interface FreestyleTrickRowWithStatus extends FreestyleTrickRow {
   is_active:     number;
   review_status: string;
+  // DSC-2 slice 1: operational_notation surfaced on the dictionary list so
+  // the By ADD view can render role-tagged tokens via shapeOperationalNotationDisplay.
+  // Nullable; many rows have no operational notation populated yet.
+  operational_notation:        string | null;
+  operational_notation_source: string | null;
 }
 
 export interface FreestyleTrickAliasRow {
@@ -1101,7 +1106,7 @@ export const freestyleTricks = {
   get listAllWithPending() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
            description, aliases_json, notation, sort_order, is_active,
-           review_status
+           review_status, operational_notation, operational_notation_source
     FROM freestyle_tricks
     WHERE is_active = 1
        OR (is_active = 0 AND review_status = 'pending')

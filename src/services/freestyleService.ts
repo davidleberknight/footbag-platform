@@ -1139,6 +1139,37 @@ export interface FreestyleTrickAddGroup {
   addNumeric: number | null;
   addLabel: string;            // pre-shaped: '1 ADD', '2 ADD', '0 ADD', 'Unrated / unresolved'
   tricks: FreestyleTrickIndexRow[];
+  // DSC-2 slice 1: shared symbolic trick cards. Built alongside the legacy
+  // `tricks` rows so other views can continue rendering inline markup while
+  // the By ADD view migrates to the dictionary-trick-card partial.
+  cards: DictionaryTrickCard[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// DictionaryTrickCard — the canonical symbolic trick card view-model.
+//
+// Per DICTIONARY-SYMBOLIC-CARD-1 / SYMBOLIC_CARD_SPEC.md: one card system,
+// progressive density, operational notation as the visual center of gravity.
+// Used by the By ADD view in slice 1; future slices migrate the remaining
+// browse modes onto the same shape.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface DictionaryTrickCard {
+  slug:                       string;
+  displayName:                string;                        // canonical_name
+  href:                       string;                        // /freestyle/tricks/:slug ; suppressed when external-only placeholder
+  adds:                       string | null;                 // numeric string for display; null when unrated
+  addsLabel:                  string;                        // pre-shaped: '4 ADD' / '— ADD' (never empty)
+  operationalNotation:        OperationalNotation | null;    // role-tagged tokens; null when pending
+  operationalNotationStatus:  'available' | 'pending';
+  commonAliases:              string[];                      // service-side "common aliases only" filter applied here
+  isExternalOnly:             boolean;                       // suppresses href; renders placeholder shell
+  statusBadge:                string | null;                 // adjudication-state badge for external placeholders
+  placeholderNote:            string | null;                 // adjudication-state explainer (status, not prose description)
+  hasRecords:                 boolean;                       // tiny indicator only; not visually load-bearing
+  hasReferenceMedia:          boolean;                       // true when any tutorial/demo media exists
+  mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'none' — drives optional chip
+  trickFamily:                string | null;                 // reserved for future family-axis affordance
 }
 
 export interface FreestyleTricksCoverageSummary {
@@ -1486,6 +1517,50 @@ function parseAddNumeric(adds: string | null): number | null {
 
 function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: string }): number {
   return a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// DictionaryTrickCard builder. Consumes the raw DB row plus the alias-table
+// data (already loaded by the dictionary builder) and produces the slim
+// card view-model.
+//
+// "Common aliases only" policy in slice 1: includes all aliases from the
+// freestyle_trick_aliases table verbatim. A future curator-policy slice
+// can introduce alias-kind filtering (folk vs typo vs URL-slug variant);
+// the field name `commonAliases` reserves the contract.
+// ─────────────────────────────────────────────────────────────────────────
+function shapeDictionaryTrickCard(
+  row: FreestyleTrickRowWithStatus,
+  indexRow: FreestyleTrickIndexRow,
+): DictionaryTrickCard {
+  const opDisplay = shapeOperationalNotationDisplay(row.operational_notation);
+  const operationalNotation: OperationalNotation | null = opDisplay
+    ? {
+        raw:        opDisplay.raw,
+        tokens:     opDisplay.tokens,
+        sourceNote: row.operational_notation_source && row.operational_notation_source.trim()
+          ? row.operational_notation_source.trim()
+          : null,
+      }
+    : null;
+
+  return {
+    slug:                       indexRow.slug,
+    displayName:                indexRow.canonicalName,
+    href:                       indexRow.detailHref,
+    adds:                       indexRow.adds,
+    addsLabel:                  indexRow.adds ? `${indexRow.adds} ADD` : '— ADD',
+    operationalNotation,
+    operationalNotationStatus:  operationalNotation ? 'available' : 'pending',
+    commonAliases:              indexRow.aliases,
+    isExternalOnly:             indexRow.isExternalOnly,
+    statusBadge:                indexRow.statusBadge,
+    placeholderNote:            indexRow.placeholderNote,
+    hasRecords:                 indexRow.hasRecords,
+    hasReferenceMedia:          indexRow.mediaCoverage !== 'none',
+    mediaCoverage:              indexRow.mediaCoverage,
+    trickFamily:                indexRow.trickFamily,
+  };
 }
 
 function shapeTrickIndexRow(
@@ -2726,31 +2801,39 @@ export const freestyleService = {
     // Modifiers are excluded; pending placeholders are included alongside
     // canonical tricks within the same ADD bucket. Empty / non-numeric ADD
     // lands in 'Unrated / unresolved'.
-    const addBuckets = new Map<number | null, FreestyleTrickIndexRow[]>();
+    //
+    // DSC-2 slice 1: builds the dictionary-trick-card view-model alongside
+    // the legacy `tricks` shape. The By ADD template branch renders the
+    // `cards` array via the shared partial; other views remain on `tricks`.
+    interface AddBucketEntry { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow; }
+    const addBuckets = new Map<number | null, AddBucketEntry[]>();
     for (const row of allRows) {
       if (row.category === 'modifier' || row.adds === 'modifier') continue;
       const numeric = parseAddNumeric(row.adds);
       const bucket = addBuckets.get(numeric) ?? [];
-      bucket.push(shapeTrickIndexRow(row, ctx));
+      bucket.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
       addBuckets.set(numeric, bucket);
     }
     const addGroups: FreestyleTrickAddGroup[] = [];
+    const buildGroup = (
+      addNumeric: number | null,
+      addLabel: string,
+      entries: AddBucketEntry[],
+    ): FreestyleTrickAddGroup => {
+      const sorted = entries.slice().sort((a, b) => byCanonicalNameAlpha(a.indexRow, b.indexRow));
+      return {
+        addNumeric,
+        addLabel,
+        tricks: sorted.map(e => e.indexRow),
+        cards:  sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow)),
+      };
+    };
     const numericKeys = [...addBuckets.keys()].filter((k): k is number => k !== null).sort((a, b) => a - b);
     for (const k of numericKeys) {
-      const tricks = (addBuckets.get(k) ?? []).slice().sort(byCanonicalNameAlpha);
-      addGroups.push({
-        addNumeric: k,
-        addLabel:   `${k} ADD`,
-        tricks,
-      });
+      addGroups.push(buildGroup(k, `${k} ADD`, addBuckets.get(k) ?? []));
     }
     if (addBuckets.has(null)) {
-      const tricks = (addBuckets.get(null) ?? []).slice().sort(byCanonicalNameAlpha);
-      addGroups.push({
-        addNumeric: null,
-        addLabel:   'Unrated / unresolved',
-        tricks,
-      });
+      addGroups.push(buildGroup(null, 'Unrated / unresolved', addBuckets.get(null) ?? []));
     }
 
     // ---- Coverage summary --------------------------------------------

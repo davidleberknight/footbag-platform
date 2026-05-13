@@ -365,9 +365,13 @@ describe('GET /freestyle/tricks', () => {
     // presentation' describe block below.
   });
 
-  it('shows trick descriptions', async () => {
+  it('shows trick descriptions in the category view (descriptions are not on the By ADD cards)', async () => {
+    // DSC-2 slice 1: the By ADD view migrated to symbolic trick cards, which
+    // intentionally omit prose descriptions ('prose descriptions should NOT
+    // appear in browse cards'). The category view still renders descriptions
+    // in its legacy spreadsheet layout.
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.text).toContain('most connected trick');
     expect(res.text).toContain('maximum documented base ADD');
   });
@@ -429,12 +433,12 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    // ADD view replaces the column-table layout with per-row sections.
+    // DSC-2 slice 1: ADD view migrated to symbolic trick cards. No table header.
     expect(res.text).not.toContain('<th>Notation</th>');
-    // whirl was seeded with notation 'WHIRL' (Tier 1 LOCKED form per
-     // NOTATION_STYLE_GUIDE §6.2). The dictionary-list page renders it inside a
-     // <code> cell.
-     expect(res.text).toContain('>WHIRL<');
+    // The card renders operational notation (role-tagged tokens) instead of the
+    // legacy semantic-notation raw string. Where operational_notation is null
+    // the card renders 'Notation pending' explicitly.
+    expect(res.text).toMatch(/dict-card-notation|Notation pending/);
   });
 
   it('does not list modifier rows in the category groups', async () => {
@@ -891,35 +895,38 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).toContain('Unrated / unresolved');
   });
 
-  it('renders a tier-aware media chip on every trick row', async () => {
+  // DSC-2 slice 1 — symbolic trick card carries a small optional media chip
+  // ('Tutorial available' / 'Demo only') only when media is present. Tricks
+  // without media render no chip; the absence is the visual signal.
+  // The card root also exposes data-media-coverage so tests can assert
+  // tier classification without depending on chip text.
+  it('renders a data-media-coverage attribute on every card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // The chip is one of three tier states: tutorial / demo / missing.
-    expect(res.text).toMatch(/class="trick-media-chip trick-media-chip--(?:tutorial|demo|missing)"/);
+    expect(res.text).toMatch(/data-media-coverage="(?:tutorial|demo|none)"/);
   });
 
-  it('renders the "No video yet" chip for tricks with no media coverage', async () => {
+  it('renders no media chip for tricks with no media coverage (absence is the signal)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    expect(res.text).toContain('trick-media-chip--missing');
-    expect(res.text).toContain('No video yet');
+    // Cards with data-media-coverage="none" must not render dict-card-media-chip
+    // inside their <article>. Locate one such card and assert.
+    const cardMatch = res.text.match(/<article class="dict-card[^>]*data-media-coverage="none"[^>]*>([\s\S]*?)<\/article>/);
+    expect(cardMatch).not.toBeNull();
+    expect(cardMatch![1]).not.toContain('dict-card-media-chip');
   });
 
   it('renders the "Tutorial available" chip when a trick has tutorial-tier coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // The fixture seeds a freestyle_media_links row pointing whirl at a
-    // tt_youtube asset (tutorial tier). At least one row must carry the
-    // tutorial chip.
-    expect(res.text).toContain('trick-media-chip--tutorial');
+    expect(res.text).toContain('dict-card-media-chip dict-card-media-chip--tutorial');
     expect(res.text).toContain('Tutorial available');
   });
 
   it('renders the "Demo only" chip when a trick has only demo-tier coverage', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // Fixture seeds a footbag_finland-only row for legover (demo tier).
-    expect(res.text).toContain('trick-media-chip--demo');
+    expect(res.text).toContain('dict-card-media-chip dict-card-media-chip--demo');
     expect(res.text).toContain('Demo only');
   });
 
@@ -929,31 +936,23 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     // `curator-only-trick` has no row in freestyle_media_links; its only
     // tutorial-tier coverage is via media_items + media_tags + tags
     // (curator-tagged channel with source_id='tt_youtube'). Pre-fix this
-    // trick would render "No video yet"; post-fix the UNION'd
+    // trick would render no media chip; post-fix the UNION'd
     // listCoveredTrickSlugsWithSource query surfaces it as 'tutorial'.
-    //
-    // Anchor on the row block: locate the trick-row containing the slug,
-    // then assert the tutorial chip is INSIDE that row (not stolen from
-    // some other trick's row earlier in the page).
-    const slugIdx = res.text.indexOf('curator-only-trick');
+    const slugIdx = res.text.indexOf('data-trick-slug="curator-only-trick"');
     expect(slugIdx).toBeGreaterThan(-1);
-    // Walk forward to the next </li> closing the row's wrapper to scope the
-    // assertion. trick-row entries render as <li class="trick-row...">...</li>.
-    const rowOpen  = res.text.lastIndexOf('<li class="trick-row', slugIdx);
-    const rowClose = res.text.indexOf('</li>', slugIdx);
-    expect(rowOpen).toBeGreaterThan(-1);
-    expect(rowClose).toBeGreaterThan(rowOpen);
-    const rowBlock = res.text.slice(rowOpen, rowClose);
-    expect(rowBlock).toContain('Tutorial available');
-    expect(rowBlock).toContain('trick-media-chip--tutorial');
+    const cardClose = res.text.indexOf('</article>', slugIdx);
+    expect(cardClose).toBeGreaterThan(slugIdx);
+    const cardBlock = res.text.slice(slugIdx, cardClose);
+    expect(cardBlock).toContain('Tutorial available');
+    expect(cardBlock).toContain('dict-card-media-chip--tutorial');
   });
 
-  it('renders aliases inline on the row when available', async () => {
+  it('renders aliases on the dictionary-trick-card when available', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // Whirl has no aliases in this fixture; legover seeded aliases include 'leg over'.
-    // Confirm the aliases line wrapper exists on at least one row.
-    expect(res.text).toMatch(/class="trick-aliases">Aliases:/);
+    // DSC-2 slice 1: aliases render via dict-card-aliases (lowercase 'aliases:'
+    // label, common aliases comma-separated, visually secondary).
+    expect(res.text).toMatch(/class="dict-card-aliases">[\s\S]*?aliases:[\s\S]*?<\/span>/);
   });
 
   it('falls back to "Notation pending" when a trick has no notation', async () => {
@@ -962,11 +961,15 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(res.text).toContain('Notation pending');
   });
 
-  it('falls back to "Description pending" when a trick has no description', async () => {
+  it('descriptions are not rendered on the By ADD card; the placeholder is gone too', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // The pending-zorblax fixture has no description.
-    expect(res.text).toContain('Description pending');
+    // DSC-2 slice 1: prose descriptions are explicitly excluded from the
+    // symbolic trick card. The 'Description pending' placeholder is therefore
+    // also gone on the ADD view (descriptions still appear in the category
+    // view's spreadsheet layout — see "shows trick descriptions ..." above).
+    expect(res.text).not.toContain('trick-description');
+    expect(res.text).not.toContain('Description pending');
   });
 
   it('renders the coverage summary with counts and the transparency note', async () => {
