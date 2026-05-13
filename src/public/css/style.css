@@ -4756,6 +4756,30 @@ a.dict-card-title:hover { text-decoration: underline; }
   }
 }
 
+/* Topology view (DSC-2 topology slice). Observational symbolic-grammar layer.
+ * Six pedagogically-grounded educational groups; layer attribution visible. */
+.topology-view-note {
+  margin: 8px 0 24px 0;
+  padding: 12px 14px;
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #3a3a30;
+  font-style: italic;
+}
+.trick-topology-group {
+  margin-top: 28px;
+}
+.topology-group-definition {
+  margin: 0 0 14px 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #5a5644;
+  line-height: 1.55;
+}
+
 /* Mobile: stack title + ADD vertically on narrow viewports so the
  * operational notation still has horizontal room. */
 @media (max-width: 480px) {

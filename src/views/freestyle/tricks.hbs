@@ -60,6 +60,12 @@
     {{else}}
       <a href="/freestyle/tricks?view=component">By component</a>
     {{/if}}
+    <span class="trick-view-toggle-sep">·</span>
+    {{#if (eq content.activeView "topology")}}
+      <span class="trick-view-toggle-active">By topology</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=topology">By topology</a>
+    {{/if}}
   </nav>
 
   {{! ── Coverage summary ─────────────────────────────────────────────────── }}
@@ -184,6 +190,40 @@
     </div>
   </section>
   {{/each}}
+  {{/if}}
+
+  {{! ── Topology view — observational symbolic-grammar layer (DSC-2 topology slice) ── }}
+  {{#if (eq content.activeView "topology")}}
+  <p class="topology-view-note">
+    {{content.topologyView.observationalNote}}
+    <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
+  </p>
+
+  {{#if content.topologyView.groups.length}}
+  {{#each content.topologyView.groups}}
+  <section class="content-section trick-topology-group" id="{{anchorId}}">
+    <div class="section-heading">
+      <h2><a href="/freestyle/tricks?view=topology#{{anchorId}}">{{topologyName}}</a></h2>
+      <span class="section-count">{{memberCount}}</span>
+    </div>
+    <p class="topology-group-definition">{{bodyDefinition}}</p>
+    <div class="dict-card-stack">
+      {{#each cards}}
+        {{> dictionary-trick-card}}
+      {{/each}}
+    </div>
+  </section>
+  {{/each}}
+  {{else}}
+  <section class="content-section">
+    <p class="detail-muted">
+      <em>No tricks currently match any of the six topology groupings. As the
+      dictionary expands, groupings populate from base trick + modifier link data.</em>
+    </p>
+  </section>
+  {{/if}}
+
+  <p class="symbolic-layer-footer">Observational symbolic-grammar layer. These groupings surface body mechanics across families and do not override canonical IFPA family classifications. The dictionary's <a href="/freestyle/tricks?view=family">By family</a> view remains the canonical structural source.</p>
   {{/if}}
 
   <p class="source-note">

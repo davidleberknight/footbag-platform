@@ -1185,7 +1185,7 @@ export interface FreestyleTricksCoverageSummary {
   transparencyNote: string;        // pre-shaped: 'External-source placeholders are shown for transparency...'
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component';
+export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology';
 
 // One row in the ?view=sets projection. Each set/modifier carries the list
 // of canonical tricks that use it via freestyle_trick_modifier_links.
@@ -1247,6 +1247,37 @@ export interface ComponentBrowseView {
   duplicationNote: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// TopologyBrowseView (DSC-2 slice 3 — topology axis).
+//
+// Pedagogically-grounded, high-confidence educational groups. Memberships
+// computed deterministically from existing data (base_trick + modifier_links
+// + a small curator-tagged dex-class map for hippy/leggy).
+//
+// The 6 CSV-defined topology groups in symbolic_topology_groups.csv are NOT
+// surfaced here; those are an advanced taxonomy and stay deferred. The slice
+// deliberately starts with a small, learner-friendly set per strategic
+// guidance: "small, obvious, educational, high-confidence; avoid hyper-
+// fractal symbolic overfitting."
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface TopologyGroup {
+  topologySlug:   string;          // 'hippy-downtime-dex'
+  topologyName:   string;          // 'Hippy downtime dex'
+  bodyDefinition: string;          // one-line biomechanical definition
+  memberCount:    number;
+  anchorId:       string;          // 'topology-{slug}'
+  cards:          DictionaryTrickCard[];   // ADD ascending then name
+}
+
+export interface TopologyBrowseView {
+  // Observational-layer attribution rendered as a badge near the top.
+  layerSource:        'observational';
+  // Static framing prose — kept short, explicitly observational.
+  observationalNote:  string;
+  groups:             TopologyGroup[];
+}
+
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
@@ -1262,6 +1293,10 @@ export interface FreestyleTricksIndexContent {
   // DSC-2 slice 3A: component view (?view=component). Body + set modifier
   // axes only; topology + archetype axes deferred to a later slice.
   componentView: ComponentBrowseView;
+  // DSC-2 slice 3-topology: topology view (?view=topology). Six pedagogically-
+  // grounded educational groups computed from existing data (base_trick +
+  // modifier_links + curator-tagged dex-class map). Observational layer.
+  topologyView: TopologyBrowseView;
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
   dictNote: string;                      // small subtle note rendered above the categories
@@ -2974,7 +3009,7 @@ export const freestyleService = {
     // DSC-2 slice 3A: ?view=sets is an alias of ?view=component. Both
     // requests resolve to the same activeView so the new component browse
     // experience renders for inbound legacy links without breaking them.
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component'];
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
     const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
       ? (requestedView === 'sets' ? 'component' : requestedView)
@@ -3147,6 +3182,103 @@ export const freestyleService = {
     const bodyBuckets = [...componentAccumulator.values()].filter(b => b.modifierType === 'body');
     const setBuckets  = [...componentAccumulator.values()].filter(b => b.modifierType === 'set');
 
+    // ---- Topology view (?view=topology projection, DSC-2 slice 3-topology) ----
+    // Six pedagogically-grounded educational groups. Membership computed
+    // deterministically from existing data; no new schema, no new CSV.
+    // Curator-tagged dex-class base sets per CORE_TRICK_GRAMMAR_DRAFT.md §5.
+
+    // Bases whose canonical downtime dex is HIPPY (hip-driven thigh swing).
+    const HIPPY_BASES = new Set(['mirage', 'butterfly']);
+    // Bases whose canonical downtime dex is LEGGY (knee-driven calf swing).
+    const LEGGY_BASES = new Set(['legover', 'pickup', 'whirl', 'swirl', 'illusion']);
+    // Bases whose canonical landing is on the clipper surface.
+    const CLIPPER_LANDING_BASES = new Set(['butterfly', 'whirl', 'swirl', 'osis', 'blender']);
+
+    const hasModifierLink = (slug: string, modifierSlug: string): boolean => {
+      const bucket = componentAccumulator.get(modifierSlug);
+      if (!bucket) return false;
+      return bucket.entries.some(e => e.row.slug === slug);
+    };
+
+    interface TopologyGroupDef {
+      slug:           string;
+      name:           string;
+      definition:     string;
+      members:        (row: FreestyleTrickRowWithStatus) => boolean;
+    }
+
+    const TOPOLOGY_GROUPS: TopologyGroupDef[] = [
+      {
+        slug:       'hippy-downtime-dex',
+        name:       'Hippy downtime dex',
+        definition: 'Tricks whose downtime dex comes from the hip — the thigh swings broadly around the bag while the chest opens. Anchored on Mirage and Butterfly.',
+        members:    row => !!(row.base_trick && HIPPY_BASES.has(row.base_trick)),
+      },
+      {
+        slug:       'leggy-dex',
+        name:       'Leggy dex',
+        definition: 'Tricks whose dex comes from the knee — the calf circles the bag while the thigh stays composed. Anchored on Legover, Pickup, Whirl, Swirl, Illusion.',
+        members:    row => !!(row.base_trick && LEGGY_BASES.has(row.base_trick)),
+      },
+      {
+        slug:       'whirl-swirl-structures',
+        name:       'Whirl / swirl structures',
+        definition: 'Tricks built on the rotational dex pair — Whirl (leggy in to clipper) and Swirl (leggy out with crossbody entry to clipper).',
+        members:    row => row.base_trick === 'whirl' || row.base_trick === 'swirl',
+      },
+      {
+        slug:       'pixie-uptime-dex',
+        name:       'Pixie uptime dex',
+        definition: 'Tricks with a pixie set treatment in the uptime — compressed pre-base set that compresses the rising-bag window.',
+        members:    row => hasModifierLink(row.slug, 'pixie'),
+      },
+      {
+        slug:       'symposium-clipper-structures',
+        name:       'Symposium clipper structures',
+        definition: 'Clipper-landing tricks performed with a symposium discipline — the support leg leaves the ground during the dex.',
+        members:    row => hasModifierLink(row.slug, 'symposium')
+          && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
+      },
+      {
+        slug:       'ducking-clipper-structures',
+        name:       'Ducking clipper structures',
+        definition: 'Clipper-landing tricks with a ducking head-dip in the midtime — the bag passes around the neck while the rest of the trick continues.',
+        members:    row => hasModifierLink(row.slug, 'ducking')
+          && !!(row.base_trick && CLIPPER_LANDING_BASES.has(row.base_trick)),
+      },
+    ];
+
+    const buildTopologyGroup = (def: TopologyGroupDef): TopologyGroup => {
+      const matched = activeRows
+        .filter(r => r.category !== 'modifier' && def.members(r))
+        .sort((a, b) => {
+          const an = parseAddNumeric(a.adds);
+          const bn = parseAddNumeric(b.adds);
+          const ai = an ?? Number.POSITIVE_INFINITY;
+          const bi = bn ?? Number.POSITIVE_INFINITY;
+          if (ai !== bi) return ai - bi;
+          return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
+        });
+      const indexRows = matched.map(r => shapeTrickIndexRow(r, ctx));
+      return {
+        topologySlug:   def.slug,
+        topologyName:   def.name,
+        bodyDefinition: def.definition,
+        memberCount:    matched.length,
+        anchorId:       `topology-${def.slug}`,
+        cards:          matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!)),
+      };
+    };
+
+    const topologyView: TopologyBrowseView = {
+      layerSource:       'observational',
+      observationalNote:
+        'Observational symbolic-grammar layer. These groupings describe how tricks share body mechanics — hippy vs leggy, whirl vs swirl, uptime vs midtime patterns. They are observed, not canonical; the dictionary\'s family classifications remain the canonical structure.',
+      groups: TOPOLOGY_GROUPS
+        .map(buildTopologyGroup)
+        .filter(g => g.memberCount > 0),
+    };
+
     const componentView: ComponentBrowseView = {
       duplicationNote:
         'Compounds appear in every component group they belong to. A trick with paradox AND spinning shows up under both — the duplication is intentional, since each grouping is a separate browse path.',
@@ -3210,6 +3342,7 @@ export const freestyleService = {
         familyGroups,
         setGroups,
         componentView,
+        topologyView,
         modifiers,
         activeFamily,
         relatedSetGroups,
