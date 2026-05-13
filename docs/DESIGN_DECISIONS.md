@@ -432,7 +432,7 @@ Why this separation matters:
 
 - Long-term clean code. Clear layer boundaries make it obvious where new code belongs. A new pure helper goes in services. A new Express middleware goes in middleware. A new external-service integration goes behind an adapter interface. Contributors do not have to guess.
 
-- Testability. Services are pure — no HTTP mocking required. Middleware is narrow — tests inject `(req, res, next)` mocks. Controllers are thin and delegate — integration tests exercise them end-to-end. Adapters are swapped for deterministic stubs in dev and test.
+- Testability. Services are pure: no HTTP mocking required. Middleware is narrow: tests inject `(req, res, next)` mocks. Controllers are thin and delegate, so integration tests exercise them end-to-end. Adapters are swapped for deterministic stubs in dev and test.
 
 Anti-patterns:
 
@@ -1434,6 +1434,8 @@ Legacy migration security rules:
 - Mailbox control is the proof step for self-serve claim regardless of which identifier type (email address, username, or member ID) the member submitted. Submitting a username or member ID still requires proving control of the matched `legacy_email` before any merge occurs. When the requesting member's verified `login_email` already equals the matched row's `legacy_email` (case-insensitive, trimmed), the registration-time email-verify step satisfies the proof step and the second token-email is skipped; the merge runs synchronously inside the initiation call. Anti-enumeration is preserved because the fast path is reachable only after a positive lookup.
 - Production has no admin email-skip; admins requiring manual recovery use `manualLegacyClaimRecovery` (with the audit trail and access controls that flow implies). A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. All four vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev-admin shortcut lives in `src/dev-admin-shortcuts/runtime.ts`.
 - Imported placeholder rows cannot log in, are not searchable, and do not receive any member communications before claim.
+- **Surname-match enforcement is asymmetric by claim path.** The direct-HP claim path (`/history/:personId/claim`) blocks server-side on surname mismatch between the claiming member's `real_name` and the historical person's recorded surname. The legacy-account claim path (`/history/claim`) does not enforce surname match: the proof step is mailbox control of the matched `legacy_email`, and a member whose legal name changed between their legacy and current account would otherwise be blocked from reclaiming their own legacy identity. The asymmetry is deliberate. A member who claims their legacy account and later attempts a direct-HP claim against a different surname is blocked at the HP step.
+- **Historical-person claim races are resolved by partial UNIQUE index + service-layer error mapping.** Concurrent claims to the same `historical_persons` row both pass the in-controller "already claimed" check; the partial UNIQUE index `ux_members_historical_person_id` catches the loser at insert. The service wraps the SQLite `SQLITE_CONSTRAINT_UNIQUE` exception in `ConflictError` so the controller renders the same user-readable "already claimed by another member" 422 it renders on the synchronous check path. Raw SQL errors must not leak to the response.
 
 Rationale:
 
@@ -1448,15 +1450,6 @@ Requirements:
 - Historical-pipeline outputs that feed the database carry no member email addresses. Email addresses arrive only via member self-claim. The pipeline's intermediate artifacts and committed CSVs are scrubbed of email columns before they enter the working tree. If a pipeline output reaches the working tree containing email PII, the leak is purged from history (filter-repo, force-push, GitHub Support cache invalidation) before any public exposure.
 - A working GDPR Article 17 erasure path exists pre-launch covering the primary database, any read replicas, backup snapshots (via the erasure log re-application from §1.2), and any search or derived-stat indices. Erasure that fails on any of those surfaces is a launch-blocker.
 - Anonymization tooling for production-data sharing exists and is documented. Production data is not shared with developers, support contractors, or external auditors without first running the anonymization tool against the snapshot. Sharing a raw production export is not a permitted operator path.
-
-Cross-references:
-
-- **2.5** Immutable Audit Logs with Privacy-safe Fields — extend audit guidance to member-search, export, and sensitive visibility checks.
-- **3.2/3.4** JWT Sessions / Token Lifecycle — session and auth boundaries protect current-member-only surfaces, not public historical record surfaces.
-- **6.4** Legacy Archive — member-only because it contains private legacy member information; explicitly distinct from public migrated historical results.
-- **6.5** Legacy Data Migration — imported people and imported stat fields do not automatically become public current-member data or authoritative public statistics.
-- **7.1** Dev/Prod Parity — forbids auth gating by env boolean toggles that bypass the real session path.
-- **8.3** Rate Limiting and Abuse Prevention — anti-enumeration controls for authenticated member search and any record/search surfaces vulnerable to scraping.
 
 ## 3.10 Trust-proxy strategy
 
@@ -2347,41 +2340,59 @@ A static, read-only mirror of key site content (e.g., events, clubs, media galle
 
 Decision:
 
-Legacy site HTML-only mirror to be preserved as static content in a dedicated S3 bucket, served via CloudFront at archive.footbag.org. Access restricted to authenticated members only. Legacy URLs redirect via 301 to archive equivalents.
+The legacy footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket served via CloudFront at archive.footbag.org. Access is restricted to authenticated members of the main platform. Legacy URLs redirect to archive equivalents via 301. Edge authentication uses CloudFront signed cookies via a trusted-signer key group; the main app issues the signed cookie at session creation and on every session refresh.
 
 Rationale:
 
-- Preserves community history permanently without maintaining old database stack.
+- Preserves community history permanently without maintaining the original database stack or PHP runtime.
 
-- Separate bucket isolates archive from active platform (security, billing).
+- A separate S3 bucket isolates archive content from active platform (security boundary, billing boundary).
 
-- Members-only access protects (old) member contact information.
+- Members-only access protects old member contact information preserved in the archive HTML.
 
-- 301 redirects preserve SEO value and existing links.
+- 301 redirects from legacy URL patterns preserve link integrity and search-engine equity.
 
-- All video content in the mirror has been converted to mp4 (all images converted to jpg).
+- Archive HTML uses mp4 video and jpg images, and contains no JavaScript, so the mirror is fully static.
 
-- All Javascript in the mirror has been removed and made unnecessary.
+- CloudFront signed cookies enforce the auth check natively at the edge. CloudFront verifies the cookie's RSA signature against the public key in the trusted-signer key group resource; no edge code path, no Lambda@Edge, no public-key bundling.
+
+- Cookie domain is `.footbag.org` so a single session covers both the apex (or www) and the archive subdomain without a separate login.
+
+Requirements:
+
+- A CloudFront key group resource (`aws_cloudfront_public_key` + `aws_cloudfront_key_group`) holds the public half of the signing keypair. The private half is stored in AWS Secrets Manager (or SSM SecureString), scoped to the main app's runtime IAM role.
+
+- The archive CloudFront cache behavior names the key group in `trusted_key_groups` so all requests under that behavior require a valid signed cookie.
+
+- The main app sets the signed cookie at every login and at every JWT refresh, in the same middleware that re-issues the session JWT. Cookie expiry equals the JWT TTL (24h default per §3.4) so archive access and main-site access share the same staleness boundary.
+
+- The S3 archive bucket is private behind Origin Access Control. The bucket policy permits only the archive CloudFront distribution to read.
+
+- The archive CloudFront distribution uses 1-year edge TTL on its content (immutable archive per §6.2) and a custom 403 error response that redirects to `https://footbag.org/login?return=archive.footbag.org` when the signed cookie is missing or invalid.
+
+- DNS for archive.footbag.org is a Route 53 record pointing at the archive distribution.
+
+- Key rotation follows the multi-key pattern: add the new public key to the key group, the app starts signing with the new private key, the old public key stays in the group during a grace period equal to the cookie TTL, then the old key is removed.
 
 Trade-offs:
 
-- No search capability in archive (acceptable for static preservation).
+- No search capability across the archive (acceptable for static preservation).
 
-- Migration was one-time capture; archive won't be refreshed.
+- The archive is a one-time capture and is not refreshed.
 
-- Authentication requirement means public can't browse history, because the content has private member data.
+- Authentication required means the public cannot browse archive history; intentional given the private member data in the archive HTML.
+
+- CloudFront signed cookies cannot query the platform database, so archive access does not perform the JWT `passwordVersion` lookup the main app does on every authenticated request. A member who changes their password, or is administratively banned, retains archive access until their signed cookie expires (up to 24h). Accepted given the read-only static nature of archive content.
 
 Impact:
 
-- Redirect mapping maintained as simple text file.
+- Archive infrastructure is fully expressed in Terraform: archive S3 bucket, OAC, archive CloudFront distribution, key group, Route 53 record. No Lambda code path.
 
-- CloudFront distribution configured for archive origin and authentication.
+- The main app's login and JWT-refresh middleware sets the signed cookie alongside the session JWT. Both cookies use `Domain=.footbag.org` (host-only scope is not sufficient for the subdomain to receive them).
 
-- Archive bucket has restrictive IAM policies and no write access post-migration.
+- Trusted-signer private key rotation procedure is documented in `docs/DEVOPS_GUIDE.md`.
 
-- Access to archive.footbag.org requires member login on the main site. Implementation uses Lambda@Edge viewer request function attached to the CloudFront distribution: Lambda@Edge checks footbag_session cookie (JWT from main site). Cookie domain set to ".footbag.org" (shared across main site and archive subdomain). If valid JWT: allow request to proceed to S3 origin. If invalid or missing: HTTP 302 redirect to https://footbag.org/login?return=archive.footbag.org.
-
-- This approach reuses the main site's authentication system without duplicating member auth state. Lambda@Edge validates the session JWT using the exported public key from the KMS signing key (no shared secret at the edge). The public key is packaged with the function and refreshed as part of the JWT key rotation deployment procedure. Security Limitation: Lambda@Edge functions are stateless and cannot query the SQLite database. Therefore, archive access does NOT perform the passwordVersion database lookup that the main application uses to validate JWTs. A member who changes their password will have their main site sessions invalidated immediately, but their archive access remains valid until the JWT expires (up to jwt_expiry_hours, default 24 hours). This is an accepted trade-off given the read-only, static, member-only nature of archive content. 
+- The CSRF Origin-pin middleware (§3.3) rejects same-site subdomain forgery attempts because Origin verification is independent of cookie scope.
 
 ## 6.5 Legacy Data Migration
 
@@ -2420,12 +2431,6 @@ Trade-offs:
 - Members without access to their legacy email address must contact an admin for manual recovery.
 - Club bootstrap depends on mirror-derived data quality; clubs with ambiguous or low-confidence leader data require admin review.
 - No automated rollback after DNS switch; rollback requires manual DNS reversion and coordination.
-
-Cross-references:
-
-- **3.8** Account Security Tokens — `account_claim` token type, dual binding, `ON DELETE NO ACTION` on `target_legacy_member_id`.
-- **3.9** Security, Privacy, and Historical Record Governance — legacy migration security rules (passwords never imported; `legacy_email` is metadata only; mailbox control is proof step).
-- **6.4** Legacy Archive — the static mirror archive is separate from the migrated live data; archive access is authenticated member-only.
 
 ## 6.6 AWS Service Integration
 

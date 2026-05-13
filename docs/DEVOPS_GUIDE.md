@@ -33,9 +33,10 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [5.4 Secret-handling rules](#54-secret-handling-rules)
   - [5.5 Stripe key and webhook-secret rotation runbook](#55-stripe-key-and-webhook-secret-rotation-runbook)
   - [5.6 JWT and ballot-key controls](#56-jwt-and-ballot-key-controls)
-  - [5.7 App-runtime access-key rotation (runbook pending)](#57-app-runtime-access-key-rotation-runbook-pending)
+  - [5.7 Source-profile access-key rotation](#57-source-profile-access-key-rotation)
   - [5.8 SESSION_SECRET rotation runbook](#58-session_secret-rotation-runbook)
   - [5.9 Origin-verify shared-secret rotation runbook](#59-origin-verify-shared-secret-rotation-runbook)
+  - [5.10 Safe Browsing API key rotation runbook](#510-safe-browsing-api-key-rotation-runbook)
 - [6. Terraform and Infrastructure Change Control](#6-terraform-and-infrastructure-change-control)
   - [6.1 Terraform authority](#61-terraform-authority)
   - [6.1.1 Manual bootstrap boundary](#611-manual-bootstrap-boundary)
@@ -45,7 +46,7 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [6.5 Emergency console changes](#65-emergency-console-changes)
   - [6.6 What not to do](#66-what-not-to-do)
 - [7. CI/CD, Release Promotion, and Deployment Workflow](#7-cicd-release-promotion-and-deployment-workflow)
-  - [7.0 Current state and target](#70-current-state-and-target)
+  - [7.0 Deployment model](#70-deployment-model)
   - [7.1 CI responsibilities](#71-ci-responsibilities)
   - [7.2 Promotion policy](#72-promotion-policy)
   - [7.3 Standard deployment runbook](#73-standard-deployment-runbook)
@@ -120,10 +121,11 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [17.1 Scope and isolation model](#171-scope-and-isolation-model)
   - [17.2 Staging admin seed](#172-staging-admin-seed)
   - [17.3 Transport and argv-leak hardening](#173-transport-and-argv-leak-hardening)
-  - [17.4 Adding a new test-data category](#174-adding-a-new-test-data-category)
+  - [17.4 Adding a new dev-admin-shortcut mechanism](#174-adding-a-new-dev-admin-shortcut-mechanism)
   - [17.5 Guardrails](#175-guardrails)
   - [17.6 Password-leak protections](#176-password-leak-protections)
   - [17.7 Removal](#177-removal)
+  - [17.8 Production first-admin bootstrap](#178-production-first-admin-bootstrap)
 ---
 
 ## 1. Operating Baseline
@@ -440,6 +442,21 @@ New AWS accounts start in SES sandbox mode. In sandbox, **both the sender identi
 
 For staging-mode testing without enumerating every tester, AWS provides `success@simulator.amazonses.com` as an always-verified destination that accepts any send from any verified sender.
 
+#### SES production-access ticket procedure
+
+AWS support tickets to move SES out of sandbox have a typical 24-48h response window; file before the production sending need.
+
+Operator steps:
+
+1. Confirm preconditions: sending domain is verified end-to-end on the target account; SPF, DKIM, DMARC records published; bounce/complaint SNS topic created and subscribed; outbound notification batch volume estimated.
+2. File via the AWS Support Center: open a "Service limit increase" ticket → service: SES → type: "Sending limits" → request "Move out of sandbox / production access." Include the estimated daily send volume, the use case (transactional notification batch for migration cutover + ongoing account-management mail), and a description of bounce/complaint handling.
+3. AWS may request a sample of email content. Provide the verification, password-reset, and notification-batch templates.
+4. Track the ticket; expect a response in 24-48h. Approval moves the account out of sandbox in the SES console (verify under "Account dashboard → Sending statistics → Sandbox: No").
+5. After approval, set `SES_SANDBOX_MODE=0` in the production env file and restart the app to clear the staging-warning card (DD §5.6).
+6. Smoke-test end-to-end: trigger a verification email to an unverified address (one that would have been rejected in sandbox); confirm delivery.
+
+Record the ticket ID and approval timestamp in the operations log.
+
 #### Outbound email pipeline (stages, observable state)
 
 Transactional mail flows through four stages. Each stage fails differently; diagnose by locating the stuck stage.
@@ -571,6 +588,23 @@ This is the direct operationalization of the older `SA_Rotate_Stripe_Keys` story
 - The normal runtime role may request data keys for encryption but must not hold broad decrypt permission.
 - Tally operations use a separate privileged role with tightly scoped decrypt permission.
 - Key policy changes are infrastructure changes and require code review.
+
+#### JWT signing-key rotation procedure
+
+The 24h-overlap rotation pattern exercises both KMS signing keys simultaneously so no users are forced to re-authenticate.
+
+1. Provision a new KMS asymmetric signing key in staging (Terraform `aws_kms_key.jwt_signing_v2` or equivalent). Wait for it to be `Enabled`.
+2. Export the public key from the new KMS key via `kms:GetPublicKey`; verify the algorithm and modulus match the existing key's parameters.
+3. Update the app config to add the new key's ARN and `kid` to the verification keyset (so JWTs signed by either key verify cleanly during the overlap window).
+4. Deploy the app to staging; confirm via curl that login still issues a JWT signed by the original key and the app accepts it for an authenticated route.
+5. Flip the active signer config to the new key. Restart the web container.
+6. Confirm via curl that login issues a JWT with the new `kid` header, and that an existing session cookie (signed by the old key) still verifies for the duration of its TTL.
+7. Wait 24h to let any in-flight tokens signed by the old key expire naturally.
+8. Disable the old key in KMS (`kms:DisableKey`). Confirm that any synthetic JWT signed by the old key now fails verification.
+9. After a stability window, schedule the old key for deletion via `kms:ScheduleKeyDeletion` (minimum 7-day window per AWS policy).
+10. Record drill output (cutover audit log entry): start time, end time, observations, any deviations.
+
+The procedure runs identically against any environment's KMS keys; production rotation reuses the same steps with production resource ARNs.
 
 ### 5.7 Source-profile access-key rotation
 
@@ -807,11 +841,11 @@ If a console change happens:
 
 ## 7. CI/CD, Release Promotion, and Deployment Workflow
 
-### 7.0 Current state and target
+### 7.0 Deployment model
 
-Today, deployment is operator-driven: the maintainer builds locally and ships via `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` (image transferred over SSH with `docker save | ssh | docker load`, compose restart on the host). The standard runbook in §7.3 documents this path.
+Deployment is operator-driven: the maintainer builds locally and ships via `scripts/deploy-code.sh` and `scripts/deploy-rebuild.sh` (image transferred over SSH with `docker save | ssh | docker load`, compose restart on the host). The standard runbook in §7.3 documents the operator path.
 
-Target: an automated CI/CD deploy pipeline (GitHub Actions or equivalent) that satisfies §7.1 CI responsibilities, publishes a versioned artifact, and promotes to staging and production through §7.2. The script-based path is retained as the operator fallback for emergencies and isolated-environment deploys; the artifact format and validation gates are the same on both paths.
+The platform's longer-term design intent is an automated CI/CD deploy pipeline that satisfies §7.1 CI responsibilities, publishes a versioned artifact, and promotes to staging and production through §7.2. The script-based path remains as the operator fallback for emergencies and isolated-environment deploys; the artifact format and validation gates are the same on both paths.
 
 ### 7.1 CI responsibilities
 
@@ -1797,8 +1831,6 @@ Resolution order:
 3. Check app logs for the failing `event_id`; distinguish signature-validation error from handler error.
 4. If the signing secret was recently rotated, confirm the app has restarted since rotation (per §5.5).
 5. If the issue is transient or fixed, replay the failed event from the Stripe Dashboard. If the failure persists, escalate per §13.9.
-
-Related: §5.5 (key and secret rotation), §15.4 (secret/config troubleshooting).
 
 ### 15.8 Incident postmortem template
 

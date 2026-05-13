@@ -38,7 +38,7 @@ This file governs:
 
 ## 3. Authentication and authorization boundary
 
-Public anonymous routes may serve only content explicitly approved for anonymous visitors by the repo's governing docs and current-slice decisions. This includes the home page, public events/results pages, year archives, world records, limited historical-person pages (non-PII only), limited HoF/BAP honor-profile pages, limited public club pages, and other surfaces explicitly classified as public.
+Public anonymous routes may serve only content explicitly approved for anonymous visitors by the canonical design docs. This includes the home page, public events/results pages, year archives, world records, limited historical-person pages (non-PII only), limited HoF/BAP honor-profile pages, limited public club pages, and other surfaces explicitly classified as public.
 
 Anonymous public surfaces may expose only approved non-PII fields. Contact information, personal addresses, email addresses, phone numbers, and other personally identifiable information are never public by default. Current-member search, ordinary member profiles, broad rosters, participant lists, exports, and other member-only surfaces remain non-public unless a higher-level documented decision says otherwise.
 
@@ -172,7 +172,7 @@ No contact field (email, phone, social handle) is visible on any public page or 
 - this redirect does not expose any data beyond what the member profile already shows; searchability and contact visibility remain governed by member profile settings, not by the existence of a historical link,
 - if a member later deletes their account, historical-person URLs revert to showing historical-record data only.
 
-**Data subject erasure:** the tension between permanent historical record preservation and data-subject erasure rights (GDPR Article 17 and equivalents) is an open governance question. HoF/BAP preservation is treated as a given in this version of this document, but whether that survives an erasure request from a living person is not yet resolved. This must be addressed as a separate governance decision before member onboarding launches and before the platform processes data from GDPR-jurisdiction members at scale.
+**Data subject erasure:** member account erasure is supported. HoF, BAP, and other public-record honors survive erasure because honors recognize a competitive record on a public historical surface, not the current member account. Erasure clears the account's identifying personal data and severs the link between the account and the underlying public historical record; the historical record itself remains as a public surface, displaying the public attribution name and any honors earned. Audit-log retention is governed by §9; erasure does not delete audit history. Erasure that fails on any persistent surface (account PII, search and derived indices, backup re-application) is a launch-blocker.
 
 ---
 

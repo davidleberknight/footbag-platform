@@ -48,6 +48,8 @@
   - [4.23 Seed Data](#423-seed-data)
   - [4.24 Member Club Affiliations](#424-member-club-affiliations)
   - [4.25 Migration Staging and Bootstrap Tables](#425-migration-staging-and-bootstrap-tables)
+  - [4.26 Name-matching utilities](#426-name-matching-utilities)
+  - [4.27 Member Onboarding Tasks](#427-member-onboarding-tasks)
 - [5. View Reference](#5-view-reference)
   - [Computed views](#computed-views)
   - [Semantic filter views](#semantic-filter-views)
@@ -399,6 +401,21 @@ Config values are admin-configurable. All numeric limits and time windows in the
 
 #### Audit log
 `audit_entries` is an append-only, privacy-safe ledger. IP addresses and user-agent strings are **never** stored. UPDATE and DELETE are blocked by DB triggers; rows are permanent. Actor context uses `actor_type` + `actor_member_id` (NULL for system actors).
+
+**`action_type` catalog.** The `action_type` column is application-controlled (no CHECK enum). The values currently emitted across the codebase, grouped by domain:
+
+- **Authentication and account lifecycle**: `password_changed`, `password_reset_completed`, `password_reset_requested`, `login_rate_limit_exceeded`, `account_locked`, `account_unlocked`, `account_deleted`, `account_restored`, `account_purged`, `email_verified`, `email_verification_resent`, `member_deceased_marked`, `member_deceased_reverted`.
+- **Admin role and tier grants**: `grant_admin_bootstrap`, `grant_admin_dev_seed`, `grant_admin_manual`, `revoke_admin`, `dev_admin_invariant_repair`, `member_tier_granted`, `member_tier_revoked`, `active_player_vouched`, `active_player_attended`, `active_player_expired`, `active_player_reminder_sent`.
+- **Legacy claim and auto-link**: `legacy_claim_requested`, `legacy_claim_email_sent`, `legacy_claim_email_resent`, `legacy_claim_completed`, `legacy_claim_blocked`, `legacy_claim_manual_recovery`, `legacy_claim_skipped_at_registration`, `auto_link_tier1_applied`, `auto_link_tier2_applied`, `auto_link_tier3_queued`, `hp_claim_completed`, `hp_claim_rejected_surname_mismatch`.
+- **Club bootstrap and onboarding**: `legacy_club_bootstrap_created`, `legacy_club_bootstrap_promoted`, `legacy_club_bootstrap_superseded`, `club_signal_contact_confirms_active`, `club_signal_contact_reports_inactive`, `club_signal_contact_rejects_club`, `club_signal_member_confirms_affiliation`, `club_signal_member_rejects_affiliation`, `club_signal_regional_knows_club`, `club_signal_regional_never_heard_of_club`.
+- **Onboarding wizard transitions** (per `MemberOnboardingService`): `onboarding_task_started`, `onboarding_task_skipped`, `onboarding_task_completed`, `onboarding_task_marked_not_applicable`.
+- **Content and curation**: `news_post_published`, `gallery_created`, `gallery_deleted`, `media_uploaded`, `media_deleted`, `media_flagged`.
+- **Vote and recognition**: `vote_cast`, `vote_eligibility_snapshot_taken`, `ballot_tallied`, `hof_nomination_submitted`, `hof_affidavit_submitted`.
+- **Payment and subscription**: `payment_succeeded`, `payment_failed`, `payment_refunded`, `subscription_started`, `subscription_canceled`, `subscription_renewed`.
+- **Admin operational**: `work_queue_item_resolved`, `member_contact_request_resolved`, `roster_access`, `data_export_generated`, `pricing_changed`.
+- **Migration and curator**: `migration_run`, `migration_failed`, `curator_seed_loaded`.
+
+The list is the authoritative inventory at this commit; new action_types must be added here as part of any code change that introduces a new event type, and the corresponding service entry in `SERVICE_CATALOG.md` must declare its audit emissions.
 
 #### Alarms
 `system_alarm_events` tracks infrastructure and operational alarms. `acknowledgment_note` is set alongside `acknowledged_at` when an admin acknowledges an alarm.
@@ -1135,6 +1152,19 @@ Name-equivalence pairs that support auto-link matching across `legacy_members`, 
 #### Naming-convention note
 
 This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is reserved for migration-scope staging (`legacy_club_candidates`, `legacy_person_club_affiliations`) or archival data of legacy origin (`legacy_members`). Name-variant pairs are a permanent platform utility that grows over the life of the platform and has no "resolution" step, so the pairs themselves are the permanent artifact and the table is unprefixed. See §2 Schema Conventions for the general rule.
+
+### 4.27 Member Onboarding Tasks
+
+**Table:** `member_onboarding_tasks`
+
+Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; `MIGRATION_PLAN.md` §10). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow and the dashboard task widget read and write through the service.
+
+- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`legacy_claim`, `club_affiliations`, `first_competition_year`, `show_competitive_results`); `state` TEXT with CHECK in (`pending`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable.
+- **Per-member unique**: `UNIQUE(member_id, task_type)` so the same task is not duplicated for one member.
+- **Catalog evolution**: adding a new task type extends the `task_type` CHECK; existing rows are unaffected and the wizard renders the new task at its catalog position.
+- **Applicability is server-determined**: `not_applicable` is written by the service when the underlying eligibility fails (e.g. no plausible legacy match for `legacy_claim`). Client cannot bypass.
+- **Skipped is not blocking**: a `skipped` row does not gate sign-in. The member's dashboard surfaces all rows whose state is `pending` or `skipped`; completing transitions to `completed` and removes from the widget.
+- **Audit trail**: every state transition emits an `audit_entries` row owned by the wizard service; see DATA_MODEL §4 audit_entries subsection for the `action_type` catalog.
 
 ---
 

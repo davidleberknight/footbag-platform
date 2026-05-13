@@ -27,7 +27,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  footbag.org  Dynamic HTML/API → 5min TTL  →  Lightsail origin      │
 │  footbag.org  Static assets   → 1yr TTL   →  S3 static bucket       │
 │  archive.*    Archive HTML    → 1yr TTL   →  S3 archive bucket      │
-│                               (Lambda@Edge: JWT auth check)         │
+│                               (CloudFront signed-cookie auth)       │
 └─────────────────────────────────────────────────────────────────────┘
                 Route 53 → CloudFront      origin requests (~5%)
                              ↓
@@ -71,7 +71,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Caption:** A single AWS CloudFront distribution serves all traffic with different cache behaviors per path: dynamic HTML routes to Lightsail, static assets to S3, and the legacy archive to a separate S3 bucket protected by Lambda@Edge JWT validation. The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Operator shell access to the host uses hardened per-operator SSH to named host accounts.
+**Caption:** A single AWS CloudFront distribution serves all traffic with different cache behaviors per path: dynamic HTML routes to Lightsail, static assets to S3, and the legacy archive to a separate S3 bucket protected by CloudFront signed cookies (DD §6.4). The Lightsail instance runs four Docker containers sharing a local SQLite database file. The worker and web containers both access `footbag.db` directly; the image container is isolated with no database access. Photos live in a dedicated S3 bucket and are never stored in SQLite. Runtime AWS service integrations use IAM roles with no hardcoded secrets. Operator shell access to the host uses hardened per-operator SSH to named host accounts.
 
 ---
 

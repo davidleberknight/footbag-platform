@@ -36,7 +36,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_Download_Data](#m_download_data)
     - [M_Browse_Legacy_Archive](#m_browse_legacy_archive)
     - [M_Claim_Legacy_Account](#m_claim_legacy_account)
-    - [M_Review_Legacy_Club_Data_During_Claim](#m_review_legacy_club_data_during_claim)
+    - [M_Complete_Onboarding_Wizard](#m_complete_onboarding_wizard)
   - [3.2 Profile Management](#32-profile-management)
     - [M_Edit_Profile](#m_edit_profile)
     - [M_Contact_IFPA_Admin](#m_contact_ifpa_admin)
@@ -111,6 +111,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Mark_Member_Deceased](#a_mark_member_deceased)
     - [A_Manual_Legacy_Claim_Recovery](#a_manual_legacy_claim_recovery)
     - [A_Review_Auto_Link_Matches](#a_review_auto_link_matches)
+    - [A_Review_Club_Cleanup_Signals](#a_review_club_cleanup_signals)
   - [6.3 Content Moderation](#63-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
@@ -480,12 +481,7 @@ Success Criteria:
 - Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
 - New members automatically assigned Tier 0 (free lifetime) status.
 - **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported placeholder row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (Tier 1 exact name match, Tier 2 known variant match), the prompt defaults to yes (pre-checked). For low-confidence matches (Tier 3 email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
-- **Club onboarding flow:** During onboarding, the member goes through a three-stage club flow:
-  - **Stage 1 (direct matches):** If the registrant matches a club contact or affiliated member from the legacy mirror data, those clubs are shown first. For each club, the member chooses: "This is my club and it's still active" (affiliates, offered leadership if Tier 1 benefits and no active leader), "I was involved but the club is no longer active" (former affiliation, club flagged as reported-inactive), "This club still exists but I'm no longer involved" (former affiliation), or "I don't recognize this club" (rejected, club flagged for admin review). If the member confirms as contact of an active club, follow-up questions are shown: "Is the contact info still correct?", "Would you like to update the description?", "Is the website still active?"
-  - **Stage 2 (regional suggestions):** Clubs near the registrant's location are shown (pre-populated and onboarding-eligible clubs in the same country/region). For each, the member can: "I'm part of this club" (same affiliation flow as Stage 1), "I know this club but I'm not a member" (positive existence signal, no affiliation), "I've never heard of this club" (negative signal), or skip. Dormant and junk clubs are not shown in regional suggestions.
-  - **Stage 3 (no clubs nearby):** If no direct matches and no regional suggestions apply (or the member skipped all), the member is offered: "Would you like to start a club in [City]?" or skip.
-  - When a member confirms affiliation with a club that is not yet in the live `clubs` table, the club is created on demand from legacy seed data and the member is offered leadership (if Tier 1 benefits). Clubs may have multiple leaders. Leadership acceptance is immediate with no admin confirmation.
-- **First competition year:** During onboarding, the member is asked to optionally confirm their first competition year. This field is editable later on the profile edit page (see M_Edit_Profile).
+- **Post-verify onboarding:** After email verification, the member is routed to `M_Complete_Onboarding_Wizard` (see MIGRATION_PLAN §10) with applicable outstanding tasks. The wizard owns the club affiliation flow (per MIGRATION_PLAN §9.3 Stages 1A, 1B, 2A, 2B, 3A, 3B) and the optional metadata tasks (`first_competition_year`, `show_competitive_results`). Registration itself does not block on these tasks; they are skippable and resumable from the dashboard task widget.
 - Member sees a clear success message after registration: "Registration successful! Please check your email to verify your account."
 - Member sees clear error messages for validation failures with hints about what to fix.
 - Passwords are stored securely using one-way hashing; they are never stored or logged in plaintext.
@@ -670,7 +666,7 @@ Story: As a logged-in member, I can link my legacy footbag.org member record to 
 
 Success Criteria:
 
-- Member can access linking via one unified "Link your history" page reached from the post-verify funnel (every classifier branch lands here), from the profile-edit CTA when either link is missing, and from the dashboard. The page presents one mixed candidate list (legacy account, historical record, and back-linked "both" cases shown as one card with a single Claim button) plus a manual-id input that accepts an old footbag.org member ID, legacy username, legacy email, or historical-record ID. The user does not need to know which underlying table a record lives in.
+- Member accesses linking via the onboarding wizard's `legacy_claim` task (see M_Complete_Onboarding_Wizard), reachable from the post-verify funnel, from the profile-edit CTA when either link is missing, and from the dashboard task widget. The accepted identifiers are: old footbag.org member ID, legacy username, legacy email, or historical-record ID. The user does not need to know which underlying table a record lives in.
 - Member enters one identifier: legacy email address, legacy username, or legacy member ID.
 - If the identifier resolves to an eligible imported row whose `legacy_email` equals the requesting member's verified `login_email` (case-insensitive, trimmed), the system completes the merge synchronously without sending a second confirmation email; the registration-time email-verify step has already proven mailbox control. Anti-enumeration is preserved because this fast path is reachable only after a positive lookup; a non-matching identifier produces the same silent generic banner as a no-match.
 - Otherwise, if an eligible imported row is found, the system emails a time-limited claim link to that row's legacy email address. The response never reveals whether the identifier matched zero rows, multiple rows, a blocked row, or a row without a usable email address. Recommended message: "If an eligible legacy record was found, a claim email will be sent."
@@ -681,30 +677,47 @@ Success Criteria:
   - Last-name mismatch: **blocks the merge**. The member must update their display name to match or contact an admin for manual recovery.
   - First-name mismatch: **warns** but allows the member to proceed.
 - Before merge, the system shows a final confirmation screen identifying the active account that will receive the legacy identity.
-- If mirror-derived club affiliation suggestions or leadership suggestions exist for the claimed identity, the member is prompted to review them before confirming (see M_Review_Legacy_Club_Data_During_Claim).
+- If mirror-derived club affiliation suggestions or leadership suggestions exist for the claimed identity, the member is prompted to review them through the onboarding wizard's `club_affiliations` task (see M_Complete_Onboarding_Wizard and MIGRATION_PLAN §9.3).
 - On confirmation, the merge runs atomically: transfers `legacy_member_id`; merges allowed profile fields (import fills only if active value is empty or absent; active account always wins for credentials, display name, and contact fields); applies `first_competition_year` via COALESCE (member value wins if already set, import value fills if member is NULL); writes a single tier grant per the blanket mapping in `MIGRATION_PLAN.md` §3 ("Tier handling at claim"); writes confirmed club affiliations; may promote confirmed leadership into live club leadership; marks the `legacy_members` row claimed (`claimed_by_member_id` + `claimed_at` set; the row is preserved as the permanent archival record).
 - All claim and merge events are audit-logged.
 - If self-serve claim is not available (no usable legacy email, row flagged for review, or other ineligibility), the member is directed to contact an admin for manual recovery.
 
-### M_Review_Legacy_Club_Data_During_Claim
+### M_Complete_Onboarding_Wizard
 
-Access: Logged-in members in the legacy claim flow or during registration onboarding.
+Access: Newly verified members reach the wizard immediately after email verification. The wizard is the primary entry point for the onboarding task list managed by `MemberOnboardingService` (MIGRATION_PLAN §10) and the primary cleanup channel for legacy club data.
 
-Story: As a member claiming my legacy account (or completing registration onboarding), I can review mirror-derived club suggestions and any leadership assignments so I can confirm or correct club data before the merge is finalized.
+Story: As a newly verified member, I am routed through outstanding onboarding tasks in fixed order (legacy account claim, club affiliations, optional metadata) so my account is bound to my legacy identity, my club affiliations are confirmed or corrected, the legacy club data I have authority over is cleaned up, and my profile is ready to use.
 
 Success Criteria:
 
-- When club affiliation or leadership suggestions exist for the claimant's legacy identity, the claim flow (or onboarding flow) presents them before the final merge confirmation.
-- Each suggestion shows the club name, city, country, and the member's inferred role (contact, member).
-- For each suggestion, the member chooses one of:
-  - **"This is my club and it's still active"**: confirms current affiliation, writes to `member_club_affiliations`. If the member already has a current club affiliation, the previous one is converted to former in the same transaction. Leadership offered if Tier 1 benefits and no active leader exists (acceptance is immediate, no admin confirmation). If the member is the listed contact, follow-up questions: "Is the contact info still correct?", "Would you like to update the description?", "Is the website still active?" Updated data is written to the club record.
-  - **"I was involved but the club is no longer active"**: marks as former affiliation, flags club as reported-inactive. Optional follow-up: "When did it become inactive?" and "Do you know if any other clubs are active in [region]?"
-  - **"This club still exists but I'm no longer involved"**: marks as former affiliation, club stays as-is.
-  - **"I don't recognize this club"**: rejects affiliation, flags club for admin review. Strong signal when the listed contact does not recognize the club.
-- Confirmed leadership promotes the bootstrap row (if any) into a live `club_leaders` row. Clubs may have multiple leaders.
-- If the club is not yet in the live `clubs` table (onboarding-visible or dormant), confirming "still active" creates the club on demand from legacy seed data.
-- All outcomes (current, former, rejected, reported-inactive) are persisted so the member is not repeatedly prompted.
-- Multiple rejections or "never heard of it" signals on the same club across different registrants are accumulated and escalated to admin review.
+- After email verification, the member lands on the first applicable wizard task without an intermediate landing page.
+- Each task renders the task-specific view. The `legacy_claim` task renders a single page mixing `legacy_members` + `historical_persons` + back-linked "both" candidates into one list with neutral provenance labels, plus a manual-id lookup that tries both tables in sequence; HP cards deep-link to `/history/:personId/claim` for direct-HP claim. Token-emailed merge mechanics are specified by `M_Claim_Legacy_Account`. The `club_affiliations` task content is specified by MIGRATION_PLAN §9.3 (Stages 1A, 1B, 2A, 2B, 3A, 3B).
+- On submission, the underlying state is written via the owning service and the `member_onboarding_tasks` row transitions to `completed`.
+- Tasks the server determines are `not_applicable` (for example, no plausible legacy match for a member with a fresh email) are not rendered.
+- Applicability is computed against the claiming member's own account state, not against any historical-persons record the member has claimed. A member who has claimed an HP record marked deceased (via direct-HP claim) still runs the wizard normally; the `is_deceased` attribute applies only to the HP / historical-persons rows, not to the living member's account.
+- Every task offers a `Skip for now` action that transitions the `member_onboarding_tasks` row to `skipped`. Skipping does not block sign-in or any otherwise-authenticated surface; each skip emits an `audit_entries` row.
+- The dashboard task widget (rendered on the personal-home view) queries `MemberOnboardingService.getTaskWidget(memberId)` and lists outstanding tasks (`pending` or `skipped`) ordered by catalog position, each with a `Resume` button that opens the same task UI used at registration (identical service contract regardless of entry point). Completing a task removes it from the widget. When no outstanding tasks remain, or when none are applicable, the widget renders nothing on the dashboard (no empty-state banner, no "all done" message). Skip-resume cycles emit one audit row per transition.
+
+Club-affiliation task acceptance criteria:
+
+- When mirror-derived club affiliation, leadership, or candidate suggestions exist for the member, the `club_affiliations` task presents them per MIGRATION_PLAN §9.3.
+- Each suggestion shows the club name, city, country, and the member's inferred role (contact, member, leader, co-leader).
+- Stage 1A (listed contact) offers five paths per club: still active and involved; still active but moved on; not active anymore; do not recognize listing; defer.
+- Stage 1B (affiliated but not listed contact) offers five paths per club: still a member; was a member, no longer; club is gone; never played there; defer. Stage 1B does not offer wizard-time metadata edits; only Stage 1A path 1 (listed contact) updates club metadata in-flight.
+- Stage 2A (pre-populated clubs nearby) and Stage 2B (onboarding-visible clubs nearby) render as sequenced sub-stages with distinct framings and per-card question wording. Stage 2A's "I'd like to join" path renders a link to the club's join page on the club detail surface and records no wizard signal; the wizard's role is cleanup, not duplicating the regular club-join flow.
+- Stage 3 offers name search (entry to dormant revival in Stage 3A) and new-club creation (Stage 3B).
+- In Stage 3A name search, when a dormant candidate matches the registrant's query but the registrant chooses path 3 "Different club, same name," the candidate is not marked confirmed or rejected. It remains in `legacy_club_candidates` and searchable for future registrants; the search continues against remaining matches.
+- The `club_affiliations` task progresses through stages sequentially: after every Stage 1 card resolves (confirm, reject, defer, or skip) the wizard advances to Stage 2; after every Stage 2 card resolves the wizard advances to Stage 3. Per-card actions persist immediately; on resume from the dashboard widget, the task re-renders only cards that have no signal recorded yet. Skipping the task transitions the row to `skipped`; resume returns the registrant to the first un-signaled card.
+- Confirmed leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of registrant tier. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants per MIGRATION_PLAN §2 activation paths and §9.1. Clubs may have multiple leaders.
+- Promotion of onboarding-visible or dormant candidates to live `clubs` rows follows the promotion paths in MIGRATION_PLAN §9.1.
+- All outcomes (current, former, rejected, historical, reported-inactive, suggested-metadata) are persisted so the member is not repeatedly prompted.
+- Multiple rejections or "never heard of it" signals on the same club across different registrants accumulate and escalate per the demotion levers in MIGRATION_PLAN §9.4.
+- Junk candidates are never shown in any stage.
+
+Optional metadata task acceptance criteria:
+
+- `first_competition_year`: the task renders a single year input prefilled from `historical_persons.first_year` when a legacy claim has linked an HP record, otherwise blank. Submission writes the value to `members.first_competition_year` via `MemberService` (per M_Edit_Profile shape) and marks the task `completed`. Skipping leaves the field NULL; the value is editable later via M_Edit_Profile.
+- `show_competitive_results`: the task renders an explanatory paragraph plus a single boolean toggle defaulting to off. Submission writes `members.show_competitive_results` and marks the task `completed`. Skipping leaves the default (off); the toggle is editable later via M_Edit_Profile.
 
 ## 3.2 Profile Management
 
@@ -748,7 +761,7 @@ Success Criteria:
 - Submitting writes one `audit_entries` row with `actor_type='member'`, `action_type='support.contact_request_submitted'`, `category='support'`, `reason_text=<category-label>`, and `metadata_json` carrying the full message body and the category enum value.
 - A member can hold at most 3 `status='open'` contact requests at a time. A 4th submission returns HTTP 429 with a clear error message that points to the member's open requests.
 - Anonymous visitors do not see this form. The visitor-facing contact path remains the `admin@footbag.org` address surfaced on `/legal`.
-- The form is not exposed on any other member's profile: slug mismatch returns 404 (anti-enumeration), matching the link-history wizard pattern.
+- The form is not exposed on any other member's profile: slug mismatch returns 404 (anti-enumeration), matching the owner-only-slug pattern used elsewhere.
 - HTML, unicode, and other adversarial input in the message body is stored verbatim in audit metadata and escaped when rendered on the admin queue view.
 
 ### M_Search_Members
@@ -1711,6 +1724,27 @@ Success Criteria:
 - All actions are audit-logged.
 
 Note: At registration time, Tier 3 cases are handled by an inline user prompt (default no, user must actively opt in). No admin involvement at registration time.
+
+### A_Review_Club_Cleanup_Signals
+
+Access: Admins only.
+
+Story: As an admin, I can review accumulated wizard cleanup signals on legacy club data so that I can demote unconfirmed pre-populated clubs, revive or retire dormant candidates, archive defunct candidates, and merge duplicates I spot in the queue.
+
+Success Criteria:
+
+- Admin can view a single queue aggregating cleanup signals across categories: pre-populated clubs accumulating "never heard of it" rejections without confirmation, onboarding-visible candidates that have crossed the demotion threshold, onboarding-visible and dormant candidates with no wizard activity at end of the saturation window, pre-populated clubs with zero confirmation at end of window, and admin-spotted duplicate clusters surfaced during queue browsing or H3 hard-exclusion review.
+- Each queue item shows the underlying signals: which registrants contributed, which stage and path, when, and the registrant's authority level (Stage 1A contact, Stage 1B member, Stage 2 local) for each signal.
+- Resolution actions available per item type:
+  - **Duplicate cluster**: merge two or more candidates into one (with the surviving club's metadata, affiliations, and bootstrap rows preserved), or dismiss as not-a-duplicate.
+  - **Accumulated-rejection demotion candidate (pre-populated)**: demote to onboarding-visible, archive, or override (keep as pre-populated with admin note).
+  - **Accumulated-rejection demotion candidate (onboarding-visible)**: demote to dormant, archive, or override.
+  - **Unrevived dormant or stale onboarding-visible (post-window)**: archive, or revive manually (with admin note).
+  - **Unconfirmed pre-populated (post-window)**: mark for additional outreach, demote, or override.
+  - **Junk admin override**: when post-classification evidence indicates a junk candidate is in fact a real club (for example, a Stage 3A name-search signal reports recent activity, or a contact registers and confirms), admin can promote a junk row from the legacy mirror back into `legacy_club_candidates` at classification `dormant` via manual classifier override. The override persists across pipeline reruns and is audit-logged. Junk → live is not directly available; recovery routes through `dormant` first.
+- All resolutions are audit-logged with actor, item type, club ID(s), decision, and timestamp.
+- The queue surface respects the privacy and anti-enumeration rules that apply to legacy data: admin-only access, no public exposure of registrant signal authorship.
+- The legacy_club_candidates table may be dropped only after the queue is empty and every non-junk candidate has reached a terminal state per MIGRATION_PLAN §9.4.
 
 ## 6.3 Content Moderation
 

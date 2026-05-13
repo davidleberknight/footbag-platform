@@ -23,12 +23,13 @@ This guide helps contributors do different things: understand how the initial pu
   - [1.2 Supported machine setup](#12-supported-machine-setup)
   - [1.3 Required tools](#13-required-tools)
   - [1.4 First-time machine install steps](#14-first-time-machine-install-steps)
-  - [1.5 Clone and install](#15-clone-and-install)
+  - [1.5 Clone and install the project GitHub repository](#15-clone-and-install-the-project-github-repository)
   - [1.6 Local env file](#16-local-env-file)
   - [1.7 Reset the local database](#17-reset-the-local-database)
   - [1.8 Run the test suite](#18-run-the-test-suite)
   - [1.9 Run the dev server](#19-run-the-dev-server)
   - [1.10 Browser verification](#110-browser-verification)
+  - [1.10A Optional: exercise Safe Browsing in dev](#110a-optional-exercise-safe-browsing-in-dev)
   - [1.11 Optional deterministic checks](#111-optional-deterministic-checks)
   - [1.12 Docker parity check](#112-docker-parity-check)
 - [2. Path B — Orientation: what this project is and how to think about it](#2-path-b--orientation-what-this-project-is-and-how-to-think-about-it)
@@ -542,11 +543,43 @@ The two marker columns (`reason_code = 'dev_admin_invariant_repair'` and `action
 npm test
 ```
 
-This is the first proof that your local environment is healthy.
+This is the first proof that your local environment is healthy. Tests should pass before you spend time debugging browser behavior.
 
-Tests should pass before you spend time debugging browser behavior.
+The suite is split:
 
-The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, dev autologin slug fallback, transaction atomicity) plus the dev-admin-seed schema-coupling canary and password-leak regression. Each test file owns a temp database via `tests/fixtures/testDb.ts`; failures point at the contract that drifted, not at any real DB.
+- `npm test` — unit + integration suites only; the default everyday verification. Excludes smoke and e2e via `vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**'`.
+- `npm run test:unit` — pure-function tests under `tests/unit/`; no DB.
+- `npm run test:integration` — HTTP-via-supertest tests under `tests/integration/`; each file owns its own temp SQLite DB via `tests/fixtures/testDb.ts`.
+- `npm run test:smoke` — staging AWS smoke tests under `tests/smoke/`; run only when the user explicitly asks "run ALL tests" or when verifying staging AWS wiring. Requires assumed-role credentials on the workstation.
+- `npm run test:e2e` — Playwright browser tests under `tests/e2e/`; spins up the full stack locally with an ephemeral DB.
+- `npm run test:watch` — vitest in watch mode for fast iteration.
+- `npm run build` — `tsc -p tsconfig.json` typecheck. Must pass before any PR.
+
+The suite includes a migration-testing cluster under `tests/integration/` that exercises the legacy-data import path (legacy-claim merge, two-step emailed-token claim flow, batch auto-link SYS job, HP-detail Claim CTA, dev autologin slug fallback, transaction atomicity) plus the dev-admin-seed schema-coupling canary and password-leak regression.
+
+#### Writing new tests
+
+Place new tests under the matching directory: pure functions go to `tests/unit/`, HTTP/route tests go to `tests/integration/`. Use the factories at `tests/fixtures/factories.ts` to insert deterministic test data (`insertMember`, `insertEvent`, `insertClub`, etc.); never hand-roll INSERT statements.
+
+#### CSRF Origin-pin: tests that POST must import the helper
+
+`src/middleware/requireOriginPin.ts` rejects state-changing requests (POST/PUT/PATCH/DELETE) whose `Origin` header does not match `config.publicBaseUrl`. Supertest does not set Origin by default, so integration tests that exercise mutations import a wrapper instead of `supertest` directly:
+
+```typescript
+import request from '../fixtures/supertestWithOrigin';
+```
+
+The wrapper auto-sets `Origin: process.env.PUBLIC_BASE_URL` on `.post()`, `.put()`, `.patch()`, `.delete()`, and on `request.agent(app)`. GETs pass through unmodified. Override per-call with `.set('Origin', ...)` when you intentionally test mismatched origins (see `tests/integration/csrf.origin-pin.test.ts` for the canonical Origin-matrix example, which deliberately imports raw `supertest`).
+
+Manual curl POSTs against the local dev server must also set `Origin: http://localhost:3000`, or the response will be a `403 Forbidden` before the controller runs.
+
+#### Adapter parity test contract
+
+New adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, future) land with three permanent tests per `tests/CLAUDE.md`:
+
+1. Boot-time config test in `tests/unit/env-config.test.ts` — `src/config/env.ts` fails fast at module load when required prod-mode env vars are absent.
+2. Interface parity test in `tests/integration/adapter-parity.test.ts` — both implementations satisfy the TypeScript interface and produce identical-structure observable outputs (injected fake AWS client, not a mocked SDK).
+3. Staging-smoke test in `tests/smoke/` — hits real staging AWS via assumed-role chain; gated behind `RUN_STAGING_SMOKE=1`.
 
 ### 1.9 Run the dev server
 

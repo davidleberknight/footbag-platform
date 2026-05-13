@@ -37,31 +37,6 @@ repository ownership transfer.
 
 ---
 
-## Pending IFPA decision — notice block
-
-Add to any document section awaiting IFPA approval, and label the issue or PR
-`status: pending-ifpa-board`:
-
-```
-> ⚠️ **Pending IFPA Board Decision**
-> This content has been proposed but has not received formal IFPA Board approval.
-> Do not treat it as authoritative IFPA policy until this notice is removed.
-```
-
-Category B changes must not be merged to `main` until IFPA approval is
-documented in the PR.
-
----
-
-## Merge policy
-
-| Change type | Target branch | IFPA approval |
-|---|---|---|
-| Category A | `main` | No |
-| Category B | `drafts/[topic]` → `main` | Required before merge |
-
----
-
 ## Future transfer
 
 This repository is hosted on a personal account for attribution and contribution
