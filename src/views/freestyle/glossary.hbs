@@ -100,6 +100,10 @@
 
   <section class="content-section">
     <h2 class="section-heading">3. How Tricks Are Built</h2>
+
+    {{! Operator board — visual orientation for the compositional vocabulary referenced throughout this section. }}
+    {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
+
     <p>A trick is typically composed of:</p>
     <pre><code>set &rarr; modifiers &rarr; base &rarr; catch (stall or kick)</code></pre>
     <ul>

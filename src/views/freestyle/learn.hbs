@@ -25,6 +25,9 @@
 
     <p class="learn-intro">{{content.pageIntro}}</p>
 
+    {{! Operator board — symbolic-onboarding surface. Anchors the educational pathways below in the same compositional vocabulary they teach. }}
+    {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
+
     {{#each content.sections}}
     <section class="learn-section">
       <h2 class="learn-section-heading">{{heading}}</h2>

@@ -221,6 +221,24 @@ export interface OperatorBoardData {
   lede:    string;
   tiers:   OperatorBoardTier[];
 }
+// Surface tag for the connective-prose lookup. The tiers are surface-invariant;
+// only heading + lede change. Default is 'landing' to keep the original call
+// site (FreestyleService.getLandingPage) unchanged.
+export type OperatorBoardSurface = 'landing' | 'glossary' | 'learn';
+const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede: string }> = {
+  landing: {
+    heading: 'The operators of freestyle',
+    lede:    'Freestyle footbag is a compositional movement language. These fourteen operators are its primitives — combine them and you get every named trick in the dictionary.',
+  },
+  glossary: {
+    heading: 'The compositional vocabulary',
+    lede:    'These fourteen operators are the primitive movement modifiers of freestyle composition. The sections below define each in greater depth; this board is the visual map.',
+  },
+  learn: {
+    heading: 'Start with the operators',
+    lede:    'Freestyle tricks are built by combining movement operators. Learn these fourteen primitives first — every other surface in this section assumes their vocabulary.',
+  },
+};
 
 interface TrickRefMediaRow {
   id: string;
@@ -1438,6 +1456,9 @@ export interface FreestylePartnershipsContent {
 // trick-detail page uses. Keeps the glossary's promise ("color-coded
 // structural roles") visible on the page itself.
 export interface FreestyleGlossaryContent {
+  // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
+  // Shared partial with the landing page; surface-specific heading + lede.
+  operatorBoard:    OperatorBoardData;
   notationExamples: {
     whirl:        NotationDisplay | null;
     paradoxWhirl: NotationDisplay | null;
@@ -3530,7 +3551,7 @@ export const freestyleService = {
    * Per DISCOVERABILITY phase. Hand-authored content; no DB access.
    */
   getSymbolicLearnPage(): PageViewModel<SymbolicLearnIndexContent> {
-    const content = buildSymbolicLearnIndex();
+    const content = buildSymbolicLearnIndex(this.getOperatorBoard('learn'));
     return {
       seo: {
         title:       'Educational pathways — Freestyle',
@@ -3665,6 +3686,7 @@ export const freestyleService = {
         ],
       },
       content: {
+        operatorBoard: this.getOperatorBoard('glossary'),
         notationExamples: {
           whirl:        whirlExample,
           paradoxWhirl: paradoxWhirlExample,
@@ -3756,11 +3778,13 @@ export const freestyleService = {
     };
   },
 
-  // ── Operator board (landing + future reuse on glossary §3 + /freestyle/learn)
-  // Returns the 14-operator Tier-1 vocabulary in three tiers. Static; pre-shaped
-  // for logic-light Handlebars consumption. Captions are sketch-level pending
-  // curator confirmation on the four cells flagged with curatorConfirmPending.
-  getOperatorBoard(): OperatorBoardData {
+  // ── Operator board — Tier-1 movement-language vocabulary.
+  // Renders on the freestyle landing page, glossary §3, and /freestyle/learn
+  // via the same operator-board partial. Tiers (the 14 operators) are
+  // surface-invariant; heading + lede vary per surface (see
+  // OPERATOR_BOARD_PROSE). Captions are sketch-level pending curator
+  // confirmation on the four cells flagged with curatorConfirmPending.
+  getOperatorBoard(surface: OperatorBoardSurface = 'landing'): OperatorBoardData {
     const op = (
       glyph: string,
       name: string,
@@ -3773,8 +3797,7 @@ export const freestyleService = {
     });
 
     return {
-      heading: 'The operators of freestyle',
-      lede:    'Freestyle footbag is a compositional movement language. These fourteen operators are its primitives — combine them and you get every named trick in the dictionary.',
+      ...OPERATOR_BOARD_PROSE[surface],
       tiers: [
         {
           key:     'set',

@@ -108,6 +108,46 @@ describe('GET /freestyle/learn', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// 1b. /freestyle/learn — operator-board onboarding surface
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/learn — operator-board onboarding surface', () => {
+  it('renders the learn-surface operator-board heading and lede', async () => {
+    const res = await request(createApp()).get('/freestyle/learn');
+    expect(res.text).toContain('Start with the operators');
+    expect(res.text).toContain('Freestyle tricks are built by combining movement operators');
+  });
+
+  it('does not render the landing- or glossary-surface operator-board prose', async () => {
+    const res = await request(createApp()).get('/freestyle/learn');
+    expect(res.text).not.toContain('The operators of freestyle');
+    expect(res.text).not.toContain('The compositional vocabulary');
+  });
+
+  it('renders all 14 Tier-1 operator glyphs', async () => {
+    const res = await request(createApp()).get('/freestyle/learn');
+    const glyphs = [
+      'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
+      'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
+      'XDEX', 'SAME', 'OP',
+    ];
+    for (const glyph of glyphs) {
+      expect(res.text).toMatch(new RegExp(`<p class="operator-glyph">${glyph}</p>`));
+    }
+  });
+
+  it('embeds the operator board after the page intro and before the section list', async () => {
+    const res = await request(createApp()).get('/freestyle/learn');
+    const introIdx    = res.text.indexOf('class="learn-intro"');
+    const boardIdx    = res.text.indexOf('class="operator-board');
+    const firstSecIdx = res.text.indexOf('class="learn-section"');
+    expect(introIdx).toBeGreaterThan(0);
+    expect(boardIdx).toBeGreaterThan(introIdx);
+    expect(firstSecIdx).toBeGreaterThan(boardIdx);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // 2. Trick-page educational CTAs
 // ─────────────────────────────────────────────────────────────────────────
 

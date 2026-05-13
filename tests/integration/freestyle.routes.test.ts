@@ -503,6 +503,48 @@ describe('GET /freestyle/glossary', () => {
 
 // ---------------------------------------------------------------------------
 
+describe('GET /freestyle/glossary — operator-board orientation in §3', () => {
+  it('renders the glossary-surface operator-board heading and lede', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('The compositional vocabulary');
+    expect(res.text).toContain('primitive movement modifiers of freestyle composition');
+  });
+
+  it('does not render the landing-surface operator-board prose', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).not.toContain('The operators of freestyle');
+    expect(res.text).not.toContain('Freestyle footbag is a compositional movement language');
+  });
+
+  it('renders all 14 Tier-1 operator glyphs', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const glyphs = [
+      'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
+      'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
+      'XDEX', 'SAME', 'OP',
+    ];
+    for (const glyph of glyphs) {
+      expect(res.text).toMatch(new RegExp(`<p class="operator-glyph">${glyph}</p>`));
+    }
+  });
+
+  it('embeds the operator board between §3 heading and §4 heading', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const sec3Idx  = res.text.indexOf('3. How Tricks Are Built');
+    const boardIdx = res.text.indexOf('class="operator-board');
+    const sec4Idx  = res.text.indexOf('4. Naming');
+    expect(sec3Idx).toBeGreaterThan(0);
+    expect(boardIdx).toBeGreaterThan(sec3Idx);
+    expect(sec4Idx).toBeGreaterThan(boardIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 describe('GET /freestyle — glossary link', () => {
   it('links to /freestyle/glossary on the landing page', async () => {
     const app = createApp();
