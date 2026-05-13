@@ -67,10 +67,10 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
     },
     {
       title:      'Ducking',
-      href:       '#ducking-coming-soon',
-      shortBlurb: 'Head-motion body modifier with three sibling variants — diving, weaving, zulu (planned).',
-      status:     'planned',
-      isShipped:  false,
+      href:       '/freestyle/modifier/ducking',
+      shortBlurb: 'A head dip that lets the bag pass around the neck. One member of a four-way head-motion family (ducking / weaving / diving / zulu — a 2×2 of head direction × bag-fall side). Six teaching sections including a progression on butterfly and folk single-token compounds (phoenix, mullet, mind-bender) that hide ducking in their canonical reading.',
+      status:     'shipped',
+      isShipped:  true,
     },
   ],
 };

@@ -74,19 +74,19 @@ describe('GET /freestyle/learn', () => {
     expect(c).toBeGreaterThan(b);
   });
 
-  it('renders shipped entries as links and planned entries as non-link with status badge', async () => {
+  it('renders all four currently shipped entries as links', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
-    // Shipped: walking-family progression — should be a link
     expect(res.text).toMatch(/href="\/freestyle\/progression\/walking-family"[^>]*>Walking-family progression/);
-    // Shipped: spinning modifier
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/spinning"[^>]*>Spinning/);
-    // Shipped: paradox modifier
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/paradox"[^>]*>Paradox/);
-    // Shipped: glossary panels
+    expect(res.text).toMatch(/href="\/freestyle\/modifier\/ducking"[^>]*>Ducking/);
     expect(res.text).toContain('href="/freestyle/glossary#connective-panels"');
-    // Planned: only Ducking remains — rendered without href, with "planned" status chip
-    expect(res.text).toContain('learn-entry-planned');
-    expect(res.text).toMatch(/Ducking[\s\S]*?planned/i);
+  });
+
+  it('no entries render with the planned status badge (all three modifier pages now ship)', async () => {
+    const res = await request(createApp()).get('/freestyle/learn');
+    expect(res.text).not.toContain('learn-entry-planned');
+    expect(res.text).not.toContain('learn-entry-status');
   });
 
   it('renders the observational-layer badge', async () => {

@@ -374,10 +374,136 @@ const PARADOX_CONTENT: ModifierEducationInput = {
   ],
 };
 
+// ─────────────────────────────────────────────────────────────────────────
+// Authored content — DUCKING
+// ─────────────────────────────────────────────────────────────────────────
+
+const DUCKING_CONTENT: ModifierEducationInput = {
+  slug:        'ducking',
+  displayName: 'Ducking',
+  pageTitle:   'Ducking',
+  pageSubtitle: 'A head dip that lets the bag pass around the neck — one member of a four-way family of head-motion modifiers.',
+  mechanicalLead: {
+    whereTheMotionLives:
+      'The head and neck. The shoulders move along for balance, but the body stays largely where it is; the head dips out of the bag\'s path and the bag passes around it. Picture the bag tracing a small arc around the side of the neck while the chest and hips remain centered.',
+    whenItHappens:
+      'Between two dexes, while the bag is in the air. The head moves toward the bag\'s line and dips before the second dex meets it. If the head dips after the bag has already cleared, the modifier is not present — the body just bobbed.',
+    whatItFeelsLike:
+      'The bag goes one way; the head goes toward where the bag was. There is a moment where the head and the bag are close enough that the dip is recognizably a duck, not a lean. The bag emerges on the opposite side of the head from where the head was moving.',
+    commonFailure:
+      'The whole upper body leans instead of just the head dipping. That reads as a body-tilt, not a duck — the bag is no longer tracing an arc around the neck; it is just falling past a leaning body. The motion has to be local to the head.',
+  },
+  anchorSentence:
+    'The head moves toward the bag and dips while the bag passes around the neck; the rest of the body continues through the trick largely unmoved.',
+  diagramPlaceholder:
+    'Head-motion 2×2 diagram — head direction × side the bag falls. Diagram planned.',
+  confusions: [
+    {
+      heading: 'The four head-motion siblings (ducking / weaving / diving / zulu)',
+      prose:
+        'The ducking family is a 2×2 matrix. Two questions: does the head move TOWARD the bag, or OVER and under it? And does the bag fall on the OPPOSITE side from the head\'s motion, or the SAME side? Ducking = head toward bag, bag opposite. Weaving = head toward bag, bag same side. Diving = head over and under bag, bag same side. Zulu = head over and under bag, bag opposite. All four are +1 body modifiers; which one you have depends on the two answers.',
+    },
+    {
+      heading: 'Ducking vs other body modifiers',
+      prose:
+        'Ducking is a head/neck movement. Paradox is a hip pivot. Spinning is a whole-body rotation. Symposium is a no-plant leg discipline. Each body modifier lives in a different body region, and stacking them is mostly additive — the head dips while the hips pivot while the body turns. Montage carries spinning, paradox, symposium, AND ducking on the whirl base.',
+    },
+    {
+      heading: 'Ducking as a hidden modifier',
+      prose:
+        'Several tricks contain ducking in their canonical reading without the word "ducking" in the trick name. Phoenix is pixie + ducking + butterfly — the technical-name reading is "Pixie Ducking Butterfly." Mind-bender, mullet, gauntlet, and montage all list as members of the ducking-family by modifier link, even though the head-dip is buried inside a compound name. The Alpine modifier is a meta-operator: Alpine X means "take X, divide it between uptime and downtime, and insert a duck or dive in the middle" — so Alpine Ripwalk is structurally Stepping Ducking Butterfly.',
+    },
+  ],
+  progression: {
+    anchorBaseLabel: 'on butterfly',
+    steps: [
+      {
+        slug:          'butterfly',
+        modifierAdded: 'anchor (no ducking yet)',
+        rationale:
+          'Learn the wing-motion dex first. Butterfly is the dex shape that the head-dip will later sit alongside. Without the wing motion, the head dip has no trick to live inside of.',
+      },
+      {
+        slug:          'ducking-butterfly',
+        modifierAdded: '+ ducking',
+        rationale:
+          'The clearest single teaching case. Same wing motion, same kick path; the head now dips between the dexes while the bag traces an arc around the neck. One new variable, one body region added, ADD goes up by one.',
+      },
+      {
+        slug:          'ducking-whirl',
+        modifierAdded: '+ ducking on a rotational base',
+        rationale:
+          'Same head dip, different dex shape. The whirl base is a rotational arc rather than a wing motion, so the head dip now happens during a turn. The modifier is doing the same job; the body around it is doing something different.',
+      },
+      {
+        slug:          'phoenix',
+        modifierAdded: '+ pixie (the "Pixie Ducking Butterfly" stack)',
+        rationale:
+          'Phoenix is a folk single-token name whose technical name is Pixie Ducking Butterfly — pixie is a set treatment, ducking is the head dip, butterfly is the base. The same head dip you learned at step two is still doing the same job; now there is a pixie set in front of it.',
+      },
+    ],
+  },
+  crossBase: {
+    framingLine:
+      'The head dip is the same in each of these — what changes is the dex shape the head is dipping during.',
+    examples: [
+      {
+        slug:      'ducking-clipper',
+        baseLabel: 'on clipper-stall base',
+        prose:
+          'A low-ADD case (3 ADD). The clipper-stall base is the simplest dex shape in the freestyle vocabulary, which makes ducking-clipper a useful pure teaching case for the head-dip mechanic without a complex base to manage simultaneously.',
+      },
+      {
+        slug:      'ducking-osis',
+        baseLabel: 'on osis base',
+        prose:
+          'The head dip applied to osis\'s hippy-in-extended arc. The two motions are largely orthogonal — the hips drive the osis, the head drives the duck. They stack cleanly because they live in different body regions.',
+      },
+      {
+        slug:      'mullet',
+        baseLabel: 'on whirl base, with paradox and symposium',
+        prose:
+          'A folk single-token name in the ducking-family by modifier link. Mullet (6 ADD) layers paradox and symposium on a whirl base alongside the head dip — four body modifiers stacked, ducking still recognizably doing the same job.',
+      },
+      {
+        slug:      'mind-bender',
+        baseLabel: 'on torque base, with paradox',
+        prose:
+          'Another folk single-token name in the ducking-family. The head dip and the paradox hip pivot run simultaneously around a torque-shaped dex — three body modifiers in different regions, none collapsing into the others.',
+      },
+      {
+        slug:      'hatchet',
+        baseLabel: 'on whirl base, with the diving sibling',
+        prose:
+          'Hatchet uses the diving sibling (head over and under the bag) rather than ducking proper. Included as a cross-family example: the same body region (head/neck), but the motion goes around the bag\'s arc rather than dipping under one side of it.',
+      },
+    ],
+  },
+  relatedModifiers: [
+    {
+      name:  'weaving',
+      prose: 'Sibling head-motion modifier. Same head motion toward the bag as ducking; bag falls to the SAME side as the head moved, not the opposite.',
+    },
+    {
+      name:  'diving',
+      prose: 'Sibling head-motion modifier. The head goes OVER and UNDER the bag in a full arc; bag falls to the same side as the initial head movement. Hatchet is the named compound.',
+    },
+    {
+      name:  'zulu',
+      prose: 'Sibling head-motion modifier. The head goes over and under the bag like diving, but the bag falls to the opposite side. The full-arc sibling of ducking.',
+    },
+    {
+      name:  'alpine',
+      prose: 'A meta-operator that inserts a duck or dive between uptime and downtime of a base trick. Alpine Ripwalk = Stepping Ducking Butterfly; the modifier is named by the operator rather than the head-motion sibling.',
+    },
+  ],
+};
+
 // Registry — modifier-family pedagogy pages.
 const MODIFIER_PAGE_CONTENT: Record<string, ModifierEducationInput> = {
   spinning: SPINNING_CONTENT,
   paradox:  PARADOX_CONTENT,
+  ducking:  DUCKING_CONTENT,
 };
 
 // ─────────────────────────────────────────────────────────────────────────

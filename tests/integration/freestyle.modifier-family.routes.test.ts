@@ -61,6 +61,17 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'blur',                    canonical_name: 'blur',                    adds: '4', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
   insertFreestyleTrick(db, { slug: 'fury',                    canonical_name: 'fury',                    adds: '5', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
 
+  // Ducking progression + cross-base seeds
+  insertFreestyleTrick(db, { slug: 'butterfly',        canonical_name: 'butterfly',        adds: '3', base_trick: 'butterfly',     trick_family: 'butterfly',     category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking-butterfly', canonical_name: 'ducking butterfly', adds: '4', base_trick: 'butterfly',     trick_family: 'butterfly',     category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking-whirl',     canonical_name: 'ducking whirl',     adds: '4', base_trick: 'whirl',         trick_family: 'whirl',         category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'phoenix',           canonical_name: 'phoenix',           adds: '5', base_trick: 'butterfly',     trick_family: 'butterfly',     category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking-clipper',   canonical_name: 'ducking clipper',   adds: '3', base_trick: 'clipper-stall', trick_family: 'clipper-stall', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'ducking-osis',      canonical_name: 'ducking osis',      adds: '4', base_trick: 'osis',          trick_family: 'osis',          category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'mullet',            canonical_name: 'mullet',            adds: '6', base_trick: 'whirl',         trick_family: 'whirl',         category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'mind-bender',       canonical_name: 'mind bender',       adds: '6', base_trick: 'torque',        trick_family: 'torque',        category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'hatchet',           canonical_name: 'hatchet',           adds: '5', base_trick: 'whirl',         trick_family: 'whirl',         category: 'compound' });
+
   db.close();
   createApp = await importApp();
 });
@@ -261,12 +272,92 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
   });
 });
 
-describe('GET /freestyle/modifier/:slug — 404 paths', () => {
-  it('returns 404 for ducking (not yet shipped)', async () => {
+describe('GET /freestyle/modifier/ducking — happy path', () => {
+  it('returns 200', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/ducking');
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
   });
 
+  it('renders page title and subtitle', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toContain('Ducking');
+    expect(res.text).toMatch(/head dip that lets the bag pass around the neck/);
+  });
+
+  it('renders all six teaching sections', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toContain('The body and the motion');
+    expect(res.text).toContain('anchor-sentence');
+    expect(res.text).toContain('diagram-placeholder');
+    expect(res.text).toContain('Common confusions');
+    expect(res.text).toContain('The four head-motion siblings');
+    expect(res.text).toContain('Ducking vs other body modifiers');
+    expect(res.text).toContain('Ducking as a hidden modifier');
+    expect(res.text).toMatch(/Progression on butterfly/);
+    expect(res.text).toContain('The same idea on other bases');
+    expect(res.text).toContain('Related modifiers');
+  });
+
+  it('renders the 2×2 head-motion family explanation', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    // The "=" character in the source prose renders as &#x3D; via Handlebars escaping;
+    // assert on the descriptive phrases on either side instead of the literal equals sign.
+    expect(res.text).toMatch(/Weaving.*head toward bag, bag same side/i);
+    expect(res.text).toMatch(/Diving.*head over and under bag, bag same side/i);
+    expect(res.text).toMatch(/Zulu.*head over and under bag, bag opposite/i);
+  });
+
+  it('uses coach-tone phrases (not engineering-manual phrasing)', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toMatch(/passes around the neck/i);
+    expect(res.text).toMatch(/dips out of the bag/i);
+    expect(res.text).toMatch(/has to be local to the head/i);
+  });
+
+  it('renders progression chain with anchor flag on butterfly step', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toContain('modifier-step-1-butterfly');
+    expect(res.text).toContain('modifier-step-2-ducking-butterfly');
+    expect(res.text).toContain('modifier-step-3-ducking-whirl');
+    expect(res.text).toContain('modifier-step-4-phoenix');
+    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
+    expect(anchorMatches.length).toBe(1);
+  });
+
+  it('renders cross-base examples including folk-name compounds (phoenix-already-progression, mullet, mind-bender, hatchet)', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toContain('href="/freestyle/tricks/ducking-clipper"');
+    expect(res.text).toContain('href="/freestyle/tricks/ducking-osis"');
+    expect(res.text).toContain('href="/freestyle/tricks/mullet"');
+    expect(res.text).toContain('href="/freestyle/tricks/mind-bender"');
+    expect(res.text).toContain('href="/freestyle/tricks/hatchet"');
+  });
+
+  it('renders related modifiers list with weaving / diving / zulu / alpine', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toContain('related-modifiers-list');
+    expect(res.text).toContain('weaving');
+    expect(res.text).toContain('diving');
+    expect(res.text).toContain('zulu');
+    expect(res.text).toContain('alpine');
+  });
+
+  it('observational-layer badge and footer rendered', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toContain('symbolic-layer-badge');
+    expect(res.text.toLowerCase()).toContain('observational');
+    expect(res.text).toContain('symbolic-layer-footer');
+  });
+
+  it('renders cross-link footer to walking-progression and /freestyle/learn', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/ducking');
+    expect(res.text).toContain('symbolic-crosslinks');
+    expect(res.text).toContain('href="/freestyle/progression/walking-family"');
+    expect(res.text).toContain('href="/freestyle/learn"');
+  });
+});
+
+describe('GET /freestyle/modifier/:slug — 404 paths', () => {
   it('returns 404 for unknown slug', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/garbage-slug');
     expect(res.status).toBe(404);
