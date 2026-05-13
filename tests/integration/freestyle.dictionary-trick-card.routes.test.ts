@@ -353,13 +353,18 @@ describe('other dictionary views — slice-by-slice migration', () => {
     expect(res.text).toContain('dict-card-stack');
   });
 
-  it('/freestyle/tricks?view=category still returns 200 (not yet migrated)', async () => {
+  it('/freestyle/tricks?view=category returns 200 and uses the shared card (slice 3B migrated)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('dict-card-stack');
   });
 
-  it('not-yet-migrated views (category) do NOT use the dict-card-stack container', async () => {
-    const category = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(category.text).not.toContain('dict-card-stack');
+  it('every browse view now renders via the shared dictionary-trick-card partial (card-uniformity contract)', async () => {
+    for (const view of ['', 'family', 'category', 'component', 'sets']) {
+      const url = view ? `/freestyle/tricks?view=${view}` : '/freestyle/tricks';
+      const res = await request(createApp()).get(url);
+      expect(res.status).toBe(200);
+      expect(res.text, `${url} must render dict-card-stack`).toContain('dict-card-stack');
+    }
   });
 });

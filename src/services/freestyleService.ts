@@ -1131,6 +1131,10 @@ export interface FreestyleTrickGroup {
   category: string;
   label: string;
   tricks: FreestyleTrickIndexRow[];
+  // DSC-2 slice 3B: shared symbolic trick cards; spreadsheet retired.
+  // ADD ascending then trick name alphabetical.
+  cards: DictionaryTrickCard[];
+  anchorId: string;   // `category-{slug}`
 }
 
 // ADD-grouped bucket for the beginner/default view. addNumeric is null for
@@ -2784,9 +2788,14 @@ export const freestyleService = {
     // pending rows belong only in the ADD view as placeholders).
     const activeRows = allRows.filter(r => r.is_active === 1);
 
-    // ---- Category groups (preserved for ?view=category) ---------------
+    // ---- Category groups (?view=category) -----------------------------
+    //
+    // DSC-2 slice 3B: each group now emits a `cards: DictionaryTrickCard[]`
+    // array alongside the legacy `tricks` shape. Cards sort ADD ascending,
+    // then trick name alphabetical. Empty categories don't render. The
+    // legacy spreadsheet table is retired in the template.
     const categoryOrder = ['dex', 'body', 'set', 'compound'];
-    const grouped = new Map<string, FreestyleTrickRow[]>();
+    const grouped = new Map<string, FreestyleTrickRowWithStatus[]>();
     for (const row of activeRows) {
       if (row.category === 'modifier') continue;
       const cat = row.category ?? 'other';
@@ -2794,20 +2803,36 @@ export const freestyleService = {
       bucket.push(row);
       grouped.set(cat, bucket);
     }
-    const groups: FreestyleTrickGroup[] = categoryOrder
-      .filter(cat => grouped.has(cat))
-      .map(cat => ({
+
+    const sortCategoryRows = (rows: FreestyleTrickRowWithStatus[]): FreestyleTrickRowWithStatus[] =>
+      rows.slice().sort((a, b) => {
+        const an = parseAddNumeric(a.adds);
+        const bn = parseAddNumeric(b.adds);
+        const ai = an ?? Number.POSITIVE_INFINITY;
+        const bi = bn ?? Number.POSITIVE_INFINITY;
+        if (ai !== bi) return ai - bi;
+        return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
+      });
+
+    const buildCategoryGroup = (cat: string, rows: FreestyleTrickRowWithStatus[]): FreestyleTrickGroup => {
+      const sorted = sortCategoryRows(rows);
+      const indexRows = sorted.map(r => shapeTrickIndexRow(r, ctx));
+      const cards = sorted.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!));
+      return {
         category: cat,
         label:    CATEGORY_LABELS[cat] ?? cat,
-        tricks:   (grouped.get(cat) ?? []).map(r => shapeTrickIndexRow(r, ctx)),
-      }));
+        tricks:   indexRows,
+        cards,
+        anchorId: `category-${cat}`,
+      };
+    };
+
+    const groups: FreestyleTrickGroup[] = categoryOrder
+      .filter(cat => grouped.has(cat))
+      .map(cat => buildCategoryGroup(cat, grouped.get(cat) ?? []));
     for (const [cat, rows] of grouped.entries()) {
       if (!categoryOrder.includes(cat) && cat !== 'modifier') {
-        groups.push({
-          category: cat,
-          label:    CATEGORY_LABELS[cat] ?? cat,
-          tricks:   rows.map(r => shapeTrickIndexRow(r, ctx)),
-        });
+        groups.push(buildCategoryGroup(cat, rows));
       }
     }
 

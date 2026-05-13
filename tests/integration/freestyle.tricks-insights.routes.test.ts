@@ -365,15 +365,16 @@ describe('GET /freestyle/tricks', () => {
     // presentation' describe block below.
   });
 
-  it('shows trick descriptions in the category view (descriptions are not on the By ADD cards)', async () => {
-    // DSC-2 slice 1: the By ADD view migrated to symbolic trick cards, which
-    // intentionally omit prose descriptions ('prose descriptions should NOT
-    // appear in browse cards'). The category view still renders descriptions
-    // in its legacy spreadsheet layout.
+  it('descriptions are no longer rendered in any browse view (DSC-2 slice 3B retired the spreadsheet)', async () => {
+    // DSC-2 slice 3B: the By Category view migrated to symbolic trick cards.
+    // Prose descriptions are explicitly excluded from every browse card (ADD,
+    // family, component, category). Descriptions still live on the trick-
+    // detail page; browse cards don't carry them.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
-    expect(res.text).toContain('most connected trick');
-    expect(res.text).toContain('maximum documented base ADD');
+    expect(res.text).not.toContain('most connected trick');
+    expect(res.text).not.toContain('maximum documented base ADD');
+    expect(res.text).not.toContain('trick-description');
   });
 
   it('shows ADD values', async () => {
@@ -421,12 +422,11 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('<th>Notation</th>');
-    // 'whirl' was seeded with a notation; expect it to render in a <code> cell.
-    // whirl was seeded with notation 'WHIRL' (Tier 1 LOCKED form per
-     // NOTATION_STYLE_GUIDE §6.2). The dictionary-list page renders it inside a
-     // <code> cell.
-     expect(res.text).toContain('>WHIRL<');
+    // DSC-2 slice 3B: category view retires the Notation column header.
+    // The shared dict-card-stack renders operational notation via role-tagged
+    // token spans on each card, not in a table column.
+    expect(res.text).not.toContain('<th>Notation</th>');
+    expect(res.text).toContain('dict-card-stack');
   });
 
   it('renders notation inline in the default ADD view (no table header)', async () => {
@@ -460,20 +460,20 @@ describe('public dictionary presentation', () => {
     expect(res.text).not.toContain('+ADD (rotational)');
   });
 
-  it('renders a hashtag under each trick name in the category view', async () => {
+  it('category view cards carry data-trick-slug as the per-card identity attribute (DSC-2 slice 3B)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
-    // Hashtag is an identity link in the category-table layout: #whirl → /freestyle/tricks/whirl
-    expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/whirl"[^>]*>#whirl</);
-    expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/legover"[^>]*>#legover</);
+    // The shared dictionary-trick-card exposes data-trick-slug on the card root;
+    // the legacy `trick-hashtag` element is retired with the spreadsheet.
+    expect(res.text).toContain('data-trick-slug="whirl"');
+    expect(res.text).toContain('data-trick-slug="legover"');
   });
 
-  it('strips hyphens from compound slugs in the category-view hashtag', async () => {
+  it('compound slugs (e.g. spinning-whirl) preserve their slug in data-trick-slug', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=category');
-    // 'spinning-whirl' renders #spinningwhirl linking to /freestyle/tricks/spinning-whirl
-    expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/spinning-whirl"[^>]*>#spinningwhirl</);
+    expect(res.text).toContain('data-trick-slug="spinning-whirl"');
   });
 
   it('makes family-section headings clickable as family-filter links in the family view', async () => {
