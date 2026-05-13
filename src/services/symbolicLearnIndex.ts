@@ -60,10 +60,10 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
     },
     {
       title:      'Paradox',
-      href:       '#paradox-coming-soon',
-      shortBlurb: 'Hip-pivot body modifier (planned). Coming in a future expansion of the pedagogy framework.',
-      status:     'planned',
-      isShipped:  false,
+      href:       '/freestyle/modifier/paradox',
+      shortBlurb: 'A hip pivot between two dexes on the same set. Six teaching sections: mechanical lead, common confusions with xdex / symposium / spinning, a progression on mirage, and cross-base examples including folk single-token names that hide paradox in their canonical reading.',
+      status:     'shipped',
+      isShipped:  true,
     },
     {
       title:      'Ducking',

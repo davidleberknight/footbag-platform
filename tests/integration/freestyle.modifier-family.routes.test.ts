@@ -50,6 +50,17 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'spender',          canonical_name: 'spender',          adds: '6', base_trick: 'blender',       trick_family: 'blender',       category: 'compound' });
   insertFreestyleTrick(db, { slug: 'surge',            canonical_name: 'surge',            adds: '5', base_trick: 'mirage',        trick_family: 'mirage',        category: 'compound' });
 
+  // Paradox progression + cross-base seeds
+  insertFreestyleTrick(db, { slug: 'mirage',                  canonical_name: 'mirage',                  adds: '2', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-mirage',          canonical_name: 'paradox mirage',          adds: '3', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-whirl',           canonical_name: 'paradox whirl',           adds: '4', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-symposium-whirl', canonical_name: 'paradox symposium whirl', adds: '5', base_trick: 'whirl',   trick_family: 'whirl',   category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-drifter',         canonical_name: 'paradox drifter',         adds: '4', base_trick: 'drifter', trick_family: 'drifter', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-blender',         canonical_name: 'paradox blender',         adds: '5', base_trick: 'blender', trick_family: 'blender', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'paradox-torque',          canonical_name: 'paradox torque',          adds: '5', base_trick: 'torque',  trick_family: 'torque',  category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'blur',                    canonical_name: 'blur',                    adds: '4', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'fury',                    canonical_name: 'fury',                    adds: '5', base_trick: 'mirage',  trick_family: 'mirage',  category: 'compound' });
+
   db.close();
   createApp = await importApp();
 });
@@ -174,13 +185,84 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
   });
 });
 
-describe('GET /freestyle/modifier/:slug — Phase 6 pilot scope (spinning only)', () => {
-  it('returns 404 for paradox (not shipped this phase)', async () => {
+describe('GET /freestyle/modifier/paradox — happy path', () => {
+  it('returns 200', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/paradox');
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
   });
 
-  it('returns 404 for ducking (not shipped this phase)', async () => {
+  it('renders page title and subtitle', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toContain('Paradox');
+    expect(res.text).toMatch(/hip pivot between two dexes/);
+  });
+
+  it('renders all six teaching sections', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toContain('The body and the motion');
+    expect(res.text).toContain('anchor-sentence');
+    expect(res.text).toContain('diagram-placeholder');
+    expect(res.text).toContain('Common confusions');
+    expect(res.text).toContain('Paradox vs xdex');
+    expect(res.text).toContain('Paradox vs symposium');
+    expect(res.text).toContain('Paradox vs spinning');
+    expect(res.text).toMatch(/Progression on mirage/);
+    expect(res.text).toContain('The same idea on other bases');
+    expect(res.text).toContain('Related modifiers');
+  });
+
+  it('uses coach-tone phrases (not engineering-manual phrasing)', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toMatch(/in the gap/i);
+    expect(res.text).toMatch(/leaves and returns to the same foot/i);
+    expect(res.text).toMatch(/two distinct contact moments/i);
+  });
+
+  it('renders progression chain with anchor flag on mirage step', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toContain('modifier-step-1-mirage');
+    expect(res.text).toContain('modifier-step-2-paradox-mirage');
+    expect(res.text).toContain('modifier-step-3-paradox-whirl');
+    expect(res.text).toContain('modifier-step-4-paradox-symposium-whirl');
+    const anchorMatches = res.text.match(/is-anchor/g) ?? [];
+    expect(anchorMatches.length).toBe(1);
+  });
+
+  it('renders cross-base examples including folk-name compounds (blur, fury)', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toContain('href="/freestyle/tricks/paradox-drifter"');
+    expect(res.text).toContain('href="/freestyle/tricks/paradox-blender"');
+    expect(res.text).toContain('href="/freestyle/tricks/paradox-torque"');
+    expect(res.text).toContain('href="/freestyle/tricks/blur"');
+    expect(res.text).toContain('href="/freestyle/tricks/fury"');
+  });
+
+  it('renders related modifiers list with xdex / symposium / atomic / stepping', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toContain('related-modifiers-list');
+    expect(res.text).toContain('xdex');
+    expect(res.text).toContain('symposium');
+    expect(res.text).toContain('atomic');
+    expect(res.text).toContain('stepping');
+  });
+
+  it('observational-layer badge and footer rendered', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toContain('symbolic-layer-badge');
+    expect(res.text.toLowerCase()).toContain('observational');
+    expect(res.text).toContain('symbolic-layer-footer');
+  });
+
+  it('renders cross-link footer to walking-progression and /freestyle/learn', async () => {
+    const res = await request(createApp()).get('/freestyle/modifier/paradox');
+    expect(res.text).toContain('symbolic-crosslinks');
+    expect(res.text).toContain('href="/freestyle/progression/walking-family"');
+    expect(res.text).toContain('href="/freestyle/learn"');
+  });
+});
+
+describe('GET /freestyle/modifier/:slug — 404 paths', () => {
+  it('returns 404 for ducking (not yet shipped)', async () => {
     const res = await request(createApp()).get('/freestyle/modifier/ducking');
     expect(res.status).toBe(404);
   });

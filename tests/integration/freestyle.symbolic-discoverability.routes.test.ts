@@ -80,11 +80,12 @@ describe('GET /freestyle/learn', () => {
     expect(res.text).toMatch(/href="\/freestyle\/progression\/walking-family"[^>]*>Walking-family progression/);
     // Shipped: spinning modifier
     expect(res.text).toMatch(/href="\/freestyle\/modifier\/spinning"[^>]*>Spinning/);
+    // Shipped: paradox modifier
+    expect(res.text).toMatch(/href="\/freestyle\/modifier\/paradox"[^>]*>Paradox/);
     // Shipped: glossary panels
     expect(res.text).toContain('href="/freestyle/glossary#connective-panels"');
-    // Planned: Paradox + Ducking — rendered without href, with "planned" status chip
+    // Planned: only Ducking remains — rendered without href, with "planned" status chip
     expect(res.text).toContain('learn-entry-planned');
-    expect(res.text).toMatch(/Paradox[\s\S]*?planned/i);
     expect(res.text).toMatch(/Ducking[\s\S]*?planned/i);
   });
 

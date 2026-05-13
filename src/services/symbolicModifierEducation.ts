@@ -244,9 +244,140 @@ const SPINNING_CONTENT: ModifierEducationInput = {
   ],
 };
 
-// Registry — single entry for Phase 6 pilot.
+// ─────────────────────────────────────────────────────────────────────────
+// Authored content — PARADOX
+// ─────────────────────────────────────────────────────────────────────────
+
+const PARADOX_CONTENT: ModifierEducationInput = {
+  slug:        'paradox',
+  displayName: 'Paradox',
+  pageTitle:   'Paradox',
+  pageSubtitle: 'A hip pivot between two dexes — the same set returning to the same foot, with the body changing sides in between.',
+  mechanicalLead: {
+    whereTheMotionLives:
+      'The hips. Paradox is a hip pivot that happens BETWEEN two dex moments — not during a single dex like spinning, and not before the kick like a body modifier that sets up. The legs do not relocate; the body does.',
+    whenItHappens:
+      'After the first dex meets the bag and before the second dex meets it. The pivot lives in the gap. If the pivot collapses into one of the dexes, the trick reads as a kick-and-twist rather than two dexes joined by a hip move.',
+    whatItFeelsLike:
+      'Two distinct contact moments with a clean weight shift between them. The first dex sends; the hip flips the body across; the second dex receives. The set comes back to the same foot it left from, but the body the foot belongs to is now facing the other way.',
+    commonFailure:
+      'The pivot rides the second dex instead of preceding it. That reads as one fast dex with a body wobble, not as a paradox. The clue is timing: when an observer cannot point to the moment between the two dexes, the modifier has not been executed.',
+  },
+  anchorSentence:
+    'The body pivots at the hips between two dexes on the same set, so the set leaves and returns to the same foot while the body changes sides in between.',
+  diagramPlaceholder:
+    'Hip-pivot diagram — body position at dex 1 / mid-pivot / dex 2. Diagram planned.',
+  confusions: [
+    {
+      heading: 'Paradox vs xdex',
+      prose:
+        'Paradox and xdex describe the same hip-pivot motion idea. Paradox is the universal version (+1 ADD on any base); xdex is a narrow named-trick version reserved for specific toe-set compounds. As a rule, paradox lives on clipper-set tricks (the XBD category) and xdex on toe-set tricks. When in doubt, the modifier you want is paradox.',
+    },
+    {
+      heading: 'Paradox vs symposium',
+      prose:
+        'Both are +1 body modifiers and they often stack ("PS X" = Paradox Symposium X — PS Whirl, PS Mirage). The body region differs: paradox is a hip pivot between dexes; symposium is a no-plant discipline that keeps the support leg in the air. They run simultaneously without interfering; the foot still pivots through the paradox while the support leg stays off the ground for the symposium.',
+    },
+    {
+      heading: 'Paradox vs spinning',
+      prose:
+        'Spinning is whole-body rotation — the entire body turns once during a single dex. Paradox is a hip pivot between two dexes — only the body shifts sides, and it happens in the GAP between the two contact moments. Spinning fills a single dex; paradox fills the space between two.',
+    },
+    {
+      heading: 'Paradox as a hidden modifier',
+      prose:
+        'Several folk-named tricks have paradox embedded in their canonical reading without "paradox" in the name. Blur is stepping + paradox + mirage (4 ADD). Fury is furious + paradox + mirage (5 ADD). Nuclear (matador, sumo, hurl, barfry) is paradox + atomic. When a trick name does not carry the modifier word but contains the motion, the symbolic-grammar layer makes that explicit.',
+    },
+  ],
+  progression: {
+    anchorBaseLabel: 'on mirage',
+    steps: [
+      {
+        slug:          'mirage',
+        modifierAdded: 'anchor (no paradox yet)',
+        rationale:
+          'Learn the in-to-out hippy-dex first. Mirage IS the dex shape that paradox will later pivot between two of. Without the dex, there is nothing for the hip pivot to live between.',
+      },
+      {
+        slug:          'paradox-mirage',
+        modifierAdded: '+ paradox',
+        rationale:
+          'The cleanest paradox case. Same set, same foot, two mirage-shaped dexes joined by a hip pivot. One new variable — the pivot — and a low-ADD compound where the mechanic is at its most visible.',
+      },
+      {
+        slug:          'paradox-whirl',
+        modifierAdded: '+ paradox on a rotational base',
+        rationale:
+          'Same hip pivot, different dex shape. The whirl base is a rotational arc rather than a hippy-in motion, so the pivot now sits between two arc-shaped dexes. The modifier is doing the same job; the dex it pivots between has changed.',
+      },
+      {
+        slug:          'paradox-symposium-whirl',
+        modifierAdded: '+ symposium (the "PS Whirl" stack)',
+        rationale:
+          'Two body modifiers running simultaneously. Paradox is still the hip pivot between two dexes; symposium keeps the support leg off the ground throughout. Folk shorthand calls this PS X — the most common paradox stack in the corpus.',
+      },
+    ],
+  },
+  crossBase: {
+    framingLine:
+      'The hip pivot is the same in each of these — what changes is the shape of the two dexes it joins.',
+    examples: [
+      {
+        slug:      'paradox-drifter',
+        baseLabel: 'on drifter base',
+        prose:
+          'Paradox applied to drifter. The drifter base is a miraging-clipper arc, so the pivot now joins two arc-shaped dexes with travel. Same hip motion; the two dexes it joins move across the body.',
+      },
+      {
+        slug:      'paradox-blender',
+        baseLabel: 'on blender base',
+        prose:
+          'Paradox on blender. Blender is a whirling-osis canonical reading, so the dexes it joins are rotational. Combining rotational dexes with a hip pivot is one of the higher-ADD paradox cases for good reason — the body has to turn AND switch sides without either motion contaminating the other.',
+      },
+      {
+        slug:      'paradox-torque',
+        baseLabel: 'on torque base',
+        prose:
+          'Paradox on torque. The dex shape is again rotational, so the pivot joins two torque arcs. This compound is one of the workhorses of the high-ADD paradox cohort — Jim Penske and Norek hold long-form records on it.',
+      },
+      {
+        slug:      'blur',
+        baseLabel: 'on mirage base, with stepping (folk name)',
+        prose:
+          'Blur is the canonical decomposition stepping + paradox + mirage. The paradox is the same hip pivot you learned on paradox-mirage; the stepping adds a foot relocation. A folk single-token name that contains paradox without saying so.',
+      },
+      {
+        slug:      'fury',
+        baseLabel: 'on mirage base, with furious (folk name)',
+        prose:
+          'Fury is the canonical decomposition furious + paradox + mirage (5 ADD). Same paradox pivot again; furious is the +2 set treatment that lifts the trick to 5 ADD. Another folk name with paradox embedded.',
+      },
+    ],
+  },
+  relatedModifiers: [
+    {
+      name:  'xdex',
+      prose: 'The narrow sibling of paradox: same hip-pivot motion idea, but reserved for specific toe-set compounds instead of universal +1.',
+    },
+    {
+      name:  'symposium',
+      prose: 'The other +1 body modifier. Often stacks with paradox; the shorthand "PS" means Paradox Symposium.',
+    },
+    {
+      name:  'atomic',
+      prose: 'Combined with paradox, atomic produces the nuclear set (+2). Nuclear is the structural reading of matador, sumo, hurl, and barfry.',
+    },
+    {
+      name:  'stepping',
+      prose: 'A foot-relocation modifier. Stacked with paradox on mirage, it produces the canonical reading of blur.',
+    },
+  ],
+};
+
+// Registry — modifier-family pedagogy pages.
 const MODIFIER_PAGE_CONTENT: Record<string, ModifierEducationInput> = {
   spinning: SPINNING_CONTENT,
+  paradox:  PARADOX_CONTENT,
 };
 
 // ─────────────────────────────────────────────────────────────────────────
