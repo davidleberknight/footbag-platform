@@ -4528,6 +4528,115 @@ section.home-media { padding-top: 0; }
 }
 .symbolic-crosslinks a:hover { text-decoration: underline solid; }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Operator Board (OP-BOARD-1).
+ *
+ * Mockup C (movement-language primer) tempered with Mockup A's editorial
+ * restraint: no heavy card backgrounds, italic-serif name treatment,
+ * generous tier-section margins, small-caps eyebrow heading. Tier-color
+ * rails encode the three-tier structure (set / body / structural).
+ * ────────────────────────────────────────────────────────────────────── */
+.operator-board {
+  margin-top: 8px;
+}
+.operator-board-heading {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.005em;
+}
+.operator-board-lede {
+  font-size: 1.05rem;
+  color: #555;
+  margin: 0 0 36px 0;
+  max-width: 680px;
+  line-height: 1.55;
+}
+
+.operator-tier {
+  margin: 36px 0 24px 0;
+  --tier-color: #555e6b;
+}
+.operator-tier-set        { --tier-color: #b87333; }   /* amber — set */
+.operator-tier-body       { --tier-color: #2a6fb5; }   /* steel — body */
+.operator-tier-structural { --tier-color: #555e6b; }   /* slate — structural */
+
+.operator-tier-eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--tier-color);
+  margin: 0 0 4px 0;
+  font-weight: 600;
+  font-style: italic;
+}
+.operator-tier-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0 0 4px 0;
+  color: #1c1c1c;
+}
+.operator-tier-intro {
+  color: #666;
+  font-size: 0.96rem;
+  margin: 0 0 18px 0;
+  font-style: italic;
+}
+
+.operator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 22px;
+}
+.operator-card {
+  padding: 14px 16px 16px 18px;
+  border-left: 3px solid var(--tier-color);
+  background: transparent;
+}
+.operator-glyph {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--tier-color);
+  margin: 0 0 2px 0;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.operator-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 0.92rem;
+  color: #777;
+  margin: 0 0 12px 0;
+}
+.operator-action {
+  font-size: 0.94rem;
+  color: #333;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+.operator-example {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: #555;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid #eceae3;
+  border-radius: 3px;
+  background: #fcfbf7;
+  line-height: 1.45;
+}
+.operator-example-arrow { color: #aaa; padding: 0 0.3em; }
+.operator-example-result {
+  color: var(--tier-color);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .operator-grid { grid-template-columns: 1fr; gap: 16px; }
+  .operator-tier { margin: 28px 0 18px 0; }
+}
+
 /* Freestyle landing — pointer paragraph into /freestyle/learn */
 .freestyle-learn-pointer {
   margin-top: 14px;

@@ -1,0 +1,30 @@
+{{! Operator Board — Tier-1 operator vocabulary for compositional freestyle.
+    Reusable across landing, glossary §3, /freestyle/learn. Logic-light:
+    branches only on pre-shaped operatorBoard data from freestyleService. }}
+<section class="operator-board content-section">
+  <h2 class="operator-board-heading">{{heading}}</h2>
+  <p class="operator-board-lede">{{lede}}</p>
+
+  {{#each tiers}}
+  <div class="operator-tier operator-tier-{{key}}">
+    <p class="operator-tier-eyebrow">{{eyebrow}}</p>
+    <h3 class="operator-tier-title">{{title}}</h3>
+    <p class="operator-tier-intro">{{intro}}</p>
+
+    <div class="operator-grid">
+      {{#each operators}}
+      <div class="operator-card">
+        <p class="operator-glyph">{{glyph}}</p>
+        <p class="operator-name">{{name}}</p>
+        <p class="operator-action">{{action}}</p>
+        <p class="operator-example">
+          <span class="operator-example-input">{{compositionA}}</span>
+          <span class="operator-example-arrow">&rarr;</span>
+          <span class="operator-example-result">{{compositionResult}}</span>
+        </p>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{/each}}
+</section>

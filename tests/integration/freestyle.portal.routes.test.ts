@@ -463,6 +463,71 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('/freestyle/partnerships');
   });
+
+  // ── Operator board (OP-BOARD-1, 2026-05-13) ────────────────────────────
+  it('renders the operator-board heading and lede', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).toContain('The operators of freestyle');
+    expect(res.text).toContain('compositional movement language');
+    expect(res.text).toContain('fourteen operators');
+  });
+
+  it('renders all three operator-tier sections in order', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const idxSet    = res.text.indexOf('Set operators');
+    const idxBody   = res.text.indexOf('Body operators');
+    const idxStruct = res.text.indexOf('Structural concepts');
+    expect(idxSet).toBeGreaterThan(0);
+    expect(idxBody).toBeGreaterThan(idxSet);
+    expect(idxStruct).toBeGreaterThan(idxBody);
+    // Eyebrow + intro pairing on each tier. Service emits a literal middot
+    // ("·") in the eyebrow string; Handlebars preserves it as-is.
+    expect(res.text).toContain('I · Sets');
+    expect(res.text).toContain('II · Body');
+    expect(res.text).toContain('III · Structure');
+    expect(res.text).toContain('What sends the bag into the air.');
+    expect(res.text).toContain('What the body does while the bag is up.');
+    expect(res.text).toContain('Relationships across the trick.');
+  });
+
+  it('renders all 14 Tier-1 operator glyphs inside operator-glyph cells', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const glyphs = [
+      'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
+      'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
+      'XDEX', 'SAME', 'OP',
+    ];
+    for (const glyph of glyphs) {
+      // Each glyph appears inside its own .operator-glyph paragraph at least once.
+      const re = new RegExp(`<p class="operator-glyph">${glyph}</p>`);
+      expect(res.text).toMatch(re);
+    }
+  });
+
+  it('renders one composition example per operator with input + arrow + result', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Spot-check four representative compositions across all three tiers.
+    expect(res.text).toMatch(/PIX \+ BUTTERFLY[\s\S]*?DIMWALK/);
+    expect(res.text).toMatch(/SPIN \+ TORQUE[\s\S]*?MOBIUS/);
+    expect(res.text).toMatch(/PIX \+ DUCK \+ BUTTERFLY[\s\S]*?PHOENIX/);
+    expect(res.text).toMatch(/SAME \+ BUTTERFLY[\s\S]*?SAME-FOOT BUTTERFLY/);
+    // Each example block carries a separator arrow.
+    const arrowCount = (res.text.match(/class="operator-example-arrow"/g) || []).length;
+    expect(arrowCount).toBe(14);
+  });
+
+  it('places the operator board above "The Freestyle Reference" section', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const boardIdx     = res.text.indexOf('class="operator-board');
+    const referenceIdx = res.text.indexOf('The Freestyle Reference');
+    expect(boardIdx).toBeGreaterThan(0);
+    expect(referenceIdx).toBeGreaterThan(boardIdx);
+  });
 });
 
 // ---------------------------------------------------------------------------

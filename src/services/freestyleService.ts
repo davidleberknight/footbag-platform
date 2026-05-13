@@ -185,6 +185,7 @@ export interface FreestyleLandingContent {
   // demoVideo. Surfaced as a prominent panel near the top of the landing
   // page. Null-safe: template omits the panel when null.
   featuredVideo: FreestyleFeaturedVideo | null;
+  operatorBoard: OperatorBoardData;
   getStartedTiles: FreestyleGetStartedTile[];
   competitionFormats: FreestyleCompetitionFormat[];
   totalRecords: number;
@@ -193,6 +194,32 @@ export interface FreestyleLandingContent {
   recentRecords: FreestyleRecordViewModel[];
   totalTricks: number;    // count of tricks in dictionary
   totalEvents: number;    // count of freestyle events from canonical results
+}
+
+// ── Operator Board ──────────────────────────────────────────────────────
+// The landing-page mini-board introduces the Tier-1 operator vocabulary
+// (14 operators across set / body / structural tiers). Sketch captions
+// per OPERATOR_BOARD_MOCKUP_REVIEW.md §B; cells with curatorConfirmPending=true
+// require a curator accuracy pass before any prose lock.
+export interface OperatorBoardOperator {
+  glyph:                  string;   // e.g. "PIX"
+  name:                   string;   // e.g. "Pixie"
+  action:                 string;   // one-line plain-English action
+  compositionA:           string;   // left side of "A + BASE → RESULT"
+  compositionResult:      string;   // result name on the right of the arrow
+  curatorConfirmPending:  boolean;  // true for [curator confirm] cells
+}
+export interface OperatorBoardTier {
+  key:       'set' | 'body' | 'structural';
+  eyebrow:   string;   // "I · Sets"
+  title:     string;   // "Set operators"
+  intro:     string;   // "What sends the bag into the air."
+  operators: OperatorBoardOperator[];
+}
+export interface OperatorBoardData {
+  heading: string;
+  lede:    string;
+  tiers:   OperatorBoardTier[];
 }
 
 interface TrickRefMediaRow {
@@ -3729,6 +3756,68 @@ export const freestyleService = {
     };
   },
 
+  // ── Operator board (landing + future reuse on glossary §3 + /freestyle/learn)
+  // Returns the 14-operator Tier-1 vocabulary in three tiers. Static; pre-shaped
+  // for logic-light Handlebars consumption. Captions are sketch-level pending
+  // curator confirmation on the four cells flagged with curatorConfirmPending.
+  getOperatorBoard(): OperatorBoardData {
+    const op = (
+      glyph: string,
+      name: string,
+      action: string,
+      compositionA: string,
+      compositionResult: string,
+      curatorConfirmPending = false,
+    ): OperatorBoardOperator => ({
+      glyph, name, action, compositionA, compositionResult, curatorConfirmPending,
+    });
+
+    return {
+      heading: 'The operators of freestyle',
+      lede:    'Freestyle footbag is a compositional movement language. These fourteen operators are its primitives — combine them and you get every named trick in the dictionary.',
+      tiers: [
+        {
+          key:     'set',
+          eyebrow: 'I · Sets',
+          title:   'Set operators',
+          intro:   'What sends the bag into the air.',
+          operators: [
+            op('PIX',   'Pixie',    'Compressed uptime set, leg drives the bag through a tight orbit.', 'PIX + BUTTERFLY',         'DIMWALK'),
+            op('AT',    'Atomic',   'Set wrapped with full-body rotation in the air.',                  'AT + OSIS',               'FLUX'),
+            op('Q',     'Quantum',  'Set with added rotation through uptime.',                          'Q + MIRAGE',              'TOE BLUR'),
+            op('BL',    'Blender',  'Set with a low-orbit pre-set sweep into the dex.',                 'BL + BUTTERFLY',          'BLENDER BUTTERFLY',  true),
+            op('FAIRY', 'Fairy',    'Set carrying an extra revolution through uptime.',                 'FAIRY + BLUR',            'DOUBLE FAIRY',       true),
+            op('STEP',  'Stepping', 'Foot relocates between the set and the catch.',                    'STEP + BUTTERFLY',        'RIPWALK'),
+          ],
+        },
+        {
+          key:     'body',
+          eyebrow: 'II · Body',
+          title:   'Body operators',
+          intro:   'What the body does while the bag is up.',
+          operators: [
+            op('SPIN',  'Spinning', 'Full-body rotation around the vertical axis during the trick.',    'SPIN + TORQUE',           'MOBIUS'),
+            op('GY',    'Gyro',     'Body-rotation variant on a partial or inverted plane.',            'GY + BUTTERFLY',          'GYRO BUTTERFLY'),
+            op('DUCK',  'Ducking',  'The body drops under the bag mid-dex.',                            'PIX + DUCK + BUTTERFLY',  'PHOENIX'),
+            op('PDX',   'Paradox',  'A hip pivot inserted between two dexes.',                          'PDX + LEG-OVER',          'PARADOX LEG-OVER'),
+            op('SYMP',  'Symposium','An illusion combined with body rotation.',                         'SYMP + ILLUSION',         'FLAIL',              true),
+          ],
+        },
+        {
+          key:     'structural',
+          eyebrow: 'III · Structure',
+          title:   'Structural concepts',
+          intro:   'Relationships across the trick.',
+          operators: [
+            op('XDEX',  'Cross-dex','The leg circles the bag on the opposite side of the body.',        'XDEX + INSIDE',           'CLIPPER',            true),
+            op('SAME',  'Same-foot','The set foot and the catch foot are the same.',                    'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY'),
+            op('OP',    'Opposite', 'The set foot and the catch foot are different. The conventional default.', 'OP + BUTTERFLY', 'BUTTERFLY'),
+          ],
+        },
+      ],
+    };
+  },
+
   getLandingPage(): PageViewModel<FreestyleLandingContent> {
     const typeCounts = runSqliteRead('freestyleRecords.countPublicByType', () =>
       freestyleRecords.countPublicByType.all() as { record_type: string; n: number }[],
@@ -3787,6 +3876,7 @@ export const freestyleService = {
           caption: 'A community overview from Footbag 2026 in San Marino. Footage by jay7bah.',
           media:   expandYouTubeVideo('U6J2LXxUWro', 'Footbag 2026: San Marino'),
         },
+        operatorBoard: this.getOperatorBoard(),
         getStartedTiles: [
           { label: 'Where to buy footbags', href: '#', comingSoon: true },
           { label: 'Where to buy shoes',    href: '#', comingSoon: true },
