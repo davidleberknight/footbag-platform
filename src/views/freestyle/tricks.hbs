@@ -94,42 +94,25 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Family view (alternate) ──────────────────────────────────────────── }}
+  {{! ── Family view — symbolic trick cards (DSC-2 slice 2) ──────────────── }}
   {{#if (eq content.activeView "family")}}
   {{#if content.familyGroups.length}}
-  <section class="content-section">
+  {{#each content.familyGroups}}
+  <section class="content-section trick-family-group" id="family-{{familySlug}}">
     <div class="section-heading">
-      <h2>Trick Families</h2>
-      <p class="section-intro">Compound tricks grouped by their base move. ADD values increase as modifiers stack.</p>
+      <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
+      <span class="section-count">{{cards.length}}</span>
     </div>
-    <div class="family-grid">
-      {{#each content.familyGroups}}
-      <div class="family-card">
-        <h3 class="family-card-title"><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} Family</a></h3>
-        <table class="records-table records-table-sm family-table">
-          <thead>
-            <tr>
-              <th>Trick</th>
-              <th class="col-adds">ADD</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each members}}
-            <tr>
-              <td class="col-trick">
-                <a href="{{detailHref}}">{{canonicalName}}</a>
-                {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
-                <a class="trick-hashtag" href="{{detailHref}}">{{hashtag}}</a>
-              </td>
-              <td class="col-adds">{{#if adds}}{{adds}}{{else}}&mdash;{{/if}}</td>
-            </tr>
-            {{/each}}
-          </tbody>
-        </table>
-      </div>
+    {{#if crossLink}}
+    <p class="trick-family-cross-link"><a href="{{crossLink.href}}">{{crossLink.label}} &rarr;</a></p>
+    {{/if}}
+    <div class="dict-card-stack">
+      {{#each cards}}
+        {{> dictionary-trick-card}}
       {{/each}}
     </div>
   </section>
+  {{/each}}
   {{/if}}
   {{/if}}
 

@@ -4669,6 +4669,18 @@ a.dict-card-title:hover { text-decoration: underline; }
   color: #92400e;            /* amber-800 */
 }
 
+/* Family-heading cross-link to a symbolic educational surface (e.g.
+ * walking-progression). DSC-2 slice 2 (By Family). */
+.trick-family-cross-link {
+  margin: 4px 0 12px 0;
+  font-size: 0.86rem;
+}
+.trick-family-cross-link a {
+  color: #5a5644;
+  text-decoration: underline dotted;
+}
+.trick-family-cross-link a:hover { text-decoration: underline solid; }
+
 /* Mobile: stack title + ADD vertically on narrow viewports so the
  * operational notation still has horizontal room. */
 @media (max-width: 480px) {

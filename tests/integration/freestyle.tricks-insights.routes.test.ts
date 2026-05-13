@@ -476,12 +476,13 @@ describe('public dictionary presentation', () => {
     expect(res.text).toMatch(/class="trick-hashtag"[^>]*href="\/freestyle\/tricks\/spinning-whirl"[^>]*>#spinningwhirl</);
   });
 
-  it('makes family-card titles clickable as family-filter links in the family view', async () => {
+  it('makes family-section headings clickable as family-filter links in the family view', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    // Family-card titles wrap in an <a> pointing to the filter
-    expect(res.text).toMatch(/<h3 class="family-card-title"><a href="\/freestyle\/tricks\?family=whirl">/);
+    // DSC-2 slice 2: family view migrated to symbolic trick cards. Each
+    // family section renders an <h2> heading wrapping an <a> family-filter link.
+    expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=whirl">/);
   });
 
   it('renders the dictionary expansion note', async () => {

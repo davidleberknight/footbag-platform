@@ -1233,6 +1233,13 @@ export interface FreestyleFamilyGroup {
   familySlug: string;
   familyName: string;         // capitalized family name (e.g. "Whirl")
   members: FreestyleTrickIndexRow[];
+  // DSC-2 slice 2: shared symbolic trick cards, with anchor-first ordering.
+  // Anchor = the family's base trick (slug === familySlug) when present.
+  cards: DictionaryTrickCard[];
+  // Optional cross-link to a symbolic educational surface for this family
+  // (e.g., butterfly family → walking-family progression). Null when no
+  // corresponding surface is shipped. Per UNIFIED_DICTIONARY_VIEW_PLAN.md §4.3.
+  crossLink: { label: string; href: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -2768,7 +2775,14 @@ export const freestyleService = {
     }
 
     // ---- Family groups (preserved for ?view=family) -------------------
-    const familyMap = new Map<string, FreestyleTrickRow[]>();
+    //
+    // DSC-2 slice 2: each group now also emits a `cards: DictionaryTrickCard[]`
+    // array using anchor-first ordering (the family base trick first when
+    // present, then ADD ascending, then name alphabetical) and an optional
+    // crossLink to a symbolic educational surface (e.g., butterfly family →
+    // walking-family progression). The legacy `members` array is preserved
+    // for backwards compatibility while other surfaces migrate.
+    const familyMap = new Map<string, FreestyleTrickRowWithStatus[]>();
     for (const row of activeRows) {
       if (!row.trick_family || row.category === 'modifier') continue;
       const bucket = familyMap.get(row.trick_family) ?? [];
@@ -2776,24 +2790,58 @@ export const freestyleService = {
       familyMap.set(row.trick_family, bucket);
     }
     const FAMILY_ORDER = ['whirl', 'butterfly', 'osis', 'mirage', 'clipper', 'legover', 'torque', 'blender'];
+
+    // Map of family-slug → optional symbolic cross-link. Conservative: only
+    // surfaces that have shipped pedagogy / progression pages get a link.
+    const FAMILY_CROSS_LINKS: Record<string, { label: string; href: string } | undefined> = {
+      butterfly: { label: 'Walking-family progression', href: '/freestyle/progression/walking-family' },
+    };
+
+    const sortFamilyEntries = (
+      familySlug: string,
+      entries: FreestyleTrickRowWithStatus[],
+    ): FreestyleTrickRowWithStatus[] => {
+      return entries.slice().sort((a, b) => {
+        // Anchor first: the family base trick (slug === familySlug) ranks above all others.
+        if (a.slug === familySlug && b.slug !== familySlug) return -1;
+        if (b.slug === familySlug && a.slug !== familySlug) return 1;
+        // Then ADD ascending; rows without numeric ADD sink to the bottom.
+        const an = parseAddNumeric(a.adds);
+        const bn = parseAddNumeric(b.adds);
+        const ai = an ?? Number.POSITIVE_INFINITY;
+        const bi = bn ?? Number.POSITIVE_INFINITY;
+        if (ai !== bi) return ai - bi;
+        // Then trick name alphabetical.
+        return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
+      });
+    };
+
+    const buildFamilyGroup = (
+      familySlug: string,
+      rows: FreestyleTrickRowWithStatus[],
+    ): FreestyleFamilyGroup => {
+      const sorted = sortFamilyEntries(familySlug, rows);
+      const members = sorted.map(r => shapeTrickIndexRow(r, ctx));
+      const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!));
+      return {
+        familySlug,
+        familyName: familySlug.charAt(0).toUpperCase() + familySlug.slice(1),
+        members,
+        cards,
+        crossLink: FAMILY_CROSS_LINKS[familySlug] ?? null,
+      };
+    };
+
     const familyGroups: FreestyleFamilyGroup[] = [];
     for (const fslug of FAMILY_ORDER) {
-      const members = familyMap.get(fslug);
-      if (members && members.length > 1) {
-        familyGroups.push({
-          familySlug: fslug,
-          familyName: fslug.charAt(0).toUpperCase() + fslug.slice(1),
-          members:    members.map(r => shapeTrickIndexRow(r, ctx)),
-        });
+      const rows = familyMap.get(fslug);
+      if (rows && rows.length > 1) {
+        familyGroups.push(buildFamilyGroup(fslug, rows));
       }
     }
-    for (const [fslug, members] of familyMap.entries()) {
-      if (!FAMILY_ORDER.includes(fslug) && members.length > 1) {
-        familyGroups.push({
-          familySlug: fslug,
-          familyName: fslug.charAt(0).toUpperCase() + fslug.slice(1),
-          members:    members.map(r => shapeTrickIndexRow(r, ctx)),
-        });
+    for (const [fslug, rows] of familyMap.entries()) {
+      if (!FAMILY_ORDER.includes(fslug) && rows.length > 1) {
+        familyGroups.push(buildFamilyGroup(fslug, rows));
       }
     }
 

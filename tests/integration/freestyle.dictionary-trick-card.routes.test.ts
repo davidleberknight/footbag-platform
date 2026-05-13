@@ -61,6 +61,17 @@ beforeAll(async () => {
     operational_notation: '[set] > op in dex > op toe',
   });
 
+  // Butterfly — base trick (family anchor; slug === trick_family)
+  insertFreestyleTrick(db, {
+    slug:                 'butterfly',
+    canonical_name:       'butterfly',
+    adds:                 '3',
+    base_trick:           'butterfly',
+    trick_family:         'butterfly',
+    category:             'compound',
+    operational_notation: '[clip] > butterfly wing > ss clipper',
+  });
+
   // Ripwalk — compound; aliases populated; full operational
   insertFreestyleTrick(db, {
     slug:                 'ripwalk',
@@ -263,27 +274,73 @@ describe('dictionary-trick-card — grouping', () => {
 // 5. Regression — other views still respond 200
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('other dictionary views — not migrated in this slice', () => {
-  it('/freestyle/tricks?view=family still returns 200', async () => {
+// ─────────────────────────────────────────────────────────────────────────
+// Slice 2: By Family migration
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('GET /freestyle/tricks?view=family — symbolic trick cards (slice 2)', () => {
+  it('renders family sections with anchor IDs', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
+    expect(res.text).toContain('id="family-butterfly"');
   });
 
-  it('/freestyle/tricks?view=category still returns 200', async () => {
+  it('family section heading wraps an <a> family-filter link', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    // Family name renders display-cased (first letter capitalised).
+    expect(res.text).toMatch(/<h2><a href="\/freestyle\/tricks\?family=butterfly">Butterfly family<\/a><\/h2>/);
+  });
+
+  it('family section renders the dict-card-stack with shared cards', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.text).toContain('dict-card-stack');
+    // The cards inside the family section carry data-trick-slug from our seeded set.
+    expect(res.text).toContain('data-trick-slug="butterfly"');
+    expect(res.text).toContain('data-trick-slug="ripwalk"');
+  });
+
+  it('butterfly family heading renders the walking-progression cross-link', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.text).toContain('trick-family-cross-link');
+    expect(res.text).toContain('href="/freestyle/progression/walking-family"');
+    expect(res.text).toContain('Walking-family progression');
+  });
+
+  it('anchor-first ordering: butterfly base trick renders before its compound members', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    const familySectionStart = res.text.indexOf('id="family-butterfly"');
+    expect(familySectionStart).toBeGreaterThan(-1);
+    const familySectionEnd = res.text.indexOf('</section>', familySectionStart);
+    expect(familySectionEnd).toBeGreaterThan(familySectionStart);
+    const section = res.text.slice(familySectionStart, familySectionEnd);
+    // The anchor (butterfly, slug === family slug) renders first regardless of ADD.
+    const butterflyIdx = section.indexOf('data-trick-slug="butterfly"');
+    const ripwalkIdx   = section.indexOf('data-trick-slug="ripwalk"');
+    expect(butterflyIdx).toBeGreaterThan(-1);
+    expect(ripwalkIdx).toBeGreaterThan(butterflyIdx);
+  });
+});
+
+describe('other dictionary views — slice-by-slice migration', () => {
+  it('/freestyle/tricks?view=family returns 200 and uses the shared card (slice 2 migrated)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('dict-card-stack');
+  });
+
+  it('/freestyle/tricks?view=category still returns 200 (not yet migrated)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
     expect(res.status).toBe(200);
   });
 
-  it('/freestyle/tricks?view=sets still returns 200', async () => {
+  it('/freestyle/tricks?view=sets still returns 200 (not yet migrated)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
   });
 
-  it('other views do NOT use the dict-card-stack container (only By ADD migrated)', async () => {
-    const family   = await request(createApp()).get('/freestyle/tricks?view=family');
+  it('not-yet-migrated views (category, sets) do NOT use the dict-card-stack container', async () => {
     const category = await request(createApp()).get('/freestyle/tricks?view=category');
     const sets     = await request(createApp()).get('/freestyle/tricks?view=sets');
-    expect(family.text).not.toContain('dict-card-stack');
     expect(category.text).not.toContain('dict-card-stack');
     expect(sets.text).not.toContain('dict-card-stack');
   });
