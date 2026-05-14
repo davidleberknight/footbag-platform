@@ -5162,3 +5162,200 @@ a.dict-card-title:hover { text-decoration: underline; }
   .dict-card-add { font-size: 0.85rem; }
   .dict-card-notation { font-size: 0.92rem; }
 }
+
+/* ── Freestyle landing: The Language of Freestyle Footbag ──────────
+   Three structured surfaces sit between the hero/intro and the existing
+   competition / operator-board sections:
+     1. .freestyle-language-intro — short lede + optional demo loop.
+     2. .freestyle-basic-components — Contact / Set / Dex / Spin / Duck / Delay.
+     3. .freestyle-core-tricks     — eleven compact symbolic objects.
+   And one curated strip below the operator board:
+     4. .freestyle-demonstrations — five conceptual curation slots.
+   Visual feel target: elegant, compositional, symbolic, alive.
+   Anti-targets: tabular, database-like, sterile. ────────────────── */
+
+/* Shared section eyebrow + sub-line ----------------------------------- */
+.freestyle-section-eyebrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--secondary);
+  margin: 0 0 6px 0;
+}
+.freestyle-section-sub {
+  font-size: 0.96rem;
+  color: var(--text-muted);
+  margin: 0 0 22px 0;
+}
+
+/* Language intro -------------------------------------------------------- */
+.freestyle-language-intro .freestyle-language-lede {
+  font-size: 1.05rem;
+  line-height: 1.55;
+  margin: 0 0 18px 0;
+  max-width: 720px;
+}
+
+/* Basic Components grid ------------------------------------------------- */
+.freestyle-basic-components-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 22px 26px;
+}
+.freestyle-component-card {
+  padding: 18px 20px 16px 20px;
+  border-left: 3px solid var(--primary);
+  background: transparent;
+}
+.freestyle-component-name {
+  font-size: 1.12rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--text);
+}
+.freestyle-component-desc {
+  font-size: 0.94rem;
+  line-height: 1.5;
+  color: var(--text);
+  margin: 0 0 12px 0;
+}
+.freestyle-component-subfields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  font-size: 0.86rem;
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.freestyle-component-subfields dt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--secondary);
+  letter-spacing: 0.04em;
+}
+.freestyle-component-subfields dd {
+  margin: 0;
+  color: var(--text);
+}
+.freestyle-subfield-value {
+  font-style: italic;
+}
+.freestyle-subfield-sep {
+  color: var(--text-muted);
+  margin: 0 4px;
+}
+
+/* Core Tricks — compact symbolic objects ------------------------------- */
+.freestyle-core-trick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 18px 22px;
+}
+.core-trick-object {
+  /* Airy, no row borders, no zebra. Symbolic objects are compositional,
+     not tabular. */
+  padding: 16px 18px 14px 18px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 110px;
+  border-left: 2px solid var(--secondary);
+}
+.core-trick-slug {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--secondary);
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.core-trick-equivalence {
+  font-style: italic;
+  font-size: 0.93rem;
+  color: var(--text);
+  margin: 0;
+  padding-left: 4px;
+}
+.core-trick-equiv-sigil {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-style: normal;
+  color: var(--primary);
+  margin-right: 4px;
+}
+.core-trick-notation {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+.core-trick-add {
+  margin: auto 0 0 0;     /* push ADD to the card's bottom edge */
+  padding-top: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.core-trick-add-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+.core-trick-add-pending {
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.core-trick-footnote {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 16px 0 0 0;
+}
+
+/* Curated demonstrations strip ----------------------------------------- */
+.freestyle-demonstrations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+.demonstration-card {
+  padding: 16px 18px 18px 18px;
+}
+.demonstration-intent {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin: 6px 0 12px 0;
+}
+.demonstration-pending {
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--text-muted);
+  padding: 14px 16px;
+  background: var(--bg-light);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  margin: 0;
+}
+
+/* Narrow viewports ------------------------------------------------------ */
+@media (max-width: 480px) {
+  .freestyle-basic-components-grid,
+  .freestyle-core-trick-grid,
+  .freestyle-demonstrations-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .freestyle-component-card,
+  .core-trick-object,
+  .demonstration-card {
+    padding: 14px 14px 12px 14px;
+  }
+  .core-trick-add-value,
+  .core-trick-add-pending {
+    font-size: 1.05rem;
+  }
+}

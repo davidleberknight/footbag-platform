@@ -65,6 +65,11 @@ import {
   OPERATOR_REFERENCE_ENTRIES,
 } from '../content/freestyleOperatorReference';
 import {
+  BASIC_COMPONENTS,
+  CORE_TRICK_SPEC,
+  DEMONSTRATION_SLOTS,
+} from '../content/freestyleLandingContent';
+import {
   getSymbolicEquivalenceChain,
 } from '../content/freestyleSymbolicEquivalences';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
@@ -178,10 +183,48 @@ export interface FreestyleDemoVideo {
   caption: string;
 }
 
-export interface FreestyleFeaturedVideo {
-  title: string;
-  caption: string;
-  media: VideoMedia | null;
+// ── The Language of Freestyle Footbag — landing intro structure ───────────
+// Per the IA realignment plan, the landing intro replaces a prose paragraph
+// block with a Basic Components grid (Contact / Set / Dex / Spin / Duck /
+// Delay) and a Core Tricks grid (eleven irreducible base tricks rendered as
+// compact symbolic objects). The shapes below are view-model types only; the
+// canonical sources are PassBack glossary (Basic Components labels + Dex
+// sub-fields) and `freestyle_tricks` / `freestyle_trick_aliases` (Core
+// Tricks data).
+export interface FreestyleBasicComponentSubfield {
+  label:  string;     // e.g. "Direction"
+  values: string[];   // e.g. ["in-out", "out-in"]
+}
+
+export interface FreestyleBasicComponent {
+  key:         string;                              // slug-form, e.g. "dex"
+  name:        string;                              // display, e.g. "Dex"
+  description: string;                              // concise PB-adapted definition
+  subfields:   FreestyleBasicComponentSubfield[];   // empty when no sub-fields
+}
+
+// Core Tricks compact symbolic object — see PART H-pre of the IA plan.
+// A canonical row is rendered as: #slug + zero-or-more `≡ reading` lines +
+// optional symbolic notation + ADD. Atoms typically omit the `≡` and
+// symbolic-notation slots; compounds typically surface one or more `≡`
+// stopping-depth readings.
+export interface FreestyleCoreTrickCard {
+  slug:                 string;        // "around-the-world"
+  semanticEquivalences: string[];      // ["ATW"]; empty for irreducible atoms
+  symbolicNotation:     string | null; // null when the `≡` reading carries the symbolic info
+  add:                  number | null; // null when DB row is missing (renders "—" + footnote)
+  addPending:           boolean;       // true when add is null
+}
+
+// Curated demonstration strip — five conceptual slots ship as scaffolding;
+// curator backfills `curatedMedia` via service constants. When null, the
+// template renders a "Curated demonstration pending" placeholder rather
+// than a synthesized fallback.
+export interface FreestyleDemonstrationSlot {
+  key:              string;            // "sam-conlon" | "artistic-routine" | etc.
+  label:            string;            // display heading
+  conceptualIntent: string;            // one-line note: what kind of media should live here
+  curatedMedia:     VideoMedia | null; // null = pending curator backfill
 }
 
 export interface FreestyleLandingContent {
@@ -189,10 +232,10 @@ export interface FreestyleLandingContent {
   mascotAlt: string;
   intro: FreestyleLandingExplainer;
   demoVideo: FreestyleDemoVideo | null;
-  // Featured public-facing YouTube video — distinct from the local mp4
-  // demoVideo. Surfaced as a prominent panel near the top of the landing
-  // page. Null-safe: template omits the panel when null.
-  featuredVideo: FreestyleFeaturedVideo | null;
+  // Three new structured surfaces (Batch 2 IA realignment):
+  basicComponents: FreestyleBasicComponent[];
+  coreTricks:      FreestyleCoreTrickCard[];
+  demonstrations:  FreestyleDemonstrationSlot[];
   operatorBoard: OperatorBoardData;
   getStartedTiles: FreestyleGetStartedTile[];
   competitionFormats: FreestyleCompetitionFormat[];
@@ -4041,25 +4084,36 @@ export const freestyleService = {
         mascotSrc: '/img/freestyle-mascot.svg',
         mascotAlt: 'Freestyle footbag mascot icon',
         intro: {
-          heading: 'What is Freestyle Footbag?',
+          heading: 'The Language of Freestyle Footbag',
           paragraphs: [
-            'Freestyle footbag is a compositional movement language. Players combine a small vocabulary of body actions — sets, dexes, spins, ducks, hip pivots — into named tricks, and tricks into flowing combos. The list of trick names is large, but the underlying language is small: once you can read a trick, you can read all of them.',
-            'Three movement primitives anchor the language. A set sends the bag into the air. A dex is the leg circling the bag while it is in the air, either hippy (hip-driven thigh sweep) or leggy (knee-driven calf circle). A catch lands the bag on a surface — toe, clipper, inside, sole.',
-            'Modifiers transform these primitives. Spinning adds a full-body rotation. Paradox inserts a hip pivot between two dexes. Stepping relocates a foot in the uptime. Each modifier is an operator that takes a base trick and produces a new one. Ripwalk is stepping applied to butterfly; Mobius is spinning applied to torque; Phoenix is pixie + ducking applied to butterfly. Names get long when the composition is dense — and the naming is readable.',
-            'The community vocabulary stabilized in the late 1980s and early 1990s, as Hacky Sack kicking circles from the 1970s evolved into a technical discipline. The ADD (Additional Degree of Difficulty) system gives a numerical weight to each composed trick. Together with execution judging, ADD captures both the structure and the style of a routine.',
+            'A small vocabulary of body actions composes into named tricks. The grammar below — basic components, core tricks, then operators — is how the language reads.',
           ],
         },
         demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),
-        // Featured panel: a recent community-sourced overview video. Hardcoded
-        // so the panel render is durable even if the curated sidecar isn't
-        // ingested in a particular environment. The matching curated sidecar
-        // lives at curated/freestyle_tricks/footbag-2026-san-marino_*.meta.json
-        // for archival/discoverability via the curator-tagged channel.
-        featuredVideo: {
-          title:   'Footbag 2026: San Marino',
-          caption: 'A community overview from Footbag 2026 in San Marino. Footage by jay7bah.',
-          media:   expandYouTubeVideo('U6J2LXxUWro', 'Footbag 2026: San Marino'),
-        },
+        basicComponents: BASIC_COMPONENTS.map(c => ({
+          key:         c.key,
+          name:        c.name,
+          description: c.description,
+          subfields:   c.subfields.map(sf => ({ label: sf.label, values: [...sf.values] })),
+        })),
+        coreTricks: CORE_TRICK_SPEC.map(spec => {
+          const row = trickRows.find(t => t.slug === spec.slug);
+          const parsedAdd = row && row.adds != null ? Number(row.adds) : NaN;
+          const hasAdd = Number.isFinite(parsedAdd);
+          return {
+            slug:                 spec.slug,
+            semanticEquivalences: [...spec.equivalences],
+            symbolicNotation:     null,
+            add:                  hasAdd ? parsedAdd : null,
+            addPending:           !hasAdd,
+          };
+        }),
+        demonstrations: DEMONSTRATION_SLOTS.map(slot => ({
+          key:              slot.key,
+          label:            slot.label,
+          conceptualIntent: slot.conceptualIntent,
+          curatedMedia:     null,
+        })),
         operatorBoard: this.getOperatorBoard(),
         getStartedTiles: [
           { label: 'Where to buy footbags', href: '#', comingSoon: true },

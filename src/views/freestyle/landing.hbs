@@ -10,11 +10,12 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! ── What is Freestyle Footbag? (single narrative section) ──────────────── }}
-  <section class="content-section">
+  {{! ── The Language of Freestyle Footbag ──────────────────────────────────── }}
+  {{! Intro lede + autoplay demo loop; secondary to the structured surfaces below. }}
+  <section class="content-section freestyle-language-intro">
     <h2>{{content.intro.heading}}</h2>
     {{#each content.intro.paragraphs}}
-    <p>{{this}}</p>
+    <p class="freestyle-language-lede">{{this}}</p>
     {{/each}}
     {{#if content.demoVideo}}
     <figure class="demo-video">
@@ -25,6 +26,58 @@
       <figcaption>{{content.demoVideo.caption}}</figcaption>
     </figure>
     {{/if}}
+  </section>
+
+  {{! ── Basic Components — Contact / Set / Dex / Spin / Duck / Delay ───────── }}
+  {{! Sourced from passback-glossary.txt (pb-ss1 / pb-ss2). Dex carries
+      sub-fields (Direction / Movement type / Support type). }}
+  <section class="content-section freestyle-basic-components">
+    <h3 class="freestyle-section-eyebrow">Basic Components</h3>
+    <p class="freestyle-section-sub">The primitives every standard trick is built from.</p>
+    <div class="freestyle-basic-components-grid">
+      {{#each content.basicComponents}}
+      <article class="freestyle-component-card" id="component-{{key}}">
+        <h4 class="freestyle-component-name">{{name}}</h4>
+        <p class="freestyle-component-desc">{{description}}</p>
+        {{#if subfields.length}}
+        <dl class="freestyle-component-subfields">
+          {{#each subfields}}
+          <dt>{{label}}</dt>
+          <dd>{{#each values}}{{#unless @first}} <span class="freestyle-subfield-sep">·</span> {{/unless}}<span class="freestyle-subfield-value">{{this}}</span>{{/each}}</dd>
+          {{/each}}
+        </dl>
+        {{/if}}
+      </article>
+      {{/each}}
+    </div>
+  </section>
+
+  {{! ── Core Tricks — compact symbolic objects ─────────────────────────────── }}
+  {{! Eleven irreducible base tricks. Each card renders as a symbolic object:
+      #slug + zero-or-more ≡ readings + optional symbolic notation + ADD.
+      See FREESTYLE_IA_REALIGNMENT_PLAN.md PART H-pre for the rendering rule. }}
+  <section class="content-section freestyle-core-tricks">
+    <h3 class="freestyle-section-eyebrow">Core Tricks</h3>
+    <p class="freestyle-section-sub">The irreducible base tricks. Most named tricks descend from one of these.</p>
+    <div class="freestyle-core-trick-grid">
+      {{#each content.coreTricks}}
+      <article class="core-trick-object" id="core-trick-{{slug}}">
+        <p class="core-trick-slug">#{{slug}}</p>
+        {{#each semanticEquivalences}}
+        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> {{this}}</p>
+        {{/each}}
+        {{#if symbolicNotation}}
+        <p class="core-trick-notation">{{symbolicNotation}}</p>
+        {{/if}}
+        {{#if addPending}}
+        <p class="core-trick-add core-trick-add-pending" aria-label="ADD value pending">&mdash;</p>
+        {{else}}
+        <p class="core-trick-add"><span class="core-trick-add-value">{{add}}</span></p>
+        {{/if}}
+      </article>
+      {{/each}}
+    </div>
+    <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
   </section>
 
   {{! ── Competition Formats ────────────────────────────────────────────────── }}
@@ -43,24 +96,29 @@
     </div>
   </section>
 
-  {{! ── Featured video ─────────────────────────────────────────────────── }}
-  {{#if content.featuredVideo}}
-  <section class="content-section freestyle-featured-video">
-    <div class="section-heading">
-      <h2>{{content.featuredVideo.title}}</h2>
-      {{#if content.featuredVideo.caption}}<p class="section-intro">{{content.featuredVideo.caption}}</p>{{/if}}
+  {{! ── Curated demonstrations strip ─────────────────────────────────────────
+      Five conceptual slots; curator backfills `curatedMedia` via service
+      constants. Renders a "Curated demonstration pending" placeholder when
+      a slot has no media yet — no synthesized fallback. }}
+  <section class="content-section freestyle-demonstrations">
+    <h2>Demonstrations</h2>
+    <p class="section-intro">A curated strip of routines, circles, and shred examples that show the language in motion.</p>
+    <div class="freestyle-demonstrations-grid">
+      {{#each content.demonstrations}}
+      <article class="card demonstration-card" id="demonstration-{{key}}">
+        <div class="card-title">{{label}}</div>
+        <p class="demonstration-intent">{{conceptualIntent}}</p>
+        {{#if curatedMedia}}
+        <div class="video-embed">
+          {{> video-facade media=curatedMedia}}
+        </div>
+        {{else}}
+        <p class="demonstration-pending">Curated demonstration pending.</p>
+        {{/if}}
+      </article>
+      {{/each}}
     </div>
-    {{#if content.featuredVideo.media}}
-    <figure class="demo-video">
-      <div class="video-embed">
-        {{> video-facade media=content.featuredVideo.media}}
-      </div>
-    </figure>
-    {{else}}
-    <p class="freestyle-featured-fallback">Video temporarily unavailable. Try again later.</p>
-    {{/if}}
   </section>
-  {{/if}}
 
   {{! ── Operator board — Tier-1 vocabulary primer ─────────────────────────── }}
   {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}

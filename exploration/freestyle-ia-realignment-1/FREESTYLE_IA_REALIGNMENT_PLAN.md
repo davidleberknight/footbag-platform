@@ -433,38 +433,80 @@ These topics surface in the spec or in the surrounding ontology audit but are pe
 
 ---
 
-## PART H-pre — Compact-object rendering rule (cross-cutting; added 2026-05-14 maintainer direction)
+## PART H-pre — Compact symbolic object rendering rule (cross-cutting; added 2026-05-14 maintainer direction; refined 2026-05-14 mid-Batch-2)
 
-Every trick-card and browse-object rendering across the freestyle surfaces (Core Tricks on the landing page, dictionary-trick-card partial on `/freestyle/tricks` and its faceted views, equivalence-chain renderings on trick pages, future browse facets) must surface four fields in a compact, scan-friendly layout:
+Every trick-card and browse-object rendering across the freestyle surfaces (Core Tricks on the landing page, dictionary-trick-card partial on `/freestyle/tricks` and its faceted views, equivalence-chain renderings on trick pages, future browse facets) renders as a **symbolic object** with the following structural layers:
 
-1. **Canonical identity** — the slug-form identifier, prefixed with `#` (e.g., `#toe-stall`).
-2. **Semantic reading** — the compositional decomposition in canonical operator vocabulary (e.g., `atomic mirage`).
-3. **Symbolic notation** — the operational form using set-notation conventions (e.g., `[set] > toe`).
-4. **ADD** — the integer add value (e.g., `1`).
+1. `#slug` — canonical identity. Always present. Rendered first.
+2. `≡ <reading>` — zero or more semantic-equivalence readings. Each reading is one pedagogically meaningful stopping-depth statement. Multiple `≡` lines render different stopping depths when both are useful.
+3. Symbolic notation — optional operational form (e.g., `[osis] > same out dex > [osis]`). Omitted when the `≡` readings already convey the symbolic structure.
+4. ADD — integer value. Always present (or `—` with a pending footnote when DB row is missing).
 
-Atom example (irreducible primitive — semantic reading collapses to canonical identity):
+**Examples (maintainer-authoritative):**
+
+```
+#torque
+≡ miraging osis
+[osis] > same out dex > [osis]
+4
+```
+
+```
+#mobius
+≡ spinning ss torque
+≡ spinning ss miraging osis
+5
+```
+(no symbolic-notation line; the second `≡` is the symbolic expansion)
+
+```
+#orbit
+≡ reverse around-the-world
+toe > reverse dex > toe
+2
+```
 
 ```
 #toe-stall
 [set] > toe
 1
 ```
+(atom: no `≡` line; the canonical name IS the irreducible identity)
 
-Compound example (non-atom — all four fields render distinctly):
+**Stopping-depth philosophy:**
 
-```
-#atom-smasher
-atomic mirage
-TOE > OP OUT [DEX] > OP IN [DEX] >
-4
-```
+- Do NOT force maximal recursive decomposition. A `≡` reading stops at a pedagogically meaningful intermediate operator (e.g., `≡ miraging osis` is sufficient; expanding miraging further would just add noise).
+- When two stopping depths are both useful, surface both as separate `≡` lines. The reader chooses.
+- Use accepted intermediate operators (those in `freestyleOperatorReference.ts`) as natural stopping points.
+- Atoms have zero `≡` lines. Their canonical identity is the irreducible token.
 
-**Rule properties:**
+**Visual feel (browse layer):**
 
-- Uniform across atoms and compounds. Even for primitives where the semantic reading and canonical identity are the same word, the layout still shows the slug form first so the visual rhythm matches compound cards.
-- Honest rendering: when a field is unknown (e.g., ADD not yet in DB), render `—` and a small "pending" footnote rather than omitting the slot. Preserves visual uniformity.
-- No invented data. The semantic reading and symbolic notation come from existing canonical sources (`freestyle_tricks.notation`, `freestyle_tricks.operational_notation`, `RED_RESOLVED_CANON.md`) — never fabricated at render time.
-- The rule applies to Batch 2 (Core Tricks render on landing), to the existing dictionary-trick-card partial used across `/freestyle/tricks` views, and to any future browse facet. Existing renders that don't yet match this shape are deviations tracked in IP, not catalog drift.
+- Elegant, compositional, symbolic, alive.
+- NOT sterile, tabular, database-like.
+- Monospace typography for `#slug`, symbolic-notation, and ADD (the symbolic surface).
+- Italic or variant typography for `≡` readings (the compositional vocabulary surface).
+- Airy spacing; each line has typographic role distinction.
+- No row borders, no zebra stripes, no inline column headers, nothing that suggests a database table.
+
+**Layer separation (forever-rule):**
+
+- **Browse layer** = symbolic object. Compact. Lines per the structure above. No prose.
+- **Expanded layer** = educational narrative. Lives on trick-detail pages, modifier-pedagogy pages, glossary panels, learn pathways. Verbose, illustrative, story-shaped.
+
+Educational prose MUST NOT drift back into compact browse surfaces. If a card needs prose to explain itself, the prose belongs on the trick-detail page, not on the card. Symbolic-object cards stay symbolic.
+
+**Honest rendering:**
+
+- When a field is unknown (e.g., ADD not yet in DB for a recently-promoted slug), render `—` with a small footnote on the card group rather than fabricating a value or omitting the slot.
+- No invented data. Every `≡` reading and every symbolic-notation string is sourced from existing canonical sources (`freestyle_tricks.notation`, `freestyle_tricks.operational_notation`, `RED_RESOLVED_CANON.md`, `freestyleOperatorReference.ts`).
+- When stopping-depth would require a Wave-1-pending operator (e.g., atomic-with-rotational-bonus), the card uses a stopping depth that does NOT depend on the pending question.
+
+**Applies to:**
+
+- Batch 2 Core Tricks render on landing (this slice).
+- The existing dictionary-trick-card partial on `/freestyle/tricks` and faceted views (Batch 4 typography polish will normalize).
+- Future browse facets / equivalence-chain renderings.
 
 This rule is the load-bearing invariant for the "compact symbolic browse treatment" item in Batch 2 and the typography/layout polish in Batch 4.
 

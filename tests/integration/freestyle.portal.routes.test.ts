@@ -290,14 +290,14 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('Freestyle footbag mascot icon');
   });
 
-  it('shows onboarding explainer heading and narrative', async () => {
+  it('shows the "Language of Freestyle Footbag" intro heading and short compositional lede', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('What is Freestyle Footbag?');
-    // narrative covers the kicking-circle origin, ADD system, and beginner gear advice
-    expect(res.text).toContain('Hacky Sack');
-    expect(res.text).toContain('Additional Degree of Difficulty');
-    expect(res.text).toContain('1970s');
+    expect(res.text).toContain('The Language of Freestyle Footbag');
+    // Lede frames the grammar: basic components, core tricks, operators.
+    expect(res.text).toMatch(/vocabulary of body actions/);
+    expect(res.text).toMatch(/basic components/);
+    expect(res.text).toMatch(/core tricks/);
   });
 
   it('shows three placeholder get-started tiles', async () => {
