@@ -496,12 +496,12 @@ describe('Set-notation reference cross-links', () => {
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="operator-board-footer-link"');
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
-    // Footer renders after the operator board, before the reference section.
-    const boardIdx      = res.text.indexOf('class="operator-board ');
-    const footerIdx     = res.text.indexOf('class="operator-board-footer-link"');
-    const referenceIdx  = res.text.indexOf('The Freestyle Reference');
+    // Footer renders after the operator board, before the next-step orientation block.
+    const boardIdx       = res.text.indexOf('class="operator-board ');
+    const footerIdx      = res.text.indexOf('class="operator-board-footer-link"');
+    const orientationIdx = res.text.indexOf('Where to go next');
     expect(footerIdx).toBeGreaterThan(boardIdx);
-    expect(referenceIdx).toBeGreaterThan(footerIdx);
+    expect(orientationIdx).toBeGreaterThan(footerIdx);
   });
 
   it('operator-board notation-reference deep-links point at /freestyle/sets (not legacy /moves)', async () => {
@@ -588,54 +588,24 @@ describe('GET /freestyle/glossary', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/glossary — operator-board orientation in §3', () => {
-  it('renders the glossary-surface operator-board heading and lede', async () => {
+describe('GET /freestyle/glossary — operator board is NOT rendered in §3 (authority boundary)', () => {
+  // The operator-board partial lives on the landing page (movement-language overview)
+  // and /freestyle/learn (educational pathways). The glossary's role is terminology
+  // and execution detail, not visual taxonomy; rendering it here was a duplication.
+  it('does not render the operator-board partial on the glossary page', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('The compositional vocabulary');
-    expect(res.text).toContain('primitive movement modifiers of freestyle composition');
+    expect(res.text).not.toContain('class="operator-board ');
+    expect(res.text).not.toContain('class="operator-glyph"');
   });
 
-  it('does not render the landing-surface operator-board prose', async () => {
+  it('§3 still renders between its heading and §4 heading without embedding the board', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).not.toContain('The operators of freestyle');
-    expect(res.text).not.toContain('Freestyle footbag is a compositional movement language');
-  });
-
-  it('renders all 14 Tier-1 operator glyphs', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
-    const glyphs = [
-      'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
-      'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
-      'XDEX', 'SAME', 'OP',
-    ];
-    for (const glyph of glyphs) {
-      expect(res.text).toMatch(new RegExp(`<p class="operator-glyph">${glyph}</p>`));
-    }
-  });
-
-  it('embeds the operator board between §3 heading and §4 heading', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
-    const sec3Idx  = res.text.indexOf('3. How Tricks Are Built');
-    const boardIdx = res.text.indexOf('class="operator-board');
-    const sec4Idx  = res.text.indexOf('4. Naming');
+    const sec3Idx = res.text.indexOf('3. How Tricks Are Built');
+    const sec4Idx = res.text.indexOf('4. Naming');
     expect(sec3Idx).toBeGreaterThan(0);
-    expect(boardIdx).toBeGreaterThan(sec3Idx);
-    expect(sec4Idx).toBeGreaterThan(boardIdx);
-  });
-
-  it('renders ten restrained operator-card deep-links inside §3', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle/glossary');
-    const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
-    expect(matches.length).toBe(10);
-    expect(res.text).toContain('href="/freestyle/modifier/spinning"');
-    expect(res.text).toContain('href="/freestyle/modifier/paradox"');
-    expect(res.text).toContain('href="/freestyle/glossary#term-symposium"');
-    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
+    expect(sec4Idx).toBeGreaterThan(sec3Idx);
   });
 });
 
@@ -1135,5 +1105,74 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
     expect(res.text).toMatch(/<h2 class="section-heading">10\. Foundational Tricks<\/h2>/);
     expect(res.text).toMatch(/<h2 class="section-heading">11\. Competitive[^<]*<\/h2>/);
     expect(res.text).toMatch(/<h2 class="section-heading">12\. Sources<\/h2>/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IA Realignment Batch 1 — landing + glossary stabilization
+
+describe('Freestyle IA realignment — Batch 1 contract', () => {
+  it('landing retires the "Glossary, Dictionary, and Notation — three layers" framing', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).not.toContain('Glossary, Dictionary, and Notation');
+    expect(res.text).not.toContain('Three reference layers');
+    expect(res.text).not.toContain('The Freestyle Reference');
+  });
+
+  it('landing surfaces a concise three-link orientation ("Where to go next")', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('Where to go next');
+    expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('href="/freestyle/tricks"');
+    expect(res.text).toContain('href="/freestyle/sets"');
+  });
+
+  it('landing collapses the dictionary CTA to a single "Browse the trick dictionary" button', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('Browse the trick dictionary');
+    expect(res.text).not.toMatch(/Browse by component\s*&rarr;/);
+    expect(res.text).not.toMatch(/>Browse tricks\s*&rarr;/);
+  });
+
+  it('glossary retires the "Glossary, Dictionary, and Notation — three layers" heading', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).not.toContain('Glossary, Dictionary, and Notation');
+    expect(res.text).not.toContain('three complementary layers');
+  });
+
+  it('glossary intro links to dictionary and set-notation reference without three-layer rhetoric', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('href="/freestyle/tricks"');
+    expect(res.text).toContain('href="/freestyle/sets"');
+  });
+
+  it('operator board renders the PassBack-source Symposium definition (single-leg-jump wording)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('active leg performs an action in a single-leg jump');
+    expect(res.text).not.toContain('An illusion combined with body rotation');
+  });
+
+  it('foundational-tricks §10 list contains orbit and excludes pixie/fairy from the list items', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    // Locate the §10 <ul class="grid-list"> and assert its contents
+    const sec10 = res.text.indexOf('id="term-clipper"');
+    const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
+    expect(sec10).toBeGreaterThan(0);
+    expect(setModSection).toBeGreaterThan(sec10);
+    const listSlice = res.text.slice(sec10, setModSection);
+    expect(listSlice).toContain('id="term-orbit"');
+    // Pixie + Fairy must NOT appear inside the foundational-tricks list block;
+    // they re-appear below in the set-modifiers subsection.
+    expect(listSlice).not.toContain('id="term-pixie"');
+    expect(listSlice).not.toContain('id="term-fairy"');
+  });
+
+  it('set-modifiers subsection renders pixie and fairy with their term anchors', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="set-modifiers-tier-1"');
+    const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
+    const afterSetMod = res.text.slice(setModSection);
+    expect(afterSetMod).toContain('id="term-pixie"');
+    expect(afterSetMod).toContain('id="term-fairy"');
   });
 });

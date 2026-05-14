@@ -18,32 +18,16 @@
 
   <section class="content-section">
     <p>
-      Freestyle footbag has its own structural vocabulary, refined across decades
-      of community use. This glossary is the plain-English layer of that vocabulary:
-      run-quality terms, components of a trick, set and catch concepts, and the
-      abbreviations you'll meet in tutorials and contests. It's written for
-      newcomers who want a foothold and for experienced players who want a
-      reference page that matches their mental model.
+      This glossary defines the terminology used across the freestyle surfaces:
+      execution mechanics, run-quality terms, trick components, and the compositional
+      vocabulary by which trick names are built. It is written for newcomers who want
+      a foothold and for experienced players who want a reference that matches their
+      mental model.
     </p>
-
-    <h3 class="section-heading">Glossary, Dictionary, and Notation — three layers</h3>
-    <p>
-      The site treats freestyle vocabulary as three complementary layers. Each
-      one gives you a different angle on the same body of knowledge:
-    </p>
-    <ul class="reference-layer-list">
-      <li><strong>Glossary</strong> (this page) — plain-English explanations of terms,
-        styles, and community vocabulary. Read this first if a word is unfamiliar.</li>
-      <li><strong><a href="/freestyle/tricks">Dictionary</a></strong> — the canonical
-        catalog of named tricks with their ADD values, modifier links, family relationships,
-        and structural decomposition. The structural source of truth.</li>
-      <li><strong><a href="/freestyle/sets">Notation</a></strong> — Jobs notation, the
-        community's compact symbolic shorthand for trick structure. Builds the bridge
-        between a trick's name and its mechanical anatomy.</li>
-    </ul>
     <p class="detail-muted">
-      The glossary explains <em>terms</em>; the dictionary defines <em>tricks</em>;
-      the notation describes <em>structure</em>.
+      Canonical trick rows and faceted browse live in the
+      <a href="/freestyle/tricks">trick dictionary</a>. The set-notation reference
+      is at <a href="/freestyle/sets">/freestyle/sets</a>.
     </p>
   </section>
 
@@ -101,8 +85,8 @@
   <section class="content-section">
     <h2 class="section-heading">3. How Tricks Are Built</h2>
 
-    {{! Operator board — visual orientation for the compositional vocabulary referenced throughout this section. }}
-    {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
+    {{! Operator-board visual orientation lives on the freestyle landing page; the
+        glossary's role here is terminology and execution detail, not visual taxonomy. }}
 
     <p>A trick is typically composed of:</p>
     <pre><code>set &rarr; modifiers &rarr; base &rarr; catch (stall or kick)</code></pre>
@@ -402,9 +386,8 @@
   <section class="content-section">
     <h2 class="section-heading">10. Foundational Tricks</h2>
     <p>
-      A small set of base tricks act as the structural primitives most other
-      named tricks descend from. Learning them gives you the building blocks
-      for the much larger catalog of compounds:
+      The irreducible base tricks most other named tricks descend from. Learning
+      them gives you the building blocks for the much larger catalog of compounds:
     </p>
     <ul class="grid-list">
       <li id="term-clipper">clipper</li>
@@ -416,15 +399,29 @@
       <li id="term-butterfly">butterfly</li>
       <li id="term-swirl">swirl</li>
       <li id="term-osis">osis</li>
-      <li id="term-pixie">pixie</li>
-      <li id="term-fairy">fairy</li>
-      <li id="term-around-the-world">around-the-world</li>
+      <li id="term-around-the-world">around-the-world (ATW)</li>
+      <li id="term-orbit">orbit (reverse around-the-world)</li>
     </ul>
     <p>
       Each of these is a family anchor. Most named compound tricks resolve to one
       of these primitives (or a small set of derivative bases like blender or
       torque) once their modifiers and sets are stripped away.
     </p>
+
+    <h3 class="section-heading" id="set-modifiers-tier-1">Set modifiers (not core tricks)</h3>
+    <p>
+      Pixie and fairy are sometimes mistaken for core tricks because they appear in
+      many trick names. They are <strong>set modifiers</strong>: structural treatments
+      applied <em>to</em> a base trick, not bases themselves. See the
+      <a href="/freestyle/sets">set notation reference</a> for the full set-modifier
+      vocabulary.
+    </p>
+    <dl class="glossary-set-modifiers">
+      <dt id="term-pixie">Pixie</dt>
+      <dd>A set modifier producing a same-side in-direction dex. Acts on a base trick (e.g., Pixie Mirage).</dd>
+      <dt id="term-fairy">Fairy</dt>
+      <dd>A set modifier producing a same-side out-direction dex. Acts on a base trick (e.g., Fairy Mirage).</dd>
+    </dl>
   </section>
 
   <section class="content-section">

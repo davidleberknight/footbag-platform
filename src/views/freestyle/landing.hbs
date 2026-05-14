@@ -66,23 +66,20 @@
   {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
   <p class="operator-board-footer-link"><a href="/freestyle/sets">Full set notation reference &rarr;</a></p>
 
-  {{! ── Three-layer reference orientation ─────────────────────────────────── }}
+  {{! ── Reference orientation (three links, not three pillars) ───────────── }}
   <section class="content-section">
-    <h2>The Freestyle Reference</h2>
+    <h2>Where to go next</h2>
     <p>
-      Freestyle footbag has its own structural language. Three reference layers explain it,
-      each at a different depth — start where it suits you and follow links between them.
+      Plain-language definitions live in the <a href="/freestyle/glossary">glossary</a>.
+      Canonical trick rows, family topology, and faceted browse live in the
+      <a href="/freestyle/tricks">trick dictionary</a>. The compact symbolic shorthand
+      for trick structure is documented on trick pages and at the
+      <a href="/freestyle/sets">set notation reference</a>.
     </p>
-    <ul class="reference-layer-list">
-      <li><strong>Glossary</strong> — plain-English vocabulary for newcomers and returning players. Run-quality terms, trick components, style words, common abbreviations.</li>
-      <li><strong>Dictionary</strong> — the canonical catalog of named tricks with ADD values, modifier links, and family relationships. The structural source of truth.</li>
-      <li><strong>Notation</strong> — Jobs notation: a compact symbolic shorthand that decomposes a trick into the sets, modifiers, and base components that build it.</li>
-    </ul>
     <p class="freestyle-learn-pointer">
-      Want to learn freestyle physically and mechanically rather than look up a definition?
-      The <a href="/freestyle/learn">educational pathways</a> page collects modifier-pedagogy
-      pages, family progressions, and glossary connective panels — a companion to the canonical
-      reference for learners.
+      Prefer to learn mechanically rather than look up definitions? The
+      <a href="/freestyle/learn">educational pathways</a> page collects
+      modifier-pedagogy pages, family progressions, and connective panels.
     </p>
   </section>
 
@@ -127,8 +124,7 @@
         </p>
         {{#if content.totalTricks}}
         <div class="card-actions">
-          <a href="/freestyle/tricks" class="btn btn-outline">Browse tricks &rarr;</a>
-          <a href="/freestyle/tricks?view=component" class="btn btn-outline">Browse by component &rarr;</a>
+          <a href="/freestyle/tricks" class="btn btn-outline">Browse the trick dictionary &rarr;</a>
         </div>
         {{else}}
         <span class="badge badge-coming-soon">Coming soon</span>

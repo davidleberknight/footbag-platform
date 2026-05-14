@@ -39,9 +39,18 @@ const FOUNDATIONAL_TRICK_TERMS: ReadonlySet<string> = new Set([
   'butterfly',
   'swirl',
   'osis',
+  'around-the-world',
+  'orbit',
+]);
+
+// Set-modifier anchors preserved on the glossary so that cross-link consumers
+// (trick pages, semantic notation tokens) resolve to a defined anchor instead
+// of the bare /freestyle/glossary URL. Pixie and Fairy are set modifiers, not
+// irreducible core tricks; they render in a small clarifying subsection under
+// §10 rather than in the foundational-tricks list.
+const SET_MODIFIER_ANCHOR_TERMS: ReadonlySet<string> = new Set([
   'pixie',
   'fairy',
-  'around-the-world',
 ]);
 
 const MODIFIER_REFERENCE_TERMS: ReadonlySet<string> = new Set([
@@ -63,7 +72,11 @@ export function glossaryHrefForTerm(term: string): string {
   if (CONNECTIVE_PANEL_TERMS.has(normalized)) {
     return `/freestyle/glossary#glossary-panel-${normalized}`;
   }
-  if (FOUNDATIONAL_TRICK_TERMS.has(normalized) || MODIFIER_REFERENCE_TERMS.has(normalized)) {
+  if (
+    FOUNDATIONAL_TRICK_TERMS.has(normalized) ||
+    MODIFIER_REFERENCE_TERMS.has(normalized) ||
+    SET_MODIFIER_ANCHOR_TERMS.has(normalized)
+  ) {
     return `/freestyle/glossary#term-${normalized}`;
   }
   return '/freestyle/glossary';

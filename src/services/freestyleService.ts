@@ -3984,7 +3984,7 @@ export const freestyleService = {
             op('GY',    'Gyro',     'Body-rotation variant on a partial or inverted plane.',            'GY + BUTTERFLY',          'GYRO BUTTERFLY',     NOTATION('gyro')),
             op('DUCK',  'Ducking',  'The body drops under the bag mid-dex.',                            'PIX + DUCK + BUTTERFLY',  'PHOENIX',            MOD_PEDAGOGY('ducking')),
             op('PDX',   'Paradox',  'A hip pivot inserted between two dexes.',                          'PDX + LEG-OVER',          'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
-            op('SYMP',  'Symposium','An illusion combined with body rotation.',                         'SYMP + ILLUSION',         'FLAIL',              GLOSSARY('symposium'), true),
+            op('SYMP',  'Symposium','A component where an active leg performs an action in a single-leg jump: the symposium leg jumps and lands on its own while the other leg remains in the air.', 'SYMP + ILLUSION',         'FLAIL',              GLOSSARY('symposium'), true),
           ],
         },
         {

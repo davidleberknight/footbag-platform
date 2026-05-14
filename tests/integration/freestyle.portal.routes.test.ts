@@ -520,13 +520,13 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(arrowCount).toBe(14);
   });
 
-  it('places the operator board above "The Freestyle Reference" section', async () => {
+  it('places the operator board above the "Where to go next" orientation block', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    const boardIdx     = res.text.indexOf('class="operator-board');
-    const referenceIdx = res.text.indexOf('The Freestyle Reference');
+    const boardIdx       = res.text.indexOf('class="operator-board');
+    const orientationIdx = res.text.indexOf('Where to go next');
     expect(boardIdx).toBeGreaterThan(0);
-    expect(referenceIdx).toBeGreaterThan(boardIdx);
+    expect(orientationIdx).toBeGreaterThan(boardIdx);
   });
 
   // ── Operator-card deep-links: one restrained destination per operator ──

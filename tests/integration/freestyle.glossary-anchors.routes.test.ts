@@ -90,7 +90,7 @@ describe('glossaryHrefForTerm (pure function)', () => {
 });
 
 describe('GET /freestyle/glossary — fragment anchors render', () => {
-  it('renders id="term-X" on all 12 §10 foundational-tricks list items', async () => {
+  it('renders id="term-X" on all 11 §10 foundational-tricks list items', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="term-clipper"');
@@ -102,9 +102,15 @@ describe('GET /freestyle/glossary — fragment anchors render', () => {
     expect(res.text).toContain('id="term-butterfly"');
     expect(res.text).toContain('id="term-swirl"');
     expect(res.text).toContain('id="term-osis"');
+    expect(res.text).toContain('id="term-around-the-world"');
+    expect(res.text).toContain('id="term-orbit"');
+  });
+
+  it('preserves id="term-pixie" and id="term-fairy" anchors in the set-modifiers subsection (cross-link integrity)', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="set-modifiers-tier-1"');
     expect(res.text).toContain('id="term-pixie"');
     expect(res.text).toContain('id="term-fairy"');
-    expect(res.text).toContain('id="term-around-the-world"');
   });
 
   it('renders id="term-X" on the §3 modifier quick-reference subsection', async () => {
