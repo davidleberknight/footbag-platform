@@ -1,0 +1,87 @@
+question_id,topic,original_framing,current_status,relevant_rulings,impacted,current_interpretation,needs_followup,recommended_action
+pt1-atom-smasher,Atom Smasher ADD,Is Atom Smasher 3 or 4 ADD?,resolved,pt1 + pt2 (atomic=+1 / +2 rot per pt10),atom-smasher;x-dex;atomic,Atom Smasher = atomic mirage = 4 ADD (atomic rotational on paradox-mirage),no,canon-only
+pt1-eclipse,Eclipse jump scoring,Does hop in Eclipse count as ADD?,resolved,pt1,eclipse,Yes; Eclipse = 3 ADD total,no,canon-only
+pt1-body-tricks,1-2 ADD body tricks,Should body tricks be added to dictionary?,resolved,pt1,flying-inside;flying-outside;hop-over;walk-over;double-spin,Yes; all included in current competition,no,canon-only
+pt1-4-5-add-selection,High-ADD trick priority,Which high-ADD tricks are most important?,obsolete,pt1 (Red deferred),various,Superseded by per-trick acceptance via Red rulings,no,no-action
+pt1-spyro,Spyro body element,What is Spyro's ADD?,resolved,pt1,spyro,Spyro = 1 ADD by itself,no,canon-only
+pt1-surging,Surging definition,What is Surging vs Spyro?,resolved,pt1,surging;spyro,Surging = spinning + stepping = 2 ADDs; Spyro is a trick not a concept,no,canon-only
+pt1-quantum,Quantum definition,What is Quantum?,resolved,pt1 + pt10,quantum;toe-blur,Quantum = compressed atomic (toe blur lineage); +1 modifier per pt10,no,canon-only
+pt1-gyro,Gyro definition,What is Gyro vs Spyro?,resolved,pt1 + pt2 (renamed Inspin),gyro;spyro;vortex,Gyro = spinning where same foot sets and dexes; Vortex = Gyro Drifter,no,canon-only
+pt2-spyro-inspin,Spyro renamed,Has Spyro been replaced by Inspin?,resolved,pt2,inspin;spyro,Yes; Inspin is the current name,no,canon-only
+pt2-surging-examples,Surging examples,What tricks use Surging?,resolved,pt2,bigwalk;surge;surreal;surgery;venom,5 named Surging compounds with ADDs 5-6,no,canon-only
+pt2-pogo,Pogo classification,Is Pogo a modifier or set?,resolved,pt2 + pt6,pogo,Pogo is a set (no ADD bonus),no,canon-only
+pt2-toe-blur-quantum,Toe Blur to Quantum,Are Toe Blur etc now called Quantum?,resolved,pt2,quantum;toe-blur;toe-ripwalk;toe-blizzard,Yes; full mapping documented,no,canon-only
+pt2-gyro-instances,Gyro-modified tricks,What Gyro-modified instances exist?,resolved,pt2,gyro-butterfly;vortex;spyro-gyro;mobius;flurricane,5 named Gyro compounds documented,no,canon-only
+pt2-atomic,Atomic modifier formalization,Is Atomic a +1 modifier?,resolved,pt2 + pt10 (refined to +1 non-rot / +2 rot),atomic;eggbeater;atom-smasher;omelette;witchdoctor,Atomic confirmed; pt10 refined for rotational class,no,canon-only
+pt3-double,Double semantics,Is Double a modifier?,resolved,pt3 + followup-2026-04 (open per Red),double,Double is not a set; signals 2x dex or 2x body spin; per-compound rulings,partial,reframe-as-policy-question
+pt3-inspinning,Inspinning vs Spinning,Different techniques or same?,resolved,pt3 + pt7,inspinning;spinning,Distinct entries; opposite spin directions,no,canon-only
+pt3-tapping,Tapping vs Stepping,Same or distinct?,resolved,pt3,tapping;stepping,Distinct; Tapping = Atomic set to same-side dex,no,canon-only
+pt4-barrage,Barrage ADD and category,Dex or compound? What ADD?,resolved,pt4 + followup-2026-04,barrage;flurry,3 ADDs; its own category; Barraging Legover = Flurry,no,canon-only
+pt4-merkon,Merkon ADD,Dex or compound?,resolved,pt4 + followup-2026-04,merkon,3 ADDs standalone dex,no,canon-only
+pt4-terrage,Terrage ADD and category,Dex or compound?,resolved,pt4 + pt6 + followup-2026-04,terrage;terraging,4 ADDs; Terraging is +3 modifier,no,canon-only
+pt4-ripstein,Ripstein base and ADD,What base?,resolved,pt4,ripstein,Double Swirl base; 4 ADDs,no,canon-only
+pt4-royale,Royale decomposition,What canonical form?,resolved,pt4 + pt5,royale;paradox;reverse-drifter,Royale = Paradox Grifter (Paradox Reverse Drifter) = 4 ADDs,no,canon-only
+pt4-fog,Fog decomposition,What canonical form?,resolved,pt5,fog;stepping;paradox,Stepping Paradox Double Legover,no,canon-only
+pt4-dlo,Double Legover naming,Canonical primary name?,resolved,pt4,dlo;double-legover,DLO is canonical primary name,no,canon-only
+pt4-named-compounds,Compound entry inclusion,Should Sumo/Baroque/Silo be canonical?,resolved,pt4,sumo;baroque;silo,Yes; worthy of inclusion,no,canon-only
+pt6-fury,Fury ADD and composition,4 or 5? How composed?,resolved,pt6,fury;furious;paradox;mirage,Fury = furious + paradox + mirage = 5,no,canon-only
+pt6-sole-stall,Sole Stall ADD,Confirm exception?,resolved,pt6,sole-stall,2 ADDs (real exception),no,canon-only
+pt6-flapper,Flapper structural,What is Flapper?,resolved,pt6,flapper,Flapper Stall = 3 ADDs,no,canon-only
+pt6-terraging-modifier,Terraging as modifier,ADD value?,resolved,pt6,terraging,Modifier; +3 ADD,no,canon-only
+pt6-reverse-drifter,Reverse Drifter canonicality,Separate or descriptive?,resolved,pt6,reverse-drifter,Separate canonical entry,no,canon-only
+pt6-double-swirl,Double Swirl model,Canonical or descriptive?,resolved,pt6,double-swirl,Descriptive only,no,canon-only
+pt7-shooting,Shooting set/modifier,Set or modifier or both?,resolved,pt7,shooting,Both; standalone set = 3 ADDs; as modifier brings +N,no,canon-only
+pt7-inside,Inside as modifier,Modifier or naming?,resolved,pt7,inside,Naming convention; not its own modifier,no,canon-only
+pt7-rooted,Rooted as modifier,Real modifier?,resolved,pt7,rooted,Real modifier,no,canon-only
+pt7-rooted-add,Rooted ADD contribution,What ADD?,resolved,pt8,rooted,0 ADD (stall baseline),no,canon-only
+pt7-symp,Symp abbreviation,Same as Symposium?,resolved,pt7,symposium;symp,Yes orthographic shorthand,no,canon-only
+pt7-spinning-variants,Spinning variants,Distinct or stacking?,resolved,pt7,spinning;inspinning,Modifier stacking,no,canon-only
+pt7-down-pattern,Down-family distinctness,Same or distinct tricks?,partially-resolved,pt7 + followup-down-family-2026-05 OPEN,down;double-over-down;down-double-down;down-diver,Distinct tricks per pt7; canonical addition path still in follow-up packet,open,carry-forward-to-down-family-followup
+pt7-smudge-family,Smudge/Smoke/Smog/Haze,Real tricks?,resolved,pt7 + pt8,smudge;smoke;smog;haze,Real tricks with documented decompositions,no,canon-only
+pt8-cloud-stall,Cloud Stall ADD,2 ADD or typo?,still-open,pt8 (deferred),cloud-stall,Verdict still TBD,open,low-priority-confirm
+pt8-head-stall,Head/Peak/Shoulder stalls,Standard 1-ADD?,resolved,pt8,head-stall;peak-stall;shoulder-stall,Yes 1 ADD,no,canon-only
+pt8-squeeze-pincher,Squeeze/Pincher ADD,Confirm 2?,resolved,pt8,squeeze;pincher,2 ADDs,no,canon-only
+pt8-scrambled-eggbeater,Scrambled Eggbeater status,Real variant?,still-open,pt8 (on hold),scrambled-eggbeater,On hold may overlap with another move,open,defer
+pt8-smoke,Smoke decomposition,What composition?,resolved,pt8,smoke;pixie-drifter,Pixie Drifter = 4 ADDs,no,canon-only
+pt8-refraction,Refraction classification,Dex or compound?,resolved,pt6,refraction,Dex,no,canon-only
+pt8-flail-omelette,Flail/Omelette canonical,What canonical map?,resolved,pt6 + followup-2026-04,flail;omelette,Flail = Symposium Illusion; Omelette = Atomic Illusion (3 ADDs),no,canon-only
+pt8-bullwhip,Bullwhip base trick,Base structure?,resolved,pt8,bullwhip;gyro,Gyro family; 5 ADDs,no,canon-only
+pt8-nemesis,Nemesis base,Base structure?,resolved,pt6 + pt8,nemesis;furious-barfly,Furious Barfly = 6 ADDs,no,canon-only
+pt8-plasma,Plasma decomposition,Real trick?,resolved,pt8,plasma;quantum-double-down,Quantum Double Down = 5 ADDs,no,canon-only
+pt8-grave-digger,Grave Digger decomposition,Real trick?,resolved,pt8,grave-digger;stepping-same-side-torque,Stepping Same Side Torque = 5 ADDs,no,canon-only
+pt8-jani-walker,Jani Walker ADD,4 or 5 ADD?,resolved,pt8,jani-walker,5 ADDs,no,canon-only
+pt10-quantum-modifier,Quantum modifier,Real +1 modifier?,resolved,pt10,quantum,Real +1 universal,no,canon-only
+pt10-nuclear,Nuclear definition,+2 flat or context?,resolved,pt10,nuclear;paradox-atomic,+2 flat; Nuclear = Paradox Atomic set,no,canon-only
+pt10-rotational-bonus,Rotational-base escalation,Does rotation escalate to +2 for spinning/whirling/swirling?,resolved,pt10,spinning;whirling;swirling,No escalation; flat +1 for spinning/whirling/swirling. Atomic retains rotational escalation,no,canon-only
+pt10-candidate-families,Blur/Blender/Barfly/Ripwalk/Stepping,Bases or named compounds?,resolved,pt10 + pt11,blur;blender;barfly;ripwalk,Named compounds built from more basic structures,no,canon-only
+pt11-blur-semantics,Blur flat model,Normalize to +1 flat?,resolved,pt11,blur;stepping;paradox;mirage,Yes; Blur = Stepping Paradox Mirage = 4,no,canon-only
+pt11-frigidosis,Frigidosis decomposition,Preferred semantic form?,still-open,pt11 (Red to look into),frigidosis,Decomposition unconfirmed,open,low-priority-clarification
+pt11-blender-semantics,Blender decomposition,Whirling Osis or culturally atomic?,resolved,pt11,blender;whirling;osis,Whirling Osis,no,canon-only
+pt11-barfly-nuclear,Barfly = Nuclear ss Butterfly,Semantically acceptable?,resolved,pt11 + pt12 SS,barfly;nuclear;butterfly,Yes acceptable,no,canon-only
+pt11-mobius,Mobius decomposition,What composition?,resolved,pt11,mobius;spinning;torque,Spinning Torque (also Symposium Spinning Torque per listing variant),no,canon-only
+pt11-ripwalk,Ripwalk decomposition,What composition?,resolved,pt11,ripwalk;stepping;butterfly,Stepping Butterfly,no,canon-only
+pt11-torque,Torque decomposition,Culturally atomic or decomposed?,resolved,pt11,torque;miraging;osis,Miraging Osis,no,canon-only
+pt12-ss-semantics,Same-side ADD impact,Does ss = -1 / 0 / context?,resolved,pt12 Red 2026-05-11,ss;hurl;barfry;maverick;casket;nuclear;pixie,SS = +0 universal,no,canon-only
+pt12-blurry-transitive,Blurry transitive on rotational,Does pt11 apply transitively to Blurry-Whirl / Blurry-Torque / Food Processor?,still-open,pt11 (deferred to pt12),blurry-whirl;blurry-torque;food-processor;blurry,Three options queued: transitive / per-row / culturally atomic,open,high-priority-red-q
+pt12-witchdoctor-math,Witchdoctor atomic-symposium interaction,Math gives 5 but asserted 4 - which?,still-open,pt12 (4 options queued),witchdoctor;atomic;symposium;mirage,Four options on table including atomic-symposium interaction model,open,high-priority-red-q
+followup-2026-04-double-modifier,Double as modifier,Always +1 or context-dependent?,reframed,followup-2026-04 (Red deferred) + nf-2a curatorConfirmPending,double,Per-compound Red rulings supersede generalization; default = 0 wrapper,partial,reframe-as-policy-question
+followup-2026-04-glossary-terms,Glossary archaic terms,Still active or archaic?,still-open,followup-2026-04 (not answered),guiltless;tiltless;fearless;tripless;genuine;beastly;godly,Unanswered in visible record,open,low-priority-clarification
+followup-2026-04-critical-absence,Dictionary credibility gap,Most-important missing trick?,obsolete,followup-2026-04 (open),various,Superseded by canonical_trick_publication_contract requirements,no,no-action
+followup-down-family,Down-family canonicalization,Add bases A/B/C?,still-open,followup-down-family-2026-05.md,down;down-double-down;double-over-down;scorpion's-tail;down-diver;blurrier;torch-r-rack,Three options presented; no explicit Red answer,open,medium-priority-red-q
+federation-q1-omelette,Atomic on Illusion (Omelette delta),IFPA gap or different from Atomic Illusion?,resolved-indirectly,followup-2026-04 (Omelette = Atomic Illusion = 3),omelette;atomic-illusion;atomic,Already settled in follow-up; FM's omelette=4 is FM convention noise,no,remove-from-packet
+federation-q2-double-pixie,Double-Pixie semantics (Terrage delta),2x pixie / composite / noise?,resolved-indirectly,pt6 (terraging=+3 ruling),terrage;double;pixie,FM uses Double Pixie shorthand for Terraging; pt6 already settled Terrage = 4 with terraging=+3 modifier,no,remove-from-packet
+federation-q3-positional-operators,Positional operators ADD weight,Do near/far/op/os carry 0?,still-open,pt12 SS=+0 (one positional resolved) + ADD audit Q3,far;near;op;os;set,SS=+0 by analogy; ADD audit suggests `far` may carry implicit +1 in 11 PB rows,open,high-priority-red-q
+federation-q4-reverse,Reverse directional operator,0-ADD?,still-open,federation queue + ADD audit suggest +0 by-analogy,reverse,Presumed +0 by analogy; not formally adjudicated,open,medium-priority-red-q
+federation-q5-blurry-rotational,Blurry rotational bases (priority queue),Which compounds expand vs stay flat?,duplicate-of-pt12-blurry-transitive,pt12 queue,blurry-whirl;blurry-torque;food-processor;whirlygig;blurry,Subsumed by pt12-blurry-transitive,no,merge-into-pt12-blurry
+federation-q6-furious,Furious operator status,IFPA modifier or FM folk shorthand?,resolved-indirectly,pt6 (Fury = furious + paradox + mirage = 5),furious;fury;genesis,pt6 confirmed Furious as IFPA modifier; FM Genesis math is FM convention noise (+2 delta documented),no,remove-from-packet
+federation-q7-recursive-sets,Recursive set operator inheritance,First-class modifiers or folk-shorthand?,still-open,nf-2a candidates queue,sailing;slaying;slicing;frantic;phasing;hyper;pogo;leaning;inspinning;quasi;riffing;smiling,5 advance candidates scored (Sailing Frantic Leaning Hyper Inspinning); rest defer-pending,partial,medium-priority-red-q-batch
+q2-wf2-symposium-mirage,Symposium on 2-ADD rotational base,Symposium = +2 on mirage?,still-open,pt12 wave-2 packet (Q2),conniption-city;royall-assassin;symposium;mirage;quantum,4 options including Conniption City FM error possibility,open,medium-priority-red-q
+q3-wf2-blurry-nonrotational,Blurry on non-rotational bases,pt11 +1 rotational-only or universal?,still-open,pt12 wave-2 packet (Q3) + pt11,bedwetter;blizzard;golden-shower;blurry;eggbeater;illusion,3 candidate rows test the question,open,medium-priority-red-q
+q4-wf2-fairy-modifier,Fairy modifier status,Adopt / folk / reject?,still-open,wave-2 packet (Q4) + ADD audit Q4-block,casket;fairy;fear;feral;ferocious;fudge;fume;guillotine;fairy-beater,9 affected rows; entire Q4 batch depends on this,open,high-priority-red-q-batch
+add-q1-blurry-rotational,Blurry on rotational bases (ADD audit),Does blurry carry +2 on rotational?,duplicate-of-pt12-blurry-transitive,pt12 queue,blurry-whirl;blurry-torque;food-processor;barraging-osis;blurry;barraging,Subsumed by pt12-blurry-transitive (extended to barraging-osis),no,merge-into-pt12-blurry
+add-q2-witchdoctor,Witchdoctor decomposition (ADD audit),Atomic +1 or +2?,duplicate-of-pt12-witchdoctor,pt12 queue,witchdoctor;atomic;symposium;mirage,Subsumed by pt12-witchdoctor-math,no,merge-into-pt12-witchdoctor
+add-q3-atomic-set-polysemy,Atomic-set polysemy / far weight,Does far carry +1 or implicit operator?,still-open-as-merged,Subsumes federation-q3 + ADD audit Q3,atom-smasher;blur;drifter;fury;sumo;atomic;far,11 PB rows + ADD-audit evidence converge on this question,open,high-priority-red-q
+add-q4-royale,Royale decomposition (ADD audit),Alias for reverse-drifter or distinct +1?,resolved-indirectly,pt4 + pt5,royale;reverse-drifter,Royale = Paradox Grifter = Paradox Reverse Drifter = 4 ADDs per pt4/pt5,no,remove-from-packet
+add-q5-quantum-polysemy,Quantum vs Toe Blur polysemy,Modifier or compound needing expansion?,still-open,pt10 + nf-2a curatorConfirmPending,quantum;toe-blur,Pt10 confirmed +1 modifier; toe-blur lineage shape still pending,open,low-priority-red-q
+add-q6-furious-non-rotational,Furious non-rotational,+1 or always +2?,still-open,pt6 derives +2 on rotational; non-rotational case TBD,furious,Forward-looking; no current IFPA row in DB,open,low-priority-red-q
+add-q7-double-policy,Double-X policy,+1 generic / per-compound / 0-wrapper?,reframed,nf-2a curatorConfirmPending + followup-2026-04 deferred,double;double-blender;double-spinning-osis;double-fairy,Per-compound rulings supersede generalization per nf-2a entry,partial,bundle-with-followup-2026-04-double

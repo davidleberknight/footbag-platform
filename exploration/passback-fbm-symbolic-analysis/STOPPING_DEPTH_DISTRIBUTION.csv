@@ -1,0 +1,566 @@
+source,move_name,technical_name,token_count,modifier_count,positional_count,quantifier_count,terminal_token,terminal_class,has_temporal_flag,has_q4_blocked_token,has_operational_leak,source_adds,derived_adds
+footbagmoves,69,Nuclear Drifter,2,1,0,0,Drifter,base_or_unknown,no,no,no,6,6
+footbagmoves,69,Nuclear Drifter,2,1,0,0,Drifter,base_or_unknown,no,no,no,6,6
+footbagmoves,84,Wiggle Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,84,Wiggle Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Aeon Flux,Nuclear Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,5,5
+footbagmoves,Aeon Flux,Nuclear Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,5,5
+footbagmoves,Alex Zerbe is the greatest,Spyro Symple Drifter,3,2,0,0,Drifter,base_or_unknown,no,yes,no,4,4
+footbagmoves,Alex Zerbe is the greatest,Spyro Symple Drifter,3,2,0,0,Drifter,base_or_unknown,no,yes,no,4,4
+footbagmoves,Alpine Big Apple,Gyro Ducking Symposium Torque,4,3,0,0,Torque,base_or_unknown,no,yes,no,7,
+footbagmoves,Amadeus,Gyro Dada Curve,3,1,0,0,Curve,base_or_unknown,no,yes,no,5,5
+footbagmoves,Amadeus,Gyro Dada Curve,3,1,0,0,Curve,base_or_unknown,no,yes,no,5,5
+footbagmoves,Anoxia,Spinning Ducking Paradox Symposium Mirage,5,4,0,0,Mirage,base_or_unknown,no,no,no,6,6
+footbagmoves,Anoxia,Spinning Ducking Paradox Symposium Mirage,5,4,0,0,Mirage,base_or_unknown,no,no,no,6,6
+footbagmoves,Apocalypse,Pixie Miraging Symposium Miraging Legover,5,4,0,0,Legover,base_or_unknown,no,no,no,7,7
+footbagmoves,Arachnophobia,Stepping Diving Double Legover,4,1,0,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Arachnophobia,Stepping Diving Double Legover,4,1,0,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Arch Nemesis,Barraging ss Double Double Down,5,2,1,2,Down,base_or_unknown,no,yes,no,6,6
+footbagmoves,Arch Nemesis,Barraging ss Double Double Down,5,2,1,2,Down,base_or_unknown,no,yes,no,6,6
+footbagmoves,Arcwalk,Arctic Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Arcwalk,Arctic Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Assassin,Pixie Ducking Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,4,4
+footbagmoves,Assassin,Pixie Ducking Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,4,4
+footbagmoves,Atom Bomb,Flailing Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,6,6
+footbagmoves,Atom Bomb,Flailing Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,6,6
+footbagmoves,Atomic ss Osis,Tapping Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,4,
+footbagmoves,Atomic ss Osis,Tapping Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,4,
+footbagmoves,Atomotion,Atomic Motion,2,1,0,0,Motion,base_or_unknown,no,no,no,7,7
+footbagmoves,Atomsmasher,Atomic Mirage,2,1,0,0,Mirage,base_or_unknown,no,no,no,3,4
+footbagmoves,Avalanche,Stepping Ducking Pdx Illusion,4,2,0,0,Illusion,base_or_unknown,no,no,yes,5,5
+footbagmoves,Avalanche,Stepping Ducking Pdx Illusion,4,2,0,0,Illusion,base_or_unknown,no,no,yes,5,5
+footbagmoves,Barfly,Far Double Over Down,4,1,1,1,Down,base_or_unknown,no,no,no,4,4
+footbagmoves,Barfly,Far Double Over Down,4,1,1,1,Down,base_or_unknown,no,no,no,4,4
+footbagmoves,Barfry,Nuclear ss Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Barfry,Nuclear ss Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Barrage,Clipper set Double Mirage,4,1,1,1,Mirage,base_or_unknown,no,no,no,3,3
+footbagmoves,Barrage (toe set),Clipper set Double Mirage,4,1,1,1,Mirage,base_or_unknown,no,no,no,3,3
+footbagmoves,Barroque,Barraging Osis,2,1,0,0,Osis,base_or_unknown,no,yes,no,5,5
+footbagmoves,Barroque,Barraging Osis,2,1,0,0,Osis,base_or_unknown,no,yes,no,5,5
+footbagmoves,Bedwetter,Blurry Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,no,no,5,5
+footbagmoves,Bedwetter,Blurry Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,no,no,5,5
+footbagmoves,Big Apple,Gyro Symposium Torque,3,2,0,0,Torque,base_or_unknown,no,yes,no,6,6
+footbagmoves,Big Apple,Gyro Symposium Torque,3,2,0,0,Torque,base_or_unknown,no,yes,no,6,6
+footbagmoves,Big Apple Sauce,Spinning Paradox Miraging Symposium Torque,5,4,0,0,Torque,base_or_unknown,no,no,no,9,9
+footbagmoves,Big Papa Smurf,Surfing ss Blender,3,2,1,0,Blender,base_or_unknown,no,yes,no,7,7
+footbagmoves,Bigwalk,Surging Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,
+footbagmoves,Bigwalk,Surging Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,5
+footbagmoves,Bill & Ted`s Bogus Journey,Flailing ss Symposium Double Legover,5,3,1,1,Legover,base_or_unknown,no,yes,no,6,6
+footbagmoves,Bill & Ted`s Bogus Journey,Flailing ss Symposium Double Legover,5,3,1,1,Legover,base_or_unknown,no,yes,no,6,6
+footbagmoves,Bill & Ted`s Excellent Adventure,Flailing ss Symposium Eggbeater,4,3,1,0,Eggbeater,base_or_unknown,no,yes,no,7,7
+footbagmoves,Blacula,Symposium Double Over Down,4,1,0,1,Down,base_or_unknown,no,no,no,5,5
+footbagmoves,Bladerunner,Atomic Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,no,no,5,5
+footbagmoves,Blaze,Blazing Mirage,2,1,0,0,Mirage,base_or_unknown,no,yes,no,4,3
+footbagmoves,Blaze,Blazing Mirage,2,1,0,0,Mirage,base_or_unknown,no,yes,no,4,3
+footbagmoves,Blender,Whirling Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Blender,Whirling Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Blender (same side),Whirling Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Bling Blang,Whirling Reverse Whirl,3,2,0,0,Whirl,base_or_unknown,no,no,no,4,4
+footbagmoves,Blister,Whirling Gyro Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,4,4
+footbagmoves,Blizzard,Blurry Illusion,2,1,0,0,Illusion,base_or_unknown,no,no,no,4,4
+footbagmoves,Blue Widow,Pixie Spinning Paradox Symposium Whirl,5,4,0,0,Whirl,base_or_unknown,no,no,no,7,7
+footbagmoves,Blur,Blurry Mirage,2,1,0,0,Mirage,base_or_unknown,no,no,no,4,4
+footbagmoves,Blurrage,Blurry Barrage,2,1,0,0,Barrage,base_or_unknown,no,no,no,6,6
+footbagmoves,Blurrage,Blurry Barrage,2,1,0,0,Barrage,base_or_unknown,no,no,no,6,6
+footbagmoves,Blurrier,Stepping Double Over Down,4,1,0,1,Down,base_or_unknown,no,no,no,5,5
+footbagmoves,Blurriest,Stepping Barfly,2,1,0,0,Barfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Blurry Chainsaw Massacre,Blurry Illusioning Paradox Symposium Eggbeater,5,3,0,0,Eggbeater,base_or_unknown,no,no,no,7,7
+footbagmoves,Boulderbeater,Quantum Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,no,no,5,5
+footbagmoves,Bubba Beater,Bubba Legover,2,1,0,0,Legover,base_or_unknown,no,yes,no,3,3
+footbagmoves,Bullwhip,Gyro Double Over Down,4,1,0,1,Down,base_or_unknown,no,yes,no,5,5
+footbagmoves,Buttersole,Butterfly Flapper,2,0,0,0,Flapper,base_or_unknown,no,no,no,4,3
+footbagmoves,Carousel,Surging Ducking Paradox Symposium Whirling Rake,6,5,0,0,Rake,base_or_unknown,no,yes,no,9,
+footbagmoves,Cascade,Ducking Double Legover,3,1,0,1,Legover,base_or_unknown,no,no,no,4,4
+footbagmoves,Casket,Fairy ss Drifter,3,2,1,0,Drifter,base_or_unknown,no,yes,no,4,4
+footbagmoves,Cataclysm,Neutron Double Legover,3,1,0,1,Legover,base_or_unknown,no,yes,no,5,5
+footbagmoves,Catacomb,Pixie ss Drifter,3,2,1,0,Drifter,base_or_unknown,no,no,no,4,4
+footbagmoves,Chainsaw Massacre,Bubba Paradox Symposium Eggbeater,4,3,0,0,Eggbeater,base_or_unknown,no,yes,no,7,7
+footbagmoves,Clown Face,Furious Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,yes,no,7,7
+footbagmoves,Cold Fusion,Nuclear Double Over Down,4,1,0,1,Down,base_or_unknown,no,no,no,7,7
+footbagmoves,Colossus,Spyro Diving Symposium Whirl,4,2,0,0,Whirl,base_or_unknown,no,yes,no,6,6
+footbagmoves,Colossus,Spyro Diving Symposium Whirl,4,2,0,0,Whirl,base_or_unknown,no,yes,no,6,6
+footbagmoves,Compound Fracture,Railing ss Double Legover,4,2,1,1,Legover,base_or_unknown,no,yes,no,6,6
+footbagmoves,Compound Fracture,Railing ss Double Legover,4,2,1,1,Legover,base_or_unknown,no,yes,no,6,6
+footbagmoves,Conniption City,Quantum Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Cristal,Quantum Ducking Whirl,3,2,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Cristal,Quantum Ducking Whirl,3,2,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Croissant,Pixie Symposium Whirling Swirl,4,3,0,0,Swirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Croxton,Jolimont ss Mirage,3,2,1,0,Mirage,base_or_unknown,no,yes,no,5,5
+footbagmoves,Cyborg,Stepping Ducking Far Butterfly Swirl,5,3,1,0,Swirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Cyclone,Shooting Gyro Mirage,3,1,0,0,Mirage,base_or_unknown,no,yes,no,5,5
+footbagmoves,Dada Curve,Miraging Symple Butterfly,3,2,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Dark Avenue,Fairy Diving Butterfly,3,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,5
+footbagmoves,Darkwalk,Pixie Diving Butterfly,3,1,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Dellusion,Double Illusion,2,0,0,1,Illusion,base_or_unknown,no,no,no,4,4
+footbagmoves,Desien,Sailing Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Dimwalk,Pixie Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Dolomite,Symposium Paradon,2,1,0,0,Paradon,base_or_unknown,no,no,no,5,5
+footbagmoves,Dominatrix,Sailing Mirage,2,1,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Dorshanatrix,Railing Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,7,7
+footbagmoves,Dorshatrix,Railing Mirage,2,1,0,0,Mirage,base_or_unknown,no,yes,no,6,6
+footbagmoves,Double Helix,Symposium Reverse Whirling Swirl,4,3,0,0,Swirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Down Diver,Diving Down Double Down,4,0,0,1,Down,base_or_unknown,no,no,no,5,5
+footbagmoves,Down Double Down,Clipper set ss Double Over Down,6,2,2,1,Down,base_or_unknown,no,no,no,4,4
+footbagmoves,Downward Spiral,Phasing ss Dyno,3,2,1,0,Dyno,base_or_unknown,no,no,no,6,6
+footbagmoves,Dragonstein,Double Swirl Dragon,3,1,0,1,Dragon,q4_blocked,no,yes,no,4,4
+footbagmoves,Dragster,Miraging Dragon,2,2,0,0,Dragon,q4_blocked,no,yes,no,3,3
+footbagmoves,Drifter,Miraging Clipper,2,1,0,0,Clipper,surface,no,no,no,3,3
+footbagmoves,Drifter (same-side),Miraging Clipper,2,1,0,0,Clipper,surface,no,no,no,3,3
+footbagmoves,Dwirl,Double Twirl,2,0,0,1,Twirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Dyno (far),Reverse Blender,2,1,0,0,Blender,base_or_unknown,no,no,no,4,4
+footbagmoves,Dyno (same side),Reverse Blender,2,1,0,0,Blender,base_or_unknown,no,no,no,4,4
+footbagmoves,E-Walk,Frantic Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Eggbeater,Illusioning Legover,2,0,0,0,Legover,base_or_unknown,no,no,no,3,3
+footbagmoves,Eggplant,Atomic Legover,2,1,0,0,Legover,base_or_unknown,no,no,no,3,3
+footbagmoves,Ego,Atomic Ducking Whirl,3,2,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Enterrage,Terraging Legover,2,1,0,0,Legover,base_or_unknown,no,yes,no,4,4
+footbagmoves,Fairy Beater,Fairy Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,yes,no,4,4
+footbagmoves,Fairy Symposium Mirage,Fairy Flail,2,1,0,0,Flail,base_or_unknown,no,yes,no,4,
+footbagmoves,Fairy Tale,Fairy Spinning Double Over Down,5,2,0,1,Down,base_or_unknown,no,yes,no,6,6
+footbagmoves,Fear,Fairy Mirage,2,1,0,0,Mirage,base_or_unknown,no,yes,no,3,3
+footbagmoves,Fender,Fairy Blender,2,1,0,0,Blender,base_or_unknown,no,yes,no,5,5
+footbagmoves,Fender Bender,Fairy Ducking Blender,3,2,0,0,Blender,base_or_unknown,no,yes,no,6,6
+footbagmoves,Feral,Fairy Whirl,2,1,0,0,Whirl,base_or_unknown,no,yes,no,4,4
+footbagmoves,Ferocious,Fairy Osis,2,1,0,0,Osis,base_or_unknown,no,yes,no,4,4
+footbagmoves,Firefly,Butterfly Dragon,2,1,0,0,Dragon,q4_blocked,no,yes,no,3,3
+footbagmoves,Firewalk,Flaring Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Fission,Furious Illusion,2,1,0,0,Illusion,base_or_unknown,no,yes,no,6,6
+footbagmoves,Flail,Symposium Illusion,2,1,0,0,Illusion,base_or_unknown,no,no,no,3,3
+footbagmoves,Flaming Homer,Fairy ss Eggbeater,3,2,1,0,Eggbeater,base_or_unknown,no,yes,no,4,4
+footbagmoves,Flaming Tard,Stepping Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,no,no,4,4
+footbagmoves,Flipwalk,Dragon set Stepping op Firewalk,5,4,2,0,Firewalk,base_or_unknown,no,yes,no,4,4
+footbagmoves,Floatation,Floating Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,7,7
+footbagmoves,Flog,Fairy Double Legover,3,1,0,1,Legover,base_or_unknown,no,yes,no,4,4
+footbagmoves,Flurricane,Gyro Flurry,2,1,0,0,Flurry,base_or_unknown,no,yes,no,5,4
+footbagmoves,Flurry,Barraging Legover,2,1,0,0,Legover,base_or_unknown,no,yes,no,4,4
+footbagmoves,Flurry (toe set),Barraging Legover,2,1,0,0,Legover,base_or_unknown,no,yes,no,4,4
+footbagmoves,Flux,Reverse Torque,2,1,0,0,Torque,base_or_unknown,no,no,no,4,4
+footbagmoves,Flying Fish,Railing Ducking Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,7,7
+footbagmoves,Fog,Blurry Double Legover,3,1,0,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Food Processor,Blurry Blender,2,1,0,0,Blender,base_or_unknown,no,no,no,6,6
+footbagmoves,Forque,Fairy Torque,2,1,0,0,Torque,base_or_unknown,no,yes,no,5,5
+footbagmoves,Forquelift,Fairy Ducking Torque,3,2,0,0,Torque,base_or_unknown,no,yes,no,6,6
+footbagmoves,Fracture,Sailing ss Double Legover,4,2,1,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Frankenstein,Phasing ss Swirl,3,2,1,0,Swirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Freak,Fairy Crossbody Rake,3,1,0,0,Rake,base_or_unknown,no,yes,no,4,4
+footbagmoves,Frenzy,Frantic Mirage,2,1,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Fudge,Fairy Illusion,2,1,0,0,Illusion,base_or_unknown,no,yes,no,3,3
+footbagmoves,Fume,Fairy Drifter,2,1,0,0,Drifter,base_or_unknown,no,yes,no,4,4
+footbagmoves,Furnace,Hopover Swirl Dragon,3,1,0,0,Dragon,q4_blocked,no,yes,no,4,3
+footbagmoves,Fury,Furious Mirage,2,1,0,0,Mirage,base_or_unknown,no,yes,no,6,6
+footbagmoves,Fusion,Atomic Double Over Down,4,1,0,1,Down,base_or_unknown,no,no,no,5,6
+footbagmoves,G.Y.B.A.S.,Stepping Far Dyno,3,2,1,0,Dyno,base_or_unknown,no,no,no,5,5
+footbagmoves,Gangsta Party,Spinning Ducking Paradox Blender,4,3,0,0,Blender,base_or_unknown,no,no,no,7,7
+footbagmoves,Gary Coleman,Atomic Symposium Whirl,3,2,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Gauntlet,Blurry Ducking Torque,3,2,0,0,Torque,base_or_unknown,no,no,no,7,7
+footbagmoves,Genesis,Furious Whirl,2,1,0,0,Whirl,base_or_unknown,no,yes,no,7,7
+footbagmoves,Genuphobia,Fairy Spyro Symposium Torque,4,3,0,0,Torque,base_or_unknown,no,yes,no,7,7
+footbagmoves,Gilan,Pixie Gyro Double Legover,4,2,0,1,Legover,base_or_unknown,no,yes,no,5,5
+footbagmoves,Glaucoma,Fairy ss Double Legover,4,2,1,1,Legover,base_or_unknown,no,yes,no,4,4
+footbagmoves,Godzilla,Nuclear ss Dyno,3,2,1,0,Dyno,base_or_unknown,no,no,no,5,5
+footbagmoves,Golden Shower,Blurry Ducking Eggbeater,3,2,0,0,Eggbeater,base_or_unknown,no,no,no,6,6
+footbagmoves,Goliath,Pixie Ducking Double Legover,4,2,0,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Grave Digger,Stepping Torque,2,1,0,0,Torque,base_or_unknown,no,no,no,5,5
+footbagmoves,Grifter,Reverse Drifter,2,1,0,0,Drifter,base_or_unknown,no,no,no,3,3
+footbagmoves,Grifter (same side),Reverse Drifter,2,1,0,0,Drifter,base_or_unknown,no,no,no,3,3
+footbagmoves,Guillotine,Fairy Ducking Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,4,4
+footbagmoves,Hatchet,Diving Whirl,2,0,0,0,Whirl,base_or_unknown,no,no,no,4,4
+footbagmoves,Haze,Stepping Double Legover,3,1,0,1,Legover,base_or_unknown,no,no,no,4,4
+footbagmoves,Heart,Pixie Quantum Double Over Down Swirl,6,2,0,1,Swirl,base_or_unknown,no,no,no,6,
+footbagmoves,High Plains Drifter,Double Drifter,2,0,0,1,Drifter,base_or_unknown,no,no,no,4,4
+footbagmoves,Hurl,Nuclear ss Whirl,3,2,1,0,Whirl,base_or_unknown,no,no,no,4,4
+footbagmoves,Icarus,Atomic Ducking Torque,3,2,0,0,Torque,base_or_unknown,no,no,no,7,7
+footbagmoves,Icon,Inspinning Legover,2,1,0,0,Legover,base_or_unknown,no,no,no,3,3
+footbagmoves,Ill Frenzy,Frootie Illusion,2,0,0,0,Illusion,base_or_unknown,no,no,no,6,6
+footbagmoves,Irish Cream,Neutron Torque,2,1,0,0,Torque,base_or_unknown,no,yes,no,6,6
+footbagmoves,Irish Spring,Neutron Drifter,2,1,0,0,Drifter,base_or_unknown,no,yes,no,5,5
+footbagmoves,Jacknife,Stepping Diving Butterfly,3,1,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Janiwalker,Barraging Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,5
+footbagmoves,Joan,Sailing Gyro Pickup,3,2,0,0,Pickup,base_or_unknown,no,yes,no,5,5
+footbagmoves,Johny Quest,Neutron Mirage,2,1,0,0,Mirage,base_or_unknown,no,yes,no,4,4
+footbagmoves,Johny Vodka,Pyro Torque,2,0,0,0,Torque,base_or_unknown,no,no,no,6,6
+footbagmoves,Juggernaut,Fairy Symposium Eggbeater,3,2,0,0,Eggbeater,base_or_unknown,no,yes,no,5,4
+footbagmoves,Juno Reactor,Sailing Whirl,2,1,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Kill Frenzy,Frootie Mirage,2,0,0,0,Mirage,base_or_unknown,no,no,no,6,6
+footbagmoves,Kiss Of The Scorpion,Pixie Spinning Double Over Down,5,2,0,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Kiwi,Tapping Double Over Down,4,1,0,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Kyttyrä,Far Whirling Bent Symposium Swirling Osis,6,3,1,0,Osis,base_or_unknown,no,no,no,7,
+footbagmoves,Lawnmoir,Slicing Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Leaning Jowler,Leaning ss Mirage,3,2,1,0,Mirage,base_or_unknown,no,no,no,4,4
+footbagmoves,Legbeater,Atomic Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Legbreaker,Flailing Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,5
+footbagmoves,Legeater,Quantum Pickup,2,1,0,0,Pickup,base_or_unknown,no,no,no,3,3
+footbagmoves,Legfreezer,Frozen Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Leviathan,Stepping Ducking Far Double Over Down,6,3,1,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Liquifier,Splicing ss Blender,3,2,1,0,Blender,base_or_unknown,no,yes,no,7,7
+footbagmoves,Little Apple,Spyro Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,4,4
+footbagmoves,Locomotion,Stepping Far Motion,3,2,1,0,Motion,base_or_unknown,no,no,no,6,6
+footbagmoves,Lotus,Spinning Pdx Drifter,3,1,0,0,Drifter,base_or_unknown,no,no,yes,5,5
+footbagmoves,MXZYPTLK,Bubba Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,yes,no,4,
+footbagmoves,Macon Bacon,Leaning Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,5,5
+footbagmoves,Maelstrom,Spinning Ducking Paradox Whirl,4,3,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Magellan,Pixie Legover (same side),2,1,0,0,Legover,base_or_unknown,no,no,no,3,3
+footbagmoves,Majello,Pixie ss Dyno,3,2,1,0,Dyno,base_or_unknown,no,no,no,5,5
+footbagmoves,Mantis,Gyro Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,yes,no,4,4
+footbagmoves,Margaritaville,Surging Paradox Blender,3,2,0,0,Blender,base_or_unknown,no,yes,no,7,7
+footbagmoves,Marius,Spinning Paradox Torque,3,2,0,0,Torque,base_or_unknown,no,no,no,6,6
+footbagmoves,Massacre,Bubba Paradox Flail,3,2,0,0,Flail,base_or_unknown,no,yes,no,6,6
+footbagmoves,Matador,Nuclear Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Maverick,Pixie ss Osis,3,2,1,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Merkon,Spinning Legover,2,1,0,0,Legover,base_or_unknown,no,no,no,3,3
+footbagmoves,Merlin,Miraging Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Mind Bender,Ducking Paradox Blender,3,2,0,0,Blender,base_or_unknown,no,no,no,6,6
+footbagmoves,Mobius,Gyro Torque,2,1,0,0,Torque,base_or_unknown,no,yes,no,5,5
+footbagmoves,Moby Dick,Gyro Torquescrew,2,1,0,0,Torquescrew,base_or_unknown,no,yes,no,6,6
+footbagmoves,Mofly,Miraging Symposium Double Over Down,5,2,0,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Moirius,Spyro Symposium Torquescrew,3,2,0,0,Torquescrew,base_or_unknown,no,yes,no,7,7
+footbagmoves,Montage,Spinning Ducking Paradox Symposium Whirl,5,4,0,0,Whirl,base_or_unknown,no,no,no,7,7
+footbagmoves,Morpheus,Spinning Ducking Paradox Drifter,4,3,0,0,Drifter,base_or_unknown,no,no,no,6,6
+footbagmoves,Motion,Double Over Downing Osis,4,0,0,1,Osis,base_or_unknown,no,no,no,5,5
+footbagmoves,Motion Sickness,Spinning Motion,2,1,0,0,Motion,base_or_unknown,no,no,no,6,6
+footbagmoves,Muerto,Fairy ss Torque,3,2,1,0,Torque,base_or_unknown,no,yes,no,5,5
+footbagmoves,Mullet,Ducking Paradox Symposium Whirl,4,3,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Nallegam,Fairy Pickup (same side),2,1,0,0,Pickup,base_or_unknown,no,yes,no,3,3
+footbagmoves,Nebula,Furious Double Legover,3,1,0,1,Legover,base_or_unknown,no,yes,no,7,7
+footbagmoves,Nemesis,Barraging Barfly,2,1,0,0,Barfly,base_or_unknown,no,yes,no,6,7
+footbagmoves,Nemesis Swirl,Barraging Barfly Swirl,3,1,0,0,Swirl,base_or_unknown,no,yes,no,7,
+footbagmoves,Neutron Smasher,Neutron Mirage,2,1,0,0,Mirage,base_or_unknown,no,yes,no,4,4
+footbagmoves,Nobius,Surging ss Osis,3,2,1,0,Osis,base_or_unknown,no,yes,no,5,5
+footbagmoves,Nova,Symposium Double Legover,3,1,0,1,Legover,base_or_unknown,no,no,no,4,4
+footbagmoves,Nullwalk,Null Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Ocean,Toe set os Double Over Downing Osis,7,2,2,1,Osis,base_or_unknown,no,no,no,5,5
+footbagmoves,Odula,Blurry Zulu Blender,3,1,0,0,Blender,base_or_unknown,no,no,no,7,7
+footbagmoves,Oh Wheely,Nuclear Nova,2,1,0,0,Nova,base_or_unknown,no,no,no,7,7
+footbagmoves,Omelette,Atomic Illusion,2,1,0,0,Illusion,base_or_unknown,no,no,no,4,4
+footbagmoves,Omelette Du Fromage,Railing Illusion,2,1,0,0,Illusion,base_or_unknown,no,yes,no,6,6
+footbagmoves,Original Barroque,Double Torque,2,0,0,1,Torque,base_or_unknown,no,no,no,5,5
+footbagmoves,Orpheus,Toe set ss Triple Over Down,6,2,2,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Osmosis,Slapping Osis,2,0,0,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Overlord,Pixie Spinning Paradox Blender,4,3,0,0,Blender,base_or_unknown,no,no,no,7,7
+footbagmoves,POD,Pixie ss Double Over Down,5,2,1,1,Down,base_or_unknown,no,no,no,5,5
+footbagmoves,Pandemonium,Pixie Symposium Eggbeater,3,2,0,0,Eggbeater,base_or_unknown,no,no,no,5,5
+footbagmoves,Pandora`s Box,Gyro Pickup,2,1,0,0,Pickup,base_or_unknown,no,yes,no,3,3
+footbagmoves,Paradon,Toe set os Double Over Down,6,2,2,1,Down,base_or_unknown,no,no,no,4,4
+footbagmoves,Parallax,Gyro Legover,2,1,0,0,Legover,base_or_unknown,no,yes,no,3,3
+footbagmoves,Paratoxic,Paradox Toxic,2,1,0,0,Toxic,base_or_unknown,no,no,no,6,7
+footbagmoves,Park Avenue,Fairy ss Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,yes,no,4,4
+footbagmoves,Parkwalk,Pixie Butterfly (same side),2,1,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Paste,Pixie Pickup,2,1,0,0,Pickup,base_or_unknown,no,no,no,3,3
+footbagmoves,Phase,Phasing ss Mirage,3,2,1,0,Mirage,base_or_unknown,no,no,no,4,4
+footbagmoves,Philibuster,Fusing Mirage,2,0,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Phobia,Fyro Torque,2,0,0,0,Torque,base_or_unknown,no,no,no,6,6
+footbagmoves,Phoenix,Pixie Ducking Butterfly,3,2,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Pigbeater,Pixie Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,no,no,4,4
+footbagmoves,Pixie Symposium Illusion,Pixie Flail,2,1,0,0,Flail,base_or_unknown,no,no,no,4,
+footbagmoves,Plasma,Quantum Double Over Down,4,1,0,1,Down,base_or_unknown,no,no,no,5,6
+footbagmoves,Porque,Pixie Torque,2,1,0,0,Torque,base_or_unknown,no,no,no,5,5
+footbagmoves,Predator,Atomic Double Legover,3,1,0,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Pteradon,Toe set os Double Over Down Dragon,7,3,2,1,Dragon,q4_blocked,no,yes,no,4,4
+footbagmoves,Puck,Pixie Ducking Legover,3,2,0,0,Legover,base_or_unknown,no,no,no,4,4
+footbagmoves,Quagmire,Quantum Gyro Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,4,4
+footbagmoves,Quantanamera,Quantum Weaving Butterfly,3,1,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Quark,Quantum Torque,2,1,0,0,Torque,base_or_unknown,no,no,no,6,6
+footbagmoves,Rage,Furious Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,7,7
+footbagmoves,Rail Warrior,Railing Ducking Butterfly,3,2,0,0,Butterfly,base_or_unknown,no,yes,no,7,7
+footbagmoves,Raildown,Railing ss Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,yes,no,6,6
+footbagmoves,Railplant,Railing Legover,2,1,0,0,Legover,base_or_unknown,no,yes,no,5,5
+footbagmoves,Railwalk,Railing Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,yes,no,6,3
+footbagmoves,Rasmus,Atomic Ducking Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Reactor,Atomic Whirl,2,1,0,0,Whirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Reaper,Far Double Switchover,3,1,1,1,Switchover,base_or_unknown,no,no,no,3,3
+footbagmoves,Red Ribbon,Zulu Clipper,2,0,0,0,Clipper,surface,no,no,no,3,3
+footbagmoves,Redwetter,Shooting Eggbeater,2,0,0,0,Eggbeater,base_or_unknown,no,no,no,7,7
+footbagmoves,Revstein,Double Reverse Swirl,3,1,0,1,Swirl,base_or_unknown,no,no,no,4,5
+footbagmoves,Revup,Reverse Swirling Pickup,3,1,0,0,Pickup,base_or_unknown,no,no,no,3,
+footbagmoves,Ricochet,Toe set os Double Over Down Flapper,7,2,2,1,Flapper,base_or_unknown,no,no,no,5,4
+footbagmoves,Ripcurl,Stepping Butterfly Swirl,3,1,0,0,Swirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Ripped Warrior,Stepping Ducking Far Butterfly,4,3,1,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Ripstein,Double Swirl,2,0,0,1,Swirl,base_or_unknown,no,no,no,4,4
+footbagmoves,Riptide,Stepping Far Butterfly Swirl,4,2,1,0,Swirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Ripwalk,Stepping Far Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Ropaduleo,Railing Ducking Legover,3,2,0,0,Legover,base_or_unknown,no,yes,no,6,6
+footbagmoves,Royale,Paradox Grifter,2,1,0,0,Grifter,base_or_unknown,no,no,no,4,4
+footbagmoves,Royall Assassin,Pixie Ducking Symposium Mirage,4,3,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,S&M Smasher,Atomic Barrage,2,1,0,0,Barrage,base_or_unknown,no,no,no,6,6
+footbagmoves,Sabotage,Toe Flurry,2,0,0,0,Flurry,base_or_unknown,no,no,no,5,5
+footbagmoves,Saildown,Sailing ss Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Sasquatch,Blurry Symposium Whirling XBD Rake,5,3,0,0,Rake,base_or_unknown,no,no,no,7,7
+footbagmoves,Scorpions Tail,Spinning Barfly,2,1,0,0,Barfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Scorpions Toe Nail,Toe set Spinning Double Over Down,6,2,1,1,Down,base_or_unknown,no,no,no,5,
+footbagmoves,Scrambled Eggbeater,Atomic Pickup,2,1,0,0,Pickup,base_or_unknown,no,no,no,3,3
+footbagmoves,Shaft,Clipper set ss Symposium Double Over Down,7,3,2,1,Down,base_or_unknown,no,no,no,5,5
+footbagmoves,Shmoe,Stepping Legover,2,1,0,0,Legover,base_or_unknown,no,no,no,3,3
+footbagmoves,Sidewalk,Stepping Butterfly (same side),2,1,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Singularity,Symposium Whirling Flapper,3,2,0,0,Flapper,base_or_unknown,no,no,no,5,4
+footbagmoves,Slap,Slapping Mirage,2,0,0,0,Mirage,base_or_unknown,no,no,no,4,4
+footbagmoves,Slapdown,Slapping Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Slapstick,Pixie Spinning Paradox Whirl,4,3,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Smashwalk,Atomic Miraging Butterfly,3,2,0,0,Butterfly,base_or_unknown,no,no,no,6,6
+footbagmoves,Smear,Pixie Mirage,2,1,0,0,Mirage,base_or_unknown,no,no,no,3,3
+footbagmoves,Smile,Smiling Far Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,yes,no,5,5
+footbagmoves,Smog,Pixie Double Legover,3,1,0,1,Legover,base_or_unknown,no,no,no,4,4
+footbagmoves,Smoke,Pixie Drifter,2,1,0,0,Drifter,base_or_unknown,no,no,no,4,4
+footbagmoves,Smudge,Pixie Illusion,2,1,0,0,Illusion,base_or_unknown,no,no,no,3,3
+footbagmoves,Snapdragon,Reverse Swirl Dragon,3,2,0,0,Dragon,q4_blocked,no,yes,no,3,3
+footbagmoves,Snowflake,Paradox Drifter XBD Rake,4,1,0,0,Rake,base_or_unknown,no,no,no,5,4
+footbagmoves,Spanish Fly,Ducking Barfly,2,1,0,0,Barfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Spender,Spinning Paradox Blender,3,2,0,0,Blender,base_or_unknown,no,no,no,6,6
+footbagmoves,Spikehammer,Blurry Ducking Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Spinal Tap,Tapping Torque,2,1,0,0,Torque,base_or_unknown,no,no,no,5,5
+footbagmoves,Spitfire,Swirl Dragon,2,1,0,0,Dragon,q4_blocked,no,yes,no,3,3
+footbagmoves,Spyro Gyro,Gyro Butterfly Swirl,3,1,0,0,Swirl,base_or_unknown,no,yes,no,5,5
+footbagmoves,Stampede,Flailing ss Symposium Mirage,4,3,1,0,Mirage,base_or_unknown,no,yes,no,5,5
+footbagmoves,Sumo,Nuclear Mirage,2,1,0,0,Mirage,base_or_unknown,no,no,no,5,5
+footbagmoves,Sumo Thong,Nuclear Ducking Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,6,6
+footbagmoves,Sunilwalker,Barraging Butterfly (same side),2,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,5
+footbagmoves,Super Ego,Atomic Ducking Blender,3,2,0,0,Blender,base_or_unknown,no,no,no,7,7
+footbagmoves,Superdeeduperfly,Spinning Ducking Symposium Double Over Down,6,3,0,1,Down,base_or_unknown,no,no,no,7,7
+footbagmoves,Superduperfly,Spinning Symposium Double Over Down,5,2,0,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Superfly,Symposium Barfly,2,1,0,0,Barfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Supernova,Spyro Nova,2,1,0,0,Nova,base_or_unknown,no,yes,no,5,5
+footbagmoves,Surge,Surging Paradox Mirage,3,2,0,0,Mirage,base_or_unknown,no,yes,no,5,5
+footbagmoves,Surgery,Surging Symposium Reverse Whirl,4,3,0,0,Whirl,base_or_unknown,no,yes,no,6,6
+footbagmoves,Surreal,Surging Paradox Whirl,3,2,0,0,Whirl,base_or_unknown,no,yes,no,6,6
+footbagmoves,Swifter,Drifter Swirl,2,0,0,0,Swirl,base_or_unknown,no,no,no,4,5
+footbagmoves,Swirlwind,Spinning Paradox Symposium Whirling Swirl,5,4,0,0,Swirl,base_or_unknown,no,no,no,7,7
+footbagmoves,Swivel,Symposium Twirl,2,1,0,0,Twirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Syberian Express,Stepping Ducking Far Motion,4,3,1,0,Motion,base_or_unknown,no,no,no,7,7
+footbagmoves,Tap,Tapping Mirage,2,1,0,0,Mirage,base_or_unknown,no,no,no,3,3
+footbagmoves,Tap Dance,Pixie ss Original Tap,4,2,1,0,Tap,base_or_unknown,no,no,no,4,4
+footbagmoves,Tapdown,Tapping Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Tapwater,Tapping Twirl,2,1,0,0,Twirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Terminator,Nuclear Double Legover,3,1,0,1,Legover,base_or_unknown,no,no,no,6,6
+footbagmoves,Terrage,Double Pixie,2,1,0,1,Pixie,locked,no,no,no,3,3
+footbagmoves,Timberwulff,Leaning Torque,2,1,0,0,Torque,base_or_unknown,no,no,no,6,6
+footbagmoves,Tobius,Toe set Gyro Torque,4,2,1,0,Torque,base_or_unknown,no,yes,no,5,5
+footbagmoves,Tofu,Quantum Blender,2,1,0,0,Blender,base_or_unknown,no,no,no,6,6
+footbagmoves,Tomahawk,Ducking Paradox Whirl,3,2,0,0,Whirl,base_or_unknown,no,no,no,5,5
+footbagmoves,Tombstone,Stepping Drifter (same side),2,1,0,0,Drifter,base_or_unknown,no,no,no,4,4
+footbagmoves,Torch-r Rack,Stepping Superfly,2,1,0,0,Superfly,base_or_unknown,no,no,no,6,6
+footbagmoves,Tornado,Twinspinning ss Mirage,3,2,1,0,Mirage,base_or_unknown,no,yes,no,5,5
+footbagmoves,Torque,Miraging Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Torque (same side),Miraging Osis,2,1,0,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Torquescrew,Miraging Dyno,2,1,0,0,Dyno,base_or_unknown,no,no,no,5,5
+footbagmoves,Torus,Fyro Mirage,2,0,0,0,Mirage,base_or_unknown,no,no,no,4,4
+footbagmoves,Tremor,Tapping Drifter,2,1,0,0,Drifter,base_or_unknown,no,no,no,4,4
+footbagmoves,Triadon,Toe set os Triple Over Down,6,2,2,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Triage,Triple Mirage,2,0,0,1,Mirage,base_or_unknown,no,no,no,6,6
+footbagmoves,Trifly,Far Triple Over Down,4,1,1,1,Down,base_or_unknown,no,no,no,6,6
+footbagmoves,Tripwalk,Quantum Butterfly,2,1,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+footbagmoves,Trixie,Triple Pixie,2,1,0,1,Pixie,locked,no,no,no,5,5
+footbagmoves,Trixie,Triple Pixie,2,1,0,1,Pixie,locked,no,no,no,5,5
+footbagmoves,Trochus,Atomic Flail,2,1,0,0,Flail,base_or_unknown,no,no,no,5,5
+footbagmoves,Trochus,Atomic Flail,2,1,0,0,Flail,base_or_unknown,no,no,no,5,5
+footbagmoves,Tunguska,Atomic Ducking Double Legover,4,2,0,1,Legover,base_or_unknown,no,no,no,6,6
+footbagmoves,Tutifruti,Frootie Legover,2,0,0,0,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Tutifruti,Frootie Legover,2,0,0,0,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Twirl,Reverse Swirling Osis,3,1,0,0,Osis,base_or_unknown,no,no,no,4,4
+footbagmoves,Venom,Surging Barfly,2,1,0,0,Barfly,base_or_unknown,no,yes,no,6,6
+footbagmoves,Vertigo,Ducking Paradox Drifter,3,2,0,0,Drifter,base_or_unknown,no,no,no,5,5
+footbagmoves,Vertigo,Ducking Paradox Drifter,3,2,0,0,Drifter,base_or_unknown,no,no,no,5,5
+footbagmoves,Voodoo,Paradox Merlin,2,1,0,0,Merlin,base_or_unknown,no,no,no,6,6
+footbagmoves,Vortex,Gyro Drifter,2,1,0,0,Drifter,base_or_unknown,no,yes,no,4,4
+footbagmoves,Wahnsinn,Pixie Ducking Spinning Toe,4,3,0,0,Toe,surface,no,no,no,4,4
+footbagmoves,Warp,Warping Mirage,2,0,0,0,Mirage,base_or_unknown,no,no,no,7,7
+footbagmoves,Wentletrappe,Fyro Double Legover,3,0,0,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Wentletrappe,Fyro Double Legover,3,0,0,1,Legover,base_or_unknown,no,no,no,5,5
+footbagmoves,Whale Tail,Surging Legover,2,1,0,0,Legover,base_or_unknown,no,yes,no,4,4
+footbagmoves,What!?,Butterflying Symposium Reverse Swirling Toe,5,2,0,0,Toe,surface,no,no,no,4,
+footbagmoves,Whirlwalk,Blazing Paradox Whirl,3,2,0,0,Whirl,base_or_unknown,no,yes,no,5,5
+footbagmoves,Whirlwalk,Blazing Paradox Whirl,3,2,0,0,Whirl,base_or_unknown,no,yes,no,5,5
+footbagmoves,Whirlwind,Spinning Paradox Symposium Whirl,4,3,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Whirlygig,Blurry Symposium Whirl,3,2,0,0,Whirl,base_or_unknown,no,no,no,6,6
+footbagmoves,Whirr,Double Whirl,2,0,0,1,Whirl,base_or_unknown,no,no,no,4,5
+footbagmoves,Whisk,Paradox Symposium Eggbeater,3,2,0,0,Eggbeater,base_or_unknown,no,no,no,5,5
+footbagmoves,Whisk,Paradox Symposium Eggbeater,3,2,0,0,Eggbeater,base_or_unknown,no,no,no,5,5
+footbagmoves,Witchdoctor,Atomic Symposium Mirage,3,2,0,0,Mirage,base_or_unknown,no,no,no,4,5
+footbagmoves,Wookie,Pixie Wonton Butterfly,3,1,0,0,Butterfly,base_or_unknown,no,no,no,6,6
+footbagmoves,Yoda,Pixie Quantum Butterfly,3,2,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Yoda,Pixie Quantum Butterfly,3,2,0,0,Butterfly,base_or_unknown,no,no,no,5,5
+footbagmoves,Your Mom,Atomic os Symposium Double Over Down,6,3,1,1,Down,base_or_unknown,no,no,no,7,7
+footbagmoves,Your Sister,Flailing ss Symposium Double Over Down,6,3,1,1,Down,base_or_unknown,no,yes,no,8,8
+footbagmoves,Zig Zag,Swirling Reverse Swirl,3,1,0,0,Swirl,base_or_unknown,no,no,no,4,4
+footbagmoves,Zipwalk,Zipper Stepping Op Butterfly Zipper,5,2,1,0,Zipper,base_or_unknown,no,no,no,4,4
+footbagmoves,Zulu Le Loup,Zulu Butterfly,2,0,0,0,Butterfly,base_or_unknown,no,no,no,4,4
+passback,Alpine Blurry Whirl,Stepping Whirl (op) (ducking),2,1,0,0,Whirl,base_or_unknown,no,no,no,6,
+passback,Alpine Magellan,Pixie Legover (ss) (diving),2,1,0,0,Legover,base_or_unknown,no,no,no,4,
+passback,Alpine PLO,Pixie Legover (op) (ducking),2,1,0,0,Legover,base_or_unknown,no,no,no,4,
+passback,Alpine Paste,Pixie Pickup (op) (ducking),2,1,0,0,Pickup,base_or_unknown,no,no,no,3,
+passback,Alpine Paste,Pixie Pickup (op) (ducking),2,1,0,0,Pickup,base_or_unknown,no,no,no,4,
+passback,Alpine Pigbeater,Pixie Eggbeager (ducking) (op),2,1,0,0,Eggbeager,base_or_unknown,no,no,no,5,
+passback,Alpine Smog,Pixie DLO (op) (ducking),2,1,0,0,DLO,base_or_unknown,no,no,no,5,
+passback,Alpine Smudge,Pixie Illusion (ducking) (op),2,1,0,0,Illusion,base_or_unknown,no,no,no,4,
+passback,Assassin,Pixie Mirage (op) (ducking),2,1,0,0,Mirage,base_or_unknown,no,no,no,4,
+passback,Assassin (ss),Pixie Mirage (ss) (diving),2,1,0,0,Mirage,base_or_unknown,no,no,no,8,
+passback,Atomic Pickup,Atomic Pickup (op),2,1,0,0,Pickup,base_or_unknown,no,no,no,5,
+passback,BS Magellan,Pixie Legover (ss) (symp),2,1,0,0,Legover,base_or_unknown,no,no,no,3,
+passback,BS Paste,Pixie Pickup (op) (symp),2,1,0,0,Pickup,base_or_unknown,no,no,no,3,
+passback,Bladerunner,Atomic Eggbeater (op),2,1,0,0,Eggbeater,base_or_unknown,no,no,no,5,
+passback,Blazing Butterfly,Whirling Butterfly (ss),2,1,0,0,Butterfly,base_or_unknown,no,no,no,4,
+passback,Blink,Swirling Toe (op) (rev),2,0,0,0,Toe,surface,no,no,no,2,
+passback,Blurry Drifter,Stepping Drifter (op),2,1,0,0,Drifter,base_or_unknown,no,no,no,5,
+passback,Butterfly Swirl,Butterfly Swirl (ss),2,0,0,0,Swirl,base_or_unknown,no,no,no,4,
+passback,DDD,Double down (ss),2,0,0,1,down,base_or_unknown,no,no,no,4,
+passback,DSO,Legover (double) (op),1,0,0,0,Legover,base_or_unknown,no,no,no,3,
+passback,DSO,Legover (double) (op),1,0,0,0,Legover,base_or_unknown,no,no,no,3,
+passback,Diving Clipper,Diving Clipper (ss),2,0,0,0,Clipper,surface,no,no,no,3,
+passback,Diving Mirage,Mirage (diving) (ss),1,0,0,0,Mirage,base_or_unknown,no,no,no,3,
+passback,Diving Osis,Osis (diving) (ss),1,0,0,0,Osis,base_or_unknown,no,no,no,4,
+passback,Diving Smudge,Pixie Illusion (diving) (ss),2,1,0,0,Illusion,base_or_unknown,no,no,no,6,
+passback,Double Dyno,Blender (ss) (rev) (double),1,0,0,0,Blender,base_or_unknown,no,no,no,5,
+passback,Double Fairy,Illusion (ss) (double),1,0,0,0,Illusion,base_or_unknown,no,no,no,3,
+passback,Double Orbit,ATW (out) (double),1,0,0,0,ATW,base_or_unknown,no,no,no,2,
+passback,Double Spinning Butterfly,Double Spinning Butterfly (op),3,1,0,1,Butterfly,base_or_unknown,no,no,no,5,
+passback,Double Spinning Clipper,Double Spinning Clipper (op),3,1,0,1,Clipper,surface,no,no,no,4,
+passback,Double Spinning Clipper,Double Spinning Clipper (op),3,1,0,1,Clipper,surface,no,no,no,4,
+passback,Double Spinning Osis,Double Spinning Osis (op),3,1,0,1,Osis,base_or_unknown,no,no,no,5,
+passback,Double Whip,Whirl (rev) (ss) (double),1,0,0,0,Whirl,base_or_unknown,no,no,no,4,
+passback,Ducking Pdx Torque,Torque (ducking) (op),1,0,0,0,Torque,base_or_unknown,no,no,no,6,
+passback,Enterrage,Terraging Legover (op),2,1,0,0,Legover,base_or_unknown,no,yes,no,4,
+passback,Fairy DLO (ss),Fairy DLO (ss),2,1,0,0,DLO,base_or_unknown,no,yes,no,4,
+passback,Fairy Legover (ss),Fairy Legover (ss),2,1,0,0,Legover,base_or_unknown,no,yes,no,3,
+passback,Fairy Pickup (ss),Fairy Pickup (ss),2,1,0,0,Pickup,base_or_unknown,no,yes,no,3,
+passback,Fracture,Sailing DLO (ss),2,1,0,0,DLO,base_or_unknown,no,no,no,5,
+passback,Frantic Legover,Pixie Quantum Legover (op),3,2,0,0,Legover,base_or_unknown,no,no,no,4,
+passback,Genesis,Barraging Whirl (op),2,1,0,0,Whirl,base_or_unknown,no,yes,no,6,
+passback,Grifter,Grifter (ss),1,0,0,0,Grifter,base_or_unknown,no,no,no,3,
+passback,Grifter,Grifter (ss),1,0,0,0,Grifter,base_or_unknown,no,no,no,3,
+passback,Gyro Symp Swirl,Spinning Swirl (ss) (symp),2,1,0,0,Swirl,base_or_unknown,no,no,no,4,
+passback,Gyro Toe,Gyro Toe (op),2,1,0,0,Toe,surface,no,yes,no,2,
+passback,Gyro Whirling Swirl,Spinning Whirling Swirl (ss),3,2,0,0,Swirl,base_or_unknown,no,no,no,4,
+passback,Hatchet,Diving Whirl (ss),2,0,0,0,Whirl,base_or_unknown,no,no,no,4,
+passback,Infinity,Butterfly (op),1,0,0,0,Butterfly,base_or_unknown,no,no,no,3,
+passback,Infinity Swirl,Butterfly Swirl (op),2,0,0,0,Swirl,base_or_unknown,no,no,no,4,
+passback,Inspinning Clipper,Inspinning Clipper (op),2,1,0,0,Clipper,surface,no,no,no,4,
+passback,Inspinning Osis,Inspinning Osis (op),2,1,0,0,Osis,base_or_unknown,no,no,no,4,
+passback,Janiwalker,Barraging Butterfly (op),2,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,
+passback,Janiwalker,Barraging Butterfly (op),2,1,0,0,Butterfly,base_or_unknown,no,yes,no,5,
+passback,Locomotion,Stepping Motion (far),2,1,0,0,Motion,base_or_unknown,no,no,no,6,
+passback,Locomotion,Stepping Motion (far),2,1,0,0,Motion,base_or_unknown,no,no,no,6,
+passback,Matador,Nuclear Butterfly (op),2,1,0,0,Butterfly,base_or_unknown,no,no,no,5,
+passback,Merlin,Miraging Symp Mirage (op),3,2,0,0,Mirage,base_or_unknown,no,no,no,4,
+passback,Montage,Spinning Whirl (op) (symp) (ducking),2,1,0,0,Whirl,base_or_unknown,no,no,no,7,
+passback,Motion,Motion (op),1,0,0,0,Motion,base_or_unknown,no,no,no,5,
+passback,Motion,Motion (op),1,0,0,0,Motion,base_or_unknown,no,no,no,5,
+passback,Motion,Motion (op),1,0,0,0,Motion,base_or_unknown,no,no,no,5,
+passback,Mullet,Whirl (op) (ducking) (symp),1,0,0,0,Whirl,base_or_unknown,no,no,no,6,
+passback,Mullet,Whirl (op) (ducking) (symp),1,0,0,0,Whirl,base_or_unknown,no,no,no,6,
+passback,PLO,Pixie Legover (op),2,1,0,0,Legover,base_or_unknown,no,no,no,3,
+passback,Paste,Pixie Pickup (op),2,1,0,0,Pickup,base_or_unknown,no,no,no,3,
+passback,Paste,Pixie Pickup (op),2,1,0,0,Pickup,base_or_unknown,no,no,no,3,
+passback,Paste (ss),Pixie Pickup (ss),2,1,0,0,Pickup,base_or_unknown,no,no,no,3,
+passback,Pigbeater,Pixie Eggbeater,2,1,0,0,Eggbeater,base_or_unknown,no,no,no,4,
+passback,Pigbeater (ss),Pixie Eggbeater (ss),2,1,0,0,Eggbeater,base_or_unknown,no,no,no,4,
+passback,Pixie DSO,Pixie DSO (op),2,1,0,0,DSO,base_or_unknown,no,no,no,4,
+passback,Pixie DSO (ss),Pixie DSO (ss),2,1,0,0,DSO,base_or_unknown,no,no,no,4,
+passback,Pixie Double Pickup (ss),Pixie Double Pickup (ss),3,1,0,1,Pickup,base_or_unknown,no,no,no,4,
+passback,Ripped Warrior,Stepping Butterfly (ducking) (op),2,1,0,0,Butterfly,base_or_unknown,no,no,no,5,
+passback,Scorpion's Tail,Spinning Double Down (op),3,1,0,1,Down,base_or_unknown,no,no,no,5,
+passback,Solestice,Osis Flapper,2,0,0,0,Flapper,base_or_unknown,no,no,no,4,
+passback,Spanishfly,Ducking Double Down (op),3,1,0,1,Down,base_or_unknown,no,no,no,5,
+passback,Spender,Spinning Blender (op),2,1,0,0,Blender,base_or_unknown,no,no,no,6,
+passback,Spender,Spinning Blender (op),2,1,0,0,Blender,base_or_unknown,no,no,no,6,
+passback,Spinning Ducking Butterfly,Spinning Butterfly (op) (ducking),2,1,0,0,Butterfly,base_or_unknown,no,no,no,5,
+passback,Spinning Ducking Osis,Spinning Osis (ducking) (op),2,1,0,0,Osis,base_or_unknown,no,no,no,5,
+passback,Spinning Symp Swirl,Spinning Swirl (op) (symp),2,1,0,0,Swirl,base_or_unknown,no,no,no,4,
+passback,Stepping Clipper,Stepping Clipper (ss),2,1,0,0,Clipper,surface,no,no,no,3,
+passback,Stepping Ducking Osis,Stepping Osis (op) (ducking),2,1,0,0,Osis,base_or_unknown,no,no,no,5,
+passback,Swifter,Stepping Swirl (op),2,1,0,0,Swirl,base_or_unknown,no,no,no,4,
+passback,Swifter,Stepping Swirl (op),2,1,0,0,Swirl,base_or_unknown,no,no,no,4,
+passback,Symp Eggbeater,Eggbeater (op) (symp),1,0,0,0,Eggbeater,base_or_unknown,no,no,no,4,
+passback,Symp Eggbeater,Eggbeater (op) (symp),1,0,0,0,Eggbeater,base_or_unknown,no,no,no,4,
+passback,Symp Swirl (op),Swirl (symp) (op),1,0,0,0,Swirl,base_or_unknown,no,no,no,3,
+passback,Symp Whirling Swirl,Whirling Swirl (ss) (symp),2,1,0,0,Swirl,base_or_unknown,no,no,no,5,
+passback,Tap,Atomic Mirage (ss),2,1,0,0,Mirage,base_or_unknown,no,no,no,3,
+passback,Tapping Legover,Atomic Legover (ss),2,1,0,0,Legover,base_or_unknown,no,no,no,3,
+passback,Tapping Pickup,Atomic Pickup (ss),2,1,0,0,Pickup,base_or_unknown,no,no,no,3,
+passback,Toe Blur,Quantum Mirage (op),2,1,0,0,Mirage,base_or_unknown,no,no,no,4,
+passback,Toe Ducking Legover,Toe Ducking Legover (op),3,1,0,0,Legover,base_or_unknown,no,no,no,3,
+passback,Toe Gyro Mirage,Toe Spinning Mirage (ss),3,1,0,0,Mirage,base_or_unknown,no,no,no,3,
+passback,Toe Spinning Toe,Toe Spinning Toe (op),3,1,0,0,Toe,surface,no,no,no,2,
+passback,Triple Orbit,ATW (out) (triple),1,0,0,0,ATW,base_or_unknown,no,no,no,4,
+passback,Void,Spinning Drifter (op),2,1,0,0,Drifter,base_or_unknown,no,no,no,5,
+passback,Void,Spinning Drifter (op),2,1,0,0,Drifter,base_or_unknown,no,no,no,5,
+passback,Weaving Magellan,Pixie Legover (ducking) (ss),2,1,0,0,Legover,base_or_unknown,no,no,no,3,
+passback,Weaving Pigbeater,Pixie Eggbeater (ducking) (ss),2,1,0,0,Eggbeater,base_or_unknown,no,no,no,5,
+passback,Whirlygig,Stepping Whirl (op) (symp),2,1,0,0,Whirl,base_or_unknown,no,no,no,6,
+passback,Whirr,Whirl (ss) (double),1,0,0,0,Whirl,base_or_unknown,no,no,no,4,
+passback,Whirr,Whirl (ss) (double),1,0,0,0,Whirl,base_or_unknown,no,no,no,4,
+passback,Zulu Clipper,Diving Clipper (op),2,0,0,0,Clipper,surface,no,no,no,3,
+passback,Zulu Clipper,Diving Clipper (op),2,0,0,0,Clipper,surface,no,no,no,3,
+passback_augment,ATW,toe>ss leggy in dex>ss toe,7,2,2,0,toe,surface,no,no,yes,1,
+passback_augment,Anonymous,Spinning far Miraging Symp. Miraging Refraction,6,5,1,0,Refraction,base_or_unknown,no,no,no,3,
+passback_augment,Archnemesis,Barraging near Double Down,4,2,1,1,Down,base_or_unknown,no,yes,no,4,
+passback_augment,Armaggedon,Miraging Symp. Eggbeater,3,2,0,0,Eggbeater,base_or_unknown,no,no,no,3,
+passback_augment,Badger,Symp. Butterfly Swirl,3,1,0,0,Swirl,base_or_unknown,no,no,no,2,
+passback_augment,Big Applesauce,Spinning far Miraging Symp. Torque,5,4,1,0,Torque,base_or_unknown,no,no,no,2,
+passback_augment,Big Orange,"Spinning near Symp. Flux, Rev. Big Apple",7,3,1,0,Apple,base_or_unknown,no,no,no,1,
+passback_augment,Blackula,"Toe near Symp. Double Down, Symp DOD",7,3,1,1,DOD,base_or_unknown,no,no,no,2,
+passback_augment,Blurtigo,Stepping Ducking far Drifter,4,3,1,0,Drifter,base_or_unknown,no,no,no,2,
+passback_augment,Cardinal Swirl,triple-dex Swirl,2,0,0,1,Swirl,base_or_unknown,no,no,no,3,
+passback_augment,Cheese Processor,Surging Ducking far Blender,4,3,1,0,Blender,base_or_unknown,no,yes,no,2,
+passback_augment,Clipper,xbd inside stall,3,0,0,0,stall,base_or_unknown,no,no,no,0,
+passback_augment,Cloud,"Calf Stall w/ leg in ""Whirl"" position",7,0,0,0,position,base_or_unknown,no,no,yes,,
+passback_augment,Clownface,Barraging far Eggbeater,3,2,1,0,Eggbeater,base_or_unknown,no,yes,no,4,
+passback_augment,Creature,(downtime) Miraging Symp. Illusion,3,2,0,0,Illusion,base_or_unknown,yes,no,no,2,
+passback_augment,DATW/Double ATW,double-dex ATW,2,0,0,1,ATW,base_or_unknown,no,no,no,2,
+passback_augment,DDD/Down Double Down,Clipper near Double Down,4,1,1,1,Down,base_or_unknown,no,no,no,2,
+passback_augment,"DLO (""dee-ell-oh"")",(downtime) Miraging far Legover,3,2,1,0,Legover,base_or_unknown,yes,no,no,2,
+passback_augment,DOD/Double Over Down,Toe near Double Down,4,1,1,1,Down,base_or_unknown,no,no,no,2,
+passback_augment,Delusion,double-dex Illusion,2,0,0,1,Illusion,base_or_unknown,no,no,no,2,
+passback_augment,Dimmier,Pixie near Double Down,4,2,1,1,Down,base_or_unknown,no,no,no,3,
+passback_augment,Dimmiest,Pixie far Double Down,4,2,1,1,Down,base_or_unknown,no,no,no,3,
+passback_augment,Double Down,double-dex Butterfly,2,0,0,1,Butterfly,base_or_unknown,no,no,no,2,
+passback_augment,Dragon,Xbd Outside Stall,3,0,0,0,Stall,base_or_unknown,no,no,no,,
+passback_augment,Dyno,(downtime) Whipping Osis,2,0,0,0,Osis,base_or_unknown,yes,no,no,1,
+passback_augment,Fairy (archaic),Midtime Toe near Illusion,4,2,1,0,Illusion,base_or_unknown,no,no,no,,
+passback_augment,Flare,Symp. Whirling far Mirage,4,3,1,0,Mirage,base_or_unknown,no,no,no,2,
+passback_augment,Flip side,flip,1,0,0,0,flip,base_or_unknown,no,no,no,,
+passback_augment,"GDLO (""gee-dee-ell-oh"")",Gyro DLO,2,1,0,0,DLO,base_or_unknown,no,yes,no,2,
+passback_augment,GYBAS/Grab Your Balls and Squeeze,Stepping far Dyno,3,2,1,0,Dyno,base_or_unknown,no,no,no,2,
+passback_augment,Ghost,Whirling Rake,2,1,0,0,Rake,base_or_unknown,no,no,no,,
+passback_augment,Gravedigger,Stepping near Torque,3,2,1,0,Torque,base_or_unknown,no,no,no,2,
+passback_augment,Green Eggs and Ham,Stepping Ducking far Swivel,4,3,1,0,Swivel,base_or_unknown,no,no,no,2,
+passback_augment,Guay,Pickup,1,0,0,0,Pickup,base_or_unknown,no,no,no,,
+passback_augment,Id,"Atomic Ducking far Double Down, Alpine Fusion",7,3,1,1,Fusion,base_or_unknown,no,no,no,,
+passback_augment,Illusion,(downtime) leggy out dex>op toe,5,1,1,0,toe,surface,yes,no,yes,1,
+passback_augment,Jackknife,"Stepping Diving ss Butterfly, Alpine Sidewalk",6,2,1,0,Sidewalk,base_or_unknown,no,no,no,2,
+passback_augment,"Janiwalker (""johnny walker"")",Barraging far Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,yes,no,3,
+passback_augment,Johnny Vodka,Pixie Mobius,2,1,0,0,Mobius,base_or_unknown,no,no,no,,
+passback_augment,Kilo,Miraging Kilo,2,1,0,0,Kilo,base_or_unknown,no,no,no,3,
+passback_augment,King Koopa,"Spinning Ducking far Symp.Torque, Alpine Super Mario",7,3,1,0,Mario,base_or_unknown,no,no,no,1,
+passback_augment,Lawn Moir,Slicing far Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,no,no,,
+passback_augment,Legover,(downtime) leggy out dex>ss toe,5,1,1,0,toe,surface,yes,no,yes,1,
+passback_augment,Leviathon,Stepping Ducking far Double Down,5,3,1,1,Down,base_or_unknown,no,no,no,3,
+passback_augment,Mama Curve,(downtime) Illusioning far Symp. Butterfly,4,2,1,0,Butterfly,base_or_unknown,yes,no,no,2,
+passback_augment,Mirage,(downtime) hippy in dex>op toe,5,1,1,0,toe,surface,yes,no,yes,1,
+passback_augment,Monster,Symp. Swirling Gyro Inside,4,2,0,0,Inside,surface,no,yes,no,,
+passback_augment,Mortal Kombat,Stepping Ducking far Grifter,4,3,1,0,Grifter,base_or_unknown,no,no,no,2,
+passback_augment,Nemosis,"Barraging far Motion, Nemesis Osis",5,2,1,0,Osis,base_or_unknown,no,yes,no,4,
+passback_augment,Orbit,toe>ss leggy out dex>ss toe,7,2,2,0,toe,surface,no,no,yes,1,
+passback_augment,Osis,(downtime) Gyro Clipper,2,1,0,0,Clipper,surface,yes,yes,no,0,
+passback_augment,Pandora's Box,Gyro Pickup,2,1,0,0,Pickup,base_or_unknown,no,yes,no,1,
+passback_augment,Pickup,(downtime) leggy in dex>ss toe,5,1,1,0,toe,surface,yes,no,yes,1,
+passback_augment,Pixie (archaic),Midtime Toe near Mirage,4,2,1,0,Mirage,base_or_unknown,no,no,no,,
+passback_augment,Pogo,"Pogo far Mirage, (uptime) Symp. Miraging far Mirage",7,5,2,0,Mirage,base_or_unknown,yes,no,no,2,
+passback_augment,Refraction,Butterfy near Osis,3,1,1,0,Osis,base_or_unknown,no,no,no,1,
+passback_augment,Rotor,(downtime) Swirling Gyro Inside Stall,4,1,0,0,Stall,base_or_unknown,yes,yes,no,,
+passback_augment,Schmoe,Stepping near Legover,3,2,1,0,Legover,base_or_unknown,no,no,no,2,
+passback_augment,Shooting Star,"Shooting far Double Down, Pogo Nuclear far Double Down",9,4,2,2,Down,base_or_unknown,no,no,no,4,
+passback_augment,Sidewinder,"Fairy Spinning near Barraging far Buterfly, Fairy Gyro Janiwalker",9,7,2,0,Janiwalker,base_or_unknown,no,yes,no,4,
+passback_augment,Sidwalk,Stepping near Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,no,no,2,
+passback_augment,Skullsmasher,"Atomic Ducking far Mirage, Alpine Atomsmasher",6,3,1,0,Atomsmasher,base_or_unknown,no,no,no,2,
+passback_augment,Strong side,strong,1,0,0,0,strong,base_or_unknown,no,no,no,,
+passback_augment,Sunilwalk,Barraging near Butterfly,3,2,1,0,Butterfly,base_or_unknown,no,yes,no,3,
+passback_augment,Super Mario,"Spinning far Symp. Torque, Symp. Marius",6,4,1,0,Marius,base_or_unknown,no,no,no,1,
+passback_augment,TATW/Triple ATW,triple-dex ATW,2,0,0,1,ATW,base_or_unknown,no,no,no,3,
+passback_augment,TSO,triple-dex Legover,2,0,0,1,Legover,base_or_unknown,no,no,no,3,
+passback_augment,Terrawhirl,"Toe midtime near Whirr, Terraging near Clipper",7,4,2,0,Clipper,surface,no,yes,no,,
+passback_augment,Torch-R-Rack,"Stepping far Symp. Double Down, BS Blurriest",7,3,1,1,Blurriest,base_or_unknown,no,no,no,3,
+passback_augment,Toxic,(downtime) Miraging far Symp. Whirl,4,3,1,0,Whirl,base_or_unknown,yes,no,no,2,
+passback_augment,Triple Switch,triple-dex Legover,2,0,0,1,Legover,base_or_unknown,no,no,no,3,
+passback_augment,Twist,Rev. Swirl,2,0,0,0,Swirl,base_or_unknown,no,no,no,1,
+passback_augment,Walkover,"Inside Stall>place foot on ground>step over into Clipper, or reverse direction",13,1,0,0,direction,base_or_unknown,no,no,no,,
+passback_augment,Wauxspin,Butterfly Gyro Toe,3,1,0,0,Toe,surface,no,yes,no,,
+passback_augment,Whip,Rev. Whirl,2,0,0,0,Whirl,base_or_unknown,no,no,no,1,
+passback_augment,Wrap,"Inside Stall moved to Clipper Stall, or reverse direction",9,1,0,0,direction,base_or_unknown,no,no,no,,
