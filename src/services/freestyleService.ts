@@ -208,6 +208,11 @@ export interface OperatorBoardOperator {
   compositionA:           string;   // left side of "A + BASE → RESULT"
   compositionResult:      string;   // result name on the right of the arrow
   curatorConfirmPending:  boolean;  // true for [curator confirm] cells
+  // Restrained deep-link to the single most authoritative existing surface
+  // for this operator. null when no mature destination exists: don't fabricate
+  // maturity. href + hrefLabel are paired; both populated or both null.
+  href:                   string | null;   // absolute path with anchor
+  hrefLabel:              string | null;   // short destination-type label
 }
 export interface OperatorBoardTier {
   key:       'set' | 'body' | 'structural';
@@ -3791,10 +3796,16 @@ export const freestyleService = {
       action: string,
       compositionA: string,
       compositionResult: string,
+      destination: { href: string; label: string } | null,
       curatorConfirmPending = false,
     ): OperatorBoardOperator => ({
       glyph, name, action, compositionA, compositionResult, curatorConfirmPending,
+      href:      destination?.href      ?? null,
+      hrefLabel: destination?.label     ?? null,
     });
+    const NOTATION    = (slug: string) => ({ href: `/freestyle/moves#move-${slug}`,        label: 'Notation reference' });
+    const GLOSSARY    = (slug: string) => ({ href: `/freestyle/glossary#term-${slug}`,     label: 'Glossary entry'     });
+    const MOD_PEDAGOGY = (slug: string) => ({ href: `/freestyle/modifier/${slug}`,          label: 'Modifier page'      });
 
     return {
       ...OPERATOR_BOARD_PROSE[surface],
@@ -3805,12 +3816,12 @@ export const freestyleService = {
           title:   'Set operators',
           intro:   'What sends the bag into the air.',
           operators: [
-            op('PIX',   'Pixie',    'Compressed uptime set, leg drives the bag through a tight orbit.', 'PIX + BUTTERFLY',         'DIMWALK'),
-            op('AT',    'Atomic',   'Set wrapped with full-body rotation in the air.',                  'AT + OSIS',               'FLUX'),
-            op('Q',     'Quantum',  'Set with added rotation through uptime.',                          'Q + MIRAGE',              'TOE BLUR'),
-            op('BL',    'Blender',  'Set with a low-orbit pre-set sweep into the dex.',                 'BL + BUTTERFLY',          'BLENDER BUTTERFLY',  true),
-            op('FAIRY', 'Fairy',    'Set carrying an extra revolution through uptime.',                 'FAIRY + BLUR',            'DOUBLE FAIRY',       true),
-            op('STEP',  'Stepping', 'Foot relocates between the set and the catch.',                    'STEP + BUTTERFLY',        'RIPWALK'),
+            op('PIX',   'Pixie',    'Compressed uptime set, leg drives the bag through a tight orbit.', 'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
+            op('AT',    'Atomic',   'Set wrapped with full-body rotation in the air.',                  'AT + OSIS',               'FLUX',               NOTATION('atomic')),
+            op('Q',     'Quantum',  'Set with added rotation through uptime.',                          'Q + MIRAGE',              'TOE BLUR',           NOTATION('quantum')),
+            op('BL',    'Blender',  'Set with a low-orbit pre-set sweep into the dex.',                 'BL + BUTTERFLY',          'BLENDER BUTTERFLY',  null, true),
+            op('FAIRY', 'Fairy',    'Set carrying an extra revolution through uptime.',                 'FAIRY + BLUR',            'DOUBLE FAIRY',       NOTATION('fairy'),    true),
+            op('STEP',  'Stepping', 'Foot relocates between the set and the catch.',                    'STEP + BUTTERFLY',        'RIPWALK',            GLOSSARY('stepping')),
           ],
         },
         {
@@ -3819,11 +3830,11 @@ export const freestyleService = {
           title:   'Body operators',
           intro:   'What the body does while the bag is up.',
           operators: [
-            op('SPIN',  'Spinning', 'Full-body rotation around the vertical axis during the trick.',    'SPIN + TORQUE',           'MOBIUS'),
-            op('GY',    'Gyro',     'Body-rotation variant on a partial or inverted plane.',            'GY + BUTTERFLY',          'GYRO BUTTERFLY'),
-            op('DUCK',  'Ducking',  'The body drops under the bag mid-dex.',                            'PIX + DUCK + BUTTERFLY',  'PHOENIX'),
-            op('PDX',   'Paradox',  'A hip pivot inserted between two dexes.',                          'PDX + LEG-OVER',          'PARADOX LEG-OVER'),
-            op('SYMP',  'Symposium','An illusion combined with body rotation.',                         'SYMP + ILLUSION',         'FLAIL',              true),
+            op('SPIN',  'Spinning', 'Full-body rotation around the vertical axis during the trick.',    'SPIN + TORQUE',           'MOBIUS',             MOD_PEDAGOGY('spinning')),
+            op('GY',    'Gyro',     'Body-rotation variant on a partial or inverted plane.',            'GY + BUTTERFLY',          'GYRO BUTTERFLY',     NOTATION('gyro')),
+            op('DUCK',  'Ducking',  'The body drops under the bag mid-dex.',                            'PIX + DUCK + BUTTERFLY',  'PHOENIX',            MOD_PEDAGOGY('ducking')),
+            op('PDX',   'Paradox',  'A hip pivot inserted between two dexes.',                          'PDX + LEG-OVER',          'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
+            op('SYMP',  'Symposium','An illusion combined with body rotation.',                         'SYMP + ILLUSION',         'FLAIL',              GLOSSARY('symposium'), true),
           ],
         },
         {
@@ -3832,9 +3843,9 @@ export const freestyleService = {
           title:   'Structural concepts',
           intro:   'Relationships across the trick.',
           operators: [
-            op('XDEX',  'Cross-dex','The leg circles the bag on the opposite side of the body.',        'XDEX + INSIDE',           'CLIPPER',            true),
-            op('SAME',  'Same-foot','The set foot and the catch foot are the same.',                    'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY'),
-            op('OP',    'Opposite', 'The set foot and the catch foot are different. The conventional default.', 'OP + BUTTERFLY', 'BUTTERFLY'),
+            op('XDEX',  'Cross-dex','The leg circles the bag on the opposite side of the body.',        'XDEX + INSIDE',           'CLIPPER',            null, true),
+            op('SAME',  'Same-foot','The set foot and the catch foot are the same.',                    'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY', null),
+            op('OP',    'Opposite', 'The set foot and the catch foot are different. The conventional default.', 'OP + BUTTERFLY', 'BUTTERFLY',          null),
           ],
         },
       ],

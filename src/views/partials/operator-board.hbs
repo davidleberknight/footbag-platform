@@ -22,6 +22,9 @@
           <span class="operator-example-arrow">&rarr;</span>
           <span class="operator-example-result">{{compositionResult}}</span>
         </p>
+        {{#if href}}
+        <a class="operator-card-deeplink" href="{{href}}">{{hrefLabel}}</a>
+        {{/if}}
       </div>
       {{/each}}
     </div>

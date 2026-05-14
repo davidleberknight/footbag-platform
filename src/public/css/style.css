@@ -4632,6 +4632,28 @@ section.home-media { padding-top: 0; }
   font-weight: 700;
 }
 
+/* Restrained discoverability cue: one deep-link per operator (where a mature
+ * destination exists). Tier-color tinted, italic, no underline at rest, no
+ * card-wide hover state. Cards without a mature destination render no footer
+ * element at all. */
+.operator-card-deeplink {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--tier-color);
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+.operator-card-deeplink::before {
+  content: '\2192\00a0';   /* → with non-breaking space */
+  font-style: normal;
+}
+.operator-card-deeplink:hover,
+.operator-card-deeplink:focus-visible {
+  text-decoration: underline;
+}
+
 @media (max-width: 600px) {
   .operator-grid { grid-template-columns: 1fr; gap: 16px; }
   .operator-tier { margin: 28px 0 18px 0; }

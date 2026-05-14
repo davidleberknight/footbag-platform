@@ -528,6 +528,43 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(boardIdx).toBeGreaterThan(0);
     expect(referenceIdx).toBeGreaterThan(boardIdx);
   });
+
+  // ── Operator-card deep-links: one restrained destination per operator ──
+  it('renders the expected deep-link for each linked operator', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Notation references (moves page anchors)
+    expect(res.text).toContain('href="/freestyle/moves#move-pixie"');
+    expect(res.text).toContain('href="/freestyle/moves#move-atomic"');
+    expect(res.text).toContain('href="/freestyle/moves#move-quantum"');
+    expect(res.text).toContain('href="/freestyle/moves#move-fairy"');
+    expect(res.text).toContain('href="/freestyle/moves#move-gyro"');
+    // Glossary entries
+    expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');
+    expect(res.text).toContain('href="/freestyle/glossary#term-symposium"');
+    // Modifier pedagogy (mature surfaces only)
+    expect(res.text).toContain('href="/freestyle/modifier/spinning"');
+    expect(res.text).toContain('href="/freestyle/modifier/paradox"');
+    expect(res.text).toContain('href="/freestyle/modifier/ducking"');
+  });
+
+  it('renders exactly ten operator-card deep-link anchors', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
+    expect(matches.length).toBe(10);
+  });
+
+  it('omits the deep-link footer on unlinked operators (BL, XDEX, SAME, OP)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).not.toContain('/freestyle/glossary#term-blender');
+    expect(res.text).not.toContain('/freestyle/glossary#term-cross-dex');
+    expect(res.text).not.toContain('/freestyle/glossary#term-same-foot');
+    expect(res.text).not.toContain('/freestyle/glossary#term-opposite');
+    expect(res.text).not.toContain('/freestyle/modifier/blender');
+    expect(res.text).not.toContain('/freestyle/modifier/cross-dex');
+  });
 });
 
 // ---------------------------------------------------------------------------

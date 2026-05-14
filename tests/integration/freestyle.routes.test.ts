@@ -541,6 +541,17 @@ describe('GET /freestyle/glossary — operator-board orientation in §3', () => 
     expect(boardIdx).toBeGreaterThan(sec3Idx);
     expect(sec4Idx).toBeGreaterThan(boardIdx);
   });
+
+  it('renders ten restrained operator-card deep-links inside §3', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
+    expect(matches.length).toBe(10);
+    expect(res.text).toContain('href="/freestyle/modifier/spinning"');
+    expect(res.text).toContain('href="/freestyle/modifier/paradox"');
+    expect(res.text).toContain('href="/freestyle/glossary#term-symposium"');
+    expect(res.text).toContain('href="/freestyle/moves#move-pixie"');
+  });
 });
 
 // ---------------------------------------------------------------------------

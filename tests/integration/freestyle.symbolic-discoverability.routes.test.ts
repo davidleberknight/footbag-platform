@@ -145,6 +145,16 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     expect(boardIdx).toBeGreaterThan(introIdx);
     expect(firstSecIdx).toBeGreaterThan(boardIdx);
   });
+
+  it('renders ten restrained operator-card deep-links onboarding to mature surfaces', async () => {
+    const res = await request(createApp()).get('/freestyle/learn');
+    const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
+    expect(matches.length).toBe(10);
+    // Spot-check one destination per category (notation / glossary / pedagogy).
+    expect(res.text).toContain('href="/freestyle/moves#move-pixie"');
+    expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');
+    expect(res.text).toContain('href="/freestyle/modifier/ducking"');
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
