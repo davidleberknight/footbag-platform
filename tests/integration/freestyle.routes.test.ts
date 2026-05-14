@@ -28,6 +28,7 @@ import {
   insertFreestyleRecord,
   insertMember,
   insertFreestyleTrick,
+  insertFreestyleTrickAlias,
   insertTtLesson,
 } from '../fixtures/factories';
 
@@ -224,6 +225,17 @@ beforeAll(async () => {
     canonical_name: 'nf2b gap',
     adds: '4',
   });
+
+  // ── Seeds for CANONICAL-SURFACE-REALIGNMENT-1 S2 + S3 tests ──────────
+  // S2: canon-locked compound rows for ≡ chain readings (torque, blender,
+  //     drifter all in freestyleSymbolicEquivalences.ts after S2).
+  // S3: around-the-world + 'atw' alias to verify allow-list rendering as
+  //     'ATW' (uppercase displayAs per freestyleAliasGovernance.ts).
+  insertFreestyleTrick(db, { slug: 'torque',   canonical_name: 'torque',   adds: '4', notation: 'TORQUE'   });
+  insertFreestyleTrick(db, { slug: 'blender',  canonical_name: 'blender',  adds: '4', notation: 'BLENDER'  });
+  insertFreestyleTrick(db, { slug: 'drifter',  canonical_name: 'drifter',  adds: '3', notation: 'DRIFTER'  });
+  insertFreestyleTrick(db, { slug: 'around-the-world', canonical_name: 'around the world', adds: '2', notation: 'ATW' });
+  insertFreestyleTrickAlias(db, 'atw', 'around-the-world', 'atw');
 
   db.close();
   createApp = await importApp();
@@ -1555,5 +1567,68 @@ describe('Freestyle dictionary — Batch 4: unified symbolic-object styling', ()
   it('dict-card class is preserved (no rename); CSS now uses shared symbolic-object hierarchy', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toMatch(/class="dict-card[^"]*"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CANONICAL-SURFACE-REALIGNMENT-1 — S1 + S3 + S2
+
+describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict cards', () => {
+  it('legacy "aliases:" row is retired across the dictionary surface', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).not.toMatch(/class="dict-card-aliases"/);
+    expect(res.text).not.toMatch(/<span class="dict-card-aliases-label">/);
+  });
+
+  it('renders ≡ readings sourced from the curator chain registry', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // .core-trick-equivalence (Batch 4 shared base class) + .dict-card-equivalence (surface modifier)
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"/);
+    // The ≡ sigil renders via the shared .core-trick-equiv-sigil span
+    expect(res.text).toMatch(/class="core-trick-equiv-sigil">&equiv;<\/span>/);
+  });
+});
+
+describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blender/drifter)', () => {
+  it('renders torque as ≡ miraging osis (pt11)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // Card identified by data-trick-slug + the readings inside.
+    expect(res.text).toMatch(/data-trick-slug="torque"[\s\S]*?miraging osis/);
+  });
+
+  it('renders blender as ≡ whirling osis (pt11)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/data-trick-slug="blender"[\s\S]*?whirling osis/);
+  });
+
+  it('renders drifter as ≡ miraging clipper (pt11)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/data-trick-slug="drifter"[\s\S]*?miraging clipper/);
+  });
+});
+
+describe('Freestyle dictionary — S3: alias-governance allow-list filtering', () => {
+  it('filters out orthographic-only alias rows (legover ≡ leg-over hidden)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).not.toContain('leg over');
+  });
+
+  it('filters out Wave-2-pending alias rows (osis ≡ frigidosis hidden)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).not.toContain('frigidosis');
+  });
+
+  it('filters out different-trick alias rows (swirl ≡ reverse swirl hidden)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // 'reverse swirl' as an alias of swirl should NOT appear as an ≡ reading.
+    // (If reverse-swirl exists as its own canonical row, that's a different
+    // surface; this assertion only checks the alias-row pathway.)
+    expect(res.text).not.toMatch(/class="core-trick-equivalence[^"]*"[^>]*>[\s\S]{0,40}reverse swirl/);
+  });
+
+  it('atom-level allow-listed aliases surface in display form (atw → ATW)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // around-the-world ≡ ATW is allow-listed with displayAs='ATW' (uppercase).
+    expect(res.text).toMatch(/data-trick-slug="around-the-world"[\s\S]*?ATW/);
   });
 });

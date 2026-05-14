@@ -25,15 +25,28 @@
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
   </header>
 
+  {{! ── Symbolic-equivalence readings (canon-uncontested only) ────────
+      Merged in the service from freestyleSymbolicEquivalences.ts (compound
+      chains) + freestyleAliasGovernance.ts (atom-level allow-list). Each
+      reading renders as a separate ≡ line; consecutive lines hug each
+      other via the .core-trick-equivalence adjacent-sibling rule. }}
+  {{#if symbolicEquivalences.length}}
+    {{#each symbolicEquivalences}}
+    <p class="core-trick-equivalence dict-card-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> {{this}}</p>
+    {{/each}}
+  {{/if}}
+
   {{#if operationalNotation}}
     <code class="dict-card-notation" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
   {{else}}
     <p class="dict-card-notation dict-card-notation--pending" aria-label="Operational notation pending"><em>Notation pending</em></p>
   {{/if}}
 
-  {{#if commonAliases.length}}
-  <p class="dict-card-aliases"><span class="dict-card-aliases-label">aliases:</span> {{#each commonAliases}}{{#unless @first}}, {{/unless}}{{this}}{{/each}}</p>
-  {{/if}}
+  {{! The legacy "aliases:" row is retired in CANONICAL-SURFACE-REALIGNMENT-1
+      S1+S3. Canonical-uncontested equivalences now render as ≡ lines above
+      the notation; the noise-prone alias surface (frigidosis, leg-over,
+      reverse-swirl, seeded folk-names) is governed by the allow-list in
+      src/content/freestyleAliasGovernance.ts. }}
 
   {{#if hasReferenceMedia}}
   <p class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">

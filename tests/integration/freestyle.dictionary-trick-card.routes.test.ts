@@ -193,12 +193,20 @@ describe('dictionary-trick-card — required slots', () => {
     expect(res.text).toMatch(/<span class="op-token op-token--direction"[^>]*data-role="direction"[^>]*>in<\/span>/);
   });
 
-  it('renders aliases when present, prefixed by "aliases:"', async () => {
+  it('renders ≡ symbolic-equivalence readings from the curator chain registry', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    // Ripwalk has two aliases (order is alphabetical per the listAll query).
-    expect(res.text).toMatch(/<p class="dict-card-aliases">[\s\S]*?aliases:<\/span>[\s\S]*?blurry butterfly[\s\S]*?stepping butterfly/i);
-    // Mobius has the folk-name alias
-    expect(res.text).toMatch(/<p class="dict-card-aliases">[\s\S]*?aliases:<\/span>[\s\S]*?gyro torque/i);
+    // Per CANONICAL-SURFACE-REALIGNMENT-1 S1+S3, the legacy "aliases:" row
+    // is retired. Canonical-uncontested equivalences now render as ≡ lines
+    // sourced from freestyleSymbolicEquivalences.ts (compound chains) +
+    // freestyleAliasGovernance.ts (atom-level allow-list).
+    //
+    // Ripwalk: chain reading 'stepping butterfly' (curatorConfirmPending=true)
+    // Mobius: three chain readings including 'gyro torque' and the deeper
+    //         'spinning ss torque' / 'spinning ss miraging op osis'.
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?stepping butterfly/i);
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?gyro torque/i);
+    // The legacy aliases row is gone:
+    expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 
   it('renders "Notation pending" for tricks with null operational notation', async () => {

@@ -72,7 +72,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: true,
   },
   {
-    slug:     'atomsmasher',
+    slug:     'atom-smasher',
     readings: ['atomic mirage'],
     curatorConfirmPending: true,
   },
@@ -110,6 +110,40 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     slug:     'spyro-gyro',
     readings: ['gyro butterfly swirl'],
     curatorConfirmPending: true,    // Red pt2 (pending; treated as flat compositional reading per curator direction)
+  },
+  // ── Canon-locked compound chains (CANONICAL-SURFACE-REALIGNMENT-1 S2) ──
+  // All pt11 / pt1+pt2 / pt2+followup-2026-04 / pt4 locked readings; each
+  // entry is one canon-uncontested compositional decomposition. Fury is
+  // intentionally absent — its non-rotational reading is Wave-1 Q1c pending.
+  {
+    slug:     'torque',
+    readings: ['miraging osis'],
+    curatorConfirmPending: false,   // pt11-locked
+  },
+  {
+    slug:     'blender',
+    readings: ['whirling osis'],
+    curatorConfirmPending: false,   // pt11-locked
+  },
+  {
+    slug:     'drifter',
+    readings: ['miraging clipper'],
+    curatorConfirmPending: false,   // pt11-locked
+  },
+  {
+    slug:     'vortex',
+    readings: ['gyro drifter'],
+    curatorConfirmPending: false,   // pt1+pt2-locked
+  },
+  {
+    slug:     'eggbeater',
+    readings: ['atomic legover'],
+    curatorConfirmPending: false,   // pt4-locked
+  },
+  {
+    slug:     'omelette',
+    readings: ['atomic illusion'],
+    curatorConfirmPending: false,   // pt2 + followup-2026-04 locked
   },
 ];
 

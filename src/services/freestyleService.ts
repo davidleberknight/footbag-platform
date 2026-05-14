@@ -72,6 +72,9 @@ import {
 import {
   getSymbolicEquivalenceChain,
 } from '../content/freestyleSymbolicEquivalences';
+import {
+  filterAliasesForBrowse,
+} from '../content/freestyleAliasGovernance';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -1403,6 +1406,14 @@ export interface DictionaryTrickCard {
   href:                       string;                        // /freestyle/tricks/:slug ; suppressed when external-only placeholder
   adds:                       string | null;                 // numeric string for display; null when unrated
   addsLabel:                  string;                        // pre-shaped: '4 ADD' / '— ADD' (never empty)
+  // Symbolic-equivalence readings rendered as `≡ <reading>` lines above the
+  // notation row. Merged from two sources, both curator-authored and
+  // restraint-governed (no DB-data leakage):
+  //   1. freestyleSymbolicEquivalences.ts — compound chains (mobius, etc.)
+  //   2. freestyleAliasGovernance.ts — atom-level canonical aliases (ATW, etc.)
+  // Empty array when neither source has an entry; the template suppresses
+  // the row in that case.
+  symbolicEquivalences:       string[];
   operationalNotation:        OperationalNotation | null;    // role-tagged tokens; null when pending
   operationalNotationStatus:  'available' | 'pending';
   commonAliases:              string[];                      // service-side "common aliases only" filter applied here
@@ -1853,10 +1864,18 @@ function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: 
 // data (already loaded by the dictionary builder) and produces the slim
 // card view-model.
 //
-// "Common aliases only" policy in slice 1: includes all aliases from the
-// freestyle_trick_aliases table verbatim. A future curator-policy slice
-// can introduce alias-kind filtering (folk vs typo vs URL-slug variant);
-// the field name `commonAliases` reserves the contract.
+// Symbolic-equivalence layer (Canonical-Surface-Realignment S1+S3):
+//   - Compound tricks: readings come from freestyleSymbolicEquivalences.ts
+//     (curator-authored multi-reading chains; stopping-depth-aware).
+//   - Atom-level canonical aliases: readings come from the allow-list in
+//     freestyleAliasGovernance.ts (restraint-first; only entries explicitly
+//     approved for browse surface).
+//   - The two sources are merged. Empty result → template suppresses the
+//     ≡ row entirely.
+//
+// `commonAliases` is also filtered through the allow-list so the legacy
+// "aliases:" text row stops surfacing problematic entries (frigidosis,
+// leg-over, reverse-swirl, etc.).
 // ─────────────────────────────────────────────────────────────────────────
 function shapeDictionaryTrickCard(
   row: FreestyleTrickRowWithStatus,
@@ -1873,15 +1892,24 @@ function shapeDictionaryTrickCard(
       }
     : null;
 
+  // Merge equivalence readings from the curator chain registry (compounds)
+  // and the alias-governance allow-list (atoms). Order: compound chains
+  // first (when present), then atom-level allow-listed aliases.
+  const chain                = getSymbolicEquivalenceChain(indexRow.slug);
+  const chainReadings        = chain ? [...chain.readings] : [];
+  const browseSafeAliases    = filterAliasesForBrowse(indexRow.slug, indexRow.aliases);
+  const symbolicEquivalences = [...chainReadings, ...browseSafeAliases];
+
   return {
     slug:                       indexRow.slug,
     displayName:                indexRow.canonicalName,
     href:                       indexRow.detailHref,
     adds:                       indexRow.adds,
     addsLabel:                  indexRow.adds ? `${indexRow.adds} ADD` : '— ADD',
+    symbolicEquivalences,
     operationalNotation,
     operationalNotationStatus:  operationalNotation ? 'available' : 'pending',
-    commonAliases:              indexRow.aliases,
+    commonAliases:              browseSafeAliases,
     isExternalOnly:             indexRow.isExternalOnly,
     statusBadge:                indexRow.statusBadge,
     placeholderNote:            indexRow.placeholderNote,

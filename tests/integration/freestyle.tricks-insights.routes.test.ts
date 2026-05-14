@@ -402,10 +402,16 @@ describe('GET /freestyle/tricks', () => {
     expect(res.text).toContain('blurriest');
   });
 
-  it('shows aliases', async () => {
+  it('renders allow-listed canonical aliases as ≡ readings (around-the-world ≡ ATW)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    expect(res.text).toContain('leg over');
+    // Per CANONICAL-SURFACE-REALIGNMENT-1 S1+S3, atom-level canonical aliases
+    // surface only through the freestyleAliasGovernance allow-list; the
+    // around-the-world ≡ ATW entry is allow-listed (displayAs='ATW').
+    // Non-allow-listed aliases like legover ≡ leg-over are filtered out per
+    // user-spec PART 3A (orthographic noise).
+    expect(res.text).toMatch(/class="core-trick-equivalence[^"]*"[^>]*>[\s\S]*?ATW/);
+    expect(res.text).not.toContain('leg over');
   });
 
   it('shows trick count in hero stats', async () => {
@@ -948,12 +954,14 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     expect(cardBlock).toContain('dict-card-media-chip--tutorial');
   });
 
-  it('renders aliases on the dictionary-trick-card when available', async () => {
+  it('renders ≡ symbolic-equivalence readings on the dictionary-trick-card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // DSC-2 slice 1: aliases render via dict-card-aliases (lowercase 'aliases:'
-    // label, common aliases comma-separated, visually secondary).
-    expect(res.text).toMatch(/class="dict-card-aliases">[\s\S]*?aliases:[\s\S]*?<\/span>/);
+    // CANONICAL-SURFACE-REALIGNMENT-1 S1+S3: the legacy "aliases:" row is
+    // retired. Canonical-uncontested equivalences render as ≡ lines (a
+    // shared visual primitive with landing Core Tricks + glossary flow).
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"/);
+    expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 
   it('falls back to "Notation pending" when a trick has no notation', async () => {

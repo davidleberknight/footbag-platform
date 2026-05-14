@@ -4928,6 +4928,18 @@ a.dict-card-title:hover {
   font-weight: 500;
 }
 
+/* Equivalence readings inside dict cards. Inherits all typography from the
+   shared .core-trick-equivalence class. The .dict-card-equivalence modifier
+   adds a tiny top margin so ≡ lines breathe slightly from the header above. */
+.dict-card-equivalence {
+  margin-top: 4px;
+}
+.dict-card-equivalence:first-of-type {
+  margin-top: 6px;
+}
+/* Successive ≡ lines hug each other (same tight-stack rule as
+   .core-trick-equivalence on landing). */
+
 /* Notation is subordinate technical detail — clearly dimmer than the slug,
    and (post-equivalence-rollout) clearly dimmer than equivalence readings. */
 .dict-card-notation {
