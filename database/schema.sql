@@ -3106,6 +3106,30 @@ CREATE UNIQUE INDEX ux_member_club_affiliations_one_current
   ON member_club_affiliations(member_id)
   WHERE is_current = 1;
 
+-- Permanent operational table: per-member onboarding-wizard task state.
+-- One row per (member_id, task_type). Owned by MemberOnboardingService.
+-- Rows persist for the life of the member; completed tasks remain in place
+-- so the dashboard widget knows what is outstanding versus done.
+CREATE TABLE member_onboarding_tasks (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  member_id    TEXT NOT NULL REFERENCES members(id),
+  task_type    TEXT NOT NULL
+    CHECK (task_type IN ('legacy_claim','club_affiliations','first_competition_year','show_competitive_results')),
+  state        TEXT NOT NULL DEFAULT 'pending'
+    CHECK (state IN ('pending','skipped','completed','not_applicable')),
+  completed_at TEXT,
+
+  UNIQUE(member_id, task_type)
+);
+
+CREATE INDEX idx_member_onboarding_tasks_member ON member_onboarding_tasks(member_id);
+
 -- Permanent archival table: one row per imported legacy account from the old
 -- footbag.org mirror or Steve Goldberg's data dump. Identified by the legacy
 -- site's user-account id (legacy_member_id), which is also the external

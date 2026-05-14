@@ -5118,6 +5118,51 @@ export const legacyMembers = {
   `); },
 };
 
+// ---------------------------------------------------------------------------
+// memberOnboarding
+// ---------------------------------------------------------------------------
+// Per-member onboarding-wizard task rows. Owned by MemberOnboardingService.
+
+export interface MemberOnboardingTaskRow {
+  id: string;
+  member_id: string;
+  task_type: string;
+  state: string;
+  completed_at: string | null;
+}
+
+export const memberOnboarding = {
+  get insertTaskIfMissing() { return db.prepare(`
+    INSERT OR IGNORE INTO member_onboarding_tasks (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, task_type, state
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'pending')
+  `); },
+
+  get listForMember() { return db.prepare(`
+    SELECT id, member_id, task_type, state, completed_at
+      FROM member_onboarding_tasks
+     WHERE member_id = ?
+  `); },
+
+  get findByMemberAndType() { return db.prepare(`
+    SELECT id, member_id, task_type, state, completed_at
+      FROM member_onboarding_tasks
+     WHERE member_id = ?
+       AND task_type = ?
+  `); },
+
+  get updateState() { return db.prepare(`
+    UPDATE member_onboarding_tasks
+       SET state        = ?,
+           completed_at = ?,
+           updated_at   = ?,
+           updated_by   = ?,
+           version      = version + 1
+     WHERE id = ?
+  `); },
+};
+
 // ---- QC-only (delete with pipeline-qc subsystem) ----
 // ---------------------------------------------------------------------------
 // personsQc
