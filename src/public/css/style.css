@@ -5359,3 +5359,122 @@ a.dict-card-title:hover { text-decoration: underline; }
     font-size: 1.05rem;
   }
 }
+
+/* ── Glossary §3: symbolic-compression flow ──────────────────────────
+   Vertical stack of three .core-trick-object cards demonstrating the
+   torque/mobius compositional progression. Visual rhythm matches the
+   landing-page Core Tricks grid; this is the worked example for the
+   PART H-pre rendering rule. ───────────────────────────────────────── */
+.glossary-compression-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 480px;
+  margin: 18px auto 14px auto;
+}
+.glossary-compression-card {
+  width: 100%;
+  max-width: 360px;
+}
+.glossary-compression-arrow {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.4rem;
+  color: var(--primary);
+  margin: 0;
+  line-height: 1;
+}
+.glossary-compression-note {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text);
+  max-width: 640px;
+  margin: 14px auto 0 auto;
+}
+
+/* ── Glossary §8: thesis sentence + section bridge ───────────────────── */
+.glossary-thesis {
+  font-size: 1.08rem;
+  font-style: italic;
+  color: var(--secondary);
+  border-left: 3px solid var(--primary);
+  padding: 8px 14px;
+  margin: 0 0 16px 0;
+  background: var(--bg-light);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.glossary-section-bridge {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
+/* ── Glossary PassBack source attribution ────────────────────────────── */
+.glossary-source-attrib {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Glossary §3: Execution Mechanics — PassBack-adapted concepts ────── */
+.glossary-execution-mechanics {
+  margin: 12px 0 0 0;
+  max-width: 880px;
+}
+.glossary-execution-mechanics dt {
+  font-weight: 700;
+  margin-top: 14px;
+  color: var(--text);
+}
+.glossary-execution-mechanics dt:first-child {
+  margin-top: 4px;
+}
+.glossary-execution-mechanics dd {
+  margin: 4px 0 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.glossary-execution-mechanics dd code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  color: var(--secondary);
+}
+
+/* ── Glossary §9: semantic-vs-operational contrast table ─────────────── */
+.glossary-layer-contrast {
+  width: 100%;
+  max-width: 880px;
+  margin: 8px 0 18px 0;
+  border-collapse: collapse;
+  font-size: 0.94rem;
+}
+.glossary-layer-contrast th,
+.glossary-layer-contrast td {
+  padding: 10px 14px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+.glossary-layer-contrast thead th {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--secondary);
+  border-bottom: 2px solid var(--primary);
+}
+.glossary-layer-contrast td:first-child {
+  width: 22%;
+  white-space: nowrap;
+}
+.glossary-layer-contrast code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+}

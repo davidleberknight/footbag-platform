@@ -174,7 +174,7 @@ describe('GET /freestyle/glossary — connective panels section', () => {
 describe('GET /freestyle/glossary — connective panels do not break existing content', () => {
   it('glossary intro still renders alongside the connective panels (smoke check)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/This glossary defines the terminology/);
+    expect(res.text).toMatch(/This glossary teaches how the freestyle language works/);
   });
 
   it('existing 12 section headings unchanged in their preserved positions', async () => {

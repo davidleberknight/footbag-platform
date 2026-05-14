@@ -568,10 +568,13 @@ describe('GET /freestyle/glossary', () => {
     expect(res.text).toContain('SS');
   });
 
-  it('contains Jobs notation and foundational trick concepts', async () => {
+  it('contains symbolic-compression and foundational trick concepts', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('Jobs Notation');
+    // §8 is renamed "Symbolic Compression" but the Jobs-notation reference
+    // is preserved in the reframed opening prose.
+    expect(res.text).toContain('Symbolic Compression');
+    expect(res.text).toMatch(/Jobs notation/);
     expect(res.text).toContain('Foundational Tricks');
     expect(res.text).toContain('clipper');
     expect(res.text).toContain('butterfly');
@@ -1322,5 +1325,163 @@ describe('Freestyle landing — curated Demonstrations strip (C-3)', () => {
     expect(res.text).toMatch(/>Circle</);
     expect(res.text).toMatch(/>Sick 3</);
     expect(res.text).toMatch(/>Shred 30</);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IA Realignment Batch 3 — glossary pedagogy + compositional teaching flow
+
+describe('Freestyle glossary — Batch 3: PDX flag rewording (C-3-A)', () => {
+  it('renders the PassBack-adapted [PDX] flag definition (mechanical, not circular)', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const pdxIdx = res.text.indexOf('id="op-flag-pdx"');
+    expect(pdxIdx).toBeGreaterThan(0);
+    const slice = res.text.slice(pdxIdx, pdxIdx + 800);
+    expect(slice).toMatch(/cross-body far dex/);
+    expect(slice).toMatch(/hip-pivot/);
+    expect(slice).toContain('CLIP &gt; OP IN [DEX]');
+    expect(slice).toMatch(/PassBack glossary/);
+    // The old circular phrasing is gone.
+    expect(slice).not.toMatch(/performed in the paradox direction/);
+  });
+});
+
+describe('Freestyle glossary — Batch 3: intro philosophy (C-3-B)', () => {
+  it('renders the new philosophy paragraph framing the language as symbolic and compositional', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/teaches how the freestyle language works/);
+    expect(res.text).toMatch(/symbolic and compositional/);
+    expect(res.text).toMatch(/shortest readable form wins/);
+  });
+});
+
+describe('Freestyle glossary — Batch 3: §8 Symbolic Compression reframe (C-3-C)', () => {
+  it('renames §8 to "Symbolic Compression"', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/<h2 class="section-heading">8\. Symbolic Compression/);
+    // The old heading is gone.
+    expect(res.text).not.toMatch(/<h2[^>]*>8\. Notation \(Jobs Notation\)/);
+  });
+
+  it('renders the maintainer-mandated thesis sentence at the top of §8', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(
+      /The language evolves by compressing recurring compositional structures\s+into shorter readable symbolic forms\./,
+    );
+  });
+
+  it('cross-links §8 to the §3 symbolic-compression flow', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('href="#symbolic-compression-flow"');
+  });
+});
+
+describe('Freestyle glossary — Batch 3: §3 torque/mobius compression flow (C-3-D)', () => {
+  it('renders the symbolic-compression-flow anchor inside §3 (above §4)', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    const sec4Idx = res.text.indexOf('4. Naming');
+    expect(flowIdx).toBeGreaterThan(0);
+    expect(sec4Idx).toBeGreaterThan(flowIdx);
+  });
+
+  it('renders three compact-symbolic-object cards: #osis, #torque, #mobius', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    const sec4Idx = res.text.indexOf('4. Naming');
+    const slice = res.text.slice(flowIdx, sec4Idx);
+    expect(slice).toContain('#osis');
+    expect(slice).toContain('#torque');
+    expect(slice).toContain('#mobius');
+  });
+
+  it('mobius card surfaces two stopping-depth equivalence readings', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    const sec4Idx = res.text.indexOf('4. Naming');
+    const slice = res.text.slice(flowIdx, sec4Idx);
+    // Two stopping depths for mobius:
+    expect(slice).toContain('spinning ss torque');
+    expect(slice).toContain('spinning ss miraging osis');
+    // torque's compositional equivalence:
+    expect(slice).toContain('miraging osis');
+  });
+
+  it('keeps explanatory prose minimal — single short paragraph after the cards', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/Three names\. One progression\./);
+    expect(res.text).toMatch(/picks its own stopping points/);
+  });
+});
+
+describe('Freestyle glossary — Batch 3: §9 semantic-vs-operational contrast (C-3-E)', () => {
+  it('renders the layer-contrast table inside §9 with semantic + operational rows', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const sec9Idx = res.text.indexOf('id="operational-notation"');
+    expect(sec9Idx).toBeGreaterThan(0);
+    const after = res.text.slice(sec9Idx, sec9Idx + 2500);
+    expect(after).toContain('class="glossary-layer-contrast"');
+    expect(after).toMatch(/<strong>Semantic<\/strong>/);
+    expect(after).toMatch(/<strong>Operational<\/strong>/);
+    expect(after).toMatch(/stepping ducking paradox torque/);
+  });
+});
+
+describe('Freestyle glossary — Batch 3: Execution Mechanics subsection (C-3-F)', () => {
+  it('renders the Execution Mechanics subsection heading inside §3 with PassBack attribution', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="execution-mechanics"');
+    expect(res.text).toMatch(/>Execution Mechanics</);
+    expect(res.text).toMatch(/Concepts adapted from the PassBack glossary/);
+  });
+
+  it('renders all seven PassBack-adapted micro-entries with anchors', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="term-alpine"');
+    expect(res.text).toContain('id="term-symposium-mech"');
+    expect(res.text).toContain('id="term-symple"');
+    expect(res.text).toContain('id="term-muted"');
+    expect(res.text).toContain('id="term-dex-window"');
+    expect(res.text).toContain('id="term-hippy-leggy"');
+    expect(res.text).toContain('id="term-phases-sides"');
+  });
+
+  it('Symposium micro-entry carries the PassBack verbatim definition', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const idx = res.text.indexOf('id="term-symposium-mech"');
+    expect(idx).toBeGreaterThan(0);
+    const slice = res.text.slice(idx, idx + 600);
+    expect(slice).toMatch(/active leg performs an action in a single-leg jump/);
+  });
+
+  it('Execution Mechanics subsection sits inside §3, above §4', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const sec3Idx     = res.text.indexOf('3. How Tricks Are Built');
+    const execIdx     = res.text.indexOf('id="execution-mechanics"');
+    const sec4Idx     = res.text.indexOf('4. Naming');
+    expect(sec3Idx).toBeGreaterThan(0);
+    expect(execIdx).toBeGreaterThan(sec3Idx);
+    expect(sec4Idx).toBeGreaterThan(execIdx);
+  });
+});
+
+describe('Freestyle glossary — Batch 3: §13 connective-panel positioning note (C-3-G)', () => {
+  it('renders the educational-bridge positioning note inside §13', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const sec13Idx = res.text.indexOf('id="connective-panels"');
+    expect(sec13Idx).toBeGreaterThan(0);
+    const slice = res.text.slice(sec13Idx, sec13Idx + 1500);
+    expect(slice).toMatch(/positioned as educational bridges/);
+    expect(slice).toMatch(/will migrate to the trick dictionary/);
+  });
+});
+
+describe('Freestyle glossary — Batch 3: re-bloat guard', () => {
+  it('rendered glossary body stays within a reasonable size budget (raw HTML bytes)', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    // Single-page glossary should not be excessively large. The threshold
+    // is a re-bloat guard, not a tight ceiling; raise it deliberately
+    // only when a future slice has a clear reason to.
+    expect(res.text.length).toBeLessThan(120_000);
   });
 });

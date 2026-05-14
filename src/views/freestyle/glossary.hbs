@@ -18,16 +18,17 @@
 
   <section class="content-section">
     <p>
-      This glossary defines the terminology used across the freestyle surfaces:
-      execution mechanics, run-quality terms, trick components, and the compositional
-      vocabulary by which trick names are built. It is written for newcomers who want
-      a foothold and for experienced players who want a reference that matches their
-      mental model.
+      This glossary teaches how the freestyle language works: vocabulary,
+      mechanics, and the compositional shorthand the community uses to name
+      tricks. It is the &ldquo;how it reads&rdquo; layer &mdash; for the canonical
+      catalog of named tricks, see the <a href="/freestyle/tricks">trick dictionary</a>;
+      for the set-notation reference, see <a href="/freestyle/sets">/freestyle/sets</a>.
     </p>
-    <p class="detail-muted">
-      Canonical trick rows and faceted browse live in the
-      <a href="/freestyle/tricks">trick dictionary</a>. The set-notation reference
-      is at <a href="/freestyle/sets">/freestyle/sets</a>.
+    <p>
+      The language is symbolic and compositional. Recurring movement structures
+      compress into named operators; named operators stack onto base tricks to
+      produce new ones. The same trick can usually be named at several depths
+      &mdash; shortest readable form wins.
     </p>
   </section>
 
@@ -143,6 +144,66 @@
       </dd>
       {{/each}}
     </dl>
+
+    {{! ── Symbolic compression — a worked example ──────────────────────────
+        Three cards in vertical sequence demonstrate operator composition and
+        the community's choice of stopping depth. Visual progression carries
+        the lesson; prose is deliberately compact. }}
+    <h3 class="section-heading" id="symbolic-compression-flow">Symbolic compression &mdash; a worked example</h3>
+    <div class="glossary-compression-flow">
+      <article class="core-trick-object glossary-compression-card">
+        <p class="core-trick-slug">#osis</p>
+        <p class="core-trick-add"><span class="core-trick-add-value">3</span></p>
+      </article>
+      <p class="glossary-compression-arrow" aria-hidden="true">&darr;</p>
+      <article class="core-trick-object glossary-compression-card">
+        <p class="core-trick-slug">#torque</p>
+        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> miraging osis</p>
+        <p class="core-trick-add"><span class="core-trick-add-value">4</span></p>
+      </article>
+      <p class="glossary-compression-arrow" aria-hidden="true">&darr;</p>
+      <article class="core-trick-object glossary-compression-card">
+        <p class="core-trick-slug">#mobius</p>
+        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> spinning ss torque</p>
+        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> spinning ss miraging osis</p>
+        <p class="core-trick-add"><span class="core-trick-add-value">5</span></p>
+      </article>
+    </div>
+    <p class="glossary-compression-note">
+      Three names. One progression. Each card adds one operator and gives
+      the result a shorter name. The community uses the shortest readable
+      form &mdash; <em>mobius</em> is what players actually say, though
+      <em>spinning ss miraging osis</em> is no less correct. The language
+      picks its own stopping points.
+    </p>
+
+    {{! ── Execution Mechanics: concepts adapted from the PassBack glossary
+        Seven micro-entries naming the mechanical details that operator
+        names alone don't capture. Each entry stays under three sentences. }}
+    <h3 class="section-heading" id="execution-mechanics">Execution Mechanics</h3>
+    <p class="freestyle-section-sub">Concepts adapted from the PassBack glossary.</p>
+    <dl class="glossary-execution-mechanics">
+      <dt id="term-alpine">Alpine</dt>
+      <dd>Divides a trick between its uptime and downtime, inserting a duck or dive between them. Alpine Ripwalk = Stepping Ducking Butterfly. <span class="glossary-source-attrib">PassBack glossary.</span></dd>
+
+      <dt id="term-symposium-mech">Symposium</dt>
+      <dd>A component where an active leg performs an action in a single-leg jump: the symposium leg jumps and lands on its own while the other leg remains in the air. <span class="glossary-source-attrib">PassBack glossary, verbatim.</span></dd>
+
+      <dt id="term-symple">Symple</dt>
+      <dd>Starts symposium, but mid-component the non-symple foot returns to the ground. Naturally suits some compositions (e.g., Symp Legover). The shorthand <em>symp</em> can refer to either symposium or symple, whichever the component would naturally be done as. <span class="glossary-source-attrib">PassBack glossary.</span></dd>
+
+      <dt id="term-muted">Muted</dt>
+      <dd>An active leg held in the air for an entire component without planting. Mostly used for dexes, but applies to other components too. <span class="glossary-source-attrib">PassBack glossary.</span></dd>
+
+      <dt id="term-dex-window">Dex window</dt>
+      <dd>The phantom space the leg draws around the bag while the dex is performed. A <em>deep</em> dex sits high in the window; a <em>thin</em> dex sits at the edge, closer to the shoe; a <em>the</em> component misses the window entirely. <span class="glossary-source-attrib">PassBack glossary.</span></dd>
+
+      <dt id="term-hippy-leggy">Hippy vs leggy</dt>
+      <dd>Every dex is one of two motion styles. A <em>hippy</em> dex draws its motion from the hip: the thigh circles the bag. A <em>leggy</em> dex draws its motion from the knee: the calf circles the bag. <span class="glossary-source-attrib">PassBack glossary.</span></dd>
+
+      <dt id="term-phases-sides">Phases and sides</dt>
+      <dd>Tricks break into three phases by bag direction: <em>uptime</em> (bag rising), <em>midtime</em> (the peak), <em>downtime</em> (bag falling). A side modifier &mdash; same-side (<code>ss</code> / near) or opposite (<code>op</code> / far) &mdash; connects each component to its predecessor. <code>ss</code> is implied for clipper-led tricks; <code>op</code> for toe-led tricks. <span class="glossary-source-attrib">PassBack glossary.</span></dd>
+    </dl>
   </section>
 
   <section class="content-section">
@@ -233,15 +294,22 @@
   </section>
 
   <section class="content-section" id="notation">
-    <h2 class="section-heading">8. Notation (Jobs Notation)</h2>
-    <p>
-      Jobs notation is the community's compact symbolic shorthand for what a
-      trick actually <em>does</em>. The trick's name tells you its identity;
-      Jobs notation tells you its structural anatomy — which set begins it,
-      which modifiers shape it, which base trick anchors it, and where it
-      catches.
+    <h2 class="section-heading">8. Symbolic Compression &mdash; how trick names encode structure</h2>
+    <p class="glossary-thesis">
+      The language evolves by compressing recurring compositional structures
+      into shorter readable symbolic forms.
     </p>
-    <p>It exists because the same trick name can hide a lot of structure. Notation makes that structure visible:</p>
+    <p>
+      The longer you stack operators on a base, the longer the name &mdash;
+      until the community converges on a shorter shorthand. Jobs notation
+      is that shorthand made legible. A trick called &ldquo;mobius&rdquo;
+      decompresses to &ldquo;spinning ss torque&rdquo;, and further to
+      &ldquo;spinning ss miraging osis&rdquo;. All three forms are legitimate;
+      the community uses the shortest readable one. See the
+      <a href="#symbolic-compression-flow">symbolic-compression flow in &sect;3</a>
+      for a worked example.
+    </p>
+    <p>Notation makes that structure visible:</p>
     <ul>
       <li>What goes in the <em>set</em> — the launch position the trick begins from (atomic, pixie, quantum, and so on).</li>
       <li>What <em>modifiers</em> are layered on — body-position modifiers (paradox, ducking, symposium) and rotational modifiers (spinning, blurry, gyro).</li>
@@ -268,36 +336,52 @@
 
     <h3>A modifier-heavy example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.gauntlet}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
     <p>
-      Three body modifiers stacked on a torque base — known to the community
-      as Gauntlet, a 7-ADD trick. Reading the notation left-to-right reveals
-      the layered construction: each modifier (yellow-olive) shapes the body,
-      then the base anchor (green) closes the structural sentence. Each
-      modifier contributes its own +1 to the total difficulty. Compound
-      notation like this is one of the clearest demonstrations of the
-      language: the visible structural decomposition is the trick.
+      Three body modifiers stacked on a torque base &mdash; known to the
+      community as Gauntlet, a 7-ADD trick. Reading the notation
+      left-to-right reveals the layered construction: each modifier
+      contributes its own +1 to the total difficulty.
     </p>
 
     <h3 id="notation-roles">Color-coded structural roles</h3>
     <p>
-      The examples above use the same role-aware rendering you'll see on
-      every trick-detail page. Hover any token to see its role and resolved
-      family name. The visual hierarchy is intentionally restrained — only
-      the four primary roles (core family, set, rotation, body modifier)
-      carry color saturation; surfaces, suffixes, and structural markers
-      render muted so the structural shape stays legible at a glance.
+      The visual hierarchy is restrained &mdash; only the four primary roles
+      (core family, set, rotation, body modifier) carry color saturation.
+      Hover any token on a trick page to see its role and resolved family name.
+    </p>
+
+    <p class="glossary-section-bridge">
+      The next section describes the operational layer &mdash; how the trick
+      is executed. Symbolic compression lives in trick names; operational
+      mechanics live in the sequence of plants, dexes, and contacts.
     </p>
   </section>
 
   <section class="content-section" id="operational-notation">
     <h2 class="section-heading">9. Operational Notation</h2>
+
+    {{! ── Hard layer separation: semantic vs operational notation ──────── }}
+    <table class="glossary-layer-contrast">
+      <thead>
+        <tr><th>Layer</th><th>Describes</th><th>Renders as</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Semantic</strong> (&sect;8)</td>
+          <td>Compositional structure &mdash; what the trick <em>is</em></td>
+          <td>Operator stack (e.g., <code>stepping ducking paradox torque</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Operational</strong> (&sect;9)</td>
+          <td>Execution mechanics &mdash; what the body <em>does</em></td>
+          <td>Bracket-flagged sequence (e.g., <code>CLIP &gt; OP IN [DEX] &gt; OP OUT [DEX] &gt; [DEL] CLIP</code>)</td>
+        </tr>
+      </tbody>
+    </table>
     <p>
-      Operational notation is the second of two notation surfaces. While
-      the Jobs notation in the section above describes a trick's structural
-      identity (semantic), <strong>operational notation</strong> describes
-      its <em>execution mechanics</em> — the sequence of plant, dex, body
-      movements, and delays the body actually performs. The two surfaces
-      are complementary; neither replaces the other. Trick-detail pages
-      render both side-by-side when both are authored.
+      The two layers are complementary, not interchangeable. The same trick
+      may be named at several semantic stopping depths yet still have a
+      single canonical operational form. Trick-detail pages render both
+      side-by-side when both are authored.
     </p>
     <p class="detail-muted">
       Operational notation lives behind the &ldquo;Set notation
@@ -317,7 +401,7 @@
       <dt id="op-flag-xbd"><code>[XBD]</code></dt>
       <dd>Cross-body component — the delay or move sits on the opposite-side surface from the plant foot. Typically appears with <code>[DEL]</code> on the landing.</dd>
       <dt id="op-flag-pdx"><code>[PDX]</code></dt>
-      <dd>Paradox component — the dex is performed in the paradox direction. Equivalent to the <code>paradox</code> body modifier in semantic notation.</dd>
+      <dd>Paradox component &mdash; flags a cross-body far dex requiring a hip-pivot repositioning to bring the leg under the bag. Operationally: <code>CLIP &gt; OP IN [DEX]</code> (clipper set, far in-out dex). Equivalent to the <code>paradox</code> body modifier in semantic notation. <span class="glossary-source-attrib">Adapted from PassBack glossary &sect; &ldquo;Paradox&rdquo;.</span></dd>
       <dt id="op-flag-xdex"><code>[XDEX]</code></dt>
       <dd>X-Dex component — a full-circle dex variant. In IFPA's ontology, X-Dex fires only in specific named tricks (per Red pt1); FootbagMoves uses the flag more broadly.</dd>
     </dl>
@@ -456,9 +540,14 @@
       <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
     </h2>
     <p class="section-intro">
-      These six panels point from a glossary term to where the term lives in practice — in tricks,
+      These six panels point from a glossary term to where the term lives in practice &mdash; in tricks,
       in operational notation, and in related symbolic groups. The definitions are coach-tone summaries;
       the canonical entries above remain authoritative.
+    </p>
+    <p class="section-intro detail-muted">
+      The panels are positioned as educational bridges to the dictionary. They
+      will migrate to the trick dictionary in a future slice as family/topology
+      exploration surfaces; for now they live here as a transitional home.
     </p>
     <div class="glossary-connective-grid">
       {{#each content.connectivePanels}}
