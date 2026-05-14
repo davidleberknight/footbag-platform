@@ -691,7 +691,7 @@ Story: As a newly verified member, I am routed through outstanding onboarding ta
 Success Criteria:
 
 - After email verification, the member lands on the first applicable wizard task without an intermediate landing page.
-- Each task renders the task-specific view. The `legacy_claim` task renders a single page mixing `legacy_members` + `historical_persons` + back-linked "both" candidates into one list with neutral provenance labels, plus a manual-id lookup that tries both tables in sequence; HP cards deep-link to `/history/:personId/claim` for direct-HP claim. Token-emailed merge mechanics are specified by `M_Claim_Legacy_Account`. The `club_affiliations` task content is specified by MIGRATION_PLAN §9.3 (Stages 1A, 1B, 2A, 2B, 3A, 3B).
+- Each task renders the task-specific view. The `legacy_claim` task renders a single page mixing `legacy_members` + `historical_persons` + back-linked "both" candidates into one list with neutral provenance labels, plus a manual-id lookup that tries both tables in sequence; HP cards deep-link to `/history/:personId/claim` for direct-HP claim. Token-emailed merge mechanics are specified by `M_Claim_Legacy_Account`. The `club_affiliations` task content is specified by MIGRATION_PLAN §9.3 (Stages 1A, 1B, 2A, 2B, 3A, plus a no-match exit that links to `M_Create_Club`).
 - On submission, the underlying state is written via the owning service and the `member_onboarding_tasks` row transitions to `completed`.
 - Tasks the server determines are `not_applicable` (for example, no plausible legacy match for a member with a fresh email) are not rendered.
 - Applicability is computed against the claiming member's own account state, not against any historical-persons record the member has claimed. A member who has claimed an HP record marked deceased (via direct-HP claim) still runs the wizard normally; the `is_deceased` attribute applies only to the HP / historical-persons rows, not to the living member's account.
@@ -703,15 +703,15 @@ Club-affiliation task acceptance criteria:
 - When mirror-derived club affiliation, leadership, or candidate suggestions exist for the member, the `club_affiliations` task presents them per MIGRATION_PLAN §9.3.
 - Each suggestion shows the club name, city, country, and the member's inferred role (contact, member, leader, co-leader).
 - Stage 1A (listed contact) offers five paths per club: still active and involved; still active but moved on; not active anymore; do not recognize listing; defer.
-- Stage 1B (affiliated but not listed contact) offers five paths per club: still a member; was a member, no longer; club is gone; never played there; defer. Stage 1B does not offer wizard-time metadata edits; only Stage 1A path 1 (listed contact) updates club metadata in-flight.
-- Stage 2A (pre-populated clubs nearby) and Stage 2B (onboarding-visible clubs nearby) render as sequenced sub-stages with distinct framings and per-card question wording. Stage 2A's "I'd like to join" path renders a link to the club's join page on the club detail surface and records no wizard signal; the wizard's role is cleanup, not duplicating the regular club-join flow.
-- Stage 3 offers name search (entry to dormant revival in Stage 3A) and new-club creation (Stage 3B).
+- Stage 1B (affiliated but not listed contact) offers five paths per club: still a member; was a member, no longer; club is gone; never played there; defer. Stage 1B paths 1 and 2 surface the candidate's description and external URL; the member can flag inaccuracies and suggest replacement text through the §9.3 content validation loop, which routes the proposal for approval by the listed contact, the eventual club leader, or admin. Only Stage 1A path 1 (listed contact) edits club metadata directly without approval.
+- Stage 2A (pre-populated clubs nearby) and Stage 2B (onboarding-visible clubs nearby) render as sequenced sub-stages with distinct framings and per-card question wording. Stage 2A's "I'd like to join" path renders a link to the club's join page on the club detail surface and records no wizard signal; the wizard's role is cleanup, not duplicating the regular club-join flow. Stage 2A path 1 (member affirms) and Stage 2B paths 1 and 2 (member confirms existence) surface the club's or candidate's description and external URL; the member can flag inaccuracies and suggest replacement text via the §9.3 content validation loop.
+- Stage 3 offers name search (entry to dormant revival in Stage 3A). When Stage 3A search yields no match the registrant can claim, the wizard ends and offers a link to the standard `M_Create_Club` flow as a separate next step. The wizard itself never creates a new `clubs` row.
 - In Stage 3A name search, when a dormant candidate matches the registrant's query but the registrant chooses path 3 "Different club, same name," the candidate is not marked confirmed or rejected. It remains in `legacy_club_candidates` and searchable for future registrants; the search continues against remaining matches.
 - The `club_affiliations` task progresses through stages sequentially: after every Stage 1 card resolves (confirm, reject, defer, or skip) the wizard advances to Stage 2; after every Stage 2 card resolves the wizard advances to Stage 3. Per-card actions persist immediately; on resume from the dashboard widget, the task re-renders only cards that have no signal recorded yet. Skipping the task transitions the row to `skipped`; resume returns the registrant to the first un-signaled card.
 - Confirmed leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of registrant tier. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants per MIGRATION_PLAN §2 activation paths and §9.1. Clubs may have multiple leaders.
 - Promotion of onboarding-visible or dormant candidates to live `clubs` rows follows the promotion paths in MIGRATION_PLAN §9.1.
 - All outcomes (current, former, rejected, historical, reported-inactive, suggested-metadata) are persisted so the member is not repeatedly prompted.
-- Multiple rejections or "never heard of it" signals on the same club across different registrants accumulate and escalate per the demotion levers in MIGRATION_PLAN §9.4.
+- Wizard signals (confirmations, rejections, "never heard of it" reports, suggested content edits) are recorded as structured audit-log rows. Admin reviews accumulated signals through the cleanup queue described in MIGRATION_PLAN §9.4. There is no automated demotion or time-based escalation.
 - Junk candidates are never shown in any stage.
 
 Optional metadata task acceptance criteria:
@@ -814,6 +814,7 @@ Success Criteria:
 - Roster shows member display name, membership tier badge, current Active Player badge where applicable, any special flags (HoF, BAP, Board), and city/country.
 - Roster does NOT show member email addresses unless member has opted in to email visibility.
 - Joining sends an email notification to the member, and all Club Leaders. If the member was automatically removed from a previous club, then this will be noted in the email.
+- When joining a club, the member sees the club's current description and external URL; the member can flag inaccuracies and suggest replacement text via the MIGRATION_PLAN §9.3 content validation loop. Suggestions enter a review queue and apply only after approval by the listed contact, the club leader, or admin. The flag-and-suggest affordance applies only to non-contact non-leader members; listed contacts and club leaders edit directly via `CL_Edit_Club` or wizard Stage 1A.
 - If the joining member is Tier 0 and has never previously been an Active Player, the first IFPA club join grants one 730-day Active Player period.
 - The one-time club-join Active Player grant does not change membership tier.
 - Joining additional clubs does not grant additional Active Player periods.
@@ -1442,6 +1443,8 @@ Story: As an eligible member, I can create a club so that I can become a Club Le
 Success Criteria:
 
 - Club creation form includes: club name, description, city, country, contact email (required for all new clubs). A club with no contact email is treated as non-operable and flagged for admin remediation.
+- Before creating a club, the form runs a duplicate-prevention check against live clubs, onboarding-visible candidates, and dormant candidates per MIGRATION_PLAN §9.1 duplicate handling. Exact name plus same country blocks creation and surfaces the existing entry instead, with options to confirm affiliation (routing to the relevant club's join page) or report the match as a different club with the same name (which logs a flag and allows creation to proceed).
+- Near-match candidates (high name similarity in the same country, below the exact-match threshold) trigger a warning that lists the candidates with their location; the creator may proceed if confident the new club is distinct or pick an existing entry. Junk-flagged candidates are not surfaced as potential duplicates.
 
 - Standardized hashtag follows pattern club_{location_slug}.
 - Only members with Tier 1 benefits can create clubs.
@@ -1729,22 +1732,30 @@ Note: At registration time, Tier 3 cases are handled by an inline user prompt (d
 
 Access: Admins only.
 
-Story: As an admin, I can review accumulated wizard cleanup signals on legacy club data so that I can demote unconfirmed pre-populated clubs, revive or retire dormant candidates, archive defunct candidates, and merge duplicates I spot in the queue.
+Story: As an admin, I can review accumulated cleanup signals on legacy and live club data so that I can resolve flags, approve or reject suggested content edits, resolve duplicate-merge holds, handle junk overrides, and act on unpromoted candidates.
 
 Success Criteria:
 
-- Admin can view a single queue aggregating cleanup signals across categories: pre-populated clubs accumulating "never heard of it" rejections without confirmation, onboarding-visible candidates that have crossed the demotion threshold, onboarding-visible and dormant candidates with no wizard activity at end of the saturation window, pre-populated clubs with zero confirmation at end of window, and admin-spotted duplicate clusters surfaced during queue browsing or H3 hard-exclusion review.
-- Each queue item shows the underlying signals: which registrants contributed, which stage and path, when, and the registrant's authority level (Stage 1A contact, Stage 1B member, Stage 2 local) for each signal.
+- Admin views a single queue aggregating the items described by MIGRATION_PLAN §9.4 admin cleanup queue:
+  - Wizard-generated flags grouped by candidate or live club.
+  - Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
+  - Suggested content edits (description, external URL) awaiting approval, per the §9.3 content validation loop.
+  - Auto-merge holds where source entries disagreed on substantive identity, per §9.1 duplicate handling.
+  - Junk-flagged candidates and admin force-keep or force-junk requests, per §9.1.
+  - All non-junk candidates not yet promoted to live `clubs` rows.
+- Each queue item shows: the candidate or club id, the source surface (wizard stage and path, `M_Join_Club`, club detail page, classifier), the flagging or proposing member id, the flag category or proposed edit content, location predicates (same-city, same-region, same-country) where relevant, an optional note, and the timestamp.
 - Resolution actions available per item type:
-  - **Duplicate cluster**: merge two or more candidates into one (with the surviving club's metadata, affiliations, and bootstrap rows preserved), or dismiss as not-a-duplicate.
-  - **Accumulated-rejection demotion candidate (pre-populated)**: demote to onboarding-visible, archive, or override (keep as pre-populated with admin note).
-  - **Accumulated-rejection demotion candidate (onboarding-visible)**: demote to dormant, archive, or override.
-  - **Unrevived dormant or stale onboarding-visible (post-window)**: archive, or revive manually (with admin note).
-  - **Unconfirmed pre-populated (post-window)**: mark for additional outreach, demote, or override.
-  - **Junk admin override**: when post-classification evidence indicates a junk candidate is in fact a real club (for example, a Stage 3A name-search signal reports recent activity, or a contact registers and confirms), admin can promote a junk row from the legacy mirror back into `legacy_club_candidates` at classification `dormant` via manual classifier override. The override persists across pipeline reruns and is audit-logged. Junk → live is not directly available; recovery routes through `dormant` first.
-- All resolutions are audit-logged with actor, item type, club ID(s), decision, and timestamp.
+  - **Flag (any source)**: dismiss with optional note, or escalate to one of the actions below.
+  - **Suggested content edit**: approve (the edit replaces the live row's content; the URL passes verification before publication) or reject with optional note.
+  - **Auto-merge hold (duplicate cluster)**: confirm-merge-anyway (apply the proposed merge), pick a canonical entry, mark one source as junk, split into separate clubs, or defer.
+  - **Junk-flagged candidate**: confirm junk, add to force-keep (return to classifier normal evaluation), or promote to dormant for further evaluation.
+  - **Force-keep or force-junk request**: apply, modify, or reject.
+  - **Unpromoted candidate (onboarding-visible or dormant)**: promote to a live `clubs` row, demote (onboarding-visible to dormant), archive, or defer.
+  - **Live club with accumulated flags**: mark `status='inactive'`, archive (`status='archived'`), demote to dormant, merge with another club, split a previously auto-merged row, or dismiss the flags.
+- All resolutions are audit-logged with actor, item type, club or candidate id, decision, optional note, and timestamp.
+- The queue is sortable and filterable by category, age, region, flag count, and source surface; admin works through items at their own pace. There is no time-based escalation or automated demotion.
 - The queue surface respects the privacy and anti-enumeration rules that apply to legacy data: admin-only access, no public exposure of registrant signal authorship.
-- The legacy_club_candidates table may be dropped only after the queue is empty and every non-junk candidate has reached a terminal state per MIGRATION_PLAN §9.4.
+- The `legacy_club_candidates` table may be dropped only after every non-junk candidate has reached a terminal state per MIGRATION_PLAN §9.4.
 
 ## 6.3 Content Moderation
 

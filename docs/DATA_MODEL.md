@@ -1125,15 +1125,47 @@ Three tables are introduced by the legacy data migration in addition to `member_
 
 | Table | Category | Drop condition |
 |---|---|---|
-| `legacy_club_candidates` | Migration-only staging | After all bootstrap decisions are finalized |
+| `legacy_club_candidates` | Migration-only staging | After every non-junk candidate has reached a terminal state per MIGRATION_PLAN §9.4 |
 | `legacy_person_club_affiliations` | Migration-only staging | After all affiliation suggestions are resolved |
 | `club_bootstrap_leaders` | Operational, migration-origin | After all rows reach terminal state (`claimed`, `superseded`, or `rejected`) |
 
 #### `legacy_club_candidates` — migration-only staging
-Mirror-derived normalized club identities. Populated by the mirror-analysis pipeline before cutover. Each row represents one distinct club identity with a `legacy_club_key`, location, confidence score, and bootstrap eligibility decision. May be dropped once all bootstrap decisions are finalized and no staging review is pending.
+
+Mirror-derived normalized club identities. Populated by the mirror-analysis pipeline before cutover per `MIGRATION_PLAN.md` §9.1. Each row represents one distinct club identity (possibly merged from multiple source legacy entries) with a `legacy_club_key`, location, classification, and the classification evidence.
+
+Columns of design interest:
+
+- `legacy_club_key`: the canonical mirror key for this candidate. Auto-merged duplicate clusters keep the canonical key; the merged-from legacy keys are recorded in `source_legacy_keys` for audit.
+- `source_legacy_keys`: structured list of all source `legacy_club_key` values that resolved to this row through auto-merge (per §9.1 duplicate handling). Empty for un-merged candidates.
+- `display_name`, `city`, `region`, `country`: best-of fields from the (possibly merged) candidate per the §9.1 field-merge rules.
+- `classification`: enum (`pre_populate`, `onboarding_visible`, `dormant`, `junk`) assigned by the classifier per §9.1 rules.
+- `rules_fired`: structured list of named rules that contributed to the classification (for example `PP-hosting`, `PP-contact-corroborated`, `junk-pattern-blacklist`). Persisted so admin can audit the classification rationale without re-running the classifier.
+- `evidence_snapshot`: structured snapshot of the underlying signal values at classification time (last hosted year, last edit year, listed contact's last competitive year, member counts, and similar). Persisted for the same audit reason.
+- `force_keep`: admin override flag. When set, the row is immune to the §9.1 junk rules and returns to normal classifier evaluation regardless of signal absence or pattern match.
+- `force_junk`: admin override flag. When set, the row is marked junk regardless of any other classification.
+- `bootstrap_eligible`: 0/1, true only for `pre_populate` rows that received a high-confidence leader candidate per §2 bootstrap rule.
+- `mapped_club_id`: FK to `clubs(id)`, populated once the candidate is promoted to a live row.
+
+May be dropped once every non-junk candidate has reached a terminal state per `MIGRATION_PLAN.md` §9.4.
 
 #### `legacy_person_club_affiliations` — migration-only staging
-Mirror-derived scored person-to-club affiliation suggestions. Each row links a person (by `historical_person_id` and/or `legacy_member_id`) to a `legacy_club_candidates` row with an inferred role (`member`, `contact`, `leader`, `co-leader`), confidence score, and resolution status. At least one of `historical_person_id` or `legacy_member_id` must be non-NULL (CHECK enforced). Uniqueness is enforced via two partial unique indexes rather than a single UNIQUE constraint, because SQLite treats NULLs as distinct in UNIQUE constraints and a single index would silently allow duplicate rows when `historical_person_id` is NULL. May be dropped once all affiliation suggestions are resolved.
+
+Mirror-derived scored person-to-club affiliation suggestions. Each row links a person (by `historical_person_id` and/or `legacy_member_id`) to a `legacy_club_candidates` row with an inferred role (`member`, `contact`, `leader`, `co-leader`), a confidence score, and a resolution status. At least one of `historical_person_id` or `legacy_member_id` must be non-NULL (CHECK enforced).
+
+`resolution_status` semantics:
+
+- `pending` (schema default): the affiliation is inferred from the mirror and has not been confirmed by anyone. All loader-imported rows from the mirror pipeline arrive in this state.
+- `confirmed_current`: written when a member confirms current affiliation via the wizard (Stage 1A path 1, Stage 1B path 1, Stage 2A path 1, Stage 2B paths 1 or 2 per `MIGRATION_PLAN.md` §9.3), or when an admin manually confirms.
+- `former_only`: the member acknowledges historical affiliation but is no longer involved (Stage 1A path 2, Stage 1B path 2).
+- `not_mine`: the member rejects the inferred affiliation (Stage 1B path 4; Stage 1A path 4 escalates to admin).
+- `needs_review`: admin has marked the row for further review.
+- `promoted`: the candidate this row links to has been promoted to a live `clubs` row, and this affiliation has been carried forward to `member_club_affiliations`.
+- `rejected`: admin-rejected suggestion.
+- `superseded`: an admin-resolved duplicate cluster left this row no longer authoritative.
+
+Uniqueness is enforced via two partial unique indexes rather than a single UNIQUE constraint, because SQLite treats NULLs as distinct in UNIQUE constraints and a single index would silently allow duplicate rows when `historical_person_id` is NULL.
+
+May be dropped once all affiliation suggestions are resolved.
 
 #### `club_bootstrap_leaders` — operational, migration-origin
 Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives deletion of the imported placeholder row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).

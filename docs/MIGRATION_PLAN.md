@@ -431,132 +431,152 @@ After merge, `legacy_email` may survive on the active account as legacy metadata
 
 ### 9.1 Club classification rules
 
-Every club extracted from the mirror is classified into one of four categories based on rules applied to three data sources. The rules are deterministic: no weighted scores or tunable thresholds. Classification determines whether the club exists in the live `clubs` table at go-live, is shown as a suggestion during registration, is searchable but not suggested, or is excluded entirely.
+Every legacy club extracted from the mirror is classified into one of four categories: `pre_populate`, `onboarding_visible`, `dormant`, or `junk`. Classification determines whether the club exists in the live `clubs` table at go-live, appears as a suggestion during registration, is searchable but not suggested, or is excluded from public surfaces entirely.
 
-#### Source data
+Classification is deterministic and tunable. Each rule references a named parameter with a documented default. A preview report shows the operator which candidates fall into which category for any parameter set, so cutoffs can be sanity-checked before cutover.
 
-All signals are derived from data that already exists in the mirror or the database. No external API calls or manual lookups are required.
+#### Source signals
 
-**Source 1: Mirror club HTML** (`mirror_footbag_org/www.footbag.org/clubs/show/{id}/index.html`)
+All signals come from data already produced by the mirror pipeline. No external lookups.
 
-Each club detail page in the mirror contains structured HTML elements that the extraction scripts parse:
+- **Hosting evidence** from the event archive: ever-hosted flag, hosted-event count, last hosted year. The canonical hosting link is the FK `events.host_club_id` to `clubs.id`. When the classifier runs before live `clubs` rows exist, it falls back to a normalized-name match between event host text and candidate names.
+- **Page timestamps** from `div#MainModified` on each club page: created year, last-updated year.
+- **Listed contact** from `div.clubsContacts`: the contact's mirror member id, captured from `members/profile/{id}`. The contact's last competitive year is resolved by joining the mirror id to `historical_persons.last_year` via the mirror-id to historical-person-id mapping.
+- **Affiliated rostered members** from the showmembers page: count of unique member names, count matched to known historical persons, max last competitive year across matched members.
+- **Description**: presence and content of `div#ClubsWelcome`.
+- **External URL**: presence and verification status of the URL from `div.clubsURL`. URL verification is performed before publication per §9.3.
 
-- `div#MainModified`: contains two CMS timestamps in the format `Created Sun Jan 15 10:16:52 2012; last update Sun Jan 15 10:16:52 2012.` These are the dates the club page was created and last edited on footbag.org by a club contact or admin. Extracted into `clubs.csv` as the `created` and `last_updated` columns.
-- `div#ClubsWelcome`: free-text club description.
-- `div.clubsURL > a[href]`: external website URL, if present.
-- `div.clubsContacts`: contact person(s), each with a `members/profile/{id}` link identifying the contact's legacy member ID.
-- Member count: enumerated on the corresponding roster page (`ClubID_{id}/showmembers/index.html`).
+#### Classification parameters
 
-The mirror's `clubs/` directory contains 458 club subdirectories; 311 parse as valid clubs (with name and country), and 147 are defunct or empty pages. The 311 valid clubs become rows in `legacy_data/seed/clubs.csv` with columns `legacy_club_key`, `name`, `city`, `region`, `country`, `contact_email`, `external_url`, `description`, `created`, `last_updated`.
+All parameters are tunable; defaults are documented here.
 
-Of the 311 valid clubs, all 311 have `last_updated` timestamps, 309 have contact emails, 247 have descriptions, 97 have external URLs, and the median member count is 3.
-
-**Source 2: Event archive** (`mirror_footbag_org/www.footbag.org/events/show/*/index.html`)
-
-Event detail pages contain a `div.eventsHostClub` element with a link to the hosting club's `clubs/show/{id}` page. This establishes a direct, parseable relationship between events and clubs. Of the 311 clubs, 116 have hosted at least one event (1,215 total host references across the archive). The event date (from `div.eventsDate`) determines when the most recent hosted event occurred.
-
-**Source 3: Historical persons database** (`historical_persons` joined via `legacy_person_club_affiliations`)
-
-The `legacy_person_club_affiliations` table links club candidates to historical persons. Each historical person has a `last_year` field (the most recent year they appeared in event results). The club's listed contact person is identified by matching the contact's `members/profile/{id}` link to `historical_persons.legacy_member_id`. "Contact competed 2020 or later" means the specific person listed as the club's contact on the legacy site has a `historical_persons.last_year >= 2020`. This is distinct from any affiliated member competing recently; the contact is the person responsible for the club.
-
-Of the 311 clubs, 147 have at least one affiliated historical person, and 54 have a listed contact who competed in 2020 or later.
-
-#### Two-phase model
-
-Classification serves two distinct phases of cutover, with different correctness criteria:
-
-- **Phase 1 (pre-population)** decides which clubs become live `clubs` rows at go-live without asking anyone. Must be high-precision: a false positive pollutes the live directory permanently. The cost of a false negative is lower because the wizard can revive a missed real club within minutes.
-- **Phase 2 (candidate set)** decides which non-pre-populated candidates remain available for wizard processing. Must be high-recall, since the wizard is the only mechanism that converts plausible candidates into live clubs. Junk is excluded from both phases.
-
-Counts per classification are pipeline-report output, not design intent. The classifier emits a deterministic distribution; the design doc does not bake the numbers.
-
-#### Phase 1: Pre-population rules
-
-Semantic principle: a club is pre-populated only if we have at least one unfakeable recent signal of real activity, AND no hard exclusion fires.
-
-##### Hard exclusions (evaluated first)
-
-A candidate triggering ANY of the following is never pre-populated; it may still classify as onboarding-visible, dormant, or junk per the Phase 2 rules:
-
-| ID | Condition | Effect |
+| Parameter | Default | Drives |
 |---|---|---|
-| H1 | Blank or unusable name | Filtered at extraction; reaffirmed here |
-| H2 | Blank country | Filtered at extraction; reaffirmed here |
-| H3 | Hard duplicate by normalized name + country with another candidate | Only one of the cluster may pre-populate; the rest route to admin merge review |
-| H4 | Placeholder, test, or spam-pattern name | Filtered before scoring |
+| `hosting_recency_years` | 7 | Hosting-alone-sufficient signal |
+| `page_edit_recency_years` | 5 | Page-maintenance corroborator at pre-populate |
+| `contact_active_recency_years` | 5 | Listed-contact corroborator |
+| `member_active_recency_years` | 5 | Affiliated-member signal |
+| `new_club_grace_years` | 4 | New-club onboarding-visible carve-out |
+| `edited_after_creation_min_year` | 5 | Page-maintenance recency window at onboarding-visible |
+| `duplicate_similarity_threshold` | preview-tuned | Cluster detection for hard exclusions |
 
-The H3 name-normalization algorithm, the H3 duplicate-cluster tie-breaker (which member of a cluster wins the pre-population slot), and the H4 placeholder-pattern set are classifier-side implementation work. Specific algorithms are pinned at the classifier implementation slice, not the design doc. The design intent is captured here: duplicates and placeholders are gated from pre-population and surface in the admin queue.
+#### Hard exclusions: duplicates
 
-##### Positive rules (any one sufficient if H1-H4 all clear)
+Two candidates form a duplicate cluster when they share the same country and their normalized names are similar above `duplicate_similarity_threshold`. Normalization strips accents, lowercases, collapses whitespace, removes leading numeric prefixes, and strips trailing punctuation.
 
-The semantic logic is "one strong unfakeable signal, OR two corroborating signals from different sources":
+When a cluster is detected and source entries agree on substantive identity (city, region, name beyond trivial differences), the classifier auto-merges using these field rules:
 
-| Rule | Condition | What it proves |
-|---|---|---|
-| PP1 | Hosted an event in 2020 or later | Hosting is unfakeable; one strong signal suffices |
-| PP2 | Ever hosted an event AND page updated 2020 or later | Historical reality plus ongoing maintenance |
-| PP3 | Page updated 2020 or later AND listed contact competed 2020 or later | Page-side and person-side both alive |
-| PP4 | Listed contact competed 2020 or later AND ever hosted an event | Active person plus real historical existence |
+- `name`, `city`, `region`, `country`, `contact_member_id`, `external_url`: from the cluster member with the strongest signal evidence (most hosting, largest roster, most recent edit); ties broken by latest update.
+- `description`: longest non-empty across cluster.
+- `created`: earliest across cluster.
+- `last_updated`: latest across cluster.
+- Roster and hosted-event credits: union across cluster.
+- Source identities: the merged row carries the full list of source `legacy_club_key` values for audit.
 
-If the club also has a high-confidence leader candidate (`club_bootstrap_leaders.confidence_score >= 0.70`), it gets bootstrap leader rows. Otherwise it is pre-populated without a provisional leader; the first member with membership Tier 1+ to confirm affiliation is offered co-leadership (see leadership activation path 2 in section 2).
+When source entries disagree on city, region, or substantive name, the cluster does not auto-merge. The entire cluster routes to admin review for manual resolution. Admin can confirm-merge-anyway, pick a canonical entry, mark one as junk, split into separate clubs, or defer.
 
-##### Explicit non-rule
+Auto-merge is reversible: admin can split a merged row using admin tools, restoring source entries as separate candidates. Both merge and split events are audit-logged.
 
-The classifier's "active affiliated member substitutes for active contact" fallback (`contact_signal_substitute_applied`) is NOT permitted for pre-population. An affiliated member may not represent the club's leadership intent, may have moved, or may have only been briefly affiliated. The substitute can promote a candidate to onboarding-visible but never to pre_populate.
+Wizard resolution treats all source identities as resolving to the merged row: when a registrant cites a source legacy name in Stage 1B, the affiliation maps to the merged row.
 
-#### Phase 2: Candidate set
+#### Hard exclusions: junk
 
-The Phase 2 rules classify non-pre-populated candidates into three buckets that the wizard treats differently. Junk is excluded from the wizard entirely.
+A candidate is marked `junk` when it matches any of the following. Junk candidates remain in the candidate set for audit but are invisible to all non-admin surfaces.
 
-**Onboarding-visible** (in `legacy_club_candidates`, shown as suggestions during registration):
+Pattern rules (tunable lists):
 
-Fails all Phase 1 pre-population rules but ANY of the following is true:
+- **Exact-match blacklist**: name, after normalization, matches a seed list (`test`, `asdf`, `untitled`, `my club`, `delete me`, `tbd`, `xxx`, `placeholder`, `footbag club`, and similar).
+- **Structural patterns**: name shorter than 3 characters, all-numeric, single repeated character, contains placeholder markers (TODO, FIXME, lorem ipsum), name equals the city or country alone.
+- **Profanity list**: name contains a term from a tunable multi-language profanity list.
 
-| Rule | Condition | What it proves |
-|---|---|---|
-| R5 | Club's listed contact competed 2020 or later | Active leader exists; club resolves when they register |
-| R6 | Ever hosted an event | Proven organizational history |
-| R7 | Page edited 2016 or later AND after creation date | Someone maintained the club in the last 10 years |
-| R8 | Has affiliated member who competed 2020 or later | Recently active person connected to this club |
-| R9 | Club created 2022 or later | Too new to judge by historical signals |
-| R10 | 10 or more members OR 3 or more known historical players | Significant community investment |
+Signal-absence rule fires when all of the following hold simultaneously:
 
-**Dormant** (in `legacy_club_candidates`, searchable by name during onboarding but not suggested proactively):
+1. Description is empty.
+2. Never hosted any event in the legacy archive.
+3. No rostered member has a known competitive year.
+4. External URL is empty or fails verification.
+5. Contact-member-id is empty or cannot be matched to any record.
+6. Created more than `new_club_grace_years` ago.
+7. Never edited after creation. The legacy CMS records `created` and `last_updated` as separate timestamps; clause 7 fires when `last_updated` is within 24 hours of `created` (tunable tolerance).
 
-Fails all Phase 1 and onboarding-visible rules. Has a description (so not junk). These are real clubs that went quiet: someone wrote about them, but they have no hosting history, no recent edits, no active connections.
+Admin override lists:
 
-**Junk** (excluded, not imported):
+- **Force-keep**: specific legacy keys immune to both junk rules, used to rescue real clubs that match a pattern or have no signals.
+- **Force-junk**: specific legacy keys marked junk regardless of other classification, used for spam the rules missed.
 
-ALL of the following are true:
+#### Pre-populate rules
 
-- Never edited after creation (created date equals last_updated date)
-- Never hosted an event
-- No affiliated members who competed 2020 or later
-- Club's listed contact did not compete 2020 or later
-- Created before 2022
-- No description (empty `div#ClubsWelcome`)
+A candidate enters `pre_populate` if it survives the hard exclusions and meets any of:
 
-These are clubs where someone clicked "create club" on the legacy site and never invested any effort. They are not imported into `legacy_club_candidates`.
+- **PP-hosting**: hosted an officially recorded event in the last `hosting_recency_years` years.
+- **PP-contact-corroborated**: listed contact is recognized in `historical_persons` AND last competed in the last `contact_active_recency_years` years AND any one of:
+  - Club ever hosted an event.
+  - Page edited in the last `page_edit_recency_years` years AND edit was after creation.
+
+The substitute path (any recently active rostered player counts in place of an identified listed contact) is not permitted at the pre-populate tier. Recently active rostered members may corroborate at the onboarding-visible tier only.
+
+Pre-populated candidates may also receive bootstrap leadership rows per §2 (bootstrap rule and leadership activation paths). Bootstrap leadership is independent of classification: clubs lacking a high-confidence leader candidate still pre-populate without a provisional leader.
+
+#### Onboarding-visible rules
+
+A candidate enters `onboarding_visible` if it survives the hard exclusions, fails the pre-populate rules, and meets any of:
+
+- Page lists a contact but the contact is not recognized in `historical_persons`.
+- Listed contact is recognized but last competed more than `contact_active_recency_years` ago.
+- An affiliated rostered member (not the listed contact) last competed within `member_active_recency_years` years.
+- Club ever hosted an event without meeting a pre-populate corroborator.
+- Page edited within `edited_after_creation_min_year` years AND edit was after creation.
+- Created within `new_club_grace_years` years (too new to judge by other signals).
+
+#### Dormant rule
+
+A candidate enters `dormant` if it survives the hard exclusions, fails all pre-populate and onboarding-visible rules, and has a non-empty description. These are real historical clubs without current activity signals.
+
+#### Classification evidence persistence
+
+Each candidate row carries, alongside `classification`:
+
+- `rules_fired`: the named rules that contributed to the classification (for example `PP-hosting`, `PP-contact-corroborated`, `junk-pattern-blacklist`).
+- `evidence_snapshot`: the underlying values at classification time (last hosted year, last edit year, listed contact's last competitive year, member counts, and similar).
+
+Admin reviewing a candidate sees the bucket label and the rationale without re-running the classifier. Schema for these columns is specified in DATA_MODEL `legacy_club_candidates` and `database/schema.sql`.
+
+#### Live content at GoLive (pre-populated clubs)
+
+For each pre-populated candidate, the live `clubs` row carries:
+
+- `name`, `city`, `country`: from the (possibly merged) candidate.
+- `region`: from the candidate when present; may be NULL.
+- `hashtag_tag_id`: standardized hashtag generated deterministically from `name`.
+- `external_url`: published only if URL verification (see §9.3) passes. Failed verifications leave the column NULL; the original value remains on the candidate row for the wizard to surface to the listed contact.
+- `description`: published as-is from the legacy data.
+- `contact_email`, `whatsapp`: not pre-populated from legacy data.
+
+Description and URL on the live page are subject to the validation loop described in §9.3. The listed contact and the eventual club leader can edit directly; non-contact members can flag inaccuracies and suggest replacements via wizard Stage 1B, Stage 2A, and the M_Join_Club flow, with edits applied only after approval by the listed contact, leader, or admin.
 
 #### Promotion rules
 
-Pre-populated clubs are created as live `clubs` rows at go-live. All other non-junk clubs remain in `legacy_club_candidates` until promoted, archived, or admin-resolved. Promotion paths:
+Pre-populated candidates exist as live `clubs` rows at go-live. All other non-junk candidates remain in `legacy_club_candidates` until promoted, archived, or admin-resolved. Promotion paths:
 
-- **Stage 1 confirmation**: when a registrant on Stage 1 confirms a personal affiliation with an onboarding-visible or dormant candidate (path 1 in Stage 1A or Stage 1B), the candidate is promoted to a live `clubs` row using seed data from `clubs.csv` (name, city, region, country, contact_email, external_url, description).
-- **Stage 2B confirmation**: when a registrant in Stage 2B affirms an onboarding-visible candidate exists, the candidate is promoted to a live `clubs` row.
-- **Stage 3A revival**: when a registrant in Stage 3A confirms a dormant candidate via name search, the candidate is promoted to a live `clubs` row.
-- **Admin override**: an admin can promote any non-junk candidate manually via the `A_Review_Club_Cleanup_Signals` flow.
+- **Stage 1 confirmation**: when a registrant in Stage 1A or Stage 1B confirms a personal affiliation with an onboarding-visible or dormant candidate, the candidate is promoted to a live `clubs` row using the live-content rules above.
+- **Stage 2B confirmation**: when a registrant in Stage 2B confirms an onboarding-visible candidate exists, the candidate is promoted to a live `clubs` row.
+- **Stage 3A revival**: when a registrant in Stage 3A confirms a dormant candidate by name search, the candidate is promoted to a live `clubs` row.
+- **Admin override**: an admin can promote any non-junk candidate manually via the cleanup queue.
 
-The `legacy_club_candidates` table must not be dropped until every onboarding-visible and dormant candidate has reached a terminal state per section 9.4.
+The `legacy_club_candidates` table remains operational until every non-junk candidate has reached a terminal state per §9.4.
 
 #### Pipeline ordering
 
-The active-players and contact-competed signals both query `historical_persons`. The club-only member extraction (section 9.2) must complete before classification runs, otherwise these signals will be artificially deflated for clubs whose members never competed in events.
+The classifier depends on `historical_persons` being fully populated, including the club-only members extracted from the mirror (per §9.2). Without those rows, the listed-contact-active and member-active signals are artificially deflated for clubs whose people never competed.
 
-Required order within the historical-data pipeline:
-1. Extract ~1,600 club-only members into `historical_persons` (section 9.2)
-2. Classify clubs per the rules above
-3. Set `bootstrap_eligible` and populate `club_bootstrap_leaders` for pre-populated clubs
+Required order:
+
+1. Extract club-only members into `historical_persons` (§9.2).
+2. Classify clubs against the rules above.
+3. Auto-merge duplicate clusters; route significant-difference clusters to admin.
+4. Mark junk.
+5. Persist classification evidence on each candidate.
+6. Pre-populated candidates enter the live `clubs` table; non-junk non-pre-populate candidates remain in `legacy_club_candidates`.
 
 ### 9.2 Expanding historical_persons for club members
 
@@ -570,13 +590,13 @@ Semantic principle: match each question to the registrant's authority over each 
 
 - **Personal (Stage 1)**: the registrant is named in the legacy data on a specific club (contact, leader, or rostered member).
 - **Local (Stage 2)**: the registrant lives in the same country or region as a candidate; cannot speak to internal club affairs but can attest to whether the club is locally known.
-- **None (Stage 3)**: no nearby candidates, or all skipped; the registrant initiates name search or new-club creation.
+- **None (Stage 3)**: no nearby candidates, or all skipped; the registrant initiates name search. If no match results, the wizard ends and the registrant is offered the standard `M_Create_Club` flow as a separate next step.
 
-Junk is excluded from every surface. Pre-populated, onboarding-visible, and dormant candidates are surfaced through different stages with different question wording.
+Junk is excluded from every surface. Pre-populated, onboarding-visible, and dormant candidates are surfaced through different stages with different question wording. Content validation for description and external URL is layered across the wizard and the normal `M_Join_Club` flow; mechanics are described in the content validation loop below.
 
 #### Stage 1: Personal authority
 
-Surface every club where the registrant appears in the legacy data as listed contact, leader/co-leader, or rostered member. All non-junk classifications are shown regardless of category.
+Surface every club where the registrant appears in the legacy data as listed contact, leader / co-leader, or rostered member. All non-junk classifications are shown regardless of category. When the legacy data names a club whose `legacy_club_key` is one of the source identities of a merged candidate (per §9.1 duplicate handling), the wizard resolves to the merged row.
 
 ##### Stage 1A: Registrant is the listed contact
 
@@ -584,10 +604,10 @@ Show: "You were listed as the contact for [Club Name] in [City, Country]. What's
 
 Five paths:
 
-1. **"Still active, I'm still involved."** Confirm existence; promote the candidate to a live `clubs` row if not already; promote the leadership claim per the §2 activation paths: if a bootstrap row exists, it becomes a live `club_leaders` row regardless of registrant tier; otherwise leadership is offered only when the registrant is membership Tier 1+ (Tier 0 listed contacts are added as members until they upgrade), matching the §9.1 "first member with Tier 1+" rule. Offer in-flight metadata updates: contact info, description, external URL, location. Updates apply directly.
+1. **"Still active, I'm still involved."** Confirm existence; promote the candidate to a live `clubs` row if not already; promote the leadership claim per the §2 activation paths: if a bootstrap row exists, it becomes a live `club_leaders` row regardless of registrant tier; otherwise leadership is offered only when the registrant is membership Tier 1+ (Tier 0 listed contacts are added as members until they upgrade). Offer in-flight metadata updates: contact info, description, external URL, location. Edits apply directly.
 2. **"Still active, but I've moved on."** Confirm existence; promote to live if not already; mark the listed-contact link as stale. If a successor leader later registers and confirms via Stage 1A path 1, the bootstrap path applies normally.
 3. **"Not active anymore."** Confirm historical existence; optional: when it became inactive. Promote the candidate to a live `clubs` row if not already, then set `clubs.status = 'inactive'`. Archival (`status='archived'`) is admin-only.
-4. **"I don't recognize this listing."** Strong junk signal; routes to admin review. May mean either a mislinked roster or a fictitious page.
+4. **"I don't recognize this listing."** Logged to the admin cleanup queue (§9.4) as a strong junk signal. May mean either a mislinked roster or a fictitious page.
 5. **"Deal with this later."** Save state; resume from the dashboard task widget.
 
 ##### Stage 1B: Registrant is affiliated but not the listed contact
@@ -596,13 +616,13 @@ Show: "You were listed as a member of [Club Name] in [City, Country]. Are you st
 
 Five paths:
 
-1. **"Still a member."** Confirm existence; promote candidate to live if not already; mark current affiliation. Leadership is offered only if no active leader exists AND the registrant is membership Tier 1+ (added as co-leader; does not supersede existing leaders).
-2. **"Was a member, no longer."** Confirm existence; mark former affiliation; club stays as-is.
-3. **"The club isn't around anymore."** Weak inactive signal (weaker than a contact's). Accumulates.
-4. **"I never played at this club."** Weak rejection signal. Accumulates. Weaker than a contact rejection because members may have forgotten a club they briefly joined.
+1. **"Still a member."** Confirm existence; promote candidate to live if not already; mark current affiliation. Leadership is offered only if no active leader exists AND the registrant is membership Tier 1+ (added as co-leader; does not supersede existing leaders). The wizard also surfaces the candidate's current description and external URL; the member can flag inaccuracies and suggest replacement text via the content validation loop below.
+2. **"Was a member, no longer."** Confirm existence; mark former affiliation; club stays as-is. Content validation loop available.
+3. **"The club isn't around anymore."** Logged to the admin cleanup queue (§9.4).
+4. **"I never played at this club."** Logged to the admin cleanup queue (§9.4). Weaker signal than a contact rejection because members may have forgotten a club they briefly joined.
 5. **"Defer."** Save and resume.
 
-Authority asymmetry: only Stage 1A path 1 (listed contact, still involved) updates club metadata in-flight. Stage 1B does not offer metadata edits in this design; a non-contact member who wants to fix metadata (URL, description, location) routes the request to admin out-of-band rather than through the wizard.
+Authority asymmetry: only Stage 1A path 1 (listed contact, still involved) edits club metadata directly. Stage 1B paths 1 and 2 surface the candidate's current content and accept flags or suggested replacements; those edits apply only after approval by the listed contact, the eventual club leader, or admin (see content validation loop below).
 
 #### Stage 2: Local authority (regional suggestions)
 
@@ -610,7 +630,7 @@ After Stage 1 completes, two sequenced sub-stages with an explicit framing trans
 
 ##### Location matching helper
 
-Stage 2 surfacing and §9.4 demotion levers both depend on "same country," "same region," and "same city" predicates between a registrant's profile and a club's location. Both surfaces use the same normalization:
+Stage 2 surfacing and the §9.4 admin cleanup queue both depend on "same country", "same region", and "same city" predicates between a registrant's profile and a club's location. Both surfaces use the same normalization:
 
 1. Trim leading and trailing whitespace.
 2. Collapse internal whitespace to single spaces.
@@ -627,10 +647,10 @@ Framing: "Here are clubs near you in [Region]." The club is already live; the re
 
 Per-club question: "Are you part of [Club Name] in [City]?"
 
-1. **"Yes, I'm a member."** Mark current affiliation.
+1. **"Yes, I'm a member."** Mark current affiliation. The wizard also surfaces the club's current description and external URL; the member can flag inaccuracies and suggest replacement text via the content validation loop below.
 2. **"I'd like to join."** Render a link to the club's join page on the club detail surface; the wizard records no signal. Joining flows through the regular club-join path, not through the wizard.
 3. **"No, and I'm not joining."** No signal needed.
-4. **"I've never heard of this club."** Weak negative signal; accumulates, strongest when registrant is in the same city.
+4. **"I've never heard of this club."** Logged to the admin cleanup queue (§9.4); same-city registrants are weighted more during admin review.
 5. **Skip.** No signal.
 
 ##### Stage 2B: Onboarding-visible clubs nearby
@@ -639,20 +659,20 @@ Framing transition: "Here are some additional listings we'd like your help confi
 
 Per-club question: "We have a listing for [Club Name] in [City], but we're not sure it's still active. Can you tell us anything about it?"
 
-1. **"Yes, it is real and I am part of it."** Promote candidate to live; mark current affiliation.
-2. **"Yes, it is real but I am not part of it."** Promote candidate to live; no affiliation. (Existence confirmation is recorded as distinct from affiliation.)
-3. **"I have never heard of this club."** Weak negative signal; accumulates per the demotion levers in section 9.4.
+1. **"Yes, it is real and I am part of it."** Promote candidate to live; mark current affiliation. The wizard also surfaces the candidate's current description and external URL; the member can flag inaccuracies and suggest replacement text via the content validation loop below.
+2. **"Yes, it is real but I am not part of it."** Promote candidate to live; no affiliation. (Existence confirmation is recorded as distinct from affiliation.) Content validation loop available.
+3. **"I have never heard of this club."** Logged to the admin cleanup queue (§9.4).
 4. **Skip.** No signal.
 
-Stage 2B has no "I'd like to join" path: an onboarding-visible candidate is not a live `clubs` row yet, so there is nothing to join. A registrant who knows the club exists uses path 1 or 2; a registrant who wants to start a different club uses Stage 3B; a registrant with no information skips. The asymmetry with Stage 2A is deliberate: Stage 2A clubs are live and joinable, Stage 2B candidates first need an existence signal before they can be promoted.
+Stage 2B has no "I'd like to join" path: an onboarding-visible candidate is not a live `clubs` row yet, so there is nothing to join. A registrant who knows the club exists uses path 1 or 2; a registrant with no information skips.
 
-Dormant and junk are not shown in Stage 2.
+Dormant and junk candidates are not shown in Stage 2.
 
-#### Stage 3: Discovery
+#### Stage 3: Discovery and exit
 
 ##### Stage 3A: Search by name (dormant revival)
 
-If no direct matches and no regional suggestions resolved the registrant's club, the wizard offers a name search across all non-junk candidates. When a dormant candidate matches:
+If no direct matches and no regional suggestions resolved the registrant's club, the wizard offers a name search across all non-junk candidates and live clubs. When a dormant candidate matches:
 
 Show: "We have an old listing for [Name] in [Location]. Is it still around?"
 
@@ -660,71 +680,105 @@ Show: "We have an old listing for [Name] in [Location]. Is it still around?"
 2. **"It was real once, but not active anymore."** Promote the candidate to a live `clubs` row with `status='inactive'`. Archival (`status='archived'`) is admin-only.
 3. **"Different club, same name."** Mark not-this-one and continue the search.
 
-##### Stage 3B: Start a new club
+##### Wizard exit when no match found
 
-If the registrant cannot find their club via Stage 1, Stage 2, or Stage 3A search, the standard new-club creation flow applies. Country, city/region, name, description, and current contact/leader are required.
+If Stage 3A search yields no result the registrant can claim, the wizard concludes with: "We didn't find your club in our records. You can create one from your profile after onboarding." A direct link to the `M_Create_Club` flow is provided. `M_Create_Club` applies the duplicate-prevention rules described in §9.1 against live clubs and the candidate set: exact name plus same country blocks creation and surfaces the existing entry instead; similar matches warn but allow the creator to proceed. The wizard itself never creates a new `clubs` row.
+
+#### Content validation loop
+
+Description and external URL on every live `clubs` row may be edited or replaced through three layered mechanisms:
+
+- **Authoritative editors.** The listed contact (in Stage 1A path 1) and any registered club leader edit description and external URL directly. No approval gate.
+- **Suggesting members.** Non-contact members in Stage 1B paths 1 and 2, Stage 2A path 1, Stage 2B paths 1 and 2, and the normal `M_Join_Club` flow can flag the current description or external URL as inaccurate and propose replacement text. The suggestion enters a review queue tied to the club.
+- **Approvers.** The listed contact, the club leader, or admin reviews suggested edits and approves or rejects. Approved edits replace the live content; rejected edits are dismissed with audit metadata. Both approval and rejection are audit-logged.
+- **External URL verification.** Every URL bound for a live page (whether copied from legacy data at GoLive, edited directly by contact or leader, or approved from a suggestion) must pass URL verification before appearing publicly. Failed verifications leave the column NULL; the proposed URL returns to the suggester or editor for revision.
 
 #### Signals collected from registration
 
-Every wizard interaction produces data that feeds back into club quality. The Effect column below references the promotion paths whose authoritative rules-as-design statement is §9.1 Promotion rules; this table is the per-path signal-handling shape, not a parallel rule restatement.
+Every wizard interaction produces structured audit-log evidence. Signals that change club state (promote to live, mark affiliation, mark inactive, flag for admin) carry their state change in the same transaction. Signals that don't change state (negative reports, suggested edits awaiting approval) are still recorded for admin review.
 
 | Signal | Source | Effect |
 |---|---|---|
-| Contact confirms still involved | Stage 1A path 1 | Confirm existence; promote to live if needed; promote leadership; apply metadata updates. |
-| Contact confirms but has moved on | Stage 1A path 2 | Confirm existence; promote to live if needed; mark contact stale. |
-| Contact reports club inactive | Stage 1A path 3 | Mark `status='inactive'`. |
-| Contact does not recognize listing | Stage 1A path 4 | Strong junk signal. Admin review. |
+| Contact confirms still involved | Stage 1A path 1 | Confirm existence; promote to live if needed; promote leadership; apply direct metadata edits. |
+| Contact confirms but has moved on | Stage 1A path 2 | Confirm existence; promote to live if needed; mark listed-contact link stale. |
+| Contact reports club inactive | Stage 1A path 3 | Promote to live if needed; set `status='inactive'`. |
+| Contact does not recognize listing | Stage 1A path 4 | Logged to admin cleanup queue (§9.4) as strong junk signal. |
 | Member confirms current affiliation | Stage 1B path 1 | Confirm existence; promote to live if needed; mark current affiliation. |
-| Member reports club gone | Stage 1B path 3 | Weak inactive signal. Accumulates. |
-| Member rejects affiliation | Stage 1B path 4 | Weak rejection signal. Accumulates. |
-| Stage 2A affirmation | Stage 2A path 1 | Mark current affiliation on a live club. |
-| Stage 2A "never heard of it" | Stage 2A path 4 | Weak negative signal on a pre-populated club. Accumulates per section 9.4. |
-| Stage 2B existence confirmation | Stage 2B paths 1, 2 | Promote onboarding-visible candidate to live. |
-| Stage 2B "never heard of it" | Stage 2B path 3 | Weak negative signal on an onboarding-visible candidate. Accumulates per section 9.4. |
-| Stage 3A revival | Stage 3A path 1 | Promote dormant candidate to live. |
-| Stage 3A historical confirmation | Stage 3A path 2 | Promote dormant candidate to live `clubs` with `status='inactive'`. |
-| Updated metadata from contact | Stage 1A path 1 follow-up | Direct edit to live `clubs` row. |
+| Member reports club gone | Stage 1B path 3 | Logged to admin cleanup queue (§9.4). |
+| Member rejects affiliation | Stage 1B path 4 | Logged to admin cleanup queue (§9.4). |
+| Member affirms on pre-populated club | Stage 2A path 1 | Mark current affiliation on a live club. |
+| Member "never heard of it" on pre-populated club | Stage 2A path 4 | Logged to admin cleanup queue (§9.4); same-city weighted more during admin review. |
+| Member existence confirmation on onboarding-visible | Stage 2B paths 1, 2 | Promote onboarding-visible candidate to live. |
+| Member "never heard of it" on onboarding-visible | Stage 2B path 3 | Logged to admin cleanup queue (§9.4). |
+| Member revives dormant candidate | Stage 3A path 1 | Promote dormant candidate to live. |
+| Member confirms dormant club historically real | Stage 3A path 2 | Promote dormant candidate to live with `status='inactive'`. |
+| Direct content edit by contact or leader | Stage 1A path 1 or any post-promotion edit by a leader | Direct edit to live `clubs` row. |
+| Content flag with suggested edit | Stage 1B paths 1-2, Stage 2A path 1, Stage 2B paths 1-2, `M_Join_Club` | Enters validation queue; applied after approval by contact, leader, or admin. |
 
 #### Constraints
 
 - At most one current club affiliation per member. Confirming a new one converts any existing current to former in the same transaction.
 - Clubs may have multiple leaders.
 - Leadership is only offered to membership Tier 1+.
-- Onboarding-visible and dormant candidates are promoted to live `clubs` rows only via the promotion paths in section 9.1 (Promotion rules) or via `A_Review_Club_Cleanup_Signals`.
-- Junk candidates are never shown in any stage.
-- Dormant candidates are not shown in Stage 2 regional suggestions but are reachable through Stage 3A name search.
-- Metadata edits apply only when submitted by the listed contact via Stage 1A path 1. Non-contact registrants do not have a wizard-time metadata-suggestion affordance in this design; non-contact metadata feedback is routed through admin out-of-band.
+- Onboarding-visible and dormant candidates are promoted to live `clubs` rows only via the promotion paths in §9.1 or via admin override.
+- Junk candidates are never shown in any wizard surface.
+- Dormant candidates are not surfaced as Stage 2 regional suggestions but are reachable through Stage 3A name search.
+- The wizard never creates a new `clubs` row directly. New clubs go through `M_Create_Club`, which applies the §9.1 duplicate-prevention rules.
+- Direct content edits (description, external URL) require listed-contact, club-leader, or admin authority. Other members propose edits through the content validation loop.
 
-### 9.4 Cleanup exit criterion
+### 9.4 Long-term cleanup
 
-The legacy-data cleanup is bounded. The `legacy_club_candidates` table is not a permanent operational surface; every non-junk candidate must reach a terminal state, either through wizard signal during the saturation window after go-live or through admin resolution.
+The `legacy_club_candidates` table is not a permanent operational surface. Every non-junk candidate eventually reaches a terminal state: promoted to a live `clubs` row, demoted to dormant, archived, or merged with another club. Admin is the sole decision authority; members provide input through structured flags. There is no time-bounded saturation window; admin reviews the queue at their own pace, and the table remains operational until empty.
+
+Admin's user-facing entry point is `A_Review_Club_Cleanup_Signals` in USER_STORIES.
+
+#### Member flag mechanism
+
+Members can flag any club at any time through three surfaces:
+
+- **Onboarding wizard.** Stage 1A path 4, Stage 1B paths 3 and 4, Stage 2A path 4, and Stage 2B path 3 generate flags as part of completing the wizard (see §9.3 signals table).
+- **Normal M_Join_Club flow.** When joining a club, the member sees the current description and external URL and can flag inaccuracies or propose replacement text per the §9.3 content validation loop.
+- **Club detail page.** Any member viewing a club can flag the listing as outdated, inactive, duplicate, or wrong.
+
+Every flag is recorded as a structured audit-log row carrying: the candidate or club id, the flagging member id, the flag category (junk, inactive, content-inaccurate, duplicate-of-X, never-heard-of-it, other), an optional note, the location predicates between the flagging member and the club (same-city, same-region, same-country per §9.3 Location matching helper), and a timestamp.
+
+#### Admin cleanup queue
+
+Admin reads from a queue view that aggregates:
+
+- Wizard-generated flags grouped by candidate or live club.
+- Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
+- Suggested content edits awaiting approval (per §9.3 content validation loop).
+- Auto-merge holds (per §9.1 duplicate handling) where source entries disagreed on substantive identity.
+- Junk-flagged candidates (per §9.1 junk rules) and any admin force-keep or force-junk requests.
+- All non-junk candidates not yet promoted to live `clubs` rows, sortable by category, age, region, and flag count.
+
+Admin sorts and filters this queue at their own pace. There is no automated demotion or time-based escalation.
+
+Admin's available actions per item:
+
+- Promote a candidate to a live `clubs` row.
+- Demote a candidate to dormant.
+- Mark a live `clubs` row `status='inactive'`.
+- Archive a `clubs` row (`status='archived'`).
+- Merge two `clubs` rows or two candidates.
+- Split a previously auto-merged candidate.
+- Approve or reject a suggested content edit.
+- Add a candidate to force-keep or force-junk.
+- Dismiss a flag with an optional note.
+
+Every admin action is recorded in the audit log.
 
 #### Per-category terminal states
 
-- **Pre-populated**: at least one positive existence signal from any registrant within the saturation window. A positive existence signal is generated by Stage 1A paths 1, 2, or 3; Stage 1B paths 1 or 2; or Stage 2A path 1. (Negative signals from Stage 1A path 4, Stage 1B paths 3 or 4, or Stage 2A path 4 route to the demotion levers below; skip actions on any stage generate no signal.) Pre-populated clubs that receive zero positive existence signals by end of window become admin-review tasks under `A_Review_Club_Cleanup_Signals`.
-- **Onboarding-visible**: reaches a terminal state via wizard (promoted to a live `clubs` row with `status='active'` or `status='inactive'`, or demoted to dormant via Lever 2). Candidates with no wizard activity by end of the saturation window become admin-archive tasks.
-- **Dormant**: revived through Stage 3A or admin-promoted. Candidates not revived by end of the saturation window become admin-archive tasks.
-- **Junk**: stays out of sight indefinitely; admin override only.
-
-#### Demotion levers
-
-The following levers operate on accumulated wizard signal. The design doc names each lever; the numeric thresholds and saturation-window length are admin-configurable policy values stored in the existing `system_config` mechanism per `DATA_MODEL.md` §4.23. Specific key names and seeded defaults are pinned at the implementation slice, not the design doc. Location predicates ("same-region", "same-city") use the §9.3 Location matching helper:
-
-- **Lever 1.** A pre-populated club accumulating multiple independent "never heard of it" rejections from same-region registrants WITHOUT any positive existence signal routes to admin review queue for possible demotion. Never auto-demotes.
-- **Lever 2.** An onboarding-visible candidate accumulating multiple "never heard of it" rejections from same-city registrants demotes to dormant.
-- **Lever 3.** An onboarding-visible candidate receiving any positive existence signal (as defined above) auto-promotes to live (per the Stage 2B and Stage 1 confirmation paths).
-- The saturation window itself (the period after go-live during which wizard signal is treated as primary cleanup input) is admin-configurable.
-
-Lever precedence and state stability:
-
-- **Positive signals are sticky.** An onboarding-visible candidate promoted to live by Lever 3 remains live for the duration of the saturation window. Rejections received after promotion accumulate in `A_Review_Club_Cleanup_Signals` for admin manual demotion review; they do not re-demote the candidate automatically.
-- **Demotions are sticky.** An onboarding-visible candidate demoted to dormant by Lever 2 does not auto-re-promote when a subsequent affirmative arrives via Stage 1B or Stage 2A. Only a Stage 3A name-search revival or an admin override moves a dormant candidate back to live.
-- **Pre-populated clubs do not auto-demote.** Lever 1 routes accumulated rejections to admin review; admin decision is required to demote a pre-populated club during or after the saturation window.
-- **The resulting state machine during the saturation window is acyclic per candidate.** Pre-populated stays pre-populated unless admin acts. Onboarding-visible transitions to live or dormant at most once. Dormant transitions to live only via Stage 3A revival or admin override. No public-directory flips.
+- **Pre-populated**: continues as a live `clubs` row until an admin action moves it. Member flags accumulate in the queue; admin decides whether to demote, mark inactive, archive, or dismiss.
+- **Onboarding-visible**: reaches a terminal state when promoted to live (via wizard confirmation per §9.3 or via admin promotion), demoted to dormant (admin only), or archived (admin only).
+- **Dormant**: revived through Stage 3A name search (per §9.3) or via admin promotion. Admin may archive a dormant candidate at any time.
+- **Junk**: invisible to non-admin surfaces; admin force-keep returns it to the classifier's normal evaluation.
 
 #### Closure
 
-When every non-junk candidate has reached a terminal state, the `legacy_club_candidates` table may be dropped. Until then, it remains operational and queryable by admins through `A_Review_Club_Cleanup_Signals`.
+When every non-junk candidate has reached a terminal state, the `legacy_club_candidates` table may be dropped. Until then, it remains operational and queryable by admin through the cleanup queue. There is no fixed deadline; the table's lifetime is bounded by admin's pace.
 
 ---
 

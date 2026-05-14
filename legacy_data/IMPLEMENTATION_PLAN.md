@@ -19,6 +19,16 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **PassBack intake lane outputs, awaiting Red triage.** Staging CSVs at `curated/freestyle_media/video_term_inventory.csv`, `curated/freestyle_media/video_snippet_candidates.csv`, `curated/freestyle_sets/set_candidates.csv`, `curated/freestyle_tricks/trick_alias_candidates.csv`. Generator: `legacy_data/tools/build_passback_intake.py`. Promotion to dictionary blocked on Red answers.
 
+- **MIGRATION_PLAN §9 cross-track: `legacy_person_club_affiliations` rows imported with `resolution_status='confirmed_current'` instead of `'pending'`.** Schema `database/schema.sql:3236` already has `DEFAULT 'pending'`. Loaders override it:
+  - `legacy_data/scripts/load_club_members_seed.py:170` (name-matched) and `:186` (unmatched-but-mirror-id-known) hard-code `'confirmed_current'`.
+  - `legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py:512` hard-codes `'confirmed_current'` in the INSERT for inferred affiliations.
+  MIGRATION_PLAN §9.3 and DATA_MODEL §4.25 specify inferred mirror rows arrive as `'pending'` and transition to `'confirmed_current'` only when a member confirms current affiliation via the onboarding wizard. Fix: drop the literal value from both INSERT statements, letting the schema default apply. Confirm with an integration test that mirror-seeded affiliations are `'pending'` after `run_pipeline.sh` completes.
+
+- **MIGRATION_PLAN §9 cross-track: Phase I bulk-loads all seed/clubs.csv rows into live `clubs` regardless of classification.** `legacy_data/run_pipeline.sh:216-224` (`run_phase_clubs_seed_load`) calls `legacy_data/scripts/load_clubs_seed.py`, which inserts every seed row with `status='active'` (lines 196-215). Phase H (`legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py`) then becomes a no-op against existing rows. MIGRATION_PLAN §9.1 target: only `pre_populate` candidates become live `clubs` rows at cutover; non-junk non-pre-populate candidates remain in `legacy_club_candidates` until promoted via the wizard or admin. Fix paths:
+  1. Restrict `load_clubs_seed.py` to a dev-only mode and drop it from the production pipeline; Phase H becomes the sole creator of pre_populate live rows at cutover.
+  2. Or re-order so the classifier (Phase D) and enrichment load (Phase G) run before `load_clubs_seed.py`, and change `load_clubs_seed.py` to filter by `classification='pre_populate'` before INSERT.
+  Either path leaves Phase H as the canonical live-club creation step. Confirm with an integration test that on a fresh DB, only the §9.1 `pre_populate` set lands in `clubs`.
+
 ---
 
 ## Current substitute mechanisms
