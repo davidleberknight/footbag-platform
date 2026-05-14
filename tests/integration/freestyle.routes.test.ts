@@ -654,7 +654,7 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     const res = await request(app).get('/freestyle/glossary');
     const expectedSlugs = [
       'atomic', 'blurry', 'quantum', 'nuclear',
-      'barraging', 'furious', 'whirling', 'double', 'high',
+      'barraging', 'furious', 'inspinning', 'whirling', 'double', 'high',
     ];
     for (const slug of expectedSlugs) {
       expect(res.text).toMatch(new RegExp(`<dt id="term-${slug}"`));
@@ -701,6 +701,49 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(idxWhirling).toBeGreaterThan(idxAtomic);
     expect(idxDouble).toBeGreaterThan(idxWhirling);
     expect(idxHigh).toBeGreaterThan(idxDouble);
+  });
+
+  it('renders the inspinning term anchor inside the intermediate-operators block', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
+    expect(intermediateIdx).toBeGreaterThan(0);
+    const inspinIdx = res.text.indexOf('id="term-inspinning"', intermediateIdx);
+    expect(inspinIdx).toBeGreaterThan(intermediateIdx);
+  });
+
+  it('renders inspinning as a resolved entry (no pending badge)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const inspinIdx = res.text.indexOf('id="term-inspinning"');
+    expect(inspinIdx).toBeGreaterThan(0);
+    // Slice from inspinning's <dt> to the next <dt> (or end of <dl>) and confirm
+    // no pending-flag badge appears inside that entry.
+    const after = res.text.slice(inspinIdx);
+    const nextDt = after.indexOf('<dt ', 4);
+    const entrySlice = nextDt > 0 ? after.slice(0, nextDt) : after.slice(0, 2000);
+    expect(entrySlice).not.toContain('glossary-operator-pending-flag');
+  });
+
+  it('surfaces +0 directional status and the pt3 + pt7 lineage on inspinning', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const inspinIdx = res.text.indexOf('id="term-inspinning"');
+    expect(inspinIdx).toBeGreaterThan(0);
+    const slice = res.text.slice(inspinIdx, inspinIdx + 2000);
+    expect(slice).toMatch(/pt3/);
+    expect(slice).toMatch(/pt7/);
+    expect(slice).toMatch(/\+0/);
+    expect(slice).toMatch(/directional/i);
+  });
+
+  it('orders inspinning before whirling within the body-tier subsequence', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const idxInspinning = res.text.indexOf('id="term-inspinning"');
+    const idxWhirling   = res.text.indexOf('id="term-whirling"');
+    expect(idxInspinning).toBeGreaterThan(0);
+    expect(idxWhirling).toBeGreaterThan(idxInspinning);
   });
 });
 

@@ -130,6 +130,17 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     curatorConfirmPending: true,
   },
   {
+    slug:           'inspinning',
+    name:           'Inspinning',
+    category:       'body',
+    oneLineMeaning: "A directional variant of spinning that marks forward-rotation orientation, distinct from spinning's default back-rotation reading. +0 ADD (directional only).",
+    decomposition:  'forward-rotation spinning (directional variant)',
+    pendingNote:    null,
+    workedExamples: ['Pixie Inspinning (per the legacy reference)'],
+    lineageNote:    'Direction variant of spinning per Red pt3 and pt7; ADD +0 (directional).',
+    curatorConfirmPending: false,
+  },
+  {
     slug:           'whirling',
     name:           'Whirling',
     category:       'compound-body',
