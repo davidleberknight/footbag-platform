@@ -4659,6 +4659,64 @@ section.home-media { padding-top: 0; }
   .operator-tier { margin: 28px 0 18px 0; }
 }
 
+/* Glossary §3 — Intermediate-operator reference (NF-2A).
+ * Renders the 9 compound / quantifier operator entries. Inherits the
+ * <dl> structure of the existing glossary-modifier-reference block; adds
+ * structured sub-paragraphs per entry (meaning / decomposition / pending /
+ * examples / lineage). Pending entries get a quiet inline flag. */
+.glossary-intermediate-operators dt {
+  margin-top: 14px;
+  font-weight: 600;
+  font-size: 1rem;
+}
+.glossary-intermediate-operators dd {
+  margin-left: 0;
+  margin-bottom: 6px;
+}
+.glossary-intermediate-operators dd p {
+  margin: 4px 0;
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+.glossary-operator-pending-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: #8a7a3a;
+  background: #fbf6e6;
+  border: 1px solid #ece2bc;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  vertical-align: 0.1em;
+}
+.glossary-operator-meaning {
+  color: #333;
+}
+.glossary-operator-decomposition {
+  color: #444;
+}
+.glossary-operator-decomposition-label {
+  font-weight: 600;
+  color: #555e6b;
+}
+.glossary-operator-pending-note {
+  color: #6a5e3a;
+  font-style: italic;
+  font-size: 0.92rem;
+}
+.glossary-operator-examples {
+  color: #555;
+  font-size: 0.92rem;
+}
+.glossary-operator-lineage {
+  color: #888;
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
 /* Freestyle landing — pointer paragraph into /freestyle/learn */
 .freestyle-learn-pointer {
   margin-top: 14px;

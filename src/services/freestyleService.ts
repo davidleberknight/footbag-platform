@@ -61,6 +61,10 @@ import {
   buildGlossaryConnectivePanels,
 } from './symbolicGlossaryPanels';
 import {
+  OperatorReferenceEntry,
+  OPERATOR_REFERENCE_ENTRIES,
+} from '../content/freestyleOperatorReference';
+import {
   SymbolicLearnIndexContent,
   buildSymbolicLearnIndex,
 } from './symbolicLearnIndex';
@@ -1464,6 +1468,10 @@ export interface FreestyleGlossaryContent {
   // Operator-board orientation strip embedded in §3 ("How Tricks Are Built").
   // Shared partial with the landing page; surface-specific heading + lede.
   operatorBoard:    OperatorBoardData;
+  // Intermediate-operator reference rendered inside §3 as a quick-reference
+  // subsection. Authoritative source for what each intermediate operator
+  // means and how it decomposes; equivalence-chain tokens deep-link here.
+  intermediateOperators: readonly OperatorReferenceEntry[];
   notationExamples: {
     whirl:        NotationDisplay | null;
     paradoxWhirl: NotationDisplay | null;
@@ -3691,7 +3699,8 @@ export const freestyleService = {
         ],
       },
       content: {
-        operatorBoard: this.getOperatorBoard('glossary'),
+        operatorBoard:         this.getOperatorBoard('glossary'),
+        intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
         notationExamples: {
           whirl:        whirlExample,
           paradoxWhirl: paradoxWhirlExample,

@@ -556,6 +556,71 @@ describe('GET /freestyle/glossary — operator-board orientation in §3', () => 
 
 // ---------------------------------------------------------------------------
 
+describe('GET /freestyle/glossary — intermediate-operator reference subsection (§3)', () => {
+  it('renders the intermediate-operators subsection heading and anchor', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('id="intermediate-operators"');
+    expect(res.text).toMatch(/Intermediate operators/);
+  });
+
+  it('renders every authored operator entry with its term anchor', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const expectedSlugs = [
+      'atomic', 'blurry', 'quantum', 'nuclear',
+      'barraging', 'furious', 'whirling', 'double', 'high',
+    ];
+    for (const slug of expectedSlugs) {
+      expect(res.text).toMatch(new RegExp(`<dt id="term-${slug}"`));
+    }
+  });
+
+  it('renders the locked decomposition strings on confirmed entries', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('stepping paradox');
+    expect(res.text).toContain('compressed atomic');
+    expect(res.text).toContain('paradox + atomic');
+    expect(res.text).toContain('high stepping');
+  });
+
+  it('flags pending entries with the inline pending badge', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const pendingFlags = res.text.match(/class="glossary-operator-pending-flag"/g) ?? [];
+    // atomic, furious, whirling, double, high — 5 pending entries
+    expect(pendingFlags.length).toBe(5);
+  });
+
+  it('surfaces the Red pt10 lineage on the nuclear entry', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toContain('Decomposition per Red pt10.');
+  });
+
+  it('surfaces the documented Fury pt1 vs pt6 conflict on the furious entry', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    expect(res.text).toMatch(/pt1.*pt6 conflict/);
+  });
+
+  it('renders entries in pedagogical order: set-tier first, body next, quantifiers last', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const idxAtomic    = res.text.indexOf('id="term-atomic"');
+    const idxWhirling  = res.text.indexOf('id="term-whirling"');
+    const idxDouble    = res.text.indexOf('id="term-double"');
+    const idxHigh      = res.text.indexOf('id="term-high"');
+    expect(idxAtomic).toBeGreaterThan(0);
+    expect(idxWhirling).toBeGreaterThan(idxAtomic);
+    expect(idxDouble).toBeGreaterThan(idxWhirling);
+    expect(idxHigh).toBeGreaterThan(idxDouble);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
 describe('GET /freestyle — glossary link', () => {
   it('links to /freestyle/glossary on the landing page', async () => {
     const app = createApp();
