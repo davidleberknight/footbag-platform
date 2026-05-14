@@ -65,6 +65,10 @@ import {
   OPERATOR_REFERENCE_ENTRIES,
 } from '../content/freestyleOperatorReference';
 import {
+  getSymbolicEquivalenceChain,
+} from '../content/freestyleSymbolicEquivalences';
+import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
+import {
   SymbolicLearnIndexContent,
   buildSymbolicLearnIndex,
 } from './symbolicLearnIndex';
@@ -258,6 +262,38 @@ interface TrickRefMediaRow {
   video_platform: string | null;
   uploaded_at: string;
   source_id: string | null;
+}
+
+// ── Semantic-notation fallback ladder (NF-2B) ────────────────────────────
+// Per-trick semantic-notation rendering. Picks one of four layers:
+//   layer='equivalence'   — curator-authored chain from freestyleSymbolicEquivalences
+//   layer='base-lineage'  — "Built on {base}" derived from row.base_trick
+//   layer='curation-gap'  — "Compositional reading pending curation." cue
+//   (null)                — no semantic-notation block (Layer 1 alone, or core atom silence)
+// Reads ONLY: row.slug, row.notation, row.base_trick, plus dictBySlug for base
+// resolution and the two registries (CORE_TRICKS + OPERATOR_REFERENCE_ENTRIES) for
+// shallow token recognition. Never tokenizes canonical_name; never recurses;
+// never auto-generates chain content.
+
+export interface SemanticNotationToken {
+  kind: 'link' | 'plain';
+  text: string;
+  href: string | null;
+}
+export interface SemanticNotationReading {
+  tokens:     SemanticNotationToken[];
+  depthIndex: number;   // 0 = primary; later indices visually descend (100/92/86% scale)
+}
+export interface SemanticNotation {
+  layer:                 'equivalence' | 'base-lineage' | 'curation-gap';
+  // Equivalence layer fields:
+  readings:              SemanticNotationReading[];
+  curatorConfirmPending: boolean;
+  // Base-lineage layer fields:
+  baseSlug:              string | null;
+  baseName:              string | null;
+  // Source attribution (const literal; never claims parser provenance)
+  sourceLabel:           'editorial';
 }
 
 // Phase 1 cross-link surface for /freestyle/sets. Each row carries the
@@ -577,6 +613,10 @@ export interface FreestyleTrickContent {
   // classification + educational tooltip text. Null when notation is empty.
   // Display-only; never affects parser output or ADD math.
   notationDisplay: NotationDisplay | null;
+  // NF-2B semantic-notation fallback ladder. Coexists with notationDisplay
+  // (Layer 1); the ladder picks layer='equivalence' / 'base-lineage' /
+  // 'curation-gap' or returns null (Layer 4 silence). See shapeSemanticNotation.
+  semanticNotation: SemanticNotation | null;
   // O1a/O1b (2026-05-10) operational notation block. Renders in the
   // "Set notation (operational)" section between semantic notation and
   // editorial decomposition. Null when the row has no operational_notation
@@ -1050,6 +1090,104 @@ function shapeEditorialDecomposition(
     matchesAsserted,
     derivationText,
     sourceLabel: 'editorial',
+  };
+}
+
+// ── Semantic-notation fallback ladder (NF-2B) ────────────────────────────
+// Compose a `SemanticNotation` for a trick row. Layer selection:
+//   1. Curated equivalence chain (Layer 2) — if authored in
+//      freestyleSymbolicEquivalences.ts. Coexists with Layer 1 (curator notation
+//      in `row.notation`); both render as distinct sections.
+//   2. Base-lineage phrase (Layer 3) — if `row.base_trick` resolves and isn't
+//      a self-reference, AND no curator notation exists, AND no chain.
+//   3. Layer 4 (true atom silence) — if slug is in CORE_TRICKS and no data:
+//      return null (no semantic-notation block).
+//   4. Layer 5b (non-core curation gap) — non-core, no curator notation, no
+//      base lineage: surface "Compositional reading pending curation." cue.
+//
+// Editorial-layer rules preserved:
+//   - Reads only slug / notation / base_trick + dictBySlug for base resolution.
+//   - Never tokenizes canonical_name; never recurses; never invokes parser.
+//   - Auto-link tokens only resolve to CORE_TRICKS or OPERATOR_REFERENCE_ENTRIES.
+//   - sourceLabel='editorial' const literal.
+const RECOGNIZED_LINK_SLUGS: ReadonlySet<string> = (() => {
+  const s = new Set<string>();
+  for (const slug of CORE_TRICKS) s.add(slug);
+  for (const entry of OPERATOR_REFERENCE_ENTRIES) s.add(entry.slug);
+  return s;
+})();
+
+function tokenizeEquivalenceReading(reading: string): SemanticNotationToken[] {
+  return reading
+    .split(/\s+/)
+    .filter(t => t.length > 0)
+    .map((token): SemanticNotationToken => {
+      const normalized = token.toLowerCase();
+      if (RECOGNIZED_LINK_SLUGS.has(normalized)) {
+        return { kind: 'link', text: token, href: `/freestyle/glossary#term-${normalized}` };
+      }
+      return { kind: 'plain', text: token, href: null };
+    });
+}
+
+function shapeSemanticNotation(
+  row: FreestyleTrickRowWithParse,
+  dictBySlug: Map<string, FreestyleTrickRow>,
+): SemanticNotation | null {
+  const slug = row.slug;
+
+  // Layer 2: curated equivalence chain. Renders alongside Layer 1 when both
+  // exist — does NOT suppress curator notation.
+  const chain = getSymbolicEquivalenceChain(slug);
+  if (chain) {
+    return {
+      layer:    'equivalence',
+      readings: chain.readings.map((reading, depthIndex) => ({
+        tokens: tokenizeEquivalenceReading(reading),
+        depthIndex,
+      })),
+      curatorConfirmPending: chain.curatorConfirmPending,
+      baseSlug:              null,
+      baseName:              null,
+      sourceLabel:           'editorial',
+    };
+  }
+
+  // No chain. If curator notation exists (Layer 1), it handles rendering;
+  // no semantic-notation block needed.
+  const hasCuratorNotation =
+    typeof row.notation === 'string' && row.notation.trim().length > 0;
+  if (hasCuratorNotation) return null;
+
+  // Layer 3: base lineage. Resolves when base_trick is set, not self-ref,
+  // and present in the dictionary.
+  const baseSlugRaw = row.base_trick;
+  if (baseSlugRaw && baseSlugRaw.trim().length > 0) {
+    const baseSlug = baseSlugRaw.trim();
+    if (baseSlug !== slug) {
+      const baseRow = dictBySlug.get(baseSlug);
+      if (baseRow) {
+        return {
+          layer:                 'base-lineage',
+          readings:              [],
+          curatorConfirmPending: false,
+          baseSlug,
+          baseName:              baseRow.canonical_name || baseSlug,
+          sourceLabel:           'editorial',
+        };
+      }
+    }
+  }
+
+  // No structural data. Layer 4 (core atom) vs Layer 5b (non-core gap).
+  if (isCoreTrick(slug)) return null;   // Layer 4 silence
+  return {
+    layer:                 'curation-gap',
+    readings:              [],
+    curatorConfirmPending: false,
+    baseSlug:              null,
+    baseName:              null,
+    sourceLabel:           'editorial',
   };
 }
 
@@ -2638,6 +2776,9 @@ export const freestyleService = {
                   ),
                 ),
               )
+            : null,
+          semanticNotation: dictRow
+            ? shapeSemanticNotation(dictRow, new Map(allDictRows.map(r => [r.slug, r])))
             : null,
           operationalNotation: (() => {
             // O1a/O1b/O1d: shape into role-classified tokens for the trick-

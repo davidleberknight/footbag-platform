@@ -4659,6 +4659,104 @@ section.home-media { padding-top: 0; }
   .operator-tier { margin: 28px 0 18px 0; }
 }
 
+/* ─── Semantic-notation ladder (NF-2B) ──────────────────────────────────
+ * Layer 2 (equivalence chain): editorial palette, subtle progressive
+ *   typography (100 / 92 / 86%), recognized-token links use a quiet
+ *   underline-on-hover, ≡ delimiter pseudo-element before each non-first
+ *   reading. Visually distinct from Layer 1's canonical notation block.
+ * Layer 3 (base-lineage): one-line prose. No section heading.
+ * Layer 5b (curation-gap): single muted italic line. No ornament.
+ */
+.equivalent-readings {
+  margin-top: 8px;
+}
+.equivalent-readings .section-intro {
+  color: #555;
+  font-style: italic;
+}
+.equivalent-readings-pending-flag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: #8a7a3a;
+  background: #fbf6e6;
+  border: 1px solid #ece2bc;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  vertical-align: 0.1em;
+}
+.equivalent-readings-list {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 12px 0;
+}
+.equivalent-reading {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  color: #2a3a4a;
+  line-height: 1.65;
+  padding: 4px 0;
+}
+.equivalent-reading-depth-0 { font-size: 1rem;    /* 100% — primary */    }
+.equivalent-reading-depth-1 { font-size: 0.92rem; /* 92%  — secondary */  color: #3a4858; }
+.equivalent-reading-depth-2 { font-size: 0.86rem; /* 86%  — tertiary */   color: #4a5868; }
+.equivalent-reading + .equivalent-reading::before {
+  content: '\2261\00a0';   /* ≡ with non-breaking space */
+  color: #99a;
+  font-style: normal;
+  margin-right: 0.15em;
+}
+.equivalent-reading-token {
+  /* Plain tokens render as the surrounding italic-serif span (no extra style). */
+}
+.equivalent-reading-token-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted #b0b0a8;
+}
+.equivalent-reading-token-link:hover,
+.equivalent-reading-token-link:focus-visible {
+  border-bottom: 1px solid #555e6b;
+}
+.equivalent-readings-source {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: #888;
+  margin: 6px 0 0 0;
+}
+
+.semantic-base-lineage {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.semantic-base-lineage-phrase {
+  font-size: 0.92rem;
+  font-style: italic;
+  color: #555;
+  margin: 4px 0;
+}
+.semantic-base-lineage-phrase a {
+  color: #555e6b;
+  text-decoration: none;
+  border-bottom: 1px dotted #b0b0a8;
+}
+.semantic-base-lineage-phrase a:hover,
+.semantic-base-lineage-phrase a:focus-visible {
+  border-bottom: 1px solid #555e6b;
+}
+
+.semantic-notation-pending {
+  font-size: 0.86rem;
+  font-style: italic;
+  color: #8a8a82;
+  margin: 8px 0;
+  letter-spacing: 0.01em;
+}
+
 /* Restrained pointer below the operator board on the landing page only.
  * Lives outside the shared operator-board partial so it renders only on
  * /freestyle (not on /freestyle/glossary §3 or /freestyle/learn, which

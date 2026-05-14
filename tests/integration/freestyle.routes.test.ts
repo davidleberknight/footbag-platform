@@ -190,6 +190,41 @@ beforeAll(async () => {
     // operational_notation omitted → defaults to NULL → section must omit
   });
 
+  // ── Seeds for NF-2B semantic-notation ladder tests ─────────────────────
+  // Mobius has a curated equivalence chain (3 readings) AND curator notation
+  // 'MOBIUS' (mirrors the canonical Red-corrections seed). Both layers render.
+  insertFreestyleTrick(db, {
+    slug: 'mobius',
+    canonical_name: 'mobius',
+    adds: '5',
+    notation: 'MOBIUS',
+  });
+  // Mirage is a core atom; needed for paradox-mirage's base lookup.
+  insertFreestyleTrick(db, {
+    slug: 'mirage',
+    canonical_name: 'mirage',
+    adds: '2',
+  });
+  // Butterfly is a core atom; tests Layer 4 silence (no semantic block).
+  insertFreestyleTrick(db, {
+    slug: 'butterfly',
+    canonical_name: 'butterfly',
+    adds: '2',
+  });
+  // paradox-mirage is non-core with a resolvable base; tests Layer 3.
+  insertFreestyleTrick(db, {
+    slug: 'paradox-mirage',
+    canonical_name: 'paradox mirage',
+    adds: '3',
+    base_trick: 'mirage',
+  });
+  // nf2b-gap is non-core with no notation, no base, no chain; tests Layer 5b.
+  insertFreestyleTrick(db, {
+    slug: 'nf2b-gap',
+    canonical_name: 'nf2b gap',
+    adds: '4',
+  });
+
   db.close();
   createApp = await importApp();
 });
@@ -919,6 +954,97 @@ describe('GET /freestyle/tricks/:slug — operational notation block (O1a)', () 
     expect(linkIdx).toBeGreaterThan(sourceIdx);
   });
 });
+
+// ---------------------------------------------------------------------------
+
+describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', () => {
+  it('Layer 2: renders the curated equivalence chain for a trick with an authored chain (mobius)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/mobius');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="equivalent-readings');
+    expect(res.text).toContain('Equivalent readings');
+    // Tokens for each reading are span-wrapped; assert their text presence.
+    expect(res.text).toMatch(/>gyro<\/span>\s*<span[^>]*>torque</);     // reading 0
+    expect(res.text).toMatch(/>spinning<\/span>\s*<span[^>]*>ss</);     // reading 1
+    expect(res.text).toMatch(/>miraging<\/span>\s*<span[^>]*>op</);     // reading 2
+    // Last reading: tokenized; osis is a CORE atom → auto-linked
+    expect(res.text).toMatch(/href="\/freestyle\/glossary#term-osis"[^>]*>osis</);
+    // Ordering: depth-0 before depth-1 before depth-2
+    const d0 = res.text.indexOf('equivalent-reading-depth-0');
+    const d1 = res.text.indexOf('equivalent-reading-depth-1');
+    const d2 = res.text.indexOf('equivalent-reading-depth-2');
+    expect(d1).toBeGreaterThan(d0);
+    expect(d2).toBeGreaterThan(d1);
+  });
+
+  it('Layer 1 + Layer 2 coexistence: mobius renders both Notation and Equivalent readings sections', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/mobius');
+    // Both sections present and Notation precedes Equivalent readings.
+    const notationIdx   = res.text.indexOf('notation-display-tokens');
+    const equivalentIdx = res.text.indexOf('class="equivalent-readings');
+    if (notationIdx === -1) {
+      // Surface diagnostic context if Layer 1 didn't render
+      throw new Error(`notation-display-tokens not in response. Snippet: ${res.text.slice(0, 500)}`);
+    }
+    expect(notationIdx).toBeGreaterThan(0);
+    expect(equivalentIdx).toBeGreaterThan(notationIdx);
+  });
+
+  it('Mobius equivalence chain shows the curator-confirmed status (no pending flag)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/mobius');
+    // Within the Equivalent readings section, no pending flag.
+    const sectionStart = res.text.indexOf('class="equivalent-readings');
+    const sectionEnd   = res.text.indexOf('</section>', sectionStart);
+    const sectionText  = res.text.slice(sectionStart, sectionEnd);
+    expect(sectionText).not.toContain('equivalent-readings-pending-flag');
+  });
+
+  it('Layer 3: renders "Built on <base>" for a non-core trick with resolvable base_trick and no chain (paradox-mirage)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/paradox-mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="semantic-base-lineage');
+    expect(res.text).toMatch(/Built on <a href="\/freestyle\/tricks\/mirage">mirage<\/a>/);
+    // No equivalence-chain section for this trick.
+    expect(res.text).not.toContain('class="equivalent-readings');
+  });
+
+  it('Layer 4: a core atom with no notation and no chain renders no semantic-notation block (butterfly)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/butterfly');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('class="equivalent-readings');
+    expect(res.text).not.toContain('class="semantic-base-lineage');
+    expect(res.text).not.toContain('class="semantic-notation-pending"');
+  });
+
+  it('Layer 5b: a non-core trick with no notation, no base, no chain renders the pending-curation cue (nf2b-gap)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/nf2b-gap');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="semantic-notation-pending"');
+    expect(res.text).toContain('Compositional reading pending curation.');
+  });
+
+  it('auto-link restraint: only CORE_TRICKS / operator-reference tokens become links; other tokens stay plain', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/mobius');
+    // 'osis' is a CORE atom → linked
+    expect(res.text).toMatch(/href="\/freestyle\/glossary#term-osis"/);
+    // 'gyro' is a Tier-1 operator-board primitive but NOT in
+    // OPERATOR_REFERENCE_ENTRIES → must stay plain
+    expect(res.text).not.toMatch(/href="\/freestyle\/glossary#term-gyro"/);
+    // 'spinning' is operator-board Tier-1 (not operator-reference) → plain
+    expect(res.text).not.toMatch(/href="\/freestyle\/glossary#term-spinning"/);
+    // 'ss' is operational notation → plain
+    expect(res.text).not.toMatch(/href="\/freestyle\/glossary#term-ss"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 
 // ─────────────────────────────────────────────────────────────────────────
 // O1c (2026-05-10) — operational notation glossary subsection on

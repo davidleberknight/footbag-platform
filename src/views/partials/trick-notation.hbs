@@ -1,6 +1,7 @@
 {{!--
-  Semantic notation block (cool palette). Renders only when notationDisplay is non-null.
-  Token coloration + glossary deeplink unchanged from prior templates.
+  Layer 1 — Curator notation (cool palette, parser-tokenized).
+  Renders only when notationDisplay is non-null. Token coloration + glossary
+  deeplink unchanged. Visually canonical / symbolic-core.
 --}}
 {{#if content.notationDisplay}}
 <section class="content-section notation-display" aria-label="Trick notation">
@@ -13,4 +14,54 @@
     <a href="/freestyle/glossary#notation">Token reference &rarr;</a>
   </p>
 </section>
+{{/if}}
+
+{{!--
+  Layer 2 — Curated equivalence chain (editorial palette, progressive
+  hierarchy). Renders when semanticNotation.layer == 'equivalence'. Coexists
+  with Layer 1 when both exist. Visually editorial / pedagogical, distinct
+  from Layer 1's canonical treatment.
+--}}
+{{#if content.semanticNotation}}
+{{#if (eq content.semanticNotation.layer "equivalence")}}
+<section class="content-section equivalent-readings" aria-label="Equivalent readings">
+  <div class="section-heading">
+    <h2>Equivalent readings</h2>
+    <p class="section-intro">
+      Curator-authored equivalent compositional readings of this trick.
+      {{#if content.semanticNotation.curatorConfirmPending}}
+      <span class="equivalent-readings-pending-flag">pending</span>
+      {{/if}}
+    </p>
+  </div>
+  <ol class="equivalent-readings-list">
+    {{#each content.semanticNotation.readings}}
+    <li class="equivalent-reading equivalent-reading-depth-{{depthIndex}}">
+      {{#each tokens}}{{#if (eq kind "link")}}<a class="equivalent-reading-token equivalent-reading-token-link" href="{{href}}">{{text}}</a>{{else}}<span class="equivalent-reading-token">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
+    </li>
+    {{/each}}
+  </ol>
+  <p class="equivalent-readings-source">Editorial layer. Each reading is curator-authored; tokens link to the glossary's operator entries where recognized.</p>
+</section>
+{{/if}}
+
+{{!--
+  Layer 3 — Base-lineage phrase. One-line prose pointing at the structural
+  base when the trick has a resolvable base_trick but no chain and no
+  curator notation. Quiet, restrained.
+--}}
+{{#if (eq content.semanticNotation.layer "base-lineage")}}
+<section class="content-section semantic-base-lineage" aria-label="Trick lineage">
+  <p class="semantic-base-lineage-phrase">Built on <a href="/freestyle/tricks/{{content.semanticNotation.baseSlug}}">{{content.semanticNotation.baseName}}</a>.</p>
+</section>
+{{/if}}
+
+{{!--
+  Layer 5b — Non-core curation-gap cue. Renders for decomposable tricks
+  whose structural decomposition is not yet curator-authored. Pure prose;
+  no compensatory navigation. Visually very quiet.
+--}}
+{{#if (eq content.semanticNotation.layer "curation-gap")}}
+<p class="semantic-notation-pending">Compositional reading pending curation.</p>
+{{/if}}
 {{/if}}
