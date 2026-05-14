@@ -265,11 +265,11 @@ Side effects: outbox enqueue (registration confirmation, reminder, participant e
 
 **`FreestyleService`** (`src/services/freestyleService.ts`)
 
-Owns all public freestyle section page reads (`GET /freestyle*`): landing, world records grouped by record type, leaders, about, moves reference, and individual trick detail pages. Does not own event lifecycle, result ingestion, or other sport domains.
+Owns all public freestyle section page reads (`GET /freestyle*`): landing, world records grouped by record type, leaders, about, moves reference, glossary, educational pathways index (`/freestyle/learn`), and individual trick detail pages. Does not own event lifecycle, result ingestion, or other sport domains.
 
-Required patterns: read-only against canonical tables; `NotFoundError` on unknown trick slug routed to a 404 by the controller; trick detail reference video gallery filters to curator-uploaded media (`#curated` plus `#freestyle` plus `#trick` plus the slug tag) joined to `media_sources` for provenance.
+Required patterns: read-only against canonical tables; `NotFoundError` on unknown trick slug routed to a 404 by the controller; trick detail reference video gallery filters to curator-uploaded media (`#curated` plus `#freestyle` plus `#trick` plus the slug tag) joined to `media_sources` for provenance; operator-board partial is reused across three surfaces (landing, glossary §3, `/freestyle/learn`) as the movement-language primer (fourteen Tier-1 operators in set / body / structural tiers); `getOperatorBoard(surface: OperatorBoardSurface)` returns surface-invariant tier data and surface-specific heading and lede prose. Not a browse axis; educational infrastructure.
 
-Method roster: `getLandingPage`, `getRecordsPage`, `getLeadersPage`, `getTrickDetailPage`, `getAboutPage`, `getMovesPage`.
+Method roster: `getLandingPage`, `getRecordsPage`, `getLeadersPage`, `getTrickDetailPage`, `getAboutPage`, `getMovesPage`, `getOperatorBoard`.
 
 Persistence: `freestyle_records`, `freestyle_tricks`, `freestyle_trick_modifiers`, `freestyle_competition`, `freestyle_partnerships`, `media_items`, `media_tags`, `media_sources` (all read-only).
 
