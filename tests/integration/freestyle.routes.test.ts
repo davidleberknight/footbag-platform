@@ -1485,3 +1485,75 @@ describe('Freestyle glossary — Batch 3: re-bloat guard', () => {
     expect(res.text.length).toBeLessThan(120_000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// IA Realignment Batch 4 — typography/layout polish for compact symbolic
+// objects. CSS-only refinements + dictionary unification (CSS-level).
+// Most assertions are structural: class presence, anchor presence, ordering.
+
+describe('Freestyle landing — Batch 4: symbolic-object class contract preserved', () => {
+  it('Core Tricks grid still renders each card with the .core-trick-object class', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const matches = res.text.match(/class="core-trick-object"/g) ?? [];
+    // Eleven canonical core tricks per Batch 2 contract.
+    expect(matches.length).toBe(11);
+  });
+
+  it('each Core Tricks card carries the .core-trick-slug element (PRIMARY layer)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const matches = res.text.match(/class="core-trick-slug"/g) ?? [];
+    expect(matches.length).toBe(11);
+  });
+
+  it('cards with canonical aliases render at least one .core-trick-equivalence line (SECONDARY layer)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    // illusion, around-the-world, orbit each carry one canonical alias.
+    const matches = res.text.match(/class="core-trick-equivalence"/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('orbit card carries the pending-state marker (QUATERNARY layer in pending state)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const orbitIdx = res.text.indexOf('id="core-trick-orbit"');
+    expect(orbitIdx).toBeGreaterThan(0);
+    const slice = res.text.slice(orbitIdx, orbitIdx + 600);
+    expect(slice).toContain('core-trick-add-pending');
+  });
+});
+
+describe('Freestyle glossary — Batch 4: compression-flow visual continuity', () => {
+  it('symbolic-compression-flow cards reuse the .core-trick-object class', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    expect(flowIdx).toBeGreaterThan(0);
+    // Slice forward until §4 heading; count .core-trick-object occurrences in §3 flow region.
+    const sec4Idx = res.text.indexOf('4. Naming');
+    const slice = res.text.slice(flowIdx, sec4Idx);
+    const matches = slice.match(/class="core-trick-object glossary-compression-card"/g) ?? [];
+    // Three cards: osis, torque, mobius.
+    expect(matches.length).toBe(3);
+  });
+
+  it('thesis sentence in §8 still renders with the .glossary-thesis class', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('class="glossary-thesis"');
+  });
+});
+
+describe('Freestyle dictionary — Batch 4: unified symbolic-object styling', () => {
+  it('dict-card-title elements still render (CSS unification adds # via ::before)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/class="dict-card-title"/);
+  });
+
+  it('dict-card-add elements still render the ADD label (CSS unification restyles as chip)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    // ADD spans still carry the dict-card-add class; only visual treatment changed.
+    expect(res.text).toMatch(/class="dict-card-add[^"]*"/);
+  });
+
+  it('dict-card class is preserved (no rename); CSS now uses shared symbolic-object hierarchy', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).toMatch(/class="dict-card[^"]*"/);
+  });
+});

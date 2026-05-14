@@ -38,19 +38,23 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary:    #1bb36b;
-  --primary-dk: #16985b;
-  --secondary:  #0b5e6b;
-  --text:       #333333;
-  --text-muted: #666666;
-  --bg:         #ffffff;
-  --bg-light:   #f7f8f9;
-  --border:     #e5e5e5;
-  --shadow-sm:  0 2px 6px rgba(0,0,0,0.06);
-  --shadow-md:  0 4px 12px rgba(0,0,0,0.08);
-  --shadow-lg:  0 8px 24px rgba(0,0,0,0.10);
-  --radius:     10px;
-  --radius-sm:  6px;
+  --primary:     #1bb36b;
+  --primary-dk:  #16985b;
+  --secondary:   #0b5e6b;
+  --text:        #333333;
+  --text-muted:  #666666;
+  --text-subtle: #8a8a8a;   /* Reserved for clearly subordinate technical content
+                                (symbolic-object notation lines, lineage attributions).
+                                Distinct from --text-muted, which carries body-relevant
+                                muted content. */
+  --bg:          #ffffff;
+  --bg-light:    #f7f8f9;
+  --border:      #e5e5e5;
+  --shadow-sm:   0 2px 6px rgba(0,0,0,0.06);
+  --shadow-md:   0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg:   0 8px 24px rgba(0,0,0,0.10);
+  --radius:      10px;
+  --radius-sm:   6px;
 }
 
 /* ── Base ───────────────────────────────────────────────────── */
@@ -4862,16 +4866,21 @@ section.home-media { padding-top: 0; }
  * case templates allowed.
  * ────────────────────────────────────────────────────────────────────── */
 
+/* Dictionary cards are the dictionary's surface of the shared symbolic-
+   object visual system. Same typography hierarchy as .core-trick-object
+   on the landing page and the glossary compression-flow: #slug (primary)
+   → ≡ equivalence (secondary, future) → notation (subordinate) → ADD chip.
+   The dictionary surface adds metadata rows below the symbolic-core
+   (aliases, media-coverage chip, status badge) — that's the only
+   surface-specific extension. */
 .dict-card {
-  padding: 14px 16px;
+  padding: 12px 14px 10px 14px;
   margin-bottom: 14px;
-  background: #fafaf7;
-  border-left: 3px solid #e8e4d3;
-  border-radius: 0 4px 4px 0;
+  background: transparent;
+  /* Container heaviness lifted — typography + whitespace carry object identity. */
 }
 .dict-card--external-placeholder {
   opacity: 0.65;
-  border-left-color: #d4d0bf;
 }
 
 .dict-card-header {
@@ -4879,32 +4888,56 @@ section.home-media { padding-top: 0; }
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 .dict-card-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #2d2d24;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.20rem;
+  font-weight: 700;
+  color: var(--secondary);
+  letter-spacing: 0.01em;
   text-decoration: none;
 }
-a.dict-card-title:hover { text-decoration: underline; }
+.dict-card-title::before {
+  content: '#';
+  color: var(--secondary);
+}
+a.dict-card-title:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
 .dict-card-add {
-  font-size: 0.95rem;
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: #5a5644;
+  color: var(--primary);
+  background: transparent;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  padding: 1px 7px;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   flex-shrink: 0;
 }
-.dict-card-add--unrated { color: #a3a3a3; font-weight: 500; }
+.dict-card-add--unrated {
+  color: var(--text-subtle);
+  border-color: transparent;
+  font-style: italic;
+  font-weight: 500;
+}
 
-/* The operational notation row is the card's visual center of gravity. */
+/* Notation is subordinate technical detail — clearly dimmer than the slug,
+   and (post-equivalence-rollout) clearly dimmer than equivalence readings. */
 .dict-card-notation {
   display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 0.98rem;
+  font-size: 0.82rem;
   line-height: 1.55;
   background: transparent;
-  color: #2d2d24;
+  color: var(--text-subtle);
+  letter-spacing: 0.02em;
   /* Hanging indent so wrapped continuation lines sit under the leading token. */
   text-indent: -1.4em;
   padding-inline-start: 1.4em;
@@ -5250,36 +5283,50 @@ a.dict-card-title:hover { text-decoration: underline; }
 }
 
 /* Core Tricks — compact symbolic objects ------------------------------- */
+/* ── Symbolic objects — the universal language-token primitive ────────
+   PART H-pre of FREESTYLE_IA_REALIGNMENT_PLAN.md + Batch-4 typography
+   refinements. Renders identically across landing Core Tricks grid,
+   glossary compression-flow, and (post-C-4-G) dictionary browse cards.
+
+   Hierarchy: #slug > ≡ equivalence > notation > ADD.
+   Containment: typography + whitespace + grid gap only — no borders,
+   no shadows, no min-height, no animation. */
+
 .freestyle-core-trick-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 18px 22px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 20px 22px;
 }
 .core-trick-object {
-  /* Airy, no row borders, no zebra. Symbolic objects are compositional,
-     not tabular. */
-  padding: 16px 18px 14px 18px;
+  /* Airy, no row borders, no zebra. Cards size to content; the visual
+     asymmetry between atom (2 lines) and compound (4+ lines) is the point. */
+  padding: 12px 14px 10px 14px;
   background: transparent;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-height: 110px;
-  border-left: 2px solid var(--secondary);
+  gap: 4px;
 }
 .core-trick-slug {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 1.05rem;
+  font-size: 1.20rem;
   font-weight: 700;
   color: var(--secondary);
   margin: 0;
   letter-spacing: 0.01em;
 }
 .core-trick-equivalence {
+  font-family: Georgia, 'Iowan Old Style', serif;
   font-style: italic;
-  font-size: 0.93rem;
+  font-size: 0.96rem;
   color: var(--text);
   margin: 0;
   padding-left: 4px;
+  line-height: 1.45;
+}
+/* Tight inter-equivalence rhythm: successive ≡ lines hug each other,
+   reading as one layered semantic stack rather than separate bullets. */
+.core-trick-equivalence + .core-trick-equivalence {
+  margin-top: -2px;
 }
 .core-trick-equiv-sigil {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -5289,8 +5336,8 @@ a.dict-card-title:hover { text-decoration: underline; }
 }
 .core-trick-notation {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.86rem;
-  color: var(--text-muted);
+  font-size: 0.82rem;
+  color: var(--text-subtle);
   margin: 0;
   letter-spacing: 0.02em;
 }
@@ -5300,14 +5347,23 @@ a.dict-card-title:hover { text-decoration: underline; }
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 .core-trick-add-value {
-  font-size: 1.15rem;
-  font-weight: 700;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--primary);
+  background: transparent;
+  border: 1px solid var(--primary);
+  border-radius: 3px;
+  padding: 1px 7px;
+  letter-spacing: 0.02em;
 }
 .core-trick-add-pending {
-  font-size: 1.15rem;
-  color: var(--text-muted);
+  display: inline-block;
+  font-size: 0.78rem;
+  color: var(--text-subtle);
   font-style: italic;
+  padding: 1px 7px;
+  /* No outline on pending — the visual absence signals "pending" honestly. */
 }
 .core-trick-footnote {
   font-size: 0.82rem;
@@ -5350,13 +5406,26 @@ a.dict-card-title:hover { text-decoration: underline; }
     gap: 14px;
   }
   .freestyle-component-card,
-  .core-trick-object,
   .demonstration-card {
     padding: 14px 14px 12px 14px;
   }
+  .core-trick-object {
+    padding: 10px 12px 8px 12px;
+  }
+  .core-trick-slug {
+    font-size: 1.10rem;
+  }
+  .core-trick-notation {
+    /* Hanging indent so long operational strings wrap cleanly under the
+       leading token rather than pushing card width. */
+    text-indent: -1em;
+    padding-inline-start: 1em;
+    overflow-wrap: anywhere;
+  }
   .core-trick-add-value,
   .core-trick-add-pending {
-    font-size: 1.05rem;
+    font-size: 0.74rem;
+    padding: 0 6px;
   }
 }
 
@@ -5369,39 +5438,42 @@ a.dict-card-title:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   max-width: 480px;
   margin: 18px auto 14px auto;
 }
 .glossary-compression-card {
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
 }
 .glossary-compression-arrow {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 1.4rem;
-  color: var(--primary);
+  font-size: 0.95rem;
+  color: var(--text-muted);
   margin: 0;
   line-height: 1;
+  letter-spacing: 0.3em;
 }
 .glossary-compression-note {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   line-height: 1.55;
-  color: var(--text);
+  color: var(--text-muted);
   max-width: 640px;
   margin: 14px auto 0 auto;
+  text-align: center;
 }
 
-/* ── Glossary §8: thesis sentence + section bridge ───────────────────── */
+/* ── Glossary §8: thesis sentence + section bridge ─────────────────────
+   Typography-led emphasis: italic serif + thin primary rule. No fill,
+   no radius — the typography carries the lead role. */
 .glossary-thesis {
-  font-size: 1.08rem;
+  font-family: Georgia, 'Iowan Old Style', serif;
+  font-size: 1.10rem;
   font-style: italic;
   color: var(--secondary);
-  border-left: 3px solid var(--primary);
-  padding: 8px 14px;
-  margin: 0 0 16px 0;
-  background: var(--bg-light);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-left: 2px solid var(--primary);
+  padding: 4px 0 4px 16px;
+  margin: 0 0 18px 0;
 }
 .glossary-section-bridge {
   font-size: 0.9rem;

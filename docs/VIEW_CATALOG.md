@@ -360,6 +360,8 @@ Visual token baseline (from `src/public/css/style.css`): font stack Inter, Helve
 
 One row per public route. The "Required rendering pattern" column carries the load-bearing target invariants for the page; sensitive-page detail (anti-enumeration, owner-only, public/private boundary, scope language) lives in §7.
 
+**Compact symbolic-object visual system (freestyle surfaces).** The `#slug` / `≡ equivalence` / notation / ADD-chip primitive renders identically across the landing Core Tricks grid (`.core-trick-object`), the glossary compression-flow (`.core-trick-object.glossary-compression-card`), and the trick dictionary browse (`.dict-card`). All three surfaces share the same typography hierarchy, ADD-chip outline treatment, and minimal containment styling (no left borders, no min-height, no fills). Typography + grid gap carry object identity. The `.dict-card-title::before` CSS rule injects the `#` glyph on dictionary cards so the slug-form identity matches landing and glossary surfaces without changing rendered HTML.
+
 | Page | Route | Service / method | Audience | Required rendering pattern | Source |
 | --- | --- | --- | --- | --- | --- |
 | Home | `GET /`  | `HomeService.getPublicHomePage` | Public | Composition-page exception per §3.5 (no `PageViewModel` envelope); shared layout, tokens, section identity, thin-controller, service-owned shaping; rich editorial composition allowed within the same Express + Handlebars + vanilla TS architecture; YouTube media renders as click-to-play facade with link fallback. | `src/controllers/homeController.ts`, `src/views/home/index.hbs` |
