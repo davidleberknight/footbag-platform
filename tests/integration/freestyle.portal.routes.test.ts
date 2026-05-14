@@ -534,11 +534,11 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
     // Notation references (moves page anchors)
-    expect(res.text).toContain('href="/freestyle/moves#move-pixie"');
-    expect(res.text).toContain('href="/freestyle/moves#move-atomic"');
-    expect(res.text).toContain('href="/freestyle/moves#move-quantum"');
-    expect(res.text).toContain('href="/freestyle/moves#move-fairy"');
-    expect(res.text).toContain('href="/freestyle/moves#move-gyro"');
+    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
+    expect(res.text).toContain('href="/freestyle/sets#move-atomic"');
+    expect(res.text).toContain('href="/freestyle/sets#move-quantum"');
+    expect(res.text).toContain('href="/freestyle/sets#move-fairy"');
+    expect(res.text).toContain('href="/freestyle/sets#move-gyro"');
     // Glossary entries
     expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');
     expect(res.text).toContain('href="/freestyle/glossary#term-symposium"');

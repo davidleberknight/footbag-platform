@@ -30,7 +30,7 @@ import { config } from '../config/env';
  * - GET /events/:eventKey
  * - GET /freestyle
  * - GET /freestyle/about
- * - GET /freestyle/moves
+ * - GET /freestyle/sets
  * - GET /freestyle/records
  * - GET /freestyle/leaders
  * - GET /freestyle/tricks/:slug

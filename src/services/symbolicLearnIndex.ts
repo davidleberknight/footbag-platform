@@ -81,9 +81,16 @@ const MODIFIER_PEDAGOGY_SECTION: LearnIndexSection = {
 };
 
 const REFERENCE_SECTION: LearnIndexSection = {
-  heading:    'Glossary connective panels',
-  introBlurb: 'Six high-value glossary terms surface their related tricks, related symbolic groups, and notation hints in compact connective-tissue panels at the bottom of the freestyle glossary.',
+  heading:    'Reference surfaces',
+  introBlurb: 'Authoritative reference pages for the symbolic vocabulary itself — the glossary connective panels for high-value terms, and the set-notation reference that names the operational language.',
   entries: [
+    {
+      title:      'Set notation reference',
+      href:       '/freestyle/sets',
+      shortBlurb: 'The legacy set-notation language compiled by Chris Holden: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest are described in TOE / CLIP / SET grammar. The operational layer of the movement language.',
+      status:     'shipped',
+      isShipped:  true,
+    },
     {
       title:      'Glossary §13 panels',
       href:       '/freestyle/glossary#connective-panels',

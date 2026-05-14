@@ -47,7 +47,12 @@ publicRouter.get('/freestyle/competition',   freestyleController.competition);
 publicRouter.get('/freestyle/partnerships',  freestyleController.partnerships);
 publicRouter.get('/freestyle/history',     freestyleController.history);
 publicRouter.get('/freestyle/about',       freestyleController.about);
-publicRouter.get('/freestyle/moves',       freestyleController.moves);
+// MOVE-SETS-LINK-1: route renamed from /freestyle/moves to /freestyle/sets
+// (educational framing as the set-notation reference, not a generic "moves"
+// browse). Old URL 301-redirects to preserve external bookmarks and inbound
+// links.
+publicRouter.get('/freestyle/sets',        freestyleController.moves);
+publicRouter.get('/freestyle/moves',       (_req, res) => res.redirect(301, '/freestyle/sets'));
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/insights',    freestyleController.insights);

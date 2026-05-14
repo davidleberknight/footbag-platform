@@ -1015,9 +1015,9 @@ describe('GET /freestyle/tricks?view=sets — legacy alias for ?view=component',
     expect(res.text).toMatch(/class="trick-view-toggle-active">By component</);
   });
 
-  it('cross-references the static set-notation reference page is no longer required on the dictionary projection (the static legend stays at /freestyle/moves; the component view does not link to it inline)', async () => {
+  it('cross-references the static set-notation reference page is no longer required on the dictionary projection (the static legend stays at /freestyle/sets; the component view does not link to it inline)', async () => {
     // Legacy assertion retired: the new component view focuses on the
-    // symbolic trick cards. The /freestyle/moves page remains the static
+    // symbolic trick cards. The /freestyle/sets page remains the static
     // set-notation reference, reachable from the freestyle landing.
     expect(true).toBe(true);
   });

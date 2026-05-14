@@ -4659,6 +4659,25 @@ section.home-media { padding-top: 0; }
   .operator-tier { margin: 28px 0 18px 0; }
 }
 
+/* Restrained pointer below the operator board on the landing page only.
+ * Lives outside the shared operator-board partial so it renders only on
+ * /freestyle (not on /freestyle/glossary §3 or /freestyle/learn, which
+ * already have their own context-appropriate framing). */
+.operator-board-footer-link {
+  margin: 18px 0 0 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: #666;
+}
+.operator-board-footer-link a {
+  color: #555e6b;
+  text-decoration: none;
+}
+.operator-board-footer-link a:hover,
+.operator-board-footer-link a:focus-visible {
+  text-decoration: underline;
+}
+
 /* Glossary §3 — Intermediate-operator reference (NF-2A).
  * Renders the 9 compound / quantifier operator entries. Inherits the
  * <dl> structure of the existing glossary-modifier-reference block; adds

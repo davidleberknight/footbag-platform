@@ -119,7 +119,7 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/moves */
+  /** GET /freestyle/sets — set-notation reference (formerly /freestyle/moves) */
   moves(_req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = freestyleService.getMovesPage();

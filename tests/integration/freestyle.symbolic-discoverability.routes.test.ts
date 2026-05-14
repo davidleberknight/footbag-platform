@@ -64,11 +64,11 @@ describe('GET /freestyle/learn', () => {
     expect(res.text).toContain('Educational pathways through freestyle footbag');
   });
 
-  it('renders all three sections in order: Progressions, Modifier pedagogy, Glossary connective panels', async () => {
+  it('renders all three sections in order: Progressions, Modifier pedagogy, Reference surfaces', async () => {
     const res = await request(createApp()).get('/freestyle/learn');
     const a = res.text.indexOf('Progressions');
     const b = res.text.indexOf('Modifier pedagogy');
-    const c = res.text.indexOf('Glossary connective panels');
+    const c = res.text.indexOf('Reference surfaces');
     expect(a).toBeGreaterThan(-1);
     expect(b).toBeGreaterThan(a);
     expect(c).toBeGreaterThan(b);
@@ -151,7 +151,7 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
     expect(matches.length).toBe(10);
     // Spot-check one destination per category (notation / glossary / pedagogy).
-    expect(res.text).toContain('href="/freestyle/moves#move-pixie"');
+    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
     expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');
     expect(res.text).toContain('href="/freestyle/modifier/ducking"');
   });

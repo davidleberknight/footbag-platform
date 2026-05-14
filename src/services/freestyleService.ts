@@ -260,7 +260,7 @@ interface TrickRefMediaRow {
   source_id: string | null;
 }
 
-// Phase 1 cross-link surface for /freestyle/moves. Each row carries the
+// Phase 1 cross-link surface for /freestyle/sets. Each row carries the
 // display label, its set/operational notation (or null for variant-tag list
 // items that have no notation column), a stable anchor id, and an optional
 // `trickHref` resolved against the active trick dictionary. The match rule
@@ -284,7 +284,7 @@ export interface FreestyleMovesContent {
   components:         FreestyleMoveLabel[];
 }
 
-// Kebab-case slug derivation for /freestyle/moves labels. Distinct from the
+// Kebab-case slug derivation for /freestyle/sets labels. Distinct from the
 // underscore-style slugify in src/services/slugify.ts because trick slugs in
 // the dictionary are kebab-case. Anchor ids on this page derive from this
 // function regardless of whether the label matches a trick — every row gets
@@ -3812,7 +3812,7 @@ export const freestyleService = {
       href:      destination?.href      ?? null,
       hrefLabel: destination?.label     ?? null,
     });
-    const NOTATION    = (slug: string) => ({ href: `/freestyle/moves#move-${slug}`,        label: 'Notation reference' });
+    const NOTATION    = (slug: string) => ({ href: `/freestyle/sets#move-${slug}`,         label: 'Notation reference' });
     const GLOSSARY    = (slug: string) => ({ href: `/freestyle/glossary#term-${slug}`,     label: 'Glossary entry'     });
     const MOD_PEDAGOGY = (slug: string) => ({ href: `/freestyle/modifier/${slug}`,          label: 'Modifier page'      });
 

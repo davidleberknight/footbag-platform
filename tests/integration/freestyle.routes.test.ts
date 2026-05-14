@@ -145,7 +145,7 @@ beforeAll(async () => {
     caption: 'REF_MEDIA_RECORD_MARKER',
   });
 
-  // ── Seeds for /freestyle/moves cross-link tests ─────────────────────────
+  // ── Seeds for /freestyle/sets cross-link tests ─────────────────────────
   // The moves page resolves trick links by slugifying the displayed label
   // and matching strictly against freestyle_tricks.slug. Seed enough trick
   // slugs to cover at least one matching label per section, plus 'terraging'
@@ -333,17 +333,17 @@ describe('GET /freestyle/about', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/moves', () => {
+describe('GET /freestyle/sets', () => {
   it('returns 200 with page title', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Move Sets');
   });
 
   it('contains core set names', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     expect(res.text).toContain('Pixie');
     expect(res.text).toContain('Fairy');
     expect(res.text).toContain('Nuclear');
@@ -357,7 +357,7 @@ describe('GET /freestyle/moves', () => {
 
   it('renders trick-matched basic-set labels as anchors to /freestyle/tricks/:slug', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     expect(res.text).toContain('<a href="/freestyle/tricks/pixie">Pixie</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/fairy">Fairy</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/stepping">Stepping</a>');
@@ -365,7 +365,7 @@ describe('GET /freestyle/moves', () => {
 
   it('renders unmatched basic-set labels as plain text (no anchor)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     // Slapping, Bubba, Frantic, Flailing, Infracting are in the table but
     // not seeded as trick slugs — should render without /freestyle/tricks/ links.
     expect(res.text).not.toContain('/freestyle/tricks/slapping');
@@ -380,7 +380,7 @@ describe('GET /freestyle/moves', () => {
     // which does not match 'terraging' — so the row stays plain text under
     // the strict-match rule. No representative-link guess.
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     expect(res.text).toContain('Terraging (Double Pixie)');
     expect(res.text).not.toContain('/freestyle/tricks/terraging-double-pixie');
     expect(res.text).not.toMatch(/<a[^>]+href="\/freestyle\/tricks\/terraging"[^>]*>Terraging \(Double Pixie\)/);
@@ -388,7 +388,7 @@ describe('GET /freestyle/moves', () => {
 
   it('keeps modifier-only labels plain (no link to hidden modifier surface)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     // Nuclear, Miraging, Blurry, Swirling, Whirling, Diving slugify to
     // freestyle_trick_modifiers slugs but NOT to freestyle_tricks slugs;
     // they must not render as /freestyle/tricks/* links and must not
@@ -404,7 +404,7 @@ describe('GET /freestyle/moves', () => {
 
   it('cross-links variant-tag list items where the label matches', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     expect(res.text).toContain('<a href="/freestyle/tricks/surging">Surging</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/blazing">Blazing</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/pogo">Pogo</a>');
@@ -415,7 +415,7 @@ describe('GET /freestyle/moves', () => {
 
   it('emits stable move-<slug> anchor ids on every row and tag', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/moves');
+    const res = await request(app).get('/freestyle/sets');
     // Anchor-id derives from slugify(label) regardless of whether the row
     // links anywhere; this gives future trick-detail backlinking a stable
     // target without requiring a re-author pass on the moves page.
@@ -424,6 +424,56 @@ describe('GET /freestyle/moves', () => {
     expect(res.text).toContain('id="move-rooting-rooted"');
     expect(res.text).toContain('id="move-fairy-atomic"');
     expect(res.text).toContain('id="move-go-go"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('GET /freestyle/moves — legacy URL redirects to /freestyle/sets', () => {
+  it('301-redirects to /freestyle/sets', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/moves');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/sets');
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('Set-notation reference cross-links', () => {
+  it('glossary §3 intermediate-operators block links to /freestyle/sets', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/glossary');
+    const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
+    const linkIdx         = res.text.indexOf('href="/freestyle/sets"', intermediateIdx);
+    expect(intermediateIdx).toBeGreaterThan(0);
+    expect(linkIdx).toBeGreaterThan(intermediateIdx);
+  });
+
+  it('/freestyle/learn lists the set notation reference as a shipped entry', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle/learn');
+    expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Set notation reference/);
+  });
+
+  it('landing page renders a restrained "Full set notation reference" footer under the operator board', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).toContain('class="operator-board-footer-link"');
+    expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
+    // Footer renders after the operator board, before the reference section.
+    const boardIdx      = res.text.indexOf('class="operator-board ');
+    const footerIdx     = res.text.indexOf('class="operator-board-footer-link"');
+    const referenceIdx  = res.text.indexOf('The Freestyle Reference');
+    expect(footerIdx).toBeGreaterThan(boardIdx);
+    expect(referenceIdx).toBeGreaterThan(footerIdx);
+  });
+
+  it('operator-board notation-reference deep-links point at /freestyle/sets (not legacy /moves)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
+    expect(res.text).not.toContain('href="/freestyle/moves#move-pixie"');
   });
 });
 
@@ -550,7 +600,7 @@ describe('GET /freestyle/glossary — operator-board orientation in §3', () => 
     expect(res.text).toContain('href="/freestyle/modifier/spinning"');
     expect(res.text).toContain('href="/freestyle/modifier/paradox"');
     expect(res.text).toContain('href="/freestyle/glossary#term-symposium"');
-    expect(res.text).toContain('href="/freestyle/moves#move-pixie"');
+    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
   });
 });
 
