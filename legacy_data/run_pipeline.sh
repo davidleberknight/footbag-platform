@@ -196,14 +196,12 @@ run_phase_b_mirror_extract() {
 }
 
 # =============================================================================
-# PHASE I — Clubs + club_members DB load (initial mirror-derived seed)
+# PHASE I — Club-members seed load (initial mirror-derived affiliation snapshot)
 #
-# Loads seed/clubs.csv and seed/club_members.csv into the platform DB.
-# Idempotent (INSERT OR IGNORE patterns; collision-safe slug allocation).
+# Loads seed/club_members.csv into the platform DB. Idempotent (INSERT OR
+# IGNORE patterns).
 #
 # Writes:
-#   clubs                            (new rows)
-#   tags                             (one per club, is_standard=1)
 #   legacy_club_candidates           (mirror-derived initial; later refreshed
 #                                     by Phase G's DELETE+INSERT)
 #   legacy_person_club_affiliations  (mirror-derived initial; later refreshed
@@ -212,13 +210,38 @@ run_phase_b_mirror_extract() {
 # Must run AFTER the V0 backbone (which loads canonical historical_persons
 # that load_club_members_seed needs for name-match attempts) and BEFORE
 # Phase H (which FKs club_bootstrap_leaders → clubs.id).
+#
+# Production-vs-dev distinction (MIGRATION_PLAN §9.1):
+#   load_clubs_seed.py is INTENTIONALLY EXCLUDED from this production
+#   pipeline. The production migration architecture is classifier-driven:
+#   Phase D (clubs/scripts/02_build_legacy_club_candidates.py) classifies
+#   each mirror club into pre_populate / onboarding_visible / dormant /
+#   junk; Phase G loads that classification into the DB; Phase H
+#   (06_cutover_pre_populated_clubs.py) is the SOLE creator of live
+#   `clubs` rows at cutover, and only for the pre_populate-class
+#   candidates (~59 of 311). Onboarding_visible / dormant / junk
+#   candidates remain in `legacy_club_candidates` (staging) until
+#   promoted via the onboarding wizard or admin.
+#
+#   Bulk-loading every seed/clubs.csv row into `clubs` here would defeat
+#   that gating: Phase H's INSERT OR IGNORE would no-op against all 311
+#   pre-existing rows and the production DB would carry 252 non-eligible
+#   clubs that shouldn't be live yet.
+#
+#   The dev workflow (scripts/reset-local-db.sh, David-owned) continues
+#   to call load_clubs_seed.py directly for local-browse convenience.
+#   Dev DBs intentionally carry all 311 mirror clubs; production cutover
+#   DBs carry only the 59 pre_populate clubs. The divergence is
+#   intentional and documented.
 # =============================================================================
 run_phase_clubs_seed_load() {
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
-    echo "║  PHASE I: CLUBS + CLUB_MEMBERS DB LOAD               ║"
+    echo "║  PHASE I: CLUB-MEMBERS SEED LOAD                     ║"
     echo "╚══════════════════════════════════════════════════════╝"
-    python scripts/load_clubs_seed.py --db "${REPO_ROOT}/database/footbag.db"
+    # load_clubs_seed.py is excluded here on purpose — see the header
+    # comment above. Phase H's 06_cutover_pre_populated_clubs.py is the
+    # sole creator of live `clubs` rows in production.
     python scripts/load_club_members_seed.py --db "${REPO_ROOT}/database/footbag.db"
     echo ""
 }
