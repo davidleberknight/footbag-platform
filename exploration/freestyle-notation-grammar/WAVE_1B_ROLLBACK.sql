@@ -34,7 +34,7 @@ WHERE slug IN (
   'surge',
   'surreal',
   'venom',
-  'spyro-gyro',
+  -- 'spyro-gyro' SKIPPED — slug not in freestyle_tricks (ontology)
   'bigwalk',
   -- Tier 2 (XDEX / PDX flagged, 6 rows)
   'omelette',
@@ -53,7 +53,7 @@ FROM freestyle_tricks
 WHERE slug IN (
   'dimwalk','ripwalk','torque','mobius','drifter','blender','vortex',
   'eggbeater','smudge','smoke','smog','parkwalk','paradon','flurry',
-  'grave-digger','royale','surge','surreal','venom','spyro-gyro','bigwalk',
+  'grave-digger','royale','surge','surreal','venom','bigwalk',
   'omelette','fusion','plasma','fury','nemesis','gauntlet'
 )
 ORDER BY adds, slug;
