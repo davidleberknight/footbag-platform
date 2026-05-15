@@ -5434,6 +5434,15 @@ a.dict-card-title:hover {
     padding-inline-start: 1em;
     overflow-wrap: anywhere;
   }
+  .core-trick-equivalence {
+    /* VIS-TUNE-1 (2026-05-14): mobile parity with .core-trick-notation
+       overflow safety net. Most ≡ readings have whitespace breaks
+       (e.g. "spinning ducking paradox symposium whirl") and wrap fine
+       on natural word boundaries; this rule plugs the edge case where
+       a curator-authored reading uses an unbreakable token that
+       would otherwise push card width. */
+    overflow-wrap: anywhere;
+  }
   .core-trick-add-value,
   .core-trick-add-pending {
     font-size: 0.74rem;
