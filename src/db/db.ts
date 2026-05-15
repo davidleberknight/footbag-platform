@@ -1000,16 +1000,22 @@ export interface FreestyleLeaderRow {
 //   own slug; for modifiers = NULL.
 // ---------------------------------------------------------------------------
 export interface FreestyleTrickRow {
-  slug:           string;
-  canonical_name: string;
-  adds:           string | null;
-  base_trick:     string | null;
-  trick_family:   string | null;
-  category:       string | null;
-  description:    string | null;
-  aliases_json:   string | null;
-  notation:       string | null;
-  sort_order:     number;
+  slug:                 string;
+  canonical_name:       string;
+  adds:                 string | null;
+  base_trick:           string | null;
+  trick_family:         string | null;
+  category:             string | null;
+  description:          string | null;
+  aliases_json:         string | null;
+  notation:             string | null;
+  // OP-NOTATION-WAVE-1A Bridge 1 (2026-05-15): operational_notation lifted
+  // onto the base row type so getLandingPage + getGlossaryPage can surface
+  // the atom-layer (§13.9) and compound-layer notation on the core-tricks
+  // grid + foundational §10 grid. Nullable; most rows still have no
+  // operational notation populated.
+  operational_notation: string | null;
+  sort_order:           number;
 }
 
 // Extension of FreestyleTrickRow that also carries the Phase-0 notation-grammar
@@ -1093,7 +1099,7 @@ export interface FreestyleTrickModifierLinkDetailRow {
 export const freestyleTricks = {
   get listAll() { return db.prepare(`
     SELECT slug, canonical_name, adds, base_trick, trick_family, category,
-           description, aliases_json, notation, sort_order
+           description, aliases_json, notation, operational_notation, sort_order
     FROM freestyle_tricks
     WHERE is_active = 1
     ORDER BY sort_order ASC

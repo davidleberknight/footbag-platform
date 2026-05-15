@@ -100,9 +100,25 @@ beforeAll(async () => {
   insertResultParticipant(db, entry4, 'Vera Champion', { historical_person_id: PERSON_A, participant_order: 1 });
   insertResultParticipant(db, entry4, 'Tom Runner', { historical_person_id: PERSON_B, participant_order: 2 });
 
-  // Trick and passback record for the landing
+  // Trick and passback record for the landing. Seed `whirl` plus three
+  // additional foundational atoms with §13.9 atom-layer operational
+  // notation so the Bridge 1 surface tests (core-trick-notation slot on
+  // landing) have data to assert against.
   insertFreestyleTrick(db, {
     slug: 'whirl', canonical_name: 'whirl', adds: '3', category: 'dex', sort_order: 0,
+    operational_notation: '[set] > leggy in dex > ss clipper',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'mirage', canonical_name: 'mirage', adds: '2', category: 'dex', sort_order: 1,
+    operational_notation: '[set] > hippy in dex > op toe',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'butterfly', canonical_name: 'butterfly', adds: '3', category: 'dex', sort_order: 2,
+    operational_notation: '[set] > hippy out dex > ss clipper',
+  });
+  insertFreestyleTrick(db, {
+    slug: 'around-the-world', canonical_name: 'around the world', adds: '2', category: 'dex', sort_order: 3,
+    operational_notation: 'toe > ss leggy in dex > ss toe',
   });
   insertFreestyleRecord(db, {
     id: 'fr-portal-1',
@@ -802,6 +818,30 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants',
 
 // ── Phase 2: symbolic strengthening ────────────────────────────────────
 describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alias drop (B)', () => {
+  it('landing Core Tricks renders the new atom-layer operational notation in the core-trick-notation slot', async () => {
+    // OP-NOTATION-WAVE-1A Bridge 1 (2026-05-15): foundational atoms now
+    // carry §13.9 atom-layer descriptive operational notation. The slot
+    // renders inside the core-trick-object article when row.operational_notation
+    // is populated; suppressed otherwise.
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Mirage: 11 of 11 atom slug query — assert the specific lowercase
+    // descriptive form on the visible card.
+    const mirageStart = res.text.indexOf('id="core-trick-mirage"');
+    expect(mirageStart).toBeGreaterThan(0);
+    const mirageEnd = res.text.indexOf('</article>', mirageStart);
+    const mirageBlock = res.text.slice(mirageStart, mirageEnd);
+    expect(mirageBlock).toMatch(/<p class="core-trick-notation">\[set\] &gt; hippy in dex &gt; op toe<\/p>/);
+    // Butterfly: hippy out + ss clipper terminal.
+    const butterflyStart = res.text.indexOf('id="core-trick-butterfly"');
+    const butterflyBlock = res.text.slice(butterflyStart, res.text.indexOf('</article>', butterflyStart));
+    expect(butterflyBlock).toMatch(/<p class="core-trick-notation">\[set\] &gt; hippy out dex &gt; ss clipper<\/p>/);
+    // ATW: explicit toe plant.
+    const atwStart = res.text.indexOf('id="core-trick-around-the-world"');
+    const atwBlock = res.text.slice(atwStart, res.text.indexOf('</article>', atwStart));
+    expect(atwBlock).toMatch(/<p class="core-trick-notation">toe &gt; ss leggy in dex &gt; ss toe<\/p>/);
+  });
+
   it('landing Core Tricks renders without ≡ equivalence lines (foundational-atom feel)', async () => {
     // B: the three legacy `≡ ATW`, `≡ outside-in mirage`, `≡ reverse
     // around-the-world` lines are dropped from the landing's compact
@@ -818,14 +858,27 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
     expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?ATW/);
     expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?outside-in mirage/);
     expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?reverse around-the-world/);
-    // All 11 atoms still render as #slug tiles.
-    for (const slug of [
-      'clipper', 'mirage', 'legover', 'pickup', 'illusion',
-      'whirl', 'butterfly', 'swirl', 'osis',
-      'around-the-world', 'orbit',
-    ]) {
+    // All 11 atoms still render as #slug tiles. Per
+    // CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the foundational
+    // "clipper" atom is anchored at slug `clipper-stall` with a
+    // `displaySlug: 'clipper'` override — visible tag stays `#clipper`,
+    // but the anchor id is `core-trick-clipper-stall`.
+    const expectedAtoms = [
+      { slug: 'clipper-stall',    display: 'clipper' },
+      { slug: 'mirage',           display: 'mirage' },
+      { slug: 'legover',          display: 'legover' },
+      { slug: 'pickup',           display: 'pickup' },
+      { slug: 'illusion',         display: 'illusion' },
+      { slug: 'whirl',            display: 'whirl' },
+      { slug: 'butterfly',        display: 'butterfly' },
+      { slug: 'swirl',            display: 'swirl' },
+      { slug: 'osis',             display: 'osis' },
+      { slug: 'around-the-world', display: 'around-the-world' },
+      { slug: 'orbit',            display: 'orbit' },
+    ];
+    for (const { slug, display } of expectedAtoms) {
       expect(res.text).toContain(`id="core-trick-${slug}"`);
-      expect(res.text).toContain(`#${slug}`);
+      expect(res.text).toContain(`#${display}`);
     }
   });
 });

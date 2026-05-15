@@ -1206,7 +1206,9 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(setModSection).toBeGreaterThan(sec10Heading);
     const gridSlice = res.text.slice(sec10Heading, setModSection);
     // All 11 foundational atoms render as registry tiles with `#term-{slug}` anchors.
-    for (const slug of ['clipper', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around-the-world', 'orbit']) {
+    // Per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the foundational
+    // "clipper" atom anchors at slug `clipper-stall`; visible tag stays `#clipper`.
+    for (const slug of ['clipper-stall', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around-the-world', 'orbit']) {
       expect(gridSlice).toContain(`id="term-${slug}"`);
     }
     // Grid uses the symbolic-object pattern.
@@ -1325,17 +1327,27 @@ describe('Freestyle landing — Basic Components section (C-1)', () => {
 
 describe('Freestyle landing — Core Tricks section (C-2; compact symbolic objects)', () => {
   it('renders the Core Tricks heading and all 11 symbolic-object cards', async () => {
+    // Per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the "clipper"
+    // foundational atom is anchored at slug `clipper-stall` with a
+    // `displaySlug: 'clipper'` override on the visible tag.
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toContain('Core Tricks');
-    const expected = [
-      'clipper', 'mirage', 'legover', 'pickup', 'illusion',
-      'whirl', 'butterfly', 'swirl', 'osis',
-      'around-the-world', 'orbit',
+    const expected: ReadonlyArray<{ slug: string; display: string }> = [
+      { slug: 'clipper-stall',    display: 'clipper' },
+      { slug: 'mirage',           display: 'mirage' },
+      { slug: 'legover',          display: 'legover' },
+      { slug: 'pickup',           display: 'pickup' },
+      { slug: 'illusion',         display: 'illusion' },
+      { slug: 'whirl',            display: 'whirl' },
+      { slug: 'butterfly',        display: 'butterfly' },
+      { slug: 'swirl',            display: 'swirl' },
+      { slug: 'osis',             display: 'osis' },
+      { slug: 'around-the-world', display: 'around-the-world' },
+      { slug: 'orbit',            display: 'orbit' },
     ];
-    for (const slug of expected) {
+    for (const { slug, display } of expected) {
       expect(res.text).toContain(`id="core-trick-${slug}"`);
-      // #slug rendering on the card
-      expect(res.text).toContain(`#${slug}`);
+      expect(res.text).toContain(`#${display}`);
     }
   });
 
@@ -1345,7 +1357,7 @@ describe('Freestyle landing — Core Tricks section (C-2; compact symbolic objec
     // lines were dropped — synonym trivia, not symbolic content. Every
     // atom on the landing reads as `#slug` + ADD; nothing else.
     const res = await request(createApp()).get('/freestyle');
-    for (const slug of ['illusion', 'around-the-world', 'orbit', 'clipper', 'whirl', 'butterfly']) {
+    for (const slug of ['illusion', 'around-the-world', 'orbit', 'clipper-stall', 'whirl', 'butterfly']) {
       const idx = res.text.indexOf(`id="core-trick-${slug}"`);
       expect(idx).toBeGreaterThan(0);
       const nextCard = res.text.indexOf('class="core-trick-object"', idx + 50);

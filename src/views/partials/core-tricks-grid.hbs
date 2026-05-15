@@ -25,7 +25,7 @@
 <div class="freestyle-core-trick-grid">
   {{#each tricks}}
   <article class="core-trick-object" id="{{#if ../idPrefix}}{{../idPrefix}}{{else}}core-trick-{{/if}}{{slug}}">
-    <p class="core-trick-slug">#{{slug}}</p>
+    <p class="core-trick-slug">#{{displaySlug}}</p>
     {{#each semanticEquivalences}}
     <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> {{this}}</p>
     {{/each}}

@@ -1,0 +1,13 @@
+slug,column,before,after,reason,ratification,applied_at
+barfly,operational_notation,CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],§13.3 terminal flag order migration,2026-05-15,2026-05-15
+toe-stall,operational_notation,(null),[set] > toe,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+clipper-stall,operational_notation,(null),[set] > clipper,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+mirage,operational_notation,(null),[set] > hippy in dex > op toe,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+illusion,operational_notation,(null),[set] > leggy out dex > op toe,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+legover,operational_notation,(null),[set] > leggy out dex > ss toe,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+pickup,operational_notation,(null),[set] > leggy in dex > ss toe,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+around-the-world,operational_notation,(null),toe > ss leggy in dex > ss toe,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+butterfly,operational_notation,(null),[set] > hippy out dex > ss clipper,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+whirl,operational_notation,(null),[set] > leggy in dex > ss clipper,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+swirl,operational_notation,(null),[set] > leggy (xbd) out dex > ss clipper,§13.9 atom-layer authoring,2026-05-15,2026-05-15
+osis,operational_notation,(null),[set] > spin > ss clipper,§13.9 atom-layer authoring,2026-05-15,2026-05-15

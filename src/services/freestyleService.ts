@@ -269,7 +269,8 @@ export interface FreestyleBasicComponent {
 // renders `{{addNumeric}}` — using `{{add}}` would resolve to the helper
 // and produce "[object Object]undefined" output.
 export interface FreestyleCoreTrickCard {
-  slug:                 string;        // "around-the-world"
+  slug:                 string;        // "around-the-world"; the canonical DB slug (drives anchor + href)
+  displaySlug:          string;        // visible #-tag; equals slug unless CoreTrickSpec.displaySlug overrides
   semanticEquivalences: string[];      // ["ATW"]; empty for irreducible atoms
   symbolicNotation:     string | null; // null when the `≡` reading carries the symbolic info
   addNumeric:           number | null; // null when DB row is missing (renders "—" + footnote)
@@ -543,10 +544,17 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
     const row = trickRows.find(t => t.slug === spec.slug);
     const parsedAdd = row && row.adds != null ? Number(row.adds) : NaN;
     const hasAdd = Number.isFinite(parsedAdd);
+    // OP-NOTATION-WAVE-1A Bridge 1 (2026-05-15): surface the row's
+    // operational_notation on the core-tricks grid (atom-layer per §13.9
+    // for foundational rows; compound-layer per §13.2–§13.8 elsewhere).
+    // Null when the row carries no notation yet — template suppresses the
+    // notation slot in that case.
+    const opNotation = row?.operational_notation?.trim();
     return {
       slug:                 spec.slug,
+      displaySlug:          spec.displaySlug ?? spec.slug,
       semanticEquivalences: [...spec.equivalences],
-      symbolicNotation:     null,
+      symbolicNotation:     opNotation && opNotation.length > 0 ? opNotation : null,
       addNumeric:           hasAdd ? parsedAdd : null,
       addPending:           !hasAdd,
     };

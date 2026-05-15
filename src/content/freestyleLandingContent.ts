@@ -92,6 +92,11 @@ export const BASIC_COMPONENTS: readonly BasicComponentSpec[] = [
 
 export interface CoreTrickSpec {
   slug:          string;
+  // Optional override for the rendered `#{...}` tag on the symbolic-object
+  // card. Used when the underlying canonical slug is more specific than the
+  // community shorthand (e.g. slug=`clipper-stall` but the community calls
+  // the foundational atom `clipper`). When omitted, renders `#{slug}`.
+  displaySlug?:  string;
   equivalences:  readonly string[];   // empty for atoms with no canonical reading
 }
 
@@ -105,8 +110,13 @@ export interface CoreTrickSpec {
 // atom (#slug + ADD), matching the "foundational atom feel" the surface
 // promises. Alias resolution still lives in `freestyle_trick_aliases`
 // and the glossary; the landing compact-symbolic surface stays silent.
+// CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15): the foundational atom for
+// "Clipper" is the `clipper-stall` row (ADD 2), not the `clipper` slug
+// (ADD 1, "Clipper Kick"). The displaySlug override preserves the
+// community-shorthand `#clipper` tag while the underlying slug + anchor
+// + click-through resolve to clipper-stall.
 export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
-  { slug: 'clipper',          equivalences: [] },
+  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: [] },
   { slug: 'mirage',           equivalences: [] },
   { slug: 'legover',          equivalences: [] },
   { slug: 'pickup',           equivalences: [] },

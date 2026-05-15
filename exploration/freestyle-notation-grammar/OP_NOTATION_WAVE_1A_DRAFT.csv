@@ -1,0 +1,14 @@
+slug,current_operational_notation,proposed_operational_notation,source,normalization_notes,confidence,requires_red,governance_flags
+toe-stall,,[set] > toe,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style per §13.9; [set] placeholder + bare terminal surface",high,false,
+clipper-stall,,[set] > clipper,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style per §13.9; curator convention: 'clipper' = clipper-stall (ADD 2), distinct from 'clipper kick' (slug 'clipper', ADD 1)",high,false,
+mirage,,[set] > hippy in dex > op toe,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; hippy hip-led dex character preserved",high,false,
+illusion,,[set] > leggy out dex > op toe,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; leggy knee-led dex distinguished from mirage's hippy character",high,false,
+legover,,[set] > leggy out dex > ss toe,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; ss toe terminal distinguishes from illusion's op toe",high,false,
+pickup,,[set] > leggy in dex > ss toe,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; leggy in + ss toe pattern",high,false,
+around-the-world,,toe > ss leggy in dex > ss toe,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; toe plant committed (atom anchors to toe-set canonical execution)",high,false,
+orbit,,toe > ss leggy out dex > ss toe,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; AUTHORED but row not in freestyle_tricks — staged pending ontology decision",blocked,false,not-in-dictionary;ontology-decision-pending
+butterfly,,[set] > hippy out dex > ss clipper,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; hippy out + ss clipper terminal",high,false,
+whirl,,[set] > leggy in dex > ss clipper,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; whirl-family anchor",high,false,
+swirl,,[set] > leggy (xbd) out dex > ss clipper,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; inline (xbd) qualifier distinguishes swirl from whirl",high,false,
+osis,,[set] > spin > ss clipper,"curator-authoritative 2026-05-15, §13.9","Atom-layer descriptive style; spin body-rotation modifier preceding terminal surface (no dex word follows)",high,false,
+barfly,CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"§13.3 ratification","Compound-layer migration; terminal flag order [DEL] [XBD] → canonical [XBD] [DEL]",high,false,§13.3-migration

@@ -34,9 +34,10 @@
  *     illusion") will render today from its row.base_trick=illusion.
  *
  * Slug verification: every slug below was verified against the dictionary
- * inputs and Red corrections before locking (2026-05-13). `orbit` is a folk
- * name; its dictionary slug is `reverse-around-the-world`. The seed below
- * uses dictionary-canonical slugs only.
+ * inputs and Red corrections before locking (2026-05-13). Per
+ * CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), `orbit` is now a canonical
+ * dictionary slug; `reverse-around-the-world` and `reverse-atw` are aliases
+ * pointing at it. The seed below uses dictionary-canonical slugs only.
  */
 
 export interface SymbolicEquivalenceChain {

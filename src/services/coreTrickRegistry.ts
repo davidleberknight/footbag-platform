@@ -13,17 +13,18 @@
  *     `glossaryAnchors.ts` — that constant scopes glossary anchor de-duping
  *     and includes terms (clipper, pixie, fairy) that are NOT atoms here.
  *     The two registries have legitimately different scopes and may diverge.
- *   - The "orbit" folk-name in the user's canonical list maps to dictionary
- *     slug `reverse-around-the-world` (no `orbit` slug exists). CORE membership
- *     wins over the dictionary row's `base_trick=around-the-world` assignment
- *     when gating Layer 4a (atom silence) vs Layer 4b (curation gap).
+ *   - Per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15): orbit is a canonical
+ *     dictionary slug; reverse-around-the-world and reverse-atw are aliases.
+ *     The `clipper-stall` slug carries the foundational atom (community
+ *     shorthand `#clipper`); the `clipper` slug is the ADD-1 Clipper Kick,
+ *     NOT a core atom.
  */
 
 export const CORE_TRICKS: ReadonlySet<string> = new Set([
   'toe-stall',
   'clipper-stall',
   'around-the-world',
-  'reverse-around-the-world',   // folk name: "orbit" (rev ATW)
+  'orbit',
   'legover',
   'pickup',
   'mirage',
