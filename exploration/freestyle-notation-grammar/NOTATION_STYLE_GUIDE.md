@@ -698,8 +698,107 @@ For Tier 1 authoring (RATIFIED 2026-05-09):
 | Broken-link rows (`barfly`) | `BARFLY` name-form; ontology deferred to Tier C / Red |
 | Direction (`rev-*`) | `REV` token + base name per Q9 |
 | Footedness vocabulary | `SAME`, `OP`, `IN`, `OUT` only; `FAR`/`NEAR` omitted per Q6 |
+| Operational notation (§13)             | UPPERCASE pre-state flags; `[XBD] [DEL]` terminal order; `>`/`>>` semantics; `(NO PLANT WHILE)` canonical; no compositional shorthand (RATIFIED 2026-05-15) |
 
 **§6 exemplars are locked for Tier 1 authoring.** Tier 1 rollout per `NOTATION_CORPUS_BOOTSTRAP_PLAN §3` can begin when ready. Per-row authoring follows §10 checklist.
+
+---
+
+## 13. Operational-notation specifics
+
+**Status: RATIFIED 2026-05-15** for the `operational_notation` field on `freestyle_tricks`. Permanent for the operational layer. Re-ratification required for any future change.
+
+### 13.1 Scope reminder
+
+The `operational_notation` field describes the **execution sequence** of a trick: plant, dexes, body actions, and terminal delay in left-to-right order. It is distinct from:
+
+- `notation` (semantic): a single ordered modifier-prefix form (e.g. `STEPPING DUCKING PARADOX TORQUE`)
+- chain-decomposition readings (curator-authored `≡` lines in `freestyleSymbolicEquivalences.ts`)
+- parser / structural decomposition (`structural_parse_json`)
+
+§1–§12 of this guide govern the semantic form. §13 governs the operational form only. The three layers are independent (forever-rule per `feedback_parser_editorial_separation.md`).
+
+### 13.2 Pre-state flag casing
+
+Pre-state flags render **UPPERCASE** inside parens, prefixing the move they modify:
+
+```
+(BACK)             — backward orientation; pairs with SPIN [BOD]
+(FRONT)            — forward orientation; pairs with SPIN [BOD]
+(NO PLANT WHILE)   — support leg does not plant during the next move
+```
+
+**Pre-state flags are metadata modifiers, not executable actions.** They describe the state under which the immediately-following move is executed; they are not themselves moves. This distinction matters for downstream consumers (parsers, registry-mode renderers, topology extraction): pre-state flags annotate the next token, while bracketed component flags (`[DEX]`, `[BOD]`, etc.) classify the move they trail.
+
+**Why uppercase, not lowercase:** five of the existing populated rows (spinal-tap, mind-bender, spender, mullet, montage) already use the UPPERCASE form. The FootbagMoves source corpus uses lowercase `(back)` / `(front)` / `(no plant while)`; normalization to UPPERCASE on ingestion preserves visual parity with the component-flag convention (also UPPERCASE) and minimizes house-corpus migration.
+
+**Prohibited:** lowercase forms in `operational_notation`. Mixed-case prohibited.
+
+### 13.3 Terminal flag ordering
+
+When a terminal delay surface carries both `[XBD]` and `[DEL]`, the canonical order is:
+
+```
+... > OP CLIP [XBD] [DEL]
+```
+
+`[XBD]` precedes `[DEL]` because the cross-body qualifier modifies the surface; the delay flag terminates the row. Reverse order (`[DEL] [XBD]`) is prohibited.
+
+**Stacking order beyond `[XBD] [DEL]` is not governed by §13.3.** When multiple component flags appear mid-row (e.g. `[DEX] [PDX] [BOD]`), §4.5 modifier ordering applies.
+
+### 13.4 Sequence-operator semantics
+
+Two sequence operators appear in operational notation:
+
+| Operator | Semantics |
+|---|---|
+| `>` | sub-step: continuous flow within a beat group |
+| `>>` | structural transition between execution groups |
+
+`>>` marks a structurally perceptible transition between execution groups, typically involving:
+
+- a body-orientation transition,
+- a no-plant continuity transition,
+- or a rhythmically distinct phase boundary.
+
+**Use `>>` sparingly.** Default to `>` unless the transition would otherwise be visually or rhythmically ambiguous. The author's discipline is to reserve `>>` for transitions a reader could not infer from `>` alone; routine sub-step continuation never warrants `>>`.
+
+**Prohibited:** `>>>` or higher-order separators. Two operators only.
+
+### 13.5 (NO PLANT WHILE) as a canonical pre-state flag
+
+`(NO PLANT WHILE)` is accepted as a canonical pre-state flag with the same status as `(BACK)` and `(FRONT)`. It marks that the support leg does not plant during the immediately-following move.
+
+Two existing rows already use it (mullet, montage). The ratification codifies the convention.
+
+### 13.6 No compositional shorthand
+
+Operational notation may **not** embed another trick's name as a compositional shorthand token. Every row stands alone as a literal execution sequence; readers should not have to look up another trick to read the current one.
+
+Concretely: a row may not contain a trick slug (e.g. `FRIGIDOSIS > ...`) as a starting or middle token. If a source corpus uses this shorthand during normalization, the curator **expands** it to the full operational sequence.
+
+This rule preserves the §0 governing principle (humans first): a human-readable operational form must be self-contained.
+
+### 13.7 Curator checklist for operational-notation rows
+
+Before submitting a row's `operational_notation`:
+
+1. ☐ All structural tokens UPPERCASE (per §4.1).
+2. ☐ Bracketed component flags are `[DEX] | [BOD] | [XBD] | [DEL] | [PDX] | [XDEX]` only.
+3. ☐ Pre-state flags are `(BACK) | (FRONT) | (NO PLANT WHILE)` UPPERCASE in parens (per §13.2).
+4. ☐ Terminal `[XBD] [DEL]` order canonical (per §13.3); reverse prohibited.
+5. ☐ Sequence operators are `>` and `>>` only (per §13.4); `>>` reserved for structurally perceptible transitions per the §13.4 rule.
+6. ☐ No embedded trick-name shorthand (per §13.6).
+7. ☐ Row is self-contained — readable without consulting another trick.
+8. ☐ Single ASCII space separates tokens; no double spaces, no tabs, no leading/trailing whitespace.
+
+If any item fails: do NOT submit. Either author per the rule, or escalate as a §11 open question.
+
+### 13.8 Permanence
+
+The five rules above (§13.2–§13.6) are **permanent ratifications** for the operational-notation layer. Future evolution requires explicit re-ratification with a dated status marker; silent drift is prohibited.
+
+This mirrors the §6 "LOCKED 2026-05-09" treatment of semantic-notation exemplars and the §0 forever-rule discipline.
 
 ---
 
