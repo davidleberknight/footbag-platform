@@ -237,6 +237,20 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['atomic torque'],
     curatorConfirmPending: false,   // pt4-locked (folk-name: silo)
   },
+  // ── High-ADD flagship chain (CANONICAL-SURFACE-REALIGNMENT-2 NR-1C) ──
+  // Gauntlet is the dictionary's flagship 7-ADD compound. Surfacing two
+  // stopping depths on its compact-symbolic-object card demonstrates
+  // Blurry-compression pedagogically: the shorter reading
+  // ("blurry ducking torque") and the unfolded reading
+  // ("stepping ducking paradox torque") are equivalent per pt11's
+  // Blurry = Stepping Paradox definition. Same trick, two readings.
+  // Sourced from FBORG-AUDIT-1 cross-source agreement (FBORG, FM sample,
+  // and DB notation column).
+  {
+    slug:     'gauntlet',
+    readings: ['blurry ducking torque', 'stepping ducking paradox torque'],
+    curatorConfirmPending: false,   // pt11-locked via Blurry-compression
+  },
 ];
 
 /**

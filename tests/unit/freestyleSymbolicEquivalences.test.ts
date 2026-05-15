@@ -108,6 +108,16 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
       expect(chain?.curatorConfirmPending).toBe(false);
     }
   });
+
+  // NR-1C entry: gauntlet's two-reading chain demonstrates Blurry-compression.
+  // The shorter and unfolded readings are equivalent per pt11
+  // (Blurry = Stepping Paradox). Same trick, two pedagogical stopping depths.
+  it('NR-1C gauntlet surfaces two pt11-locked readings (Blurry-compression flagship)', () => {
+    const chain = getSymbolicEquivalenceChain('gauntlet');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['blurry ducking torque', 'stepping ducking paradox torque']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
 });
 
 describe('freestyleSymbolicEquivalences — lookup behavior', () => {
