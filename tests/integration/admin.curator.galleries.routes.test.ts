@@ -251,8 +251,8 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
         excludeTags: '#tricks_of_the_trade',
       });
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/galleries?saved=edit');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/galleries');
 
     // Confirm the persisted state via the list view.
     const list = await request(app)
@@ -276,8 +276,8 @@ describe('POST /admin/curator/galleries/:id/edit (happy path)', () => {
       .set('Cookie', adminCookie()).type('form').send(body);
     const second = await request(app).post(`/admin/curator/galleries/${GALLERY_A}/edit`)
       .set('Cookie', adminCookie()).type('form').send(body);
-    expect(first.status).toBe(302);
-    expect(second.status).toBe(302);
+    expect(first.status).toBe(303);
+    expect(second.status).toBe(303);
   });
 });
 
@@ -335,7 +335,7 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
         criteriaTags: '   ',
         excludeTags: '',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH);
     const tagRows = db.prepare(
       `SELECT t.tag_display FROM member_gallery_tags mgt
@@ -437,7 +437,7 @@ describe('GET /admin/curator/galleries/new', () => {
 });
 
 describe('POST /admin/curator/galleries (create)', () => {
-  it('creates an FH-owned gallery, redirects to ?saved=create, and writes the JSON sidecar', async () => {
+  it('creates an FH-owned gallery, redirects with flash, and writes the JSON sidecar', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/admin/curator/galleries')
@@ -452,8 +452,8 @@ describe('POST /admin/curator/galleries (create)', () => {
         excludeTags: '',
       });
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/galleries?saved=create');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/galleries');
 
     const list = await request(app)
       .get('/admin/curator/galleries')
@@ -529,7 +529,7 @@ describe('POST /admin/curator/galleries (create)', () => {
         criteriaTags: '   ',
         excludeTags: '',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH);
     const tagRows = db.prepare(
       `SELECT t.tag_display FROM member_gallery_tags mgt
@@ -593,7 +593,7 @@ describe('POST /admin/curator/galleries (create)', () => {
 });
 
 describe('POST /admin/curator/galleries/:id/delete', () => {
-  it('deletes the gallery + sidecar and redirects to ?saved=delete', async () => {
+  it('deletes the gallery + sidecar and redirects with flash', async () => {
     const app = createApp();
 
     // Create a one-shot target so this test is independent of the others.
@@ -609,7 +609,7 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
         criteriaTags: '#freestyle',
         excludeTags: '',
       });
-    expect(create.status).toBe(302);
+    expect(create.status).toBe(303);
 
     const sidecarPath = path.join(CURATED_TMP_ROOT, 'galleries', 'delete_target.json');
     expect(fs.existsSync(sidecarPath)).toBe(true);
@@ -617,8 +617,8 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
     const del = await request(app)
       .post('/admin/curator/galleries/gallery_delete_target/delete')
       .set('Cookie', adminCookie());
-    expect(del.status).toBe(302);
-    expect(del.headers.location).toBe('/admin/curator/galleries?saved=delete');
+    expect(del.status).toBe(303);
+    expect(del.headers.location).toBe('/admin/curator/galleries');
 
     expect(fs.existsSync(sidecarPath)).toBe(false);
 

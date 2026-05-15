@@ -3543,6 +3543,39 @@ export const account = {
       version                 = version + 1
     WHERE id = ?
   `); },
+
+  get findCompetitionFieldsByMemberId() { return db.prepare(`
+    SELECT
+      m.first_competition_year,
+      m.show_competitive_results,
+      hp.first_year AS historical_first_year
+    FROM members_active AS m
+    LEFT JOIN historical_persons AS hp
+      ON hp.person_id = m.historical_person_id
+      AND m.legacy_member_id IS NOT NULL
+    WHERE m.id = ?
+      AND m.personal_data_purged_at IS NULL
+  `); },
+
+  get updateMemberFirstCompetitionYear() { return db.prepare(`
+    UPDATE members
+    SET
+      first_competition_year = ?,
+      updated_at             = ?,
+      updated_by             = 'onboarding_wizard',
+      version                = version + 1
+    WHERE id = ?
+  `); },
+
+  get updateMemberShowCompetitiveResults() { return db.prepare(`
+    UPDATE members
+    SET
+      show_competitive_results = ?,
+      updated_at               = ?,
+      updated_by               = 'onboarding_wizard',
+      version                  = version + 1
+    WHERE id = ?
+  `); },
 };
 
 export const registration = {

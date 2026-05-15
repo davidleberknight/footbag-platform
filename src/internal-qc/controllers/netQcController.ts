@@ -7,6 +7,16 @@ import { netQcService } from '../services/netQcService';
 import { NotFoundError, ConflictError, ValidationError } from '../../services/serviceErrors';
 import { handleControllerError } from '../../lib/controllerErrors';
 
+function renderBadRequest(res: Response, message: string, backHref: string): void {
+  res.status(400).render('errors/form-error', {
+    seo: { title: 'Bad Request' },
+    page: { sectionKey: '', pageKey: 'error_400', title: 'Bad Request' },
+    statusCode: 400,
+    errorMessage: message,
+    backHref,
+  });
+}
+
 export const netQcController = {
   /** GET /internal/net/events/:eventId */
   eventDetailPage(req: Request, res: Response, next: NextFunction): void {
@@ -128,7 +138,7 @@ export const netQcController = {
       const rawNotes    = req.body?.['notes'];
 
       if (typeof rawDecision !== 'string' || !rawDecision.trim()) {
-        res.status(400).send('Bad Request: decision is required');
+        renderBadRequest(res, 'decision is required', '/internal/net/team-corrections');
         return;
       }
 
@@ -138,7 +148,7 @@ export const netQcController = {
         playerB:  typeof rawPlayerB === 'string' ? rawPlayerB : undefined,
         notes:    typeof rawNotes === 'string' ? rawNotes : undefined,
       });
-      res.redirect('/internal/net/team-corrections');
+      res.redirect(303, '/internal/net/team-corrections');
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {
@@ -148,7 +158,7 @@ export const netQcController = {
         return;
       }
       if (err instanceof ValidationError) {
-        res.status(400).send(`Bad Request: ${err.message}`);
+        renderBadRequest(res, err.message, '/internal/net/team-corrections');
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');
@@ -173,7 +183,7 @@ export const netQcController = {
       const rawNotes    = req.body?.['notes'];
 
       if (typeof rawDecision !== 'string' || !rawDecision.trim()) {
-        res.status(400).send('Bad Request: decision is required');
+        renderBadRequest(res, 'decision is required', '/internal/net/recovery-candidates');
         return;
       }
 
@@ -181,7 +191,7 @@ export const netQcController = {
         decision: rawDecision.trim(),
         notes:    typeof rawNotes === 'string' ? rawNotes : null,
       });
-      res.redirect('/internal/net/recovery-candidates');
+      res.redirect(303, '/internal/net/recovery-candidates');
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {
@@ -191,7 +201,7 @@ export const netQcController = {
         return;
       }
       if (err instanceof ValidationError) {
-        res.status(400).send(`Bad Request: ${err.message}`);
+        renderBadRequest(res, err.message, '/internal/net/recovery-candidates');
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');
@@ -285,7 +295,7 @@ export const netQcController = {
       const note = typeof req.body?.['note'] === 'string' && req.body['note'].trim()
         ? req.body['note'].trim() : undefined;
       netQcService.approveCandidate(candidateId, { note });
-      res.redirect(`/internal/net/candidates/${candidateId}`);
+      res.redirect(303, `/internal/net/candidates/${candidateId}`);
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {
@@ -312,7 +322,7 @@ export const netQcController = {
       const note = typeof req.body?.['note'] === 'string' && req.body['note'].trim()
         ? req.body['note'].trim() : undefined;
       netQcService.rejectCandidate(candidateId, { note });
-      res.redirect(`/internal/net/candidates/${candidateId}`);
+      res.redirect(303, `/internal/net/candidates/${candidateId}`);
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {
@@ -358,7 +368,7 @@ export const netQcController = {
       }
 
       netQcService.classifyReviewItem(id, payload);
-      res.redirect('/internal/net/review');
+      res.redirect(303, '/internal/net/review');
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {
@@ -368,7 +378,7 @@ export const netQcController = {
         return;
       }
       if (err instanceof ValidationError) {
-        res.status(400).send(`Bad Request: ${err.message}`);
+        renderBadRequest(res, err.message, '/internal/net/review');
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');
@@ -396,7 +406,7 @@ export const netQcController = {
       }
 
       netQcService.updateReviewDecision(id, payload);
-      res.redirect('/internal/net/review');
+      res.redirect(303, '/internal/net/review');
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('errors/not-found', {
@@ -406,7 +416,7 @@ export const netQcController = {
         return;
       }
       if (err instanceof ValidationError) {
-        res.status(400).send(`Bad Request: ${err.message}`);
+        renderBadRequest(res, err.message, '/internal/net/review');
         return;
       }
       handleControllerError(err, res, next, 'net qc controller');

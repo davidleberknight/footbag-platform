@@ -1,0 +1,33 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p>Choose whether published event results appear on your public profile. You can change this any time from your profile.</p>
+
+    {{#if content.error}}
+      <p class="form-notice" role="alert">{{content.error}}</p>
+    {{/if}}
+
+    <form method="POST" action="/register/wizard/show_competitive_results/submit" class="profile-edit-form">
+      <div class="form-field">
+        <label class="form-checkbox">
+          <input type="checkbox" name="enabled" value="1" {{#if content.enabled}}checked{{/if}} />
+          Show my competition results on my profile
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+
+    <form method="POST" action="/register/wizard/show_competitive_results/skip" class="mt-6">
+      <button type="submit" class="btn-link text-muted">Skip for now</button>
+    </form>
+
+    <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
+  </section>
+</div>

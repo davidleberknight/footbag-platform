@@ -1,0 +1,15 @@
+{{! Generic form-validation / bad-request error page. Used for 422 list-validation
+    and similar request-validation failures where the source surface has no
+    inline-rerender path. statusCode and errorMessage come from the view-model. }}
+<div class="wrapper">
+  <div class="error-page">
+    <div class="error-code">{{statusCode}}</div>
+    <h2>{{page.title}}</h2>
+    <p>{{errorMessage}}</p>
+    {{#if backHref}}
+      <a href="{{backHref}}" class="btn btn-primary">Go back</a>
+    {{else}}
+      <a href="/" class="btn btn-primary">Home</a>
+    {{/if}}
+  </div>
+</div>

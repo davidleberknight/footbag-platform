@@ -58,7 +58,7 @@ describe('POST /register → check-email + outbox enqueue', () => {
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -117,8 +117,8 @@ describe('GET /verify/:token', () => {
     });
     const token = tokenFromOutbox('verify-good@example.com');
     const res = await request(app).get(`/verify/${token}`);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toMatch(/^\/members\//);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
 
@@ -140,7 +140,7 @@ describe('GET /verify/:token', () => {
     });
     const token = tokenFromOutbox('verify-twice@example.com');
     const first = await request(app).get(`/verify/${token}`);
-    expect(first.status).toBe(302);
+    expect(first.status).toBe(303);
     const second = await request(app).get(`/verify/${token}`);
     expect(second.status).toBe(400);
     expect(second.text).toContain('invalid, expired, or already used');

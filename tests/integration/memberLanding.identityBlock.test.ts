@@ -101,7 +101,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
     expect(res.text).toContain('Identity');
     expect(res.text).toContain('No past account or competition record linked.');
     expect(res.text).toContain('Link your legacy account, results, and clubs');
-    expect(res.text).toContain(`href="/members/${NO_NO_SLUG}/link-history"`);
+    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
     expect(res.text).not.toContain('Legacy account: linked');
     expect(res.text).not.toContain('Competition record:');
   });
@@ -112,7 +112,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
     expect(res.text).toMatch(/Legacy account: linked.*Jan.*2024/);
     expect(res.text).toContain('Competition record: not yet linked.');
     expect(res.text).toContain('Link your competition history');
-    expect(res.text).toContain(`href="/members/${YES_NO_SLUG}/link-history"`);
+    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
   });
 
   it('no/yes: shows HP summary, legacy none-on-file, wizard CTA labelled for the missing link', async () => {

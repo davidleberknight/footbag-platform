@@ -213,7 +213,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     expect(res.headers.location).toContain('/login');
   });
 
-  it('owner valid JPEG -> 302 to /galleries?saved=upload', async () => {
+  it('owner valid JPEG -> 303 to /galleries with flash', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
     const res = await request(app)
@@ -223,8 +223,8 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .field('caption', 'My first upload')
       .field('tags', '#freestyle')
       .attach('photoFile', jpeg, 'first.jpg');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=upload`);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
   });
 
   it('owner valid JPEG -> #by_<slug> auto-applied + Personal Gallery created', async () => {
@@ -275,7 +275,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .field('caption', `n${i}`)
         .field('tags', '')
         .attach('photoFile', jpeg, `${i}.jpg`);
-      expect(res.status).toBe(302);
+      expect(res.status).toBe(303);
     }
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -297,7 +297,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .field('mediaType', 'photo')
       .field('tags', `#${OWNER_SLUG} #beach`)
       .attach('photoFile', jpeg, 't.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
       const tagRows = db.prepare(`
@@ -364,7 +364,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     expect(res.text).toContain('#by_');
   });
 
-  it("user supplies #<other_slug> as freeform mention -> 302; does NOT pollute the other member's #by_ namespace", async () => {
+  it("user supplies #<other_slug> as freeform mention -> 303; does NOT pollute the other member's #by_ namespace", async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
     const res = await request(app)
@@ -373,7 +373,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .field('mediaType', 'photo')
       .field('tags', `#${OTHER_SLUG}`)
       .attach('photoFile', jpeg, 't.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
       const tagRows = db.prepare(
@@ -391,7 +391,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     }
   });
 
-  it('user supplies #<unknown_slug> for an unsigned/historical person -> 302; tag stored as freeform', async () => {
+  it('user supplies #<unknown_slug> for an unsigned/historical person -> 303; tag stored as freeform', async () => {
     const app = createApp();
     const jpeg = await makeJpeg();
     const res = await request(app)
@@ -400,7 +400,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .field('mediaType', 'photo')
       .field('tags', '#stebag_legacy')
       .attach('photoFile', jpeg, 't.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
       const tagRows = db.prepare(
@@ -459,7 +459,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
       .attach('photoFile', jpeg, 'duplicate.jpg');
-    expect(first.status).toBe(302);
+    expect(first.status).toBe(303);
 
     const second = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
@@ -480,7 +480,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         .set('Cookie', ownerCookie())
         .field('mediaType', 'photo')
         .attach('photoFile', jpeg, `r${i}.jpg`);
-      expect(ok.status).toBe(302);
+      expect(ok.status).toBe(303);
     }
     const blocked = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
@@ -495,7 +495,7 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
 // ── POST /members/:memberKey/media/upload — video URL ──────────────────────
 
 describe('POST /members/:memberKey/media/upload (video)', () => {
-  it('valid YouTube URL -> 302 + media row + #<slug> tag', async () => {
+  it('valid YouTube URL -> 303 + media row + #<slug> tag', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
@@ -505,8 +505,8 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       .field('videoUrl', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
       .field('caption', 'classic')
       .field('tags', '#tutorial');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=upload`);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -524,7 +524,7 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
     }
   });
 
-  it('Vimeo URL with thumbnail body -> 302 + thumbnail_url stored', async () => {
+  it('Vimeo URL with thumbnail body -> 303 + thumbnail_url stored', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
@@ -533,7 +533,7 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       .field('videoPlatform', 'vimeo')
       .field('videoUrl', 'https://vimeo.com/123456789')
       .field('tags', '');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
       const row = db.prepare(`
@@ -589,8 +589,8 @@ describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
       .field('uploadTags', '#event_2025_beach')
       .attach('photoFiles', jpeg, 'a.jpg')
       .attach('photoFiles', jpeg, 'b.jpg');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toMatch(/^\/members\/mu_owner\/galleries\?saved=create/);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/members/mu_owner/galleries');
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -634,7 +634,7 @@ describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
       .field('criteriaTags', '#footbag')
       .field('excludeTags', '')
       .attach('photoFiles', jpeg, 'f.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -691,7 +691,7 @@ describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
       .field('sortOrder', 'upload_desc')
       .field('criteriaTags', '#empty')
       .field('excludeTags', '');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {

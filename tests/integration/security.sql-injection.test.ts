@@ -199,14 +199,14 @@ describe('GET /members?q=... — SQL injection in search query', () => {
   }
 });
 
-// ── POST /history/claim (authenticated) ───────────────────────────────────────
+// ── POST /register/wizard/legacy_claim/find (authenticated) ──────────────────
 
-describe('POST /history/claim — SQL injection in identifier', () => {
+describe('POST /register/wizard/legacy_claim/find — SQL injection in identifier', () => {
   for (const payload of SQL_PAYLOADS) {
     it(`survives payload: ${payload.slice(0, 24)}...`, async () => {
       const before = countMembers();
       const res = await request(createApp())
-        .post('/history/claim')
+        .post('/register/wizard/legacy_claim/find')
         .set('Cookie', ownCookie())
         .type('form')
         .send({ identifier: payload });

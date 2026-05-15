@@ -985,7 +985,7 @@ describe('GET /login', () => {
   it('redirects authenticated visitor to own profile', async () => {
     const app = createApp();
     const res = await request(app).get('/login').set('Cookie', validAuthCookie());
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/members/test_user_admin');
   });
 
@@ -1006,7 +1006,7 @@ describe('POST /login', () => {
       .post('/login')
       .send(`email=footbag&password=${encodeURIComponent(process.env.STUB_PASSWORD!)}`)
       .set('Content-Type', 'application/x-www-form-urlencoded');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/members/footbag_hacky');
     const cookies: string[] = Array.isArray(res.headers['set-cookie'])
       ? res.headers['set-cookie']
@@ -1043,7 +1043,7 @@ describe('POST /logout', () => {
     const res = await request(app)
       .post('/logout')
       .set('Cookie', validAuthCookie());
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/');
     const cookies: string[] = Array.isArray(res.headers['set-cookie'])
       ? res.headers['set-cookie']
@@ -1070,9 +1070,9 @@ describe('POST /logout', () => {
     // page bounce). Flash cookie must survive and be cleared only by the
     // eventual page render.
     const redirectOnly = await request(app)
-      .get('/history')
+      .get(`/history/${BOB_ID}`)
       .set('Cookie', flashValue);
-    expect(redirectOnly.status).toBe(301);
+    expect(redirectOnly.status).toBe(302);
     const redirectCookies: string[] = Array.isArray(redirectOnly.headers['set-cookie'])
       ? redirectOnly.headers['set-cookie']
       : [redirectOnly.headers['set-cookie'] ?? ''];
@@ -1114,17 +1114,6 @@ describe('POST /logout', () => {
 
     const next = await request(app).get('/');
     expect(next.text).not.toContain('You have been logged out.');
-  });
-});
-
-// ── History: index ─────────────────────────────────────────────────────────────
-
-describe('GET /history', () => {
-  it('redirects to /members with 301', async () => {
-    const app = createApp();
-    const res = await request(app).get('/history');
-    expect(res.status).toBe(301);
-    expect(res.headers.location).toBe('/members');
   });
 });
 

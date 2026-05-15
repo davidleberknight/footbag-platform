@@ -23,7 +23,7 @@ function isSafePath(value: unknown): value is string {
 
 function getLogin(req: Request, res: Response): void {
   if (req.isAuthenticated) {
-    res.redirect(`/members/${req.user!.slug}`);
+    res.redirect(303, `/members/${req.user!.slug}`);
     return;
   }
   const returnTo = isSafePath(req.query.returnTo) ? req.query.returnTo : undefined;
@@ -58,7 +58,7 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
       const memberSlug = member.slug ?? member.id;
       const cookieValue = await createSessionJwt(member.id, role, member.password_version);
       issueSessionCookie(res, cookieValue, req);
-      res.redirect(isSafePath(returnTo) ? returnTo : `/members/${memberSlug}`);
+      res.redirect(303, isSafePath(returnTo) ? returnTo : `/members/${memberSlug}`);
       return;
     }
 
@@ -75,7 +75,7 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
 
 function getRegister(req: Request, res: Response): void {
   if (req.isAuthenticated) {
-    res.redirect(`/members/${req.user!.slug}`);
+    res.redirect(303, `/members/${req.user!.slug}`);
     return;
   }
   res.render('auth/register', {
@@ -114,7 +114,7 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
     // Both 'registered' and 'silent_duplicate' land here; the check-email
     // page is identical regardless, preventing account enumeration.
     // No session cookie is set.
-    res.redirect('/register/check-email');
+    res.redirect(303, '/register/check-email');
   } catch (err) {
     if (err instanceof ValidationError) {
       renderError(err.message);
@@ -155,27 +155,12 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
     const role = result.isAdmin ? 'admin' : 'member';
     const cookieValue = await createSessionJwt(result.memberId, role, result.passwordVersion);
     issueSessionCookie(res, cookieValue, req);
-    const confidence = result.autoLinkClassification.confidence;
-    // `?from=register` flags the destination page to render a "Skip and
-    // complete this later" affordance pointing back at the member's dashboard,
-    // so a registrant who doesn't want to engage the claim flow during signup
-    // is not forced through the detour.
-    // All three classifier branches land at the unified link-history wizard
-    // ("one place to link" — round-2 maintainer decision). High/medium
-    // confidence renders an auto_link_confirm "This is me" card at the top
-    // of the wizard; low confidence renders the low-confidence banner +
-    // candidates; no-match renders the empty candidate list + manual-id
-    // input. The wizard's "Back to dashboard" footer keeps /members reachable.
-    const wizard = `/members/${result.slug}/link-history`;
-    if (confidence === 'high' || confidence === 'medium') {
-      res.redirect(`${wizard}?from=register`);
-      return;
-    }
-    if (confidence === 'low' || result.legacyMatch) {
-      res.redirect(`${wizard}?from=register&reason=low_confidence`);
-      return;
-    }
-    res.redirect(`${wizard}?from=register`);
+    // Land newly-verified members on the onboarding wizard's first task. The
+    // wizard renders the same candidate list and manual-id input regardless
+    // of classifier confidence; the auto_link_confirm card is included in
+    // the candidate list when the classifier returned high/medium, and the
+    // low-confidence banner is rendered server-side when applicable.
+    res.redirect(303, '/register/wizard/legacy_claim');
   } catch (err) {
     next(err);
   }
@@ -218,12 +203,12 @@ function postLogout(req: Request, res: Response): void {
     try {
       const parsed = new URL(referer);
       if (isSafePath(parsed.pathname)) {
-        res.redirect(parsed.pathname);
+        res.redirect(303, parsed.pathname);
         return;
       }
     } catch { /* ignore malformed Referer */ }
   }
-  res.redirect('/');
+  res.redirect(303, '/');
 }
 
 function getPasswordForgot(_req: Request, res: Response): void {
@@ -285,7 +270,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     // Redirect to the member's own profile, matching login + verify flows.
     // Previously redirected to the generic /members landing page, which was
     // inconsistent UX after a successful credential change.
-    res.redirect(`/members/${encodeURIComponent(result.slug)}`);
+    res.redirect(303, `/members/${encodeURIComponent(result.slug)}`);
   } catch (err) {
     if (err instanceof ValidationError) {
       setNoStore(res);

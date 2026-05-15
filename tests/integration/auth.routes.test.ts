@@ -86,24 +86,24 @@ afterAll(() => {
 });
 
 describe('POST /login — DB-backed auth', () => {
-  it('valid DB credentials → 302 redirect and session cookie set', async () => {
+  it('valid DB credentials → 303 redirect and session cookie set', async () => {
     const res = await request(app)
       .post('/login')
       .type('form')
       .send({ email: TEST_MEMBER_EMAIL, password: TEST_PASSWORD });
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('footbag_session='));
     expect(cookie).toBeTruthy();
   });
 
-  it('Footbag Hacky login (email=footbag) → 302 redirect and session cookie set', async () => {
+  it('Footbag Hacky login (email=footbag) → 303 redirect and session cookie set', async () => {
     const res = await request(app)
       .post('/login')
       .type('form')
       .send({ email: 'footbag', password: FOOTBAG_PASSWORD });
 
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const cookie = (res.headers['set-cookie'] as string[])?.find((c) => c.startsWith('footbag_session='));
     expect(cookie).toBeTruthy();
   });

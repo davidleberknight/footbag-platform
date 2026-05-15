@@ -150,7 +150,7 @@ export const memberController = {
       };
       try {
         memberService.updateOwnProfile(memberKey, input);
-        res.redirect(`/members/${memberKey}`);
+        res.redirect(303, `/members/${memberKey}`);
       } catch (err) {
         if (err instanceof ValidationError) {
           const vm = memberService.getProfileEditPage(memberKey, err.message);
@@ -226,7 +226,7 @@ export const memberController = {
       avatarService.uploadAvatar(memberId, req.user!.slug, fileBuffer, uploadedFilename)
         .then(() => {
           writeFlash(res, req, FLASH_KIND.AVATAR_UPLOADED, uploadedFilename || undefined);
-          res.redirect(`/members/${memberKey}/edit`);
+          res.redirect(303, `/members/${memberKey}/edit`);
         })
         .catch((err: unknown) => {
           if (err instanceof ValidationError) {

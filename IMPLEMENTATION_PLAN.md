@@ -11,5 +11,3 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 ## Accepted temporary deviations
 
 1. **Readiness probe limited to SQLite + memory pressure.** SERVICE_CATALOG.md `OperationsPlatformService.checkReadiness()` composes the readiness signal for `/health/ready`. Current implementation probes SQLite and container memory pressure only; KMS, SES, and S3 backup health are not included. 
-
-

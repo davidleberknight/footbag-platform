@@ -4,6 +4,7 @@ import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { account } from '../db/db';
 import { PageViewModel } from '../types/page';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
 interface WorkQueueViewItem {
   id: string;
@@ -115,7 +116,12 @@ export const adminWorkQueueController = {
   /** GET /admin/work-queue */
   index(req: Request, res: Response, next: NextFunction): void {
     try {
-      const resolvedFlag = req.query['resolved'] !== undefined;
+      const flash = readFlash(req);
+      let resolvedFlag = false;
+      if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
+        resolvedFlag = true;
+        clearFlash(res);
+      }
       const vm = buildVm({ resolvedFlag });
       res.render('admin/work-queue/index', vm);
     } catch (err) {
@@ -135,7 +141,8 @@ export const adminWorkQueueController = {
         decisionLabel: decisionLabel as never,
         resolutionNote,
       });
-      res.redirect(303, `/admin/work-queue?resolved=${encodeURIComponent(queueItemId)}`);
+      writeFlash(res, req, FLASH_KIND.WORK_QUEUE_RESOLVED, queueItemId);
+      res.redirect(303, '/admin/work-queue');
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = buildVm({ errorMessage: err.message });

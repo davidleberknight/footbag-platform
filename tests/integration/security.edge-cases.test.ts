@@ -225,7 +225,7 @@ describe('Race conditions', () => {
         newPassword: 'RacePass2!', confirmPassword: 'RacePass2!',
       }),
     ]);
-    const successes = [a, b].filter(r => r.status === 302).length;
+    const successes = [a, b].filter(r => r.status === 303).length;
     expect(successes).toBe(1);
   });
 });

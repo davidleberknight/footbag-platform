@@ -156,30 +156,36 @@ describe('verifyEmailByToken — ambiguous-email classification', () => {
 });
 
 describe('verify → routing for ambiguous email', () => {
-  it('routes ambiguous-email verify to the link-history wizard with low-confidence banner', async () => {
+  it('routes ambiguous-email verify to the onboarding wizard legacy_claim task', async () => {
     const token = issueVerifyToken(MEM_AMBIG);
     const res = await request(createApp()).get(`/verify/${token}`);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/members/mem_ambig/link-history?from=register&reason=low_confidence');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/legacy_claim');
   });
 });
 
 describe('manual claim form — non-revealing on ambiguous email', () => {
   it('renders the SAME "sent" banner as a match or miss (no leak of ambiguity)', async () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
-    const res = await request(createApp())
-      .post('/history/claim')
+    const agent = request.agent(createApp());
+    const postRes = await agent
+      .post('/register/wizard/legacy_claim/find')
       .set('Cookie', cookie)
       .type('form')
       .send({ identifier: AMBIG_EMAIL });
-    expect(res.status).toBe(200);
-    expect(res.text).toMatch(/confirmation link has been sent/);
+    expect(postRes.status).toBe(303);
+    expect(postRes.headers.location).toBe('/register/wizard/legacy_claim');
+    const getRes = await agent
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', cookie);
+    expect(getRes.status).toBe(200);
+    expect(getRes.text).toMatch(/confirmation link has been sent/);
   });
 
   it('does NOT render the confirm page on ambiguous email', async () => {
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
     const res = await request(createApp())
-      .post('/history/claim')
+      .post('/register/wizard/legacy_claim/find')
       .set('Cookie', cookie)
       .type('form')
       .send({ identifier: AMBIG_EMAIL });
@@ -209,7 +215,7 @@ describe('no-write invariant — no legacy_members or members row changes during
       await request(app).get(`/verify/${token}`);
     }
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
-    await request(app).post('/history/claim').set('Cookie', cookie)
+    await request(app).post('/register/wizard/legacy_claim/find').set('Cookie', cookie)
       .type('form').send({ identifier: AMBIG_EMAIL });
 
     const after = new BetterSqlite3(dbPath, { readonly: true });

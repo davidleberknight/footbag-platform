@@ -562,7 +562,7 @@ describe('POST /internal/net/review/:id/classify', () => {
         proposed_fix_type: 'retag_team_type',
         classification_confidence: 'confirmed',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers['location']).toBe('/internal/net/review');
 
     // Verify the value persisted by checking the review page
@@ -581,7 +581,7 @@ describe('POST /internal/net/review/:id/classify', () => {
     const res = await internalPost(app, '/internal/net/review/rq-rv-2/classify')
       .type('form')
       .send({ classification: '' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
   });
 
   it('returns 400 for invalid classification value', async () => {
@@ -643,7 +643,7 @@ describe('POST /internal/net/review/:id/decision', () => {
         decision_status: 'deferred',
         decision_notes: 'Needs source review first',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers['location']).toBe('/internal/net/review');
 
     // Verify decision persisted
@@ -1003,7 +1003,7 @@ describe('POST /internal/net/recovery-candidates/:id/decision', () => {
     const res = await internalPost(app, '/internal/net/recovery-candidates/rc-test-1/decision')
       .type('form')
       .send({ decision: 'approve', notes: 'Confirmed via event overlap' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers['location']).toBe('/internal/net/recovery-candidates');
   });
 
@@ -1012,7 +1012,7 @@ describe('POST /internal/net/recovery-candidates/:id/decision', () => {
     const res = await internalPost(app, '/internal/net/recovery-candidates/rc-test-1/decision')
       .type('form')
       .send({ decision: 'reject' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
   });
 
   it('valid defer persists', async () => {
@@ -1020,7 +1020,7 @@ describe('POST /internal/net/recovery-candidates/:id/decision', () => {
     const res = await internalPost(app, '/internal/net/recovery-candidates/rc-test-1/decision')
       .type('form')
       .send({ decision: 'defer' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
   });
 
   it('returns 400 for invalid decision', async () => {
@@ -1167,7 +1167,7 @@ describe('POST /internal/net/team-corrections/:id/decision', () => {
     const res = await internalPost(app, '/internal/net/team-corrections/tc-test-1/decision')
       .type('form')
       .send({ decision: 'approve', player_a: 'Alice', player_b: 'Bob' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
   });
 
   it('returns 400 for invalid decision', async () => {

@@ -3,6 +3,7 @@ import { contactRequestService, CONTACT_CATEGORIES, CONTACT_CATEGORY_LABELS } fr
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
 function isOwnProfile(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
@@ -60,7 +61,12 @@ export const contactRequestController = {
   getForm(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnProfile(req)) { renderNotFound(res); return; }
     try {
-      const successFlag = req.query['submitted'] === '1';
+      const flash = readFlash(req);
+      let successFlag = false;
+      if (flash?.kind === FLASH_KIND.CONTACT_SUBMITTED) {
+        successFlag = true;
+        clearFlash(res);
+      }
       const vm = buildViewModel(req, { successFlag });
       res.render('members/contact-admin', vm);
     } catch (err) {
@@ -79,7 +85,8 @@ export const contactRequestController = {
         category: category as never, // service validates
         message,
       });
-      res.redirect(303, `/members/${req.params.memberKey}/contact-admin?submitted=1`);
+      writeFlash(res, req, FLASH_KIND.CONTACT_SUBMITTED);
+      res.redirect(303, `/members/${req.params.memberKey}/contact-admin`);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = buildViewModel(req, {
@@ -91,6 +98,9 @@ export const contactRequestController = {
         return;
       }
       if (err instanceof RateLimitedError) {
+        if (err.retryAfterSeconds) {
+          res.setHeader('Retry-After', String(err.retryAfterSeconds));
+        }
         const vm = buildViewModel(req, {
           errorMessage: err.message,
           prefilledCategory: category,

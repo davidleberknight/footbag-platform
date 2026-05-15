@@ -1,6 +1,6 @@
 {{! Verification-time auto-link confirmation. }}
 {{! Renders the high / medium confidence candidate HP with explicit yes/no actions. }}
-{{! The "yes" form POSTs to /history/auto-link/confirm, which re-validates }}
+{{! The "yes" form POSTs to /register/wizard/legacy_claim/auto-link/confirm, which re-validates }}
 {{! the classifier output and commits via claimHistoricalPerson in one turn. }}
 
 <div class="hero hero-sm">
@@ -27,14 +27,9 @@
 
       <p>Clicking confirm will link this historical record to your account.</p>
 
-      <form method="POST" action="/history/auto-link/confirm">
+      <form method="POST" action="/register/wizard/legacy_claim/auto-link/confirm">
         <input type="hidden" name="personId" value="{{content.personId}}" />
-        {{#if content.skipHref}}
-          {{! Round-trip the registration-context flag so a drift redirect }}
-          {{! from this POST keeps the skip affordance visible at /history/claim. }}
-          <input type="hidden" name="from" value="register" />
-        {{/if}}
-        <button type="submit" class="btn btn-primary">Yes, this is me — link my account</button>
+        <button type="submit" class="btn btn-primary">Yes, this is me, link my account</button>
       </form>
     {{/if}}
 

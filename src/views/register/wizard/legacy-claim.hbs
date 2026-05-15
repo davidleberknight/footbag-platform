@@ -1,9 +1,3 @@
-{{! Unified link-history wizard. ONE section: a mixed candidate list
-    (legacy + HP + back-linked "both" cases, presented uniformly with
-    provenance labels), a manual-id input that tries both tables, and
-    a clubs-coming-soon placeholder. Service composes the view-model
-    in identityAccessService.getLinkHistoryView. }}
-
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
@@ -16,6 +10,10 @@
 
     {{#if content.lowConfidenceBanner}}
       <p class="form-notice" role="status">We searched for a confident match and didn't find one. Pick a candidate below or search by id.</p>
+    {{/if}}
+
+    {{#if content.autoLinkDriftNotice}}
+      <p class="form-notice" role="status">Your suggested match is no longer applicable. Pick a candidate below or search by id.</p>
     {{/if}}
 
     {{#if content.sentNotice.show}}
@@ -48,15 +46,14 @@
             {{#if this.country}}<div class="candidate-card-meta">Country: {{this.country}}</div>{{/if}}
             {{#if this.isHof}}<div class="candidate-card-meta">Hall of Fame</div>{{/if}}
             {{#if (eq this.claimMode 'auto_link_confirm')}}
-              <form method="POST" action="/history/auto-link/confirm" class="candidate-card-action">
+              <form method="POST" action="/register/wizard/legacy_claim/auto-link/confirm" class="candidate-card-action">
                 <input type="hidden" name="personId" value="{{this.personId}}" />
-                <button type="submit" class="btn btn-primary">This is me — link my history</button>
+                <button type="submit" class="btn btn-primary">This is me, link my history</button>
               </form>
             {{else if (eq this.claimMode 'legacy_claim')}}
-              <form method="POST" action="/history/claim" class="candidate-card-action">
-                <input type="hidden" name="from" value="link-wizard" />
+              <form method="POST" action="/register/wizard/legacy_claim/find" class="candidate-card-action">
                 <input type="hidden" name="identifier" value="{{this.legacyMemberId}}" />
-                <button type="submit" class="btn btn-primary">This is me — link my history</button>
+                <button type="submit" class="btn btn-primary">This is me, link my history</button>
               </form>
             {{else if (eq this.claimMode 'hp_review_page')}}
               <p class="candidate-card-action"><a href="/history/{{this.personId}}/claim" class="btn btn-primary">Review and link</a></p>
@@ -69,7 +66,7 @@
     {{/if}}
 
     <h2>Other ways to find your records</h2>
-    <form method="POST" action="/members/{{content.memberSlug}}/link-history/find" class="login-form">
+    <form method="POST" action="/register/wizard/legacy_claim/find" class="login-form">
       <div class="form-field">
         <label for="identifier">Old footbag.org member ID, username, or email, or historical-record ID</label>
         <input type="text" id="identifier" name="identifier" required />
@@ -77,17 +74,10 @@
       <button type="submit" class="btn btn-secondary">Find</button>
     </form>
 
-    {{#if content.showClubsComingSoon}}
-      <h2>Your clubs (coming soon)</h2>
-      <p>We will surface your old footbag.org club affiliations here once club bootstrap completes. You'll be able to confirm, mark inactive, or reject each suggestion.</p>
-    {{/if}}
+    <form method="POST" action="/register/wizard/legacy_claim/skip" class="mt-6">
+      <button type="submit" class="btn-link text-muted">Skip for now</button>
+    </form>
 
-    <p class="mt-6"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
-
-    {{#if content.skipHref}}
-      <p class="mt-2">
-        <a href="{{content.skipHref}}" class="text-muted">Skip and complete this later</a>
-      </p>
-    {{/if}}
+    <p class="mt-2"><a href="{{content.dashboardHref}}">Back to dashboard</a></p>
   </section>
 </div>

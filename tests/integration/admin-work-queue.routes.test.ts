@@ -112,7 +112,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       .type('form')
       .send({ decision_label: 'corrected', resolution_note: 'Fixed your display name.' });
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/admin/work-queue?resolved=${queueId}`);
+    expect(res.headers.location).toBe('/admin/work-queue');
 
     const db = new BetterSqlite3(dbPath);
     const row = db

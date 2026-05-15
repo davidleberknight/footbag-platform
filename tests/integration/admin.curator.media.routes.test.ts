@@ -313,8 +313,8 @@ describe('POST /admin/curator/media/:id/edit', () => {
       .type('form')
       .send({ caption: updatedCaption, tags: newTag });
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/media?saved=edit');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/media');
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     const row = db.prepare(`SELECT caption FROM media_items WHERE id = ?`).get(mediaId) as { caption: string };
@@ -392,8 +392,8 @@ describe('POST /admin/curator/media/:id/delete', () => {
       .type('form')
       .send({});
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/media?saved=delete');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/media');
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     const row = db.prepare(`SELECT id FROM media_items WHERE id = ?`).get(mediaId);
@@ -490,7 +490,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.text).not.toContain('name="creator"');
   });
 
-  it('POST edit on sidecar-backed item rewrites sidecar (caption + creator) and redirects to ?saved=edit', async () => {
+  it('POST edit on sidecar-backed item rewrites sidecar (caption + creator) and redirects with flash', async () => {
     const slug = `poste_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const { mediaId, sidecarPath } = seedSidecarRow(slug);
 
@@ -508,8 +508,8 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
         sourceId: 'src_route_edited',
         tier: 'HIGH_QUALITY_DEMO',
       });
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/media?saved=edit');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/media');
 
     const sidecar = JSON.parse(fs.readFileSync(sidecarPath, 'utf-8'));
     expect(sidecar.title).toBe(newCaption);
@@ -518,7 +518,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(sidecar.tier).toBe('HIGH_QUALITY_DEMO');
   });
 
-  it('POST delete on sidecar-backed item unlinks sidecar and redirects to ?saved=delete', async () => {
+  it('POST delete on sidecar-backed item unlinks sidecar and redirects with flash', async () => {
     const slug = `postd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     const { mediaId, sidecarPath } = seedSidecarRow(slug);
 
@@ -528,8 +528,8 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       .set('Cookie', adminCookie())
       .type('form')
       .send({});
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/media?saved=delete');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/media');
     expect(fs.existsSync(sidecarPath)).toBe(false);
 
     const db = new BetterSqlite3(TEST_DB_PATH);
@@ -538,21 +538,35 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     db.close();
   });
 
-  it('GET list with ?saved=edit renders the success banner', async () => {
+  it('GET list after a POST edit renders the success banner from flash cookie', async () => {
+    const caption = `BANNER_EDIT_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const mediaId = await uploadPhotoViaRoute(caption, []);
     const app = createApp();
-    const res = await request(app)
-      .get('/admin/curator/media?saved=edit')
-      .set('Cookie', adminCookie());
+    const agent = request.agent(app);
+    const postRes = await agent
+      .post(`/admin/curator/media/${mediaId}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ caption: `${caption}-edited`, tags: '' });
+    expect(postRes.status).toBe(303);
+    const res = await agent.get('/admin/curator/media').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Saved.');
     expect(res.text).toContain('seed_fh_curator.py');
   });
 
-  it('GET list with ?saved=delete renders the success banner', async () => {
+  it('GET list after a POST delete renders the success banner from flash cookie', async () => {
+    const caption = `BANNER_DELETE_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const mediaId = await uploadPhotoViaRoute(caption, []);
     const app = createApp();
-    const res = await request(app)
-      .get('/admin/curator/media?saved=delete')
-      .set('Cookie', adminCookie());
+    const agent = request.agent(app);
+    const postRes = await agent
+      .post(`/admin/curator/media/${mediaId}/delete`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(postRes.status).toBe(303);
+    const res = await agent.get('/admin/curator/media').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Deleted.');
   });

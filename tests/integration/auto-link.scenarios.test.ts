@@ -56,7 +56,7 @@ describe('auto-link scenarios — verify-driven branches', () => {
         ttlHours: 24,
       });
       const res = await request(createApp()).get(`/verify/${rawToken}`);
-      expect(res.status).toBe(302);
+      expect(res.status).toBe(303);
       expect(res.headers.location).toBe(sc.expectedVerifyRedirect);
     });
   }

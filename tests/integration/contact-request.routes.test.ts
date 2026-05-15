@@ -73,10 +73,18 @@ describe('GET /members/:slug/contact-admin', () => {
     expect(res.headers.location).toMatch(/^\/login/);
   });
 
-  it('shows success banner when ?submitted=1', async () => {
+  it('shows success banner after a POST→GET round-trip (flash cookie)', async () => {
     const app = createApp();
-    const res = await request(app)
-      .get(`/members/${OWNER_SLUG}/contact-admin?submitted=1`)
+    const agent = request.agent(app);
+    const post = await agent
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message: 'banner round-trip' });
+    expect(post.status).toBe(303);
+    expect(post.headers.location).toBe(`/members/${OWNER_SLUG}/contact-admin`);
+    const res = await agent
+      .get(`/members/${OWNER_SLUG}/contact-admin`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Your request has been sent to the IFPA administrator');
@@ -84,7 +92,7 @@ describe('GET /members/:slug/contact-admin', () => {
 });
 
 describe('POST /members/:slug/contact-admin', () => {
-  it('happy path → 303 to ?submitted=1 + queue row inserted + audit entry', async () => {
+  it('happy path → 303 + flash cookie + queue row inserted + audit entry', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWNER_SLUG}/contact-admin`)
@@ -92,7 +100,7 @@ describe('POST /members/:slug/contact-admin', () => {
       .type('form')
       .send({ category: 'display_name_correction', message: 'Please fix the spelling of my surname.' });
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/contact-admin?submitted=1`);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/contact-admin`);
 
     const db = new BetterSqlite3(dbPath);
     const queueRow = db

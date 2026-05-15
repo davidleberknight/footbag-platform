@@ -13,6 +13,11 @@ export const FLASH_COOKIE = 'footbag_flash';
 export const FLASH_KIND = {
   LOGOUT: 'logout',
   AVATAR_UPLOADED: 'avatar_uploaded',
+  WIZARD_LEGACY_CLAIM_RESULT: 'wizard_legacy_claim_result',
+  WIZARD_AUTO_LINK_DRIFT: 'wizard_auto_link_drift',
+  MEDIA_SAVED: 'media_saved',
+  CONTACT_SUBMITTED: 'contact_submitted',
+  WORK_QUEUE_RESOLVED: 'work_queue_resolved',
 } as const;
 export type FlashKind = (typeof FLASH_KIND)[keyof typeof FLASH_KIND];
 

@@ -47,17 +47,20 @@ function readLegacy(): Record<string, unknown> {
 }
 
 async function issueClaimToken(memberId: string, identifier: string): Promise<string> {
-  // Reads the claim-confirm URL from the rendered POST response (which now
-  // includes the simulated-email card on dev). The post-render drain in
-  // simulatedEmailService.getEmailPreview() marks the outbox row sent and
-  // NULLs body_text per scrub-safety, so the DB-row read path is not
-  // reliable. The HTML response is the authoritative source for the URL.
+  // POST /find issues a 303 to /register/wizard/legacy_claim. The flash
+  // cookie carries the simulated-email-card state; the follow-up GET
+  // renders the email card with the claim URL. Use an agent to round-trip
+  // the cookie between POST and GET.
   const cookie = `footbag_session=${createTestSessionJwt({ memberId })}`;
-  const app = createApp();
-  const res = await request(app).post('/history/claim').set('Cookie', cookie).type('form').send({ identifier });
-  expect(res.status).toBe(200);
-  const m = res.text.match(/\/history\/claim\/confirm\/([A-Za-z0-9_-]+)/);
-  if (!m) throw new Error(`No claim URL in response HTML for member ${memberId}`);
+  const agent = request.agent(createApp());
+  const postRes = await agent
+    .post('/register/wizard/legacy_claim/find').set('Cookie', cookie).type('form')
+    .send({ identifier });
+  expect(postRes.status).toBe(303);
+  const getRes = await agent
+    .get('/register/wizard/legacy_claim').set('Cookie', cookie);
+  const m = getRes.text.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
+  if (!m) throw new Error(`No claim URL in GET response HTML for member ${memberId}`);
   return m[1];
 }
 
@@ -101,7 +104,7 @@ beforeEach(() => {
 describe('claimLegacyAccount — atomicity invariants', () => {
   it('throws on bad token → no member or legacy-member state changed', async () => {
     const res = await request(createApp())
-      .post('/history/claim/confirm')
+      .post('/register/wizard/legacy_claim/claim/confirm')
       .set('Cookie', ownCookie())
       .type('form')
       .send({ token: 'not-a-real-token' });
@@ -120,7 +123,7 @@ describe('claimLegacyAccount — atomicity invariants', () => {
     clearOutboxFor(MEMBER_ID);
     const token = await issueClaimToken(MEMBER_ID, LEGACY_ID);
     const res = await request(createApp())
-      .post('/history/claim/confirm')
+      .post('/register/wizard/legacy_claim/claim/confirm')
       .set('Cookie', ownCookie())
       .type('form')
       .send({ token });
@@ -191,7 +194,7 @@ describe('claimLegacyAccount — two-actor race', () => {
 
     // A goes first and commits cleanly.
     const resA = await request(app)
-      .post('/history/claim/confirm')
+      .post('/register/wizard/legacy_claim/claim/confirm')
       .set('Cookie', ownCookie())
       .type('form')
       .send({ token: tokenA });
@@ -204,7 +207,7 @@ describe('claimLegacyAccount — two-actor race', () => {
     // by another account'), the controller renders 422, and the rollback
     // un-consumes B's token leaving B's member row untouched.
     const resB = await request(app)
-      .post('/history/claim/confirm')
+      .post('/register/wizard/legacy_claim/claim/confirm')
       .set('Cookie', cookieB())
       .type('form')
       .send({ token: tokenB });
@@ -221,12 +224,12 @@ describe('claimLegacyAccount — two-actor race', () => {
     const tokenB = await issueClaimToken(MEMBER_B_ID, LEGACY_ID);
     const app = createApp();
     const reqA = request(app)
-      .post('/history/claim/confirm')
+      .post('/register/wizard/legacy_claim/claim/confirm')
       .set('Cookie', ownCookie())
       .type('form')
       .send({ token: tokenA });
     const reqB = request(app)
-      .post('/history/claim/confirm')
+      .post('/register/wizard/legacy_claim/claim/confirm')
       .set('Cookie', cookieB())
       .type('form')
       .send({ token: tokenB });
@@ -271,9 +274,9 @@ describe('claimLegacyAccount — two-actor race', () => {
       const tokenA = await issueClaimToken(MEMBER_ID,   LEGACY_ID);
       const tokenB = await issueClaimToken(MEMBER_B_ID, LEGACY_ID);
       const [resA, resB] = await Promise.all([
-        request(app).post('/history/claim/confirm').set('Cookie', ownCookie())
+        request(app).post('/register/wizard/legacy_claim/claim/confirm').set('Cookie', ownCookie())
           .type('form').send({ token: tokenA }),
-        request(app).post('/history/claim/confirm').set('Cookie', cookieB())
+        request(app).post('/register/wizard/legacy_claim/claim/confirm').set('Cookie', cookieB())
           .type('form').send({ token: tokenB }),
       ]);
       expect(resA.status).toBeLessThan(500);
@@ -330,7 +333,7 @@ describe('completePasswordReset — atomicity', () => {
       .post(`/password/reset/${token}`)
       .type('form')
       .send({ newPassword: 'BrandNew!2', confirmPassword: 'BrandNew!2' });
-    expect(completeRes.status).toBe(302);
+    expect(completeRes.status).toBe(303);
 
     const after = readMember();
     expect(after.password_hash).not.toBe(before.password_hash);
@@ -341,6 +344,6 @@ describe('completePasswordReset — atomicity', () => {
       .post(`/password/reset/${token}`)
       .type('form')
       .send({ newPassword: 'Another!3', confirmPassword: 'Another!3' });
-    expect(replay.status).not.toBe(302);
+    expect(replay.status).not.toBe(303);
   });
 });

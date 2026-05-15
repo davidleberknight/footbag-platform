@@ -112,7 +112,7 @@ describe('POST /password/forgot', () => {
 });
 
 describe('POST /password/reset/:token', () => {
-  it('valid token + matching passwords → 302 to /members/:slug, reissues session cookie, new password works, password_version bumped', async () => {
+  it('valid token + matching passwords → 303 to /members/:slug, reissues session cookie, new password works, password_version bumped', async () => {
     const app = createApp();
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
 
@@ -120,7 +120,7 @@ describe('POST /password/reset/:token', () => {
       .post(`/password/reset/${token}`)
       .type('form')
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${MEMBER_SLUG}`);
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBe(true);
@@ -140,7 +140,7 @@ describe('POST /password/reset/:token', () => {
     const login = await request(app).post('/login').type('form').send({
       email: MEMBER_EMAIL, password: NEW_PASSWORD,
     });
-    expect(login.status).toBe(302);
+    expect(login.status).toBe(303);
     // Log in with ORIGINAL_PASSWORD fails.
     const oldLogin = await request(app).post('/login').type('form').send({
       email: MEMBER_EMAIL, password: ORIGINAL_PASSWORD,
@@ -155,7 +155,7 @@ describe('POST /password/reset/:token', () => {
     const first = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
     });
-    expect(first.status).toBe(302);
+    expect(first.status).toBe(303);
     const second = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: 'Another!3', confirmPassword: 'Another!3',
     });

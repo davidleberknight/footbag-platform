@@ -521,7 +521,7 @@ After configuring the autologin var, run the dev-admin seed so your admin entry 
 
 Without this seed, the dashboard membership block will show your account as Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-admin-shortcuts/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email. The dev startup banner prints the autologin'd member's slug, admin flag, and tier on each boot; a Tier 0 admin triggers a warning pointing at this seed step.
 
-Optional admin claim-email skip — set `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1` to let admin members complete a legacy account claim from the unified link-history wizard's manual-id input WITHOUT the mailbox-control email roundtrip. Useful for testing the legacy-claim flow when your admin email isn't seeded as a `legacy_email` on any `legacy_members` row. Same fail-fast guard as the autologin var: rejected at boot in any non-development environment.
+Optional admin claim-email skip — set `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1` to let admin members complete a legacy account claim from the onboarding wizard's `legacy_claim` manual-id input WITHOUT the mailbox-control email roundtrip. Useful for testing the legacy-claim flow when your admin email isn't seeded as a `legacy_email` on any `legacy_members` row. Same fail-fast guard as the autologin var: rejected at boot in any non-development environment.
 
 ```bash
 export FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1

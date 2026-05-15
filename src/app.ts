@@ -252,7 +252,7 @@ export function createApp(): express.Application {
       res.locals.flashLoggedOut = true;
       // Clear only when the banner actually renders, not on redirects.
       // Otherwise a logout that redirects through an auth-gated page consumes
-      // the cookie on the 302 response before the banner ever surfaces.
+      // the cookie on the 303 response before the banner ever surfaces.
       const origRender = res.render.bind(res);
       res.render = ((...args: Parameters<typeof origRender>) => {
         clearFlash(res);

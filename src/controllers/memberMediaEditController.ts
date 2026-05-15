@@ -27,6 +27,7 @@ import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { createCuratorMediaService } from '../services/curatorMediaService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { lazyImageProcessor } from './galleryFormHelpers';
+import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
 function isOwnRoute(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
@@ -156,7 +157,8 @@ export const memberMediaEditController = {
         tags,
         externalUrl,
       });
-      res.redirect(303, `${galleriesHref(memberKey)}?saved=edit`);
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+      res.redirect(303, galleriesHref(memberKey));
     } catch (err) {
       if (err instanceof NotFoundError) {
         renderNotFound(res);

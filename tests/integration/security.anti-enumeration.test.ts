@@ -148,7 +148,7 @@ describe('POST /verify/resend — response shape identical for exists/unverified
 // ── POST /register (silent-duplicate vs fresh) ───────────────────────────────
 
 describe('POST /register — silent-duplicate indistinguishable from fresh registration', () => {
-  it('302 redirect to /register/check-email in both cases', async () => {
+  it('303 redirect to /register/check-email in both cases', async () => {
     const app = createApp();
 
     // Fresh registration.
@@ -176,7 +176,7 @@ describe('POST /register — silent-duplicate indistinguishable from fresh regis
       });
 
     expect(fresh.status).toBe(duplicate.status);
-    expect(fresh.status).toBe(302);
+    expect(fresh.status).toBe(303);
     expect(fresh.headers.location).toBe(duplicate.headers.location);
     expect(fresh.headers.location).toBe('/register/check-email');
   });

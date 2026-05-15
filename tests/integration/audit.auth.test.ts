@@ -99,7 +99,7 @@ describe('audit_entries — register', () => {
         realName: 'Newcomer Jones',
         displayName: 'Newcomer Jones',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const rows = readAudits({ action_type: 'auth.register' });
     expect(rows.length).toBe(before + 1);
@@ -132,7 +132,7 @@ describe('audit_entries — register', () => {
         realName: 'Someone Else',
         displayName: 'Someone Else',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(readAudits({ action_type: 'auth.register' }).length).toBe(before);
   });
 });
@@ -194,7 +194,7 @@ describe('audit_entries — password reset', () => {
       .post(`/password/reset/${token}`)
       .type('form')
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const rows = readAudits({ action_type: 'auth.password_reset', entity_id: OWN_ID });
     expect(rows).toHaveLength(1);

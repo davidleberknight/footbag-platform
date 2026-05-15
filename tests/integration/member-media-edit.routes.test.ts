@@ -188,7 +188,7 @@ describe('member per-item media edit routes', () => {
       .type('form')
       .send({ caption: 'after edit', tags: '#footbags #colorful', externalUrl: 'https://example.com/source' });
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=edit`);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
     expect(findMediaCaption(mediaId)).toBe('after edit');
     const tags = findMediaTags(mediaId);
     expect(tags).toContain('#footbags');

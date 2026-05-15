@@ -1,0 +1,25 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p>Confirm linking this legacy footbag.org account to your current account.</p>
+    <ul class="confirm-summary">
+      <li><strong>Legacy member id:</strong> {{content.legacyMemberId}}</li>
+      {{#if content.displayName}}<li><strong>Name on record:</strong> {{content.displayName}}</li>{{/if}}
+      {{#if content.country}}<li><strong>Country:</strong> {{content.country}}</li>{{/if}}
+      {{#if content.isHof}}<li>Hall of Fame</li>{{/if}}
+      {{#if content.isBap}}<li>Big Add Posse</li>{{/if}}
+    </ul>
+
+    <form method="POST" action="/register/wizard/legacy_claim/claim/confirm" class="profile-edit-form">
+      <input type="hidden" name="token" value="{{content.token}}" />
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Confirm and link</button>
+      </div>
+    </form>
+  </section>
+</div>

@@ -49,7 +49,7 @@ describe('CSRF — SameSite cookie attribute', () => {
       .post('/login')
       .type('form')
       .send({ email: MEMBER_EMAIL, password: MEMBER_PASSWORD });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     const session = cookies?.find((c) => c.startsWith('footbag_session='));
     expect(session).toBeDefined();
@@ -68,7 +68,7 @@ describe('CSRF — SameSite cookie attribute', () => {
         password: 'CsrfNewcomer!1',
         confirmPassword: 'CsrfNewcomer!1',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBeFalsy();
@@ -82,8 +82,8 @@ describe('CSRF — cross-site POST without session cookie is blocked', () => {
   const protectedPosts: Array<[string, string, Record<string, string>]> = [
     ['profile edit',      `/members/${MEMBER_SLUG}/edit`,           { displayName: 'Hacked' }],
     ['password change',   `/members/${MEMBER_SLUG}/edit/password`,  { oldPassword: 'x', newPassword: 'y', confirmPassword: 'y' }],
-    ['claim lookup',      `/history/claim`,                         { identifier: 'LM-1' }],
-    ['claim confirm',     `/history/claim/confirm`,                 { source: 'imported_placeholder', targetId: 'x' }],
+    ['claim lookup',      `/register/wizard/legacy_claim/find`,            { identifier: 'LM-1' }],
+    ['claim confirm',     `/register/wizard/legacy_claim/claim/confirm`,   { token: 'x' }],
   ];
 
   for (const [name, path, body] of protectedPosts) {

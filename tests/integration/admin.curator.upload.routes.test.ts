@@ -181,23 +181,24 @@ describe('GET /admin/curator/upload', () => {
     expect(res.text).not.toContain('Sidecar saved under');
   });
 
-  it('admin authenticated, ?saved=upload -> 200 with sidecar-saved banner', async () => {
+  it('admin authenticated, after a POST upload -> 200 with sidecar-saved banner via flash cookie', async () => {
     const app = createApp();
-    const res = await request(app)
-      .get('/admin/curator/upload?saved=upload')
+    const jpeg = await makeJpeg();
+    const agent = request.agent(app);
+    const postRes = await agent
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
+      .field('caption', `banner-flash-${Date.now()}`)
+      .attach('mediaFile', jpeg, `banner-flash-${Date.now()}.jpg`);
+    expect(postRes.status).toBe(303);
+    const res = await agent
+      .get('/admin/curator/upload')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Sidecar saved under');
     expect(res.text).toContain('seed_fh_curator.py');
-  });
-
-  it('admin authenticated, ?saved=bogus -> 200 without banner (unknown values ignored)', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .get('/admin/curator/upload?saved=bogus')
-      .set('Cookie', adminCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Sidecar saved under');
   });
 });
 
@@ -243,8 +244,8 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('caption', uniqueCaption)
       .field('tags', uniqueTag)
       .attach('mediaFile', jpeg, uniqueFilename);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/upload?saved=upload');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/upload');
 
     const db = openDb();
     const mediaRow = db.prepare(`SELECT * FROM media_items WHERE caption = ?`).get(uniqueCaption) as Record<string, unknown>;
@@ -378,7 +379,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('caption', uniqueCaption)
       .field('externalUrl', externalUrl)
       .attach('mediaFile', jpeg, uniqueFilename);
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = openDb();
     const row = db.prepare(`SELECT external_url, external_url_validated_at FROM media_items WHERE caption = ?`).get(uniqueCaption) as { external_url: string; external_url_validated_at: string };
@@ -430,7 +431,7 @@ describe('POST /admin/curator/upload — photo', () => {
       .field('tags', uniqueTag)
       .field('externalUrl', 'https://example.com/x')
       .attach('mediaFile', jpeg, uniqueFilename);
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = openDb();
     const row = db.prepare(`SELECT id FROM media_items WHERE caption = ?`).get(uniqueCaption) as { id: string };
@@ -467,8 +468,8 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
       .field('tags', uniqueTag)
       .attach('mediaFile', mp4, uniqueFilename)
       .attach('poster', poster, 'poster.jpg');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/upload?saved=upload');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/upload');
 
     const db = openDb();
     const mediaRow = db.prepare(`SELECT * FROM media_items WHERE caption = ?`).get(uniqueCaption) as Record<string, unknown>;
@@ -557,7 +558,7 @@ describe('POST /admin/curator/upload — video (local-adapter sync path)', () =>
       .attach('mediaFile', Buffer.alloc(0), '')
       .attach('mediaFile', mp4, uniqueFilename)
       .attach('poster', poster, 'poster.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = openDb();
     const row = db.prepare(`SELECT id FROM media_items WHERE caption = ?`).get(uniqueCaption);
@@ -675,7 +676,7 @@ describe('/admin/curator/upload — URL reference', () => {
     expect(res.text).toContain('name="newCategory"');
   });
 
-  it('happy path YouTube (existing freestyle_tricks): 302 redirect, sidecar written, NO DB row created', async () => {
+  it('happy path YouTube (existing freestyle_tricks): 303 redirect, sidecar written, NO DB row created', async () => {
     await setVerifierToOk({ title: 'Clipper tutorial' });
     const app = createApp();
     const res = await request(app)
@@ -688,8 +689,8 @@ describe('/admin/curator/upload — URL reference', () => {
       .field('primarySlug', 'clipper')
       .field('title', 'Clipper tutorial')
       .field('tags', '#freestyle #trick #clipper');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/admin/curator/upload?saved=upload');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/curator/upload');
 
     const dirContents = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'));
     const matching = dirContents.find((f) => f.startsWith('clipper_'));
@@ -725,7 +726,7 @@ describe('/admin/curator/upload — URL reference', () => {
       .field('primarySlug', 'eggbeater')
       .field('title', 'Eggbeater demo')
       .field('tags', '#freestyle #trick #eggbeater');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const matching = fs.readdirSync(path.join(curatedRoot, 'freestyle_tricks'))
       .find((f) => f.startsWith('eggbeater_'));
     const sidecar = JSON.parse(
@@ -748,7 +749,7 @@ describe('/admin/curator/upload — URL reference', () => {
       .field('primarySlug', 'food-processor')
       .field('title', 'Food processor demo')
       .field('tags', '#freestyle #demo #food-processor');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(fs.existsSync(path.join(curatedRoot, 'promos_test'))).toBe(true);
     const matching = fs.readdirSync(path.join(curatedRoot, 'promos_test'))
       .find((f) => f.startsWith('food-processor_'));

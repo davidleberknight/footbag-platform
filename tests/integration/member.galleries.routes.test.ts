@@ -200,9 +200,20 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.text).toMatch(new RegExp(`href="/members/${OWNER_SLUG}/media/upload"`));
   });
 
-  it('?saved=upload renders an "Uploaded." flash banner', async () => {
-    const res = await request(createApp())
-      .get(`/members/${OWNER_SLUG}/galleries?saved=upload`)
+  it('renders an "Uploaded." flash banner after a POST upload via the agent round-trip', async () => {
+    const jpeg = await sharp({
+      create: { width: 10, height: 10, channels: 3, background: { r: 50, g: 100, b: 150 } },
+    }).jpeg().toBuffer();
+    const app = createApp();
+    const agent = request.agent(app);
+    const post = await agent
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .attach('photoFile', jpeg, `upload-banner-${Date.now()}.jpg`);
+    expect(post.status).toBe(303);
+    const res = await agent
+      .get(`/members/${OWNER_SLUG}/galleries`)
       .set('Cookie', ownerCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Uploaded.');
@@ -294,10 +305,10 @@ describe('GET /members/:memberKey/galleries/new', () => {
 // ── POST /members/:memberKey/galleries ─────────────────────────────────────
 
 describe('POST /members/:memberKey/galleries', () => {
-  it('creates a member-owned gallery and redirects to the list with saved=create', async () => {
+  it('creates a member-owned gallery and redirects to the list with a flash', async () => {
     const res = await createGalleryViaApi('Fresh Gallery', '#summer');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=create`);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
     const id = findGalleryIdByName('Fresh Gallery');
     expect(id).toBe('gallery_mg_owner_fresh_gallery');
   });
@@ -308,7 +319,7 @@ describe('POST /members/:memberKey/galleries', () => {
       .set('Cookie', ownerCookie())
       .type('form')
       .send({ name: 'My Photos', description: '', sortOrder: 'upload_desc', criteriaTags: '', excludeTags: '' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const id = findGalleryIdByName('My Photos')!;
     expect(id).toBe('gallery_mg_owner_my_photos');
     const db = new BetterSqlite3(TEST_DB_PATH);
@@ -350,7 +361,7 @@ describe('POST /members/:memberKey/galleries', () => {
         excludeTags: '',
         ownerMemberId: SYSTEM_ID,  // ignored by controller
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const id = findGalleryIdByName('Forge Attempt');
     expect(id).toBe('gallery_mg_owner_forge_attempt');
     const db = new BetterSqlite3(TEST_DB_PATH);
@@ -427,7 +438,7 @@ describe('GET /members/:memberKey/galleries/:id/edit', () => {
 });
 
 describe('POST /members/:memberKey/galleries/:id/edit', () => {
-  it('applies changes and redirects to the list with saved=edit', async () => {
+  it('applies changes and redirects to the list with a flash', async () => {
     await createGalleryViaApi('Before');
     const id = findGalleryIdByName('Before')!;
     const res = await request(createApp())
@@ -435,8 +446,8 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       .set('Cookie', ownerCookie())
       .type('form')
       .send({ name: 'After', description: 'updated', sortOrder: 'caption_asc', criteriaTags: '#new', excludeTags: '' });
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=edit`);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const row = db.prepare('SELECT name, description, sort_order FROM member_galleries WHERE id = ?').get(id) as Record<string, unknown>;
@@ -501,7 +512,7 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
         externalLinkLabel0: 'Project page',
         externalLinkUrl0: 'https://example.com/project',
       });
-    expect(post.status).toBe(302);
+    expect(post.status).toBe(303);
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -582,7 +593,7 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
         externalLinkLabel0: '',
         externalLinkUrl0: '',
       });
-    expect(second.status).toBe(302);
+    expect(second.status).toBe(303);
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
@@ -625,7 +636,7 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       .set('Cookie', adminCookie())
       .type('form')
       .send({ name: 'Moderated', description: '', sortOrder: 'upload_desc', criteriaTags: '#m', excludeTags: '' });
-    expect([302, 200]).toContain(res.status);
+    expect([303, 200]).toContain(res.status);
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
       const row = db.prepare('SELECT name FROM member_galleries WHERE id = ?').get(id) as { name: string };
@@ -637,14 +648,14 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
 // ── POST /members/:memberKey/galleries/:id/delete ──────────────────────────
 
 describe('POST /members/:memberKey/galleries/:id/delete', () => {
-  it('deletes the gallery and redirects with saved=delete', async () => {
+  it('deletes the gallery and redirects with a flash', async () => {
     await createGalleryViaApi('Doomed');
     const id = findGalleryIdByName('Doomed')!;
     const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/galleries/${id}/delete`)
       .set('Cookie', ownerCookie());
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=delete`);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
     expect(findGalleryIdByName('Doomed')).toBeUndefined();
   });
 
@@ -776,7 +787,7 @@ describe('gallery edit current-items display + uploadTags', () => {
       .field('excludeTags', '')
       .field('uploadTags', '#myuploads')
       .attach('photoFiles', jpeg, 'pixel.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
@@ -806,7 +817,7 @@ describe('gallery edit current-items display + uploadTags', () => {
       .field('excludeTags', '')
       .field('uploadTags', '')
       .attach('photoFiles', jpeg, 'bare.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
@@ -836,8 +847,8 @@ describe('gallery edit current-items display + uploadTags', () => {
       .field('excludeTags', '')
       .field('uploadTags', '#edittag')
       .attach('photoFiles', jpeg, 'mid-edit.jpg');
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries?saved=edit`);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/galleries`);
 
     const db = new BetterSqlite3(TEST_DB_PATH);
     try {
@@ -860,7 +871,7 @@ describe('gallery edit current-items display + uploadTags', () => {
       .field('excludeTags', '')
       .field('uploadTags', '')
       .attach('photoFiles', Buffer.alloc(0), '');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.text).not.toContain('Only JPEG and PNG');
     expect(findGalleryIdByName('No File')).toBeTruthy();
   });

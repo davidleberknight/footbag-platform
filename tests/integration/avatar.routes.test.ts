@@ -131,7 +131,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Favatar`);
   });
 
-  it('valid JPEG upload -> 302 redirect to profile', async () => {
+  it('valid JPEG upload -> 303 redirect to profile', async () => {
     const app = createApp();
     const validJpeg = await sharp({
       create: { width: 10, height: 10, channels: 3, background: { r: 255, g: 0, b: 0 } },
@@ -141,7 +141,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'test.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}/edit`);
   });
 
@@ -194,7 +194,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'avatar.jpg');
-    expect(uploadRes.status).toBe(302);
+    expect(uploadRes.status).toBe(303);
 
     // Now fetch the profile and check for the avatar image.
     const profileRes = await request(app)
@@ -215,7 +215,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'v.jpg');
-    expect(uploadRes.status).toBe(302);
+    expect(uploadRes.status).toBe(303);
 
     // Profile page — avatar img src must carry a ?v= token so browsers and
     // CloudFront do not serve a stale copy from the stable storage key.
@@ -304,7 +304,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'flash.jpg');
-    expect(uploadRes.status).toBe(302);
+    expect(uploadRes.status).toBe(303);
     const flashSet = (uploadRes.headers['set-cookie'] ?? []).find((c: string) =>
       c.startsWith('footbag_flash='),
     );
@@ -342,7 +342,7 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'my-photo.jpg');
-    expect(uploadRes.status).toBe(302);
+    expect(uploadRes.status).toBe(303);
 
     const setCookies = (uploadRes.headers['set-cookie'] ?? []) as string[];
     const flashCookie = setCookies.find((c) => c.startsWith('footbag_flash='));
@@ -424,7 +424,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'test.jpg');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}/edit`);
 
     const keys = s3Puts.map((p) => p.input.Key);
@@ -447,7 +447,7 @@ describe('POST /members/:memberKey/avatar -- s3 adapter parity', () => {
       .post(`/members/${OWN_SLUG}/avatar`)
       .set('Cookie', ownCookie())
       .attach('avatar', validJpeg, 'shape.jpg');
-    expect(uploadRes.status).toBe(302);
+    expect(uploadRes.status).toBe(303);
 
     const profileRes = await request(app)
       .get(`/members/${OWN_SLUG}`)

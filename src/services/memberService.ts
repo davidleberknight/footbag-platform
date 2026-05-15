@@ -397,6 +397,46 @@ export const memberService = {
     );
   },
 
+  getCompetitionPrefill(memberId: string): {
+    firstCompetitionYear: number | null;
+    showCompetitiveResults: boolean;
+  } {
+    const row = account.findCompetitionFieldsByMemberId.get(memberId) as
+      | { first_competition_year: number | null; show_competitive_results: number; historical_first_year: number | null }
+      | undefined;
+    if (!row) return { firstCompetitionYear: null, showCompetitiveResults: false };
+    return {
+      firstCompetitionYear: row.first_competition_year ?? row.historical_first_year ?? null,
+      showCompetitiveResults: row.show_competitive_results !== 0,
+    };
+  },
+
+  setFirstCompetitionYear(memberId: string, rawYear: unknown): void {
+    const raw = normalizeText(rawYear);
+    const now = new Date().toISOString();
+    if (raw === '') {
+      account.updateMemberFirstCompetitionYear.run(null, now, memberId);
+      return;
+    }
+    const parsed = parseInt(raw, 10);
+    const thisYear = new Date().getFullYear();
+    if (!Number.isFinite(parsed) || String(parsed) !== raw || parsed < 1972 || parsed > thisYear) {
+      throw new ValidationError(`Year must be a whole number between 1972 and ${thisYear}.`);
+    }
+    account.updateMemberFirstCompetitionYear.run(parsed, now, memberId);
+  },
+
+  setShowCompetitiveResults(memberId: string, rawEnabled: unknown): void {
+    const value =
+      rawEnabled === true ||
+      rawEnabled === 'on' ||
+      rawEnabled === '1' ||
+      rawEnabled === 'true'
+        ? 1
+        : 0;
+    account.updateMemberShowCompetitiveResults.run(value, new Date().toISOString(), memberId);
+  },
+
   searchMembers(query: string): MemberSearchResult {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
@@ -608,10 +648,10 @@ function buildIdentityCta(
   slug?: string,
 ): IdentityLinkView['cta'] {
   if (legacyLinked && hpLinked) return null;
-  // Both pre-existing CTA labels collapse onto a single wizard entry; the
-  // wizard renders both linking sections so the user can address whichever
-  // is missing without bouncing between separate forms.
-  const href = slug ? `/members/${slug}/link-history` : '/history/claim';
+  // CTA target is the onboarding wizard's legacy_claim task, which renders
+  // the unified candidate list and manual-id input for whichever linkage is
+  // missing. Slug is not part of the URL; the wizard scopes to req.user.
+  const href = '/register/wizard/legacy_claim';
   const label = !legacyLinked && !hpLinked
     ? 'Link your legacy account, results, and clubs'
     : !legacyLinked

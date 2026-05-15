@@ -31,6 +31,7 @@ import {
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { hit as rateLimitHit } from '../services/rateLimitService';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
+import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
 const PHOTO_RATE_LIMIT_PER_HOUR = 10;   // US M_Upload_Photo
 const VIDEO_RATE_LIMIT_PER_HOUR = 5;    // US M_Submit_Video
@@ -225,7 +226,8 @@ export const memberMediaUploadController = {
           tags,
           ...(externalUrl !== null && { externalUrl }),
         });
-        res.redirect(`${listHref(memberKey)}?saved=upload`);
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+        res.redirect(303, listHref(memberKey));
         return;
       }
 
@@ -251,7 +253,8 @@ export const memberMediaUploadController = {
         tags,
         ...(externalUrl !== null && { externalUrl }),
       });
-      res.redirect(`${listHref(memberKey)}?saved=upload`);
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+      res.redirect(303, listHref(memberKey));
     }
 
     req.pipe(busboy);

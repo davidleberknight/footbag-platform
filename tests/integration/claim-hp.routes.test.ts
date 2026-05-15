@@ -222,7 +222,7 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
     const res = await request(app)
       .post(`/history/${HP_NO_LEGACY}/claim/confirm`)
       .set('Cookie', claimerCookie()).type('form').send({});
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${CLAIMER_SLUG}`);
 
     const row = testDb.prepare(
@@ -274,7 +274,7 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
     const res = await request(app)
       .post(`/history/${HP_WITH_LM}/claim/confirm`)
       .set('Cookie', scenarioECookie).type('form').send({});
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const memberRow = testDb.prepare(
       'SELECT historical_person_id, legacy_member_id, country, is_hof, is_bap FROM members WHERE id = ?',

@@ -814,7 +814,7 @@ Rules:
 
    - `historical_persons.legacy_member_id` → `legacy_members(legacy_member_id)`. Non-NULL = the mirror/dump named this historical person with that legacy account id (archival provenance). Partial UNIQUE index enforces 1:1.
 
-4. Claimed historical persons redirect to member profile. When `members.historical_person_id` is non-NULL for a given historical person, the canonical URL is the member's `/members/{slug}`. `GET /history/{personId}` for a claimed historical person redirects (302) to `/members/{slug}`.
+4. Claimed historical persons redirect to member profile. When `members.historical_person_id` is non-NULL for a given historical person, the canonical URL is the member's `/members/{slug}`. `GET /history/{personId}` for a claimed historical person redirects (301) to `/members/{slug}`.
 
 5. Reversion on account deletion. When a member's PII is purged (after the grace period per §2.3 Soft Deletes), the application, in one transaction: (a) sets `members.historical_person_id = NULL` and `members.legacy_member_id = NULL` on the anonymized row; (b) clears the claim pointer on the corresponding `legacy_members` row by setting `claimed_by_member_id = NULL` and `claimed_at = NULL`, returning that legacy account to the claimable pool. Subsequent `personHref()` resolution reverts from `/members/{slug}` to `/history/{personId}`.
 
@@ -1074,171 +1074,252 @@ Impact:
 
 Decision:
 
-Sessions are represented by JWTs stored in HttpOnly, Secure, SameSite=Lax cookies, with a 24-hour expiry; during active use the server may re-issue the session JWT near expiry as described in 3.4. Sessions are not individually revocable, but password change MUST invalidate all existing JWTs by incrementing passwordVersion. The password-change flow should also issue a fresh JWT to the current browser session (so the member is not logged out on the device where they changed the password).
+An authenticated session is represented by a JSON Web Token (JWT) issued at login and at completion of the email-verify, password-reset, and password-change flows. The token travels in the `footbag_session` cookie. Cookie attributes set at issue: `HttpOnly`, `SameSite=Lax`, `Domain=.footbag.org` (chosen to allow co-residency with `archive.footbag.org` per §6.4), `Max-Age=86400` (24 hours, expressed in seconds at the wire; the Express helper passes 86,400,000 ms). The `Secure` attribute is set when `req.secure` is true (which depends on the trust-proxy posture in §3.10) or when the `X-Forwarded-Proto` request header equals `https`. `Secure` is never derived from `NODE_ENV`. No per-session server-side state is maintained; the JWT's RS256 signature, produced by a non-exportable AWS KMS key in production (or a local PEM keypair in dev and test) per §3.5, authenticates the credential on every request.
+
+The system does not support targeted revocation of one JWT while leaving other JWTs for the same member valid. The available revocation operations are:
+
+1. Per-device cookie deletion at logout.
+2. Global invalidation of every JWT issued before a password change, via increment of `members.password_version`. The authorization middleware compares `member.password_version` against the JWT's `passwordVersion` claim on every authenticated request; a mismatch rejects the token immediately. The password-change response also re-issues a fresh JWT to the originating browser so the member is not logged out on the device that performed the change.
+3. KMS key rotation, which makes every JWT signed with the prior key fail verification once the prior key is disabled.
+
+Three cookie surfaces:
+
+| Cookie | Issuer (code path) | Integrity | Lifetime | Payload |
+|---|---|---|---|---|
+| `footbag_session` | `issueSessionCookie` in `src/lib/sessionCookie.ts` | RS256 signature; private key in AWS KMS (production) or a local PEM (dev and test), per §3.5 | 24 hours | JWT claims: `sub` (member id), `passwordVersion`, `role` and `tier` hints, standard `iat`/`exp` (§3.4) |
+| `footbag_flash` | `writeFlash` in `src/lib/flashCookie.ts` | HMAC produced by `cookie-parser` using `SESSION_SECRET` as the signing key | 60 seconds | Opaque string in the form `<kind>` or `<kind>:<payload>` (§5.2) |
+| CloudFront signed cookie for `archive.footbag.org` | Main app at session issue and at session re-issue (per §6.4) | RSA signature verified by CloudFront against a trusted-signer key group | Equal to the session JWT lifetime, so a single re-issue cycle covers both | CloudFront access policy (resource, expiry) |
+
+The three cookies use three different integrity mechanisms because each protects a different surface: 24 hours of authenticated capability on the main domain (high blast radius if forged, so the signing key is non-exportable HSM-backed RS256), a 60-second one-shot display notice on a single host (low stakes, so a per-host HMAC is sufficient), and edge access control for the archive subdomain (verified inside CloudFront with no origin round-trip, which rules out HMAC and requires public-key verification). The environment variable `SESSION_SECRET`, despite its name, does not sign the session JWT. It is the `cookie-parser` signing key used for any cookie set with the `signed: true` option; the flash cookie (§3.3) is its only consumer.
 
 Rationale:
 
-- Fits the stateless container model; no central session store.
-
-- HttpOnly + Secure protects tokens from JS access; SameSite reduces CSRF exposure.
-
-- JWT claims (e.g., member ID, roles, passwordVersion) allow simple authorization checks.
-
-- This architecture uses "JWT-based sessions with per-request validation," not "truly stateless sessions." Each authenticated request validates JWT signature (stateless cryptographic verification) then reads member data to verify passwordVersion matches (stateful lookup for immediate invalidation).
-
-- No session table required.
-
-- No session cleanup jobs.
-
-- No session fixation concerns.
-
-- No distributed session state synchronization.
-
-- Immediate cross-device logout on password change.
-
-- The per-request member read is the only stateful component and provides essential security.
+- No per-session server-side state. A separate session store (Redis, Memcached, or a per-session row in SQLite) would add a stateful component alongside the `members` table, each with its own HA, failover, and backup story. JWT-as-session removes the additional store entirely; the per-request DB read for `passwordVersion` and current-state authorization values is the only stateful work, and it touches the `members` row that is needed anyway.
+- One DB read per authenticated request, not two. The JWT's `sub` claim is the member id, so the middleware loads the member row directly. A token-keyed session store would require a second lookup keyed by a random session id.
+- Immediate global revocation without a distributed token blacklist. `passwordVersion` is a single integer in the member row; the comparison runs on the same DB read already performed for authorization.
+- Role and tier claims, if present, are routing hints only. Authorization queries the current values from the DB row on every authenticated request, so a stale `role: admin` claim in a token issued before a demotion cannot grant admin capability after the demotion lands.
 
 Requirements:
 
-- Session cookie `secure` flag is derived from the deployment's TLS posture (e.g. the `PUBLIC_BASE_URL` scheme), not from `NODE_ENV`, so a non-TLS deployment never sees the cookie sent and a TLS deployment cannot accidentally expose it over plain HTTP.
+- `Secure` is set when `req.secure || req.headers['x-forwarded-proto'] === 'https'`. The first disjunct depends on the trust-proxy posture in §3.10; the second is the explicit fallback for proxied requests. The flag is never set from `NODE_ENV`. A non-TLS deployment cannot emit the cookie over plain HTTP, and a TLS deployment cannot emit it without the `Secure` attribute.
+- Integrity for the session JWT comes from the JWT signature (§3.5). The cookie is not additionally HMAC-signed via `cookie-parser`. `SESSION_SECRET` is reserved for display-state cookies (§3.3); the session JWT does not consume it.
 
 Trade-offs:
 
-- Cannot revoke a single JWT immediately across the system; revocation is coarse (password reset, secret rotation, or expiry).
-
-- Token payload must be kept minimal to avoid bloat in every request.
+- A single JWT cannot be revoked in isolation while other JWTs for the same member remain valid. Revocation is coarse: per-device cookie deletion (logout), global via `passwordVersion` increment, or KMS key rotation.
+- The JWT payload ships on every authenticated request, so the payload must stay minimal. A new claim is added only when the value is hot-path (e.g., `passwordVersion`) and cannot be cheaply re-read from the DB.
 
 Impact:
 
-- UI never handles raw JWTs; the backend manages cookies completely.
+Per-request validation flow (`src/middleware/auth.ts:authMiddleware`):
 
-- All authenticated routes verify JWTs and version claims before proceeding.
+1. Initialise `req.isAuthenticated = false` and `req.user = null`.
+2. Read the `footbag_session` cookie. Absent: return without setting `req.user`; the request proceeds as unauthenticated.
+3. Verify the JWT signature against the cached public key from KMS (production) or the local PEM (dev and test). Verification failure: return without setting `req.user`.
+4. Load the member row by `claims.sub`. Row missing: return without setting `req.user`.
+5. Compare `member.password_version` with `claims.passwordVersion`. Mismatch: return without setting `req.user`.
+6. Attach `req.user = { userId, slug, role (derived from member.is_admin), displayName }` and set `req.isAuthenticated = true`.
 
-- Admin tools that change credentials or access levels bump claimed versions so old tokens no longer pass checks.
+`req.user` carries identity only. Downstream code that needs current-state authorization values (tier, Active Player status, soft-delete flags) queries the DB on the same request; those values are not duplicated into `req.user`. Active Player status, tier, role, and any future per-member flag take effect on the next request after the underlying DB row changes; no JWT rollover is required.
 
-- Per-Request Validation Flow: Middleware extracts JWT from HttpOnly cookie, validates JWT signature, calls AuthService.getCurrentMember which extracts memberId and passwordVersion from JWT claims, reads Member entity, compares member.passwordVersion with JWT claim, and returns member object if match or isValid=false if mismatch. If valid, request proceeds. If invalid, returns 401 Unauthorized.
+Alternatives considered:
 
-- Authorization from database, not JWT claims: While JWTs contain tier and role claims for routing efficiency, authorization middleware queries the member table and current-state views on every authenticated request to retrieve current membership tier, Active Player status, passwordVersion, and flags. This ensures Active Player expiration, permission changes, and password resets take effect immediately on the next request. JWT claims serve as performance hints, not authoritative access control data.
+Server-side session store (Redis, Memcached, or a per-session DB table). Rejected: introduces a second stateful component alongside SQLite, each with its own HA, failover, and backup posture. The single-instance Lightsail topology has no second stateful component and gains an operational class of failures (replication lag, cache eviction, store-vs-DB consistency drift) by introducing one. Immediate global revocation is already covered by the `passwordVersion` mechanism, which does not require a session store.
+
+Opaque session token with a DB lookup keyed by the token. Rejected: doubles the per-request DB read load (token-row lookup, then member-row lookup) with no security improvement over JWT-as-session. The JWT carries `sub` directly, so the token-keyed first lookup is unnecessary.
+
+Long-lived "remember me" cookie alongside the short session JWT. Rejected: a second credential with its own integrity mechanism, its own re-issue path, and its own revocation story doubles the credential surface. A stolen long-lived credential extends the blast radius of every other compromise. Near-expiry JWT re-issue (§3.4) provides the same "stay logged in during active use" behaviour with one credential.
+
+In-memory revocation list (token blacklist). Rejected: requires either a per-instance list that must be pruned on a schedule (memory leak otherwise) or a distributed store (the same central session store this section is designed to avoid). `passwordVersion` provides global revocation as a DB read already on the per-request path.
+
+Custom session token format (non-JWT, e.g. branca, signed JSON). Rejected: would require an in-house verification implementation and an in-house rotation mechanism. JWT plus KMS gives signed-credential semantics with a public-key verification path that does not call KMS per request, and a documented rotation pattern via the `kid` header.
 
 ## 3.3 CSRF Protection via SameSite Cookies and Origin Pinning
 
 Decision:
 
-CSRF protection combines three layers: SameSite=Lax session cookies, strict HTTP verb discipline (no state change over GET), and Origin-header pinning on state-changing requests. Synchronizer tokens are not used.
+Cross-site request forgery is defended by three layers operating together: `SameSite=Lax` on every cookie the application issues, strict HTTP verb discipline (no state change over GET), and `Origin`-header pinning on every state-changing request enforced by `requireOriginPin` middleware in `src/middleware/requireOriginPin.ts`, mounted before `authMiddleware` so a cross-site POST is rejected at the perimeter before any session work runs. Synchronizer tokens are not used.
 
-Rationale:
+Cookie integrity for display-state cookies (the flash cookie defined in §5.2; any future preferences cookie) is provided by `cookie-parser`'s HMAC signed-cookie mechanism, keyed by the environment variable `SESSION_SECRET`. Cookie integrity is a distinct concern from CSRF: CSRF prevents an attacker from causing the victim's browser to submit the victim's cookies cross-site; HMAC integrity prevents the victim (or anyone with access to the cookie jar) from rewriting cookie contents the server will later read back.
 
-- SameSite=Lax prevents cookies from being sent with cross-site POST requests, blocking the classic CSRF attack at the browser level.
+Rationale (CSRF, three layers):
 
-- Modern browsers have 97%+ support for SameSite (CSRF dropped from OWASP Top 10 in 2017).
+- `SameSite=Lax` blocks cross-site state-changing requests at the browser. A form, fetch, or XHR initiated from another origin does not carry the session cookie, so the request lands at the server unauthenticated. Browser support spans Chrome 80+, Firefox 69+, Safari 13+ — every browser within the platform's supported baseline.
+- HTTP verb discipline (GET handlers are side-effect-free; mutations use POST, PUT, PATCH, or DELETE) closes the cross-site image, link, and redirect vectors. A cross-site `<img src=footbag.org/dangerous>` cannot trigger a state change because GET handlers do not change state.
+- `Origin`-header pinning closes the same-site subdomain surface that `SameSite=Lax` does not cover. The session cookie carries `Domain=.footbag.org` (§3.2) so the archive subdomain receives it. `SameSite=Lax` does not isolate same-site subdomain POSTs, so a static malicious form served from `archive.footbag.org`, or a future XSS in legacy archive content, could otherwise issue authenticated POSTs to `footbag.org`. The middleware rejects with 403 any state-changing request whose `Origin` header does not match the canonical `PUBLIC_BASE_URL` origin exactly. The `Origin` header is a forbidden-header-name in the CORS specification: no client-side script can override it via `fetch()` or `XMLHttpRequest`. Browsers send `Origin` on every cross-origin state-changing request and on same-origin state-changing requests as well.
 
-- Proper HTTP verb discipline (GETs are non-side-effecting; mutations use POST) ensures GET requests cannot perform state changes.
+Rationale (cookie integrity):
 
-- The legacy archive at archive.footbag.org shares the session cookie via `Domain=.footbag.org` (see §6.4). SameSite=Lax does not isolate same-site subdomain POSTs, so a static malicious form or future XSS in legacy archive content could otherwise issue authenticated POSTs to footbag.org. Origin-header pinning closes this subdomain-CSRF surface by rejecting any state-changing request whose `Origin` header does not match the canonical `PUBLIC_BASE_URL` origin exactly.
-
-- The Origin header is a browser-controlled forbidden-header-name; it cannot be spoofed by client-side script. Modern browsers send Origin reliably on POST (Chrome 80+, Firefox 70+, Safari 12.1+).
+- A display-state cookie is read back by the server on the next request and its content drives a server-rendered branch (which banner to show, which kind of flash to surface, what payload to display). Without HMAC integrity, the cookie jar (which is writable by the user's browser, by other scripts on the cookie's domain in some configurations, or by anyone with brief physical access to the device) becomes an unsigned input that the server treats as if it had set. An attacker with cookie-jar access could inject a chosen banner, a chosen kind, or a payload that triggers an unintended branch.
+- HMAC via `cookie-parser` is sufficient at this scale: per-host secret (`SESSION_SECRET`), single-domain cookie scope, and at most a 60-second forgery window before the cookie expires. KMS-signed JWT integrity (§3.5) is reserved for the session credential, whose forgery would grant 24 hours of authenticated capability and which justifies the KMS round-trip on every session-issue path. KMS round-trips on every banner emit would multiply per-request latency for no comparable security gain.
+- The flash cookie's `HttpOnly` attribute plus `SameSite=Lax` scope plus HMAC integrity together make it (a) unreadable to script on any origin, (b) unsendable from any cross-site context, and (c) unwriteable to any value the server did not produce. The receiving GET handler can therefore trust the kind and payload without re-validating who the user is.
 
 Requirements:
 
-- All cookies set with SameSite=Lax attribute.
-
-- GET requests must be strictly read-only (no state changes).
-
-- All state-changing operations use POST.
-
-- JSON-only routes (webhooks and explicitly-designated JSON-only progressive-enhancement endpoints) validate `Content-Type: application/json`.
-
-- State-changing browser requests (POST, PUT, PATCH, DELETE) must include an `Origin` header that exactly matches the canonical `PUBLIC_BASE_URL` origin. Requests with a mismatched `Origin` are rejected with 403. Requests lacking `Origin` fall back to `Referer` validation against the same origin; requests lacking both are rejected.
-
-- Server-to-server endpoints that legitimately omit `Origin` (intra-cluster `/ipc/*` shared-secret routes, future webhook routes with their own HMAC authentication) are explicitly exempt from the Origin check.
+- Every cookie the application issues carries `SameSite=Lax`. There is no `SameSite=Strict` or `SameSite=None` cookie in the application's surface.
+- GET handlers are strictly side-effect-free. Mutations use POST or another non-safe method; a state change over GET is a defect.
+- Every state-changing browser request (POST, PUT, PATCH, DELETE) must carry an `Origin` header matching the canonical `PUBLIC_BASE_URL` origin exactly. A mismatched `Origin` is rejected with 403 by `requireOriginPin`. A missing `Origin` falls back to `Referer` validation against the same origin; a request missing both is rejected with 403. The fallback exists for legitimate user-agent configurations that strip `Origin` but not `Referer`.
+- JSON-only routes (webhooks; explicitly-designated JSON-only progressive-enhancement endpoints) additionally enforce `Content-Type: application/json`. This blocks a cross-site HTML form that smuggles JSON via `enctype="text/plain"`, which would otherwise bypass the same-origin check that browsers apply to non-simple Content-Types.
+- Server-to-server endpoints that legitimately omit `Origin` (intra-cluster `/ipc/*` shared-secret routes; future webhook routes with their own HMAC authentication) are explicitly exempt from the Origin check. Each exempt route documents its own authentication scheme; the exemption is per-route, not per-prefix.
+- Display-state cookies are emitted only through helpers in `src/lib/*Cookie.ts` with `signed: true`. Helpers set the cookie attributes (`httpOnly`, `sameSite`, `secure`, `path`, `maxAge`); controllers and middleware do not hand-roll cookie options. Services do not write or read cookies; flash is an HTTP-layer concern.
 
 Trade-offs:
 
-- Requires discipline in HTTP verb usage. No protection for ancient browsers (IE 10 and older); acceptable given browser baseline.
+- Verb discipline must be maintained at the source level: a GET handler that mutates state bypasses the entire defense. Integration tests (`tests/integration/csrf.test.ts`, `tests/integration/csrf.origin-pin.test.ts`) cover the surface; a regression that adds a mutating GET would surface there.
+- A small fraction of legitimate user-agents strip both `Origin` and `Referer` (privacy plugins, `file://` pages, certain redirect chains) and cannot submit state-changing forms. Accepted given the protected surface (community site, not a public API).
+- The defense does not protect against same-origin XSS on `footbag.org` itself. The Content Security Policy (§3.12), input sanitization (§3.14), and text-sanitization pipeline (§3.15) are the layers responsible for that surface.
 
-- A small fraction of legitimate user-agents (privacy plugins that strip both `Origin` and `Referer`, `file://` pages, certain redirect chains) cannot submit state-changing forms. Acceptable given the protected surface.
+Alternatives considered:
 
-- Does not protect against same-origin XSS on footbag.org itself; that surface is addressed by the Content Security Policy and input sanitization layers (§3.12, §3.14, §3.15).
+Synchronizer tokens (per-form hidden token tied to the session). Rejected: requires every state-changing form to embed a token via the view-model and every state-changing POST handler to validate it. The plumbing crosses the controller-service-template boundary that §1.10 keeps narrow, and adds a per-request DB or session-store lookup to validate the token. `SameSite=Lax` plus Origin pinning covers the same attack class without per-form ceremony and without the additional lookup.
 
-Cookie integrity for display state:
+Double-submit cookie pattern. Rejected: the pattern depends on the property that an attacker cannot set a cookie on the target origin. `SameSite=Lax` already guarantees that property at the browser level for every supported user-agent. Adding a second cookie and a server-side comparison adds plumbing for a guarantee already in place at the layer below.
 
-- Server-issued cookies that carry display state (flash banners today; preferences or remember-me in the future) are HMAC-signed with the per-host `SESSION_SECRET` via `cookie-parser`'s signed-cookie mechanism. This signing defends against client-side cookie-jar tampering of state the server will later echo. Cookie signing is independent of CSRF protection (which is handled by SameSite=Lax plus Origin pinning).
+Custom request-header check (e.g. `X-CSRF-Token` set by JavaScript). Rejected: requires JavaScript on every state-changing form, which conflicts with the JS-optional public surface (§4.2). The "no cross-site script can forge this header" property comes from Origin-header pinning without the JS dependency. The wizard, the contact form, and every other form continue to work with JavaScript disabled.
 
-- Cookie policy (name, format, options) lives in `src/lib/*Cookie.ts` helpers; controllers and middleware call helpers rather than hand-rolling cookie options. Services are unaware of flash cookies (HTTP-layer concern).
+`SameSite=Lax` alone, with no Origin pinning. Rejected: `SameSite=Lax` does not isolate same-site subdomain POSTs. The session cookie is `Domain=.footbag.org` so the archive subdomain receives it (§6.4). A malicious form, future XSS in legacy archive content, or a compromised third-party widget on the archive subdomain would otherwise issue authenticated POSTs to `footbag.org`. Origin pinning closes that subdomain CSRF surface.
+
+KMS signing for display-state cookies. Rejected for the flash cookie: every banner-emitting POST handler would pay a KMS round-trip to sign a 60-second-TTL cookie. The blast radius of a forged 60-second display notice is bounded (one banner on one browser); HMAC via a per-host secret is sufficient. KMS remains required for the session JWT, where the blast radius of forgery is 24 hours of authenticated capability.
+
+Unsigned display-state cookies. Rejected: the receiving GET handler branches its rendered output on the kind and payload values read from the cookie. A user able to rewrite the cookie (via DevTools, a malicious browser extension, or any client-side tampering path) could inject a banner of their choice, a kind value the server did not produce, or a payload that takes an unintended branch in the handler. HMAC integrity rejects any cookie value the server did not produce, including any tampered re-encoded version of a previously valid cookie.
 
 ## 3.4 JWT Token Lifecycle and Configuration
 
 Decision:
 
-JWT tokens have 24-hour lifetime, stored in HttpOnly, Secure, SameSite cookies. Tokens include memberId, roles, passwordVersion (for immediate invalidation on password change). No separate refresh token mechanism is used; instead, the session JWT itself may be re-issued near expiry during normal authenticated requests (see session refresh behavior).
+The session JWT (§3.2) has a 24-hour lifetime (`exp = iat + 86400` seconds). The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (§3.5). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier) so the verifier can resolve which key signed each token across rotation overlap windows. The payload carries `sub` (member id), `passwordVersion`, `role`, `tier`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed 24-hour token on the same response that performed the check. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
 
-Rationale:
+Rationale (24-hour TTL):
 
-- 24-hour lifetime balances security (regular re-authentication) with convenience.
+- A 24-hour token is short enough that a stolen credential ages out within a day without operator action, and long enough that a member visiting on consecutive days does not see a login prompt on every visit. The community-site visit pattern (occasional, low session density) does not justify the operational cost of multi-day sessions or the larger blast radius of a stolen credential.
+- The TTL must be short enough that the per-request `passwordVersion` lookup remains the primary revocation mechanism. Longer TTLs would let stale tokens accumulate and shift more revocation pressure onto `passwordVersion` resets and KMS key rotation.
 
-- HttpOnly prevents JavaScript access (XSS mitigation).
+Rationale (6-hour refresh trigger):
 
-- Secure flag enforces HTTPS-only transmission.
+- Re-issuing on every authenticated request would multiply the KMS `Sign` load by the full authenticated-request volume. Re-issuing only inside the last 6-hour window of the 24-hour TTL caps that load at roughly one re-issue per active session.
+- A 6-hour window is large enough that a member returning after a few hours stays logged in, and small enough that a member who stays inactive overnight sees a clean re-authentication on their next visit.
+- The trigger is computed from the JWT's `exp` claim against current server time, not from any shared cache or per-instance state.
 
-- SameSite=Lax and Origin-header pinning together prevent CSRF (§3.3): SameSite=Lax blocks cross-site POSTs at the browser; Origin-header pinning blocks same-site subdomain POSTs from the archive.footbag.org cookie-sharing surface.
+Rationale (no separate refresh credential):
 
-- passwordVersion enables immediate token invalidation without token blacklist.
+- A refresh token is itself a credential. Adding one introduces a second integrity mechanism, a second cookie or storage location, a second rotation cadence, and a second revocation path. Each addition is an additional surface for bugs and a longer-lived credential whose theft extends every other compromise. The in-place re-issue achieves the same "active session stays active" outcome with one credential.
 
 Trade-offs:
 
-- Users must re-authenticate every 24 hours (acceptable for community site).
-
-- No "remember me" or extended session capability.
-
-- Password change invalidates all other sessions immediately; the current session continues via immediate JWT re-issue on the password-change response.
+- A member who returns 24 hours and 1 minute after their last authenticated request is re-prompted. Acceptable for a community site; would not be acceptable for an application with long-running editorial workflows where forced logout discards in-progress work. The platform has no such workflow.
+- KMS `Sign` cost scales with re-issue frequency. The 6-hour trigger keeps the cost bounded; tightening the window (e.g., refresh on every request) would defeat the cost-bounding rationale.
 
 Impact:
 
-- Authentication middleware validates token on every request.
+JWT payload, emitted at sign time:
 
-- Token generation centralizes passwordVersion from member record.
+- `sub`: the member id, matching `members.id`.
+- `passwordVersion`: the snapshot of `members.password_version` at sign time. Compared against the live DB value on every authenticated request; mismatch rejects the token (§3.2).
+- `role`: `"admin"` if `members.is_admin` is set, otherwise `"member"`. Carried for audit-log readability and template hints. Authorization is read from the DB row on every request, not from this claim.
+- `tier`: the current tier label (e.g., `"tier0"`, `"tier1"`, `"tier2"`) derived from the tier resolver at sign time. Carried as a routing hint. Authorization is read from the DB row on every request, not from this claim.
+- `iat`, `exp`: standard JWT timestamps in seconds. `exp = iat + 86400`.
 
-- Password change flow increments passwordVersion, auto-invalidating old tokens.
+JWT header, emitted at sign time:
 
-- JWT Payload Structure: JWT contains: memberId, roles array, passwordVersion, tierStatus, iat (issued at), exp (expires at, 24 hours later). Controllers and middleware can access these claims after JWT validation. The passwordVersion claim enables immediate session invalidation without token blacklist.
+- `alg`: `RS256` (RSASSA-PKCS1-v1_5 over SHA-256).
+- `kid`: the KMS key id in production; the local key fingerprint in dev and test. Drives public-key resolution at verify time.
 
-- Session refresh triggers on every authenticated request. If the JWT expires in less than 6 hours, the system issues a new JWT with extended 24-hour expiration. If the JWT expires in 6 hours or more, the existing JWT is retained. Refresh is transparent to the user through automatic cookie replacement in the response.
+Session refresh:
 
-- The middleware checks expiration time on each authenticated request and generates a new JWT when needed, setting the session cookie with httpOnly, secure, sameSite lax attributes and 24-hour maxAge. This provides simple implementation without separate refresh tokens, good user experience preventing logout during active use, and security through short expiry for inactive sessions.
+- Trigger: an authenticated request whose JWT satisfies `exp - now < 6 hours` is treated as a refresh candidate.
+- Action: the middleware signs a new JWT carrying the current values of `passwordVersion`, `role`, and `tier` read from the same DB row that satisfied the per-request authorization check; sets the cookie via `issueSessionCookie` with a fresh 24-hour `Max-Age`; and proceeds with the request.
+- Non-action: an authenticated request whose JWT satisfies `exp - now >= 6 hours` is not refreshed; the existing cookie is left in place.
+- Failure mode: an expired token fails the per-request signature/passwordVersion verification (§3.2) before the refresh check runs. There is no "expired-but-refreshable" state; an expired token always lands unauthenticated.
 
-- Cookie configuration: name is 'footbag_session', httpOnly true prevents JavaScript access, secure true enforces HTTPS only, sameSite lax (combined with Origin-header pinning per §3.3) protects against CSRF, and maxAge is 86400000 milliseconds for 24 hours.
+Key rotation:
 
-- Password change atomicity: Password changes update the password hash and increment passwordVersion in a single atomic transaction. Authorization middleware checks passwordVersion on every request, comparing the JWT's embedded passwordVersion claim against the current database value. If they differ, the JWT is rejected immediately, forcing re-authentication. This pattern invalidates all existing JWTs instantly when a password changes, preventing use of stolen tokens after password reset.
+- The signing key carries a `kid` in every JWT header. The verifier resolves the public key by `kid` from a small in-process cache, populated at startup and on first miss from KMS `GetPublicKey`.
+- During a rotation window, two keys are active simultaneously: the new key signs new tokens; the prior key remains in the verifier cache long enough for every token signed with it to expire naturally. After the 24-hour TTL has elapsed from the rotation moment, the prior key is disabled in KMS and removed from the verifier cache. Tokens signed with the prior key after that point fail verification and force re-authentication.
+- The verifier never calls KMS `Sign` and never calls `Decrypt`. Only `GetPublicKey` on cache miss. Steady-state verification is in-process RS256 against the cached public key.
 
-- JWT signing key rotation: JWT signing uses AWS KMS asymmetric keys identified by kid (key ID) headers. During key rotation, multiple valid keys exist simultaneously: the new key signs new JWTs, while the old key remains valid for verification. Old signing keys remain enabled for 24 hours after new key deployment to allow natural JWT expiry without forcing mass logout. After 24 hours, the old key is disabled and JWTs signed with it are rejected, requiring re-authentication.
+Password-change atomicity:
 
-- JWTs are used as session cookies with a 24-hour expiration. The platform does not use a separate refresh token. Instead, for active sessions the server may re-issue the session JWT (same cookie, new token) during normal authenticated requests when the existing token is near expiry. Users must log in again once the token expires and is not renewed through normal activity.
+- A password change updates `members.password_hash` and increments `members.password_version` in a single SQLite transaction. The same transaction also writes the password-change audit row.
+- After commit, the response re-issues the session JWT (carrying the new `passwordVersion`) to the originating browser. Every other JWT outstanding for that member now carries a stale `passwordVersion` claim and is rejected on its next authenticated request (§3.2).
+
+Alternatives considered:
+
+Longer TTL (7-day or 30-day session). Rejected: extends the blast radius of a stolen credential without a UX gain for the platform's visit pattern. A member visiting weekly already crosses a 7-day boundary; a 30-day TTL adds nothing for that member and lengthens the window during which a stolen cookie is valid.
+
+Separate refresh tokens with a dedicated refresh endpoint. Rejected: a refresh credential is itself a credential, with its own format, cookie, rotation cadence, and revocation path. Each is an additional surface for bugs. A long-lived refresh credential is a longer-blast-radius theft target. In-place re-issue covers the same UX with one credential.
+
+Refresh on every authenticated request. Rejected: multiplies the KMS `Sign` cost by every authenticated page view. The 6-hour trigger bounds the cost at roughly one re-issue per active session and preserves the UX without the per-request KMS load.
+
+Authorization decisions read from JWT claims (no per-request DB read). Rejected: a JWT issued before a tier change, role change, or soft-delete would carry stale authorization values for up to 24 hours. Reading from the DB row on every authenticated request makes role changes, tier changes, and soft-deletes take effect on the next request without waiting for the JWT to roll over.
+
+Stateless JWT with no `passwordVersion` claim. Rejected: a stolen JWT would remain valid for its full 24-hour TTL with no invalidation mechanism short of KMS key rotation (which logs every member out). `passwordVersion` is a per-member invalidation lever that does not require a token blacklist or a global key rotation.
+
+No `kid` in the JWT header (single static signing key). Rejected: key rotation would require a flag day on which every active token is simultaneously invalidated, forcing a mass logout. `kid` is the JWT-standard mechanism for the overlap pattern in which two keys are valid during a rotation window.
 
 ## 3.5 JWT Signing with AWS KMS Asymmetric Keys
 
 Decision:
 
-JWTs are signed using an AWS KMS asymmetric key (RSA-2048). Login flow calls KMS Sign to produce the token signature. Token verification uses the exported public key (KMS GetPublicKey) cached in memory; verification does not call KMS on every request. Token header includes kid referencing the active KMS key identifier used for signing to support rotation.
+The session JWT (§3.2, §3.4) is signed with `RS256` (RSASSA-PKCS1-v1_5 over SHA-256) using an AWS KMS customer-managed asymmetric RSA-2048 key. Every session-issue and re-issue path calls KMS `Sign` to produce the signature: login, email-verify completion, password-reset completion, password-change response, and the near-expiry refresh defined in §3.4. Verification uses the corresponding public key, fetched from KMS `GetPublicKey` and cached in process for the container's lifetime; a steady-state verification never calls KMS. The JOSE header carries `kid` so the verifier can resolve which key signed each token across rotation overlap windows. The `JwtSigningAdapter` interface (`src/adapters/jwtSigningAdapter.ts`) lets production wire to KMS and dev and test wire to a local PEM keypair; both implementations produce identically-shaped tokens.
 
 Rationale:
 
-- Lightsail has no EC2 instance profile; KMS integration is simpler on EC2 (instance profile attaches automatically) and requires explicit runtime credential wiring on Lightsail (see §7.2). The offline-forgery protection of non-exportable HSM-backed key material is worth that wiring cost for session signing.
-- Private key material never leaves KMS/HSM. A container compromise cannot exfiltrate a reusable signing key. Public-key verification is fast and can be done in-process without KMS round trips.
+- Private key material never leaves the KMS HSM. A container compromise that obtains the runtime AWS credentials can still call KMS `Sign` while those credentials remain valid, but cannot exfiltrate a reusable signing key. Once the runtime credentials are revoked or the KMS key is disabled, the attacker can no longer forge tokens. A symmetric secret shipped to the container (the HS256 alternative below) would survive credential revocation as long as the attacker retained the captured copy and would require key rotation, not credential revocation, to end the forge window.
+- Verification is fast and runs entirely in process. The hot path (every authenticated request) does in-process RS256 verification against a cached public key; the KMS round-trip cost is paid only at startup and on key-rotation events. The verify-side cost profile is comparable to HMAC despite the asymmetric algorithm.
+- The `kid` header lets the verifier hold multiple valid public keys simultaneously during a rotation overlap window, so a key rotation does not require a flag day and a global logout. This is the same property §3.4 relies on for non-disruptive rotation.
 
 Requirements:
 
-- The KMS key policy for the JWT signing key grants only the specific principals and actions required for signing and public-key retrieval. The broad `kms:*` allow-root statement is removed; root retains administrative access via account-level IAM, not via the key policy itself.
-- The signing key has a documented rotation cadence. An alarm fires when a key passes its rotation deadline without a successor, so silent staleness cannot accrue.
+- The KMS key policy grants the runtime IAM role only the specific actions it needs: `kms:Sign`, `kms:GetPublicKey`, and `kms:DescribeKey`. The default `kms:*` allow-root statement is removed from the key policy; root administrative access remains available through account-level IAM, not through the key policy.
+- The signing key has a documented rotation cadence. A CloudWatch alarm fires when a key passes its rotation deadline without a successor enabled, so a missed rotation cannot accrue silently.
+- The adapter interface is invariant across implementations: `KmsJwtAdapter` (production) and `LocalJwtAdapter` (dev and test) produce JWTs with identical JOSE header shape and identical claim shape. An integration test asserts shape parity (`tests/integration/adapter-parity.test.ts`).
+- Startup-time `GetPublicKey` failure fails the container fast (the process exits non-zero before serving requests). After startup, a `GetPublicKey` failure on a `kid` not yet in the cache is logged at error level and the affected verification returns "unauthenticated"; the process does not crash on a single missing-key event.
 
 Trade-offs:
 
-- Container compromise can still sign tokens while the runtime AWS credentials for the assumed runtime role remain usable (an attacker can still call KMS Sign through that role). KMS prevents offline forging after incident response because the private key is non-exportable.
-
-- Requires KMS key provisioning and rotation procedures (public key refresh and kid changes).
+- A compromise of the runtime AWS credentials gives the attacker the ability to call KMS `Sign` for any payload (and therefore to forge a JWT against any member id) for as long as those credentials remain valid. The mitigation is that runtime credentials are short-lived via the assumed-role chain (§3.6), every KMS call is logged in CloudTrail for forensic reconstruction, and credential revocation immediately ends the forge window without requiring key rotation. The non-exportable property prevents the attacker from carrying the signing key off the host.
+- KMS key deletion is irreversible and would force a mass re-authentication. AWS gates key deletion behind a 7-to-30-day pending-deletion window, and the rotation-deadline alarm doubles as a "key still exists" canary. An accidentally-deleted key forces every active session to re-authenticate; this is a known cost of the non-exportable property.
+- KMS `Sign` is billed per signing operation. The 6-hour refresh window (§3.4) bounds the cost at roughly one re-issue per active session. Very high session turnover would increase KMS spend, but the cost is predictable and easy to model from authenticated-request volume.
 
 Impact:
 
-AuthService signs tokens via the `JwtSigningAdapter` interface (KMS-backed `KmsJwtAdapter` in production via `kms:Sign`; file-backed `LocalJwtAdapter` in dev/test) using the runtime assumed role defined by the AWS Lightsail and Credentials decision. Auth middleware verifies using cached public key (`kms:GetPublicKey` during startup/rotation only).
+Adapter contract (`src/adapters/jwtSigningAdapter.ts`):
+
+- `signJwt(claims, header)` returns a serialized JWT. Production: KMS `Sign` with `SigningAlgorithm: RSASSA_PKCS1_V1_5_SHA_256`. Dev and test: in-process RSA signature against the local PEM keypair.
+- `verifyJwt(token)` returns the verified claims or `null`. Production: RS256 verification against the cached public key resolved by the token's `kid`. Dev and test: the same RS256 verification against the local public key.
+- `getKid()` returns the active signing key's identifier; embedded in every emitted JWT header.
+
+Sign-side call sites (controllers and middleware that issue or re-issue a session JWT):
+
+- `authController.postLogin` (login).
+- `authController.getVerify` (email-verify completion).
+- `authController.postPasswordReset` (password-reset completion).
+- `memberController.postPasswordEdit` (re-issue with the new `passwordVersion`).
+- `authMiddleware` (re-issue inside the 6-hour refresh window per §3.4).
+
+Verify-side call sites:
+
+- `authMiddleware` on every authenticated request, against the cached public key.
+
+Startup behaviour:
+
+- At startup the verifier calls `GetPublicKey` for the active `kid` and populates the in-process cache. The container refuses traffic until the cache is populated. Production: the call uses the runtime assumed-role credentials. Dev and test: the local PEM is read from disk at the path named by `JWT_LOCAL_KEYPAIR_PATH`.
+
+Alternatives considered:
+
+HS256 with a symmetric shared secret (e.g. `JWT_SECRET`). Rejected: a symmetric secret shipped to the container is exfiltrated by any container compromise and remains usable to forge tokens indefinitely, even after the compromised container is replaced and its credentials revoked. The forge window for HS256 is bounded by secret-rotation time (operator-driven), not by credential-revocation time (immediate). KMS asymmetric makes the forge window equal to the credential-revocation window.
+
+Local-only RSA keypair on disk in production. Rejected: a host snapshot, backup tarball, or filesystem read by a compromised process recovers the private key. The keypair has no rotation primitive comparable to KMS key disable. The `LocalJwtAdapter` is used in dev and test only, where the threat model is "developer's laptop" and the convenience of file-backed signing outweighs the lower assurance.
+
+Per-request KMS `Verify` (no cached public key). Rejected: every authenticated page view would pay a KMS round-trip plus the network latency to the KMS regional endpoint. Caching the public key in process pays the KMS round-trip once per startup and once per rotation, not once per request.
+
+Envelope encryption (encrypting the JWT payload, not just signing it). Rejected: the JWT payload carries non-sensitive claims (member id, role hint, tier hint, `passwordVersion`, timestamps) and must be readable by the verifier in process. Encryption would require KMS `Decrypt` on every authenticated request, defeating the per-request-KMS-free property and adding nothing the signature does not already provide.
+
+Ephemeral signing keys (a new keypair per process, public key registered with a discovery endpoint). Rejected: would require an in-house service-discovery mechanism for public keys keyed by `kid`, adding a new operational surface. KMS already serves as that discovery mechanism (`GetPublicKey` returns the public key for the given `kid`) without an additional service.
+
+ECDSA (e.g. P-256 with ES256) instead of RSA-2048. Rejected: RSA-2048 with RS256 is the most widely-tooled JWT signing algorithm and is fully supported by AWS KMS. ECDSA would offer smaller signatures at comparable security but at the cost of a less widely-tested verifier path and a less standard JWT shape. No operational driver to prefer the smaller signature.
+
+In-house JWT signing (not via the `JwtSigningAdapter`). Rejected: production-versus-dev parity (per §5.3) requires a single interface with two implementations. Inlining the KMS calls into controllers would duplicate JWT shape logic and would prevent the local-PEM dev path that keeps dev and test running without AWS credentials.
 
 ## 3.6 Secrets Management via AWS Parameter Store
 
@@ -1434,7 +1515,7 @@ Legacy migration security rules:
 - Mailbox control is the proof step for self-serve claim regardless of which identifier type (email address, username, or member ID) the member submitted. Submitting a username or member ID still requires proving control of the matched `legacy_email` before any merge occurs. When the requesting member's verified `login_email` already equals the matched row's `legacy_email` (case-insensitive, trimmed), the registration-time email-verify step satisfies the proof step and the second token-email is skipped; the merge runs synchronously inside the initiation call. Anti-enumeration is preserved because the fast path is reachable only after a positive lookup.
 - Production has no admin email-skip; admins requiring manual recovery use `manualLegacyClaimRecovery` (with the audit trail and access controls that flow implies). A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. All four vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev-admin shortcut lives in `src/dev-admin-shortcuts/runtime.ts`.
 - Imported placeholder rows cannot log in, are not searchable, and do not receive any member communications before claim.
-- **Surname-match enforcement is asymmetric by claim path.** The direct-HP claim path (`/history/:personId/claim`) blocks server-side on surname mismatch between the claiming member's `real_name` and the historical person's recorded surname. The legacy-account claim path (`/history/claim`) does not enforce surname match: the proof step is mailbox control of the matched `legacy_email`, and a member whose legal name changed between their legacy and current account would otherwise be blocked from reclaiming their own legacy identity. The asymmetry is deliberate. A member who claims their legacy account and later attempts a direct-HP claim against a different surname is blocked at the HP step.
+- **Surname-match enforcement is asymmetric by claim path.** The direct-HP claim path (`/history/:personId/claim`) blocks server-side on surname mismatch between the claiming member's `real_name` and the historical person's recorded surname. The legacy-account claim path (the onboarding wizard's `legacy_claim` task) does not enforce surname match: the proof step is mailbox control of the matched `legacy_email`, and a member whose legal name changed between their legacy and current account would otherwise be blocked from reclaiming their own legacy identity. The asymmetry is deliberate. A member who claims their legacy account and later attempts a direct-HP claim against a different surname is blocked at the HP step.
 - **Historical-person claim races are resolved by partial UNIQUE index + service-layer error mapping.** Concurrent claims to the same `historical_persons` row both pass the in-controller "already claimed" check; the partial UNIQUE index `ux_members_historical_person_id` catches the loser at insert. The service wraps the SQLite `SQLITE_CONSTRAINT_UNIQUE` exception in `ConflictError` so the controller renders the same user-readable "already claimed by another member" 422 it renders on the synchronous check path. Raw SQL errors must not leak to the response.
 
 Rationale:
@@ -2007,32 +2088,91 @@ Impact:
 
 Decision:
 
-Express is used as the HTTP framework for routing, middleware, and request handling. Controllers are thin wrappers that delegate to business services and rendering surfaces.
+Express is the HTTP framework for routing, middleware, and request handling. Controllers are thin wrappers that delegate business logic to service-layer modules and rendering to Handlebars view templates.
 
-Controllers own HTTP concerns only: request parsing, middleware coordination, auth/session boundary enforcement, choosing the response type, and invoking rendering or redirect paths. Controllers do not own business rules, service-boundary decisions, page-model shaping beyond trivial glue logic, or ad hoc route-domain interpretation.
+Controllers own HTTP-layer concerns only: request body and query parsing, response-type selection (render, redirect, JSON), redirect dispatch, template invocation, and mapping service-layer outcomes to HTTP responses. Controllers do not own business rules, service-boundary decisions, page-model composition beyond trivial glue, or ad-hoc route-domain interpretation. Auth gating and tier enforcement live in middleware (see Authorization Middleware Pattern below), not in controllers; controllers on protected routes see only authenticated, tier-validated requests.
 
 Rationale:
 
-- Express is simple, mainstream, and well-documented.
-- Keeps HTTP concerns (routing, headers, status codes) separate from business logic.
-- Thin-controller discipline makes the service catalog and page/view contracts more stable over time.
+- Express is mainstream, well-documented, and already present in the Node + TypeScript stack. Introducing a second routing framework would create parallel routing concepts for no comparable gain.
+- Routing, headers, and status codes are HTTP-layer concerns; service-layer code never touches `req` or `res`. The separation lets the service catalog stay testable without an HTTP fixture.
+- Thin controllers keep the service catalog and view catalog stable: a controller change does not ripple into either catalog unless the underlying service contract or view contract changes.
 
 Trade-offs:
 
-- Does not provide advanced framework features (e.g., DI containers) out of the box.
-- Requires explicit wiring for validation, error handling, and auth checks.
-- Requires discipline to prevent controller convenience logic from expanding over time.
+- Express does not provide a DI container, validation framework, or built-in error-mapping pipeline; each is wired explicitly. The wiring lives in `src/middleware/*` and `src/lib/controllerErrors.ts`, both small.
+- Thin-controller discipline must be maintained at review time. A controller that grows business logic produces a slow shift away from the property. Code review (and service-catalog drift checks per §1.10) is the enforcement mechanism.
 
 Impact:
 
-- Routes map method + path to controller functions.
-- Middleware layers handle JWT validation, rate limiting, and similar cross-cutting concerns.
-- Controllers should remain small and easy to reason about.
-- Complex page composition belongs in services or explicitly owned page-model builders, not in controllers.
+- Routes are declared in `src/routes/*.ts` and map (method, path) to a controller function.
+- Middleware composes at app-init time in `src/app.ts` in the following order: body parsing → cookie-parser → CSRF Origin pin (§3.3) → auth middleware (§3.2) → no-store on authenticated responses → controller.
+- Controllers stay small and read top-to-bottom; complex page composition belongs in service-layer page-model builders, not in controllers.
 
 Authorization Middleware Pattern:
 
-All role-based authorization occurs in Express middleware after JWT validation. The pattern uses a middleware chain: first requireAuth validates the JWT and confirms decoded claims exist, then other app-based authorization requirements (for example member tier) are checked, then the controller executes. Middleware functions return 401 for missing authentication or 403 for other app-permission failure. Controllers apply these rules to routes that need protection. Services implement defense-in-depth by also validating app-based autorization rules, preventing application errors from exposing restricted features to unauthorized members.
+Authorization runs as a chain of middleware functions after `authMiddleware` (§3.2) populates `req.user`. The chain on a protected route is:
+
+1. `requireAuth` (`src/middleware/auth.ts`) checks `req.isAuthenticated`. If false on an HTML route, the middleware returns a 302 redirect to `/login?returnTo=<originalUrl>` so the browser user sees a login form rather than an opaque status code. A JSON API route returns 401 from the same gate.
+2. Tier middleware (e.g. `requireTier1Benefits`) checks `req.user`'s tier value, which the auth middleware sourced from the DB row on the current request. Insufficient tier returns 403 with a rendered tier-upsell page on an HTML route, or a JSON error on an API route.
+3. Admin middleware (e.g. `requireAdmin`) checks `req.user.role`, derived from `members.is_admin`. Non-admin returns 403.
+
+Defense in depth: every state-changing service method re-asserts the same authorization predicate against the DB row. A request that bypassed the middleware (a test-seam misuse, a future middleware regression) is still rejected at the service layer with the same outcome.
+
+The `/login?returnTo=...` redirect from `requireAuth` is the one site that emits 302 by design. It is exempted from the explicit-303 rule below because it is a framework-level auth gate rather than a per-route response, and because the redirect applies uniformly to every method (GET, POST, PUT, PATCH, DELETE) — the post-login flow returns the user to the originally-requested URL via the `returnTo` parameter, validated through `isSafePath`.
+
+HTTP Response Convention:
+
+State-changing POST handlers follow Post-Redirect-Get: on success, the handler issues an explicit `303 See Other` to the GET URL that owns the resulting state. Inline validation failures re-render the same form at 422 with submitted values preserved. Rate-limit responses re-render at 429 with a `Retry-After` header. Resource-not-found and anti-enumeration responses use 404. Authenticated-but-not-permitted responses use 403. Parser-level failures (malformed token, JSON-API field validation) use 400. Permanent URL canonicalization uses 301. The framework's implicit 302 default does not reach the wire: every redirect site sets its status explicitly, and the only 302 emitted anywhere is the auth-gate redirect described above.
+
+| Code | Use |
+|------|-----|
+| 303 | POST → GET state-changing success. Always explicit. |
+| 422 | Inline form-validation re-render with submitted values preserved. |
+| 429 | Rate-limit re-render with `Retry-After`. |
+| 404 | Resource not found; anti-enumeration. |
+| 403 | Authenticated but not permitted. |
+| 400 | Parser-level errors (malformed token, JSON-API field validation). |
+| 301 | Permanent canonical URL change. |
+| 302 | Framework-level auth-gate redirect to `/login?returnTo=...` only. No other site emits 302. |
+
+Services own action-result composition: each state-changing service method returns a discriminated-union result whose discriminant the controller switches on to map to a response code from the table above. Controllers do not branch on business outcomes; they map service-result discriminants to HTTP responses.
+
+Transient post-submit state (one-shot banners, prominent cards, drift notices) is carried in the signed `footbag_flash` cookie (§3.3) consumed by the next matching-target GET, not in query parameters. The `FLASH_KIND` enumeration lives in `src/lib/flashCookie.ts`; each transient-notice surface adds a new kind to the enum rather than constructing an ad-hoc payload. The receiving GET reads the flash via `readFlash`, surfaces the banner through a view-model field, and calls `clearFlash` so the notice is consumed exactly once; the 60-second TTL is a backstop for the rare case where the receiving GET never lands (the user navigates away after the POST).
+
+Rationale for explicit 303:
+
+`HTTP 302 Found` is specified loosely enough that several user agents replay the original POST method when the user hits back or refresh, which produces duplicate writes. `303 See Other`, defined in RFC 9110 §15.4.4, forces the follow-up request to use GET regardless of the original method. Setting `303` explicitly at every redirect site keeps the wire-level behaviour under codebase control rather than depending on the framework's implicit default and on whichever user agents happen to interpret `302` correctly.
+
+Rationale for signed flash cookies over query-string notices:
+
+A post-submit notice attached to the redirect URL (`?saved=create`, `?submitted=1`) survives in the URL bar after the redirect. The URL is then bookmarkable, shareable, indexable by crawlers, and copyable from browser history. Any of those paths produces a URL that displays the banner to viewers who never performed the action — confusing at best, a privacy leak of the originating account's activity at worst. Query-string flags also pollute CDN cache keys (each variant is a distinct cache entry), leak into the `Referer` header on outbound links, and persist in server access logs.
+
+The signed flash cookie sidesteps all of that. It is HMAC-signed with `SESSION_SECRET` (a forged value fails the HMAC check, §3.3), scoped `HttpOnly` and `SameSite=Lax` (unreadable to scripts and unsendable cross-site), and expires after 60 seconds. No shared link, cache key, log line, or `Referer` header carries the notice.
+
+Rationale for bounded redirect targets:
+
+A redirect URL chosen from user-controlled input (a form field, a URL fragment, the `Referer` header) is an open-redirect primitive. An attacker hands the victim a link that begins on the trusted `footbag.org` domain and silently lands the victim on an attacker-controlled page; the victim's trust in the originating domain transfers across the redirect into a phishing or credential-harvesting flow. To prevent this, every redirect target the application emits is either a fixed server-owned path (for example, `/admin/curator/media` after a curator action) or a path the controller has explicitly validated through `isSafePath` (relative same-site path; rejects schemes, `//` prefix, backslashes). The two surfaces that consume external input pass through `isSafePath` before redirecting: the auth-gate `/login?returnTo=...` and the post-logout `Referer` branch. No other controller constructs a redirect target from unvalidated input.
+
+Alternatives considered:
+
+Framework-default 302 for POST-success redirects. Rejected: 302's loose method semantics let some user agents replay the original POST on back or refresh, producing duplicate writes. 303 forces GET semantics on the follow-up at the spec level and removes the class of bug entirely. Mixing implicit 302 with explicit 303 across the codebase would also leave the wire-level behaviour dependent on which controllers got migrated and which did not.
+
+Query-string transient notices (`?saved=create`, `?submitted=1`, `?resolved=<id>`). Rejected: a shared, bookmarked, crawled, or copy-pasted URL renders the banner for viewers who never performed the action. Query-string flags also pollute CDN cache keys, leak into the `Referer` header on outbound links, and persist in server access logs. The signed flash cookie carries the same notice with none of those leaks.
+
+URL-fragment notice (`#saved=create`). Rejected: the fragment never reaches the server, so the server-rendered template cannot consume it; client-side rendering would be required, which conflicts with the JS-optional public surface (§4.2). The fragment is also unsigned, so any link could fabricate a banner.
+
+Server-side flash queue (a session-bound DB table or in-memory map keyed by session id). Rejected: introduces per-session server-side state, defeating the JWT-as-session model (§3.2) which keeps no per-session table. The signed cookie carries the same one-shot semantics with no server state.
+
+Unbounded `?returnTo` parameter (no `isSafePath` validation). Rejected: any attacker-chosen URL becomes a one-click redirect from a `footbag.org` page, which is a phishing primitive. `isSafePath` is the gate.
+
+Mixed 302/303 (some redirects 302, some 303). Rejected: a reader cannot determine the wire behaviour without reading every controller, and a future regression that adds a new redirect would inherit Express's 302 default by accident. Setting 303 at every state-changing POST-success site and reserving 302 for the one framework-level auth-gate keeps the wire transparent and the default-failure mode loud.
+
+Controllers emit raw service errors as HTTP responses. Rejected: would leak service-layer error class names, stack traces, or unbounded message strings into the response body. The discriminated-union result returned by each state-changing service method is the boundary that controllers map to a fixed table of HTTP responses; the service-layer error vocabulary stays inside the service layer.
+
+Client-side toast (JavaScript) instead of a server-issued flash cookie. Rejected: conflicts with the JS-optional public surface (§4.2). A user with JavaScript disabled would not see the post-submit confirmation. The server-rendered banner driven by the flash cookie works without JavaScript.
+
+Single status code for all error classes (e.g. 400 for every client error). Rejected: collapses signals an operator and a browser both consume. 422 vs. 400 distinguishes "your form is invalid; here it is with errors marked" from "your request shape is malformed"; 429 vs. 403 distinguishes "you are doing this too often, retry later" from "you may never do this"; 404 vs. 403 is the anti-enumeration choice for resources you must not learn the existence of. Collapsing any of these would either expose information (return 403 for a resource that should anti-enumerate) or degrade UX (return 400 when 422 would re-render with the user's input preserved).
 
 ## 5.3 Dedicated Adapters for External Services
 

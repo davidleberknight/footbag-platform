@@ -11,6 +11,7 @@ import { memberMediaEditController } from '../controllers/memberMediaEditControl
 import { claimController } from '../controllers/claimController';
 import { contactRequestController } from '../controllers/contactRequestController';
 import { authController } from '../controllers/authController';
+import { memberOnboardingController } from '../controllers/memberOnboardingController';
 import { hofController } from '../controllers/hofController';
 import { bapController } from '../controllers/bapController';
 import { freestyleController } from '../controllers/freestyleController';
@@ -80,33 +81,11 @@ publicRouter.get('/events',              eventController.landing);
 publicRouter.get('/events/year/:year',   eventController.year);
 publicRouter.get('/events/:eventKey',    eventController.event);
 
-publicRouter.get('/history', (_req, res) => { res.redirect(301, '/members'); });
-// IMPORTANT: /history/claim routes MUST be registered before /history/:personId.
-// Without this ordering, "claim" would be captured as the :personId param.
-// 301 redirects: GET /history/auto-link and GET /history/claim collapse into
-// the unified link-history wizard at /members/:slug/link-history. Round-2
-// "one place to link" decision: the standalone forms are no longer navigable.
-// POST endpoints stay (form action targets); GET handlers redirect. Bookmark
-// hits, stale emails, and accidental link clicks all flow through the wizard.
-// Owner slug for the redirect target is read from the auth payload; an
-// unauthenticated visit hits requireAuth FIRST and bounces to /login.
-publicRouter.get('/history/auto-link',            requireAuth, (req, res) => {
-  // 302 (not 301) because the redirect target depends on the current
-  // session's slug. A cached 301 would let a later visit bypass requireAuth
-  // and route a previous-session-owner's slug into the URL bar.
-  res.redirect(302, `/members/${encodeURIComponent(req.user!.slug)}/link-history${req.url.includes('?') ? `?${req.url.split('?')[1]}` : ''}`);
-});
-publicRouter.post('/history/auto-link/confirm',   requireAuth, claimController.postAutoLinkConfirm);
-publicRouter.get('/history/claim',                requireAuth, (req, res) => {
-  // 302 (not 301) — same rationale as /history/auto-link above.
-  res.redirect(302, `/members/${encodeURIComponent(req.user!.slug)}/link-history${req.url.includes('?') ? `?${req.url.split('?')[1]}` : ''}`);
-});
-publicRouter.post('/history/claim',               requireAuth, claimController.postClaim);
-publicRouter.get('/history/claim/confirm/:token', requireAuth, claimController.getClaimToken);
-publicRouter.post('/history/claim/confirm',       requireAuth, claimController.postClaimConfirm);
-// HP-only self-serve claim (scenarios D and E). /history/:personId/claim routes
-// sit at a deeper path than /history/:personId, so ordering is not strictly
-// required, but keeping claim routes grouped.
+// HP-only self-serve claim (scenarios D and E). The legacy account-claim and
+// auto-link flows live in the onboarding wizard at /register/wizard/legacy_claim
+// (see memberOnboardingController). /history/:personId/claim remains the
+// documented destination for HP-card deep-links from inside the wizard's
+// legacy_claim view (USER_STORIES M_Complete_Onboarding_Wizard).
 publicRouter.get('/history/:personId/claim',         requireAuth, claimController.getClaimHp);
 publicRouter.post('/history/:personId/claim/confirm', requireAuth, claimController.postClaimHpConfirm);
 publicRouter.get('/history/:personId',   historyController.detail);
@@ -122,8 +101,6 @@ publicRouter.post('/members/:memberKey/edit',         requireAuth, memberControl
 publicRouter.get('/members/:memberKey/edit/password', requireAuth, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireAuth, memberController.postPasswordEdit);
 publicRouter.post('/members/:memberKey/avatar',       requireAuth, memberController.postAvatarUpload);
-publicRouter.get('/members/:memberKey/link-history',  requireAuth, claimController.getLinkHistory);
-publicRouter.post('/members/:memberKey/link-history/find', requireAuth, claimController.postLinkHistoryFind);
 publicRouter.get('/members/:memberKey/contact-admin',  requireAuth, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireAuth, contactRequestController.postSubmit);
 
@@ -170,6 +147,20 @@ publicRouter.post('/register',              authController.postRegister);
 publicRouter.get('/register/check-email',   authController.getCheckEmail);
 publicRouter.get('/verify/:token',          authController.getVerify);
 publicRouter.post('/verify/resend',         authController.postVerifyResend);
+
+// Onboarding wizard. Per-action sub-paths land before the catch-all
+// `:taskType` routes so literal segments (find, skip, auto-link, claim,
+// submit) are not captured as :taskType. Order matters: Express matches
+// in registration order.
+publicRouter.post('/register/wizard/legacy_claim/find',                 requireAuth, memberOnboardingController.postLegacyClaimFind);
+publicRouter.post('/register/wizard/legacy_claim/auto-link/confirm',    requireAuth, memberOnboardingController.postLegacyClaimAutoLinkConfirm);
+publicRouter.get('/register/wizard/legacy_claim/claim/confirm/:token',  requireAuth, memberOnboardingController.getLegacyClaimTokenConfirm);
+publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, memberOnboardingController.postLegacyClaimTokenConfirm);
+publicRouter.post('/register/wizard/first_competition_year/submit',     requireAuth, memberOnboardingController.postFirstCompetitionYearSubmit);
+publicRouter.post('/register/wizard/show_competitive_results/submit',   requireAuth, memberOnboardingController.postShowCompetitiveResultsSubmit);
+publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
+publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
+publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);
 publicRouter.get('/password/forgot',        authController.getPasswordForgot);
 publicRouter.post('/password/forgot',       authController.postPasswordForgot);
 publicRouter.get('/password/reset/:token',  authController.getPasswordReset);

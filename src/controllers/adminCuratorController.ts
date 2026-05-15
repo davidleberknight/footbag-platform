@@ -29,6 +29,18 @@ import {
 } from '../services/transcodeDispatchClient';
 import { config } from '../config/env';
 import { randomUUID } from 'node:crypto';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+
+type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
+
+function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
+  const flash = readFlash(req);
+  if (flash?.kind !== FLASH_KIND.MEDIA_SAVED) return null;
+  clearFlash(res);
+  const p = flash.payload;
+  if (p === 'create' || p === 'edit' || p === 'delete' || p === 'upload') return p;
+  return null;
+}
 
 const ALLOWED_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
 const ALLOWED_POSTER_CONTENT_TYPES = new Set(['image/jpeg', 'image/png']);
@@ -154,7 +166,7 @@ export const adminCuratorController = {
     try {
       const svc = buildSvc();
       const existingCategories = await svc.listExistingCategories();
-      const savedFlag = req.query.saved === 'upload' ? 'upload' : null;
+      const savedFlag = readMediaSavedFlag(req, res) === 'upload' ? 'upload' : null;
       renderForm(res, { existingCategories, savedFlag });
     } catch (err) {
       next(err);
@@ -355,7 +367,8 @@ export const adminCuratorController = {
           }
           throw err;
         }
-        res.redirect('/admin/curator/upload?saved=upload');
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+        res.redirect(303, '/admin/curator/upload');
         return;
       }
 
@@ -401,7 +414,8 @@ export const adminCuratorController = {
           }
           throw err;
         }
-        res.redirect('/admin/curator/upload?saved=upload');
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+        res.redirect(303, '/admin/curator/upload');
         return;
       }
 
@@ -460,7 +474,8 @@ export const adminCuratorController = {
         }
         throw err;
       }
-      res.redirect('/admin/curator/upload?saved=upload');
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+      res.redirect(303, '/admin/curator/upload');
     }
 
     req.pipe(busboy);
@@ -481,10 +496,8 @@ export const adminCuratorController = {
         sortRaw === 'date_asc' || sortRaw === 'type_asc' || sortRaw === 'caption_asc'
           ? sortRaw
           : 'date_desc';
-      const savedFlag =
-        req.query.saved === 'edit' ? 'edit'
-          : req.query.saved === 'delete' ? 'delete'
-            : null;
+      const savedFlagRaw = readMediaSavedFlag(req, res);
+      const savedFlag = savedFlagRaw === 'edit' || savedFlagRaw === 'delete' ? savedFlagRaw : null;
 
       const svc = buildSvc();
       const result = svc.listMedia({ page, pageSize: LIST_PAGE_SIZE, tagFilter, sort });
@@ -544,7 +557,13 @@ export const adminCuratorController = {
       });
     } catch (err) {
       if (err instanceof ValidationError) {
-        res.status(422).send(err.message);
+        res.status(422).render('errors/form-error', {
+          seo: { title: 'Invalid Request' },
+          page: { sectionKey: 'admin', pageKey: 'admin_curator_list_error', title: 'Invalid Request' },
+          statusCode: 422,
+          errorMessage: err.message,
+          backHref: '/admin/curator/media',
+        });
         return;
       }
       next(err);
@@ -658,7 +677,8 @@ export const adminCuratorController = {
         }
         throw err;
       }
-      res.redirect('/admin/curator/media?saved=edit');
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+      res.redirect(303, '/admin/curator/media');
     } catch (err) {
       next(err);
     }
@@ -667,10 +687,7 @@ export const adminCuratorController = {
   /** GET /admin/curator/galleries — list FH-owned named galleries. */
   getGalleryList(req: Request, res: Response, next: NextFunction): void {
     try {
-      const savedFlag =
-        req.query.saved === 'edit'   ? 'edit'   :
-        req.query.saved === 'create' ? 'create' :
-        req.query.saved === 'delete' ? 'delete' : null;
+      const savedFlag = readMediaSavedFlag(req, res);
       const svc = buildSvc();
       const items = svc.listOwnedGalleries();
       res.render('admin/curator/galleries/list', {
@@ -716,7 +733,8 @@ export const adminCuratorController = {
           suggestedId,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
         });
-        res.redirect('/admin/curator/galleries?saved=create');
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'create');
+        res.redirect(303, '/admin/curator/galleries');
         return;
       } catch (err) {
         if (err instanceof ValidationError || err instanceof ConflictError) {
@@ -840,7 +858,8 @@ export const adminCuratorController = {
         }
         throw err;
       }
-      res.redirect('/admin/curator/galleries?saved=edit');
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+      res.redirect(303, '/admin/curator/galleries');
     } catch (err) {
       next(err);
     }
@@ -858,7 +877,8 @@ export const adminCuratorController = {
           actorIsAdmin: true,
           galleryId,
         });
-        res.redirect('/admin/curator/galleries?saved=delete');
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'delete');
+        res.redirect(303, '/admin/curator/galleries');
         return;
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -887,12 +907,16 @@ export const adminCuratorController = {
         await svc.deleteMedia({ adminMemberId, mediaId });
       } catch (err) {
         if (err instanceof NotFoundError) {
-          res.status(404).send('Curator media not found.');
+          res.status(404).render('errors/not-found', {
+            seo: { title: 'Page Not Found' },
+            page: { sectionKey: 'admin', pageKey: 'admin_curator_media_not_found', title: 'Curator media not found' },
+          });
           return;
         }
         throw err;
       }
-      res.redirect('/admin/curator/media?saved=delete');
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'delete');
+      res.redirect(303, '/admin/curator/media');
     } catch (err) {
       next(err);
     }
@@ -1355,5 +1379,6 @@ async function executeCuratorGalleryEditMultipart(args: {
     }
   }
 
-  res.redirect('/admin/curator/galleries?saved=edit');
+  writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+  res.redirect(303, '/admin/curator/galleries');
 }

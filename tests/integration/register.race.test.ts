@@ -76,11 +76,11 @@ describe('POST /register race against email UNIQUE constraint', () => {
       post('Bob Smith', 'Bob Smith'),
     ]);
 
-    // Both responses must be 200 (check-email render) or 302 (redirect to
+    // Both responses must be 200 (check-email render) or 303 (redirect to
     // check-email) — never 500. The silent_duplicate path returns the same
     // shape as a fresh registration.
-    expect([200, 302]).toContain(resA.status);
-    expect([200, 302]).toContain(resB.status);
+    expect([200, 303]).toContain(resA.status);
+    expect([200, 303]).toContain(resB.status);
     expect(resA.status).not.toBe(500);
     expect(resB.status).not.toBe(500);
 
@@ -110,8 +110,8 @@ describe('POST /register race against slug UNIQUE constraint', () => {
     ]);
 
     // Both succeed — slug retry resolves the collision.
-    expect([200, 302]).toContain(resA.status);
-    expect([200, 302]).toContain(resB.status);
+    expect([200, 303]).toContain(resA.status);
+    expect([200, 303]).toContain(resB.status);
     expect(resA.status).not.toBe(500);
     expect(resB.status).not.toBe(500);
 

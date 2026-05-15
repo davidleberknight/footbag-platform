@@ -14,11 +14,11 @@
  * | 2 | `high`                  | Kenny Shults                | Kenny Shults                  | —                                          | `high`                            | `/history/auto-link`       | verify     |
  * | 3 | `medium_diacritic`        | Alex Martinez               | Alex Martínez                 | `alex martinez ↔ alex martínez`            | `medium`                            | `/history/auto-link`       | verify     |
  * | 4 | `medium_display_name`     | Chris Siebert               | Christopher Michael Siebert   | `chris siebert ↔ christopher michael …`    | `medium`                            | `/history/auto-link`       | verify     |
- * | 5 | `low_no_hp`            | Jesper Karlsson             | — (legacy row exists, no HP)  | —                                          | `low / no_hp_for_legacy_account` | `/history/claim`           | verify     |
- * | 6 | `low_no_name`          | Completely Different Name   | Provenance Target             | —                                          | `low / no_name_candidate`        | `/history/claim`           | verify     |
- * | 7 | `low_multi`            | Pat Common                  | Pat Common (x2)               | —                                          | `low / multiple_name_candidates` | `/history/claim`           | verify     |
- * | 8 | `low_hp_mismatch_decoy`| Decoy Claimer               | Correct Owner                 | —                                          | `low / hp_mismatch`              | `/history/claim`           | verify     |
- * | 9 | `low_surname_split`    | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `low / hp_mismatch`              | `/history/claim`           | verify     |
+ * | 5 | `low_no_hp`            | Jesper Karlsson             | — (legacy row exists, no HP)  | —                                          | `low / no_hp_for_legacy_account` | `/register/wizard/legacy_claim/find`           | verify     |
+ * | 6 | `low_no_name`          | Completely Different Name   | Provenance Target             | —                                          | `low / no_name_candidate`        | `/register/wizard/legacy_claim/find`           | verify     |
+ * | 7 | `low_multi`            | Pat Common                  | Pat Common (x2)               | —                                          | `low / multiple_name_candidates` | `/register/wizard/legacy_claim/find`           | verify     |
+ * | 8 | `low_hp_mismatch_decoy`| Decoy Claimer               | Correct Owner                 | —                                          | `low / hp_mismatch`              | `/register/wizard/legacy_claim/find`           | verify     |
+ * | 9 | `low_surname_split`    | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `low / hp_mismatch`              | `/register/wizard/legacy_claim/find`           | verify     |
  * |10 | `already_linked`         | Linked Already              | —                             | —                                          | `none` (already has link)          | n/a                        | direct     |
  * |11 | `missing_login_email`    | (irrelevant)                | —                             | —                                          | `none` (member not found)          | n/a                        | direct     |
  *
@@ -74,7 +74,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_none',
     description: 'No legacy_members row matches login_email; real_name alone is insufficient.',
     expected: 'none',
-    expectedVerifyRedirect: '/members/sc_none/link-history?from=register',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       // An unrelated HP exists — proves name similarity alone is not an anchor.
@@ -96,7 +96,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_high',
     description: 'Email anchor + HP provenance + exact name match (BAP honoree).',
     expected: 'high',
-    expectedVerifyRedirect: '/members/sc_high/link-history?from=register',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-high', legacy_email: 'sc-high@example.com' });
@@ -122,7 +122,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_medium_diacritic',
     description: 'ASCII-folded name resolves to diacritic-bearing canonical via name_variants.',
     expected: 'medium',
-    expectedVerifyRedirect: '/members/sc_medium_diacritic/link-history?from=register',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-medium-dia', legacy_email: 'sc-medium-dia@example.com' });
@@ -152,7 +152,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_medium_display',
     description: 'Informal display name resolves to full legal canonical via curated display_name variant.',
     expected: 'medium',
-    expectedVerifyRedirect: '/members/sc_medium_display/link-history?from=register',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-medium-disp', legacy_email: 'sc-medium-disp@example.com' });
@@ -182,7 +182,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_low_no_hp',
     description: 'Email anchor matches a legacy_members row, but no HP back-links to it.',
     expected: 'low_no_hp_for_legacy_account',
-    expectedVerifyRedirect: '/members/sc_low_no_hp/link-history?from=register&reason=low_confidence',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-nohp', legacy_email: 'sc-nohp@example.com' });
@@ -203,7 +203,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_low_no_name',
     description: 'Email anchor + HP provenance, but real_name matches no HP directly or via variants.',
     expected: 'low_no_name_candidate',
-    expectedVerifyRedirect: '/members/sc_low_no_name/link-history?from=register&reason=low_confidence',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-noname', legacy_email: 'sc-noname@example.com' });
@@ -229,7 +229,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_low_multi',
     description: 'Email anchor + HP provenance, but two HPs share the normalized name.',
     expected: 'low_multiple_name_candidates',
-    expectedVerifyRedirect: '/members/sc_low_multi/link-history?from=register&reason=low_confidence',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-multi', legacy_email: 'sc-multi@example.com' });
@@ -259,7 +259,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_low_decoy',
     description: 'Email provenances to one HP, but real_name resolves to a different HP.',
     expected: 'low_hp_mismatch',
-    expectedVerifyRedirect: '/members/sc_low_decoy/link-history?from=register&reason=low_confidence',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-decoy', legacy_email: 'sc-decoy@example.com' });
@@ -289,7 +289,7 @@ export const AUTO_LINK_SCENARIOS: AutoLinkScenario[] = [
     slug: 'sc_low_surname_split',
     description: 'name_variants row links two forms whose surnameKeys differ; classifier defers to claim policy.',
     expected: 'low_hp_mismatch',
-    expectedVerifyRedirect: '/members/sc_low_surname_split/link-history?from=register&reason=low_confidence',
+    expectedVerifyRedirect: '/register/wizard/legacy_claim',
     driver: 'verify',
     seed: (db) => {
       insertLegacyMember(db, { legacy_member_id: 'lm-sc-split', legacy_email: 'sc-split@example.com' });

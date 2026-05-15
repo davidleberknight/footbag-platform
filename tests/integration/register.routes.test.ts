@@ -98,7 +98,7 @@ describe('GET /register', () => {
     const app = createApp();
     const cookie = `footbag_session=${createTestSessionJwt({ memberId: 'member-existing-001' })}`;
     const res = await request(app).get('/register').set('Cookie', cookie);
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/members/existing_user');
   });
 });
@@ -106,7 +106,7 @@ describe('GET /register', () => {
 // ── POST /register ────────────────────────────────────────────────────────────
 
 describe('POST /register', () => {
-  it('valid registration → 302 to /register/check-email, no session cookie, DB rows land', async () => {
+  it('valid registration → 303 to /register/check-email, no session cookie, DB rows land', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/register')
@@ -117,7 +117,7 @@ describe('POST /register', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
     const cookies = res.headers['set-cookie'] as string[] | undefined;
     expect(cookies?.some((c) => c.startsWith('footbag_session='))).toBeFalsy();
@@ -158,7 +158,7 @@ describe('POST /register', () => {
     expect(outboxRows[0].recipient_member_id).toBe(member!.id);
   });
 
-  it('duplicate email → 302 to /register/check-email, NO new DB rows (anti-enumeration + silent dedup)', async () => {
+  it('duplicate email → 303 to /register/check-email, NO new DB rows (anti-enumeration + silent dedup)', async () => {
     const app = createApp();
 
     // Snapshot counts *before* the POST. Prior it-blocks may have created
@@ -182,7 +182,7 @@ describe('POST /register', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
 
     const countAfter = (() => {
@@ -315,7 +315,7 @@ describe('POST /register', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
   });
 
@@ -331,7 +331,7 @@ describe('POST /register', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
   });
 
@@ -346,7 +346,7 @@ describe('POST /register', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
   });
 });
@@ -374,7 +374,7 @@ describe('POST /register — initial-admin bootstrap', () => {
           password: 'securepass123',
           confirmPassword: 'securepass123',
         });
-      expect(res.status).toBe(302);
+      expect(res.status).toBe(303);
       expect(res.headers.location).toBe('/register/check-email');
 
       const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
@@ -427,7 +427,7 @@ describe('POST /register — initial-admin bootstrap', () => {
           password: 'securepass123',
           confirmPassword: 'securepass123',
         });
-      expect(res.status).toBe(302);
+      expect(res.status).toBe(303);
 
       const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
       const member = db.prepare(
@@ -458,7 +458,7 @@ describe('POST /register — initial-admin bootstrap', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     const member = db.prepare(
@@ -491,7 +491,7 @@ describe('POST /register → /register/check-email', () => {
         password: 'securepass123',
         confirmPassword: 'securepass123',
       });
-    expect(post.status).toBe(302);
+    expect(post.status).toBe(303);
     expect(post.headers.location).toBe('/register/check-email');
 
     const checkEmail = await agent.get('/register/check-email');

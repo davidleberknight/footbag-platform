@@ -15,7 +15,7 @@ import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
-import type { SimulatedEmailPreview } from './simulatedEmailService';
+import { simulatedEmailService, type SimulatedEmailPreview } from './simulatedEmailService';
 
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_DISPLAY_NAME = 64;
@@ -148,24 +148,26 @@ export interface ClaimHpConfirmContent {
 }
 
 /**
- * One card in the unified link-history wizard's candidate list. Each card
- * abstracts over the underlying table (`legacy_members` or
- * `historical_persons` or both via the `historical_persons.legacy_member_id`
- * back-link) so the user does not need to know which one a record lives in.
+ * One card in the onboarding wizard's legacy_claim candidate list at
+ * `/register/wizard/legacy_claim`. Each card abstracts over the underlying
+ * table (`legacy_members` or `historical_persons` or both via the
+ * `historical_persons.legacy_member_id` back-link) so the user does not need
+ * to know which one a record lives in.
  *
  * `claimMode` drives the card's action:
  *  - `auto_link_confirm`: the verify-time classifier matched a high/medium
- *    HP. Card POSTs to `/history/auto-link/confirm` with `personId` so the
- *    existing endpoint re-validates classification (drift safety).
+ *    HP. Card POSTs to `/register/wizard/legacy_claim/auto-link/confirm`
+ *    with `personId` so the endpoint re-validates classification (drift
+ *    safety).
  *  - `legacy_claim`: legacy_members row, with or without an HP back-link.
- *    Card POSTs to `/history/claim` with `identifier=legacyMemberId` AND
- *    `from=link-wizard` (so postClaim redirects back here instead of
- *    rendering the standalone claim-form). On `auto_linked` outcome the
+ *    Card POSTs to `/register/wizard/legacy_claim/find` with
+ *    `identifier=legacyMemberId`; the wizard re-renders inline (POST-render-
+ *    next) so the user stays on the wizard. On `auto_linked` outcome the
  *    transitive HP claim runs in the same transaction when the back-link
  *    exists.
  *  - `hp_review_page`: HP-only candidate (no legacy back-link). Card links
- *    to `/history/<personId>/claim` (existing review page that surfaces HoF
- *    / country / first-name-warning fields before commit).
+ *    to `/history/<personId>/claim` (review page that surfaces HoF /
+ *    country / first-name-warning fields before commit).
  *  - `already_linked`: read-only badge; no action.
  */
 export interface LinkHistoryCandidate {
@@ -187,18 +189,15 @@ export interface LinkHistoryCandidate {
 }
 
 /**
- * View-model for the unified link-history wizard at
- * GET /members/:slug/link-history. ONE section: a mixed candidate list
+ * View-model for the onboarding wizard's legacy_claim view at
+ * `/register/wizard/legacy_claim`. ONE section: a mixed candidate list
  * (legacy + HP + both, presented uniformly with provenance labels) plus
  * a manual-id input that tries both tables, plus a clubs-coming-soon
  * placeholder card. The wizard is the post-verify destination for every
- * classifier outcome, the navigable entry point from profile-edit, and
- * the home for "find my history" reachable from the dashboard.
+ * classifier outcome and the dashboard task-widget resume target.
  *
- * Sent-state notice + simulated-email card render inline when the user
- * just submitted the manual-id form (`?sent=1` query param), so they
- * stay on the wizard rather than bouncing to the standalone /history/claim
- * sent page.
+ * Sent-state notice + simulated-email card render inline after a manual-id
+ * submission (POST-render-next, no redirect) so the user stays on the wizard.
  */
 export interface LinkHistoryContent {
   memberSlug: string;
@@ -236,6 +235,12 @@ export interface LinkHistoryContent {
   noMatchTried: string | null;
   /** Banner shown when user arrived via ?from=register or ?reason=low_confidence. */
   lowConfidenceBanner: boolean;
+  /**
+   * Wizard PRG banner: the user's previously suggested auto-link match
+   * no longer applies (drift between GET and POST). Surfaced after a
+   * 303 from postLegacyClaimAutoLinkConfirm's drift fallback.
+   */
+  autoLinkDriftNotice: boolean;
   /**
    * Static "Your clubs (coming soon)" placeholder per
    * `M_Review_Legacy_Club_Data_During_Claim`. The bootstrap pipeline that
@@ -634,9 +639,11 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
 
 /**
  * Re-run the verify-time auto-link classification for an authenticated member.
- * Read-only. Used by the post-verify confirmation page (GET /history/auto-link)
- * to re-derive the classification server-side rather than trust a request
- * parameter. Returns `{ confidence: 'none' }` if the member is not found.
+ * Read-only. Used to re-derive the classification server-side rather than
+ * trust a request parameter, in the wizard's `auto_link_confirm` card
+ * composition and in the POST drift-safety check at
+ * `/register/wizard/legacy_claim/auto-link/confirm`. Returns
+ * `{ confidence: 'none' }` if the member is not found.
  */
 function getAutoLinkClassificationForMember(memberId: string): AutoLinkClassification {
   const member = legacyClaim.findClaimingMember.get(memberId) as
@@ -859,6 +866,7 @@ function getLinkHistoryView(
     noMatchNotice: opts.noMatchNotice,
     noMatchTried: opts.noMatchTried,
     lowConfidenceBanner: !legacyLinked && (opts.fromRegister || opts.reasonIsLowConfidence),
+    autoLinkDriftNotice: false,
     showClubsComingSoon: true,
   };
 }
@@ -1250,7 +1258,7 @@ function initiateLegacyClaim(
     targetLegacyMemberId:  row.legacy_member_id,
   });
   const baseUrl    = config.publicBaseUrl.replace(/\/+$/, '');
-  const confirmUrl = `${baseUrl}/history/claim/confirm/${rawToken}`;
+  const confirmUrl = `${baseUrl}/register/wizard/legacy_claim/claim/confirm/${rawToken}`;
   getCommunicationService().enqueueEmail({
     idempotencyKey:    `claim:${tokenRowId}`,
     recipientEmail:    row.legacy_email,
@@ -1779,7 +1787,8 @@ function findClaimingMemberById(memberId: string): ClaimingMember | null {
  * where legacy_members rows are often stubs and the HP carries the full
  * identity anchor). Returns null when neither match resolves. Pure read;
  * eligibility (already-claimed, surname mismatch) is enforced by the GET
- * /history/<personId>/claim handler that the controller redirects to.
+ * /history/<personId>/claim handler, which the wizard surfaces this match
+ * through as an `hp_review_page` card.
  */
 function findHistoricalPersonForLinkSubmit(
   identifier: string,
@@ -1794,4 +1803,74 @@ function findHistoricalPersonForLinkSubmit(
   return hpByLegacy ?? null;
 }
 
-export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, lookupHistoricalPersonForClaim, claimHistoricalPerson, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryView, findClaimingMemberById, findHistoricalPersonForLinkSubmit };
+const WIZARD_CLAIM_CONFIRM_URL_PREFIX = '/register/wizard/legacy_claim/claim/confirm/';
+
+/**
+ * Wizard PRG composer for the legacy_claim GET render. Reads the flash
+ * state the controller recovered, composes the view-model on top of
+ * `getLinkHistoryView`, and post-processes:
+ *   - Prepends an HP card when `hpPersonId` resolves (dedupe against
+ *     candidates already present).
+ *   - Attaches the simulated-email preview when `sinceIndex` is set and
+ *     the SES adapter is stub.
+ *   - Surfaces the drift banner when `autoLinkDrift` is true.
+ *
+ * `submitted` drives the anti-enumeration "If an eligible legacy record
+ * was found..." banner. Identical for all submit outcomes by design;
+ * this wrapper does not surface a typed-identifier echo or a leak-y
+ * "didn't match" notice.
+ */
+async function getLinkHistoryViewForWizard(
+  memberId: string,
+  opts: {
+    submitted: boolean;
+    hpPersonId: string | null;
+    sinceIndex: number | null;
+    autoLinkDrift: boolean;
+  },
+): Promise<LinkHistoryContent | null> {
+  const view = getLinkHistoryView(memberId, {
+    fromRegister: true,
+    reasonIsLowConfidence: false,
+    sentOutcome: opts.submitted && opts.hpPersonId === null ? 'enqueued' : null,
+    sinceIndex: opts.sinceIndex,
+    noMatchNotice: false,
+    noMatchTried: null,
+  });
+  if (!view) return null;
+
+  if (opts.hpPersonId) {
+    const hp = legacyClaim.findHistoricalPersonById.get(opts.hpPersonId) as
+      | HistoricalPersonClaimRow
+      | undefined;
+    if (hp) {
+      const seen = new Set(view.candidates.map((c) => c.personId).filter(Boolean));
+      if (!seen.has(hp.person_id)) {
+        view.candidates.unshift({
+          claimMode: 'hp_review_page',
+          displayName: hp.person_name,
+          provenanceLabel: 'Matched by id. Competition record.',
+          legacyMemberId: null,
+          personId: hp.person_id,
+          country: hp.country,
+          isHof: hp.hof_member !== 0,
+          isBap: hp.bap_member !== 0,
+          alreadyLinkedSinceDisplay: null,
+        });
+      }
+    }
+  }
+
+  if (view.sentNotice.show && opts.sinceIndex != null) {
+    const preview = await simulatedEmailService.getEmailPreview({
+      urlPathPrefix: WIZARD_CLAIM_CONFIRM_URL_PREFIX,
+      sinceIndex: opts.sinceIndex,
+    });
+    if (preview) view.sentNotice.emailPreview = preview;
+  }
+
+  view.autoLinkDriftNotice = opts.autoLinkDrift;
+  return view;
+}
+
+export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, lookupHistoricalPersonForClaim, claimHistoricalPerson, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryView, getLinkHistoryViewForWizard, findClaimingMemberById, findHistoricalPersonForLinkSubmit };

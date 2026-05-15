@@ -24,6 +24,18 @@ import { createCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX } from 
 import { detectImageType } from '../lib/imageProcessing';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { parseExternalLinkInputs, buildExternalLinkSlots, parseGalleryMultipart, lazyImageProcessor } from './galleryFormHelpers';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+
+type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
+
+function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
+  const flash = readFlash(req);
+  if (flash?.kind !== FLASH_KIND.MEDIA_SAVED) return null;
+  clearFlash(res);
+  const p = flash.payload;
+  if (p === 'create' || p === 'edit' || p === 'delete' || p === 'upload') return p;
+  return null;
+}
 
 function parseTagsField(raw: string | undefined): string[] {
   return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
@@ -110,11 +122,7 @@ export const memberGalleryController = {
         editHref: `/members/${memberKey}/galleries/${g.id}/edit`,
         deleteHref: `/members/${memberKey}/galleries/${g.id}/delete`,
       }));
-      const savedFlag =
-        req.query.saved === 'create' ? 'create' :
-        req.query.saved === 'edit'   ? 'edit'   :
-        req.query.saved === 'delete' ? 'delete' :
-        req.query.saved === 'upload' ? 'upload' : null;
+      const savedFlag = readMediaSavedFlag(req, res);
       res.render('members/galleries/list', {
         seo: { title: 'My Galleries' },
         page: { sectionKey: 'members', pageKey: 'member_galleries_list', title: 'My Galleries' },
@@ -185,7 +193,8 @@ export const memberGalleryController = {
           ownerSlug: req.user!.slug,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
         });
-        res.redirect(`${listHref(memberKey)}?saved=create`);
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'create');
+        res.redirect(303, listHref(memberKey));
         return;
       } catch (err) {
         if (err instanceof ValidationError || err instanceof ConflictError) {
@@ -312,7 +321,8 @@ export const memberGalleryController = {
           galleryId,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
         });
-        res.redirect(`${listHref(memberKey)}?saved=edit`);
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+        res.redirect(303, listHref(memberKey));
         return;
       } catch (err) {
         if (err instanceof NotFoundError) {
@@ -373,7 +383,8 @@ export const memberGalleryController = {
         // otherwise surface here.
         svc.getGalleryForEdit(galleryId, actorMemberId);
         await svc.deleteGallery({ actorMemberId, actorIsAdmin, galleryId });
-        res.redirect(`${listHref(memberKey)}?saved=delete`);
+        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'delete');
+        res.redirect(303, listHref(memberKey));
         return;
       } catch (err) {
         if (err instanceof NotFoundError || err instanceof ValidationError) {
@@ -576,7 +587,8 @@ async function executeMultipartCreate(args: {
     }
   }
 
-  res.redirect(`${listHref(memberKey)}?saved=create`);
+  writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'create');
+  res.redirect(303, listHref(memberKey));
 }
 
 async function executeMultipartUpdate(args: {
@@ -706,5 +718,6 @@ async function executeMultipartUpdate(args: {
     }
   }
 
-  res.redirect(`${listHref(memberKey)}?saved=edit`);
+  writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
+  res.redirect(303, listHref(memberKey));
 }

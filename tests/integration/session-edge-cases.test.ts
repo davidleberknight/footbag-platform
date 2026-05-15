@@ -54,7 +54,7 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-const PROTECTED_ROUTE = '/history/claim';
+const PROTECTED_ROUTE = '/register/wizard/legacy_claim';
 
 function expectUnauthenticated(res: { status: number; headers: Record<string, string> }): void {
   expect(res.status).toBe(302);

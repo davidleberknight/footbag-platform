@@ -57,7 +57,7 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
         password: 'simpass!1',
         confirmPassword: 'simpass!1',
       });
-    expect(reg.status).toBe(302);
+    expect(reg.status).toBe(303);
     expect(reg.headers.location).toBe('/register/check-email');
 
     const res = await request(app).get('/register/check-email');

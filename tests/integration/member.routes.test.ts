@@ -265,7 +265,7 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .get(`/members/${OWN_SLUG}/edit`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain(`href="/members/${OWN_SLUG}/link-history"`);
+    expect(res.text).toContain('href="/register/wizard/legacy_claim"');
     expect(res.text).toContain('Link your legacy account, results, and clubs');
   });
 
@@ -275,7 +275,7 @@ describe('GET /members/:memberKey/edit — edit form', () => {
       .get(`/members/${LINKED_SLUG}/edit`)
       .set('Cookie', linkedCookie());
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('/link-history');
+    expect(res.text).not.toContain('/register/wizard/legacy_claim');
     expect(res.text).not.toContain('Link your legacy account, results, and clubs');
     expect(res.text).not.toContain('Link your old footbag.org account');
     expect(res.text).not.toContain('Link your competition history');
@@ -332,10 +332,10 @@ describe('POST /members/:memberKey/edit — save profile', () => {
         emailVisibility: 'bad-value',
       });
     // Service coerces bad visibility to 'private' — no validation error.
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
   });
 
-  it('valid input → 302 redirect to own profile (slug unchanged)', async () => {
+  it('valid input → 303 redirect to own profile (slug unchanged)', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
@@ -349,7 +349,7 @@ describe('POST /members/:memberKey/edit — save profile', () => {
         phone:           '',
         emailVisibility: 'members',
       });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`/members/${OWN_SLUG}`);
   });
 });

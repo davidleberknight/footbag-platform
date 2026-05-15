@@ -245,7 +245,7 @@ describe('POST /internal/net/candidates/:candidateId/approve', () => {
     const res = await internalPost(app, `/internal/net/candidates/${CAND_BASIC}/approve`)
       .type('form')
       .send({ note: '' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers['location']).toContain(CAND_BASIC);
   });
 
@@ -323,7 +323,7 @@ describe('POST /internal/net/candidates/:candidateId/reject', () => {
     const res = await internalPost(app, `/internal/net/candidates/${CAND_FOR_REJECT}/reject`)
       .type('form')
       .send({ note: 'Noise line not a match' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     expect(res.headers['location']).toContain(CAND_FOR_REJECT);
   });
 

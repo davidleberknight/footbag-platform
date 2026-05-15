@@ -65,21 +65,21 @@ function postEdit(fields: Record<string, string>): request.Test {
 describe('firstCompetitionYear validation', () => {
   it('year below 1972 is silently discarded (set to NULL)', async () => {
     const res = await postEdit({ firstCompetitionYear: '1960' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.first_competition_year).toBeNull();
   });
 
   it('year above current year is silently discarded', async () => {
     const res = await postEdit({ firstCompetitionYear: '2099' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.first_competition_year).toBeNull();
   });
 
   it('year exactly 1972 is accepted', async () => {
     const res = await postEdit({ firstCompetitionYear: '1972' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.first_competition_year).toBe(1972);
   });
@@ -87,21 +87,21 @@ describe('firstCompetitionYear validation', () => {
   it('year equal to current year is accepted', async () => {
     const currentYear = new Date().getFullYear().toString();
     const res = await postEdit({ firstCompetitionYear: currentYear });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.first_competition_year).toBe(Number(currentYear));
   });
 
   it('non-numeric string is discarded (set to NULL)', async () => {
     const res = await postEdit({ firstCompetitionYear: 'abc' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.first_competition_year).toBeNull();
   });
 
   it('empty string is discarded (set to NULL)', async () => {
     const res = await postEdit({ firstCompetitionYear: '' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.first_competition_year).toBeNull();
   });
@@ -112,21 +112,21 @@ describe('firstCompetitionYear validation', () => {
 describe('showCompetitiveResults toggle', () => {
   it('set to 0 stores 0', async () => {
     const res = await postEdit({ showCompetitiveResults: '0' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.show_competitive_results).toBe(0);
   });
 
   it('set to 1 stores 1', async () => {
     const res = await postEdit({ showCompetitiveResults: '1' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.show_competitive_results).toBe(1);
   });
 
   it('any non-zero value defaults to 1', async () => {
     const res = await postEdit({ showCompetitiveResults: 'yes' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.show_competitive_results).toBe(1);
   });
@@ -138,7 +138,7 @@ describe('bio validation', () => {
   it('bio at exactly 1000 chars is accepted', async () => {
     const bio = 'x'.repeat(1000);
     const res = await postEdit({ bio });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect((row.bio as string).length).toBe(1000);
   });
@@ -165,7 +165,7 @@ describe('all fields empty', () => {
       firstCompetitionYear: '',
       showCompetitiveResults: '1',
     });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.bio).toBe('');
     expect(row.city).toBeNull();
@@ -178,7 +178,7 @@ describe('all fields empty', () => {
 describe('phone whitespace trimming', () => {
   it('trims leading and trailing whitespace', async () => {
     const res = await postEdit({ phone: '  555-1234  ' });
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(303);
     const row = readMember();
     expect(row.phone).toBe('555-1234');
   });
