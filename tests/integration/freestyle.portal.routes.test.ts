@@ -800,6 +800,36 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants',
   });
 });
 
+// ── Phase 2: symbolic strengthening ────────────────────────────────────
+describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alias drop (B)', () => {
+  it('landing Core Tricks renders without ≡ equivalence lines (foundational-atom feel)', async () => {
+    // B: the three legacy `≡ ATW`, `≡ outside-in mirage`, `≡ reverse
+    // around-the-world` lines are dropped from the landing's compact
+    // symbolic-object grid. Atoms read as `#slug` + ADD; nothing else.
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // No ≡ equivalence paragraphs in the core-tricks grid.
+    const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
+    const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
+    expect(gridStart).toBeGreaterThan(0);
+    const slice = res.text.slice(gridStart, gridEnd);
+    expect(slice).not.toMatch(/class="core-trick-equivalence"/);
+    // The retired alias strings must not surface anywhere on the page.
+    expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?ATW/);
+    expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?outside-in mirage/);
+    expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?reverse around-the-world/);
+    // All 11 atoms still render as #slug tiles.
+    for (const slug of [
+      'clipper', 'mirage', 'legover', 'pickup', 'illusion',
+      'whirl', 'butterfly', 'swirl', 'osis',
+      'around-the-world', 'orbit',
+    ]) {
+      expect(res.text).toContain(`id="core-trick-${slug}"`);
+      expect(res.text).toContain(`#${slug}`);
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // GET /freestyle/partnerships
 // ---------------------------------------------------------------------------

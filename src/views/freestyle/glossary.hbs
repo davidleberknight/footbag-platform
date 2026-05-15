@@ -146,28 +146,23 @@
     </dl>
 
     {{! ── Symbolic compression — a worked example ──────────────────────────
-        Three cards in vertical sequence demonstrate operator composition and
-        the community's choice of stopping depth. Visual progression carries
-        the lesson; prose is deliberately compact. }}
+        SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / E: the three-step flow
+        is now service-shaped. Each ≡ reading runs through shapeNotationDisplay
+        so operator / side / core-family classification surfaces as op-token
+        CSS roles. The flow is still a vertical card stack; the per-card
+        readings are visually tokenized rather than rendered as plain prose. }}
     <h3 class="section-heading" id="symbolic-compression-flow">Symbolic compression &mdash; a worked example</h3>
     <div class="glossary-compression-flow">
-      <article class="core-trick-object glossary-compression-card">
-        <p class="core-trick-slug">#osis</p>
-        <p class="core-trick-add"><span class="core-trick-add-value">3</span></p>
+      {{#each content.compressionFlow}}
+      {{#unless @first}}<p class="glossary-compression-arrow" aria-hidden="true">&darr;</p>{{/unless}}
+      <article class="core-trick-object glossary-compression-card" id="compression-step-{{slug}}">
+        <p class="core-trick-slug">#{{slug}}</p>
+        {{#each readings}}
+        <p class="core-trick-equivalence glossary-compression-reading"><span class="core-trick-equiv-sigil">&equiv;</span> {{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</p>
+        {{/each}}
+        <p class="core-trick-add"><span class="core-trick-add-value">{{addValue}}</span></p>
       </article>
-      <p class="glossary-compression-arrow" aria-hidden="true">&darr;</p>
-      <article class="core-trick-object glossary-compression-card">
-        <p class="core-trick-slug">#torque</p>
-        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> miraging osis</p>
-        <p class="core-trick-add"><span class="core-trick-add-value">4</span></p>
-      </article>
-      <p class="glossary-compression-arrow" aria-hidden="true">&darr;</p>
-      <article class="core-trick-object glossary-compression-card">
-        <p class="core-trick-slug">#mobius</p>
-        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> spinning ss torque</p>
-        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> spinning ss miraging osis</p>
-        <p class="core-trick-add"><span class="core-trick-add-value">5</span></p>
-      </article>
+      {{/each}}
     </div>
     <p class="glossary-compression-note">
       Three names. One progression. Each card adds one operator and gives
@@ -470,42 +465,45 @@
   <section class="content-section">
     <h2 class="section-heading">10. Foundational Tricks</h2>
     <p>
-      The irreducible base tricks most other named tricks descend from. Learning
-      them gives you the building blocks for the much larger catalog of compounds:
+      The irreducible base tricks most other named tricks descend from. Each
+      is a family anchor; most named compounds resolve to one of these once
+      their modifiers and sets are stripped away.
     </p>
-    <ul class="grid-list">
-      <li id="term-clipper">clipper</li>
-      <li id="term-mirage">mirage</li>
-      <li id="term-legover">legover</li>
-      <li id="term-pickup">pickup</li>
-      <li id="term-illusion">illusion</li>
-      <li id="term-whirl">whirl</li>
-      <li id="term-butterfly">butterfly</li>
-      <li id="term-swirl">swirl</li>
-      <li id="term-osis">osis</li>
-      <li id="term-around-the-world">around-the-world (ATW)</li>
-      <li id="term-orbit">orbit (reverse around-the-world)</li>
-    </ul>
-    <p>
-      Each of these is a family anchor. Most named compound tricks resolve to one
-      of these primitives (or a small set of derivative bases like blender or
-      torque) once their modifiers and sets are stripped away.
-    </p>
+    {{! SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G: registry-style grid
+        replacing the previous flat <ul>. Same partial as the landing's
+        Core Tricks section — one symbolic-object pattern across the two
+        surfaces. `idPrefix="term-"` preserves the cross-page #term-{slug}
+        deep-link contract used by glossaryAnchors.ts. }}
+    {{> core-tricks-grid tricks=content.coreTricks idPrefix="term-"}}
 
     <h3 class="section-heading" id="set-modifiers-tier-1">Set modifiers (not core tricks)</h3>
     <p>
-      Pixie and fairy are sometimes mistaken for core tricks because they appear in
-      many trick names. They are <strong>set modifiers</strong>: structural treatments
-      applied <em>to</em> a base trick, not bases themselves. See the
-      <a href="/freestyle/sets">set notation reference</a> for the full set-modifier
+      Set modifiers are structural treatments applied <em>to</em> a base
+      trick, not bases themselves. See the
+      <a href="/freestyle/sets">set notation reference</a> for the full
       vocabulary.
     </p>
-    <dl class="glossary-set-modifiers">
-      <dt id="term-pixie">Pixie</dt>
-      <dd>A set modifier producing a same-side in-direction dex. Acts on a base trick (e.g., Pixie Mirage).</dd>
-      <dt id="term-fairy">Fairy</dt>
-      <dd>A set modifier producing a same-side out-direction dex. Acts on a base trick (e.g., Fairy Mirage).</dd>
-    </dl>
+    {{! Phase 2 / H: set-modifier registry grid. Entries projected from the
+        Tier-1 set operator board + OPERATOR_REFERENCE_ENTRIES (set /
+        compound-set categories). Each tile carries name, optional glyph,
+        one-line meaning, optional decomposition, optional cross-link. }}
+    <div class="glossary-set-modifiers-grid">
+      {{#each content.setModifiers}}
+      <article class="set-modifier-card" id="term-{{slug}}">
+        <p class="set-modifier-head">
+          <span class="set-modifier-name">{{name}}</span>
+          {{#if glyph}}<span class="set-modifier-glyph">{{glyph}}</span>{{/if}}
+        </p>
+        <p class="set-modifier-meaning">{{oneLineMeaning}}</p>
+        {{#if decomposition}}
+        <p class="set-modifier-decomposition"><span class="set-modifier-decomp-sigil">&equiv;</span> {{decomposition}}</p>
+        {{/if}}
+        {{#if href}}
+        <a class="set-modifier-deeplink" href="{{href}}" aria-label="Notation reference">&rarr;</a>
+        {{/if}}
+      </article>
+      {{/each}}
+    </div>
   </section>
 
   <section class="content-section">

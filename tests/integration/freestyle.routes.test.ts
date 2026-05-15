@@ -1193,28 +1193,70 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('An illusion combined with body rotation');
   });
 
-  it('foundational-tricks §10 list contains orbit and excludes pixie/fairy from the list items', async () => {
+  it('foundational-tricks §10 renders as registry-style core-trick grid; pixie/fairy stay in the set-modifiers subsection', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G (2026-05-14): §10
+    // foundational-tricks moved from a flat <ul> to the shared
+    // core-tricks-grid partial. The `#term-{slug}` deep-link contract is
+    // preserved via the partial's `idPrefix="term-"` argument so
+    // glossaryAnchors.ts / GLOSSARY('slug') deep-links still resolve.
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Locate the §10 <ul class="grid-list"> and assert its contents
-    const sec10 = res.text.indexOf('id="term-clipper"');
+    const sec10Heading = res.text.indexOf('10. Foundational Tricks');
     const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
-    expect(sec10).toBeGreaterThan(0);
-    expect(setModSection).toBeGreaterThan(sec10);
-    const listSlice = res.text.slice(sec10, setModSection);
-    expect(listSlice).toContain('id="term-orbit"');
-    // Pixie + Fairy must NOT appear inside the foundational-tricks list block;
-    // they re-appear below in the set-modifiers subsection.
-    expect(listSlice).not.toContain('id="term-pixie"');
-    expect(listSlice).not.toContain('id="term-fairy"');
+    expect(sec10Heading).toBeGreaterThan(0);
+    expect(setModSection).toBeGreaterThan(sec10Heading);
+    const gridSlice = res.text.slice(sec10Heading, setModSection);
+    // All 11 foundational atoms render as registry tiles with `#term-{slug}` anchors.
+    for (const slug of ['clipper', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around-the-world', 'orbit']) {
+      expect(gridSlice).toContain(`id="term-${slug}"`);
+    }
+    // Grid uses the symbolic-object pattern.
+    expect(gridSlice).toContain('class="freestyle-core-trick-grid"');
+    expect(gridSlice).toContain('class="core-trick-object"');
+    expect(gridSlice).toContain('#clipper');
+    // The previous flat-list rendering must not survive.
+    expect(gridSlice).not.toContain('<ul class="grid-list">');
+    // Pixie + Fairy still belong below in the set-modifiers subsection.
+    expect(gridSlice).not.toContain('id="term-pixie"');
+    expect(gridSlice).not.toContain('id="term-fairy"');
   });
 
-  it('set-modifiers subsection renders pixie and fairy with their term anchors', async () => {
+  it('set-modifiers grid renders pixie/fairy/stepping (Tier-1) plus atomic/quantum/blurry/nuclear/barraging/furious (intermediate)', async () => {
+    // Phase 2 / H: set-modifier registry grid projected from the Tier-1
+    // operator board + OPERATOR_REFERENCE_ENTRIES set/compound-set entries.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="set-modifiers-tier-1"');
     const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
     const afterSetMod = res.text.slice(setModSection);
-    expect(afterSetMod).toContain('id="term-pixie"');
-    expect(afterSetMod).toContain('id="term-fairy"');
+    expect(afterSetMod).toContain('class="glossary-set-modifiers-grid"');
+    // All 9 entries surface as set-modifier-card tiles with #term-{slug} anchors.
+    for (const slug of ['pixie', 'fairy', 'stepping', 'atomic', 'quantum', 'blurry', 'nuclear', 'barraging', 'furious']) {
+      expect(afterSetMod).toContain(`id="term-${slug}"`);
+    }
+    // Tier-1 entries carry a glyph chip (pixie → PIX); intermediate entries surface their decomposition.
+    expect(afterSetMod).toMatch(/id="term-pixie"[\s\S]*?<span class="set-modifier-glyph">PIX<\/span>/);
+    expect(afterSetMod).toMatch(/id="term-blurry"[\s\S]*?<p class="set-modifier-decomposition">[\s\S]*?stepping paradox/);
+    // The retired prose `<dl>` rendering must not survive.
+    expect(afterSetMod).not.toContain('<dl class="glossary-set-modifiers">');
+  });
+
+  it('symbolic-compression worked example renders ≡ readings as role-classified op-tokens', async () => {
+    // Phase 2 / E: each ≡ reading in the §3 compression-flow now runs
+    // through shapeNotationDisplay; operator / side / core-family
+    // classification surfaces as `notation-{cssRole}` spans, not plain prose.
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const flowStart = res.text.indexOf('class="glossary-compression-flow"');
+    const flowEnd   = res.text.indexOf('Execution Mechanics', flowStart);
+    expect(flowStart).toBeGreaterThan(0);
+    const slice = res.text.slice(flowStart, flowEnd);
+    // Three steps render: #osis (no readings), #torque (1 reading), #mobius (2 readings).
+    expect(slice).toContain('id="compression-step-osis"');
+    expect(slice).toContain('id="compression-step-torque"');
+    expect(slice).toContain('id="compression-step-mobius"');
+    // Tokenized readings carry role classes. OSIS/TORQUE → core-family; MIRAGING/SPINNING → modifier or rotation.
+    expect(slice).toContain('class="notation-token notation-core-family"');
+    expect(slice).toMatch(/class="notation-token notation-(modifier|rotation)"/);
+    // The pre-Phase-2 plain-prose readings (no token spans) must not survive.
+    expect(slice).not.toMatch(/<p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;<\/span>\s*miraging osis\s*<\/p>/);
   });
 });
 
@@ -1297,33 +1339,19 @@ describe('Freestyle landing — Core Tricks section (C-2; compact symbolic objec
     }
   });
 
-  it('renders ≡ equivalence readings for the three tricks with canonical aliases', async () => {
+  it('no core-trick card renders an ≡ equivalence line (Phase 2 / B foundational-atom feel)', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / B (2026-05-14): the three
+    // legacy `≡ ATW`, `≡ outside-in mirage`, `≡ reverse around-the-world`
+    // lines were dropped — synonym trivia, not symbolic content. Every
+    // atom on the landing reads as `#slug` + ADD; nothing else.
     const res = await request(createApp()).get('/freestyle');
-    // illusion ≡ outside-in mirage
-    const illusionIdx = res.text.indexOf('id="core-trick-illusion"');
-    expect(illusionIdx).toBeGreaterThan(0);
-    const illusionSlice = res.text.slice(illusionIdx, illusionIdx + 600);
-    expect(illusionSlice).toContain('outside-in mirage');
-    expect(illusionSlice).toMatch(/&equiv;|≡/);
-    // around-the-world ≡ ATW
-    const atwIdx = res.text.indexOf('id="core-trick-around-the-world"');
-    const atwSlice = res.text.slice(atwIdx, atwIdx + 600);
-    expect(atwSlice).toContain('ATW');
-    // orbit ≡ reverse around-the-world
-    const orbitIdx = res.text.indexOf('id="core-trick-orbit"');
-    const orbitSlice = res.text.slice(orbitIdx, orbitIdx + 600);
-    expect(orbitSlice).toContain('reverse around-the-world');
-  });
-
-  it('atom cards without canonical aliases render no ≡ line', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    // clipper: pure atom, no canonical alias surfaced here
-    const clipperIdx = res.text.indexOf('id="core-trick-clipper"');
-    expect(clipperIdx).toBeGreaterThan(0);
-    const after = res.text.slice(clipperIdx);
-    const nextCard = after.indexOf('class="core-trick-object"', 50);
-    const clipperSlice = nextCard > 0 ? after.slice(0, nextCard) : after.slice(0, 600);
-    expect(clipperSlice).not.toContain('core-trick-equivalence');
+    for (const slug of ['illusion', 'around-the-world', 'orbit', 'clipper', 'whirl', 'butterfly']) {
+      const idx = res.text.indexOf(`id="core-trick-${slug}"`);
+      expect(idx).toBeGreaterThan(0);
+      const nextCard = res.text.indexOf('class="core-trick-object"', idx + 50);
+      const slice = nextCard > 0 ? res.text.slice(idx, nextCard) : res.text.slice(idx, idx + 600);
+      expect(slice).not.toContain('core-trick-equivalence');
+    }
   });
 
   it('renders ADD values from freestyle_tricks for present rows and pending marker for missing rows', async () => {
@@ -1445,16 +1473,24 @@ describe('Freestyle glossary — Batch 3: §3 torque/mobius compression flow (C-
     expect(slice).toContain('#mobius');
   });
 
-  it('mobius card surfaces two stopping-depth equivalence readings', async () => {
+  it('mobius card surfaces two stopping-depth equivalence readings (tokenized per Phase 2 / E)', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / E (2026-05-14): readings
+    // now render as role-classified op-token spans rather than plain
+    // lowercase prose. The compositional content is identical; only the
+    // markup changes (whitespace splits across separate <span>s).
     const res = await request(createApp()).get('/freestyle/glossary');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const sec4Idx = res.text.indexOf('4. Naming');
-    const slice = res.text.slice(flowIdx, sec4Idx);
-    // Two stopping depths for mobius:
-    expect(slice).toContain('spinning ss torque');
-    expect(slice).toContain('spinning ss miraging osis');
-    // torque's compositional equivalence:
-    expect(slice).toContain('miraging osis');
+    const mobiusIdx = res.text.indexOf('id="compression-step-mobius"');
+    const sec4Idx   = res.text.indexOf('4. Naming');
+    expect(mobiusIdx).toBeGreaterThan(0);
+    const slice = res.text.slice(mobiusIdx, sec4Idx);
+    // Two stopping depths for mobius: each surfaces SPINNING, SS, and a base trick.
+    expect(slice).toMatch(/>SPINNING<[\s\S]*?>SS<[\s\S]*?>TORQUE</);
+    expect(slice).toMatch(/>SPINNING<[\s\S]*?>SS<[\s\S]*?>MIRAGING<[\s\S]*?>OSIS</);
+    // Torque's compositional equivalence renders above mobius's card.
+    const torqueIdx = res.text.indexOf('id="compression-step-torque"');
+    expect(torqueIdx).toBeGreaterThan(0);
+    const torqueSlice = res.text.slice(torqueIdx, mobiusIdx);
+    expect(torqueSlice).toMatch(/>MIRAGING<[\s\S]*?>OSIS</);
   });
 
   it('keeps explanatory prose minimal — single short paragraph after the cards', async () => {
@@ -1555,11 +1591,20 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
     expect(matches.length).toBe(11);
   });
 
-  it('cards with canonical aliases render at least one .core-trick-equivalence line (SECONDARY layer)', async () => {
+  it('no Core Tricks card carries an alias `.core-trick-equivalence` line on the landing surface', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / B (2026-05-14): the
+    // three legacy `≡ ATW` / `≡ outside-in mirage` / `≡ reverse around-the-
+    // world` lines were dropped. The landing's compact symbolic-object
+    // surface prioritizes symbolic language over synonym trivia.
     const res = await request(createApp()).get('/freestyle');
-    // illusion, around-the-world, orbit each carry one canonical alias.
-    const matches = res.text.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(matches.length).toBeGreaterThanOrEqual(3);
+    // Scope to the Core Tricks grid; the §3 glossary symbolic-compression
+    // flow also uses this class for its tokenized readings.
+    const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
+    const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
+    expect(gridStart).toBeGreaterThan(0);
+    const slice = res.text.slice(gridStart, gridEnd);
+    const matches = slice.match(/class="core-trick-equivalence"/g) ?? [];
+    expect(matches.length).toBe(0);
   });
 
   it('orbit card carries the pending-state marker (QUATERNARY layer in pending state)', async () => {

@@ -533,6 +533,59 @@ function shapeReferenceMedia(
   };
 }
 
+// SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G: shared core-tricks shaper.
+// Both getLandingPage and getGlossaryPage (§10) build the same compact
+// symbolic-object grid; the helper centralizes the join between the
+// curator-authoritative CORE_TRICK_SPEC and the freestyle_tricks DB rows
+// (ADD value + optional symbolic notation).
+function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard[] {
+  return CORE_TRICK_SPEC.map(spec => {
+    const row = trickRows.find(t => t.slug === spec.slug);
+    const parsedAdd = row && row.adds != null ? Number(row.adds) : NaN;
+    const hasAdd = Number.isFinite(parsedAdd);
+    return {
+      slug:                 spec.slug,
+      semanticEquivalences: [...spec.equivalences],
+      symbolicNotation:     null,
+      addNumeric:           hasAdd ? parsedAdd : null,
+      addPending:           !hasAdd,
+    };
+  });
+}
+
+// Phase 2 / H: set-modifier registry shaper. Projects (a) the Tier-1 set
+// operators from the operator board + (b) intermediate set/compound-set
+// entries from OPERATOR_REFERENCE_ENTRIES onto one flat
+// FreestyleSetModifierEntry[] for the glossary §10 grid. De-dup: when a
+// slug appears in both sources, the OPERATOR_REFERENCE entry wins (its
+// `oneLineMeaning` + `decomposition` carry richer registry content).
+function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[] {
+  const setTier = board.tiers.find(t => t.key === 'set');
+  const tierEntries: FreestyleSetModifierEntry[] = (setTier?.operators ?? []).map(op => ({
+    slug:           op.name.toLowerCase().replace(/\s+/g, '-'),
+    name:           op.name,
+    glyph:          op.glyph,
+    oneLineMeaning: op.action,
+    decomposition:  null,
+    href:           op.href,
+  }));
+  const intermediateEntries: FreestyleSetModifierEntry[] = OPERATOR_REFERENCE_ENTRIES
+    .filter(e => e.category === 'set' || e.category === 'compound-set')
+    .map(e => ({
+      slug:           e.slug,
+      name:           e.name,
+      glyph:          null,
+      oneLineMeaning: e.oneLineMeaning,
+      decomposition:  e.decomposition,
+      href:           null,
+    }));
+  // De-dup by slug, intermediate-wins (richer data).
+  const bySlug = new Map<string, FreestyleSetModifierEntry>();
+  for (const e of tierEntries)         bySlug.set(e.slug, e);
+  for (const e of intermediateEntries) bySlug.set(e.slug, e);
+  return [...bySlug.values()];
+}
+
 // Pathway-block shaping for the trick detail page. Bundles three pre-shaped
 // summaries so the template renders without any business logic. Every string
 // the template will display is built here; href anchors point at existing
@@ -1735,6 +1788,33 @@ export interface FreestylePartnershipsContent {
 // History content types (editorial service-layer constants)
 // ---------------------------------------------------------------------------
 
+// ── Phase 2 / H: set-modifier registry entry ───────────────────────────
+// One row in the glossary §10 "Set modifiers" grid. Renders as a compact
+// registry tile: name + one-line meaning + optional decomposition + a
+// deeplink anchor for cross-reference. Source-agnostic at the view-model
+// layer: the service projects Tier-1 set operators (PIX / AT / Q / BL /
+// FAIRY / STEP) AND OPERATOR_REFERENCE_ENTRIES (atomic / quantum / blurry /
+// nuclear / barraging / furious) onto the same shape.
+export interface FreestyleSetModifierEntry {
+  slug:            string;                  // 'atomic', 'pixie', etc. — anchor target
+  name:            string;                  // 'Atomic', 'Pixie'
+  glyph:           string | null;           // 'AT', 'PIX'; null for non-Tier-1 entries
+  oneLineMeaning:  string;                  // short prose; max ~2 sentences
+  decomposition:   string | null;           // semantic decomposition string when curator-authoritative
+  href:            string | null;           // optional cross-link (e.g. /freestyle/sets#move-pixie)
+}
+
+// Phase 2 / E: one step in the §3 worked-example compression flow.
+// Each step is a small symbolic-object card (slug + ADD + tokenized
+// `≡` readings). The readings are NotationDisplay objects shaped via
+// shapeNotationDisplay so the operator/side/base classification renders
+// with the same op-token CSS the rest of the page uses.
+export interface FreestyleCompressionFlowStep {
+  slug:       string;                       // 'osis', 'torque', 'mobius'
+  addValue:   number;                       // numeric ADD; rendered as a chip
+  readings:   NotationDisplay[];            // zero-or-more `≡ ...` lines, tokenized
+}
+
 // Glossary view-model. Carries the shaped notation examples so the §8
 // notation explainers render with the same role-aware classification the
 // trick-detail page uses. Keeps the glossary's promise ("color-coded
@@ -1747,6 +1827,15 @@ export interface FreestyleGlossaryContent {
   // subsection. Authoritative source for what each intermediate operator
   // means and how it decomposes; equivalence-chain tokens deep-link here.
   intermediateOperators: readonly OperatorReferenceEntry[];
+  // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G + H: foundational tricks
+  // and set-modifier grids rendered as compact symbolic objects inside §10.
+  // Same view-model shape as the landing's coreTricks for partial reuse.
+  coreTricks:       FreestyleCoreTrickCard[];
+  setModifiers:     FreestyleSetModifierEntry[];
+  // Phase 2 / E: the §3 worked-example compression flow with role-tokenized
+  // `≡` readings (each reading passed through shapeNotationDisplay so the
+  // operator-vs-base-vs-side classification surfaces visually).
+  compressionFlow:  FreestyleCompressionFlowStep[];
   notationExamples: {
     whirl:        NotationDisplay | null;
     paradoxWhirl: NotationDisplay | null;
@@ -3988,6 +4077,51 @@ export const freestyleService = {
     const paradoxWhirlExample = shapeNotationDisplay('PARADOX WHIRL', ctx);
     const gauntletExample     = shapeNotationDisplay('STEPPING DUCKING PARADOX TORQUE', ctx);
 
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G: foundational-tricks
+    // grid shaped from CORE_TRICK_SPEC + freestyle_tricks for the §10
+    // foundational-tricks section. Same view-model shape as the landing's
+    // coreTricks, so the core-tricks-grid partial renders both surfaces
+    // identically (registry-style readability).
+    const coreTricks: FreestyleCoreTrickCard[] = shapeCoreTricks(allDictRows);
+
+    // Phase 2 / H: set-modifier registry grid shaped from the Tier-1
+    // operator-board set tier + OPERATOR_REFERENCE_ENTRIES set/compound-set
+    // categories. Pixie / Fairy / Stepping come from the board; Atomic /
+    // Quantum / Blurry / Nuclear / Barraging / Furious from the reference
+    // module. Tier-1 entries carry a `glyph` field; intermediate entries
+    // carry null `glyph` and surface their `decomposition` instead.
+    const setModifiers: FreestyleSetModifierEntry[] = shapeSetModifiers(
+      this.getOperatorBoard('glossary'),
+    );
+
+    // Phase 2 / E: §3 symbolic-compression worked example with tokenized
+    // ≡ readings. Each reading runs through shapeNotationDisplay so the
+    // operator / side / core-family classification surfaces as op-token
+    // CSS roles. Three steps: #osis (atom) → #torque (1 operator added) →
+    // #mobius (2 operators added; two stopping-depth readings).
+    const compressionFlow: FreestyleCompressionFlowStep[] = [
+      {
+        slug:     'osis',
+        addValue: 3,
+        readings: [],
+      },
+      {
+        slug:     'torque',
+        addValue: 4,
+        readings: [shapeNotationDisplay('MIRAGING OSIS', ctx)].filter(
+          (r): r is NotationDisplay => r !== null,
+        ),
+      },
+      {
+        slug:     'mobius',
+        addValue: 5,
+        readings: [
+          shapeNotationDisplay('SPINNING SS TORQUE', ctx),
+          shapeNotationDisplay('SPINNING SS MIRAGING OSIS', ctx),
+        ].filter((r): r is NotationDisplay => r !== null),
+      },
+    ];
+
     return {
       seo: {
         title: 'Freestyle Glossary',
@@ -4009,6 +4143,9 @@ export const freestyleService = {
       content: {
         operatorBoard:         this.getOperatorBoard('glossary'),
         intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
+        coreTricks,
+        setModifiers,
+        compressionFlow,
         notationExamples: {
           whirl:        whirlExample,
           paradoxWhirl: paradoxWhirlExample,
@@ -4224,18 +4361,7 @@ export const freestyleService = {
           description: c.description,
           subfields:   c.subfields.map(sf => ({ label: sf.label, values: [...sf.values] })),
         })),
-        coreTricks: CORE_TRICK_SPEC.map(spec => {
-          const row = trickRows.find(t => t.slug === spec.slug);
-          const parsedAdd = row && row.adds != null ? Number(row.adds) : NaN;
-          const hasAdd = Number.isFinite(parsedAdd);
-          return {
-            slug:                 spec.slug,
-            semanticEquivalences: [...spec.equivalences],
-            symbolicNotation:     null,
-            addNumeric:           hasAdd ? parsedAdd : null,
-            addPending:           !hasAdd,
-          };
-        }),
+        coreTricks: shapeCoreTricks(trickRows),
         // Merged Featured strip (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C):
         // Competition Formats (4) + Demonstrations (2) rendered as one
         // compact curated grid. Formats lead because they're conceptual

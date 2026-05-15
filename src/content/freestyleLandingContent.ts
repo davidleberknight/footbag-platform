@@ -97,24 +97,26 @@ export interface CoreTrickSpec {
 
 // Eleven irreducible core tricks per the curator-authoritative atom registry
 // (project_freestyle_core_atoms) and FREESTYLE_IA_REALIGNMENT_PLAN.md C-2.
-// Equivalences are limited to canonical-uncontested readings:
-//   - illusion ≡ outside-in mirage (compositional; from freestyle_trick_aliases)
-//   - around-the-world ≡ ATW (orthographic alias; from freestyle_trick_aliases)
-//   - orbit ≡ reverse around-the-world (per maintainer spec)
-// Skipped: legover≡leg-over (orthographic-only), osis≡frigidosis
-// (Wave-2-pending), swirl≡reverse-swirl (different trick).
+//
+// SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / B (2026-05-14): all
+// equivalence arrays empty. The earlier `≡ ATW`, `≡ outside-in mirage`,
+// `≡ reverse around-the-world` lines were synonym trivia, not symbolic
+// content; their removal lets each card read as a pure foundational
+// atom (#slug + ADD), matching the "foundational atom feel" the surface
+// promises. Alias resolution still lives in `freestyle_trick_aliases`
+// and the glossary; the landing compact-symbolic surface stays silent.
 export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   { slug: 'clipper',          equivalences: [] },
   { slug: 'mirage',           equivalences: [] },
   { slug: 'legover',          equivalences: [] },
   { slug: 'pickup',           equivalences: [] },
-  { slug: 'illusion',         equivalences: ['outside-in mirage'] },
+  { slug: 'illusion',         equivalences: [] },
   { slug: 'whirl',            equivalences: [] },
   { slug: 'butterfly',        equivalences: [] },
   { slug: 'swirl',            equivalences: [] },
   { slug: 'osis',             equivalences: [] },
-  { slug: 'around-the-world', equivalences: ['ATW'] },
-  { slug: 'orbit',            equivalences: ['reverse around-the-world'] },
+  { slug: 'around-the-world', equivalences: [] },
+  { slug: 'orbit',            equivalences: [] },
 ];
 
 // Note: the prior DEMONSTRATION_SLOTS scaffolding (five pre-named conceptual

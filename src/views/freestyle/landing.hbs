@@ -69,24 +69,7 @@
   <section class="content-section freestyle-core-tricks" id="core-tricks">
     <h3 class="freestyle-section-eyebrow">Core Tricks</h3>
     <p class="freestyle-section-sub">The irreducible base tricks. Most named tricks descend from one of these.</p>
-    <div class="freestyle-core-trick-grid">
-      {{#each content.coreTricks}}
-      <article class="core-trick-object" id="core-trick-{{slug}}">
-        <p class="core-trick-slug">#{{slug}}</p>
-        {{#each semanticEquivalences}}
-        <p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> {{this}}</p>
-        {{/each}}
-        {{#if symbolicNotation}}
-        <p class="core-trick-notation">{{symbolicNotation}}</p>
-        {{/if}}
-        {{#if addPending}}
-        <p class="core-trick-add core-trick-add-pending" aria-label="ADD value pending">&mdash;</p>
-        {{else}}
-        <p class="core-trick-add"><span class="core-trick-add-value">{{addNumeric}}</span></p>
-        {{/if}}
-      </article>
-      {{/each}}
-    </div>
+    {{> core-tricks-grid tricks=content.coreTricks}}
     <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
   </section>
 

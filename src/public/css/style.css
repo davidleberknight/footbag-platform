@@ -5558,6 +5558,96 @@ a.dict-card-title:hover {
   text-align: center;
 }
 
+/* SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / E: tokenized ≡ readings inside
+   the symbolic-compression flow. The notation-token classes already carry
+   role-specific color cues via the §8 notation-display rules; here we just
+   tighten line spacing so the readings read as compact symbolic objects. */
+.glossary-compression-reading {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+}
+.glossary-compression-reading .notation-token {
+  padding: 0 2px;
+}
+
+/* Phase 2 / H: set-modifier registry grid (glossary §10). One tile per
+   set-modifier entry; tighter than the body-text rhythm so it reads as a
+   reference panel. */
+.glossary-set-modifiers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 14px 0 8px 0;
+}
+.set-modifier-card {
+  position: relative;
+  padding: 10px 32px 10px 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--bg-light, #f8fafc);
+}
+.set-modifier-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 4px 0;
+}
+.set-modifier-name {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--text, #0f172a);
+}
+.set-modifier-glyph {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-2, #e2e8f0);
+  color: var(--text-muted, #64748b);
+}
+.set-modifier-meaning {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0;
+  color: var(--text-muted, #64748b);
+}
+.set-modifier-decomposition {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  margin: 4px 0 0 0;
+  color: var(--text, #0f172a);
+}
+.set-modifier-decomp-sigil {
+  color: var(--text-muted, #64748b);
+  margin-right: 2px;
+}
+.set-modifier-deeplink {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  border-radius: 10px;
+  background: var(--surface-2, #e2e8f0);
+  color: var(--text-muted, #64748b);
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+.set-modifier-deeplink:hover,
+.set-modifier-deeplink:focus-visible {
+  background: var(--primary, #0369a1);
+  color: #fff;
+  outline: none;
+}
+@media (max-width: 480px) {
+  .glossary-set-modifiers-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Glossary §8: thesis sentence + section bridge ─────────────────────
    Typography-led emphasis: italic serif + thin primary rule. No fill,
    no radius — the typography carries the lead role. */
