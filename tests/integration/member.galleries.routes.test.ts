@@ -246,29 +246,37 @@ describe('GET /members/:memberKey/galleries', () => {
     expect(res.text).toContain('Page Not Found');
   });
 
-  // Regression: read-only gallery list must not pull the image or video
-  // worker adapters (both throw "INTERNAL_EVENT_SECRET not configured"
-  // at first resolution when the secret is unset). Test fixtures set the
-  // secret so the failure was invisible without spying.
-  it('does not resolve the video or image worker adapter on a read-only gallery list', async () => {
+  // Regression: read-only gallery list must not invoke the image or
+  // video worker. Both adapter getters return a lazy proxy whose process
+  // / transcode methods defer underlying singleton resolution (and the
+  // INTERNAL_EVENT_SECRET check) until first method call. The read path
+  // is read-only and must never call a process method.
+  it('does not invoke the video or image worker adapter on a read-only gallery list', async () => {
     const { vi } = await import('vitest');
     const videoMod = await import('../../src/adapters/videoTranscodingAdapter');
     const imageMod = await import('../../src/adapters/imageProcessingAdapter');
-    const videoSpy = vi.spyOn(videoMod, 'getVideoTranscodingAdapter')
-      .mockImplementation(() => {
-        throw new Error('regression: video adapter resolved on /members/:slug/galleries');
-      });
-    const imageSpy = vi.spyOn(imageMod, 'getImageProcessingAdapter')
-      .mockImplementation(() => {
-        throw new Error('regression: image adapter resolved on /members/:slug/galleries');
-      });
+    const fail = (label: string) => () => {
+      throw new Error(`regression: ${label} on /members/:slug/galleries`);
+    };
+    const videoTranscode = vi.fn(fail('video transcode invoked'));
+    const imageProcessAvatar = vi.fn(fail('image processAvatar invoked'));
+    const imageProcessPhoto = vi.fn(fail('image processPhoto invoked'));
+    const videoSpy = vi.spyOn(videoMod, 'getVideoTranscodingAdapter').mockImplementation(() => ({
+      transcode: videoTranscode,
+      transcodeFromStorage: vi.fn(fail('video transcodeFromStorage invoked')),
+    }));
+    const imageSpy = vi.spyOn(imageMod, 'getImageProcessingAdapter').mockImplementation(() => ({
+      processAvatar: imageProcessAvatar,
+      processPhoto: imageProcessPhoto,
+    }));
     try {
       const res = await request(createApp())
         .get(`/members/${OWNER_SLUG}/galleries`)
         .set('Cookie', ownerCookie());
       expect(res.status).toBe(200);
-      expect(videoSpy).not.toHaveBeenCalled();
-      expect(imageSpy).not.toHaveBeenCalled();
+      expect(videoTranscode).not.toHaveBeenCalled();
+      expect(imageProcessAvatar).not.toHaveBeenCalled();
+      expect(imageProcessPhoto).not.toHaveBeenCalled();
     } finally {
       videoSpy.mockRestore();
       imageSpy.mockRestore();

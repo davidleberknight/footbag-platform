@@ -360,6 +360,68 @@ export function applyHonorGrant(
 }
 
 /**
+ * Apply the single tier grant produced by a legacy-claim merge.
+ *
+ * Per `docs/MIGRATION_PLAN.md` §3 ("Tier handling at claim") and DD §2551:
+ * one `member_tier_grants` row is written at claim time with
+ * `reason_code = 'legacy.claim_tier_grant'`, no conditional "exceeds
+ * current" logic. The full precedence table requires deferred legacy-state
+ * columns on `legacy_members`; the honors-only fallback applies today:
+ *   - HoF or BAP → `tier2`
+ *   - else        → `tier0`
+ *
+ * Caller owns the transaction so the grant is atomic with the merge writes.
+ * Tier 0 grants are written even when current is already Tier 0, so the
+ * ledger carries a marker row for every claim. AP is ended only on an
+ * actual upgrade out of Tier 0 (same rule as `applyPurchaseGrant`).
+ */
+export function applyLegacyClaimGrantInTx(
+  actorMemberId: string,
+  memberId: string,
+  hasHof: boolean,
+  hasBap: boolean,
+  metadata: Record<string, unknown>,
+): void {
+  const now = new Date().toISOString();
+  const current = getCurrent(memberId);
+  const targetTier: MemberTier = (hasHof || hasBap) ? 'tier2' : 'tier0';
+
+  if (current.tier_status === 'tier0' && targetTier !== 'tier0') {
+    endOnTierUpgrade(memberId, now);
+  }
+
+  insertGrant({
+    actorId:          actorMemberId,
+    memberId,
+    changeType:       'grant',
+    oldTier:          current.tier_status,
+    newTier:          targetTier,
+    oldUnderlying:    null,
+    newUnderlying:    null,
+    reasonCode:       'legacy.claim_tier_grant',
+    reasonText:       null,
+    relatedPaymentId: null,
+    now,
+  });
+
+  audit({
+    actionType: 'tier.legacy_claim_grant',
+    category:   'tier_change',
+    actorType:  'member',
+    actorId:    actorMemberId,
+    memberId,
+    reasonText: null,
+    metadata: {
+      ...metadata,
+      from:    current.tier_status,
+      to:      targetTier,
+      has_hof: hasHof,
+      has_bap: hasBap,
+    },
+  });
+}
+
+/**
  * Promote a member to Tier 3 (governance director).
  *
  * Underlying-tier mapping:

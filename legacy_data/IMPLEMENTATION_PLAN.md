@@ -19,15 +19,14 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **PassBack intake lane outputs, awaiting Red triage.** Staging CSVs at `curated/freestyle_media/video_term_inventory.csv`, `curated/freestyle_media/video_snippet_candidates.csv`, `curated/freestyle_sets/set_candidates.csv`, `curated/freestyle_tricks/trick_alias_candidates.csv`. Generator: `legacy_data/tools/build_passback_intake.py`. Promotion to dictionary blocked on Red answers.
 
-- **MIGRATION_PLAN §9 cross-track: `legacy_person_club_affiliations` rows imported with `resolution_status='confirmed_current'` instead of `'pending'`.** Schema `database/schema.sql:3236` already has `DEFAULT 'pending'`. Loaders override it:
-  - `legacy_data/scripts/load_club_members_seed.py:170` (name-matched) and `:186` (unmatched-but-mirror-id-known) hard-code `'confirmed_current'`.
-  - `legacy_data/event_results/scripts/09_load_enrichment_to_sqlite.py:512` hard-codes `'confirmed_current'` in the INSERT for inferred affiliations.
-  MIGRATION_PLAN §9.3 and DATA_MODEL §4.25 specify inferred mirror rows arrive as `'pending'` and transition to `'confirmed_current'` only when a member confirms current affiliation via the onboarding wizard. Fix: drop the literal value from both INSERT statements, letting the schema default apply. Confirm with an integration test that mirror-seeded affiliations are `'pending'` after `run_pipeline.sh` completes.
+- **MIGRATION_PLAN §9 cross-track: Phase H cutover hardening.** Locked: loaders default to `'pending'` (4ca0909); Phase H is sole creator of live `clubs` at cutover in prod (3cc3a97); Phase G no longer writes `mapped_club_id` (Phase H owns the linkage); Phase H stamps `mapped_club_id` for every candidate with matching clubs row, not just `bootstrap_eligible=1`. Remaining gaps land as one PR:
+  1. **Phase H fail-fast on missing seed-CSV eligible candidates.** `06_cutover_pre_populated_clubs.py` around line 273 prints WARN and continues when eligible candidates are absent from `legacy_data/seed/clubs.csv`. Change to ERROR + `sys.exit(1)`. The silent path leaves `mapped_club_id` NULL and the downstream `07_load_bootstrap_leaders.py` FK-fails with no useful upstream message.
+  2. **Phase H fail-fast on zero candidates after enrichment.** Same file, around line 158. Returns 0 silently when `all_candidates` is empty (masks a missing Phase G run or classifier regression). Change to ERROR + `sys.exit(1)`.
+  3. **Schema CHECK: `resolved_club_id NOT NULL` when `resolution_status='confirmed_current'`.** Add `CHECK (resolution_status <> 'confirmed_current' OR resolved_club_id IS NOT NULL)` on `legacy_person_club_affiliations` in `database/schema.sql`. Locks the contract the wizard must satisfy.
+  4. **Idempotency claim on `load_club_members_seed.py`.** Lines 170 and 186 use bare INSERT but the docstring claims idempotency. Add `OR IGNORE` or amend the docstring to "Phase I one-shot, not re-runnable".
+  Tests in the same PR: (a) `legacy_data/tests/test_resolution_status_default.py` extension that simulates wizard `pending → confirmed_current` UPDATE and asserts `resolved_club_id` lands; (b) full-pipeline integration test (Phase G + Phase H against a fresh DB; assert live `clubs` row count matches bootstrap_eligible count; assert stamped `mapped_club_id` count matches the intersection of candidates and clubs rows).
 
-- **MIGRATION_PLAN §9 cross-track: Phase I bulk-loads all seed/clubs.csv rows into live `clubs` regardless of classification.** `legacy_data/run_pipeline.sh:216-224` (`run_phase_clubs_seed_load`) calls `legacy_data/scripts/load_clubs_seed.py`, which inserts every seed row with `status='active'` (lines 196-215). Phase H (`legacy_data/clubs/scripts/06_cutover_pre_populated_clubs.py`) then becomes a no-op against existing rows. MIGRATION_PLAN §9.1 target: only `pre_populate` candidates become live `clubs` rows at cutover; non-junk non-pre-populate candidates remain in `legacy_club_candidates` until promoted via the wizard or admin. Fix paths:
-  1. Restrict `load_clubs_seed.py` to a dev-only mode and drop it from the production pipeline; Phase H becomes the sole creator of pre_populate live rows at cutover.
-  2. Or re-order so the classifier (Phase D) and enrichment load (Phase G) run before `load_clubs_seed.py`, and change `load_clubs_seed.py` to filter by `classification='pre_populate'` before INSERT.
-  Either path leaves Phase H as the canonical live-club creation step. Confirm with an integration test that on a fresh DB, only the §9.1 `pre_populate` set lands in `clubs`.
+- **MIGRATION_PLAN §9 cross-track: HP linkage broken for membership-only / club-only persons (ID generator drift).** `legacy_data/clubs/scripts/01_build_club_person_universe.py:31` generates `f"membership_only::{sha1(name_norm)[:16]}"` for membership-only persons. `legacy_data/persons/scripts/05_build_persons_master.py:49` generates `sha1(f"master|{source_types}|{name_norm}")[:16]` for the same person. Both flow downstream: the first becomes `legacy_person_club_affiliations.matched_person_id`; the second becomes `historical_persons.person_id` for PROVISIONAL rows. `09_load_enrichment_to_sqlite.py:519–523` (`affiliations_pid_fallback` counter) silently NULLs `historical_person_id` when the IDs don't agree. Symptom: club detail pages show member names but never link to `/history/{personId}` for non-canonical persons. Investigate the right fix (likely: align `01_build_club_person_universe.py` to use the master_person_id from `persons_master.csv` via a join, or introduce a translation table; do NOT change `historical_persons.person_id` after-the-fact because canonical rows already key off it). Validate by spot-checking Wellington Hack Crew (5 members, `linkable_member_count=4`, currently 0 HP links rendered).
 
 ---
 
@@ -35,6 +34,7 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **`legacy_members` population.** Mirror-derived via `legacy_data/scripts/load_legacy_members_seed.py` (2,507 rows; columns limited to PK + `display_name` + `import_source='mirror'`). Unblock: legacy-site data dump received.
 - **`name_variants` table unseeded.** Every successful auto-link match is currently `confidence: 'high'` (exact normalized name). The `confidence: 'medium'` branch (name-variant-aware) produces no hits because the name_variants table has no rows yet. Unblock: ~290-pair name_variants seed from legacy data.
+- **Loosened read filter on `legacy_person_club_affiliations.resolution_status`.** `src/db/db.ts` `listMembersByClubId` and `listMemberCountsForAllClubs` accept `'pending'` so loader-imported affiliations render as members on `/clubs/:key`. Substitutes for the wizard's `pending → confirmed_current` transition (external blocker below). Reverts to `IN ('confirmed_current','promoted')` when the wizard ships.
 
 ---
 
@@ -44,6 +44,8 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 - **Freestyle rules content (IFPA).** Wording for Routine, Circle, Sick 3, Shred 30. Re-enables the "Rules" buttons dropped from `/freestyle` competition-format cards.
 - **Freestyle trick dictionary expansion.** Gated on Red Husted second-pass corrections (pt7 / pt8 round outstanding).
 - **Data review sign-off.** Confirmation that legacy data is complete and member-list presentation is reviewed. Required before removing the `requireAuth` gate from member-list pages.
+- **Onboarding wizard club-affiliations step (Dave-owned).** Sole intended writer that transitions affiliations out of `'pending'` (loader contract 4ca0909). On `confirmed_current` against an `onboarding_visible` candidate, the wizard must promote via a new `ClubService.promoteFromCandidate(candidateId, actorMemberId)` helper that mirrors Phase H invariants (create `clubs` row + stamp `mapped_club_id` + insert `member_club_affiliations` with `source='legacy_claim'`). Wire shape detailed in DATA_MODEL §4.25 + MIGRATION_PLAN §9.3.
+- **Admin cleanup queue `A_Review_Club_Cleanup_Signals` (Dave-owned).** Planned reviewer surface for wizard-emitted flags + member-flagged outdated clubs + auto-merge holds. No current substitute; without it, admin-side cleanup signals have no UI. Independent of the dev-time classifier QC panel (deferred entry); the two serve different audiences.
 
 ---
 
@@ -68,6 +70,13 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 - [ ] Sample event pages load correctly
 - [ ] Player pages resolve (no orphan historical person IDs)
 
+### Club cleanup pipeline
+- [ ] Phase G + Phase H integration test asserts: live `clubs` row count equals bootstrap_eligible candidate count; stamped `mapped_club_id` count equals intersection of candidates and clubs rows
+- [ ] `legacy_person_club_affiliations` schema enforces `resolved_club_id NOT NULL when resolution_status='confirmed_current'`
+- [ ] `pending → confirmed_current` wizard-transition test pins the `resolved_club_id` write
+- [ ] Phase H exits non-zero on missing seed-CSV rows and on zero candidates after enrichment
+- [ ] HP linkage: `affiliations_pid_fallback` counter in Phase G → 0 (or documented exception class with rationale)
+
 ---
 
 ## Unblocks
@@ -80,6 +89,8 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 ## Deferred / parked work (non-blocking)
 
 Kept for visibility only; not part of active work or release gating. No current substitute mechanism, no unblock dependency, no release-readiness impact. Promote to Active work only if scope or priority changes.
+
+- **TEMP-DEVIATION sweep before any production environment ships: club-classification QC panel on `/clubs/:key`.** Additional human-QC tool for evaluating classifier output (category, confidence, R1-R10 firings + inputs, decision path). NOT a substitute for the planned admin queue `A_Review_Club_Cleanup_Signals` — that queue serves a different audience (admins resolving member-flagged + system-flagged clubs at runtime); the panel serves developers auditing the classifier rules at build time. The two coexist independently. Remove the panel (and its 19 evidence columns on `legacy_club_candidates`, the visitor summary section, and the auth-gated full diagnostic section) before prod ships. Touch points: grep `TEMP-DEVIATION` across the tree; entire file `tests/integration/clubs-qc-panel.routes.test.ts` deletes.
 
 - **Smoke test for loader idempotency on non-empty DBs.** Add an automated smoke test that runs each loader twice in sequence against the same DB and asserts no exceptions and identical row counts. Surfaces fresh-DB-only assumptions in any future loader. Forward invariant: all loaders must be safe on non-empty DBs (no reliance on external DB reset).
 

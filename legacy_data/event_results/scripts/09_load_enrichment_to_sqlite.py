@@ -423,8 +423,19 @@ def main() -> None:
                       id, created_at, created_by, updated_at, updated_by, version,
                       legacy_club_key, display_name, city, country,
                       confidence_score, mapped_club_id, bootstrap_eligible,
-                      classification
-                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+                      classification,
+                      -- TEMP-DEVIATION: club-classification QC panel evidence.
+                      r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
+                      contact_signal_substitute_applied,
+                      last_hosted_year, max_affiliated_member_last_year,
+                      contact_member_last_year, created_year, last_updated_year,
+                      unique_member_names, linkable_member_count, ever_hosted
+                    ) VALUES (
+                      ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?,
+                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                      ?,
+                      ?, ?, ?, ?, ?, ?, ?, ?
+                    )
                     """,
                     (
                         lcc_id, ts, system_user, ts, system_user,
@@ -433,9 +444,32 @@ def main() -> None:
                         opt_str(row.get("city", "")),
                         opt_str(row.get("country", "")),
                         opt_float(row.get("confidence_score", "")),
-                        stable_id("club", club_key),
+                        # mapped_club_id is owned by Phase H (06_cutover_pre_populated_clubs.py),
+                        # which stamps it once the live clubs row exists. Writing it here
+                        # violates the FK in prod, where clubs rows are created later.
+                        None,
                         parse_bool_col(row.get("bootstrap_eligible", "0")),
                         _classification_to_bind,
+                        # TEMP-DEVIATION: club-classification QC panel evidence.
+                        parse_bool_col(row.get("R1",  "0")),
+                        parse_bool_col(row.get("R2",  "0")),
+                        parse_bool_col(row.get("R3",  "0")),
+                        parse_bool_col(row.get("R4",  "0")),
+                        parse_bool_col(row.get("R5",  "0")),
+                        parse_bool_col(row.get("R6",  "0")),
+                        parse_bool_col(row.get("R7",  "0")),
+                        parse_bool_col(row.get("R8",  "0")),
+                        parse_bool_col(row.get("R9",  "0")),
+                        parse_bool_col(row.get("R10", "0")),
+                        parse_bool_col(row.get("contact_signal_substitute_applied", "0")),
+                        opt_int(row.get("last_hosted_year", "")),
+                        opt_int(row.get("max_affiliated_member_last_year", "")),
+                        opt_int(row.get("contact_member_last_year", "")),
+                        opt_int(row.get("created_year", "")),
+                        opt_int(row.get("last_updated_year", "")),
+                        opt_int(row.get("unique_member_names", "")),
+                        opt_int(row.get("linkable_member_count", "")),
+                        parse_bool_col(row.get("ever_hosted", "0")),
                     ),
                 )
                 # cur.rowcount reports actual DB writes; raw += 1 would count

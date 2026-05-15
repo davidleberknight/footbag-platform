@@ -160,3 +160,49 @@ describe('POST /login — DB-backed auth', () => {
     expect(blocked.headers['retry-after']).toBeDefined();
   });
 });
+
+describe('POST /login — returnTo open-redirect defenses (isSafePath)', () => {
+  // Footbag Hacky login is used so this suite does not collide with the
+  // rate-limit counter on TEST_MEMBER_EMAIL above.
+  const SAFE_DEFAULT = '/members/footbag_hacky';
+
+  it('rejects protocol-scheme returnTo (http://evil.com) and falls back to the safe default', async () => {
+    const res = await request(app)
+      .post('/login')
+      .type('form')
+      .send({ email: 'footbag', password: FOOTBAG_PASSWORD, returnTo: 'http://evil.com' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(SAFE_DEFAULT);
+  });
+
+  it('rejects protocol-relative returnTo (//evil.com) and falls back to the safe default', async () => {
+    const res = await request(app)
+      .post('/login')
+      .type('form')
+      .send({ email: 'footbag', password: FOOTBAG_PASSWORD, returnTo: '//evil.com/path' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(SAFE_DEFAULT);
+  });
+
+  it('rejects backslash-containing returnTo (/\\evil.com) and falls back to the safe default', async () => {
+    const res = await request(app)
+      .post('/login')
+      .type('form')
+      .send({ email: 'footbag', password: FOOTBAG_PASSWORD, returnTo: '/\\evil.com' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(SAFE_DEFAULT);
+  });
+
+  it('honors a clean same-origin path returnTo', async () => {
+    const res = await request(app)
+      .post('/login')
+      .type('form')
+      .send({ email: 'footbag', password: FOOTBAG_PASSWORD, returnTo: '/members/footbag_hacky/edit' });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/members/footbag_hacky/edit');
+  });
+});

@@ -88,6 +88,21 @@ function cookieFor(memberId: string): string {
   return `footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
+// ── GET /history (bare) — must NOT redirect ─────────────────────────────────
+//
+// DD §5.2 categorically bans redirects that are not auth gates, PRG, or
+// canonical-identity transitions. The bare `/history` path is none of those:
+// it has no concrete identity to redirect to. The route is intentionally
+// unwired; Express's default 404 is the correct response.
+
+describe('GET /history (no id) — unwired, 404 by design', () => {
+  it('returns 404 (not a redirect)', async () => {
+    const res = await request(createApp()).get('/history');
+    expect(res.status).toBe(404);
+    expect([301, 302, 303]).not.toContain(res.status);
+  });
+});
+
 describe('GET /history/:personId — conditional Claim CTA', () => {
   it('anonymous viewer on a HoF HP: page renders without the CTA', async () => {
     const res = await request(createApp()).get(`/history/${HP_HONOR}`);

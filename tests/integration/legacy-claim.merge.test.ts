@@ -251,6 +251,64 @@ describe('claimLegacyAccount — HP-field carry-forward', () => {
   });
 });
 
+// ─── Tier grant invariant (DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3) ───
+//
+// Every successful legacy-claim merge writes one `member_tier_grants` row
+// with `reason_code = 'legacy.claim_tier_grant'`. Honors-only fallback today:
+// HoF or BAP → tier2, else tier0. Must land in the same transaction as the
+// merge writes (no partial-success window).
+
+describe('claimLegacyAccount — single tier grant per claim', () => {
+  function readTierGrant(memberId: string): Record<string, unknown> | undefined {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(`
+      SELECT change_type, old_tier_status, new_tier_status, reason_code
+      FROM member_tier_grants
+      WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(memberId) as Record<string, unknown> | undefined;
+    db.close();
+    return row;
+  }
+
+  it('HP.hof_member=1 → tier2 grant with reason_code legacy.claim_tier_grant', () => {
+    const { memberId, legacyId } = setupScenario({ hpHofMember: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant).toBeDefined();
+    expect(grant!.new_tier_status).toBe('tier2');
+    expect(grant!.old_tier_status).toBe('tier0');
+    expect(grant!.reason_code).toBe('legacy.claim_tier_grant');
+  });
+
+  it('HP.bap_member=1 → tier2 grant', () => {
+    const { memberId, legacyId } = setupScenario({ hpBapMember: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant!.new_tier_status).toBe('tier2');
+    expect(grant!.reason_code).toBe('legacy.claim_tier_grant');
+  });
+
+  it('legacy.is_hof=1 → tier2 grant even with HP.hof_member=0', () => {
+    const { memberId, legacyId } = setupScenario({ legacyIsHof: 1, hpHofMember: 0 });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant!.new_tier_status).toBe('tier2');
+  });
+
+  it('no honor on either side → tier0 grant (still recorded as ledger marker)', () => {
+    const { memberId, legacyId } = setupScenario({
+      legacyIsHof: 0, legacyIsBap: 0, hpHofMember: 0, hpBapMember: 0,
+    });
+    svc.claimLegacyAccount(memberId, legacyId);
+    const grant = readTierGrant(memberId);
+    expect(grant).toBeDefined();
+    expect(grant!.new_tier_status).toBe('tier0');
+    expect(grant!.old_tier_status).toBe('tier0');
+    expect(grant!.reason_code).toBe('legacy.claim_tier_grant');
+  });
+});
+
 // ─── Token atomicity (C1 regression) ─────────────────────────────────────────
 //
 // Two-step claim: consumeAndClaimLegacy must consume the token AND run the

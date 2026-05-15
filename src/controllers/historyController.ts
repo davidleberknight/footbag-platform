@@ -4,7 +4,7 @@ import { NotFoundError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
 
 function redirectToLogin(req: Request, res: Response): void {
-  res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
+  res.redirect(302, `/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
 }
 
 export const historyController = {

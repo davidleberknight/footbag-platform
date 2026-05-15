@@ -33,16 +33,30 @@
     </div>
     {{/if}}
 
-    <section class="club-snapshot club-snapshot--{{content.club.vitality.statusLabelKebab}}" aria-label="Club snapshot">
-      <h2 class="club-snapshot-heading">Club snapshot</h2>
-      <dl class="club-snapshot-list">
-        <dt>Known leaders</dt>
-        <dd>{{content.club.vitality.knownLeadersText}}</dd>
-        <dt>Members</dt>
-        <dd>{{content.club.vitality.memberCountText}}</dd>
-        <dt>Status</dt>
-        <dd class="club-status-label">{{content.club.vitality.statusLabel}}</dd>
-      </dl>
+    {{!-- At-a-glance card: merges club snapshot + classification status into
+          one scannable block. Visible to all visitors. TEMP-DEVIATION fields
+          (qcPanel.*) absent in production; section degrades to a plain
+          leader/member count line in that case. --}}
+    <section class="club-at-a-glance club-at-a-glance--{{content.club.vitality.statusLabelKebab}}{{#if content.club.qcPanel}} club-at-a-glance--{{content.club.qcPanel.category}}{{/if}}" aria-label="At a glance">
+      {{#if content.club.qcPanel}}
+      <div class="club-at-a-glance-header">
+        <span class="club-qc-category-chip club-qc-category-chip--{{content.club.qcPanel.category}}">{{content.club.qcPanel.categoryLabel}}</span>
+        {{#if content.club.qcPanel.confidenceScore}}
+        <span class="club-qc-confidence">Confidence {{content.club.qcPanel.confidenceScore}}</span>
+        {{/if}}
+      </div>
+      {{/if}}
+      <p class="club-at-a-glance-stats">
+        {{content.club.vitality.knownLeadersText}} known {{#if (eq content.club.vitality.knownLeadersCount 1)}}leader{{else}}leaders{{/if}}
+        &middot; {{content.club.vitality.memberCountText}} {{#if (eq content.club.vitality.memberCount 1)}}member{{else}}members{{/if}}
+        {{#if content.club.qcPanel.lastMemberActivityYear}}
+        &middot; members active through {{content.club.qcPanel.lastMemberActivityYear}}
+        {{/if}}
+      </p>
+      <p class="club-status-label club-status-label--{{content.club.vitality.statusLabelKebab}}">{{content.club.vitality.statusLabel}}</p>
+      {{#if content.club.qcPanel.summaryTagline}}
+      <p class="club-at-a-glance-tagline">{{content.club.qcPanel.summaryTagline}}</p>
+      {{/if}}
     </section>
 
     {{#if content.club.leaders.length}}
@@ -56,7 +70,7 @@
           {{else}}
             <span class="club-leader-name">{{displayName}}</span>
           {{/if}}
-          <span class="club-leader-role">&nbsp;&mdash;&nbsp;{{#if (eq role "leader")}}Leader{{else}}Co-leader{{/if}}</span>
+          <span class="club-leader-role">&nbsp;&mdash;&nbsp;{{roleLabel}}</span>
           {{#if badgeLabel}}
             <span class="club-leader-badge">{{badgeLabel}}</span>
           {{/if}}
@@ -78,7 +92,13 @@
       <h2 class="club-members-heading">Members</h2>
       <ul class="club-member-list">
         {{#each content.club.members}}
-        <li class="club-member-entry">{{name}}</li>
+        <li class="club-member-entry">
+          {{#if personId}}
+            <a class="club-member-name" href="/history/{{personId}}">{{name}}</a>
+          {{else}}
+            <span class="club-member-name">{{name}}</span>
+          {{/if}}
+        </li>
         {{/each}}
       </ul>
     </div>
@@ -87,6 +107,53 @@
     <div class="club-members-gate">
       <a href="/login?returnTo={{content.club.clubHref}}">Log in</a> to see club members.
     </div>
+    {{/if}}
+
+    {{!-- TEMP-DEVIATION: full classification diagnostic (curator view).
+          Auth-gated; below members. Always expanded per design decision —
+          full rule table + human-labeled inputs visible at once. Remove
+          with A_Review_Club_Cleanup_Signals admin queue. --}}
+    {{#if isAuthenticated}}
+    {{#if content.club.qcPanel}}
+    <section class="club-qc-panel club-qc-panel--{{content.club.qcPanel.category}}" aria-label="Classification analysis (curator view)">
+      <p class="club-qc-panel-banner"><strong>Curator view:</strong> classification diagnostic. Not part of the public design; will be removed before any production environment ships.</p>
+
+      <h2 class="club-qc-panel-heading">Why this category?</h2>
+      <p class="club-qc-narrative">{{content.club.qcPanel.narrativeWhy}}</p>
+
+      <dl class="club-qc-panel-summary">
+        <dt>Cutover eligibility</dt>
+        <dd>{{#if content.club.qcPanel.bootstrapEligible}}eligible for automatic cutover at launch{{else}}not eligible for automatic cutover (admin or wizard promotion required){{/if}}</dd>
+        {{#if content.club.qcPanel.contactSignalSubstituteApplied}}
+        <dt>Contact substitute</dt>
+        <dd class="club-qc-warning">applied (no listed contact; classifier fell back to the any-member-active predicate)</dd>
+        {{/if}}
+      </dl>
+
+      <h3 class="club-qc-panel-subheading">Rule firings (R1&ndash;R10)</h3>
+      <table class="club-qc-rule-table">
+        <thead>
+          <tr><th scope="col">Fired</th><th scope="col">Rule</th><th scope="col">Tier</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.club.qcPanel.rules}}
+          <tr class="club-qc-rule club-qc-rule--{{#if fired}}fired{{else}}not-fired{{/if}}">
+            <td class="club-qc-rule-fired-cell" aria-label="{{#if fired}}fired{{else}}did not fire{{/if}}">{{#if fired}}&#10003;{{else}}&#215;{{/if}}</td>
+            <th scope="row">{{id}}: {{label}}</th>
+            <td>{{tier}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+
+      <h3 class="club-qc-panel-subheading">Rule inputs</h3>
+      <dl class="club-qc-inputs">
+        {{#each content.club.qcPanel.inputs}}
+        <dt>{{label}}</dt><dd>{{value}}</dd>
+        {{/each}}
+      </dl>
+    </section>
+    {{/if}}
     {{/if}}
 
     {{#each navigation.contextLinks}}

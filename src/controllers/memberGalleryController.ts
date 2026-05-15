@@ -19,11 +19,10 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { createCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX } from '../services/curatorMediaService';
+import { getDefaultCuratorMediaService, PHOTO_MAX_BYTES, UPLOADER_TAG_PREFIX, buildExternalLinkSlots } from '../services/curatorMediaService';
 import { detectImageType } from '../lib/imageProcessing';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
-import { parseExternalLinkInputs, buildExternalLinkSlots, parseGalleryMultipart, lazyImageProcessor } from './galleryFormHelpers';
+import { parseExternalLinkInputs, parseGalleryMultipart } from './galleryFormHelpers';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 
 type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
@@ -73,16 +72,7 @@ function mergeTags(...lists: string[][]): string[] {
 // criterion like `#footbag`. validateGalleryTag rejects `#by_*` from
 // caller input, so the prepended tag cannot be forged.
 
-function buildSvc(): ReturnType<typeof createCuratorMediaService> {
-  // Lazy image adapter so list / read routes (member galleries list,
-  // gallery edit page render) do not pull the image worker secret.
-  // The image adapter throws on first resolution if INTERNAL_EVENT_SECRET
-  // is unset; the wrapper defers to the actual processPhoto call.
-  return createCuratorMediaService({
-    storage: getMediaStorageAdapter(),
-    imageProcessor: lazyImageProcessor(),
-  });
-}
+const buildSvc = getDefaultCuratorMediaService;
 
 function isOwnRoute(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
@@ -249,9 +239,6 @@ export const memberGalleryController = {
           ...item,
           editHref: `/members/${memberKey}/media/${item.mediaId}/edit`,
         }));
-        const criteriaTagsString = g.criteriaTags
-          .filter((t) => !t.startsWith(UPLOADER_TAG_PREFIX))
-          .join(' ');
         res.render('members/galleries/edit', {
           seo: { title: 'Edit Gallery' },
           page: { sectionKey: 'members', pageKey: 'member_galleries_edit', title: 'Edit Gallery' },
@@ -261,7 +248,7 @@ export const memberGalleryController = {
             name: g.name,
             description: g.description,
             sortOrder: g.sortOrder,
-            criteriaTagsString,
+            criteriaTagsString: g.criteriaTagsDisplayString,
             excludeTagsString: g.excludeTags.join(' '),
           },
           cancelHref: listHref(memberKey),
@@ -270,7 +257,7 @@ export const memberGalleryController = {
           // Pre-fill the upload widget's tag input with the gallery's
           // criteria as a suggestion. User-editable; user-supplied value
           // is what gets applied to uploads (no auto-stamping).
-          uploadTags: criteriaTagsString,
+          uploadTags: g.criteriaTagsDisplayString,
           externalLinkSlots: buildExternalLinkSlots(null, g.externalLinks),
         });
       } catch (err) {

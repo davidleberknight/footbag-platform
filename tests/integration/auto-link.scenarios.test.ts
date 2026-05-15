@@ -87,9 +87,9 @@ describe('auto-link scenarios — direct-driven branches (cannot go through veri
       const classification =
         identitySvc.identityAccessService.getAutoLinkClassificationForMember(sc.id);
       // Both 'already_linked' and 'missing_login_email' surface as 'none'
-      // via getAutoLinkClassificationForMember. That's intentional: the
-      // helper collapses both guard paths to the same neutral response so
-      // /history/auto-link falls through to /history/claim in either case.
+      // via getAutoLinkClassificationForMember. The helper collapses both
+      // guard paths to the same neutral response so the wizard's auto-link
+      // confirm step renders the candidate list instead of a one-click card.
       expect(classification).toEqual({ confidence: 'none' });
     });
   }

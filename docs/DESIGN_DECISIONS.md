@@ -409,7 +409,7 @@ Layers:
 2. Middleware (`src/middleware/`) — Express cross-cutting handlers.
 
    - Signature: `(req, res, next) => void` or `(err, req, res, next) => void`.
-   - Apply across multiple routes: authentication, rate limiting, logging, CSRF checks, error handling.
+   - Apply across multiple routes: authentication, logging, CSRF checks, origin pinning, error handling.
    - May co-locate HTTP-layer constants they own (cookie names, cookie maxAge) because those are HTTP concerns.
 
 3. Controllers (`src/controllers/`) — per-route HTTP glue.
@@ -423,7 +423,7 @@ Layers:
    - Encapsulate SDK calls (AWS, Stripe, etc.) so services never import `@aws-sdk/*` or similar directly.
    - Paired structure: one interface plus one or more implementations selected by configuration.
    - Naming convention: `<Backend><Purpose>Adapter` for implementations; `<Purpose>Adapter` for interfaces.
-   - File organization: one file per adapter at `src/adapters/<purpose>Adapter.ts`, containing the interface, all implementations (as factory functions, not classes), and a synchronous singleton getter `get<Purpose>Adapter()` that selects the configured implementation. Services import the getter and the interface from this single file; they do not construct adapters themselves.
+   - File organization: one file per adapter at `src/adapters/<purpose>Adapter.ts`, containing the interface, all implementations (as factory functions, not classes), and a synchronous singleton getter `get<Purpose>Adapter()` that selects the configured implementation. Services import the getter and the interface from this single file; controllers do not. A service that depends on an adapter exposes either (a) a factory function in the service module that resolves the adapter at construction time, or (b) a module-level singleton service. Controllers receive the constructed service and never call `get*Adapter()` themselves. This keeps adapter-selection knowledge inside the service layer where dev/prod parity is enforced.
    - Test hook: each adapter file also exports `reset<Purpose>AdapterForTests()` which clears the singleton so test suites can exercise fresh wiring per file.
 
 Why this separation matters:
@@ -445,6 +445,10 @@ Anti-patterns:
 - Reading `process.env` inside a service or any `src/` module outside `src/config/env.ts`. See §1.11 Configuration Model.
 
 - Mixing HTTP constants (cookie names, cookie maxAge) into service files. HTTP constants belong in the HTTP layer (controllers or middleware).
+
+Rate-limit positioning:
+
+Rate limiting in this codebase is an in-memory bucket service (`src/services/rateLimitService.ts`), not a middleware. Controllers and state-changing service methods call `rateLimitHit(key)` and switch on the returned discriminant (`allowed` or `rate_limited`). Rate-limit keys are often request-shape-derived (per-account, per-target-row, per-IP, per-session), and the keying logic belongs in the same layer as the action being limited. A per-route blanket middleware rate limiter is not used.
 
 Rationale:
 
@@ -820,7 +824,7 @@ Rules:
 
 6. Historical persons confer no member capabilities. A row in `historical_persons` — whether claimed or unclaimed — does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and GOVERNANCE.md §4.
 
-7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `LegacyMigrationService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row per MIGRATION_PLAN §8, and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
+7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row per MIGRATION_PLAN §8, and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
 Rationale:
 
@@ -2139,6 +2143,46 @@ State-changing POST handlers follow Post-Redirect-Get: on success, the handler i
 Services own action-result composition: each state-changing service method returns a discriminated-union result whose discriminant the controller switches on to map to a response code from the table above. Controllers do not branch on business outcomes; they map service-result discriminants to HTTP responses.
 
 Transient post-submit state (one-shot banners, prominent cards, drift notices) is carried in the signed `footbag_flash` cookie (§3.3) consumed by the next matching-target GET, not in query parameters. The `FLASH_KIND` enumeration lives in `src/lib/flashCookie.ts`; each transient-notice surface adds a new kind to the enum rather than constructing an ad-hoc payload. The receiving GET reads the flash via `readFlash`, surfaces the banner through a view-model field, and calls `clearFlash` so the notice is consumed exactly once; the 60-second TTL is a backstop for the rare case where the receiving GET never lands (the user navigates away after the POST).
+
+Controller contract (pedantic):
+
+What controllers MAY do:
+
+- Parse `req.body`, `req.query`, `req.params`, and middleware-populated fields (`req.user`, `req.isAuthenticated`).
+- Validate input at the trust boundary via a schema validator (Zod or equivalent). Inline ad-hoc validation belongs in a schema or in a service-layer validator, not in controller bodies.
+- Select response type (`res.render`, `res.redirect`, `res.status`, `res.json`, `res.send`) and set status codes.
+- Set or clear cookies through the helpers in `src/lib/*Cookie.ts` (`issueSessionCookie`, `clearSessionCookie`, `writeFlash`, `clearFlash`). Controllers never call `res.cookie` or `res.clearCookie` directly.
+- Switch on a service result's `kind` discriminant to map to a fixed HTTP response per the HTTP Response Convention table above. The switch is mechanical: one arm per kind, no nested business conditionals.
+- Construct URLs for the response (hrefs in view-model fields, redirect targets, `formAction` paths). Route layout is HTTP-layer knowledge; services do not know the URL space.
+- Log database or service errors with safe context (query name, operation, correlation id; never raw PII).
+
+What controllers MUST NOT do:
+
+- Access `db`, `queries`, `db.prepare`, or `transaction` directly. Every database read or write is a service method call.
+- Import adapter getters from `src/adapters/`. Adapters are wired by the service layer (see §1.9). The only accepted exception is a documented lazy-resolution wrapper for an adapter whose getter throws at module-load time.
+- Compose page-models beyond trivial glue. Trivial glue is: assigning HTTP-only fields (hrefs, `dashboardHref`, `formAction`, `cancelHref`) onto a service result, shallow-spreading a service result into a `PageViewModel<TContent>`, and selecting between N render variants on a single discriminant. Anything else (iterating service rows through a per-row transform, deriving a label from a domain code, merging two service results, filtering tags or fields based on a domain rule) is page-model composition and belongs in the service or in a service-owned page-model builder.
+- Mutate a service-returned view model based on auth state. When a page varies by viewer role, the controller passes viewer context into the service and the service returns the shaped response.
+- Branch on domain fields of a service result. Controllers branch only on the `kind` discriminant. If a controller needs to choose between two render paths based on a non-`kind` field, the service is missing a discriminant.
+- Duplicate middleware concerns. Auth-gating, tier-gating, CSRF, and origin-pin checks live in `src/middleware/` and are wired in the route definition. Controllers see only requests that passed those gates.
+- Embed business-policy constants (tier durations, lockout windows, year cutoffs, taxonomy enums). These belong in the service that owns the policy.
+
+Service action-result shape:
+
+State-changing service methods return a discriminated union. The canonical arms and their HTTP mappings are:
+
+| `kind`              | HTTP response | Payload (required)                                                                                 |
+|---------------------|---------------|----------------------------------------------------------------------------------------------------|
+| `advance`           | 303 to next   | `nextUrl: string` (next-task or success URL)                                                       |
+| `retry_same`        | 303 to same   | optional `flash` payload (typed `FLASH_KIND`)                                                      |
+| `validation_error`  | 422 re-render | `message: string`, typed-per-method `formState` carrying every field the template needs to re-render |
+| `rate_limited`      | 429 re-render | `retryAfterSeconds: number`                                                                        |
+| `conflict`          | 422 or 409    | `message: string`, optional typed `formState`                                                      |
+| `not_found`         | 404           | (empty, or `reason: string` for log-only diagnostics)                                              |
+| `forbidden`         | 403           | (empty, or `reason: string` for log-only diagnostics)                                              |
+
+`validation_error.formState` is typed per method, never `unknown`. The controller renders the error response without a second service call; the service is the single source of the form-state payload (see VC §4.4 for the template-side consumption).
+
+A service method that surfaces only a subset of these arms declares its return type as a narrower union (e.g. `advance | validation_error` for a non-rate-limited mutation). Controllers exhaustively switch via a TypeScript `switch (result.kind)` with the compiler verifying every arm is handled.
 
 Rationale for explicit 303:
 

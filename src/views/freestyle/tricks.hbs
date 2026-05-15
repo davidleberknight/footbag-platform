@@ -98,7 +98,7 @@
           {{#if adds}}<span class="trick-add-chip">{{adds}} ADD</span>{{else}}<span class="trick-add-chip trick-add-chip--unrated">— ADD</span>{{/if}}
           {{#if trickFamily}}<a class="trick-family-chip" href="/freestyle/tricks?family={{trickFamily}}">{{trickFamily}}</a>{{/if}}
           {{#if category}}<span class="trick-category-chip">{{category}}</span>{{/if}}
-          {{#if (eq mediaCoverage "tutorial")}}<span class="trick-media-chip trick-media-chip--tutorial">Tutorial available</span>{{else if (eq mediaCoverage "demo")}}<span class="trick-media-chip trick-media-chip--demo">Demo only</span>{{else}}<span class="trick-media-chip trick-media-chip--missing">No video yet</span>{{/if}}
+          <span class="trick-media-chip{{#if (eq mediaCoverage "tutorial")}} trick-media-chip--tutorial{{else if (eq mediaCoverage "demo")}} trick-media-chip--demo{{else}} trick-media-chip--missing{{/if}}">{{mediaCoverageLabel}}</span>
           {{#if statusBadge}}<span class="trick-status-badge">{{statusBadge}}</span>{{/if}}
         </div>
         {{#if notation}}
@@ -185,7 +185,7 @@
           {{#if hasRecords}}<span class="record-indicator" title="Has passback records">&#9733;</span>{{/if}}
           {{#if adds}}<span class="trick-add-chip">{{adds}} ADD</span>{{else}}<span class="trick-add-chip trick-add-chip--unrated">— ADD</span>{{/if}}
           {{#if trickFamily}}<a class="trick-family-chip" href="/freestyle/tricks?family={{trickFamily}}">{{trickFamily}}</a>{{/if}}
-          {{#if (eq mediaCoverage "tutorial")}}<span class="trick-media-chip trick-media-chip--tutorial">Tutorial available</span>{{else if (eq mediaCoverage "demo")}}<span class="trick-media-chip trick-media-chip--demo">Demo only</span>{{else}}<span class="trick-media-chip trick-media-chip--missing">No video yet</span>{{/if}}
+          <span class="trick-media-chip{{#if (eq mediaCoverage "tutorial")}} trick-media-chip--tutorial{{else if (eq mediaCoverage "demo")}} trick-media-chip--demo{{else}} trick-media-chip--missing{{/if}}">{{mediaCoverageLabel}}</span>
         </div>
         {{#if description}}<div class="trick-description">{{description}}</div>{{/if}}
       </li>

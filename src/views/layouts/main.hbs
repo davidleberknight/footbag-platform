@@ -20,7 +20,7 @@
             <a href="/members/{{currentUser.slug}}" {{#if (eq currentSection 'members')}}class="active"{{/if}}>
               {{#if currentUser.displayName}}{{currentUser.displayName}}{{else}}My Profile{{/if}}
             </a>
-            {{#if (eq currentUser.role 'admin')}}
+            {{#if isAdmin}}
               <a href="/admin" {{#if (eq currentSection 'admin')}}class="active"{{/if}}>Admin</a>
             {{/if}}
             <form method="POST" action="/logout" class="nav-logout">

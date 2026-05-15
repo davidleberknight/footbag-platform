@@ -670,10 +670,17 @@ export const clubs = {
       AND t.standard_type = 'club'
   `); },
 
+  // TEMP-DEVIATION: club-classification QC panel surfaces historical
+  // affiliations on the dev+staging club detail page. Status filter includes
+  // 'pending' so loader-imported affiliations (per 4ca0909 the only state
+  // until the onboarding wizard ships) render to authenticated members.
+  // inferred_role is returned so the service can split rows into leaders /
+  // contacts / members buckets.
   get listMembersByClubId() { return db.prepare(`
     SELECT
       lpca.historical_person_id AS person_id,
-      COALESCE(hp.person_name, lpca.display_name) AS person_name
+      COALESCE(hp.person_name, lpca.display_name) AS person_name,
+      lpca.inferred_role AS inferred_role
     FROM legacy_person_club_affiliations AS lpca
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
@@ -681,7 +688,7 @@ export const clubs = {
       ON hp.person_id = lpca.historical_person_id
     WHERE
       lcc.mapped_club_id = ?
-      AND lpca.resolution_status IN ('confirmed_current', 'promoted')
+      AND lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
     ORDER BY person_name ASC
   `); },
 
@@ -725,6 +732,8 @@ export const clubs = {
   // affiliation. Counted scope mirrors listMembersByClubId so the count and
   // the auth-gated list agree. Clubs with zero matching affiliations are
   // simply absent from the result; service treats absence as count = 0.
+  // TEMP-DEVIATION: matches listMembersByClubId status filter so the
+  // snapshot count agrees with the auth-gated list scope.
   get listMemberCountsForAllClubs() { return db.prepare(`
     SELECT
       lcc.mapped_club_id AS club_id,
@@ -733,7 +742,7 @@ export const clubs = {
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
     WHERE
-      lpca.resolution_status IN ('confirmed_current', 'promoted')
+      lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
       AND lcc.mapped_club_id IS NOT NULL
     GROUP BY lcc.mapped_club_id
   `); },
@@ -760,6 +769,30 @@ export const clubs = {
       cbl.club_id,
       CASE cbl.role WHEN 'leader' THEN 0 ELSE 1 END,
       COALESCE(hp.person_name, NULLIF(lm.real_name, ''), NULLIF(lm.display_name, '')) COLLATE NOCASE
+  `); },
+
+  // TEMP-DEVIATION: club-classification QC panel. Fetches the candidate's
+  // classification + R1-R10 rule firings + rule inputs for the dev+staging
+  // QC panel on /clubs/:key. Remove when A_Review_Club_Cleanup_Signals
+  // admin queue ships.
+  get getClassificationEvidenceByClubId() { return db.prepare(`
+    SELECT
+      classification,
+      confidence_score,
+      bootstrap_eligible,
+      r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
+      contact_signal_substitute_applied,
+      last_hosted_year,
+      max_affiliated_member_last_year,
+      contact_member_last_year,
+      created_year,
+      last_updated_year,
+      unique_member_names,
+      linkable_member_count,
+      ever_hosted
+    FROM legacy_club_candidates
+    WHERE mapped_club_id = ?
+    LIMIT 1
   `); },
 };
 

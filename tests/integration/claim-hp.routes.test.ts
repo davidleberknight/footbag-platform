@@ -299,6 +299,39 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
   });
 });
 
+// ── Tier grant invariant (DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3) ────
+//
+// Every successful direct-HP claim writes one member_tier_grants row with
+// reason_code='legacy.claim_tier_grant'. Honors-only fallback today: HoF or
+// BAP → tier2; otherwise tier0. Must be atomic with the merge (same tx).
+
+describe('POST /history/:personId/claim/confirm — tier grant invariant', () => {
+  it('scenario D (HP-only, HoF) — CLAIMER_ID receives a tier2 legacy.claim_tier_grant', () => {
+    const grant = testDb.prepare(`
+      SELECT change_type, old_tier_status, new_tier_status, reason_code
+      FROM member_tier_grants
+      WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(CLAIMER_ID) as Record<string, unknown> | undefined;
+    expect(grant).toBeDefined();
+    expect(grant!.new_tier_status).toBe('tier2');
+    expect(grant!.old_tier_status).toBe('tier0');
+    expect(grant!.reason_code).toBe('legacy.claim_tier_grant');
+  });
+
+  it('scenario E (HP+legacy, HoF+BAP) — claimer receives a tier2 legacy.claim_tier_grant', () => {
+    // scenario E inserts its claimer with slug 'scenario_e'. Look up by slug.
+    const memberId = (testDb.prepare(`SELECT id FROM members WHERE slug = 'scenario_e'`).get() as { id: string }).id;
+    const grant = testDb.prepare(`
+      SELECT new_tier_status, reason_code FROM member_tier_grants
+      WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'
+      ORDER BY created_at DESC LIMIT 1
+    `).get(memberId) as Record<string, unknown> | undefined;
+    expect(grant).toBeDefined();
+    expect(grant!.new_tier_status).toBe('tier2');
+  });
+});
+
 // ── Adversarial ──────────────────────────────────────────────────────────────
 
 describe('POST /history/:personId/claim/confirm — adversarial', () => {

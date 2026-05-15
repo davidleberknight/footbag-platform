@@ -8,17 +8,17 @@
  * resemble real competitor patterns (BAP honorees, diacritic-bearing
  * European names, display-name shortenings, compound surnames).
  *
- * | # | Scenario id              | Member real_name            | HP person_name                | Variant row                                | Expected confidence                | Expected verify redirect   | Driver     |
- * |---|--------------------------|-----------------------------|-------------------------------|--------------------------------------------|------------------------------------|----------------------------|------------|
- * | 1 | `none`                   | Matti Lehto                 | Matti Lehto                   | —                                          | `none`                             | `/members/sc_none`         | verify     |
- * | 2 | `high`                  | Kenny Shults                | Kenny Shults                  | —                                          | `high`                            | `/history/auto-link`       | verify     |
- * | 3 | `medium_diacritic`        | Alex Martinez               | Alex Martínez                 | `alex martinez ↔ alex martínez`            | `medium`                            | `/history/auto-link`       | verify     |
- * | 4 | `medium_display_name`     | Chris Siebert               | Christopher Michael Siebert   | `chris siebert ↔ christopher michael …`    | `medium`                            | `/history/auto-link`       | verify     |
- * | 5 | `low_no_hp`            | Jesper Karlsson             | — (legacy row exists, no HP)  | —                                          | `low / no_hp_for_legacy_account` | `/register/wizard/legacy_claim/find`           | verify     |
- * | 6 | `low_no_name`          | Completely Different Name   | Provenance Target             | —                                          | `low / no_name_candidate`        | `/register/wizard/legacy_claim/find`           | verify     |
- * | 7 | `low_multi`            | Pat Common                  | Pat Common (x2)               | —                                          | `low / multiple_name_candidates` | `/register/wizard/legacy_claim/find`           | verify     |
- * | 8 | `low_hp_mismatch_decoy`| Decoy Claimer               | Correct Owner                 | —                                          | `low / hp_mismatch`              | `/register/wizard/legacy_claim/find`           | verify     |
- * | 9 | `low_surname_split`    | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `low / hp_mismatch`              | `/register/wizard/legacy_claim/find`           | verify     |
+ * | # | Scenario id              | Member real_name            | HP person_name                | Variant row                                | Expected confidence                | Expected verify redirect             | Driver     |
+ * |---|--------------------------|-----------------------------|-------------------------------|--------------------------------------------|------------------------------------|--------------------------------------|------------|
+ * | 1 | `none`                   | Matti Lehto                 | Matti Lehto                   | —                                          | `none`                             | `/members/sc_none`                   | verify     |
+ * | 2 | `high`                   | Kenny Shults                | Kenny Shults                  | —                                          | `high`                             | `/register/wizard/legacy_claim`      | verify     |
+ * | 3 | `medium_diacritic`       | Alex Martinez               | Alex Martínez                 | `alex martinez ↔ alex martínez`            | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
+ * | 4 | `medium_display_name`    | Chris Siebert               | Christopher Michael Siebert   | `chris siebert ↔ christopher michael …`    | `medium`                           | `/register/wizard/legacy_claim`      | verify     |
+ * | 5 | `low_no_hp`              | Jesper Karlsson             | — (legacy row exists, no HP)  | —                                          | `low / no_hp_for_legacy_account`   | `/register/wizard/legacy_claim`      | verify     |
+ * | 6 | `low_no_name`            | Completely Different Name   | Provenance Target             | —                                          | `low / no_name_candidate`          | `/register/wizard/legacy_claim`      | verify     |
+ * | 7 | `low_multi`              | Pat Common                  | Pat Common (x2)               | —                                          | `low / multiple_name_candidates`   | `/register/wizard/legacy_claim`      | verify     |
+ * | 8 | `low_hp_mismatch_decoy`  | Decoy Claimer               | Correct Owner                 | —                                          | `low / hp_mismatch`                | `/register/wizard/legacy_claim`      | verify     |
+ * | 9 | `low_surname_split`      | Boris Belouin Ollivier      | Boris Belouin                 | `boris belouin ↔ boris belouin ollivier`   | `low / hp_mismatch`                | `/register/wizard/legacy_claim`      | verify     |
  * |10 | `already_linked`         | Linked Already              | —                             | —                                          | `none` (already has link)          | n/a                        | direct     |
  * |11 | `missing_login_email`    | (irrelevant)                | —                             | —                                          | `none` (member not found)          | n/a                        | direct     |
  *

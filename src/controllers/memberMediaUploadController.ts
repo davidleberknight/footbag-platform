@@ -22,10 +22,9 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { logger } from '../config/logger';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { getImageProcessingAdapter, ImageProcessingError } from '../adapters/imageProcessingAdapter';
+import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
-  createCuratorMediaService,
+  getDefaultCuratorMediaService,
   PHOTO_MAX_BYTES,
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
@@ -201,10 +200,7 @@ export const memberMediaUploadController = {
         );
       }
 
-      const svc = createCuratorMediaService({
-        storage: getMediaStorageAdapter(),
-        imageProcessor: getImageProcessingAdapter(),
-      });
+      const svc = getDefaultCuratorMediaService();
 
       if (mediaType === 'photo') {
         const rl = rateLimitHit(`member-photo-upload:${memberId}`, PHOTO_RATE_LIMIT_PER_HOUR, 60);
