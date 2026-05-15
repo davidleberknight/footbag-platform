@@ -1,0 +1,28 @@
+slug,current_operational_notation,proposed_operational_notation,source,normalization_notes,confidence,requires_red,governance_flags
+dimwalk,,TOE > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 3-4adds",§13.2-13.8 compound-layer; chain ≡ pixie butterfly; pixie-family pattern (TOE > SAME IN [DEX] >>...),high,false,
+ripwalk,,CLIP > OP IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; chain ≡ stepping butterfly; stepping-family pattern (CLIP > OP IN [DEX] >>...),high,false,
+torque,,CLIP >> OP IN [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; chain ≡ miraging osis; torque-derived pattern ([DEX] > (FRONT) SPIN [BOD] >...),high,false,
+mobius,,CLIP >> (BACK) SPIN [BOD] >> SAME IN [DEX] > (FRONT) SPIN [BOD] > OP CLIP [XBD] [DEL],"FM corpus 5adds",§13 compound; chain ≡ spinning ss torque ≡ spinning ss miraging osis; double-spin pattern,high,false,
+drifter,,CLIP >> OP IN [DEX] > SAME CLIP [XBD] [DEL],"FM corpus 3adds",§13 compound; chain ≡ miraging clipper; drifter-family terminal SAME CLIP [XBD] [DEL],high,false,
+blender,,CLIP >> OP FRONT WHIRL [DEX] > (BACK) SPIN [BOD] > SAME CLIP [XBD] [DEL],"FM corpus 3-4adds",§13 compound; chain ≡ whirling osis; whirl-family token OP FRONT WHIRL [DEX],high,false,
+vortex,,CLIP >> (BACK) SPIN [BOD] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; chain ≡ gyro drifter; spin-before-dex pattern with drifter terminal,high,false,
+eggbeater,,TOE >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],"FM corpus 3adds",§13 compound; chain ≡ atomic legover; legover terminal SAME TOE [DEL],high,false,
+smudge,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL],"FM corpus 3adds",§13 compound; chain ≡ pixie illusion; pixie-family without `>>` boundary,high,false,
+smoke,,TOE > SAME IN [DEX] >> OP IN [DEX] > SAME CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; chain ≡ pixie drifter; pixie-family with drifter terminal,high,false,
+smog,,TOE > SAME IN [DEX] >> OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],"FM corpus 4adds",§13 compound; chain ≡ pixie double legover; pixie-family with legover terminal,high,false,
+parkwalk,,TOE > SAME IN [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 3-4adds (`Pixie Butterfly (same side)` label)",§13 compound; same-side pixie butterfly; pixie-family with SAME OUT [DEX] mid,high,false,
+paradon,,TOE >> OP OUT [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 3-4adds",§13 compound; chain decomp unset in registry; base_trick is null in DB (ontology gap surfaced but doesn't block notation),high,false,base_trick-null
+flurry,,CLIP > OP IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] > SAME TOE [DEL],"FM corpus 5-6adds",§13 compound; chain ≡ barraging legover; barraging pattern (three dexes before terminal),high,false,
+grave-digger,,CLIP > OP IN [DEX] >> SAME IN [DEX] > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL],"FM corpus 5adds",§13 compound; chain ≡ stepping ss torque; stepping + (BACK) SPIN pattern,high,false,
+royale,,CLIP >> SAME OUT [DEX] [PDX] >> SAME CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; chain ≡ paradox reverse drifter; standalone PDX flag on dex,high,false,
+surge,,CLIP > (BACK) SPIN [BOD] > SAME IN [DEX] >> OP IN [DEX] [PDX] > OP TOE [DEL],"FM corpus 5adds",§13 compound; chain ≡ surging paradox mirage; surging body-spin opening,high,false,
+surreal,,CLIP > (BACK) SPIN [BOD] > SAME IN [DEX] >> OP FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds",§13 compound; chain ≡ surging paradox whirl; whirl-family token with [PDX],high,false,
+venom,,CLIP > (BACK) SPIN [BOD] > SAME IN [DEX] >> OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds",§13 compound; chain ≡ surging barfly; surging opening + barfly mid-row pattern,high,false,
+spyro-gyro,,CLIP >> (BACK) SPIN [BOD] >> SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; chain ≡ gyro butterfly swirl; FIRST house compound-layer use of SWIRL token,high,false,first-SWIRL-compound
+bigwalk,,CLIP > (BACK) SPIN [BOD] > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 3-4adds",§13 compound; chain ≡ surging butterfly; surging opening + butterfly terminal,high,false,
+omelette,,TOE > OP OUT [DEX] >> OP OUT [DEX] [XDEX] > OP TOE [DEL],"FM corpus 3adds",§13 compound; chain ≡ atomic illusion; XDEX flag on second dex per FM (Red pt1 narrow vs FM broad scope dispute affects ADD attribution; notation form is stable),high,false,XDEX-scope-Red-pt1
+fusion,,TOE > OP OUT [DEX] >> OP OUT [DEX] [XDEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds",§13 compound; chain ≡ atomic dod; XDEX on third dex per FM,high,false,XDEX-scope-Red-pt1
+plasma,,TOE > OP IN [DEX] >> OP OUT [DEX] [XDEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds",§13 compound; chain ≡ quantum dod; XDEX flag per FM,high,false,XDEX-scope-Red-pt1
+fury,,CLIP > OP IN [DEX] > SAME IN [DEX] >> OP IN [DEX] [PDX] [XDEX] > OP TOE [DEL],"FM corpus 5adds",§13 compound; chain unset in registry; PDX + XDEX stacked on final dex per FM (Red brief §4 `clearly independent` rule undefined for PDX in this position),high,false,XDEX-scope-Red-pt1;PDX-stacked
+nemesis,,CLIP > OP IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] [XDEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds",§13 compound; chain ≡ furious barfly; XDEX per FM,high,false,XDEX-scope-Red-pt1
+gauntlet,,CLIP > OP IN [DEX] >> DUCK [BOD] >> OP IN [DEX] [PDX] > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL],"FM corpus 7adds",§13 compound; chain ≡ blurry ducking torque ≡ stepping ducking paradox torque; PDX flagged but standalone on dex,high,false,PDX-independence-rule
