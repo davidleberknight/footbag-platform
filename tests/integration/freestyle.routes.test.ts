@@ -1183,9 +1183,13 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).toContain('href="/freestyle/sets"');
   });
 
-  it('operator board renders the PassBack-source Symposium definition (single-leg-jump wording)', async () => {
+  it('operator board renders a Symposium definition consistent with its single-leg-jump mechanics', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: Symposium action
+    // compressed from 31 words → 10. Single-leg-jump character preserved
+    // (active leg jumps and lands solo) without the verbose preamble.
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('active leg performs an action in a single-leg jump');
+    expect(res.text).toMatch(/Active leg jumps \+ lands solo/i);
+    // The pre-2026-05 "illusion + body rotation" misreading must not reappear.
     expect(res.text).not.toContain('An illusion combined with body rotation');
   });
 
@@ -1337,39 +1341,40 @@ describe('Freestyle landing — Core Tricks section (C-2; compact symbolic objec
   });
 });
 
-describe('Freestyle landing — curated Demonstrations strip (C-3, F3-reshaped 2026-05-14)', () => {
-  // F3 retired the five pre-named slot scaffolding (sam-conlon / classic-
-  // circle / artistic-routine / modern-technical-shred / educationally-
-  // readable-run with placeholder cards) in favor of two hardcoded curated
-  // entries (Conlon 1998 + San Marino 2026). The section content collapses
-  // to nothing when the demonstrations array is empty.
-  it('renders the Demonstrations heading + grid', async () => {
+describe('Freestyle landing — Featured strip (C-3 + Phase 1/C merge, 2026-05-14)', () => {
+  // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C: Competition Formats +
+  // Demonstrations merged into one compact `Featured` strip. Format names
+  // (Routine / Circle / Sick 3 / Shred 30) preserved as card titles; curated
+  // demonstrations follow as exemplars. Empty array hides section content.
+  it('renders the Featured heading + grid', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toMatch(/class="[^"]*\bfreestyle-demonstrations\b/);
-    expect(res.text).toMatch(/<h2>Demonstrations<\/h2>/);
+    expect(res.text).toMatch(/class="[^"]*\bfreestyle-featured\b/);
+    expect(res.text).toMatch(/<h2>Featured<\/h2>/);
   });
 
-  it('renders the two hardcoded curated entries (Conlon 1998 + San Marino 2026)', async () => {
+  it('renders all four competition-format names as card titles', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('id="demonstration-conlon-1998"');
-    expect(res.text).toContain('id="demonstration-san-marino-2026"');
+    expect(res.text).toMatch(/>Routine</);
+    expect(res.text).toMatch(/>Circle</);
+    expect(res.text).toMatch(/>Sick 3</);
+    expect(res.text).toMatch(/>Shred 30</);
   });
 
-  it('drops the retired five-slot scaffolding ids and pending placeholder copy', async () => {
+  it('renders both curated demonstration entries (Conlon 1998 + San Marino 2026)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).toContain('id="featured-conlon-1998"');
+    expect(res.text).toContain('id="featured-san-marino-2026"');
+  });
+
+  it('drops the retired five-slot demonstration scaffolding and pending copy', async () => {
     const res = await request(createApp()).get('/freestyle');
     for (const key of ['sam-conlon', 'classic-circle', 'artistic-routine', 'modern-technical-shred', 'educationally-readable-run']) {
       expect(res.text).not.toContain(`id="demonstration-${key}"`);
     }
     expect(res.text).not.toContain('Curated demonstration pending');
-  });
-
-  it('preserves the existing competitionFormats section with all four formats (routine/circle/sick3/shred30)', async () => {
-    const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Competition Formats');
-    expect(res.text).toMatch(/>Routine</);
-    expect(res.text).toMatch(/>Circle</);
-    expect(res.text).toMatch(/>Sick 3</);
-    expect(res.text).toMatch(/>Shred 30</);
+    // The retired separate sections must not survive.
+    expect(res.text).not.toContain('class="freestyle-demonstrations-grid"');
+    expect(res.text).not.toContain('>Competition Formats<');
   });
 });
 

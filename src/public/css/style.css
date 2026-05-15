@@ -4674,23 +4674,33 @@ section.home-media { padding-top: 0; }
  * destination exists). Tier-color tinted, italic, no underline at rest, no
  * card-wide hover state. Cards without a mature destination render no footer
  * element at all. */
+/* Phase 1 / D: deeplink renders as icon-only chip anchored to the card's
+   bottom-right; the pre-shaped `hrefLabel` becomes the accessible name +
+   tooltip. Text-label `Notation reference` / `Glossary entry` / `Modifier
+   page` was scaffolding noise; the destination icon (→) is enough. */
 .operator-card-deeplink {
-  display: inline-block;
-  margin-top: 10px;
-  font-size: 0.78rem;
-  font-style: italic;
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--surface-2, #f1f5f9);
   color: var(--tier-color);
+  font-size: 0.85rem;
+  line-height: 1;
   text-decoration: none;
-  letter-spacing: 0.01em;
-}
-.operator-card-deeplink::before {
-  content: '\2192\00a0';   /* → with non-breaking space */
-  font-style: normal;
 }
 .operator-card-deeplink:hover,
 .operator-card-deeplink:focus-visible {
-  text-decoration: underline;
+  background: var(--tier-color);
+  color: #fff;
+  outline: none;
 }
+.operator-card { position: relative; }
 
 @media (max-width: 600px) {
   .operator-grid { grid-template-columns: 1fr; gap: 16px; }
@@ -5417,42 +5427,72 @@ a.dict-card-title:hover {
   margin: 16px 0 0 0;
 }
 
-/* Curated demonstrations strip ----------------------------------------- */
-.freestyle-demonstrations-grid {
+/* Featured strip (merged competition formats + demonstrations) ---------
+   SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C: one compact grid replacing
+   the prior 4-card formats section + 2-card demonstrations section. Cards
+   shrink to thumbnail + title + 1-line caption + optional chip strip. */
+.freestyle-featured-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
 }
-.demonstration-card {
-  padding: 16px 18px 18px 18px;
+.featured-card {
+  padding: 12px 12px 10px 12px;
+  display: flex;
+  flex-direction: column;
 }
-.demonstration-intent {
-  font-size: 0.9rem;
-  line-height: 1.45;
-  color: var(--text-muted);
-  margin: 6px 0 12px 0;
+.featured-card .video-embed {
+  margin: 0 0 8px 0;
 }
-.demonstration-pending {
-  font-size: 0.88rem;
-  font-style: italic;
-  color: var(--text-muted);
-  padding: 14px 16px;
-  background: var(--bg-light);
-  border-radius: var(--radius-sm);
-  text-align: center;
+.featured-card .card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
   margin: 0;
+}
+.featured-caption {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text-muted, #64748b);
+  margin: 4px 0 0 0;
+}
+.featured-card .media-tag-strip {
+  margin-top: 6px;
+}
+
+/* Under-hero jump nav (Phase 1 / K) -----------------------------------
+   Lightweight non-sticky in-page nav. Anchors the five primary landing
+   sections; breaks the linear essay flow without intervening in the read. */
+.page-jump-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.85rem;
+  padding: 10px 0 0 0;
+  margin: 0 0 4px 0;
+  border-bottom: 1px solid var(--surface-2, #e2e8f0);
+  padding-bottom: 10px;
+}
+.page-jump-nav a {
+  color: var(--text-muted, #64748b);
+  text-decoration: none;
+  border-bottom: 1px dotted transparent;
+}
+.page-jump-nav a:hover,
+.page-jump-nav a:focus-visible {
+  color: var(--text, #0f172a);
+  border-bottom-color: currentColor;
 }
 
 /* Narrow viewports ------------------------------------------------------ */
 @media (max-width: 480px) {
   .freestyle-basic-components-grid,
   .freestyle-core-trick-grid,
-  .freestyle-demonstrations-grid {
+  .freestyle-featured-grid {
     grid-template-columns: 1fr;
     gap: 14px;
   }
   .freestyle-component-card,
-  .demonstration-card {
+  .featured-card {
     padding: 14px 14px 12px 14px;
   }
   .core-trick-object {

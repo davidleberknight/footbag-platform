@@ -112,10 +112,12 @@ describe('GET /freestyle/learn', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/learn — operator-board onboarding surface', () => {
-  it('renders the learn-surface operator-board heading and lede', async () => {
+  it('renders the learn-surface operator-board heading and (compressed) lede', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: lede compressed to
+    // one short sentence; "fourteen primitives" framing preserved.
     const res = await request(createApp()).get('/freestyle/learn');
     expect(res.text).toContain('Start with the operators');
-    expect(res.text).toContain('Freestyle tricks are built by combining movement operators');
+    expect(res.text).toContain('Learn these fourteen primitives first');
   });
 
   it('does not render the landing- or glossary-surface operator-board prose', async () => {

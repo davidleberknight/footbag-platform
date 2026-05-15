@@ -232,13 +232,6 @@ export interface FreestyleGetStartedTile {
   comingSoon: boolean;
 }
 
-export interface FreestyleCompetitionFormat {
-  slug: string;
-  title: string;
-  paragraph: string;
-  media: VideoMedia;
-}
-
 export interface FreestyleDemoVideo {
   mp4Url: string;
   posterUrl: string;
@@ -283,15 +276,20 @@ export interface FreestyleCoreTrickCard {
   addPending:           boolean;       // true when addNumeric is null
 }
 
-// Curated demonstration — a visible freestyle highlight video on the landing
-// strip. Empty array = section content collapsed. Each entry carries its own
-// hashtag chips so the symbolic-navigation vocabulary surfaces with the media.
-export interface FreestyleDemonstration {
-  key:     string;             // stable id for anchors (e.g., "conlon-1998")
-  title:   string;             // display heading
-  caption: string;             // attribution / context line
+// Featured-strip item — a single compact card on the merged landing
+// "Featured" strip (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C). The
+// strip merges what were two separate sections (Competition Formats +
+// Demonstrations) into one curated grid. Both kinds use the same shape;
+// competition-format identity comes from the title (Routine / Circle /
+// Sick 3 / Shred 30), not from a separate field. Tags optional: format
+// cards typically have none (title carries the format anchor); curated
+// demonstrations carry source/creator/quality chips.
+export interface FreestyleFeaturedItem {
+  key:     string;             // stable id for anchors (e.g., "routine", "conlon-1998")
+  title:   string;             // display heading (e.g., "Routine", "Footbag 2026: San Marino")
+  caption: string | null;      // optional one-line context; never a paragraph
   media:   VideoMedia;         // video-facade payload (required; never null)
-  tags:    MediaTagDisplay[];  // shape via shapeMediaTagsForBrowse
+  tags:    MediaTagDisplay[];  // optional chips; empty on format cards
 }
 
 // One displayable media-tag chip. `kind` drives optional CSS tier styling.
@@ -309,10 +307,12 @@ export interface FreestyleLandingContent {
   // Three new structured surfaces (Batch 2 IA realignment):
   basicComponents: FreestyleBasicComponent[];
   coreTricks:      FreestyleCoreTrickCard[];
-  demonstrations:  FreestyleDemonstration[];
+  // Merged Featured strip (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C):
+  // formats + curated demonstrations rendered in one compact grid. Empty
+  // array hides the section content.
+  featured:        FreestyleFeaturedItem[];
   operatorBoard: OperatorBoardData;
   getStartedTiles: FreestyleGetStartedTile[];
-  competitionFormats: FreestyleCompetitionFormat[];
   totalRecords: number;
   recordTypes: number;
   topHolders: FreestyleLeaderViewModel[];
@@ -356,17 +356,20 @@ export interface OperatorBoardData {
 // site (FreestyleService.getLandingPage) unchanged.
 export type OperatorBoardSurface = 'landing' | 'glossary' | 'learn';
 const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede: string }> = {
+  // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: ledes compressed from
+  // ~25–30 words to one short sentence each; the tier eyebrow + card grid
+  // do the structural teaching.
   landing: {
     heading: 'The operators of freestyle',
-    lede:    'Freestyle footbag is a compositional movement language. These fourteen operators are its primitives — combine them and you get every named trick in the dictionary.',
+    lede:    'Fourteen primitives. Combine them to build every named trick.',
   },
   glossary: {
     heading: 'The compositional vocabulary',
-    lede:    'These fourteen operators are the primitive movement modifiers of freestyle composition. The sections below define each in greater depth; this board is the visual map.',
+    lede:    'Fourteen primitive operators. The sections below define each in depth.',
   },
   learn: {
     heading: 'Start with the operators',
-    lede:    'Freestyle tricks are built by combining movement operators. Learn these fourteen primitives first — every other surface in this section assumes their vocabulary.',
+    lede:    'Learn these fourteen primitives first; every other surface assumes their vocabulary.',
   },
 };
 
@@ -4121,6 +4124,10 @@ export const freestyleService = {
     const GLOSSARY    = (slug: string) => ({ href: `/freestyle/glossary#term-${slug}`,     label: 'Glossary entry'     });
     const MOD_PEDAGOGY = (slug: string) => ({ href: `/freestyle/modifier/${slug}`,          label: 'Modifier page'      });
 
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: every action string
+    // compressed to 4–10 words. The card hierarchy on the rendered surface
+    // is glyph → name → INPUT → RESULT → action → deeplink — examples carry
+    // the compositional teaching; actions annotate, not lecture.
     return {
       ...OPERATOR_BOARD_PROSE[surface],
       tiers: [
@@ -4130,12 +4137,12 @@ export const freestyleService = {
           title:   'Set operators',
           intro:   'What sends the bag into the air.',
           operators: [
-            op('PIX',   'Pixie',    'Same-side IN-direction dex from a toe set; the tight uptime set.', 'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
-            op('AT',    'Atomic',   'Opposite-side OUT-direction dex from a toe set; cross-body uptime character.', 'AT + MIRAGE',     'ATOM SMASHER',       NOTATION('atomic')),
-            op('Q',     'Quantum',  'Opposite-side IN-direction dex from a toe set; compressed-atomic shape.', 'Q + MIRAGE',        'TOE BLUR',           NOTATION('quantum')),
-            op('BL',    'Blurry',   'Compressed reading of Stepping + Paradox; flat +1 modifier per pt11.', 'BLURRY + BUTTERFLY',  'RIPWALK',            GLOSSARY('blurry')),
-            op('FAIRY', 'Fairy',    'Same-side OUT-direction dex from a toe set; the mirror of pixie.',  'FAIRY + ATOMIC',          'FAIRY ATOMIC',       NOTATION('fairy'),    true),
-            op('STEP',  'Stepping', 'Foot relocates between the set and the catch.',                    'STEP + BUTTERFLY',        'RIPWALK',            GLOSSARY('stepping')),
+            op('PIX',   'Pixie',    'Same-side, in-direction toe-set dex.',          'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
+            op('AT',    'Atomic',   'Opposite-side, out-direction toe-set dex.',     'AT + MIRAGE',             'ATOM SMASHER',       NOTATION('atomic')),
+            op('Q',     'Quantum',  'Opposite-side, in-direction toe-set dex.',      'Q + MIRAGE',              'TOE BLUR',           NOTATION('quantum')),
+            op('BL',    'Blurry',   'Stepping + Paradox; flat +1 ADD.',              'BLURRY + BUTTERFLY',      'RIPWALK',            GLOSSARY('blurry')),
+            op('FAIRY', 'Fairy',    'Same-side, out-direction toe-set dex.',         'FAIRY + ATOMIC',          'FAIRY ATOMIC',       NOTATION('fairy'),    true),
+            op('STEP',  'Stepping', 'Plant foot relocates between set and catch.',   'STEP + BUTTERFLY',        'RIPWALK',            GLOSSARY('stepping')),
           ],
         },
         {
@@ -4144,11 +4151,11 @@ export const freestyleService = {
           title:   'Body operators',
           intro:   'What the body does while the bag is up.',
           operators: [
-            op('SPIN',  'Spinning', 'Full-body rotation around the vertical axis during the trick.',    'SPIN + TORQUE',           'MOBIUS',             MOD_PEDAGOGY('spinning')),
-            op('GY',    'Gyro',     'Half-rotation body modifier (180°); pairs with spinning for arbitrary degrees.', 'GY + BUTTERFLY', 'GYRO BUTTERFLY',     NOTATION('gyro')),
-            op('DUCK',  'Ducking',  'The body drops under the bag mid-dex.',                            'PIX + DUCK + BUTTERFLY',  'PHOENIX',            MOD_PEDAGOGY('ducking')),
-            op('PDX',   'Paradox',  'A hip pivot between two dexes on the same set; the body changes sides.', 'PDX + LEG-OVER',    'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
-            op('SYMP',  'Symposium','A component where an active leg performs an action in a single-leg jump: the symposium leg jumps and lands on its own while the other leg remains in the air.', 'SYMP + ILLUSION',         'FLAIL',              GLOSSARY('symposium'), true),
+            op('SPIN',  'Spinning', 'Body rotates around the vertical axis.',        'SPIN + TORQUE',           'MOBIUS',             MOD_PEDAGOGY('spinning')),
+            op('GY',    'Gyro',     'Half-rotation body modifier (180°).',           'GY + BUTTERFLY',          'GYRO BUTTERFLY',     NOTATION('gyro')),
+            op('DUCK',  'Ducking',  'Body drops under the bag.',                     'PIX + DUCK + BUTTERFLY',  'PHOENIX',            MOD_PEDAGOGY('ducking')),
+            op('PDX',   'Paradox',  'Hip pivot between two dexes; body switches sides.', 'PDX + LEG-OVER',     'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
+            op('SYMP',  'Symposium','Active leg jumps + lands solo while the other holds.', 'SYMP + ILLUSION', 'FLAIL',              GLOSSARY('symposium'), true),
           ],
         },
         {
@@ -4157,9 +4164,9 @@ export const freestyleService = {
           title:   'Structural concepts',
           intro:   'Relationships across the trick.',
           operators: [
-            op('XDEX',  'Cross-dex','The dex circles the bag on the opposite-body side of the plant foot.', 'XDEX + INSIDE',        'CLIPPER',            null, true),
-            op('SAME',  'Same-foot','The set foot and the catch foot are the same.',                    'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY', null),
-            op('OP',    'Opposite', 'The set foot and the catch foot are different. The conventional default.', 'OP + BUTTERFLY', 'BUTTERFLY',          null),
+            op('XDEX',  'Cross-dex','Dex circles the bag opposite the plant foot.',  'XDEX + INSIDE',           'CLIPPER',            null, true),
+            op('SAME',  'Same-foot','Set foot = catch foot.',                        'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY', null),
+            op('OP',    'Opposite', 'Set foot ≠ catch foot (the default).',          'OP + BUTTERFLY',          'BUTTERFLY',          null),
           ],
         },
       ],
@@ -4229,23 +4236,45 @@ export const freestyleService = {
             addPending:           !hasAdd,
           };
         }),
-        // Curated demonstration strip (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F3+F7).
-        // Two visible curated videos sourced from the freestyle media archives.
-        // Empty array hides the section content per maintainer policy
-        // ("public landing page should show curated media only").
-        // Future curator-pipeline-data approach: replace with a
-        // freestyle_media_assets query filtered to HIGH_QUALITY_DEMO + active
-        // + tagged for the demonstrations strip. Current hardcoded entries
-        // are sourced from confirmed curator artifacts:
-        //   - Conlon 1998: media_assets.csv row 473a49ad-...
-        //   - San Marino 2026: media_items row media_267b407835250ac4ab8a2470
-        //     (preserved across Batch 2's featuredVideo retirement).
-        demonstrations: [
+        // Merged Featured strip (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C):
+        // Competition Formats (4) + Demonstrations (2) rendered as one
+        // compact curated grid. Formats lead because they're conceptual
+        // anchors of the vocabulary; demonstrations follow as exemplars.
+        // No prose paragraphs — captions are one-line context max.
+        featured: [
+          {
+            key:     'routine',
+            title:   'Routine',
+            caption: 'Choreographed performance to music.',
+            media:   expandYouTubeVideo('Z-KkyOpoBhM', 'Yoshihito Yamamoto — Worlds Online 2020 Qualification Routine'),
+            tags:    [],
+          },
+          {
+            key:     'circle',
+            title:   'Circle',
+            caption: 'Turn-based show-off format.',
+            media:   expandYouTubeVideo('aMr5e5wlgeE', 'Worlds 2017 Open Circle Finals'),
+            tags:    [],
+          },
+          {
+            key:     'sick3',
+            title:   'Sick 3',
+            caption: 'Best-trick chain of three.',
+            media:   expandYouTubeVideo('h6F0aPIpC1o', 'World Footbag Championships 2022 — Sick 3'),
+            tags:    [],
+          },
+          {
+            key:     'shred30',
+            title:   'Shred 30',
+            caption: 'Thirty-second technical scoring.',
+            media:   expandYouTubeVideo('wb75xzvAs68', 'Taishi Ishida — World Footbag Championships 2020 Shred 30'),
+            tags:    [],
+          },
           {
             key:     'conlon-1998',
-            title:   '1998 World Footbag Championships Women\'s Freestyle Finals',
+            title:   "1998 World Footbag Championships Women's Freestyle Finals",
             caption: 'Samantha Conlon and Carol Wedemeyer',
-            media:   expandYouTubeVideo('2URvZFuxBls', '1998 Worlds Women\'s Freestyle Finals'),
+            media:   expandYouTubeVideo('2URvZFuxBls', "1998 Worlds Women's Freestyle Finals"),
             tags:    shapeMediaTagsForBrowse(
                        ['#freestyle', '#footbag_hof_archive', '#curated'],
                      ),
@@ -4265,32 +4294,6 @@ export const freestyleService = {
           { label: 'Where to buy footbags', href: '#', comingSoon: true },
           { label: 'Where to buy shoes',    href: '#', comingSoon: true },
           { label: 'Beginner tutorials',    href: '#', comingSoon: true },
-        ],
-        competitionFormats: [
-          {
-            slug: 'routine',
-            title: 'Routine',
-            paragraph: 'Routine is a timed event in which players choreograph a freestyle footbag performance to music. Competitors are judged on both their artistic and technical abilities.',
-            media: expandYouTubeVideo('Z-KkyOpoBhM', 'Yoshihito Yamamoto — Worlds Online 2020 Qualification Routine'),
-          },
-          {
-            slug: 'circle',
-            title: 'Circle',
-            paragraph: 'Circle takes traditional freestyle footbag and puts a competitive spin on it. Players take turns with the bag to show off their technical skills.',
-            media: expandYouTubeVideo('aMr5e5wlgeE', 'Worlds 2017 Open Circle Finals'),
-          },
-          {
-            slug: 'sick3',
-            title: 'Sick 3',
-            paragraph: "Sick 3 is freestyle footbag's version of a best-trick competition. Players combine their three best tricks and are judged on difficulty, variety, and execution.",
-            media: expandYouTubeVideo('h6F0aPIpC1o', 'World Footbag Championships 2022 — Sick 3'),
-          },
-          {
-            slug: 'shred30',
-            title: 'Shred 30',
-            paragraph: "Shred 30 is a short, timed, scored event which tests competitors' abilities to quickly link together as many difficult tricks as they can before their time is up.",
-            media: expandYouTubeVideo('wb75xzvAs68', 'Taishi Ishida — World Footbag Championships 2020 Shred 30'),
-          },
         ],
         totalRecords,
         recordTypes:   typeCounts.length,

@@ -311,14 +311,39 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(badgeCount).toBeGreaterThanOrEqual(3);
   });
 
-  it('shows Competition Formats section with all four formats', async () => {
+  it('shows the merged Featured strip with all four format names + curated demonstrations', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C: Competition Formats +
+    // Demonstrations sections merged into one compact `Featured` strip.
+    // Format names preserved as card titles (cultural + navigational anchors).
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('Competition Formats');
+    expect(res.text).toContain('>Featured<');
+    // Format names preserved.
     expect(res.text).toContain('Routine');
     expect(res.text).toContain('Circle');
     expect(res.text).toContain('Sick 3');
     expect(res.text).toContain('Shred 30');
+    // Six card ids in the merged grid (4 formats + 2 demonstrations).
+    for (const key of ['routine', 'circle', 'sick3', 'shred30', 'conlon-1998', 'san-marino-2026']) {
+      expect(res.text).toContain(`id="featured-${key}"`);
+    }
+    // Retired sections must not survive.
+    expect(res.text).not.toContain('>Competition Formats<');
+    expect(res.text).not.toContain('class="freestyle-demonstrations-grid"');
+  });
+
+  it('drops the multi-sentence format paragraphs in favor of one-line captions', async () => {
+    // Phase 1 / C aggressive compression: no paragraph-length prose on
+    // format cards. Captions are one-line context only.
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).not.toContain('Routine is a timed event in which');
+    expect(res.text).not.toContain("Circle takes traditional freestyle footbag");
+    expect(res.text).not.toContain("Sick 3 is freestyle footbag's version");
+    expect(res.text).not.toContain('Shred 30 is a short, timed, scored event');
+    // One-line captions are present.
+    expect(res.text).toContain('Choreographed performance to music.');
+    expect(res.text).toContain('Thirty-second technical scoring.');
   });
 
   it('lazy-loads the four reference competition-format videos via the video-facade partial', async () => {
@@ -465,15 +490,20 @@ describe('GET /freestyle — onboarding + portal landing', () => {
   });
 
   // ── Operator board (OP-BOARD-1, 2026-05-13) ────────────────────────────
-  it('renders the operator-board heading and lede', async () => {
+  it('renders the operator-board heading and (compressed) lede', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: landing lede compressed
+    // to one short sentence. The "Fourteen primitives" framing is preserved.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('The operators of freestyle');
-    expect(res.text).toContain('compositional movement language');
-    expect(res.text).toContain('fourteen operators');
+    expect(res.text).toContain('Fourteen primitives');
+    expect(res.text).toContain('every named trick');
   });
 
-  it('renders all three operator-tier sections in order', async () => {
+  it('renders all three operator-tier sections in order with eyebrows but no tier-intro lines', async () => {
+    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: tier-intro paragraph
+    // dropped (eyebrow + title carry the tier identity). The intro field
+    // remains in the data contract but is no longer rendered.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const idxSet    = res.text.indexOf('Set operators');
@@ -482,14 +512,15 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(idxSet).toBeGreaterThan(0);
     expect(idxBody).toBeGreaterThan(idxSet);
     expect(idxStruct).toBeGreaterThan(idxBody);
-    // Eyebrow + intro pairing on each tier. Service emits a literal middot
-    // ("·") in the eyebrow string; Handlebars preserves it as-is.
+    // Eyebrow text preserved (the ·-separated tier label).
     expect(res.text).toContain('I · Sets');
     expect(res.text).toContain('II · Body');
     expect(res.text).toContain('III · Structure');
-    expect(res.text).toContain('What sends the bag into the air.');
-    expect(res.text).toContain('What the body does while the bag is up.');
-    expect(res.text).toContain('Relationships across the trick.');
+    // Tier-intro lines are no longer rendered.
+    expect(res.text).not.toContain('class="operator-tier-intro"');
+    expect(res.text).not.toContain('What sends the bag into the air.');
+    expect(res.text).not.toContain('What the body does while the bag is up.');
+    expect(res.text).not.toContain('Relationships across the trick.');
   });
 
   it('renders all 14 Tier-1 operator glyphs inside operator-glyph cells', async () => {
@@ -621,54 +652,151 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
   });
 
   it('F2 — Atomic/Quantum/Fairy actions describe dex-direction sets, not rotational character', async () => {
+    // After SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D, the card hierarchy
+    // reorders to glyph → name → example → action → deeplink, and actions
+    // compress to ≤8 words. The F2 intent (no false rotation claims) holds.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Action lines are pre-shaped and emitted inside .operator-action.
-    expect(res.text).toMatch(/AT<\/p>\s*<p class="operator-name">Atomic<\/p>\s*<p class="operator-action">Opposite-side OUT-direction dex from a toe set/);
-    expect(res.text).toMatch(/Q<\/p>\s*<p class="operator-name">Quantum<\/p>\s*<p class="operator-action">Opposite-side IN-direction dex from a toe set/);
-    expect(res.text).toMatch(/FAIRY<\/p>\s*<p class="operator-name">Fairy<\/p>\s*<p class="operator-action">Same-side OUT-direction dex from a toe set/);
-    // Pre-fix wording must not survive.
-    expect(res.text).not.toMatch(/<p class="operator-name">Atomic<\/p>\s*<p class="operator-action">[^<]*rotation/i);
-    expect(res.text).not.toMatch(/<p class="operator-name">Quantum<\/p>\s*<p class="operator-action">[^<]*rotation/i);
-    expect(res.text).not.toMatch(/<p class="operator-name">Fairy<\/p>\s*<p class="operator-action">[^<]*rotation/i);
+    // Per-card slice helper — grabs the markup between an operator's glyph and the next card.
+    function operatorCard(glyph: string): string {
+      const start = res.text.indexOf(`<p class="operator-glyph">${glyph}</p>`);
+      expect(start).toBeGreaterThan(-1);
+      const next  = res.text.indexOf('<div class="operator-card">', start + 1);
+      const end   = next > 0 ? next : start + 600;
+      return res.text.slice(start, end);
+    }
+    const at = operatorCard('AT');
+    const q  = operatorCard('Q');
+    const fy = operatorCard('FAIRY');
+    // Each action conveys dex-direction (opposite/same-side + in/out).
+    expect(at).toMatch(/Opposite-side.*out.*toe-set dex/i);
+    expect(q).toMatch(/Opposite-side.*in.*toe-set dex/i);
+    expect(fy).toMatch(/Same-side.*out.*toe-set dex/i);
+    // No card claims rotation character.
+    expect(at).not.toMatch(/rotation/i);
+    expect(q).not.toMatch(/rotation/i);
+    expect(fy).not.toMatch(/rotation/i);
   });
 
-  it('F3 — demonstrations strip renders the two curated entries (Conlon 1998 + San Marino 2026)', async () => {
+  it('F3 — curated demonstrations (Conlon 1998 + San Marino 2026) render in the merged Featured strip', async () => {
+    // Post-SURFACE-COMPRESSION Phase 1 / C: demonstrations live inside the
+    // merged Featured strip with stable `featured-{key}` anchor ids.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Section heading + both curated entries.
-    expect(res.text).toContain('Demonstrations');
     expect(res.text).toContain('1998 World Footbag Championships');
     expect(res.text).toContain('Samantha Conlon and Carol Wedemeyer');
     expect(res.text).toContain('Footbag 2026: San Marino');
     expect(res.text).toContain('Footage by jay7bah');
-    // Both videos render via the lazy-loading video facade with their YouTube ids.
     expect(res.text).toContain('2URvZFuxBls');
     expect(res.text).toContain('U6J2LXxUWro');
-    // The retired five-slot scaffolding wording ("Curated demonstration
-    // pending" placeholder card) must NOT appear.
+    expect(res.text).toContain('id="featured-conlon-1998"');
+    expect(res.text).toContain('id="featured-san-marino-2026"');
     expect(res.text).not.toContain('Curated demonstration pending');
   });
 
-  it('F7 — every demonstration carries a hashtag chip strip', async () => {
+  it('F7 — only curated demonstrations carry hashtag chip strips inside the merged Featured grid', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Both Conlon and San Marino entries pass tags through the partial.
-    // Pull the demonstrations section slice and count chip strips inside it.
-    const startIdx = res.text.indexOf('class="freestyle-demonstrations-grid"');
+    const startIdx = res.text.indexOf('class="freestyle-featured-grid"');
     const endIdx   = res.text.indexOf('operator-board', startIdx);
     expect(startIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(startIdx, endIdx > 0 ? endIdx : startIdx + 8000);
+    const slice = res.text.slice(startIdx, endIdx > 0 ? endIdx : startIdx + 12000);
+    // Two chip strips: one each for Conlon + San Marino. Format cards
+    // (Routine / Circle / Sick3 / Shred30) carry no chips — the title is
+    // the format anchor.
     const stripCount = (slice.match(/class="media-tag-strip"/g) ?? []).length;
     expect(stripCount).toBe(2);
-    // Source/creator/quality chips surface on freestyle-only surfaces; the
-    // suppression policy hides `#freestyle` and `#trick` so they must NOT
-    // appear as chips inside the demonstrations strip.
     expect(slice).toContain('media-tag-chip--source');     // #footbag_hof_archive
     expect(slice).toContain('media-tag-chip--creator');    // #by_jay7bah
     expect(slice).toContain('media-tag-chip--quality');    // #curated
     expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#freestyle<\/li>/);
     expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#trick<\/li>/);
+  });
+});
+
+// ── SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 + under-hero jump nav (2026-05-14) ──
+describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants', () => {
+  it('renders the under-hero jump nav with five anchors', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).toContain('class="page-jump-nav"');
+    expect(res.text).toContain('aria-label="On this page"');
+    for (const anchor of [
+      '#basic-components', '#core-tricks', '#featured', '#operators', '#where-next',
+    ]) {
+      expect(res.text).toContain(`href="${anchor}"`);
+    }
+    // The five matching section ids are present.
+    for (const id of [
+      'basic-components', 'core-tricks', 'featured', 'operators', 'where-next',
+    ]) {
+      expect(res.text).toMatch(new RegExp(`id="${id}"`));
+    }
+  });
+
+  it('operator-board lede is one short sentence, not a 30-word paragraph', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const ledeMatch = res.text.match(/<p class="operator-board-lede">([^<]+)<\/p>/);
+    expect(ledeMatch).not.toBeNull();
+    const ledeWords = (ledeMatch![1].trim().split(/\s+/) ?? []).length;
+    expect(ledeWords).toBeLessThanOrEqual(15);
+    // Old verbose lede must not survive.
+    expect(res.text).not.toContain('Freestyle footbag is a compositional movement language.');
+  });
+
+  it('every operator-action line stays under the compression threshold (≤10 words)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const actions = [...res.text.matchAll(/<p class="operator-action">([^<]+)<\/p>/g)];
+    expect(actions.length).toBe(14);
+    for (const m of actions) {
+      const wc = m[1].trim().split(/\s+/).length;
+      expect(wc).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it('operator card hierarchy is glyph → name → example → action → deeplink', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // The PIX card is a stable anchor for ordering assertions.
+    const start = res.text.indexOf('<p class="operator-glyph">PIX</p>');
+    expect(start).toBeGreaterThan(-1);
+    const slice = res.text.slice(start, start + 800);
+    const idxGlyph  = slice.indexOf('operator-glyph');
+    const idxName   = slice.indexOf('operator-name');
+    const idxExample = slice.indexOf('operator-example');
+    const idxAction = slice.indexOf('operator-action');
+    const idxDeep   = slice.indexOf('operator-card-deeplink');
+    expect(idxName).toBeGreaterThan(idxGlyph);
+    expect(idxExample).toBeGreaterThan(idxName);
+    expect(idxAction).toBeGreaterThan(idxExample);
+    expect(idxDeep).toBeGreaterThan(idxAction);
+  });
+
+  it('operator-card deeplink renders as icon-only with aria-label, not visible label text', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Visible scaffolding labels removed.
+    expect(res.text).not.toMatch(/<a class="operator-card-deeplink"[^>]*>Notation reference<\/a>/);
+    expect(res.text).not.toMatch(/<a class="operator-card-deeplink"[^>]*>Glossary entry<\/a>/);
+    expect(res.text).not.toMatch(/<a class="operator-card-deeplink"[^>]*>Modifier page<\/a>/);
+    // Aria-label still carries the destination type for screen readers.
+    expect(res.text).toMatch(/<a class="operator-card-deeplink"[^>]*aria-label="Notation reference"/);
+  });
+
+  it('basic-component descriptions are compressed (≤10 words each)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    const descs = [...res.text.matchAll(/<p class="freestyle-component-desc">([^<]+)<\/p>/g)];
+    expect(descs.length).toBe(6);
+    for (const m of descs) {
+      const wc = m[1].trim().split(/\s+/).length;
+      expect(wc).toBeLessThanOrEqual(10);
+    }
+    // The retired multi-sentence descriptions must not survive.
+    expect(res.text).not.toContain('Start and end of most standard tricks.');
+    expect(res.text).not.toContain('The most common, \'main\' component of trick composition');
   });
 });
 

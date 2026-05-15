@@ -37,25 +37,29 @@ export interface BasicComponentSpec {
   source:      string;   // attribution; rendered as a small lineage line if exposed
 }
 
+// SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / A: descriptions compressed
+// to ≤10 words; the heading + sub-field chips (for Dex) carry the rest of
+// the teaching. Source attribution preserved as a vestigial field for
+// future re-exposure; not rendered on the public surface.
 export const BASIC_COMPONENTS: readonly BasicComponentSpec[] = [
   {
     key:         'contact',
     name:        'Contact',
-    description: "The moment the bag touches the body. Start and end of most standard tricks. Two main stalls: toe and clipper.",
+    description: 'Body touches bag; start and end of most tricks.',
     subfields:   [],
     source:      'PassBack glossary, pb-ss1 + pb-ss2',
   },
   {
     key:         'set',
     name:        'Set',
-    description: "The launch action that initiates a trick — sends the bag into the air.",
+    description: 'Launch action; sends the bag up.',
     subfields:   [],
     source:      'Set-notation reference (/freestyle/sets)',
   },
   {
     key:         'dex',
     name:        'Dex',
-    description: "The leg circling the bag while it's in the air. The most common, 'main' component of trick composition.",
+    description: 'Leg circles the bag mid-air; the main composition unit.',
     subfields:   [
       { label: 'Direction',     values: ['in-out', 'out-in'] },
       { label: 'Movement type', values: ['hippy', 'leggy'] },
@@ -66,23 +70,23 @@ export const BASIC_COMPONENTS: readonly BasicComponentSpec[] = [
   {
     key:         'spin',
     name:        'Spin',
-    description: "Rotation of the body during a trick.",
+    description: 'Body rotates during a trick.',
     subfields:   [],
     source:      'PassBack glossary, pb-ss1',
   },
   {
     key:         'duck',
     name:        'Duck',
-    description: "Head dipping under the bag.",
+    description: 'Head dips under the bag.',
     subfields:   [],
     source:      'PassBack glossary, pb-ss1',
   },
   {
     key:         'delay',
     name:        'Delay',
-    description: "A controlled hold of the bag on a surface (foot, sole, clipper) — the catch.",
+    description: 'Controlled hold on a surface (the catch).',
     subfields:   [],
-    source:      "Freestyle glossary, [DEL] component flag",
+    source:      'Freestyle glossary, [DEL] component flag',
   },
 ];
 

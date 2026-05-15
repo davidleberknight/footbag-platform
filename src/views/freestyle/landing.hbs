@@ -10,9 +10,20 @@
 
 <div class="wrapper freestyle-landing">
 
+  {{! ── Under-hero jump nav (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / K) ──
+      Compact in-page nav that breaks the linear essay scroll. Anchors point
+      at the five primary landing sections; non-sticky by design. }}
+  <nav class="page-jump-nav" aria-label="On this page">
+    <a href="#basic-components">Basic Components</a>
+    <a href="#core-tricks">Core Tricks</a>
+    <a href="#featured">Featured</a>
+    <a href="#operators">Operators</a>
+    <a href="#where-next">Where next</a>
+  </nav>
+
   {{! ── The Language of Freestyle Footbag ──────────────────────────────────── }}
   {{! Intro lede + autoplay demo loop; secondary to the structured surfaces below. }}
-  <section class="content-section freestyle-language-intro">
+  <section class="content-section freestyle-language-intro" id="language-intro">
     <h2>{{content.intro.heading}}</h2>
     {{#each content.intro.paragraphs}}
     <p class="freestyle-language-lede">{{this}}</p>
@@ -28,12 +39,11 @@
     {{/if}}
   </section>
 
-  {{! ── Basic Components — Contact / Set / Dex / Spin / Duck / Delay ───────── }}
-  {{! Sourced from passback-glossary.txt (pb-ss1 / pb-ss2). Dex carries
-      sub-fields (Direction / Movement type / Support type). }}
-  <section class="content-section freestyle-basic-components">
+  {{! ── Basic Components — Contact / Set / Dex / Spin / Duck / Delay ─────────
+      Compressed in Phase 1 / A: section-sub line dropped; descriptions trimmed
+      to ≤10 words. Heading + the six cards carry the teaching. }}
+  <section class="content-section freestyle-basic-components" id="basic-components">
     <h3 class="freestyle-section-eyebrow">Basic Components</h3>
-    <p class="freestyle-section-sub">The primitives every standard trick is built from.</p>
     <div class="freestyle-basic-components-grid">
       {{#each content.basicComponents}}
       <article class="freestyle-component-card" id="component-{{key}}">
@@ -56,7 +66,7 @@
   {{! Eleven irreducible base tricks. Each card renders as a symbolic object:
       #slug + zero-or-more ≡ readings + optional symbolic notation + ADD.
       See FREESTYLE_IA_REALIGNMENT_PLAN.md PART H-pre for the rendering rule. }}
-  <section class="content-section freestyle-core-tricks">
+  <section class="content-section freestyle-core-tricks" id="core-tricks">
     <h3 class="freestyle-section-eyebrow">Core Tricks</h3>
     <p class="freestyle-section-sub">The irreducible base tricks. Most named tricks descend from one of these.</p>
     <div class="freestyle-core-trick-grid">
@@ -80,38 +90,21 @@
     <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
   </section>
 
-  {{! ── Competition Formats ────────────────────────────────────────────────── }}
-  <section class="content-section">
-    <h2>Competition Formats</h2>
-    <div class="card-grid card-grid-2col">
-      {{#each content.competitionFormats}}
-      <div class="card format-card">
-        <div class="card-title">{{title}}</div>
-        <p>{{paragraph}}</p>
+  {{! ── Featured — merged Competition Formats + Demonstrations strip ─────────
+      Phase 1 / C: one compact grid; format names (Routine / Circle / Sick 3
+      / Shred 30) preserved as card titles (cultural + navigational anchors);
+      curated demonstrations carry hashtag chips. No prose paragraphs. }}
+  {{#if content.featured.length}}
+  <section class="content-section freestyle-featured" id="featured">
+    <h2>Featured</h2>
+    <div class="freestyle-featured-grid">
+      {{#each content.featured}}
+      <article class="card featured-card" id="featured-{{key}}">
         <div class="video-embed">
           {{> video-facade media=media}}
         </div>
-      </div>
-      {{/each}}
-    </div>
-  </section>
-
-  {{! ── Curated demonstrations strip ─────────────────────────────────────────
-      Array of curator-selected freestyle highlight videos. Empty array hides
-      the section content (public landing shows curated media only — no
-      placeholder cards). Per LANDING-AND-TRICKS-QA-REALIGNMENT-1 F3+F7. }}
-  {{#if content.demonstrations.length}}
-  <section class="content-section freestyle-demonstrations">
-    <h2>Demonstrations</h2>
-    <p class="section-intro">A curated strip of freestyle highlight videos.</p>
-    <div class="freestyle-demonstrations-grid">
-      {{#each content.demonstrations}}
-      <article class="card demonstration-card" id="demonstration-{{key}}">
         <div class="card-title">{{title}}</div>
-        <p class="demonstration-caption">{{caption}}</p>
-        <div class="video-embed">
-          {{> video-facade media=media}}
-        </div>
+        {{#if caption}}<p class="featured-caption">{{caption}}</p>{{/if}}
         {{> media-tag-strip tags=tags}}
       </article>
       {{/each}}
@@ -124,7 +117,7 @@
   <p class="operator-board-footer-link"><a href="/freestyle/sets">Full set notation reference &rarr;</a></p>
 
   {{! ── Reference orientation (three links, not three pillars) ───────────── }}
-  <section class="content-section">
+  <section class="content-section" id="where-next">
     <h2>Where to go next</h2>
     <p>
       Plain-language definitions live in the <a href="/freestyle/glossary">glossary</a>.
