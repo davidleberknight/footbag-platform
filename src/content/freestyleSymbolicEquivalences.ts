@@ -145,6 +145,98 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['atomic illusion'],
     curatorConfirmPending: false,   // pt2 + followup-2026-04 locked
   },
+  // ── Canon-locked compound chains (CANONICAL-SURFACE-REALIGNMENT-2 NR-1) ──
+  // 17 maintainer-approved (2026-05-14) canon-locked readings appended.
+  // Each entry's Red source cited; all set curatorConfirmPending=false per
+  // maintainer direction. ADD-arithmetic discrepancies (e.g., venom, nemesis
+  // surfacing furious-rotational behavior pending Wave-1 Q1c) are tracked
+  // separately in the ADD conflict audit; the registry flag is for
+  // reader-uncertainty about the reading itself, not for math uncertainty.
+  {
+    slug:     'flail',
+    readings: ['symposium illusion'],
+    curatorConfirmPending: false,   // pt6 + followup-2026-04 locked
+  },
+  {
+    slug:     'smudge',
+    readings: ['pixie illusion'],
+    curatorConfirmPending: false,   // pt7-locked
+  },
+  {
+    slug:     'smoke',
+    readings: ['pixie drifter'],
+    curatorConfirmPending: false,   // pt8-locked
+  },
+  {
+    slug:     'smog',
+    readings: ['pixie double legover'],
+    curatorConfirmPending: false,   // pt7-locked
+  },
+  {
+    slug:     'royale',
+    readings: ['paradox reverse drifter'],
+    curatorConfirmPending: false,   // pt5-locked (= paradox grifter)
+  },
+  {
+    slug:     'flurry',
+    readings: ['barraging legover'],
+    curatorConfirmPending: false,   // pt4-locked
+  },
+  {
+    slug:     'double-leg-over',
+    readings: ['miraging legover'],
+    curatorConfirmPending: false,   // pt4-locked (DLO = Miraging Legover)
+  },
+  {
+    slug:     'surge',
+    readings: ['surging paradox mirage'],
+    curatorConfirmPending: false,   // pt2-locked
+  },
+  {
+    slug:     'surreal',
+    readings: ['surging paradox whirl'],
+    curatorConfirmPending: false,   // pt2-locked
+  },
+  {
+    slug:     'surgery',
+    readings: ['surging symposium reverse whirl'],
+    curatorConfirmPending: false,   // pt2-locked
+  },
+  {
+    slug:     'venom',
+    readings: ['surging barfly'],
+    curatorConfirmPending: false,   // pt2-locked
+  },
+  {
+    slug:     'bigwalk',
+    readings: ['surging butterfly'],
+    curatorConfirmPending: false,   // pt2-locked
+  },
+  {
+    slug:     'plasma',
+    readings: ['quantum double over down'],
+    curatorConfirmPending: false,   // pt8-locked
+  },
+  {
+    slug:     'fusion',
+    readings: ['atomic double over down'],
+    curatorConfirmPending: false,   // pt2-locked
+  },
+  {
+    slug:     'grave-digger',
+    readings: ['stepping ss torque'],
+    curatorConfirmPending: false,   // pt8-locked (canonical "stepping same-side torque"; ss abbreviation matches registry convention)
+  },
+  {
+    slug:     'nemesis',
+    readings: ['furious barfly'],
+    curatorConfirmPending: false,   // pt6 + pt8-locked
+  },
+  {
+    slug:     'atomic-torque',
+    readings: ['atomic torque'],
+    curatorConfirmPending: false,   // pt4-locked (folk-name: silo)
+  },
 ];
 
 /**
