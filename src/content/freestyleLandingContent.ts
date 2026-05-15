@@ -11,9 +11,8 @@
  *     canonical `≡` equivalence readings. ADD values are joined from
  *     `freestyle_tricks` at service-shape time; this file does not encode
  *     ADD values to prevent drift.
- *   - DEMONSTRATION_SLOTS — five conceptual slots for the curated
- *     demonstration strip. Each slot ships with `curatedMedia: null` so the
- *     curator can backfill via a future patch without code changes.
+ *   - (Demonstrations content lives in the service shaping directly post-
+ *     2026-05-14; see freestyleService.getLandingPage for the array.)
  *
  * Forever-rules:
  *   - Definitions adapted from `passback-glossary.txt` carry a `source` field
@@ -114,39 +113,12 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   { slug: 'orbit',            equivalences: ['reverse around-the-world'] },
 ];
 
-export interface DemonstrationSlotSpec {
-  key:              string;
-  label:            string;
-  conceptualIntent: string;
-}
-
-// Five curated slots. Each slot's `curatedMedia` ships as null pending curator
-// backfill. The template renders a "Curated demonstration pending"
-// placeholder when null — no synthesized fallback.
-export const DEMONSTRATION_SLOTS: readonly DemonstrationSlotSpec[] = [
-  {
-    key:              'sam-conlon',
-    label:            'Sam Conlon',
-    conceptualIntent: 'A historically anchored shred run from one of the modern era\'s defining players.',
-  },
-  {
-    key:              'classic-circle',
-    label:            'Classic Circle',
-    conceptualIntent: 'A circle demonstration that captures the community-traded, take-turns rhythm of competitive freestyle.',
-  },
-  {
-    key:              'artistic-routine',
-    label:            'Artistic Routine',
-    conceptualIntent: 'A choreographed-to-music performance that foregrounds composition and presentation.',
-  },
-  {
-    key:              'modern-technical-shred',
-    label:            'Modern Technical Shred',
-    conceptualIntent: 'A contemporary high-difficulty run that surfaces stacked-modifier compositional density.',
-  },
-  {
-    key:              'educationally-readable-run',
-    label:            'Educationally Readable Run',
-    conceptualIntent: 'A run where the structural decomposition stays legible — a learner can name the tricks as they happen.',
-  },
-];
+// Note: the prior DEMONSTRATION_SLOTS scaffolding (five pre-named conceptual
+// slots: Sam Conlon / Classic Circle / Artistic Routine / Modern Technical
+// Shred / Educationally Readable Run) was retired in LANDING-AND-TRICKS-QA-
+// REALIGNMENT-1 F3 (2026-05-14). The original Batch 2 design misread the
+// "Sam Conlon footage" line in the IA-realignment spec as a request for a
+// pre-named slot; the maintainer clarified it meant "include Sam Conlon
+// footage among the curated demonstrations." The new shape is a plain
+// FreestyleDemonstration[] hardcoded in `freestyleService.getLandingPage`
+// with curator-authoritative tags; empty array hides the section content.

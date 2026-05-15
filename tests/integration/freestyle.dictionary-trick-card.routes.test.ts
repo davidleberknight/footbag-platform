@@ -124,6 +124,21 @@ beforeAll(async () => {
     operational_notation: null,
   });
 
+  // F4 fixture (LANDING-AND-TRICKS-QA-REALIGNMENT-1): a trick with NULL
+  // operational notation but PRESENT in the chain registry. Must render
+  // the ≡ readings without the "Notation pending" placeholder (the chain
+  // already carries the structural information).
+  // `torque` is in SYMBOLIC_EQUIVALENCE_CHAINS per src/content/freestyleSymbolicEquivalences.ts.
+  insertFreestyleTrick(db, {
+    slug:                 'torque',
+    canonical_name:       'torque',
+    adds:                 '4',
+    base_trick:           'osis',
+    trick_family:         'osis',
+    category:             'compound',
+    operational_notation: null,
+  });
+
   // Minimal modifier-link seeding so the component view (slice 3A) renders
   // at least one body-modifier group, exercising the dict-card-stack assertion
   // in the slice-by-slice regression guard below.
@@ -213,6 +228,22 @@ describe('dictionary-trick-card — required slots', () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('dict-card-notation--pending');
     expect(res.text).toMatch(/<em>Notation pending<\/em>/);
+  });
+
+  it('F4 — suppresses "Notation pending" when ≡ symbolic equivalences carry the structural information', async () => {
+    // LANDING-AND-TRICKS-QA-REALIGNMENT-1 F4: cards with chain-registry
+    // equivalences should not also display the pending-notation cue;
+    // the ≡ readings already convey structural composition.
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const torqueStart = res.text.indexOf('data-trick-slug="torque"');
+    expect(torqueStart).toBeGreaterThan(-1);
+    const torqueEnd = res.text.indexOf('</article>', torqueStart);
+    const torqueRegion = res.text.substring(torqueStart, torqueEnd);
+    // ≡ chain readings render.
+    expect(torqueRegion).toMatch(/core-trick-equivalence dict-card-equivalence/);
+    // Notation pending placeholder does NOT render inside this card.
+    expect(torqueRegion).not.toContain('Notation pending');
+    expect(torqueRegion).not.toContain('dict-card-notation--pending');
   });
 
   it('does NOT render prose description in the browse card', async () => {

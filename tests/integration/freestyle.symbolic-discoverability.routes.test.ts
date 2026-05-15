@@ -146,10 +146,12 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     expect(firstSecIdx).toBeGreaterThan(boardIdx);
   });
 
-  it('renders ten restrained operator-card deep-links onboarding to mature surfaces', async () => {
+  it('renders eleven restrained operator-card deep-links onboarding to mature surfaces', async () => {
+    // Bumped from 10 to 11 after LANDING-AND-TRICKS-QA-REALIGNMENT-1 F2 added
+    // a GLOSSARY('blurry') deeplink on the BL operator (Blender→Blurry rename).
     const res = await request(createApp()).get('/freestyle/learn');
     const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
-    expect(matches.length).toBe(10);
+    expect(matches.length).toBe(11);
     // Spot-check one destination per category (notation / glossary / pedagogy).
     expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
     expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');

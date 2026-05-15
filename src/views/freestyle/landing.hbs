@@ -72,7 +72,7 @@
         {{#if addPending}}
         <p class="core-trick-add core-trick-add-pending" aria-label="ADD value pending">&mdash;</p>
         {{else}}
-        <p class="core-trick-add"><span class="core-trick-add-value">{{add}}</span></p>
+        <p class="core-trick-add"><span class="core-trick-add-value">{{addNumeric}}</span></p>
         {{/if}}
       </article>
       {{/each}}
@@ -97,28 +97,27 @@
   </section>
 
   {{! ── Curated demonstrations strip ─────────────────────────────────────────
-      Five conceptual slots; curator backfills `curatedMedia` via service
-      constants. Renders a "Curated demonstration pending" placeholder when
-      a slot has no media yet — no synthesized fallback. }}
+      Array of curator-selected freestyle highlight videos. Empty array hides
+      the section content (public landing shows curated media only — no
+      placeholder cards). Per LANDING-AND-TRICKS-QA-REALIGNMENT-1 F3+F7. }}
+  {{#if content.demonstrations.length}}
   <section class="content-section freestyle-demonstrations">
     <h2>Demonstrations</h2>
-    <p class="section-intro">A curated strip of routines, circles, and shred examples that show the language in motion.</p>
+    <p class="section-intro">A curated strip of freestyle highlight videos.</p>
     <div class="freestyle-demonstrations-grid">
       {{#each content.demonstrations}}
       <article class="card demonstration-card" id="demonstration-{{key}}">
-        <div class="card-title">{{label}}</div>
-        <p class="demonstration-intent">{{conceptualIntent}}</p>
-        {{#if curatedMedia}}
+        <div class="card-title">{{title}}</div>
+        <p class="demonstration-caption">{{caption}}</p>
         <div class="video-embed">
-          {{> video-facade media=curatedMedia}}
+          {{> video-facade media=media}}
         </div>
-        {{else}}
-        <p class="demonstration-pending">Curated demonstration pending.</p>
-        {{/if}}
+        {{> media-tag-strip tags=tags}}
       </article>
       {{/each}}
     </div>
   </section>
+  {{/if}}
 
   {{! ── Operator board — Tier-1 vocabulary primer ─────────────────────────── }}
   {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}

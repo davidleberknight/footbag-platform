@@ -1,0 +1,23 @@
+{{!--
+  media-tag-strip.hbs — visible hashtag layer for curated freestyle media.
+
+  Renders the `tags` array (shaped via shapeMediaTagsForBrowse) as a small
+  chip strip. Restraint posture preserved: tag-suppression policy already
+  applied service-side; this partial just renders.
+
+  Each chip carries kind-modifier class (.media-tag-chip--trick / --source /
+  --creator / --content-type / --event / --discipline / --quality) so CSS
+  can tier color treatment without re-classifying in the template.
+
+  Required `tags` shape: MediaTagDisplay[] = [{ display, kind }].
+  Empty array renders nothing.
+
+  Per LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7 (2026-05-14 hard requirement).
+--}}
+{{#if tags.length}}
+<ul class="media-tag-strip" aria-label="Tags">
+  {{#each tags}}
+  <li class="media-tag-chip media-tag-chip--{{kind}}">{{display}}</li>
+  {{/each}}
+</ul>
+{{/if}}

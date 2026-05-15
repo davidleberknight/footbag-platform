@@ -881,6 +881,28 @@ describe('GET /freestyle/tricks/:slug — Reference Media filter', () => {
     expect(res.text).not.toMatch(/<h3 class="reference-media-subheading">Demos<\/h3>/);
   });
 
+  it('F7 — reference-media tiles surface their hashtag chip strip', async () => {
+    // LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7: visible hashtag layer on every
+    // curated media tile. The ref-media-audit fixture seeds tags
+    // [#ref-media-audit, #freestyle, #trick] on each item; the browse-surface
+    // suppression policy hides #freestyle (freestyle-only surface) and #trick
+    // (universal), leaving the trick-slug chip.
+    const app = createApp();
+    const res = await request(app).get('/freestyle/tricks/ref-media-audit');
+    // Scope to the tutorial tile to avoid catching tags from elsewhere on the page.
+    const tutSubIdx = res.text.indexOf('reference-media-subsection--tutorials');
+    expect(tutSubIdx).toBeGreaterThan(0);
+    const subsectionEnd = res.text.indexOf('</div>', tutSubIdx);
+    const slice = res.text.slice(tutSubIdx, subsectionEnd + 6);
+    // The strip wrapper renders once per tile (one tile here).
+    expect((slice.match(/class="media-tag-strip"/g) ?? []).length).toBe(1);
+    // The trick-slug chip surfaces.
+    expect(slice).toMatch(/<li class="media-tag-chip media-tag-chip--trick">#ref-media-audit<\/li>/);
+    // The suppressed tags must NOT surface as chips.
+    expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#freestyle<\/li>/);
+    expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#trick<\/li>/);
+  });
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1205,9 +1227,11 @@ describe('Freestyle landing — Batch 2: The Language of Freestyle Footbag', () 
     expect(res.text).not.toContain('Additional Degree of Difficulty');
   });
 
-  it('retires the featuredVideo "Footbag 2026: San Marino" placeholder block', async () => {
+  it('retires the legacy single-featured-video block in favor of the Demonstrations strip', async () => {
+    // Batch 2 retired the standalone `freestyle-featured-video` block; F3
+    // (2026-05-14) re-introduced San Marino as one of two hardcoded curated
+    // entries inside the demonstrations grid. The legacy class must stay gone.
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).not.toContain('Footbag 2026: San Marino');
     expect(res.text).not.toContain('class="freestyle-featured-video"');
   });
 });
@@ -1313,21 +1337,30 @@ describe('Freestyle landing — Core Tricks section (C-2; compact symbolic objec
   });
 });
 
-describe('Freestyle landing — curated Demonstrations strip (C-3)', () => {
-  it('renders the Demonstrations heading and all five curated slots', async () => {
+describe('Freestyle landing — curated Demonstrations strip (C-3, F3-reshaped 2026-05-14)', () => {
+  // F3 retired the five pre-named slot scaffolding (sam-conlon / classic-
+  // circle / artistic-routine / modern-technical-shred / educationally-
+  // readable-run with placeholder cards) in favor of two hardcoded curated
+  // entries (Conlon 1998 + San Marino 2026). The section content collapses
+  // to nothing when the demonstrations array is empty.
+  it('renders the Demonstrations heading + grid', async () => {
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toMatch(/class="[^"]*\bfreestyle-demonstrations\b/);
     expect(res.text).toMatch(/<h2>Demonstrations<\/h2>/);
-    for (const key of ['sam-conlon', 'classic-circle', 'artistic-routine', 'modern-technical-shred', 'educationally-readable-run']) {
-      expect(res.text).toContain(`id="demonstration-${key}"`);
-    }
   });
 
-  it('renders the "Curated demonstration pending" placeholder for every slot (no curator backfill yet)', async () => {
+  it('renders the two hardcoded curated entries (Conlon 1998 + San Marino 2026)', async () => {
     const res = await request(createApp()).get('/freestyle');
-    const pendingMatches = res.text.match(/Curated demonstration pending\./g) ?? [];
-    // Five slots, all unfilled at slice time → five placeholders.
-    expect(pendingMatches.length).toBe(5);
+    expect(res.text).toContain('id="demonstration-conlon-1998"');
+    expect(res.text).toContain('id="demonstration-san-marino-2026"');
+  });
+
+  it('drops the retired five-slot scaffolding ids and pending placeholder copy', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    for (const key of ['sam-conlon', 'classic-circle', 'artistic-routine', 'modern-technical-shred', 'educationally-readable-run']) {
+      expect(res.text).not.toContain(`id="demonstration-${key}"`);
+    }
+    expect(res.text).not.toContain('Curated demonstration pending');
   });
 
   it('preserves the existing competitionFormats section with all four formats (routine/circle/sick3/shred30)', async () => {

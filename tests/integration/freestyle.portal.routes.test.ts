@@ -548,14 +548,16 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('href="/freestyle/modifier/ducking"');
   });
 
-  it('renders exactly ten operator-card deep-link anchors', async () => {
+  it('renders exactly eleven operator-card deep-link anchors', async () => {
+    // Bumped from 10 to 11 after LANDING-AND-TRICKS-QA-REALIGNMENT-1 F2:
+    // BL was relabeled Blender→Blurry and given a GLOSSARY('blurry') deeplink.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
-    expect(matches.length).toBe(10);
+    expect(matches.length).toBe(11);
   });
 
-  it('omits the deep-link footer on unlinked operators (BL, XDEX, SAME, OP)', async () => {
+  it('omits the deep-link footer on unlinked operators (XDEX, SAME, OP)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).not.toContain('/freestyle/glossary#term-blender');
@@ -564,6 +566,109 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).not.toContain('/freestyle/glossary#term-opposite');
     expect(res.text).not.toContain('/freestyle/modifier/blender');
     expect(res.text).not.toContain('/freestyle/modifier/cross-dex');
+  });
+});
+
+// ── LANDING-AND-TRICKS-QA-REALIGNMENT-1 (2026-05-14) ──────────────────────
+// Bundled QA + repair slice F1–F4 + F7-landing-side:
+//   F1: core-trick ADD slot renders numeric value, not "[object Object]undefined"
+//       (Handlebars helper `add` no longer shadows the data field).
+//   F2: operator-board semantic corrections — BL=Blurry not Blender; no false
+//       rotation claims on Atomic/Quantum/Fairy (dex-direction operators).
+//   F3: demonstrations section is curated-only (no five-slot placeholder
+//       scaffolding); Conlon 1998 + San Marino 2026 render.
+//   F4: covered by freestyle.dictionary-trick-card.routes.test (out of scope here).
+//   F7: tag-strip renders on every visible curated demonstration.
+describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)', () => {
+  it('F1 — core-trick cards render the numeric ADD value, not a Handlebars helper-shadow string', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // The pre-fix render emitted "[object Object]undefined" because the data
+    // field `{{add}}` collided with the helper named `add` in src/app.ts.
+    // Fix: rename the field to `addNumeric`. Guard against regression.
+    expect(res.text).not.toContain('[object Object]undefined');
+    expect(res.text).not.toContain('[object Object]');
+    // The seeded `whirl` core-trick has adds=3 in beforeAll; its card must
+    // render the numeric value inside .core-trick-add-value.
+    expect(res.text).toMatch(
+      /id="core-trick-whirl"[\s\S]*?<span class="core-trick-add-value">3<\/span>/,
+    );
+  });
+
+  it('F1 — atoms without a seeded dictionary row render the "ADD pending" em-dash, not undefined', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // `orbit` is in CORE_TRICK_SPEC but no DB row was seeded for it in this
+    // test fixture. The card must render the pending state, not "undefined".
+    expect(res.text).toMatch(
+      /id="core-trick-orbit"[\s\S]*?core-trick-add-pending[\s\S]*?&mdash;/,
+    );
+    expect(res.text).not.toMatch(
+      /id="core-trick-orbit"[\s\S]*?<span class="core-trick-add-value">undefined<\/span>/,
+    );
+  });
+
+  it('F2 — BL operator surfaces as Blurry (not Blender) with the canonical Stepping+Paradox reading', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // The BL glyph paragraph must be followed by the name "Blurry".
+    expect(res.text).toMatch(/<p class="operator-glyph">BL<\/p>\s*<p class="operator-name">Blurry<\/p>/);
+    // The composition example for BL is BLURRY + BUTTERFLY → RIPWALK.
+    expect(res.text).toMatch(/BLURRY \+ BUTTERFLY[\s\S]*?RIPWALK/);
+    // The pre-fix wording "Blender" / "Blender + butterfly" must not appear
+    // anywhere as the BL operator name.
+    expect(res.text).not.toMatch(/<p class="operator-glyph">BL<\/p>\s*<p class="operator-name">Blender<\/p>/);
+  });
+
+  it('F2 — Atomic/Quantum/Fairy actions describe dex-direction sets, not rotational character', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Action lines are pre-shaped and emitted inside .operator-action.
+    expect(res.text).toMatch(/AT<\/p>\s*<p class="operator-name">Atomic<\/p>\s*<p class="operator-action">Opposite-side OUT-direction dex from a toe set/);
+    expect(res.text).toMatch(/Q<\/p>\s*<p class="operator-name">Quantum<\/p>\s*<p class="operator-action">Opposite-side IN-direction dex from a toe set/);
+    expect(res.text).toMatch(/FAIRY<\/p>\s*<p class="operator-name">Fairy<\/p>\s*<p class="operator-action">Same-side OUT-direction dex from a toe set/);
+    // Pre-fix wording must not survive.
+    expect(res.text).not.toMatch(/<p class="operator-name">Atomic<\/p>\s*<p class="operator-action">[^<]*rotation/i);
+    expect(res.text).not.toMatch(/<p class="operator-name">Quantum<\/p>\s*<p class="operator-action">[^<]*rotation/i);
+    expect(res.text).not.toMatch(/<p class="operator-name">Fairy<\/p>\s*<p class="operator-action">[^<]*rotation/i);
+  });
+
+  it('F3 — demonstrations strip renders the two curated entries (Conlon 1998 + San Marino 2026)', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Section heading + both curated entries.
+    expect(res.text).toContain('Demonstrations');
+    expect(res.text).toContain('1998 World Footbag Championships');
+    expect(res.text).toContain('Samantha Conlon and Carol Wedemeyer');
+    expect(res.text).toContain('Footbag 2026: San Marino');
+    expect(res.text).toContain('Footage by jay7bah');
+    // Both videos render via the lazy-loading video facade with their YouTube ids.
+    expect(res.text).toContain('2URvZFuxBls');
+    expect(res.text).toContain('U6J2LXxUWro');
+    // The retired five-slot scaffolding wording ("Curated demonstration
+    // pending" placeholder card) must NOT appear.
+    expect(res.text).not.toContain('Curated demonstration pending');
+  });
+
+  it('F7 — every demonstration carries a hashtag chip strip', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    // Both Conlon and San Marino entries pass tags through the partial.
+    // Pull the demonstrations section slice and count chip strips inside it.
+    const startIdx = res.text.indexOf('class="freestyle-demonstrations-grid"');
+    const endIdx   = res.text.indexOf('operator-board', startIdx);
+    expect(startIdx).toBeGreaterThan(0);
+    const slice = res.text.slice(startIdx, endIdx > 0 ? endIdx : startIdx + 8000);
+    const stripCount = (slice.match(/class="media-tag-strip"/g) ?? []).length;
+    expect(stripCount).toBe(2);
+    // Source/creator/quality chips surface on freestyle-only surfaces; the
+    // suppression policy hides `#freestyle` and `#trick` so they must NOT
+    // appear as chips inside the demonstrations strip.
+    expect(slice).toContain('media-tag-chip--source');     // #footbag_hof_archive
+    expect(slice).toContain('media-tag-chip--creator');    // #by_jay7bah
+    expect(slice).toContain('media-tag-chip--quality');    // #curated
+    expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#freestyle<\/li>/);
+    expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#trick<\/li>/);
   });
 });
 

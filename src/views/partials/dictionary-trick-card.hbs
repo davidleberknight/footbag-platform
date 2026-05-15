@@ -38,6 +38,11 @@
 
   {{#if operationalNotation}}
     <code class="dict-card-notation" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+  {{else if symbolicEquivalences.length}}
+    {{!-- ≡ readings already carry the structural information; suppress the
+         "Notation pending" placeholder to reduce visual noise on cards that
+         have canonical compositional readings. Per LANDING-AND-TRICKS-QA-
+         REALIGNMENT-1 F4. --}}
   {{else}}
     <p class="dict-card-notation dict-card-notation--pending" aria-label="Operational notation pending"><em>Notation pending</em></p>
   {{/if}}

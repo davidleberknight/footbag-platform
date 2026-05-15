@@ -67,7 +67,6 @@ import {
 import {
   BASIC_COMPONENTS,
   CORE_TRICK_SPEC,
-  DEMONSTRATION_SLOTS,
 } from '../content/freestyleLandingContent';
 import {
   getSymbolicEquivalenceChain,
@@ -111,6 +110,66 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
 
 function labelForType(recordType: string): string {
   return RECORD_TYPE_LABELS[recordType] ?? recordType;
+}
+
+// ── Media-tag display shaping (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7) ───
+// Raw tags come from media_tags.tag_display (e.g., "#torque", "#curated",
+// "#trick"). The browse-surface render filters out noise (`#trick` is
+// universally redundant on freestyle media; `#freestyle` is redundant on
+// freestyle-only surfaces; `#unavailable_embed` is implementation state)
+// and sorts the remainder by pedagogical priority so trick-slug tags lead.
+//
+// Restraint-first: maintainer-named hard requirement 2026-05-14. Hashtag
+// layer is part of the visible symbolic/navigation language, not hidden
+// metadata. Goal: pedagogical readability via repeated exposure.
+const MEDIA_TAG_SUPPRESS = new Set(['#trick', '#unavailable_embed']);
+const MEDIA_TAG_KIND_ORDER: MediaTagDisplay['kind'][] = [
+  'trick', 'source', 'creator', 'content-type', 'event', 'discipline', 'quality',
+];
+const MEDIA_TAG_KNOWN_SOURCES = new Set([
+  '#passback_records', '#tricks_of_the_trade', '#shred_global',
+  '#anz_trikz', '#footbag_finland', '#footbag_hof_archive',
+]);
+const MEDIA_TAG_KNOWN_CONTENT_TYPES = new Set(['#tutorial', '#demo']);
+const MEDIA_TAG_KNOWN_DISCIPLINES = new Set(['#freestyle', '#net', '#chinlone']);
+const MEDIA_TAG_KNOWN_QUALITY = new Set(['#curated']);
+
+function classifyMediaTag(tag: string): MediaTagDisplay['kind'] {
+  if (tag.startsWith('#by_'))    return 'creator';
+  if (tag.startsWith('#event_')) return 'event';
+  if (MEDIA_TAG_KNOWN_SOURCES.has(tag))       return 'source';
+  if (MEDIA_TAG_KNOWN_CONTENT_TYPES.has(tag)) return 'content-type';
+  if (MEDIA_TAG_KNOWN_DISCIPLINES.has(tag))   return 'discipline';
+  if (MEDIA_TAG_KNOWN_QUALITY.has(tag))       return 'quality';
+  // Anything else with `#`-prefix and a kebab-case body is treated as a
+  // trick-slug tag. This matches the rendered DB inventory (~80 trick slugs).
+  return 'trick';
+}
+
+export function shapeMediaTagsForBrowse(
+  rawTags: readonly string[],
+  opts: { surfaceContext?: 'freestyle-only' | 'cross-discipline' } = {},
+): MediaTagDisplay[] {
+  const surfaceContext = opts.surfaceContext ?? 'freestyle-only';
+  const seen = new Set<string>();
+  const out: MediaTagDisplay[] = [];
+  for (const raw of rawTags) {
+    if (!raw) continue;
+    const tag = raw.trim();
+    if (!tag.startsWith('#')) continue;
+    if (MEDIA_TAG_SUPPRESS.has(tag)) continue;
+    if (surfaceContext === 'freestyle-only' && tag === '#freestyle') continue;
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    out.push({ display: tag, kind: classifyMediaTag(tag) });
+  }
+  out.sort((a, b) => {
+    const ai = MEDIA_TAG_KIND_ORDER.indexOf(a.kind);
+    const bi = MEDIA_TAG_KIND_ORDER.indexOf(b.kind);
+    if (ai !== bi) return ai - bi;
+    return a.display.localeCompare(b.display);
+  });
+  return out;
 }
 
 /**
@@ -211,23 +270,35 @@ export interface FreestyleBasicComponent {
 // optional symbolic notation + ADD. Atoms typically omit the `≡` and
 // symbolic-notation slots; compounds typically surface one or more `≡`
 // stopping-depth readings.
+//
+// Field naming: `addNumeric` (not `add`) avoids collision with the
+// Handlebars helper named `add` registered in src/app.ts. The template
+// renders `{{addNumeric}}` — using `{{add}}` would resolve to the helper
+// and produce "[object Object]undefined" output.
 export interface FreestyleCoreTrickCard {
   slug:                 string;        // "around-the-world"
   semanticEquivalences: string[];      // ["ATW"]; empty for irreducible atoms
   symbolicNotation:     string | null; // null when the `≡` reading carries the symbolic info
-  add:                  number | null; // null when DB row is missing (renders "—" + footnote)
-  addPending:           boolean;       // true when add is null
+  addNumeric:           number | null; // null when DB row is missing (renders "—" + footnote)
+  addPending:           boolean;       // true when addNumeric is null
 }
 
-// Curated demonstration strip — five conceptual slots ship as scaffolding;
-// curator backfills `curatedMedia` via service constants. When null, the
-// template renders a "Curated demonstration pending" placeholder rather
-// than a synthesized fallback.
-export interface FreestyleDemonstrationSlot {
-  key:              string;            // "sam-conlon" | "artistic-routine" | etc.
-  label:            string;            // display heading
-  conceptualIntent: string;            // one-line note: what kind of media should live here
-  curatedMedia:     VideoMedia | null; // null = pending curator backfill
+// Curated demonstration — a visible freestyle highlight video on the landing
+// strip. Empty array = section content collapsed. Each entry carries its own
+// hashtag chips so the symbolic-navigation vocabulary surfaces with the media.
+export interface FreestyleDemonstration {
+  key:     string;             // stable id for anchors (e.g., "conlon-1998")
+  title:   string;             // display heading
+  caption: string;             // attribution / context line
+  media:   VideoMedia;         // video-facade payload (required; never null)
+  tags:    MediaTagDisplay[];  // shape via shapeMediaTagsForBrowse
+}
+
+// One displayable media-tag chip. `kind` drives optional CSS tier styling.
+// Built by shapeMediaTagsForBrowse from raw `#`-prefixed tag strings.
+export interface MediaTagDisplay {
+  display: string;   // verbatim including '#' prefix (e.g., "#torque")
+  kind:    'trick' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'discipline';
 }
 
 export interface FreestyleLandingContent {
@@ -238,7 +309,7 @@ export interface FreestyleLandingContent {
   // Three new structured surfaces (Batch 2 IA realignment):
   basicComponents: FreestyleBasicComponent[];
   coreTricks:      FreestyleCoreTrickCard[];
-  demonstrations:  FreestyleDemonstrationSlot[];
+  demonstrations:  FreestyleDemonstration[];
   operatorBoard: OperatorBoardData;
   getStartedTiles: FreestyleGetStartedTile[];
   competitionFormats: FreestyleCompetitionFormat[];
@@ -441,7 +512,10 @@ export function tierOf(sourceId: string | null | undefined): MediaTier | null {
   return SOURCE_TIER[sourceId] ?? null;
 }
 
-function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
+function shapeReferenceMedia(
+  row: TrickRefMediaRow,
+  rawTags: readonly string[] = [],
+): TrickReferenceMediaItem {
   const adapter = getMediaStorageAdapter();
   const media = expandVideoFromMediaItem(row, {
     constructURL: (key) => adapter.constructURL(key),
@@ -452,6 +526,7 @@ function shapeReferenceMedia(row: TrickRefMediaRow): TrickReferenceMediaItem {
     media,
     caption: row.caption ?? null,
     sourceLabel: row.source_id ? (SOURCE_LABELS[row.source_id] ?? row.source_id) : null,
+    tags: shapeMediaTagsForBrowse(rawTags, { surfaceContext: 'freestyle-only' }),
   };
 }
 
@@ -763,6 +838,11 @@ export interface TrickReferenceMediaItem {
   media: VideoMedia | null;
   caption: string | null;
   sourceLabel: string | null;         // human-friendly source label, e.g. 'Tricks of the Trade'
+  // Hashtag chips for the visible symbolic-navigation layer (F7). Shaped via
+  // shapeMediaTagsForBrowse: noise (`#trick`, `#unavailable_embed`, `#freestyle`
+  // on freestyle-only surfaces) suppressed; remainder sorted by kind precedence.
+  // Empty array when the media row has no surfacing-eligible tags.
+  tags: MediaTagDisplay[];
 }
 
 export interface FreestyleTrickDictEntry {
@@ -2760,12 +2840,25 @@ export const freestyleService = {
           (media as unknown as { listMediaByTrickTag: { all: (tag: string) => unknown[] } })
             .listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
         );
+        // Batch-load hashtag chips for every reference-media row in one round-trip
+        // (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7). Builds mediaId → raw-tag-array
+        // map; shapeReferenceMedia applies the browse-surface suppression policy.
+        const tagRows = allRefMedia.length > 0
+          ? runSqliteRead('media.queryCuratorMediaTags',
+              () => queryCuratorMediaTags(allRefMedia.map(r => r.id)))
+          : [];
+        const tagsByMediaId = new Map<string, string[]>();
+        for (const t of tagRows) {
+          const arr = tagsByMediaId.get(t.media_id);
+          if (arr) arr.push(t.tag_display);
+          else tagsByMediaId.set(t.media_id, [t.tag_display]);
+        }
         const tutorialMedia: TrickReferenceMediaItem[] = [];
         const demoMedia: TrickReferenceMediaItem[] = [];
         for (const r of allRefMedia) {
           const tier = tierOf(r.source_id);
           if (tier === 'RECORD') continue;
-          const shaped = shapeReferenceMedia(r);
+          const shaped = shapeReferenceMedia(r, tagsByMediaId.get(r.id) ?? []);
           if (tier === 'TUTORIAL') {
             tutorialMedia.push(shaped);
           } else if (tier === 'DEMONSTRATION') {
@@ -4037,11 +4130,11 @@ export const freestyleService = {
           title:   'Set operators',
           intro:   'What sends the bag into the air.',
           operators: [
-            op('PIX',   'Pixie',    'Compressed uptime set, leg drives the bag through a tight orbit.', 'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
-            op('AT',    'Atomic',   'Set wrapped with full-body rotation in the air.',                  'AT + OSIS',               'FLUX',               NOTATION('atomic')),
-            op('Q',     'Quantum',  'Set with added rotation through uptime.',                          'Q + MIRAGE',              'TOE BLUR',           NOTATION('quantum')),
-            op('BL',    'Blender',  'Set with a low-orbit pre-set sweep into the dex.',                 'BL + BUTTERFLY',          'BLENDER BUTTERFLY',  null, true),
-            op('FAIRY', 'Fairy',    'Set carrying an extra revolution through uptime.',                 'FAIRY + BLUR',            'DOUBLE FAIRY',       NOTATION('fairy'),    true),
+            op('PIX',   'Pixie',    'Same-side IN-direction dex from a toe set; the tight uptime set.', 'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
+            op('AT',    'Atomic',   'Opposite-side OUT-direction dex from a toe set; cross-body uptime character.', 'AT + MIRAGE',     'ATOM SMASHER',       NOTATION('atomic')),
+            op('Q',     'Quantum',  'Opposite-side IN-direction dex from a toe set; compressed-atomic shape.', 'Q + MIRAGE',        'TOE BLUR',           NOTATION('quantum')),
+            op('BL',    'Blurry',   'Compressed reading of Stepping + Paradox; flat +1 modifier per pt11.', 'BLURRY + BUTTERFLY',  'RIPWALK',            GLOSSARY('blurry')),
+            op('FAIRY', 'Fairy',    'Same-side OUT-direction dex from a toe set; the mirror of pixie.',  'FAIRY + ATOMIC',          'FAIRY ATOMIC',       NOTATION('fairy'),    true),
             op('STEP',  'Stepping', 'Foot relocates between the set and the catch.',                    'STEP + BUTTERFLY',        'RIPWALK',            GLOSSARY('stepping')),
           ],
         },
@@ -4052,9 +4145,9 @@ export const freestyleService = {
           intro:   'What the body does while the bag is up.',
           operators: [
             op('SPIN',  'Spinning', 'Full-body rotation around the vertical axis during the trick.',    'SPIN + TORQUE',           'MOBIUS',             MOD_PEDAGOGY('spinning')),
-            op('GY',    'Gyro',     'Body-rotation variant on a partial or inverted plane.',            'GY + BUTTERFLY',          'GYRO BUTTERFLY',     NOTATION('gyro')),
+            op('GY',    'Gyro',     'Half-rotation body modifier (180°); pairs with spinning for arbitrary degrees.', 'GY + BUTTERFLY', 'GYRO BUTTERFLY',     NOTATION('gyro')),
             op('DUCK',  'Ducking',  'The body drops under the bag mid-dex.',                            'PIX + DUCK + BUTTERFLY',  'PHOENIX',            MOD_PEDAGOGY('ducking')),
-            op('PDX',   'Paradox',  'A hip pivot inserted between two dexes.',                          'PDX + LEG-OVER',          'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
+            op('PDX',   'Paradox',  'A hip pivot between two dexes on the same set; the body changes sides.', 'PDX + LEG-OVER',    'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
             op('SYMP',  'Symposium','A component where an active leg performs an action in a single-leg jump: the symposium leg jumps and lands on its own while the other leg remains in the air.', 'SYMP + ILLUSION',         'FLAIL',              GLOSSARY('symposium'), true),
           ],
         },
@@ -4064,7 +4157,7 @@ export const freestyleService = {
           title:   'Structural concepts',
           intro:   'Relationships across the trick.',
           operators: [
-            op('XDEX',  'Cross-dex','The leg circles the bag on the opposite side of the body.',        'XDEX + INSIDE',           'CLIPPER',            null, true),
+            op('XDEX',  'Cross-dex','The dex circles the bag on the opposite-body side of the plant foot.', 'XDEX + INSIDE',        'CLIPPER',            null, true),
             op('SAME',  'Same-foot','The set foot and the catch foot are the same.',                    'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY', null),
             op('OP',    'Opposite', 'The set foot and the catch foot are different. The conventional default.', 'OP + BUTTERFLY', 'BUTTERFLY',          null),
           ],
@@ -4132,16 +4225,41 @@ export const freestyleService = {
             slug:                 spec.slug,
             semanticEquivalences: [...spec.equivalences],
             symbolicNotation:     null,
-            add:                  hasAdd ? parsedAdd : null,
+            addNumeric:           hasAdd ? parsedAdd : null,
             addPending:           !hasAdd,
           };
         }),
-        demonstrations: DEMONSTRATION_SLOTS.map(slot => ({
-          key:              slot.key,
-          label:            slot.label,
-          conceptualIntent: slot.conceptualIntent,
-          curatedMedia:     null,
-        })),
+        // Curated demonstration strip (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F3+F7).
+        // Two visible curated videos sourced from the freestyle media archives.
+        // Empty array hides the section content per maintainer policy
+        // ("public landing page should show curated media only").
+        // Future curator-pipeline-data approach: replace with a
+        // freestyle_media_assets query filtered to HIGH_QUALITY_DEMO + active
+        // + tagged for the demonstrations strip. Current hardcoded entries
+        // are sourced from confirmed curator artifacts:
+        //   - Conlon 1998: media_assets.csv row 473a49ad-...
+        //   - San Marino 2026: media_items row media_267b407835250ac4ab8a2470
+        //     (preserved across Batch 2's featuredVideo retirement).
+        demonstrations: [
+          {
+            key:     'conlon-1998',
+            title:   '1998 World Footbag Championships Women\'s Freestyle Finals',
+            caption: 'Samantha Conlon and Carol Wedemeyer',
+            media:   expandYouTubeVideo('2URvZFuxBls', '1998 Worlds Women\'s Freestyle Finals'),
+            tags:    shapeMediaTagsForBrowse(
+                       ['#freestyle', '#footbag_hof_archive', '#curated'],
+                     ),
+          },
+          {
+            key:     'san-marino-2026',
+            title:   'Footbag 2026: San Marino',
+            caption: 'Footage by jay7bah',
+            media:   expandYouTubeVideo('U6J2LXxUWro', 'Footbag 2026: San Marino'),
+            tags:    shapeMediaTagsForBrowse(
+                       ['#freestyle', '#curated', '#by_jay7bah'],
+                     ),
+          },
+        ],
         operatorBoard: this.getOperatorBoard(),
         getStartedTiles: [
           { label: 'Where to buy footbags', href: '#', comingSoon: true },
