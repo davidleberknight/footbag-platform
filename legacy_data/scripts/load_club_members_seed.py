@@ -158,6 +158,11 @@ def main() -> None:
 
             affil_id = stable_id("lpca", key, row["mirror_member_id"], display_name)
 
+            # resolution_status intentionally OMITTED — schema DEFAULT 'pending'
+            # applies. Inferred mirror rows arrive as 'pending' and transition
+            # to 'confirmed_current' only when the member confirms current
+            # affiliation via the onboarding wizard (MIGRATION_PLAN §9.3,
+            # DATA_MODEL §4.25).
             if person_id:
                 cur = con.execute(
                     """
@@ -165,9 +170,9 @@ def main() -> None:
                       (id, created_at, created_by, updated_at, updated_by, version,
                        historical_person_id, legacy_member_id,
                        legacy_club_candidate_id, inferred_role,
-                       confidence_score, resolution_status, display_name)
+                       confidence_score, display_name)
                     VALUES (?, ?, 'seed', ?, 'seed', 1,
-                            ?, ?, ?, 'member', 1.0, 'confirmed_current', ?)
+                            ?, ?, ?, 'member', 1.0, ?)
                     """,
                     (affil_id, ts, ts, person_id, mirror_member_id, cand_id, display_name),
                 )
@@ -181,9 +186,9 @@ def main() -> None:
                       (id, created_at, created_by, updated_at, updated_by, version,
                        historical_person_id, legacy_member_id,
                        legacy_club_candidate_id, inferred_role,
-                       confidence_score, resolution_status, display_name)
+                       confidence_score, display_name)
                     VALUES (?, ?, 'seed', ?, 'seed', 1,
-                            NULL, ?, ?, 'member', 0.5, 'confirmed_current', ?)
+                            NULL, ?, ?, 'member', 0.5, ?)
                     """,
                     (affil_id, ts, ts, mirror_member_id, cand_id, display_name),
                 )

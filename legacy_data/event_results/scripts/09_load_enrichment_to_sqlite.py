@@ -500,6 +500,11 @@ def main() -> None:
             lpca_key = matched_pid or mirror_id
             lpca_id  = stable_id("lpca", club_key, lpca_key, inferred_role)
 
+            # resolution_status intentionally OMITTED — schema DEFAULT 'pending'
+            # applies. Inferred enrichment rows arrive as 'pending' and
+            # transition to 'confirmed_current' only when the member confirms
+            # current affiliation via the onboarding wizard (MIGRATION_PLAN
+            # §9.3, DATA_MODEL §4.25).
             try:
                 cur = conn.execute(
                     """
@@ -507,9 +512,9 @@ def main() -> None:
                       id, created_at, created_by, updated_at, updated_by, version,
                       historical_person_id, legacy_member_id,
                       legacy_club_candidate_id, inferred_role,
-                      confidence_score, resolution_status,
+                      confidence_score,
                       display_name
-                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, 'confirmed_current', ?)
+                    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         lpca_id, ts, system_user, ts, system_user,
