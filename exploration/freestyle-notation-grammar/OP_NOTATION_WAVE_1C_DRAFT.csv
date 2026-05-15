@@ -1,0 +1,22 @@
+slug,current_operational_notation,proposed_operational_notation,source,normalization_notes,confidence,requires_red,governance_flags
+smear,,TOE > SAME IN [DEX] >> OP IN [DEX] > OP TOE [DEL],"FM corpus 3adds",§13 compound; pixie-family pattern; mirage-terminal OP TOE [DEL]; chain decomposition unset in registry,high,false,
+magellan,,TOE > SAME IN [DEX] >> SAME OUT [DEX] > SAME TOE [DEL],"FM corpus 3adds",§13 compound; legover-family terminal SAME TOE [DEL]; chain decomposition unset,high,false,
+merkon,,CLIP >> (BACK) SPIN [BOD] >> OP OUT [DEX] > SAME TOE [DEL],"FM corpus 3adds",§13 compound; spin-opening + legover terminal pattern,high,false,
+reaper,,CLIP >> SAME OUT [DEX] >> SAME OUT [DEX] > SAME TOE [DEL],"FM corpus 3adds",§13 compound; double SAME OUT [DEX] step + SAME TOE [DEL] terminal,high,false,
+reverse-drifter,,CLIP >> OP OUT [DEX] > SAME CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; mirror of drifter (OP OUT vs OP IN); drifter-terminal pattern,high,false,
+atomic-butterfly,,TOE > OP OUT [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 3-4adds",§13 compound; double OP OUT dex + butterfly-terminal pattern,high,false,
+sidewalk,,CLIP > OP IN [DEX] >> SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; stepping-opening with SAME OUT mid-dex + butterfly-terminal,high,false,
+tombstone,,CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL],"FM corpus 4adds",§13 compound; stepping-opening + SAME IN mid-dex + drifter-terminal,high,false,
+blurriest,,CLIP > OP IN [DEX] >> OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5adds",§13 compound; stepping + double dex + barfly-style terminal,high,false,
+barraging-osis,,CLIP > OP IN [DEX] > SAME IN [DEX] >> (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL],"FM corpus 5adds",§13 compound; barraging double-dex opening + spin + butterfly-terminal; osis-family compound at 5 ADD,high,false,
+superfly,,CLIP >> (NO PLANT WHILE) SAME OUT [DEX] [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5adds",§13 compound; (NO PLANT WHILE) on first dex with [BOD] flag; barfly-family terminal,high,false,
+witchdoctor,,TOE > OP OUT [DEX] >> (NO PLANT WHILE) OP IN [DEX] [XDEX] [BOD] > OP TOE [DEL],"FM corpus 4adds",§13 compound; (NO PLANT WHILE) + XDEX + [BOD] stacked,high,false,XDEX-scope-Red-pt1;no-plant-stacked
+food-processor,,CLIP > OP IN [DEX] >> OP FRONT WHIRL [DEX] [PDX] > (BACK) SPIN [BOD] > SAME CLIP [XBD] [DEL],"FM corpus 5-6adds",§13 compound; whirl-family token with PDX flag,high,false,PDX-independence-rule
+sumo,,CLIP > SAME OUT [DEX] [PDX] >> OP IN [DEX] [XDEX] > OP TOE [DEL],"FM corpus 5adds",§13 compound; PDX on first dex + XDEX on final dex; mirage-terminal,high,false,XDEX-scope-Red-pt1;PDX-stacked
+tomahawk,,CLIP >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > OP CLIP [XBD] [DEL],"FM corpus 5adds (FM source has typo `Fornt` → corrected to FRONT)",§13 compound; DUCK [BOD] + whirl-family token with PDX,high,false,PDX-independence-rule;fm-typo-corrected
+omelette,,TOE > OP OUT [DEX] >> OP OUT [DEX] [XDEX] > OP TOE [DEL],"FM corpus 3adds (Wave-1B Tier-2 carryover)",§13 compound; XDEX on second dex per FM; chain ≡ atomic illusion,high,false,XDEX-scope-Red-pt1
+fury,,CLIP > OP IN [DEX] > SAME IN [DEX] >> OP IN [DEX] [PDX] [XDEX] > OP TOE [DEL],"FM corpus 5adds (Wave-1B Tier-2 carryover)",§13 compound; PDX + XDEX stacked on final dex; chain unset,high,false,XDEX-scope-Red-pt1;PDX-stacked
+fusion,,TOE > OP OUT [DEX] >> OP OUT [DEX] [XDEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds (Wave-1B Tier-2 carryover)",§13 compound; XDEX on third dex; chain ≡ atomic dod,high,false,XDEX-scope-Red-pt1
+plasma,,TOE > OP IN [DEX] >> OP OUT [DEX] [XDEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds (Wave-1B Tier-2 carryover)",§13 compound; XDEX flag; chain ≡ quantum dod,high,false,XDEX-scope-Red-pt1
+nemesis,,CLIP > OP IN [DEX] > SAME IN [DEX] >> OP OUT [DEX] [XDEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],"FM corpus 5-6adds (Wave-1B Tier-2 carryover)",§13 compound; XDEX flag; chain ≡ furious barfly,high,false,XDEX-scope-Red-pt1
+gauntlet,,CLIP > OP IN [DEX] >> DUCK [BOD] >> OP IN [DEX] [PDX] > (BACK) SPIN [BOD] > OP CLIP [XBD] [DEL],"FM corpus 7adds (Wave-1B Tier-2 carryover)",§13 compound; PDX standalone on dex; DUCK + spin pattern; chain ≡ blurry ducking torque ≡ stepping ducking paradox torque,high,false,PDX-independence-rule
