@@ -78,6 +78,10 @@ import {
 import {
   filterAliasesForBrowse,
 } from '../content/freestyleAliasGovernance';
+import {
+  FreestyleTrickKind,
+  resolveTrickKind,
+} from '../content/freestyleTrickKindOverrides';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -1592,6 +1596,12 @@ export interface FreestyleTrickAddGroup {
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface DictionaryTrickCard {
+  // Structural-role discriminator. Only `kind === 'trick'` rows appear on
+  // the trick-browse surfaces (ADD / family / category / component /
+  // topology). Modifiers / operators / surfaces have their own homes; never
+  // mixed into the trick-difficulty ladder. Per
+  // freestyleTrickKindOverrides.ts. Slice A of 2026-05 normalization.
+  kind:                       FreestyleTrickKind;
   slug:                       string;
   displayName:                string;                        // canonical_name
   href:                       string;                        // /freestyle/tricks/:slug ; suppressed when external-only placeholder
@@ -2381,6 +2391,7 @@ function shapeDictionaryTrickCard(
   const tokenizedEquivalences = shapeSemanticNotations(symbolicEquivalences, groupAnchor);
 
   return {
+    kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
     displayName:                indexRow.canonicalName,
     href:                       indexRow.detailHref,
@@ -3734,6 +3745,14 @@ export const freestyleService = {
     // pending rows belong only in the ADD view as placeholders).
     const activeRows = allRows.filter(r => r.is_active === 1);
 
+    // Slice A of 2026-05 dictionary normalization: only `kind === 'trick'`
+    // rows surface on the five trick-browse views. Modifiers, set operators,
+    // catch surfaces, and pending-review rows are routed to their own homes
+    // (operator board, /freestyle/sets, glossary §2). See
+    // src/content/freestyleTrickKindOverrides.ts.
+    const isTrickRow = (row: { slug: string }): boolean =>
+      resolveTrickKind(row.slug) === 'trick';
+
     // ---- Category groups (?view=category) -----------------------------
     //
     // DSC-2 slice 3B: each group now emits a `cards: DictionaryTrickCard[]`
@@ -3743,7 +3762,7 @@ export const freestyleService = {
     const categoryOrder = ['dex', 'body', 'set', 'compound'];
     const grouped = new Map<string, FreestyleTrickRowWithStatus[]>();
     for (const row of activeRows) {
-      if (row.category === 'modifier') continue;
+      if (!isTrickRow(row)) continue;
       const cat = row.category ?? 'other';
       const bucket = grouped.get(cat) ?? [];
       bucket.push(row);
@@ -3792,7 +3811,7 @@ export const freestyleService = {
     // for backwards compatibility while other surfaces migrate.
     const familyMap = new Map<string, FreestyleTrickRowWithStatus[]>();
     for (const row of activeRows) {
-      if (!row.trick_family || row.category === 'modifier') continue;
+      if (!row.trick_family || !isTrickRow(row)) continue;
       const bucket = familyMap.get(row.trick_family) ?? [];
       bucket.push(row);
       familyMap.set(row.trick_family, bucket);
@@ -3867,7 +3886,7 @@ export const freestyleService = {
     interface AddBucketEntry { row: FreestyleTrickRowWithStatus; indexRow: FreestyleTrickIndexRow; }
     const addBuckets = new Map<number | null, AddBucketEntry[]>();
     for (const row of allRows) {
-      if (row.category === 'modifier' || row.adds === 'modifier') continue;
+      if (!isTrickRow(row)) continue;
       const numeric = parseAddNumeric(row.adds);
       const bucket = addBuckets.get(numeric) ?? [];
       bucket.push({ row, indexRow: shapeTrickIndexRow(row, ctx) });
@@ -3900,14 +3919,13 @@ export const freestyleService = {
     // from the listing, so excluding them from the summary keeps the two
     // numbers consistent for visitors.
     const canonicalCount = allRows.filter(
-      r => r.is_active === 1 && r.category !== 'modifier' && r.adds !== 'modifier',
+      r => r.is_active === 1 && isTrickRow(r),
     ).length;
     const externalOnlyCount = allRows.filter(
       r =>
         r.is_active === 0 &&
         r.review_status === 'pending' &&
-        r.category !== 'modifier' &&
-        r.adds !== 'modifier',
+        isTrickRow(r),
     ).length;
     const coverage: FreestyleTricksCoverageSummary = {
       canonicalCount,
@@ -4044,6 +4062,9 @@ export const freestyleService = {
     for (const lr of linkRows) {
       const row = allActiveByStatus.get(lr.trick_slug);
       if (!row) continue;
+      // Slice A of 2026-05 normalization: only true tricks appear in the
+      // component view. Modifiers / operators / surfaces are routed elsewhere.
+      if (!isTrickRow(row)) continue;
       // Only body + set axes in slice 3A.
       if (lr.modifier_type !== 'body' && lr.modifier_type !== 'set') continue;
       let bucket = componentAccumulator.get(lr.modifier_slug);
@@ -4111,7 +4132,7 @@ export const freestyleService = {
 
     const buildTopologyGroup = (def: TopologyGroupDef): TopologyGroup => {
       const matched = activeRows
-        .filter(r => r.category !== 'modifier'
+        .filter(r => isTrickRow(r)
                   && def.matches(r, mod => trickHasModifierLinkInAccumulator(r.slug, mod)))
         .sort((a, b) => {
           const an = parseAddNumeric(a.adds);
