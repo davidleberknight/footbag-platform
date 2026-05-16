@@ -5,8 +5,8 @@ import { config } from '../config/env';
 import { detectImageType } from '../lib/imageProcessing';
 import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
 import { Semaphore } from '../lib/semaphore';
-import { MediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { ImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
+import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import {
   getVideoTranscodingAdapter,
   type VideoTranscodingAdapter,
@@ -650,6 +650,10 @@ export interface CuratorGalleryEditView {
   description: string;
   sortOrder: GallerySortOrderValue;
   criteriaTags: string[];   // tag-display strings e.g. '#curated'
+  // Pre-shaped display string for the owner-facing edit form: criteriaTags
+  // joined by space with the auto-applied `#by_<slug>` uploader tag
+  // filtered out. Controllers pass through; no controller-side filtering.
+  criteriaTagsDisplayString: string;
   excludeTags: string[];
   // Items currently matching the gallery's criteria/exclude. Drives the
   // edit-form's read-only thumbnail display. Detach (and other item
@@ -687,6 +691,59 @@ export interface CuratorGallerySummary {
 export interface CuratorGalleryExternalLinkInput {
   label: string;
   url: string;
+}
+
+// Per-slot view-model shape for the gallery edit form's external-link
+// fieldset. The form always renders `config.galleryMaxExternalLinks`
+// slots so the user can fill, edit, or clear each one; this shape
+// carries the current value, per-field validation errors, and (on the
+// GET-edit path only) the quarantine warning that the Safe Browsing
+// boot scan recorded on a persisted row.
+export interface ExternalLinkSlot {
+  index: number;
+  label: string;
+  url: string;
+  labelError?: string;
+  urlError?: string;
+  // Set only on the GET-edit path when the persisted row was quarantined
+  // by the Safe Browsing boot scan. Suppressed on POST validation
+  // re-render because the user is replacing the value and a stale
+  // warning would be confusing.
+  quarantineReason?: string;
+}
+
+// Builds the slot array the form template iterates. On a clean GET,
+// `submitted` is null and `existing` is the gallery's persisted links
+// (with quarantine reasons surfaced). On POST validation failure,
+// `submitted` carries the user's last-typed values so the form
+// preserves their input; `existing` is ignored and quarantine warnings
+// are suppressed. `fieldErrors` attaches per-input validation messages
+// keyed by the form's `externalLinks[i].label` / `externalLinks[i].url`
+// path style.
+export function buildExternalLinkSlots(
+  submitted: CuratorGalleryExternalLinkInput[] | null,
+  existing: Array<{ label: string; url: string; quarantineReason?: string | null }>,
+  fieldErrors?: Record<string, string>,
+): ExternalLinkSlot[] {
+  const slots: ExternalLinkSlot[] = [];
+  for (let i = 0; i < config.galleryMaxExternalLinks; i++) {
+    const src = submitted ? submitted[i] : existing[i];
+    const slot: ExternalLinkSlot = {
+      index: i,
+      label: src?.label ?? '',
+      url: src?.url ?? '',
+      labelError: fieldErrors?.[`externalLinks[${i}].label`],
+      urlError: fieldErrors?.[`externalLinks[${i}].url`],
+    };
+    if (!submitted) {
+      const persisted = existing[i];
+      if (persisted?.quarantineReason) {
+        slot.quarantineReason = persisted.quarantineReason;
+      }
+    }
+    slots.push(slot);
+  }
+  return slots;
 }
 
 export interface CuratorGalleryUpdates {
@@ -793,6 +850,18 @@ function assertTier1Benefits(actorMemberId: string): void {
       'Tier 1 benefits required to manage member-owned media.',
     );
   }
+}
+
+// Default-wired factory for callers (controllers, tests at the wiring
+// seam) that just want a service instance backed by the configured
+// adapters. Encapsulates the dev/prod parity boundary so controllers do
+// not import adapter getters. Test seams continue to use the
+// `createCuratorMediaService(deps)` form to inject fakes.
+export function getDefaultCuratorMediaService(): ReturnType<typeof createCuratorMediaService> {
+  return createCuratorMediaService({
+    storage: getMediaStorageAdapter(),
+    imageProcessor: getImageProcessingAdapter(),
+  });
 }
 
 export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
@@ -1700,12 +1769,16 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           url: r.url,
           quarantineReason: r.quarantine_reason,
         }));
+        const criteriaTagDisplays = criteriaTagRows.map((t) => t.tag_display);
         return {
           id: g.id,
           name: g.name,
           description: g.description,
           sortOrder: g.sort_order,
-          criteriaTags: criteriaTagRows.map((t) => t.tag_display),
+          criteriaTags: criteriaTagDisplays,
+          criteriaTagsDisplayString: criteriaTagDisplays
+            .filter((t) => !t.toLowerCase().startsWith(UPLOADER_TAG_PREFIX))
+            .join(' '),
           excludeTags: excludeTagRows.map((t) => t.tag_display),
           currentItems,
           externalLinks,

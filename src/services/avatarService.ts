@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
 import { media, mediaTags as mediaTagsDb, transaction, ExistingAvatarRow } from '../db/db';
 import { detectImageType } from '../lib/imageProcessing';
-import { MediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { ImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
+import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
+import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
 import { ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 
@@ -19,6 +19,16 @@ const UPLOADER_TAG_PREFIX = '#by_';
 export interface AvatarServiceDeps {
   storage: MediaStorageAdapter;
   imageProcessor: ImageProcessingAdapter;
+}
+
+// Default-wired factory for controllers. Test seams continue to use
+// `createAvatarService(deps)` with fakes. See `getDefaultCuratorMediaService`
+// for the rationale (controllers must not import adapter getters).
+export function getDefaultAvatarService(): ReturnType<typeof createAvatarService> {
+  return createAvatarService({
+    storage: getMediaStorageAdapter(),
+    imageProcessor: getImageProcessingAdapter(),
+  });
 }
 
 export function createAvatarService(deps: AvatarServiceDeps) {

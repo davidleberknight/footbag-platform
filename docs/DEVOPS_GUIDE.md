@@ -16,7 +16,7 @@ This file is the operator manual for the deployed platform. It assumes the solut
   - [3.2 Role and boundary matrix](#32-role-and-boundary-matrix)
   - [3.3 Human AWS access rules](#33-human-aws-access-rules)
   - [3.4 Workload IAM model](#34-workload-iam-model)
-  - [3.5 Session Manager and shell access](#35-session-manager-and-shell-access)
+  - [3.5 Operator shell access](#35-operator-shell-access)
   - [3.6 S3 bucket policy rules](#36-s3-bucket-policy-rules)
   - [3.7 CloudTrail and auditability](#37-cloudtrail-and-auditability)
   - [3.8 Break-glass access](#38-break-glass-access)
@@ -298,7 +298,7 @@ Lightsail does not support EC2 instance profiles. The runtime AWS principal is a
 | KMS JWT key | `Sign` and `GetPublicKey` only as needed by auth runtime | private key remains non-exportable |
 | KMS ballot key | runtime assumed role may request data keys for ballot encryption; decrypt is reserved to tally role | keep decrypt out of the normal runtime assumed role |
 
-### 3.5 Session Manager and shell access
+### 3.5 Operator shell access
 
 Hardened per-operator SSH is the standard host shell-access path on Lightsail.
 
@@ -1046,18 +1046,18 @@ Rules:
 
 Purpose: safe-to-serve-traffic readiness signal.
 
-Readiness must at minimum validate:
+Readiness validates two serve-traffic gates:
 
-- minimal database readiness
-- required runtime configuration availability
-- backup freshness signal sufficient to detect backup-path failure
-- essential local application state
-- memory pressure and other fatal operating conditions that should force traffic away from the origin
+- SQLite connectivity
+- container memory pressure (returns 503 above the §1.8 / §9.5 threshold, which triggers the CloudFront maintenance page on subsequent organic traffic)
 
 Readiness must **not**:
 
 - call Stripe
 - call SES
+- call KMS
+- call S3 or any other external dependency
+- check backup freshness (alarm-surfaced per §10, not a readiness signal)
 - perform expensive dependency fan-out
 - hide partial failure by always returning success
 
@@ -1729,7 +1729,7 @@ Before staging is declared ready, verify:
 |---|---|
 | CloudFront showing maintenance page | origin reachability, recent deploy, readiness failure, memory alarms, nginx/web process health |
 | `/health/live` fails | process crash, container restart loop, host issue |
-| `/health/live` passes but `/health/ready` fails | database access, backup freshness, required config presence, memory pressure |
+| `/health/live` passes but `/health/ready` fails | SQLite access, memory pressure (backup freshness is alarm-surfaced per §10, not a readiness signal) |
 | spike in 5xx | recent deploy, migration, secret rotation, upstream AWS auth errors, DB contention |
 | backups failing | worker health, S3 permissions, bucket reachability, disk space, WAL/checkpoint issues |
 | Stripe webhooks failing | webhook secret mismatch, signature validation, recent rotation, handler logs |

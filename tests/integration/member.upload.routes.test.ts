@@ -47,6 +47,8 @@ const OWNER_ID    = 'member-mu-owner-001';
 const OWNER_SLUG  = 'mu_owner';
 const OTHER_ID    = 'member-mu-other-001';
 const OTHER_SLUG  = 'mu_other';
+const ADMIN_ID    = 'member-mu-admin-001';
+const ADMIN_SLUG  = 'mu_admin';
 
 let resetImageProcessingAdapterForTests: () => void;
 let resetVideoUrlVerifierForTests: () => void;
@@ -57,6 +59,9 @@ function ownerCookie(): string {
 }
 function otherCookie(): string {
   return `footbag_session=${createTestSessionJwt({ memberId: OTHER_ID, role: 'member' })}`;
+}
+function adminCookie(): string {
+  return `footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 
 async function makeJpeg(): Promise<Buffer> {
@@ -82,6 +87,8 @@ beforeAll(async () => {
   // owner-check branch it exists to verify.
   insertMemberTierGrant(db, { member_id: OWNER_ID, new_tier_status: 'tier1' });
   insertMemberTierGrant(db, { member_id: OTHER_ID, new_tier_status: 'tier1' });
+  insertMember(db, { id: ADMIN_ID, slug: ADMIN_SLUG, display_name: 'Admin Uploader', is_admin: 1 });
+  insertMemberTierGrant(db, { member_id: ADMIN_ID, new_tier_status: 'tier1' });
   // System member row required by createGallery (it computes isFhOwned by
   // comparing ownerMemberId to the system member id). Member-owned galleries
   // never match this id but the lookup must succeed.
@@ -490,6 +497,66 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     expect(blocked.status).toBe(429);
     expect(blocked.headers['retry-after']).toBeDefined();
   });
+
+  it('admin uploading more than the photo limit is not rate-limited', async () => {
+    // M3: admins bypass the per-DD rate limit at the controller seam.
+    const app = createApp();
+    const jpeg = await makeJpeg();
+    for (let i = 0; i < 12; i++) {
+      const res = await request(app)
+        .post(`/members/${ADMIN_SLUG}/media/upload`)
+        .set('Cookie', adminCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFile', jpeg, `admin-r${i}.jpg`);
+      expect(res.status).toBe(303);
+    }
+  });
+
+  it('photo upload rate limit is tunable via system_config_current', async () => {
+    // M3: lower the bucket to 2 via system_config; the 3rd upload should 429.
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'photo_upload_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run(
+      'test-photo-rl-tune',
+      '2026-05-16T00:00:00.000Z',
+      '2026-05-16T00:00:00.000Z',
+    );
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const jpeg = await makeJpeg();
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(app)
+          .post(`/members/${OWNER_SLUG}/media/upload`)
+          .set('Cookie', ownerCookie())
+          .field('mediaType', 'photo')
+          .attach('photoFile', jpeg, `t${i}.jpg`);
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await request(app)
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFile', jpeg, 't3.jpg');
+      expect(blocked.status).toBe(429);
+    } finally {
+      // Restore the platform-epoch seeded default so later tests see 10/hr.
+      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
+      restoreDb.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES (?, ?, 'photo_upload_rate_limit_per_hour', '10', ?, 'Test restore', NULL)
+      `).run(
+        'test-photo-rl-restore',
+        '2026-05-16T00:00:01.000Z',
+        '2026-05-16T00:00:01.000Z',
+      );
+      restoreDb.close();
+    }
+  });
 });
 
 // ── POST /members/:memberKey/media/upload — video URL ──────────────────────
@@ -568,6 +635,88 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       .field('videoUrl', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
     expect(res.status).toBe(422);
     expect(res.text).toContain('YouTube or Vimeo');
+  });
+
+  it('6th video submission in the hour -> 429 with Retry-After', async () => {
+    // M3: parity regression at the configured default of 5/hr.
+    const app = createApp();
+    for (let i = 0; i < 5; i++) {
+      const ok = await request(app)
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'video')
+        .field('videoPlatform', 'youtube')
+        .field('videoUrl', `https://www.youtube.com/watch?v=videovid${i}xx`);
+      expect(ok.status).toBe(303);
+    }
+    const blocked = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=videovid6xx');
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers['retry-after']).toBeDefined();
+  });
+
+  it('admin submitting more than the video limit is not rate-limited', async () => {
+    // M3: admins bypass the per-DD rate limit at the controller seam.
+    const app = createApp();
+    for (let i = 0; i < 8; i++) {
+      const res = await request(app)
+        .post(`/members/${ADMIN_SLUG}/media/upload`)
+        .set('Cookie', adminCookie())
+        .field('mediaType', 'video')
+        .field('videoPlatform', 'youtube')
+        .field('videoUrl', `https://www.youtube.com/watch?v=adminvid${i}xx`);
+      expect(res.status).toBe(303);
+    }
+  });
+
+  it('video submission rate limit is tunable via system_config_current', async () => {
+    // M3: lower the bucket to 2 via system_config; the 3rd submission should 429.
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    tuneDb.prepare(`
+      INSERT INTO system_config
+        (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, 'video_submission_rate_limit_per_hour', '2', ?, 'Test tunable', NULL)
+    `).run(
+      'test-video-rl-tune',
+      '2026-05-16T00:00:00.000Z',
+      '2026-05-16T00:00:00.000Z',
+    );
+    tuneDb.close();
+    try {
+      const app = createApp();
+      for (let i = 0; i < 2; i++) {
+        const ok = await request(app)
+          .post(`/members/${OWNER_SLUG}/media/upload`)
+          .set('Cookie', ownerCookie())
+          .field('mediaType', 'video')
+          .field('videoPlatform', 'youtube')
+          .field('videoUrl', `https://www.youtube.com/watch?v=tunevidd${i}xx`);
+        expect(ok.status).toBe(303);
+      }
+      const blocked = await request(app)
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'video')
+        .field('videoPlatform', 'youtube')
+        .field('videoUrl', 'https://www.youtube.com/watch?v=tunevidd3xx');
+      expect(blocked.status).toBe(429);
+    } finally {
+      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
+      restoreDb.prepare(`
+        INSERT INTO system_config
+          (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+        VALUES (?, ?, 'video_submission_rate_limit_per_hour', '5', ?, 'Test restore', NULL)
+      `).run(
+        'test-video-rl-restore',
+        '2026-05-16T00:00:01.000Z',
+        '2026-05-16T00:00:01.000Z',
+      );
+      restoreDb.close();
+    }
   });
 });
 

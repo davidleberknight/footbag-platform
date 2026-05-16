@@ -15,7 +15,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import argon2 from 'argon2';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertLegacyMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertLegacyMember, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
 import { resetRateLimitForTests } from '../../src/services/rateLimitService';
 
 const { dbPath } = setTestEnv('3083');
@@ -345,5 +345,198 @@ describe('completePasswordReset — atomicity', () => {
       .type('form')
       .send({ newPassword: 'Another!3', confirmPassword: 'Another!3' });
     expect(replay.status).not.toBe(303);
+  });
+});
+
+// ── InTx contract: claim+task atomic across outer transaction ────────────────
+//
+// SC §LegacyClaim requires the underlying claim merge AND the wizard task
+// transition to land in the SAME transaction so a partial-failure window
+// cannot leave the member claimed but the task still pending. Verifies the
+// new `*InTx` variants: a throw from the outer transaction (e.g. simulating
+// a completeTask failure) rolls back the merge writes too.
+
+describe('claimHistoricalPersonInTx / consumeAndClaimLegacyInTx — outer-rollback atomicity', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let svc: typeof import('../../src/services/identityAccessService').identityAccessService;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let dbMod: typeof import('../../src/db/db');
+  const HP_ID = 'atomic-hp-001';
+  // Uses a fresh member (not MEMBER_ID) because the password-reset test
+  // earlier in this file bumps MEMBER_ID's password_version, invalidating
+  // any pre-issued JWT for that member.
+  const FRESH_MEMBER_ID = 'atomic-fresh-001';
+  const FRESH_LEGACY_ID = 'atomic-fresh-legacy-001';
+
+  function freshCookie(): string {
+    return `footbag_session=${createTestSessionJwt({ memberId: FRESH_MEMBER_ID })}`;
+  }
+
+  beforeAll(async () => {
+    const mod = await import('../../src/services/identityAccessService');
+    svc = mod.identityAccessService;
+    dbMod = await import('../../src/db/db');
+
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: FRESH_MEMBER_ID,
+      slug: 'atomic_fresh',
+      real_name: 'Atomic Fresh',
+      display_name: 'Atomic Fresh',
+      login_email: 'atomic-fresh@example.com',
+    });
+    insertHistoricalPerson(db, {
+      person_id: HP_ID,
+      person_name: 'Atomic Fresh',
+      country: 'US',
+      hof_member: 0,
+      bap_member: 0,
+    });
+    insertLegacyMember(db, {
+      legacy_member_id: FRESH_LEGACY_ID,
+      legacy_email: 'fresh-legacy@example.com',
+      display_name: 'Fresh Legacy',
+    });
+    db.close();
+  });
+
+  beforeEach(() => {
+    resetRateLimitForTests();
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET historical_person_id = NULL, legacy_member_id = NULL WHERE id = ?').run(FRESH_MEMBER_ID);
+    db.prepare('UPDATE legacy_members SET claimed_by_member_id = NULL, claimed_at = NULL WHERE legacy_member_id = ?').run(FRESH_LEGACY_ID);
+    db.prepare('DELETE FROM outbox_emails WHERE recipient_member_id = ?').run(FRESH_MEMBER_ID);
+    db.close();
+  });
+
+  it('claimHistoricalPersonInTx inside an outer transaction that throws → no merge persists', () => {
+    expect(() => {
+      dbMod.transaction(() => {
+        svc.claimHistoricalPersonInTx(FRESH_MEMBER_ID, HP_ID);
+        // Simulate a downstream failure (e.g. completeTask throwing). The
+        // outer transaction must roll back the merge.
+        throw new Error('simulated post-merge failure');
+      });
+    }).toThrow('simulated post-merge failure');
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(FRESH_MEMBER_ID) as { historical_person_id: string | null };
+    db.close();
+    expect(row.historical_person_id).toBeNull();
+  });
+
+  it('consumeAndClaimLegacyInTx inside an outer transaction that throws → token un-consumed AND no merge persists', async () => {
+    // Issue a token via the wizard for the fresh member/legacy pair.
+    const agentReq = request.agent(createApp());
+    const postRes = await agentReq
+      .post('/register/wizard/legacy_claim/find')
+      .set('Cookie', freshCookie())
+      .type('form')
+      .send({ identifier: FRESH_LEGACY_ID });
+    expect(postRes.status).toBe(303);
+    const getRes = await agentReq
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', freshCookie());
+    const m = getRes.text.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
+    if (!m) throw new Error('No claim URL in GET response HTML');
+    const token = m[1];
+
+    expect(() => {
+      dbMod.transaction(() => {
+        svc.consumeAndClaimLegacyInTx(FRESH_MEMBER_ID, token);
+        throw new Error('simulated post-merge failure');
+      });
+    }).toThrow('simulated post-merge failure');
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const member = db.prepare('SELECT legacy_member_id FROM members WHERE id = ?').get(FRESH_MEMBER_ID) as { legacy_member_id: string | null };
+    const legacy = db.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?').get(FRESH_LEGACY_ID) as { claimed_by_member_id: string | null };
+    const { createHash } = await import('crypto');
+    const tok = db.prepare('SELECT used_at FROM account_tokens WHERE token_hash = ?')
+      .get(createHash('sha256').update(token).digest('hex')) as { used_at: string | null } | undefined;
+    db.close();
+
+    expect(member.legacy_member_id).toBeNull();
+    expect(legacy.claimed_by_member_id).toBeNull();
+    // Critical atomicity invariant: the token must remain consumable.
+    expect(tok?.used_at).toBeNull();
+  });
+});
+
+// ── Wrong-account token consumption (DD §3.3 / SC §LegacyClaim) ─────────────
+//
+// A claim token issued for member A must not be consumable by member B even
+// if B intercepts the email link. The service guard checks
+// `consumed.memberId !== requestingMemberId` and throws ValidationError.
+// Anti-enumeration: no information about A's account leaks via the response;
+// the message is generic and the rollback un-consumes the token.
+
+describe('consumeAndClaimLegacy — wrong-account guard', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let svc: typeof import('../../src/services/identityAccessService').identityAccessService;
+  const A_MEMBER = 'atomic-wa-a';
+  const B_MEMBER = 'atomic-wa-b';
+  const WA_LEGACY = 'atomic-wa-legacy';
+
+  beforeAll(async () => {
+    svc = (await import('../../src/services/identityAccessService')).identityAccessService;
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: A_MEMBER, slug: 'wa_a', login_email: 'wa-a@example.com', display_name: 'WA Member A' });
+    insertMember(db, { id: B_MEMBER, slug: 'wa_b', login_email: 'wa-b@example.com', display_name: 'WA Member B' });
+    insertLegacyMember(db, {
+      legacy_member_id: WA_LEGACY,
+      legacy_email: 'wa-legacy@example.com',
+      display_name: 'WA Legacy Target',
+    });
+    db.close();
+  });
+
+  beforeEach(() => {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE legacy_members SET claimed_by_member_id = NULL, claimed_at = NULL WHERE legacy_member_id = ?').run(WA_LEGACY);
+    db.prepare('UPDATE members SET legacy_member_id = NULL WHERE id IN (?, ?)').run(A_MEMBER, B_MEMBER);
+    db.close();
+  });
+
+  it('member B submitting A\'s token is rejected; merge is not performed; token can still be consumed by A', async () => {
+    const agentReq = request.agent(createApp());
+    const aCookie = `footbag_session=${createTestSessionJwt({ memberId: A_MEMBER })}`;
+    const postRes = await agentReq
+      .post('/register/wizard/legacy_claim/find')
+      .set('Cookie', aCookie)
+      .type('form')
+      .send({ identifier: WA_LEGACY });
+    expect(postRes.status).toBe(303);
+    const getRes = await agentReq
+      .get('/register/wizard/legacy_claim')
+      .set('Cookie', aCookie);
+    const m = getRes.text.match(/\/register\/wizard\/legacy_claim\/claim\/confirm\/([A-Za-z0-9_-]+)/);
+    if (!m) throw new Error('No claim URL in GET response HTML');
+    const tokenForA = m[1];
+
+    // B uses A's token. Service must reject without touching state.
+    expect(() => svc.consumeAndClaimLegacy(B_MEMBER, tokenForA))
+      .toThrow(/different account/);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const a = db.prepare('SELECT legacy_member_id FROM members WHERE id = ?').get(A_MEMBER) as { legacy_member_id: string | null };
+    const b = db.prepare('SELECT legacy_member_id FROM members WHERE id = ?').get(B_MEMBER) as { legacy_member_id: string | null };
+    const lm = db.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?').get(WA_LEGACY) as { claimed_by_member_id: string | null };
+    const { createHash } = await import('crypto');
+    const tok = db.prepare('SELECT used_at FROM account_tokens WHERE token_hash = ?')
+      .get(createHash('sha256').update(tokenForA).digest('hex')) as { used_at: string | null } | undefined;
+    db.close();
+
+    expect(a.legacy_member_id).toBeNull();
+    expect(b.legacy_member_id).toBeNull();
+    expect(lm.claimed_by_member_id).toBeNull();
+    expect(tok?.used_at).toBeNull();
+
+    // Token still consumable by the legitimate owner (A).
+    svc.consumeAndClaimLegacy(A_MEMBER, tokenForA);
+    const dbAfter = new BetterSqlite3(dbPath, { readonly: true });
+    const aAfter = dbAfter.prepare('SELECT legacy_member_id FROM members WHERE id = ?').get(A_MEMBER) as { legacy_member_id: string | null };
+    dbAfter.close();
+    expect(aAfter.legacy_member_id).toBe(WA_LEGACY);
   });
 });

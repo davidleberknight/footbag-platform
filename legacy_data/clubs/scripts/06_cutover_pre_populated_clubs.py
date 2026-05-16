@@ -146,17 +146,24 @@ def main() -> int:
     con.execute("PRAGMA foreign_keys = ON")
 
     with con:
-        eligible = con.execute(
+        # Iterate all candidates (not just bootstrap_eligible). Linkage is
+        # written for every candidate whose clubs row exists. Fallback INSERT
+        # of a missing clubs row is restricted to bootstrap_eligible=1 (the
+        # prod cutover contract); other candidates that lack a matching clubs
+        # row are skipped without error. In prod this iterates 1037 rows;
+        # only 41 take the fallback INSERT path. In dev (load_clubs_seed.py
+        # already created all 311 clubs) the 311 matching candidates get
+        # mapped_club_id stamped here, no fallback INSERT runs.
+        all_candidates = con.execute(
             """
-            SELECT legacy_club_key, display_name, city, country
+            SELECT legacy_club_key, display_name, city, country, bootstrap_eligible
             FROM legacy_club_candidates
-            WHERE bootstrap_eligible = 1
             ORDER BY legacy_club_key
             """
         ).fetchall()
 
-        if not eligible:
-            print("No bootstrap-eligible candidates found. Nothing to cut over.")
+        if not all_candidates:
+            print("No candidates found. Nothing to cut over.")
             print("If this is unexpected, confirm the enrichment loader "
                   "(event_results/scripts/09_load_enrichment_to_sqlite.py) "
                   "ran against a fresh legacy_club_candidates.csv.")
@@ -169,7 +176,7 @@ def main() -> int:
                 "SELECT tag_normalized FROM tags WHERE standard_type = 'club'"
             )
         }
-        for _, _, _, country in eligible:
+        for _, _, _, country, _ in all_candidates:
             existing_tags.add(f"#club_{slugify(country or '')}")
 
         clubs_inserted = 0
@@ -177,9 +184,10 @@ def main() -> int:
         tags_inserted = 0
         mappings_written = 0
         mappings_unchanged = 0
+        candidates_skipped_no_club = 0
         missing_seed: list[str] = []
 
-        for legacy_key, display_name, city, country in eligible:
+        for legacy_key, display_name, city, country, bootstrap_eligible in all_candidates:
             club_id = stable_id("club", legacy_key)
             tag_id = stable_id("tag", "club", legacy_key)
 
@@ -189,7 +197,15 @@ def main() -> int:
             ).fetchone() is not None
 
             if not club_exists:
-                # Fallback: create from seed CSV (first-run scenario).
+                if not bootstrap_eligible:
+                    # Non-eligible candidate with no matching clubs row: skip
+                    # without error. This is the normal prod case for 996
+                    # non-pre_populate candidates.
+                    candidates_skipped_no_club += 1
+                    continue
+
+                # Fallback: create from seed CSV (first-run scenario for
+                # bootstrap-eligible candidates).
                 seed_row = seed_by_key.get(legacy_key)
                 if not seed_row:
                     missing_seed.append(legacy_key)
@@ -242,7 +258,8 @@ def main() -> int:
             else:
                 clubs_existed += 1
 
-            # Write the audit mapping. Idempotent — UPDATE no-ops when already set.
+            # Stamp mapped_club_id for every candidate whose clubs row exists.
+            # Idempotent: UPDATE no-ops when already set to the right value.
             cur = con.execute(
                 """
                 UPDATE legacy_club_candidates
@@ -251,7 +268,6 @@ def main() -> int:
                     updated_by = 'cutover_06',
                     version = version + 1
                 WHERE legacy_club_key = ?
-                  AND bootstrap_eligible = 1
                   AND (mapped_club_id IS NULL OR mapped_club_id != ?)
                 """,
                 (club_id, ts, legacy_key, club_id),
@@ -263,13 +279,14 @@ def main() -> int:
 
     con.close()
 
-    print("Club cutover (bootstrap-eligible → live clubs) complete:")
-    print(f"  eligible candidates:       {len(eligible)}")
+    print("Club cutover (live clubs + linkage) complete:")
+    print(f"  candidates seen:           {len(all_candidates)}")
     print(f"  clubs rows inserted:       {clubs_inserted}")
     print(f"  clubs rows pre-existed:    {clubs_existed}")
     print(f"  tags rows inserted:        {tags_inserted}")
     print(f"  candidate mappings written: {mappings_written}")
     print(f"  candidate mappings unchanged (already set): {mappings_unchanged}")
+    print(f"  non-eligible candidates skipped (no matching clubs row): {candidates_skipped_no_club}")
     if missing_seed:
         print(f"  WARN: {len(missing_seed)} eligible candidate(s) missing from seed CSV:")
         for k in missing_seed[:10]:

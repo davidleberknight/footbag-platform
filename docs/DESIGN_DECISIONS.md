@@ -295,6 +295,8 @@ Trade-offs:
 
 - Capacity planning is capacity of a single instance (plus CloudFront), not a large cluster.
 
+- Session Manager via Systems Manager Hybrid Activations was evaluated for operator shell access and rejected. The advanced-instances tier required for Session Manager on non-EC2 nodes costs approximately $5/month per Lightsail instance, and the SSM Agent installation, Hybrid Activations, and IAM/Terraform resources are disproportionate to a single-host volunteer-maintained deployment.
+
 Impact:
 
 - CI/CD and deployment scripts are written around "build a Docker image, deploy to one Lightsail host."
@@ -302,6 +304,8 @@ Impact:
 - CloudFront origin configuration points to this instance for dynamic content and to S3 buckets for static and archive content.
 
 - Production uses 4GB Lightsail instance with 2 vCPUs, 80GB SSD, 4TB transfer allowance. This will provide adequate headroom for container allocations: 4GB provides sufficient memory for four Docker containers.
+
+- Operator shell access uses hardened per-operator SSH to named non-root host accounts. Ingress to ports 22 and 2222 is Terraform-managed via `operator_cidrs`. Runtime AWS API access uses an assumed-role chain that is independent of operator shell credentials. The two paths never share credentials.
 
 ## 1.7 Docker Containers
 
@@ -409,7 +413,7 @@ Layers:
 2. Middleware (`src/middleware/`) — Express cross-cutting handlers.
 
    - Signature: `(req, res, next) => void` or `(err, req, res, next) => void`.
-   - Apply across multiple routes: authentication, rate limiting, logging, CSRF checks, error handling.
+   - Apply across multiple routes: authentication, logging, CSRF checks, origin pinning, error handling.
    - May co-locate HTTP-layer constants they own (cookie names, cookie maxAge) because those are HTTP concerns.
 
 3. Controllers (`src/controllers/`) — per-route HTTP glue.
@@ -423,7 +427,7 @@ Layers:
    - Encapsulate SDK calls (AWS, Stripe, etc.) so services never import `@aws-sdk/*` or similar directly.
    - Paired structure: one interface plus one or more implementations selected by configuration.
    - Naming convention: `<Backend><Purpose>Adapter` for implementations; `<Purpose>Adapter` for interfaces.
-   - File organization: one file per adapter at `src/adapters/<purpose>Adapter.ts`, containing the interface, all implementations (as factory functions, not classes), and a synchronous singleton getter `get<Purpose>Adapter()` that selects the configured implementation. Services import the getter and the interface from this single file; they do not construct adapters themselves.
+   - File organization: one file per adapter at `src/adapters/<purpose>Adapter.ts`, containing the interface, all implementations (as factory functions, not classes), and a synchronous singleton getter `get<Purpose>Adapter()` that selects the configured implementation. Services import the getter and the interface from this single file; controllers do not. A service that depends on an adapter exposes either (a) a factory function in the service module that resolves the adapter at construction time, or (b) a module-level singleton service. Controllers receive the constructed service and never call `get*Adapter()` themselves. This keeps adapter-selection knowledge inside the service layer where dev/prod parity is enforced.
    - Test hook: each adapter file also exports `reset<Purpose>AdapterForTests()` which clears the singleton so test suites can exercise fresh wiring per file.
 
 Why this separation matters:
@@ -445,6 +449,10 @@ Anti-patterns:
 - Reading `process.env` inside a service or any `src/` module outside `src/config/env.ts`. See §1.11 Configuration Model.
 
 - Mixing HTTP constants (cookie names, cookie maxAge) into service files. HTTP constants belong in the HTTP layer (controllers or middleware).
+
+Rate-limit positioning:
+
+Rate limiting in this codebase is an in-memory bucket service (`src/services/rateLimitService.ts`), not a middleware. Controllers and state-changing service methods call `rateLimitHit(key)` and switch on the returned discriminant (`allowed` or `rate_limited`). Rate-limit keys are often request-shape-derived (per-account, per-target-row, per-IP, per-session), and the keying logic belongs in the same layer as the action being limited. A per-route blanket middleware rate limiter is not used.
 
 Rationale:
 
@@ -820,7 +828,7 @@ Rules:
 
 6. Historical persons confer no member capabilities. A row in `historical_persons` — whether claimed or unclaimed — does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and GOVERNANCE.md §4.
 
-7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `LegacyMigrationService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row per MIGRATION_PLAN §8, and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
+7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row per MIGRATION_PLAN §8, and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
 Rationale:
 
@@ -1086,7 +1094,7 @@ Three cookie surfaces:
 
 | Cookie | Issuer (code path) | Integrity | Lifetime | Payload |
 |---|---|---|---|---|
-| `footbag_session` | `issueSessionCookie` in `src/lib/sessionCookie.ts` | RS256 signature; private key in AWS KMS (production) or a local PEM (dev and test), per §3.5 | 24 hours | JWT claims: `sub` (member id), `passwordVersion`, `role` and `tier` hints, standard `iat`/`exp` (§3.4) |
+| `footbag_session` | `issueSessionCookie` in `src/lib/sessionCookie.ts` | RS256 signature; private key in AWS KMS (production) or a local PEM (dev and test), per §3.5 | 24 hours | JWT claims: `sub` (member id), `passwordVersion`, `role` hint, standard `iat`/`exp` (§3.4) |
 | `footbag_flash` | `writeFlash` in `src/lib/flashCookie.ts` | HMAC produced by `cookie-parser` using `SESSION_SECRET` as the signing key | 60 seconds | Opaque string in the form `<kind>` or `<kind>:<payload>` (§5.2) |
 | CloudFront signed cookie for `archive.footbag.org` | Main app at session issue and at session re-issue (per §6.4) | RSA signature verified by CloudFront against a trusted-signer key group | Equal to the session JWT lifetime, so a single re-issue cycle covers both | CloudFront access policy (resource, expiry) |
 
@@ -1187,7 +1195,7 @@ Unsigned display-state cookies. Rejected: the receiving GET handler branches its
 
 Decision:
 
-The session JWT (§3.2) has a 24-hour lifetime (`exp = iat + 86400` seconds). The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (§3.5). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier) so the verifier can resolve which key signed each token across rotation overlap windows. The payload carries `sub` (member id), `passwordVersion`, `role`, `tier`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed 24-hour token on the same response that performed the check. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
+The session JWT (§3.2) has a 24-hour lifetime (`exp = iat + 86400` seconds). The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (§3.5). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier) so the verifier can resolve which key signed each token across rotation overlap windows. The payload carries `sub` (member id), `passwordVersion`, `role`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed 24-hour token on the same response that performed the check. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
 
 Rationale (24-hour TTL):
 
@@ -1216,7 +1224,6 @@ JWT payload, emitted at sign time:
 - `sub`: the member id, matching `members.id`.
 - `passwordVersion`: the snapshot of `members.password_version` at sign time. Compared against the live DB value on every authenticated request; mismatch rejects the token (§3.2).
 - `role`: `"admin"` if `members.is_admin` is set, otherwise `"member"`. Carried for audit-log readability and template hints. Authorization is read from the DB row on every request, not from this claim.
-- `tier`: the current tier label (e.g., `"tier0"`, `"tier1"`, `"tier2"`) derived from the tier resolver at sign time. Carried as a routing hint. Authorization is read from the DB row on every request, not from this claim.
 - `iat`, `exp`: standard JWT timestamps in seconds. `exp = iat + 86400`.
 
 JWT header, emitted at sign time:
@@ -1227,7 +1234,7 @@ JWT header, emitted at sign time:
 Session refresh:
 
 - Trigger: an authenticated request whose JWT satisfies `exp - now < 6 hours` is treated as a refresh candidate.
-- Action: the middleware signs a new JWT carrying the current values of `passwordVersion`, `role`, and `tier` read from the same DB row that satisfied the per-request authorization check; sets the cookie via `issueSessionCookie` with a fresh 24-hour `Max-Age`; and proceeds with the request.
+- Action: the middleware signs a new JWT carrying the current values of `passwordVersion` and `role` read from the same DB row that satisfied the per-request authorization check; sets the cookie via `issueSessionCookie` with a fresh 24-hour `Max-Age`; and proceeds with the request.
 - Non-action: an authenticated request whose JWT satisfies `exp - now >= 6 hours` is not refreshed; the existing cookie is left in place.
 - Failure mode: an expired token fails the per-request signature/passwordVersion verification (§3.2) before the refresh check runs. There is no "expired-but-refreshable" state; an expired token always lands unauthenticated.
 
@@ -1513,8 +1520,8 @@ Legacy migration security rules:
 - Legacy passwords are never imported, stored, or used regardless of how they were stored on the legacy system.
 - `legacy_email` is migration metadata only, not a login credential. It is used to deliver the one-time claim link during the self-serve claim flow, and as the equality target against the requesting member's verified `login_email` when evaluating the email-equality fast path.
 - Mailbox control is the proof step for self-serve claim regardless of which identifier type (email address, username, or member ID) the member submitted. Submitting a username or member ID still requires proving control of the matched `legacy_email` before any merge occurs. When the requesting member's verified `login_email` already equals the matched row's `legacy_email` (case-insensitive, trimmed), the registration-time email-verify step satisfies the proof step and the second token-email is skipped; the merge runs synchronously inside the initiation call. Anti-enumeration is preserved because the fast path is reachable only after a positive lookup.
-- Production has no admin email-skip; admins requiring manual recovery use `manualLegacyClaimRecovery` (with the audit trail and access controls that flow implies). A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. All four vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev-admin shortcut lives in `src/dev-admin-shortcuts/runtime.ts`.
-- Imported placeholder rows cannot log in, are not searchable, and do not receive any member communications before claim.
+- Production has no admin email-skip; admins requiring manual recovery use `manualLegacyClaimRecovery` (with the audit trail and access controls that flow implies). A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. These dev-only vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev-admin shortcut lives in `src/dev-admin-shortcuts/runtime.ts`, which is the authoritative enumeration.
+- Imported `legacy_members` rows cannot log in, are not searchable, and do not receive any member communications before claim.
 - **Surname-match enforcement is asymmetric by claim path.** The direct-HP claim path (`/history/:personId/claim`) blocks server-side on surname mismatch between the claiming member's `real_name` and the historical person's recorded surname. The legacy-account claim path (the onboarding wizard's `legacy_claim` task) does not enforce surname match: the proof step is mailbox control of the matched `legacy_email`, and a member whose legal name changed between their legacy and current account would otherwise be blocked from reclaiming their own legacy identity. The asymmetry is deliberate. A member who claims their legacy account and later attempts a direct-HP claim against a different surname is blocked at the HP step.
 - **Historical-person claim races are resolved by partial UNIQUE index + service-layer error mapping.** Concurrent claims to the same `historical_persons` row both pass the in-controller "already claimed" check; the partial UNIQUE index `ux_members_historical_person_id` catches the loser at insert. The service wraps the SQLite `SQLITE_CONSTRAINT_UNIQUE` exception in `ConflictError` so the controller renders the same user-readable "already claimed by another member" 422 it renders on the synchronous check path. Raw SQL errors must not leak to the response.
 
@@ -2139,6 +2146,46 @@ State-changing POST handlers follow Post-Redirect-Get: on success, the handler i
 Services own action-result composition: each state-changing service method returns a discriminated-union result whose discriminant the controller switches on to map to a response code from the table above. Controllers do not branch on business outcomes; they map service-result discriminants to HTTP responses.
 
 Transient post-submit state (one-shot banners, prominent cards, drift notices) is carried in the signed `footbag_flash` cookie (§3.3) consumed by the next matching-target GET, not in query parameters. The `FLASH_KIND` enumeration lives in `src/lib/flashCookie.ts`; each transient-notice surface adds a new kind to the enum rather than constructing an ad-hoc payload. The receiving GET reads the flash via `readFlash`, surfaces the banner through a view-model field, and calls `clearFlash` so the notice is consumed exactly once; the 60-second TTL is a backstop for the rare case where the receiving GET never lands (the user navigates away after the POST).
+
+Controller contract (pedantic):
+
+What controllers MAY do:
+
+- Parse `req.body`, `req.query`, `req.params`, and middleware-populated fields (`req.user`, `req.isAuthenticated`).
+- Validate input at the trust boundary via a schema validator (Zod or equivalent). Inline ad-hoc validation belongs in a schema or in a service-layer validator, not in controller bodies.
+- Select response type (`res.render`, `res.redirect`, `res.status`, `res.json`, `res.send`) and set status codes.
+- Set or clear cookies through the helpers in `src/lib/*Cookie.ts` (`issueSessionCookie`, `clearSessionCookie`, `writeFlash`, `clearFlash`). Controllers never call `res.cookie` or `res.clearCookie` directly.
+- Switch on a service result's `kind` discriminant to map to a fixed HTTP response per the HTTP Response Convention table above. The switch is mechanical: one arm per kind, no nested business conditionals.
+- Construct URLs for the response (hrefs in view-model fields, redirect targets, `formAction` paths). Route layout is HTTP-layer knowledge; services do not know the URL space.
+- Log database or service errors with safe context (query name, operation, correlation id; never raw PII).
+
+What controllers MUST NOT do:
+
+- Access `db`, `queries`, `db.prepare`, or `transaction` directly. Every database read or write is a service method call.
+- Import adapter getters from `src/adapters/`. Adapters are wired by the service layer (see §1.9). The only accepted exception is a documented lazy-resolution wrapper for an adapter whose getter throws at module-load time.
+- Compose page-models beyond trivial glue. Trivial glue is: assigning HTTP-only fields (hrefs, `dashboardHref`, `formAction`, `cancelHref`) onto a service result, shallow-spreading a service result into a `PageViewModel<TContent>`, and selecting between N render variants on a single discriminant. Anything else (iterating service rows through a per-row transform, deriving a label from a domain code, merging two service results, filtering tags or fields based on a domain rule) is page-model composition and belongs in the service or in a service-owned page-model builder.
+- Mutate a service-returned view model based on auth state. When a page varies by viewer role, the controller passes viewer context into the service and the service returns the shaped response.
+- Branch on domain fields of a service result. Controllers branch only on the `kind` discriminant. If a controller needs to choose between two render paths based on a non-`kind` field, the service is missing a discriminant.
+- Duplicate middleware concerns. Auth-gating, tier-gating, CSRF, and origin-pin checks live in `src/middleware/` and are wired in the route definition. Controllers see only requests that passed those gates.
+- Embed business-policy constants (tier durations, lockout windows, year cutoffs, taxonomy enums). These belong in the service that owns the policy.
+
+Service action-result shape:
+
+State-changing service methods return a discriminated union. The canonical arms and their HTTP mappings are:
+
+| `kind`              | HTTP response | Payload (required)                                                                                 |
+|---------------------|---------------|----------------------------------------------------------------------------------------------------|
+| `advance`           | 303 to next   | `nextUrl: string` (next-task or success URL)                                                       |
+| `retry_same`        | 303 to same   | optional `flash` payload (typed `FLASH_KIND`)                                                      |
+| `validation_error`  | 422 re-render | `message: string`, typed-per-method `formState` carrying every field the template needs to re-render |
+| `rate_limited`      | 429 re-render | `retryAfterSeconds: number`                                                                        |
+| `conflict`          | 422 or 409    | `message: string`, optional typed `formState`                                                      |
+| `not_found`         | 404           | (empty, or `reason: string` for log-only diagnostics)                                              |
+| `forbidden`         | 403           | (empty, or `reason: string` for log-only diagnostics)                                              |
+
+`validation_error.formState` is typed per method, never `unknown`. The controller renders the error response without a second service call; the service is the single source of the form-state payload (see VC §4.4 for the template-side consumption).
+
+A service method that surfaces only a subset of these arms declares its return type as a narrower union (e.g. `advance | validation_error` for a non-rate-limited mutation). Controllers exhaustively switch via a TypeScript `switch (result.kind)` with the compiler verifying every arm is handled.
 
 Rationale for explicit 303:
 
@@ -3121,11 +3168,11 @@ The application exposes HTTP health endpoints for use by AWS health checks and d
 Rationale:  
 AWS best practice is to build health checks into every service to support safe deployments and automated recovery.
 
-Constraints:  
-- `/health/live` is cheap and does not call external dependencies.  
-- `/health/ready` Validates essential dependencies required to serve traffic, only (e.g., ability to read required configuration and perform minimal S3 read access). Long-term target includes memory-pressure gating and broader dependency checks.
-- Health endpoints must avoid calling Stripe, SES, S3, and any expensive dependency fan-out.
-- Backup freshness, restore posture, and memory-pressure alarms are operational concerns, not current readiness gates.
+Constraints:
+- `/health/live` is cheap and does not call external dependencies.
+- `/health/ready` validates the two serve-traffic gates: SQLite connectivity and container memory pressure. A 503 from this endpoint (e.g. memory above the §9.5 threshold) leads CloudFront to serve the maintenance page on subsequent organic traffic.
+- Health endpoints must not call Stripe, SES, KMS, S3, or any other external dependency. These are alarm-surfaced operational concerns, not readiness gates.
+- Backup freshness and restore posture are surfaced via §9.4 alarms, not via readiness.
 
 Impact:  
 - Deployment runbooks and any load balancer, target health checks use these endpoints.  
@@ -3298,7 +3345,7 @@ Impact:
 
 - CloudWatch tracks rate limit hits for capacity planning.
 
-- Upload operation caps (application-level, per member): 10 photo uploads per hour, and 5 video link submissions per hour.
+- Upload operation caps (application-level, per member) are admin-tunable via `system_config_current`; the normative default values live in USER_STORIES.md §6.7 / DATA_MODEL.md §4.23 (`photo_upload_rate_limit_per_hour`, `video_submission_rate_limit_per_hour`).
 
 - In-process counters of operations per member are memory-only.
 

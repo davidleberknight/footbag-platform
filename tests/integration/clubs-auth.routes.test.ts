@@ -170,11 +170,17 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
     expect(res.text).not.toContain('Log in to see club members');
   });
 
-  it('does not expose members with unresolved affiliation status', async () => {
+  // TEMP-DEVIATION: club-classification QC panel surfaces 'pending'
+  // affiliations to authenticated users (loaders write only 'pending' until
+  // the onboarding wizard ships; without this loosened filter the historical
+  // mirror cohort would be invisible). Other excluded statuses
+  // ('former_only', 'not_mine', 'needs_review', 'rejected', 'superseded')
+  // remain hidden. Remove when the admin queue ships.
+  it('surfaces pending affiliations to authenticated members (TEMP-DEVIATION)', async () => {
     const app = createApp();
     const res = await request(app)
       .get('/clubs/club_evergreen')
       .set('Cookie', authCookie());
-    expect(res.text).not.toContain('Phantom Unresolved');
+    expect(res.text).toContain('Phantom Unresolved');
   });
 });

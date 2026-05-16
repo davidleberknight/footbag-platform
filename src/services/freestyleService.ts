@@ -1554,6 +1554,7 @@ export interface FreestyleTrickIndexRow {
   recordHref: string | null;    // kept for backwards compatibility — same as detailHref when hasRecords
   hasMedia: boolean;            // back-compat boolean; equals (mediaCoverage !== 'none')
   mediaCoverage: TrickMediaCoverage;  // tier-aware coverage classification
+  mediaCoverageLabel: string;   // pre-shaped chip text: 'Tutorial available' / 'Demo only' / 'No video yet'
   isExternalOnly: boolean;      // true when row is is_active=0 + review_status='pending' (external placeholder)
   statusBadge: string | null;   // pre-shaped status text; null for plain canonical rows
   placeholderNote: string | null; // pre-shaped note rendered under the row when isExternalOnly = true
@@ -2450,6 +2451,10 @@ function shapeTrickIndexRow(
     recordHref:      hasRecords ? detailHref : null,  // backwards compat
     hasMedia,
     mediaCoverage,
+    mediaCoverageLabel:
+      mediaCoverage === 'tutorial' ? 'Tutorial available'
+      : mediaCoverage === 'demo'   ? 'Demo only'
+      :                              'No video yet',
     isExternalOnly,
     statusBadge,
     placeholderNote,
@@ -3240,8 +3245,7 @@ export const freestyleService = {
         //   - dropped (passback_records): renders in the Passback Records
         //     table below instead, to avoid duplicating record-clip data
         const allRefMedia = runSqliteRead('media.listMediaByTrickTag', () =>
-          (media as unknown as { listMediaByTrickTag: { all: (tag: string) => unknown[] } })
-            .listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
+          media.listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
         );
         // Batch-load hashtag chips for every reference-media row in one round-trip
         // (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7). Builds mediaId → raw-tag-array

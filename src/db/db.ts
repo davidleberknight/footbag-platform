@@ -435,6 +435,7 @@ export const publicEvents = {
       ON erp.result_entry_id = ere.id
     LEFT JOIN members AS m_linked
       ON m_linked.id = erp.member_id
+      AND m_linked.deleted_at IS NULL
     LEFT JOIN members AS m_via_hp
       ON m_via_hp.historical_person_id = erp.historical_person_id
       AND m_via_hp.deleted_at IS NULL
@@ -670,10 +671,17 @@ export const clubs = {
       AND t.standard_type = 'club'
   `); },
 
+  // TEMP-DEVIATION: club-classification QC panel surfaces historical
+  // affiliations on the dev+staging club detail page. Status filter includes
+  // 'pending' so loader-imported affiliations (per 4ca0909 the only state
+  // until the onboarding wizard ships) render to authenticated members.
+  // inferred_role is returned so the service can split rows into leaders /
+  // contacts / members buckets.
   get listMembersByClubId() { return db.prepare(`
     SELECT
       lpca.historical_person_id AS person_id,
-      COALESCE(hp.person_name, lpca.display_name) AS person_name
+      COALESCE(hp.person_name, lpca.display_name) AS person_name,
+      lpca.inferred_role AS inferred_role
     FROM legacy_person_club_affiliations AS lpca
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
@@ -681,7 +689,7 @@ export const clubs = {
       ON hp.person_id = lpca.historical_person_id
     WHERE
       lcc.mapped_club_id = ?
-      AND lpca.resolution_status IN ('confirmed_current', 'promoted')
+      AND lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
     ORDER BY person_name ASC
   `); },
 
@@ -725,6 +733,8 @@ export const clubs = {
   // affiliation. Counted scope mirrors listMembersByClubId so the count and
   // the auth-gated list agree. Clubs with zero matching affiliations are
   // simply absent from the result; service treats absence as count = 0.
+  // TEMP-DEVIATION: matches listMembersByClubId status filter so the
+  // snapshot count agrees with the auth-gated list scope.
   get listMemberCountsForAllClubs() { return db.prepare(`
     SELECT
       lcc.mapped_club_id AS club_id,
@@ -733,7 +743,7 @@ export const clubs = {
     INNER JOIN legacy_club_candidates AS lcc
       ON lcc.id = lpca.legacy_club_candidate_id
     WHERE
-      lpca.resolution_status IN ('confirmed_current', 'promoted')
+      lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
       AND lcc.mapped_club_id IS NOT NULL
     GROUP BY lcc.mapped_club_id
   `); },
@@ -760,6 +770,30 @@ export const clubs = {
       cbl.club_id,
       CASE cbl.role WHEN 'leader' THEN 0 ELSE 1 END,
       COALESCE(hp.person_name, NULLIF(lm.real_name, ''), NULLIF(lm.display_name, '')) COLLATE NOCASE
+  `); },
+
+  // TEMP-DEVIATION: club-classification QC panel. Fetches the candidate's
+  // classification + R1-R10 rule firings + rule inputs for the dev+staging
+  // QC panel on /clubs/:key. Remove when A_Review_Club_Cleanup_Signals
+  // admin queue ships.
+  get getClassificationEvidenceByClubId() { return db.prepare(`
+    SELECT
+      classification,
+      confidence_score,
+      bootstrap_eligible,
+      r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
+      contact_signal_substitute_applied,
+      last_hosted_year,
+      max_affiliated_member_last_year,
+      contact_member_last_year,
+      created_year,
+      last_updated_year,
+      unique_member_names,
+      linkable_member_count,
+      ever_hosted
+    FROM legacy_club_candidates
+    WHERE mapped_club_id = ?
+    LIMIT 1
   `); },
 };
 
@@ -3673,6 +3707,7 @@ export const auth = {
     FROM members_active AS m
     WHERE m.id = ?
       AND m.email_verified_at IS NOT NULL
+      AND m.is_deceased = 0
   `); },
 
   // Dev-autologin convenience: accept a slug when the env var doesn't hold a
@@ -3689,6 +3724,7 @@ export const auth = {
     FROM members_active AS m
     WHERE m.slug = ?
       AND m.email_verified_at IS NOT NULL
+      AND m.is_deceased = 0
   `); },
 
   get updateMemberLastLogin() { return db.prepare(`
@@ -5468,6 +5504,25 @@ export const mailingListSubscriptions = {
       mailing_list_id, member_id, status, status_updated_at
     ) VALUES (?, ?, 'system', ?, 'system', 1,
               ?, ?, ?, ?)
+  `); },
+
+  // Active-subscriber lookup for mailing-list fan-out. Returns one row per
+  // member with status='subscribed' on the given list, where the list itself
+  // is active and the member's email is verified. Filters out
+  // unsubscribed/bounced/complained/suppressed rows and members whose email
+  // is unconfirmed. Used by CommunicationService.enqueueMailingListEmail.
+  get listActiveSubscribersBySlug() { return db.prepare(`
+    SELECT
+      s.member_id,
+      m.login_email,
+      s.mailing_list_id
+    FROM mailing_list_subscriptions AS s
+    INNER JOIN members_active AS m ON m.id = s.member_id
+    INNER JOIN mailing_lists AS ml ON ml.slug = s.mailing_list_id
+    WHERE s.mailing_list_id = ?
+      AND s.status = 'subscribed'
+      AND ml.status = 'active'
+      AND m.email_verified_at IS NOT NULL
   `); },
 };
 

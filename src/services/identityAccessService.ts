@@ -13,6 +13,7 @@ import { RateLimitedError, ServiceError, ValidationError } from './serviceErrors
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
 import { appendAuditEntry } from './auditService';
+import { applyLegacyClaimGrantInTx } from './membershipTieringService';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
 import { simulatedEmailService, type SimulatedEmailPreview } from './simulatedEmailService';
@@ -842,9 +843,8 @@ function getLinkHistoryView(
   // `sinceIndex` so the operator only sees messages from this turn.
   let emailPreview: SimulatedEmailPreview | undefined;
   if (opts.sentOutcome && opts.sinceIndex != null) {
-    // Lazy import to keep this synchronous service method's type surface
-    // simple. The controller will compute emailPreview itself when it
-    // needs to render the sent state — see claimController.getLinkHistory.
+    // The controller computes emailPreview when rendering the sent state;
+    // this view-model carries only the shape the template consumes.
   }
   let outcomeNote: string | undefined;
   if (opts.sentOutcome === 'no_match' && config.sesAdapter === 'stub') {
@@ -1076,6 +1076,18 @@ function claimLegacyAccountInTx(requestingMemberId: string, targetLegacyMemberId
     );
   }
 
+  // Single tier grant per DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3.
+  // Honors-only fallback: HoF or BAP (from either the legacy row or the
+  // transitive HP) → tier2; otherwise tier0. Same transaction as the merge.
+  const hasHof = Boolean(row.is_hof) || Boolean(hp?.hof_member);
+  const hasBap = Boolean(row.is_bap) || Boolean(hp?.bap_member);
+  applyLegacyClaimGrantInTx(requestingMemberId, requestingMemberId, hasHof, hasBap, {
+    source:           'legacy_claim',
+    legacy_member_id: row.legacy_member_id,
+    legacy_user_id:   row.legacy_user_id,
+    transitive_hp_id: hp?.person_id ?? null,
+  });
+
   // Audit-trail for the legacy claim merge. Symmetric with the
   // claim.historical_person entry written by claimHistoricalPerson — both
   // identity-merge paths land in audit_entries so a disputed link can be
@@ -1119,14 +1131,26 @@ function claimLegacyAccount(requestingMemberId: string, targetLegacyMemberId: st
 // the merge. The two-step flow is non-revealing: the POST response is
 // identical for matched, unmatched, ambiguous, and ineligible identifiers.
 
-const CLAIM_TOKEN_TTL_HOURS = 24;
-const CLAIM_INIT_MAX_PER_HOUR = 5;
-const CLAIM_INIT_WINDOW_MINUTES = 60;
-// Per-target rate limit caps abuse of one legacy mailbox via multiple
-// requesting accounts. Combined with the per-member cap, the effective
-// ceiling for a single mailbox is `CLAIM_INIT_TARGET_MAX_PER_HOUR` per hour
-// regardless of how many sock-puppet accounts the attacker spins up.
-const CLAIM_INIT_TARGET_MAX_PER_HOUR = 3;
+// Legacy-claim init rate-limit knobs are admin-configurable via
+// `system_config_current` (read on every call). Defaults below match the
+// seed values in `database/schema.sql`. The per-target and per-IP caps
+// preserve anti-enumeration by returning silent outcomes (not throws); the
+// per-member cap is the one place legitimate users get explicit feedback.
+function claimInitMaxPerMember(): number {
+  return readIntConfig('legacy_claim_init_rate_limit_max_per_member', 5);
+}
+function claimInitWindowMinutes(): number {
+  return readIntConfig('legacy_claim_init_rate_limit_window_minutes', 60);
+}
+function claimInitMaxPerTarget(): number {
+  return readIntConfig('legacy_claim_init_rate_limit_max_per_target', 3);
+}
+function claimInitMaxPerIp(): number {
+  return readIntConfig('legacy_claim_init_rate_limit_max_per_ip', 10);
+}
+function claimTokenTtlHours(): number {
+  return readIntConfig('account_claim_expiry_hours', 24);
+}
 
 /**
  * Possible outcomes of `initiateLegacyClaim`. The HTTP response surface is
@@ -1145,6 +1169,7 @@ export type InitiateLegacyClaimOutcome =
   | { kind: 'enqueued' }
   | { kind: 'no_match' }
   | { kind: 'target_rate_limited' }
+  | { kind: 'ip_rate_limited' }
   | { kind: 'auto_linked' };
 
 /**
@@ -1170,13 +1195,22 @@ export type InitiateLegacyClaimOutcome =
 function initiateLegacyClaim(
   requestingMemberId: string,
   identifier: string,
+  ip: string,
 ): InitiateLegacyClaimOutcome {
   const trimmed = identifier.trim();
   if (!trimmed) {
     throw new ValidationError('Please enter a legacy identifier.');
   }
 
-  const rl = rateLimitHit(`legclaim-init:${requestingMemberId}`, CLAIM_INIT_MAX_PER_HOUR, CLAIM_INIT_WINDOW_MINUTES);
+  // Per-IP cap (DD §3.8). Silent outcome to preserve anti-enumeration: an
+  // attacker rotating sock-puppet members from one IP cannot tell whether
+  // they're capped vs simply not finding matches. Throws are reserved for
+  // the per-member cap, where the legitimate user owns the feedback signal.
+  const windowMinutes = claimInitWindowMinutes();
+  const ipRl = rateLimitHit(`legclaim-ip:${ip}`, claimInitMaxPerIp(), windowMinutes);
+  if (!ipRl.allowed) return { kind: 'ip_rate_limited' };
+
+  const rl = rateLimitHit(`legclaim-init:${requestingMemberId}`, claimInitMaxPerMember(), windowMinutes);
   if (!rl.allowed) {
     throw new RateLimitedError(
       'Too many claim attempts. Please try again in an hour.',
@@ -1239,22 +1273,22 @@ function initiateLegacyClaim(
   if (!row.legacy_email) return { kind: 'no_match' };
 
   // Per-target cap: once a single legacy mailbox has received
-  // CLAIM_INIT_TARGET_MAX_PER_HOUR emails, further attempts from any member
+  // claimInitMaxPerTarget() emails, further attempts from any member
   // are silently dropped (UX still renders the same non-revealing response
   // to honor the anti-enumeration contract). Returns the silent outcome
   // rather than throwing so the caller cannot distinguish "target capped"
   // from "no match".
   const targetRl = rateLimitHit(
     `legclaim-target:${row.legacy_member_id}`,
-    CLAIM_INIT_TARGET_MAX_PER_HOUR,
-    CLAIM_INIT_WINDOW_MINUTES,
+    claimInitMaxPerTarget(),
+    windowMinutes,
   );
   if (!targetRl.allowed) return { kind: 'target_rate_limited' };
 
   const { rawToken, tokenRowId } = accountTokenService.issueToken({
     memberId:              requestingMemberId,
     tokenType:             'account_claim',
-    ttlHours:              CLAIM_TOKEN_TTL_HOURS,
+    ttlHours:              claimTokenTtlHours(),
     targetLegacyMemberId:  row.legacy_member_id,
   });
   const baseUrl    = config.publicBaseUrl.replace(/\/+$/, '');
@@ -1268,7 +1302,7 @@ function initiateLegacyClaim(
       'Hello,\n\n' +
       'A claim request was submitted on your legacy IFPA account. ' +
       'Open the link below to review and confirm the link to your current account. ' +
-      `The link expires in ${CLAIM_TOKEN_TTL_HOURS} hours.\n\n` +
+      `The link expires in ${claimTokenTtlHours()} hours.\n\n` +
       `${confirmUrl}\n\n` +
       'If you did not initiate this claim, you can ignore this message; the link will expire unused.',
   });
@@ -1322,20 +1356,27 @@ function peekLegacyClaim(requestingMemberId: string, rawToken: string): LegacyCl
  * the wrapping transaction. Any throw rolls back the token consume too, so
  * the user can retry with the same email link rather than re-initiating.
  */
+/**
+ * Token-consume + merge body. Caller owns the transaction. Used by the wizard
+ * so the merge AND the wizard task transition are atomic. For non-wizard
+ * callers, use the `consumeAndClaimLegacy` wrapper.
+ */
+function consumeAndClaimLegacyInTx(requestingMemberId: string, rawToken: string): void {
+  const consumed = accountTokenService.consumeIfUnusedInTx(rawToken, 'account_claim');
+  if (!consumed) {
+    throw new ValidationError('This claim link is no longer valid. Please start the claim again.');
+  }
+  if (consumed.memberId !== requestingMemberId) {
+    throw new ValidationError('This claim link belongs to a different account.');
+  }
+  if (!consumed.targetLegacyMemberId) {
+    throw new ValidationError('This claim link is missing a target record.');
+  }
+  claimLegacyAccountInTx(requestingMemberId, consumed.targetLegacyMemberId);
+}
+
 function consumeAndClaimLegacy(requestingMemberId: string, rawToken: string): void {
-  transaction(() => {
-    const consumed = accountTokenService.consumeIfUnusedInTx(rawToken, 'account_claim');
-    if (!consumed) {
-      throw new ValidationError('This claim link is no longer valid. Please start the claim again.');
-    }
-    if (consumed.memberId !== requestingMemberId) {
-      throw new ValidationError('This claim link belongs to a different account.');
-    }
-    if (!consumed.targetLegacyMemberId) {
-      throw new ValidationError('This claim link is missing a target record.');
-    }
-    claimLegacyAccountInTx(requestingMemberId, consumed.targetLegacyMemberId);
-  });
+  transaction(() => consumeAndClaimLegacyInTx(requestingMemberId, rawToken));
 }
 
 // ── Historical-person direct claim (scenarios D and E) ──────────────────────
@@ -1443,109 +1484,135 @@ function lookupHistoricalPersonForClaim(
   };
 }
 
-function claimHistoricalPerson(
+/**
+ * Direct-HP claim merge. Caller owns the transaction. Used by the wizard
+ * so the merge AND the wizard task transition are atomic with each other.
+ * For non-wizard callers, use the `claimHistoricalPerson` wrapper.
+ */
+function claimHistoricalPersonInTx(
   requestingMemberId: string,
   personId: string,
 ): void {
-  transaction(() => {
-    const member = legacyClaim.findClaimingMember.get(requestingMemberId) as ClaimingMemberRow | undefined;
-    if (!member) {
-      throw new ValidationError('Your account cannot be found.');
-    }
-    if (member.historical_person_id) {
-      throw new ValidationError('Your account is already linked to a historical player record.');
-    }
+  const member = legacyClaim.findClaimingMember.get(requestingMemberId) as ClaimingMemberRow | undefined;
+  if (!member) {
+    throw new ValidationError('Your account cannot be found.');
+  }
+  if (member.historical_person_id) {
+    throw new ValidationError('Your account is already linked to a historical player record.');
+  }
 
-    const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
-    if (!hp) {
-      throw new ValidationError('The historical record is no longer available for claim.');
-    }
+  const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
+  if (!hp) {
+    throw new ValidationError('The historical record is no longer available for claim.');
+  }
 
-    const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
-    if (existing) {
-      throw new ValidationError('This historical record has already been claimed by another member.');
-    }
+  const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
+  if (existing) {
+    throw new ValidationError('This historical record has already been claimed by another member.');
+  }
 
-    if (!normalizedSurnamesMatch(member.real_name, hp.person_name)) {
+  if (!normalizedSurnamesMatch(member.real_name, hp.person_name)) {
+    throw new ValidationError(
+      'Your name does not match this historical record. If you believe this is your identity, contact an administrator.',
+    );
+  }
+
+  const now = new Date().toISOString();
+
+  // Transitive legacy claim when the HP is back-linked to a legacy account.
+  if (hp.legacy_member_id) {
+    if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
       throw new ValidationError(
-        'Your name does not match this historical record. If you believe this is your identity, contact an administrator.',
+        'This historical record is tied to a different legacy account than the one already linked to your profile.',
       );
     }
-
-    const now = new Date().toISOString();
-
-    // Transitive legacy claim when the HP is back-linked to a legacy account.
-    if (hp.legacy_member_id) {
-      if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
-        throw new ValidationError(
-          'This historical record is tied to a different legacy account than the one already linked to your profile.',
-        );
-      }
-      const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
-      if (lm && !lm.claimed_by_member_id) {
-        const marked = legacyMembers.markClaimed.run(requestingMemberId, now, hp.legacy_member_id);
-        if (marked.changes === 0) {
-          throw new ValidationError(
-            'The legacy account tied to this historical record has already been claimed by another member.',
-          );
-        }
-        if (!member.legacy_member_id) {
-          legacyClaim.transferLegacyFields.run(
-            lm.legacy_member_id,
-            lm.legacy_user_id,
-            lm.legacy_email,
-            lm.bio ?? '',
-            lm.birth_date,
-            lm.street_address,
-            lm.postal_code,
-            lm.city,
-            lm.region,
-            lm.country,
-            lm.ifpa_join_date,
-            lm.is_hof,
-            lm.is_bap,
-            lm.first_competition_year,
-            now,
-            requestingMemberId,
-          );
-        }
-      } else if (lm && lm.claimed_by_member_id && lm.claimed_by_member_id !== requestingMemberId) {
+    const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
+    if (lm && !lm.claimed_by_member_id) {
+      const marked = legacyMembers.markClaimed.run(requestingMemberId, now, hp.legacy_member_id);
+      if (marked.changes === 0) {
         throw new ValidationError(
           'The legacy account tied to this historical record has already been claimed by another member.',
         );
       }
+      if (!member.legacy_member_id) {
+        legacyClaim.transferLegacyFields.run(
+          lm.legacy_member_id,
+          lm.legacy_user_id,
+          lm.legacy_email,
+          lm.bio ?? '',
+          lm.birth_date,
+          lm.street_address,
+          lm.postal_code,
+          lm.city,
+          lm.region,
+          lm.country,
+          lm.ifpa_join_date,
+          lm.is_hof,
+          lm.is_bap,
+          lm.first_competition_year,
+          now,
+          requestingMemberId,
+        );
+      }
+    } else if (lm && lm.claimed_by_member_id && lm.claimed_by_member_id !== requestingMemberId) {
+      throw new ValidationError(
+        'The legacy account tied to this historical record has already been claimed by another member.',
+      );
     }
+  }
 
-    // Set the member↔HP link. Partial UNIQUE index enforces one live member per HP.
-    legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
+  // Set the member↔HP link. Partial UNIQUE index enforces one live member per HP.
+  legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
 
-    // Carry country / HoF / BAP / hof_inducted_year / first_competition_year from HP.
-    legacyClaim.mergeHistoricalPersonFields.run(
-      hp.country,
-      hp.hof_member,
-      hp.bap_member,
-      hp.hof_induction_year,
-      hp.first_year,
-      now,
-      requestingMemberId,
-    );
+  // Carry country / HoF / BAP / hof_inducted_year / first_competition_year from HP.
+  legacyClaim.mergeHistoricalPersonFields.run(
+    hp.country,
+    hp.hof_member,
+    hp.bap_member,
+    hp.hof_induction_year,
+    hp.first_year,
+    now,
+    requestingMemberId,
+  );
 
-    appendAuditEntry({
-      actionType:    'claim.historical_person',
-      category:      'identity',
-      actorType:     'member',
-      actorMemberId: requestingMemberId,
-      entityType:    'member',
-      entityId:      requestingMemberId,
-      reasonText:    null,
-      metadata: {
-        person_id:              hp.person_id,
-        person_name:            hp.person_name,
-        first_name_variant:     !firstNamesMatch(member.real_name, hp.person_name),
-        transitive_legacy_id:   hp.legacy_member_id ?? null,
-      },
-    });
+  // Single tier grant per DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3.
+  // Direct HP claim takes the same `legacy.claim_tier_grant` reason: honors
+  // (HoF or BAP, from the HP) → tier2; otherwise tier0. Same transaction
+  // as the merge writes above.
+  applyLegacyClaimGrantInTx(
+    requestingMemberId,
+    requestingMemberId,
+    Boolean(hp.hof_member),
+    Boolean(hp.bap_member),
+    {
+      source:               'direct_hp_claim',
+      person_id:            hp.person_id,
+      transitive_legacy_id: hp.legacy_member_id ?? null,
+    },
+  );
+
+  appendAuditEntry({
+    actionType:    'claim.historical_person',
+    category:      'identity',
+    actorType:     'member',
+    actorMemberId: requestingMemberId,
+    entityType:    'member',
+    entityId:      requestingMemberId,
+    reasonText:    null,
+    metadata: {
+      person_id:              hp.person_id,
+      person_name:            hp.person_name,
+      first_name_variant:     !firstNamesMatch(member.real_name, hp.person_name),
+      transitive_legacy_id:   hp.legacy_member_id ?? null,
+    },
   });
+}
+
+function claimHistoricalPerson(
+  requestingMemberId: string,
+  personId: string,
+): void {
+  transaction(() => claimHistoricalPersonInTx(requestingMemberId, personId));
 }
 
 export interface PasswordChangeResult {
@@ -1759,29 +1826,6 @@ async function completePasswordReset(
 }
 
 /**
- * Read the identifying fields needed to evaluate or display a claim for the
- * requesting member. Wraps `legacyClaim.findClaimingMember` so HTTP-layer
- * callers do not import prepared statements directly (db.ts is the only SQL
- * surface; controllers are glue). Returns null when the member row is
- * absent, soft-deleted, or PII-purged.
- */
-export interface ClaimingMember {
-  id: string;
-  slug: string;
-  real_name: string;
-  legacy_member_id: string | null;
-  historical_person_id: string | null;
-  login_email_normalized: string | null;
-  email_verified_at: string | null;
-}
-function findClaimingMemberById(memberId: string): ClaimingMember | null {
-  const row = legacyClaim.findClaimingMember.get(memberId) as
-    | ClaimingMember
-    | undefined;
-  return row ?? null;
-}
-
-/**
  * Resolve an identifier the user typed into the manual-id form to an HP row,
  * trying person_id first then the legacy_member_id back-link (matters in dev
  * where legacy_members rows are often stubs and the HP carries the full
@@ -1873,4 +1917,4 @@ async function getLinkHistoryViewForWizard(
   return view;
 }
 
-export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, lookupHistoricalPersonForClaim, claimHistoricalPerson, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryView, getLinkHistoryViewForWizard, findClaimingMemberById, findHistoricalPersonForLinkSubmit };
+export const identityAccessService = { verifyMemberCredentials, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, initiateLegacyClaim, peekLegacyClaim, consumeAndClaimLegacy, consumeAndClaimLegacyInTx, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, changePassword, verifyEmailByToken, resendVerifyEmail, requestPasswordReset, completePasswordReset, getAutoLinkClassificationForMember, getLinkHistoryViewForWizard, findHistoricalPersonForLinkSubmit };

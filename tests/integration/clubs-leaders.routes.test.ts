@@ -303,52 +303,51 @@ describe('GET /clubs/club_test_suppressed — suppression filter', () => {
   });
 });
 
-describe(`GET /clubs/${CLUB_KEY} — Club snapshot section`, () => {
-  it('renders the Club snapshot heading', async () => {
+describe(`GET /clubs/${CLUB_KEY} — At-a-glance section`, () => {
+  it('renders the at-a-glance section', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toContain('class="club-snapshot');
-    expect(res.text).toContain('>Club snapshot<');
+    expect(res.text).toContain('class="club-at-a-glance');
   });
 
-  it('shows the known-leaders count', async () => {
+  it('shows the known-leaders count in the inline stats line', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toMatch(/<dt>Known leaders<\/dt>\s*<dd>2<\/dd>/);
+    expect(res.text).toMatch(/2 known leaders/);
   });
 
-  it('shows the member count from legacy affiliations', async () => {
+  it('shows the member count from legacy affiliations in the inline stats line', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${CLUB_KEY}`);
-    expect(res.text).toMatch(/<dt>Members<\/dt>\s*<dd>4<\/dd>/);
+    expect(res.text).toMatch(/4 members/);
   });
 
   it('shows the status label as "Known leaders" when leaders exist on an active club', async () => {
     const app = createApp();
     const res = await request(app).get(`/clubs/${CLUB_KEY}`);
     expect(res.text).toContain('club-status-label');
-    expect(res.text).toMatch(/<dd class="club-status-label">Known leaders<\/dd>/);
+    expect(res.text).toMatch(/<p class="club-status-label[^"]*">Known leaders<\/p>/);
   });
 });
 
-describe('GET /clubs/club_test_no_leaders — Club snapshot for sparse club', () => {
+describe('GET /clubs/club_test_no_leaders — At-a-glance for sparse club', () => {
   it('shows "None known yet" for known leaders and "Needs update" status', async () => {
     const app = createApp();
     const res = await request(app).get('/clubs/club_test_no_leaders');
-    expect(res.text).toMatch(/<dt>Known leaders<\/dt>\s*<dd>None known yet<\/dd>/);
-    expect(res.text).toMatch(/<dt>Members<\/dt>\s*<dd>Unknown<\/dd>/);
-    expect(res.text).toMatch(/<dd class="club-status-label">Needs update<\/dd>/);
-    expect(res.text).toContain('club-snapshot--needs-update');
+    expect(res.text).toMatch(/None known yet known leaders/);
+    expect(res.text).toMatch(/Unknown members/);
+    expect(res.text).toMatch(/<p class="club-status-label[^"]*">Needs update<\/p>/);
+    expect(res.text).toContain('club-at-a-glance--needs-update');
   });
 });
 
-describe('GET /clubs/club_test_historical — Club snapshot for inactive club', () => {
+describe('GET /clubs/club_test_historical — At-a-glance for inactive club', () => {
   it('shows "Historical club" status for a status=inactive club', async () => {
     const app = createApp();
     const res = await request(app).get('/clubs/club_test_historical');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/<dd class="club-status-label">Historical club<\/dd>/);
-    expect(res.text).toContain('club-snapshot--historical-club');
+    expect(res.text).toMatch(/<p class="club-status-label[^"]*">Historical club<\/p>/);
+    expect(res.text).toContain('club-at-a-glance--historical-club');
   });
 });
 

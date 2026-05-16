@@ -11,6 +11,10 @@ import {
   OnboardingTaskType,
   WizardFlash,
   WizardActionResult,
+  LegacyClaimAutoLinkConfirmFormState,
+  LegacyClaimTokenConfirmFormState,
+  FirstCompetitionYearFormState,
+  ShowCompetitiveResultsFormState,
 } from '../services/memberOnboardingService';
 import { memberService } from '../services/memberService';
 import { logger } from '../config/logger';
@@ -226,18 +230,18 @@ async function renderTaskByType(
 
 // ── Dispatch ────────────────────────────────────────────────────────────
 
-interface DispatchOpts {
-  action: () => Promise<WizardActionResult> | WizardActionResult;
-  renderValidationError?: (result: { formState: unknown; message: string }) => void | Promise<void>;
+interface DispatchOpts<TFormState> {
+  action: () => Promise<WizardActionResult<TFormState>> | WizardActionResult<TFormState>;
+  renderValidationError?: (result: { formState: TFormState; message: string }) => void | Promise<void>;
   renderRateLimited?: () => void | Promise<void>;
 }
 
-async function dispatch(
+async function dispatch<TFormState>(
   req: Request,
   res: Response,
   next: NextFunction,
   currentTaskType: OnboardingTaskType,
-  opts: DispatchOpts,
+  opts: DispatchOpts<TFormState>,
 ): Promise<void> {
   try {
     const result = await opts.action();
@@ -308,7 +312,7 @@ export const memberOnboardingController = {
   async postLegacyClaimFind(req: Request, res: Response, next: NextFunction): Promise<void> {
     const identifier = String(req.body.identifier ?? '').trim();
     await dispatch(req, res, next, 'legacy_claim', {
-      action: () => memberOnboardingService.processLegacyClaimSubmit(req.user!.userId, identifier),
+      action: () => memberOnboardingService.processLegacyClaimSubmit(req.user!.userId, identifier, req.ip ?? 'unknown'),
       renderValidationError: async () => {
         await renderLegacyClaim(req, res, { ...EMPTY_FLASH }, 422);
       },
@@ -320,21 +324,17 @@ export const memberOnboardingController = {
 
   async postLegacyClaimAutoLinkConfirm(req: Request, res: Response, next: NextFunction): Promise<void> {
     const personId = String(req.body.personId ?? '').trim();
-    await dispatch(req, res, next, 'legacy_claim', {
+    await dispatch<LegacyClaimAutoLinkConfirmFormState>(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processLegacyClaimAutoLinkConfirm(req.user!.userId, personId),
       renderValidationError: (result) => {
-        const fs = (result.formState ?? {}) as {
-          personId?: string;
-          personName?: string;
-          confidence?: 'high' | 'medium';
-        };
+        const fs = result.formState;
         res.status(422).render('history/auto-link-confirm', {
           seo:  { title: 'We found a match' },
           page: { sectionKey: 'members', pageKey: 'auto_link_confirm', title: 'We found a match' },
           content: {
-            personId:    fs.personId,
-            personName:  fs.personName,
-            confidence:  fs.confidence,
+            personId:    fs?.personId,
+            personName:  fs?.personName,
+            confidence:  fs?.confidence,
             error:       result.message,
             declineHref: dashboardHrefFor(req),
           },
@@ -375,7 +375,7 @@ export const memberOnboardingController = {
 
   async postLegacyClaimTokenConfirm(req: Request, res: Response, next: NextFunction): Promise<void> {
     const token = String(req.body.token ?? '');
-    await dispatch(req, res, next, 'legacy_claim', {
+    await dispatch<LegacyClaimTokenConfirmFormState>(req, res, next, 'legacy_claim', {
       action: () => memberOnboardingService.processLegacyClaimTokenConfirm(req.user!.userId, token),
       renderValidationError: (result) => {
         res.status(422).render('register/wizard/legacy-claim-token-invalid', {
@@ -389,12 +389,11 @@ export const memberOnboardingController = {
 
   async postFirstCompetitionYearSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
     const rawYear = String(req.body.year ?? '');
-    await dispatch(req, res, next, 'first_competition_year', {
+    await dispatch<FirstCompetitionYearFormState>(req, res, next, 'first_competition_year', {
       action: () => memberOnboardingService.processFirstCompetitionYearSubmit(req.user!.userId, rawYear),
       renderValidationError: (result) => {
-        const fs = (result.formState ?? {}) as { yearValue?: string };
         renderFirstCompetitionYear(req, res, {
-          yearValue: fs.yearValue ?? rawYear,
+          yearValue: result.formState.yearValue,
           error: result.message,
           statusOverride: 422,
         });
@@ -403,13 +402,12 @@ export const memberOnboardingController = {
   },
 
   async postShowCompetitiveResultsSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    await dispatch(req, res, next, 'show_competitive_results', {
+    await dispatch<ShowCompetitiveResultsFormState>(req, res, next, 'show_competitive_results', {
       action: () => memberOnboardingService.processShowCompetitiveResultsSubmit(
         req.user!.userId, req.body.enabled),
       renderValidationError: (result) => {
-        const fs = (result.formState ?? {}) as { enabled?: boolean };
         renderShowCompetitiveResults(req, res, {
-          enabled: fs.enabled,
+          enabled: result.formState.enabled,
           error: result.message,
           statusOverride: 422,
         });

@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { insertMember } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3066');
 
@@ -268,5 +269,184 @@ describe('processSendQueue', () => {
     expect(res.claimed).toBe(0);
     const row = readRow(id);
     expect(row.status).toBe('pending');
+  });
+});
+
+describe('enqueueMailingListEmail', () => {
+  /** Insert a test member + an admin-alerts subscription with the given status. */
+  function seedSubscriber(opts: {
+    memberId: string;
+    emailVerifiedAt?: string | null;
+    subStatus: 'subscribed' | 'unsubscribed' | 'bounced' | 'complained' | 'suppressed';
+    deletedAt?: string | null;
+  }): void {
+    const db = new BetterSqlite3(dbPath);
+    const memberOverrides: Parameters<typeof insertMember>[1] = {
+      id:          opts.memberId,
+      slug:        `slug_${opts.memberId}`,
+      login_email: `${opts.memberId}@example.com`,
+      deleted_at:  opts.deletedAt ?? null,
+    };
+    if (opts.emailVerifiedAt !== undefined) {
+      memberOverrides.email_verified_at = opts.emailVerifiedAt;
+    }
+    insertMember(db, memberOverrides);
+    db.prepare(`
+      INSERT INTO mailing_list_subscriptions (
+        id, created_at, created_by, updated_at, updated_by, version,
+        mailing_list_id, member_id, status, status_updated_at
+      ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, ?, ?)
+    `).run(
+      `mls-${opts.memberId}`,
+      '2025-01-01T00:00:00.000Z',
+      '2025-01-01T00:00:00.000Z',
+      opts.memberId,
+      opts.subStatus,
+      '2025-01-01T00:00:00.000Z',
+    );
+    db.close();
+  }
+
+  /** Clean test members + subscriptions inside this describe so the outer
+   * beforeEach (which clears outbox_emails) plus this one give per-test isolation. */
+  beforeEach(() => {
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('DELETE FROM mailing_list_subscriptions').run();
+    db.prepare("DELETE FROM members WHERE id LIKE 'mlmem-%'").run();
+    db.close();
+  });
+
+  it('enqueues one outbox row per active subscriber', () => {
+    seedSubscriber({ memberId: 'mlmem-a', subStatus: 'subscribed' });
+    seedSubscriber({ memberId: 'mlmem-b', subStatus: 'subscribed' });
+    seedSubscriber({ memberId: 'mlmem-c', subStatus: 'subscribed' });
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const result = svc.enqueueMailingListEmail({
+      mailingListSlug:      'admin-alerts',
+      subject:              'New admin queue item: test_task',
+      bodyText:             'Task type: test_task\nEntity ID: entity-1',
+      idempotencyKeyPrefix: 'admin-alerts:test_task:entity-1',
+    });
+    expect(result).toEqual({ enqueued: 3, duplicates: 0 });
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const rows = db.prepare(`
+      SELECT recipient_email, recipient_member_id, mailing_list_id, subject
+      FROM outbox_emails
+      WHERE mailing_list_id = 'admin-alerts'
+      ORDER BY recipient_member_id
+    `).all() as Array<Record<string, unknown>>;
+    db.close();
+    expect(rows.length).toBe(3);
+    expect(rows.map((r) => r.recipient_member_id)).toEqual(['mlmem-a', 'mlmem-b', 'mlmem-c']);
+    expect(rows.every((r) => r.mailing_list_id === 'admin-alerts')).toBe(true);
+    expect(rows[0].subject).toBe('New admin queue item: test_task');
+  });
+
+  it('filters bounced, complained, suppressed, and unsubscribed subscribers', () => {
+    seedSubscriber({ memberId: 'mlmem-ok',         subStatus: 'subscribed' });
+    seedSubscriber({ memberId: 'mlmem-bounced',    subStatus: 'bounced' });
+    seedSubscriber({ memberId: 'mlmem-complained', subStatus: 'complained' });
+    seedSubscriber({ memberId: 'mlmem-suppressed', subStatus: 'suppressed' });
+    seedSubscriber({ memberId: 'mlmem-unsubbed',   subStatus: 'unsubscribed' });
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const result = svc.enqueueMailingListEmail({
+      mailingListSlug:      'admin-alerts',
+      subject:              'T',
+      bodyText:             'B',
+      idempotencyKeyPrefix: 'admin-alerts:filter-test:1',
+    });
+    expect(result).toEqual({ enqueued: 1, duplicates: 0 });
+  });
+
+  it('filters members with email_verified_at IS NULL', () => {
+    seedSubscriber({ memberId: 'mlmem-verified',   subStatus: 'subscribed' });
+    seedSubscriber({
+      memberId: 'mlmem-unverified', subStatus: 'subscribed', emailVerifiedAt: null,
+    });
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const result = svc.enqueueMailingListEmail({
+      mailingListSlug:      'admin-alerts',
+      subject:              'T',
+      bodyText:             'B',
+      idempotencyKeyPrefix: 'admin-alerts:verify-test:1',
+    });
+    expect(result).toEqual({ enqueued: 1, duplicates: 0 });
+  });
+
+  it('filters soft-deleted members (members_active view)', () => {
+    seedSubscriber({ memberId: 'mlmem-active',  subStatus: 'subscribed' });
+    seedSubscriber({
+      memberId: 'mlmem-deleted', subStatus: 'subscribed',
+      deletedAt: '2025-06-01T00:00:00.000Z',
+    });
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const result = svc.enqueueMailingListEmail({
+      mailingListSlug:      'admin-alerts',
+      subject:              'T',
+      bodyText:             'B',
+      idempotencyKeyPrefix: 'admin-alerts:soft-delete:1',
+    });
+    expect(result).toEqual({ enqueued: 1, duplicates: 0 });
+  });
+
+  it('returns { 0, 0 } when no subscribers match (no outbox rows written)', () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const result = svc.enqueueMailingListEmail({
+      mailingListSlug:      'admin-alerts',
+      subject:              'T',
+      bodyText:             'B',
+      idempotencyKeyPrefix: 'admin-alerts:empty:1',
+    });
+    expect(result).toEqual({ enqueued: 0, duplicates: 0 });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const count = db.prepare('SELECT COUNT(*) AS n FROM outbox_emails').get() as { n: number };
+    db.close();
+    expect(count.n).toBe(0);
+  });
+
+  it('reports duplicates when re-run with the same idempotency prefix', () => {
+    seedSubscriber({ memberId: 'mlmem-x', subStatus: 'subscribed' });
+    seedSubscriber({ memberId: 'mlmem-y', subStatus: 'subscribed' });
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    const first = svc.enqueueMailingListEmail({
+      mailingListSlug: 'admin-alerts', subject: 'T', bodyText: 'B',
+      idempotencyKeyPrefix: 'admin-alerts:dupe:1',
+    });
+    const second = svc.enqueueMailingListEmail({
+      mailingListSlug: 'admin-alerts', subject: 'T', bodyText: 'B',
+      idempotencyKeyPrefix: 'admin-alerts:dupe:1',
+    });
+    expect(first).toEqual({ enqueued: 2, duplicates: 0 });
+    expect(second).toEqual({ enqueued: 0, duplicates: 2 });
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const count = db.prepare(`
+      SELECT COUNT(*) AS n FROM outbox_emails WHERE mailing_list_id = 'admin-alerts'
+    `).get() as { n: number };
+    db.close();
+    expect(count.n).toBe(2);
+  });
+
+  it('rejects empty input fields with a thrown error', () => {
+    const stub = createStubSesAdapter();
+    const svc = createCommunicationService(stub);
+    expect(() => svc.enqueueMailingListEmail({
+      mailingListSlug: '', subject: 'A', bodyText: 'B', idempotencyKeyPrefix: 'x',
+    })).toThrow();
+    expect(() => svc.enqueueMailingListEmail({
+      mailingListSlug: 'admin-alerts', subject: '', bodyText: 'B', idempotencyKeyPrefix: 'x',
+    })).toThrow();
+    expect(() => svc.enqueueMailingListEmail({
+      mailingListSlug: 'admin-alerts', subject: 'A', bodyText: '', idempotencyKeyPrefix: 'x',
+    })).toThrow();
+    expect(() => svc.enqueueMailingListEmail({
+      mailingListSlug: 'admin-alerts', subject: 'A', bodyText: 'B', idempotencyKeyPrefix: '',
+    })).toThrow();
   });
 });

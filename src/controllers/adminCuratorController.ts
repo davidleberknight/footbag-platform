@@ -1,24 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { logger } from '../config/logger';
+// `getMediaStorageAdapter` is imported here only for the two direct-storage
+// call sites (`generatePresignedPutUrl`, `exists`) used by the async
+// video-upload flow (DD §6.8). Service wiring goes through
+// `getDefaultCuratorMediaService` so the controller does not own
+// adapter selection. Wrapping the two raw-adapter sites in a service
+// method is a follow-up; see deferred remediation queue.
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { getImageProcessingAdapter, ImageProcessingError } from '../adapters/imageProcessingAdapter';
-import { getVideoTranscodingAdapter } from '../adapters/videoTranscodingAdapter';
+import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
-  createCuratorMediaService,
+  getDefaultCuratorMediaService,
   PHOTO_MAX_BYTES,
   VIDEO_MAX_BYTES,
   POSTER_MAX_BYTES,
   isValidCategoryName,
+  buildExternalLinkSlots,
   type CuratorMediaEditInput,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
 import {
   parseExternalLinkInputs,
-  buildExternalLinkSlots,
   parseGalleryMultipart,
-  lazyImageProcessor,
 } from './galleryFormHelpers';
 import { detectImageType } from '../lib/imageProcessing';
 import { getMediaJobService } from '../services/mediaJobService';
@@ -64,21 +68,7 @@ function parseTagsField(raw: string | undefined): string[] {
   return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
 }
 
-function buildSvc(): ReturnType<typeof createCuratorMediaService> {
-  // Lazy adapters: both `getImageProcessingAdapter()` and
-  // `getVideoTranscodingAdapter()` throw "INTERNAL_EVENT_SECRET not
-  // configured" at first resolution if the secret is unset. Pre-
-  // resolving them here used to surface that throw on EVERY route that
-  // builds the service, including read paths (gallery list, browse)
-  // that never reach the image/video workers. The lazyImageProcessor
-  // wrapper defers image-adapter resolution to the actual processAvatar
-  // / processPhoto call; the service does the same for the video
-  // adapter via its internal lazy getter.
-  return createCuratorMediaService({
-    storage: getMediaStorageAdapter(),
-    imageProcessor: lazyImageProcessor(),
-  });
-}
+const buildSvc = getDefaultCuratorMediaService;
 
 // Busboy enforces a single per-file ceiling on the multipart endpoint.
 // In S3-adapter mode the endpoint serves photos + URL-references only
@@ -285,11 +275,7 @@ export const adminCuratorController = {
         externalUrl: fields.externalUrl ?? '',
       };
 
-      const svc = createCuratorMediaService({
-        storage: getMediaStorageAdapter(),
-        imageProcessor: getImageProcessingAdapter(),
-        videoTranscoder: getVideoTranscodingAdapter(),
-      });
+      const svc = getDefaultCuratorMediaService();
       const existingCategories = await svc.listExistingCategories();
 
       if (limitExceeded) {

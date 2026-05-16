@@ -570,3 +570,67 @@ describe('post-verify redirect lands on the wizard', () => {
     expect(res.text).toContain(`href="/members/${OTHER_SLUG}"`);
   });
 });
+
+// ── wizard.start audit entry (SC §MemberOnboardingService invariant) ─────────
+//
+// Every wizard transition emits an audit_entries row. The `start` event
+// fires once per member, the first time the task list materializes; later
+// GETs are idempotent no-ops on the task table and must not duplicate
+// the audit row.
+
+describe('GET /register/wizard/:taskType — wizard.start audit invariant', () => {
+  it('first GET writes exactly one wizard.start audit entry; second GET is a no-op', async () => {
+    const stamp = Date.now() + 200;
+    const memberId = insertMember(testDb, { slug: `wiz_start_${stamp}`, login_email: `wiz-start-${stamp}@example.com` });
+    const cookie = cookieFor(memberId);
+    const app = createApp();
+
+    expect(countAuditEntries(memberId, 'wizard.start')).toBe(0);
+
+    await request(app).get('/register/wizard/legacy_claim').set('Cookie', cookie);
+    expect(countAuditEntries(memberId, 'wizard.start')).toBe(1);
+
+    await request(app).get('/register/wizard/legacy_claim').set('Cookie', cookie);
+    expect(countAuditEntries(memberId, 'wizard.start')).toBe(1);
+  });
+});
+
+// ── Per-IP rate limit on legacy-claim initiate (DD §3.8) ─────────────────────
+//
+// Caps a single source IP across all members it has authenticated as. Silent
+// outcome so an attacker rotating sock-puppet accounts cannot enumerate the
+// cap from response shape. The per-member cap remains a throw (legitimate
+// users own that feedback signal); the per-IP cap is purely defensive.
+
+describe('initiateLegacyClaim — per-IP rate limit', () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let svc: typeof import('../../src/services/identityAccessService').identityAccessService;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let rl: typeof import('../../src/services/rateLimitService');
+
+  beforeAll(async () => {
+    svc = (await import('../../src/services/identityAccessService')).identityAccessService;
+    rl  = await import('../../src/services/rateLimitService');
+  });
+
+  it('11th call from one IP across 11 distinct members returns silent ip_rate_limited', () => {
+    rl.resetRateLimitForTests();
+    const stamp = Date.now() + 300;
+    const SHARED_IP = `203.0.113.${(stamp % 200) + 1}`;
+    const memberIds: string[] = [];
+    for (let i = 0; i < 11; i++) {
+      memberIds.push(insertMember(testDb, {
+        slug:        `wiz_ip_${stamp}_${i}`,
+        login_email: `wiz-ip-${stamp}-${i}@example.com`,
+      }));
+    }
+    // First 10 attempts succeed under the IP cap (each a no_match, anti-enum).
+    for (let i = 0; i < 10; i++) {
+      const outcome = svc.initiateLegacyClaim(memberIds[i], `bogus-id-${stamp}-${i}`, SHARED_IP);
+      expect(outcome.kind).toBe('no_match');
+    }
+    // 11th from a fresh member on the same IP hits the IP cap.
+    const blocked = svc.initiateLegacyClaim(memberIds[10], `bogus-id-${stamp}-10`, SHARED_IP);
+    expect(blocked.kind).toBe('ip_rate_limited');
+  });
+});

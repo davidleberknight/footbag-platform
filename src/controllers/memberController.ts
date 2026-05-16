@@ -1,10 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { memberService, ProfileEditInput } from '../services/memberService';
-import { AVATAR_MAX_BYTES, createAvatarService } from '../services/avatarService';
+import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { getImageProcessingAdapter, ImageProcessingError } from '../adapters/imageProcessingAdapter';
+import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { RateLimitedError, ValidationError, NotFoundError } from '../services/serviceErrors';
@@ -93,7 +92,7 @@ export const memberController = {
 
     // Not HoF/BAP: require auth, then 404.
     if (!req.isAuthenticated) {
-      res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
+      res.redirect(302, `/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
       return;
     }
 
@@ -218,10 +217,7 @@ export const memberController = {
       }
 
       const fileBuffer = Buffer.concat(chunks);
-      const avatarService = createAvatarService({
-        storage: getMediaStorageAdapter(),
-        imageProcessor: getImageProcessingAdapter(),
-      });
+      const avatarService = getDefaultAvatarService();
 
       avatarService.uploadAvatar(memberId, req.user!.slug, fileBuffer, uploadedFilename)
         .then(() => {

@@ -191,12 +191,12 @@ export function createHttpVideoTranscodingAdapter(opts: {
 
 let singleton: VideoTranscodingAdapter | null = null;
 
-export function getVideoTranscodingAdapter(): VideoTranscodingAdapter {
+function resolveSingleton(): VideoTranscodingAdapter {
   if (!singleton) {
     const internalSecret = config.internalEventSecret;
     if (!internalSecret) {
       throw new Error(
-        'INTERNAL_EVENT_SECRET not configured; cannot reach image worker',
+        'INTERNAL_EVENT_SECRET not configured; cannot reach video worker',
       );
     }
     singleton = createHttpVideoTranscodingAdapter({
@@ -207,6 +207,19 @@ export function getVideoTranscodingAdapter(): VideoTranscodingAdapter {
     });
   }
   return singleton;
+}
+
+// Lazy proxy: same rationale as `getImageProcessingAdapter`. The getter
+// returns a thin adapter object whose methods defer underlying singleton
+// resolution (and the INTERNAL_EVENT_SECRET check) to the first transcode
+// call. Read paths that never invoke a transcode method must not trigger
+// resolution.
+export function getVideoTranscodingAdapter(): VideoTranscodingAdapter {
+  return {
+    transcode: (data) => resolveSingleton().transcode(data),
+    transcodeFromStorage: (sourceKey, outputKey) =>
+      resolveSingleton().transcodeFromStorage(sourceKey, outputKey),
+  };
 }
 
 export function setVideoTranscodingAdapterForTests(adapter: VideoTranscodingAdapter): void {

@@ -23,10 +23,8 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
-import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
-import { createCuratorMediaService } from '../services/curatorMediaService';
+import { getDefaultCuratorMediaService } from '../services/curatorMediaService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
-import { lazyImageProcessor } from './galleryFormHelpers';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
 function isOwnRoute(req: Request): boolean {
@@ -52,14 +50,7 @@ function parseTagsField(raw: string | undefined): string[] {
   return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
 }
 
-function buildSvc(): ReturnType<typeof createCuratorMediaService> {
-  // Lazy image adapter: the per-item edit form never re-encodes bytes,
-  // so the worker secret stays unresolved. Mirrors memberGalleryController.
-  return createCuratorMediaService({
-    storage: getMediaStorageAdapter(),
-    imageProcessor: lazyImageProcessor(),
-  });
-}
+const buildSvc = getDefaultCuratorMediaService;
 
 interface FormValues {
   caption: string;

@@ -96,7 +96,7 @@ export function createHttpImageAdapter(opts: {
 
 let singleton: ImageProcessingAdapter | null = null;
 
-export function getImageProcessingAdapter(): ImageProcessingAdapter {
+function resolveSingleton(): ImageProcessingAdapter {
   if (!singleton) {
     const internalSecret = config.internalEventSecret;
     if (!internalSecret) {
@@ -111,6 +111,19 @@ export function getImageProcessingAdapter(): ImageProcessingAdapter {
     });
   }
   return singleton;
+}
+
+// Lazy proxy: resolution of the underlying singleton (and the
+// INTERNAL_EVENT_SECRET fail-fast check) is deferred to the first
+// process call. Read paths (gallery list, browse pages) that build a
+// service depending on this adapter but never invoke a process method
+// must succeed even when the secret is absent, so getting the adapter
+// must not throw.
+export function getImageProcessingAdapter(): ImageProcessingAdapter {
+  return {
+    processAvatar: (data) => resolveSingleton().processAvatar(data),
+    processPhoto: (data) => resolveSingleton().processPhoto(data),
+  };
 }
 
 export function setImageProcessingAdapterForTests(adapter: ImageProcessingAdapter): void {

@@ -194,4 +194,73 @@ describe('runBatchAutoLink — classifier-driven work-queue emission', () => {
       skipped_error:          expect.any(Number),
     });
   });
+
+  it('admin-alerts fan-out: each new auto-link match enqueues one outbox row per subscribed admin', async () => {
+    // M2 per US §198: each work_queue insert produces an admin-alerts email
+    // containing only task_type + entity_id.
+    const ADMIN_SUBSCRIBER_ID = 'bal-admin-sub';
+    const setupDb = new BetterSqlite3(dbPath);
+    insertMember(setupDb, {
+      id:           ADMIN_SUBSCRIBER_ID,
+      slug:         'bal_admin_sub',
+      display_name: 'Auto-Link Admin Subscriber',
+      login_email:  'bal-admin-sub@example.com',
+      is_admin:     1,
+    });
+    setupDb.prepare(`
+      INSERT INTO mailing_list_subscriptions (
+        id, created_at, created_by, updated_at, updated_by, version,
+        mailing_list_id, member_id, status, status_updated_at
+      ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, 'subscribed', ?)
+    `).run(
+      `mls-${ADMIN_SUBSCRIBER_ID}`,
+      '2025-01-01T00:00:00.000Z',
+      '2025-01-01T00:00:00.000Z',
+      ADMIN_SUBSCRIBER_ID,
+      '2025-01-01T00:00:00.000Z',
+    );
+
+    // Fresh Tier 1 candidate so older test candidates (already-queued) don't
+    // confuse the fan-out assertion.
+    const email = nextEmail();
+    insertLegacyMember(setupDb, {
+      legacy_member_id: 'bal-fanout-leg',
+      legacy_email:     email,
+      real_name:        'Fanout Tester',
+    });
+    insertHistoricalPerson(setupDb, {
+      person_id:        'bal-fanout-hp',
+      person_name:      'Fanout Tester',
+      legacy_member_id: 'bal-fanout-leg',
+    });
+    const memberId = insertMember(setupDb, {
+      id:          'bal-fanout-mem',
+      slug:        'bal_fanout_mem',
+      login_email: email,
+      real_name:   'Fanout Tester',
+      display_name: 'Fanout Tester',
+    });
+    setupDb.close();
+
+    await ops.operationsPlatformService.runBatchAutoLink();
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const outboxRow = db.prepare(`
+      SELECT recipient_member_id, recipient_email, mailing_list_id, subject, body_text, idempotency_key
+      FROM outbox_emails
+      WHERE idempotency_key = ?
+    `).get(`admin-alerts:auto_link_match:${memberId}:${ADMIN_SUBSCRIBER_ID}`) as
+      | Record<string, unknown>
+      | undefined;
+    db.close();
+    expect(outboxRow).toBeDefined();
+    expect(outboxRow!.recipient_member_id).toBe(ADMIN_SUBSCRIBER_ID);
+    expect(outboxRow!.recipient_email).toBe('bal-admin-sub@example.com');
+    expect(outboxRow!.mailing_list_id).toBe('admin-alerts');
+    expect(outboxRow!.subject).toBe('New admin queue item: auto_link_match');
+    expect(outboxRow!.body_text).toBe(`Task type: auto_link_match\nEntity ID: ${memberId}`);
+    // No sensitive member data per US §198.
+    expect(outboxRow!.body_text).not.toContain(email);
+    expect(outboxRow!.body_text).not.toContain('Fanout Tester');
+  });
 });

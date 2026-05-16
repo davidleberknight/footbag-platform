@@ -40,27 +40,37 @@ export function writeFlash(
   });
 }
 
+const FLASH_KIND_VALUES = new Set<string>(Object.values(FLASH_KIND));
+
 export function readFlash(
   req: Request,
-): { kind: string; payload: string | null } | null {
+): { kind: FlashKind; payload: string | null } | null {
   const raw = req.signedCookies?.[FLASH_COOKIE];
   if (typeof raw !== 'string' || raw.length === 0) return null;
   const colonIdx = raw.indexOf(':');
-  if (colonIdx === -1) return { kind: raw, payload: null };
-  return { kind: raw.slice(0, colonIdx), payload: raw.slice(colonIdx + 1) };
+  const kind = colonIdx === -1 ? raw : raw.slice(0, colonIdx);
+  // Defense-in-depth: cookie-parser already rejects tampered signatures,
+  // so a `kind` arriving here was server-issued at some point. Whitelisting
+  // against FLASH_KIND still drops orphaned values from older deploys (a
+  // removed kind, a renamed kind) so the consumer never sees an unknown
+  // discriminator.
+  if (!FLASH_KIND_VALUES.has(kind)) return null;
+  const payload = colonIdx === -1 ? null : raw.slice(colonIdx + 1);
+  return { kind: kind as FlashKind, payload };
 }
 
-export function clearFlash(res: Response): void {
-  // RFC 6265-strict browsers may require the clear cookie's attributes
+export function clearFlash(res: Response, req?: Request): void {
+  // RFC 6265-strict browsers require the clear cookie's attributes
   // (path, httpOnly, sameSite, secure) to match the set; pass the same
   // shape as writeFlash above so the clear is honored everywhere. `secure`
-  // is derived from the response's request context: we do not have direct
-  // access to req here, so use the same conservative posture as writeFlash
-  // uses (sameSite Lax, httpOnly, path /). The signed-cookie machinery
-  // does not require `secure` to match for the clear to take effect.
+  // is derived from the request context when available so the clear matches
+  // the cookie that was set; when req is omitted (legacy callers) we fall
+  // back to the same conservative posture as before.
+  const secure = req ? Boolean(req.secure || req.headers['x-forwarded-proto'] === 'https') : false;
   res.clearCookie(FLASH_COOKIE, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
+    secure,
   });
 }

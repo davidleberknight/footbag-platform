@@ -707,7 +707,7 @@ Deceased members are excluded from this operational roster because US `A_Mark_Me
 
 #### Display name and slug
 
-`display_name` and the derived slug are permanent post-registration. The `display_name` surname constraint (must share surname with `real_name`, suffix-stripped) is application-enforced at registration; imported placeholders are exempt.
+`display_name` and the derived slug are permanent post-registration. The `display_name` surname constraint (must share surname with `real_name`, suffix-stripped) is application-enforced at registration; imported `legacy_members` rows are exempt.
 
 #### Stripe identity
 `stripe_customer_id` is the member-level canonical Stripe Customer ID (set when a recurring donation is first created). `payments.stripe_customer_id` is a per-payment snapshot and is **not** the canonical ID.
@@ -746,7 +746,7 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 `ON DELETE SET NULL`: deleting a media item automatically detaches it as the member's avatar without requiring a before-delete trigger.
 
 #### `members_searchable` view
-**The member search endpoint MUST query this view.** It applies five exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, and unverified (`email_verified_at IS NULL`). The `email_verified_at IS NULL` condition is the primary mechanism preventing imported placeholder rows from appearing in search results; `searchable = 0` is defense-in-depth. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
+**The member search endpoint MUST query this view.** It applies five exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, and unverified (`email_verified_at IS NULL`). The `email_verified_at IS NULL` condition is the primary mechanism preventing imported `legacy_members` rows from appearing in search results; `searchable = 0` is defense-in-depth. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
 
 `searchable = 1` means the member is **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on public historical-person pages. Member search is authenticated Tier 0+, anti-enumeration, and never public.
 
@@ -1069,6 +1069,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `payment_retention_days` | `2555` | Payment record compliance retention (~7 years) |
 | `password_reset_expiry_hours` | `1` | Password reset token TTL (hours) |
 | `email_verify_expiry_hours` | `24` | Email verification token TTL (hours) |
+| `account_claim_expiry_hours` | `24` | Legacy account claim token TTL (hours); per `M_Claim_Legacy_Account` |
 | `active_player_duration_days` | `730` | Active Player grant duration in days (IFPA-rule-derived) |
 | `active_player_expiry_reminder_days_1` | `30` | First Active Player expiry reminder offset (days before expiry) |
 | `active_player_expiry_reminder_days_2` | `7` | Second Active Player expiry reminder offset (days before expiry) |
@@ -1168,7 +1169,7 @@ Uniqueness is enforced via two partial unique indexes rather than a single UNIQU
 May be dropped once all affiliation suggestions are resolved.
 
 #### `club_bootstrap_leaders` — operational, migration-origin
-Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives deletion of the imported placeholder row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives the lifecycle of the imported `legacy_members` row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
 
 ### 4.26 Name-matching utilities
 
@@ -1231,7 +1232,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 
 | View | Filter | Use case |
 |------|--------|----------|
-| `members_searchable` | `deleted_at IS NULL AND is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL AND email_verified_at IS NOT NULL` | **Member search endpoint only.** Applies five exclusion conditions; `email_verified_at IS NULL` is the primary guard against imported legacy placeholder rows. |
+| `members_searchable` | `deleted_at IS NULL AND is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL AND email_verified_at IS NOT NULL` | **Member search endpoint only.** Applies five exclusion conditions; `email_verified_at IS NULL` is the primary guard against imported `legacy_members` rows being surfaced. |
 
 ### Admin full-rowset views
 

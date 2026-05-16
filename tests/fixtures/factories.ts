@@ -365,13 +365,13 @@ export function insertResultParticipant(
   db: BetterSqlite3.Database,
   resultEntryId: string,
   displayName: string,
-  o: { id?: string; participant_order?: number; historical_person_id?: string | null } = {},
+  o: { id?: string; participant_order?: number; historical_person_id?: string | null; member_id?: string | null } = {},
 ): string {
   const id = o.id ?? `part-test-${uid()}`;
   db.prepare(`
-    INSERT INTO event_result_entry_participants (id, result_entry_id, participant_order, display_name, historical_person_id, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(id, resultEntryId, o.participant_order ?? 1, displayName, o.historical_person_id ?? null, TS, SYS, TS, SYS);
+    INSERT INTO event_result_entry_participants (id, result_entry_id, participant_order, display_name, historical_person_id, member_id, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `).run(id, resultEntryId, o.participant_order ?? 1, displayName, o.historical_person_id ?? null, o.member_id ?? null, TS, SYS, TS, SYS);
   return id;
 }
 
@@ -470,6 +470,28 @@ export interface LegacyClubCandidateOverrides {
   display_name?: string;
   mapped_club_id?: string | null;
   classification?: LegacyClubCandidateClassification;
+  confidence_score?: number | null;
+  bootstrap_eligible?: 0 | 1;
+  // TEMP-DEVIATION: club-classification QC panel evidence fields.
+  r1?: 0 | 1;
+  r2?: 0 | 1;
+  r3?: 0 | 1;
+  r4?: 0 | 1;
+  r5?: 0 | 1;
+  r6?: 0 | 1;
+  r7?: 0 | 1;
+  r8?: 0 | 1;
+  r9?: 0 | 1;
+  r10?: 0 | 1;
+  contact_signal_substitute_applied?: 0 | 1;
+  last_hosted_year?: number | null;
+  max_affiliated_member_last_year?: number | null;
+  contact_member_last_year?: number | null;
+  created_year?: number | null;
+  last_updated_year?: number | null;
+  unique_member_names?: number | null;
+  linkable_member_count?: number | null;
+  ever_hosted?: 0 | 1;
 }
 
 export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyClubCandidateOverrides = {}): string {
@@ -477,14 +499,42 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
   db.prepare(`
     INSERT INTO legacy_club_candidates (
       id, legacy_club_key, display_name, mapped_club_id, classification,
+      confidence_score, bootstrap_eligible,
+      r1, r2, r3, r4, r5, r6, r7, r8, r9, r10,
+      contact_signal_substitute_applied,
+      last_hosted_year, max_affiliated_member_last_year, contact_member_last_year,
+      created_year, last_updated_year, unique_member_names, linkable_member_count,
+      ever_hosted,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (
+      ?, ?, ?, ?, ?,
+      ?, ?,
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+      ?,
+      ?, ?, ?,
+      ?, ?, ?, ?,
+      ?,
+      ?, ?, ?, ?, 1
+    )
   `).run(
     id,
     o.legacy_club_key ?? `legacy_club_${uid()}`,
     o.display_name    ?? 'Test Club',
     o.mapped_club_id  !== undefined ? o.mapped_club_id : null,
     o.classification  ?? 'junk',
+    o.confidence_score !== undefined ? o.confidence_score : null,
+    o.bootstrap_eligible ?? 0,
+    o.r1 ?? 0, o.r2 ?? 0, o.r3 ?? 0, o.r4 ?? 0, o.r5 ?? 0,
+    o.r6 ?? 0, o.r7 ?? 0, o.r8 ?? 0, o.r9 ?? 0, o.r10 ?? 0,
+    o.contact_signal_substitute_applied ?? 0,
+    o.last_hosted_year !== undefined ? o.last_hosted_year : null,
+    o.max_affiliated_member_last_year !== undefined ? o.max_affiliated_member_last_year : null,
+    o.contact_member_last_year !== undefined ? o.contact_member_last_year : null,
+    o.created_year !== undefined ? o.created_year : null,
+    o.last_updated_year !== undefined ? o.last_updated_year : null,
+    o.unique_member_names !== undefined ? o.unique_member_names : null,
+    o.linkable_member_count !== undefined ? o.linkable_member_count : null,
+    o.ever_hosted ?? 0,
     TS, SYS, TS, SYS,
   );
   return id;

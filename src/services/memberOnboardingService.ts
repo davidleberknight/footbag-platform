@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { memberOnboarding, type MemberOnboardingTaskRow } from '../db/db';
+import { memberOnboarding, transaction, type MemberOnboardingTaskRow } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { memberService } from './memberService';
 import { identityAccessService } from './identityAccessService';
@@ -101,11 +101,28 @@ function getTaskWidget(memberId: string): OnboardingTaskView[] {
 
 function startTaskList(memberId: string): void {
   const now = new Date().toISOString();
+  let inserted = 0;
   for (const taskType of TASK_CATALOG) {
-    memberOnboarding.insertTaskIfMissing.run(
+    const result = memberOnboarding.insertTaskIfMissing.run(
       newTaskId(), now, 'onboarding_service', now, 'onboarding_service',
       memberId, taskType,
     );
+    inserted += result.changes;
+  }
+  // Audit invariant (SC §MemberOnboardingService): every wizard transition
+  // emits an audit_entries row. `start` is logged ONCE per member — the
+  // first time the task list is materialized — so idempotent re-calls from
+  // subsequent GETs do not flood the audit log.
+  if (inserted > 0) {
+    appendAuditEntry({
+      actionType:    'wizard.start',
+      category:      'onboarding',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'member',
+      entityId:      memberId,
+      metadata: { tasks_inserted: inserted },
+    });
   }
 }
 
@@ -146,11 +163,32 @@ export type WizardFlash =
     }
   | { kind: 'WIZARD_AUTO_LINK_DRIFT' };
 
-export type WizardActionResult =
-  | { kind: 'advance'; nextTaskType: OnboardingTaskType | null }
-  | { kind: 'retry_same'; flash: WizardFlash | null }
-  | { kind: 'validation_error'; formState: unknown; message: string }
-  | { kind: 'rate_limited'; retryAfterSeconds: number };
+// Per-method `formState` shapes carried in the `validation_error` arm
+// of `WizardActionResult`. Each shape is typed-per-method so controllers
+// pass through to the template without `as` casts. DD §5.2 (Service
+// action-result shape) requires this for every state-changing service
+// method that can return `validation_error`.
+
+export type LegacyClaimSubmitFormState = { identifier: string };
+export type LegacyClaimAutoLinkConfirmFormState =
+  | { personId: string; personName: string; confidence: 'high' | 'medium' }
+  | null;
+export type LegacyClaimTokenConfirmFormState = null;
+export type FirstCompetitionYearFormState = { yearValue: string };
+export type ShowCompetitiveResultsFormState = { enabled: boolean };
+
+// Per-arm types so the discriminant union's non-formState arms can be
+// returned from helpers (e.g. advanceAfter) without binding to a
+// specific TFormState parameter.
+export type WizardAdvanceArm = { kind: 'advance'; nextTaskType: OnboardingTaskType | null };
+export type WizardRetrySameArm = { kind: 'retry_same'; flash: WizardFlash | null };
+export type WizardRateLimitedArm = { kind: 'rate_limited'; retryAfterSeconds: number };
+
+export type WizardActionResult<TFormState = unknown> =
+  | WizardAdvanceArm
+  | WizardRetrySameArm
+  | { kind: 'validation_error'; formState: TFormState; message: string }
+  | WizardRateLimitedArm;
 
 function nextTaskAfter(
   memberId: string,
@@ -167,7 +205,7 @@ function nextTaskAfter(
 function advanceAfter(
   memberId: string,
   currentTaskType: OnboardingTaskType,
-): WizardActionResult {
+): WizardAdvanceArm {
   startTaskList(memberId);
   return { kind: 'advance', nextTaskType: nextTaskAfter(memberId, currentTaskType) };
 }
@@ -180,7 +218,8 @@ function captureSinceIndex(): number | null {
 async function processLegacyClaimSubmit(
   memberId: string,
   identifier: string,
-): Promise<WizardActionResult> {
+  ip: string,
+): Promise<WizardActionResult<LegacyClaimSubmitFormState>> {
   if (!identifier) {
     return {
       kind: 'validation_error',
@@ -190,7 +229,7 @@ async function processLegacyClaimSubmit(
   }
   const sinceIndex = captureSinceIndex();
   try {
-    const outcome = identityAccessService.initiateLegacyClaim(memberId, identifier);
+    const outcome = identityAccessService.initiateLegacyClaim(memberId, identifier, ip);
     if (outcome.kind === 'auto_linked') {
       completeTask(memberId, 'legacy_claim');
       return advanceAfter(memberId, 'legacy_claim');
@@ -234,7 +273,7 @@ async function processLegacyClaimSubmit(
 function processLegacyClaimAutoLinkConfirm(
   memberId: string,
   personId: string,
-): WizardActionResult {
+): WizardActionResult<LegacyClaimAutoLinkConfirmFormState> {
   if (!personId) {
     return {
       kind: 'validation_error',
@@ -250,8 +289,13 @@ function processLegacyClaimAutoLinkConfirm(
     return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
   }
   try {
-    identityAccessService.claimHistoricalPerson(memberId, personId);
-    completeTask(memberId, 'legacy_claim');
+    // SC §LegacyClaim atomicity: the merge AND the wizard task transition
+    // run in one transaction so a partial-failure window cannot leave the
+    // member claimed but the task still pending.
+    transaction(() => {
+      identityAccessService.claimHistoricalPersonInTx(memberId, personId);
+      completeTask(memberId, 'legacy_claim');
+    });
     return advanceAfter(memberId, 'legacy_claim');
   } catch (err) {
     if (err instanceof ValidationError) {
@@ -272,13 +316,17 @@ function processLegacyClaimAutoLinkConfirm(
 function processLegacyClaimTokenConfirm(
   memberId: string,
   token: string,
-): WizardActionResult {
+): WizardActionResult<LegacyClaimTokenConfirmFormState> {
   if (!token) {
     return { kind: 'validation_error', formState: null, message: '' };
   }
   try {
-    identityAccessService.consumeAndClaimLegacy(memberId, token);
-    completeTask(memberId, 'legacy_claim');
+    // SC §LegacyClaim atomicity: the token consume, the merge, AND the
+    // wizard task transition run in one transaction.
+    transaction(() => {
+      identityAccessService.consumeAndClaimLegacyInTx(memberId, token);
+      completeTask(memberId, 'legacy_claim');
+    });
     return advanceAfter(memberId, 'legacy_claim');
   } catch (err) {
     if (err instanceof ValidationError) {
@@ -291,7 +339,7 @@ function processLegacyClaimTokenConfirm(
 function processFirstCompetitionYearSubmit(
   memberId: string,
   rawYear: string,
-): WizardActionResult {
+): WizardActionResult<FirstCompetitionYearFormState> {
   try {
     submitTaskResponse(memberId, 'first_competition_year', { year: rawYear });
     return advanceAfter(memberId, 'first_competition_year');
@@ -310,7 +358,7 @@ function processFirstCompetitionYearSubmit(
 function processShowCompetitiveResultsSubmit(
   memberId: string,
   rawEnabled: unknown,
-): WizardActionResult {
+): WizardActionResult<ShowCompetitiveResultsFormState> {
   try {
     submitTaskResponse(memberId, 'show_competitive_results', { enabled: rawEnabled });
     return advanceAfter(memberId, 'show_competitive_results');

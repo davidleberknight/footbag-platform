@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { outbox, type OutboxRow } from '../db/db';
+import { outbox, mailingListSubscriptions, type OutboxRow } from '../db/db';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { readIntConfig } from './configReader';
@@ -22,6 +22,18 @@ export interface EnqueueResult {
   status: 'enqueued' | 'duplicate';
 }
 
+export interface EnqueueMailingListEmailInput {
+  mailingListSlug: string;
+  subject: string;
+  bodyText: string;
+  idempotencyKeyPrefix: string;
+}
+
+export interface MailingListEnqueueResult {
+  enqueued: number;
+  duplicates: number;
+}
+
 export interface ProcessBatchResult {
   claimed: number;
   sent: number;
@@ -32,6 +44,7 @@ export interface ProcessBatchResult {
 
 export interface CommunicationService {
   enqueueEmail(input: EnqueueEmailInput): EnqueueResult;
+  enqueueMailingListEmail(input: EnqueueMailingListEmailInput): MailingListEnqueueResult;
   processSendQueue(opts?: { limit?: number }): Promise<ProcessBatchResult>;
 }
 
@@ -40,7 +53,7 @@ export function createCommunicationService(
 ): CommunicationService {
   const defaultFrom = config.sesFromIdentity;
 
-  return {
+  const service: CommunicationService = {
     enqueueEmail(input) {
       if (!input.recipientEmail) {
         throw new ValidationError('recipientEmail is required.');
@@ -84,6 +97,42 @@ export function createCommunicationService(
         }
         throw err;
       }
+    },
+
+    enqueueMailingListEmail(input) {
+      if (!input.mailingListSlug) {
+        throw new ValidationError('mailingListSlug is required.');
+      }
+      if (!input.subject || !input.bodyText) {
+        throw new ValidationError('subject and bodyText are required.');
+      }
+      if (!input.idempotencyKeyPrefix) {
+        throw new ValidationError('idempotencyKeyPrefix is required.');
+      }
+      const subscribers = mailingListSubscriptions.listActiveSubscribersBySlug.all(
+        input.mailingListSlug,
+      ) as Array<{ member_id: string; login_email: string; mailing_list_id: string }>;
+      if (subscribers.length === 0) {
+        logger.info('mailing list has no active subscribers', {
+          mailingListSlug: input.mailingListSlug,
+        });
+        return { enqueued: 0, duplicates: 0 };
+      }
+      let enqueued = 0;
+      let duplicates = 0;
+      for (const sub of subscribers) {
+        const result = service.enqueueEmail({
+          recipientEmail: sub.login_email,
+          recipientMemberId: sub.member_id,
+          mailingListId: sub.mailing_list_id,
+          subject: input.subject,
+          bodyText: input.bodyText,
+          idempotencyKey: `${input.idempotencyKeyPrefix}:${sub.member_id}`,
+        });
+        if (result.status === 'duplicate') duplicates += 1;
+        else enqueued += 1;
+      }
+      return { enqueued, duplicates };
     },
 
     async processSendQueue(opts = {}) {
@@ -156,6 +205,8 @@ export function createCommunicationService(
       return result;
     },
   };
+
+  return service;
 }
 
 let singleton: CommunicationService | null = null;

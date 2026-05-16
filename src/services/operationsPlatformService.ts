@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { health, systemJobRuns, workQueue, batchAutoLink } from '../db/db';
+import { health, systemJobRuns, workQueue, batchAutoLink, transaction } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
 import { readIntConfig } from './configReader';
@@ -226,18 +226,28 @@ export class OperationsPlatformService {
           continue;
         }
         const id = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-        workQueue.insertItem.run(
-          id,
-          nowIso, 'system',
-          nowIso, 'system',
-          'membership',
-          'auto_link_match',
-          'member',
-          c.id,
-          confidence === 'high' ? 10 : 5,
-          nowIso,
-          `Batch auto-link match (${confidence})`,
-        );
+        // Per DD §5.4 + US §198: work_queue insert and admin-alerts fan-out
+        // commit together.
+        transaction(() => {
+          workQueue.insertItem.run(
+            id,
+            nowIso, 'system',
+            nowIso, 'system',
+            'membership',
+            'auto_link_match',
+            'member',
+            c.id,
+            confidence === 'high' ? 10 : 5,
+            nowIso,
+            `Batch auto-link match (${confidence})`,
+          );
+          getCommunicationService().enqueueMailingListEmail({
+            mailingListSlug:      'admin-alerts',
+            subject:              `New admin queue item: auto_link_match`,
+            bodyText:             `Task type: auto_link_match\nEntity ID: ${c.id}`,
+            idempotencyKeyPrefix: `admin-alerts:auto_link_match:${c.id}`,
+          });
+        });
         if (confidence === 'high') result.queued_high += 1;
         else if (confidence === 'medium') result.queued_medium += 1;
       }

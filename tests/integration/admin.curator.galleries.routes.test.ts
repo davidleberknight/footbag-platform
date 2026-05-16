@@ -183,24 +183,31 @@ describe('GET /admin/curator/galleries', () => {
   // read-only ones, blew up). The test fixture sets the secret so the
   // failure mode was invisible to the suite — this regression spies on
   // both factories so a re-introduction surfaces immediately.
-  it('does not resolve the video or image worker adapter on a read-only gallery list', async () => {
+  it('does not invoke the video or image worker adapter on a read-only gallery list', async () => {
     const videoMod = await import('../../src/adapters/videoTranscodingAdapter');
     const imageMod = await import('../../src/adapters/imageProcessingAdapter');
-    const videoSpy = vi.spyOn(videoMod, 'getVideoTranscodingAdapter')
-      .mockImplementation(() => {
-        throw new Error('regression: video adapter resolved on /admin/curator/galleries');
-      });
-    const imageSpy = vi.spyOn(imageMod, 'getImageProcessingAdapter')
-      .mockImplementation(() => {
-        throw new Error('regression: image adapter resolved on /admin/curator/galleries');
-      });
+    const fail = (label: string) => () => {
+      throw new Error(`regression: ${label} on /admin/curator/galleries`);
+    };
+    const videoTranscode = vi.fn(fail('video transcode invoked'));
+    const imageProcessAvatar = vi.fn(fail('image processAvatar invoked'));
+    const imageProcessPhoto = vi.fn(fail('image processPhoto invoked'));
+    const videoSpy = vi.spyOn(videoMod, 'getVideoTranscodingAdapter').mockImplementation(() => ({
+      transcode: videoTranscode,
+      transcodeFromStorage: vi.fn(fail('video transcodeFromStorage invoked')),
+    }));
+    const imageSpy = vi.spyOn(imageMod, 'getImageProcessingAdapter').mockImplementation(() => ({
+      processAvatar: imageProcessAvatar,
+      processPhoto: imageProcessPhoto,
+    }));
     try {
       const res = await request(createApp())
         .get('/admin/curator/galleries')
         .set('Cookie', adminCookie());
       expect(res.status).toBe(200);
-      expect(videoSpy).not.toHaveBeenCalled();
-      expect(imageSpy).not.toHaveBeenCalled();
+      expect(videoTranscode).not.toHaveBeenCalled();
+      expect(imageProcessAvatar).not.toHaveBeenCalled();
+      expect(imageProcessPhoto).not.toHaveBeenCalled();
     } finally {
       videoSpy.mockRestore();
       imageSpy.mockRestore();

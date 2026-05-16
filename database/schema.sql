@@ -2665,6 +2665,10 @@ VALUES
 --   password_change_rate_limit_window_minutes Window for password-change rate limiting
 --   verify_resend_rate_limit_max_attempts  Max verify-email resend requests per email per window
 --   verify_resend_rate_limit_window_minutes Window for verify-email resend rate limiting
+--   legacy_claim_init_rate_limit_max_per_member  Max legacy-claim initiate attempts per requesting member per window
+--   legacy_claim_init_rate_limit_max_per_target  Max legacy-claim emails per target legacy_member_id per window (silent)
+--   legacy_claim_init_rate_limit_max_per_ip      Max legacy-claim initiate attempts per source IP per window (silent)
+--   legacy_claim_init_rate_limit_window_minutes  Sliding window for legacy-claim initiate rate limiting
 --   jwt_expiry_hours                Main site session JWT lifetime (hours)
 --   photo_upload_rate_limit_per_hour Max photo uploads per member per hour
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
@@ -2900,6 +2904,42 @@ VALUES
    'verify_resend_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
    'Sliding window in minutes for counting verify-email resend requests per email (default: 60).',
+   NULL
+  ),
+
+  (
+   'seed-legacy-claim-init-rate-limit-max-per-member',
+   '2000-01-01T00:00:00.000Z',
+   'legacy_claim_init_rate_limit_max_per_member', '5',
+   '2000-01-01T00:00:00.000Z',
+   'Max legacy-claim initiate attempts per requesting member per window (default: 5).',
+   NULL
+  ),
+
+  (
+   'seed-legacy-claim-init-rate-limit-max-per-target',
+   '2000-01-01T00:00:00.000Z',
+   'legacy_claim_init_rate_limit_max_per_target', '3',
+   '2000-01-01T00:00:00.000Z',
+   'Max legacy-claim emails sent to one target legacy_member_id per window (default: 3); silent outcome on cap.',
+   NULL
+  ),
+
+  (
+   'seed-legacy-claim-init-rate-limit-max-per-ip',
+   '2000-01-01T00:00:00.000Z',
+   'legacy_claim_init_rate_limit_max_per_ip', '10',
+   '2000-01-01T00:00:00.000Z',
+   'Max legacy-claim initiate attempts per source IP per window (default: 10); silent outcome on cap.',
+   NULL
+  ),
+
+  (
+   'seed-legacy-claim-init-rate-limit-window-minutes',
+   '2000-01-01T00:00:00.000Z',
+   'legacy_claim_init_rate_limit_window_minutes', '60',
+   '2000-01-01T00:00:00.000Z',
+   'Sliding window in minutes for legacy-claim initiate rate limiting (default: 60).',
    NULL
   ),
 
@@ -3228,7 +3268,35 @@ CREATE TABLE legacy_club_candidates (
   confidence_score REAL,
   mapped_club_id   TEXT REFERENCES clubs(id),
   bootstrap_eligible INTEGER NOT NULL DEFAULT 0 CHECK (bootstrap_eligible IN (0,1)),
-  classification     TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk'))
+  classification     TEXT NOT NULL CHECK (classification IN ('pre_populate','onboarding_visible','dormant','junk')),
+
+  -- TEMP-DEVIATION: club-classification QC panel. Rule firings (R1-R10) +
+  -- substitute flag + rule inputs, written by Phase G from
+  -- 02_build_legacy_club_candidates.py output. Surfaces in the dev+staging
+  -- QC panel on /clubs/:key. Remove when A_Review_Club_Cleanup_Signals
+  -- admin queue ships and absorbs classifier-evidence audit.
+  r1  INTEGER NOT NULL DEFAULT 0 CHECK (r1  IN (0,1)),
+  r2  INTEGER NOT NULL DEFAULT 0 CHECK (r2  IN (0,1)),
+  r3  INTEGER NOT NULL DEFAULT 0 CHECK (r3  IN (0,1)),
+  r4  INTEGER NOT NULL DEFAULT 0 CHECK (r4  IN (0,1)),
+  r5  INTEGER NOT NULL DEFAULT 0 CHECK (r5  IN (0,1)),
+  r6  INTEGER NOT NULL DEFAULT 0 CHECK (r6  IN (0,1)),
+  r7  INTEGER NOT NULL DEFAULT 0 CHECK (r7  IN (0,1)),
+  r8  INTEGER NOT NULL DEFAULT 0 CHECK (r8  IN (0,1)),
+  r9  INTEGER NOT NULL DEFAULT 0 CHECK (r9  IN (0,1)),
+  r10 INTEGER NOT NULL DEFAULT 0 CHECK (r10 IN (0,1)),
+  contact_signal_substitute_applied INTEGER NOT NULL DEFAULT 0
+    CHECK (contact_signal_substitute_applied IN (0,1)),
+
+  -- Rule inputs (years and counts). NULL when the underlying mirror data is absent.
+  last_hosted_year                INTEGER,
+  max_affiliated_member_last_year INTEGER,
+  contact_member_last_year        INTEGER,
+  created_year                    INTEGER,
+  last_updated_year               INTEGER,
+  unique_member_names             INTEGER,
+  linkable_member_count           INTEGER,
+  ever_hosted INTEGER NOT NULL DEFAULT 0 CHECK (ever_hosted IN (0,1))
 );
 
 CREATE UNIQUE INDEX ux_legacy_club_candidates_key

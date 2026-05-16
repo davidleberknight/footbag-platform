@@ -18,7 +18,7 @@ import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
 function isSafePath(value: unknown): value is string {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') && !value.includes('\\');
 }
 
 function getLogin(req: Request, res: Response): void {

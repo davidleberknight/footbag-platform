@@ -480,7 +480,7 @@ Success Criteria:
 - Registration submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read; identical UX whether the email is new, in deletion grace, or already registered.
 - Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
 - New members automatically assigned Tier 0 (free lifetime) status.
-- **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported placeholder row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (Tier 1 exact name match, Tier 2 known variant match), the prompt defaults to yes (pre-checked). For low-confidence matches (Tier 3 email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
+- **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported `legacy_members` row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (Tier 1 exact name match, Tier 2 known variant match), the prompt defaults to yes (pre-checked). For low-confidence matches (Tier 3 email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
 - **Post-verify onboarding:** After email verification, the member is routed to `M_Complete_Onboarding_Wizard` (see MIGRATION_PLAN §10) with applicable outstanding tasks. The wizard owns the club affiliation flow (per MIGRATION_PLAN §9.3 Stages 1A, 1B, 2A, 2B, 3A, 3B) and the optional metadata tasks (`first_competition_year`, `show_competitive_results`). Registration itself does not block on these tasks; they are skippable and resumable from the dashboard task widget.
 - Member sees a clear success message after registration: "Registration successful! Please check your email to verify your account."
 - Member sees clear error messages for validation failures with hints about what to fix.
@@ -523,7 +523,7 @@ Success Criteria:
 
 - On successful registration the system enqueues a verification email containing a unique single-use link with an Administrator-configurable TTL (default: 24 hours). The registration response does not include a session cookie; the visitor lands on a generic "check your email" page.
 - The verify link is a single-use, unguessable token stored hashed at rest (SHA-256); the raw token is never persisted.
-- Opening the verify link marks the member's email as verified, issues the authenticated session (HttpOnly, Secure, SameSite=Lax cookie), and redirects to the member dashboard, or to the legacy-link check when the member's email matches an imported placeholder or historical-person record.
+- Opening the verify link marks the member's email as verified, issues the authenticated session (HttpOnly, Secure, SameSite=Lax cookie), and redirects to the member dashboard, or to the legacy-link check when the member's email matches a `legacy_members` row or historical-person record.
 - Consuming the link a second time is rejected with a generic "invalid, expired, or already used" response. Unknown or expired tokens render the same response (enumeration-safe).
 - Unverified members cannot log in. The login failure response is identical to the wrong-password response (enumeration-safe).
 - Unverified members do not appear in the authenticated member search.
@@ -1718,7 +1718,7 @@ Story: As an admin, I can review and resolve Tier 3 auto-link cases from the leg
 
 Success Criteria:
 
-- Admin can view Tier 3 auto-link cases from the migration import: each case shows the historical person name, the imported placeholder name, the matched email, and any relevant context (country, event history).
+- Admin can view Tier 3 auto-link cases from the migration import: each case shows the historical person name, the `legacy_members` row name, the matched email, and any relevant context (country, event history).
 - Admin can confirm the link (the historical person and the placeholder are the same person despite the name mismatch).
 - Admin can reject the link (the historical person and the placeholder are different people who happen to share an email).
 - Admin can defer a case for further investigation.
@@ -2004,7 +2004,7 @@ Success Criteria:
 - There is a single System Parameters admin view that shows all supported configuration settings grouped into clear sections (for example: Membership and Pricing, Donations and Payments, Email and Notifications, Data Retention and Cleanup, Grace Periods, System Health and Alarms, Session Timeout).
 - All Administrator-configurable system parameters have normative default values defined in the Configurable Parameters subsection of this document. The initial database creation process must load those defaults into the corresponding tables. Defaults reflect IFPA rules where applicable, and otherwise reflect privacy, security, and legal-retention requirements.
 - The Membership and Pricing section allows an admin to view and adjust: Tier 1 IFPA Member price (USD). Tier 2 IFPA Organizer Member price (USD).
-- The Email and Notifications section allows an admin to view and adjust: Maximum email retry attempts for the outbox / notification sender (default: 5 attempts with exponential backoff; after max attempts the item is moved to a dead-letter queue/folder visible to admins). Time between outbox scans / notification runs (for example every 5 minutes) for SYS_Send_Email. "Pause sending" emergency toggle (default: off) that stops the worker from sending new outbox items while keeping newly enqueued items pending. Days-before-event for registration reminder emails in M_Register_For_Event (default: 7 days before event start). Two administrator-configurable days-before-Active-Player-expiry reminder offsets (defaults: 30 and 7 days). Day-of Active Player expiry notification (T+0) is built in and not separately configurable.
+- The Email and Notifications section allows an admin to view and adjust: Maximum email retry attempts for the outbox / notification sender (default: 5 attempts with exponential backoff; after max attempts the item is moved to a dead-letter queue/folder visible to admins). Time between outbox scans / notification runs (configurable; default 30 seconds via `outbox_poll_interval_seconds`) for SYS_Send_Email. "Pause sending" emergency toggle (default: off) that stops the worker from sending new outbox items while keeping newly enqueued items pending. Days-before-event for registration reminder emails in M_Register_For_Event (default: 7 days before event start). Two administrator-configurable days-before-Active-Player-expiry reminder offsets (defaults: 30 and 7 days). Day-of Active Player expiry notification (T+0) is built in and not separately configurable.
 - All parameters on this screen: Show current values and defaults, with short helper text explaining how each value is used (for example “Used by recurring donations job; do not set below X days without board approval”). Enforce safe ranges and validation so that admins cannot set obviously invalid values (for example negative days, zero retry count, or unparseable expressions). Are audit-logged when changed, including old value, new value, admin ID, and timestamp, and these changes appear in A_View_Audit_Logs / A_View_System_Health where appropriate.
 - Changing any of these parameters does not require code deployment: the updated values are read from the SystemConfig data store and automatically picked up by the relevant jobs, flows, and admin views the next time they run.
 - The Data Retention Configuration section allows an admin to view and adjust entity-specific retention periods enforced by SYS_Cleanup_Soft_Deleted_Records background job: Member account deletion grace period, Payment record compliance retention, Audit log retention, Ballot retention.
@@ -2044,6 +2044,9 @@ Seed these defaults into the database-backed configuration store during initial 
 - `active_player_duration_days = 730 days` (Active Player grant duration; IFPA-rule-derived; changes only when IFPA adopts a later rule)
 - `active_player_expiry_reminder_days_1 = 30 days` (valid `>= 1`)
 - `active_player_expiry_reminder_days_2 = 7 days` (valid `>= 1` and `< active_player_expiry_reminder_days_1`)
+- `active_player_expiry_check_interval_seconds = 86400 seconds` (Active Player expiry sweep worker tick interval; daily)
+- `vouch_rate_limit_max_per_hour = 5` (max vouch submissions per voucher per window)
+- `vouch_rate_limit_window_minutes = 60` (sliding window in minutes for counting vouch submissions per voucher)
 
 ### Email / Notifications / Outbox
 
@@ -2067,6 +2070,11 @@ Seed these defaults into the database-backed configuration store during initial 
 - `photo_upload_rate_limit_per_hour = 10` (maximum photo uploads per member per hour)
 - `video_submission_rate_limit_per_hour = 5` (maximum video link submissions per member per hour)
 - `media_flag_rate_limit_per_hour = 10` (maximum media flags per member per hour to prevent abuse)
+- `password_change_rate_limit_max_attempts = 10` (maximum authenticated password-change attempts per member per window)
+- `password_change_rate_limit_window_minutes = 15` (sliding window in minutes for counting password-change attempts per member)
+- `verify_resend_rate_limit_max_attempts = 3` (maximum verify-email resend requests per email address per window)
+- `verify_resend_rate_limit_window_minutes = 60` (sliding window in minutes for counting verify-email resend requests per email)
+- `account_claim_expiry_hours = 24` (legacy account claim token TTL in hours; per `M_Claim_Legacy_Account`)
 
 ### Retention / Cleanup
 
@@ -2185,7 +2193,7 @@ Success Criteria:
 
 ### SYS_Send_Email
 
-Access: This scheduled polling process runs under the system role to send queued emails by polling the email outbox on a configurable interval (default: every 5 minutes). Only admins can view delivery logs.
+Access: This scheduled polling process runs under the system role to send queued emails by polling the email outbox on a configurable interval (default: every 30 seconds via `outbox_poll_interval_seconds`). Only admins can view delivery logs.
 
 Story: The system automatically sends transactional emails so that members stay informed of important events.
 
@@ -2194,7 +2202,7 @@ Success Criteria:
 - System sends emails for: account registration, email verification, password reset, membership purchase or upgrade, Active Player grant/extension/expiry, payment receipt, event registration confirmation, club membership changes, co-organizer/co-leader additions, and other cases. As this is a flexible list, it is not necessary to hard-code all cases now.
 - All emails sent via SES with proper headers, unsubscribe links, and deliverability tracking.
 - Worker respects the admin Pause Sending toggle: when enabled, the worker does not attempt new sends, but enqueued items remain pending.
-- Emails are sent only via the outbox pattern: request-time controllers enqueue outbox entries and never call SES directly; a background worker polls the outbox on a configurable interval (default: every 5 minutes), sends via SES, and records sent/failed status.
+- Emails are sent only via the outbox pattern: request-time controllers enqueue outbox entries and never call SES directly; a background worker polls the outbox on a configurable interval (default: every 30 seconds), sends via SES, and records sent/failed status.
 - Failed email deliveries are logged and retried up to 5 times with exponential backoff; after the maximum retry count the outbox item is moved to a dead-letter queue/folder for admin review and possible replay.
 - Email templates are stored as plain text in the database and are editable by Administrators via the configuration interface. Template changes are audit-logged. 
 - Different mailing lists can have different from addresses configured and this job will use them. The special no-reply from address will be an option. Otherwise, all other reply addresses must go to a real inbox for a human to receive replies.

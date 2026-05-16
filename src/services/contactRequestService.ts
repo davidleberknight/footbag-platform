@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { workQueue, account } from '../db/db';
+import { workQueue, account, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
-import { getSesAdapter } from '../adapters/sesAdapter';
+import { getCommunicationService } from './communicationService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { PageViewModel } from '../types/page';
 
 export const CONTACT_CATEGORIES = [
   'display_name_correction',
@@ -62,6 +63,8 @@ export interface ContactRequestRow {
   taskType: string;
   entityType: string;
   entityId: string;
+  entityHref: string | null;
+  entityDisplayName: string | null;
   reasonText: string | null;
 }
 
@@ -77,6 +80,70 @@ function validateDecisionLabel(d: unknown): DecisionLabel {
     throw new ValidationError(`Invalid decision label: ${String(d)}`);
   }
   return d as DecisionLabel;
+}
+
+// Admin work-queue page-model builder. The work-queue groups every open
+// admin task by `queueCategory` and renders a uniform decision-action
+// form per row. Category and task-type display labels live here so the
+// admin controller stays a thin HTTP adapter.
+
+const WORK_QUEUE_CATEGORY_LABELS: Record<string, string> = {
+  events:      'Events',
+  media:       'Media',
+  membership:  'Membership',
+  payments:    'Payments',
+  elections:   'Elections',
+  system:      'System',
+};
+
+const WORK_QUEUE_TASK_TYPE_LABELS: Record<string, string> = {
+  member_contact_request: 'Member contact request',
+  auto_link_match:        'Auto-link match',
+};
+
+export interface WorkQueueViewItem {
+  id: string;
+  queueCategory: string;
+  taskType: string;
+  taskTypeLabel: string;
+  openedAtIso: string;
+  openedAtDisplay: string;
+  entityType: string;
+  entityId: string;
+  entityHref: string | null;
+  entityDisplayName: string | null;
+  reasonText: string | null;
+  decisionLabels: Array<{ value: string; label: string }>;
+}
+
+export interface WorkQueueGroup {
+  category: string;
+  categoryLabel: string;
+  items: WorkQueueViewItem[];
+}
+
+export interface WorkQueueContent {
+  groups: WorkQueueGroup[];
+  totalOpen: number;
+  resolvedFlag: boolean;
+  errorMessage: string | null;
+}
+
+function shapeWorkQueueItem(raw: ContactRequestRow): WorkQueueViewItem {
+  return {
+    id: raw.id,
+    queueCategory: raw.queueCategory,
+    taskType: raw.taskType,
+    taskTypeLabel: WORK_QUEUE_TASK_TYPE_LABELS[raw.taskType] ?? raw.taskType,
+    openedAtIso: raw.openedAtIso,
+    openedAtDisplay: raw.openedAtIso.slice(0, 10),
+    entityType: raw.entityType,
+    entityId: raw.entityId,
+    entityHref: raw.entityHref,
+    entityDisplayName: raw.entityDisplayName,
+    reasonText: raw.reasonText,
+    decisionLabels: DECISION_LABELS.map((d) => ({ value: d, label: DECISION_LABEL_DISPLAY[d] })),
+  };
 }
 
 export const contactRequestService = {
@@ -114,16 +181,27 @@ export const contactRequestService = {
       : trimmed;
     const reasonText = `${categoryLabel}: ${summary}`;
 
-    workQueue.insertItem.run(
-      id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,
-      'membership',
-      TASK_TYPE,
-      'member',
-      input.requestingMemberId,
-      5,
-      nowIso,
-      reasonText,
-    );
+    // Per DD §5.4 + US §198 Global Behaviors: every work_queue_items INSERT
+    // triggers an admin-alerts notification, in the same transaction as the
+    // queue write. Body carries task_type and entity_id only.
+    transaction(() => {
+      workQueue.insertItem.run(
+        id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,
+        'membership',
+        TASK_TYPE,
+        'member',
+        input.requestingMemberId,
+        5,
+        nowIso,
+        reasonText,
+      );
+      getCommunicationService().enqueueMailingListEmail({
+        mailingListSlug:      'admin-alerts',
+        subject:              `New admin queue item: ${TASK_TYPE}`,
+        bodyText:             `Task type: ${TASK_TYPE}\nEntity ID: ${id}`,
+        idempotencyKeyPrefix: `admin-alerts:${TASK_TYPE}:${id}`,
+      });
+    });
 
     appendAuditEntry({
       actionType:    'support.contact_request_submitted',
@@ -220,10 +298,14 @@ export const contactRequestService = {
         '— International Footbag Players Association',
       ].join('\n');
 
-      await getSesAdapter().sendEmail({
-        to: member.login_email,
+      // Per DD §5.4: services enqueue via outbox; never call SES directly.
+      // Terminal-state key shape: re-resolving (rare) does not re-send.
+      getCommunicationService().enqueueEmail({
+        recipientEmail:    member.login_email,
+        recipientMemberId: member.id,
         subject,
         bodyText,
+        idempotencyKey:    `contact-request-resolve:${input.queueItemId}`,
       });
     }
   },
@@ -242,14 +324,66 @@ export const contactRequestService = {
       entity_id: string;
       reason_text: string | null;
     }>;
-    return rows.map((r) => ({
-      id: r.id,
-      openedAtIso: r.opened_at,
-      queueCategory: r.queue_category,
-      taskType: r.task_type,
-      entityType: r.entity_type,
-      entityId: r.entity_id,
-      reasonText: r.reason_text,
-    }));
+    return rows.map((r) => {
+      // Entity-display lookup belongs in the service (db.ts is the only SQL
+      // surface; controllers are HTTP glue). Resolves member rows only;
+      // other entity types render as plain ID + type label.
+      let entityHref: string | null = null;
+      let entityDisplayName: string | null = null;
+      if (r.entity_type === 'member') {
+        const m = account.findContactInfoById.get(r.entity_id) as
+          | { slug: string; display_name: string }
+          | undefined;
+        if (m) {
+          entityHref = `/members/${m.slug}`;
+          entityDisplayName = m.display_name;
+        }
+      }
+      return {
+        id: r.id,
+        openedAtIso: r.opened_at,
+        queueCategory: r.queue_category,
+        taskType: r.task_type,
+        entityType: r.entity_type,
+        entityId: r.entity_id,
+        entityHref,
+        entityDisplayName,
+        reasonText: r.reason_text,
+      };
+    });
+  },
+
+  /**
+   * Build the full page view-model for the admin work queue. Groups all
+   * open items by `queueCategory`, applies display-label maps, and wraps
+   * the result in the standard `PageViewModel<WorkQueueContent>` envelope.
+   * Controllers call this directly and render the return value.
+   */
+  getAdminWorkQueuePage(opts: { resolvedFlag?: boolean; errorMessage?: string } = {}): PageViewModel<WorkQueueContent> {
+    const rows = this.listOpenForAdmin();
+    const groupMap = new Map<string, WorkQueueViewItem[]>();
+    for (const r of rows) {
+      const arr = groupMap.get(r.queueCategory) ?? [];
+      arr.push(shapeWorkQueueItem(r));
+      groupMap.set(r.queueCategory, arr);
+    }
+    const groups: WorkQueueGroup[] = [];
+    for (const [category, items] of groupMap.entries()) {
+      groups.push({
+        category,
+        categoryLabel: WORK_QUEUE_CATEGORY_LABELS[category] ?? category,
+        items,
+      });
+    }
+    return {
+      seo:  { title: 'Admin Work Queue' },
+      page: { sectionKey: 'admin', pageKey: 'admin_work_queue', title: 'Admin Work Queue' },
+      content: {
+        groups,
+        totalOpen: rows.length,
+        resolvedFlag: opts.resolvedFlag ?? false,
+        errorMessage: opts.errorMessage ?? null,
+      },
+    };
   },
 };

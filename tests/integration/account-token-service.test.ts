@@ -1,7 +1,7 @@
 /**
  * Integration tests for accountTokenService.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { createHash } from 'node:crypto';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
@@ -59,14 +59,19 @@ describe('accountTokenService.issueToken', () => {
   });
 
   it('records expires_at per ttlHours', () => {
-    const before = Date.now();
-    const { tokenRowId } = accountTokenService.issueToken({
-      memberId: MEMBER_ID, tokenType: 'password_reset', ttlHours: 1,
-    });
-    const row = tokenRow(tokenRowId)!;
-    const expiresMs = new Date(row.expires_at as string).getTime();
-    expect(expiresMs - before).toBeGreaterThanOrEqual(60 * 60 * 1000 - 1000);
-    expect(expiresMs - before).toBeLessThanOrEqual(60 * 60 * 1000 + 1000);
+    const fixed = new Date('2026-05-16T12:00:00.000Z');
+    vi.useFakeTimers();
+    vi.setSystemTime(fixed);
+    try {
+      const { tokenRowId } = accountTokenService.issueToken({
+        memberId: MEMBER_ID, tokenType: 'password_reset', ttlHours: 1,
+      });
+      const row = tokenRow(tokenRowId)!;
+      const expiresMs = new Date(row.expires_at as string).getTime();
+      expect(expiresMs).toBe(fixed.getTime() + 60 * 60 * 1000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects ttlHours <= 0', () => {
