@@ -22,6 +22,71 @@ Each has different truth rules.
 
 ---
 
+## Foundational doctrine
+
+The four sections below (A–D) sit ABOVE the implementation layer rules. They are not optional patterns. They are durable architectural invariants that hold across every freestyle slice, regardless of which data table or template is under edit. Implementation details (sections 1–6 further down) refine these doctrines; they never override them.
+
+### A. Four-layer ontology separation
+
+The Core Rule above describes DATA layers (which table, which file). This section describes ONTOLOGY layers (which kind of meaning). Both apply simultaneously.
+
+| Ontology layer | Meaning | Example surface |
+|---|---|---|
+| **Canonical names** | Official trick naming. The community labels. | `freestyle_tricks.canonical_name`, dictionary card titles, family slugs |
+| **Symbolic decomposition** | Structural tokenization. Operators + bases + side-positionals composed into formulas. | `tokenizedEquivalences`, semantic notation tokens, `≡` readings |
+| **Glossary pedagogy** | Educational explanation. Coach-tone primer prose, modifier-feel cards, definitions. | `/freestyle/glossary`, §6 modifier feel cards, §3 dex direction prose |
+| **Embodied movement analogy** | Descriptive movement relationships. How body parts move; movement neighborhoods; feel. | Glossary feel-card "feel" + "intuition" fields, future movement-archetype layer |
+
+**Rules:**
+
+- **Layers MAY link.** A symbolic token may carry an anchor to its glossary entry. A glossary modifier card may deep-link to tricks using that modifier. Cross-layer NAVIGATION is encouraged.
+- **Layers MUST NOT collapse.** Never put coach-tone prose into a token's text field. Never derive an embodied-movement description from a symbolic formula. Never canonicalize a pedagogical synonym.
+- **Observational topology ≠ canonical ontology.** A trick's appearance in an observational grouping (e.g., "midtime body modifiers") is supplementary; it never reshapes the canonical family classification in `freestyle_tricks.trick_family`.
+
+This is now one of the core architectural invariants of the entire project. When in doubt about where a piece of content belongs: identify which layer it serves, store it on that layer's surface, and link from other layers as needed.
+
+### B. Current strategic posture (post-Slice-E, 2026-05-16)
+
+The freestyle dictionary work has shifted from feature-expansion to **stabilization + ontology-governance**. The architectural achievements that needed code are stable; the remaining work is ontology, where Red's recent rulings strongly suggest multiple overlapping axes are at play.
+
+- **Avoid ontology over-hardening.** Premature SQL freezes, rigid taxonomy commitments, and "final" canonical structures are the primary risk now — bigger than missing content.
+- **Reversible TS governance preferred.** Curator content lives in TypeScript content modules (allow-lists, chain registries, kind overrides). Schema migrations come AFTER ontology stabilizes — never before.
+- **Taxonomy still evolving.** Family / topology / surface / archetype / category distinctions are working frames, not closed answers. Treat them as observational until Wave-2 Red answers + curator triage land.
+- **Batch 5 (symbolic / topology visuals) is paused.** Do not resume until manual QC complete, Slice F evaluated, topology semantics more stable, and Wave-2 Red responses reviewed.
+- **Observational surfaces allowed.** Connective panels, movement-topology groups, dex archetypes, feel cards — all fine as observational layers with explicit "observational" labels.
+- **Parser aesthetics forbidden.** No AST views, no token soup, no interaction-heavy symbolic UI on public surfaces. Restraint is now the principal design constraint, not a fallback.
+
+See [[project_freestyle_post_slice_e_posture]] for the full sequencing recommendation and unresolved-doctrine list.
+
+### C. Family / topology caution
+
+The Red side-question consultation surfaced that movement relationships involve multiple overlapping axes — symbolic structure, modifier lineage, dex archetypes, embodied feel, timing/body-path topology, catch/surface relationships. These do not collapse cleanly into one classification.
+
+Explicit warnings:
+
+- **`family` ≠ `topology`.** A `trick_family` value names the structural anchor (whirl, butterfly, mirage). A topology group is an observational grouping by movement mechanic (midtime body modifiers, ducking/diving family). Same trick, different lenses; do not unify them.
+- **`family` ≠ catch surface.** Clipper-as-surface and clipper-as-family are not the same concept; many unrelated tricks land on clipper without belonging to a "clipper family." Treat surfaces as their own facet.
+- **Multi-axis movement relationships exist.** A trick can be primary-family `legover` AND secondary-related to `mirage` (via `miraging legover` reading). A trick can appear in multiple topology groups. Single-value `trick_family` columns express ONE axis; do not pretend they express all of them.
+- **Descriptive shorthand ≠ canonical decomposition.** Coach-tone descriptions ("body drops under the bag") are pedagogical content; they are NOT structural decomposition (`pixie ducking butterfly`). Keep them on separate layers (see doctrine A).
+- **Embodied analogies are pedagogical, not canonical.** Movement-feel cards describe how a trick feels in the body. They are teaching material; they never freeze into canon. Future curator iteration should be expected.
+
+When a slice proposal collapses any of these distinctions, **stop and surface the conflict to the curator** before writing code.
+
+### D. Symbolic restraint doctrine
+
+Symbolic-surface design has firm constraints. These hold across every public template, partial, and view.
+
+- **No token soup.** Tokens render only on surfaces that explicitly carry symbolic-decomposition content (trick cards, glossary §7, compression flow). Other surfaces stay prose.
+- **No AST / parser visuals.** No tree views, no parser-style decomposition trees, no interactive symbolic editors on public pages.
+- **No interaction-heavy symbolic UI.** Token hover affordances are restrained (underline-on-hover, no popovers, no rich tooltips). No drag, no expand-on-click, no animation.
+- **No visual overload.** The 4-color budget (core-family green / modifier olive / side-positional neutral / unknown inherit) holds. Do not introduce additional role colors without curator approval.
+- **Replace, don't add.** When refining a symbolic surface, prefer replacing an existing element over stacking a new one. Visual density is already at the ceiling.
+- **Chips localized to symbolic surfaces only.** ADD chips, formula chips, glyph chips render on dictionary / glossary symbolic surfaces. Do not propagate them to event pages, records, member surfaces, or competition tables.
+
+When a slice proposes a new symbolic-surface affordance, evaluate against these six constraints first. If the affordance violates any, propose a restraint-preserving alternative before implementing.
+
+---
+
 ## 1. Trick Dictionary Layer
 
 Use `freestyle_tricks` only for actual physical moves.
