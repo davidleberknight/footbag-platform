@@ -1622,6 +1622,7 @@ export interface DictionaryTrickCard {
   hasRecords:                 boolean;                       // tiny indicator only; not visually load-bearing
   hasReferenceMedia:          boolean;                       // true when any tutorial/demo media exists
   mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'none' — drives optional chip
+  mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo only' / 'No video yet'
   trickFamily:                string | null;                 // reserved for future family-axis affordance
 }
 
@@ -1891,12 +1892,13 @@ export interface FreestyleGlossaryAbbreviationEntry {
 // adjacency hint. Distinct from the Surface-B intermediate-operators
 // decomposition reference, which carries the structural-decomposition
 // view of the same modifiers.
-export type ModifierFeelCluster = 'set' | 'body';
-
+//
+// Cards are partitioned into set-cluster and body-cluster arrays at the
+// service layer (SET_MODIFIER_FEEL_CARDS / BODY_MODIFIER_FEEL_CARDS) so the
+// template renders each pre-shaped list without status-field branching.
 export interface ModifierFeelCard {
   slug:         string;                   // 'pixie', 'paradox' — anchors at `modifier-{slug}`
   name:         string;                   // 'Pixie', 'Paradox'
-  cluster:      ModifierFeelCluster;
   glyph:        string | null;            // 'PIX', 'STEP' for Tier-1 set; null otherwise
   feel:         string;                   // one-sentence movement description
   intuition:    string;                   // one-line structural intuition
@@ -1905,14 +1907,13 @@ export interface ModifierFeelCard {
   midtimeBody:  boolean;                  // flag for "midtime body modifiers" sub-cluster
 }
 
-// Curator-authored. 13 entries: 9 set + 4 body. Order matters
-// (rendered top-to-bottom within each cluster, pedagogically sequenced).
-// Doctrine-aware phrasing per SEMANTIC_COMPRESSION_DOCTRINE §3 verb levels.
-const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
+// Curator-authored. 9 set-cluster cards, rendered top-to-bottom in the
+// order below. Doctrine-aware phrasing per SEMANTIC_COMPRESSION_DOCTRINE
+// §3 verb levels.
+const SET_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'pixie',
     name:        'Pixie',
-    cluster:     'set',
     glyph:       'PIX',
     feel:        'Pixie creates tight, compressed uptime dexes.',
     intuition:   'A set primitive that shortens the dex window; pairs naturally with most bases.',
@@ -1923,7 +1924,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'fairy',
     name:        'Fairy',
-    cluster:     'set',
     glyph:       'FAIRY',
     feel:        'Fairy runs an alternate uptime path; the bag travels with illusion-style mechanics.',
     intuition:   'Recently confirmed as legitimate compositional vocabulary; structural role under community review.',
@@ -1934,7 +1934,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'stepping',
     name:        'Stepping',
-    cluster:     'set',
     glyph:       'STEP',
     feel:        'Stepping inserts a foot relocation mid-trick; the kicking foot moves between phases.',
     intuition:   'A modifier that adds a step within the set; stacks across most bases.',
@@ -1945,7 +1944,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'atomic',
     name:        'Atomic',
-    cluster:     'set',
     glyph:       null,
     feel:        'Atomic launches with cross-body, X-dex-like character from a toe set.',
     intuition:   'A heavier launch primitive; recent rulings note hidden paradox-from-toe character (under community review).',
@@ -1956,7 +1954,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'quantum',
     name:        'Quantum',
-    cluster:     'set',
     glyph:       null,
     feel:        'Quantum is a compressed-atomic feel; quicker, with similar cross-body character.',
     intuition:   'A set modifier historically called Toe-Blur; reads as a tighter atomic.',
@@ -1967,7 +1964,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'blurry',
     name:        'Blurry',
-    cluster:     'set',
     glyph:       null,
     feel:        'Blurry combines stepping momentum with paradox-style body positioning.',
     intuition:   'Folk-shorthand for "stepping + paradox"; the structural reading expands to the two operators acting together.',
@@ -1978,7 +1974,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'nuclear',
     name:        'Nuclear',
-    cluster:     'set',
     glyph:       null,
     feel:        'Nuclear stacks paradox-and-atomic into a single heavy launch character.',
     intuition:   'A set modifier that structurally reads as paradox + atomic.',
@@ -1989,7 +1984,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'barraging',
     name:        'Barraging',
-    cluster:     'set',
     glyph:       null,
     feel:        'Barraging puts two same-direction dexes on a single set.',
     intuition:   'A count-bearing set primitive that structurally reads as (dex) + (dex); operator class under community review.',
@@ -2000,7 +1994,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'furious',
     name:        'Furious',
-    cluster:     'set',
     glyph:       null,
     feel:        'Furious extends the uptime with rotational character.',
     intuition:   'A set modifier with rotational policy; non-rotational reading under community review.',
@@ -2008,10 +2001,14 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     familyHint:  null,
     midtimeBody: false,
   },
+];
+
+// Curator-authored. 4 body-cluster cards, rendered top-to-bottom in the
+// order below.
+const BODY_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'paradox',
     name:        'Paradox',
-    cluster:     'body',
     glyph:       null,
     feel:        'Paradox pivots the hips between two dexes on the same set; the body changes sides mid-trick.',
     intuition:   'A body modifier that flips cross-body orientation between dex moments.',
@@ -2022,7 +2019,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'spinning',
     name:        'Spinning',
-    cluster:     'body',
     glyph:       null,
     feel:        'Spinning carries a full-body 360° rotation through the dex moment.',
     intuition:   'A body modifier (flat); pairs with gyro for 180° rotations.',
@@ -2033,7 +2029,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'ducking',
     name:        'Ducking',
-    cluster:     'body',
     glyph:       null,
     feel:        'Ducking dips the head near the apex so the bag passes around the neck.',
     intuition:   'A body modifier; one of a four-way family (ducking, diving, weaving, zulu) defined by head direction and bag-fall side.',
@@ -2044,7 +2039,6 @@ const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
   {
     slug:        'symposium',
     name:        'Symposium',
-    cluster:     'body',
     glyph:       null,
     feel:        'Symposium is a no-plant leg discipline; the support leg stays off the ground through the dex.',
     intuition:   'A body modifier; often stacks with paradox (the "PS X" shorthand).',
@@ -2146,12 +2140,15 @@ export interface FreestyleGlossaryContent {
   // Members are public dictionary rows with their ADD values + detail-
   // page hrefs; never includes the anchor itself.
   familyTrees:      readonly FreestyleFamilyTree[];
-  // §6 "Common Advanced Modifiers" feel cards. 13 entries: 9 set + 4 body.
-  // Player-facing pedagogical view; complements Surface B's decomposition
-  // reference (intermediate operators dl + execution mechanics + set
-  // modifier registry). See SEMANTIC_COMPRESSION_DOCTRINE §3 for verb
-  // discipline; the cards use Level-2 / Level-3 phrasing (movement-first).
-  modifierFeelCards: readonly ModifierFeelCard[];
+  // §6 "Common Advanced Modifiers" feel cards. Player-facing pedagogical
+  // view; complements Surface B's decomposition reference (intermediate
+  // operators dl + execution mechanics + set modifier registry). See
+  // SEMANTIC_COMPRESSION_DOCTRINE §3 for verb discipline; the cards use
+  // Level-2 / Level-3 phrasing (movement-first). Partitioned at the service
+  // layer so the template renders each cluster without status-field
+  // branching: 9 set cards, 4 body cards.
+  setModifierFeelCards:  readonly ModifierFeelCard[];
+  bodyModifierFeelCards: readonly ModifierFeelCard[];
 }
 
 export interface FreestyleHistoryEvolutionEntry {
@@ -2400,6 +2397,7 @@ function shapeDictionaryTrickCard(
     hasRecords:                 indexRow.hasRecords,
     hasReferenceMedia:          indexRow.mediaCoverage !== 'none',
     mediaCoverage:              indexRow.mediaCoverage,
+    mediaCoverageLabel:         indexRow.mediaCoverageLabel,
     trickFamily:                indexRow.trickFamily,
   };
 }
@@ -4477,7 +4475,8 @@ export const freestyleService = {
         connectivePanels: buildGlossaryConnectivePanels(allDictRows),
         abbreviations:   GLOSSARY_ABBREVIATIONS,
         familyTrees:     shapeFamilyTrees(allDictRows),
-        modifierFeelCards: MODIFIER_FEEL_CARDS,
+        setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
+        bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
       },
     };
   },

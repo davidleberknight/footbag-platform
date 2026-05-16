@@ -48,9 +48,7 @@
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
 
     {{#if hasReferenceMedia}}
-    <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">
-      {{#if (eq mediaCoverage "tutorial")}}Tutorial available{{else}}Demo only{{/if}}
-    </span>
+    <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
     {{/if}}
 
     {{#if statusBadge}}
@@ -88,9 +86,7 @@
     {{/if}}
 
     {{#if hasReferenceMedia}}
-    <p class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">
-      {{#if (eq mediaCoverage "tutorial")}}Tutorial available{{else}}Demo only{{/if}}
-    </p>
+    <p class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</p>
     {{/if}}
 
     {{#if statusBadge}}

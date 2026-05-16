@@ -318,8 +318,7 @@
     <div class="glossary-modifier-cluster">
       <h4 class="glossary-modifier-cluster-heading">Set modifiers</h4>
       <div class="glossary-modifier-cards">
-        {{#each content.modifierFeelCards}}
-        {{#if (eq cluster "set")}}
+        {{#each content.setModifierFeelCards}}
         <article class="glossary-modifier-card" id="modifier-{{slug}}">
           <p class="glossary-modifier-card-head">
             <span class="glossary-modifier-card-name">{{name}}</span>
@@ -330,7 +329,6 @@
           <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
           {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
         </article>
-        {{/if}}
         {{/each}}
       </div>
     </div>
@@ -338,8 +336,7 @@
     <div class="glossary-modifier-cluster">
       <h4 class="glossary-modifier-cluster-heading">Body modifiers</h4>
       <div class="glossary-modifier-cards">
-        {{#each content.modifierFeelCards}}
-        {{#if (eq cluster "body")}}
+        {{#each content.bodyModifierFeelCards}}
         <article class="glossary-modifier-card" id="modifier-{{slug}}">
           <p class="glossary-modifier-card-head">
             <span class="glossary-modifier-card-name">{{name}}</span>
@@ -350,7 +347,6 @@
           <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
           {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
         </article>
-        {{/if}}
         {{/each}}
       </div>
       <p class="glossary-modifier-cluster-note">
