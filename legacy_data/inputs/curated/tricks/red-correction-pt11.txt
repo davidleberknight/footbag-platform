@@ -1,0 +1,64 @@
+
+On Sun, May 10, 2026 at 11:45 AM James Leberknight <jeleberknight@gmail.com> wrote:
+Hi Red. Here is the next round of questions from the operational-notation / FootbagMoves federation review.
+Blur / blurry:
+We now have:
+
+IFPA semantic reading: Blur = Stepping Paradox Mirage (4)
+
+FootbagMoves labels Blur as Blurry Mirage
+
+Question:
+Should blurry remain a rotational +2 concept, or should blurry eventually normalize toward the flat +1 rotational model now used for spinning / swirling / whirling?
+
+-->+1 model 
+Frigidosis:
+FootbagMoves uses “Frigidosis” as shorthand inside Arcwalk operational notation:
+Frigidosis > Same In (DEX) >> Op Out (DEX)...
+
+Question:
+What is the preferred semantic decomposition of Frigidosis?
+
+-->I'll have to look into this one. 
+Blender:
+FootbagMoves effectively treats Blender as “Whirling Osis.”
+
+Question:
+Would you still describe Blender semantically that way, or should Blender primarily be treated as a culturally atomic named compound?
+
+-->Whirling Osis
+Barfry:
+FootbagMoves:
+Barfry = Nuclear ss Butterfly.
+
+Question:
+Is that semantically acceptable, or only a folk / operational alias rather than canonical semantic notation?
+
+-->Acceptable 
+Mobius:
+Preferred semantic interpretation?
+
+-->Spinning Torque 
+Symposium Torque
+
+Symposium Spinning Torque
+
+culturally atomic named compound
+
+other
+
+Ripwalk:
+Preferred semantic interpretation?
+
+-->Stepping Butterfly
+
+Stepping Paradox Butterfly
+
+culturally atomic named compound
+
+other
+
+Torque:
+Should Torque remain culturally atomic in semantic notation, or should its decomposition be surfaced more explicitly in the semantic layer?
+
+-->Torque can be defined as Miraging Osis.
