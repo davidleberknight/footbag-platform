@@ -209,32 +209,36 @@ describe('dictionary-trick-card — required slots', () => {
   });
 
   it('renders ≡ symbolic-equivalence readings from the curator chain registry', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    // Per CANONICAL-SURFACE-REALIGNMENT-1 S1+S3, the legacy "aliases:" row
-    // is retired. Canonical-uncontested equivalences now render as ≡ lines
-    // sourced from freestyleSymbolicEquivalences.ts (compound chains) +
-    // freestyleAliasGovernance.ts (atom-level allow-list).
-    //
-    // Ripwalk: chain reading 'stepping butterfly' (curatorConfirmPending=true)
-    // Mobius: three chain readings including 'gyro torque' and the deeper
-    //         'spinning ss torque' / 'spinning ss miraging op osis'.
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?stepping butterfly/i);
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?gyro torque/i);
+    // BROWSE-REFACTOR-1 Slice 1: ≡ readings live in browse-density views
+    // (family / component / topology). By ADD is now registry density which
+    // renders a tokenized first-reading inline; ≡ sigil + multi-reading
+    // rendering uses browse density.
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
+    // Ripwalk: chain reading 'stepping butterfly'
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
+    // Mobius: 'gyro torque' reading
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?gyro[\s\S]*?torque/i);
     // The legacy aliases row is gone:
     expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 
-  it('renders "Notation pending" for tricks with null operational notation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+  it('renders "Notation pending" placeholder in browse density when no notation present', async () => {
+    // BROWSE-REFACTOR-1 Slice 1: pending placeholder is suppressed in registry
+    // density (By ADD / By Category) per the audit (clean identifier-only
+    // cards for atoms). Browse density (family / component / topology) keeps
+    // the placeholder for rows with neither tokenized ≡ readings nor
+    // operational notation.
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
     expect(res.text).toContain('dict-card-notation--pending');
     expect(res.text).toMatch(/<em>Notation pending<\/em>/);
   });
 
   it('F4 — suppresses "Notation pending" when ≡ symbolic equivalences carry the structural information', async () => {
-    // LANDING-AND-TRICKS-QA-REALIGNMENT-1 F4: cards with chain-registry
-    // equivalences should not also display the pending-notation cue;
-    // the ≡ readings already convey structural composition.
-    const res = await request(createApp()).get('/freestyle/tricks');
+    // F4: cards with chain-registry equivalences should not also display
+    // the pending-notation cue; the ≡ readings already convey structural
+    // composition. Tested in browse density where the placeholder can
+    // appear at all.
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
     const torqueStart = res.text.indexOf('data-trick-slug="torque"');
     expect(torqueStart).toBeGreaterThan(-1);
     const torqueEnd = res.text.indexOf('</article>', torqueStart);
@@ -273,9 +277,13 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     expect(res.text).toMatch(/data-trick-slug="toe-stall"[\s\S]*?\[toe\][\s\S]*?op-token--sequence-op-minor[\s\S]*?>toe</);
   });
 
-  it('Montage (deep) renders cleanly: title + ADD + multi-modifier operational notation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    // The card markup carries data-trick-slug; scope assertions within that block
+  it('Montage (deep) renders cleanly: title + ADD + tokenized structural reading', async () => {
+    // BROWSE-REFACTOR-1 Slice 1: deep compounds in browse density render
+    // their tokenized ≡ reading (semantic tokens, not operational tokens).
+    // Operational tokens are now suppressed when a ≡ reading is present;
+    // op-token markup lives on cards without ≡ readings (atoms / fallback)
+    // and on the trick-detail page.
+    const res = await request(createApp()).get('/freestyle/tricks?view=family');
     const montageStart = res.text.indexOf('data-trick-slug="montage"');
     expect(montageStart).toBeGreaterThan(-1);
     const montageEnd = res.text.indexOf('</article>', montageStart);
@@ -285,14 +293,14 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     // Title + ADD
     expect(montageRegion).toContain('montage');
     expect(montageRegion).toContain('7 ADD');
-    // Multi-modifier operational tokens
+    // Multi-modifier semantic tokens render (each as a sem-token span).
     expect(montageRegion).toMatch(/spinning/);
     expect(montageRegion).toMatch(/ducking/);
     expect(montageRegion).toMatch(/paradox/);
     expect(montageRegion).toMatch(/symposium/);
-    // Each token carries op-token class
-    const tokenSpans = (montageRegion.match(/<span class="op-token /g) ?? []);
-    expect(tokenSpans.length).toBeGreaterThanOrEqual(8);
+    // Each operator carries a sem-token class (semantic-browse tokenization).
+    const tokenSpans = (montageRegion.match(/<span class="sem-token /g) ?? []);
+    expect(tokenSpans.length).toBeGreaterThanOrEqual(4);
   });
 });
 

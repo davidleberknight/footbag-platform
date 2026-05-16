@@ -5299,6 +5299,124 @@ a.dict-card-title:hover {
   color: #92400e;            /* amber-800 */
 }
 
+/* ─── BROWSE-REFACTOR-1 Slice 1 (2026-05-15) ────────────────────────────────
+   Registry density + semantic tokens + family-anchor emphasis.
+   Restraint discipline per SEMANTIC_COMPRESSION_DOCTRINE §5 + BROWSE_SURFACE_
+   AUDIT §B.2: 4-color budget; no decorative color; unknown tokens neutral. */
+
+/* Semantic browse tokens. Four roles. Lowercase, body font (not mono).
+   Persistent across registry + browse densities. */
+.sem-token {
+  display: inline-block;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.sem-token--base-anchor      { color: #5a7b48; font-weight: 500; }   /* core-family green */
+.sem-token--modifier         { color: #8c7e3e; }                     /* modifier olive */
+.sem-token--side-positional  { color: #8a8470; font-size: 0.92em; }  /* neutral, slightly subordinate */
+.sem-token--unknown          { color: inherit; }
+
+/* Family-anchor emphasis. Solid underline on canonical-family + component
+   surfaces; dotted on observational topology. Data-anchor-style on the
+   group section drives the variant — purely declarative, no JS. */
+[data-anchor-style="solid"] .sem-token[data-anchor="true"] {
+  border-bottom: 1.5px solid #5a7b48;
+  padding-bottom: 1px;
+  font-weight: 600;
+}
+[data-anchor-style="dotted"] .sem-token[data-anchor="true"] {
+  border-bottom: 1.5px dotted #5a7b48;
+  padding-bottom: 1px;
+}
+
+/* ── Registry density: single-line cards for dense scanning ─────────────── */
+.dict-card-stack--registry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dict-card--registry {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr max-content auto;
+  align-items: baseline;
+  column-gap: 0.85rem;
+  padding: 6px 10px;
+  margin-bottom: 0;
+  border-bottom: 1px solid #efece2;
+}
+.dict-card--registry:last-child { border-bottom: none; }
+.dict-card--registry .dict-card-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  /* less dominant than browse-density title — slug becomes secondary identifier. */
+}
+.dict-card--registry .dict-card-add {
+  font-size: 0.78rem;
+}
+/* Operational-notation fallback when no ≡ reading is curated. Inline so it
+   stays on the registry row; reuses op-token coloring. */
+.dict-card-notation--inline {
+  font-size: 0.85rem;
+  background: transparent;
+  color: var(--text-subtle);
+  text-indent: 0;
+  padding-inline-start: 0;
+}
+.dict-card--registry .dict-card-media-chip,
+.dict-card--registry .dict-card-status-badge {
+  font-size: 0.66rem;
+  padding: 1px 6px;
+}
+.dict-card-tokenized-reading {
+  font-size: 1.00rem;
+  line-height: 1.45;
+  display: inline;
+}
+.dict-card-tokenized-reading .sem-token + .sem-token { margin-left: 0.35em; }
+
+/* Registry-density inline ≡ reading: same class as browse, layout inline.
+   ≡ sigil markup is preserved (test-class contract) but visually suppressed
+   so the structural sentence reads cleanly in single-line layout. */
+.dict-card-equivalence--inline {
+  display: inline;
+  margin: 0;
+  font-size: 1.00rem;
+  line-height: 1.45;
+}
+.dict-card-equivalence--inline .core-trick-equiv-sigil {
+  display: none;
+}
+.dict-card-equivalence--inline .sem-token + .sem-token { margin-left: 0.35em; }
+
+/* ── Browse density: tokenized reading promoted; slug subordinate ──────── */
+.dict-card--browse .dict-card-title {
+  font-size: 1.05rem;
+  font-weight: 500;
+  /* notation becomes primary on the card (sem-token row); slug demotes to identifier. */
+}
+.dict-card--browse .dict-card-equivalence {
+  font-size: 1.10rem;
+  line-height: 1.5;
+}
+.dict-card--browse .dict-card-equivalence .sem-token + .sem-token { margin-left: 0.35em; }
+
+/* Mobile: registry stacks to two lines (slug + ADD on row 1; reading on row 2). */
+@media (max-width: 520px) {
+  .dict-card--registry {
+    grid-template-columns: 1fr max-content;
+    grid-template-areas:
+      "title add"
+      "reading reading";
+    row-gap: 2px;
+  }
+  .dict-card--registry .dict-card-title { grid-area: title; }
+  .dict-card--registry .dict-card-add { grid-area: add; }
+  .dict-card-tokenized-reading {
+    grid-area: reading;
+    font-size: 0.95rem;
+  }
+}
+
 /* Family-heading cross-link to a symbolic educational surface (e.g.
  * walking-progression). DSC-2 slice 2 (By Family). */
 .trick-family-cross-link {

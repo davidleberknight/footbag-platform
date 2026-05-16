@@ -83,28 +83,28 @@
   <p class="detail-muted dict-note"><em>{{content.dictNote}}</em></p>
   {{/if}}
 
-  {{! ── Default ADD-grouped view — symbolic trick cards (DSC-2 slice 1) ── }}
+  {{! ── Default ADD-grouped view — registry density per BROWSE-REFACTOR-1 ── }}
   {{#if (eq content.activeView "add")}}
   {{#each content.addGroups}}
-  <section class="content-section trick-add-group" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
+  <section class="content-section trick-add-group trick-group--registry" id="add-{{#if addNumeric}}{{addNumeric}}{{else}}unrated{{/if}}">
     <div class="section-heading">
       <h2>{{addLabel}}</h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    <div class="dict-card-stack">
+    <div class="dict-card-stack dict-card-stack--registry">
       {{#each cards}}
-        {{> dictionary-trick-card}}
+        {{> dictionary-trick-card density="registry"}}
       {{/each}}
     </div>
   </section>
   {{/each}}
   {{/if}}
 
-  {{! ── Family view — symbolic trick cards (DSC-2 slice 2) ──────────────── }}
+  {{! ── Family view — browse density (family-anchor underline emphasis) ─── }}
   {{#if (eq content.activeView "family")}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
-  <section class="content-section trick-family-group" id="family-{{familySlug}}">
+  <section class="content-section trick-family-group trick-group--browse" id="family-{{familySlug}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
@@ -114,7 +114,7 @@
     {{/if}}
     <div class="dict-card-stack">
       {{#each cards}}
-        {{> dictionary-trick-card}}
+        {{> dictionary-trick-card density="browse"}}
       {{/each}}
     </div>
   </section>
@@ -143,7 +143,7 @@
         <span class="section-count">{{groups.length}}</span>
       </div>
       {{#each groups}}
-      <section class="trick-component-group" id="{{anchorId}}">
+      <section class="trick-component-group trick-group--browse" id="{{anchorId}}" data-anchor-style="solid">
         <div class="component-group-heading">
           <h3><a href="/freestyle/tricks?view=component#{{anchorId}}">{{componentName}}</a></h3>
           <span class="section-count">{{memberCount}}</span>
@@ -153,7 +153,7 @@
         {{/if}}
         <div class="dict-card-stack">
           {{#each cards}}
-            {{> dictionary-trick-card}}
+            {{> dictionary-trick-card density="browse"}}
           {{/each}}
         </div>
       </section>
@@ -175,17 +175,17 @@
   {{/unless}}
   {{/if}}
 
-  {{! ── Category view — symbolic trick cards (DSC-2 slice 3B; spreadsheet retired) ── }}
+  {{! ── Category view — registry density (dense tag-based scan) ──────────── }}
   {{#if (eq content.activeView "category")}}
   {{#each content.groups}}
-  <section class="content-section trick-category-group" id="{{anchorId}}">
+  <section class="content-section trick-category-group trick-group--registry" id="{{anchorId}}">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=category#{{anchorId}}">{{label}}</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    <div class="dict-card-stack">
+    <div class="dict-card-stack dict-card-stack--registry">
       {{#each cards}}
-        {{> dictionary-trick-card}}
+        {{> dictionary-trick-card density="registry"}}
       {{/each}}
     </div>
   </section>
@@ -201,7 +201,7 @@
 
   {{#if content.topologyView.groups.length}}
   {{#each content.topologyView.groups}}
-  <section class="content-section trick-topology-group" id="{{anchorId}}">
+  <section class="content-section trick-topology-group trick-group--browse" id="{{anchorId}}" data-anchor-style="dotted">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=topology#{{anchorId}}">{{topologyName}}</a></h2>
       <span class="section-count">{{memberCount}}</span>
@@ -209,7 +209,7 @@
     <p class="topology-group-definition">{{bodyDefinition}}</p>
     <div class="dict-card-stack">
       {{#each cards}}
-        {{> dictionary-trick-card}}
+        {{> dictionary-trick-card density="browse"}}
       {{/each}}
     </div>
   </section>

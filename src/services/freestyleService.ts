@@ -34,6 +34,10 @@ import {
   shapeOperationalNotationDisplay,
 } from './operationalNotationRendering';
 import {
+  SemanticBrowseToken,
+  shapeSemanticNotations,
+} from './semanticNotationRendering';
+import {
   FreestyleRelatedTrick,
   FreestyleNextTrick,
   FreestylePreviousTrick,
@@ -1600,6 +1604,14 @@ export interface DictionaryTrickCard {
   // Empty array when neither source has an entry; the template suppresses
   // the row in that case.
   symbolicEquivalences:       string[];
+  // BROWSE-REFACTOR-1 Slice 1 (2026-05-15): tokenized form of each ≡ reading,
+  // parallel to `symbolicEquivalences`. Each inner array is one reading's
+  // tokens; the template renders role-classified spans. `isFamilyAnchor` is
+  // true on tokens that match the active view's anchor (family / component /
+  // topology slug) — drives the underline emphasis in browse density.
+  // Registry density renders only the first reading's tokens for one-line
+  // discipline; browse density renders all readings.
+  tokenizedEquivalences:      SemanticBrowseToken[][];
   operationalNotation:        OperationalNotation | null;    // role-tagged tokens; null when pending
   operationalNotationStatus:  'available' | 'pending';
   commonAliases:              string[];                      // service-side "common aliases only" filter applied here
@@ -2343,6 +2355,7 @@ function byCanonicalNameAlpha(a: { canonicalName: string }, b: { canonicalName: 
 function shapeDictionaryTrickCard(
   row: FreestyleTrickRowWithStatus,
   indexRow: FreestyleTrickIndexRow,
+  groupAnchor: string | null = null,
 ): DictionaryTrickCard {
   const opDisplay = shapeOperationalNotationDisplay(row.operational_notation);
   const operationalNotation: OperationalNotation | null = opDisplay
@@ -2363,6 +2376,12 @@ function shapeDictionaryTrickCard(
   const browseSafeAliases    = filterAliasesForBrowse(indexRow.slug, indexRow.aliases);
   const symbolicEquivalences = [...chainReadings, ...browseSafeAliases];
 
+  // BROWSE-REFACTOR-1 Slice 1: tokenize each ≡ reading. `groupAnchor` is the
+  // active view's anchor slug (family / component / topology); tokens matching
+  // it carry isFamilyAnchor=true for underline emphasis at render time.
+  // By ADD + By Category pass null (no anchor; registry density).
+  const tokenizedEquivalences = shapeSemanticNotations(symbolicEquivalences, groupAnchor);
+
   return {
     slug:                       indexRow.slug,
     displayName:                indexRow.canonicalName,
@@ -2370,6 +2389,7 @@ function shapeDictionaryTrickCard(
     adds:                       indexRow.adds,
     addsLabel:                  indexRow.adds ? `${indexRow.adds} ADD` : '— ADD',
     symbolicEquivalences,
+    tokenizedEquivalences,
     operationalNotation,
     operationalNotationStatus:  operationalNotation ? 'available' : 'pending',
     commonAliases:              browseSafeAliases,
@@ -3808,7 +3828,10 @@ export const freestyleService = {
     ): FreestyleFamilyGroup => {
       const sorted = sortFamilyEntries(familySlug, rows);
       const members = sorted.map(r => shapeTrickIndexRow(r, ctx));
-      const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!));
+      // BROWSE-REFACTOR-1 Slice 1: pass the familySlug as the group anchor
+      // so semantic tokens matching it carry isFamilyAnchor=true (solid
+      // underline at render time).
+      const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, familySlug));
       return {
         familySlug,
         familyName: familySlug.charAt(0).toUpperCase() + familySlug.slice(1),
@@ -4038,13 +4061,15 @@ export const freestyleService = {
 
     const buildComponentGroup = (bucket: ComponentBucket): ComponentGroup => {
       const sorted = bucket.entries.slice().sort(componentSortByAddThenName);
+      // BROWSE-REFACTOR-1 Slice 1: pass the modifier-slug as the group anchor
+      // so the shared component token underlines on browse-density render.
       return {
         componentSlug:  bucket.modifierSlug,
         componentName:  bucket.modifierName,
         bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
         memberCount:    sorted.length,
         anchorId:       `component-${bucket.modifierSlug}`,
-        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow)),
+        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug)),
       };
     };
 
@@ -4095,13 +4120,16 @@ export const freestyleService = {
           return a.canonical_name.localeCompare(b.canonical_name, undefined, { sensitivity: 'base' });
         });
       const indexRows = matched.map(r => shapeTrickIndexRow(r, ctx));
+      // BROWSE-REFACTOR-1 Slice 1: pass the topology-slug as the group anchor.
+      // Template renders dotted-underline emphasis on topology surfaces
+      // (observational, not canonical) via ancestor-class selector.
       return {
         topologySlug:   def.slug,
         topologyName:   def.name,
         bodyDefinition: def.definition,
         memberCount:    matched.length,
         anchorId:       `topology-${def.slug}`,
-        cards:          matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!)),
+        cards:          matched.map((r, i) => shapeDictionaryTrickCard(r, indexRows[i]!, def.slug)),
       };
     };
 

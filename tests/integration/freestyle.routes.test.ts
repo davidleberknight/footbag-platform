@@ -1705,29 +1705,32 @@ describe('Freestyle dictionary — S1+S3: ≡ equivalence rendering on dict card
   });
 
   it('renders ≡ readings sourced from the curator chain registry', async () => {
+    // BROWSE-REFACTOR-1 Slice 1: both densities use the
+    // `core-trick-equivalence dict-card-equivalence` wrapper class on the
+    // tokenized ≡ reading. The ≡ sigil span is present in markup on both
+    // densities (CSS hides it visually in registry).
     const res = await request(createApp()).get('/freestyle/tricks');
-    // .core-trick-equivalence (Batch 4 shared base class) + .dict-card-equivalence (surface modifier)
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"/);
-    // The ≡ sigil renders via the shared .core-trick-equiv-sigil span
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence/);
     expect(res.text).toMatch(/class="core-trick-equiv-sigil">&equiv;<\/span>/);
   });
 });
 
 describe('Freestyle dictionary — S2: canon-locked chain readings (torque/blender/drifter)', () => {
   it('renders torque as ≡ miraging osis (pt11)', async () => {
+    // Tokenized rendering wraps each operator in a sem-token span; match
+    // each word independently allowing intervening markup.
     const res = await request(createApp()).get('/freestyle/tricks');
-    // Card identified by data-trick-slug + the readings inside.
-    expect(res.text).toMatch(/data-trick-slug="torque"[\s\S]*?miraging osis/);
+    expect(res.text).toMatch(/data-trick-slug="torque"[\s\S]*?miraging[\s\S]*?osis/);
   });
 
   it('renders blender as ≡ whirling osis (pt11)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toMatch(/data-trick-slug="blender"[\s\S]*?whirling osis/);
+    expect(res.text).toMatch(/data-trick-slug="blender"[\s\S]*?whirling[\s\S]*?osis/);
   });
 
   it('renders drifter as ≡ miraging clipper (pt11)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.text).toMatch(/data-trick-slug="drifter"[\s\S]*?miraging clipper/);
+    expect(res.text).toMatch(/data-trick-slug="drifter"[\s\S]*?miraging[\s\S]*?clipper/);
   });
 });
 

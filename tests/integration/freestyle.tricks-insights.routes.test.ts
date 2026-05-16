@@ -439,12 +439,12 @@ describe('public dictionary presentation', () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    // DSC-2 slice 1: ADD view migrated to symbolic trick cards. No table header.
+    // DSC-2 slice 1 + BROWSE-REFACTOR-1 Slice 1: ADD view is registry density.
+    // No table header. The card renders either a tokenized ≡ reading
+    // (preferred), an operational-notation fallback, or — in browse density
+    // only — a "Notation pending" placeholder.
     expect(res.text).not.toContain('<th>Notation</th>');
-    // The card renders operational notation (role-tagged tokens) instead of the
-    // legacy semantic-notation raw string. Where operational_notation is null
-    // the card renders 'Notation pending' explicitly.
-    expect(res.text).toMatch(/dict-card-notation|Notation pending/);
+    expect(res.text).toMatch(/dict-card-tokenized-reading|dict-card-notation|core-trick-equivalence dict-card-equivalence/);
   });
 
   it('does not list modifier rows in the category groups', async () => {
@@ -957,17 +957,23 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   it('renders ≡ symbolic-equivalence readings on the dictionary-trick-card', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    // CANONICAL-SURFACE-REALIGNMENT-1 S1+S3: the legacy "aliases:" row is
-    // retired. Canonical-uncontested equivalences render as ≡ lines (a
-    // shared visual primitive with landing Core Tricks + glossary flow).
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"/);
+    // BROWSE-REFACTOR-1 Slice 1: both registry and browse densities use
+    // the `core-trick-equivalence dict-card-equivalence` wrapper class on
+    // the tokenized ≡ reading. The registry variant adds an `--inline`
+    // modifier; the regex allows additional classes after the base ones.
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"/);
     expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 
-  it('falls back to "Notation pending" when a trick has no notation', async () => {
+  it('suppresses "Notation pending" placeholder in registry density (BROWSE-REFACTOR-1 Slice 1)', async () => {
+    // BROWSE-REFACTOR-1 Slice 1: pending placeholder is suppressed on the
+    // registry-density By ADD view per the audit (clean identifier-only
+    // cards for atoms / pending rows). Browse-density views (family /
+    // component / topology) still render the placeholder for rows with
+    // neither tokenized ≡ readings nor operational notation.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
-    expect(res.text).toContain('Notation pending');
+    expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
   });
 
   it('descriptions are not rendered on the By ADD card; the placeholder is gone too', async () => {

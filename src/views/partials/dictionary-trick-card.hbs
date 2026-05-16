@@ -3,66 +3,101 @@
 
   Per DICTIONARY-SYMBOLIC-CARD-1 / SYMBOLIC_CARD_SPEC.md:
     - One renderer; progressive density (sparse + deep through same template)
-    - Operational notation = visual center of gravity
-    - Title + ADD + Operational notation + Aliases (when populated)
-    - No prose descriptions; no spreadsheet feel
+    - Operational notation = visual center of gravity (browse density)
+    - Notation-first hierarchy (registry density)
 
-  Consumes a DictionaryTrickCard view-model from freestyleService.
+  Per BROWSE-REFACTOR-1 Slice 1 (2026-05-15):
+    - Two density modes via partial parameter:
+        {{> dictionary-trick-card density="registry"}}  — inline single-line
+        {{> dictionary-trick-card density="browse"}}    — vertical stack (default)
+    - Tokenized semantic ≡ readings (role-classified tokens; family-anchor
+      underline when token matches the active view's group anchor).
+    - Operational notation suppressed when tokenized semantic reading present
+      (the structural sentence is the new center of gravity).
+    - "Notation pending" placeholder suppressed entirely in registry density.
 
-  Used by: the By ADD view (slice 1). Future slices: By Family, By Category,
-  By Component. The card shape is identical across views; only grouping wrappers differ.
+  Consumes: DictionaryTrickCard view-model from freestyleService.
+  Used by: tricks.hbs across all five browse views (ADD / family / category /
+  component / topology).
 --}}
 
-<article class="dict-card{{#if isExternalOnly}} dict-card--external-placeholder{{/if}}"
-         data-trick-slug="{{slug}}"
-         data-media-coverage="{{mediaCoverage}}">
-  <header class="dict-card-header">
+{{#if (eq density "registry")}}
+  {{! ── Registry density: single-line scan-oriented row ──────────────────
+      Structure: slug · structural sentence · ADD · (optional media chip).
+      Same wrapper class (.core-trick-equivalence dict-card-equivalence) as
+      browse density — CSS handles inline-vs-block layout. ≡ sigil markup
+      is present but visually suppressed via CSS in this density. }}
+  <article class="dict-card dict-card--registry{{#if isExternalOnly}} dict-card--external-placeholder{{/if}}"
+           data-trick-slug="{{slug}}"
+           data-media-coverage="{{mediaCoverage}}">
     {{#if isExternalOnly}}
       <span class="dict-card-title">{{displayName}}</span>
     {{else}}
       <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
     {{/if}}
+
+    {{#if tokenizedEquivalences.length}}
+      <span class="core-trick-equivalence dict-card-equivalence dict-card-equivalence--inline">
+        <span class="core-trick-equiv-sigil">&equiv;</span>
+        {{#each tokenizedEquivalences.[0]}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}
+      </span>
+    {{else if operationalNotation}}
+      <code class="dict-card-notation dict-card-notation--inline" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+    {{/if}}
+
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
-  </header>
 
-  {{! ── Symbolic-equivalence readings (canon-uncontested only) ────────
-      Merged in the service from freestyleSymbolicEquivalences.ts (compound
-      chains) + freestyleAliasGovernance.ts (atom-level allow-list). Each
-      reading renders as a separate ≡ line; consecutive lines hug each
-      other via the .core-trick-equivalence adjacent-sibling rule. }}
-  {{#if symbolicEquivalences.length}}
-    {{#each symbolicEquivalences}}
-    <p class="core-trick-equivalence dict-card-equivalence"><span class="core-trick-equiv-sigil">&equiv;</span> {{this}}</p>
-    {{/each}}
-  {{/if}}
+    {{#if hasReferenceMedia}}
+    <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">
+      {{#if (eq mediaCoverage "tutorial")}}Tutorial available{{else}}Demo only{{/if}}
+    </span>
+    {{/if}}
 
-  {{#if operationalNotation}}
-    <code class="dict-card-notation" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
-  {{else if symbolicEquivalences.length}}
-    {{!-- ≡ readings already carry the structural information; suppress the
-         "Notation pending" placeholder to reduce visual noise on cards that
-         have canonical compositional readings. Per LANDING-AND-TRICKS-QA-
-         REALIGNMENT-1 F4. --}}
-  {{else}}
-    <p class="dict-card-notation dict-card-notation--pending" aria-label="Operational notation pending"><em>Notation pending</em></p>
-  {{/if}}
+    {{#if statusBadge}}
+    <span class="dict-card-status-badge">{{statusBadge}}</span>
+    {{/if}}
+    {{#if placeholderNote}}
+    <p class="dict-card-placeholder-note">{{placeholderNote}}</p>
+    {{/if}}
+  </article>
+{{else}}
+  {{! ── Browse density (default): vertical stack with tokenized readings ── }}
+  <article class="dict-card dict-card--browse{{#if isExternalOnly}} dict-card--external-placeholder{{/if}}"
+           data-trick-slug="{{slug}}"
+           data-media-coverage="{{mediaCoverage}}">
+    <header class="dict-card-header">
+      {{#if isExternalOnly}}
+        <span class="dict-card-title">{{displayName}}</span>
+      {{else}}
+        <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
+      {{/if}}
+      <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
+    </header>
 
-  {{! The legacy "aliases:" row is retired in CANONICAL-SURFACE-REALIGNMENT-1
-      S1+S3. Canonical-uncontested equivalences now render as ≡ lines above
-      the notation; the noise-prone alias surface (frigidosis, leg-over,
-      reverse-swirl, seeded folk-names) is governed by the allow-list in
-      src/content/freestyleAliasGovernance.ts. }}
+    {{#if tokenizedEquivalences.length}}
+      {{#each tokenizedEquivalences}}
+      <p class="core-trick-equivalence dict-card-equivalence">
+        <span class="core-trick-equiv-sigil">&equiv;</span>
+        {{#each this}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}
+      </p>
+      {{/each}}
+    {{else if operationalNotation}}
+      <code class="dict-card-notation" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
+    {{else}}
+      <p class="dict-card-notation dict-card-notation--pending" aria-label="Operational notation pending"><em>Notation pending</em></p>
+    {{/if}}
 
-  {{#if hasReferenceMedia}}
-  <p class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">
-    {{#if (eq mediaCoverage "tutorial")}}Tutorial available{{else}}Demo only{{/if}}
-  </p>
-  {{/if}}
+    {{#if hasReferenceMedia}}
+    <p class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">
+      {{#if (eq mediaCoverage "tutorial")}}Tutorial available{{else}}Demo only{{/if}}
+    </p>
+    {{/if}}
 
-  {{#if statusBadge}}
-  <p class="dict-card-status-badge">{{statusBadge}}</p>
-  {{/if}}
-  {{#if placeholderNote}}
-  <p class="dict-card-placeholder-note">{{placeholderNote}}</p>
-  {{/if}}
-</article>
+    {{#if statusBadge}}
+    <p class="dict-card-status-badge">{{statusBadge}}</p>
+    {{/if}}
+    {{#if placeholderNote}}
+    <p class="dict-card-placeholder-note">{{placeholderNote}}</p>
+    {{/if}}
+  </article>
+{{/if}}
