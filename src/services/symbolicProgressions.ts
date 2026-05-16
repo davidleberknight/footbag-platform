@@ -123,7 +123,7 @@ const WALKING_FAMILY_STEPS: WalkingProgressionStepInput[] = [
     rationale:
       'A heavier modifier raises the wing-motion compound from four ADD to five. Nuclear combines paradox (hip pivot from cross-body set) with atomic (rotational-aware set primitive) in a single composed motion. Same wing topology; higher discipline.',
     symbolicNote:
-      'Nuclear modifier on the butterfly base. Demonstrates how a multi-component modifier (paradox + atomic per pt10 ruling) raises compound ADD without changing the underlying wing topology.',
+      'Nuclear modifier on the butterfly base. Demonstrates how a multi-component modifier (paradox + atomic) raises compound ADD without changing the underlying wing topology.',
     glossaryTerms: ['paradox', 'butterfly'],
     isAnchor: false,
   },

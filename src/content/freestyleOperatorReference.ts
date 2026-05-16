@@ -1,30 +1,29 @@
 /**
  * freestyleOperatorReference.ts
  *
- * Authoritative reference entries for intermediate freestyle operators —
- * the compound/quantifier operators that sit between Tier-1 board primitives
+ * Reference entries for intermediate freestyle operators — the
+ * compound/quantifier operators that sit between Tier-1 board primitives
  * (PIX, AT, SPIN, etc.) and the curator-authored equivalence-chain layer.
  *
  * Two decomposition layers are documented per operator where authority exists:
  *
  *   - Operational layer: set-notation sequence (CLIP > OP IN [DEX] > etc.)
- *     Authority: legacy "Freestyle Move Sets" reference (Chris Holden,
- *     footbag.org/freestyle/sets.html), already encoded as the moves page.
+ *     Authority: legacy notation reference encoded as the moves page.
  *
  *   - Semantic-operator layer: compositional vocabulary
- *     (nuclear = paradox + atomic). Authority: Red rulings + curator
+ *     (nuclear = paradox + atomic). Authority: community review + curator
  *     adjudication.
  *
  * The two layers are independent. An entry can be authoritative at one
  * layer and pending at the other; the operational form may exist while
- * the semantic decomposition is still under Red review.
+ * the semantic decomposition is still under community review.
  *
  * Forever-rules:
  *   - Curator authority absolute. The codebase carries the corpus; never
  *     auto-derives entries from canonical_name or other parser output.
  *   - Pending entries surface their pending state honestly via the
  *     `decomposition: null` + `pendingNote` pair. Never fabricated.
- *   - sourceLabel-style attribution lives in `lineageNote` per entry.
+ *   - Provenance lives in `lineageNote` per entry.
  */
 
 export type OperatorReferenceCategory =
@@ -42,7 +41,7 @@ export interface OperatorReferenceEntry {
   // One-line plain-English meaning; renders directly under the operator name.
   oneLineMeaning:        string;
   // Semantic-operator decomposition string when curator-authoritative; null
-  // when the decomposition is still pending Red adjudication.
+  // when the decomposition is still under curator adjudication.
   decomposition:         string | null;
   // Author-visible note explaining a partial / pending decomposition, a
   // documented conflict, or a non-obvious lineage detail. Renders below
@@ -52,8 +51,8 @@ export interface OperatorReferenceEntry {
   // Curator-curated worked examples (folk-name = compositional reading).
   // Each string is rendered as-is; no recursive expansion at render time.
   workedExamples:        readonly string[];
-  // Provenance for the curated content — which Red ruling or legacy source
-  // grounds this entry. Renders as a small lineage line.
+  // Provenance for the curated content — which legacy reference or community
+  // ruling grounds this entry. Renders as a small lineage line.
   lineageNote:           string;
   // True when any field in the entry is still pending curator confirmation
   // (typically when `decomposition` is null OR a documented conflict exists).
@@ -69,9 +68,9 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'set',
     oneLineMeaning: 'A cross-body uptime set with x-dex character. Operational form: TOE > OP OUT [DEX] > (op-side component).',
     decomposition:  null,
-    pendingNote:    'Primitive at the set-notation level. Deeper mechanical decomposition pending Red.',
+    pendingNote:    'Primitive at the set-notation level. Deeper mechanical decomposition under community review.',
     workedExamples: ['Atom Smasher = Atomic Mirage'],
-    lineageNote:    "Operational form per the legacy 'Freestyle Move Sets' reference (Chris Holden).",
+    lineageNote:    'Operational form per the legacy notation reference.',
     curatorConfirmPending: true,
   },
   {
@@ -82,7 +81,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  'stepping paradox',
     pendingNote:    null,
     workedExamples: ['Blurry (Stepping Paradox)'],
-    lineageNote:    "Decomposition per the legacy 'Freestyle Move Sets' parenthetical equivalent.",
+    lineageNote:    'Decomposition per the legacy notation reference parenthetical equivalent.',
     curatorConfirmPending: false,
   },
   {
@@ -91,9 +90,9 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'compound-set',
     oneLineMeaning: 'A compressed-atomic set. Operational form: TOE > OP IN [DEX] > (op-side component).',
     decomposition:  'compressed atomic',
-    pendingNote:    'Folk-equivalent: Toe Blur (per Red pt1).',
+    pendingNote:    'Historical name: Toe Blur.',
     workedExamples: ['Quantum Mirage = Toe Blur'],
-    lineageNote:    'Decomposition per service-layer editorial constants and Red pt1 folk-name confirmation.',
+    lineageNote:    'Decomposition per curator editorial constants and historical community usage.',
     curatorConfirmPending: false,
   },
   {
@@ -104,7 +103,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  'paradox + atomic',
     pendingNote:    null,
     workedExamples: ['Matador = Nuclear Butterfly'],
-    lineageNote:    'Decomposition per Red pt10.',
+    lineageNote:    'Curator-adjudicated decomposition.',
     curatorConfirmPending: false,
   },
   {
@@ -114,8 +113,8 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     oneLineMeaning: 'A high-stepping treatment with two in-direction dexes. Operational form: CLIP > OP IN [DEX] > SAME IN [DEX] >.',
     decomposition:  'high stepping',
     pendingNote:    'Distinct from furious at the operational level (one fewer dex layer per the legacy reference).',
-    workedExamples: ['Fury (one reading) = Barraging Paradox Mirage (Red pt1)'],
-    lineageNote:    "Decomposition per the legacy 'Freestyle Move Sets' parenthetical equivalent.",
+    workedExamples: ['Fury (one reading) = Barraging Paradox Mirage'],
+    lineageNote:    'Decomposition per the legacy notation reference parenthetical equivalent.',
     curatorConfirmPending: false,
   },
   {
@@ -124,9 +123,9 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'compound-set',
     oneLineMeaning: 'An extended set form. Operational form: CLIP > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] >.',
     decomposition:  null,
-    pendingNote:    'Distinct from barraging at the operational level (one additional OP IN [DEX] layer). +2 ADD weight per Red pt6. Full semantic decomposition pending. Red pt1 vs pt6 conflict on Fury: pt1 reads it as barraging paradox mirage; pt6 reads it as furious paradox mirage. Likely two distinct structural readings, not the same one written two ways.',
-    workedExamples: ['Fury (one reading) = Furious Paradox Mirage (Red pt6)'],
-    lineageNote:    'Operational form per the legacy reference; +2 ADD weight per Red pt6.',
+    pendingNote:    'Distinct from barraging at the operational level (one additional OP IN [DEX] layer). +2 ADD weight. Full semantic decomposition under community review; Fury admits two structural readings (barraging paradox mirage and furious paradox mirage).',
+    workedExamples: ['Fury (one reading) = Furious Paradox Mirage'],
+    lineageNote:    'Operational form per the legacy notation reference; +2 ADD weight.',
     curatorConfirmPending: true,
   },
   {
@@ -137,7 +136,7 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     decomposition:  'forward-rotation spinning (directional variant)',
     pendingNote:    null,
     workedExamples: ['Pixie Inspinning (per the legacy reference)'],
-    lineageNote:    'Direction variant of spinning per Red pt3 and pt7; ADD +0 (directional).',
+    lineageNote:    'Direction variant of spinning; ADD +0 (directional).',
     curatorConfirmPending: false,
   },
   {
@@ -146,9 +145,9 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'compound-body',
     oneLineMeaning: 'A whirl-family variant operator listed among the Whirl / Swirl variants.',
     decomposition:  null,
-    pendingNote:    'Listed in the legacy reference without an operational decomposition. Full semantics pending Red.',
-    workedExamples: ['Double-Blender = Whirling Blender (Red)'],
-    lineageNote:    "Per the legacy 'Freestyle Move Sets' Whirl / Swirl variants list; full decomposition not yet documented.",
+    pendingNote:    'Listed in the legacy reference without an operational decomposition. Full semantics under community review.',
+    workedExamples: ['Double-Blender = Whirling Blender'],
+    lineageNote:    'Per the legacy notation reference Whirl / Swirl variants list; full decomposition not yet documented.',
     curatorConfirmPending: true,
   },
   {
@@ -157,14 +156,14 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'quantifier',
     oneLineMeaning: 'A quantifier operator. Per the legacy Terraging entry, applying a set twice in sequence.',
     decomposition:  'X applied twice (per legacy: Terraging = Double Pixie = TOE > SAME IN [DEX] > SAME IN [DEX] >)',
-    pendingNote:    'Generalization across double-fairy = double illusion, double-blender = whirling blender, and double-spinning-osis = two spins to osis may not all follow the simple X-twice pattern. Per-compound Red rulings supersede the generalization where they differ.',
+    pendingNote:    'Generalization across double-fairy = double illusion, double-blender = whirling blender, and double-spinning-osis = two spins to osis may not all follow the simple X-twice pattern. Per-compound community readings supersede the generalization where they differ.',
     workedExamples: [
       'Terraging = Double Pixie',
-      'Double-Fairy = Double Illusion (Red)',
-      'Double-Blender = Whirling Blender (Red)',
-      'Double-Spinning-Osis = Two Spins to Osis (Red)',
+      'Double-Fairy = Double Illusion',
+      'Double-Blender = Whirling Blender',
+      'Double-Spinning-Osis = Two Spins to Osis',
     ],
-    lineageNote:    'Quantifier semantics per the legacy Terraging entry; cross-compound Red rulings on file.',
+    lineageNote:    'Quantifier semantics per the legacy Terraging entry.',
     curatorConfirmPending: true,
   },
   {
@@ -173,9 +172,9 @@ export const OPERATOR_REFERENCE_ENTRIES: readonly OperatorReferenceEntry[] = [
     category:       'quantifier',
     oneLineMeaning: 'A quantifier-style operator surfaced in the legacy Barraging = High Stepping equivalence.',
     decomposition:  null,
-    pendingNote:    'Semantics pending Red. Appears as the "high" prefix in "high stepping" as the legacy equivalent name for barraging.',
+    pendingNote:    'Semantics under community review. Appears as the "high" prefix in "high stepping" as the legacy equivalent name for barraging.',
     workedExamples: ['Barraging = High Stepping'],
-    lineageNote:    "Per the legacy 'Freestyle Move Sets' parenthetical equivalent.",
+    lineageNote:    'Per the legacy notation reference parenthetical equivalent.',
     curatorConfirmPending: true,
   },
 ];

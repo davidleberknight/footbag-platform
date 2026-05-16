@@ -4029,6 +4029,241 @@ section.home-media { padding-top: 0; }
   vertical-align: middle;
   margin-left: 6px;
 }
+
+/* Glossary tier badges — lightweight orientation labels on section headings.
+   Three tiers (beginner / intermediate / advanced) shape a learner's
+   reading path; visually restrained so the page reads as a primer first
+   and a tier-graded reference second. */
+.glossary-tier-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 1px 7px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 8px;
+  border: 1px solid transparent;
+}
+.glossary-tier-badge--beginner {
+  background: #eef2ea;
+  color: #4f6a4a;
+  border-color: #d8e3d2;
+}
+.glossary-tier-badge--intermediate {
+  background: #ecedf4;
+  color: #4d5570;
+  border-color: #d5d8e2;
+}
+.glossary-tier-badge--advanced {
+  background: #f0eae0;
+  color: #6b5d40;
+  border-color: #ddd3c2;
+}
+
+/* Glossary term lists — unified <dl> styling for term/definition entries
+   across §2 / §3 / §4. Lean spacing; consistent across sections. */
+.glossary-term-list {
+  margin: 0.5rem 0 0 0;
+}
+.glossary-term-list dt {
+  font-weight: 600;
+  margin-top: 0.85rem;
+}
+.glossary-term-list dd {
+  margin: 0.25rem 0 0 0;
+  line-height: 1.5;
+}
+
+/* Inline editorial note ("§N will expand in a later pass") */
+.glossary-note {
+  font-size: 0.88rem;
+  color: #8a8470;
+  font-style: italic;
+  margin-top: 0.5rem;
+}
+
+/* §4 timing-clock visual — horizontal four-beat clock as inline SVG.
+   Restrained sizing so the figure reads as orientation, not feature. */
+.glossary-timing-clock-figure {
+  margin: 1.25rem auto 0.5rem auto;
+  max-width: 560px;
+  text-align: center;
+}
+.glossary-timing-clock {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.glossary-timing-clock-caption {
+  font-size: 0.86rem;
+  color: #6b6553;
+  margin-top: 0.4rem;
+  line-height: 1.45;
+}
+
+/* §5 family-tree visual — anchor + branched compound members rendered
+   as a compact registry-style list. Tree characters (├ └) provided by
+   pseudo-elements so the markup stays semantic. */
+.glossary-family-trees {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem 1.5rem;
+  margin-top: 1rem;
+}
+.glossary-family-tree {
+  border-left: 2px solid #d8e3d2;
+  padding: 0.35rem 0 0.35rem 0.85rem;
+}
+.glossary-family-tree-anchor {
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #4f6a4a;
+  letter-spacing: 0.01em;
+}
+.glossary-family-tree-anchor-adds {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: #6b6553;
+  background: #f0eae0;
+  padding: 0 5px;
+  border-radius: 3px;
+  vertical-align: 1px;
+}
+.glossary-family-tree-members {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0 0 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.glossary-family-tree-members li {
+  position: relative;
+  padding-left: 1.1rem;
+  color: #3f3f3f;
+}
+.glossary-family-tree-members li::before {
+  content: "├";
+  position: absolute;
+  left: 0;
+  color: #b4b1a3;
+}
+.glossary-family-tree-members li:last-child::before {
+  content: "└";
+}
+.glossary-family-tree-members a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted #b4b1a3;
+}
+.glossary-family-tree-members a:hover {
+  border-bottom-color: #4f6a4a;
+}
+.glossary-family-tree-member-adds {
+  font-size: 0.76rem;
+  color: #8a8470;
+  margin-left: 6px;
+}
+
+/* §6 modifier feel cards — player-facing pedagogical view (Surface A).
+   Compact cards grouped into set / body clusters. Restrained borders;
+   no saturated colors; movement-first hierarchy. */
+.glossary-modifier-cluster {
+  margin-top: 1.5rem;
+}
+.glossary-modifier-cluster-heading {
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b6553;
+  margin: 0 0 0.6rem 0;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid #ddd5c2;
+}
+.glossary-modifier-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem 1.25rem;
+}
+.glossary-modifier-card {
+  border-left: 2px solid #d8e3d2;
+  padding: 0.4rem 0 0.5rem 0.85rem;
+}
+.glossary-modifier-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+}
+.glossary-modifier-card-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #3f3f3f;
+  letter-spacing: 0.01em;
+}
+.glossary-modifier-card-glyph,
+.glossary-modifier-card-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: #6b6553;
+  background: #f0eae0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  vertical-align: 1px;
+}
+.glossary-modifier-card-tag {
+  text-transform: lowercase;
+  background: #ecedf4;
+  color: #4d5570;
+}
+.glossary-modifier-card-feel,
+.glossary-modifier-card-intuition,
+.glossary-modifier-card-example {
+  font-size: 0.93rem;
+  line-height: 1.5;
+  margin: 0.3rem 0 0 0;
+}
+.glossary-modifier-card-intuition {
+  color: #4a4a4a;
+}
+.glossary-modifier-card-family-hint {
+  font-size: 0.85rem;
+  color: #6b6553;
+  font-style: italic;
+  line-height: 1.45;
+  margin: 0.35rem 0 0 0;
+}
+.glossary-modifier-cluster-note {
+  font-size: 0.88rem;
+  color: #4a4a4a;
+  line-height: 1.5;
+  margin: 0.85rem 0 0 0;
+  padding: 0.45rem 0.75rem;
+  background: #f7f6f0;
+  border-left: 2px solid #ddd5c2;
+}
+
+/* §6 Advanced Decomposition & Operator Theory group — Surface B.
+   Subtle background tint signals the optional-reference role without
+   visually overpowering Surface A above. */
+.glossary-advanced-reference-group {
+  margin-top: 2.25rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+  background: #faf8f1;
+  border-radius: 4px;
+}
+.glossary-advanced-reference-group > h3:first-child {
+  margin-top: 0;
+}
+.glossary-advanced-reference-group > h4.section-heading {
+  margin-top: 1.5rem;
+}
 .symbolic-topology-members-list {
   list-style: none;
   padding: 0;

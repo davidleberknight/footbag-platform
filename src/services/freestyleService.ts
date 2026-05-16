@@ -594,6 +594,48 @@ function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[
   return [...bySlug.values()];
 }
 
+// §5 family-tree shaping. Curator-selected pilot families: the four
+// whose compound membership is dense enough to teach the "anchor +
+// branched modifiers" pattern. Members are sorted by ADD ascending
+// (then by canonical name), capped to keep the visual budget tight.
+const FAMILY_TREE_PILOTS: readonly string[] = ['whirl', 'butterfly', 'mirage', 'osis'];
+const FAMILY_TREE_MEMBER_CAP = 7;
+
+function shapeFamilyTrees(trickRows: readonly FreestyleTrickRow[]): FreestyleFamilyTree[] {
+  const trees: FreestyleFamilyTree[] = [];
+  for (const anchorSlug of FAMILY_TREE_PILOTS) {
+    const anchorRow = trickRows.find(r => r.slug === anchorSlug);
+    const anchorAdds = anchorRow && anchorRow.adds != null
+      ? Number(anchorRow.adds)
+      : NaN;
+    const compounds = trickRows
+      .filter(r => r.trick_family === anchorSlug && r.slug !== anchorSlug)
+      .sort((a, b) => {
+        const aAdds = a.adds != null ? Number(a.adds) : Number.POSITIVE_INFINITY;
+        const bAdds = b.adds != null ? Number(b.adds) : Number.POSITIVE_INFINITY;
+        if (aAdds !== bAdds) return aAdds - bAdds;
+        return a.canonical_name.localeCompare(b.canonical_name);
+      })
+      .slice(0, FAMILY_TREE_MEMBER_CAP)
+      .map<FreestyleFamilyTreeMember>(r => {
+        const parsed = r.adds != null ? Number(r.adds) : NaN;
+        return {
+          slug:    r.slug,
+          display: r.canonical_name,
+          adds:    Number.isFinite(parsed) ? parsed : null,
+          href:    `/freestyle/tricks/${r.slug}`,
+        };
+      });
+    trees.push({
+      anchorSlug,
+      anchorDisplay: anchorRow?.canonical_name ?? anchorSlug,
+      anchorAdds:    Number.isFinite(anchorAdds) ? anchorAdds : null,
+      members:       compounds,
+    });
+  }
+  return trees;
+}
+
 // Pathway-block shaping for the trick detail page. Bundles three pre-shaped
 // summaries so the template renders without any business logic. Every string
 // the template will display is built here; href anchors point at existing
@@ -1823,6 +1865,232 @@ export interface FreestyleCompressionFlowStep {
   readings:   NotationDisplay[];            // zero-or-more `≡ ...` lines, tokenized
 }
 
+// One row in the glossary §7 abbreviation tables. Plain shape: short
+// form on the left, plain-language meaning on the right.
+export interface FreestyleGlossaryAbbreviationEntry {
+  short:   string;                           // 'PDX', 'SS', 'DATW'
+  meaning: string;                           // 'Paradox (body modifier).'
+}
+
+// One §6 "Common Advanced Modifiers" feel card. Player-facing pedagogical
+// view of a modifier: a short movement-first description ("feel"), a
+// structural intuition line, a canonical example, and an optional family
+// adjacency hint. Distinct from the Surface-B intermediate-operators
+// decomposition reference, which carries the structural-decomposition
+// view of the same modifiers.
+export type ModifierFeelCluster = 'set' | 'body';
+
+export interface ModifierFeelCard {
+  slug:         string;                   // 'pixie', 'paradox' — anchors at `modifier-{slug}`
+  name:         string;                   // 'Pixie', 'Paradox'
+  cluster:      ModifierFeelCluster;
+  glyph:        string | null;            // 'PIX', 'STEP' for Tier-1 set; null otherwise
+  feel:         string;                   // one-sentence movement description
+  intuition:    string;                   // one-line structural intuition
+  example:      string;                   // canonical worked example(s)
+  familyHint:   string | null;            // optional observational adjacency
+  midtimeBody:  boolean;                  // flag for "midtime body modifiers" sub-cluster
+}
+
+// Curator-authored. 13 entries: 9 set + 4 body. Order matters
+// (rendered top-to-bottom within each cluster, pedagogically sequenced).
+// Doctrine-aware phrasing per SEMANTIC_COMPRESSION_DOCTRINE §3 verb levels.
+const MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
+  {
+    slug:        'pixie',
+    name:        'Pixie',
+    cluster:     'set',
+    glyph:       'PIX',
+    feel:        'Pixie creates tight, compressed uptime dexes.',
+    intuition:   'A set primitive that shortens the dex window; pairs naturally with most bases.',
+    example:     'Smoke = Pixie Drifter; Phoenix = Pixie Ducking Butterfly.',
+    familyHint:  'Pixie frequently branches into smear, dimwalk, phoenix, and smog.',
+    midtimeBody: false,
+  },
+  {
+    slug:        'fairy',
+    name:        'Fairy',
+    cluster:     'set',
+    glyph:       'FAIRY',
+    feel:        'Fairy runs an alternate uptime path; the bag travels with illusion-style mechanics.',
+    intuition:   'Recently confirmed as legitimate compositional vocabulary; structural role under community review.',
+    example:     'Appears as both a standalone base and a modifier on other bases.',
+    familyHint:  null,
+    midtimeBody: false,
+  },
+  {
+    slug:        'stepping',
+    name:        'Stepping',
+    cluster:     'set',
+    glyph:       'STEP',
+    feel:        'Stepping inserts a foot relocation mid-trick; the kicking foot moves between phases.',
+    intuition:   'A modifier that adds a step within the set; stacks across most bases.',
+    example:     'Ripwalk = Stepping Butterfly; Tripwalk = Stepping Quantum Butterfly.',
+    familyHint:  'Stepping pairs with paradox to form the blurry family (Blur, Blurry Whirl, Blurry Torque, Food Processor).',
+    midtimeBody: false,
+  },
+  {
+    slug:        'atomic',
+    name:        'Atomic',
+    cluster:     'set',
+    glyph:       null,
+    feel:        'Atomic launches with cross-body, X-dex-like character from a toe set.',
+    intuition:   'A heavier launch primitive; recent rulings note hidden paradox-from-toe character (under community review).',
+    example:     'Atom Smasher = Atomic Mirage; Eggbeater = Atomic Legover.',
+    familyHint:  'Atomic stacks with paradox into Nuclear; surfaces in eggbeater, silo, flux, legbeater.',
+    midtimeBody: false,
+  },
+  {
+    slug:        'quantum',
+    name:        'Quantum',
+    cluster:     'set',
+    glyph:       null,
+    feel:        'Quantum is a compressed-atomic feel; quicker, with similar cross-body character.',
+    intuition:   'A set modifier historically called Toe-Blur; reads as a tighter atomic.',
+    example:     'Quantum Mirage; Tripwalk = Stepping Quantum Butterfly.',
+    familyHint:  'Quantum anchors tripwalk, legeater, and plasma.',
+    midtimeBody: false,
+  },
+  {
+    slug:        'blurry',
+    name:        'Blurry',
+    cluster:     'set',
+    glyph:       null,
+    feel:        'Blurry combines stepping momentum with paradox-style body positioning.',
+    intuition:   'Folk-shorthand for "stepping + paradox"; the structural reading expands to the two operators acting together.',
+    example:     'Blur = Stepping Paradox Mirage; Blurry Whirl = Stepping Paradox Whirl.',
+    familyHint:  'The blurry family includes Blur, Blurry Whirl, Blurry Torque, and Food Processor.',
+    midtimeBody: false,
+  },
+  {
+    slug:        'nuclear',
+    name:        'Nuclear',
+    cluster:     'set',
+    glyph:       null,
+    feel:        'Nuclear stacks paradox-and-atomic into a single heavy launch character.',
+    intuition:   'A set modifier that structurally reads as paradox + atomic.',
+    example:     'Matador = Nuclear Butterfly; Sumo = Nuclear Mirage.',
+    familyHint:  'Nuclear anchors matador, sumo, and venom.',
+    midtimeBody: false,
+  },
+  {
+    slug:        'barraging',
+    name:        'Barraging',
+    cluster:     'set',
+    glyph:       null,
+    feel:        'Barraging puts two same-direction dexes on a single set.',
+    intuition:   'A count-bearing set primitive that structurally reads as (dex) + (dex); operator class under community review.',
+    example:     'Baroque = Barraging Osis; Flurry = Barraging Legover.',
+    familyHint:  'Barraging anchors flurry, baroque, and the historical high-stepping cohort.',
+    midtimeBody: false,
+  },
+  {
+    slug:        'furious',
+    name:        'Furious',
+    cluster:     'set',
+    glyph:       null,
+    feel:        'Furious extends the uptime with rotational character.',
+    intuition:   'A set modifier with rotational policy; non-rotational reading under community review.',
+    example:     'Fury = Furious Paradox Mirage; Nemesis = Furious Barfly.',
+    familyHint:  null,
+    midtimeBody: false,
+  },
+  {
+    slug:        'paradox',
+    name:        'Paradox',
+    cluster:     'body',
+    glyph:       null,
+    feel:        'Paradox pivots the hips between two dexes on the same set; the body changes sides mid-trick.',
+    intuition:   'A body modifier that flips cross-body orientation between dex moments.',
+    example:     'Paradox Whirl; Paradox Mirage.',
+    familyHint:  'Paradox pairs naturally with symposium (the "PS X" shorthand) and stacks within Nuclear.',
+    midtimeBody: false,
+  },
+  {
+    slug:        'spinning',
+    name:        'Spinning',
+    cluster:     'body',
+    glyph:       null,
+    feel:        'Spinning carries a full-body 360° rotation through the dex moment.',
+    intuition:   'A body modifier (flat); pairs with gyro for 180° rotations.',
+    example:     'Mobius = Spinning Torque; Spinning Butterfly.',
+    familyHint:  'Spinning anchors mobius, montage, and surreal.',
+    midtimeBody: true,
+  },
+  {
+    slug:        'ducking',
+    name:        'Ducking',
+    cluster:     'body',
+    glyph:       null,
+    feel:        'Ducking dips the head near the apex so the bag passes around the neck.',
+    intuition:   'A body modifier; one of a four-way family (ducking, diving, weaving, zulu) defined by head direction and bag-fall side.',
+    example:     'Phoenix = Pixie Ducking Butterfly; Mind-Bender.',
+    familyHint:  'Ducking branches into phoenix, mind-bender, montage, tomahawk.',
+    midtimeBody: true,
+  },
+  {
+    slug:        'symposium',
+    name:        'Symposium',
+    cluster:     'body',
+    glyph:       null,
+    feel:        'Symposium is a no-plant leg discipline; the support leg stays off the ground through the dex.',
+    intuition:   'A body modifier; often stacks with paradox (the "PS X" shorthand).',
+    example:     'Surreal = Paradox Symposium Whirl; Mullet.',
+    familyHint:  'Symposium pairs naturally with paradox and underlies surreal, surgery, mullet, montage, and superfly.',
+    midtimeBody: false,
+  },
+];
+
+// One member of a §5 family tree. Compound trick that branches off a
+// family anchor (whirl / butterfly / mirage / osis).
+export interface FreestyleFamilyTreeMember {
+  slug:    string;                           // 'paradox-whirl'
+  display: string;                           // 'paradox whirl'
+  adds:    number | null;                    // 4, or null when ADD is unresolved
+  href:    string;                           // '/freestyle/tricks/paradox-whirl'
+}
+
+// One family-tree entry for §5. Anchor on top, branched members below.
+// Curator-selected pilot families; not every core trick gets a tree.
+export interface FreestyleFamilyTree {
+  anchorSlug:    string;                     // 'whirl'
+  anchorDisplay: string;                     // 'whirl'
+  anchorAdds:    number | null;              // anchor's own ADD value
+  members:       readonly FreestyleFamilyTreeMember[];
+}
+
+// The glossary surfaces two abbreviation categories. `trickNames` are
+// the shorthand readers meet in trick titles + composition prose;
+// `operationalTokens` are the bracket-flagged component tokens that
+// appear inside operational notation strings. Split intentionally so a
+// learner reading §7 can scan the right list for the context they're in.
+export interface FreestyleGlossaryAbbreviations {
+  trickNames:        readonly FreestyleGlossaryAbbreviationEntry[];
+  operationalTokens: readonly FreestyleGlossaryAbbreviationEntry[];
+}
+
+// Curator-authored. Order is rendered as-is.
+const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
+  trickNames: [
+    { short: 'PDX',      meaning: 'Paradox (body modifier).' },
+    { short: 'SS',       meaning: 'Same side / near. Component on the plant-foot side.' },
+    { short: 'OP',       meaning: 'Opposite / far. Component on the non-plant-foot side.' },
+    { short: 'SYMP',     meaning: 'Symposium — or symple; context decides.' },
+    { short: 'DLO',      meaning: 'Double Leg Over.' },
+    { short: 'ATW',      meaning: 'Around-the-World.' },
+    { short: 'DATW',     meaning: 'Double Around-the-World.' },
+    { short: 'BOP',      meaning: 'Butterfly, Osis, Paradox Mirage.' },
+    { short: 'PS Whirl', meaning: 'Paradox Symposium Whirl.' },
+  ],
+  operationalTokens: [
+    { short: 'DEX',  meaning: 'Dexterity component. The foot circles the bag.' },
+    { short: 'XBD',  meaning: 'Cross-body component. Active foot crosses the body’s centerline.' },
+    { short: 'BOD',  meaning: 'Body-position component. Spin, duck, dive, or paradox pose change.' },
+    { short: 'CLIP', meaning: 'Clipper — inside-arch shoe surface.' },
+    { short: 'TOE',  meaning: 'Toe surface — top of the shoe.' },
+  ],
+};
+
 // Glossary view-model. Carries the shaped notation examples so the §8
 // notation explainers render with the same role-aware classification the
 // trick-detail page uses. Keeps the glossary's promise ("color-coded
@@ -1856,6 +2124,21 @@ export interface FreestyleGlossaryContent {
   // Per UX-SHIP-1 Phase 7 (Task E). Always populated (length=6); panels
   // may have empty relatedTricks arrays when staging CSVs are missing.
   connectivePanels: GlossaryConnectivePanel[];
+  // §7 abbreviation tables — split into trick-name shorthand and
+  // operational-notation tokens. Curator-authored; lives on the service
+  // layer so future additions don't require a template surgery pass.
+  abbreviations:    FreestyleGlossaryAbbreviations;
+  // §5 family-tree visuals — curator-selected pilot families (whirl /
+  // butterfly / mirage / osis). Each entry: anchor + capped member list.
+  // Members are public dictionary rows with their ADD values + detail-
+  // page hrefs; never includes the anchor itself.
+  familyTrees:      readonly FreestyleFamilyTree[];
+  // §6 "Common Advanced Modifiers" feel cards. 13 entries: 9 set + 4 body.
+  // Player-facing pedagogical view; complements Surface B's decomposition
+  // reference (intermediate operators dl + execution mechanics + set
+  // modifier registry). See SEMANTIC_COMPRESSION_DOCTRINE §3 for verb
+  // discipline; the cards use Level-2 / Level-3 phrasing (movement-first).
+  modifierFeelCards: readonly ModifierFeelCard[];
 }
 
 export interface FreestyleHistoryEvolutionEntry {
@@ -4160,6 +4443,9 @@ export const freestyleService = {
           gauntlet:     gauntletExample,
         },
         connectivePanels: buildGlossaryConnectivePanels(allDictRows),
+        abbreviations:   GLOSSARY_ABBREVIATIONS,
+        familyTrees:     shapeFamilyTrees(allDictRows),
+        modifierFeelCards: MODIFIER_FEEL_CARDS,
       },
     };
   },

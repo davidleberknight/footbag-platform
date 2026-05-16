@@ -580,14 +580,16 @@ describe('GET /freestyle/glossary', () => {
     expect(res.text).toContain('SS');
   });
 
-  it('contains symbolic-compression and foundational trick concepts', async () => {
+  it('contains symbolic-compression and core-trick concepts', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    // §8 is renamed "Symbolic Compression" but the Jobs-notation reference
-    // is preserved in the reframed opening prose.
-    expect(res.text).toContain('Symbolic Compression');
+    // V5: §7 carries the notation thesis (with Jobs notation reference
+    // preserved as the historical name of the semantic layer); §8 hosts
+    // the worked symbolic-compression flow. §5 hosts the core trick
+    // structures grid.
+    expect(res.text).toMatch(/Symbolic compression/);
     expect(res.text).toMatch(/Jobs notation/);
-    expect(res.text).toContain('Foundational Tricks');
+    expect(res.text).toContain('Core Trick Structures');
     expect(res.text).toContain('clipper');
     expect(res.text).toContain('butterfly');
   });
@@ -614,13 +616,17 @@ describe('GET /freestyle/glossary — operator board is NOT rendered in §3 (aut
     expect(res.text).not.toContain('class="operator-glyph"');
   });
 
-  it('§3 still renders between its heading and §4 heading without embedding the board', async () => {
+  it('§6 (Modifiers & Operators) renders without embedding the operator-board partial', async () => {
+    // V5: the operator-board orientation strip is intentionally left to the
+    // landing page and /freestyle/learn. The glossary's §6 carries the
+    // modifier-reference + intermediate-operator + execution-mechanics
+    // content without the operator-board visual taxonomy.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    const sec3Idx = res.text.indexOf('3. How Tricks Are Built');
-    const sec4Idx = res.text.indexOf('4. Naming');
-    expect(sec3Idx).toBeGreaterThan(0);
-    expect(sec4Idx).toBeGreaterThan(sec3Idx);
+    const sec6Idx = res.text.indexOf('6. Modifiers');
+    const sec7Idx = res.text.indexOf('7. Symbolic Notation');
+    expect(sec6Idx).toBeGreaterThan(0);
+    expect(sec7Idx).toBeGreaterThan(sec6Idx);
   });
 });
 
@@ -663,16 +669,23 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(pendingFlags.length).toBe(5);
   });
 
-  it('surfaces the Red pt10 lineage on the nuclear entry', async () => {
+  it('surfaces a curator-adjudicated lineage line on the nuclear entry', async () => {
+    // V5 editorial sweep: individual / sprint references stripped from
+    // operator-reference prose. Lineage line now reads as institutional
+    // attribution.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toContain('Decomposition per Red pt10.');
+    expect(res.text).toContain('Curator-adjudicated decomposition.');
   });
 
-  it('surfaces the documented Fury pt1 vs pt6 conflict on the furious entry', async () => {
+  it('documents the two-reading Fury ambiguity on the furious entry', async () => {
+    // V5 editorial sweep: sprint-numbered adjudication framing removed; the
+    // structural-ambiguity content (two readings of Fury) is preserved.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toMatch(/pt1.*pt6 conflict/);
+    expect(res.text).toMatch(/two structural readings/);
+    expect(res.text).toMatch(/barraging paradox mirage/);
+    expect(res.text).toMatch(/furious paradox mirage/);
   });
 
   it('renders entries in pedagogical order: set-tier first, body next, quantifiers last', async () => {
@@ -710,14 +723,14 @@ describe('GET /freestyle/glossary — intermediate-operator reference subsection
     expect(entrySlice).not.toContain('glossary-operator-pending-flag');
   });
 
-  it('surfaces +0 directional status and the pt3 + pt7 lineage on inspinning', async () => {
+  it('surfaces +0 directional status on inspinning', async () => {
+    // V5 editorial sweep: pt## lineage strings removed. The mechanical
+    // facts (directional variant, +0 ADD) are preserved.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     const inspinIdx = res.text.indexOf('id="term-inspinning"');
     expect(inspinIdx).toBeGreaterThan(0);
     const slice = res.text.slice(inspinIdx, inspinIdx + 2000);
-    expect(slice).toMatch(/pt3/);
-    expect(slice).toMatch(/pt7/);
     expect(slice).toMatch(/\+0/);
     expect(slice).toMatch(/directional/i);
   });
@@ -1103,12 +1116,15 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/glossary — operational notation subsection (O1c)', () => {
-  it('renders the new §9 "Operational Notation" section with the deep-link target id', async () => {
+  it('renders the Operational Notation subsection with its deep-link target id', async () => {
+    // V5: operational notation lives as an Advanced Reference subsection
+    // under §7 (Symbolic Notation), not as a top-level section. The deep-
+    // link anchor id="operational-notation" is preserved for inbound links.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.status).toBe(200);
     expect(res.text).toContain('id="operational-notation"');
-    expect(res.text).toMatch(/<h2 class="section-heading">9\. Operational Notation<\/h2>/);
+    expect(res.text).toMatch(/id="operational-notation"[^>]*>\s*Operational notation/);
   });
 
   it('defines per-token anchors for the 6 component flags', async () => {
@@ -1136,12 +1152,15 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
     expect(res.text).toContain('id="op-prestate-rooted"');
   });
 
-  it('renumbered subsequent sections (Foundational Tricks → §10; Competitive → §11; Sources → §12)', async () => {
+  it('renders the v5 §10 / §11 / §12 reference-tail sections', async () => {
+    // V5: §10 Traditional Reference absorbs run-quality + competitive
+    // formats; §11 Community & Historical Vocabulary collects deprecated
+    // and folk names; §12 Sources retains its institutional attribution.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toMatch(/<h2 class="section-heading">10\. Foundational Tricks<\/h2>/);
-    expect(res.text).toMatch(/<h2 class="section-heading">11\. Competitive[^<]*<\/h2>/);
-    expect(res.text).toMatch(/<h2 class="section-heading">12\. Sources<\/h2>/);
+    expect(res.text).toMatch(/10\.\s+Traditional Reference/);
+    expect(res.text).toMatch(/11\.\s+Community/);
+    expect(res.text).toMatch(/12\.\s+Sources/);
   });
 });
 
@@ -1193,21 +1212,18 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('An illusion combined with body rotation');
   });
 
-  it('foundational-tricks §10 renders as registry-style core-trick grid; pixie/fairy stay in the set-modifiers subsection', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G (2026-05-14): §10
-    // foundational-tricks moved from a flat <ul> to the shared
-    // core-tricks-grid partial. The `#term-{slug}` deep-link contract is
-    // preserved via the partial's `idPrefix="term-"` argument so
-    // glossaryAnchors.ts / GLOSSARY('slug') deep-links still resolve.
+  it('§5 Core Trick Structures renders as the registry-style core-trick grid; pixie/fairy stay in §6 set-modifiers', async () => {
+    // V5: foundational atoms live in §5 (Core Trick Structures). The
+    // shared core-tricks-grid partial preserves the `#term-{slug}` deep-
+    // link contract via `idPrefix="term-"`. Set modifiers (pixie / fairy /
+    // stepping plus the intermediate-tier compounds) live in §6 below.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const sec10Heading = res.text.indexOf('10. Foundational Tricks');
+    const sec5Heading = res.text.indexOf('5. Core Trick Structures');
     const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
-    expect(sec10Heading).toBeGreaterThan(0);
-    expect(setModSection).toBeGreaterThan(sec10Heading);
-    const gridSlice = res.text.slice(sec10Heading, setModSection);
+    expect(sec5Heading).toBeGreaterThan(0);
+    expect(setModSection).toBeGreaterThan(sec5Heading);
+    const gridSlice = res.text.slice(sec5Heading, setModSection);
     // All 11 foundational atoms render as registry tiles with `#term-{slug}` anchors.
-    // Per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the foundational
-    // "clipper" atom anchors at slug `clipper-stall`; visible tag stays `#clipper`.
     for (const slug of ['clipper-stall', 'mirage', 'legover', 'pickup', 'illusion', 'whirl', 'butterfly', 'swirl', 'osis', 'around-the-world', 'orbit']) {
       expect(gridSlice).toContain(`id="term-${slug}"`);
     }
@@ -1421,8 +1437,11 @@ describe('Freestyle landing — Featured strip (C-3 + Phase 1/C merge, 2026-05-1
 // ---------------------------------------------------------------------------
 // IA Realignment Batch 3 — glossary pedagogy + compositional teaching flow
 
-describe('Freestyle glossary — Batch 3: PDX flag rewording (C-3-A)', () => {
-  it('renders the PassBack-adapted [PDX] flag definition (mechanical, not circular)', async () => {
+describe('Freestyle glossary — [PDX] component-flag definition', () => {
+  it('renders the [PDX] flag definition as mechanical (not circular)', async () => {
+    // V5 editorial sweep: source attribution lines stripped from the
+    // op-flag definitions. The mechanical content (cross-body far dex,
+    // hip-pivot, operational form) is preserved.
     const res = await request(createApp()).get('/freestyle/glossary');
     const pdxIdx = res.text.indexOf('id="op-flag-pdx"');
     expect(pdxIdx).toBeGreaterThan(0);
@@ -1430,7 +1449,6 @@ describe('Freestyle glossary — Batch 3: PDX flag rewording (C-3-A)', () => {
     expect(slice).toMatch(/cross-body far dex/);
     expect(slice).toMatch(/hip-pivot/);
     expect(slice).toContain('CLIP &gt; OP IN [DEX]');
-    expect(slice).toMatch(/PassBack glossary/);
     // The old circular phrasing is gone.
     expect(slice).not.toMatch(/performed in the paradox direction/);
   });
@@ -1445,60 +1463,58 @@ describe('Freestyle glossary — Batch 3: intro philosophy (C-3-B)', () => {
   });
 });
 
-describe('Freestyle glossary — Batch 3: §8 Symbolic Compression reframe (C-3-C)', () => {
-  it('renames §8 to "Symbolic Compression"', async () => {
+describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
+  it('§7 Symbolic Notation carries the thesis sentence', async () => {
+    // V5: the maintainer-mandated thesis sentence opens §7 (Symbolic
+    // Notation) and frames the compression worked-example in §8.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/<h2 class="section-heading">8\. Symbolic Compression/);
-    // The old heading is gone.
-    expect(res.text).not.toMatch(/<h2[^>]*>8\. Notation \(Jobs Notation\)/);
-  });
-
-  it('renders the maintainer-mandated thesis sentence at the top of §8', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/7\.\s+Symbolic Notation/);
     expect(res.text).toMatch(
       /The language evolves by compressing recurring compositional structures\s+into shorter readable symbolic forms\./,
     );
   });
 
-  it('cross-links §8 to the §3 symbolic-compression flow', async () => {
+  it('§7 cross-links to the §8 symbolic-compression flow', async () => {
+    // V5: §7 (thesis) points readers down to §8's worked example via the
+    // preserved #symbolic-compression-flow anchor.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('href="#symbolic-compression-flow"');
   });
 });
 
-describe('Freestyle glossary — Batch 3: §3 torque/mobius compression flow (C-3-D)', () => {
-  it('renders the symbolic-compression-flow anchor inside §3 (above §4)', async () => {
+describe('Freestyle glossary — §8 torque/mobius compression flow', () => {
+  it('renders the symbolic-compression-flow anchor inside §8 (above §9)', async () => {
+    // V5: the worked compression flow lives in §8 (Composition &
+    // Decomposition) and renders before the §9 topology section.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const sec4Idx = res.text.indexOf('4. Naming');
+    const sec9Idx = res.text.indexOf('9. Movement Topologies');
     expect(flowIdx).toBeGreaterThan(0);
-    expect(sec4Idx).toBeGreaterThan(flowIdx);
+    expect(sec9Idx).toBeGreaterThan(flowIdx);
   });
 
   it('renders three compact-symbolic-object cards: #osis, #torque, #mobius', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const sec4Idx = res.text.indexOf('4. Naming');
-    const slice = res.text.slice(flowIdx, sec4Idx);
+    const sec9Idx = res.text.indexOf('9. Movement Topologies');
+    const slice = res.text.slice(flowIdx, sec9Idx);
     expect(slice).toContain('#osis');
     expect(slice).toContain('#torque');
     expect(slice).toContain('#mobius');
   });
 
-  it('mobius card surfaces two stopping-depth equivalence readings (tokenized per Phase 2 / E)', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / E (2026-05-14): readings
-    // now render as role-classified op-token spans rather than plain
-    // lowercase prose. The compositional content is identical; only the
-    // markup changes (whitespace splits across separate <span>s).
+  it('mobius card surfaces two stopping-depth equivalence readings as role-classified op-tokens', async () => {
+    // V5: readings render as role-classified op-token spans (whitespace
+    // splits across separate <span>s). The compositional content is
+    // identical to the prior implementation; only the section number
+    // changed (the flow lives in §8 now).
     const res = await request(createApp()).get('/freestyle/glossary');
     const mobiusIdx = res.text.indexOf('id="compression-step-mobius"');
-    const sec4Idx   = res.text.indexOf('4. Naming');
+    const sec9Idx   = res.text.indexOf('9. Movement Topologies');
     expect(mobiusIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(mobiusIdx, sec4Idx);
-    // Two stopping depths for mobius: each surfaces SPINNING, SS, and a base trick.
+    const slice = res.text.slice(mobiusIdx, sec9Idx);
     expect(slice).toMatch(/>SPINNING<[\s\S]*?>SS<[\s\S]*?>TORQUE</);
     expect(slice).toMatch(/>SPINNING<[\s\S]*?>SS<[\s\S]*?>MIRAGING<[\s\S]*?>OSIS</);
-    // Torque's compositional equivalence renders above mobius's card.
     const torqueIdx = res.text.indexOf('id="compression-step-torque"');
     expect(torqueIdx).toBeGreaterThan(0);
     const torqueSlice = res.text.slice(torqueIdx, mobiusIdx);
@@ -1525,15 +1541,21 @@ describe('Freestyle glossary — Batch 3: §9 semantic-vs-operational contrast (
   });
 });
 
-describe('Freestyle glossary — Batch 3: Execution Mechanics subsection (C-3-F)', () => {
-  it('renders the Execution Mechanics subsection heading inside §3 with PassBack attribution', async () => {
+describe('Freestyle glossary — Execution mechanics subsection', () => {
+  it('renders the Execution mechanics subsection heading and anchor (no source attribution)', async () => {
+    // V5 editorial sweep: repetitive PassBack attribution removed; the
+    // execution-mechanics anchor + heading are preserved.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="execution-mechanics"');
-    expect(res.text).toMatch(/>Execution Mechanics</);
-    expect(res.text).toMatch(/Concepts adapted from the PassBack glossary/);
+    expect(res.text).toMatch(/id="execution-mechanics"[^>]*>\s*Execution mechanics/);
+    // The per-entry "PassBack glossary" attribution spans must be gone.
+    expect(res.text).not.toContain('class="glossary-source-attrib"');
   });
 
-  it('renders all seven PassBack-adapted micro-entries with anchors', async () => {
+  it('renders the execution-mechanics micro-entries inside §6 and the dex / phases entries elsewhere', async () => {
+    // V5: alpine / symposium-mech / symple / muted live in §6 under
+    // "Execution mechanics"; dex-window / hippy-leggy live in §3
+    // (Dexterities); phases-sides lives in §4 (Timing Layers).
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="term-alpine"');
     expect(res.text).toContain('id="term-symposium-mech"');
@@ -1544,7 +1566,7 @@ describe('Freestyle glossary — Batch 3: Execution Mechanics subsection (C-3-F)
     expect(res.text).toContain('id="term-phases-sides"');
   });
 
-  it('Symposium micro-entry carries the PassBack verbatim definition', async () => {
+  it('Symposium-mechanic micro-entry carries the single-leg-jump definition', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const idx = res.text.indexOf('id="term-symposium-mech"');
     expect(idx).toBeGreaterThan(0);
@@ -1552,25 +1574,32 @@ describe('Freestyle glossary — Batch 3: Execution Mechanics subsection (C-3-F)
     expect(slice).toMatch(/active leg performs an action in a single-leg jump/);
   });
 
-  it('Execution Mechanics subsection sits inside §3, above §4', async () => {
+  it('Execution mechanics subsection sits inside §6, above §7', async () => {
+    // V5: execution-mechanics is a §6 subsection (modifiers/operators),
+    // not a §3 subsection.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const sec3Idx     = res.text.indexOf('3. How Tricks Are Built');
+    const sec6Idx     = res.text.indexOf('6. Modifiers');
     const execIdx     = res.text.indexOf('id="execution-mechanics"');
-    const sec4Idx     = res.text.indexOf('4. Naming');
-    expect(sec3Idx).toBeGreaterThan(0);
-    expect(execIdx).toBeGreaterThan(sec3Idx);
-    expect(sec4Idx).toBeGreaterThan(execIdx);
+    const sec7Idx     = res.text.indexOf('7. Symbolic Notation');
+    expect(sec6Idx).toBeGreaterThan(0);
+    expect(execIdx).toBeGreaterThan(sec6Idx);
+    expect(sec7Idx).toBeGreaterThan(execIdx);
   });
 });
 
-describe('Freestyle glossary — Batch 3: §13 connective-panel positioning note (C-3-G)', () => {
-  it('renders the educational-bridge positioning note inside §13', async () => {
+describe('Freestyle glossary — §9 Movement Topologies (connective panels)', () => {
+  it('renders the §9 Movement Topologies section with the observational badge', async () => {
+    // V5: the six connective panels migrated to §9 as their permanent
+    // home. The transitional "will migrate" positioning note is gone;
+    // the observational-layer badge remains so the layer boundary stays
+    // explicit.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const sec13Idx = res.text.indexOf('id="connective-panels"');
-    expect(sec13Idx).toBeGreaterThan(0);
-    const slice = res.text.slice(sec13Idx, sec13Idx + 1500);
-    expect(slice).toMatch(/positioned as educational bridges/);
-    expect(slice).toMatch(/will migrate to the trick dictionary/);
+    const sec9Idx = res.text.indexOf('id="connective-panels"');
+    expect(sec9Idx).toBeGreaterThan(0);
+    const slice = res.text.slice(sec9Idx, sec9Idx + 2000);
+    expect(slice).toMatch(/9\.\s+Movement Topologies/);
+    expect(slice).toContain('symbolic-layer-badge');
+    expect(slice).toMatch(/observational, not canonical/);
   });
 });
 
@@ -1633,9 +1662,9 @@ describe('Freestyle glossary — Batch 4: compression-flow visual continuity', (
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
-    // Slice forward until §4 heading; count .core-trick-object occurrences in §3 flow region.
-    const sec4Idx = res.text.indexOf('4. Naming');
-    const slice = res.text.slice(flowIdx, sec4Idx);
+    // V5: the flow lives in §8 (Composition & Decomposition); slice to §9.
+    const sec9Idx = res.text.indexOf('9. Movement Topologies');
+    const slice = res.text.slice(flowIdx, sec9Idx);
     const matches = slice.match(/class="core-trick-object glossary-compression-card"/g) ?? [];
     // Three cards: osis, torque, mobius.
     expect(matches.length).toBe(3);

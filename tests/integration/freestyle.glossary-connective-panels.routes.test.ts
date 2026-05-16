@@ -68,19 +68,25 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/glossary — connective panels section', () => {
-  it('renders the new section heading', async () => {
+  it('renders the Movement Topologies section heading and anchor', async () => {
+    // V5: the six connective panels live in §9 Movement Topologies as
+    // their permanent home. The id="connective-panels" anchor is
+    // preserved for inbound links.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Connective glossary panels');
+    expect(res.text).toMatch(/9\.\s+Movement Topologies/);
     expect(res.text).toContain('id="connective-panels"');
   });
 
-  it('preserves existing glossary sections above the panels', async () => {
+  it('preserves the primer + reference sections above and below the panels', async () => {
+    // V5: §1 Movement-Language Primer leads; §10 Traditional Reference
+    // (which absorbs the old ADD system + competitive-format material)
+    // sits below the topology panels; §12 Sources closes the page.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toContain('ADD System &amp; Run Quality');
-    expect(res.text).toContain('Foundational Tricks');
-    // Sources stays at §12; connective panels appended as §13.
-    expect(res.text).toMatch(/12\.\s*Sources/);
+    expect(res.text).toMatch(/1\.\s+Movement-Language Primer/);
+    expect(res.text).toMatch(/10\.\s+Traditional Reference/);
+    expect(res.text).toMatch(/ADD \(Additional Degree of Difficulty\)/);
+    expect(res.text).toMatch(/12\.\s+Sources/);
   });
 
   it('renders all 6 panels with correct anchor IDs', async () => {
@@ -177,13 +183,31 @@ describe('GET /freestyle/glossary — connective panels do not break existing co
     expect(res.text).toMatch(/This glossary teaches how the freestyle language works/);
   });
 
-  it('existing 12 section headings unchanged in their preserved positions', async () => {
+  it('renders the full v5 §1–§12 section spine in order', async () => {
+    // V5 contract: §1 primer / §2 surfaces / §3 dex / §4 timing / §5 core
+    // structures / §6 modifiers / §7 notation / §8 composition / §9
+    // topologies / §10 traditional reference / §11 community-historical /
+    // §12 sources. Each heading's ordinal index must be monotonic.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/1\.\s*ADD System/);
-    expect(res.text).toMatch(/10\.\s*Foundational Tricks/);
-    expect(res.text).toMatch(/11\.\s*Competitive/);
-    // §1-12 preserved; connective panels appended as §13 (does not displace Sources).
-    expect(res.text).toMatch(/12\.\s*Sources/);
-    expect(res.text).toMatch(/13\.\s*Connective glossary panels/);
+    const orderedHeadings = [
+      '1. Movement-Language Primer',
+      '2. Contact Surfaces',
+      '3. Dexterities',
+      '4. Timing Layers',
+      '5. Core Trick Structures',
+      '6. Modifiers',
+      '7. Symbolic Notation',
+      '8. Composition',
+      '9. Movement Topologies',
+      '10. Traditional Reference',
+      '11. Community',
+      '12. Sources',
+    ];
+    let lastIdx = -1;
+    for (const heading of orderedHeadings) {
+      const idx = res.text.indexOf(heading);
+      expect(idx).toBeGreaterThan(lastIdx);
+      lastIdx = idx;
+    }
   });
 });

@@ -87,12 +87,12 @@ const REFERENCE_SECTION: LearnIndexSection = {
     {
       title:      'Set notation reference',
       href:       '/freestyle/sets',
-      shortBlurb: 'The legacy set-notation language compiled by Chris Holden: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest are described in TOE / CLIP / SET grammar. The operational layer of the movement language.',
+      shortBlurb: 'The legacy set-notation language: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest are described in TOE / CLIP / SET grammar. The operational layer of the movement language.',
       status:     'shipped',
       isShipped:  true,
     },
     {
-      title:      'Glossary §13 panels',
+      title:      'Glossary movement-topology panels',
       href:       '/freestyle/glossary#connective-panels',
       shortBlurb: 'Paradox, symposium, ducking, spinning, whirl, pixie — each as a short panel pointing to where the term lives in practice across the dictionary.',
       status:     'shipped',
