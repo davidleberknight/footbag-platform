@@ -6088,3 +6088,92 @@ a.dict-card-title:hover {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.88rem;
 }
+
+/* ── Slice C of 2026-05 normalization ────────────────────────────────────
+   §7 glyph quick-reference: compact at-the-top strip surfacing the
+   operator-board glyphs as visible symbols before the prose explainer.
+   Three tiers; restrained palette mirroring the operator-board tier hues. */
+.glossary-glyph-quickref {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 1rem 0 1.5rem;
+}
+.glossary-glyph-quickref-tier {
+  padding: 0.5rem 0.7rem;
+  border-radius: 4px;
+  background: #f7f6f0;
+  border-left: 3px solid var(--border);
+}
+.glossary-glyph-quickref-tier--set    { border-left-color: #7f9a6b; }
+.glossary-glyph-quickref-tier--body   { border-left-color: #b69d52; }
+.glossary-glyph-quickref-tier--structural { border-left-color: #8a8470; }
+.glossary-glyph-quickref-tier-label {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--secondary);
+  margin-right: 0.6rem;
+  vertical-align: middle;
+}
+.glossary-glyph-quickref-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+.glossary-glyph-quickref-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.85rem;
+}
+.glossary-glyph-quickref-glyph {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #3f3f3f;
+}
+.glossary-glyph-quickref-name {
+  color: var(--secondary);
+}
+
+/* §8 walking-family progression callout. Vertical numbered ladder with
+   formula-aside on each step. */
+.glossary-walking-family-progression {
+  margin: 1rem 0 0.75rem;
+  padding-left: 1.5rem;
+}
+.glossary-walking-family-progression li {
+  margin-bottom: 0.4rem;
+  line-height: 1.4;
+}
+.glossary-walking-family-formula {
+  margin-left: 0.5rem;
+  color: var(--secondary);
+  font-size: 0.92rem;
+}
+.glossary-walking-family-note {
+  font-size: 0.88rem;
+  color: var(--secondary);
+  font-style: italic;
+}
+
+/* §12 sources list — named source families. */
+.glossary-sources-list {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0.75rem 0 1rem;
+}
+.glossary-sources-list li {
+  margin-bottom: 0.4rem;
+  line-height: 1.5;
+}

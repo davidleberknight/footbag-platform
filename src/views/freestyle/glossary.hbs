@@ -131,6 +131,16 @@
       <dd>A dexterity performed in a crossed-body position. The Atom Smasher, for example, uses an X-dex.</dd>
     </dl>
 
+    <h3 class="section-heading">Direction</h3>
+    <p>The arc a dex travels relative to the body. Direction pairs naturally with set primitives: <em>in-direction</em> dexes follow <em>pixie</em> and <em>quantum</em>; <em>out-direction</em> dexes follow <em>atomic</em> and <em>fairy</em>.</p>
+    <dl class="glossary-term-list">
+      <dt id="term-in-dex">In-dex</dt>
+      <dd>A dex that travels <em>inward</em> &mdash; the bag arcs toward the body's center line. Paired with in-direction set primitives (pixie, quantum) and visible in compounds like Dimwalk (pixie butterfly) and Toe Blur (quantum mirage).</dd>
+
+      <dt id="term-out-dex">Out-dex</dt>
+      <dd>A dex that travels <em>outward</em> &mdash; the bag arcs away from the body's center line. Paired with out-direction set primitives (atomic, fairy) and visible in compounds like Atom Smasher (atomic mirage).</dd>
+    </dl>
+
     <h3 class="section-heading">Execution window</h3>
     <p>The phantom space the leg draws around the bag while the dex is performed. The terms below describe where in that space the dex lives.</p>
     <dl class="glossary-term-list">
@@ -464,6 +474,28 @@
       The language evolves by compressing recurring compositional structures
       into shorter readable symbolic forms.
     </p>
+
+    {{! ── Glyph quick-reference (Slice C of 2026-05 normalization) ──────
+        Visible-symbol strip at the top of §7 so the section opens with
+        concrete glyphs rather than prose. Data sourced from
+        content.operatorBoard.tiers; tier colors hung off the tier key
+        match the operator-board rendering on the landing surface. }}
+    <div class="glossary-glyph-quickref" aria-label="Operator glyph quick reference">
+      {{#each content.operatorBoard.tiers}}
+      <div class="glossary-glyph-quickref-tier glossary-glyph-quickref-tier--{{key}}">
+        <span class="glossary-glyph-quickref-tier-label">{{title}}</span>
+        <ul class="glossary-glyph-quickref-list">
+          {{#each operators}}
+          <li class="glossary-glyph-quickref-cell">
+            <span class="glossary-glyph-quickref-glyph">{{glyph}}</span>
+            <span class="glossary-glyph-quickref-name">{{name}}</span>
+          </li>
+          {{/each}}
+        </ul>
+      </div>
+      {{/each}}
+    </div>
+
     <p>
       The longer you stack operators on a base, the longer the name &mdash;
       until the community converges on a shorter shorthand. Jobs notation
@@ -709,6 +741,54 @@
       <em>spinning ss miraging osis</em> is no less correct. The language
       picks its own stopping points.
     </p>
+
+    {{! ── Walking-family progression (Slice C of 2026-05 normalization) ──
+        Pedagogical pathway: seven named compounds that branch off the
+        butterfly base, each adding or swapping one operator. Surfaces
+        within §8 as a worked example of how a base trick anchors a
+        family of compositionally-related tricks. Readings sourced from
+        freestyleSymbolicEquivalences.ts entries authored in Slice A2/A3. }}
+    <h3 class="section-heading" id="walking-family-progression">Walking-family progression &mdash; a family worked example</h3>
+    <p>
+      Seven canonical compounds, each branching off the butterfly base
+      by adding or swapping one operator. Read top-to-bottom for a tour
+      of how the butterfly family climbs the difficulty ladder.
+    </p>
+    <ol class="glossary-walking-family-progression">
+      <li>
+        <strong><a href="/freestyle/tricks/butterfly">butterfly</a></strong>
+        <span class="glossary-walking-family-formula">(base, 3 ADD)</span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/ripwalk">ripwalk</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; stepping butterfly (4 ADD)</span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/dimwalk">dimwalk</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; pixie butterfly (4 ADD)</span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/sidewalk">sidewalk</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; stepping near butterfly (4 ADD)</span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/dada-curve">dada-curve</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; miraging far symposium butterfly (4 ADD)</span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/matador">matador</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; nuclear butterfly (5 ADD)</span>
+      </li>
+      <li>
+        <strong><a href="/freestyle/tricks/phoenix">phoenix</a></strong>
+        <span class="glossary-walking-family-formula">&equiv; pixie ducking butterfly (5 ADD)</span>
+      </li>
+    </ol>
+    <p class="glossary-walking-family-note">
+      One base, seven named branches. Each operator added is also defined
+      in &sect;6 (Modifiers &amp; Operators); each compound has its own
+      detail page with related-trick navigation back to the family.
+    </p>
   </section>
 
   {{#if content.connectivePanels.length}}
@@ -719,14 +799,18 @@
       <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
     </h2>
     <p class="section-intro">
-      Six connective panels surface how a glossary term lives in practice
-      &mdash; in tricks, in operational notation, and in related symbolic
-      groups. The definitions are coach-tone summaries; the canonical entries
-      above remain authoritative.
+      Connective panels for a representative selection of high-value
+      glossary terms &mdash; how each lives in practice, in tricks, in
+      operational notation, and in related symbolic groups. The
+      definitions are coach-tone summaries; the canonical entries above
+      remain authoritative.
     </p>
     <p class="section-intro detail-muted">
-      Topology relationships are observational, not canonical. Canonical
-      family classifications live in the trick dictionary.
+      <em>Representative selection, not comprehensive.</em> The panels
+      below cover a curator-selected cohort; many additional terms have
+      their own canonical entry earlier in this glossary but no connective
+      panel yet. Topology relationships are observational, not canonical
+      &mdash; canonical family classifications live in the trick dictionary.
     </p>
     <div class="glossary-connective-grid">
       {{#each content.connectivePanels}}
@@ -838,13 +922,25 @@
   <section class="content-section">
     <h2 class="section-heading">12. Sources</h2>
     <p>
-      Definitions on this page draw on long-standing freestyle community
-      usage, expert-reviewed terminology established across decades of play
-      and contests, and historical reference materials. They have been
-      rewritten for clarity and consistency. Authoritative trick-level
-      definitions &mdash; ADD values, structural decomposition, modifier
-      relationships &mdash; live in the
-      <a href="/freestyle/tricks">Trick Dictionary</a>.
+      Definitions on this page draw on long-standing community usage and
+      historical reference materials, rewritten for clarity and
+      consistency. Authoritative trick-level definitions &mdash; ADD
+      values, structural decomposition, modifier relationships &mdash;
+      live in the <a href="/freestyle/tricks">Trick Dictionary</a>.
+    </p>
+    <p>The major source families that contribute to this vocabulary:</p>
+    <ul class="glossary-sources-list">
+      <li><strong>footbag.org</strong> &mdash; the long-running community archive; trick lists, event records, and the foundational vocabulary catalogued there.</li>
+      <li><strong>PassBack</strong> &mdash; the conceptual tutorial series that introduced and formalised much of the modern compositional vocabulary (set / modifier / body operator framings).</li>
+      <li><strong>footbagmoves.com</strong> &mdash; observational catalogue of named tricks, alternate names, and rotational variants; informs the symbolic-grammar layer of this glossary.</li>
+      <li><strong>AnzTrikz</strong> &mdash; Australian / New Zealand demonstration series; canonical references for many compound rotational variants.</li>
+      <li><strong>Tricks of the Trade (WorldFootbag YouTube)</strong> &mdash; 42-lesson tutorial series; canonical visual references for many of the dictionary entries.</li>
+      <li><strong>Historical WFA / NHSA records</strong> &mdash; pre-IFPA federation records that anchor several legacy naming conventions still in use.</li>
+    </ul>
+    <p class="detail-muted">
+      Definitions integrate the above sources without quoting any single
+      one verbatim; where a term carries a contested decomposition, the
+      authoritative trick page surfaces the open question explicitly.
     </p>
   </section>
 
