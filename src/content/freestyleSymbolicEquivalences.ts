@@ -238,6 +238,129 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['atomic torque'],
     curatorConfirmPending: false,   // pt4-locked (folk-name: silo)
   },
+  // ── Butterfly-family trivially-named compounds (Slice A3 of 2026-05) ──
+  // Curator-authored chains for butterfly-family pilots whose canonical
+  // name carries the compositional structure. tripwalk's reading is
+  // sourced from the modifier-feel-cards content (quantum entry:
+  // "Tripwalk = Stepping Quantum Butterfly"); sidewalk's "near" qualifier
+  // is curator doctrine surfaced via the user-spec example list. All
+  // tokens are registered in semanticNotationRendering.ts (paradox /
+  // ducking / spinning as MODIFIERS; near as SIDE_POSITIONAL; butterfly
+  // as BASE_ANCHOR). parkwalk deferred — folk-name compound whose
+  // structural decomposition is not yet curator-locked.
+  {
+    slug:     'atomic-butterfly',
+    readings: ['atomic butterfly'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'ducking-butterfly',
+    readings: ['ducking butterfly'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'spinning-butterfly',
+    readings: ['spinning butterfly'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'tripwalk',
+    readings: ['stepping quantum butterfly'],
+    curatorConfirmPending: false,   // modifier-feel-cards (quantum) doctrine
+  },
+  {
+    slug:     'sidewalk',
+    readings: ['stepping near butterfly'],
+    curatorConfirmPending: false,   // user-spec example; 'near' in SIDE_POSITIONAL
+  },
+
+  // ── Mirage-family trivially-named compounds (Slice A3 of 2026-05) ─────
+  // Curator-authored chains. smear / tap / sumo from user-spec example
+  // list (each cites already-established compositional readings; "near"
+  // is a registered SIDE_POSITIONAL token). blur / witchdoctor / fury
+  // deliberately deferred — blur and witchdoctor are folk-name compounds
+  // whose decomposition is not curator-locked; fury was deliberately
+  // omitted earlier (pt1 vs pt6 conflict unresolved).
+  {
+    slug:     'paradox-mirage',
+    readings: ['paradox mirage'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'symposium-mirage',
+    readings: ['symposium mirage'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'smear',
+    readings: ['pixie mirage'],
+    curatorConfirmPending: false,   // user-spec example
+  },
+  {
+    slug:     'tap',
+    readings: ['atomic near mirage'],
+    curatorConfirmPending: false,   // user-spec example
+  },
+  {
+    slug:     'sumo',
+    readings: ['nuclear mirage'],
+    curatorConfirmPending: false,   // user-spec example
+  },
+
+  // ── Osis-family trivially-named compounds (Slice A3 of 2026-05) ───────
+  // Single-modifier-stacked-on-osis decompositions. All tokens already
+  // in MODIFIERS + BASE_ANCHORS registries. barraging-osis already
+  // pending Red Wave-2 (operator class question); deferred.
+  {
+    slug:     'ducking-osis',
+    readings: ['ducking osis'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'spinning-osis',
+    readings: ['spinning osis'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'stepping-osis',
+    readings: ['stepping osis'],
+    curatorConfirmPending: false,
+  },
+
+  // ── Torque-family trivially-named compounds (Slice A3 of 2026-05) ─────
+  // Torque is itself the named compound for miraging osis (existing
+  // chain); these stack one modifier onto torque. blurry-torque carries
+  // a second pt11-locked reading (Blurry = Stepping Paradox). spinal-tap
+  // deferred — folk-name compound whose structural decomposition is not
+  // yet curator-locked.
+  {
+    slug:     'paradox-torque',
+    readings: ['paradox torque'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'spinning-torque',
+    readings: ['spinning torque'],
+    curatorConfirmPending: false,   // canonical-name decomposition; mobius is the folk-name (existing chain)
+  },
+  {
+    slug:     'blurry-torque',
+    readings: ['blurry torque', 'stepping paradox torque'],
+    curatorConfirmPending: false,   // pt11-locked: Blurry = Stepping Paradox
+  },
+
+  // ── Dada-curve (Slice A3 of 2026-05) ──────────────────────────────────
+  // Per user-spec doctrine: "dada-curve = miraging far symposium butterfly".
+  // dada-curve has its own singleton trick_family bucket; the chain
+  // surfaces on the trick's individual detail page + ADD view. All
+  // tokens registered (miraging in MODIFIERS, far in SIDE_POSITIONAL,
+  // symposium in MODIFIERS, butterfly in BASE_ANCHORS).
+  {
+    slug:     'dada-curve',
+    readings: ['miraging far symposium butterfly'],
+    curatorConfirmPending: false,   // user-spec doctrine
+  },
+
   // ── Whirl-family trivially-named compounds (Slice A2 of 2026-05) ──────
   // These compounds are named by their compositional structure: the name
   // IS the formula. Authoring single-reading chains here gives Family

@@ -212,12 +212,22 @@ beforeAll(async () => {
     canonical_name: 'butterfly',
     adds: '2',
   });
-  // paradox-mirage is non-core with a resolvable base; tests Layer 3.
+  // paradox-mirage is non-core with a resolvable base; surfaces both a
+  // chain reading (Slice A3, 2026-05) AND the base_trick lineage.
   insertFreestyleTrick(db, {
     slug: 'paradox-mirage',
     canonical_name: 'paradox mirage',
     adds: '3',
     base_trick: 'mirage',
+  });
+  // parkwalk is non-core with a resolvable base and intentionally NO chain
+  // (Slice A3 deferred — folk-name decomposition not curator-locked).
+  // Tests Layer 3 lineage rendering as the no-chain example.
+  insertFreestyleTrick(db, {
+    slug: 'parkwalk',
+    canonical_name: 'parkwalk',
+    adds: '4',
+    base_trick: 'butterfly',
   });
   // nf2b-gap is non-core with no notation, no base, no chain; tests Layer 5b.
   insertFreestyleTrick(db, {
@@ -1065,12 +1075,16 @@ describe('GET /freestyle/tricks/:slug — semantic-notation fallback ladder', ()
     expect(sectionText).not.toContain('equivalent-readings-pending-flag');
   });
 
-  it('Layer 3: renders "Built on <base>" for a non-core trick with resolvable base_trick and no chain (paradox-mirage)', async () => {
+  it('Layer 3: renders "Built on <base>" for a non-core trick with resolvable base_trick and no chain (parkwalk)', async () => {
+    // parkwalk: folk-named butterfly compound; base_trick='butterfly';
+    // intentionally has no chain entry (deferred to curator review per
+    // Slice A3 of the 2026-05 normalization plan because its
+    // decomposition is not yet curator-locked).
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks/paradox-mirage');
+    const res = await request(app).get('/freestyle/tricks/parkwalk');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="semantic-base-lineage');
-    expect(res.text).toMatch(/Built on <a href="\/freestyle\/tricks\/mirage">mirage<\/a>/);
+    expect(res.text).toMatch(/Built on <a href="\/freestyle\/tricks\/butterfly">butterfly<\/a>/);
     // No equivalence-chain section for this trick.
     expect(res.text).not.toContain('class="equivalent-readings');
   });
