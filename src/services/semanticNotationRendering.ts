@@ -33,6 +33,20 @@ export interface SemanticBrowseToken {
   cssRole:        string;
   /** True when this token IS the active view's anchor (family / component / topology). */
   isFamilyAnchor: boolean;
+  /**
+   * Cross-link to the glossary entry for this token, or null when no
+   * curator-authored anchor exists. Slice E of the 2026-05 normalization
+   * plan: token-level navigation from the dictionary surface to the
+   * glossary teaching surface. Modifier-role tokens with a §6 Surface A
+   * card map to `/freestyle/glossary#modifier-{slug}`; base-anchor tokens
+   * for the 12 core atoms map to `/freestyle/glossary#term-{slug}`.
+   * side-positional and unknown roles never receive a glossary anchor.
+   *
+   * Four-layer rule: this field is a NAVIGATION reference (layer 3 →
+   * layer 4 jump), not a content collapse. The token's text + role +
+   * slug remain pure symbolic-decomposition content.
+   */
+  glossaryAnchor: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,6 +132,55 @@ const SIDE_POSITIONAL: ReadonlySet<string> = new Set([
   'rev',
 ]);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Glossary-anchor allow-lists (Slice E of 2026-05 normalization).
+//
+// Curator-locked: only slugs with a known, populated glossary anchor receive a
+// glossaryAnchor URL. Tokens whose role allows linking but whose slug is not
+// in the relevant allow-list fall back to glossaryAnchor=null — better a
+// non-link than a dead anchor.
+//
+// MODIFIER_GLOSSARY_ANCHORS mirrors the 13 modifier-feel cards in
+// FreestyleGlossaryContent.{setModifierFeelCards, bodyModifierFeelCards}.
+// Each card carries `id="modifier-{slug}"` on its outer <article>.
+// ─────────────────────────────────────────────────────────────────────────────
+const MODIFIER_GLOSSARY_ANCHORS: ReadonlySet<string> = new Set([
+  // Set cluster (9): SET_MODIFIER_FEEL_CARDS in freestyleService.ts
+  'pixie', 'fairy', 'stepping', 'atomic', 'quantum',
+  'blurry', 'nuclear', 'barraging', 'furious',
+  // Body cluster (4): BODY_MODIFIER_FEEL_CARDS in freestyleService.ts
+  'paradox', 'spinning', 'ducking', 'symposium',
+]);
+
+// BASE_ANCHOR_GLOSSARY_ANCHORS mirrors the curator-authored term-{slug}
+// anchors in glossary §5 (Core Trick Structures, rendered via the
+// core-tricks-grid partial with idPrefix="term-") + §2 (foundational
+// surfaces). Aliases like 'atw' get the same anchor as their canonical
+// form (term-around-the-world) when the canonical entry exists in §5.
+const BASE_ANCHOR_GLOSSARY_ANCHORS: ReadonlySet<string> = new Set([
+  // 12 core atoms (CORE_TRICKS) + 'atw' alias display form
+  'toe-stall', 'clipper-stall', 'around-the-world', 'atw', 'orbit',
+  'legover', 'pickup', 'mirage', 'illusion', 'butterfly', 'osis',
+  'whirl', 'swirl',
+  // Named-compound bases that appear in §5 with term-{slug} anchors
+  'torque', 'blender',
+]);
+
+/**
+ * Resolve the glossary cross-link for a token, or null when no curator
+ * anchor exists. Restraint-first: never point at an anchor that doesn't
+ * exist on the glossary page.
+ */
+function resolveGlossaryAnchor(slug: string, role: SemanticRole): string | null {
+  if (role === 'modifier' && MODIFIER_GLOSSARY_ANCHORS.has(slug)) {
+    return `/freestyle/glossary#modifier-${slug}`;
+  }
+  if (role === 'base-anchor' && BASE_ANCHOR_GLOSSARY_ANCHORS.has(slug)) {
+    return `/freestyle/glossary#term-${slug}`;
+  }
+  return null;
+}
+
 /**
  * Strip trailing punctuation from a raw word; preserve case.
  * Display text in tokens (e.g. 'ATW') should round-trip the curator's casing.
@@ -184,6 +247,7 @@ export function shapeSemanticNotation(
       role,
       cssRole:        role,
       isFamilyAnchor: anchor !== null && (key === anchor || slug === anchor),
+      glossaryAnchor: resolveGlossaryAnchor(slug, role),
     };
   });
 }

@@ -11,6 +11,7 @@
     {{/if}}
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+    <p class="hero-cross-link"><a href="/freestyle/tricks">Browse the trick dictionary &rarr;</a></p>
   </div>
 </div>
 
@@ -338,6 +339,7 @@
           <p class="glossary-modifier-card-intuition">{{intuition}}</p>
           <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
           {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
+          <p class="glossary-modifier-card-tricks-link"><a href="/freestyle/tricks?view=component#component-{{slug}}">See tricks using {{name}} &rarr;</a></p>
         </article>
         {{/each}}
       </div>
@@ -356,6 +358,7 @@
           <p class="glossary-modifier-card-intuition">{{intuition}}</p>
           <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
           {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
+          <p class="glossary-modifier-card-tricks-link"><a href="/freestyle/tricks?view=component#component-{{slug}}">See tricks using {{name}} &rarr;</a></p>
         </article>
         {{/each}}
       </div>

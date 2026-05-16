@@ -299,8 +299,12 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     expect(montageRegion).toMatch(/paradox/);
     expect(montageRegion).toMatch(/symposium/);
     // Each operator carries a sem-token class (semantic-browse tokenization).
-    const tokenSpans = (montageRegion.match(/<span class="sem-token /g) ?? []);
-    expect(tokenSpans.length).toBeGreaterThanOrEqual(4);
+    // Slice E (2026-05): modifier + base-anchor tokens whose slug has a
+    // glossary anchor render as <a class="sem-token ... sem-token--linked">;
+    // other tokens stay <span class="sem-token ...">. Both element forms
+    // satisfy this contract.
+    const tokenElements = (montageRegion.match(/<(?:span|a) class="sem-token /g) ?? []);
+    expect(tokenElements.length).toBeGreaterThanOrEqual(4);
   });
 });
 

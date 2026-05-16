@@ -39,7 +39,7 @@
     {{#if tokenizedEquivalences.length}}
       <span class="core-trick-equivalence dict-card-equivalence dict-card-equivalence--inline">
         <span class="core-trick-equiv-sigil">&equiv;</span>
-        {{#each tokenizedEquivalences.[0]}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}
+        {{#each tokenizedEquivalences.[0]}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
       </span>
     {{else if operationalNotation}}
       <code class="dict-card-notation dict-card-notation--inline" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
@@ -76,7 +76,7 @@
       {{#each tokenizedEquivalences}}
       <p class="core-trick-equivalence dict-card-equivalence">
         <span class="core-trick-equiv-sigil">&equiv;</span>
-        {{#each this}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}
+        {{#each this}}{{#if glossaryAnchor}}<a class="sem-token sem-token--{{cssRole}} sem-token--linked" href="{{glossaryAnchor}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</a>{{else}}<span class="sem-token sem-token--{{cssRole}}"{{#if isFamilyAnchor}} data-anchor="true"{{/if}} data-token-slug="{{slug}}">{{text}}</span>{{/if}}{{#unless @last}} {{/unless}}{{/each}}
       </p>
       {{/each}}
     {{else if operationalNotation}}
