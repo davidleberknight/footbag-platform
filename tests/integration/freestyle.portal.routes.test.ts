@@ -339,8 +339,9 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('Circle');
     expect(res.text).toContain('Sick 3');
     expect(res.text).toContain('Shred 30');
-    // Six card ids in the merged grid (4 formats + 2 demonstrations).
-    for (const key of ['routine', 'circle', 'sick3', 'shred30', 'conlon-1998', 'san-marino-2026']) {
+    // Card ids in the merged grid (4 formats + 4 demonstrations, chronological
+    // within the demonstrations cluster post-CURATED-MEDIA-EXPANSION-2026-05).
+    for (const key of ['routine', 'circle', 'sick3', 'shred30', 'reese-1988', 'conlon-1998', 'worlds-2023-team', 'san-marino-2026']) {
       expect(res.text).toContain(`id="featured-${key}"`);
     }
     // Retired sections must not survive.
@@ -717,11 +718,11 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
     const endIdx   = res.text.indexOf('operator-board', startIdx);
     expect(startIdx).toBeGreaterThan(0);
     const slice = res.text.slice(startIdx, endIdx > 0 ? endIdx : startIdx + 12000);
-    // Two chip strips: one each for Conlon + San Marino. Format cards
-    // (Routine / Circle / Sick3 / Shred30) carry no chips — the title is
-    // the format anchor.
+    // Four chip strips: one each for Reese-1988 + Conlon-1998 + Worlds-2023-Team
+    // + San Marino-2026. Format cards (Routine / Circle / Sick3 / Shred30)
+    // carry no chips — the title is the format anchor.
     const stripCount = (slice.match(/class="media-tag-strip"/g) ?? []).length;
-    expect(stripCount).toBe(2);
+    expect(stripCount).toBe(4);
     expect(slice).toContain('media-tag-chip--source');     // #footbag_hof_archive
     expect(slice).toContain('media-tag-chip--creator');    // #by_jay7bah
     expect(slice).toContain('media-tag-chip--quality');    // #curated

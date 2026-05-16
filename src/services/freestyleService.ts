@@ -4719,12 +4719,30 @@ export const freestyleService = {
             tags:    [],
           },
           {
+            key:     'reese-1988',
+            title:   '1988 World Footbag Championships — Rick Reese Freestyle Routine',
+            caption: 'Historical archive footage',
+            media:   expandYouTubeVideo('Zdplm0_RaNY', 'Rick Reese — Worlds 1988 Freestyle Routine'),
+            tags:    shapeMediaTagsForBrowse(
+                       ['#freestyle', '#curated', '#footbag_hof_archive', '#worlds_1988'],
+                     ),
+          },
+          {
             key:     'conlon-1998',
             title:   "1998 World Footbag Championships Women's Freestyle Finals",
             caption: 'Samantha Conlon and Carol Wedemeyer',
             media:   expandYouTubeVideo('2URvZFuxBls', "1998 Worlds Women's Freestyle Finals"),
             tags:    shapeMediaTagsForBrowse(
                        ['#freestyle', '#footbag_hof_archive', '#curated'],
+                     ),
+          },
+          {
+            key:     'worlds-2023-team',
+            title:   'World Footbag Championships 2023 — Team Freestyle Finals (1st Place)',
+            caption: 'Medellín, Colombia',
+            media:   expandYouTubeVideo('xoDEvsbQDYk', 'Worlds 2023 Team Freestyle Finals — 1st Place'),
+            tags:    shapeMediaTagsForBrowse(
+                       ['#freestyle', '#curated', '#worlds_2023', '#team'],
                      ),
           },
           {
