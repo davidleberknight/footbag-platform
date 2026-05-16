@@ -122,3 +122,16 @@ DB mutation safety is enforced as a global rule (`.claude/rules/db-write-safety.
 - §14.16 — `name_variants` schema + contract.
 - §18 — Legacy-site data dump requirements.
 - §25 — Persons count baseline (historical figure; current state in IP "Already done").
+
+## Curator-canonical sidecar invariants
+
+- **Tricks-of-the-Trade lessons (`sourceId='tt_youtube'`).** The 40 `*.meta.json` files in `curated/freestyle_tricks/` were hand-canonicalized 2026-05-06: `title` rewritten to `NN - <lesson_title>` form (zero-padded lesson number), `#tricks_of_the_trade` appended to `tags`. The TT named gallery (`/freestyle/tt-series`) depends on both invariants — caption_asc sort + tag-AND membership. Any tool that regenerates these sidecars (`scripts/migrate-freestyle-media-to-curated.py`, `scripts/promote_snippet_candidates.py`, future variants) MUST preserve the canonical title format AND the `#tricks_of_the_trade` tag, or the gallery breaks silently and the next dev re-seed wipes the canonical state. Until the legacy staging-CSV pipeline (`curated/freestyle_media/video_snippet_candidates.csv` and similar) is eliminated in favor of the admin curator UX, do not re-run any sidecar-producing tool without first verifying it produces canonical titles + tags against `curated/freestyle_media/tt_roster.csv`.
+
+## Archive governance
+
+`exploration/_archive/YYYY-MM/` and `legacy_data/reports/_archive/` are intentionally lower-visibility surfaces for AI agents and operational workflows. Rules:
+
+- **Shipped exploration phases move to archive.** Plan documents, phase reports, audit outputs, and execution guides for completed waves leave `exploration/{dir}/` and land in `exploration/_archive/YYYY-MM/{dir}/` preserving subdirectory provenance.
+- **Active operational docs stay lean.** `legacy_data/IMPLEMENTATION_PLAN.md` and the runbooks are execution-only; shipped work disappears (no "Closed" sections, no tombstones).
+- **Closed exploration becomes pointers, not inline summaries.** Operational docs reference exploration outcomes via 1-line links to memory entries and `exploration/{dir}/`; full narratives stay in their original home.
+- **An agent reading from `_archive/` should assume the content is provenance, not instruction.** Do not load archived docs by default; load only when reconstructing the rationale behind a current state.
