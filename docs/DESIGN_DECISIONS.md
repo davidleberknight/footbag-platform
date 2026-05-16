@@ -295,6 +295,8 @@ Trade-offs:
 
 - Capacity planning is capacity of a single instance (plus CloudFront), not a large cluster.
 
+- Session Manager via Systems Manager Hybrid Activations was evaluated for operator shell access and rejected. The advanced-instances tier required for Session Manager on non-EC2 nodes costs approximately $5/month per Lightsail instance, and the SSM Agent installation, Hybrid Activations, and IAM/Terraform resources are disproportionate to a single-host volunteer-maintained deployment.
+
 Impact:
 
 - CI/CD and deployment scripts are written around "build a Docker image, deploy to one Lightsail host."
@@ -302,6 +304,8 @@ Impact:
 - CloudFront origin configuration points to this instance for dynamic content and to S3 buckets for static and archive content.
 
 - Production uses 4GB Lightsail instance with 2 vCPUs, 80GB SSD, 4TB transfer allowance. This will provide adequate headroom for container allocations: 4GB provides sufficient memory for four Docker containers.
+
+- Operator shell access uses hardened per-operator SSH to named non-root host accounts. Ingress to ports 22 and 2222 is Terraform-managed via `operator_cidrs`. Runtime AWS API access uses an assumed-role chain that is independent of operator shell credentials. The two paths never share credentials.
 
 ## 1.7 Docker Containers
 
@@ -1090,7 +1094,7 @@ Three cookie surfaces:
 
 | Cookie | Issuer (code path) | Integrity | Lifetime | Payload |
 |---|---|---|---|---|
-| `footbag_session` | `issueSessionCookie` in `src/lib/sessionCookie.ts` | RS256 signature; private key in AWS KMS (production) or a local PEM (dev and test), per §3.5 | 24 hours | JWT claims: `sub` (member id), `passwordVersion`, `role` and `tier` hints, standard `iat`/`exp` (§3.4) |
+| `footbag_session` | `issueSessionCookie` in `src/lib/sessionCookie.ts` | RS256 signature; private key in AWS KMS (production) or a local PEM (dev and test), per §3.5 | 24 hours | JWT claims: `sub` (member id), `passwordVersion`, `role` hint, standard `iat`/`exp` (§3.4) |
 | `footbag_flash` | `writeFlash` in `src/lib/flashCookie.ts` | HMAC produced by `cookie-parser` using `SESSION_SECRET` as the signing key | 60 seconds | Opaque string in the form `<kind>` or `<kind>:<payload>` (§5.2) |
 | CloudFront signed cookie for `archive.footbag.org` | Main app at session issue and at session re-issue (per §6.4) | RSA signature verified by CloudFront against a trusted-signer key group | Equal to the session JWT lifetime, so a single re-issue cycle covers both | CloudFront access policy (resource, expiry) |
 
@@ -1191,7 +1195,7 @@ Unsigned display-state cookies. Rejected: the receiving GET handler branches its
 
 Decision:
 
-The session JWT (§3.2) has a 24-hour lifetime (`exp = iat + 86400` seconds). The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (§3.5). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier) so the verifier can resolve which key signed each token across rotation overlap windows. The payload carries `sub` (member id), `passwordVersion`, `role`, `tier`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed 24-hour token on the same response that performed the check. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
+The session JWT (§3.2) has a 24-hour lifetime (`exp = iat + 86400` seconds). The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (§3.5). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier) so the verifier can resolve which key signed each token across rotation overlap windows. The payload carries `sub` (member id), `passwordVersion`, `role`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed 24-hour token on the same response that performed the check. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
 
 Rationale (24-hour TTL):
 
@@ -1220,7 +1224,6 @@ JWT payload, emitted at sign time:
 - `sub`: the member id, matching `members.id`.
 - `passwordVersion`: the snapshot of `members.password_version` at sign time. Compared against the live DB value on every authenticated request; mismatch rejects the token (§3.2).
 - `role`: `"admin"` if `members.is_admin` is set, otherwise `"member"`. Carried for audit-log readability and template hints. Authorization is read from the DB row on every request, not from this claim.
-- `tier`: the current tier label (e.g., `"tier0"`, `"tier1"`, `"tier2"`) derived from the tier resolver at sign time. Carried as a routing hint. Authorization is read from the DB row on every request, not from this claim.
 - `iat`, `exp`: standard JWT timestamps in seconds. `exp = iat + 86400`.
 
 JWT header, emitted at sign time:
@@ -1231,7 +1234,7 @@ JWT header, emitted at sign time:
 Session refresh:
 
 - Trigger: an authenticated request whose JWT satisfies `exp - now < 6 hours` is treated as a refresh candidate.
-- Action: the middleware signs a new JWT carrying the current values of `passwordVersion`, `role`, and `tier` read from the same DB row that satisfied the per-request authorization check; sets the cookie via `issueSessionCookie` with a fresh 24-hour `Max-Age`; and proceeds with the request.
+- Action: the middleware signs a new JWT carrying the current values of `passwordVersion` and `role` read from the same DB row that satisfied the per-request authorization check; sets the cookie via `issueSessionCookie` with a fresh 24-hour `Max-Age`; and proceeds with the request.
 - Non-action: an authenticated request whose JWT satisfies `exp - now >= 6 hours` is not refreshed; the existing cookie is left in place.
 - Failure mode: an expired token fails the per-request signature/passwordVersion verification (§3.2) before the refresh check runs. There is no "expired-but-refreshable" state; an expired token always lands unauthenticated.
 
@@ -1517,8 +1520,8 @@ Legacy migration security rules:
 - Legacy passwords are never imported, stored, or used regardless of how they were stored on the legacy system.
 - `legacy_email` is migration metadata only, not a login credential. It is used to deliver the one-time claim link during the self-serve claim flow, and as the equality target against the requesting member's verified `login_email` when evaluating the email-equality fast path.
 - Mailbox control is the proof step for self-serve claim regardless of which identifier type (email address, username, or member ID) the member submitted. Submitting a username or member ID still requires proving control of the matched `legacy_email` before any merge occurs. When the requesting member's verified `login_email` already equals the matched row's `legacy_email` (case-insensitive, trimmed), the registration-time email-verify step satisfies the proof step and the second token-email is skipped; the merge runs synchronously inside the initiation call. Anti-enumeration is preserved because the fast path is reachable only after a positive lookup.
-- Production has no admin email-skip; admins requiring manual recovery use `manualLegacyClaimRecovery` (with the audit trail and access controls that flow implies). A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. All four vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev-admin shortcut lives in `src/dev-admin-shortcuts/runtime.ts`.
-- Imported placeholder rows cannot log in, are not searchable, and do not receive any member communications before claim.
+- Production has no admin email-skip; admins requiring manual recovery use `manualLegacyClaimRecovery` (with the audit trail and access controls that flow implies). A dev-only convenience flag `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL` lets admin members bypass the email roundtrip on dev workstations only, gated by `FOOTBAG_ENV=development`; the env config refuses to start with the flag set in any non-development environment. The shortcut also covers the dev case where the matched `legacy_members` row is a stub (no `legacy_email`) because the legacy data dump has not been loaded. A second dev-only flag `FOOTBAG_DEV_ADMIN_GRANT_TIER2` enforces the admin↔Tier 2 prerequisite (per `A_Manage_Admin_Role`) on the data side: at boot, every member with `is_admin=1` whose tier ledger lags below Tier 2 receives a `dev_admin_invariant_repair` grant. The dev/staging-only `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` allowlist is the peer mechanism for the bootstrap path described in §2.9: when a registrant's email matches, the unified handler writes `is_admin=1` plus the Tier 2 grant plus the audit rows atomically. These dev-only vars share the same fail-fast guard and refuse to start in production (the email-allowlist additionally permits staging); the runtime catalog of every dev-admin shortcut lives in `src/dev-admin-shortcuts/runtime.ts`, which is the authoritative enumeration.
+- Imported `legacy_members` rows cannot log in, are not searchable, and do not receive any member communications before claim.
 - **Surname-match enforcement is asymmetric by claim path.** The direct-HP claim path (`/history/:personId/claim`) blocks server-side on surname mismatch between the claiming member's `real_name` and the historical person's recorded surname. The legacy-account claim path (the onboarding wizard's `legacy_claim` task) does not enforce surname match: the proof step is mailbox control of the matched `legacy_email`, and a member whose legal name changed between their legacy and current account would otherwise be blocked from reclaiming their own legacy identity. The asymmetry is deliberate. A member who claims their legacy account and later attempts a direct-HP claim against a different surname is blocked at the HP step.
 - **Historical-person claim races are resolved by partial UNIQUE index + service-layer error mapping.** Concurrent claims to the same `historical_persons` row both pass the in-controller "already claimed" check; the partial UNIQUE index `ux_members_historical_person_id` catches the loser at insert. The service wraps the SQLite `SQLITE_CONSTRAINT_UNIQUE` exception in `ConflictError` so the controller renders the same user-readable "already claimed by another member" 422 it renders on the synchronous check path. Raw SQL errors must not leak to the response.
 
@@ -3165,11 +3168,11 @@ The application exposes HTTP health endpoints for use by AWS health checks and d
 Rationale:  
 AWS best practice is to build health checks into every service to support safe deployments and automated recovery.
 
-Constraints:  
-- `/health/live` is cheap and does not call external dependencies.  
-- `/health/ready` Validates essential dependencies required to serve traffic, only (e.g., ability to read required configuration and perform minimal S3 read access). Long-term target includes memory-pressure gating and broader dependency checks.
-- Health endpoints must avoid calling Stripe, SES, S3, and any expensive dependency fan-out.
-- Backup freshness, restore posture, and memory-pressure alarms are operational concerns, not current readiness gates.
+Constraints:
+- `/health/live` is cheap and does not call external dependencies.
+- `/health/ready` validates the two serve-traffic gates: SQLite connectivity and container memory pressure. A 503 from this endpoint (e.g. memory above the §9.5 threshold) leads CloudFront to serve the maintenance page on subsequent organic traffic.
+- Health endpoints must not call Stripe, SES, KMS, S3, or any other external dependency. These are alarm-surfaced operational concerns, not readiness gates.
+- Backup freshness and restore posture are surfaced via §9.4 alarms, not via readiness.
 
 Impact:  
 - Deployment runbooks and any load balancer, target health checks use these endpoints.  

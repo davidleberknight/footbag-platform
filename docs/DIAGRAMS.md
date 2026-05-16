@@ -24,9 +24,10 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ┌─────────────────────────────────────────────────────────────────────┐
 │  AWS CloudFront  (single distribution, global edge network)         │
 │                                                                     │
-│  footbag.org  Dynamic HTML/API → 5min TTL  →  Lightsail origin      │
-│  footbag.org  Static assets   → 1yr TTL   →  S3 static bucket       │
-│  archive.*    Archive HTML    → 1yr TTL   →  S3 archive bucket      │
+│  footbag.org  Dynamic HTML    → CachingDisabled → Lightsail origin  │
+│  footbag.org  /media-store/*  → query-string cache key → S3 media   │
+│  footbag.org  Static assets   → 1yr TTL         → S3 static bucket  │
+│  archive.*    Archive HTML    → 1yr TTL         → S3 archive bucket │
 │                               (CloudFront signed-cookie auth)       │
 └─────────────────────────────────────────────────────────────────────┘
                 Route 53 → CloudFront      origin requests (~5%)
@@ -64,7 +65,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
   AWS managed services (accessed via IAM role — no hardcoded secrets):
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│  AWS SES         Email delivery  (outbox poll every 5 minutes)      │
+│  AWS SES         Email delivery  (outbox poll configurable; default 30s) │
 │  AWS KMS         JWT signing (asymmetric) · ballot encryption       │
 │  Parameter Store Stripe API keys · webhook secrets (not JWT)        │
 │  CloudWatch      Logs · metrics · backup-age alarm (>15 min)        │
@@ -443,7 +444,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  MediaStorageAdapter     S3 (staging/prod impl)     LocalFS impl    │
 │  PaymentAdapter          Stripe live/test SDK       Configurable mock│
 │  SecretsAdapter          LiveSecretsAdapter (SSM)   LocalSecretsAdapter│
-│  JwtSigningAdapter       KmsJwtSigningAdapter (KMS) LocalJwtSigningAdapter│
+│  JwtSigningAdapter       createKmsJwtAdapter (KMS RS256) createLocalJwtAdapter (RS256)│
 │  SafeBrowsingAdapter     LiveSafeBrowsingAdapter    StubSafeBrowsingAdapter│
 │  HttpReachabilityAdapter LiveHttpReachabilityAdapter StubHttpReachabilityAdapter│
 │  ImageProcessingAdapter  HttpImageAdapter           HttpImageAdapter│

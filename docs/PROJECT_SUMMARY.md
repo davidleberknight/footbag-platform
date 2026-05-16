@@ -341,15 +341,15 @@ Contains all domain logic and business rules (documented in Service Catalog as d
 
 Provides abstractions for External Services making them look identical whether running locally (development) or in production. These are code-level abstraction layers in the back end which provide developer-production parity, and allow developers to build and test code without using AWS credentials or live links to the other systems.
 
+- JwtSigningAdapter: `createKmsJwtAdapter` signs JWTs via AWS KMS in production; `createLocalJwtAdapter` signs with a file-based RSA keypair in dev/test. Both use RS256.
 - SesAdapter: `LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev/test.
-- PaymentAdapter: Stripe SDK in production, mock responses in development.
-- SecretsAdapter: AWS Parameter Store SecureString reads in staging and production (`LiveSecretsAdapter` with KMS decryption and lazy in-process cache); dev reads from a gitignored `.local/secrets.json` (`LocalSecretsAdapter`); tests inject `StubSecretsAdapter` directly. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which still load from `.env` via dotenv.
-- CloudTrailAdapter: surfaces AWS CloudTrail audit events for AWS activity; in development, writes simulated audit events to local files.
-- LoggingAdapter: In production, sends structured application and technical logs to CloudWatch Logs; in development, writes the same structured logs to local files.
-- MetricsAdapter: In production, sends metrics (counters, timers, gauges) to CloudWatch Metrics; in development, records the same metrics in local in-memory or file-based storage.
-- URLValidationAdapter: In production, performs URL validation including format checks and allowed host patterns; in development, uses a deterministic stub that validates syntax and known patterns without making outbound network calls.
-- MediaStorageAdapter: Abstracts media storage between environments. `LocalMediaStorageAdapter` serves dev; `S3MediaStorageAdapter` is the staging/production implementation. Content-agnostic; handles photos, system-account video bytes, and posters identically.
-- JwtSigningAdapter: `KmsJwtAdapter` signs JWTs via AWS KMS (RS256) in production; `LocalJwtAdapter` signs with a file-based RSA keypair in dev/test.
+- MediaStorageAdapter: `S3MediaStorageAdapter` for staging/production; `LocalMediaStorageAdapter` for dev. Content-agnostic; handles photos, system-account video bytes, and posters identically.
+- SecretsAdapter: `LiveSecretsAdapter` reads SSM SecureString in staging/production with KMS decryption and lazy in-process cache; `LocalSecretsAdapter` reads a gitignored `.local/secrets.json` in dev; `StubSecretsAdapter` for tests. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which load via dotenv.
+- SafeBrowsingAdapter: `LiveSafeBrowsingAdapter` calls the Google Safe Browsing v4 threatMatches:find endpoint in production; `StubSafeBrowsingAdapter` consults an in-memory deny list in dev/test.
+- HttpReachabilityAdapter: `LiveHttpReachabilityAdapter` performs outbound HEAD probes with redirect-follow and per-hop SSRF re-check in production; `StubHttpReachabilityAdapter` in dev/test; `DisabledHttpReachabilityAdapter` opts out of all outbound HTTP from the validation path.
+- ImageProcessingAdapter: `HttpImageAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
+- VideoTranscodingAdapter: `HttpVideoTranscodingAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
+- PaymentAdapter: Stripe SDK in production, configurable mock responses in development.
 
 This layer is the translation service. Services call generic interfaces; infrastructure routes to appropriate implementation based on environment (dev, stage, prod).
 
@@ -375,7 +375,6 @@ The platform could run on any cloud provider (Azure, Google Cloud, DigitalOcean)
 - AWS Parameter Store: Stores webhook/Stripe secrets and non-key config. JWT tokens are signed with an AWS KMS asymmetric key; signing keys are not stored in Parameter Store. SecureString secrets (organized hierarchically under /footbag/ namespace with /prod/, /staging/, /dev/ environment subpaths) can hold sensitive configuration details that must not be checked into source control.
 - AWS CloudWatch: Unified monitoring service for logs, metrics, and alarms.
 - AWS Route 53: DNS service routing traffic to CloudFront distributions.
-- AWS Systems Manager Session Manager: Secure admin access replacing traditional SSH (no exposed port 22).
 
 **IAM Security Approach:**
 
@@ -530,7 +529,7 @@ This cost model remains sustainable even if community doubles or triples in size
 
 AWS CloudWatch alarms notify administrators if:
 
-- Monthly costs exceed $75 (150 percent of $50 projection), configurable.
+- Monthly costs exceed a configurable threshold (default $75; DD §9.2 sets the $50-$100 cost ceiling).
 - Any single service exceeds 2x expected cost.
 - Unexpected AWS services appear (indicates misconfiguration).
 

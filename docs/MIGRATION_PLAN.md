@@ -225,7 +225,7 @@ Two registration fields:
 
 **Surname constraint:** Display name must share a surname with real_name. Surname extraction uses suffix stripping (Jr, Sr, II, III, IV). This constraint applies to new registrations and profile edits only. Imported placeholders are exempt.
 
-**Semantic asymmetry:** For new registrations, `real_name` is the legal name supplied by the member. For imported placeholders, `real_name` is the best-available name from the legacy export, which may be a display name, a username, or something else entirely. The field name is the same but the quality and provenance differ.
+**Semantic asymmetry:** For new registrations, `real_name` is the legal name supplied by the member. For imported `legacy_members` rows, `real_name` is the best-available name from the legacy export, which may be a display name, a username, or something else entirely. The field name is the same but the quality and provenance differ.
 
 **Slug lifecycle:** `display_name` and the derived slug are permanent post-registration.
 
@@ -867,7 +867,7 @@ Migration-time admin review of Tier 3 cases from the legacy data import (email m
 
 Admins can:
 
-- Review Tier 3 auto-link cases: each case shows the historical person name, the imported placeholder name, the matched email, and relevant context
+- Review Tier 3 auto-link cases: each case shows the historical person name, the `legacy_members` row name, the matched email, and relevant context
 - Confirm or reject the proposed link
 - All actions are audit-logged
 
@@ -1249,14 +1249,13 @@ This list is comprehensive for go-live cutover blockers. Broader product work th
 
 | ID | Criterion | Section | Blocks |
 |---|---|---|---|
-| PC1 | JWT TTL revert to DD §3.4 24h baseline | §28.8 | State 3 → State 4 |
 | PC2 | SES sender cutover to `noreply@footbag.org` | §28.8 | State 3 → State 4 |
 | PC3 | Lightsail SSH firewall rule restore | §28.8 | State 3 → State 4 |
 | PC4 | SES sandbox-mode flip | §28.8 | State 3 → State 4 |
 | PC5 | Production Terraform region fix (us-east-1) | §28.8 | State 3 → State 4 |
 | PC6 | Preview fixture scrub | §28.8 | State 3 → State 4 |
 | PC7 | Production-first-admin SSM-token route lands per DD §2.9 | DD §2.9, DEVOPS_GUIDE §17.8 | State 3 → State 4 |
-| PC8 | Admin-seeding shortcuts removed from staging deploy path | §28.8 item 8 | State 3 → State 4 |
+| PC8 | Admin-seeding shortcuts removed from staging deploy path | §28.8 item 7 | State 3 → State 4 |
 
 ### Retirement gate
 
@@ -1301,7 +1300,7 @@ External prerequisites that must land before Phase 4 starts:
 Phase 4 activities:
 
 - DNS switch
-- Post-cutover notification batch (emails to all imported placeholders with reachable `legacy_email`). Batching respects SES send-rate quotas; each send appends an audit entry per §17; hard-bounce suppression (per §28.5) governs retry eligibility; batch success is a gating signal that the migration loop has closed.
+- Post-cutover notification batch (emails to all imported `legacy_members` rows with reachable `legacy_email`). Batching respects SES send-rate quotas; each send appends an audit entry per §17; hard-bounce suppression (per §28.5) governs retry eligibility; batch success is a gating signal that the migration loop has closed.
 - Admin review of Tier 3 auto-link cases from the legacy data (migration-time only)
 - Registration-time auto-link with inline user prompt (all tiers)
 
@@ -1330,7 +1329,7 @@ Phase 4 activities:
 - Tier grants written for all imported rows
 - `legacy_email` and `legacy_user_id` uniqueness verified
 - Banned field evaluated
-- Club bootstrap candidates resolved against imported placeholder rows
+- Club bootstrap candidates resolved against imported `legacy_members` rows
 - `club_bootstrap_leaders` rows created in staging
 - Batch auto-link pass run on staging
 - Full claim flow rehearsed end-to-end on staging
@@ -1512,14 +1511,13 @@ Gate: JWT signing-key rotation procedure with 24h overlap is documented and dril
 
 Before Phase 4 cutover, the following staging-observability-only deviations must be reverted and rotations completed:
 
-1. JWT TTL revert: `DEFAULT_TTL_SECONDS` in `src/services/jwtService.ts` and `SESSION_COOKIE_MAX_AGE_MS` in `src/middleware/auth.ts` restored to the DD §3.4 24h baseline. Session JWT refresh (§28.7) must land before this revert to avoid silent mid-session logouts at the 24h boundary.
-2. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical address; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` IAM policy `Resource` ARN from the staging sender to the canonical `noreply@footbag.org` identity; restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
-3. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove the Path H §8.10 browser-SSH override (loosened beyond `operator_cidrs`) and return to the `operator_cidrs`-constrained ingress.
-4. SES sandbox-mode flip: `SES_SANDBOX_MODE` in `/srv/footbag/env` cleared (removed or set to `0`) once SES production access has been granted for the account. Clears the staging-warning card rendered on email-gated pages (DD §5.6).
-5. Production Terraform region fix: change `terraform/production/variables.tf:14` region default from `us-east-2` to `us-east-1` before any `terraform apply` from `terraform/production/`. Staging is `us-east-1` per §28.2 / `docs/DEVOPS_GUIDE.md` §3.3; applying as-is would create cross-region production resources.
-6. Preview fixture scrub: `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` inserts a "Footbag Hacky" fixture (fake event, discipline, result, HP record with HoF flag, and result-entry participant) alongside the preview-user account. Acceptable in staging for UX preview; must not reach the production DB. Either condition the fixture block on an env flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`) or delete the block in the production-cutover data pass.
-7. Restore live `mailto:admin@footbag.org` in `/legal`: swap the `.contact-pending` span used in Privacy, Terms, and Copyright contact lines for a live `mailto:admin@footbag.org` once SES sender cutover (item 2) is complete and the canonical mailbox is active. Template-only change; no service or DB work.
-8. Dev autologin revert + dev-admin shortcuts scrub:
+1. SES sender cutover: re-run `docs/DEV_ONBOARDING.md` §8.8 against the canonical address; switch `SES_FROM_IDENTITY` in `/srv/footbag/env` and the `OutboundEmail` IAM policy `Resource` ARN from the staging sender to the canonical `noreply@footbag.org` identity; restart the app. Env + IAM only, no code. Blocked on IFPA domain acquisition.
+2. Lightsail SSH firewall rule restore: `terraform apply` from `terraform/staging/` to remove the Path H §8.10 browser-SSH override (loosened beyond `operator_cidrs`) and return to the `operator_cidrs`-constrained ingress.
+3. SES sandbox-mode flip: `SES_SANDBOX_MODE` in `/srv/footbag/env` cleared (removed or set to `0`) once SES production access has been granted for the account. Clears the staging-warning card rendered on email-gated pages (DD §5.6).
+4. Production Terraform region fix: change `terraform/production/variables.tf:14` region default from `us-east-2` to `us-east-1` before any `terraform apply` from `terraform/production/`. Staging is `us-east-1` per §28.2 / `docs/DEVOPS_GUIDE.md` §3.3; applying as-is would create cross-region production resources.
+5. Preview fixture scrub: `legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py` inserts a "Footbag Hacky" fixture (fake event, discipline, result, HP record with HoF flag, and result-entry participant) alongside the preview-user account. Acceptable in staging for UX preview; must not reach the production DB. Either condition the fixture block on an env flag (e.g. `FOOTBAG_SEED_PREVIEW_FIXTURE=1`) or delete the block in the production-cutover data pass.
+6. Restore live `mailto:admin@footbag.org` in `/legal`: swap the `.contact-pending` span used in Privacy, Terms, and Copyright contact lines for a live `mailto:admin@footbag.org` once SES sender cutover (item 1) is complete and the canonical mailbox is active. Template-only change; no service or DB work.
+7. Dev autologin revert + dev-admin shortcuts scrub:
     - **Dev autologin** (`FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID`) is a dev-only surface admitted by `authMiddleware()` only when `FOOTBAG_ENV=development`. The boot-time `env.ts` guard refuses the marker outside development. Revert: delete the dev branch in `src/middleware/auth.ts` and the env-config guard.
     - **Dev-admin shortcuts (register-allowlist + dev-admin seed).** Both `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` (registration-time allowlist via `src/dev-admin-shortcuts/runtime.ts`) and `--seed-dev-admins` (direct-insert via `src/dev-admin-shortcuts/seed.ts`) are migration-window-only on the staging path and must be removed at cutover. Replacement: production-first-admin via the SSM-token `/admin/bootstrap-claim` route (DD §2.9, DEVOPS_GUIDE §17.8); staging adopts the same SSM-token path post-cutover. At cutover, the deploy script stops writing `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` into the staging `/srv/footbag/env`, and `deploy_to_aws.sh --seed-dev-admins` is tightened to dev-only target. Both mechanisms remain in code for dev workstations, gated by `FOOTBAG_ENV=development`. Production-DB verification per DEVOPS_GUIDE §17.7 still applies: marker counts for `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-admin-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'` must all be zero before the cutover deploy (cf. `scripts/audit-dev-admin-shortcuts.sh`). SSM-token route implementation is a prerequisite tracked in `IMPLEMENTATION_PLAN.md`.
 
