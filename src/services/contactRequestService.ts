@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { workQueue, account } from '../db/db';
+import { workQueue, account, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
-import { getSesAdapter } from '../adapters/sesAdapter';
+import { getCommunicationService } from './communicationService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 
@@ -181,16 +181,27 @@ export const contactRequestService = {
       : trimmed;
     const reasonText = `${categoryLabel}: ${summary}`;
 
-    workQueue.insertItem.run(
-      id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,
-      'membership',
-      TASK_TYPE,
-      'member',
-      input.requestingMemberId,
-      5,
-      nowIso,
-      reasonText,
-    );
+    // Per DD §5.4 + US §198 Global Behaviors: every work_queue_items INSERT
+    // triggers an admin-alerts notification, in the same transaction as the
+    // queue write. Body carries task_type and entity_id only.
+    transaction(() => {
+      workQueue.insertItem.run(
+        id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,
+        'membership',
+        TASK_TYPE,
+        'member',
+        input.requestingMemberId,
+        5,
+        nowIso,
+        reasonText,
+      );
+      getCommunicationService().enqueueMailingListEmail({
+        mailingListSlug:      'admin-alerts',
+        subject:              `New admin queue item: ${TASK_TYPE}`,
+        bodyText:             `Task type: ${TASK_TYPE}\nEntity ID: ${id}`,
+        idempotencyKeyPrefix: `admin-alerts:${TASK_TYPE}:${id}`,
+      });
+    });
 
     appendAuditEntry({
       actionType:    'support.contact_request_submitted',
@@ -287,10 +298,14 @@ export const contactRequestService = {
         '— International Footbag Players Association',
       ].join('\n');
 
-      await getSesAdapter().sendEmail({
-        to: member.login_email,
+      // Per DD §5.4: services enqueue via outbox; never call SES directly.
+      // Terminal-state key shape: re-resolving (rare) does not re-send.
+      getCommunicationService().enqueueEmail({
+        recipientEmail:    member.login_email,
+        recipientMemberId: member.id,
         subject,
         bodyText,
+        idempotencyKey:    `contact-request-resolve:${input.queueItemId}`,
       });
     }
   },

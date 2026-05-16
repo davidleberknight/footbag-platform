@@ -29,11 +29,9 @@ import {
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { hit as rateLimitHit } from '../services/rateLimitService';
+import { readIntConfig } from '../services/configReader';
 import { renderServiceUnavailable } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
-
-const PHOTO_RATE_LIMIT_PER_HOUR = 10;   // US M_Upload_Photo
-const VIDEO_RATE_LIMIT_PER_HOUR = 5;    // US M_Submit_Video
 
 interface FormValues {
   mediaType?: 'photo' | 'video';
@@ -203,12 +201,15 @@ export const memberMediaUploadController = {
       const svc = getDefaultCuratorMediaService();
 
       if (mediaType === 'photo') {
-        const rl = rateLimitHit(`member-photo-upload:${memberId}`, PHOTO_RATE_LIMIT_PER_HOUR, 60);
-        if (!rl.allowed) {
-          throw new RateLimitedError(
-            `Upload rate limit reached. Try again in ${rl.retryAfterSeconds} seconds.`,
-            rl.retryAfterSeconds,
-          );
+        if (req.user?.role !== 'admin') {
+          const max = readIntConfig('photo_upload_rate_limit_per_hour', 10);
+          const rl = rateLimitHit(`member-photo-upload:${memberId}`, max, 60);
+          if (!rl.allowed) {
+            throw new RateLimitedError(
+              `Upload rate limit reached. Try again in ${rl.retryAfterSeconds} seconds.`,
+              rl.retryAfterSeconds,
+            );
+          }
         }
         if (!photoBuffer) {
           throw new ValidationError('Choose a photo file (JPEG or PNG).');
@@ -228,12 +229,15 @@ export const memberMediaUploadController = {
       }
 
       // video branch
-      const rl = rateLimitHit(`member-video-submit:${memberId}`, VIDEO_RATE_LIMIT_PER_HOUR, 60);
-      if (!rl.allowed) {
-        throw new RateLimitedError(
-          `Submission rate limit reached. Try again in ${rl.retryAfterSeconds} seconds.`,
-          rl.retryAfterSeconds,
-        );
+      if (req.user?.role !== 'admin') {
+        const max = readIntConfig('video_submission_rate_limit_per_hour', 5);
+        const rl = rateLimitHit(`member-video-submit:${memberId}`, max, 60);
+        if (!rl.allowed) {
+          throw new RateLimitedError(
+            `Submission rate limit reached. Try again in ${rl.retryAfterSeconds} seconds.`,
+            rl.retryAfterSeconds,
+          );
+        }
       }
       const videoUrl = (fields.videoUrl ?? '').trim();
       const videoPlatform = (fields.videoPlatform ?? '').trim();

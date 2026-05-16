@@ -2155,8 +2155,7 @@ export const freestyleService = {
         //   - dropped (passback_records): renders in the Passback Records
         //     table below instead, to avoid duplicating record-clip data
         const allRefMedia = runSqliteRead('media.listMediaByTrickTag', () =>
-          (media as unknown as { listMediaByTrickTag: { all: (tag: string) => unknown[] } })
-            .listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
+          media.listMediaByTrickTag.all(`#${slug}`) as TrickRefMediaRow[],
         );
         const tutorialMedia: TrickReferenceMediaItem[] = [];
         const demoMedia: TrickReferenceMediaItem[] = [];

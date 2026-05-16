@@ -305,3 +305,36 @@ describe('session edge cases — authz role is derived from DB, not JWT claims',
     expect(payload.sub).toBe(ADMIN_ID);
   });
 });
+
+describe('session edge cases — deceased member', () => {
+  // Contract (parity with findMemberByEmail): a valid JWT whose `sub` points
+  // at a member with is_deceased=1 must not resolve to an authenticated
+  // session. The login path already rejects deceased members; this gate at
+  // session-resolution time terminates the session of a member flagged
+  // deceased mid-session.
+
+  const DECEASED_ID   = 'deceased-session-001';
+  const DECEASED_SLUG = 'deceased_session_user';
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: DECEASED_ID,
+      slug: DECEASED_SLUG,
+      login_email: 'deceased-session@example.com',
+      display_name: 'Deceased Session User',
+      password_version: 1,
+      is_deceased: 1,
+    });
+    db.close();
+  });
+
+  it('JWT for a member with is_deceased=1 is rejected', async () => {
+    const token = createTestSessionJwt({ memberId: DECEASED_ID, passwordVersion: 1 });
+    const app = createApp();
+    const res = await request(app)
+      .get(PROTECTED_ROUTE)
+      .set('Cookie', `footbag_session=${token}`);
+    expectUnauthenticated(res);
+  });
+});

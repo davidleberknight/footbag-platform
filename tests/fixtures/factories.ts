@@ -365,13 +365,13 @@ export function insertResultParticipant(
   db: BetterSqlite3.Database,
   resultEntryId: string,
   displayName: string,
-  o: { id?: string; participant_order?: number; historical_person_id?: string | null } = {},
+  o: { id?: string; participant_order?: number; historical_person_id?: string | null; member_id?: string | null } = {},
 ): string {
   const id = o.id ?? `part-test-${uid()}`;
   db.prepare(`
-    INSERT INTO event_result_entry_participants (id, result_entry_id, participant_order, display_name, historical_person_id, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(id, resultEntryId, o.participant_order ?? 1, displayName, o.historical_person_id ?? null, TS, SYS, TS, SYS);
+    INSERT INTO event_result_entry_participants (id, result_entry_id, participant_order, display_name, historical_person_id, member_id, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `).run(id, resultEntryId, o.participant_order ?? 1, displayName, o.historical_person_id ?? null, o.member_id ?? null, TS, SYS, TS, SYS);
   return id;
 }
 

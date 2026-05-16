@@ -435,6 +435,7 @@ export const publicEvents = {
       ON erp.result_entry_id = ere.id
     LEFT JOIN members AS m_linked
       ON m_linked.id = erp.member_id
+      AND m_linked.deleted_at IS NULL
     LEFT JOIN members AS m_via_hp
       ON m_via_hp.historical_person_id = erp.historical_person_id
       AND m_via_hp.deleted_at IS NULL
@@ -3695,6 +3696,7 @@ export const auth = {
     FROM members_active AS m
     WHERE m.id = ?
       AND m.email_verified_at IS NOT NULL
+      AND m.is_deceased = 0
   `); },
 
   // Dev-autologin convenience: accept a slug when the env var doesn't hold a
@@ -3711,6 +3713,7 @@ export const auth = {
     FROM members_active AS m
     WHERE m.slug = ?
       AND m.email_verified_at IS NOT NULL
+      AND m.is_deceased = 0
   `); },
 
   get updateMemberLastLogin() { return db.prepare(`
@@ -5490,6 +5493,25 @@ export const mailingListSubscriptions = {
       mailing_list_id, member_id, status, status_updated_at
     ) VALUES (?, ?, 'system', ?, 'system', 1,
               ?, ?, ?, ?)
+  `); },
+
+  // Active-subscriber lookup for mailing-list fan-out. Returns one row per
+  // member with status='subscribed' on the given list, where the list itself
+  // is active and the member's email is verified. Filters out
+  // unsubscribed/bounced/complained/suppressed rows and members whose email
+  // is unconfirmed. Used by CommunicationService.enqueueMailingListEmail.
+  get listActiveSubscribersBySlug() { return db.prepare(`
+    SELECT
+      s.member_id,
+      m.login_email,
+      s.mailing_list_id
+    FROM mailing_list_subscriptions AS s
+    INNER JOIN members_active AS m ON m.id = s.member_id
+    INNER JOIN mailing_lists AS ml ON ml.slug = s.mailing_list_id
+    WHERE s.mailing_list_id = ?
+      AND s.status = 'subscribed'
+      AND ml.status = 'active'
+      AND m.email_verified_at IS NOT NULL
   `); },
 };
 

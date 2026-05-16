@@ -102,7 +102,7 @@ describe('GET /admin/work-queue', () => {
 });
 
 describe('POST /admin/work-queue/:id/resolve', () => {
-  it('admin resolves → 303 + queue row resolved + audit + email dispatched', async () => {
+  it('admin resolves → 303 + queue row resolved + audit + email enqueued via outbox', async () => {
     const app = createApp();
     const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
 
@@ -128,16 +128,19 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       .get(MEMBER_ID) as Record<string, unknown> | undefined;
     expect(audit).toBeDefined();
     expect(audit!.actor_type).toBe('admin');
-    db.close();
 
-    // Stub SES adapter received an email reply.
-    const { getStubSesAdapterForTests } = await import('../../src/adapters/sesAdapter');
-    const stub = getStubSesAdapterForTests();
-    expect(stub).not.toBeNull();
-    const last = stub!.sentMessages[stub!.sentMessages.length - 1];
-    expect(last?.to).toBe('wq-member@example.com');
-    expect(last?.subject).toContain('Corrected');
-    expect(last?.bodyText).toContain('Fixed your display name.');
+    // Per DD §5.4: services enqueue via outbox; never call SES directly.
+    const outboxRow = db
+      .prepare(`SELECT recipient_email, subject, body_text, idempotency_key FROM outbox_emails WHERE recipient_member_id = ? AND idempotency_key LIKE 'contact-request-resolve:%' ORDER BY created_at DESC LIMIT 1`)
+      .get(MEMBER_ID) as
+        | { recipient_email: string; subject: string; body_text: string; idempotency_key: string }
+        | undefined;
+    expect(outboxRow).toBeDefined();
+    expect(outboxRow!.recipient_email).toBe('wq-member@example.com');
+    expect(outboxRow!.subject).toContain('Corrected');
+    expect(outboxRow!.body_text).toContain('Fixed your display name.');
+    expect(outboxRow!.idempotency_key).toBe(`contact-request-resolve:${queueId}`);
+    db.close();
   });
 
   it('invalid decision_label → 422', async () => {

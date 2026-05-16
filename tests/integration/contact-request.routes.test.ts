@@ -7,10 +7,11 @@ import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3128');
 
-const OWNER_ID   = 'member_contact_owner';
-const OWNER_SLUG = 'contact_owner';
-const STRANGER_ID   = 'member_contact_stranger';
-const STRANGER_SLUG = 'contact_stranger';
+const OWNER_ID    = 'member_contact_owner';
+const OWNER_SLUG  = 'contact_owner';
+const STRANGER_ID    = 'member_contact_stranger';
+const STRANGER_SLUG  = 'contact_stranger';
+const ADMIN_SUBSCRIBER_ID = 'admin_alerts_subscriber_1';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -26,6 +27,26 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: OWNER_ID,    slug: OWNER_SLUG,    display_name: 'Contact Owner',    real_name: 'Contact Owner',    login_email: 'owner@example.com' });
   insertMember(db, { id: STRANGER_ID, slug: STRANGER_SLUG, display_name: 'Contact Stranger', real_name: 'Contact Stranger', login_email: 'stranger@example.com' });
+  insertMember(db, {
+    id:           ADMIN_SUBSCRIBER_ID,
+    slug:         'admin_alerts_sub_one',
+    display_name: 'Admin Alerts Subscriber',
+    login_email:  'admin-alerts-sub@example.com',
+    is_admin:     1,
+  });
+  // Subscribe the admin to admin-alerts so the M2 fan-out has a target.
+  db.prepare(`
+    INSERT INTO mailing_list_subscriptions (
+      id, created_at, created_by, updated_at, updated_by, version,
+      mailing_list_id, member_id, status, status_updated_at
+    ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, 'subscribed', ?)
+  `).run(
+    `mls-${ADMIN_SUBSCRIBER_ID}`,
+    '2025-01-01T00:00:00.000Z',
+    '2025-01-01T00:00:00.000Z',
+    ADMIN_SUBSCRIBER_ID,
+    '2025-01-01T00:00:00.000Z',
+  );
   db.close();
   createApp = await importApp();
 });
@@ -33,11 +54,13 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 beforeEach(() => {
-  // Wipe queue rows between tests so rate-limit counters reset cleanly.
+  // Wipe queue rows + outbox between tests so rate-limit counters reset
+  // cleanly and admin-alerts fan-out assertions are deterministic.
   // audit_entries is immutable (append-only); tests scope their audit
   // assertions to the most recent entry for the relevant member.
   const db = new BetterSqlite3(dbPath);
   db.prepare(`DELETE FROM work_queue_items`).run();
+  db.prepare(`DELETE FROM outbox_emails`).run();
   db.close();
 });
 
@@ -212,5 +235,41 @@ describe('POST /members/:slug/contact-admin', () => {
     const parsed = JSON.parse(meta!.metadata_json);
     expect(parsed.message).toBe(payload);
     db.close();
+  });
+
+  it('enqueues admin-alerts fan-out: one outbox row per subscribed admin, body carries task type + entity id only', async () => {
+    // M2: per US §198 Global Behaviors, every work_queue_items insert fires
+    // an admin-alerts notification containing only task_type + entity_id.
+    const app = createApp();
+    await request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message: 'route the fan-out' });
+
+    const db = new BetterSqlite3(dbPath);
+    const queueRow = db
+      .prepare(`SELECT id FROM work_queue_items WHERE entity_id = ? AND status = 'open' LIMIT 1`)
+      .get(OWNER_ID) as { id: string } | undefined;
+    expect(queueRow).toBeDefined();
+    const queueItemId = queueRow!.id;
+
+    const outboxRows = db.prepare(`
+      SELECT recipient_email, recipient_member_id, mailing_list_id, subject, body_text, idempotency_key
+      FROM outbox_emails
+      WHERE mailing_list_id = 'admin-alerts'
+    `).all() as Array<Record<string, unknown>>;
+    db.close();
+    expect(outboxRows.length).toBe(1);
+    const row = outboxRows[0];
+    expect(row.recipient_member_id).toBe(ADMIN_SUBSCRIBER_ID);
+    expect(row.recipient_email).toBe('admin-alerts-sub@example.com');
+    expect(row.subject).toBe('New admin queue item: member_contact_request');
+    expect(row.body_text).toBe(`Task type: member_contact_request\nEntity ID: ${queueItemId}`);
+    expect(row.idempotency_key).toBe(`admin-alerts:member_contact_request:${queueItemId}:${ADMIN_SUBSCRIBER_ID}`);
+    // Body must not contain sensitive member data per US §198.
+    expect(row.body_text).not.toContain('owner@example.com');
+    expect(row.body_text).not.toContain('Contact Owner');
+    expect(row.body_text).not.toContain('route the fan-out');
   });
 });

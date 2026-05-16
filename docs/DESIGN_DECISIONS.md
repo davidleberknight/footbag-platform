@@ -3342,7 +3342,7 @@ Impact:
 
 - CloudWatch tracks rate limit hits for capacity planning.
 
-- Upload operation caps (application-level, per member): 10 photo uploads per hour, and 5 video link submissions per hour.
+- Upload operation caps (application-level, per member) are admin-tunable via `system_config_current`; the normative default values live in USER_STORIES.md §6.7 / DATA_MODEL.md §4.23 (`photo_upload_rate_limit_per_hour`, `video_submission_rate_limit_per_hour`).
 
 - In-process counters of operations per member are memory-only.
 
