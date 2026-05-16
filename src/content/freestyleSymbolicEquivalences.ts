@@ -238,6 +238,56 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['atomic torque'],
     curatorConfirmPending: false,   // pt4-locked (folk-name: silo)
   },
+  // ── Whirl-family trivially-named compounds (Slice A2 of 2026-05) ──────
+  // These compounds are named by their compositional structure: the name
+  // IS the formula. Authoring single-reading chains here gives Family
+  // View the same formula visibility ADD View provides — closing the
+  // "Notation pending" placeholder gap on cards whose structure is
+  // already self-evident from the canonical name. curatorConfirmPending
+  // is false because each reading is an identity transformation of the
+  // canonical name (no decomposition claim beyond what the name asserts).
+  // blurry-whirl carries a second pt11-locked reading (Blurry = Stepping
+  // Paradox) for pedagogical compression.
+  {
+    slug:     'paradox-whirl',
+    readings: ['paradox whirl'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'spinning-whirl',
+    readings: ['spinning whirl'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'ducking-whirl',
+    readings: ['ducking whirl'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'symposium-whirl',
+    readings: ['symposium whirl'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'stepping-whirl',
+    readings: ['stepping whirl'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'tapping-whirl',
+    readings: ['tapping whirl'],
+    curatorConfirmPending: false,
+  },
+  {
+    slug:     'blurry-whirl',
+    readings: ['blurry whirl', 'stepping paradox whirl'],
+    curatorConfirmPending: false,   // pt11-locked: Blurry = Stepping Paradox
+  },
+  {
+    slug:     'spinning-symposium-whirl',
+    readings: ['spinning symposium whirl'],
+    curatorConfirmPending: false,
+  },
   // ── High-ADD flagship chain (CANONICAL-SURFACE-REALIGNMENT-2 NR-1C) ──
   // Gauntlet is the dictionary's flagship 7-ADD compound. Surfacing two
   // stopping depths on its compact-symbolic-object card demonstrates
