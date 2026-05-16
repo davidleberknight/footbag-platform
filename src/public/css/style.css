@@ -5162,13 +5162,9 @@ section.home-media { padding-top: 0; }
   opacity: 0.65;
 }
 
-.dict-card-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
+/* .dict-card-header is no longer emitted (PRESENTATION_OBJECT_HIERARCHY normalization, 2026-05-16).
+   Browse density now stacks children directly so field order matches registry density:
+   title → formula → ADD chip → media chip → status badge → placeholder note. */
 .dict-card-title {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 1.20rem;
@@ -5388,7 +5384,19 @@ a.dict-card-title:hover {
 }
 .dict-card-equivalence--inline .sem-token + .sem-token { margin-left: 0.35em; }
 
-/* ── Browse density: tokenized reading promoted; slug subordinate ──────── */
+/* ── Browse density: vertical stack, same field order as registry ──────────
+   PRESENTATION_OBJECT_HIERARCHY normalization (2026-05-16): the browse card
+   stacks its direct children top-to-bottom in DOM order, which now matches
+   registry: title → formula → ADD → media → status → placeholder. */
+.dict-card--browse {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid #efece2;
+}
+.dict-card--browse:last-child { border-bottom: none; }
 .dict-card--browse .dict-card-title {
   font-size: 1.05rem;
   font-weight: 500;
@@ -5399,6 +5407,13 @@ a.dict-card-title:hover {
   line-height: 1.5;
 }
 .dict-card--browse .dict-card-equivalence .sem-token + .sem-token { margin-left: 0.35em; }
+/* ADD chip + media chip + status badge sit on their own row each in browse
+   density, in DOM order. inline-block keeps the chip compact (not full-width). */
+.dict-card--browse .dict-card-add,
+.dict-card--browse .dict-card-media-chip,
+.dict-card--browse .dict-card-status-badge {
+  display: inline-block;
+}
 
 /* Mobile: registry stacks to two lines (slug + ADD on row 1; reading on row 2). */
 @media (max-width: 520px) {
@@ -5591,15 +5606,10 @@ a.dict-card-title:hover {
   line-height: 1.55;
 }
 
-/* Mobile: stack title + ADD vertically on narrow viewports so the
- * operational notation still has horizontal room. */
+/* Mobile: scale title / ADD / notation slightly down. Browse density
+ * already stacks (post-PRESENTATION_OBJECT_HIERARCHY normalization
+ * 2026-05-16); no .dict-card-header to reflow. */
 @media (max-width: 480px) {
-  .dict-card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    margin-bottom: 6px;
-  }
   .dict-card-title { font-size: 1.05rem; }
   .dict-card-add { font-size: 0.85rem; }
   .dict-card-notation { font-size: 0.92rem; }

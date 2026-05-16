@@ -59,18 +59,18 @@
     {{/if}}
   </article>
 {{else}}
-  {{! ── Browse density (default): vertical stack with tokenized readings ── }}
+  {{! ── Browse density (default): vertical stack matching ADD-View field order
+      Canonical field order (BOTH densities — see PRESENTATION_OBJECT_HIERARCHY.md):
+      1. title  →  2. formula  →  3. ADD chip  →  4. media chip  →  5. status badge  →  6. placeholder note
+      Browse density stacks the same fields vertically; registry density flows them inline. }}
   <article class="dict-card dict-card--browse{{#if isExternalOnly}} dict-card--external-placeholder{{/if}}"
            data-trick-slug="{{slug}}"
            data-media-coverage="{{mediaCoverage}}">
-    <header class="dict-card-header">
-      {{#if isExternalOnly}}
-        <span class="dict-card-title">{{displayName}}</span>
-      {{else}}
-        <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
-      {{/if}}
-      <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
-    </header>
+    {{#if isExternalOnly}}
+      <span class="dict-card-title">{{displayName}}</span>
+    {{else}}
+      <a class="dict-card-title" href="{{href}}">{{displayName}}</a>
+    {{/if}}
 
     {{#if tokenizedEquivalences.length}}
       {{#each tokenizedEquivalences}}
@@ -85,12 +85,14 @@
       <p class="dict-card-notation dict-card-notation--pending" aria-label="Operational notation pending"><em>Notation pending</em></p>
     {{/if}}
 
+    <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
+
     {{#if hasReferenceMedia}}
-    <p class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</p>
+    <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
     {{/if}}
 
     {{#if statusBadge}}
-    <p class="dict-card-status-badge">{{statusBadge}}</p>
+    <span class="dict-card-status-badge">{{statusBadge}}</span>
     {{/if}}
     {{#if placeholderNote}}
     <p class="dict-card-placeholder-note">{{placeholderNote}}</p>
