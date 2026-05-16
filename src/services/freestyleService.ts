@@ -4634,11 +4634,11 @@ export const freestyleService = {
           title:   'Body operators',
           intro:   'What the body does while the bag is up.',
           operators: [
-            op('SPIN',  'Spinning', 'Body rotates around the vertical axis.',        'SPIN + TORQUE',           'MOBIUS',             MOD_PEDAGOGY('spinning')),
-            op('GY',    'Gyro',     'Half-rotation body modifier (180°).',           'GY + BUTTERFLY',          'GYRO BUTTERFLY',     NOTATION('gyro')),
-            op('DUCK',  'Ducking',  'Body drops under the bag.',                     'PIX + DUCK + BUTTERFLY',  'PHOENIX',            MOD_PEDAGOGY('ducking')),
-            op('PDX',   'Paradox',  'Hip pivot between two dexes; body switches sides.', 'PDX + LEG-OVER',     'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
-            op('SYMP',  'Symposium','Active leg jumps + lands solo while the other holds.', 'SYMP + ILLUSION', 'FLAIL',              GLOSSARY('symposium'), true),
+            op('SPIN',  'Spinning',   'Full-body 360° rotation through the dex moment.', 'SPIN + BUTTERFLY',      'SPINNING BUTTERFLY', MOD_PEDAGOGY('spinning')),
+            op('GY',    'Gyro',       'Half-rotation body modifier (180°).',           'GY + TORQUE',             'MOBIUS',             NOTATION('gyro')),
+            op('DUCK',  'Duck / Dive','Head dip or arc; duck/dive/weave/zulu family.', 'PIX + DUCK + BUTTERFLY', 'PHOENIX',           MOD_PEDAGOGY('ducking')),
+            op('PDX',   'Paradox',    'Hip pivot between two dexes; body switches sides.', 'PDX + LEG-OVER',     'PARADOX LEG-OVER',   MOD_PEDAGOGY('paradox')),
+            op('SYMP',  'Symposium',  'Active leg jumps + lands solo while the other holds.', 'SYMP + ILLUSION', 'FLAIL',              GLOSSARY('symposium'), true),
           ],
         },
         {
@@ -4649,7 +4649,6 @@ export const freestyleService = {
           operators: [
             op('XDEX',  'Cross-dex','Dex circles the bag opposite the plant foot.',  'XDEX + INSIDE',           'CLIPPER',            null, true),
             op('SAME',  'Same-foot','Set foot = catch foot.',                        'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY', null),
-            op('OP',    'Opposite', 'Set foot ≠ catch foot (the default).',          'OP + BUTTERFLY',          'BUTTERFLY',          null),
           ],
         },
       ],

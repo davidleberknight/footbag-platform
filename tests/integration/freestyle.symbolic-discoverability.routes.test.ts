@@ -126,12 +126,14 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     expect(res.text).not.toContain('The compositional vocabulary');
   });
 
-  it('renders all 14 Tier-1 operator glyphs', async () => {
+  it('renders all 13 Tier-1 operator glyphs', async () => {
+    // Slice B (2026-05): OP cell dropped (its example "OP + BUTTERFLY →
+    // BUTTERFLY" was a no-op that taught nothing visible).
     const res = await request(createApp()).get('/freestyle/learn');
     const glyphs = [
       'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
       'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
-      'XDEX', 'SAME', 'OP',
+      'XDEX', 'SAME',
     ];
     for (const glyph of glyphs) {
       expect(res.text).toMatch(new RegExp(`<p class="operator-glyph">${glyph}</p>`));

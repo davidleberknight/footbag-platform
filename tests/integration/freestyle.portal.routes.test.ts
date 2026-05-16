@@ -413,17 +413,19 @@ describe('GET /freestyle — onboarding + portal landing', () => {
   it('Tutorials card lists the curated tutorial series; Glossary lives on its own peer card (no longer a subordinate link)', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // All TT/AnzTrikz tutorial-series links remain present on the page.
+    // All TT/AnzTrikz/PassBack tutorial-series links remain present on the page.
     expect(res.text).toContain('/media/gallery_tricks_of_the_trade');
+    expect(res.text).toContain('/media/gallery_passback_tutorials');
     expect(res.text).toContain('/media/gallery_anz_trikz');
     expect(res.text).toContain('/freestyle/glossary');
-    // The TT + AnzTrikz links sit inside the Tutorials & Learning card.
+    // The TT + PassBack + AnzTrikz links sit inside the Tutorials & Learning card.
     const tutIdx = res.text.indexOf('Tutorials &amp; Learning');
     const glossaryCardIdx = res.text.indexOf('<div class="card-title">Glossary</div>');
     expect(tutIdx).toBeGreaterThan(0);
     expect(glossaryCardIdx).toBeGreaterThan(tutIdx);
     const tutSlice = res.text.slice(tutIdx, glossaryCardIdx);
     expect(tutSlice).toContain('/media/gallery_tricks_of_the_trade');
+    expect(tutSlice).toContain('/media/gallery_passback_tutorials');
     expect(tutSlice).toContain('/media/gallery_anz_trikz');
     // The glossary link is NOT inside the Tutorials card anymore — it sits
     // on its own peer card with a normal action button.
@@ -540,13 +542,15 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).not.toContain('Relationships across the trick.');
   });
 
-  it('renders all 14 Tier-1 operator glyphs inside operator-glyph cells', async () => {
+  it('renders all 13 Tier-1 operator glyphs inside operator-glyph cells', async () => {
+    // Slice B of 2026-05 normalization: OP cell dropped (its previous
+    // composition "OP + BUTTERFLY → BUTTERFLY" taught nothing visible).
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const glyphs = [
       'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
       'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
-      'XDEX', 'SAME', 'OP',
+      'XDEX', 'SAME',
     ];
     for (const glyph of glyphs) {
       // Each glyph appears inside its own .operator-glyph paragraph at least once.
@@ -555,17 +559,36 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     }
   });
 
+  it('does NOT render the dropped OP operator glyph', async () => {
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).not.toMatch(/<p class="operator-glyph">OP<\/p>/);
+  });
+
   it('renders one composition example per operator with input + arrow + result', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Spot-check four representative compositions across all three tiers.
+    // Spot-check representative compositions across all three tiers.
+    // Slice B (2026-05): Mobius example moved to GY cell per Red 2026-05-15
+    // (Mobius ≈ Gyro Torque, not Spinning Torque). SPIN cell now shows
+    // its canonical-name decomposition.
     expect(res.text).toMatch(/PIX \+ BUTTERFLY[\s\S]*?DIMWALK/);
-    expect(res.text).toMatch(/SPIN \+ TORQUE[\s\S]*?MOBIUS/);
+    expect(res.text).toMatch(/SPIN \+ BUTTERFLY[\s\S]*?SPINNING BUTTERFLY/);
+    expect(res.text).toMatch(/GY \+ TORQUE[\s\S]*?MOBIUS/);
     expect(res.text).toMatch(/PIX \+ DUCK \+ BUTTERFLY[\s\S]*?PHOENIX/);
     expect(res.text).toMatch(/SAME \+ BUTTERFLY[\s\S]*?SAME-FOOT BUTTERFLY/);
     // Each example block carries a separator arrow.
     const arrowCount = (res.text.match(/class="operator-example-arrow"/g) || []).length;
-    expect(arrowCount).toBe(14);
+    expect(arrowCount).toBe(13);
+  });
+
+  it('renders the DUCK cell with the "Duck / Dive" pedagogical name (4-way family)', async () => {
+    // Slice B (2026-05): DUCK cell renamed from "Ducking" to "Duck / Dive"
+    // to surface the 4-way family (duck / dive / weave / zulu) rather than
+    // implying a single isolated operator.
+    const app = createApp();
+    const res = await request(app).get('/freestyle');
+    expect(res.text).toMatch(/<p class="operator-name">Duck \/ Dive<\/p>/);
   });
 
   it('places the operator board above the "Where to go next" orientation block', async () => {
@@ -605,7 +628,8 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(matches.length).toBe(11);
   });
 
-  it('omits the deep-link footer on unlinked operators (XDEX, SAME, OP)', async () => {
+  it('omits the deep-link footer on unlinked operators (XDEX, SAME)', async () => {
+    // Slice B (2026-05): OP cell dropped; XDEX and SAME remain unlinked.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).not.toContain('/freestyle/glossary#term-blender');
@@ -763,10 +787,14 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants',
   });
 
   it('every operator-action line stays under the compression threshold (≤10 words)', async () => {
+    // Slice B (2026-05): cell count dropped from 14 → 13 after the
+    // structural-tier OP cell ("Set foot ≠ catch foot (the default)") was
+    // dropped — its example "OP + BUTTERFLY → BUTTERFLY" was a no-op and
+    // taught nothing visible.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const actions = [...res.text.matchAll(/<p class="operator-action">([^<]+)<\/p>/g)];
-    expect(actions.length).toBe(14);
+    expect(actions.length).toBe(13);
     for (const m of actions) {
       const wc = m[1].trim().split(/\s+/).length;
       expect(wc).toBeLessThanOrEqual(10);
