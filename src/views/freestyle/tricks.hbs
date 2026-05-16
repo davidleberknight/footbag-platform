@@ -101,11 +101,12 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Family view — browse density (family-anchor underline emphasis) ─── }}
+  {{! ── Family view — registry density (PRESENTATION_UNIFICATION 2026-05-16):
+      Cards are identical to ADD View; only grouping + family-anchor underline differs. }}
   {{#if (eq content.activeView "family")}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
-  <section class="content-section trick-family-group trick-group--browse" id="family-{{familySlug}}" data-anchor-style="solid">
+  <section class="content-section trick-family-group trick-group--registry" id="family-{{familySlug}}" data-anchor-style="solid">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
@@ -113,9 +114,9 @@
     {{#if crossLink}}
     <p class="trick-family-cross-link"><a href="{{crossLink.href}}">{{crossLink.label}} &rarr;</a></p>
     {{/if}}
-    <div class="dict-card-stack">
+    <div class="dict-card-stack dict-card-stack--registry">
       {{#each cards}}
-        {{> dictionary-trick-card density="browse"}}
+        {{> dictionary-trick-card density="registry"}}
       {{/each}}
     </div>
   </section>
@@ -144,7 +145,7 @@
         <span class="section-count">{{groups.length}}</span>
       </div>
       {{#each groups}}
-      <section class="trick-component-group trick-group--browse" id="{{anchorId}}" data-anchor-style="solid">
+      <section class="trick-component-group trick-group--registry" id="{{anchorId}}" data-anchor-style="solid">
         <div class="component-group-heading">
           <h3><a href="/freestyle/tricks?view=component#{{anchorId}}">{{componentName}}</a></h3>
           <span class="section-count">{{memberCount}}</span>
@@ -152,9 +153,9 @@
         {{#if bodyDefinition}}
         <p class="component-group-definition">{{bodyDefinition}}</p>
         {{/if}}
-        <div class="dict-card-stack">
+        <div class="dict-card-stack dict-card-stack--registry">
           {{#each cards}}
-            {{> dictionary-trick-card density="browse"}}
+            {{> dictionary-trick-card density="registry"}}
           {{/each}}
         </div>
       </section>
@@ -202,15 +203,15 @@
 
   {{#if content.topologyView.groups.length}}
   {{#each content.topologyView.groups}}
-  <section class="content-section trick-topology-group trick-group--browse" id="{{anchorId}}" data-anchor-style="dotted">
+  <section class="content-section trick-topology-group trick-group--registry" id="{{anchorId}}" data-anchor-style="dotted">
     <div class="section-heading">
       <h2><a href="/freestyle/tricks?view=topology#{{anchorId}}">{{topologyName}}</a></h2>
       <span class="section-count">{{memberCount}}</span>
     </div>
     <p class="topology-group-definition">{{bodyDefinition}}</p>
-    <div class="dict-card-stack">
+    <div class="dict-card-stack dict-card-stack--registry">
       {{#each cards}}
-        {{> dictionary-trick-card density="browse"}}
+        {{> dictionary-trick-card density="registry"}}
       {{/each}}
     </div>
   </section>

@@ -229,7 +229,9 @@ describe('component view — group rendering', () => {
     const paradoxStart = res.text.indexOf('id="component-paradox"');
     const nextGroupStart = res.text.indexOf('id="component-', paradoxStart + 1);
     const paradoxBlock = res.text.slice(paradoxStart, nextGroupStart > paradoxStart ? nextGroupStart : paradoxStart + 2500);
-    expect(paradoxBlock).toContain('class="dict-card-stack"');
+    // Post PRESENTATION_UNIFICATION (2026-05-16): component view uses registry
+    // density (same as ADD View). Stack wrapper carries both base + density classes.
+    expect(paradoxBlock).toContain('class="dict-card-stack dict-card-stack--registry"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-mirage"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-whirl"');
     expect(paradoxBlock).toContain('data-trick-slug="paradox-blender"');

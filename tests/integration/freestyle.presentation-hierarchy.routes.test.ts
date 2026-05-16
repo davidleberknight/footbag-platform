@@ -130,7 +130,10 @@ describe('Presentation-hierarchy contract — registry density (ADD View canonic
   }
 });
 
-describe('Presentation-hierarchy contract — browse density (Family View)', () => {
+describe('Presentation-hierarchy contract — Family View (registry density, post-unification)', () => {
+  // After PRESENTATION_UNIFICATION (2026-05-16), all browse views including
+  // Family View render with registry density. Cards are visually identical
+  // to ADD View; only grouping differs.
   for (const pilot of PILOTS) {
     it(`renders ${pilot.slug} with canonical field order in Family View`, async () => {
       const app = createApp();
@@ -139,13 +142,16 @@ describe('Presentation-hierarchy contract — browse density (Family View)', () 
       const card = cardRegion(res.text, pilot.slug);
       expect(card, `card not found for ${pilot.slug} in Family View`).not.toBeNull();
       const pos = slotPositions(card!);
-      // Same required ordering as registry: title BEFORE formula BEFORE ADD.
+      // Same required ordering as ADD View: title BEFORE formula BEFORE ADD.
       expect(pos.title).toBeGreaterThanOrEqual(0);
       expect(pos.add).toBeGreaterThanOrEqual(0);
       expect(pos.formula).toBeGreaterThan(pos.title);
       expect(pos.add).toBeGreaterThan(pos.formula);
-      // Article wrapper carries the dict-card--browse class on Family View.
-      expect(card!).toMatch(/class="dict-card dict-card--browse/);
+      // Article wrapper carries the dict-card--registry class on every browse
+      // view now (PRESENTATION_UNIFICATION). Family View must match ADD View.
+      expect(card!).toMatch(/class="dict-card dict-card--registry/);
+      // Browse-density class must NOT appear — Family View no longer uses it.
+      expect(card!).not.toMatch(/class="dict-card dict-card--browse/);
       // The deprecated <header class="dict-card-header"> must not be emitted.
       expect(card!).not.toContain('class="dict-card-header"');
     });

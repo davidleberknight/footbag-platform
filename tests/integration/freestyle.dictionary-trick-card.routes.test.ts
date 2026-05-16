@@ -209,28 +209,38 @@ describe('dictionary-trick-card — required slots', () => {
   });
 
   it('renders ≡ symbolic-equivalence readings from the curator chain registry', async () => {
-    // BROWSE-REFACTOR-1 Slice 1: ≡ readings live in browse-density views
-    // (family / component / topology). By ADD is now registry density which
-    // renders a tokenized first-reading inline; ≡ sigil + multi-reading
-    // rendering uses browse density.
+    // Post PRESENTATION_UNIFICATION (2026-05-16): every browse view renders
+    // registry density. The equivalence wrapper picks up the --inline modifier
+    // class. The token text content is identical to what ADD View shows.
     const res = await request(createApp()).get('/freestyle/tricks?view=family');
     // Ripwalk: chain reading 'stepping butterfly'
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?stepping[\s\S]*?butterfly/i);
     // Mobius: 'gyro torque' reading
-    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence"[^>]*>[\s\S]*?gyro[\s\S]*?torque/i);
+    expect(res.text).toMatch(/class="core-trick-equivalence dict-card-equivalence[^"]*"[^>]*>[\s\S]*?gyro[\s\S]*?torque/i);
     // The legacy aliases row is gone:
     expect(res.text).not.toMatch(/class="dict-card-aliases"/);
   });
 
-  it('renders "Notation pending" placeholder in browse density when no notation present', async () => {
-    // BROWSE-REFACTOR-1 Slice 1: pending placeholder is suppressed in registry
-    // density (By ADD / By Category) per the audit (clean identifier-only
-    // cards for atoms). Browse density (family / component / topology) keeps
-    // the placeholder for rows with neither tokenized ≡ readings nor
-    // operational notation.
-    const res = await request(createApp()).get('/freestyle/tricks?view=family');
-    expect(res.text).toContain('dict-card-notation--pending');
-    expect(res.text).toMatch(/<em>Notation pending<\/em>/);
+  it('"Notation pending" placeholder is silent across all browse views (post-unification)', async () => {
+    // Post PRESENTATION_UNIFICATION (2026-05-16): every browse view uses
+    // registry density. Registry density renders the formula slot silently
+    // when neither a curator chain nor operational notation exists — no
+    // "Notation pending" italic anywhere on browse cards. This applies
+    // uniformly to ADD / Family / Component / Topology / Category views.
+    //
+    // Cards still indicate their data state via title + ADD chip + (optional)
+    // media chip. The pending state is data-coverage, not a render contract.
+    for (const url of [
+      '/freestyle/tricks',
+      '/freestyle/tricks?view=family',
+      '/freestyle/tricks?view=category',
+      '/freestyle/tricks?view=component',
+      '/freestyle/tricks?view=topology',
+    ]) {
+      const res = await request(createApp()).get(url);
+      expect(res.text).not.toContain('dict-card-notation--pending');
+      expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
+    }
   });
 
   it('F4 — suppresses "Notation pending" when ≡ symbolic equivalences carry the structural information', async () => {
