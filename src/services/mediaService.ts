@@ -1,3 +1,58 @@
+/**
+ * MediaGalleryService -- member-attributed media upload, gallery, and moderation.
+ *
+ * (Implementation file is `mediaService.ts`; the avatar sub-service lives in
+ * `avatarService.ts` via the factory `createAvatarService`.)
+ *
+ * Owns:
+ *   - Member photo upload and processing
+ *   - Member video link submission
+ *   - Gallery management (criteria/exclude tag sets; ordering)
+ *   - Media tagging operations
+ *   - Media flag and moderation workflows
+ *
+ * Does not own:
+ *   - Curator-attributed (system-member) uploads (CuratorMediaService)
+ *   - Tag stats recomputation (HashtagDiscoveryService.rebuildTagStats, run via
+ *     OperationsPlatformService)
+ *   - S3 lifecycle management
+ *
+ * Required patterns:
+ *   - HD media (no soft-delete). Flags and tags cascade-delete with media.
+ *     Gallery contents cascade with gallery delete. Avatar and club logo detach on
+ *     media delete (`ON DELETE SET NULL`).
+ *   - Photo security pipeline mandatory: re-encode as JPEG 85%, strip EXIF/ICC,
+ *     generate 300x300 thumbnail and 800px display variant, discard original.
+ *   - Max 5 video embeds per gallery.
+ *   - One avatar per member (partial UNIQUE index `ux_media_avatar_per_member`).
+ *   - Standard tags must not be HD.
+ *   - Tag validation is delegated to `HashtagDiscoveryService.validateAndResolveTag`;
+ *     this service does not normalize or create tags directly.
+ *   - Uploader-attribution `#by_<slug>` namespace is system-managed at upload time.
+ *   - Named-gallery and browse page reads filter `moderation_status = 'active'` and
+ *     `is_avatar = 0`; default ordering follows `member_galleries.sort_order`.
+ *   - `/media/browse` accepts repeatable `?tag=` and `?exclude=`, normalized to
+ *     `#<lowercase>`, deduplicated; include wins over same-token exclude. Mode is
+ *     `browse` (form pane only) when no token resolves, otherwise `results`
+ *     (form + paginated tile grid); pagination prev/next reproduce the canonical
+ *     repeated-arg form.
+ *   - Hero `byMember` chip lifts from any `#by_<slug>` criterion (auth-gated profile
+ *     link) so the template renders "by *Member Name*" attribution distinct from
+ *     gallery ownership.
+ *
+ * Persistence:
+ *   media_items, member_galleries, member_gallery_tags, member_gallery_exclude_tags,
+ *   gallery_external_links, media_tags, media_flags, tags, members, work_queue_items,
+ *   audit_entries, outbox_emails.
+ *
+ * Side effects:
+ *   - audit_entries append
+ *   - work_queue_items insert (media flag) with admin-alerts mailing-list notification
+ *   - outbox_emails enqueue (admin takedown notification)
+ *
+ * Service shape: singleton object (no external adapters beyond db.ts). Avatar via
+ * the `createAvatarService(deps)` factory in `avatarService.ts`.
+ */
 import {
   CuratorGalleryRow,
   FhNamedGalleryRow,

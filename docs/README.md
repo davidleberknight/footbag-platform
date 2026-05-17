@@ -13,7 +13,7 @@ Design and specification documents for the footbag-platform modernization projec
 - [`DIAGRAMS.md`](DIAGRAMS.md) — architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md) — cross-document terminology
 - [`SERVICE_CATALOG.md`](SERVICE_CATALOG.md) — service contracts and ownership
-- [`VIEW_CATALOG.md`](VIEW_CATALOG.md) — public page standards and current public route catalog
+- [`VIEW_CATALOG.md`](VIEW_CATALOG.md) — public page standards, per-route rules, and the page-matrix
 - [`DEVOPS_GUIDE.md`](DEVOPS_GUIDE.md) — build, deploy, operate, recover, and infrastructure procedures
 - [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md) — developer setup and local/staging iteration guidance
 

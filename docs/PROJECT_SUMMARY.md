@@ -51,11 +51,11 @@ This Footbag Website Modernization Project will upgrade footbag.org as the new g
 
 The project documentation suite consists of the following documents:
 
-**View Catalog:** Target public-rendering standard, route catalog, and public page matrix. Defines the `PageViewModel<TContent>` contract every page must consume, the reusable primitives, the public route inventory with audience and authorization, and the sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary).
+**View Catalog:** Target public-rendering standard for public pages. Defines the `PageViewModel<TContent>` contract every page must consume, the reusable primitives, the public page overview matrix with audience and authorization, and the sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary).
 
 **User Stories:** Defines complete feature scope, and describes what users must be able to achieve, and acceptance criteria (system side effects). Source of Truth for Functional Requirements.
 
-**Service Catalog:** Target service-layer design. Defines ownership boundaries for every service under `src/services/**`, the required patterns each service must follow, the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others), and the catalog-scope rule that determines what belongs here vs in TypeScript or `IMPLEMENTATION_PLAN.md`. Pair with code, tests, and TypeScript types for current method shapes.
+**Service Catalog:** Target service-layer design. Defines ownership boundaries for every service under `src/services/**`, cross-cutting required patterns, and the non-negotiable invariants (anti-enumeration, audit append-only, ballot non-anonymity, system_config append-only, others). Per-service rule detail for high-stakes services lives in each service's file-header JSDoc; lighter and read-only services keep their detail in the per-service notes here. Pair with code, tests, and TypeScript types for current method shapes.
 
 **Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, these three documents define the high-level requirements from which all other documents must be consistent. 
 

@@ -28,6 +28,16 @@ jobs:
       - name: Type-check
         run: npm run build
 
+  conventions:
+    name: Convention gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run convention gate
+        run: bash scripts/ci/assert_conventions.sh
+
   unit-tests:
     name: Unit tests
     runs-on: ubuntu-latest
@@ -131,7 +141,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, unit-tests, integration-tests, db-load-smoke, e2e]
+    needs: [typecheck, conventions, unit-tests, integration-tests, db-load-smoke, e2e]
     runs-on: ubuntu-latest
     if: always()
 
@@ -139,12 +149,14 @@ jobs:
       - name: Check results
         run: |
           if [ "${{ needs.typecheck.result }}" != "success" ] || \
+             [ "${{ needs.conventions.result }}" != "success" ] || \
              [ "${{ needs.unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.db-load-smoke.result }}" != "success" ] || \
              [ "${{ needs.e2e.result }}" != "success" ]; then
             echo "One or more jobs failed:"
             echo "  typecheck: ${{ needs.typecheck.result }}"
+            echo "  conventions: ${{ needs.conventions.result }}"
             echo "  unit-tests: ${{ needs.unit-tests.result }}"
             echo "  integration-tests: ${{ needs.integration-tests.result }}"
             echo "  db-load-smoke: ${{ needs.db-load-smoke.result }}"

@@ -17,10 +17,10 @@ Read only the section relevant to this task. For large documents, locate the sec
 4. **`docs/DESIGN_DECISIONS.md`** (targeted) — read when entering a new code area, unwinding a temporary simplification, or when the rationale behind a pattern is unclear.
 5. **`docs/VIEW_CATALOG.md`** — target rendering standard and target page contract. Read:
    - public-rendering-standard section: required `PageViewModel<TContent>` shape (`seo`, `page`, `navigation`, `content`); required reusable primitives (event card, discipline tag, result section, year nav, etc.); implementation rules (thin controllers, logic-light templates, service-owned shaping); visual rules and CSS token baseline.
-   - public-route-catalog section: confirm the route is cataloged or explain why it should be added.
-   - public-page-matrix entry for the affected route: required service binding, audience and authorization, required rendering pattern, source files.
+   - route registration: confirm the route exists in `src/routes/publicRoutes.ts` or add it there. The route-rules section lists per-route ordering, anti-enumeration, and canonical-identity constraints; read any bullet matching the route you are touching.
+   - public-page-matrix entry for the affected route: required service binding, audience and authorization, required rendering pattern.
    - sensitive-page target rules: when the page touches privacy, anti-enumeration, owner-only, or public/private boundary surfaces, read the relevant subsection in full.
-6. **`docs/SERVICE_CATALOG.md`** — target service-layer ownership and required patterns. Locate the entry for the owning service; read its boundary statement, required patterns, and method roster. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
+6. **`docs/SERVICE_CATALOG.md`** — target service-layer ownership and required patterns. Locate the entry for the owning service; read its boundary statement and required patterns. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
 7. **Code, types, tests, and `database/schema.sql`** — authoritative for current shapes (method signatures, view-model TypeScript, return types, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with target patterns in VC or SC, that is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not catalog drift. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
 8. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the view-layer change must preserve.
 
@@ -39,19 +39,18 @@ If this task adds a **new top-level nav section**, also read:
 - `src/controllers/homeController.ts` — the home page composes `primaryLinks[]`; a new section must appear here
 - the shared nav partial or layout template that renders the `navigation.items` array — confirm the new section key will render correctly.
 
-## Step 3 — Preserve current architecture
+## Step 3 — Architecture context
 
-- server-rendered Express + Handlebars — no client-side rendering
-- thin controllers: HTTP glue only; no business logic
-- service-owned shaping: all page-model building, business rules, and domain logic belong in services
-- services own auth-conditional shaping: viewer context (logged-in user, roles) is passed in by the controller but the service decides what to include or omit based on it; controllers never mutate service output (DD 1.9)
-- logic-light templates: templates branch only on already-shaped booleans, empty arrays, or presentation-ready sections — never on raw domain data or route semantics
-- explicit route registration — no dynamic or catch-all route magic
-- no repository abstractions, ORMs, mediator layers, or speculative API layers
+Path-scoped rule files in `.claude/rules/` auto-attach when Claude reads or edits files in their matching paths. For public-page work this typically loads `service-layer.md`, `controller-conventions.md`, `template-conventions.md`, and `db-layer.md`. Trust those rules; do not restate them in your plan.
 
-**Naming conventions (enforced):**
-- Controllers: `{domain}Controller.ts` — camelCase, singular noun, no plurals. Examples: `eventController.ts`, `memberController.ts`, `clubController.ts`. There is no `publicController` layer.
-- Services: `{domain}Service.ts` — camelCase, singular noun, no plurals. Examples: `eventService.ts`, `memberPublicReadService.ts`.
+Two architecture rules sit outside any path-scoped file and apply broadly:
+
+- Server-rendered Express + Handlebars; no client-side rendering or speculative API layers.
+- Explicit route registration in `src/routes/publicRoutes.ts`; no dynamic or catch-all magic.
+
+Naming:
+- Controllers: `{domain}Controller.ts` -- camelCase, singular noun. No `publicController` layer.
+- Services: `{domain}Service.ts` -- camelCase, singular noun.
 
 ## Step 4 — Watch for route hazards
 
@@ -61,7 +60,7 @@ If this task adds a **new top-level nav section**, also read:
 ## Step 5 — State your plan before editing
 
 Before touching any file, state:
-- route(s) affected and whether they are already cataloged in the VIEW_CATALOG public-route-catalog section
+- route(s) affected and whether they are already registered in `src/routes/publicRoutes.ts`
 - user story acceptance criteria being satisfied
 - view-model fields required by the VIEW_CATALOG public-page-matrix entry for the route
 - service method(s) that will own the page shaping (from the SERVICE_CATALOG entry for the owning service)

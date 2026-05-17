@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, parse } from 'path';
-import { db, media } from '../db/db';
+import { media } from '../db/db';
 import { readSidecar, type CuratorSidecar } from '../lib/curatorSidecar';
 import { CURATED_TAG, type CuratorMediaListItem } from './curatorMediaService';
 import { ValidationError } from './serviceErrors';
@@ -239,28 +239,13 @@ function enumerateMediaSources(dirPath: string): SourceMediaFile[] {
 
 function readExistingCuratorRows(systemMemberId: string): ExistingCuratorRow[] {
   return runSqliteRead('listCuratorRowsForReconcile', () =>
-    db
-      .prepare(
-        `SELECT id, source_filename, caption
-         FROM media_items
-         WHERE uploader_member_id = ?
-           AND moderation_status = 'active'
-           AND source_filename IS NOT NULL`,
-      )
-      .all(systemMemberId),
+    media.listCuratorRowsForReconcile.all(systemMemberId),
   ) as ExistingCuratorRow[];
 }
 
 function readMediaTagsForId(mediaId: string): string[] {
   const rows = runSqliteRead('readMediaTagsForId', () =>
-    db
-      .prepare(
-        `SELECT t.tag_normalized
-         FROM media_tags mt
-         JOIN tags t ON t.id = mt.tag_id
-         WHERE mt.media_id = ?`,
-      )
-      .all(mediaId),
+    media.listMediaTagsForId.all(mediaId),
   ) as { tag_normalized: string }[];
   return rows.map((r) => r.tag_normalized);
 }

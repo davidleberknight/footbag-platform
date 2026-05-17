@@ -1,3 +1,40 @@
+/**
+ * ClubService -- club lifecycle and roster.
+ *
+ * Owns:
+ *   - Club lifecycle: create, edit, activate/deactivate, archive
+ *   - Leader and co-leader management
+ *   - Roster management
+ *   - Operability enforcement
+ *
+ * Does not own:
+ *   - Media (MediaGalleryService)
+ *   - Payments (PaymentService when implemented)
+ *
+ * Required patterns:
+ *   - SA only: no `deleted_at` on `clubs`; use `clubs_all` for archived queries.
+ *   - One `role='leader'` per club; a member can be leader of at most one club; max
+ *     5 leaders per club; anti-self-removal (sole leader cannot remove themselves).
+ *   - Standard hashtag reserved via `HashtagDiscoveryService.reserveStandardTag()` at
+ *     creation; permanent (not HD).
+ *   - Club display names are not required to be globally unique; the hashtag is the
+ *     canonical identifier.
+ *   - Club with zero leaders inserts a "Needs Leader" `work_queue_items` row; club
+ *     with no contact email inserts a "Needs Contact" row.
+ *   - News items emitted via `NewsService.emitNewsItem` only.
+ *
+ * Persistence:
+ *   clubs, clubs_open, clubs_all, club_leaders, members, tags, news_items,
+ *   audit_entries, outbox_emails, work_queue_items.
+ *
+ * Side effects:
+ *   - audit_entries append
+ *   - outbox_emails enqueue (join/leave/co-leader/archive emails)
+ *   - news_items emission via NewsService (`club_created`, `club_archived`)
+ *   - work_queue_items insert with admin-alerts mailing-list notification
+ *
+ * Service shape: singleton object (no external adapters).
+ */
 import { PublicClubRow, PublicClubMemberRow, MemberCountRow, clubs } from '../db/db';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';

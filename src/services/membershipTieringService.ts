@@ -1,17 +1,54 @@
 /**
- * Membership tier ledger service.
+ * MembershipTieringService -- membership tier ledger.
  *
- * Owns writes to member_tier_grants and reads of member_tier_current.
- * Lifetime membership tiers (tier0, tier1, tier2, tier3) never expire and
- * never decrement on refund. Tier 3 is governance-conferred and carries an
- * underlying tier (tier1 or tier2) the member returns to when governance ends.
+ * Owns:
+ *   - Membership-tier ledger writes (`member_tier_grants`)
+ *   - HoF/BAP Tier 2 grants
+ *   - Tier 3 governance set/remove
+ *   - Admin tier corrections
+ *   - Admin-role grants
+ *   - `getTierStatus(memberId)` -- the sole authoritative membership-tier read path
  *
- * Phase A scope: every write path for the tier ledger except event-driven
- * payment-success (Phase B wires the Stripe webhook around applyPurchaseGrant).
+ * Does not own:
+ *   - Payment processing (PaymentService when implemented)
+ *   - Registration (CompetitionParticipationService)
+ *   - Active Player lifecycle (ActivePlayerService -- this service calls
+ *     `endOnTierUpgrade` / `endOnTier3Grant` in the same transaction as the tier
+ *     write, but does not own the AP ledger)
+ *   - Official roster reads (OfficialRosterService)
  *
- * The ledger is append-only; UPDATE/DELETE are blocked at the DB layer.
- * Multi-row writes (tier grant + AP end) are wrapped in transaction() to land
- * atomically.
+ * Required patterns:
+ *   - Append-only ledger. UPDATE/DELETE blocked by DB triggers.
+ *   - `getTierStatus` derives from `member_tier_current` (the authoritative view).
+ *   - Lifetime tier semantics: tier0/tier1/tier2/tier3 never expire, never decrement
+ *     on refund. Tier 3 is governance-conferred and carries an underlying tier
+ *     (tier1 or tier2) the member returns to when governance ends.
+ *   - Source-linkage discipline: tier grants link only to `related_payment_id`,
+ *     admin overrides, HoF/BAP grants, Tier 3 governance changes, or legacy
+ *     migration; no event/vouch/club source FK.
+ *   - `governance_set` requires non-null `new_underlying_tier_status`;
+ *     `governance_removed` requires non-null `old_underlying_tier_status`.
+ *   - HoF/BAP grant on a Tier 3 member writes `governance_set` updating
+ *     `new_underlying_tier_status = tier2`; otherwise writes a plain Tier 2 grant.
+ *   - Refund does not write a `revoke` row.
+ *   - Admin-role prerequisites: target must be Tier 2 or Tier 3; anti-lockout (last
+ *     admin cannot be revoked); `admin-alerts` mailing-list subscription updated
+ *     atomically with the `is_admin` change.
+ *   - Tier 0 Active Player ending on purchase or Tier 3 grant runs in the same
+ *     transaction as the tier write (calls `ActivePlayerService.endOnTierUpgrade`
+ *     or `endOnTier3Grant`).
+ *   - News items emitted via `NewsService.emitNewsItem` only.
+ *
+ * Persistence:
+ *   member_tier_grants, member_tier_current, members (flag and role fields),
+ *   mailing_list_subscriptions, news_items, audit_entries, outbox_emails.
+ *
+ * Side effects:
+ *   - audit_entries append
+ *   - outbox_emails enqueue (tier change, congratulatory HoF/BAP)
+ *   - news_items emission via NewsService (`member_honor`)
+ *
+ * Service shape: singleton object (no external adapters).
  */
 import {
   memberTier,

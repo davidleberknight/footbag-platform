@@ -1,3 +1,83 @@
+/**
+ * CuratorMediaService -- curator-attributed media uploads and named-gallery editing.
+ *
+ * Owns:
+ *   - Admin upload, edit, delete, and list of curator photos and videos on behalf
+ *     of the system member account
+ *   - Magic-byte and format validation
+ *   - ffmpeg curator transcode pipeline
+ *   - Storage key construction matching the curator-seed layout
+ *   - Auto-application of the `#curated` uploader marker
+ *   - Admin and member named-gallery editing (FH-owned and member-owned
+ *     `member_galleries` rows)
+ *
+ * Does not own:
+ *   - Member-attributed uploads (MediaGalleryService)
+ *
+ * Required patterns:
+ *   - `uploader_member_id` is always the system member id (`is_system=1`); the admin
+ *     actor is recorded only in `audit_entries`.
+ *   - Curator video bytes use `video_platform='s3'`; member video routes reject `s3`
+ *     as a defensive boundary.
+ *   - Storage keys follow `{systemMemberId}/detached/{mediaId}-...` so offline seed
+ *     and admin upload produce identical row shape.
+ *   - Auto-applies `#curated`; `#curated` rejected from input.
+ *   - URL-reference uploads write a sidecar JSON at
+ *     `/curated/{category}/<primarySlug>_<sha1(videoUrl)[:8]>.meta.json` (atomic
+ *     temp + rename) and do NOT write a `media_items` row; the seeder regenerates
+ *     rows from sidecars.
+ *   - Photo/video uploads with a `category` additionally write the source binary
+ *     plus a file-paired `<slug>.meta.json` sidecar under `/curated/{category}/`
+ *     (video also writes `<slug>.poster.<ext>`); the inline `media_items` insert is
+ *     the read-path UX optimization per DD §1.13.
+ *   - Photo upload uses Sharp (aspect-preserving thumb, 800px-wide display, EXIF/ICC
+ *     stripped); video upload uses ffmpeg curator transcode.
+ *   - Magic-byte rejection for unsupported formats.
+ *   - All DB writes for one upload (`media_items` + `media_tags` + `audit_entries`)
+ *     land in one transaction; storage `put` calls happen BEFORE the transaction
+ *     opens; if any put fails, the transaction never runs.
+ *   - Async interactive admin video upload uses the `media_jobs` flow via
+ *     MediaJobService; `finalizeTranscodeForJob` is the worker-side finalize.
+ *   - Sidecar-backed rows (`video_platform IN ('youtube','vimeo')`): edits and
+ *     deletes resolve the sidecar at runtime from `(video_platform, video_url)`,
+ *     rewrite or unlink atomically, then update the DB row.
+ *   - Named-gallery mutating calls require admin OR owner of the affected gallery;
+ *     enforced on every call.
+ *   - FH-owned gallery creation requires admin actor and explicit `suggestedId`
+ *     matching `gallery_[a-z0-9_]+`. Member-owned derives id
+ *     `gallery_<owner_slug>_<gallery_name_slug>` (with `_2`, `_3` suffixes on
+ *     collision).
+ *   - Member-owned galleries auto-prepend `#by_<owner_slug>` to validated criteria
+ *     tags on every create/update; `>=1 criteria tag` invariant enforced AFTER
+ *     auto-prepend; user-supplied `#by_*` tags rejected.
+ *   - FH-owned writes JSON sidecar at `/curated/galleries/<slug>.json` after commit
+ *     (sidecar I/O failure logged but does not roll back DB). Member-owned never
+ *     touches the filesystem.
+ *   - Gallery edit never mutates item tags; current-items display rows derive from
+ *     criteria/exclude tags via `listGalleryItemsForDisplay`.
+ *   - `createGallery` and `updateGallery` accept `externalLinks`; each URL passes
+ *     `validateExternalUrl` (DD §3.17) inside the same transaction. Per-gallery cap
+ *     `config.galleryMaxExternalLinks`.
+ *   - FH-owned sidecar writes gated on `config.allowCuratedSidecarWrites` (dev only).
+ *   - Member-gallery form uploads carry user-supplied `uploadTags` (never
+ *     auto-stamped from gallery criteria); auto-applied tags are exactly
+ *     `#by_<slug>` (member) and `#curated` (FH-owned).
+ *
+ * Persistence:
+ *   media_items, media_tags, tags, audit_entries, members, member_galleries,
+ *   member_gallery_tags, member_gallery_exclude_tags. Filesystem:
+ *   `/curated/{category}/*.meta.json` (URL-reference sidecars), file-paired
+ *   `<slug>.{jpg,png,mp4,webm,mov}` + sibling `<slug>.meta.json` + optional
+ *   `<slug>.poster.<ext>`, `/curated/galleries/<slug>.json` (FH gallery sidecars;
+ *   source of truth).
+ *
+ * Side effects:
+ *   - audit_entries append per upload or gallery mutation
+ *
+ * Service shape: factory `createCuratorMediaService(deps)`. Deps include
+ * MediaStorageAdapter, ImageProcessingAdapter, and VideoTranscodingAdapter (the
+ * factory pattern allows test injection).
+ */
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, transaction, type MediaJobRow } from '../db/db';

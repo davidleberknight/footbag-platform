@@ -1,3 +1,10 @@
+---
+paths:
+  - "scripts/**"
+  - "legacy_data/scripts/**"
+  - "legacy_data/tools/**"
+---
+
 # Skill: db-write-safety
 
 ## When to Use

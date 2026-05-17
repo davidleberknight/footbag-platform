@@ -20,7 +20,7 @@ Auto memory is not authoritative for current slice status; use the plan for that
 - **For tasks touching members, historical persons, search, contact fields, records, stats, exports, or auth/privacy:** load `docs/GOVERNANCE.md` first, then targeted sections of `docs/DESIGN_DECISIONS.md`.
 - For functional requirements and user stories with acceptance criteria, load `docs/USER_STORIES.md` first.
 - For current slice/scope, known drift, and sequencing, read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`; for sequencing, dependency analysis, or phased planning, read the full document in Plan Mode.
-- For required public-page rendering patterns, view-model contracts, route catalog, and sensitive-page invariants, load `docs/VIEW_CATALOG.md`.
+- For required public-page rendering patterns, view-model contracts, and sensitive-page invariants, load `docs/VIEW_CATALOG.md`.
 - For required service-layer ownership and patterns, load `docs/SERVICE_CATALOG.md`; pair with code/tests/types for current method shapes; use the plan to determine current scope.
 - For database schema explanation, load `docs/DATA_MODEL.md` or `database/schema.sql`.
 - For rationale, trade-offs, and long-term design commitments, load `docs/DESIGN_DECISIONS.md` — read when entering a new code area or unwinding a temporary simplification; do not load by default.
@@ -125,7 +125,7 @@ This project uses a documentation suite. The AI should treat it as a modular kno
 - **Data Model** - canonical persisted entities, relationships, schema conventions, storage structure.
 
 ### Catalog and contract documents
-- **View Catalog** - target public-rendering standard, route catalog, public page matrix, and sensitive-page invariants (privacy, anti-enumeration, owner-only, public/private profile boundary).
+- **View Catalog** - target public-rendering standard, public page overview matrix, and sensitive-page invariants (privacy, anti-enumeration, owner-only, public/private profile boundary).
 - **Service Catalog** - target service-layer ownership, required patterns, and invariants. Pair with code/tests/types for current method shapes.
 - **DevOps guide** - build, test, release, operate, recover, CI/CD, infrastructure procedures.
 

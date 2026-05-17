@@ -1,3 +1,54 @@
+/**
+ * MemberService -- member-account page shaping and lifecycle.
+ *
+ * Owns:
+ *   - Page shaping for /members/* surfaces (public welcome with tier explainer;
+ *     own-profile as authenticated personal home; limited HoF/BAP public profile;
+ *     profile edit including inline avatar upload)
+ *   - Member-account lifecycle: soft-delete, deceased handling, GDPR export
+ *   - Member search (`searchMembers`)
+ *   - Row-level PII clearing logic (`purgeAccountPII`)
+ *
+ * Does not own:
+ *   - Login / registration credential verification (IdentityAccessService)
+ *   - Legacy-claim flow (IdentityAccessService)
+ *   - Tier grants or ledger calculation (MembershipTieringService)
+ *   - Purge eligibility orchestration (OperationsPlatformService decides which
+ *     members qualify and calls into purgeAccountPII)
+ *
+ * Required patterns:
+ *   - Member search uses the `members_searchable` view; never add WHERE clauses
+ *     on top of `members_active` or the bare `members` table for search.
+ *   - `searchMembers` is authenticated Tier 0+ only; never callable from public
+ *     routes. Minimum 2-character query; substring match on display name; 20-result
+ *     cap with `hasMore` flag; no browse-all pagination.
+ *   - Account deletion requires S3 photo deletion to succeed BEFORE `deleted_at`
+ *     is set; gallery HD lives in the same atomic operation.
+ *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
+ *   - Deceased and soft-deleted are distinct lifecycle paths with distinct grace
+ *     configs (`deceased_cleanup_grace_days` for markDeceased;
+ *     `member_cleanup_grace_days` for deleteAccount).
+ *   - Own-profile routes are owner-only; non-owner public viewing is limited to
+ *     the explicit HoF/BAP exception. No contact-field leakage on public profiles.
+ *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
+ *     index `ux_media_avatar_per_member`).
+ *   - Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to
+ *     thumb and display sizes, and atomically replaces any existing avatar.
+ *
+ * Persistence:
+ *   members, members_active, members_all, members_searchable, member_links,
+ *   media_items, member_galleries, account_tokens, audit_entries, outbox_emails,
+ *   work_queue_items.
+ *
+ * Side effects:
+ *   - audit_entries append
+ *   - outbox_emails enqueue (export-link, deceased notifications)
+ *   - work_queue_items insert (sole-leader or organizer flags on deceased) with
+ *     admin-alerts mailing-list notification
+ *
+ * Service shape: singleton object. Avatar upload is delegated to the factory
+ * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
+ */
 import { account, publicPlayers, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';

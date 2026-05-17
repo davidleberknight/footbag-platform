@@ -151,7 +151,7 @@ When a current shape disagrees with a target pattern, that is a deviation, not d
 
 ## 6. Service-specific target notes
 
-Each entry below is self-contained: it states ownership boundaries, required patterns the service must follow, the method roster (names only; signatures and return shapes are authoritative in the cited source file), and side effects. Cross-references to other services use service or method names inline; this section deliberately avoids "see X entry" routing so services can be split into per-file documents without rewrites.
+Each entry below is self-contained: it states ownership boundaries, required patterns the service must follow, and side effects. Method names live in the cited source file; SC §6 does not mirror them. Cross-references to other services use service or method names inline; this section deliberately avoids "see X entry" routing so services can be split into per-file documents without rewrites.
 
 ### 6.1 Identity and account
 
@@ -159,7 +159,7 @@ Each entry below is self-contained: it states ownership boundaries, required pat
 
 Owns account entry and authentication flows (registration, email verification, credential verification, password change and reset, legacy archive passthrough JWT) and the legacy-migration claim mechanics (legacy-account claim via two-step emailed-token flow with email-equality fast path, direct historical-person claim, auto-link classification). The post-verify rendering surface that unifies these flows is owned by `MemberOnboardingService` (the `legacy_claim` task). Does not own member profile CRUD, historical-person reads, tier calculation (delegates to `MembershipTieringService`), data exports, session-cookie HTTP glue (controllers set and clear cookies; the service returns a signed JWT string), club lifecycle, or club-leader promotion beyond bootstrap confirmation.
 
-Auth-path required patterns: anti-enumeration on every account-existence-leaking path (login, register, password reset, email verify or resend, legacy claim) by running the same code path for "exists" and "does not exist", same timing, same response. Rate limiting is enforced in-service; controllers map `RateLimitedError` to HTTP 429 with `Retry-After`. Tokens are stored as SHA-256 hashes only; plaintext is never persisted. JWT payload embeds `password_version`; middleware verifies it on every authenticated request. Bumping `password_version` on password change or reset invalidates all existing JWTs immediately. The archive passthrough is an accepted operational trade-off: the archive edge does not re-check `password_version`; archive JWTs expire naturally at `jwt_expiry_hours`. Deceased members cannot log in regardless of credentials; soft-deleted members within `member_cleanup_grace_days` get a restoration screen rather than normal login.
+Auth-path: the archive passthrough is an accepted operational trade-off; the archive edge does not re-check `password_version`, so archive JWTs expire naturally at `jwt_expiry_hours`.
 
 Legacy-claim required patterns: claim initiation always returns a non-revealing response; no distinction between zero matches, multiple matches, ineligible rows, or blocked rows. Recommended message: "If an eligible legacy record was found, a claim email will be sent." Merge transaction is atomic; the target `legacy_members` row is MARKED CLAIMED (`claimed_by_member_id` plus `claimed_at` set) and is not deleted (permanent archival record). Member-editable fields copy to the claiming `members` row per the MIGRATION_PLAN merge rules (COALESCE, OR-merge, fill-if-empty). When the target's `legacy_member_id` matches a `historical_persons.legacy_member_id`, `members.historical_person_id` is set to that HP's `person_id` in the same transaction and the HP-sourced field merge runs (country fill-if-empty; `is_hof`/`is_bap` OR; `hof_inducted_year`/`first_competition_year` fill-if-empty). All outstanding `account_claim` tokens targeting the claimed `legacy_members` row are marked consumed in the same transaction. Rate limiting applies per requesting account, per target row, and per session/IP. A token may only be consumed by the same `member_id` that initiated the request. Single tier grant via `MembershipTieringService` with `reason_code = 'legacy.claim_tier_grant'` applying the blanket mapping in `MIGRATION_PLAN.md`; no conditional "exceeds current" logic. `legacy_is_admin` metadata is never auto-promoted to live admin role in any flow. One-current-club invariant: when writing a confirmed current affiliation to `member_club_affiliations`, any existing current row for that member is converted to `is_current = 0` in the same transaction. Bootstrap leadership promotion only when no conflicting live `club_leaders` row exists for the club; conflicts leave the bootstrap row provisional and create an admin work-queue item. Direct HP claim eligibility requires surname match between `members.real_name` and `historical_persons.person_name`; first-name variance (e.g. Dave/David) is permitted with a `firstNameWarning` flag on the preview.
 
@@ -171,11 +171,8 @@ Unified linking surface: the onboarding wizard's `legacy_claim` task (owned by `
 
 Transactional variants: `consumeAndClaimLegacyInTx` and `claimHistoricalPersonInTx` accept caller-owned transactions so the wizard orchestrator can run the merge and the `member_onboarding_tasks` row transition inside one transaction (the atomicity invariant in §6.2 below). The `consumeAndClaimLegacy` and `claimHistoricalPerson` wrappers open their own transactions for callers outside the wizard.
 
-Method roster: `registerMember`, `verifyEmailByToken`, `resendVerifyEmail`, `verifyMemberCredentials`, `attemptLogin`, `changePassword`, `requestPasswordReset`, `completePasswordReset`, `generateLegacyArchiveAccess`, `restoreAccount`, `lookupLegacyAccount`, `claimLegacyAccount`, `initiateLegacyClaim`, `peekLegacyClaim`, `consumeAndClaimLegacy`, `consumeAndClaimLegacyInTx`, `lookupHistoricalPersonForClaim`, `claimHistoricalPerson`, `claimHistoricalPersonInTx`, `getAutoLinkClassificationForMember`, `getLinkHistoryViewForWizard`, `findHistoricalPersonForLinkSubmit`, `manualLegacyClaimRecovery`, `confirmBootstrapLeadership`, `resolveBootstrapLeadership`.
 
-Persistence: `members`, `members_active`, `legacy_members`, `historical_persons` (read-only for HP-match), `account_tokens`, `member_club_affiliations`, `club_bootstrap_leaders`, `club_leaders`, `audit_entries`, `outbox_emails`. Tier-grant writes via `MembershipTieringService`.
 
-Side effects: outbox enqueue (verification, reset, claim email, resend), audit append (auth, claim, and bootstrap events).
 
 **`MemberOnboardingService`** (`src/services/memberOnboardingService.ts`)
 
@@ -185,7 +182,6 @@ Required patterns: tasks are skippable at registration and resumable from the me
 
 Task catalog at cutover: `legacy_claim` (delegates to `IdentityAccessService.initiateLegacyClaim` / `consumeAndClaimLegacy` or auto-link); `club_affiliations` (MP §9.3 three-stage flow, delegating to the clubs service); `first_competition_year` and `show_competitive_results` (optional metadata, writes to `members`). Task ordering is fixed: `legacy_claim` first, `club_affiliations` second, optional metadata last. Adding a task type registers a new handler in the service-internal catalog; the public interface does not change.
 
-Method roster: `startTaskList`, `startTask`, `submitTaskResponse`, `skipTask`, `completeTask`, `getTaskWidget`, `processLegacyClaimSubmit`, `processLegacyClaimAutoLinkConfirm`, `processLegacyClaimTokenConfirm`, `processFirstCompetitionYearSubmit`, `processShowCompetitiveResultsSubmit`, `processTaskSkip`. The `process*` methods are the wizard-facing entry points: each opens a transaction (when the underlying state write must be atomic with the task transition), invokes the relevant InTx service variant, calls `completeTask` inside the same transaction, and returns a discriminated `WizardActionResult` (`advance` / `retry_same` / `validation_error` / `rate_limited`) the controller maps to 303 / 422 / 429.
 
 Persistence: `member_onboarding_tasks` (owned), plus writes via delegated services (`members`, `member_club_affiliations`, `legacy_members.claimed_by_member_id`, etc.). `audit_entries` append.
 
@@ -197,11 +193,8 @@ Owns member-account page shaping for `/members/*` surfaces (public members welco
 
 Required patterns: search must use `members_searchable` view; do not add WHERE clauses on top of `members_active` or the bare table. `searchMembers` is authenticated Tier 0+ only; it is never callable from public routes; minimum 2-character query; substring match on display name; 20-result cap with `hasMore` flag and "refine your query" signal for broad queries; no browse-all pagination. Account deletion requires S3 photo deletion to succeed before `deleted_at` is set; gallery HD is part of the same atomic operation. PII purge runs in one transaction, callable only by `OperationsPlatformService`. Deceased and soft-deleted are distinct lifecycle paths: `deceased_cleanup_grace_days` applies only after `markDeceased`; `member_cleanup_grace_days` applies only after `deleteAccount`. Own-profile routes are owner-only; non-owner public profile viewing is limited to the explicit HoF/BAP exception; no contact-field leakage on public profiles. Max 3 external URLs per member; one avatar per member (partial UNIQUE index). Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to thumb and display sizes, atomically replaces existing avatar.
 
-Method roster: `getMembersWelcomePage`, `searchMembers`, `getOwnProfile` (accepts optional `{ query?: string }` for the personal-home member-search composition), `getPublicProfile`, `getProfileEditPage`, `updateOwnProfile`, `deleteAccount`, `requestDataExport`, `generateDataExport`, `markDeceased`, `revertDeceasedFlag`, `purgeAccountPII`. Avatar upload via `createAvatarService` factory in `avatarService.ts`: `uploadAvatar`.
 
-Persistence: `members`, `members_active`, `members_all`, `members_searchable`, `member_links`, `media_items`, `member_galleries`, `account_tokens`, `audit_entries`, `outbox_emails`, `work_queue_items`.
 
-Side effects: outbox enqueue (export-link, deceased notifications), audit append, work-queue insert (sole-leader or organizer flags on deceased) with admin-alerts notification.
 
 **`HistoryService`** (`src/services/historyService.ts`)
 
@@ -209,7 +202,6 @@ Owns historical-person index and detail page reads, historical-results page shap
 
 Required patterns: read-only; pages must not imply current-member ownership or contactability; public honor visibility for HoF/BAP historical persons is bounded and explicit; route handlers stay thin and page shaping belongs in the service.
 
-Method roster: `getHistoricalPlayerPage`.
 
 Persistence: `historical_persons`, `event_result_entry_participants`, supporting event/result reads.
 
@@ -223,7 +215,6 @@ Owns the service-shaped landing-page composition for `GET /`. Home is the one in
 
 Required patterns: Home stays within the thin-controller and service-owned-shaping architecture; Home may be richer than ordinary list/detail pages but the page-composition contract belongs in the service, not in templates; no `publicController` abstraction; no separate Home-specific front-end stack.
 
-Method roster: `getPublicHomePage`.
 
 Persistence: none directly; composes public read models from service-owned reads.
 
@@ -235,11 +226,8 @@ Owns club lifecycle (create, edit, activate/deactivate, archive), leader and co-
 
 Required patterns: SA only (no `deleted_at` on `clubs`; use `clubs_all` for archived queries); one `role='leader'` per club; member can be leader of at most one club; max 5 leaders per club; anti-self-removal (sole leader cannot remove themselves); standard hashtag reserved via `HashtagDiscoveryService.reserveStandardTag()` at creation, permanent and not HD; club display names are not required to be globally unique (the hashtag is the canonical identifier); club with zero leaders inserts "Needs Leader" work-queue item; club with no contact email inserts "Needs Contact" work-queue item; news items emitted via `NewsService.emitNewsItem` only.
 
-Method roster: `createClub`, `editClub`, `setClubStatus`, `archiveClub`, `addCoLeader`, `removeCoLeader`, `joinClub`, `leaveClub`, `reassignLeader`.
 
-Persistence: `clubs`, `clubs_open`, `clubs_all`, `club_leaders`, `members`, `tags`, `news_items`, `audit_entries`, `outbox_emails`, `work_queue_items`.
 
-Side effects: outbox enqueue (join/leave/co-leader/archive emails), news emission (`club_created`, `club_archived`), audit append, work-queue insert with admin-alerts notification.
 
 **`EventService`** (`src/services/eventService.ts`)
 
@@ -247,11 +235,8 @@ Owns event lifecycle (create through completion or cancellation), discipline man
 
 Required patterns: public eventKey parsing and validation belong in this service; the public underscore form `event_{year}_{event_slug}` maps to stored standard-tag form `#event_{year}_{event_slug}` before DB lookup with no aliasing or fuzzy match. Status state machine `draft -> pending_approval -> published -> registration_full | closed -> completed | canceled` with `completed` and `canceled` terminal. Public detail visibility limited to `published`, `registration_full`, `closed`, `completed`. HD guard: events with public result rows are preserved permanently; draft and canceled events HD immediately; cannot delete event with confirmed registrations. Sanction approval requires organizer active Tier 2 at approval time. Max 5 organizers per event; one `role='organizer'` per event; anti-self-removal. Standard tag reserved at creation via `HashtagDiscoveryService.reserveStandardTag()`; permanent. News items emitted via `NewsService.emitNewsItem` only. Public archive year derived from `events.start_date`; year archives are not paginated. `participantHref` set via `personHref(participant_member_slug, participant_historical_person_id)` so templates render plain name when null. Public reads use prepared statements directly; no repository layer or ORM. SQLite busy/locked failures translate to temporary-unavailable for controller-level safe handling. The canonical public event page is one route and one template; render emphasis is expressed through page-model fields (e.g. `primarySection`), not through alternate URLs.
 
-Method roster: `createEvent`, `editEvent`, `deleteEvent`, `closeRegistration`, `cancelEvent`, `completeEvent`, `addCoOrganizer`, `removeCoOrganizer`, `requestSanction`, `approveSanctionRequest`, `uploadResults`, `correctResults`, `reassignOrganizer`, `getPublicEventsLandingPage`, `getPublicEventsYearPage`, `getPublicEventPage`, plus internal lower-level helpers.
 
-Persistence: `events`, `event_disciplines`, `event_organizers`, `event_results_uploads`, `event_result_entries`, `event_result_entry_participants`, `tags`, `news_items`, `audit_entries`, `outbox_emails`, `work_queue_items`.
 
-Side effects: outbox enqueue (organizer confirmations, participant notices, sanction decisions), news emission (`event_published`, `event_results`), audit append, work-queue insert with admin-alerts notification.
 
 **`CompetitionParticipationService`** (`src/services/competitionParticipationService.ts`)
 
@@ -259,7 +244,6 @@ Owns event registration, discipline selections, attendance marking, and particip
 
 Required patterns: competitor registration requires at least one discipline selection before `status = 'confirmed'`. Attendance marking delegates Active Player effect to `ActivePlayerService.applyAttendance()`; this service never writes to `member_tier_grants` or `active_player_grants` directly. Capacity enforcement transitions event status to `registration_full` when reached. Participant email is rate-limited 1 per event per day. Roster reporting and export are not exposed here (`OfficialRosterService` for read paths; `AdminGovernanceService` for admin orchestration).
 
-Method roster: `registerForEvent`, `confirmRegistration`, `markAttendance`, `getParticipants`, `exportParticipants`, `emailParticipants`.
 
 Persistence: `registrations`, `registration_discipline_selections`, `events`, `member_membership_status_current`, `members`, `email_archives`, `audit_entries`, `outbox_emails`.
 
@@ -271,7 +255,6 @@ Owns all public freestyle section page reads (`GET /freestyle*`): landing, world
 
 Required patterns: read-only against canonical tables; `NotFoundError` on unknown trick slug routed to a 404 by the controller; trick detail reference video gallery filters to curator-uploaded media (`#curated` plus `#freestyle` plus `#trick` plus the slug tag) joined to `media_sources` for provenance.
 
-Method roster: `getLandingPage`, `getRecordsPage`, `getLeadersPage`, `getTrickDetailPage`, `getAboutPage`, `getMovesPage`.
 
 Persistence: `freestyle_records`, `freestyle_tricks`, `freestyle_trick_modifiers`, `freestyle_competition`, `freestyle_partnerships`, `media_items`, `media_tags`, `media_sources` (all read-only).
 
@@ -283,7 +266,6 @@ Owns the public cross-sport records page read for `GET /records`, aggregating re
 
 Required patterns: read-only against canonical tables; cross-sport read contract (future record sources become additional fields on `RecordsContent` and additional persistence touchpoints; per-sport detail pages still belong on their section services).
 
-Method roster: `getRecordsPage`.
 
 Persistence: `consecutive_kicks_records`, `freestyle_records` (all read-only).
 
@@ -295,7 +277,6 @@ Owns public Footbag Net page reads: portal landing (`GET /net`), team list (`GET
 
 Required patterns: statistics firewall, all appearance reads use `net_team_appearance_canonical` view; `inferred_partial` data is never exposed in public routes. Conflict-flag-aware discipline label resolution: when `conflict_flag = 1` on a `net_discipline_group` row, render the raw `discipline_name` instead of the canonical group label. Disclaimer "Team identities are algorithmically constructed from placement data and may not reflect official partnerships" rendered always on both pages, not conditioned on a flag. No win/loss, head-to-head, or ranking data of any kind. `NotFoundError` on unknown team ID.
 
-Method roster: `getNetHomePage`, `getTeamsPage`, `getTeamDetailPage`.
 
 Persistence: `net_team`, `net_team_member`, `net_team_appearance_canonical` (view), `net_discipline_group`, `historical_persons` (read for display names and country).
 
@@ -307,7 +288,6 @@ Owns the public sideline section page read for `GET /sideline` (the "Sideline" p
 
 Required patterns: static content, no DB; game list, copy, asset paths, and links fixed in code; demo videos served as static `.webm` from `src/public/video/sideline/` with missing assets degrading to no-video render; all `moreInfo` links are `external: false`; the page contains zero offsite links.
 
-Method roster: `getSidelineLandingPage`.
 
 Persistence: none.
 
@@ -319,7 +299,6 @@ Owns the public rules section reads (`GET /rules` index and `GET /rules/:discipl
 
 Required patterns: rule text source of truth in `ifpa/rules/{discipline}.md`; rendered HTML is derived (verbatim from canonical IFPA source, no paraphrasing). YAML frontmatter applies to every rule split out of a discipline file (`discipline`, `disciplineLabel`, `authority`, `effective`, `parentHref`, `parentLabel`, optional `alternateLanguageLabel` plus `alternateLanguageHref`); the alternate-language pair drives the cross-language toggle. H1 headings become rule pages with `slugify(headingText)` slugs; H2 headings receive matching `id` attributes. Markdown rendered with `marked` v14 by `src/lib/rulesLoader.ts`; cache is process-lifetime; `_resetRulesCache()` test hook exported. Rule pages render zero offsite hyperlinks. `NotFoundError` on unknown discipline or slug.
 
-Method roster: `getRulesIndexPage`, `getRulePage`.
 
 Persistence: none (filesystem-backed).
 
@@ -331,7 +310,6 @@ Owns the public IFPA governance hub reads (`GET /ifpa` index and `GET /ifpa/:doc
 
 Required patterns: governance doc source of truth in `ifpa/{IFPAMembershipStructure_2026,BYLAWS,ArticlesOfIncorporation}.md`; rendered HTML is derived (verbatim from canonical IFPA source). Slug is the file basename without `.md`, lowercased (`membership-structure`, `bylaws`, `articles`). Markdown rendered with `marked` by `src/lib/ifpaLoader.ts`; H1-H6 headings receive `id` attributes via post-process; H2 entries surface as the on-page TOC. Cache is process-lifetime; `_resetIfpaCache()` test hook exported. Hub-page summaries are hard-coded in the service for editorial control (not pulled from markdown). `NotFoundError` on unknown doc slug.
 
-Method roster: `getIfpaIndexPage`, `getIfpaDocPage`.
 
 Persistence: none (filesystem-backed).
 
@@ -345,7 +323,6 @@ Owns all Stripe interactions: one-time payments (dues, registration fees, donati
 
 Required patterns: Stripe success gating, tier grants and confirmed registrations written only after `payments.status = 'succeeded'`. Every `payments.status` change writes a paired `payment_status_transitions` row in the same transaction; same dual-write rule for subscription transitions. DB trigger enforces `pending -> succeeded | failed | canceled; succeeded -> refunded` with no backward transitions. All webhook processing idempotent via `stripe_events.event_id` deduplication. `members.stripe_customer_id` is the canonical member-level customer ID; `payments.stripe_customer_id` is the per-payment snapshot; the two are distinct fields. Reconciliation amount discrepancy compares both `amount` and `currency` fields. Reconciliation issue rows carry `expires_at = created_at + reconciliation_expiry_days` at INSERT. Refund does not write a `revoke` row; tier purchases are preserved on refund. HoF/BAP donation comment defaults: HoF "HoF Fund"; BAP "BAP Fund"; both "HoF Fund". `is_cancel_at_period_end` reflects Stripe's flag; set on cancel_requested, confirmed via `customer.subscription.deleted` webhook.
 
-Method roster: `createCheckoutSession`, `createRecurringDonationSubscription`, `cancelRecurringDonation`, `handleStripeWebhook`, `processPaymentIntentSucceeded`, `processPaymentIntentFailed`, `processChargeRefunded`, `processSubscriptionInvoiceSucceeded`, `processSubscriptionInvoiceFailed`, `processSubscriptionDeleted`, `processSubscriptionUpdated`, `getPaymentHistory`, `getAllPayments`, `runReconciliation`, `resolveReconciliationIssue`.
 
 Persistence: `payments`, `payment_status_transitions`, `recurring_donation_subscriptions`, `recurring_donation_subscriptions_active`, `recurring_donation_subscription_transitions`, `stripe_events`, `reconciliation_issues`, `members`, `audit_entries`, `outbox_emails`.
 
@@ -357,11 +334,8 @@ Owns the membership-tier ledger (`member_tier_grants`), HoF/BAP Tier 2 grants, T
 
 Required patterns: append-only ledger (UPDATE/DELETE blocked by triggers). `getTierStatus` derives from `member_tier_current`. Source-linkage discipline: membership-tier grants link only to `related_payment_id`, admin overrides, HoF/BAP grants, Tier 3 governance changes, or legacy migration; no event/vouch/club source FK. `governance_set` requires non-null `new_underlying_tier_status`; `governance_removed` requires non-null `old_underlying_tier_status`. HoF/BAP grant: if member is at Tier 3, write `governance_set` updating `new_underlying_tier_status = tier2`; otherwise write a plain Tier 2 grant. Refund does not write a `revoke` row. Admin-role prereqs: target must be Tier 2 or Tier 3; anti-lockout (last admin cannot be revoked); admin-alerts mailing list subscription updated atomically with `is_admin` change. Tier 0 Active Player ending on purchase or Tier 3 grant runs in the same transaction as the tier write (calls `ActivePlayerService.endOnTierUpgrade` or `endOnTier3Grant`). News items emitted via `NewsService.emitNewsItem` only.
 
-Method roster: `getTierStatus`, `applyPurchaseGrant`, `applyHonorGrant`, `setGovernanceTier3`, `removeGovernanceTier3`, `adminOverride`, `adminManageRole`.
 
-Persistence: `member_tier_grants`, `member_tier_current`, `members` (flag and role fields), `mailing_list_subscriptions`, `news_items`, `audit_entries`, `outbox_emails`.
 
-Side effects: outbox enqueue (tier change, congratulatory HoF/BAP), news emission (`member_honor`), audit append.
 
 **`ActivePlayerService`** (`src/services/activePlayerService.ts`)
 
@@ -369,11 +343,8 @@ Owns the Active Player lifecycle ledger (`active_player_grants`) and the direct 
 
 Required patterns: append-only ledgers (UPDATE/DELETE blocked by triggers). `getStatus` derives from `member_active_player_current`. Active Player applies to Tier 0 only; Tier 1+ vouches and attendances are no-ops with audit-log only. No-shorten rule: an older event, vouch, or club-join must not shorten an existing later expiry. Idempotency via `ux_active_player_grants_registration_once` (per registration), `ux_active_player_grants_vouch_once` (per vouch), `ux_active_player_club_join_once` (per member, lifetime). Self-vouch rejected at DB and APP. Vouch rate limit throws `RateLimitedError` from `system_config_current`. `endOnTierUpgrade` and `endOnTier3Grant` execute in the same transaction as the corresponding `member_tier_grants` write.
 
-Method roster: `getStatus`, `applyAttendance`, `applyVouch`, `applyClubJoin`, `endOnTierUpgrade`, `endOnTier3Grant`, `applyExpiry`, `adminCorrectExpiry`.
 
-Persistence: `active_player_grants`, `active_player_vouches`, `member_active_player_current`, `member_membership_status_current`, `members`, `system_config_current`, `audit_entries`, `outbox_emails`.
 
-Side effects: outbox enqueue (vouch confirmations), audit append.
 
 **`ActivePlayerExpiryService`** (`src/services/activePlayerExpiryService.ts`)
 
@@ -381,7 +352,6 @@ Owns the daily-pass orchestration for SYS_Check_Active_Player_Expiry: candidate 
 
 Required patterns: idempotency via the `active_player_reminder_sent` table with `UNIQUE(member_id, expires_at, offset_label)`; reminder enqueue plus dedup row write wrapped in `transaction()` so an enqueue failure rolls back the dedup row, letting the next pass retry. Reminders honor `members.email_status='ok'` and the `active-player-reminders` mailing-list subscription (absence treated as subscribed by default; explicit `unsubscribed`, `bounced`, `complained`, or `suppressed` blocks send). Tier1+ members filtered at the candidate view (`tier_status='tier0'`); per-candidate `getTierStatus` re-check catches mid-pass upgrades. Reads administrator-configured offsets from `system_config_current` (`active_player_expiry_reminder_days_1`, `active_player_expiry_reminder_days_2`); T+0 day-of reminder is built-in. UTC date floor for offset comparisons.
 
-Method roster: `runDailyPass`, `decideReminderDue`, `daysUntilUtcDay`.
 
 Persistence: `active_player_reminder_sent`, `outbox_emails` (via `CommunicationService.enqueueEmail`), `mailing_list_subscriptions`, `system_config_current`, `member_membership_status_current`, `member_active_player_current`, `members_active`, `active_player_grants` (via `applyExpiry`).
 
@@ -393,7 +363,6 @@ Owns Official IFPA Roster read paths (`list`, `summary`, `exportCsv`). The roste
 
 Required patterns: roster includes Tier 1, Tier 2, Tier 3 plus Tier 0 with current Active Player; deceased members excluded per view definition. Sole surface for accessing membership roster data; controllers must not bypass to read the underlying view directly. All access (view and export) audit-logged with `category = 'roster_access'`. Filename pattern `official_roster_YYYYMMDD.csv`; CSV header comment line per the user-story acceptance criteria.
 
-Method roster: `list`, `summary`, `exportCsv`.
 
 Persistence: `official_ifpa_roster_current` (read-only view), `members_active`, `audit_entries`.
 
@@ -407,7 +376,6 @@ Owns vote lifecycle, ballot submission and encryption, eligibility snapshots, ta
 
 Required patterns: ballot append-only (UPDATE/DELETE blocked); eligibility snapshot write-once. Date ordering enforced (`vote_open_at < vote_close_at`; nomination ordering); `options_visible_at <= vote_open_at`. Tally requires `can_tally_votes` permission, not just `is_admin`; tally allowed only when `status = 'closed'` AND `now > vote_close_at`. Vote options locked once vote is `open` or later. Receipt token: plaintext never persisted; `SHA-256(token)` stored; outbox `body_text` scrubbed after delivery. Ballot non-anonymity by design: `voter_member_id` plaintext alongside encrypted ballot. Ballot encryption uses AES-256-GCM with per-ballot KMS data keys. After tally, ballot contents discarded immediately; only totals retained. Audit logs TALLY_VOTE_START and TALLY_VOTE_COMPLETE record totals only, never individual ballot contents. Any single snapshot timestamp exposed by the service derives from `vote_eligibility_snapshot.created_at` values for that vote using one consistent rule. News items emitted via `NewsService.emitNewsItem` only.
 
-Method roster: `createVote`, `openVote`, `submitBallot`, `closeVote`, `tallyAndPublish`, `cancelVote`, `verifyReceipt`, `nominateHoFCandidate`, `approveHoFNomination`, `submitHoFAffidavit`, `getVoteOptions`.
 
 Persistence: `votes`, `vote_options`, `vote_eligibility_snapshot`, `ballots`, `vote_results`, `vote_result_option_totals`, `hof_nominations`, `hof_affidavits`, `members`, `news_items`, `audit_entries`, `outbox_emails`, `work_queue_items`.
 
@@ -419,7 +387,6 @@ Owns the HoF landing page read for `GET /hof` (service-shaped, no DB queries). D
 
 Required patterns: read-only with no DB queries; service provides `content.externalLink` so templates do not construct the standalone HoF URL.
 
-Method roster: `getHofLandingPage`.
 
 Persistence: none.
 
@@ -431,7 +398,6 @@ Owns the BAP landing page read for `GET /bap` (service-shaped, no DB queries). D
 
 Required patterns: read-only with no DB queries; service provides `content.externalLink` so templates do not construct the standalone BAP URL.
 
-Method roster: `getBapLandingPage`.
 
 Persistence: none.
 
@@ -445,11 +411,8 @@ Owns member photo upload and processing, member video link submission, gallery m
 
 Required patterns: HD media (no soft-delete); flags and tags cascade-delete with media; gallery contents cascade with gallery delete; avatar and club logo detach on media delete (`ON DELETE SET NULL`). Photo security pipeline mandatory: re-encode as JPEG 85%, strip EXIF/ICC, generate 300x300 thumbnail and 800px display variant, discard original. Max 5 video embeds per gallery. One avatar per member (partial UNIQUE index `ux_media_avatar_per_member`). Standard tags must not be HD. Tag validation delegated to `HashtagDiscoveryService.validateAndResolveTag`; this service does not normalize or create tags directly. Tag stats recomputation is not triggered here; `HashtagDiscoveryService.rebuildTagStats` runs independently via `OperationsPlatformService`. Uploader-attribution `#by_<slug>` namespace is system-managed at upload time. Named-gallery and browse page reads filter `moderation_status = 'active'` and `is_avatar = 0`; default ordering follows `member_galleries.sort_order`. `/media/browse` accepts repeatable `?tag=` and `?exclude=`, normalized to `#<lowercase>`, deduplicated, include winning over same-token exclude; mode is `browse` (form pane only) when no token resolves, otherwise `results` (form pane plus paginated tile grid); pagination prev/next reproduce the canonical repeated-arg form. Hero `byMember` chip lifts from any `#by_<slug>` criterion (auth-gated profile link) so the template renders "by *Member Name*" attribution distinct from gallery ownership.
 
-Method roster: `uploadPhoto`, `submitVideo`, `editMediaTags`, `deleteMedia`, `deleteGallery`, `flagMedia`, `adminDeleteMedia`, `getGallery`, `getTagGallery`, `getEventGallery`, `getClubGallery`, `getMediaHubPage`, `getNamedGalleryPage`, `getMediaBrowsePage`. Avatar: `uploadAvatar`.
 
-Persistence: `media_items`, `member_galleries`, `member_gallery_tags`, `member_gallery_exclude_tags`, `gallery_external_links`, `media_tags`, `media_flags`, `tags`, `members`, `work_queue_items`, `audit_entries`, `outbox_emails`.
 
-Side effects: audit append, work-queue insert (media flag) with admin-alerts notification, outbox enqueue (admin takedown notification).
 
 **`HashtagDiscoveryService`** (`src/services/hashtagDiscoveryService.ts`)
 
@@ -457,7 +420,6 @@ Owns tag creation and validation, tag browse and search, tag stats cache, and te
 
 Required patterns: global tag uniqueness via `ux_tags_normalized`. Standard tags (`is_standard = 1`) must not be HD; reject any delete request. Community-tag threshold for public browse: `distinct_member_count >= 2`. `rebuildTagStats` reads both `media_tags` (usage count) and `members` (distinct member count); omitting either produces incorrect community-tag results. `rebuildTagStats` is invoked only by `OperationsPlatformService.runTagStatsRebuild`. `reserveStandardTag` enforces case-insensitive uniqueness and is permanent.
 
-Method roster: `validateAndResolveTag`, `reserveStandardTag`, `browseAllTags`, `getTagGalleryMeta`, `rebuildTagStats`, `getPopularTags`.
 
 Persistence: `tags`, `tag_stats`, `media_tags`, `members`.
 
@@ -469,7 +431,6 @@ Owns news item creation (auto-generated and admin-authored), moderation, and pub
 
 Required patterns: HD news (no soft-delete). `emitNewsItem` is the only auto-write path; domain services do not write `news_items` directly. News types are a controlled vocabulary (`event_published`, `event_results`, `club_created`, `club_archived`, `member_honor`, `vote_results`, `announcement`, `system`). News moderation queries use `news_items` directly (hard-delete domain; no `_all` alias). Deletion requires mandatory reason. Future-dated items invisible until publish date.
 
-Method roster: `emitNewsItem`, `createManualNewsItem`, `editNewsItem`, `deleteNewsItem`, `getNewsFeed`, `getNewsItem`.
 
 Persistence: `news_items`, `audit_entries`.
 
@@ -481,7 +442,6 @@ Owns the static page view-model for `/legal`, composing Privacy, Terms of Use, a
 
 Required patterns: content is static, no DB. Section order fixed: Privacy, Terms of Use, Copyright and Trademarks. Anchor IDs stable (`privacy`, `terms`, `copyright`). Substantive content changes require updating `content.lastUpdated`. Operator identity, governing law, and copyright year range require deliberate review when changed.
 
-Method roster: `getLegalPage`.
 
 Persistence: none.
 
@@ -493,7 +453,6 @@ Owns the member-to-IFPA-admin support flow per `M_Contact_IFPA_Admin` and `A_Res
 
 Required patterns: contact requests persist as `work_queue_items` rows with `queue_category='membership'`, `task_type='member_contact_request'`, and `entity_type='member'`. Categories are an enumerated TypeScript constant (`display_name_correction`, `profile_url_correction`, `tier_status_question`, `identity_link_issue`, `other`). Decision labels are an enumerated TypeScript constant (`corrected`, `denied`, `duplicate`, `out_of_scope`); no thread or clarification loop in the first cut. Per-member open-count cap of 3 enforced via `workQueue.countOpenForMember`; the 4th submission throws `RateLimitedError`. Message body length capped at 2000 characters; resolution note length capped at 500. Full message body lives in `audit_entries.metadata_json` (immutable ledger), not in `work_queue_items.reason_text` (which carries the category label + first 200 chars). Resolution emails dispatched via `SesAdapter.sendEmail` with the decision-label-keyed subject and a self-contained reply body that includes the original request text. Categories enum stays in TypeScript until shape stabilizes; DB CHECK constraint deferred.
 
-Method roster: `submit`, `resolve`, `listOpenForAdmin`.
 
 Persistence: `work_queue_items`, `audit_entries`, `members_active` (read-only for resolution email lookup).
 
@@ -505,11 +464,8 @@ Owns admin upload, edit, delete, and list of curator-attributed photos and video
 
 Required patterns: `uploader_member_id` is always the system member id (`is_system=1`); admin actor recorded only in `audit_entries`. Curator video bytes use `video_platform='s3'`; member video routes reject `video_platform='s3'` as a defensive boundary. Storage keys match the curator-seed layout (`{systemMemberId}/detached/{mediaId}-...`) so offline seed and admin upload produce identical row shape. Auto-applies `#curated`; `#curated` rejected from input. URL-reference uploads write a sidecar JSON file under `/curated/{category}/<primarySlug>_<sha1(videoUrl)[:8]>.meta.json` (atomic temp-file plus rename) and do not write a `media_items` row; the seeder regenerates rows from sidecars. Photo and video uploads, when called with a `category`, additionally write the source binary plus a file-paired `<slug>.meta.json` sidecar under `/curated/{category}/` (video also writes `<slug>.poster.<ext>`); the inline `media_items` insert is the read-path UX optimization per DD §1.13. The admin upload controller passes `category` in local-adapter mode and omits it in S3-adapter mode; the curator seeder always omits it. Photo upload uses Sharp (aspect-preserving thumb, 800px-wide display, EXIF/ICC stripped); video upload uses ffmpeg curator transcode (re-encode plus metadata strip). Magic-byte rejection for unsupported formats. Audit entries are append-only. All DB writes for one upload (`media_items` plus `media_tags` plus `audit_entries`) land in one transaction; storage `put` calls happen before the transaction opens; if any storage put fails the transaction never runs. Asynchronous interactive admin video upload uses the `media_jobs` flow per `MediaJobService`; `finalizeTranscodeForJob` is the worker-side finalize. For sidecar-backed rows (`video_platform IN ('youtube','vimeo')`), edits and deletes resolve the sidecar at runtime from `(video_platform, video_url)`, rewrite or unlink atomically, then update the DB row inline so reads reflect changes without waiting for the next seeder run. Named-gallery editing: actor must be admin OR owner of the affected gallery (the service enforces this on every mutating call). FH-owned creation requires admin actor and explicit `suggestedId` matching `gallery_[a-z0-9_]+`; member-owned derives id `gallery_<owner_slug>_<gallery_name_slug>` (`_2`, `_3` suffixes on collision). Member-owned galleries auto-prepend `#by_<owner_slug>` to validated criteria tags on every create or update so the owner-scoping criterion survives DELETE-then-INSERT and cannot be removed by editing; the `>=1 criteria tag` invariant is enforced after auto-prepend; user-supplied `#by_*` tags rejected from input. FH-owned writes the JSON sidecar at `/curated/galleries/<slug>.json` after commit (sidecar I/O failure logged but does not roll back DB); member-owned never touches the filesystem. Gallery edit never mutates item tags: `getGalleryForEdit` returns the gallery's metadata, current-items display rows (derived from criteria/exclude tags via `listGalleryItemsForDisplay`), and persisted external links. `createGallery` and `updateGallery` accept an `externalLinks` array; each URL passes `validateExternalUrl` (DD §3.17) inside the same transaction as the metadata + tag-set rewrite, then `gallery_external_links` rows are replaced via DELETE-then-INSERT. The per-gallery cap is `config.galleryMaxExternalLinks`. FH-owned sidecars include the `externalLinks` field; sidecar I/O is gated on `config.allowCuratedSidecarWrites` (dev only). Member-gallery form uploads carry user-supplied `uploadTags` (never auto-stamped from gallery criteria); auto-applied tags are exactly `#by_<slug>` (member uploads) and `#curated` (FH-owned uploads). `getSystemMemberId` exposes the system member id resolution for callers that need to pass `ownerMemberId`.
 
-Method roster: `uploadPhoto`, `uploadVideo`, `uploadPhotoForMember`, `finalizeTranscodeForJob`, `uploadUrlReference`, `editMedia`, `deleteMedia`, `listMedia`, `getMediaItem`, `listExistingCategories`, `listOwnedGalleries`, `getGalleryForEdit`, `createGallery`, `updateGallery`, `deleteGallery`, `listGalleriesForOwner`, `getSystemMemberId`.
 
-Persistence: `media_items`, `media_tags`, `tags`, `audit_entries`, `members`, `member_galleries`, `member_gallery_tags`, `member_gallery_exclude_tags`. Filesystem: `/curated/{category}/*.meta.json` (URL-reference sidecars), `/curated/{category}/<slug>.{jpg,png,mp4,webm,mov}` plus sibling `<slug>.meta.json` and optional `<slug>.poster.<ext>` (file-paired photo and video sidecars, written when caller supplies a `category`), and `/curated/galleries/<slug>.json` (FH gallery sidecars; source of truth).
 
-Side effects: audit append per upload or gallery mutation.
 
 **`CuratorSeedService`** (`src/services/curatorSeedService.ts`)
 
@@ -517,7 +473,6 @@ Walks a directory of curator source files paired with sidecar `.meta.json` sibli
 
 Required patterns: source bytes not re-checked for content drift (caption and tags reconciled against sidecar; file replacement requires explicit delete plus new upload). Orphan detection scoped to system-uploader rows with non-NULL `source_filename`; member-uploaded rows never touched. Video sidecars must specify a `poster` filename pointing at a sibling poster image; missing poster reported as a per-file error and does not abort the run. Re-running `reconcile` against unchanged inputs produces zero DB writes and zero S3 calls. Each per-file upload, edit, or delete uses a single transaction (delegated to `CuratorMediaService`).
 
-Method roster: `reconcile`.
 
 Persistence: inherited from `CuratorMediaService`: `media_items`, `media_tags`, `tags`, `audit_entries`. Reads `media_items` directly to enumerate existing rows for orphan detection.
 
@@ -529,7 +484,6 @@ Owns the lifecycle of `media_jobs` rows backing the asynchronous interactive adm
 
 Required patterns: state transitions are optimistic-locked via `UPDATE...WHERE...state=expected` so two simultaneous claimers cannot double-process. `getJobForAdmin` returns `null` for both unknown jobs and jobs owned by another admin so the surface cannot be enumerated. `markSucceeded` requires a non-null `mediaId` (DB CHECK). Boot-time recovery is the only sweep; all other transitions are HTTP-event-triggered. Idempotent re-dispatches are filtered at `claimForProcessing` (returns `null` if not in `pending_transcode`); duplicate finalize POSTs filtered at `markPendingTranscode` via `ConflictError`.
 
-Method roster: `createPendingUploadJob`, `markPendingTranscode`, `claimForProcessing`, `markSucceeded`, `markFailed`, `getJobForAdmin`, `recoverOrphanedProcessingJobs`, `markAbandoned`, `findExpiredPendingUploads`.
 
 Persistence: `media_jobs`. Reads `members(id)` via FK only; never writes member rows.
 
@@ -543,7 +497,6 @@ Owns outbox polling and sending via SES, mailing list management, subscription m
 
 Required patterns: outbox pattern, no service calls SES directly; all sends via `enqueueEmail` plus worker. Idempotency key on enqueue prevents duplicate sends on retry. Receipt-token scrub: `body_text` in voting confirmation emails scrubbed after successful delivery. Email templates DB-stored and admin-editable without code deployment; changes audit-logged old/new content. `email_templates_enabled` view exposes only `is_enabled = 1` templates. `admin-alerts` list is system-managed (`is_member_manageable = 0`); subscription driven by `is_admin` changes in `MembershipTieringService.adminManageRole`. Bounce and complaint rates tracked; alarm raised via `OperationsPlatformService.raiseAlarm` on threshold breach. `sendAnnounceEmail` authz is Tier 2+ (distinct from `sendMailingListEmail` which is admin-only for all other lists). Worker skips sending when `email_outbox_paused = 1` from `system_config_current`. CloudWatch logs include template ID, member ID, outbox ID, timestamp, result; never raw email addresses.
 
-Method roster: `processSendQueue`, `enqueueEmail`, `enqueueMailingListEmail`, `sendAnnounceEmail`, `sendMailingListEmail`, `createMailingList`, `archiveMailingList`, `updateMemberSubscription`, `adminAdjustSubscription`, `updateEmailTemplate`, `handleSESBounce`, `handleSESComplaint`, `getMailingListStats`, `getEmailArchive`.
 
 Persistence: `outbox_emails`, `mailing_lists`, `mailing_list_subscriptions`, `email_archives`, `email_templates`, `email_templates_enabled`, `audit_entries`, `system_config_current`.
 
@@ -555,7 +508,6 @@ Dev-mode shaping service that produces the view-model for the `simulated-email-c
 
 Required patterns: three-mode env switch driven by `SES_ADAPTER` plus `SES_SANDBOX_MODE`. `dev` (`SES_ADAPTER=stub`) returns captured in-memory messages from `StubSesAdapter.sentMessages` so a developer can finish an email flow without leaving the page. `sandbox` (`SES_ADAPTER=live` plus `SES_SANDBOX_MODE=1`) returns a marker view-model so the page renders a one-line staging notice. `null` (`SES_ADAPTER=live` plus `SES_SANDBOX_MODE=0`) returns no view-model; the page omits the card entirely in production. Dev-mode reads the stub adapter's in-memory `sentMessages` array, which is independent of `outbox_emails.body_text` (the DB row is scrubbed post-send for PII hygiene; the stub's memory array retains the original message content so dev visibility is preserved after the DB scrub). Calling `getEmailPreview` in dev mode is safe to repeat: no network calls, idempotent outbox drain via `OperationsPlatformService.runEmailWorker`.
 
-Method roster: `getEmailPreview`.
 
 Persistence: none.
 
@@ -569,7 +521,6 @@ Owns admin dashboard, work-queue management, audit log viewing, system health vi
 
 Required patterns: append-only `system_config` (UPDATE/DELETE blocked by triggers); `setConfigValue` and `updateMembershipPricing` INSERT new rows, never UPDATE or DELETE existing ones; `system_config_current` picks up new values immediately. `getSystemConfig` is the admin UI read path only; runtime config reads by jobs and services go directly to `system_config_current`. Pricing keys are integer cents (`tier1_price_cents`, `tier2_price_cents`); UI layer converts to display currency. Work-queue items remain visible post-resolution with status, resolver, timestamp, decision, and reason. Roster report and export read paths are owned by `OfficialRosterService`; this service handles admin orchestration. System health reads `system_job_runs` surfaced by `OperationsPlatformService.recordJobRun`; no direct AWS console links. `buildReconciliationDigestData` is read-only payload assembly and does not send email; enqueue happens in `OperationsPlatformService.runNightlyReconciliation`.
 
-Method roster: `getDashboard`, `getWorkQueue`, `resolveWorkQueueItem`, `getAuditLogs`, `getSystemHealth`, `viewStripeHealth`, `acknowledgeAlarm`, `getSystemConfig`, `setConfigValue`, `updateMembershipPricing`, `getOfficialRosterReport`, `exportOfficialRoster`, `getReconciliationIssues`, `buildReconciliationDigestData`.
 
 Persistence: `work_queue_items`, `audit_entries`, `system_config`, `system_config_current`, `system_alarm_events`, `reconciliation_issues`, `members`, `members_all`.
 
@@ -581,7 +532,6 @@ Owns background job orchestration, system job-run logging, alarm raise and ack, 
 
 Required patterns: all jobs read configuration from `system_config_current` at runtime; no hardcoded thresholds. All webhook handlers idempotent. PII purge has separate soft-deleted vs deceased branches with distinct grace configs (`member_cleanup_grace_days` and `deceased_cleanup_grace_days`); the two are separate grace rules and must not be collapsed; events with published results and clubs preserved permanently; payment records use `payment_retention_days`; ballots use `ballot_retention_days`; member-row PII work delegated to `MemberService.purgeAccountPII`. Resolved reconciliation issues deleted by `runNightlyReconciliation` after `expires_at`. Readiness composition is SQLite connectivity plus container memory pressure only; backup health, SES, KMS, Stripe, and S3 are alarm-surfaced, not part of `/health/ready`. Backup health specifically is surfaced through logs, job-run history, and alarms. All SYS jobs write `system_job_runs` via `recordJobRun` on every run for admin visibility. SYS jobs whose work runs in a loop reap stale `status='running'` rows from prior aborted invocations at the start of each new pass, so a SIGKILL or OOM during an earlier run does not leave a permanently 'running' row that misleads admin tooling. This service contains no domain logic; substantive work delegates to named domain service methods.
 
-Method roster: `runActivePlayerExpiryCheck`, `runBatchAutoLink`, `runEmailWorker`, `openPendingVotes`, `closePendingVotes`, `runPaymentWebhookProcessor`, `runSESWebhookProcessor`, `runNightlyReconciliation`, `runPIIPurgeJob`, `runTokenCleanup`, `runTagStatsRebuild`, `runNightlyBackupSync`, `cleanupStaticAssets`, `recordJobRun`, `raiseAlarm`, `getJobHistory`, `runContinuousBackup`, `checkReadiness`.
 
 Persistence: `system_job_runs`, `system_alarm_events`, `system_config_current`, `audit_entries`, `reconciliation_issues`.
 

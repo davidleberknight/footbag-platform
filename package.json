@@ -20,7 +20,8 @@
     "test:integration": "vitest run tests/integration/",
     "test:smoke": "scripts/test-smoke.sh",
     "test:e2e": "playwright test -c tests/playwright.config.ts",
-    "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --coverage"
+    "test:coverage": "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --coverage",
+    "test:all": "npm run build && bash scripts/ci/assert_conventions.sh && npm test && npm run test:smoke && npm run test:e2e"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "3.1031.0",
