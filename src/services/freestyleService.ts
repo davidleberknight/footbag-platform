@@ -85,6 +85,10 @@ import {
 import {
   getFamilyInvariant,
 } from '../content/freestyleFamilyInvariants';
+import {
+  resolveFamilyOverride,
+  resolveFamilyDisplayName,
+} from '../content/freestyleFamilyOverrides';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -3817,14 +3821,26 @@ export const freestyleService = {
     // crossLink to a symbolic educational surface (e.g., butterfly family →
     // walking-family progression). The legacy `members` array is preserved
     // for backwards compatibility while other surfaces migrate.
+    // Slice J of 2026-05 normalization: curator-authored family overrides
+    // re-bucket specific rows out of their DB trick_family value. See
+    // src/content/freestyleFamilyOverrides.ts. Returns the override target
+    // when present, otherwise falls back to the row's DB trick_family.
+    const familyOf = (row: FreestyleTrickRowWithStatus): string | null =>
+      resolveFamilyOverride(row.slug) ?? row.trick_family;
+
     const familyMap = new Map<string, FreestyleTrickRowWithStatus[]>();
     for (const row of activeRows) {
-      if (!row.trick_family || !isTrickRow(row)) continue;
-      const bucket = familyMap.get(row.trick_family) ?? [];
+      const family = familyOf(row);
+      if (!family || !isTrickRow(row)) continue;
+      const bucket = familyMap.get(family) ?? [];
       bucket.push(row);
-      familyMap.set(row.trick_family, bucket);
+      familyMap.set(family, bucket);
     }
-    const FAMILY_ORDER = ['whirl', 'butterfly', 'osis', 'mirage', 'clipper', 'legover', 'torque', 'blender'];
+    // Sibling-pair ordering: whirl + rev-whirl sit adjacent so the user
+    // can compare conserved mechanics side-by-side. drifter + reverse-drifter
+    // would follow the same pattern if reverse-drifter ever surfaces here
+    // (today it lives under its own trick_family value, not via override).
+    const FAMILY_ORDER = ['whirl', 'rev-whirl', 'butterfly', 'osis', 'mirage', 'clipper', 'legover', 'torque', 'blender'];
 
     // Map of family-slug → optional symbolic cross-link. Conservative: only
     // surfaces that have shipped pedagogy / progression pages get a link.
@@ -3861,9 +3877,14 @@ export const freestyleService = {
       // so semantic tokens matching it carry isFamilyAnchor=true (solid
       // underline at render time).
       const cards   = sorted.map((r, i) => shapeDictionaryTrickCard(r, members[i]!, familySlug));
+      // Display name resolution: prefer curator override (e.g.,
+      // 'rev-whirl' → 'Rev Whirl'); otherwise default capitalize.
+      const familyName =
+        resolveFamilyDisplayName(familySlug)
+        ?? (familySlug.charAt(0).toUpperCase() + familySlug.slice(1));
       return {
         familySlug,
-        familyName: familySlug.charAt(0).toUpperCase() + familySlug.slice(1),
+        familyName,
         members,
         cards,
         crossLink: FAMILY_CROSS_LINKS[familySlug] ?? null,

@@ -46,12 +46,20 @@
  */
 
 export const FAMILY_INVARIANTS: ReadonlyMap<string, string> = new Map([
-  // Whirl pilot. Every whirl-family trick (paradox-whirl, ducking-whirl,
-  // hatchet, mullet, montage, etc.) shares this terminal mechanic, even
-  // when its compositional reading differs. Sourced from `whirl`'s
-  // operational-notation column with the `[set] >` set-prefix dropped
-  // for token-clean rendering.
+  // Whirl pilot. Every standard-whirl-family trick (paradox-whirl,
+  // ducking-whirl, montage, etc.) shares this conserved inward-leggy
+  // terminal mechanic. Sourced from `whirl`'s operational-notation
+  // column with the `[set] >` set-prefix dropped for token-clean
+  // rendering. Per Slice I.
   ['whirl', 'leggy in dex > ss clipper'],
+  // Rev-Whirl sibling terminal family. Slice J Stage A (2026-05-16):
+  // hatchet, mullet, and the canonical rev-whirl anchor share this
+  // different conserved mechanic — front-direction whirl dex with
+  // opposite-side cross-body clipper landing. Sourced from `hatchet`'s
+  // and `mullet`'s operational-notation columns (consistent across
+  // both). See freestyleFamilyOverrides.ts for the row migration and
+  // REV_WHIRL_SIBLING_FAMILY.md for the audit forensic.
+  ['rev-whirl', 'front whirl > op clipper [XBD]'],
 ]);
 
 /**
