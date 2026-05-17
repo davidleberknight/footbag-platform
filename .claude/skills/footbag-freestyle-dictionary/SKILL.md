@@ -45,18 +45,29 @@ The Core Rule above describes DATA layers (which table, which file). This sectio
 
 This is now one of the core architectural invariants of the entire project. When in doubt about where a piece of content belongs: identify which layer it serves, store it on that layer's surface, and link from other layers as needed.
 
-### B. Current strategic posture (post-Slice-E, 2026-05-16)
+### B. Current strategic posture (post-Slice-W, 2026-05-17)
 
-The freestyle dictionary work has shifted from feature-expansion to **stabilization + ontology-governance**. The architectural achievements that needed code are stable; the remaining work is ontology, where Red's recent rulings strongly suggest multiple overlapping axes are at play.
+Through Slices L1–W the freestyle dictionary reached a **legitimate pre-Red stabilization checkpoint**. The Stabilization Review (`exploration/comparative-reconciliation-2026-05/STABILIZATION_REVIEW.md`) concluded **Option C** — pause automated work; conduct live-human review while Red Wave 2 is in flight.
 
-- **Avoid ontology over-hardening.** Premature SQL freezes, rigid taxonomy commitments, and "final" canonical structures are the primary risk now — bigger than missing content.
-- **Reversible TS governance preferred.** Curator content lives in TypeScript content modules (allow-lists, chain registries, kind overrides). Schema migrations come AFTER ontology stabilizes — never before.
-- **Taxonomy still evolving.** Family / topology / surface / archetype / category distinctions are working frames, not closed answers. Treat them as observational until Wave-2 Red answers + curator triage land.
-- **Batch 5 (symbolic / topology visuals) is paused.** Do not resume until manual QC complete, Slice F evaluated, topology semantics more stable, and Wave-2 Red responses reviewed.
-- **Observational surfaces allowed.** Connective panels, movement-topology groups, dex archetypes, feel cards — all fine as observational layers with explicit "observational" labels.
-- **Parser aesthetics forbidden.** No AST views, no token soup, no interaction-heavy symbolic UI on public surfaces. Restraint is now the principal design constraint, not a fallback.
+- **No remaining pre-Red blockers.** 9-dimension holistic assessment scored 6 Strong + 3 Good + 1 Adequate; zero Weak or Failing. Every concern is either Wave 2-blocked, curator-paced triage, audit-deferred, or already shipped.
+- **Branch-family ontology is now durable.** `FAMILY_DUAL_MEMBERSHIPS` (Slice M) handles additive multi-membership (torque/blender/drifter in lineage family AND own branch). `RETIRED_FAMILIES` (Slice M) hides browse-surface families without DB changes (clipper-stall). `UNRESOLVED_COMPOUNDS` (Slice M; pilot of 7 post Pre-Red tomahawk removal) honestly flags folk-derived rows with `pendingDecomposition` pill. `MODIFIER_COMPOSITION_GLOSSES` (Slices M+N) supplies 6-modifier pilot pedagogical glosses on Movement System view. All curator-authored TypeScript content modules; zero SQL.
+- **Movement System view shipped** (Slices L1/L2). 4 curator-confirmed axes (Set/Uptime; Entry Topologies; Midtime Body; No-Plant & Suspension); 11 pilot modifiers. Renders via canonical `dictionary-trick-card` partial in registry density. Empty axes prune.
+- **Symbolic-first / op-notation-fallback precedence reinforced.** Chain registry at 71 entries post Slices N + Pre-Red sweep; 51% of cards on `/freestyle/tricks` render chain readings, 18% fall through to op-notation fallback (muted), 31% have neither (base tricks; pending DB rebuild for Pre-Red stall additions).
+- **Comparative-reconciliation arc complete** (Slices O–S). Five research outputs at `exploration/comparative-reconciliation-2026-05/` queue curator triage: branch-family candidates (Slice O: barfly + borderline double-leg-over); chain-external alignment (Slice P: 94 rows; 28 N+1 chain candidates); ADD-divergence reclassification (Slice Q: 277 rows); missing-move triage (Slice R: 191 rows); embodied-analogy notes (Slice S: observational only).
+- **Audit slices V + W shipped.** Slice V fixed a real mobile-grid bug (`.dict-card-equivalence--inline` + `.dict-card-notation--inline` now carry `grid-area: reading` at ≤520px). Slice W softened trick-detail Notation + Equivalent-readings prose to remove implementation-flavored language; the hybrid review then found and fixed a missed section-intro. Diagnostic-details admin-gating decision remains a Wave 2-adjacent curator decision.
+- **Avoid ontology over-hardening.** Premature SQL freezes, rigid taxonomy commitments, and "final" canonical structures are still the primary risk — bigger than missing content. The Slice M dual-membership pattern is the model for any future taxonomy-shaped work.
+- **Reversible TS governance preferred.** Curator content lives in TypeScript content modules (allow-lists, chain registries, kind overrides, dual-membership maps, retirement sets, composition glosses, unresolved-compound pilot). Schema migrations come AFTER Wave-2 + curator triage stabilize the ontology — never before.
+- **Batch 5 (symbolic / topology visuals) remains paused.** Do not resume until live-human review complete + Wave-2 Red answers integrated.
+- **Observational surfaces remain explicit.** Connective panels, movement-neighborhood groups (renamed from "topology" in the stabilization slice), dex archetypes, feel cards, embodied-analogy notes — all carry explicit "observational" labels and do not collapse into canonical layers.
+- **Parser aesthetics forbidden.** No AST views, no token soup, no interaction-heavy symbolic UI on public surfaces. The structural-decomposition panel stays collapsed-by-default behind `<details>`. Restraint remains the principal design constraint.
 
-See [[project_freestyle_post_slice_e_posture]] for the full sequencing recommendation and unresolved-doctrine list.
+**What to do next (when starting freestyle work):**
+
+  1. Check whether the curator has triaged Slices O–R queues or whether Red Wave 2 answers have arrived. If neither: do not initiate new automated work; consult [[project_freestyle_post_slice_e_posture]] for the queued post-Red follow-up list.
+  2. If Wave 2 answers have landed: integrate per the queued post-Red follow-up slices.
+  3. If the curator has flagged a specific surface in human review: address that surface only; do not expand scope.
+
+See [[project_freestyle_post_slice_e_posture]] for the full updated sequencing recommendation, deferred-doctrine list, and post-Red follow-up queue.
 
 ### C. Family / topology caution
 
