@@ -6547,3 +6547,130 @@ a.dict-card-title:hover {
 .hero-cross-link a:focus {
   text-decoration: underline;
 }
+
+/* Slice X Phase 1 — ADD Accounting & Analysis page (/freestyle/add-analysis).
+ * Minimal restraint-first styling: reuses .content-section + .section-heading
+ * patterns. Adds a small set of page-specific classes for the worked examples,
+ * discrepancy cases, and cross-links inventory. No new color tokens. */
+.add-analysis-page .page-philosophy {
+  margin: 12px 0 0 0;
+  font-size: 0.95rem;
+  color: #4a4636;
+  line-height: 1.55;
+  padding-left: 12px;
+  border-left: 3px solid #d6d2c4;
+}
+.add-analysis-components th,
+.add-analysis-components td {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 0.92rem;
+}
+.add-analysis-components th {
+  font-weight: 600;
+  color: #2d2d24;
+  border-bottom: 1px solid #d6d2c4;
+}
+.add-analysis-components tbody tr + tr td {
+  border-top: 1px solid #efece2;
+}
+.add-analysis-callout {
+  margin: 12px 0 0 0;
+  padding: 10px 14px;
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.add-analysis-callout--incompleteness {
+  border-left-color: #c0b683;
+}
+.add-analysis-worked-examples,
+.add-analysis-discrepancy-cases {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.add-analysis-worked-example,
+.add-analysis-case {
+  margin: 16px 0;
+  padding: 10px 0 0 0;
+  border-top: 1px solid #efece2;
+}
+.add-analysis-worked-example:first-child,
+.add-analysis-case:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.add-analysis-example-heading,
+.add-analysis-case-heading {
+  margin: 0 0 6px 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.add-analysis-add-label,
+.add-analysis-delta {
+  font-weight: 400;
+  color: #5a5644;
+}
+.add-analysis-components-line,
+.add-analysis-why-line {
+  margin: 4px 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.add-analysis-case-detail {
+  margin: 6px 0 0 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.add-analysis-case-detail dt {
+  font-weight: 600;
+  color: #4a4636;
+}
+.add-analysis-case-detail dd {
+  margin: 0;
+}
+.add-analysis-subheading {
+  margin-top: 24px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.add-analysis-edge-cases {
+  margin: 6px 0 0 0;
+  padding-left: 1.2em;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.add-analysis-cross-links {
+  margin-top: 28px;
+  padding: 12px 14px;
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+}
+.add-analysis-cross-links h3 {
+  margin: 0 0 6px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.add-analysis-cross-links ul {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 0.92rem;
+}
+@media (max-width: 480px) {
+  .add-analysis-case-detail {
+    grid-template-columns: 1fr;
+    row-gap: 2px;
+  }
+  .add-analysis-case-detail dt {
+    margin-top: 6px;
+  }
+}

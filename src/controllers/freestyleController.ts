@@ -87,6 +87,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/add-analysis */
+  addAnalysis(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getAddAnalysisPage();
+      res.render('freestyle/add-analysis', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/tricks */
   tricksIndex(req: Request, res: Response, next: NextFunction): void {
     try {

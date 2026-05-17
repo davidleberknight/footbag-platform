@@ -98,6 +98,10 @@ import {
 import {
   isUnresolvedCompound,
 } from '../content/freestyleUnresolvedCompounds';
+import {
+  FREESTYLE_ADD_ANALYSIS_CONTENT,
+  type AddAnalysisContent,
+} from '../content/freestyleAddAnalysisContent';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -4419,6 +4423,39 @@ export const freestyleService = {
         difficultyEras:   INSIGHTS_DIFFICULTY_ERAS,
         narratives:       INSIGHTS_NARRATIVES,
       },
+    };
+  },
+
+  /**
+   * GET /freestyle/add-analysis
+   *
+   * Educational ADD-accounting page per Slice X Phase 1 plan
+   * (exploration/comparative-reconciliation-2026-05/
+   * ADD_ANALYSIS_SECTION_PLAN.md). Pure curator content; no DB access.
+   * Content lives in src/content/freestyleAddAnalysisContent.ts per
+   * [[feedback_reversible_content_governance]].
+   */
+  getAddAnalysisPage(): PageViewModel<AddAnalysisContent> {
+    return {
+      seo: {
+        title:       'ADD Accounting & Analysis — Freestyle',
+        description:
+          'How freestyle’s difficulty system is constructed, where its components come from, and why sources sometimes count the same trick differently.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_add_analysis',
+        title:      'ADD Accounting & Analysis',
+        intro:
+          'How freestyle’s difficulty system is constructed, where its components come from, and why sources sometimes count the same trick differently.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'ADD Analysis' },
+        ],
+      },
+      content: FREESTYLE_ADD_ANALYSIS_CONTENT,
     };
   },
 

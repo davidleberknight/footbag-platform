@@ -1,0 +1,146 @@
+{{!--
+  /freestyle/add-analysis — ADD Accounting & Analysis (Slice X Phase 1).
+
+  Educational page explaining how ADD values are constructed mechanically,
+  with worked examples and discrepancy case studies. Per Slice X plan:
+  pure curator content via FREESTYLE_ADD_ANALYSIS_CONTENT; logic-light
+  template; no client JS.
+--}}
+
+<div class="wrapper add-analysis-page">
+
+  <header class="page-hero">
+    <h1>{{page.title}}</h1>
+    <p class="page-intro">{{page.intro}}</p>
+    <p class="page-philosophy">{{content.philosophyParagraph}}</p>
+  </header>
+
+  {{!-- §1 — How ADD is built ─────────────────────────────────────────── --}}
+  <section id="how-add-is-built" class="content-section">
+    <div class="section-heading">
+      <h2>1. How ADD is built</h2>
+      <p class="section-intro">
+        The ADD (Additional Degree of Difficulty) score measures how
+        structurally demanding a trick is. It isn&rsquo;t a stylistic rating
+        &mdash; it counts the mechanical components a trick is made of.
+      </p>
+    </div>
+
+    <table class="add-analysis-components">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Typical contribution</th>
+          <th>Example</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.componentClasses}}
+        <tr>
+          <td>{{componentClass}}</td>
+          <td>{{contribution}}</td>
+          <td>{{example}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <p class="add-analysis-callout"><strong>The editorial-truth rule.</strong> {{content.editorialTruthRule}}</p>
+    <p class="add-analysis-callout add-analysis-callout--incompleteness"><strong>Honest incompleteness.</strong> {{content.incompletenessNote}}</p>
+  </section>
+
+  {{!-- §2 — Worked examples ─────────────────────────────────────────── --}}
+  <section id="worked-examples" class="content-section">
+    <div class="section-heading">
+      <h2>2. Worked examples</h2>
+      <p class="section-intro">Eight examples, ordered from primitive to compound. Each shows components, calculation, and a one-line why.</p>
+    </div>
+
+    <ol class="add-analysis-worked-examples">
+      {{#each content.workedExamples}}
+      <li class="add-analysis-worked-example">
+        <h3 class="add-analysis-example-heading">
+          {{#if trickSlug}}<a href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}
+          <span class="add-analysis-add-label">&middot; {{addLabel}}</span>
+        </h3>
+        <p class="add-analysis-components-line"><strong>Components:</strong> {{components}}</p>
+        <p class="add-analysis-why-line">{{whyNote}}</p>
+      </li>
+      {{/each}}
+    </ol>
+  </section>
+
+  {{!-- §3 — Discrepancies ───────────────────────────────────────────── --}}
+  <section id="discrepancies" class="content-section">
+    <div class="section-heading">
+      <h2>3. ADD discrepancies &amp; why they happen</h2>
+      <p class="section-intro">
+        Different sources count the same trick differently. The reasons fall
+        into a small number of recognizable patterns. Below are real cases
+        &mdash; each with the IFPA reading, the external reading, and the
+        mechanical interpretation that changes the count. None of these mean
+        any source is &ldquo;wrong&rdquo; &mdash; they are differing
+        interpretations or decomposition assumptions.
+      </p>
+    </div>
+
+    <ol class="add-analysis-discrepancy-cases">
+      {{#each content.discrepancyCases}}
+      <li class="add-analysis-case" id="case-{{caseId}}">
+        <h3 class="add-analysis-case-heading">
+          {{#if trickSlug}}<a href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}
+          {{#if delta}}<span class="add-analysis-delta">&middot; &Delta; {{delta}}</span>{{/if}}
+        </h3>
+        <dl class="add-analysis-case-detail">
+          <dt>IFPA</dt>
+          <dd>{{ifpaAdd}} ADD</dd>
+          <dt>{{externalSourceLabel}}</dt>
+          <dd>{{externalAdd}} ADD</dd>
+          <dt>Decomposition difference</dt>
+          <dd>{{decompositionDifference}}</dd>
+          <dt>Pattern</dt>
+          <dd>{{pattern}}</dd>
+          <dt>IFPA status</dt>
+          <dd>{{ifpaStatusLine}}</dd>
+        </dl>
+      </li>
+      {{/each}}
+    </ol>
+
+    {{#if content.edgeCases.length}}
+    <h3 id="edge-cases" class="add-analysis-subheading">Edge cases mentioned briefly</h3>
+    <ul class="add-analysis-edge-cases">
+      {{#each content.edgeCases}}
+      <li>
+        <strong>{{#if trickSlug}}<a href="/freestyle/tricks/{{trickSlug}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}</strong>
+        &mdash; {{ifpaAdd}} ADD. {{briefNote}}
+      </li>
+      {{/each}}
+    </ul>
+    {{/if}}
+  </section>
+
+  {{!-- §4 — Interpretation notes ─────────────────────────────────────── --}}
+  <section id="interpretation-notes" class="content-section">
+    <div class="section-heading">
+      <h2>4. Interpretation notes</h2>
+    </div>
+
+    {{#each content.closingParagraphs}}
+    <p>{{this}}</p>
+    {{/each}}
+  </section>
+
+  {{!-- Cross-references ───────────────────────────────────────────────── --}}
+  {{#if content.crossLinks.length}}
+  <nav class="add-analysis-cross-links" aria-label="Related pages">
+    <h3>Where to go next</h3>
+    <ul>
+      {{#each content.crossLinks}}
+      <li><a href="{{href}}">{{label}}</a></li>
+      {{/each}}
+    </ul>
+  </nav>
+  {{/if}}
+
+</div>
