@@ -348,3 +348,70 @@ def test_cutover_exits_nonzero_when_zero_eligible_candidates(
         f"Cutover wrote {n_clubs} clubs rows during a fail-fast exit; "
         "zero-eligible path must not produce any DB writes."
     )
+
+
+def _seed_only_dormant_candidates(db_path: Path) -> None:
+    """Insert candidates only in the seed-default classification='dormant'
+    state (bootstrap_eligible=0). Mirrors the CI smoke fixture path and
+    the sparse local mirror path: load_club_members_seed.py inserts
+    candidates with classification='dormant' as the default, and the
+    Phase G classifier (clubs/scripts/02_build_legacy_club_candidates.py)
+    is skipped because its input CSV isn't staged."""
+    conn = sqlite3.connect(db_path)
+    ts = "2026-01-01T00:00:00Z"
+    conn.executemany(
+        """
+        INSERT INTO legacy_club_candidates (
+          id, created_at, created_by, updated_at, updated_by, version,
+          legacy_club_key, display_name, city, country,
+          classification, bootstrap_eligible
+        ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?, ?, 'dormant', 0)
+        """,
+        [
+            ("lcc-dormant-1", ts, ts, "9001",
+             "Footbag Club 1", "City1", "Country1"),
+            ("lcc-dormant-2", ts, ts, "9002",
+             "Footbag Club 2", "City2", "Country2"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_cutover_exits_zero_when_only_dormant_candidates(
+    fresh_db: Path,
+) -> None:
+    """When every candidate carries the seed-default classification='dormant',
+    the Phase G classifier hasn't run (CI smoke fixture path / sparse local
+    mirror path). Phase H must exit cleanly (rc=0) with a "skipping" message,
+    not fail-fast. The fail-fast in test_cutover_exits_nonzero_when_zero_
+    eligible_candidates handles the real regression case (non-dormant
+    classifications exist but no eligible).
+
+    Added 2026-05-17 alongside the CI smoke gate fix: my earlier Slice A
+    fail-fast hardening (commit 394037a) didn't distinguish "classifier
+    didn't run" from "classifier ran and regressed" — both produced the
+    fail-fast exit, breaking the CI smoke gate when Phase G is intentionally
+    skipped against the tiny fixture."""
+    _seed_only_dormant_candidates(fresh_db)
+    result = _run_cutover(fresh_db)
+
+    assert result.returncode == 0, (
+        f"Cutover must exit zero when every candidate is seed-default 'dormant' "
+        f"(Phase G classifier skipped); got rc={result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "skipping pre-populate cutover" in result.stderr, (
+        "Cutover stderr must explain why it's skipping when every candidate "
+        "is still 'dormant'.\n"
+        f"stderr: {result.stderr}"
+    )
+
+    # No clubs should have been written by Phase H along this path.
+    conn = sqlite3.connect(fresh_db)
+    n_clubs = conn.execute("SELECT COUNT(*) FROM clubs").fetchone()[0]
+    conn.close()
+    assert n_clubs == 0, (
+        f"Phase H wrote {n_clubs} clubs rows during a clean-skip exit; "
+        "all-dormant path must not produce any DB writes."
+    )

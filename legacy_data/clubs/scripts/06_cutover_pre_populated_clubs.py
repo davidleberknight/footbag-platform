@@ -156,7 +156,7 @@ def main() -> int:
         # mapped_club_id stamped here, no fallback INSERT runs.
         all_candidates = con.execute(
             """
-            SELECT legacy_club_key, display_name, city, country, bootstrap_eligible
+            SELECT legacy_club_key, display_name, city, country, bootstrap_eligible, classification
             FROM legacy_club_candidates
             ORDER BY legacy_club_key
             """
@@ -176,13 +176,36 @@ def main() -> int:
             )
             return 1
 
-        # Pre-flight: at least one bootstrap_eligible=1 candidate must exist.
-        # Phase G should emit 59 pre_populate rows in prod; 0 means the
-        # §9.1 classifier regressed silently OR Phase G ran against the
-        # wrong input. Downstream 07_load_bootstrap_leaders.py would have
-        # zero FK targets, so fail-fast here surfaces the regression
-        # before partial state lands.
-        eligible_count = sum(1 for r in all_candidates if r[4])
+        # Pre-flight: distinguish "Phase G classifier didn't run" (CI smoke
+        # fixture skips it; reset-local-db.sh on a sparse local mirror also
+        # skips it) from "Phase G ran but emitted 0 eligible" (real
+        # regression). The seed loader (load_club_members_seed.py) inserts
+        # candidates with classification='dormant' as a default; Phase G's
+        # classifier (clubs/scripts/02_build_legacy_club_candidates.py)
+        # promotes the eligible cohort to 'pre_populate' / 'onboarding_visible'
+        # and demotes some to 'junk'. If every candidate is still 'dormant',
+        # the classifier never refined the defaults — exit cleanly. If any
+        # candidate carries a non-dormant classification but no row is
+        # bootstrap_eligible, the classifier ran and regressed — fail-fast.
+        non_dormant_count = sum(1 for r in all_candidates if r[5] != 'dormant')
+        eligible_count    = sum(1 for r in all_candidates if r[4])
+
+        if non_dormant_count == 0:
+            print(
+                "  → Phase H: skipping pre-populate cutover (Phase G "
+                "classifier did not run; every candidate still carries "
+                "the seed-default classification='dormant').",
+                file=sys.stderr,
+            )
+            print(
+                "       This is the expected state in CI smoke fixtures "
+                "and sparse local mirrors. Run "
+                "clubs/scripts/02_build_legacy_club_candidates.py to "
+                "populate classifications.",
+                file=sys.stderr,
+            )
+            return 0
+
         if eligible_count == 0:
             print(
                 "ERROR: legacy_club_candidates has 0 bootstrap_eligible=1 "
@@ -190,8 +213,9 @@ def main() -> int:
                 file=sys.stderr,
             )
             print(
-                "       Phase G enrichment ran but emitted no pre_populate "
-                "candidates. Confirm "
+                "       Phase G classifier ran (non-dormant classifications "
+                "exist) but no candidates are eligible. The §9.1 classifier "
+                "rules regressed silently. Confirm "
                 "clubs/scripts/02_build_legacy_club_candidates.py classifier "
                 "rules and the input clubs CSV.",
                 file=sys.stderr,
@@ -205,7 +229,7 @@ def main() -> int:
                 "SELECT tag_normalized FROM tags WHERE standard_type = 'club'"
             )
         }
-        for _, _, _, country, _ in all_candidates:
+        for _, _, _, country, _, _ in all_candidates:
             existing_tags.add(f"#club_{slugify(country or '')}")
 
         clubs_inserted = 0
@@ -216,7 +240,7 @@ def main() -> int:
         candidates_skipped_no_club = 0
         missing_seed: list[str] = []
 
-        for legacy_key, display_name, city, country, bootstrap_eligible in all_candidates:
+        for legacy_key, display_name, city, country, bootstrap_eligible, _classification in all_candidates:
             club_id = stable_id("club", legacy_key)
             tag_id = stable_id("tag", "club", legacy_key)
 

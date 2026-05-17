@@ -94,7 +94,12 @@ fi
 #   - <script src="..." defer></script>             external JS loaded from /public/js
 #   - <script type="application/json" id="...">     non-executable JSON data island per VC §4.4
 echo "[conventions] check: inline style/script in src/views/**"
-style_hits=$(grep -rn --include='*.hbs' -E 'style="[^"]*"' src/views/ || true)
+# Regex anchored to attribute boundary: `style=` must be at line-start or
+# preceded by whitespace. Prevents false positives on attribute NAMES that
+# end with `-style` (e.g. `data-anchor-style="solid"`, SVG `font-style=`,
+# `border-style=`). The CSP rule targets the HTML `style` attribute on a
+# rendered element, not any attribute whose name happens to contain "style".
+style_hits=$(grep -rn --include='*.hbs' -E '(^|[[:space:]])style="[^"]*"' src/views/ || true)
 styletag_hits=$(grep -rn --include='*.hbs' -E '<style[[:space:]>]' src/views/ || true)
 script_hits=$(grep -rn --include='*.hbs' '<script' src/views/ \
   | grep -v 'src=' \
