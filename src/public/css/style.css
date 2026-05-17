@@ -5475,6 +5475,16 @@ a.dict-card-title:hover {
     grid-area: reading;
     font-size: 0.95rem;
   }
+  /* Slice V (2026-05-16): both the symbolic-equivalence row AND the
+   * operational-notation fallback must explicitly land in the named
+   * "reading" grid area at mobile widths. Without these assignments
+   * the formula falls through grid-auto-flow placement and overlaps
+   * the title row. See exploration/comparative-reconciliation-2026-05/
+   * SLICE_V_AUDIT.md §5.5. */
+  .dict-card--registry .dict-card-equivalence--inline,
+  .dict-card--registry .dict-card-notation--inline {
+    grid-area: reading;
+  }
 }
 
 /* Family-heading cross-link to a symbolic educational surface (e.g.
