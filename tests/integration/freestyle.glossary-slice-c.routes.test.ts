@@ -150,10 +150,13 @@ describe('Glossary §8 — walking-family progression (Slice C)', () => {
 
 describe('Glossary §9 — representative-selection framing (Slice C)', () => {
   it('renders the "representative selection, not comprehensive" framing', async () => {
+    // Slice K (2026-05-16) strengthened the framing: "not a comprehensive
+    // topology atlas" replaced the bare "not comprehensive" phrasing; the
+    // section is also explicitly marked "intentionally incomplete".
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).toMatch(/representative selection/i);
-    expect(res.text).toMatch(/not comprehensive/i);
+    expect(res.text).toMatch(/not a comprehensive|intentionally incomplete/i);
   });
 });
 

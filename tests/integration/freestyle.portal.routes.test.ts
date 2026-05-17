@@ -591,13 +591,18 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toMatch(/<p class="operator-name">Duck \/ Dive<\/p>/);
   });
 
-  it('places the operator board above the "Where to go next" orientation block', async () => {
+  it('renders the operator board on the landing page', async () => {
+    // Slice K (2026-05-16): "Where to go next" orientation block was
+    // retired; the operator board still renders on landing. This test
+    // previously pinned the board's position relative to that block;
+    // now it just confirms the board itself is present and below the
+    // featured strip.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    const boardIdx       = res.text.indexOf('class="operator-board');
-    const orientationIdx = res.text.indexOf('Where to go next');
-    expect(boardIdx).toBeGreaterThan(0);
-    expect(orientationIdx).toBeGreaterThan(boardIdx);
+    const featuredIdx = res.text.indexOf('id="featured"');
+    const boardIdx    = res.text.indexOf('class="operator-board');
+    expect(featuredIdx).toBeGreaterThan(0);
+    expect(boardIdx).toBeGreaterThan(featuredIdx);
   });
 
   // ── Operator-card deep-links: one restrained destination per operator ──
@@ -722,12 +727,14 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
   it('F3 — curated demonstrations (Conlon 1998 + San Marino 2026) render in the merged Featured strip', async () => {
     // Post-SURFACE-COMPRESSION Phase 1 / C: demonstrations live inside the
     // merged Featured strip with stable `featured-{key}` anchor ids.
+    // Post-Slice-K (2026-05-16): San Marino caption now leads with the
+    // Jim Penske credit; "Footage by jay7bah" remains in the same line.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('1998 World Footbag Championships');
     expect(res.text).toContain('Samantha Conlon and Carol Wedemeyer');
     expect(res.text).toContain('Footbag 2026: San Marino');
-    expect(res.text).toContain('Footage by jay7bah');
+    expect(res.text).toContain('Featuring Jim Penske');
     expect(res.text).toContain('2URvZFuxBls');
     expect(res.text).toContain('U6J2LXxUWro');
     expect(res.text).toContain('id="featured-conlon-1998"');
@@ -736,6 +743,10 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
   });
 
   it('F7 — only curated demonstrations carry hashtag chip strips inside the merged Featured grid', async () => {
+    // Slice K (2026-05-16): #curated chip removed from displayed tags
+    // since every Featured item is curated by definition (the
+    // media-tag-chip--quality chip is no longer asserted). Other chips
+    // (source: footbag_hof_archive, creator: by_jay7bah) preserved.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const startIdx = res.text.indexOf('class="freestyle-featured-grid"');
@@ -749,7 +760,8 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
     expect(stripCount).toBe(4);
     expect(slice).toContain('media-tag-chip--source');     // #footbag_hof_archive
     expect(slice).toContain('media-tag-chip--creator');    // #by_jay7bah
-    expect(slice).toContain('media-tag-chip--quality');    // #curated
+    // #curated is intentionally NOT in the displayed tag set.
+    expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#curated<\/li>/);
     expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#freestyle<\/li>/);
     expect(slice).not.toMatch(/<li class="media-tag-chip[^"]*">#trick<\/li>/);
   });
@@ -757,22 +769,27 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
 
 // ── SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 + under-hero jump nav (2026-05-14) ──
 describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants', () => {
-  it('renders the under-hero jump nav with five anchors', async () => {
+  it('renders the under-hero jump nav with four anchors', async () => {
+    // Slice K (2026-05-16): the fifth anchor "#where-next" was retired
+    // along with the corresponding "Where to go next" section.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="page-jump-nav"');
     expect(res.text).toContain('aria-label="On this page"');
     for (const anchor of [
-      '#basic-components', '#core-tricks', '#featured', '#operators', '#where-next',
+      '#basic-components', '#core-tricks', '#featured', '#operators',
     ]) {
       expect(res.text).toContain(`href="${anchor}"`);
     }
-    // The five matching section ids are present.
+    // The four matching section ids are present.
     for (const id of [
-      'basic-components', 'core-tricks', 'featured', 'operators', 'where-next',
+      'basic-components', 'core-tricks', 'featured', 'operators',
     ]) {
       expect(res.text).toMatch(new RegExp(`id="${id}"`));
     }
+    // The retired "#where-next" anchor + id must not appear.
+    expect(res.text).not.toContain('href="#where-next"');
+    expect(res.text).not.toContain('id="where-next"');
   });
 
   it('operator-board lede is one short sentence, not a 30-word paragraph', async () => {

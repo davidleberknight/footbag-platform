@@ -256,12 +256,36 @@
 
     <h3 class="section-heading">Trick families</h3>
     <p>
-      A <strong>family</strong> is a group of tricks that share a common
-      structural anchor &mdash; usually one of the base tricks above. The family
-      name is the anchor; modifiers and sets branch off from it to create the
-      full lineage of named compounds. Within a family, ADD difficulty climbs
-      as more modifiers stack on top of the anchor &mdash; the family becomes
-      a difficulty ladder.
+      A <strong>family</strong> is a group of tricks that share a
+      <em>common terminal structure</em> &mdash; a conserved ending mechanic
+      that every family member resolves through. The family base trick
+      (e.g. <a href="/freestyle/tricks/whirl">whirl</a>,
+      <a href="/freestyle/tricks/butterfly">butterfly</a>,
+      <a href="/freestyle/tricks/mirage">mirage</a>) IS that terminal
+      structure in its simplest form; modifiers and sets stack on top to
+      create the full lineage of named compounds. Within a family, ADD
+      difficulty climbs as more modifiers stack onto the anchor &mdash;
+      the family becomes a difficulty ladder.
+    </p>
+    <p>
+      Family membership is <strong>not</strong> the same as modifier or
+      topology grouping. <em>Paradox</em>, <em>symposium</em>,
+      <em>spinning</em>, <em>ducking</em>, and similar concepts are
+      <strong>entry / topology / modifier systems</strong>, not terminal
+      families &mdash; they describe what the body does mid-trick, but
+      they do not share a conserved ending. Browse them via the trick
+      dictionary's component view or topology view; their place is not
+      inside the family hierarchy.
+    </p>
+    <p class="detail-muted">
+      <em>Sibling terminal families.</em> Some families occur in pairs
+      because they share a structural namesake but resolve through
+      different terminal mechanics. <a href="/freestyle/tricks?family=whirl">Whirl</a>
+      (inward-leggy dex &rarr; same-side clipper) and
+      <a href="/freestyle/tricks?family=rev-whirl">Rev Whirl</a>
+      (front-direction dex &rarr; opposite-side cross-body clipper) are
+      siblings, not parent &amp; child. The Trick Dictionary surfaces
+      sibling families adjacent in its family view.
     </p>
 
     {{#if content.familyTrees.length}}
@@ -497,6 +521,25 @@
         </ul>
       </div>
       {{/each}}
+    </div>
+
+    {{! Notation in practice — three compact symbol-first examples
+        (Slice K, 2026-05-16). Static content; opens §7 with concrete
+        tokenized formulas before the prose explainer. }}
+    <div class="glossary-notation-in-practice" aria-label="Notation in practice — three compact examples">
+      <p class="glossary-notation-row">
+        <span class="glossary-notation-label">single base anchor</span>
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-core-family">whirl</span></code>
+      </p>
+      <p class="glossary-notation-row">
+        <span class="glossary-notation-label">modifier + base</span>
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">paradox</span> <span class="notation-token notation-core-family">whirl</span></code>
+      </p>
+      <p class="glossary-notation-row">
+        <span class="glossary-notation-label">deep compound</span>
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">stepping</span> <span class="notation-token notation-modifier">ducking</span> <span class="notation-token notation-modifier">paradox</span> <span class="notation-token notation-core-family">torque</span></code>
+        <span class="glossary-notation-shorthand">&equiv; <strong>gauntlet</strong> (7 ADD)</span>
+      </p>
     </div>
 
     <p>
@@ -802,18 +845,21 @@
       <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
     </h2>
     <p class="section-intro">
-      Connective panels for a representative selection of high-value
+      Connective panels for a curator-selected cohort of high-value
       glossary terms &mdash; how each lives in practice, in tricks, in
       operational notation, and in related symbolic groups. The
       definitions are coach-tone summaries; the canonical entries above
       remain authoritative.
     </p>
     <p class="section-intro detail-muted">
-      <em>Representative selection, not comprehensive.</em> The panels
-      below cover a curator-selected cohort; many additional terms have
-      their own canonical entry earlier in this glossary but no connective
-      panel yet. Topology relationships are observational, not canonical
-      &mdash; canonical family classifications live in the trick dictionary.
+      <strong>This section is intentionally incomplete.</strong> The six
+      panels below are a <em>representative selection</em>, not a
+      comprehensive topology atlas. Many movement neighborhoods that
+      deserve their own panel are not yet covered &mdash; the curator
+      will extend coverage as patterns stabilize. Panels are
+      <em>observational</em>: they describe shared mechanics across
+      tricks, but they do not override canonical family classifications,
+      which live in the trick dictionary's family view.
     </p>
     <div class="glossary-connective-grid">
       {{#each content.connectivePanels}}
@@ -938,6 +984,7 @@
       <li><strong>footbagmoves.com</strong> &mdash; observational catalogue of named tricks, alternate names, and rotational variants; informs the symbolic-grammar layer of this glossary.</li>
       <li><strong>AnzTrikz</strong> &mdash; Australian / New Zealand demonstration series; canonical references for many compound rotational variants.</li>
       <li><strong>Tricks of the Trade (WorldFootbag YouTube)</strong> &mdash; 42-lesson tutorial series; canonical visual references for many of the dictionary entries.</li>
+      <li><strong>Jobs notation</strong> &mdash; the compact symbolic shorthand for composing trick names ("paradox whirl", "stepping butterfly", etc.) used throughout the dictionary and §7 of this glossary. A community-recognized notation tradition, not a single-author convention.</li>
       <li><strong>Historical WFA / NHSA records</strong> &mdash; pre-IFPA federation records that anchor several legacy naming conventions still in use.</li>
     </ul>
     <p class="detail-muted">

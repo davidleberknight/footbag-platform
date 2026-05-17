@@ -245,11 +245,17 @@ describe('symbolic full-page cross-links — modifier-family footer', () => {
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle — educational pointer paragraph', () => {
-  it('landing page renders a pointer to /freestyle/learn', async () => {
+  it('landing page no longer promotes /freestyle/learn as an educational-pathways destination (Slice K, 2026-05-16)', async () => {
+    // Slice K retired the landing "Where to go next" orientation block,
+    // which carried the .freestyle-learn-pointer paragraph promoting
+    // /freestyle/learn as the educational-pathways landing-page CTA.
+    // The /freestyle/learn route itself remains; it is cross-linked
+    // from modifier-family pages and the symbolic-discoverability
+    // surface, just not promoted as a landing-page destination.
     const res = await request(createApp()).get('/freestyle');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('freestyle-learn-pointer');
-    expect(res.text).toContain('href="/freestyle/learn"');
-    expect(res.text).toMatch(/educational pathways/i);
+    expect(res.text).not.toContain('freestyle-learn-pointer');
+    // Landing page should not surface "educational pathways" framing.
+    expect(res.text).not.toMatch(/educational pathways/i);
   });
 });

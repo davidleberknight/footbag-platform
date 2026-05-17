@@ -10,15 +10,24 @@
 
 <div class="wrapper freestyle-landing">
 
+  {{! ── Top reference jump (Slice K — 2026-05-16): compact top-of-page
+      shortcuts to the two core reference surfaces. Sits before the
+      in-page section jump-nav so visitors can immediately reach the
+      Trick Dictionary or Glossary without scrolling the landing. }}
+  <nav class="freestyle-top-reference-jump" aria-label="Reference shortcuts">
+    <a class="freestyle-top-reference-link" href="/freestyle/tricks">Trick Dictionary &rarr;</a>
+    <a class="freestyle-top-reference-link" href="/freestyle/glossary">Glossary &rarr;</a>
+  </nav>
+
   {{! ── Under-hero jump nav (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / K) ──
       Compact in-page nav that breaks the linear essay scroll. Anchors point
-      at the five primary landing sections; non-sticky by design. }}
+      at the four primary landing sections; non-sticky by design. The
+      previous "Where next" entry was retired in Slice K (2026-05-16). }}
   <nav class="page-jump-nav" aria-label="On this page">
     <a href="#basic-components">Basic Components</a>
     <a href="#core-tricks">Core Tricks</a>
     <a href="#featured">Featured</a>
     <a href="#operators">Operators</a>
-    <a href="#where-next">Where next</a>
   </nav>
 
   {{! ── The Language of Freestyle Footbag ──────────────────────────────────── }}
@@ -99,22 +108,10 @@
   {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
   <p class="operator-board-footer-link"><a href="/freestyle/sets">Full set notation reference &rarr;</a></p>
 
-  {{! ── Reference orientation (three links, not three pillars) ───────────── }}
-  <section class="content-section" id="where-next">
-    <h2>Where to go next</h2>
-    <p>
-      Plain-language definitions live in the <a href="/freestyle/glossary">glossary</a>.
-      Canonical trick rows, family topology, and faceted browse live in the
-      <a href="/freestyle/tricks">trick dictionary</a>. The compact symbolic shorthand
-      for trick structure is documented on trick pages and at the
-      <a href="/freestyle/sets">set notation reference</a>.
-    </p>
-    <p class="freestyle-learn-pointer">
-      Prefer to learn mechanically rather than look up definitions? The
-      <a href="/freestyle/learn">educational pathways</a> page collects
-      modifier-pedagogy pages, family progressions, and connective panels.
-    </p>
-  </section>
+  {{! "Where to go next" / Educational Pathways orientation block retired in
+      Slice K (2026-05-16). The two reference shortcuts now live in the
+      top-of-page nav (.freestyle-top-reference-jump); the portal cards
+      below carry the rest of the navigation. }}
 
   {{! ── Portal cards (intent-ordered: learn → reference → records → competition → context → analysis) ── }}
   <section class="content-section">
@@ -123,9 +120,8 @@
       <div class="card">
         <div class="card-title">Tutorials &amp; Learning</div>
         <p>
-          Start with the educational pathways — modifier-family pedagogy pages,
-          family progressions, glossary connective panels. Then dig into curated
-          tutorial series for specific tricks.
+          Curated tutorial series and demonstration archives from the wider
+          freestyle community.
         </p>
         <div class="card-actions">
           <a href="/media/gallery_tricks_of_the_trade" class="btn btn-outline">Tricks of the Trade &rarr;</a>

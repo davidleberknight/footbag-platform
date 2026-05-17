@@ -514,16 +514,19 @@ describe('Set-notation reference cross-links', () => {
   });
 
   it('landing page renders a restrained "Full set notation reference" footer under the operator board', async () => {
+    // Slice K (2026-05-16): "Where to go next" orientation block was
+    // retired; the footer-after-board position-invariant is now
+    // expressed against the portal-card grid that comes after.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="operator-board-footer-link"');
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
-    // Footer renders after the operator board, before the next-step orientation block.
-    const boardIdx       = res.text.indexOf('class="operator-board ');
-    const footerIdx      = res.text.indexOf('class="operator-board-footer-link"');
-    const orientationIdx = res.text.indexOf('Where to go next');
+    // Footer renders after the operator board and before the portal cards.
+    const boardIdx        = res.text.indexOf('class="operator-board ');
+    const footerIdx       = res.text.indexOf('class="operator-board-footer-link"');
+    const portalCardsIdx  = res.text.indexOf('Tutorials &amp; Learning');
     expect(footerIdx).toBeGreaterThan(boardIdx);
-    expect(orientationIdx).toBeGreaterThan(footerIdx);
+    expect(portalCardsIdx).toBeGreaterThan(footerIdx);
   });
 
   it('operator-board notation-reference deep-links point at /freestyle/sets (not legacy /moves)', async () => {
@@ -1189,12 +1192,20 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('The Freestyle Reference');
   });
 
-  it('landing surfaces a concise three-link orientation ("Where to go next")', async () => {
+  it('landing surfaces top-of-page reference shortcuts to glossary + trick dictionary', async () => {
+    // Slice K (2026-05-16): "Where to go next" three-link orientation
+    // block was retired. The replacement is a compact top-of-page
+    // reference jump (.freestyle-top-reference-jump) immediately below
+    // the hero, with shortcuts to the trick dictionary + glossary.
+    // The /freestyle/sets link still appears elsewhere on the page
+    // (e.g., operator-board footer).
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('Where to go next');
-    expect(res.text).toContain('href="/freestyle/glossary"');
-    expect(res.text).toContain('href="/freestyle/tricks"');
+    expect(res.text).toContain('class="freestyle-top-reference-jump"');
+    expect(res.text).toMatch(/<a class="freestyle-top-reference-link" href="\/freestyle\/tricks">/);
+    expect(res.text).toMatch(/<a class="freestyle-top-reference-link" href="\/freestyle\/glossary">/);
     expect(res.text).toContain('href="/freestyle/sets"');
+    // The retired "Where to go next" heading must not appear.
+    expect(res.text).not.toContain('Where to go next');
   });
 
   it('landing collapses the dictionary CTA to a single "Browse the trick dictionary" button', async () => {
@@ -1604,16 +1615,20 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
 describe('Freestyle glossary — §9 Movement Topologies (connective panels)', () => {
   it('renders the §9 Movement Topologies section with the observational badge', async () => {
     // V5: the six connective panels migrated to §9 as their permanent
-    // home. The transitional "will migrate" positioning note is gone;
-    // the observational-layer badge remains so the layer boundary stays
-    // explicit.
+    // home. Slice K (2026-05-16) strengthened the framing to explicitly
+    // mark the section as intentionally incomplete (representative
+    // selection, not comprehensive). The observational-layer badge
+    // remains so the layer boundary stays explicit.
     const res = await request(createApp()).get('/freestyle/glossary');
     const sec9Idx = res.text.indexOf('id="connective-panels"');
     expect(sec9Idx).toBeGreaterThan(0);
     const slice = res.text.slice(sec9Idx, sec9Idx + 2000);
     expect(slice).toMatch(/9\.\s+Movement Topologies/);
     expect(slice).toContain('symbolic-layer-badge');
-    expect(slice).toMatch(/observational, not canonical/);
+    // Post-Slice-K framing: section is observational and explicitly
+    // labelled as a representative selection (intentionally incomplete).
+    expect(slice).toMatch(/observational/);
+    expect(slice).toMatch(/intentionally incomplete|representative selection/i);
   });
 });
 

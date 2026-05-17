@@ -76,10 +76,10 @@ export const BASIC_COMPONENTS: readonly BasicComponentSpec[] = [
   },
   {
     key:         'duck',
-    name:        'Duck',
-    description: 'Head dips under the bag.',
+    name:        'Duck / Dive',
+    description: 'Head dip or arc; duck/dive/weave/zulu family.',
     subfields:   [],
-    source:      'PassBack glossary, pb-ss1',
+    source:      'PassBack glossary, pb-ss1; operator-board head-path family',
   },
   {
     key:         'delay',

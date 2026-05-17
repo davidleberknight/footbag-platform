@@ -5845,9 +5845,37 @@ a.dict-card-title:hover {
   margin-top: 6px;
 }
 
+/* Top reference jump (Slice K — 2026-05-16) ---------------------------
+   Compact top-of-page shortcuts to the two core reference surfaces.
+   Sits immediately after the hero, before the in-page section jump-nav. */
+.freestyle-top-reference-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 0 6px 0;
+  margin: 0 0 4px 0;
+}
+.freestyle-top-reference-link {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 4px;
+  background: #f7f6f0;
+  color: var(--secondary);
+  font-size: 0.9rem;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+.freestyle-top-reference-link:hover,
+.freestyle-top-reference-link:focus-visible {
+  background: #ede9d8;
+  color: #3f3f3f;
+}
+
 /* Under-hero jump nav (Phase 1 / K) -----------------------------------
-   Lightweight non-sticky in-page nav. Anchors the five primary landing
-   sections; breaks the linear essay flow without intervening in the read. */
+   Lightweight non-sticky in-page nav. Anchors the four primary landing
+   sections; breaks the linear essay flow without intervening in the read.
+   (The fifth "Where next" anchor was retired in Slice K, 2026-05-16.) */
 .page-jump-nav {
   display: flex;
   flex-wrap: wrap;
@@ -5919,21 +5947,27 @@ a.dict-card-title:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  /* Slice K (2026-05-16): tightened from 4px → 2px and outer margins
+     trimmed for a more compact vertical rhythm. The arrow + card pairs
+     should feel like one continuous flow, not a stack of separated cells. */
+  gap: 2px;
   max-width: 480px;
-  margin: 18px auto 14px auto;
+  margin: 10px auto 10px auto;
 }
 .glossary-compression-card {
   width: 100%;
   max-width: 380px;
+  /* Slice K: tighter internal padding so each step reads as one compact
+     symbolic object rather than a tall card. */
+  padding: 6px 10px;
 }
 .glossary-compression-arrow {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
   margin: 0;
   line-height: 1;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.25em;
 }
 .glossary-compression-note {
   font-size: 0.92rem;
@@ -6198,6 +6232,37 @@ a.dict-card-title:hover {
   font-size: 0.88rem;
   color: var(--secondary);
   font-style: italic;
+}
+
+/* §7 Notation in practice — three compact symbol-first examples
+   (Slice K, 2026-05-16). Sits at the top of §7 so the section opens
+   with visible tokens rather than prose density. */
+.glossary-notation-in-practice {
+  margin: 8px 0 12px;
+  padding: 8px 12px;
+  background: #faf8f1;
+  border-left: 3px solid var(--border, #e2e8f0);
+  border-radius: 3px;
+}
+.glossary-notation-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+  margin: 4px 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.glossary-notation-label {
+  font-size: 0.78rem;
+  color: var(--secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  min-width: 9rem;
+}
+.glossary-notation-shorthand {
+  font-size: 0.88rem;
+  color: var(--secondary);
 }
 
 /* §12 sources list — named source families. */
