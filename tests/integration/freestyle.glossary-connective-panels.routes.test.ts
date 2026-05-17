@@ -68,13 +68,15 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/glossary — connective panels section', () => {
-  it('renders the Movement Topologies section heading and anchor', async () => {
-    // V5: the six connective panels live in §9 Movement Topologies as
-    // their permanent home. The id="connective-panels" anchor is
-    // preserved for inbound links.
+  it('renders the Movement Neighborhoods section heading and anchor', async () => {
+    // V5: the six connective panels live in §9 as their permanent
+    // home. Post-Slice-L0/Q3 (2026-05-16) the section was reframed
+    // "Movement Topologies" → "Movement Neighborhoods" to align with
+    // the observational-relationship-browsing model. The
+    // id="connective-panels" anchor is preserved for inbound links.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/9\.\s+Movement Topologies/);
+    expect(res.text).toMatch(/9\.\s+Movement Neighborhoods/);
     expect(res.text).toContain('id="connective-panels"');
   });
 
@@ -198,7 +200,7 @@ describe('GET /freestyle/glossary — connective panels do not break existing co
       '6. Modifiers',
       '7. Symbolic Notation',
       '8. Composition',
-      '9. Movement Topologies',
+      '9. Movement Neighborhoods',
       '10. Traditional Reference',
       '11. Community',
       '12. Sources',

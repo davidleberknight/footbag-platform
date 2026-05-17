@@ -97,9 +97,14 @@ describe('GET /freestyle/tricks?view=topology — route + toggle', () => {
     expect(res.status).toBe(200);
   });
 
-  it('marks "By topology" active in the view toggle', async () => {
+  it('marks "Movement Neighborhoods" active in the view toggle', async () => {
+    // Slice L0/Q3 Option B rename (2026-05-16): "By topology" label
+    // retired in favor of "Movement Neighborhoods" to reframe the
+    // observational topology surface as relationship browsing rather
+    // than primary taxonomy. The underlying ?view=topology URL is
+    // preserved for stable backlinks.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By topology</);
+    expect(res.text).toMatch(/class="trick-view-toggle-active">Movement Neighborhoods</);
   });
 
   it('the topology toggle link is reachable from every other view', async () => {

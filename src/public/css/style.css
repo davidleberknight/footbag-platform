@@ -2235,6 +2235,34 @@ section.home-media { padding-top: 0; }
 .trick-view-toggle-active { font-weight: 600; color: var(--text); }
 .trick-view-toggle-sep { margin: 0 6px; opacity: 0.5; }
 
+/* Post-Slice-L-polish stabilization (2026-05-16): visually demote the
+   legacy / advanced browse modes (By category, By component, Movement
+   Neighborhoods) so By ADD and By family read as the primary surfaces.
+   The "— more views:" italic label separates the two tiers. */
+.trick-view-toggle-secondary-label {
+  margin: 0 0.5rem 0 0.7rem;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-subtle);
+}
+.trick-view-toggle-secondary {
+  font-size: 0.88rem;
+  opacity: 0.72;
+}
+.trick-view-toggle-secondary a {
+  color: var(--text-subtle);
+}
+.trick-view-toggle-secondary a:hover {
+  color: var(--primary);
+}
+.trick-view-toggle-secondary .trick-view-toggle-active {
+  /* Active state restores full weight even within the secondary tier so
+     the current-view marker stays legible. */
+  opacity: 1;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .trick-coverage-summary {
   margin: 4px 0 16px;
   padding: 8px 12px;

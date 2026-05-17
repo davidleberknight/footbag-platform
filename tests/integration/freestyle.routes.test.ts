@@ -1513,7 +1513,7 @@ describe('Freestyle glossary — §8 torque/mobius compression flow', () => {
     // Decomposition) and renders before the §9 topology section.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const sec9Idx = res.text.indexOf('9. Movement Topologies');
+    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
     expect(flowIdx).toBeGreaterThan(0);
     expect(sec9Idx).toBeGreaterThan(flowIdx);
   });
@@ -1521,7 +1521,7 @@ describe('Freestyle glossary — §8 torque/mobius compression flow', () => {
   it('renders three compact-symbolic-object cards: #osis, #torque, #mobius', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const sec9Idx = res.text.indexOf('9. Movement Topologies');
+    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
     const slice = res.text.slice(flowIdx, sec9Idx);
     expect(slice).toContain('#osis');
     expect(slice).toContain('#torque');
@@ -1535,7 +1535,7 @@ describe('Freestyle glossary — §8 torque/mobius compression flow', () => {
     // changed (the flow lives in §8 now).
     const res = await request(createApp()).get('/freestyle/glossary');
     const mobiusIdx = res.text.indexOf('id="compression-step-mobius"');
-    const sec9Idx   = res.text.indexOf('9. Movement Topologies');
+    const sec9Idx   = res.text.indexOf('9. Movement Neighborhoods');
     expect(mobiusIdx).toBeGreaterThan(0);
     const slice = res.text.slice(mobiusIdx, sec9Idx);
     expect(slice).toMatch(/>SPINNING<[\s\S]*?>SS<[\s\S]*?>TORQUE</);
@@ -1612,18 +1612,20 @@ describe('Freestyle glossary — Execution mechanics subsection', () => {
   });
 });
 
-describe('Freestyle glossary — §9 Movement Topologies (connective panels)', () => {
-  it('renders the §9 Movement Topologies section with the observational badge', async () => {
+describe('Freestyle glossary — §9 Movement Neighborhoods (connective panels)', () => {
+  it('renders the §9 Movement Neighborhoods section with the observational badge', async () => {
     // V5: the six connective panels migrated to §9 as their permanent
-    // home. Slice K (2026-05-16) strengthened the framing to explicitly
-    // mark the section as intentionally incomplete (representative
-    // selection, not comprehensive). The observational-layer badge
-    // remains so the layer boundary stays explicit.
+    // home. Slice K strengthened the framing to explicitly mark the
+    // section as intentionally incomplete. Slice L0/Q3 Option B
+    // renamed "Movement Topologies" → "Movement Neighborhoods" to
+    // reframe as observational relationship browsing. The
+    // observational-layer badge remains so the layer boundary stays
+    // explicit.
     const res = await request(createApp()).get('/freestyle/glossary');
     const sec9Idx = res.text.indexOf('id="connective-panels"');
     expect(sec9Idx).toBeGreaterThan(0);
     const slice = res.text.slice(sec9Idx, sec9Idx + 2000);
-    expect(slice).toMatch(/9\.\s+Movement Topologies/);
+    expect(slice).toMatch(/9\.\s+Movement Neighborhoods/);
     expect(slice).toContain('symbolic-layer-badge');
     // Post-Slice-K framing: section is observational and explicitly
     // labelled as a representative selection (intentionally incomplete).
@@ -1692,7 +1694,7 @@ describe('Freestyle glossary — Batch 4: compression-flow visual continuity', (
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
     // V5: the flow lives in §8 (Composition & Decomposition); slice to §9.
-    const sec9Idx = res.text.indexOf('9. Movement Topologies');
+    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
     const slice = res.text.slice(flowIdx, sec9Idx);
     const matches = slice.match(/class="core-trick-object glossary-compression-card"/g) ?? [];
     // Three cards: osis, torque, mobius.

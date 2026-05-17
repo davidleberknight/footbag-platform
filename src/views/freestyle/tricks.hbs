@@ -36,7 +36,12 @@
   {{/if}}
   {{/if}}
 
-  {{! ── View toggle (no JS; query-string driven) ─────────────────────────── }}
+  {{! ── View toggle (no JS; query-string driven) ───────────────────────────
+      Post-Slice-L-polish stabilization (2026-05-16): primary tier (ADD +
+      Family) reads as the main browse surfaces; secondary tier (Category,
+      Component, Movement Neighborhoods) is visually demoted as legacy /
+      advanced browse modes. "Movement Neighborhoods" replaces the prior
+      "By topology" label per BROWSE_ARCHITECTURE_AUDIT Q3 (Option B). }}
   <nav class="trick-view-toggle" aria-label="Dictionary view">
     {{#if (eq content.activeView "add")}}
       <span class="trick-view-toggle-active">By ADD</span>
@@ -49,24 +54,26 @@
     {{else}}
       <a href="/freestyle/tricks?view=family">By family</a>
     {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "category")}}
-      <span class="trick-view-toggle-active">By category</span>
-    {{else}}
-      <a href="/freestyle/tricks?view=category">By category</a>
-    {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "component")}}
-      <span class="trick-view-toggle-active">By component</span>
-    {{else}}
-      <a href="/freestyle/tricks?view=component">By component</a>
-    {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
-    {{#if (eq content.activeView "topology")}}
-      <span class="trick-view-toggle-active">By topology</span>
-    {{else}}
-      <a href="/freestyle/tricks?view=topology">By topology</a>
-    {{/if}}
+    <span class="trick-view-toggle-secondary-label" aria-hidden="true">&mdash; more views:</span>
+    <span class="trick-view-toggle-secondary">
+      {{#if (eq content.activeView "category")}}
+        <span class="trick-view-toggle-active">By category</span>
+      {{else}}
+        <a href="/freestyle/tricks?view=category">By category</a>
+      {{/if}}
+      <span class="trick-view-toggle-sep">·</span>
+      {{#if (eq content.activeView "component")}}
+        <span class="trick-view-toggle-active">By component</span>
+      {{else}}
+        <a href="/freestyle/tricks?view=component">By component</a>
+      {{/if}}
+      <span class="trick-view-toggle-sep">·</span>
+      {{#if (eq content.activeView "topology")}}
+        <span class="trick-view-toggle-active">Movement Neighborhoods</span>
+      {{else}}
+        <a href="/freestyle/tricks?view=topology">Movement Neighborhoods</a>
+      {{/if}}
+    </span>
   </nav>
 
   {{! ── Coverage summary ─────────────────────────────────────────────────── }}
