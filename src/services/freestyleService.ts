@@ -89,6 +89,9 @@ import {
   resolveFamilyOverride,
   resolveFamilyDisplayName,
 } from '../content/freestyleFamilyOverrides';
+import {
+  MOVEMENT_SYSTEM_AXES,
+} from '../content/freestyleMovementSystems';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -1745,6 +1748,42 @@ export interface TopologyBrowseView {
   groups:             TopologyGroup[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// MovementSystemBrowseView (Slice L1 — Movement System axis projection).
+//
+// Curator-authored four-axis ontology projecting modifier groups under
+// pedagogical axes (Set/Uptime, Entry Topologies, Midtime Body, No-Plant
+// & Suspension). Axes + memberships are sourced from the content module
+// freestyleMovementSystems.ts; trick memberships are computed by joining
+// the axis modifier slugs against modifier_links (the same data already
+// loaded for the Component view).
+//
+// Slice L1 is data-only — the UI branch (?view=movement-system) is
+// deferred to Slice L2. Reuses shapeDictionaryTrickCard and isTrickRow.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface MovementSystemGroup {
+  modifierSlug:   string;
+  modifierName:   string;
+  bodyDefinition: string | null;   // reused from COMPONENT_DEFINITIONS; null when curator hasn't authored one
+  memberCount:    number;
+  anchorId:       string;          // `movement-${modifierSlug}` for hash-anchor navigation
+  cards:          DictionaryTrickCard[];   // ADD ascending, then name
+}
+
+export interface MovementSystemAxisView {
+  axisKey:        string;          // matches MovementSystemAxis.axisKey
+  axisName:       string;          // matches MovementSystemAxis.axisName
+  axisDefinition: string;          // matches MovementSystemAxis.axisDefinition
+  anchorId:       string;          // `movement-axis-${axisKey}`
+  groups:         MovementSystemGroup[];   // declaration-order per curator content module
+}
+
+export interface MovementSystemBrowseView {
+  observationalNote: string;
+  axes:              MovementSystemAxisView[];   // axes with zero non-empty groups are pruned
+}
+
 export interface FreestyleTricksIndexContent {
   // Default beginner/ADD view (always shaped; rendering controlled by activeView).
   addGroups: FreestyleTrickAddGroup[];
@@ -1764,6 +1803,11 @@ export interface FreestyleTricksIndexContent {
   // grounded educational groups computed from existing data (base_trick +
   // modifier_links + curator-tagged dex-class map). Observational layer.
   topologyView: TopologyBrowseView;
+  // Slice L1 of 2026-05 normalization: four-axis Movement System projection
+  // (Set/Uptime · Entry Topologies · Midtime Body · No-Plant & Suspension).
+  // Always shaped; UI branch (?view=movement-system) deferred to Slice L2.
+  // Source: src/content/freestyleMovementSystems.ts.
+  movementSystemView: MovementSystemBrowseView;
   modifiers: FreestyleModifierEntry[];   // body/set modifier reference table
   totalTricks: number;
   dictNote: string;                      // small subtle note rendered above the categories
@@ -4214,6 +4258,47 @@ export const freestyleService = {
       ],
     };
 
+    // ---- Movement System view (Slice L1 — content-module-driven) ----
+    // Re-buckets the existing componentAccumulator under four curator-authored
+    // pedagogical axes. Axes are walked in declaration order; modifier groups
+    // within an axis follow the order of axis.modifierSlugs (curator-meaningful).
+    // Axes with zero non-empty groups are pruned to avoid empty section
+    // headings in the eventual Slice L2 UI.
+
+    const buildMovementSystemGroup = (modifierSlug: string): MovementSystemGroup | null => {
+      const bucket = componentAccumulator.get(modifierSlug);
+      if (!bucket || bucket.entries.length === 0) return null;
+      const sorted = bucket.entries.slice().sort(componentSortByAddThenName);
+      return {
+        modifierSlug:   bucket.modifierSlug,
+        modifierName:   bucket.modifierName,
+        bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
+        memberCount:    sorted.length,
+        anchorId:       `movement-${bucket.modifierSlug}`,
+        cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug)),
+      };
+    };
+
+    const movementSystemView: MovementSystemBrowseView = {
+      observationalNote:
+        'Four canonical axes for navigating the freestyle movement language: how the set initiates ' +
+        '(Set / Uptime), how the body enters (Entry Topologies), what the body does during the dex ' +
+        '(Midtime Body), and discipline around plant and landing (No-Plant & Suspension). ' +
+        'Each axis groups tricks by the modifiers they carry. Compounds may appear under multiple ' +
+        'modifier headings within an axis — this is intentional.',
+      axes: MOVEMENT_SYSTEM_AXES
+        .map(axis => ({
+          axisKey:        axis.axisKey,
+          axisName:       axis.axisName,
+          axisDefinition: axis.axisDefinition,
+          anchorId:       `movement-axis-${axis.axisKey}`,
+          groups:         axis.modifierSlugs
+            .map(slug => buildMovementSystemGroup(slug))
+            .filter((g): g is MovementSystemGroup => g !== null),
+        }))
+        .filter(a => a.groups.length > 0),
+    };
+
     // Cross-link block: when the dictionary is filtered to one family, surface
     // the modifiers used by tricks in that family as deep-links into the sets
     // projection. The accumulator is already family-scoped (allRows was
@@ -4259,6 +4344,7 @@ export const freestyleService = {
         setGroups,
         componentView,
         topologyView,
+        movementSystemView,
         modifiers,
         activeFamily,
         relatedSetGroups,
