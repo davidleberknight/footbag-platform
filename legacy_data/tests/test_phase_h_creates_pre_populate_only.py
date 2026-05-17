@@ -190,3 +190,161 @@ def test_cutover_idempotent_on_rerun(fresh_db: Path) -> None:
         f"Idempotency broken: clubs={count_after_first} after first run, "
         f"clubs={count_after_second} after second run."
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Fail-fast contract (Phase H Slice A hardening).
+#
+# The cutover script must exit non-zero on two upstream-state failures so
+# `run_pipeline.sh` and operators don't silently proceed to
+# 07_load_bootstrap_leaders.py with partial/empty state.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def test_cutover_exits_nonzero_when_no_candidates(fresh_db: Path) -> None:
+    """`legacy_club_candidates` empty means Phase G enrichment never ran
+    (or a classifier regression silently emitted zero rows). The cutover
+    must exit non-zero so the failure surfaces immediately rather than
+    leaving downstream Phase I with no work AND no warning."""
+    # No candidate seeding — fresh schema-only DB.
+    result = _run_cutover(fresh_db)
+
+    assert result.returncode != 0, (
+        f"Cutover must exit non-zero when legacy_club_candidates is empty; "
+        f"got rc={result.returncode}.\nstdout: {result.stdout}\n"
+        f"stderr: {result.stderr}"
+    )
+    assert "ERROR" in result.stderr, (
+        "Cutover must emit an ERROR-tagged stderr message naming the "
+        "empty-candidates failure so the operator can act.\n"
+        f"stderr: {result.stderr}"
+    )
+
+    # Nothing should have been written.
+    conn = sqlite3.connect(fresh_db)
+    n_clubs = conn.execute("SELECT COUNT(*) FROM clubs").fetchone()[0]
+    conn.close()
+    assert n_clubs == 0, (
+        f"Cutover wrote {n_clubs} clubs rows during a fail-fast exit; "
+        "no-candidates path must not produce any DB writes."
+    )
+
+
+# Synthetic legacy_club_key guaranteed not to exist in seed/clubs.csv.
+# Picked outside the legacy ID space (which is short numeric strings).
+BOGUS_LEGACY_KEY = "99999_test_missing_from_seed_csv"
+
+
+def _seed_eligible_candidate_with_missing_seed_row(db_path: Path) -> None:
+    """Insert a single bootstrap_eligible candidate whose legacy_club_key
+    does NOT appear in seed/clubs.csv. The cutover's CSV-fallback lookup
+    will fail and the script must surface that as an ERROR exit, not a
+    silent WARN."""
+    conn = sqlite3.connect(db_path)
+    ts = "2026-01-01T00:00:00Z"
+    conn.execute(
+        """
+        INSERT INTO legacy_club_candidates (
+          id, created_at, created_by, updated_at, updated_by, version,
+          legacy_club_key, display_name, city, country,
+          classification, bootstrap_eligible
+        ) VALUES ('lcc-bogus', ?, 'test', ?, 'test', 1, ?,
+                  'Bogus Test Club', 'Atlantis', 'Nowhere',
+                  'pre_populate', 1)
+        """,
+        (ts, ts, BOGUS_LEGACY_KEY),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_cutover_exits_nonzero_when_eligible_candidate_missing_seed_csv(
+    fresh_db: Path,
+) -> None:
+    """An eligible candidate without a matching seed/clubs.csv row would
+    leave `mapped_club_id` NULL and FK-fail the downstream
+    `07_load_bootstrap_leaders.py` with no useful upstream context.
+    The cutover must surface this as an ERROR exit so the seed gap is
+    resolved before re-running."""
+    _seed_eligible_candidate_with_missing_seed_row(fresh_db)
+    result = _run_cutover(fresh_db)
+
+    assert result.returncode != 0, (
+        f"Cutover must exit non-zero when an eligible candidate has no "
+        f"seed CSV row; got rc={result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "ERROR" in result.stderr, (
+        "Cutover must emit an ERROR-tagged stderr message naming the "
+        "missing-seed failure so the operator can act.\n"
+        f"stderr: {result.stderr}"
+    )
+    assert BOGUS_LEGACY_KEY in result.stderr, (
+        "Cutover stderr must name the offending legacy_club_key so the "
+        f"operator can locate the gap. Expected {BOGUS_LEGACY_KEY!r} in:\n"
+        f"{result.stderr}"
+    )
+
+
+def _seed_only_non_eligible_candidates(db_path: Path) -> None:
+    """Insert candidates only in non-pre_populate classifications
+    (bootstrap_eligible=0). Mirrors a degenerate Phase G output where
+    enrichment ran but emitted zero pre_populate-class rows — the
+    classifier-regression failure mode Goal 2 of Slice A hardens
+    against."""
+    conn = sqlite3.connect(db_path)
+    ts = "2026-01-01T00:00:00Z"
+    conn.executemany(
+        """
+        INSERT INTO legacy_club_candidates (
+          id, created_at, created_by, updated_at, updated_by, version,
+          legacy_club_key, display_name, city, country,
+          classification, bootstrap_eligible
+        ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, 0)
+        """,
+        [
+            ("lcc-onboarding", ts, ts, ONBOARDING_VISIBLE_KEY,
+             "Fundación Footbag Colombia", "Medellín", "Colombia",
+             "onboarding_visible"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_cutover_exits_nonzero_when_zero_eligible_candidates(
+    fresh_db: Path,
+) -> None:
+    """`legacy_club_candidates` populated but with zero bootstrap_eligible=1
+    rows means the §9.1 classifier silently emitted no pre_populate
+    candidates (or Phase G ran against the wrong input). Phase H must
+    fail-fast so the regression surfaces before 07_load_bootstrap_leaders.py
+    finds zero FK targets and downstream wiring lands in a degenerate
+    empty state."""
+    _seed_only_non_eligible_candidates(fresh_db)
+    result = _run_cutover(fresh_db)
+
+    assert result.returncode != 0, (
+        f"Cutover must exit non-zero when zero bootstrap_eligible "
+        f"candidates exist; got rc={result.returncode}.\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    assert "ERROR" in result.stderr, (
+        "Cutover must emit an ERROR-tagged stderr message naming the "
+        "zero-eligible-candidates failure so the operator can act.\n"
+        f"stderr: {result.stderr}"
+    )
+    assert "bootstrap_eligible" in result.stderr, (
+        "Cutover stderr must name the bootstrap_eligible column so the "
+        "operator knows where to look upstream.\n"
+        f"stderr: {result.stderr}"
+    )
+
+    # Nothing should have been written.
+    conn = sqlite3.connect(fresh_db)
+    n_clubs = conn.execute("SELECT COUNT(*) FROM clubs").fetchone()[0]
+    conn.close()
+    assert n_clubs == 0, (
+        f"Cutover wrote {n_clubs} clubs rows during a fail-fast exit; "
+        "zero-eligible path must not produce any DB writes."
+    )

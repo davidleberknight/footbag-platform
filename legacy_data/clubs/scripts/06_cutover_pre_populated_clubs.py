@@ -163,11 +163,40 @@ def main() -> int:
         ).fetchall()
 
         if not all_candidates:
-            print("No candidates found. Nothing to cut over.")
-            print("If this is unexpected, confirm the enrichment loader "
-                  "(event_results/scripts/09_load_enrichment_to_sqlite.py) "
-                  "ran against a fresh legacy_club_candidates.csv.")
-            return 0
+            print(
+                "ERROR: legacy_club_candidates is empty; nothing to cut over.",
+                file=sys.stderr,
+            )
+            print(
+                "       Phase H requires Phase G enrichment to populate "
+                "legacy_club_candidates first. Confirm "
+                "event_results/scripts/09_load_enrichment_to_sqlite.py ran "
+                "against a fresh legacy_club_candidates.csv.",
+                file=sys.stderr,
+            )
+            return 1
+
+        # Pre-flight: at least one bootstrap_eligible=1 candidate must exist.
+        # Phase G should emit 59 pre_populate rows in prod; 0 means the
+        # §9.1 classifier regressed silently OR Phase G ran against the
+        # wrong input. Downstream 07_load_bootstrap_leaders.py would have
+        # zero FK targets, so fail-fast here surfaces the regression
+        # before partial state lands.
+        eligible_count = sum(1 for r in all_candidates if r[4])
+        if eligible_count == 0:
+            print(
+                "ERROR: legacy_club_candidates has 0 bootstrap_eligible=1 "
+                "rows; Phase H would produce zero pre_populate clubs.",
+                file=sys.stderr,
+            )
+            print(
+                "       Phase G enrichment ran but emitted no pre_populate "
+                "candidates. Confirm "
+                "clubs/scripts/02_build_legacy_club_candidates.py classifier "
+                "rules and the input clubs CSV.",
+                file=sys.stderr,
+            )
+            return 1
 
         # Prime slug-collision space for the fallback INSERT path.
         existing_tags = {
@@ -288,9 +317,23 @@ def main() -> int:
     print(f"  candidate mappings unchanged (already set): {mappings_unchanged}")
     print(f"  non-eligible candidates skipped (no matching clubs row): {candidates_skipped_no_club}")
     if missing_seed:
-        print(f"  WARN: {len(missing_seed)} eligible candidate(s) missing from seed CSV:")
+        print(
+            f"ERROR: {len(missing_seed)} eligible candidate(s) missing from "
+            f"seed CSV ({SEED_CSV}):",
+            file=sys.stderr,
+        )
         for k in missing_seed[:10]:
-            print(f"    {k}")
+            print(f"    {k}", file=sys.stderr)
+        if len(missing_seed) > 10:
+            print(f"    ... and {len(missing_seed) - 10} more", file=sys.stderr)
+        print(
+            "       Eligible candidates without seed rows leave "
+            "mapped_club_id NULL, which FK-fails downstream in "
+            "07_load_bootstrap_leaders.py. Resolve the seed/clubs.csv gap "
+            "before re-running.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
