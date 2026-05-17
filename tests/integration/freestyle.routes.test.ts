@@ -1251,6 +1251,145 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
   });
 });
 
+describe('Glossary improvements + history refresh (2026-05-17)', () => {
+  // Implementations of glossary_improvement_recommendations.md HIGH+MEDIUM
+  // priority items + HISTORY_PAGE_CONDENSED.md sections.
+  //
+  // Glossary recommendations implemented:
+  //   #1 §1 vocabulary-stabilization framing
+  //   #2 §6 compositional layering opening + evolved-ADD-value annotation
+  //   #3 whirl network-attractor note (§5)
+  //   #4 §10 anchor IDs (Sick3 / Shred:30 / BOP and run-quality tiers)
+  //   #5 §10 additive-structural-accounting rewrite
+  //   #6 §7 operator-notation framing paragraph
+  //   #7 §12 "About this glossary" closing
+  //
+  // History recommendations implemented:
+  //   #1 §1 Two-Phase Story opening
+  //   #2 §4 ADD System additive-accounting sentence
+  //   #3 §5 combo-architecture vocabulary mention
+  //   #4 §7 Movement Language Maturation new sub-section
+  //
+  // Deferred (depend on unimplemented surfaces):
+  //   History combo-analysis cross-link (page not built)
+  //   History v7 evolution-report cross-link (no public route)
+  //   Glossary recs #5 (attribution) + #9 (regional variation) — editorial review
+
+  it('glossary §1 carries the vocabulary-stabilization framing paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/vocabulary stabilized by roughly 2007.{0,15}2008/);
+    expect(res.text).toContain('glossary-vocabulary-stabilization-note');
+    expect(res.text).toContain('href="/freestyle/history"');
+  });
+
+  it('glossary §6 carries the compositional-layering opening paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('glossary-compositional-layering-note');
+    expect(res.text).toMatch(/simultaneous additional\s+constraint/);
+    expect(res.text).toMatch(/usually harder than the\s+sum of their parts/);
+  });
+
+  it('glossary §6 acknowledges evolved-ADD-value conventions with cross-link to add-analysis', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/modifier weights have varied historically/);
+    // Cross-link to add-analysis from §6 (one of several inbound surfaces).
+    const sec6Idx = res.text.indexOf('6. Modifiers');
+    const sec7Idx = res.text.indexOf('7. Symbolic Notation');
+    const slice = res.text.slice(sec6Idx, sec7Idx);
+    expect(slice).toContain('href="/freestyle/add-analysis"');
+  });
+
+  it('glossary §5 carries the whirl network-attractor note', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('glossary-network-attractor-note');
+    expect(res.text).toMatch(/central attractor/);
+    expect(res.text).toMatch(/blurry whirl\s*&rarr;\s*whirl|blurry whirl\s*→\s*whirl/);
+  });
+
+  it('glossary §7 carries the operator-notation framing paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('glossary-operator-notation-framing');
+    expect(res.text).toMatch(/compact symbolic shorthand for trick\s+composition/);
+    // Worked paradox example with op-tokens.
+    expect(res.text).toMatch(/CLIP/);
+    expect(res.text).toMatch(/OP IN/);
+  });
+
+  it('glossary §10 carries the additive-structural-accounting rewrite', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/additive structural accounting/);
+    expect(res.text).toMatch(/dictionary read a compound like\s+<em>mobius<\/em> as "gyro torque"/);
+  });
+
+  it('glossary §10 carries anchor IDs on each run-quality tier + format term', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const ids = [
+      'run-quality-tiltless', 'run-quality-guiltless', 'run-quality-tripless',
+      'run-quality-fearless', 'run-quality-beastly', 'run-quality-godly',
+      'run-quality-genuine', 'run-quality-bop',
+      'format-sick3', 'format-shred-30', 'format-circle', 'format-routine',
+    ];
+    for (const id of ids) {
+      expect(res.text, `Missing anchor id: ${id}`).toContain(`id="${id}"`);
+    }
+  });
+
+  it('glossary §12 carries the "About this glossary" framing paragraph', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('glossary-about-framing');
+    expect(res.text).toMatch(/codification surface for a vocabulary that the\s+footbag community built informally/);
+  });
+
+  it('history page renders the Two-Phase Story opening before Competitive Eras', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.text).toContain('The Two-Phase Story');
+    const twoPhaseIdx = res.text.indexOf('The Two-Phase Story');
+    const erasIdx = res.text.indexOf('Competitive Eras');
+    expect(twoPhaseIdx).toBeGreaterThan(0);
+    expect(erasIdx).toBeGreaterThan(twoPhaseIdx);
+    expect(res.text).toMatch(/vocabulary building/);
+    expect(res.text).toMatch(/vocabulary maturation/);
+  });
+
+  it('history ADD System section carries the additive-accounting note', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.text).toContain('history-add-system-decomposition-note');
+    expect(res.text).toMatch(/ADD treats a trick as a decomposable structure/);
+    expect(res.text).toMatch(/<em>mobius<\/em>\s+as\s+"gyro torque"/);
+  });
+
+  it('history "How Combos Grew" mentions combo-architecture vocabulary', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.text).toContain('history-combo-architecture-note');
+    expect(res.text).toMatch(/setup tricks/);
+    expect(res.text).toMatch(/resolution tricks/);
+    expect(res.text).toMatch(/concentration vs breadth/);
+  });
+
+  it('history renders Movement Language as the Modern Vocabulary section after Modern Game', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.text).toContain('Movement Language as the Modern Vocabulary');
+    const modernGameIdx  = res.text.indexOf('The Modern Game');
+    const movementLangIdx = res.text.indexOf('Movement Language as the Modern Vocabulary');
+    expect(modernGameIdx).toBeGreaterThan(0);
+    expect(movementLangIdx).toBeGreaterThan(modernGameIdx);
+    expect(res.text).toMatch(/four formal\s+layers/);
+    expect(res.text).toMatch(/<em>mobius = gyro torque<\/em>/);
+    expect(res.text).toMatch(/<em>paradox = CLIP &gt; OP IN \[DEX\]<\/em>/);
+  });
+
+  it('Movement Language section links to dictionary + glossary', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    const movementLangIdx = res.text.indexOf('Movement Language as the Modern Vocabulary');
+    const sourceNoteIdx   = res.text.indexOf('class="source-note"');
+    expect(movementLangIdx).toBeGreaterThan(0);
+    expect(sourceNoteIdx).toBeGreaterThan(movementLangIdx);
+    const slice = res.text.slice(movementLangIdx, sourceNoteIdx);
+    expect(slice).toContain('href="/freestyle/tricks"');
+    expect(slice).toContain('href="/freestyle/glossary"');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // IA Realignment Batch 1 — landing + glossary stabilization
 

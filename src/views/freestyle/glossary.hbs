@@ -43,6 +43,15 @@
       relate across the dictionary (&sect;9). &sect;10 is the alphabetical
       reference; &sect;11 collects historical and community vocabulary.
     </p>
+    <p class="detail-muted glossary-vocabulary-stabilization-note">
+      The competitive freestyle vocabulary stabilized by roughly 2007&ndash;2008;
+      no genuinely new base tricks have appeared in the corpus since. What
+      this glossary documents, then, is a vocabulary that completed its
+      first phase nearly two decades ago. Current work refines and recombines
+      rather than expands. See the
+      <a href="/freestyle/history">freestyle history page</a> for the
+      two-phase story.
+    </p>
   </section>
 
   <section class="content-section">
@@ -253,6 +262,15 @@
       their modifiers and sets are stripped away.
     </p>
     {{> core-tricks-grid tricks=content.coreTricks idPrefix="term-"}}
+    <p class="detail-muted glossary-network-attractor-note">
+      Network analysis of 22 years of Sick3 sequences shows
+      <a href="/freestyle/tricks/whirl">whirl</a> as the central attractor of the
+      freestyle trick network &mdash; sequences converge on it as a stable
+      resolution point. <a href="/freestyle/tricks?family=whirl">Blurry whirl</a>
+      functions as the most common opening element. The transition
+      <em>blurry whirl &rarr; whirl</em> is the most documented two-trick
+      structure in the corpus.
+    </p>
 
     <h3 class="section-heading">Trick families</h3>
     <p>
@@ -363,6 +381,14 @@
     {{! Operator-board visual orientation lives on the freestyle landing page; the
         glossary's role here is terminology and execution detail, not visual taxonomy. }}
 
+    <p class="glossary-compositional-layering-note">
+      Each modifier layered onto a base introduces a <em>simultaneous additional
+      constraint</em> on body motion within a single set cycle. Difficulty therefore
+      scales not linearly with modifier count, but through the interaction of
+      multiple constraints. Two modifiers on a base are usually harder than the
+      sum of their parts would suggest &mdash; the body has to satisfy both
+      mechanics at once.
+    </p>
     <p>A trick is typically composed of:</p>
     <pre><code>set &rarr; modifiers &rarr; base &rarr; catch (stall or kick)</code></pre>
     <ul>
@@ -376,6 +402,12 @@
       <li>Ripwalk = butterfly (base) + stepping (modifier).</li>
     </ul>
     <p>The glossary explains terms; the dictionary defines exact structure.</p>
+    <p class="detail-muted">
+      Some modifier weights have varied historically by era, region, and judge;
+      the values below reflect the current Wave-1 ratified consensus. For the
+      full accounting and discrepancy cases see
+      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+    </p>
 
     {{! Slice L-polish (2026-05-16): 4-axis movement-system preview. The
         full By Movement System browse view is forthcoming (audit at
@@ -572,6 +604,17 @@
     <p class="glossary-thesis">
       The language evolves by compressing recurring compositional structures
       into shorter readable symbolic forms.
+    </p>
+
+    <p class="glossary-operator-notation-framing">
+      Operational notation is the compact symbolic shorthand for trick
+      composition. A trick like <em>paradox</em> reads as
+      <code class="notation-display-tokens"><span class="notation-token notation-surface">CLIP</span> &gt; <span class="notation-token notation-positional">OP IN</span> <span class="notation-token notation-dex">[DEX]</span></code>
+      &mdash; "clipper set, then a far in-out dex." The notation lets
+      readers reconstruct the body mechanics from the trick name without
+      having to memorize each compound separately. For the full operational
+      grammar and worked decompositions see
+      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
     </p>
 
     {{! ── Glyph quick-reference (Slice C of 2026-05 normalization) ──────
@@ -1008,9 +1051,13 @@
 
     <h3 id="run-quality">ADD system &amp; run quality</h3>
     <p>
-      <strong>ADD (Additional Degree of Difficulty)</strong> &mdash; a scoring
-      system that assigns difficulty values to tricks based on their components.
-      Run-quality tiers describe the difficulty floor of a run, not individual
+      <strong>ADD (Additional Degree of Difficulty)</strong> is
+      <em>additive structural accounting</em>: each base trick has a weight,
+      each modifier has a weight, and a trick's total is the sum. This isn't
+      just a scoring convention &mdash; it's the same logic that lets the
+      dictionary read a compound like <em>mobius</em> as "gyro torque"
+      and have the ADD add up the same way (4 + 1 = 5). Run-quality
+      tiers describe the difficulty floor of a <em>run</em>, not individual
       tricks.
     </p>
     <div class="moves-table-wrap">
@@ -1019,14 +1066,14 @@
           <tr><th>Term</th><th>Meaning</th></tr>
         </thead>
         <tbody>
-          <tr><td>Tiltless</td><td>All tricks in a run are at least 2 ADD.</td></tr>
-          <tr><td>Guiltless</td><td>All tricks are at least 3 ADD.</td></tr>
-          <tr><td>Tripless</td><td>All tricks are at least 4 ADD.</td></tr>
-          <tr><td>Fearless</td><td>All tricks are at least 5 ADD.</td></tr>
-          <tr><td>Beastly</td><td>All tricks are at least 6 ADD.</td></tr>
-          <tr><td>Godly</td><td>All tricks are at least 7 ADD.</td></tr>
-          <tr><td>Genuine</td><td>Guiltless excluding BOP tricks.</td></tr>
-          <tr><td>BOP</td><td>Butterfly, Osis, Paradox Mirage.</td></tr>
+          <tr><td id="run-quality-tiltless">Tiltless</td><td>All tricks in a run are at least 2 ADD.</td></tr>
+          <tr><td id="run-quality-guiltless">Guiltless</td><td>All tricks are at least 3 ADD.</td></tr>
+          <tr><td id="run-quality-tripless">Tripless</td><td>All tricks are at least 4 ADD.</td></tr>
+          <tr><td id="run-quality-fearless">Fearless</td><td>All tricks are at least 5 ADD.</td></tr>
+          <tr><td id="run-quality-beastly">Beastly</td><td>All tricks are at least 6 ADD.</td></tr>
+          <tr><td id="run-quality-godly">Godly</td><td>All tricks are at least 7 ADD.</td></tr>
+          <tr><td id="run-quality-genuine">Genuine</td><td>Guiltless excluding BOP tricks.</td></tr>
+          <tr><td id="run-quality-bop">BOP</td><td>Butterfly, Osis, Paradox Mirage.</td></tr>
         </tbody>
       </table>
     </div>
@@ -1037,14 +1084,15 @@
       <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a> page.
     </p>
 
-    <h3>Competitive &amp; format terms</h3>
+    <h3 id="format-terms">Competitive &amp; format terms</h3>
     <p>These describe event formats and play contexts.</p>
     <ul>
-      <li><strong>Freestyle Routine</strong>: a choreographed performance to music.</li>
-      <li><strong>Shred Contest (Shred:30)</strong>: a technical scoring format.</li>
-      <li><strong>Big Trick / Sick, Big, Best</strong>: single or combo highlight formats.</li>
-      <li><strong>Circle Contest</strong>: a turn-based elimination format.</li>
-      <li><strong>Most Rippin&rsquo; Run</strong>: a last-player-standing format.</li>
+      <li id="format-routine"><strong>Freestyle Routine</strong>: a choreographed performance to music.</li>
+      <li id="format-sick3"><strong>Sick3</strong>: a three-trick side format scored as the sum of ADD values, no execution credit. The cleanest window into maximum-ADD capability.</li>
+      <li id="format-shred-30"><strong>Shred Contest (Shred:30)</strong>: a technical scoring format with timed runs.</li>
+      <li id="format-big-trick"><strong>Big Trick / Sick, Big, Best</strong>: single or combo highlight formats.</li>
+      <li id="format-circle"><strong>Circle Contest</strong>: a turn-based elimination format.</li>
+      <li id="format-most-rippin"><strong>Most Rippin&rsquo; Run</strong>: a last-player-standing format.</li>
     </ul>
   </section>
 
@@ -1078,6 +1126,12 @@
 
   <section class="content-section">
     <h2 class="section-heading">12. Sources</h2>
+    <p class="glossary-about-framing">
+      This glossary is the codification surface for a vocabulary that the
+      footbag community built informally over four decades. It documents
+      the language; it is not the source of authority for the language.
+      The community speaks the vocabulary; this page records it.
+    </p>
     <p>
       Definitions on this page draw on long-standing community usage and
       historical reference materials, rewritten for clarity and
