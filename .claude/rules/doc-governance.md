@@ -18,7 +18,7 @@ paths:
 
 Long-term canonical docs describe **design intent**, not implementation status:
 
-- `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/SERVICE_CATALOG.md`, `docs/PROJECT_SUMMARY_CONCISE.md`, `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md` — pure design.
+- `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/SERVICE_CATALOG.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/VIEW_CATALOG.md`, `docs/DATA_MODEL.md` — pure design.
 - `docs/DEV_ONBOARDING.md`, `docs/DEVOPS_GUIDE.md` — permanent design + permanent operating procedure. Same no-current-slice rule applies.
 
 Never add current-slice notes, deviation qualifiers, shortcut descriptions, completion status, "Last updated" dates, or sprint tracking to any of these.

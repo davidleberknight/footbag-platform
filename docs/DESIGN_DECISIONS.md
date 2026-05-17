@@ -20,7 +20,7 @@ Current implementation status and accepted temporary deviations are tracked in `
   - [1.7 Docker Containers](#17-docker-containers)
   - [1.8 Container Memory Allocation](#18-container-memory-allocation)
   - [1.9 Layered Architecture: Controllers, Services, Middleware, Adapters](#19-layered-architecture-controllers-services-middleware-adapters)
-  - [1.10 Catalog-governed Page and Service Contracts](#110-catalog-governed-page-and-service-contracts)
+  - [1.10 Code-primary Rule Home with Markdown Overview](#110-code-primary-rule-home-with-markdown-overview)
   - [1.11 Configuration Model](#111-configuration-model)
   - [1.12 Internal-only Subtrees](#112-internal-only-subtrees)
   - [1.13 Curator Content Source of Truth](#113-curator-content-source-of-truth)
@@ -476,35 +476,36 @@ Impact:
 - Adapters live in `src/adapters/` and are selected by configuration at service instantiation time.
 - JavaScript validation runs client-side; forms submit via traditional POST with full-page navigation.
 
-## 1.10 Catalog-governed Page and Service Contracts
+## 1.10 Code-primary Rule Home with Markdown Overview
 
 Decision:
-The platform uses catalog-governed architecture for page rendering and service ownership.
+Rules for page rendering and service ownership live at their strongest enforcement site. Markdown catalogs carry rules with no code anchor plus cross-service overview.
 
-- `docs/VIEW_CATALOG.md` is the normative source for reusable public rendering primitives, page contracts, and page-specific view-model requirements.
-- `docs/SERVICE_CATALOG.md` is the normative source for service ownership, service boundaries, service method contracts, and service-level route-interpretation responsibility.
-- `IMPLEMENTATION_PLAN.md` is the normative source for current implementation status, accepted temporary deviations, and intentionally deferred work.
+Rule home precedence:
 
-Controllers remain thin HTTP adapters. Templates remain logic-light rendering surfaces. Page shaping, route-domain interpretation, and page-specific read-model assembly belong in services or page-model builders owned by the service layer.
+1. Mechanical enforcement (drift-impossible): TypeScript types in `src/types/` and `src/services/serviceErrors.ts`; DB triggers, CHECK constraints, and named UNIQUE indexes in `database/schema.sql`; CI convention gates in `scripts/ci/assert_conventions.sh`; test factories with coverage thresholds; PreToolUse hooks in `.claude/hooks/`.
+2. Code-adjacent rule docs: file-header JSDoc on every high-stakes write-path service stating Owns / Does not own / Required patterns / Persistence / Side effects / Service shape, updated in the same change as the code; path-scoped `.claude/rules/*.md` files (service-layer, controller-conventions, template-conventions, db-layer, testing) auto-attached to Claude when working in matching paths; per-subtree `CLAUDE.md` files.
+3. DESIGN_DECISIONS.md: design intent and cross-cutting invariants with no code anchor (anti-enumeration, member-vs-historical-person distinction, audit append-only, this decision).
+4. VIEW_CATALOG.md and SERVICE_CATALOG.md: surface-level overview. VC owns the public-rendering standard, page contract, primitives, page matrix, sensitive-page rules, and per-route rules (the route list itself lives in `src/routes/publicRoutes.ts`). SC owns global service-layer rules, non-negotiable invariants, the service ownership matrix, and service-specific extensions per service. Method rosters, persistence tables, and side-effect categorizations for JSDoc'd services are not mirrored in SC; they live only in the source file's JSDoc.
 
-Home is the one intentional composition-page exception to the generic public page contract, but it is not an exception to shared shell/layout standards, service-owned shaping, or the Express + Handlebars + vanilla TypeScript architecture.
+Controllers remain thin HTTP adapters. Templates remain logic-light rendering surfaces. Page shaping, route-domain interpretation, and page-specific read-model assembly belong in services or page-model builders owned by the service layer. Home is the one intentional composition-page exception to the generic public page contract.
 
-Any new page, section, or service boundary that materially changes the public architecture must be admitted by updating the relevant catalog in the same change or earlier.
+When a service contract changes, the service file's JSDoc updates in the same change. The path-scoped rule file and SC §6 entry update only if the change touches their respective concerns. Any new public surface is admitted by adding it to the appropriate rule home in the same change.
 
 Rationale:
-- The project now has enough architectural structure that page contracts and service contracts need explicit governing documents.
-- This reduces drift between docs and code.
-- This keeps long-term catalogs future-facing while still allowing transitional shortcuts to live in the implementation plan.
-- This gives contributors and AI tools a clear source-of-truth order for page behavior and service responsibility.
+- Rules co-located with the code they describe drift less; one-file edits are more disciplined than two-file edits.
+- Path-scoped rule files auto-attach in the AI context only when working in matching paths, reducing token cost compared to always-loaded catalogs.
+- Long-form markdown catalogs preserve human-readable audit value at higher abstraction levels.
+- Mechanical enforcement catches drift that prose rules cannot enforce.
 
 Trade-offs:
-- Requires more disciplined documentation updates when adding routes or services.
-- Adds one more explicit architectural rule contributors must understand.
+- Per-service rules live in JSDoc rather than concentrated in one catalog. Cross-service overview lives in SC §5 matrix; per-service detail is at the source file.
+- Multiple rule homes require contributors to know where each kind of rule lives. The precedence above is explicit.
 
 Impact:
-- New public pages should not be added without catalog updates.
-- Service ownership disputes should be resolved against the Service Catalog, not by ad hoc controller behavior.
-- Current temporary exceptions belong in `IMPLEMENTATION_PLAN.md`, not as scattered one-off caveats throughout every cataloged page.
+- New mechanical rules go into `scripts/ci/assert_conventions.sh` as grep gates.
+- SC §6 per-service paragraphs are scoped to service-specific extensions; cross-cutting parts live in SC §4 or in service JSDoc.
+- High-stakes write-path services (identity, member, event, club, media, curator, membership tiering, active player) carry the file-header JSDoc convention; read-only services (history, hof, bap, sideline, rules, ifpa, freestyle, records, net, legal) do not require it.
 
 ## 1.11 Configuration Model
 

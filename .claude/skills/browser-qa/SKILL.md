@@ -16,7 +16,7 @@ Use this skill only when the human explicitly asks to look at a page, check a la
 **QA verification** — human wants to confirm specific behavior is correct.
 - State exactly what will be checked before running anything.
 - Only check the URLs and interactions the human named.
-- Do not expand to adjacent pages or full test suites.
+- Do not expand to adjacent pages or broad QA passes.
 
 ## Token discipline
 

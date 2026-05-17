@@ -1,3 +1,55 @@
+/**
+ * EventService -- event lifecycle and public event reads.
+ *
+ * Owns:
+ *   - Event lifecycle (create through completion or cancellation)
+ *   - Discipline management
+ *   - Co-organizer management
+ *   - Sanction requests
+ *   - Results upload
+ *   - Public event browse and detail page reads
+ *
+ * Does not own:
+ *   - Registration payments (PaymentService when implemented)
+ *   - Competition participation records (CompetitionParticipationService)
+ *
+ * Required patterns:
+ *   - Public eventKey parsing and validation live in this service. Public form
+ *     `event_{year}_{event_slug}` maps to stored standard-tag `#event_{year}_{event_slug}`
+ *     before DB lookup; no aliasing, no fuzzy match.
+ *   - Status state machine: `draft -> pending_approval -> published -> registration_full
+ *     | closed -> completed | canceled`. `completed` and `canceled` are terminal.
+ *   - Public detail visibility limited to `published`, `registration_full`, `closed`,
+ *     `completed`. Other statuses resolve through standard not-found behavior.
+ *   - HD guard: events with public result rows are preserved permanently. Draft and
+ *     canceled events HD immediately. Cannot delete an event with confirmed registrations.
+ *   - Sanction approval requires organizer active Tier 2 at approval time.
+ *   - Max 5 organizers per event; one `role='organizer'` per event; anti-self-removal.
+ *   - Standard tag reserved at creation via `HashtagDiscoveryService.reserveStandardTag()`;
+ *     permanent (not HD).
+ *   - News items emitted via `NewsService.emitNewsItem` only.
+ *   - Public archive year derives from `events.start_date`; year archives are not paginated.
+ *   - `participantHref` set via `personHref(participant_member_slug,
+ *     participant_historical_person_id)`; templates render plain name when null.
+ *   - SQLite busy/locked failures translate to temporary-unavailable for controller-level
+ *     safe handling.
+ *   - The canonical public event page is one route and one template; render emphasis is
+ *     expressed through page-model fields (e.g. `primarySection`), not alternate URLs.
+ *
+ * Persistence:
+ *   events, event_disciplines, event_organizers, event_results_uploads,
+ *   event_result_entries, event_result_entry_participants, tags, news_items,
+ *   audit_entries, outbox_emails, work_queue_items.
+ *
+ * Side effects:
+ *   - audit_entries append
+ *   - outbox_emails enqueue (organizer confirmations, participant notices, sanction
+ *     decisions)
+ *   - news_items emission via NewsService (`event_published`, `event_results`)
+ *   - work_queue_items insert with admin-alerts mailing-list notification
+ *
+ * Service shape: singleton object (no external adapters).
+ */
 import {
   CuratorSlotMediaRow,
   media,

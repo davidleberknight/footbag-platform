@@ -28,18 +28,19 @@ tests/        Integration tests
 
 ## Source-of-truth order for active work
 
-Read the minimum the task requires. Default: active-slice block + code. Load docs in targeted sections only.
+Read the minimum the task requires. Default: active-slice block + code + path-scoped rules. Load broader docs only as needed.
 
 1. Explicit human decisions in the current task
 2. Active-slice block in `IMPLEMENTATION_PLAN.md` — current scope, out-of-scope, accepted shortcuts, known drift
 3. Current code — implemented behavior; may contain accepted shortcuts; check the implementation plan's known deviation entries if drift is detected
-4. When needed, targeted sections of:
+4. Auto-attached layer (no explicit load needed): path-scoped `.claude/rules/*.md` files, file-header JSDoc on services, per-subtree `CLAUDE.md` files. Covers per-file rule detail for the path you are in.
+5. When needed, targeted sections of:
    - `docs/USER_STORIES.md` — intended behavior
-   - `docs/VIEW_CATALOG.md` — route/page contracts and required patterns
-   - `docs/SERVICE_CATALOG.md` — required target service-layer patterns and ownership; pair with code/tests/types for current shapes
-   - `docs/DATA_MODEL.md` — schema semantics (derived from requirements analysis; verify against `database/schema.sql` and current code)
    - `docs/GOVERNANCE.md` — security, privacy, historical data policy
-5. `docs/DESIGN_DECISIONS.md` — long-term rationale and architectural commitments; read when entering a new code area, unwinding a temporary simplification, or when the reason behind a pattern is unclear; do not load by default
+   - `docs/DATA_MODEL.md` — schema semantics; verify against `database/schema.sql`
+   - `docs/VIEW_CATALOG.md` — public-rendering standard and sensitive-route rules; per-route detail is in path-scoped rules + JSDoc
+   - `docs/SERVICE_CATALOG.md` — ownership matrix and non-negotiable invariants; per-service contract detail is in service JSDoc
+6. `docs/DESIGN_DECISIONS.md` — long-term rationale; read when entering a new code area or when a pattern's reason is unclear
 
 **Note:** `docs/GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy boundaries.
 

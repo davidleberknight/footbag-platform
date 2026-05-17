@@ -1,16 +1,53 @@
 /**
- * Active Player ledger service.
+ * ActivePlayerService -- Active Player lifecycle ledger.
  *
- * Owns writes to active_player_grants and active_player_vouches, and reads of
- * member_active_player_current. Active Player is a temporary status granted
- * to Tier 0 members (via event attendance, vouches by Tier 2/3, or a one-time
- * club join). It does NOT change membership tier; it grants Tier 1 benefits
- * while current. Tier 1+ members never have AP rows.
+ * Active Player is a temporary status granted to Tier 0 members (via event
+ * attendance, vouches by Tier 2/3, or a one-time club join). It does NOT change
+ * membership tier; it grants Tier 1 benefits while current. Tier 1+ members
+ * never have AP rows.
  *
- * The ledger is append-only; UPDATE/DELETE are blocked at the DB layer.
- * Multi-row writes (vouch row + AP grant row) are wrapped in transaction() to
- * land atomically; tier-transition AP-ends use the same pattern with the
- * caller's transaction (see endOnTierUpgrade / endOnTier3Grant).
+ * Owns:
+ *   - Active Player lifecycle ledger (`active_player_grants`)
+ *   - Direct vouch action table (`active_player_vouches`)
+ *   - `getStatus(memberId)` -- the sole authoritative Active Player read path
+ *
+ * Does not own:
+ *   - Membership-tier writes (MembershipTieringService)
+ *   - Event registration (CompetitionParticipationService)
+ *   - Club affiliations (ClubService)
+ *   - Scheduling expiry passes (ActivePlayerExpiryService orchestrates; this
+ *     service exposes `applyExpiry` for the orchestrator to call)
+ *
+ * Required patterns:
+ *   - Append-only ledgers. UPDATE/DELETE blocked by DB triggers.
+ *   - `getStatus` derives from `member_active_player_current` (the authoritative
+ *     view).
+ *   - Active Player applies to Tier 0 only. Tier 1+ vouches and attendances are
+ *     no-ops with audit-log only.
+ *   - No-shorten rule: an older event, vouch, or club-join must not shorten an
+ *     existing later expiry.
+ *   - Idempotency:
+ *       - `ux_active_player_grants_registration_once` (per registration)
+ *       - `ux_active_player_grants_vouch_once` (per vouch)
+ *       - `ux_active_player_club_join_once` (per member, lifetime)
+ *   - Self-vouch rejected at both DB (CHECK) and APP (service guard).
+ *   - Vouch rate limit throws `RateLimitedError`; bucket size and window read
+ *     from `system_config_current`.
+ *   - `endOnTierUpgrade` and `endOnTier3Grant` execute in the same transaction
+ *     as the corresponding `member_tier_grants` write (caller-owned tx).
+ *   - Multi-row writes (vouch row + AP grant row) wrap in `transaction()` to
+ *     land atomically.
+ *
+ * Persistence:
+ *   active_player_grants, active_player_vouches, member_active_player_current,
+ *   member_membership_status_current, members, system_config_current,
+ *   audit_entries, outbox_emails.
+ *
+ * Side effects:
+ *   - audit_entries append
+ *   - outbox_emails enqueue (vouch confirmations)
+ *
+ * Service shape: singleton object (no external adapters).
  */
 import { randomUUID } from 'node:crypto';
 import {

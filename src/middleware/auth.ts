@@ -45,8 +45,7 @@ export function authMiddleware() {
     // src/dev-admin-shortcuts/runtime.ts.
     const autologinAttempted =
       config.footbagEnv === 'development' &&
-      process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID !== undefined &&
-      process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID !== '';
+      config.devAutologinMemberId !== undefined;
     if (applyDevAutologin(req)) {
       next();
       return;

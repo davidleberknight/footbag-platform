@@ -29,7 +29,7 @@ Read only the section relevant to this task. For large documents, locate the sec
 5. **`docs/SERVICE_CATALOG.md`** — target service-layer ownership and required patterns. Locate the entry for the affected service. Read:
    - the service's target ownership boundary (Owns / Does not own)
    - the required patterns the service must follow
-   - the method roster (names; signatures and return shapes are authoritative in the cited source file)
+   - method names live only in the service file (`src/services/<name>.ts`); SC §6 does not mirror them
    - the side-effects categories the service produces
 6. **Code, types, tests, and `database/schema.sql`** — authoritative for current shapes (method signatures, return types, error class shape, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with target patterns in SC, that is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not catalog drift. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one.
 7. **`docs/DATA_MODEL.md`** — understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the service-layer change must preserve.
@@ -43,25 +43,13 @@ After reading docs:
 - the controller(s) that call the service
 - nearby integration tests in `tests/integration/`
 
-## Step 3 — Preserve current ownership
+## Step 3 — Architecture context
 
-- `db.ts` returns flat rows and prepared-statement helpers — it does not own business rules
-- services own: business rules, validation, authorization, grouping, shaping, page-model building, domain invariants
-- services own auth-conditional shaping: viewer context (logged-in user, roles) is passed in by the controller but the service decides what to include or omit based on it; controllers never mutate service output (DD 1.9)
-- controllers stay thin: HTTP glue only — no business logic, no SQL
-- templates stay logic-light: branch only on pre-shaped display values
+Path-scoped rule files in `.claude/rules/` auto-attach when Claude reads or edits files in their matching paths. For service-contract work this typically loads `service-layer.md` (ownership, shape, errors, discriminated-union returns, auth-conditional shaping, file-header JSDoc) and `db-layer.md` (named statements, views, transactions, SQL conventions). Trust those rules; do not restate them in your plan.
 
-Do not introduce:
-- repository abstractions
-- ORMs
-- mediator or orchestrator layers
-- generic query-builder layers
-- ad hoc SQL in controllers or templates
-- unauthorized design patterns or code hacks.
-
-**Naming conventions (enforced):**
-- Services: `{domain}Service.ts` — camelCase, singular noun, no plurals. Examples: `eventService.ts`, `memberService.ts`, `operationsPlatformService.ts`.
-- Controllers: `{domain}Controller.ts` — camelCase, singular noun, no plurals. There is no `publicController` layer.
+Naming:
+- Services: `{domain}Service.ts` -- camelCase, singular noun.
+- Controllers: `{domain}Controller.ts` -- camelCase, singular noun. No `publicController` layer.
 
 ## Step 4 — State your plan before editing
 
@@ -80,4 +68,5 @@ Before touching any file, state:
 - make excellent adversarial tests: edge cases, boundary values, invalid input, authorization bypass attempts, draft/deleted item leakage
 - run `npm test` to confirm all tests pass
 - run `npm run build` (`tsc -p tsconfig.json`) to confirm no type errors
+- **audit the service's file-header JSDoc** at the top of `src/services/<name>.ts`. If the change touches ownership, required patterns, invariants, transaction discipline, persistence tables, side-effect categories, or service shape, update the JSDoc block in the same change as the code. See `.claude/rules/service-layer.md` File-header JSDoc section for the update-obligation list.
 - after changes, invoke `doc-sync` to check whether SERVICE_CATALOG.md or DATA_MODEL.md needs updating

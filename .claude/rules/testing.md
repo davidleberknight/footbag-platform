@@ -1,3 +1,9 @@
+---
+paths:
+  - "tests/**"
+  - "src/adapters/**"
+---
+
 # Testing rules
 
 Tests are load-bearing project infrastructure, not ceremony. Every change that affects behavior lands with tests that cover its intent AND its known failure modes. Test coverage is non-negotiable; only the test *shape* is negotiable.

@@ -1,3 +1,51 @@
+/**
+ * IdentityAccessService -- account entry and authentication.
+ *
+ * Owns:
+ *   - Registration, email verification, credential check, password change/reset
+ *   - Legacy archive passthrough JWT
+ *   - Legacy-account claim flow (two-step token + email-equality fast path)
+ *   - Direct historical-person claim (surname-match precondition; first-name-variant warning)
+ *   - Auto-link classification
+ *
+ * Does not own:
+ *   - Member profile CRUD (MemberService)
+ *   - Historical-person reads (HistoryService)
+ *   - Tier calculation or grants (MembershipTieringService -- this service delegates)
+ *   - Session-cookie HTTP glue (controller responsibility)
+ *   - Club lifecycle or club-leader promotion beyond bootstrap confirmation (ClubService)
+ *
+ * Non-negotiable invariants:
+ *   - Anti-enumeration on every account-existence-leaking path. Same code path, same
+ *     timing, same response shape for "exists" vs "does not exist". No controller
+ *     short-circuit around an earlier existence check.
+ *   - Rate limiting is in-service; controllers map RateLimitedError to HTTP 429
+ *     with Retry-After from retryAfterSeconds.
+ *   - Tokens stored as SHA-256 hashes only; plaintext never persisted.
+ *   - JWT payload embeds password_version; bumping it invalidates all outstanding JWTs.
+ *   - Deceased members cannot log in regardless of credentials.
+ *   - Soft-deleted members within member_cleanup_grace_days get the restoration screen.
+ *
+ * Transaction discipline:
+ *   - Multi-write paths (claim merge, password reset + version bump, register + audit)
+ *     wrap in transaction(() => { ... }) from db.ts. All DB ops inside are synchronous;
+ *     external I/O (SES, etc.) happens BEFORE the transaction opens.
+ *   - In-tx variants (consumeAndClaimLegacyInTx, claimHistoricalPersonInTx) accept a
+ *     caller-owned transaction so the wizard orchestrator can merge the claim and the
+ *     member_onboarding_tasks row transition inside one transaction.
+ *
+ * Persistence:
+ *   members, members_active, legacy_members, historical_persons (read-only for HP-match),
+ *   account_tokens, member_club_affiliations, club_bootstrap_leaders, club_leaders,
+ *   audit_entries, outbox_emails. Tier-grant writes delegated to MembershipTieringService.
+ *
+ * Side effects:
+ *   - audit_entries append (auth, claim, bootstrap events)
+ *   - outbox_emails enqueue (verification, reset, claim email, resend)
+ *
+ * Service shape: singleton object (no external adapters beyond db.ts and the KMS-backed
+ * JwtSigningAdapter resolved via getJwtSigningAdapter()).
+ */
 import { randomUUID } from 'crypto';
 import argon2 from 'argon2';
 import { auth, registration, legacyClaim, legacyMembers, account, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';

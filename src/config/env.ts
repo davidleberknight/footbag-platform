@@ -133,6 +133,15 @@ export interface AppConfig {
   // is_admin=1 without the matching Tier 2 grant. Boot-time guard refuses
   // to start in any non-development environment. Default off; opt-in only.
   devAdminGrantTier2: boolean;
+  // CUTOVER-REMOVE: dev-only. When set, src/middleware/auth.ts treats the
+  // request as autologin-attempted: the cookie path is skipped entirely
+  // so a stale cookie cannot silently authenticate as a different member
+  // than the configured autologin. Empty-string and unset both surface as
+  // `undefined`. The actual autologin work happens inside
+  // src/dev-admin-shortcuts/runtime.ts (which has its own env reads under
+  // the dev-admin-shortcuts/ allowlist). Boot-time guard above refuses to
+  // start in non-development environments.
+  devAutologinMemberId: string | undefined;
 }
 
 function requireEnv(name: string): string {
@@ -254,6 +263,9 @@ function loadConfig(): AppConfig {
       `FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
     );
   }
+
+  const devAutologinMemberId =
+    process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID || undefined;
 
   // CUTOVER-REMOVE: companion var to FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID;
   // consumed by src/dev-admin-shortcuts/runtime.ts:applyDevAutologin to
@@ -582,6 +594,7 @@ function loadConfig(): AppConfig {
     trustProxy,
     devAdminSkipClaimEmail,
     devAdminGrantTier2,
+    devAutologinMemberId,
   };
 }
 
