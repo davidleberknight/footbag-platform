@@ -1287,24 +1287,29 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(afterSetMod).not.toContain('<dl class="glossary-set-modifiers">');
   });
 
-  it('symbolic-compression worked example renders ≡ readings as role-classified op-tokens', async () => {
-    // Phase 2 / E: each ≡ reading in the §3 compression-flow now runs
-    // through shapeNotationDisplay; operator / side / core-family
-    // classification surfaces as `notation-{cssRole}` spans, not plain prose.
+  it('symbolic-compression worked example renders as a compact one-row equivalence', async () => {
+    // Slice X corrective (2026-05-17): the prior three-card cascade was
+    // collapsed into a single compact equivalence row. The anchor and
+    // worked-example identity persist; the visual is now a one-liner.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const flowStart = res.text.indexOf('class="glossary-compression-flow"');
-    const flowEnd   = res.text.indexOf('Execution Mechanics', flowStart);
-    expect(flowStart).toBeGreaterThan(0);
-    const slice = res.text.slice(flowStart, flowEnd);
-    // Three steps render: #osis (no readings), #torque (1 reading), #mobius (2 readings).
-    expect(slice).toContain('id="compression-step-osis"');
-    expect(slice).toContain('id="compression-step-torque"');
-    expect(slice).toContain('id="compression-step-mobius"');
-    // Tokenized readings carry role classes. OSIS/TORQUE → core-family; MIRAGING/SPINNING → modifier or rotation.
-    expect(slice).toContain('class="notation-token notation-core-family"');
-    expect(slice).toMatch(/class="notation-token notation-(modifier|rotation)"/);
-    // The pre-Phase-2 plain-prose readings (no token spans) must not survive.
-    expect(slice).not.toMatch(/<p class="core-trick-equivalence"><span class="core-trick-equiv-sigil">&equiv;<\/span>\s*miraging osis\s*<\/p>/);
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    expect(flowIdx).toBeGreaterThan(0);
+    // Slice to the next §8 sibling heading.
+    const nextH3 = res.text.indexOf('class="section-heading"', flowIdx + 1);
+    const slice = res.text.slice(flowIdx, nextH3 > 0 ? nextH3 : flowIdx + 2000);
+    // One-liner equivalence chain.
+    expect(slice).toContain('class="glossary-compression-one-liner"');
+    expect(slice).toMatch(/mobius\s*=\s*gyro torque\s*=\s*spinning same-side torque/);
+    // Muted expanded reading.
+    expect(slice).toContain('class="glossary-compression-expanded text-muted"');
+    expect(slice).toMatch(/spinning same-side miraging osis/);
+    // Link to ADD Accounting & Analysis is preserved.
+    expect(slice).toContain('href="/freestyle/add-analysis"');
+    // The retired three-card cascade must not survive.
+    expect(slice).not.toContain('id="compression-step-osis"');
+    expect(slice).not.toContain('id="compression-step-torque"');
+    expect(slice).not.toContain('id="compression-step-mobius"');
+    expect(slice).not.toContain('class="glossary-compression-flow"');
   });
 });
 
@@ -1512,10 +1517,12 @@ describe('Freestyle glossary — Symbolic Notation / Compression layer', () => {
   });
 });
 
-describe('Freestyle glossary — §8 torque/mobius compression flow', () => {
+describe('Freestyle glossary — §8 torque/mobius compression (compact form, Slice X 2026-05-17)', () => {
   it('renders the symbolic-compression-flow anchor inside §8 (above §9)', async () => {
-    // V5: the worked compression flow lives in §8 (Composition &
-    // Decomposition) and renders before the §9 topology section.
+    // V5: the worked compression lives in §8 (Composition & Decomposition)
+    // and renders before the §9 topology section. The Slice X corrective
+    // collapsed the three-card cascade into a one-row equivalence; anchor
+    // preserved for inbound deep-links.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
@@ -1523,38 +1530,40 @@ describe('Freestyle glossary — §8 torque/mobius compression flow', () => {
     expect(sec9Idx).toBeGreaterThan(flowIdx);
   });
 
-  it('renders three compact-symbolic-object cards: #osis, #torque, #mobius', async () => {
+  it('renders the compact one-row equivalence (no per-step cards)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
     const slice = res.text.slice(flowIdx, sec9Idx);
-    expect(slice).toContain('#osis');
-    expect(slice).toContain('#torque');
-    expect(slice).toContain('#mobius');
+    // One-liner: mobius = gyro torque = spinning same-side torque
+    expect(slice).toContain('class="glossary-compression-one-liner"');
+    expect(slice).toMatch(/mobius\s*=\s*gyro torque\s*=\s*spinning same-side torque/);
+    // Muted expanded reading.
+    expect(slice).toMatch(/spinning same-side miraging osis/);
+    // The retired three-card cascade must not survive.
+    expect(slice).not.toContain('id="compression-step-osis"');
+    expect(slice).not.toContain('id="compression-step-torque"');
+    expect(slice).not.toContain('id="compression-step-mobius"');
+    expect(slice).not.toContain('class="glossary-compression-flow"');
   });
 
-  it('mobius card surfaces two stopping-depth equivalence readings as role-classified op-tokens', async () => {
-    // V5: readings render as role-classified op-token spans (whitespace
-    // splits across separate <span>s). The compositional content is
-    // identical to the prior implementation; only the section number
-    // changed (the flow lives in §8 now).
+  it('links to the ADD Accounting & Analysis page for deeper explanation', async () => {
+    // Slice X corrective: the prose under the compact equivalence routes
+    // readers to /freestyle/add-analysis instead of stacking three cards.
     const res = await request(createApp()).get('/freestyle/glossary');
-    const mobiusIdx = res.text.indexOf('id="compression-step-mobius"');
-    const sec9Idx   = res.text.indexOf('9. Movement Neighborhoods');
-    expect(mobiusIdx).toBeGreaterThan(0);
-    const slice = res.text.slice(mobiusIdx, sec9Idx);
-    expect(slice).toMatch(/>SPINNING<[\s\S]*?>SS<[\s\S]*?>TORQUE</);
-    expect(slice).toMatch(/>SPINNING<[\s\S]*?>SS<[\s\S]*?>MIRAGING<[\s\S]*?>OSIS</);
-    const torqueIdx = res.text.indexOf('id="compression-step-torque"');
-    expect(torqueIdx).toBeGreaterThan(0);
-    const torqueSlice = res.text.slice(torqueIdx, mobiusIdx);
-    expect(torqueSlice).toMatch(/>MIRAGING<[\s\S]*?>OSIS</);
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
+    const slice = res.text.slice(flowIdx, sec9Idx);
+    expect(slice).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('keeps explanatory prose minimal — single short paragraph after the cards', async () => {
+  it('keeps explanatory prose minimal — single short paragraph with the deep-link', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/Three names\. One progression\./);
-    expect(res.text).toMatch(/picks its own stopping points/);
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
+    const slice = res.text.slice(flowIdx, sec9Idx);
+    expect(slice).toMatch(/Three names\.\s+One trick\./);
+    expect(slice).toMatch(/either\s+expanded\s+reading\s+is\s+no\s+less\s+correct/);
   });
 });
 
@@ -1693,17 +1702,18 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
   });
 });
 
-describe('Freestyle glossary — Batch 4: compression-flow visual continuity', () => {
-  it('symbolic-compression-flow cards reuse the .core-trick-object class', async () => {
+describe('Freestyle glossary — Batch 4: compression-flow visual continuity (Slice X compact form)', () => {
+  it('symbolic-compression-flow renders zero per-step cards (collapsed to one-liner)', async () => {
+    // Slice X corrective (2026-05-17): the prior three .core-trick-object
+    // cards were collapsed into a one-row equivalence. This test now
+    // asserts the cascade is gone; the new contract is covered above.
     const res = await request(createApp()).get('/freestyle/glossary');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);
-    // V5: the flow lives in §8 (Composition & Decomposition); slice to §9.
     const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
     const slice = res.text.slice(flowIdx, sec9Idx);
     const matches = slice.match(/class="core-trick-object glossary-compression-card"/g) ?? [];
-    // Three cards: osis, torque, mobius.
-    expect(matches.length).toBe(3);
+    expect(matches.length).toBe(0);
   });
 
   it('thesis sentence in §8 still renders with the .glossary-thesis class', async () => {

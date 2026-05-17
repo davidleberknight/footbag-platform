@@ -1952,17 +1952,6 @@ export interface FreestyleSetModifierEntry {
   href:            string | null;           // optional cross-link (e.g. /freestyle/sets#move-pixie)
 }
 
-// Phase 2 / E: one step in the §3 worked-example compression flow.
-// Each step is a small symbolic-object card (slug + ADD + tokenized
-// `≡` readings). The readings are NotationDisplay objects shaped via
-// shapeNotationDisplay so the operator/side/base classification renders
-// with the same op-token CSS the rest of the page uses.
-export interface FreestyleCompressionFlowStep {
-  slug:       string;                       // 'osis', 'torque', 'mobius'
-  addValue:   number;                       // numeric ADD; rendered as a chip
-  readings:   NotationDisplay[];            // zero-or-more `≡ ...` lines, tokenized
-}
-
 // One row in the glossary §7 abbreviation tables. Plain shape: short
 // form on the left, plain-language meaning on the right.
 export interface FreestyleGlossaryAbbreviationEntry {
@@ -2199,10 +2188,6 @@ export interface FreestyleGlossaryContent {
   // Same view-model shape as the landing's coreTricks for partial reuse.
   coreTricks:       FreestyleCoreTrickCard[];
   setModifiers:     FreestyleSetModifierEntry[];
-  // Phase 2 / E: the §3 worked-example compression flow with role-tokenized
-  // `≡` readings (each reading passed through shapeNotationDisplay so the
-  // operator-vs-base-vs-side classification surfaces visually).
-  compressionFlow:  FreestyleCompressionFlowStep[];
   notationExamples: {
     whirl:        NotationDisplay | null;
     paradoxWhirl: NotationDisplay | null;
@@ -4621,34 +4606,6 @@ export const freestyleService = {
       this.getOperatorBoard('glossary'),
     );
 
-    // Phase 2 / E: §3 symbolic-compression worked example with tokenized
-    // ≡ readings. Each reading runs through shapeNotationDisplay so the
-    // operator / side / core-family classification surfaces as op-token
-    // CSS roles. Three steps: #osis (atom) → #torque (1 operator added) →
-    // #mobius (2 operators added; two stopping-depth readings).
-    const compressionFlow: FreestyleCompressionFlowStep[] = [
-      {
-        slug:     'osis',
-        addValue: 3,
-        readings: [],
-      },
-      {
-        slug:     'torque',
-        addValue: 4,
-        readings: [shapeNotationDisplay('MIRAGING OSIS', ctx)].filter(
-          (r): r is NotationDisplay => r !== null,
-        ),
-      },
-      {
-        slug:     'mobius',
-        addValue: 5,
-        readings: [
-          shapeNotationDisplay('SPINNING SS TORQUE', ctx),
-          shapeNotationDisplay('SPINNING SS MIRAGING OSIS', ctx),
-        ].filter((r): r is NotationDisplay => r !== null),
-      },
-    ];
-
     return {
       seo: {
         title: 'Freestyle Glossary',
@@ -4672,7 +4629,6 @@ export const freestyleService = {
         intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
         coreTricks,
         setModifiers,
-        compressionFlow,
         notationExamples: {
           whirl:        whirlExample,
           paradoxWhirl: paradoxWhirlExample,

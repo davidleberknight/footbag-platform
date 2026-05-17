@@ -852,36 +852,24 @@
     </ul>
 
     {{! ── Symbolic compression — a worked example ──────────────────────────
-        Same three-step service-shaped flow as before. Anchor preserved as
-        symbolic-compression-flow for inbound deep-links. }}
+        Slice X corrective (2026-05-17): collapsed the prior three-card cascade
+        (osis → torque → mobius) into a single compact equivalence row. The
+        cards added visual weight without earning their pedagogical keep at
+        this point in the page; the one-liner carries the same payload.
+        Anchor preserved as symbolic-compression-flow for inbound deep-links. }}
     <h3 class="section-heading" id="symbolic-compression-flow">Symbolic compression &mdash; a worked example</h3>
     <p class="glossary-compression-one-liner">
-      In one line: <strong>mobius = gyro torque</strong>.
+      <strong>mobius = gyro torque = spinning same-side torque</strong>
+    </p>
+    <p class="glossary-compression-expanded text-muted">
+      Expanded: spinning same-side miraging osis.
     </p>
     <p>
-      Decomposition is the inverse of composition. A single folk name often
-      decomposes into a structural reading, and a structural reading often
-      compresses back into a shorter folk name. The cards below unfold the
-      same equivalence at three stopping depths.
-    </p>
-    <div class="glossary-compression-flow">
-      {{#each content.compressionFlow}}
-      {{#unless @first}}<p class="glossary-compression-arrow" aria-hidden="true">&darr;</p>{{/unless}}
-      <article class="core-trick-object glossary-compression-card" id="compression-step-{{slug}}">
-        <p class="core-trick-slug">#{{slug}}</p>
-        {{#each readings}}
-        <p class="core-trick-equivalence glossary-compression-reading"><span class="core-trick-equiv-sigil">&equiv;</span> {{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</p>
-        {{/each}}
-        <p class="core-trick-add"><span class="core-trick-add-value">{{addValue}}</span></p>
-      </article>
-      {{/each}}
-    </div>
-    <p class="glossary-compression-note">
-      Three names. One progression. Each card adds one operator and gives
-      the result a shorter name. The community uses the shortest readable
-      form &mdash; <em>mobius</em> is what players actually say, though
-      <em>spinning ss miraging osis</em> is no less correct. The language
-      picks its own stopping points.
+      Three names. One trick. The community uses the shortest readable form
+      &mdash; <em>mobius</em> is what players actually say, though either
+      expanded reading is no less correct. For a step-by-step walkthrough
+      of how operators stack and how ADD totals are derived, see
+      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
     </p>
 
     {{! ── Walking-family progression (Slice C of 2026-05 normalization) ──

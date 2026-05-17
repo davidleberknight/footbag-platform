@@ -222,6 +222,36 @@ describe('GET /freestyle/add-analysis — interpretation notes + cross-links', (
   });
 });
 
+describe('ADD Analysis discoverability — inbound links (Slice X corrective 2026-05-17)', () => {
+  it('freestyle landing surfaces an ADD analysis link in the History & ADD System card', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/freestyle/add-analysis"');
+  });
+
+  it('freestyle tricks index source-note links to ADD analysis', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    const note = res.text.match(/class="source-note"[\s\S]{0,500}/)?.[0] ?? '';
+    expect(note).toContain('href="/freestyle/add-analysis"');
+  });
+
+  it('freestyle glossary §8 compact-equivalence block links to ADD analysis', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
+    expect(flowIdx).toBeGreaterThan(0);
+    const sec9Idx = res.text.indexOf('9. Movement Neighborhoods');
+    const slice = res.text.slice(flowIdx, sec9Idx);
+    expect(slice).toContain('href="/freestyle/add-analysis"');
+  });
+
+  it('freestyle history ADD System section links to ADD analysis', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/freestyle/add-analysis"');
+  });
+});
+
 describe('GET /freestyle/add-analysis — wording lexicon discipline (Slice X §4)', () => {
   it('never uses "is wrong" / "incorrect" framing on external sources', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
