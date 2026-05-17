@@ -5570,6 +5570,91 @@ a.dict-card-title:hover {
   }
 }
 
+/* Movement System view (Slice L2 of 2026-05 normalization).
+ * Curator-authored four-axis projection: Set / Uptime · Entry Topologies
+ * · Midtime Body · No-Plant & Suspension. Mirrors the Component view's
+ * outer structure but renders an axis-level definition under each axis
+ * heading and groups by curator-authored modifier order (not priority-
+ * by-frequency). The eventual canonical browse path per L4-L6 retirement
+ * arc. Source: src/content/freestyleMovementSystems.ts. */
+.movement-system-view-note {
+  margin: 8px 0 16px 0;
+  padding: 10px 14px;
+  background: #fafaf7;
+  border-left: 3px solid #d6d2c4;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #3a3a30;
+  font-style: italic;
+}
+.movement-axis-jump {
+  margin: 0 0 24px 0;
+  padding: 8px 12px;
+  background: transparent;
+  border-bottom: 1px solid #e8e4d3;
+  font-size: 0.9rem;
+}
+.movement-axis-jump a {
+  color: #2d2d24;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 2px 4px;
+}
+.movement-axis-jump a:hover { text-decoration: underline; }
+.movement-axis-jump-sep {
+  color: #a3a3a3;
+  margin: 0 2px;
+}
+.trick-movement-axis {
+  margin-top: 36px;
+}
+.movement-axis-definition {
+  margin: -4px 0 18px 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #4a4636;
+}
+.trick-movement-group {
+  margin: 24px 0 12px 0;
+}
+.movement-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 6px 0;
+}
+.movement-group-heading h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #2d2d24;
+}
+.movement-group-heading h3 a {
+  color: inherit;
+  text-decoration: none;
+}
+.movement-group-heading h3 a:hover { text-decoration: underline; }
+.movement-group-definition {
+  margin: 0 0 14px 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #5a5644;
+  line-height: 1.55;
+}
+
+@media (max-width: 480px) {
+  .movement-axis-jump { font-size: 0.85rem; }
+  .movement-group-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+
 /* Trick-detail reverse-semantic-membership panels (UX-SHIP-1 Phase 5).
  * Two small subordinate panels — Topology + Component — surfacing the
  * browse-view groups the current trick belongs to. Observational layer. */

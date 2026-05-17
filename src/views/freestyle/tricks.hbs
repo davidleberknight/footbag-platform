@@ -54,6 +54,12 @@
     {{else}}
       <a href="/freestyle/tricks?view=family">By family</a>
     {{/if}}
+    <span class="trick-view-toggle-sep">·</span>
+    {{#if (eq content.activeView "movement-system")}}
+      <span class="trick-view-toggle-active">By movement system</span>
+    {{else}}
+      <a href="/freestyle/tricks?view=movement-system">By movement system</a>
+    {{/if}}
     <span class="trick-view-toggle-secondary-label" aria-hidden="true">&mdash; more views:</span>
     <span class="trick-view-toggle-secondary">
       {{#if (eq content.activeView "category")}}
@@ -240,6 +246,60 @@
   {{/if}}
 
   <p class="symbolic-layer-footer">Observational symbolic-grammar layer. These groupings surface body mechanics across families and do not override canonical IFPA family classifications. The dictionary's <a href="/freestyle/tricks?view=family">By family</a> view remains the canonical structural source.</p>
+  {{/if}}
+
+  {{! ── Movement System view — Slice L2 of 2026-05 normalization ──────────
+      Curator-authored four-axis ontology projecting modifier groups under
+      pedagogical axes. Source: src/content/freestyleMovementSystems.ts.
+      Axes are shaped in declaration order in the service; empty axes
+      pruned. Each axis renders its modifier groups in author order
+      (no priority-by-frequency re-sort). Cards via the canonical
+      dictionary-trick-card partial in registry density. }}
+  {{#if (eq content.activeView "movement-system")}}
+  <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
+
+  {{! Axis-jump nav. Mirror of the Component view's pattern. }}
+  <nav class="movement-axis-jump" aria-label="Movement System axes">
+    {{#each content.movementSystemView.axes}}
+      <a href="#{{anchorId}}">{{axisName}}</a>{{#unless @last}} <span class="movement-axis-jump-sep">·</span> {{/unless}}
+    {{/each}}
+  </nav>
+
+  {{#if content.movementSystemView.axes.length}}
+  {{#each content.movementSystemView.axes}}
+  <section class="content-section trick-movement-axis" id="{{anchorId}}">
+    <div class="section-heading">
+      <h2>{{axisName}}</h2>
+      <span class="section-count">{{groups.length}}</span>
+    </div>
+    <p class="movement-axis-definition">{{axisDefinition}}</p>
+    {{#each groups}}
+    <section class="trick-movement-group trick-group--registry" id="{{anchorId}}" data-anchor-style="solid">
+      <div class="movement-group-heading">
+        <h3><a href="/freestyle/tricks?view=movement-system#{{anchorId}}">{{modifierName}}</a></h3>
+        <span class="section-count">{{memberCount}}</span>
+      </div>
+      {{#if bodyDefinition}}
+      <p class="movement-group-definition">{{bodyDefinition}}</p>
+      {{/if}}
+      <div class="dict-card-stack dict-card-stack--registry">
+        {{#each cards}}
+          {{> dictionary-trick-card density="registry"}}
+        {{/each}}
+      </div>
+    </section>
+    {{/each}}
+  </section>
+  {{/each}}
+  {{else}}
+  <section class="content-section">
+    <p class="detail-muted">
+      <em>No tricks currently link to a Movement System modifier. As the
+      dictionary expands, axis sections populate from
+      <code>freestyle_trick_modifier_links</code>.</em>
+    </p>
+  </section>
+  {{/if}}
   {{/if}}
 
   <p class="source-note">

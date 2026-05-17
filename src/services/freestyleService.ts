@@ -1655,7 +1655,7 @@ export interface FreestyleTricksCoverageSummary {
   transparencyNote: string;        // pre-shaped: 'External-source placeholders are shown for transparency...'
 }
 
-export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology';
+export type FreestyleTricksActiveView = 'add' | 'family' | 'category' | 'sets' | 'component' | 'topology' | 'movement-system';
 
 // One row in the ?view=sets projection. Each set/modifier carries the list
 // of canonical tricks that use it via freestyle_trick_modifier_links.
@@ -4015,7 +4015,7 @@ export const freestyleService = {
     // DSC-2 slice 3A: ?view=sets is an alias of ?view=component. Both
     // requests resolve to the same activeView so the new component browse
     // experience renders for inbound legacy links without breaking them.
-    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology'];
+    const allowedViews: FreestyleTricksActiveView[] = ['add', 'family', 'category', 'sets', 'component', 'topology', 'movement-system'];
     const requestedView = (view ?? 'add') as FreestyleTricksActiveView;
     const resolvedView: FreestyleTricksActiveView = allowedViews.includes(requestedView)
       ? (requestedView === 'sets' ? 'component' : requestedView)
