@@ -726,10 +726,22 @@ export class ClubService {
       // TEMP-DEVIATION: classification evidence panel. Optional row; absent
       // when the candidate is not in legacy_club_candidates (e.g., dev fresh
       // clone with no enrichment CSVs loaded). Service tolerates absence.
-      const evidenceRow = clubs.getClassificationEvidenceByClubId.get(row.club_id) as
-        | ClassificationEvidenceRow
-        | undefined;
-      const qcPanel = evidenceRow ? toClassificationEvidence(evidenceRow) : undefined;
+      // Also tolerates SCHEMA DRIFT — dev DBs that predate the r1-r10 +
+      // rule-input columns surface as "no such column" from better-sqlite3
+      // at prepare time; treat that as absent rather than 500. Removed when
+      // A_Review_Club_Cleanup_Signals admin queue ships and absorbs this
+      // surface entirely.
+      let qcPanel: ClubClassificationEvidence | undefined;
+      try {
+        const evidenceRow = clubs.getClassificationEvidenceByClubId.get(row.club_id) as
+          | ClassificationEvidenceRow
+          | undefined;
+        qcPanel = evidenceRow ? toClassificationEvidence(evidenceRow) : undefined;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('no such column') && !msg.includes('no such table')) throw err;
+        qcPanel = undefined;
+      }
 
       const club = toPublicClubDetail(row, vitality, members, leaders, qcPanel);
 
