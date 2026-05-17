@@ -88,10 +88,16 @@ import {
 import {
   resolveFamilyOverride,
   resolveFamilyDisplayName,
+  resolveFamilyDualMemberships,
+  isRetiredFamily,
 } from '../content/freestyleFamilyOverrides';
 import {
   MOVEMENT_SYSTEM_AXES,
+  resolveModifierCompositionGloss,
 } from '../content/freestyleMovementSystems';
+import {
+  isUnresolvedCompound,
+} from '../content/freestyleUnresolvedCompounds';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -1644,6 +1650,10 @@ export interface DictionaryTrickCard {
   mediaCoverage:              TrickMediaCoverage;            // 'tutorial' | 'demo' | 'none' — drives optional chip
   mediaCoverageLabel:         string;                        // pre-shaped chip text: 'Tutorial available' / 'Demo only' / 'No video yet'
   trickFamily:                string | null;                 // reserved for future family-axis affordance
+  // Slice M (2026-05-16): curator-authored flag for folk-derived /
+  // mechanically-ambiguous rows. Drives a small italic pill on the
+  // card. Read from freestyleUnresolvedCompounds.ts; never auto-derived.
+  pendingDecomposition:       boolean;
 }
 
 export interface FreestyleTricksCoverageSummary {
@@ -1766,6 +1776,10 @@ export interface MovementSystemGroup {
   modifierSlug:   string;
   modifierName:   string;
   bodyDefinition: string | null;   // reused from COMPONENT_DEFINITIONS; null when curator hasn't authored one
+  // Slice M (2026-05-16): per-modifier educational composition gloss
+  // (e.g., paradox: "PDX + base — entry topology..."). Single italic
+  // line rendered above the card stack. null when no curator entry.
+  compositionGloss: string | null;
   memberCount:    number;
   anchorId:       string;          // `movement-${modifierSlug}` for hash-anchor navigation
   cards:          DictionaryTrickCard[];   // ADD ascending, then name
@@ -2325,8 +2339,8 @@ const FAMILY_NOTES: Record<string, string> = {
     '(canonically Stepping Paradox Mirage) at 4 ADD.',
   clipper:
     'The clipper is a 1-ADD body kick into clipper position. Its primary compound derivative ' +
-    'is flying-clipper. Stall-based compounds (ducking clipper, spinning clipper, drifter) ' +
-    'live under the clipper-stall family per the 2026-05-08 clipper migration.',
+    'is flying-clipper. Stall-based compounds (ducking clipper, spinning clipper) surface via ' +
+    'the Movement System view’s body-modifier axis; drifter anchors its own branch family.',
   legover:
     'The legover base yields a compact family: eggbeater (atomic legover) and flurry ' +
     '(barraging legover) are the primary 3-ADD entries. The family is notable for producing ' +
@@ -2466,6 +2480,7 @@ function shapeDictionaryTrickCard(
     mediaCoverage:              indexRow.mediaCoverage,
     mediaCoverageLabel:         indexRow.mediaCoverageLabel,
     trickFamily:                indexRow.trickFamily,
+    pendingDecomposition:       isUnresolvedCompound(indexRow.slug),
   };
 }
 
@@ -3872,19 +3887,35 @@ export const freestyleService = {
     const familyOf = (row: FreestyleTrickRowWithStatus): string | null =>
       resolveFamilyOverride(row.slug) ?? row.trick_family;
 
+    // Slice M (2026-05-16): family-view bucketing is now multi-membership-aware.
+    // Each row contributes to its primary family AND every entry in its
+    // dual-membership list (FAMILY_DUAL_MEMBERSHIPS) — preserving lineage
+    // membership while also surfacing branch-family anchors in their own
+    // family. Retired families (RETIRED_FAMILIES, e.g. clipper-stall) are
+    // skipped at primary-family time; dual-memberships are never retired
+    // (asserted in the content module's cross-mechanism invariants).
     const familyMap = new Map<string, FreestyleTrickRowWithStatus[]>();
     for (const row of activeRows) {
-      const family = familyOf(row);
-      if (!family || !isTrickRow(row)) continue;
-      const bucket = familyMap.get(family) ?? [];
-      bucket.push(row);
-      familyMap.set(family, bucket);
+      if (!isTrickRow(row)) continue;
+      const primaryFamily = familyOf(row);
+      const families: string[] = [];
+      if (primaryFamily && !isRetiredFamily(primaryFamily)) {
+        families.push(primaryFamily);
+      }
+      for (const extra of resolveFamilyDualMemberships(row.slug)) {
+        if (!families.includes(extra)) families.push(extra);
+      }
+      for (const fslug of families) {
+        const bucket = familyMap.get(fslug) ?? [];
+        bucket.push(row);
+        familyMap.set(fslug, bucket);
+      }
     }
     // Sibling-pair ordering: whirl + rev-whirl sit adjacent so the user
-    // can compare conserved mechanics side-by-side. drifter + reverse-drifter
-    // would follow the same pattern if reverse-drifter ever surfaces here
-    // (today it lives under its own trick_family value, not via override).
-    const FAMILY_ORDER = ['whirl', 'rev-whirl', 'butterfly', 'osis', 'mirage', 'clipper', 'legover', 'torque', 'blender'];
+    // can compare conserved mechanics side-by-side. Slice M (2026-05-16):
+    // torque + blender promoted adjacent to osis (lineage adjacency under
+    // dual-membership); drifter placed near clipper for the same reason.
+    const FAMILY_ORDER = ['whirl', 'rev-whirl', 'butterfly', 'osis', 'torque', 'blender', 'mirage', 'clipper', 'drifter', 'legover'];
 
     // Map of family-slug → optional symbolic cross-link. Conservative: only
     // surfaces that have shipped pedagogy / progression pages get a link.
@@ -4273,6 +4304,7 @@ export const freestyleService = {
         modifierSlug:   bucket.modifierSlug,
         modifierName:   bucket.modifierName,
         bodyDefinition: COMPONENT_DEFINITIONS[bucket.modifierSlug] ?? null,
+        compositionGloss: resolveModifierCompositionGloss(bucket.modifierSlug),
         memberCount:    sorted.length,
         anchorId:       `movement-${bucket.modifierSlug}`,
         cards:          sorted.map(e => shapeDictionaryTrickCard(e.row, e.indexRow, bucket.modifierSlug)),

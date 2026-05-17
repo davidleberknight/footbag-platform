@@ -96,3 +96,41 @@ export function resolveAxisForModifier(slug: string): MovementSystemAxis | null 
 export function allMovementSystemModifierSlugs(): string[] {
   return MOVEMENT_SYSTEM_AXES.flatMap(a => [...a.modifierSlugs]);
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Slice M (2026-05-16) — modifier-level educational composition glosses.
+//
+// A single italic line that surfaces the conserved compositional reading
+// of a modifier on the Movement System view, between the modifier-name
+// heading and the trick-card stack. Goal: paradox reads as an entry
+// topology / compositional system, NOT as a terminal family.
+//
+// Per-modifier (not per-axis): the axis definition already lives on
+// MovementSystemAxis.axisDefinition. The per-modifier gloss gives the
+// curator room to expand without re-shaping the axis.
+//
+// Restraint: pilot = paradox only. Other modifiers stay un-glossed
+// (field falls back to null; the template suppresses the row) until
+// curator authors them.
+//
+// Forbidden in this map: parser-wall notation; multi-line prose;
+// clickable references; tooltip targets. Single italic line, plain
+// text only, no inline tags.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map([
+  ['paradox',
+    'PDX + base — the body crosses sides without changing the set foot. ' +
+    'Reads as an entry topology, not a terminal family. ' +
+    'Compounds: PDX + WHIRL, PDX + TORQUE, PDX + BLENDER.',
+  ],
+]);
+
+/**
+ * Returns the educational composition gloss for a modifier slug, or
+ * null when no curator-authored entry exists. Callers render a single
+ * italic line above the trick-card stack only when non-null.
+ */
+export function resolveModifierCompositionGloss(slug: string): string | null {
+  return MODIFIER_COMPOSITION_GLOSSES.get(slug) ?? null;
+}

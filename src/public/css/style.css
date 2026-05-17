@@ -5323,6 +5323,23 @@ a.dict-card-title:hover {
   color: #92400e;            /* amber-800 */
 }
 
+/* Slice M (2026-05-16): small italic pill for curator-flagged folk-derived
+ * / mechanically-ambiguous rows. Renders inline with the ADD chip; muted
+ * tone so it never competes with the trick title or notation row.
+ * Source: freestyleUnresolvedCompounds.ts. Restraint: no severity scale,
+ * no tooltip, no link, no category — strictly a binary honest hedge. */
+.dict-card-pending-pill {
+  display: inline-block;
+  margin: 0 0 0 6px;
+  font-size: 0.72rem;
+  color: #6e6850;
+  font-style: italic;
+  white-space: nowrap;
+}
+.dict-card-pending-pill em {
+  font-style: italic;
+}
+
 /* ─── BROWSE-REFACTOR-1 Slice 1 (2026-05-15) ────────────────────────────────
    Registry density + semantic tokens + family-anchor emphasis.
    Restraint discipline per SEMANTIC_COMPRESSION_DOCTRINE §5 + BROWSE_SURFACE_
@@ -5644,6 +5661,18 @@ a.dict-card-title:hover {
   font-style: italic;
   color: #5a5644;
   line-height: 1.55;
+}
+/* Slice M (2026-05-16): per-modifier educational composition gloss.
+ * Single italic line above the trick-card stack — reinforces that
+ * modifiers like paradox read as compositional systems, not terminal
+ * families. Sourced from MODIFIER_COMPOSITION_GLOSSES; null suppresses. */
+.movement-group-composition-gloss {
+  margin: -8px 0 14px 0;
+  font-size: 0.9rem;
+  color: #4a4636;
+  line-height: 1.55;
+  padding-left: 10px;
+  border-left: 2px solid #d6d2c4;
 }
 
 @media (max-width: 480px) {

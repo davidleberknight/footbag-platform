@@ -282,6 +282,9 @@
       {{#if bodyDefinition}}
       <p class="movement-group-definition">{{bodyDefinition}}</p>
       {{/if}}
+      {{#if compositionGloss}}
+      <p class="movement-group-composition-gloss"><em>{{compositionGloss}}</em></p>
+      {{/if}}
       <div class="dict-card-stack dict-card-stack--registry">
         {{#each cards}}
           {{> dictionary-trick-card density="registry"}}

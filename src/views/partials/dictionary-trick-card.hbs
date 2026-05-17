@@ -47,6 +47,10 @@
 
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
 
+    {{#if pendingDecomposition}}
+    <span class="dict-card-pending-pill" aria-label="Pending decomposition refinement"><em>pending decomposition refinement</em></span>
+    {{/if}}
+
     {{#if hasReferenceMedia}}
     <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>
     {{/if}}
@@ -86,6 +90,10 @@
     {{/if}}
 
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
+
+    {{#if pendingDecomposition}}
+    <span class="dict-card-pending-pill" aria-label="Pending decomposition refinement"><em>pending decomposition refinement</em></span>
+    {{/if}}
 
     {{#if hasReferenceMedia}}
     <span class="dict-card-media-chip dict-card-media-chip--{{mediaCoverage}}" aria-label="Media coverage">{{mediaCoverageLabel}}</span>

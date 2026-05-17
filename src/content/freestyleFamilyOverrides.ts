@@ -67,6 +67,12 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   ['rev-whirl', 'rev-whirl'],   // canonical direction-variant anchor
   ['hatchet',   'rev-whirl'],   // mechanics-confirmed
   ['mullet',    'rev-whirl'],   // mechanics-confirmed
+
+  // Slice M (2026-05-16) — high-plains-drifter follows drifter into the
+  // drifter branch family after the clipper-stall family retirement
+  // (see RETIRED_FAMILIES below). One-way redirect: row no longer
+  // bucketed under clipper-stall.
+  ['high-plains-drifter', 'drifter'],
 ]);
 
 /**
@@ -76,6 +82,78 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
  */
 export function resolveFamilyOverride(slug: string): string | null {
   return FAMILY_OVERRIDES.get(slug) ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Slice M (2026-05-16) — branch-family dual-membership.
+//
+// A branch-family anchor (e.g., `torque`, `blender`, `drifter`) lives in
+// its lineage family per the DB (osis-family / clipper-stall-family) AND
+// should ALSO appear as the anchor of its own branch family. This is
+// ADDITIVE — the row stays in its primary family per FAMILY_OVERRIDES /
+// trick_family, and gains membership in the listed extra families.
+//
+// Different from FAMILY_OVERRIDES (one-way redirect; removes from
+// original): dual-membership keeps the row in BOTH the primary family
+// AND the listed extras. The Family-view bucketing loop in the service
+// walks `[primaryFamily, ...dualMemberships]` per row.
+//
+// Restraint: each entry requires curator confirmation. No automatic
+// derivation. No DB column changes.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const FAMILY_DUAL_MEMBERSHIPS: ReadonlyMap<string, readonly string[]> = new Map([
+  // Branch-family anchors — also appear in their own branch family
+  // alongside their lineage family.
+  ['torque',  ['torque']],    // primary: osis-family;       also: torque-family (own anchor)
+  ['blender', ['blender']],   // primary: osis-family;       also: blender-family (own anchor)
+  ['drifter', ['drifter']],   // primary: was clipper-stall (retired) → falls through;
+                              // also:    drifter-family (own anchor)
+]);
+
+/**
+ * Returns the extra family slugs a row should appear under, in addition
+ * to its primary family. Empty array when no dual-membership entry.
+ */
+export function resolveFamilyDualMemberships(slug: string): readonly string[] {
+  return FAMILY_DUAL_MEMBERSHIPS.get(slug) ?? [];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Slice M (2026-05-16) — retired Family-View family slugs.
+//
+// Families listed here are hidden from the Family-View browse surface.
+// The rows themselves remain in the DB and surface on every other
+// browse view (ADD / Alpha / Search / Movement System / Modifier /
+// Topology). The trick_family column is untouched.
+//
+// Clipper-Stall is retired because the newer ontology distinguishes
+// root terminal families / branch families / movement systems / entry
+// topologies, and "clipper-stall" doesn't function as a coherent
+// terminal family at the current ontology level:
+//   - drifter (3 ADD) has its own branch family (see FAMILY_DUAL_MEMBERSHIPS)
+//   - ducking-clipper / spinning-clipper are modifier-led, discoverable
+//     via Movement System → Midtime Body axis
+//   - reaper is folk-derived; gains the unresolved-compound pill
+//   - high-plains-drifter follows drifter via FAMILY_OVERRIDES above
+//   - clipper-stall (anchor) stays in ADD / Alpha; singleton bucket
+//     already prevented from rendering by the rows.length > 1 filter
+//
+// NOT retired: the clipper-stall ROW, the clipper notation, clipper as
+// a glossary concept, the clipper-stall canonical name. Strictly the
+// family-view surface.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const RETIRED_FAMILIES: ReadonlySet<string> = new Set<string>([
+  'clipper-stall',
+]);
+
+/**
+ * Returns true when the family slug should NOT render in the Family
+ * View browse surface. Callers should skip the family during bucketing.
+ */
+export function isRetiredFamily(familySlug: string): boolean {
+  return RETIRED_FAMILIES.has(familySlug);
 }
 
 /**
