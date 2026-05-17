@@ -199,6 +199,9 @@
 
   {{! ── Category view — registry density (dense tag-based scan) ──────────── }}
   {{#if (eq content.activeView "category")}}
+  <p class="category-view-note detail-muted">
+    Grouped by grammatical role (dex / body / set / compound) &mdash; the four building blocks of operational notation. For richer organization see <a href="/freestyle/tricks?view=family">By family</a> or <a href="/freestyle/tricks?view=movement-system">By movement system</a>.
+  </p>
   {{#each content.groups}}
   <section class="content-section trick-category-group trick-group--registry" id="{{anchorId}}">
     <div class="section-heading">

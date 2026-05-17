@@ -1186,6 +1186,71 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
   });
 });
 
+describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)', () => {
+  it('§10 carries id="traditional-reference" + #run-quality anchor (history.hbs inbound link)', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('id="traditional-reference"');
+    expect(res.text).toContain('id="run-quality"');
+  });
+
+  it('§10 leads with the mixed-level-of-analysis acknowledgment', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toMatch(/operates at the <em>run<\/em> and <em>competition<\/em> level/);
+  });
+
+  it('history page deep-links to the live #run-quality anchor', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.text).toContain('href="/freestyle/glossary#run-quality"');
+    expect(res.text).not.toContain('#1-add-system--run-quality');
+  });
+
+  it('history "How Combos Grew" links to movement-system browse view', async () => {
+    const res = await request(createApp()).get('/freestyle/history');
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+  });
+
+  it('glossary §11 source-families list carries verified outbound hyperlinks', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    expect(res.text).toContain('href="http://www.footbag.org/"');
+    expect(res.text).toContain('href="http://www.footbag.org/newmoves/list"');
+    expect(res.text).toContain('href="https://www.footbagmoves.com/"');
+    expect(res.text).toContain('href="https://www.youtube.com/@WorldFootbag"');
+  });
+
+  it('glossary §11 outbound links carry rel="noopener noreferrer" + target="_blank"', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    // Each verified outbound URL should appear with both attributes.
+    const checks = [
+      'http://www.footbag.org/',
+      'https://www.footbagmoves.com/',
+      'https://www.youtube.com/@WorldFootbag',
+    ];
+    for (const url of checks) {
+      const idx = res.text.indexOf(`href="${url}"`);
+      expect(idx, `Missing outbound link: ${url}`).toBeGreaterThan(0);
+      // Read 200 chars around the anchor opening; both attributes must be present.
+      const slice = res.text.slice(Math.max(0, idx - 100), idx + 200);
+      expect(slice).toMatch(/target="_blank"/);
+      expect(slice).toMatch(/rel="noopener noreferrer"/);
+    }
+  });
+
+  it('§11 spyro→inspin row carries the active-slug clarification', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    // The annotation makes the directionality of the historical mapping explicit.
+    expect(res.text).toMatch(/spyro<\/em>\s+is the active dictionary slug/);
+    expect(res.text).toMatch(/inspin<\/em>\s+is a folk synonym/);
+  });
+
+  it('category view carries the grammatical-role explanatory note', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=category');
+    expect(res.text).toContain('class="category-view-note');
+    expect(res.text).toMatch(/Grouped by grammatical role/);
+    expect(res.text).toContain('href="/freestyle/tricks?view=family"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // IA Realignment Batch 1 — landing + glossary stabilization
 
