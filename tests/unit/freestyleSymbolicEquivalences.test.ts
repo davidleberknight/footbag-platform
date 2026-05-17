@@ -250,6 +250,49 @@ describe('freestyleSymbolicEquivalences — Path A chain additions (2026-05-17, 
   });
 });
 
+describe('freestyleSymbolicEquivalences — Path B canonical promotions (2026-05-17, Slice X pilot)', () => {
+  // 5 new canonical tricks promoted via red_additions_2026_04_20.csv on the
+  // same day. These chains land alongside the loader-19 row so the trick is
+  // publishable from first DB rebuild (CTPC Principle 1: symbolic
+  // representation present from day one). DB-resident verification happens
+  // post-rebuild and lives in integration tests, not here.
+
+  it('assassin resolves to pixie ducking mirage (FM+PB agree, far=+0 positional)', () => {
+    const chain = getSymbolicEquivalenceChain('assassin');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['pixie ducking mirage']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('mantis resolves to gyro eggbeater (FM+PB agree, near=+0 positional; Red 2026-05-15 gyro)', () => {
+    const chain = getSymbolicEquivalenceChain('mantis');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['gyro eggbeater']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('nova resolves to symposium double-leg-over (FM+PB agree)', () => {
+    const chain = getSymbolicEquivalenceChain('nova');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['symposium double-leg-over']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('tapdown resolves to tapping butterfly (FM only, curatorConfirmPending=true)', () => {
+    const chain = getSymbolicEquivalenceChain('tapdown');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['tapping butterfly']);
+    expect(chain?.curatorConfirmPending).toBe(true);
+  });
+
+  it('big-apple resolves to gyro symposium torque (FM+PB agree via Symp. Mobius unfolding)', () => {
+    const chain = getSymbolicEquivalenceChain('big-apple');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['gyro symposium torque']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+});
+
 describe('freestyleSymbolicEquivalences — lookup behavior', () => {
   it('is case-insensitive and trims whitespace', () => {
     expect(getSymbolicEquivalenceChain('MOBIUS')?.slug).toBe('mobius');

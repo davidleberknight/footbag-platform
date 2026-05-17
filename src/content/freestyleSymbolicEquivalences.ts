@@ -529,6 +529,36 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['tapping torque'],
     curatorConfirmPending: true,   // FM 'Tapping Torque' only (PB silent); math tapping(+1)+torque(4)=5 matches DB asserted_adds
   },
+  // ── Path B — Slice X pilot canonical promotions (2026-05-17) ─────────────
+  // 5 new canonical trick rows promoted via red_additions_2026_04_20.csv on
+  // the same day. Each entry pairs with the loader-19 insertion; chain
+  // readings authored alongside the row so the trick lands publishable
+  // (CTPC Principle 1: symbolic representation present from day one).
+  {
+    slug:     'assassin',
+    readings: ['pixie ducking mirage'],
+    curatorConfirmPending: false,   // FM 'Pixie Ducking Mirage' + PB 'Pixie Ducking far Mirage' agree (far=+0 positional); math pixie(+1)+ducking(+1)+mirage(2)=4
+  },
+  {
+    slug:     'mantis',
+    readings: ['gyro eggbeater'],
+    curatorConfirmPending: false,   // FM 'Gyro Eggbeater' + PB 'Spinning near Eggbeater' agree (near=+0 positional); math gyro(+1)+eggbeater(3)=4; Red 2026-05-15 ratified 'gyro' as legit operator
+  },
+  {
+    slug:     'nova',
+    readings: ['symposium double-leg-over'],
+    curatorConfirmPending: false,   // FM 'Symposium Double Legover' + PB 'Symp. DLO' agree; math symposium(+1)+DLO(3)=4
+  },
+  {
+    slug:     'tapdown',
+    readings: ['tapping butterfly'],
+    curatorConfirmPending: true,   // FM 'Tapping Butterfly' only (PB silent); math tapping(+1)+butterfly(3)=4; Red 2026-05-15 pt3 tapping=+1
+  },
+  {
+    slug:     'big-apple',
+    readings: ['gyro symposium torque'],
+    curatorConfirmPending: false,   // FM 'Gyro Symposium Torque' + PB 'Symp. Mobius' agree (mobius unfolds to gyro torque); math gyro(+1)+symposium(+1)+torque(4)=6
+  },
 ];
 
 /**
