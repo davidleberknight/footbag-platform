@@ -111,6 +111,13 @@
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
+    {{! Slice I of 2026-05 normalization: family-level shared-terminal-structure
+        invariant. Curator-authored per family slug; rendered between the heading
+        and the card stack. Card-level rendering is unchanged. See
+        src/content/freestyleFamilyInvariants.ts. }}
+    {{#if sharedStructure}}
+    <p class="trick-family-shared-structure">Shared terminal structure: <code>{{sharedStructure}}</code></p>
+    {{/if}}
     {{#if crossLink}}
     <p class="trick-family-cross-link"><a href="{{crossLink.href}}">{{crossLink.label}} &rarr;</a></p>
     {{/if}}

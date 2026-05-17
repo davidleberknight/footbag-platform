@@ -5444,6 +5444,29 @@ a.dict-card-title:hover {
 }
 .trick-family-cross-link a:hover { text-decoration: underline solid; }
 
+/* Family-level shared-terminal-structure invariant. Slice I of 2026-05
+ * normalization. Subdued single line under the family heading; sits
+ * above the optional cross-link and above the card stack. Pedagogical
+ * surface that teaches the conserved terminal mechanic of a terminal
+ * family (e.g., whirl: leggy in dex > ss clipper). Never rendered
+ * inside cards. See exploration/dictionary-glossary-normalization-
+ * audit-2026-05/FAMILY_LEVEL_INVARIANTS.md. */
+.trick-family-shared-structure {
+  margin: 4px 0 6px 0;
+  font-size: 0.88rem;
+  color: var(--text-subtle);
+  line-height: 1.5;
+}
+.trick-family-shared-structure code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+  background: #f7f6f0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: #5a5644;
+  letter-spacing: 0.02em;
+}
+
 /* Component view (DSC-2 slice 3A). Two axes (body modifiers + set modifiers);
  * intentional duplication; axis-jump nav at top; per-group heading with
  * one-line body-mechanics definition above the dict-card-stack. */

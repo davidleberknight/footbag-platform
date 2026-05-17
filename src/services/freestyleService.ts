@@ -82,6 +82,9 @@ import {
   FreestyleTrickKind,
   resolveTrickKind,
 } from '../content/freestyleTrickKindOverrides';
+import {
+  getFamilyInvariant,
+} from '../content/freestyleFamilyInvariants';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -1776,6 +1779,11 @@ export interface FreestyleFamilyGroup {
   // (e.g., butterfly family → walking-family progression). Null when no
   // corresponding surface is shipped. Per UNIFIED_DICTIONARY_VIEW_PLAN.md §4.3.
   crossLink: { label: string; href: string } | null;
+  // Slice I of 2026-05 normalization: family-level shared-terminal-structure
+  // invariant. Pedagogical surface rendered as a small subdued line below
+  // the section heading. Curator-authored per family slug; null when no
+  // entry exists. See src/content/freestyleFamilyInvariants.ts.
+  sharedStructure: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -3859,6 +3867,7 @@ export const freestyleService = {
         members,
         cards,
         crossLink: FAMILY_CROSS_LINKS[familySlug] ?? null,
+        sharedStructure: getFamilyInvariant(familySlug),
       };
     };
 
