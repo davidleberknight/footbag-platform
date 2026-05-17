@@ -280,12 +280,49 @@
     <p class="detail-muted">
       <em>Sibling terminal families.</em> Some families occur in pairs
       because they share a structural namesake but resolve through
-      different terminal mechanics. <a href="/freestyle/tricks?family=whirl">Whirl</a>
-      (inward-leggy dex &rarr; same-side clipper) and
-      <a href="/freestyle/tricks?family=rev-whirl">Rev Whirl</a>
-      (front-direction dex &rarr; opposite-side cross-body clipper) are
-      siblings, not parent &amp; child. The Trick Dictionary surfaces
+      mirror terminal mechanics. The simplest sibling pair:
+    </p>
+    <ul class="glossary-family-sibling-pair">
+      <li><strong><a href="/freestyle/tricks?family=whirl">Whirl</a></strong>: <code>leggy in dex &gt; ss clipper</code></li>
+      <li><strong><a href="/freestyle/tricks?family=rev-whirl">Rev Whirl</a></strong>: <code>leggy out dex &gt; ss clipper</code></li>
+    </ul>
+    <p class="detail-muted">
+      Mirror-pair siblings are not parent &amp; child &mdash; they resolve
+      through inverse terminal mechanics. The Trick Dictionary surfaces
       sibling families adjacent in its family view.
+    </p>
+
+    <h4 class="section-heading">Root terminal families vs branch families</h4>
+    <p>
+      Two kinds of family-anchor object share the family view:
+    </p>
+    <ul class="glossary-family-kinds">
+      <li>
+        <strong>Root terminal families</strong> &mdash; primitive structural
+        anchors with their own conserved terminal mechanic.
+        <a href="/freestyle/tricks/whirl">whirl</a>,
+        <a href="/freestyle/tricks/rev-whirl">rev-whirl</a>,
+        <a href="/freestyle/tricks/butterfly">butterfly</a>,
+        <a href="/freestyle/tricks/mirage">mirage</a>,
+        <a href="/freestyle/tricks/osis">osis</a>,
+        <a href="/freestyle/tricks/swirl">swirl</a>.
+      </li>
+      <li>
+        <strong>Compressed branch families</strong> &mdash; named compounds
+        that are themselves productive family anchors but also descend
+        from a root terminal via a chain. <a href="/freestyle/tricks/torque">Torque</a>
+        is a branch family rooted in osis lineage (&equiv; <em>miraging
+        osis</em>). <a href="/freestyle/tricks/blender">Blender</a> &equiv;
+        <em>whirling osis</em>. <a href="/freestyle/tricks/drifter">Drifter</a>
+        &equiv; <em>miraging clipper</em>.
+      </li>
+    </ul>
+    <p class="detail-muted">
+      Branch families surface as their own family sections in the
+      dictionary; the underlying lineage is preserved via the chain
+      reading on the family base&apos;s detail page. A branch family is
+      a family in its own right AND a descendant of a root &mdash;
+      both relationships are real and both are visible.
     </p>
 
     {{#if content.familyTrees.length}}
@@ -340,6 +377,35 @@
     </ul>
     <p>The glossary explains terms; the dictionary defines exact structure.</p>
 
+    {{! Slice L-polish (2026-05-16): 4-axis movement-system preview. The
+        full By Movement System browse view is forthcoming (audit at
+        BROWSE_ARCHITECTURE_AUDIT.md); this preamble surfaces the axis
+        ontology at glossary-reading time so readers see the system
+        before they meet the modifier cards. }}
+    <h3 class="section-heading" id="movement-system-axes">Movement-system axes (preview)</h3>
+    <p>
+      Modifiers cluster along four educational axes by what timing layer
+      and body system they engage. The forthcoming
+      <em>By Movement System</em> dictionary view groups tricks by axis;
+      the modifier cards below are listed in cluster-paired form to
+      surface the same structure.
+    </p>
+    <ol class="glossary-movement-system-axes">
+      <li><strong>Set / Uptime Systems</strong> &mdash; launch mechanics + uptime dex character.<br>
+        <em>pixie, fairy, atomic, quantum, nuclear, barraging, furious, blurry, stepping</em>.</li>
+      <li><strong>Entry Topologies</strong> &mdash; entry relationship and cross-body framing.<br>
+        <em>paradox</em>; positional vocabulary (op/ss, near/far, x-dex) lives in &sect;3 and &sect;7.</li>
+      <li><strong>Midtime Body Modifiers</strong> &mdash; apex body mechanics around the trick&apos;s peak.<br>
+        <em>spinning, ducking, diving, weaving, zulu, inspinning, gyro, tapping, whirling</em>.</li>
+      <li><strong>No-Plant &amp; Suspension</strong> &mdash; body-discipline mechanics; the support leg leaves the ground.<br>
+        <em>symposium, symple, muted, flying</em>.</li>
+    </ol>
+    <p class="detail-muted">
+      The cards below surface a curator-selected pedagogical cohort
+      (13 cards across 2 visual clusters); the full axis breakdown
+      lives on the dictionary&apos;s movement-system browse surface.
+    </p>
+
     {{! ── Surface A: Common Advanced Modifiers ─────────────────────────────
         Player-facing pedagogical view. 13 modifier cards in 2 clusters
         (set + body). Each card: name + optional glyph + feel + intuition
@@ -351,7 +417,7 @@
     <p>The modifiers players reach for most often. Read these for movement and feel; the structural readings live in the advanced reference below.</p>
 
     <div class="glossary-modifier-cluster">
-      <h4 class="glossary-modifier-cluster-heading">Set modifiers</h4>
+      <h4 class="glossary-modifier-cluster-heading">Set / Uptime Systems</h4>
       <div class="glossary-modifier-cards">
         {{#each content.setModifierFeelCards}}
         <article class="glossary-modifier-card" id="modifier-{{slug}}">
@@ -370,7 +436,7 @@
     </div>
 
     <div class="glossary-modifier-cluster">
-      <h4 class="glossary-modifier-cluster-heading">Body modifiers</h4>
+      <h4 class="glossary-modifier-cluster-heading">Body Modifiers <span class="glossary-modifier-cluster-axes">(midtime &middot; entry &middot; suspension)</span></h4>
       <div class="glossary-modifier-cards">
         {{#each content.bodyModifierFeelCards}}
         <article class="glossary-modifier-card" id="modifier-{{slug}}">
@@ -387,7 +453,13 @@
         {{/each}}
       </div>
       <p class="glossary-modifier-cluster-note">
-        <strong>Midtime body modifiers.</strong> Ducking, spinning, diving, weaving, zulu, and inspinning all act on the body around the trick's apex &mdash; an emerging topology axis that groups these by their shared timing slot.
+        Cards above span three movement-system axes:
+        <strong>spinning</strong> and <strong>ducking</strong> are
+        midtime body modifiers (apex timing slot);
+        <strong>paradox</strong> is an entry topology (cross-body framing);
+        <strong>symposium</strong> is a no-plant / suspension mechanic.
+        The forthcoming dictionary &ldquo;By Movement System&rdquo; view
+        will group all members of each axis together.
       </p>
     </div>
 
@@ -552,14 +624,34 @@
       <a href="#symbolic-compression-flow">symbolic-compression flow in &sect;8</a>
       for a worked example.
     </p>
-    <p>Notation makes that structure visible:</p>
-    <ul>
-      <li>What goes in the <em>set</em> &mdash; the launch position the trick begins from (atomic, pixie, quantum, and so on).</li>
-      <li>What <em>modifiers</em> are layered on &mdash; body-position modifiers (paradox, ducking, symposium) and rotational modifiers (spinning, blurry, gyro).</li>
-      <li>What the <em>base trick</em> is &mdash; the structural anchor the move resolves to (whirl, mirage, butterfly, torque&hellip;).</li>
-      <li>How the trick <em>catches</em> &mdash; toe stall, clipper stall, or one of the body-position delays.</li>
-      <li>Which <em>family</em> the trick belongs to, by virtue of its base.</li>
-    </ul>
+    {{! Slice L-polish (2026-05-16): operator → named-compound block.
+        Replaces the prior 5-bullet "Notation makes that structure visible"
+        list. Five compact compositions, all visible-token, demonstrate
+        how operators stacked on bases produce the named tricks that
+        appear in the dictionary. }}
+    <p>Notation makes composition visible. Operator + base &rarr; named compound:</p>
+    <div class="glossary-notation-mappings" aria-label="Operator → named compound mappings">
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-set">pixie</span> + <span class="notation-token notation-core-family">butterfly</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong>DIMWALK</strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">stepping</span> + <span class="notation-token notation-core-family">butterfly</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong>RIPWALK</strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">paradox</span> + <span class="notation-token notation-core-family">whirl</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong>PARADOX WHIRL</strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-set">pixie</span> + <span class="notation-token notation-modifier">ducking</span> + <span class="notation-token notation-core-family">butterfly</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong>PHOENIX</strong></span>
+      </p>
+      <p class="glossary-notation-row">
+        <code class="notation-display-tokens glossary-inline-notation"><span class="notation-token notation-modifier">spinning</span> + <span class="notation-token notation-core-family">torque</span></code>
+        <span class="glossary-notation-shorthand">&rarr; <strong>MOBIUS</strong></span>
+      </p>
+    </div>
 
     <h3>A beginner example: <code class="notation-display-tokens glossary-inline-notation">{{#with content.notationExamples.whirl}}{{#each tokens}}<span class="notation-token notation-{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}{{/with}}</code></h3>
     <p>
@@ -803,37 +895,51 @@
     <ol class="glossary-walking-family-progression">
       <li>
         <strong><a href="/freestyle/tricks/butterfly">butterfly</a></strong>
-        <span class="glossary-walking-family-formula">(base, 3 ADD)</span>
+        <span class="glossary-walking-family-formula"><span class="notation-token notation-core-family">butterfly</span> <em>(base, 3 ADD)</em></span>
       </li>
       <li>
         <strong><a href="/freestyle/tricks/ripwalk">ripwalk</a></strong>
-        <span class="glossary-walking-family-formula">&equiv; stepping butterfly (4 ADD)</span>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-modifier">stepping</span> <span class="notation-token notation-core-family">butterfly</span> <em>(4 ADD)</em></span>
       </li>
       <li>
         <strong><a href="/freestyle/tricks/dimwalk">dimwalk</a></strong>
-        <span class="glossary-walking-family-formula">&equiv; pixie butterfly (4 ADD)</span>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-set">pixie</span> <span class="notation-token notation-core-family">butterfly</span> <em>(4 ADD)</em></span>
       </li>
       <li>
         <strong><a href="/freestyle/tricks/sidewalk">sidewalk</a></strong>
-        <span class="glossary-walking-family-formula">&equiv; stepping near butterfly (4 ADD)</span>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-modifier">stepping</span> <span class="notation-token notation-directionality">near</span> <span class="notation-token notation-core-family">butterfly</span> <em>(4 ADD)</em></span>
       </li>
       <li>
         <strong><a href="/freestyle/tricks/dada-curve">dada-curve</a></strong>
-        <span class="glossary-walking-family-formula">&equiv; miraging far symposium butterfly (4 ADD)</span>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-modifier">miraging</span> <span class="notation-token notation-directionality">far</span> <span class="notation-token notation-modifier">symposium</span> <span class="notation-token notation-core-family">butterfly</span> <em>(4 ADD)</em></span>
       </li>
       <li>
         <strong><a href="/freestyle/tricks/matador">matador</a></strong>
-        <span class="glossary-walking-family-formula">&equiv; nuclear butterfly (5 ADD)</span>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-set">nuclear</span> <span class="notation-token notation-core-family">butterfly</span> <em>(5 ADD)</em></span>
       </li>
       <li>
         <strong><a href="/freestyle/tricks/phoenix">phoenix</a></strong>
-        <span class="glossary-walking-family-formula">&equiv; pixie ducking butterfly (5 ADD)</span>
+        <span class="glossary-walking-family-formula">&equiv; <span class="notation-token notation-set">pixie</span> <span class="notation-token notation-modifier">ducking</span> <span class="notation-token notation-core-family">butterfly</span> <em>(5 ADD)</em></span>
       </li>
     </ol>
     <p class="glossary-walking-family-note">
       One base, seven named branches. Each operator added is also defined
       in &sect;6 (Modifiers &amp; Operators); each compound has its own
       detail page with related-trick navigation back to the family.
+    </p>
+
+    {{! Slice L-polish (2026-05-16): future-facing note. Run-level
+        vocabulary (connector tricks, transitions, flow systems) is
+        observably evolving but not yet a first-class glossary surface.
+        Acknowledged here so readers see the trajectory. }}
+    <p class="glossary-future-note">
+      <strong>Forthcoming:</strong> the next layer beyond
+      single-trick composition is run-level composition &mdash;
+      connector tricks, transitions, shuffle structures, flow
+      systems, transition-heavy families. These concepts are
+      already implicit in the dictionary&apos;s family + invariant
+      surfaces but do not yet have a dedicated glossary section. A
+      future expansion will surface them here.
     </p>
   </section>
 

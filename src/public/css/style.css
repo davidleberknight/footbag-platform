@@ -6234,6 +6234,79 @@ a.dict-card-title:hover {
   font-style: italic;
 }
 
+/* Slice L-polish (2026-05-16) — additional compact symbolic blocks. */
+
+/* §5 root-vs-branch family-kinds list */
+.glossary-family-kinds {
+  list-style: disc;
+  padding-left: 1.4rem;
+  margin: 0.6rem 0 0.8rem;
+}
+.glossary-family-kinds li {
+  margin-bottom: 0.6rem;
+  line-height: 1.55;
+}
+
+/* §5 sibling-pair list — visually tight, side-by-side mirror form */
+.glossary-family-sibling-pair {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0.6rem;
+}
+.glossary-family-sibling-pair li {
+  margin: 0.2rem 0;
+  font-size: 0.96rem;
+}
+.glossary-family-sibling-pair code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.86rem;
+  background: #f7f6f0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: #5a5644;
+}
+
+/* §6 movement-system-axes list — preview of the 4-axis ontology */
+.glossary-movement-system-axes {
+  margin: 0.6rem 0 0.8rem;
+  padding-left: 1.4rem;
+}
+.glossary-movement-system-axes li {
+  margin-bottom: 0.5rem;
+  line-height: 1.55;
+}
+
+/* §6 body-cluster axis label appended to the heading */
+.glossary-modifier-cluster-axes {
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  margin-left: 0.4rem;
+}
+
+/* §7 operator → named compound mappings (Slice L-polish). Same row
+   shape as the §7 Notation-in-practice block; reuses the row class. */
+.glossary-notation-mappings {
+  margin: 8px 0 14px;
+  padding: 8px 12px;
+  background: #faf8f1;
+  border-left: 3px solid var(--border, #e2e8f0);
+  border-radius: 3px;
+}
+
+/* §8 future-facing note */
+.glossary-future-note {
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.9rem;
+  background: #f4f0e3;
+  border-left: 3px solid var(--border, #e2e8f0);
+  border-radius: 3px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #5a5644;
+}
+
 /* §7 Notation in practice — three compact symbol-first examples
    (Slice K, 2026-05-16). Sits at the top of §7 so the section opens
    with visible tokens rather than prose density. */

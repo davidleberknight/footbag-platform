@@ -145,8 +145,14 @@ describe('Family override — content module', () => {
     expect(resolveFamilyDisplayName('butterfly')).toBeNull();
   });
 
-  it('exposes the Rev-Whirl family invariant text', () => {
-    expect(getFamilyInvariant('rev-whirl')).toBe('front whirl > op clipper [XBD]');
+  it('exposes the Rev-Whirl family invariant text (mirror form, Slice L-polish)', () => {
+    // Slice J introduced the entry with op-notation-derived text
+    // ("front whirl > op clipper [XBD]"). Slice L-polish (same day,
+    // 2026-05-16) updated to the pedagogical mirror form so the
+    // sibling-family relationship to Whirl reads symmetrically:
+    //   Whirl:     leggy in  dex > ss clipper
+    //   Rev-Whirl: leggy out dex > ss clipper
+    expect(getFamilyInvariant('rev-whirl')).toBe('leggy out dex > ss clipper');
   });
 });
 
@@ -168,7 +174,7 @@ describe('Family View — Rev-Whirl section renders', () => {
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
     expect(sectionHtml).toContain('class="trick-family-shared-structure"');
-    expect(sectionHtml).toMatch(/Shared terminal structure: <code>front whirl &gt; op clipper \[XBD\]<\/code>/);
+    expect(sectionHtml).toMatch(/Shared terminal structure: <code>leggy out dex &gt; ss clipper<\/code>/);
   });
 
   it('renders rev-whirl, hatchet, mullet INSIDE the Rev-Whirl section', async () => {

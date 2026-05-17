@@ -137,14 +137,18 @@ describe('Glossary §8 — walking-family progression (Slice C)', () => {
   });
 
   it('renders the compositional formula next to each non-base compound', async () => {
+    // Slice L-polish (2026-05-16): walking-family formulas are now
+    // token-colored — each word renders inside <span class="notation-token
+    // notation-...">; markup interleaves between tokens. Match token-by-
+    // token rather than contiguous-substring.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toMatch(/stepping butterfly/);
-    expect(res.text).toMatch(/pixie butterfly/);
-    expect(res.text).toMatch(/stepping near butterfly/);
-    expect(res.text).toMatch(/miraging far symposium butterfly/);
-    expect(res.text).toMatch(/nuclear butterfly/);
-    expect(res.text).toMatch(/pixie ducking butterfly/);
+    expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>butterfly</);
+    expect(res.text).toMatch(/notation-token[^>]*>pixie<[\s\S]*?notation-token[^>]*>butterfly</);
+    expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>near<[\s\S]*?notation-token[^>]*>butterfly</);
+    expect(res.text).toMatch(/notation-token[^>]*>miraging<[\s\S]*?notation-token[^>]*>far<[\s\S]*?notation-token[^>]*>symposium<[\s\S]*?notation-token[^>]*>butterfly</);
+    expect(res.text).toMatch(/notation-token[^>]*>nuclear<[\s\S]*?notation-token[^>]*>butterfly</);
+    expect(res.text).toMatch(/notation-token[^>]*>pixie<[\s\S]*?notation-token[^>]*>ducking<[\s\S]*?notation-token[^>]*>butterfly</);
   });
 });
 

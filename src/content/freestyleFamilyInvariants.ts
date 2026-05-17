@@ -52,14 +52,25 @@ export const FAMILY_INVARIANTS: ReadonlyMap<string, string> = new Map([
   // column with the `[set] >` set-prefix dropped for token-clean
   // rendering. Per Slice I.
   ['whirl', 'leggy in dex > ss clipper'],
-  // Rev-Whirl sibling terminal family. Slice J Stage A (2026-05-16):
-  // hatchet, mullet, and the canonical rev-whirl anchor share this
-  // different conserved mechanic — front-direction whirl dex with
-  // opposite-side cross-body clipper landing. Sourced from `hatchet`'s
-  // and `mullet`'s operational-notation columns (consistent across
-  // both). See freestyleFamilyOverrides.ts for the row migration and
-  // REV_WHIRL_SIBLING_FAMILY.md for the audit forensic.
-  ['rev-whirl', 'front whirl > op clipper [XBD]'],
+  // Rev-Whirl sibling terminal family. Slice J Stage A (2026-05-16)
+  // introduced this entry with text sourced from hatchet/mullet's
+  // operational-notation columns ("front whirl > op clipper [XBD]").
+  //
+  // Slice L-polish (2026-05-16, same day): curator updated the
+  // invariant text to mirror Whirl's pedagogical form. The original
+  // op-notation-derived phrasing was forensically accurate but
+  // educationally weaker than Whirl's "leggy in dex > ss clipper".
+  // The mirror form makes the sibling-family relationship structurally
+  // legible at a glance:
+  //
+  //   Whirl:     leggy in  dex > ss clipper
+  //   Rev-Whirl: leggy out dex > ss clipper
+  //
+  // The verbatim FRONT WHIRL [DEX] + OP CLIP [XBD] mechanics still
+  // live in each member's per-row operational-notation column; the
+  // family-invariant line is now the pedagogical anchor, not the
+  // mechanical specification.
+  ['rev-whirl', 'leggy out dex > ss clipper'],
 ]);
 
 /**
