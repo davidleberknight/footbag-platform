@@ -10,6 +10,8 @@ import {
   MOVEMENT_SYSTEM_AXES,
   resolveAxisForModifier,
   allMovementSystemModifierSlugs,
+  MODIFIER_COMPOSITION_GLOSSES,
+  resolveModifierCompositionGloss,
   type MovementSystemAxis,
 } from '../../src/content/freestyleMovementSystems';
 
@@ -97,6 +99,42 @@ describe('freestyleMovementSystems content module', () => {
     for (const axis of MOVEMENT_SYSTEM_AXES) {
       expect(Array.isArray(axis.modifierSlugs)).toBe(true);
       expect(axis.modifierSlugs.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('MODIFIER_COMPOSITION_GLOSSES (Slice M + Slice N curator content)', () => {
+  it('contains all 6 curator-authored pilot entries', () => {
+    expect(MODIFIER_COMPOSITION_GLOSSES.size).toBe(6);
+    for (const slug of ['paradox', 'spinning', 'ducking', 'symposium', 'stepping', 'pixie']) {
+      expect(MODIFIER_COMPOSITION_GLOSSES.has(slug), `gloss expected for ${slug}`).toBe(true);
+    }
+  });
+
+  it('resolveModifierCompositionGloss returns curator content for each pilot entry', () => {
+    expect(resolveModifierCompositionGloss('paradox')).toMatch(/PDX \+ base/);
+    expect(resolveModifierCompositionGloss('spinning')).toMatch(/SPIN \+ base/);
+    expect(resolveModifierCompositionGloss('ducking')).toMatch(/DUCK \+ base/);
+    expect(resolveModifierCompositionGloss('symposium')).toMatch(/SYMP \+ base/);
+    expect(resolveModifierCompositionGloss('stepping')).toMatch(/STEP \+ base/);
+    expect(resolveModifierCompositionGloss('pixie')).toMatch(/PIX \+ base/);
+  });
+
+  it('returns null for modifiers without a gloss (restraint contract)', () => {
+    // Pilot is deliberately small. The directive forbids autogeneration;
+    // un-glossed modifiers stay un-rendered until curator authors them.
+    expect(resolveModifierCompositionGloss('atomic')).toBeNull();
+    expect(resolveModifierCompositionGloss('fairy')).toBeNull();
+    expect(resolveModifierCompositionGloss('surging')).toBeNull();
+    expect(resolveModifierCompositionGloss('diving')).toBeNull();
+    expect(resolveModifierCompositionGloss('weaving')).toBeNull();
+    expect(resolveModifierCompositionGloss('nonexistent')).toBeNull();
+  });
+
+  it('every gloss is bounded (≤300 chars) per the restraint contract', () => {
+    for (const [slug, gloss] of MODIFIER_COMPOSITION_GLOSSES) {
+      expect(gloss.length, `${slug} gloss exceeds 300 chars`).toBeLessThanOrEqual(300);
+      expect(gloss.length, `${slug} gloss is empty`).toBeGreaterThan(0);
     }
   });
 });

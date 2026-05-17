@@ -174,8 +174,12 @@ describe('GET /freestyle/tricks?view=movement-system — cards', () => {
     // Locate the start of the *next* section to bound this group's slice.
     const groupEnd = res.text.indexOf('<section', groupStart + 1);
     const groupSlice = groupEnd > -1 ? res.text.substring(groupStart, groupEnd) : res.text.substring(groupStart);
-    const pixieIllusionIdx = groupSlice.indexOf('pixie-illusion');
-    const dimwalkIdx       = groupSlice.indexOf('dimwalk');
+    // Search on the card-stack data attribute, not the bare slug — after
+    // Slice N, the pixie modifier gloss mentions "PIX + BUTTERFLY (dimwalk)"
+    // which appears BEFORE the card stack and would otherwise dominate
+    // the indexOf result.
+    const pixieIllusionIdx = groupSlice.indexOf('data-trick-slug="pixie-illusion"');
+    const dimwalkIdx       = groupSlice.indexOf('data-trick-slug="dimwalk"');
     expect(pixieIllusionIdx).toBeGreaterThan(-1);
     expect(dimwalkIdx).toBeGreaterThan(pixieIllusionIdx);
   });

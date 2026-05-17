@@ -120,6 +120,36 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   });
 });
 
+describe('freestyleSymbolicEquivalences — Slice N branch-family chain additions', () => {
+  it('paradox-blender resolves to a two-stop chain', () => {
+    const chain = getSymbolicEquivalenceChain('paradox-blender');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['paradox blender', 'paradox whirling op osis']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('food-processor surfaces the Red-locked Blurry-Blender reading', () => {
+    const chain = getSymbolicEquivalenceChain('food-processor');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['blurry blender', 'stepping paradox blender']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('spender carries the FAMILY_TEXTS-confirmed Spinning-Paradox-Blender reading', () => {
+    const chain = getSymbolicEquivalenceChain('spender');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['spinning paradox blender']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('paradox-drifter resolves to a two-stop chain (parallel to paradox-blender)', () => {
+    const chain = getSymbolicEquivalenceChain('paradox-drifter');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['paradox drifter', 'paradox miraging clipper']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+});
+
 describe('freestyleSymbolicEquivalences — lookup behavior', () => {
   it('is case-insensitive and trims whitespace', () => {
     expect(getSymbolicEquivalenceChain('MOBIUS')?.slug).toBe('mobius');

@@ -53,6 +53,10 @@ beforeAll(async () => {
   insertFreestyleTrickModifier(db, { slug: 'paradox',  modifier_name: 'paradox',  modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'pixie',    modifier_type: 'set'  });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', modifier_type: 'body' });
+  // Slice N coverage check — atomic is in the Movement System axis pilot
+  // but NOT in MODIFIER_COMPOSITION_GLOSSES; its group is the canary
+  // that the gloss row is suppressed for un-glossed modifiers.
+  insertFreestyleTrickModifier(db, { slug: 'atomic',   modifier_name: 'atomic',   modifier_type: 'set'  });
 
   // ── Osis-lineage rows ──────────────────────────────────────────────────
   insertFreestyleTrick(db, { slug: 'osis',    canonical_name: 'osis',    adds: '3', base_trick: 'osis', trick_family: 'osis', category: 'base' });
@@ -95,6 +99,10 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'surgery',    canonical_name: 'surgery',    adds: '6', base_trick: 'rev-whirl', trick_family: 'rev-whirl', category: 'compound' });
   // reaper is also unresolved + already inserted above.
 
+  // Atomic-axis fixture (so the atomic group renders — needed by the
+  // un-glossed-modifier suppression test).
+  insertFreestyleTrick(db, { slug: 'atom-smasher', canonical_name: 'atom smasher', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
+
   // ── Modifier links — enough to populate Movement System pilot groups ──
   insertFreestyleTrickModifierLink(db, 'torque',         'paradox',  1);
   insertFreestyleTrickModifierLink(db, 'paradox-torque', 'paradox',  1);
@@ -102,6 +110,7 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'paradox-whirl',  'paradox',  1);
   insertFreestyleTrickModifierLink(db, 'paradox-drifter','paradox',  1);
   insertFreestyleTrickModifierLink(db, 'spinning-whirl', 'spinning', 1);
+  insertFreestyleTrickModifierLink(db, 'atom-smasher',   'atomic',   1);
 
   db.close();
   createApp = await importApp();
@@ -220,15 +229,17 @@ describe('Slice M — paradox composition gloss (Movement System view)', () => {
     expect(slice).toMatch(/entry topology/);
   });
 
-  it('non-paradox modifier groups (pixie, spinning) DO NOT render a composition gloss', async () => {
+  it('un-glossed modifier groups DO NOT render a composition gloss row', async () => {
+    // Post Slice N: paradox + spinning + ducking + symposium + stepping +
+    // pixie are all curator-authored glosses. atomic is in the Movement
+    // System axis pilot but has NO gloss entry — its group is the
+    // canary verifying the gloss row suppresses cleanly when null.
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
-    // Locate spinning + verify no composition-gloss class within its slice.
-    const spinningStart = res.text.indexOf('id="movement-spinning"');
-    if (spinningStart > -1) {
-      const spinningEnd = res.text.indexOf('<section', spinningStart + 1);
-      const slice = spinningEnd > -1 ? res.text.substring(spinningStart, spinningEnd) : res.text.substring(spinningStart);
-      expect(slice).not.toContain('movement-group-composition-gloss');
-    }
+    const atomicStart = res.text.indexOf('id="movement-atomic"');
+    expect(atomicStart, 'atomic group should be present in the rendered view').toBeGreaterThan(-1);
+    const atomicEnd = res.text.indexOf('<section', atomicStart + 1);
+    const slice = atomicEnd > -1 ? res.text.substring(atomicStart, atomicEnd) : res.text.substring(atomicStart);
+    expect(slice).not.toContain('movement-group-composition-gloss');
   });
 });
 

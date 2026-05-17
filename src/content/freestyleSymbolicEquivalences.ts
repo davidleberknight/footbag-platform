@@ -425,6 +425,33 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['blurry ducking torque', 'stepping ducking paradox torque'],
     curatorConfirmPending: false,   // pt11-locked via Blurry-compression
   },
+  // ── Slice N (2026-05-16) — branch-family chain coverage ────────────────
+  // Closes high-confidence chain gaps in the blender + drifter branch
+  // families. Each entry's reading is grounded in a Red ruling or
+  // curator-prose statement that predates Slice N. Borderline/uncertain
+  // rows (mind-bender, spinal-tap, tombstone, etc.) explicitly held back
+  // for follow-up curator authoring. Folk-derived rows (tomahawk,
+  // witchdoctor, fury) carry the Slice M unresolved-pill instead.
+  {
+    slug:     'paradox-blender',
+    readings: ['paradox blender', 'paradox whirling op osis'],
+    curatorConfirmPending: false,   // tokenizes the canonical name; deeper reading extends blender's pt11-locked 'whirling osis'
+  },
+  {
+    slug:     'food-processor',
+    readings: ['blurry blender', 'stepping paradox blender'],
+    curatorConfirmPending: false,   // Red-locked: Food Processor = Stepping Paradox Blender (memory: project_freestyle_state RED rulings 2026-05-15)
+  },
+  {
+    slug:     'spender',
+    readings: ['spinning paradox blender'],
+    curatorConfirmPending: false,   // curator-prose-confirmed in FAMILY_TEXTS['blender']: "spender (Spinning Paradox Blender, 6 ADD)"
+  },
+  {
+    slug:     'paradox-drifter',
+    readings: ['paradox drifter', 'paradox miraging clipper'],
+    curatorConfirmPending: false,   // tokenizes the canonical name; deeper reading extends drifter's pt11-locked 'miraging clipper'
+  },
 ];
 
 /**
