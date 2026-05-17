@@ -20,7 +20,7 @@
  *      render WITHOUT the gloss.
  *
  *   4. Unresolved-compound pill — cards for curator-flagged folk-
- *      derived slugs (rev-up / tomahawk / reaper / surreal / montage /
+ *      derived slugs (rev-up / reaper / surreal / montage /
  *      surgery) render the "pending decomposition refinement" pill;
  *      other cards do not.
  *
@@ -252,8 +252,10 @@ describe('Slice M — unresolved-compound pill', () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     // For each unresolved slug seeded into the fixture, the rendered
-    // card must carry the pending-pill marker.
-    for (const slug of ['rev-up', 'tomahawk', 'reaper', 'surreal', 'montage', 'surgery']) {
+    // card must carry the pending-pill marker. Post Pre-Red sweep
+    // 2026-05-16: tomahawk removed from UNRESOLVED_COMPOUNDS (FM+PB
+    // agree on `ducking paradox whirl`); explicitly excluded here.
+    for (const slug of ['rev-up', 'reaper', 'surreal', 'montage', 'surgery']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card should render`).toBeGreaterThan(-1);
       // Look for the pending-pill class within a short window after the
@@ -265,8 +267,10 @@ describe('Slice M — unresolved-compound pill', () => {
 
   it('does NOT render the pill on non-flagged rows', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
-    // Sanity rows that should NOT carry the pill.
-    for (const slug of ['whirl', 'paradox-whirl', 'osis', 'torque', 'blender', 'drifter']) {
+    // Sanity rows that should NOT carry the pill. tomahawk explicitly
+    // included to verify the Pre-Red 2026-05-16 removal from
+    // UNRESOLVED_COMPOUNDS took effect.
+    for (const slug of ['whirl', 'paradox-whirl', 'osis', 'torque', 'blender', 'drifter', 'tomahawk']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card should render`).toBeGreaterThan(-1);
       // Window from this card's start up to the next card (cheaper than

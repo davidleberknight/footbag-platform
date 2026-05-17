@@ -120,6 +120,15 @@ describe('MODIFIER_COMPOSITION_GLOSSES (Slice M + Slice N curator content)', () 
     expect(resolveModifierCompositionGloss('pixie')).toMatch(/PIX \+ base/);
   });
 
+  it('paradox gloss carries the entry-shape line (Pre-Red sweep 2026-05-16)', () => {
+    // Per the Pre-Red completion sweep directive: "PDX → clip > op-in dex"
+    // must appear in the paradox gloss to reinforce paradox as an
+    // entry topology rather than a terminal family.
+    const gloss = resolveModifierCompositionGloss('paradox');
+    expect(gloss).not.toBeNull();
+    expect(gloss).toMatch(/Entry shape: clip > op-in dex/);
+  });
+
   it('returns null for modifiers without a gloss (restraint contract)', () => {
     // Pilot is deliberately small. The directive forbids autogeneration;
     // un-glossed modifiers stay un-rendered until curator authors them.

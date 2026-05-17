@@ -452,6 +452,52 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['paradox drifter', 'paradox miraging clipper'],
     curatorConfirmPending: false,   // tokenizes the canonical name; deeper reading extends drifter's pt11-locked 'miraging clipper'
   },
+  // ── Pre-Red Completion Sweep (2026-05-16) — externally-supported chains ──
+  // 7 chains grounded by Slice P cross-source audit: each entry has FM+PB
+  // agreement (or FM-only with curator-confirm-pending). All readings are
+  // structurally clean — they decompose through curator-known operators
+  // onto a canonical base trick. No Wave 2 dependencies; no Red-blocked
+  // doctrine. Per Slice P findings + RECONCILIATION_AUDIT_PLAN §6.
+  //
+  // Discipline: each entry is a known-external reading that does not
+  // contest any IFPA decomposition. Adding here does NOT promote external
+  // vocabulary; it expresses the chain reading IFPA already implies
+  // structurally and which FM+PB also encode.
+  {
+    slug:     'merkon',
+    readings: ['spinning legover'],
+    curatorConfirmPending: false,   // FM 'Spinning Legover' + PB 'Spinning Legover' agree (Slice P identical)
+  },
+  {
+    slug:     'magellan',
+    readings: ['pixie legover'],
+    curatorConfirmPending: false,   // FM 'Pixie Legover (same side)' + PB 'Pixie near Legover' agree on pixie+legover; near/same-side = +0 per Red 2026-05-15
+  },
+  {
+    slug:     'parkwalk',
+    readings: ['pixie butterfly'],
+    curatorConfirmPending: true,   // FM 'Pixie Butterfly (same side)' + PB 'Pixie near Butterfly' agree; parkwalk reads identically to dimwalk — curator verifies whether they are distinct rows or name variants
+  },
+  {
+    slug:     'pigbeater',
+    readings: ['pixie eggbeater'],
+    curatorConfirmPending: false,   // FM 'Pixie Eggbeater' + PB 'Pixie far Eggbeater' agree (far = +0 per Red 2026-05-15)
+  },
+  {
+    slug:     'mind-bender',
+    readings: ['ducking paradox blender'],
+    curatorConfirmPending: false,   // FM 'Ducking Paradox Blender' + PB 'Clipper Ducking far Blender' agree on ducking+paradox+blender (Clipper prefix = set-initiator; far = paradox per Red 2026-05-15)
+  },
+  {
+    slug:     'tomahawk',
+    readings: ['ducking paradox whirl'],
+    curatorConfirmPending: false,   // FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl' agree; row removed from UNRESOLVED_COMPOUNDS in this sweep
+  },
+  {
+    slug:     'witchdoctor',
+    readings: ['atomic symposium mirage'],
+    curatorConfirmPending: true,   // FM 'Atomic Symposium Mirage' only (PB silent); structurally clean but single-source — pill remains in UNRESOLVED_COMPOUNDS pending PB corroboration or Red ruling
+  },
 ];
 
 /**

@@ -12,9 +12,11 @@ import {
 
 describe('freestyleUnresolvedCompounds', () => {
   it('declares the curator-authored pilot set verbatim', () => {
+    // 2026-05-16 Pre-Red completion sweep removed 'tomahawk' from the
+    // allow-list after Slice P confirmed strong external consensus
+    // (FM + PB both decompose to ducking paradox whirl).
     const expected = new Set([
       'rev-up',
-      'tomahawk',
       'reaper',
       'surreal',
       'montage',
@@ -37,14 +39,18 @@ describe('freestyleUnresolvedCompounds', () => {
     expect(isUnresolvedCompound('drifter')).toBe(false);
     expect(isUnresolvedCompound('torque')).toBe(false);
     expect(isUnresolvedCompound('butterfly')).toBe(false);
+    // 2026-05-16 Pre-Red sweep: tomahawk removed from pilot list after
+    // external (FM + PB) consensus on ducking paradox whirl reading.
+    expect(isUnresolvedCompound('tomahawk')).toBe(false);
     expect(isUnresolvedCompound('nonexistent')).toBe(false);
     expect(isUnresolvedCompound('')).toBe(false);
   });
 
-  it('pilot size is exactly 8 (restraint contract)', () => {
+  it('pilot size is exactly 7 (restraint contract)', () => {
     // Per the slice directive: "DO NOT harden unresolved doctrine".
     // The pilot is small by design. A growing list should prompt a
-    // curator review, not silently scale.
-    expect(UNRESOLVED_COMPOUNDS.size).toBe(8);
+    // curator review, not silently scale. 2026-05-16 Pre-Red sweep
+    // dropped pilot from 8 → 7 by removing tomahawk.
+    expect(UNRESOLVED_COMPOUNDS.size).toBe(7);
   });
 });

@@ -120,6 +120,65 @@ describe('freestyleSymbolicEquivalences — CSR S2 + NR-1 entries are present', 
   });
 });
 
+describe('freestyleSymbolicEquivalences — Pre-Red completion sweep chain additions (2026-05-16)', () => {
+  // 7 externally-supported chain entries grounded by Slice P. Each
+  // reading is structurally clean (decomposes through known operators
+  // onto a canonical base trick) and carries no Wave 2 dependency.
+
+  it('merkon resolves to spinning legover (FM+PB agree)', () => {
+    const chain = getSymbolicEquivalenceChain('merkon');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['spinning legover']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('magellan resolves to pixie legover (FM+PB agree)', () => {
+    const chain = getSymbolicEquivalenceChain('magellan');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['pixie legover']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('parkwalk resolves to pixie butterfly (FM+PB agree); curatorConfirmPending=true', () => {
+    const chain = getSymbolicEquivalenceChain('parkwalk');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['pixie butterfly']);
+    // Same reading as dimwalk — curator-confirm-pending until parkwalk
+    // is verified distinct from dimwalk or recognized as an alias.
+    expect(chain?.curatorConfirmPending).toBe(true);
+  });
+
+  it('pigbeater resolves to pixie eggbeater (FM+PB agree)', () => {
+    const chain = getSymbolicEquivalenceChain('pigbeater');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['pixie eggbeater']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('mind-bender resolves to ducking paradox blender (FM+PB agree)', () => {
+    const chain = getSymbolicEquivalenceChain('mind-bender');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['ducking paradox blender']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('tomahawk resolves to ducking paradox whirl (FM+PB agree); also removed from UNRESOLVED_COMPOUNDS', () => {
+    const chain = getSymbolicEquivalenceChain('tomahawk');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['ducking paradox whirl']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('witchdoctor resolves to atomic symposium mirage (FM only — curatorConfirmPending=true)', () => {
+    const chain = getSymbolicEquivalenceChain('witchdoctor');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['atomic symposium mirage']);
+    // FM is the only source — pill stays in UNRESOLVED_COMPOUNDS;
+    // chain entry is provisional pending PB or Red corroboration.
+    expect(chain?.curatorConfirmPending).toBe(true);
+  });
+});
+
 describe('freestyleSymbolicEquivalences — Slice N branch-family chain additions', () => {
   it('paradox-blender resolves to a two-stop chain', () => {
     const chain = getSymbolicEquivalenceChain('paradox-blender');

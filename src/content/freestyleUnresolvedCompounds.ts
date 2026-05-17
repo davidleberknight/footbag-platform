@@ -39,9 +39,6 @@ export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   // Folk-named direction-variant whose canonical structural role is
   // unconfirmed (no op-notation; explicitly deferred from Slice J).
   'rev-up',
-  // Folk name; no op-notation; structural decomposition uncertain.
-  // Explicitly deferred from Slice J.
-  'tomahawk',
   // Folk-derived; no modifier links; the orphan after the
   // clipper-stall family retirement (Slice M).
   'reaper',
@@ -50,13 +47,22 @@ export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   'surreal',
   // Same hybrid pattern as surreal. Explicitly deferred from Slice J.
   'montage',
-  // Folk name; curator-flagged per Slice M directive.
+  // Folk name; curator-flagged per Slice M directive. Pre-Red sweep
+  // 2026-05-16 added an FM-only chain entry ('atomic symposium mirage')
+  // with curatorConfirmPending=true; pill remains because PB is silent
+  // and the row's structural identity is single-sourced.
   'witchdoctor',
   // Folk name; curator-flagged per Slice M directive.
   'fury',
   // Mechanically resembles rev-whirl/hatchet but no curator
   // confirmation yet (kept in rev-whirl family from Slice J).
   'surgery',
+  // 2026-05-16 Pre-Red completion sweep removed 'tomahawk' from this
+  // allow-list. Slice P confirmed strong external consensus:
+  // FM 'Ducking Paradox Whirl' + PB 'Clipper Ducking far Whirl' both
+  // decompose to ducking+paradox+whirl (far = paradox per Red 2026-05-15).
+  // The new chain reading is authored in freestyleSymbolicEquivalences.ts
+  // with curatorConfirmPending=false.
 ]);
 
 /**

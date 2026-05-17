@@ -122,6 +122,7 @@ export const MODIFIER_COMPOSITION_GLOSSES: ReadonlyMap<string, string> = new Map
   ['paradox',
     'PDX + base — the body crosses sides without changing the set foot. ' +
     'Reads as an entry topology, not a terminal family. ' +
+    'Entry shape: clip > op-in dex. ' +
     'Compounds: PDX + WHIRL, PDX + TORQUE, PDX + BLENDER.',
   ],
   // Slice N (2026-05-16) — 5 additional pilot glosses. Each line stays
