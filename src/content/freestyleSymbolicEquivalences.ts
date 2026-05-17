@@ -498,6 +498,37 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['atomic symposium mirage'],
     curatorConfirmPending: true,   // FM 'Atomic Symposium Mirage' only (PB silent); structurally clean but single-source — pill remains in UNRESOLVED_COMPOUNDS pending PB corroboration or Red ruling
   },
+  // ── Path A — Slice X follow-on (2026-05-17) ────────────────────────────
+  // 5 additional chain entries for existing IFPA rows lacking chains. All
+  // structurally clean (operators in IFPA registry; bases in IFPA core
+  // ontology; math verified). Multi-source cases use curatorConfirmPending=
+  // false; FM-only cases use curatorConfirmPending=true per the witchdoctor
+  // precedent.
+  {
+    slug:     'tombstone',
+    readings: ['stepping drifter'],
+    curatorConfirmPending: false,   // FM 'Stepping Drifter (same side)' + PB 'Stepping near Drifter' agree; math stepping(+1)+drifter(3)=4 matches DB asserted_adds
+  },
+  {
+    slug:     'paste',
+    readings: ['pixie pickup'],
+    curatorConfirmPending: false,   // FM 'Pixie Pickup' + PB 'Pixie far Pickup' agree; math pixie(+1)+pickup(2)=3 matches DB asserted_adds
+  },
+  {
+    slug:     'haze',
+    readings: ['stepping double-leg-over'],
+    curatorConfirmPending: true,   // FM 'Stepping Double Legover' only (PB silent); structurally clean; math stepping(+1)+DLO(3)=4 matches DB asserted_adds
+  },
+  {
+    slug:     'scrambled-eggbeater',
+    readings: ['atomic pickup'],
+    curatorConfirmPending: true,   // FM 'Atomic Pickup' only (PB silent); math atomic(+1 non-rotational)+pickup(2)=3 matches DB asserted_adds
+  },
+  {
+    slug:     'spinal-tap',
+    readings: ['tapping torque'],
+    curatorConfirmPending: true,   // FM 'Tapping Torque' only (PB silent); math tapping(+1)+torque(4)=5 matches DB asserted_adds
+  },
 ];
 
 /**

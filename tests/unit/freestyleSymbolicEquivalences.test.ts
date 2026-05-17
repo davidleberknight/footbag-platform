@@ -209,6 +209,47 @@ describe('freestyleSymbolicEquivalences — Slice N branch-family chain addition
   });
 });
 
+describe('freestyleSymbolicEquivalences — Path A chain additions (2026-05-17, Slice X follow-on)', () => {
+  // 5 additional chain entries for existing IFPA rows lacking chains.
+  // Multi-source-agreed entries use curatorConfirmPending=false; FM-only
+  // entries use curatorConfirmPending=true per the witchdoctor precedent.
+
+  it('tombstone resolves to stepping drifter (FM+PB agree)', () => {
+    const chain = getSymbolicEquivalenceChain('tombstone');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['stepping drifter']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('paste resolves to pixie pickup (FM+PB agree)', () => {
+    const chain = getSymbolicEquivalenceChain('paste');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['pixie pickup']);
+    expect(chain?.curatorConfirmPending).toBe(false);
+  });
+
+  it('haze resolves to stepping double-leg-over (FM only, curatorConfirmPending=true)', () => {
+    const chain = getSymbolicEquivalenceChain('haze');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['stepping double-leg-over']);
+    expect(chain?.curatorConfirmPending).toBe(true);
+  });
+
+  it('scrambled-eggbeater resolves to atomic pickup (FM only, curatorConfirmPending=true)', () => {
+    const chain = getSymbolicEquivalenceChain('scrambled-eggbeater');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['atomic pickup']);
+    expect(chain?.curatorConfirmPending).toBe(true);
+  });
+
+  it('spinal-tap resolves to tapping torque (FM only, curatorConfirmPending=true)', () => {
+    const chain = getSymbolicEquivalenceChain('spinal-tap');
+    expect(chain).not.toBeNull();
+    expect(chain?.readings).toEqual(['tapping torque']);
+    expect(chain?.curatorConfirmPending).toBe(true);
+  });
+});
+
 describe('freestyleSymbolicEquivalences — lookup behavior', () => {
   it('is case-insensitive and trims whitespace', () => {
     expect(getSymbolicEquivalenceChain('MOBIUS')?.slug).toBe('mobius');
