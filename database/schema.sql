@@ -3619,6 +3619,14 @@ CREATE TABLE net_team_appearance (
 CREATE INDEX idx_net_team_appearance_team  ON net_team_appearance(team_id);
 CREATE INDEX idx_net_team_appearance_event ON net_team_appearance(event_id);
 CREATE INDEX idx_net_team_appearance_year  ON net_team_appearance(event_year);
+-- Perf-only index for the net_team_appearance_canonical view filter and
+-- every downstream query that reads the canonical-only subset. Without
+-- this, SQLite rebuilds an automatic partial covering index on
+-- evidence_class for every call, and the /net home page's notable-pool
+-- + notable-player-pool aggregations dominate page render time (>11s
+-- in dev measurement 2026-05-17). No row semantics; pure read perf.
+CREATE INDEX IF NOT EXISTS idx_net_team_appearance_evidence_class
+  ON net_team_appearance(evidence_class);
 
 -- Defensive view: enforces evidence_class = 'canonical_only' at the DB layer.
 -- db.ts queries MUST use this view instead of net_team_appearance directly.
