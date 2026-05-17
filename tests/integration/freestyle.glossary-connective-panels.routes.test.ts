@@ -147,8 +147,12 @@ describe('GET /freestyle/glossary — connective panels section', () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     const hintCount = (res.text.match(/Notation hint/g) ?? []).length;
     expect(hintCount).toBe(6);
-    // Specific operator references
-    expect(res.text).toContain('(PDX)');
+    // Specific operator references. Paradox hint updated 2026-05-17
+    // (Formula Accountability Slice) to surface the canonical formula
+    // `PDX → CLIP > OP IN [DEX]` explicitly instead of the prior
+    // `(PDX) flag on a dex beat` framing.
+    expect(res.text).toContain('PDX');
+    expect(res.text).toMatch(/CLIP\s*&gt;\s*OP IN\s*\[DEX\]/);
     expect(res.text).toContain('(no plant while)');
     expect(res.text).toContain('Duck (BOD)');
     expect(res.text).toContain('(BOD)');

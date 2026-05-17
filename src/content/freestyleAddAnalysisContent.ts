@@ -51,6 +51,14 @@ export interface AddAnalysisWorkedExample {
   addLabel:     string;
   /** Pre-shaped components string. */
   components:   string;
+  /**
+   * Pre-shaped ADD derivation string. Formula Accountability Slice
+   * (2026-05-17): a single explicit additive line showing operator
+   * weights → total. Distinct from `components` (free-form attribution
+   * prose); derivation is the additive math, components is the structure.
+   * Example: 'stepping(+1) + paradox(+1) + whirl(3) = 5 ADD'.
+   */
+  derivation:   string;
   /** One-line "why" prose. */
   whyNote:      string;
 }
@@ -128,7 +136,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
   },
   {
     componentClass: 'Paradox / ducking / symposium / spinning / stepping',
-    contribution:   '+1 ADD per modifier on most non-rotational bases',
+    contribution:   '+1 ADD per modifier on most non-rotational bases. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex).',
     example:        'paradox + mirage (2) = 3 ADD',
   },
   {
@@ -179,6 +187,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'clipper',
     addLabel:   '1 ADD',
     components: 'clipper kick (1)',
+    derivation: 'clipper(1) = 1 ADD',
     whyNote:    'Foundational primitive. No modifier surface; no dexterity.',
   },
   {
@@ -186,6 +195,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'mirage',
     addLabel:   '2 ADD',
     components: 'mirage rotation (2)',
+    derivation: 'mirage(2) = 2 ADD',
     whyNote:    'One of the foundational rotational anchors. Compounds (paradox-mirage, atom-smasher) build on it.',
   },
   {
@@ -193,6 +203,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'whirl',
     addLabel:   '3 ADD',
     components: 'whirl rotation (3)',
+    derivation: 'whirl(3) = 3 ADD',
     whyNote:    'The family anchor for ~17 derivative compounds, from 4-ADD entries through compound flagships.',
   },
   {
@@ -200,6 +211,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'butterfly',
     addLabel:   '3 ADD',
     components: 'butterfly rotation (3)',
+    derivation: 'butterfly(3) = 3 ADD',
     whyNote:    'The 3-ADD anchor for the entire walking-family progression (dimwalk, ripwalk, sidewalk, bigwalk, parkwalk).',
   },
   {
@@ -207,6 +219,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'osis',
     addLabel:   '3 ADD',
     components: 'osis rotation (3)',
+    derivation: 'osis(3) = 3 ADD',
     whyNote:    'One of the most generative families. Two important branch compounds — Torque and Blender — are its 4-ADD derivatives, each spawning its own family.',
   },
   {
@@ -214,6 +227,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'torque',
     addLabel:   '4 ADD',
     components: 'miraging (+1) + osis (3)',
+    derivation: 'miraging(+1) + osis(3) = 4 ADD',
     whyNote:    'Settled by pt11 as the canonical reading of "miraging osis". Anchors its own branch family (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
   },
   {
@@ -221,6 +235,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'blurry-whirl',
     addLabel:   '5 ADD',
     components: 'stepping (+1) + paradox (+1) + whirl (3)',
+    derivation: 'stepping(+1) + paradox(+1) + whirl(3) = 5 ADD',
     whyNote:    'Settled by pt11 + Wave 1 2026-05-15: blurry transitively expands to stepping paradox. The compressed name "blurry whirl" and the expanded reading describe the same trick at different stopping depths. Both are correct.',
   },
   {
@@ -228,6 +243,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickSlug:  'mobius',
     addLabel:   '5 ADD',
     components: 'gyro torque (gyro +1 + torque 4) = 5  — or deep form spinning ss miraging osis (+1 +0 +1 +3) = 5',
+    derivation: 'gyro(+1) + torque(4) = 5 ADD   (deep form: spinning(+1) + ss(+0) + miraging(+1) + osis(3) = 5 ADD)',
     whyNote:    'Settled by pt11. The dictionary’s flagship multi-depth example. Two valid stopping depths reach the same total. Players say mobius; analysts can unfold to either depth.',
   },
 ];

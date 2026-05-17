@@ -888,22 +888,32 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
     expect(atwBlock).toMatch(/<p class="core-trick-notation">toe &gt; ss leggy in dex &gt; ss toe<\/p>/);
   });
 
-  it('landing Core Tricks renders without ≡ equivalence lines (foundational-atom feel)', async () => {
-    // B: the three legacy `≡ ATW`, `≡ outside-in mirage`, `≡ reverse
-    // around-the-world` lines are dropped from the landing's compact
-    // symbolic-object grid. Atoms read as `#slug` + ADD; nothing else.
+  it('landing Core Tricks renders editorial atom readings (Formula Accountability Slice 2026-05-17)', async () => {
+    // Formula Accountability Slice 2026-05-17: CORE_TRICK_SPEC equivalences
+    // now carry one short editorial reading per atom. The "foundational-atom
+    // silence" policy is replaced by neutral "core atom — <description>"
+    // readings so no card renders visually emptier than the compounds it
+    // decomposes to. The misleading aliases that prompted the original
+    // silence policy (ATW, outside-in mirage, reverse around-the-world)
+    // are NOT used as the new readings.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // No ≡ equivalence paragraphs in the core-tricks grid.
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
-    expect(slice).not.toMatch(/class="core-trick-equivalence"/);
-    // The retired alias strings must not surface anywhere on the page.
-    expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?ATW/);
-    expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?outside-in mirage/);
-    expect(res.text).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?reverse around-the-world/);
+    // Each of the 11 atoms now carries exactly one ≡ reading.
+    const equivMatches = slice.match(/class="core-trick-equivalence"/g) ?? [];
+    expect(equivMatches.length).toBe(11);
+    // Every reading starts with "core atom" — the neutral marker for
+    // doctrine-sensitive atoms whose bare-form notation is Wave-2 territory.
+    expect(slice).toMatch(/core atom — cross-body rotational dex/);
+    expect(slice).toMatch(/core atom — rotational dex/);
+    expect(slice).toMatch(/core atom — dex with full bag orbit/);
+    // The retired misleading aliases must still not surface anywhere.
+    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?ATW/);
+    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?outside-in mirage/);
+    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?reverse around-the-world/);
     // All 11 atoms still render as #slug tiles. Per
     // CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the foundational
     // "clipper" atom is anchored at slug `clipper-stall` with a

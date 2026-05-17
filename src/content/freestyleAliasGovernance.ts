@@ -61,9 +61,9 @@ export const ALIAS_GOVERNANCE_ENTRIES: readonly AliasGovernanceEntry[] = [
   {
     trickSlug:       'illusion',
     aliasText:       'outside-in mirage',
-    surfaceOnBrowse: true,
+    surfaceOnBrowse: false,
     displayAs:       null,
-    reason:          'Canonical compositional equivalence; teaches that illusion is structurally a directional mirage variant.',
+    reason:          'Formula Accountability Slice 2026-05-17: surfaceOnBrowse flipped to false. Maintainer review found the "outside-in mirage" reading misrepresents illusion (illusion is a dex with mid-flight rotation, not a directional mirage variant). Alias preserved as a folk record but suppressed from compact browse surfaces to avoid teaching a misleading decomposition. Re-enable only with explicit Wave-2 doctrine support.',
   },
   {
     trickSlug:       'legover',

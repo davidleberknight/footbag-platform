@@ -1390,6 +1390,114 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
   });
 });
 
+describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
+  // Implementations covering all five primary tasks:
+  //   1. Landing Core Tricks carry editorial atom readings (see portal test)
+  //   2. Dictionary cleanup — spyro filtered, illusion alias suppressed, ATW atom-labeled
+  //   3. ADD Analysis derivation lines
+  //   4. Paradox formula visibility — §3 + connective panel + ADD Analysis
+  //   5. Worlds 2023 Team Freestyle attribution
+
+  it('dictionary surface does NOT include spyro (Formula Accountability retire)', async () => {
+    // resolveTrickKind now classifies spyro as a modifier, so it's filtered
+    // out of every browse view regardless of which 1-ADD rows the test
+    // fixture happens to seed.
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).not.toMatch(/data-trick-slug="spyro"/);
+    expect(res.text).not.toContain('href="/freestyle/tricks/spyro"');
+  });
+
+  it('dictionary does NOT surface the "outside-in mirage" misleading reading anywhere', async () => {
+    // surfaceOnBrowse:false on the illusion alias-governance entry
+    // suppresses the misleading reading from compact browse cards.
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.text).not.toMatch(/outside-in mirage/);
+  });
+
+  it('foundational atom cards on the dictionary surface render a core-atom reading when no chain/notation present', async () => {
+    // mirage + butterfly are seeded with no chain registry entry and no
+    // operational_notation, so the coreAtomLabel fallback fires for both.
+    // around-the-world has an "ATW" surfaced alias via alias-governance,
+    // which preempts the core-atom fallback path — its formula slot
+    // already renders via the chain pathway. The shaping function only
+    // emits coreAtomLabel when neither chain nor op-notation is present.
+    const res = await request(createApp()).get('/freestyle/tricks');
+    for (const slug of ['mirage', 'butterfly']) {
+      const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
+      expect(idx, `${slug} card not found in dictionary`).toBeGreaterThan(0);
+      const cardEnd = res.text.indexOf('</article>', idx);
+      const card = res.text.slice(idx, cardEnd);
+      expect(card, `${slug} card missing core-atom reading`).toMatch(/core atom/);
+      expect(card).toContain('dict-card-equivalence--core-atom');
+    }
+  });
+
+  it('ADD Analysis worked examples render a Derivation line on every entry', async () => {
+    // Handlebars escapes `=` to `&#x3D;` by default, so regex patterns
+    // accept either form across the derivation strings.
+    const eq = '(?:=|&#x3D;)';
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.status).toBe(200);
+    const derivationMatches = res.text.match(/class="add-analysis-derivation-line"/g) ?? [];
+    expect(derivationMatches.length).toBe(8);  // 8 worked examples
+    // Spot-check the formulaic content (entity-tolerant).
+    expect(res.text).toMatch(new RegExp(`clipper\\(1\\)\\s*${eq}\\s*1 ADD`));
+    expect(res.text).toMatch(new RegExp(`mirage\\(2\\)\\s*${eq}\\s*2 ADD`));
+    expect(res.text).toMatch(new RegExp(`miraging\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
+    expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*paradox\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
+    expect(res.text).toMatch(new RegExp(`gyro\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
+  });
+
+  it('paradox term entry in glossary §3 surfaces the canonical formula visibly', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const paradoxIdx = res.text.indexOf('id="term-paradox"');
+    expect(paradoxIdx).toBeGreaterThan(0);
+    // Read forward to the close of the <dd>.
+    const ddEnd = res.text.indexOf('</dd>', paradoxIdx);
+    const block = res.text.slice(paradoxIdx, ddEnd);
+    expect(block).toContain('glossary-paradox-formula');
+    expect(block).toMatch(/PDX/);
+    expect(block).toMatch(/CLIP/);
+    expect(block).toMatch(/OP IN/);
+    expect(block).toMatch(/\[DEX\]/);
+  });
+
+  it('paradox connective panel notation hint carries the canonical formula', async () => {
+    const res = await request(createApp()).get('/freestyle/glossary');
+    const panelIdx = res.text.indexOf('id="glossary-panel-paradox"');
+    expect(panelIdx).toBeGreaterThan(0);
+    const nextPanelIdx = res.text.indexOf('id="glossary-panel-', panelIdx + 50);
+    const slice = res.text.slice(panelIdx, nextPanelIdx);
+    expect(slice).toMatch(/Canonical formula/);
+    expect(slice).toMatch(/PDX/);
+  });
+
+  it('ADD Analysis paradox component class surfaces the canonical formula', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/Paradox itself reads as PDX/);
+    expect(res.text).toMatch(/CLIP &gt; OP IN \[DEX\]/);
+  });
+
+  it('Worlds 2023 Team Freestyle featured caption carries Scott Davidson + Tuan Vu attribution', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const captionMatch = res.text.match(/<p class="featured-caption[^"]*">[^<]*<\/p>/g) ?? [];
+    const worldsCaption = captionMatch.find(c => /Scott Davidson|Tuan Vu/.test(c));
+    expect(worldsCaption, 'Worlds 2023 caption attribution missing').toBeDefined();
+    expect(worldsCaption).toMatch(/Scott Davidson/);
+    expect(worldsCaption).toMatch(/Tuan Vu/);
+  });
+
+  it('landing core-trick equivalences use NONE of the retired misleading aliases', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
+    const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
+    const slice = res.text.slice(gridStart, gridEnd);
+    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]{0,100}ATW/);
+    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]{0,100}outside-in mirage/);
+    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]{0,100}reverse around-the-world/);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // IA Realignment Batch 1 — landing + glossary stabilization
 
@@ -1606,18 +1714,21 @@ describe('Freestyle landing — Core Tricks section (C-2; compact symbolic objec
     }
   });
 
-  it('no core-trick card renders an ≡ equivalence line (Phase 2 / B foundational-atom feel)', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / B (2026-05-14): the three
-    // legacy `≡ ATW`, `≡ outside-in mirage`, `≡ reverse around-the-world`
-    // lines were dropped — synonym trivia, not symbolic content. Every
-    // atom on the landing reads as `#slug` + ADD; nothing else.
+  it('every core-trick card renders one editorial ≡ atom reading (Formula Accountability Slice 2026-05-17)', async () => {
+    // Formula Accountability Slice (2026-05-17): the prior silence policy
+    // ("foundational-atom feel" = no ≡ lines on landing atoms) was replaced
+    // by short editorial readings ("core atom — <description>") so atom
+    // cards stop rendering visually emptier than the compounds they decompose
+    // to. Misleading aliases (ATW / outside-in mirage / reverse around-the-world)
+    // are NOT used as the new readings — see the portal.routes test.
     const res = await request(createApp()).get('/freestyle');
     for (const slug of ['illusion', 'around-the-world', 'orbit', 'clipper-stall', 'whirl', 'butterfly']) {
       const idx = res.text.indexOf(`id="core-trick-${slug}"`);
       expect(idx).toBeGreaterThan(0);
       const nextCard = res.text.indexOf('class="core-trick-object"', idx + 50);
       const slice = nextCard > 0 ? res.text.slice(idx, nextCard) : res.text.slice(idx, idx + 600);
-      expect(slice).not.toContain('core-trick-equivalence');
+      expect(slice, `${slug} card missing editorial atom reading`).toContain('core-trick-equivalence');
+      expect(slice).toMatch(/core atom/);
     }
   });
 
@@ -1881,20 +1992,20 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
     expect(matches.length).toBe(11);
   });
 
-  it('no Core Tricks card carries an alias `.core-trick-equivalence` line on the landing surface', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / B (2026-05-14): the
-    // three legacy `≡ ATW` / `≡ outside-in mirage` / `≡ reverse around-the-
-    // world` lines were dropped. The landing's compact symbolic-object
-    // surface prioritizes symbolic language over synonym trivia.
+  it('Core Tricks cards carry editorial atom readings (Formula Accountability Slice 2026-05-17)', async () => {
+    // Formula Accountability Slice (2026-05-17): the prior "no equivalence
+    // line" policy was replaced by neutral "core atom — <description>"
+    // readings. Each of the 11 atom cards now renders exactly one
+    // .core-trick-equivalence line. The misleading legacy aliases
+    // (ATW / outside-in mirage / reverse around-the-world) are NOT used
+    // as the new readings.
     const res = await request(createApp()).get('/freestyle');
-    // Scope to the Core Tricks grid; the §3 glossary symbolic-compression
-    // flow also uses this class for its tokenized readings.
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
     const matches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(matches.length).toBe(0);
+    expect(matches.length).toBe(11);
   });
 
   it('orbit card carries the pending-state marker (QUATERNARY layer in pending state)', async () => {

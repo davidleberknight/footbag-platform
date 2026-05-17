@@ -21,10 +21,14 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
     expect(entry?.displayAs).toBe('ATW');
   });
 
-  it('lists illusion ≡ outside-in mirage (canonical compositional)', () => {
+  it('marks illusion ≡ outside-in mirage as suppressed (folk record only, Formula Accountability 2026-05-17)', () => {
     const entry = getAliasGovernanceEntry('illusion', 'outside-in mirage');
     expect(entry).not.toBeNull();
-    expect(entry?.surfaceOnBrowse).toBe(true);
+    // Flipped to surfaceOnBrowse:false 2026-05-17: maintainer review found
+    // "outside-in mirage" misrepresents illusion (illusion is a dex with
+    // mid-flight rotation, not a directional mirage variant). Alias kept
+    // as a folk record but suppressed from compact browse surfaces.
+    expect(entry?.surfaceOnBrowse).toBe(false);
   });
 
   it('marks legover ≡ leg-over as orthographic (NOT surface)', () => {
@@ -49,7 +53,11 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
 describe('freestyleAliasGovernance — lookup behavior', () => {
   it('is case-insensitive on both slug and alias text', () => {
     expect(getAliasGovernanceEntry('AROUND-THE-WORLD', 'ATW')?.surfaceOnBrowse).toBe(true);
-    expect(getAliasGovernanceEntry('  illusion  ', 'OUTSIDE-IN MIRAGE')?.surfaceOnBrowse).toBe(true);
+    // 2026-05-17 Formula Accountability Slice: illusion entry is now
+    // surfaceOnBrowse:false (the "outside-in mirage" reading misrepresents
+    // illusion). Lookup still resolves; surfacing flag is what changed.
+    expect(getAliasGovernanceEntry('  illusion  ', 'OUTSIDE-IN MIRAGE')).not.toBeNull();
+    expect(getAliasGovernanceEntry('  illusion  ', 'OUTSIDE-IN MIRAGE')?.surfaceOnBrowse).toBe(false);
   });
 
   it('returns null for unknown (slug, alias) pairs (restraint-first default)', () => {

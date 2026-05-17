@@ -74,6 +74,13 @@ const MODIFIER_SLUGS = new Set<string>([
   'terraging',
   // category='body' overrides:
   'spin',
+  // Formula Accountability Slice 2026-05-17: spyro is a folk synonym for
+  // a spinning-class body operator (see glossary §11 spyro→inspin mapping
+  // and the 2026-05-17 classification_drift_report). The DB row carries
+  // category='body' adds=1 but the trick is not a standalone scoring
+  // element — it's a rotational descriptor. Filtering it out of the
+  // public 1-ADD trick list. Preserved in glossary §11 as folk vocabulary.
+  'spyro',
 ]);
 
 // All 9 slugs with category='set' in freestyle_tricks as of 2026-05-16.

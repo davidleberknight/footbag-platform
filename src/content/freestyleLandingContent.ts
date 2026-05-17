@@ -115,18 +115,28 @@ export interface CoreTrickSpec {
 // (ADD 1, "Clipper Kick"). The displaySlug override preserves the
 // community-shorthand `#clipper` tag while the underlying slug + anchor
 // + click-through resolve to clipper-stall.
+// Formula Accountability Slice (2026-05-17): each foundational atom carries
+// a short observational reading drawn from the glossary §2/§3 entries.
+// Readings are editorially safe (no Wave-2 doctrine commitment, no
+// fabricated operational notation). Where the structural form is settled
+// per Red rulings, the reading reflects it; where the form remains under
+// discussion, a neutral "core atom" label appears so no foundational card
+// renders blank against the rich compound cards on the same surface.
+//
+// Per user 2026-05-17: "if any are doctrine-sensitive, show a neutral
+// 'core atom' reading instead of leaving blank."
 export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
-  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: [] },
-  { slug: 'mirage',           equivalences: [] },
-  { slug: 'legover',          equivalences: [] },
-  { slug: 'pickup',           equivalences: [] },
-  { slug: 'illusion',         equivalences: [] },
-  { slug: 'whirl',            equivalences: [] },
-  { slug: 'butterfly',        equivalences: [] },
-  { slug: 'swirl',            equivalences: [] },
-  { slug: 'osis',             equivalences: [] },
-  { slug: 'around-the-world', equivalences: [] },
-  { slug: 'orbit',            equivalences: [] },
+  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom — inside-shoe stall'] },
+  { slug: 'mirage',           equivalences: ['core atom — cross-body rotational dex'] },
+  { slug: 'legover',          equivalences: ['core atom — dex over the supporting leg'] },
+  { slug: 'pickup',           equivalences: ['core atom — dex catching from below'] },
+  { slug: 'illusion',         equivalences: ['core atom — dex with mid-flight rotation'] },
+  { slug: 'whirl',            equivalences: ['core atom — rotational dex'] },
+  { slug: 'butterfly',        equivalences: ['core atom — rotational dex on a different beat'] },
+  { slug: 'swirl',            equivalences: ['core atom — reverse-direction rotational dex'] },
+  { slug: 'osis',             equivalences: ['core atom — double-pass rotational dex'] },
+  { slug: 'around-the-world', equivalences: ['core atom — dex with full bag orbit'] },
+  { slug: 'orbit',            equivalences: ['core atom'] },
 ];
 
 // Note: the prior DEMONSTRATION_SLOTS scaffolding (five pre-named conceptual

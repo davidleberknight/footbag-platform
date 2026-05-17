@@ -1658,6 +1658,14 @@ export interface DictionaryTrickCard {
   // mechanically-ambiguous rows. Drives a small italic pill on the
   // card. Read from freestyleUnresolvedCompounds.ts; never auto-derived.
   pendingDecomposition:       boolean;
+  // Formula Accountability Slice (2026-05-17): editorial atom reading
+  // populated from CORE_TRICK_SPEC.equivalences[0] when the slug is in
+  // the curator-authoritative core-atom set AND no chain reading or
+  // op-notation exists. Provides a neutral "core atom — <description>"
+  // line so foundational atom cards don't render visually emptier than
+  // the compounds they decompose to. Empty string when no atom reading
+  // applies. The compact partial renders this only as a fallback.
+  coreAtomLabel:              string;
 }
 
 export interface FreestyleTricksCoverageSummary {
@@ -2449,6 +2457,20 @@ function shapeDictionaryTrickCard(
   // By ADD + By Category pass null (no anchor; registry density).
   const tokenizedEquivalences = shapeSemanticNotations(symbolicEquivalences, groupAnchor);
 
+  // Formula Accountability Slice (2026-05-17): atom reading fallback. When a
+  // row's slug matches a curator-authoritative core atom AND no chain or
+  // op-notation surfaces, fall back to the CORE_TRICK_SPEC editorial reading.
+  // Prevents foundational atom cards from rendering blank against the rich
+  // compound cards on the same view.
+  const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === indexRow.slug);
+  const coreAtomLabel =
+    coreAtomSpec
+    && coreAtomSpec.equivalences.length > 0
+    && tokenizedEquivalences.length === 0
+    && !operationalNotation
+      ? coreAtomSpec.equivalences[0]
+      : '';
+
   return {
     kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
@@ -2470,6 +2492,7 @@ function shapeDictionaryTrickCard(
     mediaCoverageLabel:         indexRow.mediaCoverageLabel,
     trickFamily:                indexRow.trickFamily,
     pendingDecomposition:       isUnresolvedCompound(indexRow.slug),
+    coreAtomLabel,
   };
 }
 
@@ -4903,7 +4926,7 @@ export const freestyleService = {
           {
             key:     'worlds-2023-team',
             title:   'World Footbag Championships 2023 — Team Freestyle Finals (1st Place)',
-            caption: 'Medellín, Colombia.',
+            caption: 'Scott Davidson and Tuan Vu. Medellín, Colombia.',
             media:   expandYouTubeVideo('xoDEvsbQDYk', 'Worlds 2023 Team Freestyle Finals — 1st Place'),
             tags:    shapeMediaTagsForBrowse(
                        ['#freestyle', '#worlds_2023', '#team'],
