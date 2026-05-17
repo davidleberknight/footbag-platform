@@ -8,11 +8,11 @@ import 'dotenv/config';
 /**
  * Image worker entry point.
  *
- * Standalone Express server that wraps the Sharp pipeline behind an HTTP
- * boundary. Phase 2 will package this as the `image` Docker container; in
- * Phase 1 it runs locally via `npm run dev:image`. Reads its own env vars
- * directly because it is a separate process from the web app and must not
- * require web-only config (FOOTBAG_DB_PATH, SESSION_SECRET, etc.).
+ * Standalone Express server that wraps the Sharp and ffmpeg pipelines behind
+ * an HTTP boundary. Runs as the `image` Docker container in production;
+ * locally via `npm run dev:image`. Reads its own env vars directly because
+ * it is a separate process from the web app and must not require web-only
+ * config (FOOTBAG_DB_PATH, SESSION_SECRET, etc.).
  */
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import { detectImageType, processAvatar, processPhoto, type ProcessedImage } from './lib/imageProcessing';
@@ -121,9 +121,9 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
   const semaphoreWaitMs =
     opts.semaphoreWaitMs ?? parseIntEnv('IMAGE_SEMAPHORE_WAIT_MS', 30000, 1, 600000);
   // Video gets its own semaphore: 60-120 s ffmpeg runs would starve sub-second
-  // Sharp work on a shared bound. Default 1 matches the service-side
-  // transcodeBound and is conservative for the 256 MB image-container memory
-  // cap on Lightsail nano_3_0.
+  // Sharp work on a shared bound. Default 1 is conservative for the image
+  // container's memory ceiling; raise IMAGE_VIDEO_MAX_CONCURRENT if the
+  // deployment target has headroom.
   const videoMaxConcurrent =
     opts.videoMaxConcurrent ?? parseIntEnv('IMAGE_VIDEO_MAX_CONCURRENT', 1, 1, 4);
   const videoSemaphoreWaitMs =
@@ -233,18 +233,18 @@ export function createImageWorkerApp(opts: ImageWorkerOptions = {}): express.Exp
     }
   }
 
-  // Memory-efficient transcode path used by the curator video finalize flow.
-  // The legacy /process/video route requires the caller (worker container) to
-  // hold the full source video buffer in its 96M cgroup, which OOMs on real
-  // uploads. This route shifts the bytes into the image container's 256M cgroup
-  // so only one container ever holds them.
+  // Memory-efficient transcode path: fetches source bytes via a presigned GET
+  // URL, runs ffmpeg, and writes the output via a presigned PUT URL. No AWS
+  // credentials live in this worker; it sees only opaque http(s) URLs
+  // (SEC-D02).
   //
-  // Caller (web container) presigns the source-key GET and the output-key PUT
-  // and hands the URLs over; the image worker holds no AWS credentials and
-  // sees only opaque http(s) URLs (SEC-D02). The legacy {sourceKey, outputKey}
-  // shape is structurally moot here because S3 path semantics never reach the
-  // worker (SEC-A17). `outputKey` may still be passed for the response echo
-  // (caller-side audit log convenience) but is otherwise unused.
+  // The /process/video route buffers the full source payload in the request
+  // body, which OOMs on real uploads under the 96 MB cgroup ceiling. This
+  // route streams from storage at transcode time so the bytes only ever land
+  // in the image container's 256 MB cgroup.
+  //
+  // `outputKey` is echoed in the response for audit-log correlation but is
+  // otherwise unused (SEC-A17: S3 path semantics never reach this worker).
   async function runVideoProcessFromStorage(
     req: Request,
     res: Response,

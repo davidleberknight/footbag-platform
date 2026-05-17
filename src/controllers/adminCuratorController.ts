@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import Busboy from 'busboy';
 import { logger } from '../config/logger';
-// `getMediaStorageAdapter` is imported here only for the two direct-storage
-// call sites (`generatePresignedPutUrl`, `exists`) used by the async
-// video-upload flow (DD §6.8). Service wiring goes through
-// `getDefaultCuratorMediaService` so the controller does not own
-// adapter selection. Wrapping the two raw-adapter sites in a service
-// method is a follow-up; see deferred remediation queue.
+// `getMediaStorageAdapter` is imported here for the two direct-storage call
+// sites (`generatePresignedPutUrl`, `exists`) used by the async video-upload
+// flow. Service wiring goes through `getDefaultCuratorMediaService` so the
+// controller does not own adapter selection for the main paths.
+// Current: two raw-adapter calls remain in the controller for the sign and
+//   finalize endpoints (presigned PUT URL generation and S3 existence check).
+// Target: wrap both in a curatorMediaService method so the controller touches
+//   no adapter directly.
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
@@ -72,15 +74,13 @@ const buildSvc = getDefaultCuratorMediaService;
 
 // Busboy enforces a single per-file ceiling on the multipart endpoint.
 // In S3-adapter mode the endpoint serves photos + URL-references only
-// (video upload uses the async sign + PUT + finalize flow per DD §6.8),
-// for which PHOTO_MAX_BYTES would suffice. In local-adapter mode the
-// endpoint also accepts video + poster as a sync multipart submit (the
-// /curated/-first dev authoring path per DD §1.13 + §28.14), so the cap
-// must accommodate VIDEO_MAX_BYTES. The service layer enforces the
-// per-type cap inside uploadPhoto / uploadVideo so the busboy ceiling
-// is just a back-stop. The same constant is used in both modes for
-// uniformity; oversized photos in S3 mode are rejected by the service
-// not by busboy.
+// (video upload uses the async sign + PUT + finalize flow), for which
+// PHOTO_MAX_BYTES would suffice. In local-adapter mode the endpoint also
+// accepts video + poster as a sync multipart submit (the /curated/-first
+// dev authoring path), so the cap must accommodate VIDEO_MAX_BYTES.
+// The service layer enforces per-type caps inside uploadPhoto / uploadVideo;
+// busboy is just a back-stop. The same constant is used in both modes for
+// uniformity; oversized photos in S3 mode are rejected by the service, not busboy.
 const PER_FILE_LIMIT = VIDEO_MAX_BYTES;
 
 interface FormValues {
@@ -108,12 +108,11 @@ function renderForm(
     savedFlag?: 'upload' | null;
   } = {},
 ): void {
-  // /curated/-first dev authoring vs direct-S3 staging+prod authoring is the
-  // dev/prod authoring split per DD §1.13 + §28.14. In S3 mode the form opts
-  // into the async sign + S3 PUT + finalize flow (DD §6.8) for video; in
-  // local mode the form omits the opt-in, video uploads submit as standard
-  // multipart, and the service writes the source bytes plus a sidecar to
-  // /curated/{category}/ so the upload survives DB and media-store wipes.
+  // In S3 mode the form opts into the async sign + S3 PUT + finalize flow
+  // for video (browser PUTs bytes directly to S3, bypassing nginx). In local
+  // mode video uploads submit as standard multipart and the service writes
+  // the source bytes plus a sidecar to /curated/{category}/ so the upload
+  // survives DB and media-store wipes.
   const asyncEnabled = config.mediaStorageAdapter === 's3';
   res.render('admin/curator/upload', {
     seo: { title: 'Upload Curated Media' },
@@ -151,7 +150,6 @@ function resolveCategoryFromForm(
 }
 
 export const adminCuratorController = {
-  /** GET /admin/curator/upload — render the upload form. */
   async getUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const svc = buildSvc();
@@ -254,9 +252,8 @@ export const adminCuratorController = {
         .trim()
         .split(/\s+/)
         .filter((t) => t.length > 0);
-      // External URL: empty string -> null; trimmed value -> service-side
-      // validation (DD §3.17). Validation lives in the service per the
-      // thin-controller rule.
+      // External URL: empty string -> null; trimmed value -> service-side validation.
+      // Validation lives in the service; the controller only normalises the empty-string sentinel.
       const externalUrlRaw = (fields.externalUrl ?? '').trim();
       const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
       const formValues: FormValues = {
@@ -297,9 +294,6 @@ export const adminCuratorController = {
       }
 
       if (mediaType === 'url_reference') {
-        // URL-reference upload writes a sidecar JSON file under
-        // /curated/{category}/. The seeder regenerates the platform DB
-        // from sidecars. No DB row written here.
         const videoUrl = (fields.videoUrl ?? '').trim();
         const videoPlatformRaw = (fields.videoPlatform ?? '').trim();
         const primarySlug = (fields.primarySlug ?? '').trim().toLowerCase();
@@ -361,11 +355,10 @@ export const adminCuratorController = {
       const sourceFilename = fileFilenames.mediaFile ?? '';
 
       // Photo + video: in local-adapter mode the upload writes to
-      // /curated/{category}/ as the source of truth (DD §1.13) plus the
-      // inline storage.put + media_items insert as the read-path UX
-      // optimization (line 575). In S3-adapter mode the upload writes
-      // direct to S3 + DB; no /curated/ involvement. Category is required
-      // in local mode (it picks the /curated/ subdir); ignored in S3 mode.
+      // /curated/{category}/ as the durable source of truth, plus an inline
+      // storage.put + media_items insert as a read-path cache. In S3-adapter
+      // mode the upload writes direct to S3 + DB; no /curated/ involvement.
+      // Category is required in local mode (picks the /curated/ subdir); ignored in S3 mode.
       const localCuratedMode = config.mediaStorageAdapter === 'local';
       let resolvedCategoryForBinary: string | undefined;
       if (localCuratedMode) {
@@ -467,7 +460,6 @@ export const adminCuratorController = {
     req.pipe(busboy);
   },
 
-  /** GET /admin/curator/media — paginated list with optional tag filter + sort. */
   getList(req: Request, res: Response, next: NextFunction): void {
     try {
       const pageRaw = parseInt(String(req.query.page ?? '1'), 10);
@@ -556,7 +548,6 @@ export const adminCuratorController = {
     }
   },
 
-  /** GET /admin/curator/media/:id/edit — render edit form for one media item. */
   async getEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const mediaId = req.params.id;
@@ -600,7 +591,6 @@ export const adminCuratorController = {
     }
   },
 
-  /** POST /admin/curator/media/:id/edit — apply caption + tags edit. */
   async postEdit(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const mediaId = req.params.id;

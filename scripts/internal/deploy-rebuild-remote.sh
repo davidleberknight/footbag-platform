@@ -527,13 +527,16 @@ fi
 
 systemctl status footbag.service --no-pager -l
 
-# CUTOVER-REMOVE: post-deploy dev-admin seed. Runs only when the workstation
-# passed a non-empty FOOTBAG_DEV_ADMIN_SEED_JSON via cat-pipe (set by
-# --seed-dev-admins; otherwise the var arrives empty and we skip). The env
-# var is transient: it is NOT written to /srv/footbag/env, so a future
-# restart cannot replay it. The seed script's own marker-based idempotency
-# makes a replay harmless even if the var were persisted, but transient is
-# cleaner.
+# CUTOVER-REMOVE: post-deploy dev-admin seed.
+# Current: runs only when the workstation passed a non-empty
+#   FOOTBAG_DEV_ADMIN_SEED_JSON via cat-pipe (set by --seed-dev-admins;
+#   otherwise the var arrives empty and we skip). Transient: NOT written to
+#   /srv/footbag/env, so a future restart cannot replay it. The seed script's
+#   own marker-based idempotency makes a replay harmless even if the var
+#   were persisted, but transient is cleaner.
+# Target: remove this block and the FOOTBAG_DEV_ADMIN_SEED_JSON pathway
+#   once the production first-admin SSM-token flow is the only bootstrap
+#   mechanism.
 #
 # Runs inside the web container via `node dist/dev-admin-shortcuts/seed.js`
 # (compiled at build time; no tsx in the runtime image). The container

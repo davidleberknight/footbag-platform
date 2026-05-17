@@ -552,13 +552,10 @@ function applyTags(mediaId: string, tags: string[], now: string): void {
   }
 }
 
-// Curator tag application: appends #curated to the user-supplied tags.
-// Caller has already passed userTags through validateTags (which rejects
-// #curated from input). This is the only path that adds #curated to a
-// media item. The tag is stored as freeform (is_standard=0); per US §1.1
-// only `#event_*` and `#club_*` use the standardized hashtag namespace.
-// Auto-application + input-rejection give #curated the protection it
-// needs without requiring a schema change.
+// Only path that writes #curated; stored as freeform (is_standard=0) because
+// the standardized hashtag namespace covers only #event_* and #club_*.
+// Input-side validateTags rejects #curated, so auto-application here is the
+// sole source of the tag.
 function applyTagsForCurator(mediaId: string, userTags: string[], now: string): void {
   const canonical = [...userTags, CURATED_TAG];
   applyTags(mediaId, canonical, now);

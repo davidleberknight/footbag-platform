@@ -53,10 +53,12 @@ services:
       context: ..
       dockerfile: docker/web/Dockerfile
       args:
-        # CUTOVER-REMOVE: dev-admin shortcuts subtree ships in the staging
-        # image (default 1 here), excluded from prod by overriding to 0. The
-        # Dockerfile's own ARG defaults to 0; this compose file's default
-        # keeps the staging build self-sufficient.
+        # CUTOVER-REMOVE: dev-admin shortcuts inclusion.
+        # Current: subtree included in staging images
+        #   (INCLUDE_DEV_ADMIN_SHORTCUTS=1 default here); prod overlay forces 0.
+        #   The Dockerfile ARG itself defaults to 0; this compose file's
+        #   default keeps staging builds self-sufficient.
+        # Target: remove this ARG entirely after production cutover.
         INCLUDE_DEV_ADMIN_SHORTCUTS: ${INCLUDE_DEV_ADMIN_SHORTCUTS:-1}
     expose:
       - "3000"

@@ -496,15 +496,16 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 // Single source-of-truth tier registry for the badge logic and the
-// trick-detail Reference Media split (Tutorials vs Demos). Phase 2a
-// consolidated the prior TUTORIAL_SOURCE_IDS / DEMO_SOURCE_IDS Sets here
-// so all source-id classification reads from one map; per-clip override
-// (sidecar `tier` field → DB) is deferred to Phase 2c.
+// trick-detail Reference Media split (Tutorials vs Demos). The prior
+// TUTORIAL_SOURCE_IDS / DEMO_SOURCE_IDS Sets were folded into this map so
+// all source-id classification reads from one place. Per-clip override
+// (sidecar `tier` field flowing into DB) is deferred until that override
+// path is wired end-to-end through curator ingest.
 //
 // Tier semantics:
 //   - TUTORIAL:      explicit teaching intent (technique cues, breakdown).
 //                    Drives "Tutorial available" badge and tutorialMedia bucket.
-//   - DEMONSTRATION: single-clip "what the trick looks like done well" —
+//   - DEMONSTRATION: single-clip "what the trick looks like done well",
 //                    no teaching intent. Drives "Demo only" badge.
 //   - RECORD:        competitive consecutive-completion clips. Surfaced via
 //                    /freestyle/records and the Passback Records table on
@@ -520,22 +521,20 @@ export const SOURCE_TIER: Record<string, MediaTier> = {
   footbag_foundations:   'TUTORIAL',
   everything_footbag:    'TUTORIAL',
 
-  // Mixed-character sources held at TUTORIAL pending Phase 2d per-clip
-  // review. Blanket reclass would lose real instructional clips; the
-  // proper fix needs the per-clip override path landing in Phase 2c.
+  // Mixed-character sources held at TUTORIAL until the per-clip override
+  // path lands. Blanket reclassification would drop real instructional
+  // clips inside these sources, so sidecar-level override is the right fix.
   anz_trikz:             'TUTORIAL',
   footbagspot_passback:  'TUTORIAL',
 
-  // Demonstration sources — single-trick showcase clips with no teaching
-  // intent. shred_global reclassified Phase 2b (was TUTORIAL): every
-  // entry is a single-trick demo by Paweł Ścierski / Will Digges /
-  // Mike Angeski et al. with the caption pattern
+  // Demonstration sources: single-trick showcase clips with no teaching
+  // intent. shred_global entries follow the caption pattern
   //   "Footbag Freestyle Trick: <name> (<add>add) by <player>".
   shred_global:          'DEMONSTRATION',
   footbag_finland:       'DEMONSTRATION',
   flipsider_footbag:     'DEMONSTRATION',
 
-  // Record-tier — never bucketed as Tutorial/Demo on trick-detail.
+  // Record-tier: never bucketed as Tutorial/Demo on trick-detail.
   passback_records:      'RECORD',
 };
 
@@ -2645,9 +2644,6 @@ function shapeModifierEntry(row: FreestyleTrickModifierRow): FreestyleModifierEn
     notes:               row.notes,
   };
 }
-
-// Editorial content (INSIGHTS_* and HISTORY_*) moved to
-// src/content/freestyleEditorial.ts; imported at the top of this file.
 
 // ---------------------------------------------------------------------------
 // UX3b1 editorial prose surface (2026-05-11)

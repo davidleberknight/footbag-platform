@@ -1,9 +1,8 @@
 /**
- * Unit tests for shapeOperationalNotationDisplay (O1b).
+ * Unit tests for shapeOperationalNotationDisplay.
  *
  * Pure-function tokenizer; no DB; no parser coupling. Validates token-role
- * classification per OPERATIONAL_NOTATION_GRAMMAR.md §2 and the warm-palette
- * cssRole mapping per RENDERING_SURFACE_PROPOSAL.md §3.
+ * classification and the warm-palette cssRole mapping.
  */
 import { describe, it, expect } from 'vitest';
 import { shapeOperationalNotationDisplay } from '../../src/services/operationalNotationRendering';

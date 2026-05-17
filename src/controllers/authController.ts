@@ -267,9 +267,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     );
     const cookieValue = await createSessionJwt(result.memberId, result.role, result.newPasswordVersion);
     issueSessionCookie(res, cookieValue, req);
-    // Redirect to the member's own profile, matching login + verify flows.
-    // Previously redirected to the generic /members landing page, which was
-    // inconsistent UX after a successful credential change.
+    // Redirect to the member's own profile to match the login and verify flows.
     res.redirect(303, `/members/${encodeURIComponent(result.slug)}`);
   } catch (err) {
     if (err instanceof ValidationError) {

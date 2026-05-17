@@ -66,7 +66,7 @@ export class GallerySidecarValidationError extends Error {
 
 // Mirrors `_load_named_gallery_sidecars` in `scripts/seed_fh_curator.py`
 // field-for-field. Cross-language drift here would silently corrupt the
-// seed — a sidecar accepted on one side must be loadable on the other.
+// seed: a sidecar accepted on one side must be loadable on the other.
 export function validateGallerySidecarData(data: GallerySidecarData): void {
   if (!data || typeof data !== 'object') {
     throw new GallerySidecarValidationError('sidecar must be a JSON object');

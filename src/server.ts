@@ -5,7 +5,11 @@ import { config } from './config/env';
 import { logger } from './config/logger';
 import { createApp } from './app';
 import { runExternalUrlBootScan } from './services/externalUrlBootScan';
-// CUTOVER-REMOVE: dev/staging boot banner and tier2 invariant repair. Delete this import and the initDevShortcuts() call at production cutover.
+// CUTOVER-REMOVE: dev/staging boot-time admin shortcuts.
+// Current: initDevShortcuts() prints the dev/staging boot banner and runs
+//   the Tier 2 invariant repair on every startup.
+// Target: remove this import and the initDevShortcuts() call below before
+//   production cutover.
 import { initDevShortcuts } from './dev-admin-shortcuts/runtime';
 
 const app = createApp();
@@ -70,7 +74,7 @@ let server: ReturnType<typeof app.listen>;
       env: config.nodeEnv,
       db: config.dbPath,
     });
-    initDevShortcuts(); // CUTOVER-REMOVE
+    initDevShortcuts(); // see deviation comment on the import above
     // Fire-and-forget; never blocks server start.
     void probeImageWorkerForDev();
   });

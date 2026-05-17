@@ -1,4 +1,5 @@
-// ---- QC-only (delete with pipeline-qc subsystem) ----
+// Current: QC-only page shaping; no public surface.
+// Target: delete with the pipeline-qc subsystem.
 import { personsQc, PersonsQcRow } from '../../db/db';
 import { runPersonsQcChecks, PersonQcIssue, PersonQcCategory, PersonQcSeverity } from './personsQcChecks';
 import { PageViewModel } from '../../types/page';
@@ -101,7 +102,6 @@ export const personsQcService = {
     const allIssues = runPersonsQcChecks(rows);
     const flaggedIds = new Set(allIssues.map(i => i.person_id));
 
-    // Apply filters
     let filtered = rows;
     if (filters.search) {
       const q = filters.search.toLowerCase();
@@ -112,14 +112,12 @@ export const personsQcService = {
       filtered = filtered.filter(r => r.source === srcFilter);
     }
 
-    // Pagination
     const page = Math.max(1, filters.page ?? 1);
     const totalItems = filtered.length;
     const totalPages = Math.ceil(totalItems / BROWSE_PAGE_SIZE);
     const offset = (page - 1) * BROWSE_PAGE_SIZE;
     const pageItems = filtered.slice(offset, offset + BROWSE_PAGE_SIZE);
 
-    // Source options
     const srcCounts = new Map<string, number>();
     for (const r of rows) {
       const key = r.source ?? '(none)';
@@ -168,14 +166,11 @@ export const personsQcService = {
     const rows = personsQc.listAll.all() as PersonsQcRow[];
     const allIssues = runPersonsQcChecks(rows);
 
-    // Compute unfiltered summary stats
     const countsByCategory = computeCategoryCounts(allIssues);
     const countsBySeverity = computeSeverityCounts(allIssues);
 
-    // Deduplicate: count unique person_ids with issues
     const flaggedPersonIds = new Set(allIssues.map(i => i.person_id));
 
-    // Apply filters
     let filtered = allIssues;
     if (filters.category) {
       filtered = filtered.filter(i => i.category === filters.category);
@@ -185,7 +180,8 @@ export const personsQcService = {
       filtered = filtered.filter(i => i.source === srcFilter);
     }
 
-    // Build filter options from all issues (not filtered)
+    // Filter options built from unfiltered allIssues so counts don't shift
+    // with active filter.
     const categoryOptions: FilterOption[] = [
       { value: '', label: `All (${allIssues.length})` },
       ...countsByCategory.map(c => ({ value: c.category, label: `${c.label} (${c.count})` })),
@@ -203,7 +199,6 @@ export const personsQcService = {
         .map(([src, cnt]) => ({ value: src, label: `${src} (${cnt})` })),
     ];
 
-    // Shape items for template
     const items: PersonsQcPageItem[] = filtered.map(i => ({
       person_id: i.person_id,
       person_name: i.person_name,

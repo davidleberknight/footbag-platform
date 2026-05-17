@@ -1,13 +1,9 @@
 {{!--
-  Trick hero block. UX3f-b (2026-05-11) consolidation: the family badge,
-  ADD chip, and record chip merge into a single metadata ribbon directly
-  below the h1. The previous standalone eyebrow + hero-stats div + family-
-  badge paragraph rendered as 3 separate rows; the ribbon collapses them
-  into one. The "compound" category chip is dropped (low-signal; conveyed
-  implicitly by the rest of the hero). Decomposition strip (UX3d-a),
-  formula (UX3c-c), and summary continue to render in their established
-  positions below the ribbon. Sparse pages without a heroDecomposition
-  fall back to the records-side sortname subtitle for identity continuity.
+  Trick hero block. Renders a metadata ribbon (family badge, ADD chip,
+  record chip) in a single row directly below the h1. Below the ribbon:
+  decomposition strip, formula, and summary in that order. Sparse pages
+  without a heroDecomposition fall back to the records-side sortname
+  subtitle for identity continuity.
 --}}
 <div class="hero hero-sm{{#if summary}} trick-hero-ux2{{/if}}">
   <div>

@@ -1,7 +1,7 @@
 /**
  * Integration tests for GET /freestyle/progression/walking-family.
  *
- * Per UX-SHIP-1 Phase 5 (Task C). Verifies:
+ * Verifies:
  *   - Route registered and returns 200
  *   - All 7 hand-authored steps render in fixed order
  *   - Per-step content: step number / canonical name / ADD / modifier / rationale

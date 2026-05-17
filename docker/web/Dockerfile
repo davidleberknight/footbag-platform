@@ -39,10 +39,11 @@ RUN npm ci --omit=dev
 # Copy compiled JS from builder stage
 COPY --from=builder /app/dist ./dist
 
-# CUTOVER-REMOVE: dev-admin shortcuts subtree, kept out of the runtime
-# image unless the build explicitly opts in (staging only). Production
-# builds default to excluded so `node dist/dev-admin-shortcuts/...` is
-# unreachable inside the prod container.
+# CUTOVER-REMOVE: dev-admin shortcuts inclusion.
+# Current: subtree kept out of the runtime image unless the build explicitly
+#   opts in (staging only); production builds default to excluded so
+#   `node dist/dev-admin-shortcuts/...` is unreachable inside the prod container.
+# Target: remove this ARG and the subtree entirely after production cutover.
 ARG INCLUDE_DEV_ADMIN_SHORTCUTS=0
 RUN if [ "$INCLUDE_DEV_ADMIN_SHORTCUTS" != "1" ]; then \
       rm -rf dist/dev-admin-shortcuts; \

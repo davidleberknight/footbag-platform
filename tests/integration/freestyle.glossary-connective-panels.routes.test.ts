@@ -1,5 +1,5 @@
 /**
- * Integration tests for the glossary connective panels (UX-SHIP-1 Phase 7).
+ * Integration tests for the glossary connective panels.
  *
  * Verifies that GET /freestyle/glossary renders 6 observational panels for
  * paradox / symposium / ducking / spinning / whirl / pixie. Each panel

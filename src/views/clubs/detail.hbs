@@ -110,9 +110,12 @@
     {{/if}}
 
     {{!-- TEMP-DEVIATION: full classification diagnostic (curator view).
-          Auth-gated; below members. Always expanded per design decision —
-          full rule table + human-labeled inputs visible at once. Remove
-          with A_Review_Club_Cleanup_Signals admin queue. --}}
+          Current: qcPanel diagnostic rendered inline on every club detail
+            page for authenticated users (auth-gated, below members,
+            always expanded so the full rule table and human-labeled
+            inputs are visible at once).
+          Target: remove this section when the A_Review_Club_Cleanup_Signals
+            admin queue replaces inline diagnostic rendering. --}}
     {{#if isAuthenticated}}
     {{#if content.club.qcPanel}}
     <section class="club-qc-panel club-qc-panel--{{content.club.qcPanel.category}}" aria-label="Classification analysis (curator view)">

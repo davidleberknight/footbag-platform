@@ -7,9 +7,8 @@
  *
  * Scope: prove the gate is mounted, fires before the controller's
  * owner check, and matches the hasTier1Benefits truth table end-to-end.
- * The predicate's semantic correctness is exhaustively covered by
- * tests/integration/tierPredicates.service.test.ts (Phase 1) and the
- * middleware decision logic by tests/unit/requireTier.test.ts (Phase 2).
+ * Semantic correctness of the predicate and middleware decision logic
+ * are covered by dedicated unit and service-level test suites.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';

@@ -3,8 +3,7 @@
  * claimLegacyAccount (three-table claim flow: members + legacy_members +
  * historical_persons; claim marks the legacy row, never deletes).
  *
- * Exercises the new methods directly without going through HTTP; controllers
- * are swapped to these in a later batch.
+ * Exercises the service methods directly without going through HTTP.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';

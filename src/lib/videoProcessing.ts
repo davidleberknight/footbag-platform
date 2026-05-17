@@ -6,11 +6,6 @@
  * from the essential signal so embedded malware cannot survive. Only the
  * system member account uploads video bytes; member upload controllers
  * reject `video_platform='s3'` to enforce this restriction at the boundary.
- *
- * Used by the curator content seed and (future) the admin act-as upload
- * path. The mirror program (`legacy_data/create_mirror_footbag_org.py`)
- * uses parallel settings via Python subprocess; the canonical option set
- * lives here.
  */
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -48,7 +43,6 @@ export interface VideoTranscodeTuning {
  */
 export function detectVideoFormat(data: Buffer): CuratorVideoFormat | null {
   if (data.length < 12) return null;
-  // mp4: bytes 4..8 are 'ftyp', bytes 8..12 contain the brand.
   if (data.subarray(MP4_MAGIC_OFFSET, MP4_MAGIC_OFFSET + 4).equals(MP4_BRAND_FTYP)) {
     const brand = data.subarray(8, 12);
     if (brand.equals(MOV_BRAND_QT)) return 'mov';

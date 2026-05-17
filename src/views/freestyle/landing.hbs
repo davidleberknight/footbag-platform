@@ -10,19 +10,17 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! ── Top reference jump (Slice K — 2026-05-16): compact top-of-page
-      shortcuts to the two core reference surfaces. Sits before the
-      in-page section jump-nav so visitors can immediately reach the
-      Trick Dictionary or Glossary without scrolling the landing. }}
+  {{! ── Top reference jump: compact shortcuts to the two core reference
+      surfaces. Sits before the in-page section jump-nav so visitors can
+      reach the Trick Dictionary or Glossary without scrolling the landing. }}
   <nav class="freestyle-top-reference-jump" aria-label="Reference shortcuts">
     <a class="freestyle-top-reference-link" href="/freestyle/tricks">Trick Dictionary &rarr;</a>
     <a class="freestyle-top-reference-link" href="/freestyle/glossary">Glossary &rarr;</a>
   </nav>
 
-  {{! ── Under-hero jump nav (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / K) ──
-      Compact in-page nav that breaks the linear essay scroll. Anchors point
-      at the four primary landing sections; non-sticky by design. The
-      previous "Where next" entry was retired in Slice K (2026-05-16). }}
+  {{! ── Under-hero jump nav: compact in-page nav that breaks the linear
+      essay scroll. Anchors point at the four primary landing sections;
+      non-sticky by design. }}
   <nav class="page-jump-nav" aria-label="On this page">
     <a href="#basic-components">Basic Components</a>
     <a href="#core-tricks">Core Tricks</a>
@@ -49,8 +47,7 @@
   </section>
 
   {{! ── Basic Components — Contact / Set / Dex / Spin / Duck / Delay ─────────
-      Compressed in Phase 1 / A: section-sub line dropped; descriptions trimmed
-      to ≤10 words. Heading + the six cards carry the teaching. }}
+      Heading + the six cards carry the teaching; no prose paragraph. }}
   <section class="content-section freestyle-basic-components" id="basic-components">
     <h3 class="freestyle-section-eyebrow">Basic Components</h3>
     <div class="freestyle-basic-components-grid">
@@ -71,10 +68,10 @@
     </div>
   </section>
 
-  {{! ── Core Tricks — compact symbolic objects ─────────────────────────────── }}
-  {{! Eleven irreducible base tricks. Each card renders as a symbolic object:
-      #slug + zero-or-more ≡ readings + optional symbolic notation + ADD.
-      See FREESTYLE_IA_REALIGNMENT_PLAN.md PART H-pre for the rendering rule. }}
+  {{! ── Core Tricks — compact symbolic objects ─────────────────────────────
+      Each card: #slug + zero-or-more ≡ readings + optional symbolic notation
+      + ADD. Rendering rule: slug links to /freestyle/tricks/{slug}; ≡ readings
+      are equivalence aliases from freestyleSymbolicEquivalences.ts. }}
   <section class="content-section freestyle-core-tricks" id="core-tricks">
     <h3 class="freestyle-section-eyebrow">Core Tricks</h3>
     <p class="freestyle-section-sub">The irreducible base tricks. Most named tricks descend from one of these.</p>
@@ -82,10 +79,10 @@
     <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
   </section>
 
-  {{! ── Featured — merged Competition Formats + Demonstrations strip ─────────
-      Phase 1 / C: one compact grid; format names (Routine / Circle / Sick 3
-      / Shred 30) preserved as card titles (cultural + navigational anchors);
-      curated demonstrations carry hashtag chips. No prose paragraphs. }}
+  {{! ── Featured — merged Competition Formats + Demonstrations strip ──────
+      One compact grid; format names (Routine / Circle / Sick 3 / Shred 30)
+      preserved as card titles (cultural + navigational anchors); curated
+      demonstrations carry hashtag chips. No prose paragraphs. }}
   {{#if content.featured.length}}
   <section class="content-section freestyle-featured" id="featured">
     <h2>Featured</h2>
@@ -107,11 +104,6 @@
   {{! ── Operator board — Tier-1 vocabulary primer ─────────────────────────── }}
   {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
   <p class="operator-board-footer-link"><a href="/freestyle/sets">Full set notation reference &rarr;</a></p>
-
-  {{! "Where to go next" / Educational Pathways orientation block retired in
-      Slice K (2026-05-16). The two reference shortcuts now live in the
-      top-of-page nav (.freestyle-top-reference-jump); the portal cards
-      below carry the rest of the navigation. }}
 
   {{! ── Portal cards (intent-ordered: learn → reference → records → competition → context → analysis) ── }}
   <section class="content-section">

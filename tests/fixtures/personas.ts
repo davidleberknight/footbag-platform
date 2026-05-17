@@ -23,10 +23,6 @@ import {
   type MemberOverrides,
 } from './factories';
 
-// Shared timestamp + system actor constants used by the direct-SQL inserts
-// below. Kept in lockstep with tests/fixtures/factories.ts; the moment
-// dedicated factories for club_leaders / event_organizers land, switch
-// these call sites to use them.
 const TS = '2025-01-01T00:00:00.000Z';
 const SYS = 'system';
 

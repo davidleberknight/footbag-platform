@@ -46,7 +46,6 @@ function parseFrontmatter(raw: string): { fm: Record<string, string>; body: stri
   return { fm, body: match[2]! };
 }
 
-/** Split a markdown body on top-level `# ` headings. Each segment becomes one rule page. */
 function splitByH1(body: string): { headingText: string; segment: string }[] {
   const lines = body.split(/\r?\n/);
   const segments: { headingText: string; segment: string }[] = [];
@@ -64,7 +63,6 @@ function splitByH1(body: string): { headingText: string; segment: string }[] {
   return segments;
 }
 
-/** Extract H2 headings (rendered to id="..." anchors) from a marked-rendered HTML fragment. */
 function extractHeadings(html: string): { id: string; text: string }[] {
   const headings: { id: string; text: string }[] = [];
   const re = /<h2[^>]*id="([^"]+)"[^>]*>([^<]+)<\/h2>/g;
@@ -77,7 +75,8 @@ function extractHeadings(html: string): { id: string; text: string }[] {
 
 let cache: Map<string, ParsedRulePage> | null = null;
 
-/** Add id="..." attributes to h1-h6 tags. Library-version-agnostic post-process. */
+// marked does not guarantee id attributes on headings across versions, so they
+// are injected here in a library-version-agnostic post-process.
 function addAnchorIds(html: string): string {
   return html.replace(
     /<(h[1-6])>([\s\S]*?)<\/\1>/g,
@@ -168,7 +167,6 @@ export function listGroupedByDiscipline(): RuleDisciplineGroup[] {
     });
 }
 
-/** Test-only: clear the in-memory cache so subsequent calls re-read disk. */
 export function _resetRulesCache(): void {
   cache = null;
 }

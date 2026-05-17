@@ -91,7 +91,6 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-// Reset legacy-claim state between tests.
 beforeEach(() => {
   const db = new BetterSqlite3(dbPath);
   db.prepare('UPDATE legacy_members SET claimed_by_member_id = NULL, claimed_at = NULL WHERE legacy_member_id = ?').run(LEGACY_ID);
@@ -171,7 +170,7 @@ describe('claimLegacyAccount — two-actor race', () => {
     db.close();
   });
 
-  // Clear B's claim alongside A's (the outer beforeEach only touches A).
+  // Outer beforeEach resets A only; B also needs clearing between iterations.
   beforeEach(() => {
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET legacy_member_id = NULL, historical_person_id = NULL WHERE id = ?').run(MEMBER_B_ID);
@@ -179,12 +178,9 @@ describe('claimLegacyAccount — two-actor race', () => {
   });
 
   it('deterministic: B\'s confirm POST after A wins leaves B unchanged + still-claimed legacy row intact', async () => {
-    // Sequential variant of the race below. Pins the deterministic invariant
-    // that even when actor A has already won, actor B's confirm POST is a
-    // no-op on B's member row and the legacy row's claimed_by_member_id
-    // stays at A. The earlier `it('throws when legacy already claimed → ...')`
-    // covered this for the old direct-lookup API; this is its replacement
-    // for the new two-step token API.
+    // Sequential variant. Pins that when actor A has already won, actor B's
+    // confirm POST is a no-op: B's member row is unchanged and the legacy
+    // row's claimed_by_member_id remains A's.
     clearOutboxFor(MEMBER_ID);
     clearOutboxFor(MEMBER_B_ID);
     resetRateLimitForTests();

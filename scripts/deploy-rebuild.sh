@@ -178,7 +178,7 @@ sqlite3 "$LOCAL_DB" \
 # ships a DB picks up the latest sidecars — covers the --skip-local-data path
 # where deploy-local-data.sh's seed call did not run, and is a redundant but
 # harmless no-op for paths where it already ran (run_pipeline.sh csv_only or
-# reset-local-db.sh). This is the 79-vs-37 fix.
+# reset-local-db.sh).
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   echo "==> Running curator seed (sidecars → media_items)..."
   _venv="${REPO_ROOT}/scripts/.venv"
@@ -233,12 +233,14 @@ echo "==> Building Docker images locally (workstation)..."
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
 #
-# CUTOVER-REMOVE: dev-admin-shortcuts inclusion. Dev/staging images bake
-# `dist/dev-admin-shortcuts/` so the seed script is runnable in-container.
-# Production images must exclude it so the seed script cannot be invoked
-# even by an operator who manually execs into the container. The
-# Dockerfile ARG defaults to 0; the base compose default of 1 is overridden
-# here when building for production.
+# CUTOVER-REMOVE: dev-admin-shortcuts inclusion.
+# Current: dev/staging images bake `dist/dev-admin-shortcuts/` so the seed
+#   script is runnable in-container; production images set
+#   INCLUDE_DEV_ADMIN_SHORTCUTS=0 (overriding the base compose default of 1)
+#   so the seed script cannot be invoked even by an operator who manually
+#   execs into the container.
+# Target: remove this override and the underlying ARG when the
+#   dev-admin-shortcuts subsystem is retired entirely.
 if [[ "$FOOTBAG_ENV" == "production" ]]; then
   export INCLUDE_DEV_ADMIN_SHORTCUTS=0
 fi
@@ -290,11 +292,12 @@ else
     | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" docker load'
 fi
 
-# CUTOVER-REMOVE: parse .local/initial-admins.txt -> CSV for
-# FOOTBAG_DEV_INITIAL_ADMIN_EMAILS env var. Same parsing rules as
-# src/dev-admin-shortcuts/runtime.ts. Mirrors scripts/deploy-code.sh.
-# Dev + staging only; the remote-half refuses to write the value on
-# production hosts.
+# CUTOVER-REMOVE: parse .local/initial-admins.txt into
+# FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV env var.
+# Current: dev/staging bootstrap reads this allowlist; remote-half refuses
+#   to write the value on production hosts. Same parsing rules as
+#   src/dev-admin-shortcuts/runtime.ts.
+# Target: remove when the allowlist bootstrap mechanism is retired.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
 if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
@@ -307,10 +310,12 @@ if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
   ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
 fi
 
-# CUTOVER-REMOVE: parse .local/staging-admin-seed.json -> compact JSON
-# for FOOTBAG_DEV_ADMIN_SEED_JSON env var. Only when SEED_DEV_ADMINS=yes
-# (set by the orchestrator from --seed-dev-admins). Mirrors
-# deploy-code.sh. JSONC tolerance: strip `//` line comments before jq.
+# CUTOVER-REMOVE: parse .local/staging-admin-seed.json into compact
+# FOOTBAG_DEV_ADMIN_SEED_JSON env var.
+# Current: parsed only when SEED_DEV_ADMINS=yes (set by the orchestrator
+#   from --seed-dev-admins); env var is not persisted to /srv/footbag/env.
+#   JSONC tolerance: strip `//` line comments before jq.
+# Target: remove when dev-admin seeding is retired.
 DEV_ADMIN_SEED_JSON=""
 LOCAL_SEED_FILE="$REPO_ROOT/.local/staging-admin-seed.json"
 if [[ "${SEED_DEV_ADMINS:-no}" == "yes" && -f "$LOCAL_SEED_FILE" ]]; then

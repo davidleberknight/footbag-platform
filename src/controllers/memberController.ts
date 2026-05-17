@@ -76,7 +76,6 @@ export const memberController = {
       return;
     }
 
-    // Not own profile: try public HoF/BAP view.
     try {
       const publicVm = memberService.getPublicProfile(memberKey);
       if (publicVm) {
@@ -90,7 +89,6 @@ export const memberController = {
       return;
     }
 
-    // Not HoF/BAP: require auth, then 404.
     if (!req.isAuthenticated) {
       res.redirect(302, `/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
       return;

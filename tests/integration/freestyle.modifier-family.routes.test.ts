@@ -1,7 +1,7 @@
 /**
  * Integration tests for GET /freestyle/modifier/:slug.
  *
- * Per UX-SHIP-1 Phase 6 (Task D), pilot scope: spinning only.
+ * Pilot scope: spinning modifier only (paradox / ducking remain 404).
  * Verifies:
  *   - /freestyle/modifier/spinning returns 200 with the teaching page
  *   - /freestyle/modifier/paradox returns 404 (not shipped this phase)

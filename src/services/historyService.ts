@@ -111,12 +111,10 @@ export const historyService = {
 
     const memberHref = personHref(linkedRow?.slug ?? null, null);
 
-    // Linked member: redirect to their profile.
     if (memberHref) {
       return { action: 'redirect', href: memberHref };
     }
 
-    // Non-public-honor person: require authentication.
     const isPublicHonor = player.hofMember || player.bapMember;
     if (!isPublicHonor && !isAuthenticated) {
       return { action: 'requireAuth' };
@@ -147,7 +145,6 @@ export const historyService = {
       isHistoricalOnly: true,
     };
 
-    // Career stats by discipline category
     const CATEGORY_LABELS: Record<string, string> = {
       freestyle: 'Freestyle', net: 'Net', golf: 'Golf', sideline: 'Sideline',
     };
@@ -164,7 +161,6 @@ export const historyService = {
         podiums:     r.podiums,
       }));
 
-    // Top partnerships
     const partnerRows = runSqliteRead('listTopPartnersByPersonId', () =>
       publicPlayers.listTopPartnersByPersonId.all(personId),
     ) as PlayerPartnerRow[];

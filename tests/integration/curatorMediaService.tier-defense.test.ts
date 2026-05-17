@@ -2,7 +2,7 @@
  * Defense-in-depth (DD §2020) verification for curatorMediaService.
  *
  * The route layer applies requireTier1Benefits middleware on the four
- * member-write POST routes (Phase 3). The service layer adds the same
+ * member-write POST routes. The service layer adds the same
  * predicate at every member-write entry point, so a programmatic call
  * that bypasses the route gate (admin curator route, future caller,
  * unit test that directly invokes the service) still cannot mutate

@@ -24,10 +24,9 @@ describe('freestyleAliasGovernance — allow-list entries', () => {
   it('marks illusion ≡ outside-in mirage as suppressed (folk record only, Formula Accountability 2026-05-17)', () => {
     const entry = getAliasGovernanceEntry('illusion', 'outside-in mirage');
     expect(entry).not.toBeNull();
-    // Flipped to surfaceOnBrowse:false 2026-05-17: maintainer review found
     // "outside-in mirage" misrepresents illusion (illusion is a dex with
-    // mid-flight rotation, not a directional mirage variant). Alias kept
-    // as a folk record but suppressed from compact browse surfaces.
+    // mid-flight rotation, not a directional mirage variant); kept as a folk
+    // record but suppressed from compact browse surfaces.
     expect(entry?.surfaceOnBrowse).toBe(false);
   });
 

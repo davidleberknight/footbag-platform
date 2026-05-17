@@ -328,9 +328,9 @@ describe('GET /freestyle — onboarding + portal landing', () => {
   });
 
   it('shows the merged Featured strip with all four format names + curated demonstrations', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C: Competition Formats +
-    // Demonstrations sections merged into one compact `Featured` strip.
-    // Format names preserved as card titles (cultural + navigational anchors).
+    // Competition Formats + Demonstrations sections merged into one compact
+    // `Featured` strip. Format names preserved as card titles (cultural +
+    // navigational anchors).
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('>Featured<');
@@ -510,8 +510,8 @@ describe('GET /freestyle — onboarding + portal landing', () => {
 
   // ── Operator board (OP-BOARD-1, 2026-05-13) ────────────────────────────
   it('renders the operator-board heading and (compressed) lede', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: landing lede compressed
-    // to one short sentence. The "Fourteen primitives" framing is preserved.
+    // Landing lede compressed to one short sentence. The "Fourteen primitives"
+    // framing is preserved.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('The operators of freestyle');
@@ -520,9 +520,8 @@ describe('GET /freestyle — onboarding + portal landing', () => {
   });
 
   it('renders all three operator-tier sections in order with eyebrows but no tier-intro lines', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: tier-intro paragraph
-    // dropped (eyebrow + title carry the tier identity). The intro field
-    // remains in the data contract but is no longer rendered.
+    // Tier-intro paragraph dropped (eyebrow + title carry the tier identity).
+    // The intro field remains in the data contract but is no longer rendered.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const idxSet    = res.text.indexOf('Set operators');
@@ -698,9 +697,9 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
   });
 
   it('F2 — Atomic/Quantum/Fairy actions describe dex-direction sets, not rotational character', async () => {
-    // After SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D, the card hierarchy
-    // reorders to glyph → name → example → action → deeplink, and actions
-    // compress to ≤8 words. The F2 intent (no false rotation claims) holds.
+    // Card hierarchy is glyph → name → example → action → deeplink; actions
+    // compress to ≤8 words. F2 intent: no false rotation claims in operator
+    // descriptions.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     // Per-card slice helper — grabs the markup between an operator's glyph and the next card.
@@ -725,8 +724,8 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
   });
 
   it('F3 — curated demonstrations (Conlon 1998 + San Marino 2026) render in the merged Featured strip', async () => {
-    // Post-SURFACE-COMPRESSION Phase 1 / C: demonstrations live inside the
-    // merged Featured strip with stable `featured-{key}` anchor ids.
+    // Demonstrations live inside the merged Featured strip with stable
+    // `featured-{key}` anchor ids.
     // Post-Slice-K (2026-05-16): San Marino caption now leads with the
     // Jim Penske credit; "Footage by jay7bah" remains in the same line.
     const app = createApp();
@@ -767,7 +766,7 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
   });
 });
 
-// ── SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 + under-hero jump nav (2026-05-14) ──
+// ── Landing compression + under-hero jump nav invariants ─────────────────────
 describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants', () => {
   it('renders the under-hero jump nav with four anchors', async () => {
     // Slice K (2026-05-16): the fifth anchor "#where-next" was retired
@@ -862,7 +861,7 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants',
   });
 });
 
-// ── Phase 2: symbolic strengthening ────────────────────────────────────
+// ── Symbolic strengthening: core-tricks alias drop ──────────────────────────
 describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alias drop (B)', () => {
   it('landing Core Tricks renders the new atom-layer operational notation in the core-trick-notation slot', async () => {
     // OP-NOTATION-WAVE-1A Bridge 1 (2026-05-15): foundational atoms now

@@ -136,12 +136,15 @@ echo "==> Building Docker images locally (workstation)..."
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
 #
-# CUTOVER-REMOVE: dev-admin-shortcuts inclusion. Dev/staging images bake
-# `dist/dev-admin-shortcuts/` so the seed script is runnable in-container.
-# Production images must exclude it so the seed script cannot be invoked
-# even by an operator who manually execs into the container. The
-# Dockerfile ARG defaults to 0; the base compose default of 1 is
-# overridden here when building for production. Mirrors the same gate in
+# CUTOVER-REMOVE: dev-admin-shortcuts inclusion.
+# Current: dev/staging images bake `dist/dev-admin-shortcuts/` so the seed
+#   script is runnable in-container; production images set the Dockerfile
+#   ARG INCLUDE_DEV_ADMIN_SHORTCUTS=0 (overriding the base compose default
+#   of 1) so the seed script cannot be invoked even by an operator who
+#   manually execs into the container.
+# Target: remove this override and the underlying ARG when the
+#   dev-admin-shortcuts subsystem is retired entirely.
+# Mirrors the same gate in
 # deploy-rebuild.sh.
 if [[ "$FOOTBAG_ENV" == "production" ]]; then
   export INCLUDE_DEV_ADMIN_SHORTCUTS=0
@@ -209,13 +212,15 @@ fi
 # root. Argv on every hop stays free of secrets. Layer DiffIDs are
 # space-separated sha256:[0-9a-f]{64} tokens and contain no shell metacharacters.
 
-# CUTOVER-REMOVE: parse .local/initial-admins.txt -> CSV for
-# FOOTBAG_DEV_INITIAL_ADMIN_EMAILS env var. Same parsing rules as
-# src/dev-admin-shortcuts/runtime.ts: strip '#' comments, trim, lowercase,
-# skip blank lines. Empty/missing file produces an empty value, which
-# clears the env var on staging so a stale list cannot persist after the
-# operator empties the file. The remote-half refuses to write the value
-# on production hosts; only dev + staging use this allowlist mechanism.
+# CUTOVER-REMOVE: parse .local/initial-admins.txt into the
+# FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV env var.
+# Current: dev/staging bootstrap reads this allowlist; the remote half
+#   refuses to write it on production. Same parsing rules as
+#   src/dev-admin-shortcuts/runtime.ts: strip '#' comments, trim, lowercase,
+#   skip blank lines. Empty/missing file produces an empty value, which
+#   clears the env var on staging so a stale list cannot persist after the
+#   operator empties the file.
+# Target: remove when the allowlist bootstrap mechanism is retired.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"
 if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
@@ -228,15 +233,15 @@ if [[ -f "$LOCAL_ADMIN_FILE" ]]; then
   ' "$LOCAL_ADMIN_FILE" | paste -sd, -)
 fi
 
-# CUTOVER-REMOVE: parse .local/staging-admin-seed.json -> compact JSON
-# for the FOOTBAG_DEV_ADMIN_SEED_JSON env var. Only when
-# SEED_DEV_ADMINS=yes (set by the orchestrator from the
-# --seed-dev-admins flag). The seed runs transiently inside the web
-# container post-deploy; the env var is NOT persisted to
-# /srv/footbag/env, so a stale value cannot re-seed on future restarts.
-# Empty/missing file produces an empty value which the remote half
-# treats as a no-op skip. JSONC tolerance: strip `//` line comments
-# before jq.
+# CUTOVER-REMOVE: parse .local/staging-admin-seed.json into compact
+# FOOTBAG_DEV_ADMIN_SEED_JSON env var.
+# Current: parsed only when SEED_DEV_ADMINS=yes (set by the orchestrator
+#   from the --seed-dev-admins flag). The seed runs transiently inside the
+#   web container post-deploy; the env var is NOT persisted to
+#   /srv/footbag/env, so a stale value cannot re-seed on future restarts.
+#   Empty/missing file produces an empty value which the remote half treats
+#   as a no-op skip. JSONC tolerance: strip `//` line comments before jq.
+# Target: remove when dev-admin seeding is retired.
 DEV_ADMIN_SEED_JSON=""
 LOCAL_SEED_FILE="$REPO_ROOT/.local/staging-admin-seed.json"
 if [[ "${SEED_DEV_ADMINS:-no}" == "yes" && -f "$LOCAL_SEED_FILE" ]]; then
@@ -260,7 +265,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   cat "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -S -p "" bash'
 
-# ── Step 4: Smoke check ───────────────────────────────────────────────────────
+# ── Step 5: Smoke check ───────────────────────────────────────────────────────
 # Smoke runs against the public CloudFront URL by default, not the direct
 # Lightsail origin. The origin is fenced by X-Origin-Verify (returns 444 to
 # anything not coming through CloudFront), so direct-IP smoke would always

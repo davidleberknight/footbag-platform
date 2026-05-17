@@ -42,6 +42,8 @@ export interface ExpandVideoOptions {
   videoTitle?: string;
 }
 
+// constructURL is required when video_platform is 's3'; omitting it throws.
+// YouTube and Vimeo URLs are derived from video_id directly and need no callback.
 export function expandVideoFromMediaItem(
   row: VideoSourceRow,
   options: ExpandVideoOptions = {},

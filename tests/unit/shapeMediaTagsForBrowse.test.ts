@@ -1,5 +1,5 @@
 /**
- * Unit tests for shapeMediaTagsForBrowse (LANDING-AND-TRICKS-QA-REALIGNMENT-1 F7).
+ * Unit tests for shapeMediaTagsForBrowse.
  *
  * The helper turns raw `#`-prefixed tag strings into ordered, classified
  * MediaTagDisplay chips for the visible hashtag layer on curated freestyle

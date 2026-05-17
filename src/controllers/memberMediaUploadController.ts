@@ -182,9 +182,8 @@ export const memberMediaUploadController = {
       const captionRaw = (fields.caption ?? '').trim();
       const caption = captionRaw.length === 0 ? null : captionRaw;
       const tags = parseTagsField(fields.tags);
-      // External URL: empty string -> null; trimmed value -> service-side
-      // validation (DD §3.17). Validation lives in the service per the
-      // thin-controller rule.
+      // External URL: empty string -> null; trimmed value -> service-side validation.
+      // Validation lives in the service; the controller only normalises the empty-string sentinel.
       const externalUrlRaw = (fields.externalUrl ?? '').trim();
       const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
 

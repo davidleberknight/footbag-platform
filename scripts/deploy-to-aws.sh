@@ -82,7 +82,7 @@ ALWAYS-ON
 Code + docker images ship every deploy. `npm test` runs every deploy. The
 post-deploy smoke check runs every deploy. The curator seed step
 (seed_fh_curator.py against /curated/**/*.meta.json sidecars) runs
-unconditionally before any DB ships to staging — this is the 79-vs-37 fix.
+unconditionally before any DB ships to staging.
 
 ENV OVERRIDES
 ─────────────────────────────────────────────────────────────────────
@@ -128,7 +128,12 @@ NO_S3_WIPE_FLAG="no"
 DRY_RUN="no"
 FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
-SEED_DEV_ADMINS="no"  # --seed-dev-admins: post-deploy dev-admin seed (CUTOVER-REMOVE)
+# CUTOVER-REMOVE: --seed-dev-admins flag.
+# Current: post-deploy seeds maintainer admin accounts into dev/staging only;
+#   not part of the production path.
+# Target: remove this flag and the seed pathway once the production
+#   first-admin SSM-token flow is the only bootstrap mechanism.
+SEED_DEV_ADMINS="no"
 
 # Expand combined short flags (e.g. -ryW → -r -y -W) so the case below can
 # handle each independently.
@@ -368,7 +373,6 @@ check_canonical_freshness() {
   fi
 }
 
-# Warn if canonical CSVs trail pipeline code (informational only).
 if [[ "$REBUILD_LOCAL" == "yes" ]]; then
   check_canonical_freshness
 fi
@@ -376,7 +380,6 @@ fi
 # -----------------------------------------------------------------------------
 # Thread the resolved choices to leaf scripts as env vars.
 # -----------------------------------------------------------------------------
-# CURATOR_SEED defaults to yes; honor the env override (CURATOR_SEED=no).
 export CURATOR_SEED="${CURATOR_SEED:-yes}"
 
 # CUTOVER-REMOVE: SEED_DEV_ADMINS, explicit opt-in; defaults to no. The

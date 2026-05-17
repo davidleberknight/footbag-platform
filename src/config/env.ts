@@ -62,10 +62,10 @@ export interface AppConfig {
   imageMaxConcurrent: number;
   imagePort: number;
   imageProcessTimeoutMs: number;
-  // Video transcode HTTP boundary. Defaults to imageProcessorUrl: today the
-  // same `image` worker container hosts both Sharp and ffmpeg. Separate config
-  // keys leave a future split (own video container, own DNS name) as a
-  // one-line operator change.
+  // Video transcode HTTP boundary. Defaults to imageProcessorUrl because the
+  // same worker container hosts both Sharp and ffmpeg. Separate config keys
+  // allow a future split to a dedicated video container with a single
+  // operator change.
   videoProcessorUrl: string;
   videoTranscodeTimeoutMs: number;
   mediaStorageAdapter: 's3' | 'local';
@@ -105,42 +105,41 @@ export interface AppConfig {
   // browser sends a heartbeat event at this interval to keep nginx and
   // CloudFront from idle-killing the connection during long transcodes.
   sseHeartbeatSeconds: number;
-  // CUTOVER-REMOVE: path to the operator-supplied initial-admin email list.
-  // Each member who registers with an email listed here gets `is_admin=1`
-  // set on their newly-inserted row plus a
-  // `grant_admin_dev_register_allowlist` audit row.
-  // Default: `.local/initial-admins.txt` (gitignored). Production reads of
-  // this file are refused at the helper level regardless of this value.
+  // CUTOVER-REMOVE: operator-supplied initial-admin email list.
+  // Current: each registering member whose email appears here gets is_admin=1
+  //   plus a grant_admin_dev_register_allowlist audit row. Default is
+  //   .local/initial-admins.txt (gitignored); production reads refused at
+  //   the helper level regardless of this value.
+  // Target: remove after the production first-admin bootstrap is complete.
   initialAdminFile: string;
   // Value for Express's `trust proxy` setting. Number, boolean, or
   // comma-separated subnet/IP list — anything Express's setting accepts.
   // Default: 2 in production (CloudFront + nginx), 0 elsewhere.
   trustProxy: number | boolean | string;
-  // CUTOVER-REMOVE: dev-only. When true, admin members can complete a
-  // legacy account claim via the unified link-history wizard's manual-id
-  // input WITHOUT the mailbox-control email roundtrip. Strictly additive;
-  // disabled by default. Boot-time guard refuses to start in non-development
-  // environments. Used for dev testing of the legacy claim flow when the
-  // operator's admin email isn't seeded as a `legacy_email` in the dev
-  // fixture set. Production admins use `manualLegacyClaimRecovery` instead.
+  // CUTOVER-REMOVE: dev-only legacy-claim email bypass.
+  // Current: when true, admin members complete a legacy account claim via the
+  //   unified link-history wizard's manual-id input without the mailbox-control
+  //   email roundtrip. Strictly additive, disabled by default. Boot-time guard
+  //   refuses non-development start. Exists because dev fixture sets may lack
+  //   legacy_email matches for the operator's admin account.
+  // Target: remove after production cutover confirms the email roundtrip is
+  //   reliable; production admins recover via manualLegacyClaimRecovery.
   devAdminSkipClaimEmail: boolean;
-  // CUTOVER-REMOVE: dev-only. When true, the boot orchestrator
-  // (src/dev-admin-shortcuts/runtime.ts) ensures every member with
-  // is_admin=1 has a current Tier 2 ledger row, inserting a
-  // `dev_admin_invariant_repair` grant when the ledger lags. The
-  // admin-as-Tier-2 invariant is a platform requirement; in dev workstations
-  // without the legacy data dump or full seed flow, admins may be flagged
-  // is_admin=1 without the matching Tier 2 grant. Boot-time guard refuses
-  // to start in any non-development environment. Default off; opt-in only.
+  // CUTOVER-REMOVE: dev-only Tier 2 backfill for admin members.
+  // Current: when true, the boot orchestrator ensures every is_admin=1 member
+  //   has a current Tier 2 ledger row, inserting a dev_admin_invariant_repair
+  //   grant when the ledger lags. Repairs the admin-as-Tier-2 invariant on
+  //   dev workstations without the legacy dump or full seed flow. Boot-time
+  //   guard refuses non-development start. Default off, opt-in only.
+  // Target: remove once the dev seed flow reliably provisions Tier 2 for
+  //   admin accounts.
   devAdminGrantTier2: boolean;
-  // CUTOVER-REMOVE: dev-only. When set, src/middleware/auth.ts treats the
-  // request as autologin-attempted: the cookie path is skipped entirely
-  // so a stale cookie cannot silently authenticate as a different member
-  // than the configured autologin. Empty-string and unset both surface as
-  // `undefined`. The actual autologin work happens inside
-  // src/dev-admin-shortcuts/runtime.ts (which has its own env reads under
-  // the dev-admin-shortcuts/ allowlist). Boot-time guard above refuses to
-  // start in non-development environments.
+  // CUTOVER-REMOVE: dev-only autologin member id.
+  // Current: when set, auth middleware skips the cookie path entirely so a
+  //   stale cookie cannot silently authenticate as a different member than
+  //   the configured autologin. Empty-string and unset both surface as
+  //   undefined. Boot-time guard refuses non-development start.
+  // Target: remove after production cutover makes dev autologin unnecessary.
   devAutologinMemberId: string | undefined;
 }
 
@@ -253,11 +252,11 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // CUTOVER-REMOVE: boot-time guard for the dev autologin bypass in
-  // src/middleware/auth.ts. The middleware also gates on FOOTBAG_ENV at
-  // every request, but a process that boots with this env var set in a
-  // non-development environment is mis-configured and must fail fast
-  // rather than start serving traffic.
+  // CUTOVER-REMOVE: fail-fast guard for the dev autologin bypass.
+  // Current: a process with FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID set outside
+  //   development is mis-configured and must not start. Per-request gate in
+  //   auth middleware is a second layer, not a substitute.
+  // Target: remove with the autologin feature at production cutover.
   if (process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID && footbagEnv !== 'development') {
     throw new Error(
       `FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is dev-only; set FOOTBAG_ENV=development or unset the var (got FOOTBAG_ENV=${footbagEnv ?? '<unset>'})`,
@@ -267,12 +266,11 @@ function loadConfig(): AppConfig {
   const devAutologinMemberId =
     process.env.FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID || undefined;
 
-  // CUTOVER-REMOVE: companion var to FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID;
-  // consumed by src/dev-admin-shortcuts/runtime.ts:applyDevAutologin to
-  // refuse autologin unless the member's password_version matches.
-  // Dev-only; same fail-fast posture as the member-id guard so a
-  // misconfigured prod/staging process cannot boot with the value present
-  // and silently rely on the per-request gate alone.
+  // CUTOVER-REMOVE: fail-fast guard for the autologin password_version check.
+  // Current: companion var to FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID; refuses
+  //   non-development boot so a misconfigured staging or prod process cannot
+  //   rely on the per-request gate alone.
+  // Target: remove with the autologin feature at production cutover.
   if (
     process.env.FOOTBAG_DEV_AUTOLOGIN_PASSWORD_VERSION &&
     footbagEnv !== 'development'
@@ -282,9 +280,9 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // CUTOVER-REMOVE: parse FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL. Same shape
-  // as the autologin guard above: dev-only, fail-fast in non-development
-  // environments.
+  // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL.
+  // Current: dev-only, same posture as the autologin guards above.
+  // Target: remove when the skip-claim-email bypass is decommissioned.
   const rawDevAdminSkip = process.env.FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL;
   let devAdminSkipClaimEmail: boolean;
   if (rawDevAdminSkip === undefined || rawDevAdminSkip === '') {
@@ -304,9 +302,9 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // CUTOVER-REMOVE: parse FOOTBAG_DEV_ADMIN_GRANT_TIER2. Same shape as
-  // the two dev-only guards above: dev-only, fail-fast in non-development
-  // environments.
+  // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_ADMIN_GRANT_TIER2.
+  // Current: dev-only, same posture as the autologin guards above.
+  // Target: remove when the dev Tier 2 auto-grant is decommissioned.
   const rawDevAdminTier2 = process.env.FOOTBAG_DEV_ADMIN_GRANT_TIER2;
   let devAdminGrantTier2: boolean;
   if (rawDevAdminTier2 === undefined || rawDevAdminTier2 === '') {
@@ -326,13 +324,13 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // CUTOVER-REMOVE: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is the dev/staging
-  // admin-allowlist shortcut owned by src/dev-admin-shortcuts/runtime.ts.
-  // Production first-admin uses a separate single-shot SSM-token claim path;
-  // any production process that sees this var set is misconfigured and must
-  // refuse to start. Deploy pipeline also refuses to write the value into
-  // /srv/footbag/env on a production host; this is the second line of
-  // defense.
+  // CUTOVER-REMOVE: fail-fast guard for FOOTBAG_DEV_INITIAL_ADMIN_EMAILS.
+  // Current: dev/staging-only admin-allowlist shortcut. Any production process
+  //   seeing this var is mis-configured and must refuse to start. The deploy
+  //   pipeline also refuses to write the value into /srv/footbag/env on a
+  //   production host (second line of defense). Production first-admin uses
+  //   the separate single-shot SSM-token claim path.
+  // Target: remove after the production first-admin bootstrap is complete.
   const rawDevInitialAdminEmails = process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS;
   if (
     rawDevInitialAdminEmails &&

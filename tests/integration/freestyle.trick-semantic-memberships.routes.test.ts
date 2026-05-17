@@ -1,6 +1,5 @@
 /**
- * Integration tests for UX-SHIP-1 Phase 5 — reverse semantic linkage on
- * trick-detail pages.
+ * Integration tests for reverse semantic linkage on trick-detail pages.
  *
  * Verifies:
  *   - Trick-detail pages surface topology + component memberships when present

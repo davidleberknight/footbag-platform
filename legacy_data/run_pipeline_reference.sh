@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ----------------------------------------------------------------------------
-# WARNING: HISTORICAL V0 BASELINE — NOT THE ACTIVE PIPELINE.
+# WARNING: HISTORICAL V0 BASELINE; NOT THE ACTIVE PIPELINE.
 # This script is preserved verbatim from the V0 era. Identity lock is pinned
 # to Persons_Truth_Final.csv. The active pipeline is run_pipeline.sh
 # (which uses a newer identity lock and adds enrichment phases C–F/G/H/V/NET).

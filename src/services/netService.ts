@@ -346,7 +346,6 @@ function groupAppearancesByYear(
     group.push(a);
     map.set(a.eventYear, group);
   }
-  // Sort years descending
   const years = [...map.keys()].sort((a, b) => b - a);
   return years.map(year => ({ year, appearances: map.get(year)! }));
 }

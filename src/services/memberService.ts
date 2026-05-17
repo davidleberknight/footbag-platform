@@ -278,7 +278,6 @@ function rowToContent(row: MemberProfileRow): OwnProfileContent {
 }
 
 function fetchEventGroups(row: MemberProfileRow): PlayerEventGroup[] {
-  // Try direct member_id link first, then legacy_member_id chain.
   let resultRows = runSqliteRead('listResultsByMemberId', () =>
     account.listResultsByMemberId.all(row.id),
   ) as MemberResultRow[];
@@ -288,7 +287,8 @@ function fetchEventGroups(row: MemberProfileRow): PlayerEventGroup[] {
     resultRows = runSqliteRead('listResultsByLegacyMemberId', () =>
       account.listResultsByLegacyMemberId.all(row.legacy_member_id),
     ) as MemberResultRow[];
-    // Look up the linked historical person by legacy_member_id for self-filtering.
+    // Resolve the linked historical person so groupPlayerResults can suppress
+    // this member from appearing as their own partner in results rows.
     const linked = runSqliteRead('findLinkedPersonByLegacyId', () =>
       publicPlayers.findLinkedPersonByLegacyId.get(row.legacy_member_id),
     ) as { person_id: string } | undefined;

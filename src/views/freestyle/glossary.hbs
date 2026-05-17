@@ -1,4 +1,4 @@
-{{! /freestyle/glossary — movement-language primer + traditional reference (v5 scaffold, Batch 1) }}
+{{! /freestyle/glossary — movement-language primer + traditional reference }}
 
 <div class="hero hero-sm">
   <div>
@@ -409,11 +409,8 @@
       <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
     </p>
 
-    {{! Slice L-polish (2026-05-16): 4-axis movement-system preview. The
-        full By Movement System browse view is forthcoming (audit at
-        BROWSE_ARCHITECTURE_AUDIT.md); this preamble surfaces the axis
-        ontology at glossary-reading time so readers see the system
-        before they meet the modifier cards. }}
+    {{! Movement-system preview preamble: surfaces the axis ontology at
+        glossary-reading time so readers see the system before the modifier cards. }}
     <h3 class="section-heading" id="movement-system-axes">Movement-system axes (preview)</h3>
     <p>
       Modifiers cluster along four educational axes by what timing layer
@@ -439,12 +436,11 @@
     </p>
 
     {{! ── Surface A: Common Advanced Modifiers ─────────────────────────────
-        Player-facing pedagogical view. 13 modifier cards in 2 clusters
+        Player-facing pedagogical view. Modifier cards in two clusters
         (set + body). Each card: name + optional glyph + feel + intuition
         + canonical example + optional family adjacency hint.
-        Anchors at `modifier-{slug}` (new namespace; complements the
-        `term-{slug}` anchors that live in Surface B's decomposition
-        reference below). }}
+        Anchors at `modifier-{slug}`; complements the `term-{slug}` anchors
+        in Surface B below. }}
     <h3 class="section-heading" id="common-advanced-modifiers">Common advanced modifiers</h3>
     <p>The modifiers players reach for most often. Read these for movement and feel; the structural readings live in the advanced reference below.</p>
 
@@ -621,11 +617,11 @@
       <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
     </p>
 
-    {{! ── Glyph quick-reference (Slice C of 2026-05 normalization) ──────
+    {{! ── Glyph quick-reference ──────────────────────────────────────────
         Visible-symbol strip at the top of §7 so the section opens with
         concrete glyphs rather than prose. Data sourced from
-        content.operatorBoard.tiers; tier colors hung off the tier key
-        match the operator-board rendering on the landing surface. }}
+        content.operatorBoard.tiers; tier colors match the operator-board
+        rendering on the landing surface. }}
     <div class="glossary-glyph-quickref" aria-label="Operator glyph quick reference">
       {{#each content.operatorBoard.tiers}}
       <div class="glossary-glyph-quickref-tier glossary-glyph-quickref-tier--{{key}}">
@@ -642,9 +638,9 @@
       {{/each}}
     </div>
 
-    {{! Notation in practice — three compact symbol-first examples
-        (Slice K, 2026-05-16). Static content; opens §7 with concrete
-        tokenized formulas before the prose explainer. }}
+    {{! Notation in practice — three compact symbol-first examples.
+        Static content; opens §7 with concrete tokenized formulas before
+        the prose explainer. }}
     <div class="glossary-notation-in-practice" aria-label="Notation in practice — three compact examples">
       <p class="glossary-notation-row">
         <span class="glossary-notation-label">single base anchor</span>
@@ -671,11 +667,9 @@
       <a href="#symbolic-compression-flow">symbolic-compression flow in &sect;8</a>
       for a worked example.
     </p>
-    {{! Slice L-polish (2026-05-16): operator → named-compound block.
-        Replaces the prior 5-bullet "Notation makes that structure visible"
-        list. Five compact compositions, all visible-token, demonstrate
-        how operators stacked on bases produce the named tricks that
-        appear in the dictionary. }}
+    {{! Operator → named-compound block. Five compact compositions, all
+        visible-token, demonstrate how operators stacked on bases produce
+        the named tricks that appear in the dictionary. }}
     <p>Notation makes composition visible. Operator + base &rarr; named compound:</p>
     <div class="glossary-notation-mappings" aria-label="Operator → named compound mappings">
       <p class="glossary-notation-row">
@@ -899,11 +893,8 @@
     </ul>
 
     {{! ── Symbolic compression — a worked example ──────────────────────────
-        Slice X corrective (2026-05-17): collapsed the prior three-card cascade
-        (osis → torque → mobius) into a single compact equivalence row. The
-        cards added visual weight without earning their pedagogical keep at
-        this point in the page; the one-liner carries the same payload.
-        Anchor preserved as symbolic-compression-flow for inbound deep-links. }}
+        Anchor `symbolic-compression-flow` is preserved for inbound deep-links
+        from external references. }}
     <h3 class="section-heading" id="symbolic-compression-flow">Symbolic compression &mdash; a worked example</h3>
     <p class="glossary-compression-one-liner">
       <strong>mobius = gyro torque = spinning same-side torque</strong>
@@ -919,12 +910,12 @@
       <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
     </p>
 
-    {{! ── Walking-family progression (Slice C of 2026-05 normalization) ──
+    {{! ── Walking-family progression ────────────────────────────────────────
         Pedagogical pathway: seven named compounds that branch off the
         butterfly base, each adding or swapping one operator. Surfaces
         within §8 as a worked example of how a base trick anchors a
         family of compositionally-related tricks. Readings sourced from
-        freestyleSymbolicEquivalences.ts entries authored in Slice A2/A3. }}
+        freestyleSymbolicEquivalences.ts. }}
     <h3 class="section-heading" id="walking-family-progression">Walking-family progression &mdash; a family worked example</h3>
     <p>
       Seven canonical compounds, each branching off the butterfly base
@@ -967,10 +958,9 @@
       detail page with related-trick navigation back to the family.
     </p>
 
-    {{! Slice L-polish (2026-05-16): future-facing note. Run-level
-        vocabulary (connector tricks, transitions, flow systems) is
-        observably evolving but not yet a first-class glossary surface.
-        Acknowledged here so readers see the trajectory. }}
+    {{! Future-facing note: run-level vocabulary (connector tricks,
+        transitions, flow systems) is acknowledged so readers see the
+        trajectory beyond single-trick composition. }}
     <p class="glossary-future-note">
       <strong>Forthcoming:</strong> the next layer beyond
       single-trick composition is run-level composition &mdash;

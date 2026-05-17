@@ -50,7 +50,7 @@ REQUIREMENTS="scripts/requirements.txt"
 
 # Preflight: required local files. This script does NOT regenerate canonical
 # inputs or extract from the mirror; it loads existing artifacts. The seed
-# CSVs (clubs.csv, club_members.csv) are produced upstream by James-owned
+# CSVs (clubs.csv, club_members.csv) are produced by
 # legacy_data/scripts/extract_*.py and committed under legacy_data/seed/.
 # On a fresh clone, run `bash scripts/deploy-local-data.sh --from-csv` first
 # (or `--soup-to-nuts` if you have the legacy mirror and want to refresh CSVs).
@@ -74,7 +74,6 @@ if [[ ${#_missing[@]} -gt 0 ]]; then
   exit 1
 fi
 
-# Create venv if not present; always sync dependencies
 if [ ! -f "${VENV}/bin/python3" ]; then
   echo "  → Creating Python venv..."
   python3 -m venv "${VENV}"
@@ -85,17 +84,18 @@ PYTHON="${VENV}/bin/python3"
 
 echo "Resetting database: ${DB_FILE}"
 
-# Remove existing database and WAL sidecar files
 rm -f "${DB_FILE}" "${DB_FILE}-wal" "${DB_FILE}-shm"
 
 # Apply schema
 echo "  → Applying schema..."
 sqlite3 "${DB_FILE}" < "${SCHEMA}"
 
-# Seed legacy_members BEFORE historical_persons is loaded, so the FK
-# historical_persons.legacy_member_id -> legacy_members(legacy_member_id)
-# is satisfied by script 08 below. This is a TEMPORARY mirror-based
-# population; Steve Goldberg's dump will supersede it.
+# TEMP-DEVIATION: legacy_members seed source.
+# Current: legacy_members is seeded from the mirror-derived extract before
+#   historical_persons loads, so the FK historical_persons.legacy_member_id
+#   -> legacy_members(legacy_member_id) is satisfied by script 08 below.
+# Target: replace the mirror-derived seed with the authoritative legacy-site
+#   data export when it becomes available.
 echo "  → Loading legacy_members seed (temporary, mirror-derived)..."
 "${PYTHON}" legacy_data/scripts/load_legacy_members_seed.py --db "${DB_FILE}"
 

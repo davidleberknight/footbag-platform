@@ -2,13 +2,10 @@
     Reusable across landing, glossary §3, /freestyle/learn. Logic-light:
     branches only on pre-shaped operatorBoard data from freestyleService.
 
-    SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D:
-      - tier-intro line dropped (eyebrow + title carry the tier identity)
-      - card hierarchy reordered: glyph → name → INPUT → RESULT → action → deeplink
-        (composition example carries the teaching; action annotates)
-      - deeplink renders as icon-only chip with aria-label (text labels were
-        scaffolding noise). The pre-shaped `hrefLabel` becomes the
-        accessible name + tooltip; no visible text. }}
+    Card field order: glyph → name → composition example (INPUT → RESULT)
+    → action → deeplink. The deeplink renders as an icon-only chip; the
+    pre-shaped `hrefLabel` is the accessible name and tooltip (no visible
+    text). The composition example carries the teaching; the action annotates. }}
 <section class="operator-board content-section" id="operators">
   <h2 class="operator-board-heading">{{heading}}</h2>
   <p class="operator-board-lede">{{lede}}</p>

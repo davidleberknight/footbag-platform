@@ -5,9 +5,10 @@
     already linked to a legacy account, the surname on the record does not
     match the requesting account, the requesting account is linked to an
     incompatible legacy record, or any other validation failure. The page
-    intentionally does NOT distinguish between these cases (anti-enumeration:
-    DD §3.X / MIGRATION_PLAN §6.5). The operator can resolve the specific
-    cause from the application log written at render time.
+    intentionally does NOT distinguish between these cases: all failure
+    reasons map to the same response so the page cannot confirm which
+    person IDs exist (anti-enumeration). The operator can resolve the
+    specific cause from the application log written at render time.
 }}
 
 <div class="hero hero-sm">

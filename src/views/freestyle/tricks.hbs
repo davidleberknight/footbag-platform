@@ -37,11 +37,10 @@
   {{/if}}
 
   {{! ── View toggle (no JS; query-string driven) ───────────────────────────
-      Post-Slice-L-polish stabilization (2026-05-16): primary tier (ADD +
-      Family) reads as the main browse surfaces; secondary tier (Category,
-      Component, Movement Neighborhoods) is visually demoted as legacy /
-      advanced browse modes. "Movement Neighborhoods" replaces the prior
-      "By topology" label per BROWSE_ARCHITECTURE_AUDIT Q3 (Option B). }}
+      Primary tier (ADD + Family) is the main browse surface; secondary tier
+      (Category, Component, Movement Neighborhoods) is visually demoted as
+      legacy / advanced browse modes. No JavaScript; view selected via ?view=
+      query param. }}
   <nav class="trick-view-toggle" aria-label="Dictionary view">
     {{#if (eq content.activeView "add")}}
       <span class="trick-view-toggle-active">By ADD</span>
@@ -114,8 +113,8 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Family view — registry density (PRESENTATION_UNIFICATION 2026-05-16):
-      Cards are identical to ADD View; only grouping + family-anchor underline differs. }}
+  {{! ── Family view — registry density.
+      Cards are identical to ADD view; only grouping + family-anchor underline differs. }}
   {{#if (eq content.activeView "family")}}
   {{#if content.familyGroups.length}}
   {{#each content.familyGroups}}
@@ -124,10 +123,9 @@
       <h2><a href="/freestyle/tricks?family={{familySlug}}">{{familyName}} family</a></h2>
       <span class="section-count">{{cards.length}}</span>
     </div>
-    {{! Slice I of 2026-05 normalization: family-level shared-terminal-structure
-        invariant. Curator-authored per family slug; rendered between the heading
-        and the card stack. Card-level rendering is unchanged. See
-        src/content/freestyleFamilyInvariants.ts. }}
+    {{! Family-level shared-terminal-structure invariant. Curator-authored per
+        family slug; rendered between the heading and the card stack.
+        Source: src/content/freestyleFamilyInvariants.ts. }}
     {{#if sharedStructure}}
     <p class="trick-family-shared-structure">Shared terminal structure: <code>{{sharedStructure}}</code></p>
     {{/if}}
@@ -251,13 +249,11 @@
   <p class="symbolic-layer-footer">Observational symbolic-grammar layer. These groupings surface body mechanics across families and do not override canonical IFPA family classifications. The dictionary's <a href="/freestyle/tricks?view=family">By family</a> view remains the canonical structural source.</p>
   {{/if}}
 
-  {{! ── Movement System view — Slice L2 of 2026-05 normalization ──────────
+  {{! ── Movement System view ──────────────────────────────────────────────
       Curator-authored four-axis ontology projecting modifier groups under
       pedagogical axes. Source: src/content/freestyleMovementSystems.ts.
-      Axes are shaped in declaration order in the service; empty axes
-      pruned. Each axis renders its modifier groups in author order
-      (no priority-by-frequency re-sort). Cards via the canonical
-      dictionary-trick-card partial in registry density. }}
+      Axes shaped in declaration order; empty axes pruned. Modifier groups
+      render in author order (no priority-by-frequency re-sort). }}
   {{#if (eq content.activeView "movement-system")}}
   <p class="movement-system-view-note">{{content.movementSystemView.observationalNote}}</p>
 

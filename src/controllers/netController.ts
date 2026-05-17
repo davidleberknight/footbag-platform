@@ -3,10 +3,6 @@ import { netService } from '../services/netService';
 import { NotFoundError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 
-/**
- * Thin controller for public net routes.
- * Business logic and page shaping live in netService.
- */
 export const netController = {
   /** GET /net */
   homePage(_req: Request, res: Response, next: NextFunction): void {

@@ -609,9 +609,9 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Phase 3: media visibility polish — trick-detail wording must distinguish
-// tutorials from demonstrations, never conflate them. Three states: tutorial-
-// only, demo-only, and mixed.
+// Media visibility: trick-detail wording must distinguish tutorials from
+// demonstrations, never conflate them. Three states: tutorial-only,
+// demo-only, and mixed.
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('GET /freestyle/tricks/:slug — Reference Media heading + pathway wording (Phase 3)', () => {
@@ -1230,7 +1230,7 @@ describe('GET /freestyle — landing page highlights', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase 6 — role-aware notation rendering on trick-detail
+// Role-aware notation rendering on trick-detail pages.
 
 describe('GET /freestyle/tricks/:slug — Phase 6 notation display', () => {
   it('renders the notation section with the role-aware <code> block when notation is populated', async () => {

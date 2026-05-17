@@ -1,5 +1,5 @@
 /**
- * Phase 3.5 audit-rendering helper. Renders the notation-grammar diagnostic
+ * Audit-rendering helper. Renders the notation-grammar diagnostic
  * panel for a curated set of representative trick slugs against the live dev
  * DB, then writes a Markdown scaffold (`semantic-audit-notes.md`) with the
  * captured panel text and empty notes sections.
@@ -223,9 +223,9 @@ async function main(): Promise<void> {
   const app = createApp();
 
   const out: string[] = [];
-  out.push('# Semantic Audit Notes -- Phase 3.5');
+  out.push('# Semantic Audit Notes');
   out.push('');
-  out.push('Sprint-scoped audit of the live notation-grammar diagnostic panel rendered on `/freestyle/tricks/:slug`. Not a long-term canonical doc; findings flow into IP / parser / template iterations and this file gets retired when the audit is closed.');
+  out.push('Audit of the live notation-grammar diagnostic panel rendered on `/freestyle/tricks/:slug`. Not a long-term canonical doc; findings flow into parser and template iterations.');
   out.push('');
   out.push('## How to use');
   out.push('');

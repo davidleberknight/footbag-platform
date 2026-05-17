@@ -35,13 +35,13 @@ services:
           memory: 64M
 
   web:
-    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
-    # subtree into the image. The base compose default is 1 (so dev/staging
-    # images bundle the dev-admin seed script); this override forces the
-    # Dockerfile ARG back to 0 for any build that uses the prod overlay.
-    # The workstation deploy-rebuild.sh also exports
-    # INCLUDE_DEV_ADMIN_SHORTCUTS=0 when FOOTBAG_ENV=production
-    # (belt-and-suspenders).
+    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts.
+    # Current: prod overlay forces INCLUDE_DEV_ADMIN_SHORTCUTS=0; the base
+    #   compose default is 1 (so dev/staging images bundle the dev-admin
+    #   seed script). deploy-rebuild.sh also exports
+    #   INCLUDE_DEV_ADMIN_SHORTCUTS=0 when FOOTBAG_ENV=production
+    #   (belt-and-suspenders).
+    # Target: remove this ARG and the override after production cutover.
     build:
       args:
         INCLUDE_DEV_ADMIN_SHORTCUTS: 0
@@ -110,7 +110,7 @@ services:
 
   worker:
     # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
-    # subtree into the image (same rationale as the web override above).
+    # (same rationale as the web override above).
     build:
       args:
         INCLUDE_DEV_ADMIN_SHORTCUTS: 0
@@ -181,8 +181,7 @@ services:
   #     and a 5xx user-facing response by the HTTP adapter
   image:
     # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
-    # subtree into the image (same rationale as the web/worker overrides
-    # above).
+    # (same rationale as the web/worker overrides above).
     build:
       args:
         INCLUDE_DEV_ADMIN_SHORTCUTS: 0

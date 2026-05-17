@@ -87,7 +87,6 @@ export function applyProvenanceCandidates(
     candidatesToApply.push(row);
   }
 
-  // Precondition pass + queue for application.
   const toApply: CsvRow[] = [];
   for (const row of candidatesToApply) {
     const hp = hpById.get(row.historical_person_id);
@@ -258,7 +257,6 @@ function main(): number {
 
   db.close();
 
-  // Audit + rollback artifacts.
   mkdirSync(auditDir, { recursive: true });
   const stamp = nowUtcStamp();
   const auditPath    = path.join(auditDir, `provenance_apply_audit_${stamp}.csv`);
@@ -290,7 +288,6 @@ function main(): number {
     writeFileSync(rollbackPath, rollbackLines.join('\n') + '\n');
   }
 
-  // Summary.
   const skipCounts: Record<string, number> = {};
   for (const s of result.skipped) skipCounts[s.reason] = (skipCounts[s.reason] ?? 0) + 1;
 

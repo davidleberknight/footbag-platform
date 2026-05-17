@@ -21,8 +21,8 @@ import os from 'os';
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-media-${Date.now()}.db`);
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-admin-list-'));
 // Curator photo + video uploads write to /curated/{category}/ in local-adapter
-// mode (DD §1.13). Redirect that write to a temp directory so tests don't
-// pollute the repo's real /curated/.
+// mode. Redirect that write to a temp directory so tests don't pollute the
+// repo's real /curated/.
 const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-curator-media-curated-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;

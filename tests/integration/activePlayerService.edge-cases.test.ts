@@ -7,8 +7,8 @@
  * This file pins the predicate-side: given a member's full AP ledger
  * (grant / extend / end / expire rows) plus tier, does hasTier1Benefits
  * return the expected boolean? It exists because the predicate is the
- * load-bearing surface for the requireTier1Benefits middleware (Phase 2)
- * and the assertTier1Benefits service-layer defense-in-depth (Phase 4),
+ * load-bearing surface for the requireTier1Benefits middleware and the
+ * assertTier1Benefits service-layer defense-in-depth,
  * and a regression in the AP-current view's expiry semantics would not
  * be caught by the AP service tests alone.
  */

@@ -170,12 +170,14 @@ describe('GET /clubs/club_evergreen — authenticated', () => {
     expect(res.text).not.toContain('Log in to see club members');
   });
 
-  // TEMP-DEVIATION: club-classification QC panel surfaces 'pending'
-  // affiliations to authenticated users (loaders write only 'pending' until
-  // the onboarding wizard ships; without this loosened filter the historical
-  // mirror cohort would be invisible). Other excluded statuses
-  // ('former_only', 'not_mine', 'needs_review', 'rejected', 'superseded')
-  // remain hidden. Remove when the admin queue ships.
+  // TEMP-DEVIATION: 'pending' affiliations surface on club detail to
+  // authenticated users.
+  // Current: loaders write only 'pending' status until the admin QC queue
+  //   lands; without this loosened filter the historical mirror cohort is
+  //   invisible. Other excluded statuses (former_only, not_mine,
+  //   needs_review, rejected, superseded) remain hidden.
+  // Target: restrict to fully-approved affiliations only once the admin
+  //   queue ships.
   it('surfaces pending affiliations to authenticated members (TEMP-DEVIATION)', async () => {
     const app = createApp();
     const res = await request(app)

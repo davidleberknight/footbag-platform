@@ -1,5 +1,5 @@
 /**
- * Integration tests for GET /freestyle/add-analysis (Slice X Phase 1).
+ * Integration tests for GET /freestyle/add-analysis.
  *
  * Verifies:
  *   - Route returns 200

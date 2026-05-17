@@ -152,13 +152,12 @@ export class OperationsPlatformService {
   }
 
   /**
-   * SYS_Batch_Auto_Link cutover job (MIGRATION_PLAN §6, G24). Scans every
-   * Tier 0 unlinked member with a verified email and runs the auto-link
-   * classifier. High-confidence (tier1 / tier2) matches are queued into
-   * `work_queue_items` for A_Review_Auto_Link_Matches; tier3 outcomes are
-   * skipped (admins handle those via the regular work-queue). Idempotent:
-   * a candidate with an existing open `auto_link_match` queue item is not
-   * re-queued.
+   * SYS_Batch_Auto_Link cutover job. Scans every Tier 0 unlinked member with
+   * a verified email and runs the auto-link classifier. High-confidence
+   * (tier1 / tier2) matches are queued into `work_queue_items` for
+   * A_Review_Auto_Link_Matches; tier3 outcomes are skipped (admins handle
+   * those via the regular work-queue). Idempotent: a candidate with an
+   * existing open `auto_link_match` queue item is not re-queued.
    *
    * Designed to run once at cutover after the legacy data dump is loaded.
    * Wrapped by recordJobRun for `system_job_runs` lifecycle visibility.
@@ -226,8 +225,9 @@ export class OperationsPlatformService {
           continue;
         }
         const id = `wq_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-        // Per DD §5.4 + US §198: work_queue insert and admin-alerts fan-out
-        // commit together.
+        // work_queue insert and admin-alerts fan-out must commit atomically:
+        // a queued item with no alert (or vice versa) leaves the match
+        // invisible to admins. (DD §5.4, US §198)
         transaction(() => {
           workQueue.insertItem.run(
             id,

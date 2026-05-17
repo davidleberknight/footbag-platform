@@ -1,10 +1,10 @@
-// Phase 6: role-aware notation rendering — service-layer shape.
+// Role-aware notation rendering: service-layer shape.
 //
 // Reads the existing `notation` field on a freestyle_tricks row and produces
 // a list of role-classified tokens for the trick-detail template. Display-
 // only: never affects parser output, ADD math, or asserted_adds.
 //
-// Architectural notes (see PHASE6_ROLE_AWARE_RENDERING_PLAN.md):
+// Architectural notes:
 //   - Hybrid registry: static parser-mirror sets here in TS for vocabulary
 //     not in the DB (rotation, direction, delay/unusual surface, body
 //     component, footedness, multiplicity, suffix); DB-driven lookups
@@ -85,7 +85,7 @@ const SUFFIX_TOKENS = new Set([
 
 const BODY_COMPONENT_RE = /^\[[A-Z]+\]$/;
 
-// ── Educational tooltip text (ratified §5.4a; harmonized UX1 Phase A 2026-05-11) ─
+// ── Educational tooltip text (harmonized with operational renderer; ratified §5.4a) ─
 
 const ROLE_LABELS: Record<NotationRole, string> = {
   core_family:      'Base trick family',
@@ -202,13 +202,10 @@ const BODY_COMPONENT_LABELS: Record<string, string> = {
 // ── Caller-supplied lookup context ────────────────────────────────────────
 
 export interface NotationLookupContext {
-  // slug (lowercase) → row; resolves CORE_FAMILY for direct tokens like WHIRL
   bySlug:        Map<string, FreestyleTrickRow>;
-  // alias_text (lowercase) → trick_slug; resolves CORE_FAMILY for tokens like ATW
   aliasToSlug:   Map<string, string>;
-  // modifier slug (lowercase) → modifier row; resolves SET / MODIFIER for tokens
-  // like PARADOX, BLURRY, ATOMIC. Excludes any token already classified by
-  // the static rotation set (so SPINNING wins as rotation, not body modifier).
+  // Modifier lookup excludes tokens already classified by the static rotation
+  // set, so SPINNING resolves as rotation and never as a body modifier.
   modifierBySlug: Map<string, FreestyleTrickModifierRow>;
 }
 

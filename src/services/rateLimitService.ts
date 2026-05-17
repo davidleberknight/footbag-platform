@@ -8,6 +8,8 @@ interface Bucket {
   windowStart: number;
 }
 
+// In-memory only: limits do not persist across restarts and are not shared
+// across processes. Each web or worker process maintains its own bucket map.
 const buckets = new Map<string, Bucket>();
 
 function now(): number {

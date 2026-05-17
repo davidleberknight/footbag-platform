@@ -48,7 +48,7 @@ export interface VideoTranscodingAdapter {
    * The image worker fetches sourceKey from S3, transcodes, and uploads the
    * result to outputKey. Source bytes never traverse the caller's process,
    * which keeps the worker container's RSS bounded by its dispatch overhead
-   * rather than the video size. Used by curatorMediaService.finalizeTranscodeForJob.
+   * rather than the video size.
    */
   transcodeFromStorage(
     sourceKey: string,
@@ -130,7 +130,7 @@ export function createHttpVideoTranscodingAdapter(opts: {
     outputKey: string,
   ): Promise<VideoTranscodeFromStorageResult> {
     // Presign GET (source) and PUT (output) so the image container handles
-    // opaque, time-bounded URLs only — no AWS credentials in that container.
+    // opaque, time-bounded URLs only; no AWS credentials in that container.
     // Web container retains credentials for the presign step. SEC-D02.
     const [sourceUrl, putUrl] = await Promise.all([
       mediaStorage.generatePresignedGetUrl(sourceKey, presignTtl),

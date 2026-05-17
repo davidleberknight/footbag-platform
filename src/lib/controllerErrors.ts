@@ -5,9 +5,8 @@ import { logger } from '../config/logger';
 /**
  * Render the 503 Service Unavailable page directly. Used by controllers that
  * catch an image-worker / external-adapter failure and need to surface a
- * truthful 503 rather than fall through to the generic 500 handler (which
- * would mask the cause and historically rendered a "503"-labeled template
- * over a 500 status).
+ * truthful 503 rather than delegate to the generic 500 error middleware,
+ * which cannot distinguish a dependency outage from an unexpected exception.
  */
 export function renderServiceUnavailable(res: Response): void {
   res.status(503).render('errors/unavailable', {

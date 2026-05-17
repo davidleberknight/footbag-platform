@@ -175,13 +175,12 @@ describe('GET /history/:personId/claim', () => {
     expect(res.text).toContain('NZ'); // country surfaced
   });
 
-  // Anti-enumeration (DD §7.7 / §3.X + MIGRATION_PLAN §6.5): every failure
-  // mode on /history/:personId/claim must produce an observationally
-  // identical response so an attacker probing personIds cannot enumerate HP
-  // claim status. All four cases below render the same uniform
-  // claim-unavailable page (200, no per-reason text, no per-reason redirect).
-  // The specific reason is captured in the application log for operator
-  // forensics; it is not surfaced in the response.
+  // Anti-enumeration: every failure mode on /history/:personId/claim must
+  // produce an observationally identical response so an attacker probing
+  // personIds cannot enumerate HP claim status. All four cases below render
+  // the same uniform claim-unavailable page (200, no per-reason text, no
+  // per-reason redirect). The specific reason is captured in the application
+  // log; it is not surfaced in the response.
   it('authenticated, surname mismatch -> uniform claim-unavailable page', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', otherCookie());
@@ -299,11 +298,11 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
   });
 });
 
-// ── Tier grant invariant (DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3) ────
+// ── Tier grant invariant ─────────────────────────────────────────────────────
 //
 // Every successful direct-HP claim writes one member_tier_grants row with
-// reason_code='legacy.claim_tier_grant'. Honors-only fallback today: HoF or
-// BAP → tier2; otherwise tier0. Must be atomic with the merge (same tx).
+// reason_code='legacy.claim_tier_grant'. HoF or BAP → tier2; otherwise tier0.
+// Must be atomic with the claim merge (same transaction).
 
 describe('POST /history/:personId/claim/confirm — tier grant invariant', () => {
   it('scenario D (HP-only, HoF) — CLAIMER_ID receives a tier2 legacy.claim_tier_grant', () => {

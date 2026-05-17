@@ -1,7 +1,8 @@
-// ---- QC-only (delete with pipeline-qc subsystem) ----
+// Current: QC-only checks; mirrors the person-likeness gate in
+//   pipeline/platform/export_canonical_platform.py.
+// Target: delete with the pipeline-qc subsystem.
 /**
  * Pure-function QC checks for historical_persons names.
- * Mirrors the person-likeness gate in pipeline/platform/export_canonical_platform.py.
  * No DB access, no Express imports, easily testable.
  */
 

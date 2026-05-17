@@ -63,7 +63,8 @@ beforeAll(async () => {
     email_verified_at: '2025-01-01T00:00:00.000Z',
   });
 
-  // Footbag Hacky: login_email='footbag' (non-email identifier, temporary deviation).
+  // login_email='footbag' is a non-email dev stub identifier; the production
+  // constraint requires a valid email.
   insertMember(db, {
     id:                'member-footbag-hacky',
     slug:              'footbag_hacky',

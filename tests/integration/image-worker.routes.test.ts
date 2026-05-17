@@ -754,8 +754,6 @@ describe('POST /process/video-from-storage', () => {
 });
 
 describe('Auth gate (x-internal-secret) on /process/*', () => {
-  // These tests prove the SEC-A12 fix: every /process/* route refuses requests
-  // that lack the shared secret, regardless of payload validity.
   const ROUTES: Array<['avatar' | 'photo' | 'video' | 'video-from-storage', () => Promise<Buffer> | Buffer | object, string]> = [
     ['avatar', async () => makeJpeg(), 'application/octet-stream'],
     ['photo', async () => makeJpeg(), 'application/octet-stream'],

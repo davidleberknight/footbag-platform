@@ -18,7 +18,6 @@ set -m
 
 cd "$(dirname "$0")/.."
 
-# Track child PIDs so we can kill them cleanly on signal.
 WEB_PID=""
 IMAGE_PID=""
 
@@ -37,7 +36,6 @@ cleanup() {
   kill_group "$IMAGE_PID" TERM
   kill_group "$WEB_PID"   TERM
 
-  # Give children a moment to exit cleanly, then SIGKILL stragglers.
   for i in 1 2 3 4 5; do
     if ! kill -0 "${IMAGE_PID:-0}" 2>/dev/null \
        && ! kill -0 "${WEB_PID:-0}" 2>/dev/null; then
@@ -60,6 +58,4 @@ echo "→ Starting web server (port 3000)..."
 npm run dev &
 WEB_PID=$!
 
-# Wait for either child to exit; if one dies, take the other down with it.
-# `wait -n` returns the exit status of whichever child finished first.
 wait -n "${WEB_PID}" "${IMAGE_PID}"

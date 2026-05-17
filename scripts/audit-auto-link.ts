@@ -215,7 +215,6 @@ function main(): number {
     }
   }
 
-  // Table-level indicators that don't depend on member enrolment.
   const n_legacy_with_email = [...legacyByEmail.keys()].length;
   const n_legacy_with_hp    = hpByLegacyId.size;
   const n_hp_collision_groups = [...hpByNormalizedName.values()].filter((l) => l.length > 1).length;

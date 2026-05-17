@@ -1,23 +1,3 @@
-/**
- * Integration tests for the admin curator named-gallery list/edit/create/delete routes.
- *
- * Covers:
- *   GET    /admin/curator/galleries              (list FH-owned galleries)
- *   GET    /admin/curator/galleries/new          (new-gallery form)
- *   POST   /admin/curator/galleries              (create FH-owned gallery + sidecar)
- *   GET    /admin/curator/galleries/:id/edit     (render edit form)
- *   POST   /admin/curator/galleries/:id/edit     (apply name/description/
- *                                                  sort_order/criteria/exclude)
- *   POST   /admin/curator/galleries/:id/delete   (delete FH-owned gallery + sidecar)
- *
- * Auth: admin only. Member or unauthenticated requests redirect to /login or
- * receive 403 (matches the existing /admin/curator/media gates).
- *
- * Validation lives in the service (curatorMediaService.updateGallery /
- * createGallery / deleteGallery). The controller is HTTP glue: it parses
- * the body, calls the service, and translates ValidationError/ConflictError
- * to 422, NotFoundError to 404.
- */
 import fs from 'fs';
 import path from 'path';
 import os from 'os';

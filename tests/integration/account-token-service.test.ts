@@ -1,6 +1,3 @@
-/**
- * Integration tests for accountTokenService.
- */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { createHash } from 'node:crypto';

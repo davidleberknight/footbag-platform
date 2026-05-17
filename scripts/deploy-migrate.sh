@@ -37,9 +37,9 @@
 #   9.  Run the smoke check.
 #   10. On any failure: restore from the pre-migration backup and restart.
 #
-# Do not implement this script until the backup/restore path (Path G §7.4)
-# is tested and a working restore has been rehearsed in staging. A migration
-# without a tested restore path is unsafe.
+# Do not implement this script until a backup/restore path has been tested
+# and a working restore has been rehearsed in staging. A migration without
+# a tested restore path is unsafe.
 # ============================================================================
 
 set -euo pipefail

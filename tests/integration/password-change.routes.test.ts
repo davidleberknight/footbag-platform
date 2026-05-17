@@ -69,7 +69,6 @@ describe('GET /members/:slug/edit/password', () => {
 
 describe('POST /members/:slug/edit/password', () => {
   it('valid change → 200 with success, reissues session cookie', async () => {
-    // Reset DB state for this test: restore OLD_PASSWORD hash & password_version=1.
     const hash = await argon2.hash(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
@@ -101,7 +100,6 @@ describe('POST /members/:slug/edit/password', () => {
   });
 
   it('wrong old password → 422', async () => {
-    // Ensure baseline: restore to password_version=1 with OLD_PASSWORD.
     const hash = await argon2.hash(OLD_PASSWORD);
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE members SET password_hash=?, password_version=1 WHERE id=?')
@@ -161,7 +159,6 @@ describe('POST /members/:slug/edit/password', () => {
     db.close();
 
     const app = createApp();
-    // Change the password — server increments pwv to 2.
     const first = await request(app)
       .post(`/members/${OWN_SLUG}/edit/password`)
       .set('Cookie', ownCookie(1))

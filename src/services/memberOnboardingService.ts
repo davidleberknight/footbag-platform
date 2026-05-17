@@ -109,10 +109,9 @@ function startTaskList(memberId: string): void {
     );
     inserted += result.changes;
   }
-  // Audit invariant (SC §MemberOnboardingService): every wizard transition
-  // emits an audit_entries row. `start` is logged ONCE per member — the
-  // first time the task list is materialized — so idempotent re-calls from
-  // subsequent GETs do not flood the audit log.
+  // Audit emitted once per member, only on first materialization (inserted > 0).
+  // Idempotent re-calls from subsequent GETs produce no inserts and no audit
+  // row, so the log records the wizard start event without flooding.
   if (inserted > 0) {
     appendAuditEntry({
       actionType:    'wizard.start',
@@ -289,9 +288,8 @@ function processLegacyClaimAutoLinkConfirm(
     return { kind: 'retry_same', flash: { kind: 'WIZARD_AUTO_LINK_DRIFT' } };
   }
   try {
-    // SC §LegacyClaim atomicity: the merge AND the wizard task transition
-    // run in one transaction so a partial-failure window cannot leave the
-    // member claimed but the task still pending.
+    // Merge and the wizard task transition run in one transaction: a partial
+    // failure cannot leave the member claimed but the task still pending.
     transaction(() => {
       identityAccessService.claimHistoricalPersonInTx(memberId, personId);
       completeTask(memberId, 'legacy_claim');

@@ -16,9 +16,9 @@ cd "$ROOT"
 violations=0
 
 # Rule: SQL compilation (.prepare) lives only in src/db/db.ts.
-# Reason: SERVICE_CATALOG §3 -- All SQL lives in src/db/db.ts as named
-# prepared statements; services call named statements, never compile SQL
-# strings inline. Mechanical enforcement prevents business logic from
+# Reason: All SQL compilation must live in src/db/db.ts as named prepared
+# statements; services call those named statements, never compile SQL strings
+# inline. Mechanical enforcement prevents business logic from
 # leaking into raw SQL surfaces.
 #
 # Allowlisted exceptions:
@@ -35,8 +35,8 @@ if [ -n "$hits" ]; then
 fi
 
 # Rule: AWS SDK and Stripe imports live only in src/adapters/.
-# Reason: DESIGN_DECISIONS §1.9 -- external service SDK calls must be
-# encapsulated behind typed adapter interfaces. Services obtain adapters
+# Reason: External service SDK calls must be encapsulated behind typed
+# adapter interfaces. Services obtain adapters
 # via get<Purpose>Adapter() and never import SDK packages directly. The
 # adapter seam is the only boundary between application code and external
 # services; violating it breaks dev/staging/prod parity and the adapter-
@@ -54,8 +54,8 @@ if [ -n "$hits" ]; then
 fi
 
 # Rule: process.env reads live only in src/config/env.ts.
-# Reason: DESIGN_DECISIONS §1.11 -- configuration loads once at startup
-# from the host environment into a single typed config singleton; no other
+# Reason: Configuration loads once at startup from the host environment
+# into a single typed config singleton; no other
 # module reads process.env directly. The singleton fail-fasts on
 # misconfiguration and is Object.freeze'd. Scattered process.env reads
 # bypass that contract.
@@ -84,11 +84,10 @@ fi
 
 # Rule: templates must not carry inline style="...", <style> blocks, or
 # inline <script> tags.
-# Reason: DESIGN_DECISIONS §3.12 (security header layering) and VC §4.4
-# (asset rules) -- the app's Content-Security-Policy is style-src 'self'
-# and script-src 'self'. Inline style/script violates CSP and breaks the
-# page silently in production. All CSS lives in src/public/css/style.css;
-# all client behavior lives in src/public/js/*.js loaded via <script src>.
+# Reason: The app's Content-Security-Policy is style-src 'self' and
+# script-src 'self'. Inline style/script violates CSP and breaks the page
+# silently in production. All CSS lives in src/public/css/style.css; all
+# client behavior lives in src/public/js/*.js loaded via <script src>.
 #
 # Permitted exceptions (filtered by the grep below):
 #   - <script src="..." defer></script>             external JS loaded from /public/js

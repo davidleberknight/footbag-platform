@@ -1,7 +1,7 @@
 /**
  * Integration tests for the symbolic Related Topology panel on trick pages.
  *
- * Per UX-SHIP-1 Phase 4 (Task B). Verifies:
+ * Verifies:
  *   - Panel renders on the 8 allow-listed flagship slugs (ripwalk + sidewalk +
  *     dimwalk + dada-curve + matador + phoenix + spinning-whirl + montage)
  *     when matching staging-CSV topology data exists

@@ -95,7 +95,7 @@ export async function validateExternalUrl(
 
   // SSRF guard, layer 2: resolve hostname (when not a literal IP) and
   // re-check the resolved IP. DD §3.17 calls this a snapshot, not an
-  // ongoing guarantee against later DNS changes — run once at submit.
+  // ongoing guarantee against later DNS changes; run once at submit.
   if (!isLiteralIp(hostname)) {
     const lookup = options.lookup ?? dnsLookup;
     let resolved: { address: string; family: number };

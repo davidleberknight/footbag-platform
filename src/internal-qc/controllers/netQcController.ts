@@ -1,6 +1,6 @@
-// ---- QC-only (delete with pipeline-qc subsystem) ----
-// Thin controller for internal /internal/net/* QC routes. Business logic
-// and page shaping live in netQcService. Never mounted on publicRouter.
+// Current: QC-only controller for /internal/net/* routes; mounted only on
+//   internalRouter, never on publicRouter.
+// Target: delete with the pipeline-qc subsystem.
 
 import { Request, Response, NextFunction } from 'express';
 import { netQcService } from '../services/netQcService';

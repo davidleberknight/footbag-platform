@@ -1,9 +1,3 @@
-/**
- * Integration tests for the admin dashboard route.
- *
- * Covers GET /admin: auth gate, admin gate, and dashboard content with
- * the link to the curator upload page.
- */
 import fs from 'fs';
 import path from 'path';
 import os from 'os';

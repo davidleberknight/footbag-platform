@@ -1,24 +1,22 @@
 {{!--
   dictionary-trick-card.hbs — the canonical symbolic trick card.
 
-  Per DICTIONARY-SYMBOLIC-CARD-1 / SYMBOLIC_CARD_SPEC.md:
-    - One renderer; progressive density (sparse + deep through same template)
-    - Operational notation = visual center of gravity (browse density)
-    - Notation-first hierarchy (registry density)
+  One renderer; progressive density (sparse plus deep through the same
+  template). In browse density, operational notation is the visual center
+  of gravity; in registry density, the notation-first hierarchy takes over.
 
-  Per BROWSE-REFACTOR-1 Slice 1 (2026-05-15):
-    - Two density modes via partial parameter:
-        {{> dictionary-trick-card density="registry"}}  — inline single-line
-        {{> dictionary-trick-card density="browse"}}    — vertical stack (default)
-    - Tokenized semantic ≡ readings (role-classified tokens; family-anchor
-      underline when token matches the active view's group anchor).
-    - Operational notation suppressed when tokenized semantic reading present
-      (the structural sentence is the new center of gravity).
-    - "Notation pending" placeholder suppressed entirely in registry density.
+  Two density modes controlled by the partial parameter:
+      {{> dictionary-trick-card density="registry"}}  — inline single-line
+      {{> dictionary-trick-card density="browse"}}    — vertical stack (default)
+
+  Tokenized semantic ≡ readings (role-classified tokens; family-anchor
+  underline when a token matches the active view's group anchor) replace
+  operational notation when present, since the structural sentence becomes
+  the center of gravity. "Notation pending" placeholder is suppressed
+  entirely in registry density.
 
   Consumes: DictionaryTrickCard view-model from freestyleService.
-  Used by: tricks.hbs across all five browse views (ADD / family / category /
-  component / topology).
+  Used by: tricks.hbs across the five browse views.
 --}}
 
 {{#if (eq density "registry")}}

@@ -251,12 +251,11 @@ describe('claimLegacyAccount — HP-field carry-forward', () => {
   });
 });
 
-// ─── Tier grant invariant (DD §2551 / SC §LegacyClaim / MIGRATION_PLAN §3) ───
+// ─── Tier grant invariant ────────────────────────────────────────────────────
 //
-// Every successful legacy-claim merge writes one `member_tier_grants` row
-// with `reason_code = 'legacy.claim_tier_grant'`. Honors-only fallback today:
-// HoF or BAP → tier2, else tier0. Must land in the same transaction as the
-// merge writes (no partial-success window).
+// Every successful claim writes exactly one `member_tier_grants` row with
+// `reason_code = 'legacy.claim_tier_grant'` in the same transaction as the
+// merge (no partial-success window). Tier: HoF or BAP → tier2, else tier0.
 
 describe('claimLegacyAccount — single tier grant per claim', () => {
   function readTierGrant(memberId: string): Record<string, unknown> | undefined {
@@ -309,15 +308,12 @@ describe('claimLegacyAccount — single tier grant per claim', () => {
   });
 });
 
-// ─── Token atomicity (C1 regression) ─────────────────────────────────────────
+// ─── Token atomicity ─────────────────────────────────────────────────────────
 //
-// Two-step claim: consumeAndClaimLegacy must consume the token AND run the
-// merge in ONE transaction. If the merge throws, the token consume must roll
-// back so the user can retry the same email link rather than re-initiating.
-//
-// Pre-fix (consumeToken commits before claimLegacyAccount opens its
-// transaction): a failed merge burns the token permanently with no recovery.
-// Post-fix: `used_at` stays NULL after a failed merge.
+// consumeAndClaimLegacy must consume the token AND run the merge in ONE
+// transaction. If the merge throws, the token consume must roll back so the
+// user can retry the same email link. `used_at` stays NULL after a failed
+// merge (the token is not burned).
 
 describe('consumeAndClaimLegacy — token-consume atomicity with merge', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports

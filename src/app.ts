@@ -102,7 +102,6 @@ export function createApp(): express.Application {
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   }));
 
-  // ── Static assets ────────────────────────────────────────────────────────
   // Served from src/public/ so .hbs templates can reference /css/style.css etc.
   // process.cwd() resolves correctly from both tsx (dev) and dist/ (prod).
   app.use(express.static(path.join(process.cwd(), 'src', 'public')));
@@ -265,20 +264,17 @@ export function createApp(): express.Application {
     next();
   });
 
-  // ── Request logging ──────────────────────────────────────────────────────
   app.use((req, _res, next) => {
     logger.debug('incoming request', { method: req.method, url: redactTokenPaths(req.url) });
     next();
   });
 
-  // ── Routes ───────────────────────────────────────────────────────────────
   app.use('/health',   healthRouter);
   app.use('/ipc',      ipcRouter);
   app.use('/internal', internalRouter);
   app.use('/admin',    adminRouter);
   app.use('/',         publicRouter);
 
-  // ── 404 handler ──────────────────────────────────────────────────────────
   app.use((_req, res) => {
     res.status(404).render('errors/not-found', {
       seo:  { title: 'Page Not Found' },

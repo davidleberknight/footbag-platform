@@ -1,4 +1,5 @@
-// ---- QC-only (delete with pipeline-qc subsystem) ----
+// Current: QC-only controller; mounted only on internalRouter.
+// Target: delete with the pipeline-qc subsystem.
 import { Request, Response, NextFunction } from 'express';
 import { personsQcService } from '../services/personsQcService';
 import { handleControllerError } from '../../lib/controllerErrors';

@@ -3,24 +3,21 @@
   foundational atoms (clipper / mirage / legover / pickup / illusion /
   whirl / butterfly / swirl / osis / around-the-world / orbit).
 
-  Per SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / G (2026-05-14): one
-  partial used on the landing page AND inside glossary §10 (Foundational
-  Tricks) so both surfaces share registry-style readability.
+  One partial shared by the landing page and glossary §10 so both surfaces
+  share the same grid markup and stay in sync without duplication.
 
   Required `tricks` shape: FreestyleCoreTrickCard[] from freestyleService.
   Each entry: slug, semanticEquivalences[], symbolicNotation, addNumeric,
   addPending. Equivalences render as `≡` readings; notation as a small
   string under #slug; ADD as a numeric value or em-dash for pending rows.
 
-  Caller controls scope (e.g. landing carries the section heading +
-  footnote; glossary §10 carries its own h2). This partial renders only
-  the grid markup.
---}}
-{{!--
+  Caller controls scope (landing carries the section heading + footnote;
+  glossary §10 carries its own h2). This partial renders only the grid markup.
+
   `idPrefix` controls the article's id attribute (default `core-trick-`):
-    - landing surface passes `core-trick-` (matches existing #core-trick-X anchors)
+    - landing surface passes `core-trick-` (matches #core-trick-X anchors)
     - glossary §10 passes `term-` (preserves the cross-page deep-link contract
-      used by glossaryAnchors.ts / GLOSSARY('slug') / semantic-notation links)
+      used by glossaryAnchors.ts and semantic-notation links)
 --}}
 <div class="freestyle-core-trick-grid">
   {{#each tricks}}

@@ -123,9 +123,9 @@ describe('Oversized payloads', () => {
       .set('Cookie', ownCookie())
       .type('form')
       .send({ bio: huge, firstCompetitionYear: '', showCompetitiveResults: 'on' });
-    // Known gap: body-parser "request entity too large" currently surfaces
-    // as 500 instead of the canonical 413 Payload Too Large. Accept either
-    // until the error handler is fixed.
+    // Current: body-parser "request entity too large" surfaces as 500 instead
+    //   of the canonical 413 Payload Too Large.
+    // Target: error handler maps PayloadTooLargeError to 413.
     expect([413, 500]).toContain(res.status);
 
     // Process stayed up: a subsequent request succeeds.

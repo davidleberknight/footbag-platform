@@ -1,6 +1,6 @@
 /**
  * Dry-run classification of the two unresolved populations remaining
- * after the provenance apply (2026-04-23):
+ * after the provenance apply:
  *
  *   Cohort A — historical_persons with NO legacy_member_id (~3,100)
  *              (mirror-only identities + genuinely historical names)

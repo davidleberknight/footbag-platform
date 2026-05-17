@@ -133,9 +133,8 @@ export function createCuratorSeedService(deps: CuratorSeedServiceDeps) {
 
           const existing = existingByFilename.get(file.sourceFilename);
           if (existing) {
-            // Existing row: compare caption + tags from sidecar against DB.
-            // Bytes are not re-checked; operators must delete + re-add to
-            // refresh content. Documented limitation for v1.
+            // Caption and tags are compared; bytes are not re-checked
+            // (operators must delete and re-add a file to refresh stored content).
             const dbTags = readMediaTagsForId(existing.id)
               .filter((t) => t !== CURATED_TAG)
               .sort();
@@ -156,7 +155,6 @@ export function createCuratorSeedService(deps: CuratorSeedServiceDeps) {
             });
             report.updated.push(file.sourceFilename);
           } else {
-            // New file: full upload path.
             await uploadFromFilesystem(input, file, sidecar);
             report.created.push(file.sourceFilename);
           }

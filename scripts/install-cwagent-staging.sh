@@ -8,8 +8,9 @@
 # the IAM publisher username, the SSH alias, the SSM parameter scope, and the
 # remote-half body. The wire-level pattern (stdin-piped sudo password +
 # cat-piped remote-half + variable assignments emitted via printf) is
-# argv-leak-safe and should be preserved verbatim. See AWS_PROJECT_SPECIFICS.md
-# §22 for the design rationale.
+# argv-leak-safe: password and secrets travel only in unnamed kernel pipes
+# (stdin), never in process argv where `ps -ef` readers could capture them.
+# Preserve this pattern verbatim.
 #
 # Installs and configures the Amazon CloudWatch Agent on the staging
 # Lightsail host. Idempotent: safe to re-run on an already-configured host.

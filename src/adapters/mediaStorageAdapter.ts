@@ -161,9 +161,6 @@ export function createS3MediaStorageAdapter(opts: {
   const bucket = opts.bucket;
   return {
     async put(key: string, data: Buffer): Promise<void> {
-      // URL-versioning via `?v={media_id}` makes the bytes-at-this-URL
-      // immutable from any cache's point of view; a replacement upload
-      // emits a fresh `?v=` and is a distinct cache key.
       await client.send(
         new PutObjectCommand({
           Bucket: bucket,

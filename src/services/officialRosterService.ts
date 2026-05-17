@@ -5,12 +5,15 @@
  * defined in schema §13D) and shapes the dashboard summary, list, and
  * CSV export per US A_View_Official_Roster_Reports.
  *
- * Phase A scope: pure read service. Authorization gating
- * (admin / admin-provisioned Tier 2/Tier 3 organizer) is wired in Phase E
- * via the requireTier middleware. This service accepts an actorId and
- * audit-logs every call with category='roster_access' so that downstream
- * gating layers can rely on the call being recorded regardless of how the
- * gate is implemented.
+ * Pure read service. Every call audit-logs with category='roster_access' and
+ * the supplied actorId, so the access record exists independent of how the
+ * controller-side authorization is wired.
+ *
+ * Current: no roster routes are wired yet; admin/Tier2/Tier3 gating
+ *   (requireTier2Plus, requireTier3 in src/middleware/requireTier.ts) is
+ *   available for the controller layer to apply.
+ * Target: roster controller binds the appropriate requireTier middleware to
+ *   each route so authorization runs before this service is reached.
  *
  * The roster view already excludes deceased and soft-deleted members
  * (members_active + is_deceased = 0), and Tier 0 members without current

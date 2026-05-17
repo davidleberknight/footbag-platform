@@ -8,10 +8,10 @@
 # canonical QC gate and DB load complete.
 #
 # Modes:
-#   full            — V0 backbone → preflight → phases C–F → G (soup to nuts)
-#   canonical_only  — V0 backbone only (mirror access required)
-#   enrichment_only — preflight → phases C–F → G (requires canonical outputs)
-#   csv_only        — DB load from existing CSVs → phases C–F → G
+#   full            : V0 backbone, preflight, phases C-F, G (soup to nuts)
+#   canonical_only  : V0 backbone only (mirror access required)
+#   enrichment_only : preflight, phases C-F, G (requires canonical outputs)
+#   csv_only        : DB load from existing CSVs, phases C-F, G
 #                     (no mirror access required; seed and canonical_input must exist)
 #
 # Run from: legacy_data/
@@ -121,7 +121,7 @@ run_preflight_enrichment_only() {
 #
 # Verifies all CSV artifacts that csv_only mode requires are already present.
 # These are produced by a prior canonical_only run (and mirror extraction for
-# clubs seed).  csv_only does NOT re-run QC or the workbook — it loads existing
+# clubs seed).  csv_only does NOT re-run QC or the workbook; it loads existing
 # seed files into the DB then runs enrichment phases C–F and G.
 #
 # Required files:
@@ -211,7 +211,7 @@ run_phase_b_mirror_extract() {
 # that load_club_members_seed needs for name-match attempts) and BEFORE
 # Phase H (which FKs club_bootstrap_leaders → clubs.id).
 #
-# Production-vs-dev distinction (MIGRATION_PLAN §9.1):
+# Production-vs-dev distinction:
 #   load_clubs_seed.py is INTENTIONALLY EXCLUDED from this production
 #   pipeline. The production migration architecture is classifier-driven:
 #   Phase D (clubs/scripts/02_build_legacy_club_candidates.py) classifies
@@ -228,7 +228,7 @@ run_phase_b_mirror_extract() {
 #   pre-existing rows and the production DB would carry 252 non-eligible
 #   clubs that shouldn't be live yet.
 #
-#   The dev workflow (scripts/reset-local-db.sh, David-owned) continues
+#   The dev workflow (scripts/reset-local-db.sh) continues
 #   to call load_clubs_seed.py directly for local-browse convenience.
 #   Dev DBs intentionally carry all 311 mirror clubs; production cutover
 #   DBs carry only the 59 pre_populate clubs. The divergence is
@@ -436,7 +436,7 @@ run_phase_g() {
 }
 
 # =============================================================================
-# PHASE H — Club cutover + bootstrap leaders (IP items 3a + 3b)
+# PHASE H: Club cutover + bootstrap leaders
 # Step 1: 06_cutover_pre_populated_clubs.py — sets mapped_club_id on the
 #         59 bootstrap-eligible candidates and ensures matching live clubs
 #         rows exist (idempotent INSERT OR IGNORE fallback).

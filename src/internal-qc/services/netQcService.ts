@@ -1,8 +1,7 @@
-// ---- QC-only (delete with pipeline-qc subsystem) ----
-// QC/operator page shaping for the net enrichment pipeline: review queue,
-// candidate curation, curated browse, recovery signals/candidates, team-
-// correction triage. Consumed only by src/internal-qc/controllers/netQcController.ts.
-// Never linked from the public site.
+// Current: QC/operator page shaping for the net enrichment pipeline (review
+//   queue, candidate curation, curated browse, recovery signals/candidates,
+//   team-correction triage). Never linked from the public site.
+// Target: delete with the pipeline-qc subsystem.
 
 import {
   netEvents, NetEventSummaryRow, NetEventAppearanceRow,
@@ -1232,7 +1231,6 @@ export const netQcService = {
       if (lines.length > 1) {
         const headers = lines[0].split(',').map(h => h.trim());
         for (let i = 1; i < lines.length; i++) {
-          // Simple CSV parse (handles quoted fields with commas)
           const fields: string[] = [];
           let current = '';
           let inQuotes = false;

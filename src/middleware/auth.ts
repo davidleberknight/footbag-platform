@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import { auth as authDb } from '../db/db';
 import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
 import { config } from '../config/env';
-// CUTOVER-REMOVE: dev/staging-only autologin shortcut. Delete this import and the autologin branch in authMiddleware() at production cutover.
+// CUTOVER-REMOVE: dev/staging autologin shortcut.
+// Current: applyDevAutologin is active only when FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID
+//   is set and footbagEnv === 'development'; env-config blocks the flag in
+//   any non-dev environment.
+// Target: remove this import and the autologin branch in authMiddleware()
+//   at production go-live.
 import { applyDevAutologin } from '../dev-admin-shortcuts/runtime';
 
 export const SESSION_COOKIE_NAME = 'footbag_session';
@@ -37,12 +42,13 @@ export function authMiddleware() {
     req.isAuthenticated = false;
     req.user = null;
 
-    // CUTOVER-REMOVE: dev-only autologin path (env-gated, fail-fast in
-    // non-dev). When the operator opts in via FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID,
-    // the cookie path is skipped entirely so a stale cookie cannot silently
-    // authenticate as a different member than the configured autologin. The
-    // runtime catalog of all dev-admin shortcuts lives in
-    // src/dev-admin-shortcuts/runtime.ts.
+    // CUTOVER-REMOVE: dev-only autologin path.
+    // Current: when FOOTBAG_DEV_AUTOLOGIN_MEMBER_ID is set and
+    //   footbagEnv === 'development', the cookie path is skipped entirely so
+    //   a stale cookie cannot silently authenticate as a different member
+    //   than the configured autologin.
+    // Target: remove this block and the applyDevAutologin import before
+    //   production launch.
     const autologinAttempted =
       config.footbagEnv === 'development' &&
       config.devAutologinMemberId !== undefined;

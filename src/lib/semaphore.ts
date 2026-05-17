@@ -1,10 +1,10 @@
 /**
  * Counting semaphore with a wait timeout.
  *
- * Used to bound concurrent expensive operations across the process. The
- * image worker uses one to bound Sharp jobs; the curator media service uses
- * one to serialize ffmpeg transcodes (slot count 1) so two concurrent admin
- * uploads cannot OOM the staging host.
+ * Bounds concurrent expensive operations across the process. Slot count 1
+ * serializes callers entirely; higher counts cap parallelism without full
+ * serialization. Callers that exceed the slot budget wait up to
+ * `waitTimeoutMs` before receiving a rejection.
  */
 export class Semaphore {
   private inFlight = 0;

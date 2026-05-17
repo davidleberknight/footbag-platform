@@ -14,10 +14,6 @@ export interface ProcessedImage {
   heightPx: number;
 }
 
-/**
- * Validate that the buffer starts with JPEG or PNG magic bytes.
- * Returns the detected MIME type, or null if unrecognized.
- */
 export function detectImageType(data: Buffer): 'image/jpeg' | 'image/png' | null {
   if (data.length < 4) return null;
   if (data.subarray(0, 3).equals(JPEG_MAGIC)) return 'image/jpeg';
@@ -26,14 +22,9 @@ export function detectImageType(data: Buffer): 'image/jpeg' | 'image/png' | null
 }
 
 /**
- * Process a raw upload buffer into two JPEG variants.
- *
  * Security: re-encodes the image through sharp, which strips all
  * EXIF/ICC/XMP metadata and eliminates any embedded malicious content.
  * The original bytes are never written to disk.
- *
- * Returns a 300x300 thumbnail (cover crop) and an 800px-wide display
- * variant, both as JPEG at 85% quality.
  */
 export async function processAvatar(data: Buffer): Promise<ProcessedImage> {
   const metadata = await sharp(data).metadata();

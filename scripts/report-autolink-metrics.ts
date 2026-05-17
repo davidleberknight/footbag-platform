@@ -5,8 +5,7 @@
  * result if every `legacy_members` row became a registrant whose
  * `real_name` equalled its provenance HP's canonical name. This gives a
  * same-day forecast of where the classifier will land once the legacy-site
- * data dump populates `legacy_members.legacy_email` (the current data
- * block — production activity is zero today).
+ * data dump populates `legacy_members.legacy_email`.
  *
  * Log-based metrics would be preferable, but `logger.info(...)` output is
  * not persisted to a queryable store on this host. DB simulation uses the

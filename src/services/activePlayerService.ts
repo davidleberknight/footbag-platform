@@ -173,7 +173,7 @@ export function endOnTier3Grant(
   });
 }
 
-// ── Public surface (Batch 3) ─────────────────────────────────────────────────
+// ── Public surface ───────────────────────────────────────────────────────────
 
 export interface ActivePlayerStatus {
   is_active_player: 0 | 1;

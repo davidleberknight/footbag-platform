@@ -1499,7 +1499,7 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// IA Realignment Batch 1 — landing + glossary stabilization
+// Landing + glossary stabilization invariants
 
 describe('Freestyle IA realignment — Batch 1 contract', () => {
   it('landing retires the "Glossary, Dictionary, and Notation — three layers" framing', async () => {
@@ -1545,9 +1545,8 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
   });
 
   it('operator board renders a Symposium definition consistent with its single-leg-jump mechanics', async () => {
-    // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / D: Symposium action
-    // compressed from 31 words → 10. Single-leg-jump character preserved
-    // (active leg jumps and lands solo) without the verbose preamble.
+    // Symposium action: compact single-leg-jump description (active leg
+    // jumps and lands solo) without verbose preamble.
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).toMatch(/Active leg jumps \+ lands solo/i);
     // The pre-2026-05 "illusion + body rotation" misreading must not reappear.
@@ -1581,8 +1580,8 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
   });
 
   it('set-modifiers grid renders pixie/fairy/stepping (Tier-1) plus atomic/quantum/blurry/nuclear/barraging/furious (intermediate)', async () => {
-    // Phase 2 / H: set-modifier registry grid projected from the Tier-1
-    // operator board + OPERATOR_REFERENCE_ENTRIES set/compound-set entries.
+    // Set-modifier registry grid projected from the Tier-1 operator board
+    // plus OPERATOR_REFERENCE_ENTRIES set/compound-set entries.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('id="set-modifiers-tier-1"');
     const setModSection = res.text.indexOf('id="set-modifiers-tier-1"');
@@ -1626,7 +1625,7 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
 });
 
 // ---------------------------------------------------------------------------
-// IA Realignment Batch 2 — landing-page Language structure
+// Landing-page "Language of Freestyle Footbag" structure invariants
 
 describe('Freestyle landing — Batch 2: The Language of Freestyle Footbag', () => {
   it('renders the new intro heading and lede in place of the old narrative', async () => {
@@ -1639,9 +1638,9 @@ describe('Freestyle landing — Batch 2: The Language of Freestyle Footbag', () 
   });
 
   it('retires the legacy single-featured-video block in favor of the Demonstrations strip', async () => {
-    // Batch 2 retired the standalone `freestyle-featured-video` block; F3
-    // (2026-05-14) re-introduced San Marino as one of two hardcoded curated
-    // entries inside the demonstrations grid. The legacy class must stay gone.
+    // The standalone `freestyle-featured-video` block was retired; San Marino
+    // is one of two hardcoded curated entries inside the demonstrations grid.
+    // The legacy class must stay gone.
     const res = await request(createApp()).get('/freestyle');
     expect(res.text).not.toContain('class="freestyle-featured-video"');
   });
@@ -1785,7 +1784,7 @@ describe('Freestyle landing — Featured strip (C-3 + Phase 1/C merge, 2026-05-1
 });
 
 // ---------------------------------------------------------------------------
-// IA Realignment Batch 3 — glossary pedagogy + compositional teaching flow
+// Glossary pedagogy + compositional teaching flow invariants
 
 describe('Freestyle glossary — [PDX] component-flag definition', () => {
   it('renders the [PDX] flag definition as mechanical (not circular)', async () => {
@@ -1974,15 +1973,15 @@ describe('Freestyle glossary — Batch 3: re-bloat guard', () => {
 });
 
 // ---------------------------------------------------------------------------
-// IA Realignment Batch 4 — typography/layout polish for compact symbolic
-// objects. CSS-only refinements + dictionary unification (CSS-level).
-// Most assertions are structural: class presence, anchor presence, ordering.
+// Typography/layout polish for compact symbolic objects. CSS-only refinements
+// plus dictionary unification (CSS-level). Most assertions are structural:
+// class presence, anchor presence, ordering.
 
 describe('Freestyle landing — Batch 4: symbolic-object class contract preserved', () => {
   it('Core Tricks grid still renders each card with the .core-trick-object class', async () => {
     const res = await request(createApp()).get('/freestyle');
     const matches = res.text.match(/class="core-trick-object"/g) ?? [];
-    // Eleven canonical core tricks per Batch 2 contract.
+    // Eleven canonical core tricks.
     expect(matches.length).toBe(11);
   });
 

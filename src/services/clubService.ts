@@ -151,15 +151,20 @@ export interface PublicClubDetail extends PublicClubSummary {
   countrySlug: string;
   members: ClubMemberSummary[];
   leaders: ClubLeader[];
-  // TEMP-DEVIATION: club-classification QC panel. Populated unconditionally
-  // (will be removed before any production environment ships). Surfaces the
-  // classifier's category, confidence, R1-R10 rule firings, rule inputs, and
-  // decision path for human QC review. Remove with the admin queue migration.
+  // TEMP-DEVIATION: club-classification QC panel.
+  // Current: populated unconditionally on every club detail page; surfaces the
+  //   classifier's category, confidence, R1-R10 rule firings, rule inputs, and
+  //   decision path for human QC review.
+  // Target: remove this field entirely (and the templates that render it) once
+  //   the admin queue migration replaces the QC workflow and no environment
+  //   relies on inline QC output.
   qcPanel?: ClubClassificationEvidence;
 }
 
-// TEMP-DEVIATION: club-classification QC panel. Decision path + rule
-// firings, pre-shaped at the service layer for templates to render flat.
+// TEMP-DEVIATION: ClubClassificationRule + ClubClassificationEvidence types.
+// Current: back the QC panel only; rule firings + inputs are pre-shaped at the
+//   service layer so templates render flat.
+// Target: delete both types when qcPanel is removed (see field comment above).
 export interface ClubClassificationRule {
   id: 'R1'|'R2'|'R3'|'R4'|'R5'|'R6'|'R7'|'R8'|'R9'|'R10';
   label: string;
@@ -361,19 +366,28 @@ function toPublicClubDetail(
   return detail;
 }
 
-// TEMP-DEVIATION: row shape returned by db.ts listMembersByClubId. Used to
-// split historical affiliations into leader / contact / member buckets at
-// the service layer and to back the QC panel's member list.
+// TEMP-DEVIATION: AffiliationRow (shape returned by db.ts listMembersByClubId).
+// Current: the club detail path splits historical affiliations into leader /
+//   contact / member buckets using this row, and the QC panel reads its
+//   member list from the same source.
+// Target: replace with the permanent roster model once bootstrap leader rows
+//   cover the full club set (both pre_populate and onboarding_visible cohorts
+//   loaded) and the QC panel is removed.
 interface AffiliationRow {
   person_id: string | null;
   person_name: string;
   inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
 }
 
-// TEMP-DEVIATION: shape an affiliation row into a ClubLeader for the
-// fallback path when the candidate has no bootstrap_leader row. status is
-// 'provisional' because the affiliation was inferred from mirror data, not
-// claimed by a real member; contact gate stays closed.
+// TEMP-DEVIATION: affiliationRowToClubLeader fallback for clubs outside the
+// pre_populate bootstrap cohort.
+// Current: clubs without club_bootstrap_leaders rows surface
+//   affiliation-inferred leaders (role='leader'/'co-leader'/'contact') as
+//   provisional leaders. Contact gate stays closed; status is always
+//   'provisional' because the affiliation was inferred from mirror data,
+//   not claimed by a real member.
+// Target: delete this fallback once bootstrap leader rows cover the full
+//   club set (pre_populate plus onboarding_visible cohorts loaded).
 function affiliationRowToClubLeader(row: AffiliationRow): ClubLeader {
   const isCoLeader = row.inferred_role === 'co-leader';
   const isContact  = row.inferred_role === 'contact';
@@ -390,7 +404,11 @@ function affiliationRowToClubLeader(row: AffiliationRow): ClubLeader {
   return leader;
 }
 
-// TEMP-DEVIATION: row shape returned by db.ts getClassificationEvidenceByClubId.
+// TEMP-DEVIATION: ClassificationEvidenceRow (db.ts getClassificationEvidenceByClubId shape).
+// Current: carries classifier output for the QC panel only; not part of the
+//   permanent club data model.
+// Target: delete this type and its backing db.ts statement when the QC panel
+//   is removed (see qcPanel field comment above).
 interface ClassificationEvidenceRow {
   classification: 'pre_populate' | 'onboarding_visible' | 'dormant' | 'junk';
   confidence_score: number | null;
@@ -408,8 +426,11 @@ interface ClassificationEvidenceRow {
   ever_hosted: number;
 }
 
-// TEMP-DEVIATION: shape evidence row into the QC panel view-model.
-// Rule labels mirror MIGRATION_PLAN §9.1 / 02_build_legacy_club_candidates.py.
+// TEMP-DEVIATION: toClassificationEvidence shapes the QC panel view-model.
+// Current: rule labels (R1..R10) match the legacy classifier script that
+//   populates legacy_club_candidates, so the QC panel reflects the same rule
+//   names operators see when running the classifier offline.
+// Target: delete this function when the QC panel is removed.
 function toClassificationEvidence(row: ClassificationEvidenceRow): ClubClassificationEvidence {
   // Rule spec: label is a short identifier (table column); humanClause is the
   // sentence fragment used in narrative prose ("a member was competing in 2020+").
@@ -629,8 +650,7 @@ export class ClubService {
 
       const country = matchedRows[0].country;
 
-      // Bulk-fetch all bootstrap leaders once; group by club_id for O(1)
-      // per-club lookup. Single round trip — no N+1.
+      // Group by club_id for O(1) per-club lookup (single round trip, no N+1).
       const leaderRows = clubs.listAllBootstrapLeaders.all() as BootstrapLeaderRowWithClubId[];
       const leadersByClubId = new Map<string, BootstrapLeaderRowWithClubId[]>();
       for (const lr of leaderRows) {
@@ -638,7 +658,6 @@ export class ClubService {
         leadersByClubId.get(lr.club_id)!.push(lr);
       }
 
-      // Bulk-fetch member counts once; same per-club Map pattern.
       const memberCountRows = clubs.listMemberCountsForAllClubs.all() as MemberCountRow[];
       const memberCountByClubId = new Map<string, number>();
       for (const mr of memberCountRows) {
@@ -724,8 +743,12 @@ export class ClubService {
         });
       }
 
-      // Read all historical affiliations once (loosened to include 'pending'
-      // per TEMP-DEVIATION); split into leader / contact / member buckets.
+      // TEMP-DEVIATION: listMembersByClubId includes resolution_status='pending'.
+      // Current: loader-imported affiliations land in 'pending' and stay there
+      //   until the onboarding wizard ships, so including 'pending' is the
+      //   only way to surface real affiliations on the club detail page today.
+      // Target: drop 'pending' from the filter once the onboarding wizard
+      //   confirms affiliations and migrates them to 'confirmed_current'.
       const affiliationRows = clubs.listMembersByClubId.all(row.club_id) as AffiliationRow[];
 
       // Leaders are public per V_Browse_Clubs / M_View_Club: provisional

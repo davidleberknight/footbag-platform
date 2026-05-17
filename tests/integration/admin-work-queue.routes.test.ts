@@ -129,7 +129,8 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(audit).toBeDefined();
     expect(audit!.actor_type).toBe('admin');
 
-    // Per DD §5.4: services enqueue via outbox; never call SES directly.
+    // Services enqueue notification emails via the outbox table; the SES
+    // adapter is never called directly from a service or controller.
     const outboxRow = db
       .prepare(`SELECT recipient_email, subject, body_text, idempotency_key FROM outbox_emails WHERE recipient_member_id = ? AND idempotency_key LIKE 'contact-request-resolve:%' ORDER BY created_at DESC LIMIT 1`)
       .get(MEMBER_ID) as

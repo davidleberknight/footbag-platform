@@ -76,9 +76,9 @@ export interface TierStatus {
 // definition in member_tier_current relies on id-string comparison when
 // created_at ties. UUIDv7 carries a 48-bit ms timestamp prefix that makes
 // any two ids generated in different ms lex-comparable; same-ms ids resolve
-// by the random tail (consistent across processes, no shared state needed).
-// Replaces the prior per-process counter scheme that silently collided
-// across the web/worker container boundary.
+// by the random tail, which is consistent across processes without shared
+// state (the web and worker containers can mint ids independently and
+// preserve sort order under merge).
 function newGrantId(): string {
   return `mtg_${uuidv7Hex()}`;
 }
@@ -236,12 +236,17 @@ export function applyPurchaseGrant(
  *
  * No environment gate; callers gate on FOOTBAG_ENV (or other appropriate
  * triggers like SSM-token presence) where required:
- *   - dev/staging registration bootstrap (src/dev-admin-shortcuts/runtime.ts) —
- *     passes reason_code='dev_admin_register_allowlist.admin_tier2'. CUTOVER-REMOVE.
- *   - dev-only backfill repair pass (src/dev-admin-shortcuts/runtime.ts) —
- *     passes reason_code='dev_admin_invariant_repair'. CUTOVER-REMOVE.
- *   - production single-shot bootstrap (deferred slice) — passes
- *     reason_code='prod.admin_bootstrap_tier2'
+ *   - dev/staging registration bootstrap (src/dev-admin-shortcuts/runtime.ts),
+ *     reason_code='dev_admin_register_allowlist.admin_tier2'.
+ *     Current: active in dev/staging only; env-config guard blocks in
+ *       production.
+ *     Target: remove the caller and this bullet at production go-live.
+ *   - dev-only backfill repair pass (src/dev-admin-shortcuts/runtime.ts),
+ *     reason_code='dev_admin_invariant_repair'.
+ *     Current: active in dev/staging only.
+ *     Target: remove the caller and this bullet at production go-live.
+ *   - production single-shot bootstrap, reason_code='prod.admin_bootstrap_tier2'
+ *     (the permanent post-cutover caller).
  *
  * The audit action_type is derived from reason_code. Each
  * dev-admin-shortcut caller keeps its distinctive action_type so a single
@@ -296,10 +301,12 @@ export function applyAdminTier2InvariantGrantInTx(
     relatedPaymentId: null,
     now,
   });
-  // CUTOVER-REMOVE: dev-admin-shortcut reason_codes route to distinctive
-  // action_types so the audit trail can be partitioned and zero-checked
-  // before production deploy. The default branch is the production
-  // single-shot bootstrap path.
+  // CUTOVER-REMOVE: dev-admin reason_code routing.
+  // Current: dev_admin_invariant_repair and dev_admin_register_allowlist.admin_tier2
+  //   route to distinctive action_types so the audit trail can be partitioned
+  //   and zero-checked before production deploy.
+  // Target: remove both branches at production go-live; only the production
+  //   bootstrap path (grant_admin_bootstrap action_type) remains.
   let actionType: string;
   let category: 'admin' | 'tier_change';
   if (reasonCode === 'dev_admin_invariant_repair') {
@@ -399,13 +406,16 @@ export function applyHonorGrant(
 /**
  * Apply the single tier grant produced by a legacy-claim merge.
  *
- * Per `docs/MIGRATION_PLAN.md` §3 ("Tier handling at claim") and DD §2551:
- * one `member_tier_grants` row is written at claim time with
- * `reason_code = 'legacy.claim_tier_grant'`, no conditional "exceeds
- * current" logic. The full precedence table requires deferred legacy-state
- * columns on `legacy_members`; the honors-only fallback applies today:
+ * Writes one `member_tier_grants` row at claim time with
+ * `reason_code = 'legacy.claim_tier_grant'`. No conditional "exceeds current"
+ * logic: every claim produces a marker row even when the resulting tier does
+ * not change.
+ *
+ * Current fallback (honors-only, all that is wired today):
  *   - HoF or BAP → `tier2`
  *   - else        → `tier0`
+ * Target precedence table: needs deferred legacy-state columns on
+ * `legacy_members` before it can be expanded. (MIGRATION_PLAN §3, DD §2551)
  *
  * Caller owns the transaction so the grant is atomic with the merge writes.
  * Tier 0 grants are written even when current is already Tier 0, so the

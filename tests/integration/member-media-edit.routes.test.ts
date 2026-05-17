@@ -10,9 +10,8 @@
  * Tier gating: POST is gated by requireTier1Benefits; GET stays open
  * so tier-0 owners can read their own existing items.
  *
- * Route ordering: /media/upload must match before /media/:mediaId/edit.
- * The literal-segment defense is verified by the upload-route suite;
- * this file asserts edit-flow correctness end to end.
+ * Route ordering: /media/upload must match before /media/:mediaId/edit;
+ * the controller also guards :mediaId === 'upload' defensively.
  */
 import fs from 'fs';
 import path from 'path';

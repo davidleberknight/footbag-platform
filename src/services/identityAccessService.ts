@@ -55,7 +55,13 @@ import { getCommunicationService } from './communicationService';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
-// CUTOVER-REMOVE: dev/staging-only admin shortcuts. Delete this import plus the bootstrap call in registerMember and the skip-claim call in the legacy-claim path at production cutover.
+// CUTOVER-REMOVE: dev/staging admin shortcuts.
+// Current: applyDevStagingBootstrapAdmin and shouldSkipClaimEmailForAdmin are
+//   active in dev/staging only; the env-config fail-fast guard prevents the
+//   flag enabling them from being set in production.
+// Target: remove this import and all call sites (the bootstrap call in
+//   registerMember and the skip-claim branch in claimLegacyByEmailKnown)
+//   at production go-live.
 import { applyDevStagingBootstrapAdmin, shouldSkipClaimEmailForAdmin } from '../dev-admin-shortcuts/runtime';
 import { RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
 import { isUniqueConstraintError } from './sqliteRetry';
@@ -1303,11 +1309,14 @@ function initiateLegacyClaim(
     return { kind: 'auto_linked' };
   }
 
-  // CUTOVER-REMOVE: dev-only admin shortcut. Production admins use
-  // manualLegacyClaimRecovery. The runtime catalog of all dev-admin
-  // shortcuts lives in src/dev-admin-shortcuts/runtime.ts; the env-config
-  // fail-fast guard refuses to start with the flag set in any
-  // non-development environment.
+  // CUTOVER-REMOVE: dev-admin shortcut that skips the email step.
+  // Current: when the requesting member is a dev-admin (per
+  //   shouldSkipClaimEmailForAdmin), the legacy claim is merged inline
+  //   without sending a verification email; env-config blocks this branch
+  //   in production. Other dev-admin shortcuts are catalogued in
+  //   src/dev-admin-shortcuts/runtime.ts.
+  // Target: remove this whole branch at production go-live; production
+  //   admins recover legacy claims via manualLegacyClaimRecovery.
   if (shouldSkipClaimEmailForAdmin(requestingMemberId)) {
     transaction(() => {
       claimLegacyAccountInTx(requestingMemberId, row!.legacy_member_id);

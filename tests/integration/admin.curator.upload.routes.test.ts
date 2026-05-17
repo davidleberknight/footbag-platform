@@ -18,9 +18,9 @@ import os from 'os';
 const TEST_DB_PATH = path.join(os.tmpdir(), `footbag-test-admin-curator-${Date.now()}.db`);
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-media-admin-'));
 // Curator photo + video uploads write to /curated/{category}/ in local-adapter
-// mode (DD §1.13). Redirect that write to a temp directory so tests don't
-// pollute the repo's real /curated/. The url_reference describe block below
-// further overrides this for its scoped tests.
+// mode. Redirect that write to a temp directory so tests don't pollute the
+// repo's real /curated/. The url_reference describe block below further
+// overrides this for its scoped tests.
 const TEST_CURATED_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-curated-admin-'));
 
 process.env.FOOTBAG_DB_PATH   = TEST_DB_PATH;
@@ -276,7 +276,7 @@ describe('POST /admin/curator/upload — photo', () => {
     db.close();
 
     // /curated/photos/<slug>.jpg + <slug>.meta.json must exist with the
-    // right shape (DD §1.13 file-paired sidecar).
+    // right shape (binary + JSON sidecar paired under the same slug).
     const slug = String(mediaRow.source_filename).replace(/\.jpg$/, '');
     const binaryPath = path.join(TEST_CURATED_DIR, 'photos', `${slug}.jpg`);
     const sidecarPath = path.join(TEST_CURATED_DIR, 'photos', `${slug}.meta.json`);
@@ -447,9 +447,8 @@ describe('POST /admin/curator/upload — photo', () => {
 describe('POST /admin/curator/upload — video (local-adapter sync path)', () => {
   // In local-adapter mode the dev curator authoring path accepts video via
   // standard multipart and writes the source bytes + poster + sidecar to
-  // /curated/{category}/ (DD §1.13). The async sign + S3 PUT + finalize flow
-  // (DD §6.8) is for S3-adapter mode and is exercised in
-  // admin.curator.upload.async.routes.test.ts.
+  // /curated/{category}/. The async presign + S3 PUT + finalize flow is for
+  // S3-adapter mode and is exercised in admin.curator.upload.async.routes.test.ts.
 
   it('happy path: redirects, inserts media_items + tags + audit; writes /curated/{category}/ video + poster + sidecar', async () => {
     const app = createApp();

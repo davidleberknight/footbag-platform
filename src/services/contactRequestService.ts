@@ -181,9 +181,10 @@ export const contactRequestService = {
       : trimmed;
     const reasonText = `${categoryLabel}: ${summary}`;
 
-    // Per DD §5.4 + US §198 Global Behaviors: every work_queue_items INSERT
-    // triggers an admin-alerts notification, in the same transaction as the
-    // queue write. Body carries task_type and entity_id only.
+    // The work_queue_items INSERT and the admin-alerts mailing-list notification
+    // commit in one transaction: a rollback cannot leave a dangling alert or
+    // an alertless queue item. Notification body carries task_type and
+    // entity_id only. (DD §5.4, US §198)
     transaction(() => {
       workQueue.insertItem.run(
         id, nowIso, input.requestingMemberId, nowIso, input.requestingMemberId,
@@ -298,8 +299,9 @@ export const contactRequestService = {
         '— International Footbag Players Association',
       ].join('\n');
 
-      // Per DD §5.4: services enqueue via outbox; never call SES directly.
-      // Terminal-state key shape: re-resolving (rare) does not re-send.
+      // Enqueue via outbox so SES is never called synchronously inside a
+      // request or transaction boundary. Terminal-state idempotency key:
+      // re-resolving the same queue item produces no second email.
       getCommunicationService().enqueueEmail({
         recipientEmail:    member.login_email,
         recipientMemberId: member.id,

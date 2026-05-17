@@ -84,8 +84,6 @@ function taskUrlFor(taskType: OnboardingTaskType): string {
   return `/register/wizard/${taskType}`;
 }
 
-// ── Flash cookie helpers ───────────────────────────────────────────────
-
 function writeWizardFlash(req: Request, res: Response, flash: WizardFlash): void {
   if (flash.kind === 'WIZARD_LEGACY_CLAIM_RESULT') {
     writeFlash(res, req, FLASH_KIND.WIZARD_LEGACY_CLAIM_RESULT, JSON.stringify(flash.payload));
@@ -127,8 +125,6 @@ function readWizardFlashState(req: Request, res: Response): WizardFlashState {
   // whichever surface owns it.
   return { ...EMPTY_FLASH };
 }
-
-// ── Per-task render helpers ────────────────────────────────────────────
 
 async function renderLegacyClaim(
   req: Request,
@@ -228,8 +224,6 @@ async function renderTaskByType(
   if (taskType === 'show_competitive_results') { renderShowCompetitiveResults(req, res); return; }
 }
 
-// ── Dispatch ────────────────────────────────────────────────────────────
-
 interface DispatchOpts<TFormState> {
   action: () => Promise<WizardActionResult<TFormState>> | WizardActionResult<TFormState>;
   renderValidationError?: (result: { formState: TFormState; message: string }) => void | Promise<void>;
@@ -270,8 +264,6 @@ async function dispatch<TFormState>(
     next(err);
   }
 }
-
-// ── Controller ─────────────────────────────────────────────────────────
 
 export const memberOnboardingController = {
   async getTask(req: Request, res: Response, next: NextFunction): Promise<void> {

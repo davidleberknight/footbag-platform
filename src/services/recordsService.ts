@@ -3,10 +3,6 @@ import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecor
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 
-// ---------------------------------------------------------------------------
-// View-model types
-// ---------------------------------------------------------------------------
-
 export interface ConsecutiveRecordViewModel {
   division:   string;
   player_1:   string | null;
@@ -34,10 +30,6 @@ export interface RecordsContent {
   passbackRecords:   FreestyleRecordViewModel[];
   totalPassback:     number;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function formatScore(score: number | null): string {
   if (score === null) return '—';
@@ -74,10 +66,6 @@ function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
   }
   return groups;
 }
-
-// ---------------------------------------------------------------------------
-// Service
-// ---------------------------------------------------------------------------
 
 export const recordsService = {
   getRecordsPage(): PageViewModel<RecordsContent> {

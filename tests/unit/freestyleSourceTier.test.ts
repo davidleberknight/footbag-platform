@@ -6,13 +6,10 @@
  * both the trick-detail Reference Media split (Tutorials vs Demos) and the
  * dictionary-index "Tutorial available" / "Demo only" / "No video yet" badge.
  *
- * Phase 2a — refactor (no behavior change for any existing source).
- * Phase 2b — shred_global reclassified TUTORIAL → DEMONSTRATION (14-trick
- *            badge downgrade; every shred_global entry is a single-trick
- *            showcase, not instructional content).
- *
- * Phase 2c (deferred) will add a per-clip override path. anz_trikz remains
- * TUTORIAL pending Phase 2d per-clip review.
+ * The SOURCE_TIER map is the single source of truth for Tutorial vs
+ * Demonstration classification. Taxonomy changes require explicit review
+ * because they affect badge presentation on the trick-detail Reference
+ * Media split and the dictionary-index tier indicators.
  */
 import { describe, it, expect } from 'vitest';
 import { SOURCE_TIER, tierOf } from '../../src/services/freestyleService';
@@ -28,19 +25,14 @@ describe('SOURCE_TIER taxonomy', () => {
 
   it('holds anz_trikz and footbagspot_passback at TUTORIAL pending Phase 2d per-clip review', () => {
     // Mixed-character corpora; blanket reclass would lose real instructional
-    // clips. Per-clip override (Phase 2c) is required before reclassification.
+    // clips. Per-clip override support is required before reclassification.
     expect(SOURCE_TIER.anz_trikz).toBe('TUTORIAL');
     expect(SOURCE_TIER.footbagspot_passback).toBe('TUTORIAL');
   });
 
   it('classifies shred_global as DEMONSTRATION (Phase 2b reclassification)', () => {
-    // Pre-Phase 2b this was TUTORIAL. Every shred_global entry is a
-    // single-trick demo with caption pattern
-    //   "Footbag Freestyle Trick: <name> (<add>add) by <player>".
-    // 14 tricks lost the "Tutorial available" badge under this change:
-    // atom-smasher, barrage, blurriest, bullwhip, dimwalk, dyno, fury,
-    // gauntlet, jani-walker, paradox-symposium-whirl, paradox-torque,
-    // ripwalk, sidewalk, smear.
+    // Every shred_global entry is a single-trick showcase, not instructional
+    // content, so it belongs in DEMONSTRATION rather than TUTORIAL.
     expect(SOURCE_TIER.shred_global).toBe('DEMONSTRATION');
   });
 
