@@ -52,7 +52,7 @@ operational notation        ← TERTIARY: execution mechanics
 | Glossary §3 compression-flow | `.core-trick-object.glossary-compression-card` | Hardcoded osis/torque/mobius in `glossary.hbs` |
 | Dictionary browse cards | `.dict-card` | Merge of `freestyleSymbolicEquivalences.ts` (compound chains) + `freestyleAliasGovernance.ts` (allow-listed atom aliases) |
 
-The visual rendering is identical across surfaces (Batch 4 typography unification); the data-source paths differ because each surface has different content needs (landing curates 11 atoms; glossary curates 3 worked examples; dictionary surfaces all 160 active tricks).
+The visual rendering is identical across surfaces (Batch 4 typography unification); the data-source paths differ because each surface has different content needs (landing curates 12 atoms; glossary curates 3 worked examples; dictionary surfaces all 160 active tricks).
 
 ### 1C — Forever-rules for any future surface
 

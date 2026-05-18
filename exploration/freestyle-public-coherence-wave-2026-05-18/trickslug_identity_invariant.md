@@ -214,7 +214,7 @@ Documented exemptions to the invariant (so future readers don't
 mistake them for drift):
 
 - **Compact symbolic-object pattern** (landing core-tricks grid +
-  glossary §10) renders the 11 core atoms differently from the
+  glossary §10) renders the 12 core atoms differently from the
   registry/browse densities — intentional, registered as the
   `core-atom-symbolic` mode in the V2 contract.
 - **Tokenized vs operational-notation display** is intentional per

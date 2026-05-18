@@ -41,7 +41,7 @@ The architecture is stable, restraint posture intact, infrastructure mature. Thi
 
 | Surface | Coverage state |
 |---|---|
-| Landing Core Tricks | 11 atoms surfaced; 9 with ADD chip, 2 with `≡` line (around-the-world + orbit); orbit still ADD-pending |
+| Landing Core Tricks | 12 atoms surfaced; 11 with numeric ADD chip, 1 with em-dash (orbit pending DB canonicalization); each card carries 2 `≡` readings (phenomenology + foundational ADD-derivation formula) per the 2026-05-17/18 Formula-Accountability + foundational-formula slices |
 | Glossary §3 compression-flow | 3 cards (osis → torque → mobius); pedagogically sufficient as worked example |
 | Dictionary browse cards | 37 compounds render canonical `≡` readings; ~14% of 160 active tricks; pattern recognition has crossed the threshold for surging-X / atomic-X / miraging-X / pixie-X families |
 | Trick-detail expanded surface | Per-trick narrative renders Layer-2 ladder via chain registry; same-source-of-truth as compact surface |

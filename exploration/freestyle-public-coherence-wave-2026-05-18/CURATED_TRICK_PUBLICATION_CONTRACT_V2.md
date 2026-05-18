@@ -133,7 +133,7 @@ emerge accidentally from surface drift.
 |---|---|---|---|
 | `registry` | `dictionary-trick-card.hbs` (registry density) | ADD view + family view + category view + topology view + component view (legacy) + movement-system view | High-density scan-oriented row |
 | `browse` | `dictionary-trick-card.hbs` (browse density) | Sets view (legacy alias for component) | Vertical-stack default density |
-| `core-atom-symbolic` | `core-tricks-grid.hbs` | Landing Core Tricks grid + glossary §10 foundational grid | Symbolic-object compact pattern for the 11 atoms |
+| `core-atom-symbolic` | `core-tricks-grid.hbs` | Landing Core Tricks grid + glossary §10 foundational grid | Symbolic-object compact pattern for the 12 atoms |
 | `trick-shell` | `trick-shell.hbs` (with sub-partials) | Trick-detail page `/freestyle/tricks/:slug` | Full superset — V2 invariant 7 anchor |
 
 New surfaces must use one of these registered modes OR add a new mode

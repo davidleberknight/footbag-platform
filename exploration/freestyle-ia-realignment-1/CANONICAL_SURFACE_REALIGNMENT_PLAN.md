@@ -150,7 +150,7 @@ Today's reality across the three compact-object surfaces:
 
 | Surface | Equivalence source | Filter applied | Coverage |
 |---|---|---|---|
-| Landing Core Tricks | static `CORE_TRICK_SPEC` (Batch 2) | hand-curated to canonical-only | 11 atoms; 3 with `≡` readings |
+| Landing Core Tricks | static `CORE_TRICK_SPEC` (Batch 2) | hand-curated to canonical-only | 12 atoms; all with `≡` readings |
 | Glossary compression-flow | hardcoded in `glossary.hbs` | hand-curated (only osis/torque/mobius shown) | 3 of 3 |
 | Dictionary cards | `freestyle_trick_aliases.commonAliases` | none (all aliases) | All 160 tricks see their raw aliases |
 
