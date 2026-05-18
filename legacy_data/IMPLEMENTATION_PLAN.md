@@ -96,7 +96,6 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 - [ ] Player pages resolve (no orphan historical person IDs)
 
 ### Club cleanup pipeline
-- [ ] Phase G + Phase H integration test asserts: live `clubs` row count equals bootstrap_eligible candidate count; stamped `mapped_club_id` count equals intersection of candidates and clubs rows
 - [ ] `legacy_person_club_affiliations` schema enforces `resolved_club_id NOT NULL when resolution_status='confirmed_current'`
 - [ ] `pending → confirmed_current` wizard-transition test pins the `resolved_club_id` write
 - [ ] Phase H exits non-zero on missing seed-CSV rows and on zero candidates after enrichment
