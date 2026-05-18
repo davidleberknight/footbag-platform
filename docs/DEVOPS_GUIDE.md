@@ -1026,6 +1026,29 @@ Use targeted restarts for:
 
 Do **not** use restarts as a substitute for root-cause analysis when alarms or crash loops continue.
 
+### 7.6 Cutover rollback
+
+Cutover rollback decisions follow a hard time boundary.
+
+**Within T+4 hours of the DNS swap:** rollback is the operator's call. Procedure:
+
+1. Enable maintenance mode per §8.3 HTTP 503 layer.
+2. Restore the pre-cutover snapshot per §10.5 Snapshot restore.
+3. Re-run the cutover auto-link batch. `OperationsPlatformService.runBatchAutoLink` is idempotent; reruns produce no duplicate claims, no double-sent notifications, and no duplicate confirmation cards per MIGRATION_PLAN §6.
+4. Disable maintenance mode.
+5. Run smoke tests against the origin per §13.8.
+6. Document the rollback trigger and the remediation plan.
+
+The pre-cutover snapshot is taken as the last step before cutover and integrity-verified before the auto-link batch runs.
+
+**After T+4 hours:** rollback discards accumulated new user activity (registrations, claim confirmations, content edits). The decision requires governance sign-off. Procedure:
+
+1. Convene the maintainer, the IFPA primary contact, and any active operators.
+2. Quantify the in-window writes (count registrations, claim audit rows, content edits) before deciding.
+3. If proceeding: run the within-T+4h procedure above. If not: document why fix-forward is preferred over rollback.
+
+The T+4-hour boundary is a default; the maintainer may adjust the window based on observed traffic volume after cutover.
+
 ---
 
 ## 8. Health Endpoints, Maintenance Mode, and Readiness
@@ -1065,15 +1088,23 @@ Operational rule: if readiness fails persistently, treat the origin as not safe 
 
 ### 8.3 Maintenance mode
 
-Maintenance mode is edge-driven, not app-driven.
+Maintenance mode operates in two layers.
 
-Primary mechanism:
+**HTTP 503 layer (planned maintenance and cutover):** Express middleware returns 503 with a small response body when `MAINTENANCE_MODE=1` is set in the systemd unit environment. The middleware skips internal routes (`/health/live`, `/health/ready`, and any internal-only batch endpoints) so the auto-link batch and health probes keep working while user-facing routes return 503. Operator toggle:
 
-- CloudFront custom error responses for origin 500/502/503/504 or origin unreachability
-- maintenance page asset stored in S3
-- short error cache TTL so recovery becomes visible quickly
+```bash
+sudo systemctl set-environment MAINTENANCE_MODE=1
+sudo systemctl reload footbag.service
+# operator work, for example the cutover auto-link batch
+sudo systemctl set-environment MAINTENANCE_MODE=
+sudo systemctl reload footbag.service
+```
 
-This is the authoritative maintenance/outage experience for browsing traffic.
+Use this layer when the platform must be running internally (the cutover auto-link batch, schema migrations that touch live tables, or any task that needs SQLite access) while user traffic is paused.
+
+**CloudFront fallback layer (unplanned origin loss):** CloudFront custom error responses for origin 500/502/503/504 or origin unreachability serve the maintenance page asset stored in S3. Short error cache TTL so recovery becomes visible quickly. This layer handles outages where the origin is unreachable or returning 5xx without an explicit maintenance-mode signal.
+
+For planned maintenance the HTTP 503 layer is preferred because it returns a graceful response immediately and lets internal work continue. The CloudFront layer remains as the safety net for unplanned origin failure.
 
 ### 8.4 Planned maintenance
 
@@ -1673,6 +1704,42 @@ Future state when the team grows beyond one maintainer:
 
 The severity definitions and acknowledgment targets above are operational policy; the maintainer ratifies them before treating as binding and updates them in this section if the project's reality shifts.
 
+### 13.10 Hall of Fame and Big Add Posse daily admin digest review
+
+A daily system job emits a digest of the prior 24 hours of silent auto-link claims that produced a `member_tier_grants` row with `reason_code='legacy.claim_tier_grant'` and a Hall of Fame or Big Add Posse honor flag, delivered to the admin-alerts mailing list. The digest covers a configurable monitoring window (default 56 days from cutover).
+
+Operator workflow:
+
+1. Open the daily digest email.
+2. For each listed claim, read the original claim audit row to identify the linked member display name, the linked legacy member display name, and the honor type (HoF or BAP).
+3. Spot-check the link for plausibility against public history. If anything looks wrong, contact the linked member directly. The silent-and-notified design assumes the member has agency to revert from the notification email or first-login card; this digest is a back-stop.
+4. If a wrong link is identified and the member is unreachable, the operator may trigger the revert handler from the admin queue per §13.11.
+
+The digest is informational. Actions on flagged claims are taken through the `A_Review_Auto_Link_Matches` queue per §13.11.
+
+### 13.11 Auto-link revert handling
+
+When a member reports a silent high-confidence or medium-confidence auto-link as incorrect (via the notification email link, the first-login confirmation card, or the profile-settings affordance), the system runs the revert handler atomically per MIGRATION_PLAN §6 and enqueues a `work_queue_items` row with `task_type='auto_link_revert_review'` for admin confirmation.
+
+Operator workflow:
+
+1. Open the `A_Review_Auto_Link_Matches` admin queue and filter for `auto_link_revert_review` items.
+2. For each item, review the original claim audit row and the revert event to understand the chronology and what the member observed.
+3. Decide: confirm-revert (leave the cleared state in place; the legacy account is available for the correct person to claim), hard-decline (re-establish the link if the member who reported was mistaken; reason required), or defer.
+4. Record the decision per the audit rules in `A_Review_Auto_Link_Matches`: audit-logged with actor, original claim audit id, revert audit id, decision, optional reason, timestamp.
+5. If hard-declined, the member is notified by email that their link was re-established and given a contact path if they want to follow up.
+
+### 13.12 Club leader evidence review
+
+When a weak-classified bootstrap leadership candidate confirms in the onboarding wizard with supplementary evidence, the system enqueues a `work_queue_items` row with `task_type='club_leader_evidence_review'` per MIGRATION_PLAN §2 and `A_Review_Club_Cleanup_Signals`.
+
+Operator workflow:
+
+1. Open the `A_Review_Club_Cleanup_Signals` admin queue and filter for `club_leader_evidence_review` items.
+2. For each item, review the candidate's structural-signal evidence (presence of `listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`) and the supplementary evidence the member submitted.
+3. Decide: confirm-promotion (promote the bootstrap candidate row to a live `club_leaders` row; mark `club_bootstrap_leaders.status='claimed'`), request-more-evidence (return the item to the queue with an admin note for the member), decline (mark `club_bootstrap_leaders.status='rejected'`), or defer.
+4. Record the decision per the audit rules in `A_Review_Club_Cleanup_Signals`.
+
 ---
 
 ## 14. Staging Refresh and Anonymization
@@ -1927,6 +1994,19 @@ Per-secret runbooks: §5.5 (Stripe), §5.6 (JWT/KMS), §5.7 (source-profile acce
 - timing recorded
 - issues logged
 - follow-up actions assigned
+
+### 16.6 Cutover preflight checklist
+
+The cutover preflight orchestrator sequences the validation gates from `MIGRATION_PLAN.md` §24. Manual operator preconditions before invoking it:
+
+- ACM certificate for footbag.org issued in us-east-1 and attached to the production CloudFront distribution. Issuance is operator-initiated through AWS Support and allows several days of lead time; the cert is requested with both `footbag.org` and `www.footbag.org` covered.
+- SES sending domain verified end-to-end on the production account, SPF/DKIM/DMARC records published, sandbox exit complete, bounce and complaint SNS topics subscribed. See §4.5 and §13.5. A test send from the production account to the operator mailbox confirms the path.
+- DNS TTL on the legacy footbag.org zone reduced to 60 seconds at least 48 hours before the DNS swap. Webmaster coordination per `MIGRATION_PLAN.md` §18.12; capture the lowered-TTL timestamp in the cutover log.
+- Pre-cutover database snapshot taken and integrity verified per §10.5. Manifest captured (snapshot id, byte size, row counts for `members`, `legacy_members`, `historical_persons`, `name_variants`, `club_bootstrap_leaders`).
+- Dev-admin shortcuts confirmed absent from the production runtime via `scripts/audit-dev-admin-shortcuts.sh`; expected count is zero.
+- `npm run test:smoke` and `npm run test:e2e` green against the production origin.
+
+Each precondition halts the cutover if it fails. The orchestrator's pass means all gates are satisfied; the operator's go signal completes the cutover. After DNS swap, follow up with §13.10 (HoF and BAP daily digest) and §7.6 (Cutover rollback decision rule) as needed.
 
 ## 17. Test-data Operations
 

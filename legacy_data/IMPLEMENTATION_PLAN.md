@@ -27,6 +27,16 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **Cross-track: relocate `freestyle-dictionary-surface` from `.claude/skills/` to `exploration/`.** The file at `.claude/skills/freestyle-dictionary-surface/SKILL.md` self-identifies as "exploration-derived. Not production-shipped" (its own lines 50, 86) but sits in the production-trigger skill tree where it can auto-load on Claude prompts about freestyle-dictionary UI. Plan: (1) `mv .claude/skills/freestyle-dictionary-surface/SKILL.md exploration/freestyle-dictionary-surface.md` and `rmdir` the empty skill directory (touches `.claude/skills/`; coordinate with Dave); (2) update `exploration/freestyle-notation-grammar/PROPOSAL.md:579` from `.claude/skills/freestyle-dictionary-surface/SKILL.md` to `exploration/freestyle-dictionary-surface.md`; (3) update `legacy_data/scripts/build_structural_alias_adjudication.py` lines 5 and 522 to drop the word "skill" from the "freestyle-dictionary-surface skill §X" citations (file is no longer a skill after the move). Audited during Dave's 2026-05-17 docs-refactor session (chunk 25 in that plan).
 
+- **MIGRATION_PLAN §2 cross-track: combination-gate signal evidence missing from bootstrap pipeline.** The new MP §2 design (landed 2026-05-18) classifies `(member, club)` candidates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`) plus three modifiers. Pipeline gaps:
+  1. `clubs/scripts/03_build_legacy_person_club_affiliations.py:126` hardcodes `inferred_role='member'`; contact and leader inference do not run, so the per-row `listed_contact` signal cannot be derived from this CSV.
+  2. `clubs/scripts/04_build_club_bootstrap_leaders.py` emits only `confidence_score`, role, and `selection_reason`; no per-signal evidence columns on the CSV.
+  3. `clubs/scripts/07_load_bootstrap_leaders.py:179-192` inserts only `confidence_score`, role, `status`, `notes`. The schema at `database/schema.sql:3356-3381` lacks per-signal columns.
+  4. No producer scans club page narrative for the `mirror_text` signal.
+  
+  Schema decision (per-signal columns vs a `club_bootstrap_leader_signals` child table) coordinates with the platform-side "Club leader bootstrap classification and wizard step (W2)" deviation in the root `IMPLEMENTATION_PLAN.md`. After the schema lands, extend `03_build` to emit role inference (contact / leader / member), extend `04_build` to emit per-signal flags, extend `07_load` to populate them. Validators for per-signal distribution postconditions land alongside the columns.
+
+- **MIGRATION_PLAN §2 cross-track: modifier signals (recent_activity, geographic_alignment) not propagated.** `legacy_person_club_affiliations.csv` does not carry the person's `last_year`, `city`, or `country`. `clubs/scripts/03_build_legacy_person_club_affiliations.py` does not merge these from `persons_master.csv` or `legacy_members`. To produce the two modifiers the script must join person attributes and emit overlap predicates (person's `last_year` vs club's `last_updated_year` window; person's city or country vs club's). The third modifier `tier_signal` is gated on the legacy-site data dump per the existing blocker (above) — no pipeline work until tier columns land on `legacy_members`.
+
 ---
 
 ## BLOCKERS

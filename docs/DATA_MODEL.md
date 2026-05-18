@@ -1169,7 +1169,18 @@ Uniqueness is enforced via two partial unique indexes rather than a single UNIQU
 May be dropped once all affiliation suggestions are resolved.
 
 #### `club_bootstrap_leaders` — operational, migration-origin
-Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives the lifecycle of the imported `legacy_members` row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+Leaders for bootstrapped clubs. These are real leaders; they can manage the club once they register. `legacy_member_id` is NOT NULL on every row — it is the stable identifier that survives the lifecycle of the imported `legacy_members` row after a successful claim. `imported_member_id` is nullable with `ON DELETE SET NULL` for the same reason. `claimed_member_id` is populated when a claim confirms the leadership and the row is promoted to `club_leaders`. Classification (strong, weak, or none) per `MIGRATION_PLAN.md` §2 combination gates is derived at read time from associated `club_bootstrap_leader_signals` rows. The `confidence_score` column is retained as a sortable informational attribute and does not drive classification. May be dropped only after all rows reach a terminal state (`claimed`, `superseded`, or `rejected`).
+
+#### `club_bootstrap_leader_signals` — operational, migration-origin
+Per-signal evidence for the combination-gate classification of bootstrap leader candidates (see `MIGRATION_PLAN.md` §2 Bootstrap rule). Each row records that a specific structural signal or modifier fired for a `(member, club)` candidate, captured at pipeline time. Services compute the strong / weak / none classification at read time by checking which structural signals are present on the parent bootstrap row.
+
+`signal_type` values fall into two categories. Structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`) drive classification per MP §2 gates. Modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification.
+
+`signal_payload_json` is free-form structured evidence (a last-year overlap window, a matched contact id, a narrative excerpt) captured by the pipeline emitter. `source` records which pipeline producer wrote the row (for example `legacy_affiliations`, `legacy_candidates`, `mirror_extraction`).
+
+UNIQUE on (`bootstrap_leader_id`, `signal_type`) prevents duplicate evidence for the same signal on the same bootstrap row. Foreign key to `club_bootstrap_leaders(id)` with `ON DELETE CASCADE` so signal rows are removed when the parent bootstrap row is.
+
+May be dropped together with `club_bootstrap_leaders` once all bootstrap rows reach a terminal state.
 
 ### 4.26 Name-matching utilities
 

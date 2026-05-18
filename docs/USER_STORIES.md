@@ -36,6 +36,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [M_Download_Data](#m_download_data)
     - [M_Browse_Legacy_Archive](#m_browse_legacy_archive)
     - [M_Claim_Legacy_Account](#m_claim_legacy_account)
+    - [M_Confirm_Auto_Linked_Identity](#m_confirm_auto_linked_identity)
     - [M_Complete_Onboarding_Wizard](#m_complete_onboarding_wizard)
   - [3.2 Profile Management](#32-profile-management)
     - [M_Edit_Profile](#m_edit_profile)
@@ -480,7 +481,7 @@ Success Criteria:
 - Registration submissions are gated by a Cloudflare Turnstile CAPTCHA verified server-side before any DB read; identical UX whether the email is new, in deletion grace, or already registered.
 - Display names are constrained to prevent homograph attacks (for example: no mixed scripts or confusable characters, and reasonable length limits).
 - New members automatically assigned Tier 0 (free lifetime) status.
-- **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported `legacy_members` row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (Tier 1 exact name match, Tier 2 known variant match), the prompt defaults to yes (pre-checked). For low-confidence matches (Tier 3 email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
+- **Legacy-link check:** After account creation, the system checks whether the registrant’s verified email matches an imported `legacy_members` row’s `legacy_email` or a historical person’s legacy email. If a match is found, the member is prompted inline to confirm the link ("We found a history record, is this you?"). For high-confidence matches (exact name match) and medium-confidence matches (known variant name match), the prompt defaults to yes (pre-checked). For low-confidence matches (email match but name mismatch), the prompt defaults to no (member must actively opt in). The member’s decision is audit-logged. No admin involvement at registration time; the member is the authority on their own identity.
 - **Post-verify onboarding:** After email verification, the member is routed to `M_Complete_Onboarding_Wizard` (see MIGRATION_PLAN §10) with applicable outstanding tasks. The wizard owns the club affiliation flow (per MIGRATION_PLAN §9.3 Stages 1A, 1B, 2A, 2B, 3A, 3B) and the optional metadata tasks (`first_competition_year`, `show_competitive_results`). Registration itself does not block on these tasks; they are skippable and resumable from the dashboard task widget.
 - Member sees a clear success message after registration: "Registration successful! Please check your email to verify your account."
 - Member sees clear error messages for validation failures with hints about what to fix.
@@ -682,6 +683,23 @@ Success Criteria:
 - All claim and merge events are audit-logged.
 - If self-serve claim is not available (no usable legacy email, row flagged for review, or other ineligibility), the member is directed to contact an admin for manual recovery.
 
+### M_Confirm_Auto_Linked_Identity
+
+Access: Authenticated members whose account carries a pending `AutoLinkConfirmContent` first-login card. The card is created when a medium-confidence batch auto-link silently links the member's account to a legacy member at cutover; see MIGRATION_PLAN §6.
+
+Story: As a member silently linked to a legacy account by the cutover batch, I can review the link on first login and either confirm it, dismiss the card, or report the link as incorrect, so that I retain agency over my identity without an admin reviewing every legitimate link.
+
+Success Criteria:
+
+- After successful login, the dashboard surfaces an `AutoLinkConfirmContent` card describing the silent claim: the linked legacy member's display name, what the link enables (historical-result attribution, tier grant, Hall of Fame or Big Add Posse badge if applicable), and three actions: Confirm, Dismiss, Report incorrect.
+- Confirm dismisses the card and writes an `audit_entries` row with `action_type='legacy.auto_link_confirmed'`. The link remains in place.
+- Dismiss dismisses the card without an explicit confirmation entry. The link remains in place. The card does not reappear on subsequent logins.
+- Report incorrect triggers the revert handler defined in MIGRATION_PLAN §6 ("Report-incorrect revert handler"): clears claim-state columns, reverses the tier grant, enqueues admin review with `task_type='auto_link_revert_review'`, and audit-logs the revert as `legacy.auto_link_revert`. The member sees a confirmation screen acknowledging the revert.
+- The card persists across logins until the member confirms, dismisses, or reports it incorrect.
+- High-confidence batch auto-link does not produce this card. The notification email is the sole post-claim surface for high-confidence links (per MIGRATION_PLAN §6).
+- The Report incorrect affordance is also reachable from profile settings under "Linked legacy accounts" so a member who dismissed the card can revisit the option later.
+- Anti-enumeration: a second Report incorrect attempt against an already-reverted link returns a uniform non-revealing response.
+
 ### M_Complete_Onboarding_Wizard
 
 Access: Newly verified members reach the wizard immediately after email verification. The wizard is the primary entry point for the onboarding task list managed by `MemberOnboardingService` (MIGRATION_PLAN §10) and the primary cleanup channel for legacy club data.
@@ -705,10 +723,14 @@ Club-affiliation task acceptance criteria:
 - Stage 1A (listed contact) offers five paths per club: still active and involved; still active but moved on; not active anymore; do not recognize listing; defer.
 - Stage 1B (affiliated but not listed contact) offers five paths per club: still a member; was a member, no longer; club is gone; never played there; defer. Stage 1B paths 1 and 2 surface the candidate's description and external URL; the member can flag inaccuracies and suggest replacement text through the §9.3 content validation loop, which routes the proposal for approval by the listed contact, the eventual club leader, or admin. Only Stage 1A path 1 (listed contact) edits club metadata directly without approval.
 - Stage 2A (pre-populated clubs nearby) and Stage 2B (onboarding-visible clubs nearby) render as sequenced sub-stages with distinct framings and per-card question wording. Stage 2A's "I'd like to join" path renders a link to the club's join page on the club detail surface and records no wizard signal; the wizard's role is cleanup, not duplicating the regular club-join flow. Stage 2A path 1 (member affirms) and Stage 2B paths 1 and 2 (member confirms existence) surface the club's or candidate's description and external URL; the member can flag inaccuracies and suggest replacement text via the §9.3 content validation loop.
-- Stage 3 offers name search (entry to dormant revival in Stage 3A). When Stage 3A search yields no match the registrant can claim, the wizard ends and offers a link to the standard `M_Create_Club` flow as a separate next step. The wizard itself never creates a new `clubs` row.
+- Stage 3 offers name search (entry to dormant revival in Stage 3A). When Stage 3A search yields no match the registrant can claim, the wizard advances to the `club_affiliations` wrap-up landing (see below) rather than ending in place. The wizard itself never creates a new `clubs` row.
 - In Stage 3A name search, when a dormant candidate matches the registrant's query but the registrant chooses path 3 "Different club, same name," the candidate is not marked confirmed or rejected. It remains in `legacy_club_candidates` and searchable for future registrants; the search continues against remaining matches.
 - The `club_affiliations` task progresses through stages sequentially: after every Stage 1 card resolves (confirm, reject, defer, or skip) the wizard advances to Stage 2; after every Stage 2 card resolves the wizard advances to Stage 3. Per-card actions persist immediately; on resume from the dashboard widget, the task re-renders only cards that have no signal recorded yet. Skipping the task transitions the row to `skipped`; resume returns the registrant to the first un-signaled card.
 - Confirmed leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of registrant tier. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants per MIGRATION_PLAN §2 activation paths and §9.1. Clubs may have multiple leaders.
+- Members can detour out of any Stage 1/2/3 club card to `M_Join_Club` or `M_Create_Club` without resolving the current card. Unsignaled cards remain unsignaled and signaled cards retain their signals. On detour, the `club_affiliations` task transitions to `in_progress_paused` in `MemberOnboardingService`; the dashboard task widget surfaces "Resume onboarding" which returns the member to the same card. Detour decisions are audit-logged with member ID, target story, source wizard card, and timestamp.
+- Selecting "Add a club not shown" by a Tier 0 member surfaces a tier-gate advisory before routing: "Creating a club requires IFPA Member (Tier 1) or above, because you'll be the club leader." The advisory offers two paths: "Upgrade to Tier 1 first" routes to `M_Purchase_Tier_1_IFPA_Member`, returning to the advisory on successful upgrade with a "Continue to Create Club" option; "Continue with wizard" returns to the prior card with no state change. The advisory does not block. Tier 1, Tier 2, and Tier 3 members skip the advisory and route directly to `M_Create_Club`.
+- At the end of the `club_affiliations` task, if no `member_club_affiliations` row was written during the wizard run, the wizard's final screen displays a "Find or create your club" landing with three options: "Join an existing club" routes to `M_Join_Club`, "Create a new club" routes to `M_Create_Club` (Tier 0 members see the tier-gate advisory above first), and "Skip for now" completes the wizard with no club affiliation. The dashboard task widget surfaces "Continue onboarding" until the member explicitly dismisses or completes the task.
+- The dashboard task widget reflects the `club_affiliations` task state across the lifecycle: `in_progress` (one or more cards remain unsignaled) shows "Continue onboarding"; `in_progress_paused` (member detoured) shows "Resume onboarding" and returns to the same card on click; `skipped` shows "Continue onboarding" until explicit dismissal or completion; `completed` follows the existing completed-task pattern.
 - Promotion of onboarding-visible or dormant candidates to live `clubs` rows follows the promotion paths in MIGRATION_PLAN §9.1.
 - All outcomes (current, former, rejected, historical, reported-inactive, suggested-metadata) are persisted so the member is not repeatedly prompted.
 - Wizard signals (confirmations, rejections, "never heard of it" reports, suggested content edits) are recorded as structured audit-log rows. Admin reviews accumulated signals through the cleanup queue described in MIGRATION_PLAN §9.4. There is no automated demotion or time-based escalation.
@@ -1714,19 +1736,26 @@ Success Criteria:
 
 Access: Admins only.
 
-Story: As an admin, I can review and resolve Tier 3 auto-link cases from the legacy data import (email match but name mismatch between a historical person and an imported member placeholder) so that identity links are correct. This is a migration-time review for existing IFPA members who have not yet registered and therefore cannot be asked directly.
+Story: As an admin, I can review and resolve two classes of auto-link cases so that identity links are correct: (a) low-confidence cases from the legacy data import (email match but name mismatch between a historical person and an imported `legacy_members` row), and (b) member-reported reverts where a silent high-confidence or medium-confidence auto-link was flagged as incorrect from the notification email or first-login confirmation card (per `M_Confirm_Auto_Linked_Identity`).
 
-Success Criteria:
+Success Criteria for low-confidence migration cases:
 
-- Admin can view Tier 3 auto-link cases from the migration import: each case shows the historical person name, the `legacy_members` row name, the matched email, and any relevant context (country, event history).
+- Admin can view low-confidence auto-link cases from the migration import: each case shows the historical person name, the `legacy_members` row name, the matched email, and any relevant context (country, event history).
 - Admin can confirm the link (the historical person and the placeholder are the same person despite the name mismatch).
 - Admin can reject the link (the historical person and the placeholder are different people who happen to share an email).
 - Admin can defer a case for further investigation.
 - Confirmed links are applied: the historical person's `person_id` is linked to the member row. Audit-logged with actor, historical person ID, member ID, decision, and timestamp.
 - Rejected links are recorded so the system does not re-queue the same pair.
-- All actions are audit-logged.
 
-Note: At registration time, Tier 3 cases are handled by an inline user prompt (default no, user must actively opt in). No admin involvement at registration time.
+Success Criteria for member-reported reverts (`task_type='auto_link_revert_review'`):
+
+- Admin can view revert-review items: each item shows the original silent claim (audit row, member display name, claimed legacy member display name, claim date) and the revert event (audit row, revert date). The revert handler clears claim state and reverses the tier grant before the item lands in the queue, per MIGRATION_PLAN §6.
+- Admin actions per revert: confirm-revert (the legacy account remains claimable by the correct person; no further state change beyond what the revert handler already wrote), hard-decline (re-establish the link if the reporter was wrong; reason required), or defer.
+- Hard-decline re-applies the silent claim atomically (writes `members.legacy_member_id`, `legacy_members.claimed_by_member_id`, `members.historical_person_id` when back-linked, appends a `member_tier_grants` row with `change_type='grant'` and `reason_code='legacy.auto_link_revert_declined'`) and notifies the member by email.
+
+All resolutions are audit-logged with actor, item type, decision, optional reason, and timestamp.
+
+Note: At registration time, low-confidence cases are handled by an inline user prompt (default no, user must actively opt in). No admin involvement at registration time.
 
 ### A_Review_Club_Cleanup_Signals
 
@@ -1743,6 +1772,7 @@ Success Criteria:
   - Auto-merge holds where source entries disagreed on substantive identity, per §9.1 duplicate handling.
   - Junk-flagged candidates and admin force-keep or force-junk requests, per §9.1.
   - All non-junk candidates not yet promoted to live `clubs` rows.
+  - **Club leader evidence review** (`task_type='club_leader_evidence_review'`): weak-classified bootstrap leadership candidates where the member submitted supplementary evidence in the onboarding wizard, per MIGRATION_PLAN §2 and `M_Complete_Onboarding_Wizard`.
 - Each queue item shows: the candidate or club id, the source surface (wizard stage and path, `M_Join_Club`, club detail page, classifier), the flagging or proposing member id, the flag category or proposed edit content, location predicates (same-city, same-region, same-country) where relevant, an optional note, and the timestamp.
 - Resolution actions available per item type:
   - **Flag (any source)**: dismiss with optional note, or escalate to one of the actions below.
@@ -1752,6 +1782,7 @@ Success Criteria:
   - **Force-keep or force-junk request**: apply, modify, or reject.
   - **Unpromoted candidate (onboarding-visible or dormant)**: promote to a live `clubs` row, demote (onboarding-visible to dormant), archive, or defer.
   - **Live club with accumulated flags**: mark `status='inactive'`, archive (`status='archived'`), demote to dormant, merge with another club, split a previously auto-merged row, or dismiss the flags.
+  - **Club leader evidence review item**: confirm-promotion (promote the bootstrap candidate row to a live `club_leaders` row, mark `club_bootstrap_leaders.status='claimed'`, audit-log the promotion), request-more-evidence (return to the queue with an admin note for the member to address), decline (mark `club_bootstrap_leaders.status='rejected'`), or defer.
 - All resolutions are audit-logged with actor, item type, club or candidate id, decision, optional note, and timestamp.
 - The queue is sortable and filterable by category, age, region, flag count, and source surface; admin works through items at their own pace. There is no time-based escalation or automated demotion.
 - The queue surface respects the privacy and anti-enumeration rules that apply to legacy data: admin-only access, no public exposure of registrant signal authorship.

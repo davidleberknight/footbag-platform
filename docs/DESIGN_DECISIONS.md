@@ -2600,12 +2600,18 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 
 **Operational sequencing.** The legacy site enters write freeze; the final export is imported; schema changes are applied to production; clubs are bootstrapped; DNS switches to the new platform. Rollback lever before DNS switch: abort and retry. Rollback lever after DNS switch: manual DNS reversion to the legacy site. No automated rollback is provided after the DNS switch.
 
+**Auto-link cutover surface.** At cutover, the batch auto-link pass writes silent claims for both high-confidence and medium-confidence matches per `MIGRATION_PLAN.md` §6. Every silent claim emits a member-facing notification email to the linked address. Medium-confidence claims additionally persist an `AutoLinkConfirmContent` first-login card that the member can confirm, dismiss, or report incorrect. Report-incorrect triggers an atomic revert (clears claim state, reverses the tier grant, enqueues admin review) so a wrong silent link is correctable by the member without admin throughput. Low-confidence cases route to admin review at migration time only. A daily Hall of Fame and Big Add Posse admin digest covers the post-cutover monitoring window (default 56 days) as a back-stop against undetected wrong silent claims on permanent honors.
+
+**Club leader bootstrap classification.** The wizard's bootstrap leadership confirmation classifies each `(member, club)` candidate via combination gates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`) per `MIGRATION_PLAN.md` §2. Three modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification. Strong-classified candidates with user confirmation silently promote to a live `club_leaders` row regardless of registrant tier; weak-classified candidates collect supplementary evidence and enqueue admin review with `task_type='club_leader_evidence_review'`. Rules are encoded in service code, not stored as data; revisions follow observed false-positive data.
+
 Rationale:
 
 - Separating the historical pipeline from the legacy member import allows historical content and clubs to proceed independently, reducing go-live risk.
 - The imported-row model preserves legacy identity without granting premature access. Mailbox verification is the minimal proof step that is both secure and feasible given the data available.
 - Club bootstrap ensures clubs are present on day one. Leaders can manage clubs once they register.
 - Ledger-only tier handling eliminates the cache-sync complexity that existed in earlier designs and makes imported-row tier state auditable from day one.
+- Silent-and-notified for medium-confidence auto-link balances the throughput cost of admin review against the reputational cost of an undetected wrong silent link on a permanent Hall of Fame or Big Add Posse honor. The notification email and first-login confirmation card give the member agency to revert without requiring admin throughput, and the daily digest catches the highest-stakes subset proactively.
+- Combination gates for bootstrap classification were preferred over a weighted score because audit transparency matters more for migration-time identity work than tunability. An admin reviewing a weak-classified case reads which signal combinations fired, not an opaque scalar; a wrong gate is debugged by inspecting the rule, not by retuning a weight.
 
 Requirements:
 
@@ -2619,6 +2625,8 @@ Trade-offs:
 - Members without access to their legacy email address must contact an admin for manual recovery.
 - Club bootstrap depends on mirror-derived data quality; clubs with ambiguous or low-confidence leader data require admin review.
 - No automated rollback after DNS switch; rollback requires manual DNS reversion and coordination.
+- Silent-and-notified auto-link retains a residual false-positive surface (a member who controls a victim's email, ignores the notification, and dismisses the first-login card). The daily Hall of Fame and Big Add Posse digest mitigates the highest-stakes subset; the admin queue handles low-confidence at migration time; the report-incorrect path remains available indefinitely from profile settings.
+- Adjusting bootstrap gate rules requires a code revision rather than a data update.
 
 ## 6.6 AWS Service Integration
 
