@@ -37,6 +37,25 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 
 - **MIGRATION_PLAN §2 cross-track: modifier signals (recent_activity, geographic_alignment) not propagated.** `legacy_person_club_affiliations.csv` does not carry the person's `last_year`, `city`, or `country`. `clubs/scripts/03_build_legacy_person_club_affiliations.py` does not merge these from `persons_master.csv` or `legacy_members`. To produce the two modifiers the script must join person attributes and emit overlap predicates (person's `last_year` vs club's `last_updated_year` window; person's city or country vs club's). The third modifier `tier_signal` is gated on the legacy-site data dump per the existing blocker (above) — no pipeline work until tier columns land on `legacy_members`.
 
+- **Freestyle pages audit (2026-05-18). All items for asap triage. Mixed Dave-track (app / template / route / docs) and James-track (curator content).**
+  1. **BUG (app).** `src/services/freestyleService.ts:709` emits `href: '#reference-media'`; target section is `id="media"` in `src/views/freestyle/trick-shell.hbs:66`. Every trick-detail "Jump to Reference Media" link is dead. Rename href to `#media`.
+  2. **BUG (landing copy).** Operator board on `/freestyle` shows both `STEP + BUTTERFLY → RIPWALK` and `BL + BUTTERFLY → RIPWALK`; only `STEP` is canonical (RIPWALK = Stepping Butterfly per glossary §8). Fix the `BL` example in `src/content/freestyleLandingContent.ts`.
+  3. **BUG (route).** `/freestyle/moves → /freestyle/sets` 301 at `src/routes/publicRoutes.ts:58` violates DD §5.2 (redirects limited to auth gates, PRG, canonical-identity). Delete the redirect route; drop the matching `VIEW_CATALOG.md:359` entry.
+  4. **BUG (app).** Upgrade HTTP external links to HTTPS: `src/views/freestyle/moves.hbs:21`, `src/views/freestyle/glossary.hbs:1117` (two URLs on that line).
+  5. **UX.** `/freestyle` landing renders 3 "Coming soon" Get Started tiles; hide until populated.
+  6. **UX.** `/freestyle/tricks` modifier rows show ADD as `—` with no inline gloss; beginners read as missing data. Add a footnote matching the landing's pending-entry pattern.
+  7. **UX.** `/freestyle/learn` triple-hedges "observational" (h1 badge, footer, planned-entry style); trim and hide unshipped entries.
+  8. **UX.** `/freestyle/tricks` view-toggle: ADD, family, category views lack a per-view lede (component, movement-system, topology already have one).
+  9. **UX.** `/freestyle/about` has 2 outbound links only; add glossary, tricks index, `/freestyle/learn`.
+  10. **UX.** `/freestyle/insights`, `/freestyle/competition`, `/freestyle/partnerships` are bare tables with no scaffolding lede or glossary link.
+  11. **UX.** `/freestyle/glossary` §10 + §11 are stubs after run-quality content relocated to `/freestyle/combo-analysis`; rewrite or merge into §8. Tier badges (Beginner / Intermediate / Advanced) aren't actionable; consider jump-by-tier nav.
+  12. **Content (curator).** `src/views/freestyle/about.hbs:27` uses "moves" instead of canonical "tricks".
+  13. **Content (curator).** Glossary §1 vocabulary-stabilization claim (2007 to 2008; no new base tricks since) lacks an inline citation; add one if corpus-backed.
+  14. **Content (curator).** `src/views/freestyle/moves.hbs:20` and `src/views/freestyle/glossary.hbs` §12 name community contributors (Chris Holden, Jobs notation); other freestyle pages don't. Decide policy.
+  15. **Docs.** `docs/VIEW_CATALOG.md`: drop `/freestyle/moves` row (line 359) when redirect is removed; add entries for `/freestyle/progression/walking-family` and `/freestyle/modifier/:slug` (`publicRoutes.ts:63, 64`); fix `trick.hbs` / `trick-ux2.hbs` reference at line 362 to unified `trick-shell.hbs`.
+  16. **BUG (landing layout).** `/freestyle` landing renders `Trick Dictionary →` + `Glossary →` in the `freestyle-top-reference-jump` nav (`src/views/freestyle/landing.hbs:16-19`); the same two destinations appear in the portal-cards block below. Two paths to the same target on one page. Remove the top-reference-jump nav and let the portal cards carry the CTAs.
+  17. **BUG (main landing scope violation).** The `/freestyle` MAIN landing page body is glossary teaching detail: Basic Components (`landing.hbs:51-69`), Core Tricks grid (`landing.hbs:75-80`), Operator Board (`partials/operator-board.hbs` via `landing.hbs:105`). All of this material already lives on `/freestyle/glossary` §2 through §7. The main landing must be a portal (hero + featured demo + CTA grid), not a parallel primer. Strip the teaching sections off landing; the Glossary portal card carries the entry into that material.
+
 ---
 
 ## BLOCKERS
