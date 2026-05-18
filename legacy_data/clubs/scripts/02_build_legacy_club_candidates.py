@@ -12,6 +12,7 @@ CLUB_MEMBERS_CSV = REPO_ROOT / "legacy_data" / "seed" / "club_members.csv"
 PERSON_UNIVERSE_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "persons_enriched_for_clubs.csv"
 AFFILIATIONS_CSV = REPO_ROOT / "legacy_data" / "clubs" / "out" / "legacy_person_club_affiliations.csv"
 EVENTS_CSV = REPO_ROOT / "legacy_data" / "out" / "canonical" / "events.csv"
+DUPLICATE_OVERRIDES_CSV = REPO_ROOT / "legacy_data" / "overrides" / "club_duplicates.csv"
 
 OUT_DIR = REPO_ROOT / "legacy_data" / "clubs" / "out"
 OUT_CSV = OUT_DIR / "legacy_club_candidates.csv"
@@ -51,6 +52,59 @@ HOST_CLUB_ALIASES = {
     "hradec kralove footbag club":
         "hradec králové footbag club",
 }
+
+
+def load_club_duplicate_overrides(path: Path = DUPLICATE_OVERRIDES_CSV) -> set[str]:
+    """Curator-authoritative drop set for duplicate-club adjudication.
+
+    Reads ``legacy_data/overrides/club_duplicates.csv`` (schema:
+    ``keep_legacy_key,drop_legacy_key,reason``) and returns the set of
+    ``drop_legacy_key`` values. The ``keep_legacy_key`` column is not
+    consumed by the pipeline — it documents the canonical winner for
+    curator audit only. Missing file → empty set (graceful default).
+
+    The override targets only mirror-derived duplicates where two
+    ``seed/clubs.csv`` rows represent the same real-world club. The
+    extractor (``scripts/extract_clubs.py``) and ``seed/clubs.csv`` are
+    intentionally unchanged; the override sits above mirror data as the
+    editorial dedup layer, mirroring how ``overrides/person_aliases.csv``
+    relates to mirror-derived person records.
+    """
+    if not path.exists():
+        return set()
+    overrides_df = pd.read_csv(path, dtype=str).fillna("")
+    return {
+        k.strip()
+        for k in overrides_df.get("drop_legacy_key", pd.Series([], dtype=str))
+        if k.strip()
+    }
+
+
+def apply_club_duplicate_overrides(
+    df: pd.DataFrame,
+    drop_keys: set[str],
+    key_col: str = "_club_key",
+) -> int:
+    """Suppress bootstrap_eligible on rows whose legacy_club_key is in
+    the curator drop set. Mutates ``df`` in place; returns the count of
+    rows overridden.
+
+    Preserves ``category`` (so the row's R1-R10 classifier output stays
+    visible to QC panels and the curator queue). Only
+    ``bootstrap_eligible`` is overridden.
+
+    Invariant exception: while the classifier normally derives
+    ``bootstrap_eligible == (category == 'pre_populate')``, rows in the
+    drop set bypass that derivation and carry ``bootstrap_eligible = 0``
+    regardless of category. ``overrides/club_duplicates.csv`` is the
+    source of truth for these specific suppressions; the drop reason
+    column documents WHY each row was overridden.
+    """
+    if not drop_keys:
+        return 0
+    mask = df[key_col].isin(drop_keys)
+    df.loc[mask, "bootstrap_eligible"] = 0
+    return int(mask.sum())
 
 
 def require_columns(df: pd.DataFrame, required: set[str], label: str) -> None:
@@ -539,6 +593,15 @@ def main() -> None:
     df = pd.concat([df, classification], axis=1)
 
     df["bootstrap_eligible"] = (df["category"] == "pre_populate").astype(int)
+
+    # Curator-authoritative duplicate adjudication. Targets only
+    # mirror-derived legacy_club_keys where seed/clubs.csv carries two
+    # rows for the same real-world club. See load_club_duplicate_overrides().
+    drop_keys = load_club_duplicate_overrides()
+    n_overridden = apply_club_duplicate_overrides(df, drop_keys, key_col="_club_key")
+    if n_overridden:
+        print(f"  Override: {n_overridden} duplicate(s) suppressed via "
+              f"overrides/{DUPLICATE_OVERRIDES_CSV.name}")
 
     # Stable output columns.
     out_cols = []

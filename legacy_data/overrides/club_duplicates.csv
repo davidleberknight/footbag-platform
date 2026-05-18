@@ -1,0 +1,2 @@
+keep_legacy_key,drop_legacy_key,reason
+1042652245,1488489195,"Les Pieds à Gilles 2003 canonical (has URL piedsagilles.ch + 12 events 2006-2025); 2017 row is empty duplicate from mirror re-listing. Drop suppresses bootstrap_eligible so Phase H promotes only the keep_legacy_key."
