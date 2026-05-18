@@ -361,9 +361,10 @@ export interface FreestyleLandingContent {
 
 // ── Operator Board ──────────────────────────────────────────────────────
 // The landing-page mini-board introduces the Tier-1 operator vocabulary
-// (14 operators across set / body / structural tiers). Sketch captions
-// per OPERATOR_BOARD_MOCKUP_REVIEW.md §B; cells with curatorConfirmPending=true
-// require a curator accuracy pass before any prose lock.
+// (13 operators across set / body / structural tiers). Caption framing
+// per OPERATOR_BOARD_MOCKUP_REVIEW.md §B (planning artifact). Cells with
+// curatorConfirmPending=true require a curator accuracy pass before any
+// prose lock.
 export interface OperatorBoardOperator {
   glyph:                  string;   // e.g. "PIX"
   name:                   string;   // e.g. "Pixie"
@@ -4915,10 +4916,10 @@ export const freestyleService = {
 
   // ── Operator board — Tier-1 movement-language vocabulary.
   // Renders on the freestyle landing page, glossary §3, and /freestyle/learn
-  // via the same operator-board partial. Tiers (the 14 operators) are
+  // via the same operator-board partial. Tiers (the 13 operators) are
   // surface-invariant; heading + lede vary per surface (see
-  // OPERATOR_BOARD_PROSE). Captions are sketch-level pending curator
-  // confirmation on the four cells flagged with curatorConfirmPending.
+  // OPERATOR_BOARD_PROSE). Captions are curator-confirmed except on cells
+  // still flagged curatorConfirmPending.
   getOperatorBoard(surface: OperatorBoardSurface = 'landing'): OperatorBoardData {
     const op = (
       glyph: string,
