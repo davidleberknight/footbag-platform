@@ -5097,6 +5097,10 @@ section.home-media { padding-top: 0; }
 .operator-board-footer-link a:focus-visible {
   text-decoration: underline;
 }
+.operator-board-footer-sep {
+  margin: 0 0.5em;
+  color: #999;
+}
 
 /* Glossary §3 — Intermediate-operator reference (NF-2A).
  * Renders the 9 compound / quantifier operator entries. Inherits the
