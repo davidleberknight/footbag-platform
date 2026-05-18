@@ -2,13 +2,19 @@
  * freestyleResolvedFormulas.ts
  * =============================
  *
- * Curator-published compact formulas for the mechanically-derivable
- * compound tricks where the structural reading is the canonical
- * Red-settled +1 stack pattern (operator(+1) + base(N) = (N+1) ADD).
+ * Curator-published compact formulas for mechanically-derivable
+ * compound tricks. Sprints accumulate here as the curator burn-down
+ * proceeds.
  *
- * Sprint 1 of the Canonical Formula Resolution sequence. These are
- * the 15 rows from formula_gap_classification.csv that satisfy ALL
- * of:
+ * Sprint 1 (15 rows): pure +1-stack pattern — operator(+1) + base(N)
+ *                     where both operator and base are Red-settled.
+ *
+ * Sprint 2 (7 rows): pattern expansion — pt-ruled compounds, positional
+ *                    modifiers (reverse = +0), the first multi-operator
+ *                    chain (paradox-symposium-whirl), and folk-name
+ *                    resolutions whose decomposition is curator-locked.
+ *
+ * Every row continues to satisfy the V1+V2 publication contract:
  *
  *   - Operator is in the settled +1 inventory (paradox, spinning,
  *     ducking, symposium, stepping, atomic, whirling)
@@ -57,16 +63,17 @@ export interface ResolvedFormula {
 }
 
 export const RESOLVED_FORMULAS_FRAMING_PROSE =
-  "Mechanically-derivable compound formulas where the operator and " +
-  "base are both Red-settled. Each row shows the operator's +1 " +
-  "contribution stacked on the base's canonical ADD. No Wave 2 " +
-  "dependencies; no curator-judgment cases. Sprint 1 of the " +
-  "Canonical Formula Resolution sequence — see " +
-  "formula_review_queue.md for the broader curator-pending list.";
+  "Mechanically-derivable compound formulas — pure +1 operator stacks, " +
+  "pt-ruled compounds, positional modifiers (reverse=+0), folk-name " +
+  "resolutions with curator-locked decomposition, and the first multi-" +
+  "operator chain. Each row's derivation is verifiable from the " +
+  "settled operator + base inventory; no Wave 2 dependencies; no " +
+  "curator-judgment cases. Burn-down progress lives in " +
+  "formula_review_queue.md.";
 
-// Sprint 1 batch (15 rows). All from formula_gap_classification.csv
-// where the row was classified `curator_pending` and the +1 stack
-// composition is mechanical.
+// Resolved formulas accumulator (Sprint 1: 15 rows; Sprint 2: 7 rows).
+// All from formula_gap_classification.csv where the row was classified
+// `curator_pending` and the composition is mechanically derivable.
 export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
   {
     slug:        'paradox-mirage',
@@ -217,5 +224,82 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    5,
     derivation:  'spinning(+1) + torque(4) = 5 ADD',
     provenance:  'spinning = +1 midtime body modifier; torque = 4 ADD compound (miraging osis, pt11)',
+  },
+
+  // ─── Sprint 2 (2026-05-18) ────────────────────────────────────────────
+  // Pattern expansion beyond Sprint 1's pure +1-stacks: pt-ruled
+  // compounds, positional modifiers (reverse=+0), the first multi-
+  // operator chain, and folk-name resolutions whose decomposition is
+  // curator-locked.
+
+  {
+    slug:        'eggbeater',
+    name:        'eggbeater',
+    operator:    'atomic',
+    base:        'legover',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'atomic(+1) + legover(2) = 3 ADD',
+    provenance:  'pt4 settled: eggbeater = atomic legover. atomic = +1 on non-rotational; legover = 2 ADD core atom',
+  },
+  {
+    slug:        'ducking-clipper',
+    name:        'ducking clipper',
+    operator:    'ducking',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'ducking(+1) + clipper-stall(2) = 3 ADD',
+    provenance:  'ducking = +1 midtime body modifier; clipper-stall = 2 ADD core atom (xbody + stall)',
+  },
+  {
+    slug:        'spinning-clipper',
+    name:        'spinning clipper',
+    operator:    'spinning',
+    base:        'clipper-stall',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'spinning(+1) + clipper-stall(2) = 3 ADD',
+    provenance:  'spinning = +1 midtime body modifier; clipper-stall = 2 ADD core atom',
+  },
+  {
+    slug:        'rev-whirl',
+    name:        'rev whirl',
+    operator:    'reverse',
+    base:        'whirl',
+    baseAdd:     3,
+    totalAdd:    3,
+    derivation:  'reverse(+0) + whirl(3) = 3 ADD',
+    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11 + 2026-05-15); whirl = 3 ADD core atom',
+  },
+  {
+    slug:        'reverse-around-the-world',
+    name:        'reverse around the world',
+    operator:    'reverse',
+    base:        'around-the-world',
+    baseAdd:     2,
+    totalAdd:    2,
+    derivation:  'reverse(+0) + around-the-world(2) = 2 ADD',
+    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); ATW = 2 ADD core atom (full-orbit dex + stall). Curator-confirmed alias of orbit per 2026-05-18 foundational-formula correction',
+  },
+  {
+    slug:        'paradox-symposium-whirl',
+    name:        'paradox symposium whirl',
+    operator:    'paradox + symposium',
+    base:        'whirl',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'paradox(+1) + symposium(+1) + whirl(3) = 5 ADD',
+    provenance:  'paradox = +1 body modifier; symposium = +1 no-plant body modifier (the "PS X" shorthand per glossary §6); whirl = 3 ADD core atom. First multi-operator chain in the resolved set',
+  },
+  {
+    slug:        'dimwalk',
+    name:        'dimwalk',
+    operator:    'pixie',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'pixie(+1) + butterfly(3) = 4 ADD',
+    provenance:  'Folk-name resolution per operator-board lede: PIX + BUTTERFLY → DIMWALK. pixie = +1 compressed set modifier (per pt10); butterfly = 3 ADD core atom',
   },
 ];

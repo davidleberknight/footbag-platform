@@ -36,7 +36,7 @@ pendulum,pendulum,2,,0,y,y,resolved,notation present
 pickup,pickup,2,dex,1,y,n,resolved,notation present
 pixie,pixie,2,set,1,y,n,resolved,notation present
 quantum,quantum,2,set,0,y,n,resolved,notation present
-reverse-around-the-world,reverse around the world,2,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+reverse-around-the-world,reverse around the world,2,dex,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 sailing,sailing,2,set,0,y,n,resolved,notation present
 sole-stall,sole stall,2,surface,0,n,y,resolved,notation present
 squeeze,squeeze,2,,0,y,y,resolved,notation present
@@ -48,9 +48,9 @@ cross-body-sole-stall,cross-body sole stall,3,surface,0,n,n,intentionally_atomic
 double-around-the-world,double around the world,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
 double-leg-over,double leg over,3,compound,0,y,n,resolved,notation present
 drifter,drifter,3,compound,0,y,n,resolved,notation present
-ducking-clipper,ducking clipper,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+ducking-clipper,ducking clipper,3,compound,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 eclipse,eclipse,3,compound,0,y,n,resolved,notation present
-eggbeater,eggbeater,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+eggbeater,eggbeater,3,compound,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 flail,flail,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
 legeater,legeater,3,compound,0,y,y,resolved,notation present
 magellan,magellan,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
@@ -62,13 +62,13 @@ paste,paste,3,compound,0,y,y,resolved,notation present
 reaper,reaper,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
 refraction,refraction,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
 rev-up,rev up,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
-rev-whirl,rev whirl,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+rev-whirl,rev whirl,3,dex,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 reverse-drifter,reverse-drifter,3,dex,0,y,n,resolved,notation present
 scrambled-eggbeater,scrambled eggbeater,3,compound,0,y,y,resolved,notation present
 shooting,shooting,3,set,0,y,n,resolved,notation present
 smear,smear,3,compound,0,y,n,resolved,notation present
 smudge,smudge,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
-spinning-clipper,spinning clipper,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+spinning-clipper,spinning clipper,3,compound,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 swirl,swirl,3,dex,1,y,n,resolved,notation present
 symposium-mirage,symposium mirage,3,compound,0,n,n,resolved,Sprint 1 (2026-05-18): published as +1 stack on settled base (see freestyleResolvedFormulas.ts)
 tap,tap,3,compound,0,y,y,resolved,notation present
@@ -81,7 +81,7 @@ barfly,barfly,4,compound,0,y,y,resolved,notation present
 blender,blender,4,compound,0,y,n,resolved,notation present
 blur,blur,4,compound,0,y,y,resolved,notation present
 dada-curve,dada curve,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
-dimwalk,dimwalk,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+dimwalk,dimwalk,4,compound,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 ducking-butterfly,ducking butterfly,4,compound,0,n,n,resolved,Sprint 1 (2026-05-18): published as +1 stack on settled base (see freestyleResolvedFormulas.ts)
 ducking-osis,ducking osis,4,compound,0,n,n,resolved,Sprint 1 (2026-05-18): published as +1 stack on settled base (see freestyleResolvedFormulas.ts)
 ducking-whirl,ducking whirl,4,compound,0,n,n,resolved,Sprint 1 (2026-05-18): published as +1 stack on settled base (see freestyleResolvedFormulas.ts)
@@ -131,7 +131,7 @@ jani-walker,jani walker,5,compound,0,n,n,curator_pending,compound — formula de
 matador,matador,5,compound,0,y,y,resolved,notation present
 mobius,mobius,5,compound,0,y,n,resolved,notation present
 paradox-blender,paradox blender,5,compound,0,n,n,resolved,Sprint 1 (2026-05-18): published as +1 stack on settled base (see freestyleResolvedFormulas.ts)
-paradox-symposium-whirl,paradox symposium whirl,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+paradox-symposium-whirl,paradox symposium whirl,5,compound,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 paradox-torque,paradox torque,5,compound,0,n,n,resolved,Sprint 1 (2026-05-18): published as +1 stack on settled base (see freestyleResolvedFormulas.ts)
 phoenix,phoenix,5,compound,0,y,y,resolved,notation present
 plasma,plasma,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published

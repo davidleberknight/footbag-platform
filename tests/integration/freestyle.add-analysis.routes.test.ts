@@ -327,15 +327,19 @@ describe('ADD Analysis discoverability — inbound links (Slice X corrective 202
   });
 });
 
-describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprint 1 (§2b reference table)', () => {
-  // Sprint 1 published 15 +1-stack compositions where both operator and
-  // base are Red-settled. Compact reference table between worked
-  // examples (§2) and discrepancy cases (§3).
+describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (§2b reference table)', () => {
+  // Sprint 1 (15 rows) published pure +1-stack compositions where both
+  // operator and base are Red-settled. Sprint 2 (7 rows) expanded the
+  // pattern set to pt-ruled compounds (eggbeater), positional modifiers
+  // (rev-whirl, reverse-around-the-world), folk-name resolutions
+  // (dimwalk), and the first multi-operator chain (paradox-symposium-
+  // whirl). Compact reference table between worked examples (§2) and
+  // discrepancy cases (§3).
 
   it('renders the §2b section heading + anchor', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('id="resolved-formulas"');
-    expect(res.text).toMatch(/Settled \+1 stack reference/);
+    expect(res.text).toMatch(/Settled compound formula reference/);
   });
 
   it('renders the framing prose', async () => {
@@ -344,30 +348,48 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprint 1 
     expect(res.text).toMatch(/no curator-judgment cases/i);
   });
 
-  it('renders all 15 Sprint-1 rows with trick-detail links', async () => {
+  it('renders all 22 Sprint-1 + Sprint-2 rows with trick-detail links', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const expectedSlugs = [
+      // Sprint 1 (15 rows — pure +1 stacks)
       'paradox-mirage', 'symposium-mirage',
       'atomic-butterfly', 'ducking-butterfly', 'ducking-osis', 'ducking-whirl',
       'spinning-butterfly', 'spinning-osis',
       'stepping-osis', 'stepping-whirl', 'symposium-whirl', 'whirling-swirl',
       'paradox-blender', 'paradox-torque', 'spinning-torque',
+      // Sprint 2 (7 rows — pt-ruled / positional / multi-op / folk-name)
+      'eggbeater', 'ducking-clipper', 'spinning-clipper',
+      'rev-whirl', 'reverse-around-the-world',
+      'paradox-symposium-whirl', 'dimwalk',
     ];
     for (const slug of expectedSlugs) {
-      expect(res.text, `missing Sprint-1 row: ${slug}`)
+      expect(res.text, `missing Sprint row: ${slug}`)
         .toContain(`href="/freestyle/tricks/${slug}"`);
     }
   });
 
-  it('renders Sprint-1 derivations using the +1 stack pattern', async () => {
+  it('renders Sprint-1 +1-stack derivations', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // Spot-check representative derivations across operator families
-    // (Handlebars HTML-escapes `=` to `&#x3D;` in <code> blocks)
+    // Handlebars HTML-escapes `=` to `&#x3D;` in <code> blocks
     const eq = '(?:=|&#x3D;)';
     expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
     expect(res.text).toMatch(new RegExp(`spinning\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
     expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
     expect(res.text).toMatch(new RegExp(`whirling\\(\\+1\\)\\s*\\+\\s*swirl\\(3\\)\\s*${eq}\\s*4 ADD`));
+  });
+
+  it('renders Sprint-2 derivations across the expanded pattern set', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const eq = '(?:=|&#x3D;)';
+    // pt-ruled: eggbeater = atomic legover
+    expect(res.text).toMatch(new RegExp(`atomic\\(\\+1\\)\\s*\\+\\s*legover\\(2\\)\\s*${eq}\\s*3 ADD`));
+    // positional (+0): rev-whirl, reverse-ATW
+    expect(res.text).toMatch(new RegExp(`reverse\\(\\+0\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*3 ADD`));
+    expect(res.text).toMatch(new RegExp(`reverse\\(\\+0\\)\\s*\\+\\s*around-the-world\\(2\\)\\s*${eq}\\s*2 ADD`));
+    // multi-operator chain
+    expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*symposium\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
+    // folk-name resolution: dimwalk = pixie butterfly
+    expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
   });
 
   it('Sprint-1 section sits between worked examples (§2) and discrepancies (§3)', async () => {
