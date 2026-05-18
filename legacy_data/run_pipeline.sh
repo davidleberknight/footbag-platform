@@ -436,15 +436,20 @@ run_phase_g() {
 }
 
 # =============================================================================
-# PHASE H: Club cutover + bootstrap leaders
+# PHASE H: Club cutover + bootstrap leaders + event→club linkage
 # Step 1: 06_cutover_pre_populated_clubs.py — sets mapped_club_id on the
 #         59 bootstrap-eligible candidates and ensures matching live clubs
 #         rows exist (idempotent INSERT OR IGNORE fallback).
 # Step 2: 07_load_bootstrap_leaders.py — loads club_bootstrap_leaders from
 #         the CSV. Depends on Step 1 (FK club_id → clubs.id via mapped_club_id).
-# Reads:  legacy_club_candidates, seed/clubs.csv, clubs/out/club_bootstrap_leaders.csv
+# Step 3: 08_resolve_event_host_clubs.py — resolves events.host_club_id from
+#         canonical events.csv host_club text against the live clubs table.
+#         Depends on Step 1 (clubs must exist) + the earlier events load
+#         (step 08 in event_results/scripts, which inserts host_club_id=NULL).
+# Reads:  legacy_club_candidates, seed/clubs.csv, clubs/out/club_bootstrap_leaders.csv,
+#         event_results/canonical_input/events.csv, clubs table, events table.
 # Writes: clubs (idempotent), legacy_club_candidates.mapped_club_id,
-#         club_bootstrap_leaders (DELETE + INSERT).
+#         club_bootstrap_leaders (DELETE + INSERT), events.host_club_id (UPDATE).
 # =============================================================================
 run_phase_h() {
     echo ""
@@ -454,6 +459,8 @@ run_phase_h() {
     python clubs/scripts/06_cutover_pre_populated_clubs.py \
         --db "${REPO_ROOT}/database/footbag.db"
     python clubs/scripts/07_load_bootstrap_leaders.py \
+        --db "${REPO_ROOT}/database/footbag.db"
+    python clubs/scripts/08_resolve_event_host_clubs.py \
         --db "${REPO_ROOT}/database/footbag.db"
     echo ""
 }
