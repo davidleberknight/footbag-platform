@@ -256,3 +256,23 @@ describe('GET /freestyle/combo-analysis — wording discipline', () => {
     }
   });
 });
+
+describe('Landing portal-card inbound link to combo-analysis (2026-05-17)', () => {
+  it('freestyle landing portal-cards grid links to /freestyle/combo-analysis', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/freestyle/combo-analysis"');
+  });
+
+  it('the History/ADD/Combo card carries all three analytical-surface actions', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const cardIdx = res.text.indexOf('History, ADD &amp; Combo Architecture');
+    expect(cardIdx).toBeGreaterThan(0);
+    // Walk forward to find the close of the card-actions block.
+    const closeIdx = res.text.indexOf('</div>', res.text.indexOf('card-actions', cardIdx));
+    const slice = res.text.slice(cardIdx, closeIdx);
+    expect(slice).toContain('href="/freestyle/history"');
+    expect(slice).toContain('href="/freestyle/add-analysis"');
+    expect(slice).toContain('href="/freestyle/combo-analysis"');
+  });
+});

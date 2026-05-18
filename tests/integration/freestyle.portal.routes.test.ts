@@ -400,7 +400,11 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('Trick Dictionary');
     expect(res.text).toContain('World Records');
     expect(res.text).toContain('Competition');
-    expect(res.text).toContain('History &amp; ADD System');
+    // 2026-05-17: card title extended when the /freestyle/combo-analysis
+    // page shipped — the History & ADD System card grew a third action
+    // button (Combo architecture →). Title rewritten to acknowledge the
+    // broader analytical scope it now covers.
+    expect(res.text).toContain('History, ADD &amp; Combo Architecture');
     expect(res.text).toContain('Insights');
     // Notation Reference no longer rendered as a standalone portal card.
     expect(res.text).not.toMatch(/<div class="card-title">Notation Reference<\/div>/);
