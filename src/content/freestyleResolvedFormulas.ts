@@ -14,6 +14,11 @@
  *                    chain (paradox-symposium-whirl), and folk-name
  *                    resolutions whose decomposition is curator-locked.
  *
+ * Sprint 3 (3 rows): targeted folk-name resolutions — smear (PIX +
+ *                    MIRAGE), ripwalk (STEP + BUTTERFLY) per the
+ *                    operator-board lede, plus rev-up (most-defensible
+ *                    positional reading with curator-uncertainty note).
+ *
  * Every row continues to satisfy the V1+V2 publication contract:
  *
  *   - Operator is in the settled +1 inventory (paradox, spinning,
@@ -301,5 +306,42 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     totalAdd:    4,
     derivation:  'pixie(+1) + butterfly(3) = 4 ADD',
     provenance:  'Folk-name resolution per operator-board lede: PIX + BUTTERFLY → DIMWALK. pixie = +1 compressed set modifier (per pt10); butterfly = 3 ADD core atom',
+  },
+
+  // ─── Sprint 3 (2026-05-18) — three additional folk-name resolutions ──
+  // Targeted batch: the operator-board lede explicitly maps two of these
+  // (PIX + MIRAGE → SMEAR, STEP + BUTTERFLY → RIPWALK). The third
+  // (rev-up) publishes the most-defensible positional reading; see the
+  // provenance note for the curator-uncertainty caveat.
+
+  {
+    slug:        'smear',
+    name:        'smear',
+    operator:    'pixie',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    3,
+    derivation:  'pixie(+1) + mirage(2) = 3 ADD',
+    provenance:  'Folk-name resolution per operator-board lede: PIX + MIRAGE → SMEAR. pixie = +1 compressed set modifier (per pt10); mirage = 2 ADD core atom. Confirms the existing freestyle_tricks.notation field ("PIXIE MIRAGE") with explicit ADD arithmetic',
+  },
+  {
+    slug:        'ripwalk',
+    name:        'ripwalk',
+    operator:    'stepping',
+    base:        'butterfly',
+    baseAdd:     3,
+    totalAdd:    4,
+    derivation:  'stepping(+1) + butterfly(3) = 4 ADD',
+    provenance:  'Folk-name resolution per operator-board lede + glossary §3 + §8: STEP + BUTTERFLY → RIPWALK. stepping = +1 set modifier (foot relocation); butterfly = 3 ADD core atom. (Follow-up note: the freestyle_tricks.notation field for ripwalk currently carries the stale "BLURRY BUTTERFLY" string from the pre-2026-05-18 BL operator-board bug; the resolved-formulas surface is the correct reading; DB notation correction is a separate slice.)',
+  },
+  {
+    slug:        'rev-up',
+    name:        'rev up',
+    operator:    'reverse',
+    base:        'whirl',
+    baseAdd:     3,
+    totalAdd:    3,
+    derivation:  'reverse(+0) + whirl(3) = 3 ADD',
+    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); whirl = 3 ADD core atom. Curator note: rev-up and rev-whirl are distinct canonical rows in freestyle_tricks (both base=whirl, both ADD=3); the folk distinction is preserved at the row level. The decomposition reading published here is identical for both rows — if rev-up has a structurally distinct reading the curator should override',
   },
 ];

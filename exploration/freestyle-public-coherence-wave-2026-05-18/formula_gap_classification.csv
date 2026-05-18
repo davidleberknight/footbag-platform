@@ -61,7 +61,7 @@ paradox-mirage,paradox mirage,3,compound,0,n,n,resolved,Sprint 1 (2026-05-18): p
 paste,paste,3,compound,0,y,y,resolved,notation present
 reaper,reaper,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
 refraction,refraction,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
-rev-up,rev up,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+rev-up,rev up,3,dex,0,n,n,resolved,Sprint 3 (2026-05-18): positional reverse on whirl base (see freestyleResolvedFormulas.ts; curator-uncertainty note flagged)
 rev-whirl,rev whirl,3,dex,0,n,n,resolved,Sprint 2 (2026-05-18): pt-ruled / positional / multi-operator / folk-name resolution (see freestyleResolvedFormulas.ts)
 reverse-drifter,reverse-drifter,3,dex,0,y,n,resolved,notation present
 scrambled-eggbeater,scrambled eggbeater,3,compound,0,y,y,resolved,notation present

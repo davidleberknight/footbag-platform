@@ -348,7 +348,7 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(res.text).toMatch(/no curator-judgment cases/i);
   });
 
-  it('renders all 22 Sprint-1 + Sprint-2 rows with trick-detail links', async () => {
+  it('renders all 25 Sprint-1 + Sprint-2 + Sprint-3 rows with trick-detail links', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const expectedSlugs = [
       // Sprint 1 (15 rows — pure +1 stacks)
@@ -361,6 +361,8 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
       'eggbeater', 'ducking-clipper', 'spinning-clipper',
       'rev-whirl', 'reverse-around-the-world',
       'paradox-symposium-whirl', 'dimwalk',
+      // Sprint 3 (3 rows — targeted folk-name resolutions)
+      'smear', 'ripwalk', 'rev-up',
     ];
     for (const slug of expectedSlugs) {
       expect(res.text, `missing Sprint row: ${slug}`)
@@ -390,6 +392,22 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
     expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*symposium\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
     // folk-name resolution: dimwalk = pixie butterfly
     expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
+  });
+
+  it('renders Sprint-3 folk-name resolutions (smear / ripwalk / rev-up)', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const eq = '(?:=|&#x3D;)';
+    // smear = pixie + mirage (operator-board lede)
+    expect(res.text).toMatch(new RegExp(`pixie\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
+    // ripwalk = stepping + butterfly (operator-board + glossary §3/§8)
+    expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
+    // rev-up = reverse + whirl (positional + 3-ADD core atom)
+    // Note: matches the rev-whirl derivation; the row is published under
+    // the rev-up slug with a curator-uncertainty note flagging that
+    // rev-up + rev-whirl are distinct canonical rows.
+    const revUpCount = (res.text.match(/reverse\(\+0\) \+ whirl\(3\) &#x3D; 3 ADD/g) ?? []).length;
+    expect(revUpCount, 'expected the reverse-whirl-derivation string to appear twice (rev-whirl + rev-up rows)')
+      .toBeGreaterThanOrEqual(2);
   });
 
   it('Sprint-1 section sits between worked examples (§2) and discrepancies (§3)', async () => {
