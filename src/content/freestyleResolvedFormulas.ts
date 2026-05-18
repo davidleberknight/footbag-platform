@@ -332,7 +332,7 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     baseAdd:     3,
     totalAdd:    4,
     derivation:  'stepping(+1) + butterfly(3) = 4 ADD',
-    provenance:  'Folk-name resolution per operator-board lede + glossary §3 + §8: STEP + BUTTERFLY → RIPWALK. stepping = +1 set modifier (foot relocation); butterfly = 3 ADD core atom. (Follow-up note: the freestyle_tricks.notation field for ripwalk currently carries the stale "BLURRY BUTTERFLY" string from the pre-2026-05-18 BL operator-board bug; the resolved-formulas surface is the correct reading; DB notation correction is a separate slice.)',
+    provenance:  'Folk-name resolution per operator-board lede + glossary §3 + §8: STEP + BUTTERFLY → RIPWALK. stepping = +1 set modifier (foot relocation); butterfly = 3 ADD core atom.',
   },
   {
     slug:        'rev-up',
