@@ -50,8 +50,12 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisName:       'Set / Uptime Systems',
     axisDefinition:
       'Set primitives that initiate a trick — what the foot does before the base trick ' +
-      'begins. Pre-base uptime treatments and compressed-set families.',
-    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'stepping', 'surging'],
+      'begins. Pre-base uptime treatments, compressed-set families, and Red-settled ' +
+      'compound set modifiers (per pt10: nuclear = paradox + atomic, quantum = ' +
+      'compressed atomic).',
+    // Order: pixie / fairy (pre-base uptime compressors) — atomic / quantum / nuclear
+    // (atomic family, pt10 relationships) — stepping / surging (set-foot relocations).
+    modifierSlugs:  ['pixie', 'fairy', 'atomic', 'quantum', 'nuclear', 'stepping', 'surging'],
   },
   {
     axisKey:        'entry-topology',
@@ -65,9 +69,12 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
     axisKey:        'midtime-body',
     axisName:       'Midtime Body Modifiers',
     axisDefinition:
-      'What the body does during the dex moment — rotation, head dip, body arc. ' +
-      'Modifiers carried through the trick rather than applied at its boundaries.',
-    modifierSlugs:  ['spinning', 'ducking', 'diving', 'weaving'],
+      'What the body does during the dex moment — rotation by tempo (spinning / gyro / ' +
+      'whirling) or head dip / body arc (ducking / diving / weaving). Modifiers ' +
+      'carried through the trick rather than applied at its boundaries.',
+    // Order: spinning (full 360°) — gyro (half 180°) — whirling (distinct beat) —
+    // ducking / diving / weaving (head dip + body arc family).
+    modifierSlugs:  ['spinning', 'gyro', 'whirling', 'ducking', 'diving', 'weaving'],
   },
   {
     axisKey:        'no-plant-suspension',
@@ -81,9 +88,14 @@ export const MOVEMENT_SYSTEM_AXES: readonly MovementSystemAxis[] = [
 
 /**
  * Resolve the Movement System axis a modifier belongs to.
- * Returns null when the modifier is not classified under any axis
- * (e.g., blazing, gyro, illusioning, tapping, terraging — explicitly
- * pending curator classification per STABILIZATION_PLAN §1 pilot scope).
+ * Returns null when the modifier is not classified under any axis.
+ *
+ * Post-2026-05-18 Phase B inheritance: gyro / whirling / nuclear /
+ * quantum are now classified (see movement_system_consolidation_plan.md
+ * in exploration/freestyle-public-coherence-wave-2026-05-18/). Still
+ * pending curator classification: barraging (Wave-2 operator class),
+ * blurry (Wave-2 transitivity), tapping, furious, blazing, illusioning,
+ * terraging.
  */
 export function resolveAxisForModifier(slug: string): MovementSystemAxis | null {
   for (const axis of MOVEMENT_SYSTEM_AXES) {

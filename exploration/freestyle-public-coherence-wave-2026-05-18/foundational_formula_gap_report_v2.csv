@@ -1,0 +1,29 @@
+slug,canonical_name,canonical_add,has_landing_formula,has_db_row,gap_type,proposed_formula,doctrinal_safety,notes
+toe-stall,toe-stall,1,no,yes,landing-not-listed,"stall(1) = 1 ADD",safe,Landing CORE_TRICK_SPEC doesn't include toe-stall as an atom card (clipper-stall is the inside-shoe-stall anchor). Add-analysis page does carry the formula.
+clipper-stall,clipper,2,yes,yes,resolved,"xbody(1) + stall(1) = 2 ADD",safe,Phase A landed. Displays as #clipper via displaySlug.
+clipper,clipper (kick),1,no,yes,not-on-landing,"xbody(1) = 1 ADD",safe,The kick variant. Add-analysis page lists it; landing grid uses clipper-stall as the inside-shoe-stall anchor.
+mirage,mirage,2,yes,yes,resolved,"dex(1) + stall(1) = 2 ADD",safe,Phase A landed.
+legover,legover,2,yes,yes,resolved,"dex(1) + stall(1) = 2 ADD",safe,Phase A landed.
+pickup,pickup,2,yes,yes,resolved,"dex(1) + stall(1) = 2 ADD",safe,Phase A landed.
+illusion,illusion,2,yes,yes,resolved,"dex(1) + stall(1) = 2 ADD",safe,Phase A landed. Earlier "illusion correction" item from the brief is now applied.
+whirl,whirl,3,yes,yes,resolved,"xbody(1) + dex(1) + stall(1) = 3 ADD",safe,Phase A landed.
+swirl,swirl,3,yes,yes,resolved,"xbody(1) + dex(1) + stall(1) = 3 ADD",safe,Phase A landed.
+butterfly,butterfly,3,yes,yes,resolved,"dex(1) + xbody(1) + stall(1) = 3 ADD",safe,Phase A landed.
+osis,osis,3,yes,yes,resolved,"spin(1) + xbody(1) + stall(1) = 3 ADD",safe,Phase A landed.
+around-the-world,around-the-world,2,yes,yes,resolved,"full-orbit dex(1) + stall(1) = 2 ADD",safe,Phase A landed (post-correction).
+orbit,orbit,—,yes,no,alias-pending-canonicalization,"reverse full-orbit dex(1) + stall(1) = 2 ADD",safe,Curator-confirmed alias for reverse around-the-world. No DB row yet (em-dash on numeric ADD via addPending). Phase A landed (post-correction).
+reverse-around-the-world,reverse around-the-world,2,no,yes,trick-dictionary-only,"reverse full-orbit dex(1) + stall(1) = 2 ADD",safe,DB row exists; landing surface doesn't carry a card. Same formula as orbit (they are aliases). Editorial accounting can be added to the trick-detail page if a notation field exists.
+flying-inside,flying inside,1,no,yes,no-formula-anywhere,"flying > inside (dex)(1) = 1 ADD",caution,Body-position primitive in DB. Decomposition reading "flying > inside" follows the operator-notation tradition. Termination as a dex(1) is pedagogical accounting; trick is itself the base.
+flying-outside,flying outside,1,no,yes,no-formula-anywhere,"flying > outside (dex)(1) = 1 ADD",caution,"As above. Parallels flying-inside."
+flying-clipper,flying clipper,2,no,yes,no-formula-anywhere,"flying > clipper(1) + stall(1)? OR flying(+1) + clipper(1) = 2 ADD",caution,"Two readings possible: (a) flying applied to a clipper-stall (the base trick has flying + clip + stall = 3 mechanically; canonical ADD = 2 suggests positional flying = +0); (b) flying-as-modifier on clipper kick. Needs curator decision before publishing. Wave-2-adjacent (positional vs additive ""flying"" qualifier)."
+paradox-mirage,paradox mirage,3,no,yes,resolved-via-add-analysis,"paradox(+1) + mirage(2) = 3 ADD",safe,On /freestyle/add-analysis worked examples (Phase A). Not surfaced as a landing card (not a core atom).
+torque,torque,4,no,yes,resolved-via-add-analysis,"miraging(+1) + osis(3) = 4 ADD",safe,On /freestyle/add-analysis. Not on landing core grid.
+atom-smasher,atom smasher,4,no,yes,resolved-via-add-analysis,"atomic(+1) + mirage(2) + xdex(+1) = 4 ADD",safe,On /freestyle/add-analysis. Red-settled 2026-05-15.
+blurry-whirl,blurry whirl,5,no,yes,resolved-via-add-analysis,"stepping(+1) + paradox(+1) + whirl(3) = 5 ADD",safe,On /freestyle/add-analysis. pt11 settled.
+mobius,mobius,5,no,yes,resolved-via-add-analysis,"gyro(+1) + torque(4) = 5 ADD",safe,On /freestyle/add-analysis. pt11 settled.
+blender,blender,4,no,yes,not-on-landing,"whirling(+1) + osis(3) = 4 ADD",caution,Compound; whirling operator. Adding as a worked example would be safe but expands the add-analysis page.
+blurry-torque,blurry torque,6,no,yes,resolved-in-discrepancy-only,"stepping(+1) + paradox(+1) + torque(4) = 6 ADD",safe,In §3 discrepancy cases (DC-05) but not as a worked example. Could promote.
+food-processor,food processor,6,no,yes,resolved-in-discrepancy-only,"stepping(+1) + paradox(+1) + blender(4) = 6 ADD",safe,In §3 discrepancy cases (DC-06).
+nemesis,nemesis,6,no,yes,unresolved-compound,unresolved — Wave 2 / curator,blocked,"Compound. base_trick=barfly. Decomposition through barraging operator is Wave 2-adjacent."
+fairy-X (atomic/etc),—,—,—,—,wave-2-blocked,—,blocked,"Fairy weight pending Red Wave 2."
+barraging-X,—,—,—,—,wave-2-blocked,—,blocked,"Barraging operator class pending Red Wave 2."

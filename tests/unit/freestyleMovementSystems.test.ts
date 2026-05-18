@@ -34,15 +34,24 @@ describe('freestyleMovementSystems content module', () => {
     }
   });
 
-  it('pilot modifiers are classified exactly as the STABILIZATION_PLAN spec lists', () => {
+  it('curator-confirmed modifiers are classified per STABILIZATION_PLAN + 2026-05-18 Phase B inheritance', () => {
+    // Original pilot scope (Slice L1, 2026-05-16): 11 modifiers.
+    // Phase B inheritance (2026-05-18): added quantum / nuclear to
+    // set-uptime + gyro / whirling to midtime-body per the
+    // consolidation plan. Total now 15. Still pending: barraging /
+    // blurry (Wave 2), tapping / furious (curator placement).
     const expected: Record<string, string> = {
       pixie:     'set-uptime',
       fairy:     'set-uptime',
       atomic:    'set-uptime',
+      quantum:   'set-uptime',
+      nuclear:   'set-uptime',
       stepping:  'set-uptime',
       surging:   'set-uptime',
       paradox:   'entry-topology',
       spinning:  'midtime-body',
+      gyro:      'midtime-body',
+      whirling:  'midtime-body',
       ducking:   'midtime-body',
       diving:    'midtime-body',
       weaving:   'midtime-body',
@@ -67,11 +76,15 @@ describe('freestyleMovementSystems content module', () => {
     }
   });
 
-  it('returns null for modifiers not yet classified under any axis', () => {
-    // These modifiers exist in freestyle_tricks (category='modifier') but are
-    // intentionally pending curator classification under the Movement System
-    // pilot scope per STABILIZATION_PLAN.md §1.
-    for (const slug of ['blazing', 'gyro', 'illusioning', 'tapping', 'terraging', 'barraging']) {
+  it('returns null for modifiers still pending curator classification', () => {
+    // These modifiers exist in freestyle_tricks (category='modifier') but
+    // are intentionally pending curator classification. Original pilot
+    // pending list (STABILIZATION_PLAN.md §1) was reduced 2026-05-18 by
+    // the Phase B inheritance: gyro is now classified under midtime-body;
+    // barraging stays pending (Wave 2 operator-class question). Blurry +
+    // tapping + furious + blazing + illusioning + terraging also stay
+    // pending per the consolidation plan.
+    for (const slug of ['blazing', 'illusioning', 'tapping', 'terraging', 'barraging', 'blurry', 'furious']) {
       expect(resolveAxisForModifier(slug), `${slug} should not be classified yet`).toBeNull();
     }
   });
@@ -82,14 +95,20 @@ describe('freestyleMovementSystems content module', () => {
   });
 
   it('allMovementSystemModifierSlugs returns the union of all axes with no duplicates', () => {
+    // Post-2026-05-18 Phase B inheritance: 15 modifiers (was 11).
     const all = allMovementSystemModifierSlugs();
-    expect(all.length).toBe(11);
-    expect(new Set(all).size).toBe(11);
-    // Spot-check membership
+    expect(all.length).toBe(15);
+    expect(new Set(all).size).toBe(15);
+    // Spot-check original pilot membership
     expect(all).toContain('pixie');
     expect(all).toContain('paradox');
     expect(all).toContain('spinning');
     expect(all).toContain('symposium');
+    // Spot-check inherited (2026-05-18) membership
+    expect(all).toContain('quantum');
+    expect(all).toContain('nuclear');
+    expect(all).toContain('gyro');
+    expect(all).toContain('whirling');
   });
 
   it('modifierSlugs arrays are immutable (typed readonly)', () => {

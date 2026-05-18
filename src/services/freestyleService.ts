@@ -4145,6 +4145,7 @@ export const freestyleService = {
       diving:    'A head arc — over and under the bag — with the bag falling to the same side.',
       weaving:   'Head moves toward the bag, bag falls to the same side.',
       gyro:      'A half-body 180° rotation carried through the dex moment.',
+      whirling:  'A body rotation through the dex moment, distinct from spinning by tempo and direction (whirling + osis = blender per Red consult).',
       stepping:  'A foot relocation during uptime that compresses or lengthens the set.',
       pixie:     'A compressed pre-base uptime set; tighter motion than stepping.',
       atomic:    'A cross-body uptime set with x-dex character.',
