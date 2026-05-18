@@ -327,6 +327,65 @@ describe('ADD Analysis discoverability — inbound links (Slice X corrective 202
   });
 });
 
+describe('GET /freestyle/add-analysis — PassBack ADD framing subsection (Batch C 2026-05-18)', () => {
+  // External-source ADD reconciliation: 68 name-matched rows where PB
+  // dex_count diverges from IFPA structural ADD. Surfaces the framing
+  // explicitly so the divergence reads as a structural reconciliation
+  // (PB counts dexes; IFPA counts ADD) rather than a true conflict.
+
+  it('renders the §3c framing heading + anchor', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('id="passback-add-framing"');
+    expect(res.text).toMatch(/External-source ADD framings/);
+  });
+
+  it('renders the PassBack-vs-IFPA counting framing prose', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('class="passback-add-framing-prose"');
+    expect(res.text).toMatch(/dex_count/);
+    expect(res.text).toMatch(/canonical ADD/);
+    expect(res.text).toMatch(/different things/);
+  });
+
+  it('renders a <details> disclosure with the 68 disagreement rows', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('class="passback-add-disagreement-details"');
+    expect(res.text).toContain('class="passback-add-disagreement-table"');
+    // Spot-check representative rows by IFPA trick name
+    for (const trick of ['butterfly', 'mirage', 'whirl', 'osis', 'eggbeater', 'mobius']) {
+      expect(res.text, `missing PB-disagreement row for: ${trick}`)
+        .toMatch(new RegExp(`href="/freestyle/tricks/${trick}"`));
+    }
+  });
+
+  it('every disagreement row carries a PB dex_count value and links to the canonical detail page', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    // Pull the table region
+    const tableMatch = res.text.match(/<table class="passback-add-disagreement-table">[\s\S]*?<\/table>/);
+    expect(tableMatch).not.toBeNull();
+    const table = tableMatch![0];
+    // Every row carries an <a> linking to /freestyle/tricks/{slug}
+    const rowLinks = table.match(/<a href="\/freestyle\/tricks\/[a-z-]+"/g) ?? [];
+    expect(rowLinks.length).toBeGreaterThanOrEqual(60); // 68 rows × 1 link each (allow some tolerance)
+    // Every row carries a PB-claim cell
+    const claimCells = table.match(/class="passback-add-claim-cell"/g) ?? [];
+    expect(claimCells.length).toBe(rowLinks.length);
+  });
+
+  it('framing prose stays within the lexicon — no forbidden phrases', async () => {
+    // Belt-and-suspenders: re-asserts the lexicon test against the new
+    // subsection specifically, so future curator edits don't silently
+    // introduce "is wrong" / "incorrect" framing here.
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const sectionMatch = res.text.match(/id="passback-add-framing"[\s\S]*?<\/section>/);
+    expect(sectionMatch).not.toBeNull();
+    const section = sectionMatch![0].toLowerCase();
+    for (const phrase of ['is wrong', 'incorrect', 'the correct add', 'should be', 'outdated']) {
+      expect(section.includes(phrase), `Forbidden in PB framing: "${phrase}"`).toBe(false);
+    }
+  });
+});
+
 describe('GET /freestyle/add-analysis — wording lexicon discipline (Slice X §4)', () => {
   it('never uses "is wrong" / "incorrect" framing on external sources', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');

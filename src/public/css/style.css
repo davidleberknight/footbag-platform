@@ -5238,6 +5238,68 @@ section.home-media { padding-top: 0; }
   color: #666;
 }
 
+/* PassBack-vs-IFPA ADD framing — §3c subsection on /freestyle/add-analysis */
+.passback-add-framing-prose {
+  margin: 8px 0 14px 0;
+  padding: 12px 16px;
+  background: #f4f1ea;
+  border-left: 3px solid #b8a169;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #4a4232;
+}
+.passback-add-disagreement-details {
+  margin: 12px 0 8px 0;
+}
+.passback-add-disagreement-details summary {
+  cursor: pointer;
+  padding: 8px 12px;
+  background: #fafaf7;
+  border: 1px solid #d6d2c4;
+  border-radius: 4px;
+  font-size: 0.92rem;
+  color: #3a3a30;
+}
+.passback-add-disagreement-details summary:hover {
+  background: #f4f1ea;
+}
+.passback-add-disagreement-hint {
+  font-size: 0.85em;
+  color: #999;
+  margin-left: 4px;
+}
+.passback-add-disagreement-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.passback-add-disagreement-table th,
+.passback-add-disagreement-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+.passback-add-disagreement-table th {
+  background: #fafaf7;
+  font-weight: 600;
+  color: #555;
+}
+.passback-add-claim-cell {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #b8a169;
+  font-weight: 600;
+}
+.passback-add-no-formula,
+.passback-add-no-note {
+  color: #999;
+  font-style: italic;
+  font-size: 0.92em;
+}
+
 /* Glossary §3 — Intermediate-operator reference (NF-2A).
  * Renders the 9 compound / quantifier operator entries. Inherits the
  * <dl> structure of the existing glossary-modifier-reference block; adds

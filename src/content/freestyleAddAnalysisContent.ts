@@ -34,6 +34,13 @@
  *     differently", never "wrong"
  */
 
+import {
+  PASSBACK_ADD_DISAGREEMENTS,
+  PASSBACK_ADD_FRAMING_PROSE,
+  type AddDisagreementRow,
+} from './freestyleAddDisagreements';
+export type { AddDisagreementRow };
+
 export interface AddAnalysisComponent {
   /** Pre-shaped label, e.g. "A stall on a recognized catch surface". */
   componentClass: string;
@@ -89,15 +96,19 @@ export interface AddAnalysisCrossLink {
 }
 
 export interface AddAnalysisContent {
-  philosophyParagraph:    string;
-  editorialTruthRule:     string;
-  incompletenessNote:     string;
-  componentClasses:       readonly AddAnalysisComponent[];
-  workedExamples:         readonly AddAnalysisWorkedExample[];
-  discrepancyCases:       readonly AddAnalysisDiscrepancyCase[];
-  edgeCases:              readonly AddAnalysisEdgeCase[];
-  closingParagraphs:      readonly string[];
-  crossLinks:             readonly AddAnalysisCrossLink[];
+  philosophyParagraph:      string;
+  editorialTruthRule:       string;
+  incompletenessNote:       string;
+  componentClasses:         readonly AddAnalysisComponent[];
+  workedExamples:           readonly AddAnalysisWorkedExample[];
+  discrepancyCases:         readonly AddAnalysisDiscrepancyCase[];
+  edgeCases:                readonly AddAnalysisEdgeCase[];
+  /** External-source ADD framing prose (PB-vs-IFPA counting reconciliation). */
+  passbackAddFraming:       string;
+  /** 68 rows: PB name-matched + ADD-claim differs from IFPA canonical. */
+  passbackAddDisagreements: readonly AddDisagreementRow[];
+  closingParagraphs:        readonly string[];
+  crossLinks:               readonly AddAnalysisCrossLink[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -530,14 +541,19 @@ const CROSS_LINKS: readonly AddAnalysisCrossLink[] = [
 // Public assembled content
 // ─────────────────────────────────────────────────────────────────────────
 
+// External-source ADD framing surfaces as a §3c subsection on
+// /freestyle/add-analysis (PassBack-vs-IFPA counting reconciliation
+// per Batch C of the PassBack-first ingestion sequence).
 export const FREESTYLE_ADD_ANALYSIS_CONTENT: AddAnalysisContent = {
-  philosophyParagraph: PHILOSOPHY_PARAGRAPH,
-  editorialTruthRule:  EDITORIAL_TRUTH_RULE,
-  incompletenessNote:  INCOMPLETENESS_NOTE,
-  componentClasses:    COMPONENT_CLASSES,
-  workedExamples:      WORKED_EXAMPLES,
-  discrepancyCases:    DISCREPANCY_CASES,
-  edgeCases:           EDGE_CASES,
-  closingParagraphs:   CLOSING_PARAGRAPHS,
-  crossLinks:          CROSS_LINKS,
+  philosophyParagraph:    PHILOSOPHY_PARAGRAPH,
+  editorialTruthRule:     EDITORIAL_TRUTH_RULE,
+  incompletenessNote:     INCOMPLETENESS_NOTE,
+  componentClasses:       COMPONENT_CLASSES,
+  workedExamples:         WORKED_EXAMPLES,
+  discrepancyCases:       DISCREPANCY_CASES,
+  edgeCases:              EDGE_CASES,
+  passbackAddFraming:     PASSBACK_ADD_FRAMING_PROSE,
+  passbackAddDisagreements: PASSBACK_ADD_DISAGREEMENTS,
+  closingParagraphs:      CLOSING_PARAGRAPHS,
+  crossLinks:             CROSS_LINKS,
 };
