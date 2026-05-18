@@ -126,17 +126,26 @@ export interface CoreTrickSpec {
 // Per user 2026-05-17: "if any are doctrine-sensitive, show a neutral
 // 'core atom' reading instead of leaving blank."
 export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
-  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom — inside-shoe stall'] },
-  { slug: 'mirage',           equivalences: ['core atom — cross-body rotational dex'] },
-  { slug: 'legover',          equivalences: ['core atom — dex over the supporting leg'] },
-  { slug: 'pickup',           equivalences: ['core atom — dex catching from below'] },
-  { slug: 'illusion',         equivalences: ['core atom — dex with mid-flight rotation'] },
-  { slug: 'whirl',            equivalences: ['core atom — rotational dex'] },
-  { slug: 'butterfly',        equivalences: ['core atom — rotational dex on a different beat'] },
-  { slug: 'swirl',            equivalences: ['core atom — reverse-direction rotational dex'] },
-  { slug: 'osis',             equivalences: ['core atom — double-pass rotational dex'] },
-  { slug: 'around-the-world', equivalences: ['core atom — dex with full bag orbit'] },
-  { slug: 'orbit',            equivalences: ['core atom'] },
+  // Second equivalence is the foundational ADD-accounting formula (where
+  // each ADD comes from). Educational accounting per the foundational-
+  // formula slice 2026-05-18 — treated as a teaching abstraction, not
+  // parser-truth doctrine. See /freestyle/add-analysis for the full
+  // derivation table. Orbit is the curator-confirmed alias for reverse
+  // around-the-world (pending DB canonicalization, not Wave-2 blocked);
+  // its numeric ADD value displays as em-dash via the addPending path
+  // until the canonical row lands, while the formula provides the
+  // structural reading.
+  { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom — inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'] },
+  { slug: 'mirage',           equivalences: ['core atom — cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'] },
+  { slug: 'legover',          equivalences: ['core atom — dex over the supporting leg',         'dex(1) + stall(1) = 2 ADD'] },
+  { slug: 'pickup',           equivalences: ['core atom — dex catching from below',             'dex(1) + stall(1) = 2 ADD'] },
+  { slug: 'illusion',         equivalences: ['core atom — dex with mid-flight rotation',        'dex(1) + stall(1) = 2 ADD'] },
+  { slug: 'whirl',            equivalences: ['core atom — rotational dex',                      'xbody(1) + dex(1) + stall(1) = 3 ADD'] },
+  { slug: 'butterfly',        equivalences: ['core atom — rotational dex on a different beat',  'dex(1) + xbody(1) + stall(1) = 3 ADD'] },
+  { slug: 'swirl',            equivalences: ['core atom — reverse-direction rotational dex',    'xbody(1) + dex(1) + stall(1) = 3 ADD'] },
+  { slug: 'osis',             equivalences: ['core atom — double-pass rotational dex',          'spin(1) + xbody(1) + stall(1) = 3 ADD'] },
+  { slug: 'around-the-world', equivalences: ['core atom — dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'] },
+  { slug: 'orbit',            equivalences: ['core atom — alias of reverse around-the-world',   'reverse full-orbit dex(1) + stall(1) = 2 ADD'] },
 ];
 
 // Note: the prior DEMONSTRATION_SLOTS scaffolding (five pre-named conceptual

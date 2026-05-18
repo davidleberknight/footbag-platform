@@ -650,6 +650,25 @@ export const clubs = {
       c.name    COLLATE NOCASE ASC
   `); },
 
+  // Per-country member count derived from legacy_person_club_affiliations.
+  // Aggregates by legacy_club_candidates.country (not clubs.country) because
+  // the candidate row owns the country attribution and the candidate→club
+  // link (mapped_club_id) is only stamped for bootstrap-eligible candidates
+  // in production. Counting via candidate country reflects the full mirror
+  // participation surface regardless of which clubs have been promoted.
+  // Zero-count countries are excluded — callers merge by country name.
+  get listAffiliationCountsByCountry() { return db.prepare(`
+    SELECT
+      lcc.country         AS country,
+      COUNT(lpca.id)      AS member_count
+    FROM legacy_club_candidates AS lcc
+    LEFT JOIN legacy_person_club_affiliations AS lpca
+      ON lpca.legacy_club_candidate_id = lcc.id
+    WHERE lcc.country IS NOT NULL AND lcc.country != ''
+    GROUP BY lcc.country
+    HAVING COUNT(lpca.id) > 0
+  `); },
+
   get getByTagNormalized() { return db.prepare(`
     SELECT
       c.id          AS club_id,

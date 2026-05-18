@@ -1450,14 +1450,24 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
   it('ADD Analysis worked examples render a Derivation line on every entry', async () => {
     // Handlebars escapes `=` to `&#x3D;` by default, so regex patterns
     // accept either form across the derivation strings.
+    //
+    // 2026-05-18 foundational-formula slice: worked examples expanded
+    // from 8 → 17 (full coverage of foundational atoms + the existing
+    // compound flagships). The 1- and 2-ADD atoms now use the explicit
+    // primitive-decomposition style (stall / dex / xbody / spin), so
+    // earlier spot-checks like "clipper(1) = 1 ADD" and "mirage(2) =
+    // 2 ADD" no longer match; replace with the primitive forms.
     const eq = '(?:=|&#x3D;)';
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.status).toBe(200);
     const derivationMatches = res.text.match(/class="add-analysis-derivation-line"/g) ?? [];
-    expect(derivationMatches.length).toBe(8);  // 8 worked examples
+    expect(derivationMatches.length).toBe(17);  // 17 worked examples post-foundational-formula slice
     // Spot-check the formulaic content (entity-tolerant).
-    expect(res.text).toMatch(new RegExp(`clipper\\(1\\)\\s*${eq}\\s*1 ADD`));
-    expect(res.text).toMatch(new RegExp(`mirage\\(2\\)\\s*${eq}\\s*2 ADD`));
+    expect(res.text).toMatch(new RegExp(`stall\\(1\\)\\s*${eq}\\s*1 ADD`));         // toe-stall
+    expect(res.text).toMatch(new RegExp(`xbody\\(1\\)\\s*${eq}\\s*1 ADD`));        // clipper (kick)
+    expect(res.text).toMatch(new RegExp(`dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*2 ADD`));    // mirage / illusion / pickup / legover
+    expect(res.text).toMatch(new RegExp(`xbody\\(1\\)\\s*\\+\\s*dex\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*3 ADD`)); // whirl / swirl
+    expect(res.text).toMatch(new RegExp(`spin\\(1\\)\\s*\\+\\s*xbody\\(1\\)\\s*\\+\\s*stall\\(1\\)\\s*${eq}\\s*3 ADD`));// osis
     expect(res.text).toMatch(new RegExp(`miraging\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
     expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*paradox\\(\\+1\\)\\s*\\+\\s*whirl\\(3\\)\\s*${eq}\\s*5 ADD`));
     expect(res.text).toMatch(new RegExp(`gyro\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
@@ -1503,13 +1513,19 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
   });
 
   it('landing core-trick equivalences use NONE of the retired misleading aliases', async () => {
+    // ATW (uppercase shorthand) and "outside-in mirage" stay forbidden
+    // — both were the pre-Formula-Accountability misleading-alias
+    // pattern. The "reverse around-the-world" string is now a
+    // legitimate orbit-card reading (curator-confirmed alias mapping,
+    // 2026-05-18 foundational-formula correction) and is no longer
+    // guarded out here; that single use case is asserted positively in
+    // the foundational-formula test below.
     const res = await request(createApp()).get('/freestyle');
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     const slice = res.text.slice(gridStart, gridEnd);
     expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]{0,100}ATW/);
     expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]{0,100}outside-in mirage/);
-    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]{0,100}reverse around-the-world/);
   });
 });
 
@@ -2006,20 +2022,25 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
     expect(matches.length).toBe(11);
   });
 
-  it('Core Tricks cards carry editorial atom readings (Formula Accountability Slice 2026-05-17)', async () => {
+  it('Core Tricks cards carry editorial atom readings + foundational ADD formulas', async () => {
     // Formula Accountability Slice (2026-05-17): the prior "no equivalence
     // line" policy was replaced by neutral "core atom — <description>"
-    // readings. Each of the 11 atom cards now renders exactly one
-    // .core-trick-equivalence line. The misleading legacy aliases
-    // (ATW / outside-in mirage / reverse around-the-world) are NOT used
-    // as the new readings.
+    // readings, one per atom.
+    //
+    // Foundational-formula slice (2026-05-18): added a second
+    // equivalence per atom — the explicit additive ADD derivation
+    // (where each ADD comes from). Orbit is treated as the curator-
+    // confirmed alias for reverse around-the-world (pending DB
+    // canonicalization, not Wave-2 blocked) and carries the same
+    // 2-reading shape. 11 atoms × 2 readings = 22 total
+    // .core-trick-equivalence lines.
     const res = await request(createApp()).get('/freestyle');
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
     const matches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(matches.length).toBe(11);
+    expect(matches.length).toBe(22);
   });
 
   it('orbit card carries the pending-state marker (QUATERNARY layer in pending state)', async () => {

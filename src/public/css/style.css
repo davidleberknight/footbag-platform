@@ -1368,8 +1368,19 @@ section.home-media { padding-top: 0; }
 .clubs-map-svg { width: 100%; height: auto; display: block; max-height: 420px; }
 .clubs-map-svg path { fill: #d0d6dc; stroke: #fff; stroke-width: 0.4; }
 .clubs-map-svg path#n242 { fill: none; stroke: none; }
-.clubs-map-svg path.has-clubs { fill: var(--primary); cursor: pointer; transition: fill 0.12s; }
+.clubs-map-svg path.has-clubs { fill: #ecf8f0; cursor: pointer; transition: fill 0.12s; }
 .clubs-map-svg path.has-clubs:hover { fill: var(--primary-dk); }
+/* Sequential green choropleth keyed on memberBin (0-6) from
+   clubService.memberCountBin. Tier 0 falls through to .has-clubs (the
+   palest fill — clubs row exists but zero affiliations); tiers 1-6 are
+   light→dark across the affiliations-per-country distribution
+   (boundaries: 1-2 / 3-9 / 10-29 / 30-99 / 100-299 / 300+). */
+.clubs-map-svg path.clubs-map-tier-1 { fill: #d4ecdb; }
+.clubs-map-svg path.clubs-map-tier-2 { fill: #afdcc1; }
+.clubs-map-svg path.clubs-map-tier-3 { fill: #80c7a0; }
+.clubs-map-svg path.clubs-map-tier-4 { fill: #4eaf7c; }
+.clubs-map-svg path.clubs-map-tier-5 { fill: #1d9059; }
+.clubs-map-svg path.clubs-map-tier-6 { fill: #0a4a2a; }
 .clubs-map-tooltip { position: fixed; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 0.82rem; box-shadow: var(--shadow-md); pointer-events: none; z-index: 200; white-space: nowrap; }
 
 /* index page — country list */

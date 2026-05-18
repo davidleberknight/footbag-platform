@@ -119,23 +119,39 @@ const PHILOSOPHY_PARAGRAPH =
 // ─────────────────────────────────────────────────────────────────────────
 
 const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
+  // Foundational primitives — the four building blocks a foundational
+  // trick decomposes into. Each contributes 1 ADD. Treated as
+  // educational accounting (per [[feedback_reversible_content_governance]]),
+  // not parser-truth doctrine — the goal is for readers to see where the
+  // ADDs come from when reading a foundational trick's name.
   {
-    componentClass: 'A stall on a recognized catch surface',
+    componentClass: 'Stall — a catch on a recognized surface',
     contribution:   '1 ADD',
-    example:        'clipper-stall, toe-stall, neck-stall',
+    example:        'toe-stall, clipper-stall, neck-stall',
   },
   {
-    componentClass: 'A dexterity (one bag-foot interaction)',
+    componentClass: 'Dexterity (dex) — one bag-foot interaction',
     contribution:   '1 ADD',
-    example:        'hippy-in, leggy-out, dex variants',
+    example:        'inside dex, outside dex, hippy, leggy',
   },
   {
-    componentClass: 'A specialized surface (head, shoulder, forehead, etc.)',
+    componentClass: 'Cross-body traversal (xbody) — the bag crosses one plane around the body',
+    contribution:   '1 ADD',
+    example:        'the kick portion of a clipper; the body-cross in whirl',
+  },
+  {
+    componentClass: 'Rotation (spin) — a full-body rotation built into the atom',
+    contribution:   '1 ADD',
+    example:        'the spin built into osis (distinct from the spinning operator stacked on top)',
+  },
+  {
+    componentClass: 'Specialized surface (head, shoulder, forehead, etc.)',
     contribution:   '1 ADD',
     example:        'head-stall, shoulder-stall',
   },
+  // Operator/modifier contributions — apply on top of a base trick.
   {
-    componentClass: 'Paradox / ducking / symposium / spinning / stepping',
+    componentClass: 'Body operators — paradox, ducking, symposium, spinning, stepping',
     contribution:   '+1 ADD per modifier on most non-rotational bases. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex).',
     example:        'paradox + mirage (2) = 3 ADD',
   },
@@ -181,60 +197,153 @@ const INCOMPLETENESS_NOTE =
 // §2 Worked examples — 8 tricks, low to high
 // ─────────────────────────────────────────────────────────────────────────
 
+// Worked examples — ordered by ascending ADD, showing the additive
+// arithmetic explicitly. Foundational atoms (1-3 ADD) decompose into
+// the four primitives (stall / dex / xbody / spin); compounds (4-5+)
+// stack operators on top of those bases.
+//
+// Treated as educational accounting (per the philosophy paragraph and
+// [[feedback_reversible_content_governance]]) — not parser-truth doctrine.
+// The goal is for readers to see WHERE THE ADDS COME FROM when reading
+// a trick's name. Where a foundational atom's structural decomposition
+// is still under Wave 2 doctrinal discussion, the example shows the
+// canonical ADD value and a safe additive reading; the deeper parser
+// grammar can refine later without changing the public number.
 const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
+  // ── 1 ADD foundational atoms ──────────────────────────────────────────
   {
-    trickName:  'Clipper',
+    trickName:  'Toe-stall',
+    trickSlug:  'toe-stall',
+    addLabel:   '1 ADD',
+    components: 'One stall on the top of the toe.',
+    derivation: 'stall(1) = 1 ADD',
+    whyNote:    'The simplest accepted catch — a single recognized stall surface. Foundational primitive for the entire stall-based naming system.',
+  },
+  {
+    trickName:  'Clipper (kick)',
     trickSlug:  'clipper',
     addLabel:   '1 ADD',
-    components: 'clipper kick (1)',
-    derivation: 'clipper(1) = 1 ADD',
-    whyNote:    'Foundational primitive. No modifier surface; no dexterity.',
+    components: 'One cross-body kick (no stall finish).',
+    derivation: 'xbody(1) = 1 ADD',
+    whyNote:    'A single cross-body traversal — the kick portion of the clipper without a stall finish. Establishes xbody as a foundational accounting primitive.',
+  },
+
+  // ── 2 ADD foundational atoms (stall + one other primitive) ────────────
+  {
+    trickName:  'Clipper-stall',
+    trickSlug:  'clipper-stall',
+    addLabel:   '2 ADD',
+    components: 'Cross-body kick + stall.',
+    derivation: 'xbody(1) + stall(1) = 2 ADD',
+    whyNote:    'The clipper kick (1) finishing on the clipper surface (1). Direct arithmetic; no operators in play.',
   },
   {
     trickName:  'Mirage',
     trickSlug:  'mirage',
     addLabel:   '2 ADD',
-    components: 'mirage rotation (2)',
-    derivation: 'mirage(2) = 2 ADD',
-    whyNote:    'One of the foundational rotational anchors. Compounds (paradox-mirage, atom-smasher) build on it.',
+    components: 'One dex + one stall.',
+    derivation: 'dex(1) + stall(1) = 2 ADD',
+    whyNote:    'A dexterity (bag-foot interaction) finishing in a stall. Foundational rotational anchor — compounds (paradox-mirage, atom-smasher) build on it.',
   },
+  {
+    trickName:  'Legover',
+    trickSlug:  'legover',
+    addLabel:   '2 ADD',
+    components: 'One dex (over the supporting leg) + one stall.',
+    derivation: 'dex(1) + stall(1) = 2 ADD',
+    whyNote:    'Same arithmetic as mirage; mechanically the dex passes over the standing leg.',
+  },
+  {
+    trickName:  'Pickup',
+    trickSlug:  'pickup',
+    addLabel:   '2 ADD',
+    components: 'One dex (catching from below) + one stall.',
+    derivation: 'dex(1) + stall(1) = 2 ADD',
+    whyNote:    'Same arithmetic as mirage; mechanically the dex catches the bag from below.',
+  },
+  {
+    trickName:  'Illusion',
+    trickSlug:  'illusion',
+    addLabel:   '2 ADD',
+    components: 'One dex (with mid-flight rotation) + one stall.',
+    derivation: 'dex(1) + stall(1) = 2 ADD',
+    whyNote:    'Same arithmetic as mirage. Mechanically distinct (mid-flight rotation through the dex) but the ADD components are identical.',
+  },
+  {
+    trickName:  'Around-the-world (ATW)',
+    trickSlug:  'around-the-world',
+    addLabel:   '2 ADD',
+    components: 'A full-orbit dex + stall.',
+    derivation: 'full-orbit dex(1) + stall(1) = 2 ADD',
+    whyNote:    'A single dex that takes the foot fully around the bag, finishing in a stall. Reverse ATW (positional reverse, +0) reaches the same 2 ADD; the "reverse" qualifier is a direction marker, not an ADD-additive operator. Orbit is the curator-confirmed alias for reverse ATW (pending canonicalization).',
+  },
+
+  // ── 3 ADD foundational atoms (three primitives) ───────────────────────
   {
     trickName:  'Whirl',
     trickSlug:  'whirl',
     addLabel:   '3 ADD',
-    components: 'whirl rotation (3)',
-    derivation: 'whirl(3) = 3 ADD',
-    whyNote:    'The family anchor for ~17 derivative compounds, from 4-ADD entries through compound flagships.',
+    components: 'Cross-body + dex + stall.',
+    derivation: 'xbody(1) + dex(1) + stall(1) = 3 ADD',
+    whyNote:    'A rotational dex with stall finish — three contributing components. Family anchor for ~17 derivative compounds, from 4-ADD entries through compound flagships.',
+  },
+  {
+    trickName:  'Swirl',
+    trickSlug:  'swirl',
+    addLabel:   '3 ADD',
+    components: 'Cross-body + dex + stall (reverse-direction rotation).',
+    derivation: 'xbody(1) + dex(1) + stall(1) = 3 ADD',
+    whyNote:    'Same arithmetic as whirl; rotational direction is mechanically opposite. Direction is positional (+0), so swirl and whirl share an ADD total.',
   },
   {
     trickName:  'Butterfly',
     trickSlug:  'butterfly',
     addLabel:   '3 ADD',
-    components: 'butterfly rotation (3)',
-    derivation: 'butterfly(3) = 3 ADD',
-    whyNote:    'The 3-ADD anchor for the entire walking-family progression (dimwalk, ripwalk, sidewalk, bigwalk, parkwalk).',
+    components: 'Dex + cross-body + stall.',
+    derivation: 'dex(1) + xbody(1) + stall(1) = 3 ADD',
+    whyNote:    'Same three components as whirl; the timing is different (dex first). The 3-ADD anchor for the walking-family progression (dimwalk, ripwalk, sidewalk, bigwalk, parkwalk).',
   },
   {
     trickName:  'Osis',
     trickSlug:  'osis',
     addLabel:   '3 ADD',
-    components: 'osis rotation (3)',
-    derivation: 'osis(3) = 3 ADD',
-    whyNote:    'One of the most generative families. Two important branch compounds — Torque and Blender — are its 4-ADD derivatives, each spawning its own family.',
+    components: 'Spin + cross-body + stall.',
+    derivation: 'spin(1) + xbody(1) + stall(1) = 3 ADD',
+    whyNote:    'A full-body rotation built into the atom (distinct from "spinning" applied as an operator). Two major branch compounds — Torque and Blender — are its 4-ADD derivatives, each spawning its own family.',
   },
+
+  // ── Operator visibility — paradox stacked on a base ───────────────────
+  {
+    trickName:  'Paradox Mirage',
+    trickSlug:  'paradox-mirage',
+    addLabel:   '3 ADD',
+    components: 'Paradox operator (+1) on mirage (2).',
+    derivation: 'paradox(+1) + mirage(2) = 3 ADD',
+    whyNote:    'Demonstrates how an operator stacks onto a base. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex); on top of mirage it adds +1.',
+  },
+
+  // ── 4-5 ADD compounds (operators + bases; Red-settled rulings) ───────
   {
     trickName:  'Torque',
     trickSlug:  'torque',
     addLabel:   '4 ADD',
-    components: 'miraging (+1) + osis (3)',
+    components: 'Miraging operator (+1) on osis (3).',
     derivation: 'miraging(+1) + osis(3) = 4 ADD',
     whyNote:    'Settled by pt11 as the canonical reading of "miraging osis". Anchors its own branch family (paradox-torque, spinning-torque, mobius, gauntlet, atomic-torque, blurry-torque, grave-digger, spinal-tap).',
+  },
+  {
+    trickName:  'Atom Smasher',
+    trickSlug:  'atom-smasher',
+    addLabel:   '4 ADD',
+    components: 'Atomic operator (+1) + mirage (2) + implicit X-dex carry (+1).',
+    derivation: 'atomic(+1) + mirage(2) + xdex(+1) = 4 ADD',
+    whyNote:    'Settled by Red 2026-05-15: atom smasher carries an implicit X-dex from a toe, like paradox. The atomic operator alone adds +1; the X-dex carry adds another +1 above the bare atomic+mirage arithmetic.',
   },
   {
     trickName:  'Blurry Whirl',
     trickSlug:  'blurry-whirl',
     addLabel:   '5 ADD',
-    components: 'stepping (+1) + paradox (+1) + whirl (3)',
+    components: 'Stepping (+1) + paradox (+1) + whirl (3).',
     derivation: 'stepping(+1) + paradox(+1) + whirl(3) = 5 ADD',
     whyNote:    'Settled by pt11 + Wave 1 2026-05-15: blurry transitively expands to stepping paradox. The compressed name "blurry whirl" and the expanded reading describe the same trick at different stopping depths. Both are correct.',
   },
@@ -242,9 +351,9 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Mobius',
     trickSlug:  'mobius',
     addLabel:   '5 ADD',
-    components: 'gyro torque (gyro +1 + torque 4) = 5  — or deep form spinning ss miraging osis (+1 +0 +1 +3) = 5',
+    components: 'Gyro operator (+1) on torque (4) — or deep-form unfolding.',
     derivation: 'gyro(+1) + torque(4) = 5 ADD   (deep form: spinning(+1) + ss(+0) + miraging(+1) + osis(3) = 5 ADD)',
-    whyNote:    'Settled by pt11. The dictionary’s flagship multi-depth example. Two valid stopping depths reach the same total. Players say mobius; analysts can unfold to either depth.',
+    whyNote:    'Settled by pt11. The flagship multi-depth example. Two valid stopping depths reach the same total. Players say mobius; analysts can unfold to either depth.',
   },
 ];
 

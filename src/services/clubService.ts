@@ -593,6 +593,32 @@ export interface CountrySummary {
   countrySlug: string;
   countryHref: string;
   total: number;
+  memberCount: number;
+  memberBin: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+}
+
+// Bin boundaries for the /clubs world-map choropleth. Driven by the
+// per-country distribution of legacy_person_club_affiliations rows
+// (see exploration query 2026-05-18). Six lit tiers + tier 0 (clubs row
+// exists but no affiliations) give a smooth 6-step sequential green
+// ramp; USA's 1153 sits alone in tier 6, Canada plus the three
+// 100-200 cohorts populate tier 5, and the long tail spreads evenly
+// across tiers 1-4.
+//   0       no affiliations    → no fill class beyond .has-clubs
+//   1-2     trace              → tier 1
+//   3-9     small              → tier 2
+//   10-29   medium-small       → tier 3
+//   30-99   medium             → tier 4
+//   100-299 large              → tier 5
+//   300+    outlier            → tier 6
+export function memberCountBin(n: number): 0 | 1 | 2 | 3 | 4 | 5 | 6 {
+  if (n <= 0)   return 0;
+  if (n < 3)    return 1;
+  if (n < 10)   return 2;
+  if (n < 30)   return 3;
+  if (n < 100)  return 4;
+  if (n < 300)  return 5;
+  return 6;
 }
 
 export interface ClubsIndexContent {
@@ -642,13 +668,27 @@ export class ClubService {
         countryTotals.set(row.country, (countryTotals.get(row.country) ?? 0) + 1);
       }
 
-      const countries: CountrySummary[] = [...countryTotals.entries()].map(([country, total]) => ({
-        country,
-        countryCode: countryCode(country),
-        countrySlug: slugifyCountry(country),
-        countryHref: `/clubs/${slugifyCountry(country)}`,
-        total,
-      }));
+      const affiliationRows = clubs.listAffiliationCountsByCountry.all() as Array<{
+        country: string;
+        member_count: number;
+      }>;
+      const memberCounts = new Map<string, number>();
+      for (const r of affiliationRows) {
+        memberCounts.set(r.country, r.member_count);
+      }
+
+      const countries: CountrySummary[] = [...countryTotals.entries()].map(([country, total]) => {
+        const memberCount = memberCounts.get(country) ?? 0;
+        return {
+          country,
+          countryCode: countryCode(country),
+          countrySlug: slugifyCountry(country),
+          countryHref: `/clubs/${slugifyCountry(country)}`,
+          total,
+          memberCount,
+          memberBin: memberCountBin(memberCount),
+        };
+      });
 
       return {
         seo: { title: 'Clubs' },
@@ -663,8 +703,8 @@ export class ClubService {
           totalClubs: rows.length,
           totalCountries: countries.length,
           mapDataJson: JSON.stringify(
-            countries.map(({ countryCode: code, countrySlug: slug, country: name, total }) =>
-              ({ code, slug, name, total }),
+            countries.map(({ countryCode: code, countrySlug: slug, country: name, total, memberCount, memberBin }) =>
+              ({ code, slug, name, total, memberCount, memberBin }),
             ),
           ),
         },

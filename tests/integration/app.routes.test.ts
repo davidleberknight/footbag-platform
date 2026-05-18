@@ -755,6 +755,31 @@ describe('GET /clubs', () => {
     const res = await request(app).get('/clubs');
     expect(res.text).not.toContain('Old Defunct Club');
   });
+
+  it('emits clubs-map-data JSON island carrying per-country memberCount + memberBin', async () => {
+    const app = createApp();
+    const res = await request(app).get('/clubs');
+    // The JSON island is a <script type="application/json" id="clubs-map-data">
+    // populated from CountrySummary → mapDataJson. The world-map JS consumes
+    // memberBin (0-4) to apply a sequential green choropleth class on each
+    // country's SVG <path>. Guard the shape so the JS stays compatible.
+    const m = res.text.match(
+      /<script[^>]*id="clubs-map-data"[^>]*>(.*?)<\/script>/s,
+    );
+    expect(m, 'clubs-map-data script island missing').not.toBeNull();
+    const data = JSON.parse(m![1]) as Array<Record<string, unknown>>;
+    expect(data.length).toBeGreaterThan(0);
+    for (const row of data) {
+      expect(row).toHaveProperty('code');
+      expect(row).toHaveProperty('slug');
+      expect(row).toHaveProperty('name');
+      expect(row).toHaveProperty('total');
+      expect(row).toHaveProperty('memberCount');
+      expect(row).toHaveProperty('memberBin');
+      expect(typeof row.memberCount).toBe('number');
+      expect([0, 1, 2, 3, 4, 5, 6]).toContain(row.memberBin);
+    }
+  });
 });
 
 // ── Clubs country page ─────────────────────────────────────────────────────────

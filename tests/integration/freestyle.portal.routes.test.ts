@@ -894,32 +894,47 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
     expect(atwBlock).toMatch(/<p class="core-trick-notation">toe &gt; ss leggy in dex &gt; ss toe<\/p>/);
   });
 
-  it('landing Core Tricks renders editorial atom readings (Formula Accountability Slice 2026-05-17)', async () => {
-    // Formula Accountability Slice 2026-05-17: CORE_TRICK_SPEC equivalences
-    // now carry one short editorial reading per atom. The "foundational-atom
-    // silence" policy is replaced by neutral "core atom — <description>"
-    // readings so no card renders visually emptier than the compounds it
-    // decomposes to. The misleading aliases that prompted the original
-    // silence policy (ATW, outside-in mirage, reverse around-the-world)
-    // are NOT used as the new readings.
+  it('landing Core Tricks renders editorial atom readings + foundational ADD formulas (2026-05-18 slice)', async () => {
+    // Formula Accountability Slice 2026-05-17 introduced one neutral
+    // "core atom — <description>" reading per atom. Foundational-formula
+    // slice 2026-05-18 added a second reading per atom: the explicit
+    // additive ADD derivation (where each ADD comes from), so beginners
+    // see the structural arithmetic right on the landing without needing
+    // to navigate to /freestyle/add-analysis. Orbit is the curator-
+    // confirmed alias for reverse around-the-world (pending DB
+    // canonicalization, not Wave-2 blocked); it carries the same
+    // 2-reading shape as the other atoms while its numeric ADD value
+    // displays as em-dash until the canonical row lands.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
-    // Each of the 11 atoms now carries exactly one ≡ reading.
+    // 11 atoms × 2 readings = 22 total ≡ lines.
     const equivMatches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(equivMatches.length).toBe(11);
-    // Every reading starts with "core atom" — the neutral marker for
-    // doctrine-sensitive atoms whose bare-form notation is Wave-2 territory.
+    expect(equivMatches.length).toBe(22);
+    // Prose readings (Formula Accountability Slice contract preserved):
     expect(slice).toMatch(/core atom — cross-body rotational dex/);
     expect(slice).toMatch(/core atom — rotational dex/);
     expect(slice).toMatch(/core atom — dex with full bag orbit/);
+    expect(slice).toMatch(/core atom — alias of reverse around-the-world/);
+    // Foundational ADD formulas (new 2026-05-18 contract).
+    // Handlebars HTML-escapes `=` to `&#x3D;` in rendered output.
+    expect(slice).toContain('xbody(1) + stall(1) &#x3D; 2 ADD');   // clipper-stall
+    expect(slice).toContain('dex(1) + stall(1) &#x3D; 2 ADD');    // mirage / legover / pickup / illusion
+    expect(slice).toContain('xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD'); // whirl / swirl
+    expect(slice).toContain('dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD'); // butterfly
+    expect(slice).toContain('spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD');// osis
+    expect(slice).toContain('full-orbit dex(1) + stall(1) &#x3D; 2 ADD');         // around-the-world
+    expect(slice).toContain('reverse full-orbit dex(1) + stall(1) &#x3D; 2 ADD'); // orbit (alias of reverse ATW)
     // The retired misleading aliases must still not surface anywhere.
     expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?ATW/);
     expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?outside-in mirage/);
-    expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?reverse around-the-world/);
+    // "reverse around-the-world" is no longer guarded out — it appears
+    // legitimately on the orbit card as the curator-confirmed alias
+    // mapping (2026-05-18 foundational-formula correction). Asserted
+    // positively above via the orbit prose reading.
     // All 11 atoms still render as #slug tiles. Per
     // CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15), the foundational
     // "clipper" atom is anchored at slug `clipper-stall` with a

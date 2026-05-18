@@ -29,9 +29,22 @@
         if (!entry) return;
 
         path.classList.add('has-clubs');
+        // memberBin is a small integer 0-6 driven by the
+        // legacy_person_club_affiliations-per-country distribution.
+        // CSS classes clubs-map-tier-1..tier-6 carry the sequential
+        // green palette. tier-0 falls through to the default has-clubs
+        // styling (lit but at the lightest fill).
+        if (entry.memberBin >= 1 && entry.memberBin <= 6) {
+          path.classList.add('clubs-map-tier-' + entry.memberBin);
+        }
 
         path.addEventListener('mouseenter', function (e) {
-          tooltip.textContent = entry.name + ' — ' + entry.total + (entry.total === 1 ? ' club' : ' clubs');
+          var members = typeof entry.memberCount === 'number' ? entry.memberCount : 0;
+          var parts = [
+            entry.total + (entry.total === 1 ? ' club' : ' clubs'),
+            members + (members === 1 ? ' member' : ' members'),
+          ];
+          tooltip.textContent = entry.name + ' — ' + parts.join(' · ');
           tooltip.style.display = 'block';
           positionTooltip(e);
         });

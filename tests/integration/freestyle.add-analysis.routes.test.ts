@@ -87,13 +87,21 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
 });
 
 describe('GET /freestyle/add-analysis — component-contribution table', () => {
-  it('renders all 9 component classes', async () => {
+  it('renders all 11 component classes (foundational primitives + operator contributions)', async () => {
+    // 2026-05-18 foundational-formula slice: table expanded from 9 to
+    // 11 entries to surface xbody (cross-body traversal) and spin
+    // (full-body rotation) as foundational primitives alongside stall
+    // and dex. The four primitives + specialized surface make the
+    // five 1-ADD-contributing classes; the remaining six are
+    // operator/modifier contributions on top of a base.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const components = [
-      'A stall on a recognized catch surface',
-      'A dexterity (one bag-foot interaction)',
-      'A specialized surface',
-      'Paradox / ducking / symposium / spinning / stepping',
+      'Stall',
+      'Dexterity (dex)',
+      'Cross-body traversal (xbody)',
+      'Rotation (spin)',
+      'Specialized surface',
+      'Body operators',
       'Atomic',
       'Nuclear',
       'Quantum',
@@ -107,27 +115,51 @@ describe('GET /freestyle/add-analysis — component-contribution table', () => {
 });
 
 describe('GET /freestyle/add-analysis — worked examples', () => {
-  it('renders all 8 worked examples with the canonical-first ordering', async () => {
+  it('renders foundational atoms first, then compounds, with explicit ADD ordering', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
+    // 2026-05-18 foundational-formula slice: worked examples expanded
+    // to 17 entries covering every 1-3 ADD foundational atom plus the
+    // existing 4-5 ADD compound flagships. Order is ascending ADD,
+    // with foundational atoms grouped by ADD value then compounds.
+    //
+    // Pattern note: trick names appear in two contexts — the example
+    // heading (canonical, linked) and in some whyNote prose (e.g. Osis
+    // mentions "Torque" as a derivative compound). Search using the
+    // anchor-tag closing form `>Name</a>` so we hit only the heading.
     const examples = [
-      'Clipper',
+      // 1 ADD
+      'Toe-stall',
+      'Clipper (kick)',
+      // 2 ADD foundational atoms
+      'Clipper-stall',
       'Mirage',
+      'Legover',
+      'Pickup',
+      'Illusion',
+      'Around-the-world (ATW)',
+      // 3 ADD foundational atoms
       'Whirl',
+      'Swirl',
       'Butterfly',
       'Osis',
+      // operator visibility (3 ADD)
+      'Paradox Mirage',
+      // 4-5 ADD compounds
       'Torque',
+      'Atom Smasher',
       'Blurry Whirl',
       'Mobius',
     ];
     let lastIdx = -1;
+    const sectionStart = res.text.indexOf('id="worked-examples"');
+    const sectionEnd = res.text.indexOf('id="discrepancies"');
+    const slice = res.text.substring(sectionStart, sectionEnd);
     for (const e of examples) {
-      // Search within the worked-examples section by anchoring on the
-      // section heading first.
-      const sectionStart = res.text.indexOf('id="worked-examples"');
-      const sectionEnd = res.text.indexOf('id="discrepancies"');
-      const slice = res.text.substring(sectionStart, sectionEnd);
-      const idx = slice.indexOf(e);
-      expect(idx, `Worked example ${e} not found`).toBeGreaterThan(lastIdx);
+      // Anchor on the heading-link closing tag so whyNote prose
+      // mentions (e.g. "Torque and Blender" inside the Osis card)
+      // don't pollute the ordering check.
+      const idx = slice.indexOf(`>${e}</a>`);
+      expect(idx, `Worked example ${e} heading not found or out of order`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
     }
   });
@@ -135,12 +167,20 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
   it('worked examples link to the trick-detail page when slug is known', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const expectedLinks = [
+      'href="/freestyle/tricks/toe-stall"',
       'href="/freestyle/tricks/clipper"',
+      'href="/freestyle/tricks/clipper-stall"',
       'href="/freestyle/tricks/mirage"',
+      'href="/freestyle/tricks/legover"',
+      'href="/freestyle/tricks/pickup"',
+      'href="/freestyle/tricks/illusion"',
+      'href="/freestyle/tricks/around-the-world"',
       'href="/freestyle/tricks/whirl"',
+      'href="/freestyle/tricks/swirl"',
       'href="/freestyle/tricks/butterfly"',
       'href="/freestyle/tricks/osis"',
       'href="/freestyle/tricks/torque"',
+      'href="/freestyle/tricks/atom-smasher"',
       'href="/freestyle/tricks/blurry-whirl"',
       'href="/freestyle/tricks/mobius"',
     ];
@@ -151,11 +191,46 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
 
   it('worked examples carry their ADD label', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
-    // The ADD label sits inside the example heading after the trick name,
-    // separated by some markup. Use [\s\S] (DOTALL-equivalent) and a wider
-    // window to tolerate the surrounding spans + class attributes.
-    expect(res.text).toMatch(/Clipper<\/a>[\s\S]{0,200}1 ADD/);
+    expect(res.text).toMatch(/Toe-stall<\/a>[\s\S]{0,200}1 ADD/);
+    expect(res.text).toMatch(/Mirage<\/a>[\s\S]{0,200}2 ADD/);
+    expect(res.text).toMatch(/Whirl<\/a>[\s\S]{0,200}3 ADD/);
     expect(res.text).toMatch(/Mobius<\/a>[\s\S]{0,200}5 ADD/);
+  });
+
+  it('worked examples render explicit additive derivations using stall/dex/xbody/spin primitives', async () => {
+    // Central pedagogical contract of the 2026-05-18 foundational-formula
+    // slice: every foundational worked example carries an explicit
+    // additive derivation string that names which primitives contribute
+    // each ADD. Pin a sample across the four primitives.
+    //
+    // Note: Handlebars HTML-escapes `=` to `&#x3D;` in the rendered
+    // <code> block. Assert against the encoded form (what users see in
+    // page source); the visible rendered character is still `=`.
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const derivations = [
+      'stall(1) &#x3D; 1 ADD',
+      'xbody(1) &#x3D; 1 ADD',
+      'xbody(1) + stall(1) &#x3D; 2 ADD',
+      'dex(1) + stall(1) &#x3D; 2 ADD',
+      'full-orbit dex(1) + stall(1) &#x3D; 2 ADD',
+      'xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD',
+      'dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
+      'spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD',
+      'paradox(+1) + mirage(2) &#x3D; 3 ADD',
+      'miraging(+1) + osis(3) &#x3D; 4 ADD',
+      'atomic(+1) + mirage(2) + xdex(+1) &#x3D; 4 ADD',
+      'stepping(+1) + paradox(+1) + whirl(3) &#x3D; 5 ADD',
+      'gyro(+1) + torque(4) &#x3D; 5 ADD',
+    ];
+    for (const d of derivations) {
+      expect(res.text, `Missing derivation: ${d}`).toContain(d);
+    }
+  });
+
+  it('component-classes table introduces xbody and spin primitives', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('Cross-body traversal (xbody)');
+    expect(res.text).toContain('Rotation (spin)');
   });
 });
 
