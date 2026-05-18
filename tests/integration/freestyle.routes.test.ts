@@ -517,21 +517,30 @@ describe('Set-notation reference cross-links', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Set notation reference/);
   });
 
-  it('landing page renders a restrained "Full set notation reference" footer under the operator board', async () => {
-    // Slice K (2026-05-16): "Where to go next" orientation block retired.
-    // 2026-05-18 reorganization v2: Operator Board is identity-defining
-    // and sits near the top (immediately after orientation + jump-nav),
-    // ABOVE the portal cards. So the positional invariant matches the
-    // pre-reorg shape: board → footer → portal cards.
+  it('landing page renders the operator board below Basic Components with its footer intact', async () => {
+    // 2026-05-18 reorganization v3: Operator Board reads as "advanced
+    // compositional grammar" and sits AFTER core tricks + basic
+    // components. Pacing rule: vocabulary (named tricks + movement
+    // components) precedes modifier algebra. The footer + cross-links
+    // remain attached to the board wherever it lives on the page.
+    //
+    // Positional invariant:
+    //   portal cards  →  featured  →  core tricks  →  basic components
+    //                 →  operator board  →  footer  →  get started
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="operator-board-footer-link"');
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
-    const boardIdx        = res.text.indexOf('class="operator-board ');
-    const footerIdx       = res.text.indexOf('class="operator-board-footer-link"');
-    const portalCardsIdx  = res.text.indexOf('Tutorials &amp; Learning');
+    const portalCardsIdx     = res.text.indexOf('Tutorials &amp; Learning');
+    const coreTricksIdx      = res.text.indexOf('id="core-tricks"');
+    const basicComponentsIdx = res.text.indexOf('id="basic-components"');
+    const boardIdx           = res.text.indexOf('class="operator-board ');
+    const footerIdx          = res.text.indexOf('class="operator-board-footer-link"');
+    expect(portalCardsIdx).toBeGreaterThan(0);
+    expect(coreTricksIdx).toBeGreaterThan(portalCardsIdx);
+    expect(basicComponentsIdx).toBeGreaterThan(coreTricksIdx);
+    expect(boardIdx).toBeGreaterThan(basicComponentsIdx);
     expect(footerIdx).toBeGreaterThan(boardIdx);
-    expect(portalCardsIdx).toBeGreaterThan(footerIdx);
   });
 
   it('operator-board notation-reference deep-links point at /freestyle/sets (not legacy /moves)', async () => {

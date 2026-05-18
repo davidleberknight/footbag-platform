@@ -594,18 +594,22 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toMatch(/<p class="operator-name">Duck \/ Dive<\/p>/);
   });
 
-  it('renders the operator board on the landing page', async () => {
-    // 2026-05-18 reorganization v2: the Operator Board is identity-
-    // defining and sits near the top of the page (after orientation +
-    // jump-nav, before the portal cards + featured strip). Position
-    // invariant flipped from the post-Slice-K shape: board now precedes
-    // the featured section rather than following it.
+  it('renders the operator board on the landing page after Basic Components', async () => {
+    // 2026-05-18 reorganization v3: the Operator Board reads as
+    // "advanced compositional grammar" and sits AFTER core tricks +
+    // basic components. Pacing rule: foundational vocabulary precedes
+    // modifier algebra. Position invariant updated from v2 (which
+    // placed the board near the top) — content + cross-links + footer
+    // all preserved; only position changes.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    const featuredIdx = res.text.indexOf('id="featured"');
-    const boardIdx    = res.text.indexOf('class="operator-board');
+    const featuredIdx        = res.text.indexOf('id="featured"');
+    const basicComponentsIdx = res.text.indexOf('id="basic-components"');
+    const boardIdx           = res.text.indexOf('class="operator-board');
     expect(boardIdx).toBeGreaterThan(0);
-    expect(featuredIdx).toBeGreaterThan(boardIdx);
+    expect(featuredIdx).toBeGreaterThan(0);
+    expect(featuredIdx).toBeLessThan(boardIdx);
+    expect(basicComponentsIdx).toBeLessThan(boardIdx);
   });
 
   // ── Operator-card deep-links: one restrained destination per operator ──

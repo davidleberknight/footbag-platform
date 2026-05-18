@@ -10,17 +10,15 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! Freestyle Public Coherence Wave 2026-05-18 — landing reorganization.
-      Pacing: orientation → operator board (identity-defining symbolic
-      surface, kept near top) → portal cards (navigation) → featured →
-      teaching primitives (core tricks + basic components). The Operator
-      Board is one of the core identity-defining surfaces of the
-      freestyle subsystem — it establishes the compositional movement
-      language, reusable operators, and what differentiates IFPA from
-      generic trick lists. Top-reference-jump nav removed per Dave
-      audit #16 (DRY: portal cards below carry Dictionary + Glossary
-      CTAs). Teaching sections kept on the landing (counter-vote on
-      Dave audit #17). }}
+  {{! Freestyle Public Coherence Wave 2026-05-18 — landing reorganization v3.
+      Pacing: orientation → portal cards (navigation) → featured (examples)
+      → core tricks + basic components (foundational vocabulary) →
+      operator board (advanced compositional grammar) → get started.
+      Reason for v3: v2 front-loaded the operator board above portal
+      cards, which taught grammar before vocabulary. Users should
+      understand tricks + movement components before modifier algebra.
+      The operator board content + cross-links + footer all preserved;
+      only positioning changes. }}
 
   {{! ── The Language of Freestyle Footbag ──────────────────────────────────── }}
   {{! Orientation lede + autoplay demo loop; sets the identity for the page
@@ -41,30 +39,20 @@
     {{/if}}
   </section>
 
-  {{! ── Under-hero jump nav: skip the orientation/operator framing and
-      dive into a specific teaching or browse section below. Anchors in
-      scroll order. }}
+  {{! ── Under-hero jump nav: skip the orientation and dive into a
+      specific teaching or browse section below. Anchors in scroll
+      order matching the v3 reorganization. }}
   <nav class="page-jump-nav" aria-label="On this page">
-    <a href="#operators">Operators</a>
     <a href="#featured">Featured</a>
     <a href="#core-tricks">Core Tricks</a>
     <a href="#basic-components">Basic Components</a>
+    <a href="#operators">Operators</a>
   </nav>
 
-  {{! ── Operator board — identity-defining symbolic surface. Tier-1
-      vocabulary primer. Kept near the top to establish the
-      compositional movement language before the navigation block. }}
-  {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
-  <p class="operator-board-footer-link">
-    <a href="/freestyle/operators">Operator reference &rarr;</a>
-    <span class="operator-board-footer-sep" aria-hidden="true">&middot;</span>
-    <a href="/freestyle/sets">Full set notation reference &rarr;</a>
-  </p>
-
   {{! ── Portal cards (intent-ordered: learn → reference → records → competition → context → analysis) ──
-      Sit after the orientation + operator-board identity block so the
-      symbolic philosophy is established before users branch into
-      navigation. }}
+      Sit immediately after the orientation block so users can branch
+      into navigation before any teaching content. v3 pacing: navigation
+      precedes the symbolic surfaces below. }}
   <section class="content-section">
     <div class="card-grid card-grid-2col">
 
@@ -238,6 +226,20 @@
       {{/each}}
     </div>
   </section>
+
+  {{! ── Operator board — advanced compositional grammar. Sits AFTER
+      core tricks + basic components per v3 reorganization: users
+      should see foundational vocabulary (named tricks + movement
+      components) before modifier algebra. The board itself is
+      identity-defining for IFPA but reads as advanced grammar in the
+      teaching order. Cross-links to /freestyle/operators and
+      /freestyle/sets preserved from prior position. }}
+  {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
+  <p class="operator-board-footer-link">
+    <a href="/freestyle/operators">Operator reference &rarr;</a>
+    <span class="operator-board-footer-sep" aria-hidden="true">&middot;</span>
+    <a href="/freestyle/sets">Full set notation reference &rarr;</a>
+  </p>
 
   {{! ── Get started tiles (placeholders) ───────────────────────────────────── }}
   <section class="content-section">

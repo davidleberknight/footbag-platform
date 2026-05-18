@@ -6155,9 +6155,25 @@ a.dict-card-title:hover {
    no shadows, no min-height, no animation. */
 
 .freestyle-core-trick-grid {
+  /* 2026-05-18 v3 reorganization: lock to 4 columns at desktop for a
+     clean 3-row × 4-column rhythm with the 12 core atoms. Narrower
+     viewports step down at the breakpoints below. The prior
+     `auto-fit, minmax(210px, 1fr)` produced inconsistent column counts
+     (4 vs 5 vs 6) depending on viewport width, which broke the
+     scannable-grid rhythm called out in the audit. */
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px 22px;
+}
+@media (max-width: 1024px) {
+  .freestyle-core-trick-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 768px) {
+  .freestyle-core-trick-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 .core-trick-object {
   /* Airy, no row borders, no zebra. Cards size to content; the visual
@@ -6238,9 +6254,17 @@ a.dict-card-title:hover {
    the prior 4-card formats section + 2-card demonstrations section. Cards
    shrink to thumbnail + title + 1-line caption + optional chip strip. */
 .freestyle-featured-grid {
+  /* 2026-05-18 v3 reorganization: lock to 4 columns at desktop for a
+     clean 2-row × 4-column rhythm with the 8 featured items. Narrower
+     viewports step down at the breakpoints below. */
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
+}
+@media (max-width: 1024px) {
+  .freestyle-featured-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 .featured-card {
   padding: 12px 12px 10px 12px;
