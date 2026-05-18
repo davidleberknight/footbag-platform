@@ -4954,7 +4954,7 @@ export const freestyleService = {
             op('AT',    'Atomic',   'Opposite-side, out-direction toe-set dex.',     'AT + MIRAGE',             'ATOM SMASHER',       NOTATION('atomic')),
             op('Q',     'Quantum',  'Opposite-side, in-direction toe-set dex.',      'Q + MIRAGE',              'TOE BLUR',           NOTATION('quantum')),
             op('BL',    'Blurry',   'Stepping + Paradox; flat +1 ADD.',              'BLURRY + WHIRL',          'BLURRY WHIRL',       GLOSSARY('blurry')),
-            op('FAIRY', 'Fairy',    'Same-side, out-direction toe-set dex.',         'FAIRY + ATOMIC',          'FAIRY ATOMIC',       NOTATION('fairy'),    true),
+            op('FAIRY', 'Fairy',    'Same-side, out-direction toe-set dex.',         'FAIRY + DRIFTER',         'FAIRY DRIFTER',      NOTATION('fairy')),
             op('STEP',  'Stepping', 'Plant foot relocates between set and catch.',   'STEP + BUTTERFLY',        'RIPWALK',            GLOSSARY('stepping')),
           ],
         },
@@ -4977,7 +4977,7 @@ export const freestyleService = {
           title:   'Structural concepts',
           intro:   'Relationships across the trick.',
           operators: [
-            op('XDEX',  'Cross-dex','Dex circles the bag opposite the plant foot.',  'XDEX + INSIDE',           'CLIPPER',            null, true),
+            op('XBODY', 'Cross-body','The bag crosses one plane around the body.',   'XBODY + MIRAGE',          'WHIRL',              null),
             op('SAME',  'Same-foot','Set foot = catch foot.',                        'SAME + BUTTERFLY',        'SAME-FOOT BUTTERFLY', null),
           ],
         },

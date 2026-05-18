@@ -553,7 +553,7 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     const glyphs = [
       'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
       'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
-      'XDEX', 'SAME',
+      'XBODY', 'SAME',
     ];
     for (const glyph of glyphs) {
       // Each glyph appears inside its own .operator-glyph paragraph at least once.
@@ -636,16 +636,16 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(matches.length).toBe(11);
   });
 
-  it('omits the deep-link footer on unlinked operators (XDEX, SAME)', async () => {
-    // Slice B (2026-05): OP cell dropped; XDEX and SAME remain unlinked.
+  it('omits the deep-link footer on unlinked operators (XBODY, SAME)', async () => {
+    // Slice B (2026-05): OP cell dropped; XBODY (formerly XDEX) and SAME remain unlinked.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).not.toContain('/freestyle/glossary#term-blender');
-    expect(res.text).not.toContain('/freestyle/glossary#term-cross-dex');
+    expect(res.text).not.toContain('/freestyle/glossary#term-cross-body');
     expect(res.text).not.toContain('/freestyle/glossary#term-same-foot');
     expect(res.text).not.toContain('/freestyle/glossary#term-opposite');
     expect(res.text).not.toContain('/freestyle/modifier/blender');
-    expect(res.text).not.toContain('/freestyle/modifier/cross-dex');
+    expect(res.text).not.toContain('/freestyle/modifier/cross-body');
   });
 });
 

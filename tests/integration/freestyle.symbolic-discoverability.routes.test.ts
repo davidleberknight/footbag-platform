@@ -133,7 +133,7 @@ describe('GET /freestyle/learn — operator-board onboarding surface', () => {
     const glyphs = [
       'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
       'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
-      'XDEX', 'SAME',
+      'XBODY', 'SAME',
     ];
     for (const glyph of glyphs) {
       expect(res.text).toMatch(new RegExp(`<p class="operator-glyph">${glyph}</p>`));

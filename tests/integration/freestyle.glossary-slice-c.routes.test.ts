@@ -100,7 +100,7 @@ describe('Glossary §7 — visible glyph quick-reference (Slice C)', () => {
     const res = await request(app).get('/freestyle/glossary');
     expect(res.text).toMatch(/glossary-glyph-quickref-glyph">PIX</);
     expect(res.text).toMatch(/glossary-glyph-quickref-glyph">SPIN</);
-    expect(res.text).toMatch(/glossary-glyph-quickref-glyph">XDEX</);
+    expect(res.text).toMatch(/glossary-glyph-quickref-glyph">XBODY</);
   });
 
   it('positions the quick-reference BEFORE the prose explainer', async () => {
