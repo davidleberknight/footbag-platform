@@ -113,6 +113,57 @@ def normalize_role(role: str) -> str:
     return role.strip().replace("_", "-")
 
 
+def translate_membership_only_pid(
+    matched_pid: str,
+    member_name_norm: str,
+    provisional_name_to_pid: dict[str, list[str]],
+    known_person_ids: set[str],
+) -> tuple[str, str]:
+    """Resolve a ``membership_only::*`` matched_person_id to its
+    corresponding ``master_person::*`` ID via normalized-name lookup
+    against the just-loaded PROVISIONAL persons.
+
+    Background: ``clubs/scripts/01_build_club_person_universe.py`` emits
+    ``f"membership_only::{sha1(name_norm)[:16]}"`` IDs for membership-only
+    persons; ``persons/scripts/05_build_persons_master.py`` emits
+    ``f"master_person::{sha1('master|' + source_types + '|' + name_norm)[:16]}"``
+    for the same people. The two ID generators are independent and
+    produce different IDs for the same person, so the affiliations FK to
+    historical_persons.person_id misses and the historical_person_id
+    column ends up NULL. This function bridges the gap at loader time by
+    keying on the normalized name, which is consistent across both
+    upstream scripts.
+
+    Returns ``(translated_pid, outcome)`` where outcome ∈
+    ``{translated, no_match, ambiguous, not_applicable}``.
+
+      * ``translated``     — single unambiguous PROVISIONAL match found
+                              and present in historical_persons; caller
+                              should use ``translated_pid``.
+      * ``no_match``       — no PROVISIONAL row in persons_master shares
+                              the affiliation's name_norm; caller falls
+                              back to NULL.
+      * ``ambiguous``      — multiple PROVISIONAL rows share the
+                              name_norm (rare; would mean two distinct
+                              provisional persons collide); caller falls
+                              back to NULL rather than guess.
+      * ``not_applicable`` — matched_pid is not a ``membership_only::*``
+                              ID; caller should keep the existing
+                              fallback path unchanged.
+    """
+    if not matched_pid.startswith("membership_only::"):
+        return matched_pid, "not_applicable"
+    if not member_name_norm:
+        return "", "no_match"
+    candidates = provisional_name_to_pid.get(member_name_norm, [])
+    loaded = [c for c in candidates if c in known_person_ids]
+    if len(loaded) == 1:
+        return loaded[0], "translated"
+    if len(loaded) == 0:
+        return "", "no_match"
+    return "", "ambiguous"
+
+
 import re as _re
 import unicodedata as _unicodedata
 
@@ -361,6 +412,18 @@ def main() -> None:
             f"Skipped (bad row): {persons_skipped:,}"
         )
 
+        # Build name_norm → master_person_id map for the just-loaded PROVISIONAL
+        # cohort. Consumed by the affiliations loop below to bridge the
+        # membership_only::* → master_person::* ID drift between
+        # clubs/scripts/01 and persons/scripts/05 (same person, two different
+        # ID generators). See translate_membership_only_pid() docstring.
+        provisional_name_to_pid: dict[str, list[str]] = {}
+        for r in provisional:
+            nn  = (r.get("person_name_norm") or "").strip()
+            mid = (r.get("master_person_id")  or "").strip()
+            if nn and mid:
+                provisional_name_to_pid.setdefault(nn, []).append(mid)
+
         # ------------------------------------------------------------------
         # Step 2 — Legacy club candidates → legacy_club_candidates
         # ------------------------------------------------------------------
@@ -493,6 +556,7 @@ def main() -> None:
         affiliations_skipped   = 0
         affiliations_fk_miss   = 0
         affiliations_pid_fallback = 0
+        affiliations_pid_translated = 0
 
         # Pre-load all person_ids present in historical_persons (CANONICAL already
         # loaded by script 08; PROVISIONAL just loaded above).  Matched person IDs
@@ -507,6 +571,7 @@ def main() -> None:
             club_key       = row["club_key"].strip()
             mirror_id      = row.get("mirror_member_id", "").strip()
             matched_pid    = row.get("matched_person_id", "").strip()
+            member_name_norm = (row.get("member_name_norm") or "").strip()
             display_name   = row.get("display_name", "").strip()
             inferred_role  = normalize_role(row.get("inferred_role", "member"))
             conf           = opt_float(row.get("affiliation_confidence_score", ""))
@@ -516,11 +581,25 @@ def main() -> None:
                 affiliations_fk_miss += 1
                 continue
 
-            # If matched_person_id is not present in historical_persons, fall back
-            # to legacy_member_id only (avoids FK violation for membership_only:: IDs).
+            # If matched_person_id is not present in historical_persons, attempt
+            # the membership_only::* → master_person::* translation before
+            # falling back to legacy_member_id only (avoids losing the FK
+            # for the 41 / 42 drift victims where the same person carries
+            # different IDs upstream — see translate_membership_only_pid()).
             if matched_pid and matched_pid not in known_person_ids:
-                affiliations_pid_fallback += 1
-                matched_pid = ""
+                translated_pid, outcome = translate_membership_only_pid(
+                    matched_pid, member_name_norm,
+                    provisional_name_to_pid, known_person_ids,
+                )
+                if outcome == "translated":
+                    affiliations_pid_translated += 1
+                    matched_pid = translated_pid
+                else:
+                    # no_match, ambiguous, or not_applicable (a non-
+                    # membership_only::* ID that's still unloaded) — all
+                    # land at NULL like before. Counter is observable.
+                    affiliations_pid_fallback += 1
+                    matched_pid = ""
 
             # At least one of historical_person_id or legacy_member_id must be set
             historical_pid = matched_pid if matched_pid else None
@@ -569,7 +648,9 @@ def main() -> None:
         print(f"  Inserted: {affiliations_inserted:,}  "
               f"Skipped (bad row): {affiliations_skipped:,}  "
               f"Missing candidate FK: {affiliations_fk_miss:,}  "
-              f"PID fallback (unloaded provisional): {affiliations_pid_fallback:,}")
+              f"PID translated (membership_only::* → master_person::*): "
+              f"{affiliations_pid_translated:,}  "
+              f"PID fallback (unresolved): {affiliations_pid_fallback:,}")
 
         conn.commit()
 
