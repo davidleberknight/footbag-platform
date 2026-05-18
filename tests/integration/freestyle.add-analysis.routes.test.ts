@@ -327,6 +327,70 @@ describe('ADD Analysis discoverability — inbound links (Slice X corrective 202
   });
 });
 
+describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprint 1 (§2b reference table)', () => {
+  // Sprint 1 published 15 +1-stack compositions where both operator and
+  // base are Red-settled. Compact reference table between worked
+  // examples (§2) and discrepancy cases (§3).
+
+  it('renders the §2b section heading + anchor', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('id="resolved-formulas"');
+    expect(res.text).toMatch(/Settled \+1 stack reference/);
+  });
+
+  it('renders the framing prose', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/Mechanically-derivable compound formulas/);
+    expect(res.text).toMatch(/no curator-judgment cases/i);
+  });
+
+  it('renders all 15 Sprint-1 rows with trick-detail links', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const expectedSlugs = [
+      'paradox-mirage', 'symposium-mirage',
+      'atomic-butterfly', 'ducking-butterfly', 'ducking-osis', 'ducking-whirl',
+      'spinning-butterfly', 'spinning-osis',
+      'stepping-osis', 'stepping-whirl', 'symposium-whirl', 'whirling-swirl',
+      'paradox-blender', 'paradox-torque', 'spinning-torque',
+    ];
+    for (const slug of expectedSlugs) {
+      expect(res.text, `missing Sprint-1 row: ${slug}`)
+        .toContain(`href="/freestyle/tricks/${slug}"`);
+    }
+  });
+
+  it('renders Sprint-1 derivations using the +1 stack pattern', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    // Spot-check representative derivations across operator families
+    // (Handlebars HTML-escapes `=` to `&#x3D;` in <code> blocks)
+    const eq = '(?:=|&#x3D;)';
+    expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*mirage\\(2\\)\\s*${eq}\\s*3 ADD`));
+    expect(res.text).toMatch(new RegExp(`spinning\\(\\+1\\)\\s*\\+\\s*osis\\(3\\)\\s*${eq}\\s*4 ADD`));
+    expect(res.text).toMatch(new RegExp(`paradox\\(\\+1\\)\\s*\\+\\s*torque\\(4\\)\\s*${eq}\\s*5 ADD`));
+    expect(res.text).toMatch(new RegExp(`whirling\\(\\+1\\)\\s*\\+\\s*swirl\\(3\\)\\s*${eq}\\s*4 ADD`));
+  });
+
+  it('Sprint-1 section sits between worked examples (§2) and discrepancies (§3)', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const workedExamplesIdx = res.text.indexOf('id="worked-examples"');
+    const resolvedFormulasIdx = res.text.indexOf('id="resolved-formulas"');
+    const discrepanciesIdx = res.text.indexOf('id="discrepancies"');
+    expect(workedExamplesIdx).toBeGreaterThan(0);
+    expect(resolvedFormulasIdx).toBeGreaterThan(workedExamplesIdx);
+    expect(discrepanciesIdx).toBeGreaterThan(resolvedFormulasIdx);
+  });
+
+  it('Sprint-1 section stays within the lexicon — no forbidden phrases', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const sectionMatch = res.text.match(/id="resolved-formulas"[\s\S]*?<\/section>/);
+    expect(sectionMatch).not.toBeNull();
+    const section = sectionMatch![0].toLowerCase();
+    for (const phrase of ['is wrong', 'incorrect', 'the correct add', 'should be', 'outdated']) {
+      expect(section.includes(phrase), `Forbidden in Sprint-1 section: "${phrase}"`).toBe(false);
+    }
+  });
+});
+
 describe('GET /freestyle/add-analysis — PassBack ADD framing subsection (Batch C 2026-05-18)', () => {
   // External-source ADD reconciliation: 68 name-matched rows where PB
   // dex_count diverges from IFPA structural ADD. Surfaces the framing

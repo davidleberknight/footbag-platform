@@ -5300,6 +5300,42 @@ section.home-media { padding-top: 0; }
   font-size: 0.92em;
 }
 
+/* Canonical Formula Resolution Sprint 1 — settled +1-stack reference */
+.resolved-formulas-table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.resolved-formulas-table th,
+.resolved-formulas-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+.resolved-formulas-table th {
+  background: #f5f7f4;
+  font-weight: 600;
+  color: #2f5d3c;
+}
+.resolved-formula-derivation {
+  background: #f4faf5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+.resolved-formula-add {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #2f5d3c;
+  font-weight: 600;
+}
+.resolved-formula-provenance {
+  color: #555;
+  font-size: 0.86rem;
+}
+
 /* Glossary §3 — Intermediate-operator reference (NF-2A).
  * Renders the 9 compound / quantifier operator entries. Inherits the
  * <dl> structure of the existing glossary-modifier-reference block; adds

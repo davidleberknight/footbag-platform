@@ -40,6 +40,12 @@ import {
   type AddDisagreementRow,
 } from './freestyleAddDisagreements';
 export type { AddDisagreementRow };
+import {
+  RESOLVED_FORMULAS_SPRINT_1,
+  RESOLVED_FORMULAS_FRAMING_PROSE,
+  type ResolvedFormula,
+} from './freestyleResolvedFormulas';
+export type { ResolvedFormula };
 
 export interface AddAnalysisComponent {
   /** Pre-shaped label, e.g. "A stall on a recognized catch surface". */
@@ -107,6 +113,10 @@ export interface AddAnalysisContent {
   passbackAddFraming:       string;
   /** 68 rows: PB name-matched + ADD-claim differs from IFPA canonical. */
   passbackAddDisagreements: readonly AddDisagreementRow[];
+  /** Sprint-1 Canonical Formula Resolution: framing prose. */
+  resolvedFormulasFraming:  string;
+  /** Sprint-1 Canonical Formula Resolution: 15 +1-stack compositions. */
+  resolvedFormulas:         readonly ResolvedFormula[];
   closingParagraphs:        readonly string[];
   crossLinks:               readonly AddAnalysisCrossLink[];
 }
@@ -554,6 +564,8 @@ export const FREESTYLE_ADD_ANALYSIS_CONTENT: AddAnalysisContent = {
   edgeCases:              EDGE_CASES,
   passbackAddFraming:     PASSBACK_ADD_FRAMING_PROSE,
   passbackAddDisagreements: PASSBACK_ADD_DISAGREEMENTS,
+  resolvedFormulasFraming: RESOLVED_FORMULAS_FRAMING_PROSE,
+  resolvedFormulas:        RESOLVED_FORMULAS_SPRINT_1,
   closingParagraphs:      CLOSING_PARAGRAPHS,
   crossLinks:             CROSS_LINKS,
 };
