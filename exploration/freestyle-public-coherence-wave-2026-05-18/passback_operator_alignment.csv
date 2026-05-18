@@ -1,0 +1,28 @@
+pb_operator_token,occurrence_count,ifpa_inventory_match,alignment_status,notes
+pixie,29,y,aligned,in IFPA operator inventory
+stepping,29,y,aligned,in IFPA operator inventory
+spinning,28,y,aligned,in IFPA operator inventory
+ducking,27,y,aligned,in IFPA operator inventory
+atomic,18,y,aligned,in IFPA operator inventory
+barraging,15,y,aligned,in IFPA operator inventory
+gyro,12,y,aligned,in IFPA operator inventory
+fairy,10,y,aligned,in IFPA operator inventory
+whirling,7,y,aligned,in IFPA operator inventory
+nuclear,5,y,aligned,in IFPA operator inventory
+quantum,5,y,aligned,in IFPA operator inventory
+surging,4,y,aligned,in IFPA operator inventory
+diving,4,y,aligned,in IFPA operator inventory
+tapping,2,y,aligned,in IFPA operator inventory
+miraging,17,n,unaligned,PB-only operator token; not in IFPA inventory
+illusioning,11,n,unaligned,PB-only operator token; not in IFPA inventory
+twisting,4,n,unaligned,PB-only operator token; not in IFPA inventory
+swirling,4,n,unaligned,PB-only operator token; not in IFPA inventory
+flailing,2,n,unaligned,PB-only operator token; not in IFPA inventory
+terraging,2,n,unaligned,PB-only operator token; not in IFPA inventory
+whipping,1,n,unaligned,PB-only operator token; not in IFPA inventory
+phasing,1,n,unaligned,PB-only operator token; not in IFPA inventory
+slicing,1,n,unaligned,PB-only operator token; not in IFPA inventory
+baragging,1,n,unaligned,PB-only operator token; not in IFPA inventory
+shooting,1,n,unaligned,PB-only operator token; not in IFPA inventory
+warping,1,n,unaligned,PB-only operator token; not in IFPA inventory
+eggbeating,1,n,unaligned,PB-only operator token; not in IFPA inventory

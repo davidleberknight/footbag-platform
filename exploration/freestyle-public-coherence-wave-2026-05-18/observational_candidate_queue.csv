@@ -1,0 +1,181 @@
+external_name,passback_formula,passback_add,staging_priority,formula_readable,wave2_blocker,observational_safe,notes
+Anonymous,Spinning far Miraging Symp. Miraging Refraction,3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Archnemesis,Barraging near Double Down,4,medium,y,y,n,folk-derived; no mechanical decomposition
+Armaggedon,Miraging Symp. Eggbeater,3,low,n,n,n,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Assassin,Pixie Ducking far Mirage,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Atom Bomb,"Flailing far Symp. Mirage, Full Symp. Atomsmasher",2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Badger,Symp. Butterfly Swirl,2,low,n,n,n,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Bedwetter,Stepping far Eggbeater,3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Big Apple,"Spinning near Symp. Torque, Symp. Mobius",1,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Big Applesauce,Spinning far Miraging Symp. Torque,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Big Orange,"Spinning near Symp. Flux, Rev. Big Apple",1,high,y,n,y,uses external vocabulary IFPA does not recognize
+Blackula,"Toe near Symp. Double Down, Symp DOD",2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Bladerunner,Atomic far Eggbeater,3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Blaze,Whirling far Mirage,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Bling Blang,(uptime) Whirling near Whip,2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Blink,(downtime) Twisting near Toe,1,low,n,n,n,uses external vocabulary IFPA does not recognize
+Blizzard,Stepping far Illusion,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Blurrage,Stepping far Barrage,3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Blurrier,Stepping near Double Down,3,high,y,n,y,folk-derived; no mechanical decomposition
+Blurtigo,Stepping Ducking far Drifter,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Cardinal Swirl,triple-dex Swirl,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Chainsaw Massacre,"(downtime) Illusioning Symp. Illusioning Legover, (downtime) Illusioning Symp. Eggbeater",3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Cheese Processor,Surging Ducking far Blender,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Cloud,"Calf Stall w/ leg in ""Whirl"" position",,low,n,n,n,uses external vocabulary IFPA does not recognize
+Clownface,Barraging far Eggbeater,4,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Cold Fusion,"Nuclear far Double Down, Pdx. Fusion",3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Colossus,Spinning Diving near Symp. Whirl,1,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Creature,(downtime) Miraging Symp. Illusion,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Darkwalk,Pixie Diving near Butterfly,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+DATW/Double ATW,double-dex ATW,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+DDD/Down Double Down,Clipper near Double Down,2,low,n,n,n,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Delusion,double-dex Illusion,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Dimmier,Pixie near Double Down,3,high,y,n,y,folk-derived; no mechanical decomposition
+Dimmiest,Pixie far Double Down,3,high,y,n,y,folk-derived; no mechanical decomposition
+"DLO (""dee-ell-oh"")",(downtime) Miraging far Legover,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+DOD/Double Over Down,Toe near Double Down,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Dolomite,Toe far Symp. Double Down,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Double Down,double-dex Butterfly,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Dragon,Xbd Outside Stall,,low,n,n,n,uses external vocabulary IFPA does not recognize
+DSO,double-dex Legover,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+E-Walk,Frantic op Butterfly,,low,n,n,n,uses external vocabulary IFPA does not recognize
+Ego,Atomic far Blender,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Enterrage,"Terraging Legover, (midtime) Toe near Flurry",3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Fairy (archaic),Midtime Toe near Illusion,,low,n,n,n,uses external vocabulary IFPA does not recognize
+Fairy Beater,Fairy far Butterfly,2,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Fear,Fairy far Mirage,2,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Fission,Barraging far Illusion,3,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Flare,Symp. Whirling far Mirage,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Flurricane,Gyro Flurry,3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Flux,(downtime) Illusioning far Osis,1,low,n,n,n,uses external vocabulary IFPA does not recognize
+Frankenstein,"Fairy near Swirling near Swirl, Phasing near Swirl, Fairy Ripstein",3,medium,y,y,n,uses external vocabulary IFPA does not recognize
+Fudge,Fairy far Illusion,2,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Gangsta Party,Spinning Ducking far Blender,1,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Gary Coleman,"BS Reactor, Atomic far Symp. Whirl",2,high,y,n,y,uses external vocabulary IFPA does not recognize
+"GDLO (""gee-dee-ell-oh"")",Gyro DLO,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Genesis,Barraging far Whirl,3,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Ghost,Whirling Rake,,high,y,n,y,uses external vocabulary IFPA does not recognize
+Golden Shower,Stepping Ducking far Symp. Eggbeater,3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Goliath,"Pixie Ducking far DLO, Alpine Smog",3,high,y,n,y,uses external vocabulary IFPA does not recognize
+Green Eggs and Ham,Stepping Ducking far Swivel,2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Grifter,(downtime) Illusioning far Clipper,1,low,n,n,n,uses external vocabulary IFPA does not recognize
+GYBAS/Grab Your Balls and Squeeze,Stepping far Dyno,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Heart,Frantic far Double Down Swirl,5,low,n,n,n,uses external vocabulary IFPA does not recognize
+Icarus,Atomic Ducking far Torque,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Id,"Atomic Ducking far Double Down, Alpine Fusion",,high,y,n,y,uses external vocabulary IFPA does not recognize
+Irish Cream,"Atomic Gyro Torque, Tapping Mobius",2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Jackknife,"Stepping Diving ss Butterfly, Alpine Sidewalk",2,high,y,n,y,uses external vocabulary IFPA does not recognize
+"Janiwalker (""johnny walker"")",Barraging far Butterfly,3,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Johnny Vodka,Pixie Mobius,,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Kilo,Miraging Kilo,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+King Koopa,"Spinning Ducking far Symp.Torque, Alpine Super Mario",1,high,y,n,y,uses external vocabulary IFPA does not recognize
+Kiwi,Tapping Double Down,,high,y,n,y,folk-derived; no mechanical decomposition
+Lawn Moir,Slicing far Butterfly,,low,n,n,n,uses external vocabulary IFPA does not recognize
+Legbreaker,"Flailing far Butterfly, Symp. Atomic far Butterfly",2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Leviathon,Stepping Ducking far Double Down,3,high,y,n,y,folk-derived; no mechanical decomposition
+Locomotion,Stepping far Motion,3,high,y,n,y,uses external vocabulary IFPA does not recognize
+Maelstrom,"Spinning Ducking far Whirl, Alpine Spinning Whirl, Spinning Tomahawk",1,high,y,n,y,uses external vocabulary IFPA does not recognize
+Mama Curve,(downtime) Illusioning far Symp. Butterfly,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Mantis,Spinning near Eggbeater,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Massacre,(downtime) Illusioning Flail,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Merlin,(downtime) Miraging Symp.Mirage,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Moby Dick,"Mobiusscrew, Gyro Torquescrew",2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Mofly,(downtime) Miraging far Symp. Double Down,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Monster,Symp. Swirling Gyro Inside,,high,y,n,y,uses external vocabulary IFPA does not recognize
+Morpheus,"Spinning Ducking far Drifter, Alpine Void",1,high,y,n,y,uses external vocabulary IFPA does not recognize
+Mortal Kombat,Stepping Ducking far Grifter,2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Motion,Double Down near Osis,2,low,n,n,n,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Motion Sickness,Spinning far Motion,2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Motorfly,,,low,n,n,n,external lacks structural decomposition
+Nallegam,Fairy near Pickup,2,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Nebula,Barraging far DLO,4,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Nemosis,"Barraging far Motion, Nemesis Osis",4,medium,y,y,n,uses external vocabulary IFPA does not recognize
+Nova,Symp. DLO,,low,n,n,n,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Pandemonium,"Pixie far Symp. Eggbeater, BS Pigbeater",3,high,y,n,y,uses external vocabulary IFPA does not recognize
+Pandora's Box,Gyro Pickup,1,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Paratoxic,Pdx. Toxic,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Phobia,"Fairy Mobius, Fairy Gyro Torque",2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Pixie (archaic),Midtime Toe near Mirage,,low,n,n,n,uses external vocabulary IFPA does not recognize
+POD,"Pixie DOD, Pixie near Double Down",3,high,y,n,y,external lacks structural decomposition
+Porque,Pixie Torque,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Predator,Atomic far DLO,3,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Quark,Quantum far Torque,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Rage,"BS Fury, (uptime) Baragging far Symp. Mirage",3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Rake,Toe Stall dragged from Xbd position,,low,n,n,n,uses external vocabulary IFPA does not recognize
+Reactor,Atomic far Whirl,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Revstein,double-dex Twist,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Ripcurl,"Stepping near Butterfly Swirl, Sidewalk Swirl",2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Ripped Warrior,"Stepping Ducking Butterfly, Alpine Ripwalk",2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Riptide,"Stepping far Butterfly Swirl, Ripwalk Swirl",2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Rotor,(downtime) Swirling Gyro Inside Stall,,high,y,n,y,uses external vocabulary IFPA does not recognize
+Schmoe,Stepping near Legover,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Scorpion's Tail,Spinning far Double Down,2,high,y,n,y,folk-derived; no mechanical decomposition
+Shaft,"Clipper near Symp. Double Down, Symp. DDD",2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Shooting Star,"Shooting far Double Down, Pogo Nuclear far Double Down",4,high,y,n,y,folk-derived; no mechanical decomposition
+Sidewinder,"Fairy Spinning near Barraging far Buterfly, Fairy Gyro Janiwalker",4,medium,y,y,n,uses external vocabulary IFPA does not recognize
+Skullsmasher,"Atomic Ducking far Mirage, Alpine Atomsmasher",2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Slapdown,Quantum near Butterfly,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Snowflake,Drifter Rake,1,low,n,n,n,uses external vocabulary IFPA does not recognize
+Spanishfly,Clipper Ducking far Double Down,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Spikehammer,Stepping Ducking Mirage,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Sunilwalk,Barraging near Butterfly,3,medium,y,y,n,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Super Ego,Atomic Ducking Blender,2,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Super Mario,"Spinning far Symp. Torque, Symp. Marius",1,high,y,n,y,uses external vocabulary IFPA does not recognize
+Superdeeduperfly,"Spinning Ducking Superfly, Alpine Superduperfly",2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Superduperfly,Spinning Superfly,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Swifter,Stepping far Swirl,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Swirlwind,"Spinning far Symp. Whirling Swirl, Whirlwind Swirl",2,high,y,n,y,uses external vocabulary IFPA does not recognize
+Swivel,Symp. Twirl,1,low,n,n,n,uses external vocabulary IFPA does not recognize
+TATW/Triple ATW,triple-dex ATW,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Terrawhirl,"Toe midtime near Whirr, Terraging near Clipper",,low,n,n,n,uses external vocabulary IFPA does not recognize
+Tobius,"Toe Mobius, Toe Spinning near Torque",1,high,y,n,y,uses external vocabulary IFPA does not recognize
+Torch-R-Rack,"Stepping far Symp. Double Down, BS Blurriest",3,high,y,n,y,uses external vocabulary IFPA does not recognize
+Torquescrew,"Torque Dyno, (downtime) Miraging Dyno",2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Toxic,(downtime) Miraging far Symp. Whirl,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Triage,triple-dex Mirage,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Trifly,Clipper far triple-dex Butterfly,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Triple Switch,triple-dex Legover,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Trixie,"(midtime) Toe near Triage, triple-dex ""Pixie""",3,high,y,n,y,uses external vocabulary IFPA does not recognize
+TSO,triple-dex Legover,3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Twirl,(downtime) Twisting near Osis,1,low,n,n,n,uses external vocabulary IFPA does not recognize
+Twist,Rev. Swirl,1,low,n,n,n,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Vertigo,Clipper Ducking far Drifter,1,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Void,Spinning far Drifter,1,medium,y,y,n,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Voodoo,"Clipper far (downtime) Miraging Symp. Mirage, Pdx. Merlin",2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Walkover,"Inside Stall>place foot on ground>step over into Clipper, or reverse direction",,low,n,n,n,no Slice R classification; structural fit unclear
+Warp,"Warping Mirage, (uptime) Symp. Illusioning Illusioning Mirage, (uptime) Symp. Eggbeating Mirage",3,low,n,n,n,uses external vocabulary IFPA does not recognize
+Wauxspin,Butterfly Gyro Toe,,high,y,n,y,uses external vocabulary IFPA does not recognize
+Whale Tail,Gryo DLO,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+What!?,"Butterfly Symp. Twisting near Toe, Butterfly Symp. Blink",2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Whirlwalk,Whirling far Whirl,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Whirlygig,Stepping far Symp. Whirl,2,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Whirr,double-dex Whirl,2,low,n,n,n,uses external vocabulary IFPA does not recognize
+Wrap,"Inside Stall moved to Clipper Stall, or reverse direction",,low,n,n,n,uses external vocabulary IFPA does not recognize
+Your Mom,"Atomic far Symp. Double Down, BS Fusion",3,high,y,n,y,uses external vocabulary IFPA does not recognize
+Your Sister,Full Symp Kiwi,,low,n,n,n,uses external vocabulary IFPA does not recognize
+>,,,low,n,n,n,external lacks structural decomposition
+Atomic DSO,,,low,n,n,n,external lacks structural decomposition
+Bladerunner,Atomic Eggbeater,,high,y,n,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Contact,,,low,n,n,n,external lacks structural decomposition
+"Dex, Dexterity",,,low,n,n,n,external lacks structural decomposition
+Double Orbit,,,low,n,n,n,external lacks structural decomposition
+Double Pickup,,,low,n,n,n,external lacks structural decomposition
+DSO,Double Switchover,,low,n,n,n,uses external vocabulary IFPA does not recognize
+Fairy Eggbeater,,,low,n,n,n,external lacks structural decomposition
+Fairy Legover,,,low,n,n,n,external lacks structural decomposition
+Fairy ss Legover,,,low,n,n,n,external lacks structural decomposition
+Flip side,flip,,low,n,n,n,uses external vocabulary IFPA does not recognize
+"Gyro, Spinning, Spinning Gyro, Double Spinning",,,low,n,n,n,external lacks structural decomposition
+In(-Out) Dex,,,low,n,n,n,external lacks structural decomposition
+Nagellam,,,low,n,n,n,external lacks structural decomposition
+Out(-In) Dex,,,low,n,n,n,external lacks structural decomposition
+Paradon Swirl,,,low,n,n,n,external lacks structural decomposition
+Pixie DSO,,,low,n,n,n,external lacks structural decomposition
+Pixie op Toe,,,low,n,n,n,external lacks structural decomposition
+Pixie ss Mirage,,,low,n,n,n,external lacks structural decomposition
+Pixie ss Pickup,,,low,n,n,n,external lacks structural decomposition
+Smear>Fairy ss [Legover/Pickup],,,low,n,n,n,external lacks structural decomposition
+Strong side,strong,,low,n,n,n,uses external vocabulary IFPA does not recognize
+Toe ss Symp Swirl,,,low,n,n,n,external lacks structural decomposition
+Triple ATW,,,low,n,n,n,external lacks structural decomposition
+Triple Orbit,,,low,n,n,n,external lacks structural decomposition

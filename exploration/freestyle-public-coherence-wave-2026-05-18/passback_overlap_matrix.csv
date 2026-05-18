@@ -1,0 +1,283 @@
+external_name,passback_formula,passback_add,ifpa_slug,ifpa_name,ifpa_formula,overlap_category,pending_red,observational_staging_recommended,notes
+Anonymous,Spinning far Miraging Symp. Miraging Refraction,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Archnemesis,Barraging near Double Down,4,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Armaggedon,Miraging Symp. Eggbeater,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Assassin,Pixie Ducking far Mirage,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Atom Bomb,"Flailing far Symp. Mirage, Full Symp. Atomsmasher",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Atomsmasher,Atomic far Mirage,2,atom-smasher,atom smasher,atomic mirage,agree_formula_name_differs,false,n,
+ATW,toe>ss leggy in dex>ss toe,1,around-the-world,Around the World,,agree_formula_name_differs,false,n,
+Badger,Symp. Butterfly Swirl,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Barfly,Clipper far Double Down,2,barfly,barfly,,agree_name_add_differs,false,n,
+Barfry,Nuclear near Butterfly,2,matador,matador,nuclear butterfly | paradox atomic butterfly,agree_formula_name_differs,false,n,
+Barrage,double-dex Mirage,2,barrage,barrage,,agree_name_add_differs,false,n,
+Barroque,"double-dex Torque, (downtime) Barraging far Osis",2,barraging-osis,barraging osis,,agree_formula_name_differs,false,n,
+Bedwetter,Stepping far Eggbeater,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Big Apple,"Spinning near Symp. Torque, Symp. Mobius",1,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Big Applesauce,Spinning far Miraging Symp. Torque,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Big Orange,"Spinning near Symp. Flux, Rev. Big Apple",1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Blackula,"Toe near Symp. Double Down, Symp DOD",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Bladerunner,Atomic far Eggbeater,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Blaze,Whirling far Mirage,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Blender,(downtime) Whirling Osis,1,blender,blender,whirling osis,agree_name_add_differs,false,n,
+Bling Blang,(uptime) Whirling near Whip,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Blink,(downtime) Twisting near Toe,1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Blizzard,Stepping far Illusion,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Blur,Stepping far Mirage,2,blur,blur,,agree_name_add_differs,false,n,
+Blurrage,Stepping far Barrage,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Blurrier,Stepping near Double Down,3,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Blurriest,Stepping far Double Down,3,blurriest,blurriest,,agree_name_add_differs,false,n,
+Blurtigo,Stepping Ducking far Drifter,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Bullwhip,Spinning near Double Down,2,bullwhip,bullwhip,,agree_name_add_differs,false,n,
+Butterfly,(downtime) hippy out dex>ss clipper,1,butterfly,butterfly,,agree_name_add_differs,false,n,
+Cardinal Swirl,triple-dex Swirl,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Catacomb,Pixie near Drifter,2,smoke,smoke,pixie drifter,agree_formula_name_differs,false,n,
+Chainsaw Massacre,"(downtime) Illusioning Symp. Illusioning Legover, (downtime) Illusioning Symp. Eggbeater",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Cheese Processor,Surging Ducking far Blender,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Clipper,xbd inside stall,0,clipper,Clipper Kick,,agree_name_add_differs,false,n,
+Cloud,"Calf Stall w/ leg in ""Whirl"" position",,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Clownface,Barraging far Eggbeater,4,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Cold Fusion,"Nuclear far Double Down, Pdx. Fusion",3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Colossus,Spinning Diving near Symp. Whirl,1,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Creature,(downtime) Miraging Symp. Illusion,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Dada Curve,(downtime) Miraging far Symp. Butterfly,2,dada-curve,dada curve,miraging far symposium butterfly,agree_name_add_differs,false,n,
+Darkwalk,Pixie Diving near Butterfly,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+DATW/Double ATW,double-dex ATW,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+DDD/Down Double Down,Clipper near Double Down,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Delusion,double-dex Illusion,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Dimmier,Pixie near Double Down,3,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Dimmiest,Pixie far Double Down,3,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Dimwalk,Pixie far Butterfly,2,dimwalk,dimwalk,pixie butterfly,agree_name_add_differs,false,n,
+"DLO (""dee-ell-oh"")",(downtime) Miraging far Legover,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+DOD/Double Over Down,Toe near Double Down,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Dolomite,Toe far Symp. Double Down,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Double Down,double-dex Butterfly,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Dragon,Xbd Outside Stall,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Drifter,(downtime) Miraging far Clipper,1,drifter,drifter,miraging clipper,agree_name_add_differs,false,n,
+DSO,double-dex Legover,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Dyno,(downtime) Whipping Osis,1,dyno,dyno,,agree_name_add_differs,false,n,
+E-Walk,Frantic op Butterfly,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Eggbeater,(downtime) Illusioning Legover,2,eggbeater,eggbeater,atomic legover,agree_name_add_differs,false,n,
+Ego,Atomic far Blender,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Enterrage,"Terraging Legover, (midtime) Toe near Flurry",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Fairy (archaic),Midtime Toe near Illusion,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Fairy Beater,Fairy far Butterfly,2,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Fear,Fairy far Mirage,2,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Fission,Barraging far Illusion,3,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Flail,Symp. Illusion,1,flail,flail,symposium illusion,agree_name_add_differs,false,n,
+Flapper,Xbd Sole Stall,,cross-body-sole-stall,cross-body sole stall,,agree_formula_name_differs,false,n,
+Flare,Symp. Whirling far Mirage,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Flurricane,Gyro Flurry,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Flurry,(midtime) Barraging far Legover,3,flurry,flurry,barraging legover,agree_name_add_differs,false,n,
+Flux,(downtime) Illusioning far Osis,1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Fog,Stepping far DLO,3,fog,fog,,agree_name_add_differs,false,n,
+Food Processor,Stepping far Blender,2,food-processor,food processor,blurry blender | stepping paradox blender,agree_name_add_differs,false,n,
+Frankenstein,"Fairy near Swirling near Swirl, Phasing near Swirl, Fairy Ripstein",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Fudge,Fairy far Illusion,2,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Fury,Barraging far Mirage,3,fury,fury,,agree_name_add_differs,false,n,
+Fusion,Atomic far Double Down,3,fusion,fusion,atomic double over down,agree_name_add_differs,false,n,
+Gangsta Party,Spinning Ducking far Blender,1,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Gary Coleman,"BS Reactor, Atomic far Symp. Whirl",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Gauntlet,Stepping Ducking Torque,2,gauntlet,gauntlet,blurry ducking torque | stepping ducking paradox torque,agree_name_add_differs,false,n,
+"GDLO (""gee-dee-ell-oh"")",Gyro DLO,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Genesis,Barraging far Whirl,3,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Ghost,Whirling Rake,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Golden Shower,Stepping Ducking far Symp. Eggbeater,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Goliath,"Pixie Ducking far DLO, Alpine Smog",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Gravedigger,Stepping near Torque,2,grave-digger,grave digger,stepping ss torque,agree_formula_name_differs,false,n,
+Green Eggs and Ham,Stepping Ducking far Swivel,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Grifter,(downtime) Illusioning far Clipper,1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Guay,Pickup,,guay,guay,,agree_name_formula_differs,false,n,
+GYBAS/Grab Your Balls and Squeeze,Stepping far Dyno,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Hatchet,Clipper Diving near Whirl,1,hatchet,hatchet,,agree_name_add_differs,false,n,
+Heart,Frantic far Double Down Swirl,5,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+High Plains Drifter,double-dex Drifter/(midtime) Barraging far Clipper,2,high-plains-drifter,high-plains-drifter,,agree_name_add_differs,false,n,
+Icarus,Atomic Ducking far Torque,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Id,"Atomic Ducking far Double Down, Alpine Fusion",,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Illusion,(downtime) leggy out dex>op toe,1,illusion,illusion,,agree_name_add_differs,false,n,
+Irish Cream,"Atomic Gyro Torque, Tapping Mobius",2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Jackknife,"Stepping Diving ss Butterfly, Alpine Sidewalk",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+"Janiwalker (""johnny walker"")",Barraging far Butterfly,3,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Johnny Vodka,Pixie Mobius,,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Kilo,Miraging Kilo,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+King Koopa,"Spinning Ducking far Symp.Torque, Alpine Super Mario",1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Kiwi,Tapping Double Down,,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Lawn Moir,Slicing far Butterfly,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Legbeater,Atomic far Butterfly,2,atomic-butterfly,atomic butterfly,atomic butterfly,agree_formula_name_differs,false,n,
+Legbreaker,"Flailing far Butterfly, Symp. Atomic far Butterfly",2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Legeater,(downtime) Miraging Pickup,2,legeater,legeater,,agree_name_add_differs,false,n,
+Legover,(downtime) leggy out dex>ss toe,1,legover,legover,,agree_name_add_differs,false,n,
+Leviathon,Stepping Ducking far Double Down,3,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Locomotion,Stepping far Motion,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Maelstrom,"Spinning Ducking far Whirl, Alpine Spinning Whirl, Spinning Tomahawk",1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Magellan,Pixie near Legover,2,magellan,magellan,pixie legover,agree_name_add_differs,false,n,
+Mama Curve,(downtime) Illusioning far Symp. Butterfly,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Mantis,Spinning near Eggbeater,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Marius,Spinning Torque,1,spinning-torque,spinning torque,spinning torque,agree_formula_name_differs,false,n,
+Massacre,(downtime) Illusioning Flail,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Matador,Nuclear far Butterfly,2,matador,matador,nuclear butterfly | paradox atomic butterfly,agree_name_add_differs,false,n,
+Merkon,Spinning Legover,1,merkon,merkon,spinning legover,agree_name_add_differs,false,n,
+Merlin,(downtime) Miraging Symp.Mirage,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Mind Bender,Clipper Ducking far Blender,1,mind-bender,mind bender,ducking paradox blender,agree_name_add_differs,false,n,
+Mirage,(downtime) hippy in dex>op toe,1,mirage,mirage,,agree_name_add_differs,false,n,
+Mobius,Gyro Torque,1,mobius,mobius,gyro torque | spinning ss torque | spinning ss miraging op osis,agree_name_add_differs,false,n,
+Moby Dick,"Mobiusscrew, Gyro Torquescrew",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Mofly,(downtime) Miraging far Symp. Double Down,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Monster,Symp. Swirling Gyro Inside,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Montage,Spinning Ducking far Symp. Whirl,1,montage,montage,spinning ducking paradox symposium whirl,agree_name_add_differs,false,n,
+Morpheus,"Spinning Ducking far Drifter, Alpine Void",1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Mortal Kombat,Stepping Ducking far Grifter,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Motion,Double Down near Osis,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Motion Sickness,Spinning far Motion,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Motorfly,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Mullet,"Clipper Ducking far Symp. Whirl, Symp. Tomahwak",1,mullet,mullet,,agree_name_add_differs,false,n,
+Nallegam,Fairy near Pickup,2,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Nebula,Barraging far DLO,4,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Nemesis,Barraging far Double Down,4,nemesis,nemesis,furious barfly,agree_name_add_differs,false,n,
+Nemosis,"Barraging far Motion, Nemesis Osis",4,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Nova,Symp. DLO,,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Orbit,toe>ss leggy out dex>ss toe,1,orbit,Orbit,,agree_name_add_differs,false,n,
+Osis,(downtime) Gyro Clipper,0,osis,osis,,agree_name_add_differs,false,n,
+Pandemonium,"Pixie far Symp. Eggbeater, BS Pigbeater",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Pandora's Box,Gyro Pickup,1,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Paradon,Toe far Double Down,2,paradon,paradon,,agree_name_add_differs,false,n,
+Paratoxic,Pdx. Toxic,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Parkwalk,Pixie near Butterfly,2,parkwalk,parkwalk,pixie butterfly,agree_name_add_differs,false,n,
+Paste,Pixie far Pickup,2,paste,paste,,agree_name_add_differs,false,n,
+Phobia,"Fairy Mobius, Fairy Gyro Torque",2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Phoenix,Pixie Ducking Butterfly,2,phoenix,phoenix,pixie ducking butterfly,agree_name_add_differs,false,n,
+Pickup,(downtime) leggy in dex>ss toe,1,pickup,pickup,,agree_name_add_differs,false,n,
+Pigbeater,Pixie far Eggbeater,3,pigbeater,pigbeater,pixie eggbeater,agree_name_add_differs,false,n,
+Pixie (archaic),Midtime Toe near Mirage,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Plasma,Quantum far Double Down,3,plasma,plasma,quantum double over down,agree_name_add_differs,false,n,
+PLO,Pixie far Legover,2,magellan,magellan,pixie legover,agree_formula_name_differs,false,n,
+POD,"Pixie DOD, Pixie near Double Down",3,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Pogo,"Pogo far Mirage, (uptime) Symp. Miraging far Mirage",2,pogo,pogo,,agree_name_add_differs,false,n,
+Porque,Pixie Torque,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Predator,Atomic far DLO,3,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+PS Whirl,"Pdx Symp Whirl, Clipper far Symp Whirl",,paradox-symposium-whirl,paradox symposium whirl,ps whirl,agree_formula_name_differs,false,n,
+Quark,Quantum far Torque,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Rage,"BS Fury, (uptime) Baragging far Symp. Mirage",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Rake,Toe Stall dragged from Xbd position,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Reactor,Atomic far Whirl,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Reaper,Clipper far DSO,2,reaper,reaper,,agree_name_add_differs,false,n,
+Refraction,Butterfy near Osis,1,refraction,refraction,,agree_name_add_differs,false,n,
+Revstein,double-dex Twist,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Revup,(downtime) Twisting near Pickup,2,rev-up,rev up,,agree_formula_name_differs,false,n,
+Ripcurl,"Stepping near Butterfly Swirl, Sidewalk Swirl",2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Ripped Warrior,"Stepping Ducking Butterfly, Alpine Ripwalk",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Ripstein,"double-dex Swirl, Swirling near Swirl",2,ripstein,ripstein,,agree_name_add_differs,false,n,
+Riptide,"Stepping far Butterfly Swirl, Ripwalk Swirl",2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Ripwalk,Stepping far Butterfly,2,ripwalk,ripwalk,stepping butterfly,agree_name_add_differs,false,n,
+Rotor,(downtime) Swirling Gyro Inside Stall,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Royale,Clipper far Grifter,1,royale,royale,paradox reverse drifter,agree_name_add_differs,false,n,
+Schmoe,Stepping near Legover,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Scorpion's Tail,Spinning far Double Down,2,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Shaft,"Clipper near Symp. Double Down, Symp. DDD",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Shooting Star,"Shooting far Double Down, Pogo Nuclear far Double Down",4,,,,passback_only_ifpa_missing,false,y,folk-derived; no mechanical decomposition
+Sidewinder,"Fairy Spinning near Barraging far Buterfly, Fairy Gyro Janiwalker",4,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Sidwalk,Stepping near Butterfly,2,ripwalk,ripwalk,stepping butterfly,agree_formula_name_differs,false,n,
+Skullsmasher,"Atomic Ducking far Mirage, Alpine Atomsmasher",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Slapdown,Quantum near Butterfly,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Smear,Pixie Mirage,2,smear,smear,pixie mirage,agree_name_add_differs,false,n,
+Smog,Pixie far DLO,3,smog,smog,pixie double legover,agree_name_add_differs,false,n,
+Smoke,Pixie far Drifter,2,smoke,smoke,pixie drifter,agree_name_add_differs,false,n,
+Smudge,Pixie Illusion,2,smudge,smudge,pixie illusion,agree_name_add_differs,false,n,
+Snowflake,Drifter Rake,1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Spanishfly,Clipper Ducking far Double Down,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Spender,Spinning far Blender,1,spender,spender,spinning paradox blender,agree_name_add_differs,false,n,
+Spikehammer,Stepping Ducking Mirage,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Sumo,Nuclear far Mirage,2,sumo,sumo,nuclear mirage,agree_name_add_differs,false,n,
+Sunilwalk,Barraging near Butterfly,3,,,,passback_only_ifpa_missing,true,y,structurally clean but mentions Wave-2 operator (fairy/barraging/blurry)
+Super Ego,Atomic Ducking Blender,2,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Super Mario,"Spinning far Symp. Torque, Symp. Marius",1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Superdeeduperfly,"Spinning Ducking Superfly, Alpine Superduperfly",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Superduperfly,Spinning Superfly,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Superfly,Clipper far Symp. Double Down,2,superfly,superfly,,agree_name_add_differs,false,n,
+Surge,Surging far Mirage,2,surge,surge,surging paradox mirage,agree_name_add_differs,false,n,
+Surreal,Surging far Whirl,2,surreal,surreal,surging paradox whirl,agree_name_add_differs,false,n,
+Swifter,Stepping far Swirl,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Swirl,(downtime) xbd leggy out dex>ss clipper,1,swirl,swirl,,agree_name_add_differs,false,n,
+Swirlwind,"Spinning far Symp. Whirling Swirl, Whirlwind Swirl",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Swivel,Symp. Twirl,1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Tap,Atomic near Mirage,2,tap,tap,atomic near mirage,agree_name_add_differs,false,n,
+Tapdown,Atomic near Butterfly,2,atomic-butterfly,atomic butterfly,atomic butterfly,agree_formula_name_differs,false,n,
+TATW/Triple ATW,triple-dex ATW,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Terrage,"(midtime) Toe near Barrage, double-dex ""Pixie""",2,terrage,terrage,,agree_name_add_differs,false,n,
+Terrawhirl,"Toe midtime near Whirr, Terraging near Clipper",,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Tobius,"Toe Mobius, Toe Spinning near Torque",1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Toe Blur,Quantum far Mirage,2,quantum,quantum,,agree_formula_name_differs,false,n,
+Tomahawk,Clipper Ducking far Whirl,1,tomahawk,tomahawk,ducking paradox whirl,agree_name_add_differs,false,n,
+Tombstone,Stepping near Drifter,2,tombstone,tombstone,,agree_name_add_differs,false,n,
+Torch-R-Rack,"Stepping far Symp. Double Down, BS Blurriest",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Torque,(downtime) Miraging far Osis,1,torque,torque,miraging osis,agree_name_add_differs,false,n,
+Torquescrew,"Torque Dyno, (downtime) Miraging Dyno",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Toxic,(downtime) Miraging far Symp. Whirl,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Triage,triple-dex Mirage,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Trifly,Clipper far triple-dex Butterfly,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Triple Switch,triple-dex Legover,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Tripwalk,Quantum far Butterfly,2,tripwalk,tripwalk,stepping quantum butterfly,agree_name_add_differs,false,n,
+Trixie,"(midtime) Toe near Triage, triple-dex ""Pixie""",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+TSO,triple-dex Legover,3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Twirl,(downtime) Twisting near Osis,1,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Twist,Rev. Swirl,1,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Venom,Surging far Double Down,3,venom,venom,surging barfly,agree_name_add_differs,false,n,
+Vertigo,Clipper Ducking far Drifter,1,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Void,Spinning far Drifter,1,,,,passback_only_ifpa_missing,true,y,hidden-branch-family candidate; Wave 2-dependent on operator boundary
+Voodoo,"Clipper far (downtime) Miraging Symp. Mirage, Pdx. Merlin",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Vortex,Spinning near Drifter,1,vortex,vortex,gyro drifter,agree_name_add_differs,false,n,
+Walkover,"Inside Stall>place foot on ground>step over into Clipper, or reverse direction",,,,,passback_only_ifpa_missing,false,y,no Slice R classification; structural fit unclear
+Warp,"Warping Mirage, (uptime) Symp. Illusioning Illusioning Mirage, (uptime) Symp. Eggbeating Mirage",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Wauxspin,Butterfly Gyro Toe,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Whale Tail,Gryo DLO,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+What!?,"Butterfly Symp. Twisting near Toe, Butterfly Symp. Blink",2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Whip,Rev. Whirl,1,rev-whirl,rev whirl,,agree_formula_name_differs,false,n,
+Whirl,(downtime) leggy in dex>ss clipper,1,whirl,whirl,,agree_name_add_differs,false,n,
+Whirlwalk,Whirling far Whirl,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Whirlwind,Spinning far Symp. Whirl,1,spinning-symposium-whirl,spinning symposium whirl,spinning symposium whirl,agree_formula_name_differs,false,n,
+Whirlygig,Stepping far Symp. Whirl,2,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Whirr,double-dex Whirl,2,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Wrap,"Inside Stall moved to Clipper Stall, or reverse direction",,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Your Mom,"Atomic far Symp. Double Down, BS Fusion",3,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Your Sister,Full Symp Kiwi,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+>,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Atomic DSO,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+ATW,,,around-the-world,Around the World,,agree_formula_name_differs,false,n,
+Bladerunner,Atomic Eggbeater,,,,,passback_only_ifpa_missing,false,y,Slice R canonical-gap; structurally clean; no Wave 2 dependency
+Clipper,,,clipper,Clipper Kick,,agree_name_and_formula,false,n,
+Contact,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+"Dex, Dexterity",,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+DLO,,,double-leg-over,double leg over,miraging legover,agree_formula_name_differs,false,n,
+Double ATW,,,double-around-the-world,double around the world,,agree_formula_name_differs,false,n,
+Double Orbit,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Double Pickup,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+DSO,Double Switchover,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Eggbeater,Illusioning Legover,,eggbeater,eggbeater,atomic legover,agree_name_formula_differs,false,n,
+Fairy Eggbeater,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Fairy Legover,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Fairy ss Legover,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Flip side,flip,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Flurry,Barraging Legover,,flurry,flurry,barraging legover,agree_name_and_formula,false,n,
+"Gyro, Spinning, Spinning Gyro, Double Spinning",,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Illusion,,,illusion,illusion,,agree_name_and_formula,false,n,
+In(-Out) Dex,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Legover,,,legover,legover,,agree_name_and_formula,false,n,
+Magellan,Pixie ss Legover,,magellan,magellan,pixie legover,agree_name_and_formula,false,n,
+Mirage,,,mirage,mirage,,agree_name_and_formula,false,n,
+Nagellam,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Orbit,,,orbit,Orbit,,agree_name_and_formula,false,n,
+Out(-In) Dex,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Paradon Swirl,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Pickup,,,pickup,pickup,,agree_name_and_formula,false,n,
+Pigbeater,Pixie op Eggbeater,,pigbeater,pigbeater,pixie eggbeater,agree_name_and_formula,false,n,
+Pixie DSO,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Pixie op Toe,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Pixie ss Mirage,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Pixie ss Pickup,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+PLO,Pixie Legover,,magellan,magellan,pixie legover,agree_formula_name_differs,false,n,
+Smear,Pixie op Mirage,,smear,smear,pixie mirage,agree_name_and_formula,false,n,
+Smear>Fairy ss [Legover/Pickup],,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Smog,Pixie op DLO,,smog,smog,pixie double legover,agree_name_formula_differs,false,n,
+Strong side,strong,,,,,passback_only_ifpa_missing,false,y,uses external vocabulary IFPA does not recognize
+Toe ss Symp Swirl,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Triple ATW,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
+Triple Orbit,,,,,,passback_only_ifpa_missing,false,y,external lacks structural decomposition
