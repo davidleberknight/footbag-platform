@@ -97,6 +97,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/combo-analysis */
+  comboAnalysis(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getComboAnalysisPage();
+      res.render('freestyle/combo-analysis', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/tricks */
   tricksIndex(req: Request, res: Response, next: NextFunction): void {
     try {

@@ -1,0 +1,149 @@
+{{!--
+  /freestyle/combo-analysis — Combo & Run Architecture.
+
+  Educational page operating at the sequence level above the trick
+  dictionary. Pure curator content via FREESTYLE_COMBO_ANALYSIS_CONTENT;
+  logic-light template; no client JS.
+
+  Page structure per exploration/combo-analysis-2026-05-17/
+  proposed_combo_analysis_page_structure.md.
+--}}
+
+<div class="wrapper combo-analysis-page">
+
+  <header class="page-hero">
+    <h1>{{page.title}}</h1>
+    <p class="page-intro">{{page.intro}}</p>
+  </header>
+
+  {{!-- §1 — Philosophy ────────────────────────────────────────────────── --}}
+  <section id="philosophy" class="content-section">
+    <div class="section-heading">
+      <h2>1. Philosophy</h2>
+    </div>
+    {{#each content.philosophyParagraphs}}
+    <p>{{this}}</p>
+    {{/each}}
+  </section>
+
+  {{!-- §2 — Run-quality terminology ───────────────────────────────────── --}}
+  <section id="run-quality" class="content-section">
+    <div class="section-heading">
+      <h2>2. Run-quality terminology</h2>
+      <p class="section-intro">{{content.runQualityIntro}}</p>
+    </div>
+
+    <table class="combo-analysis-run-quality">
+      <thead>
+        <tr>
+          <th>Term</th>
+          <th>Definition</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.runQualityEntries}}
+        <tr id="{{anchorId}}">
+          <td><strong>{{term}}</strong></td>
+          <td>{{definition}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </section>
+
+  {{!-- §3-§4 — Sequence + Difficulty architecture ────────────────────── --}}
+  {{#each content.architectureSections}}
+  <section id="{{anchorId}}" class="content-section">
+    <div class="section-heading">
+      <h2>{{heading}}</h2>
+      <p class="section-intro">{{lede}}</p>
+    </div>
+
+    <dl class="combo-analysis-architecture-list">
+      {{#each terms}}
+      <dt id="{{anchorId}}">{{term}}</dt>
+      <dd>{{definition}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+  {{/each}}
+
+  {{!-- §5 — Worked examples ───────────────────────────────────────────── --}}
+  <section id="worked-examples" class="content-section">
+    <div class="section-heading">
+      <h2>5. Worked examples</h2>
+      <p class="section-intro">
+        Five vignettes, ordered from canonical to extreme. Each grounds a real
+        corpus pattern in the §3 / §4 vocabulary.
+      </p>
+    </div>
+
+    <ol class="combo-analysis-worked-examples">
+      {{#each content.workedExamples}}
+      <li id="{{anchorId}}" class="combo-analysis-worked-example">
+        <h3 class="combo-analysis-example-heading">{{title}}</h3>
+        <pre class="combo-analysis-example-diagram">{{diagram}}</pre>
+        <p class="combo-analysis-example-total"><strong>{{totalLine}}</strong></p>
+        <p class="combo-analysis-example-what">{{whatHappens}}</p>
+        <h4 class="combo-analysis-example-why-heading">Why this architecture works</h4>
+        <ul class="combo-analysis-example-why">
+          {{#each whyItWorks}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ul>
+        {{#if conceptsSurfaced.length}}
+        <p class="combo-analysis-example-concepts">
+          <strong>Concepts surfaced:</strong>
+          {{#each conceptsSurfaced}}<a href="#{{anchorId}}">{{label}}</a>{{#unless @last}}; {{/unless}}{{/each}}.
+        </p>
+        {{/if}}
+        <p class="combo-analysis-example-corpus"><em>{{corpusNote}}</em></p>
+      </li>
+      {{/each}}
+    </ol>
+  </section>
+
+  {{!-- §6 — Transition topology ───────────────────────────────────────── --}}
+  <section id="transition-topology" class="content-section">
+    <div class="section-heading">
+      <h2>6. Transition topology</h2>
+      <p class="section-intro">{{content.topologyIntro}}</p>
+    </div>
+
+    <dl class="combo-analysis-topology-list">
+      {{#each content.topologyPatterns}}
+      <dt id="{{anchorId}}">{{name}}</dt>
+      <dd>{{definition}}</dd>
+      {{/each}}
+    </dl>
+  </section>
+
+  {{!-- §7 — Caveats ───────────────────────────────────────────────────── --}}
+  <section id="caveats" class="content-section">
+    <div class="section-heading">
+      <h2>7. Honesty &amp; uncertainty</h2>
+      <p class="section-intro">
+        What the documented patterns describe &mdash; and what they don&rsquo;t.
+      </p>
+    </div>
+
+    <ul class="combo-analysis-caveats">
+      {{#each content.caveats}}
+      <li>{{this}}</li>
+      {{/each}}
+    </ul>
+  </section>
+
+  {{!-- §8 — Cross-references ──────────────────────────────────────────── --}}
+  <nav id="further-reading" class="combo-analysis-cross-links" aria-label="Related pages">
+    <h2>Further reading</h2>
+    <ul>
+      {{#each content.crossLinks}}
+      <li>
+        <a href="{{href}}">{{label}}</a> &mdash; {{description}}
+      </li>
+      {{/each}}
+    </ul>
+  </nav>
+
+</div>

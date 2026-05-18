@@ -6674,3 +6674,153 @@ a.dict-card-title:hover {
     margin-top: 6px;
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   Combo & Run Architecture page (/freestyle/combo-analysis)
+   Educational sequence-level surface. Mirrors the ADD Analysis styling
+   pattern; same primitives, same callout/list/example aesthetics.
+   ──────────────────────────────────────────────────────────────────────── */
+
+.combo-analysis-page .page-intro {
+  font-size: 1.05rem;
+  color: var(--text-secondary, #495764);
+}
+
+.combo-analysis-run-quality {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 0.95rem;
+}
+.combo-analysis-run-quality th,
+.combo-analysis-run-quality td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #eee;
+}
+.combo-analysis-run-quality th {
+  background: #fafafa;
+  font-weight: 600;
+}
+.combo-analysis-run-quality tbody tr:hover {
+  background: #fafbfc;
+}
+
+.combo-analysis-architecture-list,
+.combo-analysis-topology-list {
+  margin: 12px 0;
+}
+.combo-analysis-architecture-list dt,
+.combo-analysis-topology-list dt {
+  font-weight: 600;
+  margin-top: 14px;
+  color: var(--text-primary, #1c2024);
+}
+.combo-analysis-architecture-list dd,
+.combo-analysis-topology-list dd {
+  margin-left: 0;
+  margin-top: 4px;
+  color: var(--text-secondary, #495764);
+}
+
+.combo-analysis-worked-examples {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+.combo-analysis-worked-example {
+  border: 1px solid #e8eaed;
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: #fafbfc;
+}
+.combo-analysis-example-heading {
+  margin: 0 0 8px 0;
+  font-size: 1.05rem;
+}
+.combo-analysis-example-diagram {
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88rem;
+  overflow-x: auto;
+  white-space: pre;
+  margin: 8px 0;
+}
+.combo-analysis-example-total {
+  margin: 8px 0;
+  color: var(--text-primary, #1c2024);
+}
+.combo-analysis-example-what {
+  margin: 8px 0;
+}
+.combo-analysis-example-why-heading {
+  margin: 12px 0 4px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.combo-analysis-example-why {
+  margin: 4px 0 8px 18px;
+  padding: 0;
+}
+.combo-analysis-example-why li {
+  margin: 4px 0;
+}
+.combo-analysis-example-concepts {
+  margin: 8px 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #495764);
+}
+.combo-analysis-example-corpus {
+  margin: 8px 0 0 0;
+  font-size: 0.88rem;
+  color: var(--text-tertiary, #6a7480);
+}
+
+.combo-analysis-caveats {
+  margin: 12px 0 12px 18px;
+  padding: 0;
+}
+.combo-analysis-caveats li {
+  margin: 6px 0;
+  color: var(--text-secondary, #495764);
+}
+
+.combo-analysis-cross-links {
+  margin-top: 32px;
+  padding: 16px 18px;
+  background: #fafbfc;
+  border-radius: 6px;
+  border: 1px solid #e8eaed;
+}
+.combo-analysis-cross-links h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.05rem;
+}
+.combo-analysis-cross-links ul {
+  margin: 4px 0 0 18px;
+  padding: 0;
+}
+.combo-analysis-cross-links li {
+  margin: 6px 0;
+}
+
+@media (max-width: 480px) {
+  .combo-analysis-run-quality {
+    font-size: 0.88rem;
+  }
+  .combo-analysis-run-quality th,
+  .combo-analysis-run-quality td {
+    padding: 6px 8px;
+  }
+  .combo-analysis-worked-example {
+    padding: 12px 12px;
+  }
+  .combo-analysis-example-diagram {
+    font-size: 0.82rem;
+  }
+}

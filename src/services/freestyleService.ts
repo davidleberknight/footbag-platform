@@ -102,6 +102,10 @@ import {
   FREESTYLE_ADD_ANALYSIS_CONTENT,
   type AddAnalysisContent,
 } from '../content/freestyleAddAnalysisContent';
+import {
+  FREESTYLE_COMBO_ANALYSIS_CONTENT,
+  type ComboAnalysisContent,
+} from '../content/freestyleComboAnalysisContent';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -4460,6 +4464,44 @@ export const freestyleService = {
         ],
       },
       content: FREESTYLE_ADD_ANALYSIS_CONTENT,
+    };
+  },
+
+  /**
+   * GET /freestyle/combo-analysis
+   *
+   * Educational combo + run-architecture page. Operates at the SEQUENCE
+   * level above the trick dictionary, parallel to ADD Analysis which
+   * operates at the trick-decomposition level.
+   *
+   * Pure curator content; no DB access. Content lives in
+   * src/content/freestyleComboAnalysisContent.ts per
+   * [[feedback_reversible_content_governance]].
+   *
+   * Page architecture per exploration/combo-analysis-2026-05-17/
+   * proposed_combo_analysis_page_structure.md.
+   */
+  getComboAnalysisPage(): PageViewModel<ComboAnalysisContent> {
+    return {
+      seo: {
+        title:       'Combo & Run Architecture — Freestyle',
+        description:
+          'How freestyle sequences are built: setup tricks, resolution tricks, recovery patterns, concentration vs breadth, transition topology. The patterns that distinguish a memorable combo from a random list of tricks.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_combo_analysis',
+        title:      'Combo & Run Architecture',
+        intro:
+          'How freestyle sequences are built. The vocabulary of setup tricks and resolution tricks; concentration and breadth; recovery and stacking. The patterns that distinguish a memorable combo from a random list of tricks.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Combo & Run Architecture' },
+        ],
+      },
+      content: FREESTYLE_COMBO_ANALYSIS_CONTENT,
     };
   },
 
