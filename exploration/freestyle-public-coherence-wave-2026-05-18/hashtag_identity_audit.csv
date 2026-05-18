@@ -1,0 +1,166 @@
+slug,canonical_name,expected_hashtag,tag_exists_in_tags,tag_normalized_match,notes
+clipper,clipper,#clipper,y,y,tag row exists
+mirage,mirage,#mirage,y,y,tag row exists
+legover,legover,#legover,y,y,tag row exists
+pickup,pickup,#pickup,y,y,tag row exists
+guay,guay,#guay,n,n/a,no exact tag; near matches: none
+illusion,illusion,#illusion,y,y,tag row exists
+pixie,pixie,#pixie,y,y,tag row exists
+fairy,fairy,#fairy,y,y,tag row exists
+around-the-world,around the world,#around-the-world,y,y,tag row exists
+reverse-around-the-world,reverse around the world,#reverse-around-the-world,n,n/a,no exact tag; near matches: none
+double-around-the-world,double around the world,#double-around-the-world,y,y,tag row exists
+whirl,whirl,#whirl,y,y,tag row exists
+butterfly,butterfly,#butterfly,y,y,tag row exists
+swirl,swirl,#swirl,y,y,tag row exists
+osis,osis,#osis,y,y,tag row exists
+eclipse,eclipse,#eclipse,y,y,tag row exists
+eggbeater,eggbeater,#eggbeater,y,y,tag row exists
+double-leg-over,double leg over,#double-leg-over,y,y,tag row exists
+drifter,drifter,#drifter,y,y,tag row exists
+barfly,barfly,#barfly,y,y,tag row exists
+smear,smear,#smear,y,y,tag row exists
+flurry,flurry,#flurry,n,n/a,no exact tag; near matches: none
+dimwalk,dimwalk,#dimwalk,y,y,tag row exists
+parkwalk,parkwalk,#parkwalk,y,y,tag row exists
+torque,torque,#torque,y,y,tag row exists
+ripwalk,ripwalk,#ripwalk,y,y,tag row exists
+blur,blur,#blur,y,y,tag row exists
+atom-smasher,atom smasher,#atom-smasher,y,y,tag row exists
+blender,blender,#blender,y,y,tag row exists
+ducking-clipper,ducking clipper,#ducking-clipper,y,y,tag row exists
+spinning-clipper,spinning clipper,#spinning-clipper,y,y,tag row exists
+ducking-butterfly,ducking butterfly,#ducking-butterfly,y,y,tag row exists
+spinning-butterfly,spinning butterfly,#spinning-butterfly,y,y,tag row exists
+symposium-whirl,symposium whirl,#symposium-whirl,y,y,tag row exists
+ducking-whirl,ducking whirl,#ducking-whirl,n,n/a,no exact tag; near matches: none
+stepping-whirl,stepping whirl,#stepping-whirl,n,n/a,no exact tag; near matches: none
+paradox-whirl,paradox whirl,#paradox-whirl,n,n/a,no exact tag; near matches: none
+paradox-drifter,paradox drifter,#paradox-drifter,y,y,tag row exists
+paradox-mirage,paradox mirage,#paradox-mirage,y,y,tag row exists
+paradox-blender,paradox blender,#paradox-blender,y,y,tag row exists
+paradox-torque,paradox torque,#paradox-torque,y,y,tag row exists
+blurry-whirl,blurry whirl,#blurry-whirl,y,y,tag row exists
+blurriest,blurriest,#blurriest,y,y,tag row exists
+fog,fog,#fog,n,n/a,no exact tag; near matches: none
+mobius,mobius,#mobius,y,y,tag row exists
+fusion,fusion,#fusion,n,n/a,no exact tag; near matches: #club_fusion
+tomahawk,tomahawk,#tomahawk,y,y,tag row exists
+superfly,superfly,#superfly,y,y,tag row exists
+spinning-whirl,spinning whirl,#spinning-whirl,y,y,tag row exists
+paradox-symposium-whirl,paradox symposium whirl,#paradox-symposium-whirl,y,y,tag row exists
+food-processor,food processor,#food-processor,y,y,tag row exists
+blurry-torque,blurry torque,#blurry-torque,n,n/a,no exact tag; near matches: none
+atomic-torque,atomic torque,#atomic-torque,n,n/a,no exact tag; near matches: none
+spinning-torque,spinning torque,#spinning-torque,n,n/a,no exact tag; near matches: none
+spinning-symposium-whirl,spinning symposium whirl,#spinning-symposium-whirl,y,y,tag row exists
+rev-whirl,rev whirl,#rev-whirl,y,y,tag row exists
+rev-up,rev up,#rev-up,n,n/a,no exact tag; near matches: none
+spinning-osis,spinning osis,#spinning-osis,y,y,tag row exists
+ducking-osis,ducking osis,#ducking-osis,n,n/a,no exact tag; near matches: none
+stepping-osis,stepping osis,#stepping-osis,y,y,tag row exists
+tapping-whirl,tapping whirl,#tapping-whirl,n,n/a,no exact tag; near matches: none
+barraging-osis,barraging osis,#barraging-osis,n,n/a,no exact tag; near matches: none
+atomic-butterfly,atomic butterfly,#atomic-butterfly,n,n/a,no exact tag; near matches: none
+ducking,ducking,#ducking,n,n/a,no exact tag; near matches: #ducking-butterfly;#ducking-clipper
+spinning,spinning,#spinning,n,n/a,no exact tag; near matches: #spinning-butterfly;#spinning-clipper;#spinning-osis
+paradox,paradox,#paradox,n,n/a,no exact tag; near matches: #paradox-blender;#paradox-drifter;#paradox-mirage
+symposium,symposium,#symposium,n,n/a,no exact tag; near matches: #event_2000_colorado_shred_symposium;#event_2001_colorado_shred_symposium_2;#event_2003_colorado_shred_symposium_4
+atomic,atomic,#atomic,y,y,tag row exists
+stepping,stepping,#stepping,n,n/a,no exact tag; near matches: #stepping-osis
+gyro,gyro,#gyro,n,n/a,no exact tag; near matches: none
+tapping,tapping,#tapping,n,n/a,no exact tag; near matches: none
+blazing,blazing,#blazing,n,n/a,no exact tag; near matches: none
+barraging,barraging,#barraging,n,n/a,no exact tag; near matches: none
+toe-stall,toe stall,#toe-stall,y,y,tag row exists
+heel-stall,heel stall,#heel-stall,y,y,tag row exists
+outside-stall,outside stall,#outside-stall,y,y,tag row exists
+flying-inside,flying inside,#flying-inside,y,y,tag row exists
+flying-outside,flying outside,#flying-outside,y,y,tag row exists
+hop-over,hop over,#hop-over,y,y,tag row exists
+double-spin,double spin,#double-spin,n,n/a,no exact tag; near matches: none
+walk-over,walk over,#walk-over,n,n/a,no exact tag; near matches: none
+spyro,spyro,#spyro,n,n/a,no exact tag; near matches: none
+surging,surging,#surging,n,n/a,no exact tag; near matches: none
+sidewalk,sidewalk,#sidewalk,y,y,tag row exists
+tombstone,tombstone,#tombstone,y,y,tag row exists
+fury,fury,#fury,y,y,tag row exists
+vortex,vortex,#vortex,y,y,tag row exists
+quantum,quantum,#quantum,y,y,tag row exists
+merkon,merkon,#merkon,n,n/a,no exact tag; near matches: none
+terrage,terrage,#terrage,n,n/a,no exact tag; near matches: none
+barrage,barrage,#barrage,y,y,tag row exists
+royale,royale,#royale,n,n/a,no exact tag; near matches: none
+ripstein,ripstein,#ripstein,y,y,tag row exists
+flail,flail,#flail,y,y,tag row exists
+omelette,omelette,#omelette,n,n/a,no exact tag; near matches: none
+sumo,sumo,#sumo,n,n/a,no exact tag; near matches: none
+flying-clipper,flying clipper,#flying-clipper,y,y,tag row exists
+inside-stall,inside stall,#inside-stall,y,y,tag row exists
+clipper-stall,clipper stall,#clipper-stall,y,y,tag row exists
+dragonfly-kick,dragonfly kick,#dragonfly-kick,y,y,tag row exists
+dada-curve,dada curve,#dada-curve,y,y,tag row exists
+knee-stall,knee stall,#knee-stall,y,y,tag row exists
+sole-stall,sole stall,#sole-stall,y,y,tag row exists
+cloud-stall,cloud stall,#cloud-stall,n,n/a,no exact tag; near matches: none
+forehead-stall,forehead stall,#forehead-stall,y,y,tag row exists
+neck-stall,neck stall,#neck-stall,y,y,tag row exists
+cross-body-sole-stall,cross-body sole stall,#cross-body-sole-stall,y,y,tag row exists
+symposium-mirage,symposium mirage,#symposium-mirage,y,y,tag row exists
+squeeze,squeeze,#squeeze,y,y,tag row exists
+spin,spin,#spin,y,y,tag row exists
+pendulum,pendulum,#pendulum,y,y,tag row exists
+whirling-swirl,whirling swirl,#whirling-swirl,y,y,tag row exists
+bigwalk,bigwalk,#bigwalk,n,n/a,no exact tag; near matches: none
+surge,surge,#surge,n,n/a,no exact tag; near matches: none
+surreal,surreal,#surreal,n,n/a,no exact tag; near matches: none
+surgery,surgery,#surgery,n,n/a,no exact tag; near matches: none
+venom,venom,#venom,n,n/a,no exact tag; near matches: none
+dyno,dyno,#dyno,y,y,tag row exists
+paradon,paradon,#paradon,n,n/a,no exact tag; near matches: none
+high-plains-drifter,high-plains-drifter,#high-plains-drifter,n,n/a,no exact tag; near matches: none
+reaper,reaper,#reaper,n,n/a,no exact tag; near matches: none
+magellan,magellan,#magellan,y,y,tag row exists
+witchdoctor,witchdoctor,#witchdoctor,n,n/a,no exact tag; near matches: none
+furious,furious,#furious,n,n/a,no exact tag; near matches: none
+pogo,pogo,#pogo,n,n/a,no exact tag; near matches: none
+terraging,terraging,#terraging,n,n/a,no exact tag; near matches: none
+reverse-drifter,reverse-drifter,#reverse-drifter,y,y,tag row exists
+refraction,refraction,#refraction,n,n/a,no exact tag; near matches: none
+knee-clipper,knee-clipper,#knee-clipper,n,n/a,no exact tag; near matches: none
+shooting,shooting,#shooting,n,n/a,no exact tag; near matches: none
+smudge,smudge,#smudge,n,n/a,no exact tag; near matches: none
+smog,smog,#smog,y,y,tag row exists
+haze,haze,#haze,n,n/a,no exact tag; near matches: none
+head-stall,head-stall,#head-stall,n,n/a,no exact tag; near matches: #forehead-stall
+shoulder-stall,shoulder-stall,#shoulder-stall,n,n/a,no exact tag; near matches: none
+bullwhip,bullwhip,#bullwhip,y,y,tag row exists
+nemesis,nemesis,#nemesis,n,n/a,no exact tag; near matches: none
+gauntlet,gauntlet,#gauntlet,y,y,tag row exists
+sole-kick,sole kick,#sole-kick,y,y,tag row exists
+smoke,smoke,#smoke,n,n/a,no exact tag; near matches: none
+plasma,plasma,#plasma,n,n/a,no exact tag; near matches: none
+grave-digger,grave digger,#grave-digger,n,n/a,no exact tag; near matches: none
+jani-walker,jani walker,#jani-walker,y,y,tag row exists
+rooted,rooted,#rooted,n,n/a,no exact tag; near matches: none
+cloud-kick,cloud kick,#cloud-kick,y,y,tag row exists
+sailing,sailing,#sailing,n,n/a,no exact tag; near matches: none
+tap,tap,#tap,n,n/a,no exact tag; near matches: none
+paste,paste,#paste,n,n/a,no exact tag; near matches: none
+hatchet,hatchet,#hatchet,n,n/a,no exact tag; near matches: none
+pigbeater,pigbeater,#pigbeater,n,n/a,no exact tag; near matches: none
+montage,montage,#montage,n,n/a,no exact tag; near matches: none
+mullet,mullet,#mullet,n,n/a,no exact tag; near matches: none
+spender,spender,#spender,n,n/a,no exact tag; near matches: none
+scrambled-eggbeater,scrambled eggbeater,#scrambled-eggbeater,n,n/a,no exact tag; near matches: none
+matador,matador,#matador,n,n/a,no exact tag; near matches: none
+phoenix,phoenix,#phoenix,n,n/a,no exact tag; near matches: #event_2008_phoenix_open;#event_2009_phoenix_open
+mind-bender,mind bender,#mind-bender,n,n/a,no exact tag; near matches: none
+tripwalk,tripwalk,#tripwalk,n,n/a,no exact tag; near matches: none
+legeater,legeater,#legeater,n,n/a,no exact tag; near matches: none
+spinal-tap,spinal tap,#spinal-tap,n,n/a,no exact tag; near matches: none
+assassin,assassin,#assassin,n,n/a,no exact tag; near matches: none
+mantis,mantis,#mantis,n,n/a,no exact tag; near matches: none
+nova,nova,#nova,n,n/a,no exact tag; near matches: #club_nova_hacks;#club_nova_net
+tapdown,tapdown,#tapdown,n,n/a,no exact tag; near matches: none
+big-apple,big apple,#big-apple,n,n/a,no exact tag; near matches: none

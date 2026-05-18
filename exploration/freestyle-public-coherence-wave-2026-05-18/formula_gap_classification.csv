@@ -1,0 +1,166 @@
+slug,canonical_name,adds,category,is_core,has_notation,has_op_notation,gap_status,reason
+pogo,pogo,0,set,0,n,n,safe_not_written,set primitive — formula candidate exists; curator-pending publication
+rooted,rooted,0,set,0,n,n,safe_not_written,set primitive — formula candidate exists; curator-pending publication
+clipper,clipper,1,body,1,y,n,resolved,notation present
+cloud-kick,cloud kick,1,body,0,y,y,resolved,notation present
+flying-inside,flying inside,1,body,0,y,n,resolved,notation present
+flying-outside,flying outside,1,body,0,y,n,resolved,notation present
+forehead-stall,forehead stall,1,surface,0,n,y,resolved,notation present
+head-stall,head-stall,1,surface,0,y,y,resolved,notation present
+heel-stall,heel stall,1,surface,0,y,y,resolved,notation present
+inside-stall,inside stall,1,surface,0,y,y,resolved,notation present
+knee-stall,knee stall,1,surface,0,n,y,resolved,notation present
+neck-stall,neck stall,1,surface,0,n,y,resolved,notation present
+outside-stall,outside stall,1,surface,0,y,y,resolved,notation present
+shoulder-stall,shoulder-stall,1,surface,0,n,y,resolved,notation present
+sole-kick,sole kick,1,body,0,y,y,resolved,notation present
+spin,spin,1,body,0,y,n,resolved,notation present
+spyro,spyro,1,body,0,y,n,resolved,notation present
+toe-stall,toe stall,1,surface,0,y,y,resolved,notation present
+around-the-world,around the world,2,dex,1,y,n,resolved,notation present
+atomic,atomic,2,set,0,y,n,resolved,notation present
+clipper-stall,clipper stall,2,surface,0,y,y,resolved,notation present
+cloud-stall,cloud stall,2,surface,0,n,y,resolved,notation present
+double-spin,double spin,2,body,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+dragonfly-kick,dragonfly kick,2,body,0,y,n,resolved,notation present
+fairy,fairy,2,set,1,y,n,resolved,notation present
+flying-clipper,flying clipper,2,body,0,n,n,curator_pending,flying-X primitive — see foundational_formula_gap_report_v2
+furious,furious,2,set,0,y,n,resolved,notation present
+guay,guay,2,dex,1,n,n,intentionally_atomic,core atom — formula visibility lives on landing CORE_TRICK_SPEC + /freestyle/add-analysis
+hop-over,hop over,2,body,0,y,n,resolved,notation present
+illusion,illusion,2,dex,1,y,n,resolved,notation present
+knee-clipper,knee-clipper,2,surface,0,n,n,intentionally_atomic,surface stall — single primitive; no compositional formula
+legover,legover,2,dex,1,y,n,resolved,notation present
+mirage,mirage,2,dex,1,y,n,resolved,notation present
+pendulum,pendulum,2,,0,y,y,resolved,notation present
+pickup,pickup,2,dex,1,y,n,resolved,notation present
+pixie,pixie,2,set,1,y,n,resolved,notation present
+quantum,quantum,2,set,0,y,n,resolved,notation present
+reverse-around-the-world,reverse around the world,2,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+sailing,sailing,2,set,0,y,n,resolved,notation present
+sole-stall,sole stall,2,surface,0,n,y,resolved,notation present
+squeeze,squeeze,2,,0,y,y,resolved,notation present
+surging,surging,2,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+walk-over,walk over,2,body,0,y,n,resolved,notation present
+barrage,barrage,3,,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+butterfly,butterfly,3,compound,1,y,n,resolved,notation present
+cross-body-sole-stall,cross-body sole stall,3,surface,0,n,n,intentionally_atomic,surface stall — single primitive; no compositional formula
+double-around-the-world,double around the world,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+double-leg-over,double leg over,3,compound,0,y,n,resolved,notation present
+drifter,drifter,3,compound,0,y,n,resolved,notation present
+ducking-clipper,ducking clipper,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+eclipse,eclipse,3,compound,0,y,n,resolved,notation present
+eggbeater,eggbeater,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+flail,flail,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+legeater,legeater,3,compound,0,y,y,resolved,notation present
+magellan,magellan,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+merkon,merkon,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+omelette,omelette,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+osis,osis,3,compound,1,y,n,resolved,notation present
+paradox-mirage,paradox mirage,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+paste,paste,3,compound,0,y,y,resolved,notation present
+reaper,reaper,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+refraction,refraction,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+rev-up,rev up,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+rev-whirl,rev whirl,3,dex,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+reverse-drifter,reverse-drifter,3,dex,0,y,n,resolved,notation present
+scrambled-eggbeater,scrambled eggbeater,3,compound,0,y,y,resolved,notation present
+shooting,shooting,3,set,0,y,n,resolved,notation present
+smear,smear,3,compound,0,y,n,resolved,notation present
+smudge,smudge,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+spinning-clipper,spinning clipper,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+swirl,swirl,3,dex,1,y,n,resolved,notation present
+symposium-mirage,symposium mirage,3,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+tap,tap,3,compound,0,y,y,resolved,notation present
+terraging,terraging,3,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+whirl,whirl,3,dex,1,y,n,resolved,notation present
+assassin,assassin,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+atom-smasher,atom smasher,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+atomic-butterfly,atomic butterfly,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+barfly,barfly,4,compound,0,y,y,resolved,notation present
+blender,blender,4,compound,0,y,n,resolved,notation present
+blur,blur,4,compound,0,y,y,resolved,notation present
+dada-curve,dada curve,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+dimwalk,dimwalk,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+ducking-butterfly,ducking butterfly,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+ducking-osis,ducking osis,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+ducking-whirl,ducking whirl,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+dyno,dyno,4,compound,0,y,n,resolved,notation present
+flurry,flurry,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+hatchet,hatchet,4,compound,0,y,y,resolved,notation present
+haze,haze,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+high-plains-drifter,high-plains-drifter,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+mantis,mantis,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+nova,nova,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+paradon,paradon,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+paradox-drifter,paradox drifter,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+paradox-whirl,paradox whirl,4,compound,0,y,n,resolved,notation present
+parkwalk,parkwalk,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+pigbeater,pigbeater,4,compound,0,y,y,resolved,notation present
+ripstein,ripstein,4,compound,0,y,n,resolved,notation present
+ripwalk,ripwalk,4,compound,0,y,n,resolved,notation present
+royale,royale,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+sidewalk,sidewalk,4,compound,0,y,n,resolved,notation present
+smog,smog,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+smoke,smoke,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+spinning-butterfly,spinning butterfly,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+spinning-osis,spinning osis,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+spinning-whirl,spinning whirl,4,compound,0,y,n,resolved,notation present
+stepping-osis,stepping osis,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+stepping-whirl,stepping whirl,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+symposium-whirl,symposium whirl,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+tapdown,tapdown,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+tapping-whirl,tapping whirl,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+terrage,terrage,4,,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+tombstone,tombstone,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+torque,torque,4,compound,0,y,n,resolved,notation present
+tripwalk,tripwalk,4,compound,0,y,y,resolved,notation present
+vortex,vortex,4,compound,0,y,n,resolved,notation present
+whirling-swirl,whirling swirl,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+witchdoctor,witchdoctor,4,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+barraging-osis,barraging osis,5,compound,0,n,n,wave2_blocked,Wave 2 barraging operator class question
+bigwalk,bigwalk,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+blurriest,blurriest,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+blurry-whirl,blurry whirl,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+bullwhip,bullwhip,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+fog,fog,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+fury,fury,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+fusion,fusion,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+grave-digger,grave digger,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+jani-walker,jani walker,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+matador,matador,5,compound,0,y,y,resolved,notation present
+mobius,mobius,5,compound,0,y,n,resolved,notation present
+paradox-blender,paradox blender,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+paradox-symposium-whirl,paradox symposium whirl,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+paradox-torque,paradox torque,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+phoenix,phoenix,5,compound,0,y,y,resolved,notation present
+plasma,plasma,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+spinal-tap,spinal tap,5,compound,0,y,y,resolved,notation present
+spinning-symposium-whirl,spinning symposium whirl,5,compound,0,y,n,resolved,notation present
+spinning-torque,spinning torque,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+sumo,sumo,5,compound,0,y,n,resolved,notation present
+superfly,superfly,5,compound,0,y,n,resolved,notation present
+surge,surge,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+tomahawk,tomahawk,5,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+atomic-torque,atomic torque,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+big-apple,big apple,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+blurry-torque,blurry torque,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+food-processor,food processor,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+mind-bender,mind bender,6,compound,0,y,y,resolved,notation present
+mullet,mullet,6,compound,0,y,y,resolved,notation present
+nemesis,nemesis,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+spender,spender,6,compound,0,y,y,resolved,notation present
+surgery,surgery,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+surreal,surreal,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+venom,venom,6,compound,0,n,n,curator_pending,compound — formula derivable but not yet curator-published
+gauntlet,gauntlet,7,compound,0,y,n,resolved,notation present
+montage,montage,7,compound,0,y,y,resolved,notation present
+barraging,barraging,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+blazing,blazing,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+ducking,ducking,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+gyro,gyro,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+paradox,paradox,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+spinning,spinning,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+stepping,stepping,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+symposium,symposium,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
+tapping,tapping,,modifier,0,n,n,intentionally_atomic,modifier — no own formula; contributes via operators to compound bases
