@@ -585,6 +585,123 @@ describe('GET /freestyle/operators (Phase B promotion of glossary §6)', () => {
   });
 });
 
+describe('GET /freestyle/observational — observational-layer trick entries', () => {
+  // 2026-05-18 implementation slice of observational_layer_proposal.md.
+  // Layer separation contract: observational entries never cross into
+  // canonical surfaces; they surface only on this route. Cards are
+  // visually distinct (no hashtag, no trick-detail link, observational
+  // badge).
+
+  it('returns 200 with page title', async () => {
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Observed Tricks');
+  });
+
+  it('renders breadcrumb back to /freestyle', async () => {
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toMatch(/<a href="\/freestyle">Freestyle<\/a>/);
+  });
+
+  it('renders the observational layer note + canonical references', async () => {
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toContain('class="observational-layer-note"');
+    expect(res.text).toMatch(/canonical references/i);
+    expect(res.text).toContain('href="/freestyle/tricks"');
+    expect(res.text).toContain('href="/freestyle/operators"');
+    expect(res.text).toContain('href="/freestyle/add-analysis"');
+  });
+
+  it('renders pilot seed entries (5 pending-review entries)', async () => {
+    const res = await request(createApp()).get('/freestyle/observational');
+    // All 5 seed entries from freestyleObservationalTricks.ts should render.
+    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+      expect(res.text, `missing seed entry: ${name}`).toContain(name);
+    }
+    const cards = res.text.match(/class="observational-card"/g) ?? [];
+    expect(cards.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('every card carries the observational badge with source attribution', async () => {
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toContain('class="observational-card-badge"');
+    expect(res.text).toMatch(/observational · passback/);
+  });
+
+  it('observational cards have NO hashtag chip (canonical-only convention)', async () => {
+    // Identity-layer contract from curated_vs_observational_boundary.md
+    // forever-invariant #2: observational entries never get #-tag chips.
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).not.toContain('class="dict-card-hashtag"');
+    expect(res.text).not.toMatch(/<span[^>]*class="[^"]*hashtag[^"]*"[^>]*>#/);
+  });
+
+  it('observational cards have NO trick-detail href (no /freestyle/tricks/{folkSlug})', async () => {
+    // Forever-invariant: observational entries never get a
+    // /freestyle/tricks/{slug} route.
+    const res = await request(createApp()).get('/freestyle/observational');
+    // Pull the observational card section
+    const cardsStart = res.text.indexOf('class="observational-card-grid"');
+    const footerStart = res.text.indexOf('class="observational-footer"');
+    expect(cardsStart).toBeGreaterThan(0);
+    const cardsRegion = res.text.slice(cardsStart, footerStart);
+    // Inside the card region, no card links to /freestyle/tricks/blizzard
+    // or any other folk slug.
+    for (const folkSlug of ['blizzard', 'blaze', 'assassin', 'bedwetter', 'sole-survivor']) {
+      expect(cardsRegion, `forbidden detail-page link for observational ${folkSlug}`)
+        .not.toContain(`/freestyle/tricks/${folkSlug}`);
+    }
+  });
+
+  it('observational ADD chip explicitly shows "pending canonicalization"', async () => {
+    // The canonical ADD chip styling is suppressed; observational cards
+    // show ADD as em-dash + "pending canonicalization" framing per the
+    // boundary contract.
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toMatch(/ADD pending canonicalization/);
+  });
+
+  it('observational entries do NOT appear on canonical /freestyle/tricks index', async () => {
+    // The single most important forever-invariant: no canonical
+    // cross-contamination. Folk slugs from the observational content
+    // module must NEVER surface on /freestyle/tricks.
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    // None of the observational folk names appear as cards on the
+    // canonical trick dictionary index.
+    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+      // Use a card-region match to avoid false positives from
+      // descriptions / footnotes that happen to mention the word.
+      const dictMatch = new RegExp(`class="dict-card[^"]*"[^>]*>[\\s\\S]{0,500}${name}`, 'i');
+      expect(res.text, `observational ${name} leaked onto canonical /freestyle/tricks`)
+        .not.toMatch(dictMatch);
+    }
+  });
+
+  it('observational entries do NOT appear on /freestyle/operators', async () => {
+    const res = await request(createApp()).get('/freestyle/operators');
+    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+      expect(res.text, `observational ${name} leaked onto /freestyle/operators`)
+        .not.toContain(name);
+    }
+  });
+
+  it('observational entries do NOT appear on landing /freestyle', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+      expect(res.text, `observational ${name} leaked onto landing`)
+        .not.toContain(name);
+    }
+  });
+});
+
+describe('GET /freestyle/operators — cross-link to observational layer', () => {
+  it('orientation lede cross-links to /freestyle/observational', async () => {
+    const res = await request(createApp()).get('/freestyle/operators');
+    expect(res.text).toContain('href="/freestyle/observational"');
+  });
+});
+
 describe('GET /freestyle/glossary §6 partial reuse (same content as /freestyle/operators)', () => {
   it('glossary §6 carries the same modifier feel cards as /freestyle/operators (shared partial)', async () => {
     // The shared `freestyle-modifier-reference` partial guarantees both

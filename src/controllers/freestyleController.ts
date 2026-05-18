@@ -169,6 +169,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/observational — observational-layer trick entries. */
+  observational(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getObservationalLayerPage();
+      res.render('freestyle/observational', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/progression/walking-family — observational symbolic-grammar layer */
   walkingProgression(_req: Request, res: Response, next: NextFunction): void {
     try {

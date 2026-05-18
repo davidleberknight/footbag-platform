@@ -106,6 +106,11 @@ import {
   FREESTYLE_COMBO_ANALYSIS_CONTENT,
   type ComboAnalysisContent,
 } from '../content/freestyleComboAnalysisContent';
+import {
+  OBSERVATIONAL_TRICKS,
+  listObservationalByStatus,
+  type ObservationalTrick,
+} from '../content/freestyleObservationalTricks';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -2229,6 +2234,26 @@ export interface FreestyleGlossaryContent {
   // branching: 9 set cards, 4 body cards.
   setModifierFeelCards:  readonly ModifierFeelCard[];
   bodyModifierFeelCards: readonly ModifierFeelCard[];
+}
+
+// /freestyle/observational view-model. Surfaces the observational-layer
+// trick entries (TypeScript content-module-driven; no DB integration).
+// Layer separation contract documented in
+// exploration/freestyle-public-coherence-wave-2026-05-18/
+// curated_vs_observational_boundary.md — observational entries NEVER
+// cross into canonical surfaces; this view-model is the only place they
+// surface.
+export interface FreestyleObservationalContent {
+  /** Pending-review entries shown by default. Plurality + per-entry
+   *  blocker rendering is delegated to the template. */
+  pendingReview:        readonly ObservationalTrick[];
+  pendingCanonicalization: readonly ObservationalTrick[];
+  rejected:             readonly ObservationalTrick[];
+  totalEntries:         number;
+  /** Static framing prose rendered above the cards. */
+  layerNote:            string;
+  /** Cross-links to related canonical surfaces. */
+  canonicalReferences:  readonly { label: string; href: string }[];
 }
 
 // /freestyle/operators view-model. Pure URL promotion of the modifier-
@@ -4715,6 +4740,59 @@ export const freestyleService = {
         familyTrees:     shapeFamilyTrees(allDictRows),
         setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
         bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
+      },
+    };
+  },
+
+  getObservationalLayerPage(): PageViewModel<FreestyleObservationalContent> {
+    // Layer-separation invariant: this view-model is the ONLY place
+    // observational entries surface. No DB query — content-module-driven
+    // per [[feedback_reversible_content_governance]].
+    const pendingReview        = listObservationalByStatus('pending-review');
+    const pendingCanonicalization = listObservationalByStatus('pending-canonicalization');
+    const rejected             = listObservationalByStatus('rejected');
+
+    return {
+      seo: {
+        title: 'Observed Tricks (Pending Curator Review)',
+        description:
+          'Observational layer: tricks documented in external corpora ' +
+          '(PassBack, FootbagMoves, Shred Global, Footbag Finland) that ' +
+          'are not yet curator-confirmed canonical. Surfaces only — no ' +
+          'hashtag identity, no media, no canonical detail pages.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_observational',
+        title:      'Observed Tricks',
+        intro:
+          'Trick names documented in external corpora that the curator ' +
+          'has NOT yet promoted to canonical status. Source-attributed; ' +
+          'pending review.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Observed Tricks' },
+        ],
+      },
+      content: {
+        pendingReview,
+        pendingCanonicalization,
+        rejected,
+        totalEntries:        OBSERVATIONAL_TRICKS.length,
+        layerNote:
+          'These entries observe what external sources document. They do not ' +
+          'override or extend the canonical curated set. Promotion to ' +
+          'canonical requires curator review against the Curated Trick ' +
+          'Publication Contract (V1 + V2). Cards on this surface deliberately ' +
+          'lack hashtag chips and trick-detail pages — those are canonical-only ' +
+          'affordances.',
+        canonicalReferences: [
+          { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
+          { label: 'Operators & Modifiers',         href: '/freestyle/operators' },
+          { label: 'ADD Analysis',                  href: '/freestyle/add-analysis' },
+        ],
       },
     };
   },

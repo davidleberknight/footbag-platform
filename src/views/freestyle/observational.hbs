@@ -1,0 +1,126 @@
+{{!--
+  /freestyle/observational — observational-layer trick entries.
+
+  Layer-separation contract (per
+  exploration/freestyle-public-coherence-wave-2026-05-18/
+  curated_vs_observational_boundary.md):
+
+    - Cards on this surface are visually distinct from canonical cards
+      (no hashtag chip, no ADD chip with canonical styling, no
+      trick-detail link).
+    - Each card carries an "observational" badge.
+    - Source attribution + curator-review status are explicit.
+    - NO links to /freestyle/tricks/{slug} for these entries (they
+      have no canonical detail page).
+--}}
+<div class="hero hero-sm">
+  <div>
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <a href="/freestyle">Freestyle</a> &rsaquo;
+      <span aria-current="page">Observed Tricks</span>
+    </nav>
+    <h1>{{page.title}}
+      <span class="symbolic-layer-badge" title="Observational layer — external-source documented, not canonical">observational</span>
+    </h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper freestyle-observational">
+  <section class="content-section">
+    <p class="observational-layer-note">{{content.layerNote}}</p>
+
+    <p class="observational-canonical-refs">
+      Canonical references:
+      {{#each content.canonicalReferences}}
+        {{#unless @first}} &middot; {{/unless}}<a href="{{href}}">{{label}}</a>
+      {{/each}}
+    </p>
+
+    {{#if content.pendingReview.length}}
+    <h2 class="observational-section-heading">
+      Pending review
+      <span class="observational-section-count">({{content.pendingReview.length}})</span>
+    </h2>
+    <p class="observational-section-intro">
+      These entries are documented in external corpora but have not yet
+      been reviewed by the curator. Formulas + ADD totals are
+      candidates only — they reflect external-source claims, not
+      curator-confirmed canonical structure.
+    </p>
+    <div class="observational-card-grid">
+      {{#each content.pendingReview}}
+      <article class="observational-card" data-folk-slug="{{folkSlug}}">
+        <p class="observational-card-badge">observational · {{sourceLabel}}</p>
+        <h3 class="observational-card-name">{{displayName}}</h3>
+        {{#each proposedReadings}}
+        <p class="observational-card-reading"><span class="observational-card-equiv-sigil">&equiv;</span> {{this}}</p>
+        {{/each}}
+        {{#if proposedAddFormula}}
+        <p class="observational-card-formula"><code>{{proposedAddFormula}}</code></p>
+        {{/if}}
+        <p class="observational-card-add">
+          ADD pending canonicalization <span class="observational-card-add-emdash" aria-hidden="true">&mdash;</span>
+          {{#if proposedAddTotal}}
+            <span class="observational-card-add-claim">(external claim: {{proposedAddTotal}})</span>
+          {{/if}}
+        </p>
+        <p class="observational-card-source">Source: {{sourceCitation}}</p>
+        <p class="observational-card-status">Status: {{status}}</p>
+        {{#if curatorNote}}
+        <p class="observational-card-note"><em>Curator note:</em> {{curatorNote}}</p>
+        {{/if}}
+        {{#if unresolvedBlockers.length}}
+        <p class="observational-card-blockers">
+          <em>Blockers:</em>
+          {{#each unresolvedBlockers}}{{#unless @first}}; {{/unless}}{{this}}{{/each}}
+        </p>
+        {{/if}}
+      </article>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{#if content.pendingCanonicalization.length}}
+    <h2 class="observational-section-heading">
+      Pending canonicalization
+      <span class="observational-section-count">({{content.pendingCanonicalization.length}})</span>
+    </h2>
+    <p class="observational-section-intro">
+      Curator has reviewed; these are queued for canonical promotion
+      against the V1+V2 publication contract.
+    </p>
+    <div class="observational-card-grid">
+      {{#each content.pendingCanonicalization}}
+      <article class="observational-card observational-card--queued" data-folk-slug="{{folkSlug}}">
+        <p class="observational-card-badge">observational · queued for canonical</p>
+        <h3 class="observational-card-name">{{displayName}}</h3>
+        {{#each proposedReadings}}
+        <p class="observational-card-reading"><span class="observational-card-equiv-sigil">&equiv;</span> {{this}}</p>
+        {{/each}}
+        {{#if proposedAddFormula}}
+        <p class="observational-card-formula"><code>{{proposedAddFormula}}</code></p>
+        {{/if}}
+        <p class="observational-card-source">Source: {{sourceCitation}}</p>
+      </article>
+      {{/each}}
+    </div>
+    {{/if}}
+
+    {{#unless content.totalEntries}}
+    <p class="observational-empty-state">
+      No observational entries currently staged. The
+      <a href="/freestyle/tricks">trick dictionary</a> carries the
+      canonical curated set.
+    </p>
+    {{/unless}}
+
+    <p class="observational-footer">
+      Curated canonical trick definitions remain authoritative. See the
+      <a href="/freestyle/tricks">Trick Dictionary</a>,
+      <a href="/freestyle/operators">Operators &amp; Modifiers</a>,
+      and <a href="/freestyle/glossary">Glossary</a> for the
+      curator-confirmed reference.
+    </p>
+  </section>
+</div>

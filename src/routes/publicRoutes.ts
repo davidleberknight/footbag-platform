@@ -58,6 +58,7 @@ publicRouter.get('/freestyle/sets',        freestyleController.moves);
 publicRouter.get('/freestyle/moves',       (_req, res) => res.redirect(301, '/freestyle/sets'));
 publicRouter.get('/freestyle/glossary',    freestyleController.glossary);
 publicRouter.get('/freestyle/operators',   freestyleController.operators);
+publicRouter.get('/freestyle/observational', freestyleController.observational);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/insights',    freestyleController.insights);
 publicRouter.get('/freestyle/learn',       freestyleController.symbolicLearn);

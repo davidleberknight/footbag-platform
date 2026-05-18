@@ -5102,6 +5102,142 @@ section.home-media { padding-top: 0; }
   color: #999;
 }
 
+/* /freestyle/observational — observational-layer cards.
+ * Visually distinct from canonical dict-card to make the layer
+ * separation immediately legible. Per
+ * exploration/freestyle-public-coherence-wave-2026-05-18/
+ * curated_vs_observational_boundary.md: NO hashtag chip, NO ADD chip
+ * with canonical styling, NO trick-detail link. */
+.freestyle-observational .observational-layer-note {
+  margin: 0 0 16px 0;
+  padding: 12px 18px;
+  background: #f4f1ea;
+  border-left: 4px solid #b8a169;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: #4a4232;
+}
+.freestyle-observational .observational-canonical-refs {
+  margin: 0 0 28px 0;
+  font-size: 0.88rem;
+  color: #666;
+}
+.freestyle-observational .observational-section-heading {
+  margin-top: 28px;
+  font-size: 1.2rem;
+}
+.freestyle-observational .observational-section-count {
+  color: #999;
+  font-weight: 400;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+.freestyle-observational .observational-section-intro {
+  margin: 4px 0 16px 0;
+  font-size: 0.9rem;
+  color: #555;
+  font-style: italic;
+}
+.freestyle-observational .observational-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.observational-card {
+  position: relative;
+  padding: 16px;
+  background: #fefdfb;
+  border: 1px dashed #c4a86a;
+  border-radius: 6px;
+  font-size: 0.92rem;
+}
+.observational-card-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #b8a169;
+  color: #fff;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+  margin: 0 0 8px 0;
+}
+.observational-card-name {
+  margin: 0 0 8px 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #3a3326;
+}
+.observational-card-reading {
+  margin: 4px 0;
+  font-size: 0.9rem;
+  color: #4a4232;
+}
+.observational-card-equiv-sigil {
+  color: #999;
+  margin-right: 4px;
+}
+.observational-card-formula {
+  margin: 6px 0;
+  font-size: 0.86rem;
+  color: #555;
+}
+.observational-card-formula code {
+  background: #f4f1ea;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+.observational-card-add {
+  margin: 8px 0 4px 0;
+  font-size: 0.85rem;
+  color: #777;
+  font-style: italic;
+}
+.observational-card-add-emdash {
+  color: #b8a169;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.observational-card-add-claim {
+  font-style: normal;
+  color: #999;
+  font-size: 0.92em;
+}
+.observational-card-source,
+.observational-card-status,
+.observational-card-note,
+.observational-card-blockers {
+  margin: 4px 0;
+  font-size: 0.82rem;
+  color: #666;
+}
+.observational-card-note {
+  font-style: italic;
+}
+.observational-card-blockers {
+  color: #a44a2c;
+}
+.observational-card--queued {
+  border-style: solid;
+  background: #fdf8ea;
+}
+.observational-empty-state {
+  padding: 24px;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+}
+.observational-footer {
+  margin-top: 32px;
+  padding-top: 18px;
+  border-top: 1px solid #e5e5e5;
+  font-size: 0.88rem;
+  color: #666;
+}
+
 /* Glossary §3 — Intermediate-operator reference (NF-2A).
  * Renders the 9 compound / quantifier operator entries. Inherits the
  * <dl> structure of the existing glossary-modifier-reference block; adds
