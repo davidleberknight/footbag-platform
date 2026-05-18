@@ -166,6 +166,7 @@ beforeAll(async () => {
       legacy_club_candidate_id: mainLcc,
       historical_person_id:     hpId,
       resolution_status:        'confirmed_current',
+      resolved_club_id:         CLUB_ID,
       display_name:             `Snap Member ${i + 1}`,
     });
   }

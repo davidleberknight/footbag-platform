@@ -172,6 +172,7 @@ beforeAll(async () => {
         legacy_club_candidate_id: lccId,
         historical_person_id:     hpId,
         resolution_status:        'confirmed_current',
+        resolved_club_id:         clubId,
         display_name:             `Member ${i + 1}`,
       });
     }

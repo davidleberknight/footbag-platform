@@ -547,10 +547,16 @@ export interface LegacyPersonClubAffiliationOverrides {
   historical_person_id?: string;
   legacy_club_candidate_id: string;
   resolution_status?: string;
+  resolved_club_id?: string;
   inferred_role?: string;
   display_name?: string;
 }
 
+// Wizard contract (MIGRATION_PLAN §9.3): rows arrive 'pending' from loaders;
+// the onboarding wizard transitions to 'confirmed_current' AND stamps
+// resolved_club_id in the same transaction. Schema CHECK enforces the pairing,
+// so a caller that passes resolution_status='confirmed_current' must also
+// pass resolved_club_id.
 export function insertLegacyPersonClubAffiliation(
   db: BetterSqlite3.Database,
   o: LegacyPersonClubAffiliationOverrides,
@@ -559,15 +565,16 @@ export function insertLegacyPersonClubAffiliation(
   db.prepare(`
     INSERT INTO legacy_person_club_affiliations (
       id, historical_person_id, legacy_club_candidate_id,
-      inferred_role, resolution_status, display_name,
+      inferred_role, resolution_status, resolved_club_id, display_name,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id,
     o.historical_person_id        ?? null,
     o.legacy_club_candidate_id,
     o.inferred_role                ?? 'member',
-    o.resolution_status            ?? 'confirmed_current',
+    o.resolution_status            ?? 'pending',
+    o.resolved_club_id             ?? null,
     o.display_name                 ?? null,
     TS, SYS, TS, SYS,
   );

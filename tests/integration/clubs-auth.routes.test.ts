@@ -86,6 +86,7 @@ beforeAll(async () => {
     historical_person_id:     personId,
     legacy_club_candidate_id: candidateId,
     resolution_status:        'confirmed_current',
+    resolved_club_id:         clubId,
   });
 
   // Second person with a 'pending' (unresolved) affiliation — must never appear
