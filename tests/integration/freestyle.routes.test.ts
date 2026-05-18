@@ -1221,8 +1221,8 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
 
   it('glossary §11 source-families list carries verified outbound hyperlinks', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toContain('href="http://www.footbag.org/"');
-    expect(res.text).toContain('href="http://www.footbag.org/newmoves/list"');
+    expect(res.text).toContain('href="https://www.footbag.org/"');
+    expect(res.text).toContain('href="https://www.footbag.org/newmoves/list"');
     expect(res.text).toContain('href="https://www.footbagmoves.com/"');
     expect(res.text).toContain('href="https://www.youtube.com/@WorldFootbag"');
   });
@@ -1231,7 +1231,7 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     const res = await request(createApp()).get('/freestyle/glossary');
     // Each verified outbound URL should appear with both attributes.
     const checks = [
-      'http://www.footbag.org/',
+      'https://www.footbag.org/',
       'https://www.footbagmoves.com/',
       'https://www.youtube.com/@WorldFootbag',
     ];

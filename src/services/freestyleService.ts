@@ -706,7 +706,7 @@ function shapeTrickPathways(args: {
         count: learnTotal,
         primaryText: learnPrimaryText,
         secondaryText: null,
-        href: '#reference-media',
+        href: '#media',
         hrefLabel: 'Jump to Reference Media',
       }
     : {
@@ -4825,7 +4825,7 @@ export const freestyleService = {
             op('PIX',   'Pixie',    'Same-side, in-direction toe-set dex.',          'PIX + BUTTERFLY',         'DIMWALK',            NOTATION('pixie')),
             op('AT',    'Atomic',   'Opposite-side, out-direction toe-set dex.',     'AT + MIRAGE',             'ATOM SMASHER',       NOTATION('atomic')),
             op('Q',     'Quantum',  'Opposite-side, in-direction toe-set dex.',      'Q + MIRAGE',              'TOE BLUR',           NOTATION('quantum')),
-            op('BL',    'Blurry',   'Stepping + Paradox; flat +1 ADD.',              'BLURRY + BUTTERFLY',      'RIPWALK',            GLOSSARY('blurry')),
+            op('BL',    'Blurry',   'Stepping + Paradox; flat +1 ADD.',              'BLURRY + WHIRL',          'BLURRY WHIRL',       GLOSSARY('blurry')),
             op('FAIRY', 'Fairy',    'Same-side, out-direction toe-set dex.',         'FAIRY + ATOMIC',          'FAIRY ATOMIC',       NOTATION('fairy'),    true),
             op('STEP',  'Stepping', 'Plant foot relocates between set and catch.',   'STEP + BUTTERFLY',        'RIPWALK',            GLOSSARY('stepping')),
           ],

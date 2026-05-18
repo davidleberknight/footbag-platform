@@ -693,8 +693,11 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
     const res = await request(app).get('/freestyle');
     // The BL glyph paragraph must be followed by the name "Blurry".
     expect(res.text).toMatch(/<p class="operator-glyph">BL<\/p>\s*<p class="operator-name">Blurry<\/p>/);
-    // The composition example for BL is BLURRY + BUTTERFLY → RIPWALK.
-    expect(res.text).toMatch(/BLURRY \+ BUTTERFLY[\s\S]*?RIPWALK/);
+    // The composition example for BL is BLURRY + WHIRL → BLURRY WHIRL.
+    // RIPWALK was the pre-fix target but already belongs to STEP + BUTTERFLY;
+    // the row was retargeted to a Red-canonical compound that terminates in
+    // a core atom (WHIRL).
+    expect(res.text).toMatch(/BLURRY \+ WHIRL[\s\S]*?BLURRY WHIRL/);
     // The pre-fix wording "Blender" / "Blender + butterfly" must not appear
     // anywhere as the BL operator name.
     expect(res.text).not.toMatch(/<p class="operator-glyph">BL<\/p>\s*<p class="operator-name">Blender<\/p>/);
