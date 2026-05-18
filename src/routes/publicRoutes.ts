@@ -5,6 +5,7 @@ import { mediaController } from '../controllers/mediaController';
 import { eventController } from '../controllers/eventController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
+import { memberAccountController } from '../controllers/memberAccountController';
 import { memberGalleryController } from '../controllers/memberGalleryController';
 import { memberMediaUploadController } from '../controllers/memberMediaUploadController';
 import { memberMediaEditController } from '../controllers/memberMediaEditController';
@@ -146,6 +147,14 @@ publicRouter.post('/members/:memberKey/media/upload', requireAuth, requireTier1B
 publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireAuth, memberMediaEditController.getEdit);
 publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireAuth, requireTier1Benefits(), memberMediaEditController.postUpdate);
 
+// Silent auto-link card / profile-settings actions. Three POSTs on a
+// fixed-path namespace so they don't collide with the :memberKey/:section
+// catch-all below; the controller resolves the acting member from the
+// session, not the URL.
+publicRouter.post('/members/me/auto-link/confirm',          requireAuth, memberAccountController.postAutoLinkConfirm);
+publicRouter.post('/members/me/auto-link/dismiss',          requireAuth, memberAccountController.postAutoLinkDismiss);
+publicRouter.post('/members/me/auto-link/report-incorrect', requireAuth, memberAccountController.postAutoLinkReportIncorrect);
+
 publicRouter.get('/members/:memberKey/:section',      requireAuth, memberController.getStub);
 
 publicRouter.get('/legal',      legalController.index);
@@ -157,6 +166,11 @@ publicRouter.post('/register',              authController.postRegister);
 publicRouter.get('/register/check-email',   authController.getCheckEmail);
 publicRouter.get('/verify/:token',          authController.getVerify);
 publicRouter.post('/verify/resend',         authController.postVerifyResend);
+
+// Tokened "report incorrect" link delivered in the silent-claim notification
+// email. Returns a uniform 200 result page for reverted / already-reverted /
+// not-found outcomes (anti-enumeration).
+publicRouter.get('/auto-link/report-incorrect/:token', authController.getReportIncorrectLink);
 
 // Onboarding wizard. Per-action sub-paths land before the catch-all
 // `:taskType` routes so literal segments (find, skip, auto-link, claim,

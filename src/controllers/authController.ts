@@ -211,6 +211,34 @@ function postLogout(req: Request, res: Response): void {
   res.redirect(303, '/');
 }
 
+/**
+ * GET /auto-link/report-incorrect/:token
+ *
+ * Tokened revert path consumed by the report-incorrect link in the silent-
+ * claim notification email. Returns a uniform 200 result page for
+ * `reverted`, `already_reverted`, and `not_found` outcomes so the URL
+ * cannot be used to probe which claim audit ids exist. The status
+ * discriminator carries through only for dev/test observation; the
+ * template renders the same generic copy regardless.
+ */
+interface AutoLinkReportIncorrectResultContent {
+  ok: boolean;
+}
+
+function getReportIncorrectLink(req: Request, res: Response, next: NextFunction): void {
+  const token = req.params.token ?? '';
+  try {
+    const result = identityAccessService.revertAutoLinkByToken(token);
+    res.status(200).render('auth/auto-link-report-incorrect-result', {
+      seo:  { title: 'Auto-link revert' },
+      page: { sectionKey: '', pageKey: 'auto_link_report_incorrect', title: 'Thank you for reporting this' },
+      content: { ok: result.status === 'reverted' },
+    } satisfies PageViewModel<AutoLinkReportIncorrectResultContent>);
+  } catch (err) {
+    next(err);
+  }
+}
+
 function getPasswordForgot(_req: Request, res: Response): void {
   res.render('auth/password-forgot', {
     seo: { title: 'Reset Your Password' },
@@ -296,4 +324,5 @@ export const authController = {
   getPasswordReset,
   postPasswordReset,
   postLogout,
+  getReportIncorrectLink,
 };

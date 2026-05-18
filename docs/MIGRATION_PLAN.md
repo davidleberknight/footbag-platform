@@ -1161,6 +1161,8 @@ The legacy-site webmaster (contact at `brat@footbag.org`, DD §5.5) is the curre
 
 The webmaster is not asked to produce club data; that comes from the mirror pipeline (§19).
 
+The long-term operator pattern for coordinating with any external DNS/mail upstream is documented in `docs/DEVOPS_GUIDE.md` §16.8; this section applies that pattern to the legacy-site webmaster's specific contract.
+
 ---
 
 ## 19. What we need from the historical-pipeline maintainer
@@ -1576,47 +1578,31 @@ Gate: privacy policy, Terms of Service, and cookie banner (if applicable) review
 
 ### 28.12 DNS changeover sequence
 
-The cutover from the legacy DNS host to the production CloudFront distribution requires coordinated TTL reduction, ACM validation, and the registrar update itself. The legacy webmaster owns the registrar update; the maintainer owns the production CloudFront target.
+The cutover from the legacy DNS host to the production CloudFront distribution applies the generic DNS cutover procedure (`docs/DEVOPS_GUIDE.md` §16.7) and the ACM certificate issuance procedure (`docs/DEVOPS_GUIDE.md` §4.2.1) under the cutover-specific gates and coordination contract below. The legacy webmaster owns the registrar update; the maintainer owns the production CloudFront target.
 
-Pre-cutover (T-7d to T-24h):
+Cutover-specific preconditions (beyond the generic procedure):
 
-1. Confirm the registrar of `footbag.org` and the current authoritative TTL on the apex and `www` records. Run `dig footbag.org NS` to confirm the authoritative nameservers; verify the legacy DNS host matches the registrar-delegated NS records (if the registrar delegates to a different DNS provider, ACM CNAME validation must be placed at the actual authoritative host, not the registrar's nameservers).
-2. Schedule TTL reduction with the legacy webmaster: at T-48h, lower TTL to 300 seconds on apex `footbag.org` and `www.footbag.org` records. The reduction must propagate fully (current TTL window) before the cutover act, or clients continue resolving the old IP for the prior TTL window.
-3. Issue ACM certificate for `footbag.org` and `www.footbag.org` in `us-east-1` via DNS validation (ACM-CloudFront colocation requirement). The legacy webmaster adds the validation CNAMEs at the authoritative DNS host identified in step 1. Wait for `Status: ISSUED` before scheduling cutover; validation propagation typically completes within 30 minutes once CNAMEs are live but may take several hours. If `Status: PENDING_VALIDATION` persists beyond 4 hours, the most common cause is the validation CNAME being placed at the wrong DNS host (registrar vs delegated provider); re-verify step 1.
-4. Attach the ACM certificate to the production CloudFront distribution (`aws_cloudfront_distribution.main.aliases = ["footbag.org", "www.footbag.org"]`, `viewer_certificate.acm_certificate_arn = ...`). CloudFront propagation 5-15 minutes.
-5. **MX record handoff plan**: confirm with the legacy webmaster whether inbound mail to `footbag.org` role addresses (`brat@`, `directors@`, etc.) routes via the legacy mail server or Cloudflare Email Routing (DD §5.5). The MX records are updated at the cutover act below; the plan documents which provider handles inbound after T0 and which addresses transition. If Cloudflare Email Routing is the target, the receiving rules must be configured and tested end-to-end before T0 (cross-references §28.5 EX6).
-6. Maintainer and webmaster sync on a cutover-day window (low-traffic UTC slot, both reachable for ~4h).
+- **Authoritative nameserver verification**: `dig footbag.org NS` confirms the legacy DNS host matches the registrar-delegated NS records. If the registrar delegates to a different DNS provider, ACM CNAME validation must be placed at the actual authoritative host, not the registrar's nameservers.
+- **ACM colocation**: certificate must be issued in `us-east-1` regardless of where the rest of the platform runs (CloudFront-attached certs are us-east-1-only).
+- **MX record handoff plan**: confirm with the legacy webmaster whether inbound mail to `footbag.org` role addresses (`brat@`, `directors@`, etc.) routes via the legacy mail server or Cloudflare Email Routing (DD §5.5). The MX records are updated alongside the apex/`www` swap; the plan documents which provider handles inbound after T0. If Cloudflare Email Routing is the target, receiving rules must be configured and tested end-to-end before T0 (cross-references §28.5 EX6).
+- **Write-freeze**: legacy site is in read-only mode and the final export has been imported into production before the record swap (per §22 Phase 4 cutover gates).
 
-Cutover act (T0):
+Cutover-specific timing (overrides the generic procedure's defaults):
 
-1. Final write-freeze check: legacy site is in read-only mode and the final export has been imported into production.
-2. Maintainer confirms production health: production smoke test green; `aws cloudfront get-distribution --id <prod-id>` shows `Status: Deployed`; `/health/ready` returns 200; manual login flow verified.
-3. Webmaster updates `footbag.org` and `www.footbag.org` records to the production CloudFront distribution domain (CNAME for `www`; ALIAS-equivalent for the apex, depending on the legacy DNS host's apex support).
-4. Webmaster updates MX records per the plan from pre-cutover step 5: either retain legacy MX (deferred mail-stack cutover) or switch to Cloudflare Email Routing now. Verify inbound delivery end-to-end before declaring T0 complete.
-5. Maintainer monitors propagation with `dig +short footbag.org` from multiple resolvers (1.1.1.1, 8.8.8.8, local) at 30-second intervals until consistent (typically 5-15 minutes given the pre-shrunk TTL).
-6. First-traffic verification: hit `https://footbag.org/health/ready` and a representative authenticated route; confirm 200 and expected content.
-7. Webmaster keeps the legacy site online but read-only for the 48h rollback window (per §26).
-
-Post-cutover (T+0 to T+48h):
-
-- Maintainer monitors CloudFront error rate (CWAgent dashboard) and SES sender reputation for the post-cutover notification batch (§22 Phase 4).
-- TTL stays at 300 seconds for 48h to enable fast rollback.
-- At T+48h: if no rollback was triggered, raise TTL back to a steady-state value (3600 or higher); the webmaster proceeds with legacy-site retirement per §14 minimum-30-day retention.
-
-Rollback (T+0 to T+48h, see §26):
-
-- Webmaster reverts the apex and `www` records to the legacy site's IP.
-- Propagation completes within 5 minutes given the lowered TTL.
-- Beyond T+48h, fix-forward only; reversal requires joint sign-off (per §26).
+- T-7d minimum lead time to the webmaster to schedule the TTL pre-shrink and the cutover-day window.
+- T-48h TTL on the legacy zone set to 300 seconds (longer than the §16.7 default of 60s so the slower-propagating legacy DNS host has margin).
+- T+48h rollback window: TTL stays at 300 seconds for the full 48h post-cutover; legacy site stays online read-only across this window (per §26). At T+48h, restore steady-state TTL and proceed with legacy-site retirement per §14 (30-day minimum retention).
 
 Coordination contract (per §14, §18):
 
-- Lead-time: webmaster needs at least 7 days advance notice to schedule the TTL pre-shrink and the cutover-day window.
 - ACM validation CNAMEs are added by the webmaster (the records live at the legacy DNS host) but issued by the maintainer's AWS account.
+- MX record updates are the webmaster's action; verification of inbound delivery end-to-end before declaring T0 complete is joint.
+
+Rollback (T+0 to T+48h, see §26): webmaster reverts the apex and `www` records to the legacy site's IP; propagation completes within 5 minutes given the lowered TTL. Beyond T+48h, fix-forward only; reversal requires joint sign-off (per §26).
 
 Sign-off on this sequence is a prerequisite for §23 State 3 → State 4 transition.
 
-Procedure: `docs/DEV_ONBOARDING.md` Path I (§9.4 ACM via DNS delegation); production cutover runbook in `docs/DEVOPS_GUIDE.md`.
+Procedure: `docs/DEVOPS_GUIDE.md` §16.7 (generic DNS cutover) and `docs/DEVOPS_GUIDE.md` §4.2.1 (ACM cert issuance) for the step-by-step operator actions. `docs/DEV_ONBOARDING.md` Path I (§9.4) for first-time setup against an empty account.
 
 ### 28.12a Legacy URL forwarding for in-flight emails
 

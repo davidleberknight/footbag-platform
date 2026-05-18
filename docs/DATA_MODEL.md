@@ -724,6 +724,12 @@ Two FK-style columns carry person-identity / legacy-account linkage:
 - `legacy_is_admin` — flag indicating the account held admin status on the legacy site. Retained for admin review and audit context only; never grants live admin privilege.
 - `ifpa_join_date`, `birth_date`, `street_address`, `postal_code` — profile fields copied from `legacy_members` at claim time (COALESCE / fill-if-empty). The active member can subsequently edit them; the `legacy_members` copy remains immutable.
 
+#### Pending auto-link confirmation card
+
+`pending_auto_link_card_json` (`TEXT`, nullable): serialized `AutoLinkConfirmContent` payload written when a silent medium-confidence batch auto-link establishes a claim against this member. The dashboard surfaces this content as a first-login confirmation card with Confirm / Dismiss / Report-incorrect actions. NULL when no card is pending.
+
+`pending_auto_link_card_dismissed_at` (`TEXT`, nullable): ISO timestamp recording dismissal of the pending card without confirm or report. Once set, subsequent logins do not re-surface the card. A subsequent confirm or revert clears both columns back to NULL.
+
 #### Credential-state invariant
 
 The `members` table enforces a three-branch credential-state invariant via a `CHECK` constraint:
@@ -1203,7 +1209,8 @@ This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is r
 
 Permanent operational state for the per-member onboarding wizard (`MemberOnboardingService`; `MIGRATION_PLAN.md` §10). Carries one row per (`member_id`, `task_type`) tracking outstanding wizard tasks. The registration flow and the dashboard task widget read and write through the service.
 
-- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`legacy_claim`, `club_affiliations`, `first_competition_year`, `show_competitive_results`); `state` TEXT with CHECK in (`pending`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable.
+- **Columns**: `id` PK; `member_id` FK to `members(id)`; `task_type` TEXT with CHECK in (`legacy_claim`, `club_affiliations`, `first_competition_year`, `show_competitive_results`); `state` TEXT with CHECK in (`pending`, `in_progress_paused`, `skipped`, `completed`, `not_applicable`); `created_at`, `updated_at` TEXT timestamps; `completed_at` TEXT nullable.
+- **`in_progress_paused`**: the task is mid-flow and the member detoured to another story (for example, `M_Join_Club` or `M_Create_Club` from the `club_affiliations` step). The dashboard task widget surfaces "Resume onboarding" while the row is in this state, and the wizard re-renders the same card on return.
 - **Per-member unique**: `UNIQUE(member_id, task_type)` so the same task is not duplicated for one member.
 - **Catalog evolution**: adding a new task type extends the `task_type` CHECK; existing rows are unaffected and the wizard renders the new task at its catalog position.
 - **Applicability is server-determined**: `not_applicable` is written by the service when the underlying eligibility fails (e.g. no plausible legacy match for `legacy_claim`). Client cannot bypass.

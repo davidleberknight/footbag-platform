@@ -3779,6 +3779,7 @@ export interface AccountTokenRow {
   id: string;
   member_id: string;
   target_legacy_member_id: string | null;
+  target_audit_entry_id: string | null;
   token_type: string;
   expires_at: string;
   used_at: string | null;
@@ -3788,17 +3789,18 @@ export const accountTokens = {
   get insert() { return db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, target_legacy_member_id, token_type,
+      member_id, target_legacy_member_id, target_audit_entry_id, token_type,
       token_hash, token_hash_version,
       issued_at, expires_at
     ) VALUES (?, ?, 'system', ?, 'system', 1,
-      ?, ?, ?,
+      ?, ?, ?, ?,
       ?, 1,
       ?, ?)
   `); },
 
   get findByHash() { return db.prepare(`
-    SELECT id, member_id, target_legacy_member_id, token_type, expires_at, used_at
+    SELECT id, member_id, target_legacy_member_id, target_audit_entry_id,
+           token_type, expires_at, used_at
     FROM account_tokens
     WHERE token_hash = ? AND token_type = ?
   `); },
@@ -5203,6 +5205,32 @@ export const legacyMembers = {
     WHERE legacy_member_id = ?
   `); },
 
+  // Clear members.legacy_member_id when reverting a silent auto-link.
+  // Caller wraps in the same transaction as the legacy_members.clearClaim
+  // call so the linkage state is mutually consistent at COMMIT time.
+  get clearMemberLegacyLink() { return db.prepare(`
+    UPDATE members
+    SET
+      legacy_member_id = NULL,
+      updated_at       = ?,
+      updated_by       = ?,
+      version          = version + 1
+    WHERE id = ?
+  `); },
+
+  // Clear members.historical_person_id when the HP back-link came from the
+  // legacy claim being reverted. Direct-HP claims (HP without matching
+  // legacy_member_id) are preserved by the caller's conditional check.
+  get clearMemberHistoricalPersonId() { return db.prepare(`
+    UPDATE members
+    SET
+      historical_person_id = NULL,
+      updated_at           = ?,
+      updated_by           = ?,
+      version              = version + 1
+    WHERE id = ?
+  `); },
+
   // Written as part of the claim transaction when the claimed legacy_members
   // row has a matching historical_persons.legacy_member_id. Sets the
   // derived member↔HP link.
@@ -5215,6 +5243,73 @@ export const legacyMembers = {
       version              = version + 1
     WHERE id = ?
       AND historical_person_id IS NULL
+  `); },
+
+  // Profile-settings listing: every legacy_members row claimed by a live
+  // member. Today there is at most one per member (single-claim enforced
+  // by the partial UNIQUE on members.legacy_member_id), but the listing
+  // shape is preserved for forward-compat with admin-driven multi-claim
+  // recovery flows.
+  get listClaimedByMember() { return db.prepare(`
+    SELECT legacy_member_id,
+           COALESCE(display_name, real_name) AS display_name,
+           claimed_at
+    FROM legacy_members
+    WHERE claimed_by_member_id = ?
+    ORDER BY claimed_at ASC
+  `); },
+};
+
+// ── pendingAutoLinkCard ─────────────────────────────────────────────────────
+//
+// Persisted first-login dashboard card for a silent medium-confidence
+// auto-link claim. Written at silent-claim time in the same transaction
+// as the claim merge; cleared on Confirm or Report-incorrect; marked
+// dismissed (without clearing card_json) on Dismiss so the dashboard does
+// not re-surface it.
+// ---------------------------------------------------------------------------
+export const pendingAutoLinkCard = {
+  get readForMember() { return db.prepare(`
+    SELECT pending_auto_link_card_json, pending_auto_link_card_dismissed_at
+    FROM members
+    WHERE id = ?
+  `); },
+
+  // Written as part of the silent-claim transaction. Always clears any
+  // prior dismissed_at so a fresh card is surfaced on the next dashboard
+  // load.
+  get setForMember() { return db.prepare(`
+    UPDATE members
+    SET
+      pending_auto_link_card_json         = ?,
+      pending_auto_link_card_dismissed_at = NULL,
+      updated_at                          = ?,
+      updated_by                          = ?,
+      version                             = version + 1
+    WHERE id = ?
+  `); },
+
+  get clearForMember() { return db.prepare(`
+    UPDATE members
+    SET
+      pending_auto_link_card_json         = NULL,
+      pending_auto_link_card_dismissed_at = NULL,
+      updated_at                          = ?,
+      updated_by                          = ?,
+      version                             = version + 1
+    WHERE id = ?
+  `); },
+
+  get markDismissed() { return db.prepare(`
+    UPDATE members
+    SET
+      pending_auto_link_card_dismissed_at = ?,
+      updated_at                          = ?,
+      updated_by                          = ?,
+      version                             = version + 1
+    WHERE id = ?
+      AND pending_auto_link_card_json IS NOT NULL
+      AND pending_auto_link_card_dismissed_at IS NULL
   `); },
 };
 
@@ -5365,6 +5460,33 @@ export const memberTier = {
     WHERE member_id = ? AND change_type = 'governance_set'
     ORDER BY created_at DESC, id DESC
     LIMIT 1
+  `); },
+};
+
+// ── HoF/BAP admin digest support ──
+// Read-side query for the SYS_HoF_BAP_Admin_Digest job. Returns one row per
+// `member_tier_grants` entry written for a silent legacy auto-link claim in
+// the lookback window where the underlying member carries an HoF or BAP
+// honor flag. Joins members for the display name and honor flags so the
+// digest payload can render without a second per-row fetch. Row ordering
+// is stable by created_at ASC so digest bodies are deterministic.
+export const hofBapDigest = {
+  get listRecentHonorsClaims() { return db.prepare(`
+    SELECT g.id AS tier_grant_id,
+           g.created_at AS granted_at,
+           g.member_id,
+           g.new_tier_status,
+           m.display_name,
+           m.legacy_member_id,
+           m.is_hof,
+           m.is_bap
+    FROM member_tier_grants AS g
+    JOIN members AS m ON m.id = g.member_id
+    WHERE g.reason_code = 'legacy.claim_tier_grant'
+      AND g.created_at >= ?
+      AND g.created_at <  ?
+      AND (m.is_hof = 1 OR m.is_bap = 1)
+    ORDER BY g.created_at ASC, g.id ASC
   `); },
 };
 

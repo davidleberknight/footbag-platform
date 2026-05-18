@@ -153,8 +153,9 @@ export interface PublicClubDetail extends PublicClubSummary {
   leaders: ClubLeader[];
   // TEMP-DEVIATION: club-classification QC panel.
   // Current: populated unconditionally on every club detail page; surfaces the
-  //   classifier's category, confidence, R1-R10 rule firings, rule inputs, and
-  //   decision path for human QC review.
+  //   classifier's category, confidence, R1-R10 rule firings, rule inputs,
+  //   combination-gate signals (structural + context modifier), pipeline-
+  //   context summary, and decision path for human QC review.
   // Target: remove this field entirely (and the templates that render it) once
   //   the admin queue migration replaces the QC workflow and no environment
   //   relies on inline QC output.
@@ -162,9 +163,10 @@ export interface PublicClubDetail extends PublicClubSummary {
 }
 
 // TEMP-DEVIATION: ClubClassificationRule + ClubClassificationEvidence types.
-// Current: back the QC panel only; rule firings + inputs are pre-shaped at the
-//   service layer so templates render flat.
-// Target: delete both types when qcPanel is removed (see field comment above).
+// Current: back the QC panel only; rule firings + inputs + combination-gate
+//   signals + pipeline context are pre-shaped at the service layer so
+//   templates render flat.
+// Target: delete these types when qcPanel is removed (see field comment above).
 export interface ClubClassificationRule {
   id: 'R1'|'R2'|'R3'|'R4'|'R5'|'R6'|'R7'|'R8'|'R9'|'R10';
   label: string;
@@ -176,6 +178,36 @@ export interface ClubClassificationRule {
 export interface ClubClassificationInputRow {
   label: string;        // human-readable: "Member most recently active"
   value: string;        // pre-shaped: "2021" or "never" or "yes"
+}
+
+// Combination-gate signals surfaced alongside the R1-R10 rule table.
+// `isPresent` is null when the legacy_data pipeline has not yet emitted the
+// signal for the parent bootstrap row; the QC panel renders such cells as
+// "(pipeline not yet emitting)" so curators see the gap without confusion.
+export type ClubClassificationSignalKind = 'structural' | 'modifier';
+
+export interface ClubClassificationSignal {
+  key: 'listed_contact' | 'affiliation' | 'hosting' | 'roster' | 'mirror_text'
+     | 'tier_signal' | 'recent_activity' | 'geographic_alignment';
+  kind: ClubClassificationSignalKind;
+  label: string;
+  isPresent: boolean | null;
+  evidenceText?: string;
+}
+
+export interface ClubClassificationGateOutput {
+  classification: 'strong' | 'weak' | 'none' | null; // null when no signals emitted
+  matchedGateLabel?: string;
+  rationaleText?: string;
+}
+
+export interface ClubPipelineContext {
+  affiliationsTotal: number;
+  affiliationsPendingCount: number;
+  liveClubRowSource: 'phase_h' | 'phase_g_legacy' | 'manual' | 'unknown';
+  mappedClubIdStamped: boolean;
+  mappedClubIdStampRule: 'broad' | 'narrow_bootstrap_eligible_only' | 'unknown';
+  fallbackQueryApplied: boolean;
 }
 
 export interface ClubClassificationEvidence {
@@ -190,6 +222,13 @@ export interface ClubClassificationEvidence {
   lastMemberActivityYear: number | null; // for at-a-glance stats line
   contactSignalSubstituteApplied: boolean;
   inputs: ClubClassificationInputRow[]; // ordered, human-labeled pairs
+  // Combination-gate display: present once the legacy_data pipeline emits
+  // per-signal evidence into `club_bootstrap_leader_signals`. Absent until
+  // then; the panel template hides these sections when undefined so existing
+  // rows continue to render unchanged.
+  signals?: ClubClassificationSignal[];
+  gateOutput?: ClubClassificationGateOutput;
+  pipelineContext?: ClubPipelineContext;
 }
 
 // Single shaping site for the vitality signals. Pure function over the
@@ -792,15 +831,34 @@ export class ClubService {
       // A_Review_Club_Cleanup_Signals admin queue ships and absorbs this
       // surface entirely.
       let qcPanel: ClubClassificationEvidence | undefined;
+      let evidenceRowPresent = false;
+      let fallbackQueryApplied = false;
       try {
         const evidenceRow = clubs.getClassificationEvidenceByClubId.get(row.club_id) as
           | ClassificationEvidenceRow
           | undefined;
+        evidenceRowPresent = evidenceRow !== undefined;
         qcPanel = evidenceRow ? toClassificationEvidence(evidenceRow) : undefined;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!msg.includes('no such column') && !msg.includes('no such table')) throw err;
         qcPanel = undefined;
+        fallbackQueryApplied = true;
+      }
+      if (qcPanel) {
+        // Augment the classifier-as-built evidence with combination-gate +
+        // pipeline-context surfaces. Per-signal data (structural + modifier)
+        // remains absent until the legacy_data pipeline emits rows into
+        // `club_bootstrap_leader_signals`; the panel template hides those
+        // sections when the fields are undefined.
+        qcPanel.pipelineContext = {
+          affiliationsTotal:        affiliationRows.length,
+          affiliationsPendingCount: 0, // resolution_status not yet surfaced from db.ts
+          liveClubRowSource:        'unknown',
+          mappedClubIdStamped:      evidenceRowPresent,
+          mappedClubIdStampRule:    'unknown',
+          fallbackQueryApplied,
+        };
       }
 
       const club = toPublicClubDetail(row, vitality, members, leaders, qcPanel);

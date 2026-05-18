@@ -393,6 +393,31 @@ Important limitation: browsing traffic gets the maintenance page during origin f
 - origin exposure should be minimized; direct origin access is not the user-facing path
 - use WAF at CloudFront for basic managed-rule protection and IP-based emergency blocking when required
 
+#### 4.2.1 ACM certificate for footbag.org runbook
+
+CloudFront-attached certificates must live in the `us-east-1` region regardless of where the rest of the platform runs. The cert covers both the apex (`footbag.org`) and `www.footbag.org` so a single distribution handles both names. Issuance is operator-initiated; DNS validation takes 5-30 minutes on average and can take several hours, so request well ahead of any cutover.
+
+Preconditions:
+
+- Route 53 hosted zone for `footbag.org` is reachable from the operator's AWS profile, or the webmaster is on standby to publish the DNS validation records on the upstream zone.
+- The production CloudFront distribution exists and its terraform state is in sync. (If not, run `terraform plan` first; a missing distribution is its own remediation track.)
+
+Operator steps:
+
+1. Request the certificate via Terraform in `terraform/production/`, not the console. The resource declares `provider = aws.us_east_1` and both `domain_name = "footbag.org"` + `subject_alternative_names = ["www.footbag.org"]`. `validation_method = "DNS"`.
+2. `terraform apply`. ACM emits two `DomainValidationOption` records (apex + www); capture them from the plan output.
+3. Publish the DNS validation records. If `footbag.org`'s Route 53 zone is owned by the same account, declare the `aws_route53_record` validation records alongside the cert in the same module and re-apply. If the zone is upstream-owned, hand the records to the webmaster (see §16.7 webmaster coordination) and wait for confirmation that they are live.
+4. Poll cert status: `aws acm describe-certificate --region us-east-1 --certificate-arn <arn> --query 'Certificate.Status'`. Expected progression: `PENDING_VALIDATION` → `ISSUED`. If status sticks at `PENDING_VALIDATION` past one hour, re-verify the DNS validation records resolve (`dig _<token>.footbag.org CNAME`).
+5. Attach to the production CloudFront distribution. Update the `viewer_certificate` block on the distribution resource to reference the issued cert arn and set `ssl_support_method = "sni-only"`, `minimum_protocol_version = "TLSv1.2_2021"`. `terraform apply`.
+6. Post-attachment verification:
+   - `curl -vIk https://footbag.org/health/live` returns HTTP 200 and the TLS handshake reports the new cert's subject + SAN.
+   - `openssl s_client -connect www.footbag.org:443 -servername www.footbag.org </dev/null 2>/dev/null | openssl x509 -noout -subject -dates` shows both names and a `notAfter` consistent with ACM's 13-month validity.
+   - CloudFront's `Status` reports `Deployed` (the in-flight `InProgress` state lasts 5-15 minutes after `terraform apply`).
+
+Rollback: re-apply the prior `viewer_certificate` block (the default CloudFront cert, or the previous cert arn) and `terraform apply`. The cert resource itself can stay; an unattached cert is benign and saves the next-attempt issuance round-trip.
+
+Dry-run note: ACM does not provide a sandbox. Dry-run testing is limited to applying the same Terraform module against the staging zone (`terraform/staging/`) and verifying issuance + DNS validation + a staging CloudFront distribution attachment before production.
+
 ### 4.3 S3 layout expectations
 
 At minimum, the AWS layout needs the following logical storage surfaces:
@@ -2007,6 +2032,74 @@ The cutover preflight orchestrator sequences the validation gates from `MIGRATIO
 - `npm run test:smoke` and `npm run test:e2e` green against the production origin.
 
 Each precondition halts the cutover if it fails. The orchestrator's pass means all gates are satisfied; the operator's go signal completes the cutover. After DNS swap, follow up with §13.10 (HoF and BAP daily digest) and §7.6 (Cutover rollback decision rule) as needed.
+
+### 16.7 DNS cutover sequence runbook
+
+The DNS cutover swaps `footbag.org` and `www.footbag.org` from the legacy origin to the CloudFront distribution attached to the production certificate. The sequence is gated on §16.6 having passed; once started it is operator-driven and runs to completion before any further write traffic is taken.
+
+Sequence:
+
+**T-48 hours -- TTL drop.** Run `scripts/dns-ttl-preflight.sh` (or apply the equivalent Terraform change) to lower the TTL on the apex and `www` records on the *legacy* zone to 60 seconds. Both A/AAAA records are covered. Record the timestamp + resolver-observed TTL in the cutover log. From this point, any rollback before T-0 propagates within one minute.
+
+**T-0 -- record swap.** Replace the legacy-origin A/AAAA records with `aws_route53_record` ALIAS entries pointing at the production CloudFront distribution (Z2FDTNDATAQYW2 for CloudFront). Apply via Terraform from `terraform/production/`. Record the apply timestamp and the Route 53 ChangeInfo id (`aws route53 get-change --id <id>` returns `INSYNC` when Route 53's authoritative servers have propagated; this typically lands in 30-60 seconds).
+
+**T+1 hour -- propagation check across three resolvers.** Run from the operator workstation:
+
+```
+for resolver in 1.1.1.1 8.8.8.8 9.9.9.9; do
+  echo "=== ${resolver} ==="
+  dig @${resolver} footbag.org A +short
+  dig @${resolver} www.footbag.org A +short
+done
+```
+
+All three should return CloudFront edge IPs (the `aws-cloudfront-net` block) and not the legacy origin. If one resolver still returns the legacy IP after one hour, re-check the TTL on the *legacy* zone's authoritative servers; some upstream resolvers honor the long-cached SOA negative-cache window beyond the record TTL. A single straggler that resolves correctly via the others is tolerable; broad divergence is a rollback trigger.
+
+**T+1 hour -- end-to-end verification.** `curl -sf https://footbag.org/health/live` and `curl -sf https://www.footbag.org/health/live` from at least one network outside the operator's primary ISP. Both must return HTTP 200 with the production cert presented. A 4xx/5xx from the new origin is a rollback trigger.
+
+**T+24 hours -- TTL restore.** With the cutover stable, raise the TTL on the (now Route 53-managed) apex + `www` records to the long-term default (3600s). Re-apply Terraform; record the timestamp.
+
+Rollback (anywhere from T-0 to T+1 hour): apply the prior Terraform state pinning the legacy-origin A/AAAA records. With TTLs at 60s, world resolves to the legacy origin inside two minutes. Past T+1 hour, rollback is still possible but accumulates the cost of any writes that landed on the new origin while DNS was diverging; consult §7.6 (Cutover rollback decision rule) before triggering.
+
+Dry-run note: dry-run the full sequence against the staging zone before production. Staging uses `staging.footbag.org` (or whatever the staging zone resolves to in `terraform/staging/route53.tf`); the same sequence applies and exercises the same Terraform pathways. A green dry-run confirms the Terraform module, the AWS profile permissions, and the propagation-check tooling all work before they're load-bearing on production.
+
+### 16.8 External DNS/mail upstream coordination runbook
+
+Whenever the platform's DNS zone or MX records are owned by an external operator (the legacy-site webmaster today; potentially other upstreams in future), changes that touch the records below cannot be applied without coordinated action. This runbook covers the long-term coordination pattern; cutover-specific applications layer their own gates on top (e.g. `MIGRATION_PLAN.md` §18 for the legacy-webmaster contract, §28.12 for the DNS cutover).
+
+When this runbook applies:
+
+- The maintainer needs ACM DNS validation records published on an upstream-owned zone.
+- The maintainer needs apex or `www` A/AAAA/CNAME/ALIAS records swapped on an upstream-owned zone.
+- The maintainer needs MX records updated or repointed.
+- Any of the above need to be reverted under time pressure (DNS rollback).
+
+When this runbook does NOT apply:
+
+- The zone is in the maintainer's own Route 53 account (apply via Terraform directly; no external coordination needed).
+- The change is read-only (DNS lookups, propagation checks). Read-only verification does not require upstream action.
+
+Communication touchpoints:
+
+- Primary contact: the operator's documented address for the upstream. For the legacy-site webmaster this is `brat@footbag.org` (DD §5.5); for other upstreams, capture the address in the operator's local secrets store alongside other per-upstream credentials.
+- Lead time: minimum 7 days for any scheduled change (TTL pre-shrink, ACM validation publication, record swap window). Emergency rollback is faster (single record revert; see "Emergency rollback" below) but should still page the upstream operator immediately so they're aware the platform is in incident state.
+- Handoff payload: the maintainer hands over a single message containing (a) the records to change with exact name + type + value + TTL, (b) the requested time window, (c) the maintainer's verification step the upstream operator can run after applying (typically `dig @<upstream-resolver> <name> <type>`), and (d) the rollback record values to keep in their back pocket.
+
+Zone-authority handoff checklist (when transferring ownership of an upstream-owned zone to the maintainer's Route 53 account):
+
+1. Stand up the target Route 53 hosted zone in the maintainer's account; capture the NS records the zone advertises.
+2. Mirror every existing record from the upstream zone into the Route 53 zone. Verify with `dig @<target-NS> <name> <type>` from outside that the new authoritative servers return the same answers as the upstream.
+3. Coordinate a registrar NS change with the registrar of record (this is a registrar action, not an upstream DNS-host action; identify the registrar via `whois <domain>`). NS changes propagate inside 24-48 hours but can take longer at non-compliant resolvers.
+4. After NS change, leave the upstream zone live for at least 7 days so resolvers that cached the old NS records continue to get correct answers during the propagation window.
+5. After 7 days, retire the upstream zone or hand it back to the upstream operator per their preference.
+
+Emergency rollback:
+
+- The upstream operator's contact path must be reachable on demand; document the secondary contact (phone, alternate email) before any cutover involving their zone.
+- Rollback content: the prior record values are captured at change-publish time so a revert requires re-publishing one or two records, not re-deriving them. Keep these in the cutover log.
+- TTL implications: if the cutover lowered TTLs to a propagation-friendly value (60-300s), rollback propagates within that TTL. If TTLs were not lowered (a change made under time pressure without the §16.7 pre-shrink), rollback propagation is bounded by the original record TTL.
+
+Audit trail: every coordinated change produces (a) the maintainer's handoff message, (b) the upstream operator's confirmation that the change is live, and (c) the maintainer's post-change verification log (`dig` output from three resolvers per §16.7). Retain these in the operations log alongside the change itself; they are the evidence trail for the cutover sign-off and for any future rollback decision.
 
 ## 17. Test-data Operations
 

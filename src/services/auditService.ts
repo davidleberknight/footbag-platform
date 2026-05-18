@@ -14,7 +14,7 @@ export interface AuditAppendInput {
   metadata?: Record<string, unknown>;
 }
 
-export function appendAuditEntry(input: AuditAppendInput): void {
+export function appendAuditEntry(input: AuditAppendInput): string {
   const id = `audit_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
   const now = new Date().toISOString();
   auditEntries.insert.run(
@@ -30,4 +30,5 @@ export function appendAuditEntry(input: AuditAppendInput): void {
     input.reasonText ?? null,
     JSON.stringify(input.metadata ?? {}),
   );
+  return id;
 }

@@ -700,6 +700,62 @@ CREATE TABLE email_templates (
 CREATE VIEW email_templates_enabled AS
   SELECT * FROM email_templates WHERE is_enabled = 1;
 
+-- ---------------------------------------------------------------------------
+-- Seed: built-in templates that need to exist before the first send.
+--
+-- legacy_auto_link_notification
+--   Sent to a member's verified email address when a silent batch auto-link
+--   (high or medium confidence) writes a claim against their account. The
+--   {{report_incorrect_url}} slot is bound to the tokened revert handler.
+--
+-- hof_bap_admin_digest
+--   Daily digest to the admin-alerts mailing list summarizing silent claims
+--   that produced a member_tier_grants row with reason_code
+--   'legacy.claim_tier_grant' AND HoF or BAP honor flag in the prior 24h.
+--   Row identifiers and decision-relevant attributes only -- no PII.
+-- ---------------------------------------------------------------------------
+INSERT OR IGNORE INTO email_templates
+  (id, created_at, created_by, updated_at, updated_by, version,
+   template_key, subject_template, body_template, is_enabled)
+VALUES
+  (
+    'tpl_legacy_auto_link_notification',
+    '2000-01-01T00:00:00.000Z', 'system',
+    '2000-01-01T00:00:00.000Z', 'system',
+    1,
+    'legacy_auto_link_notification',
+    'IFPA: We have linked your account to your competition history',
+    'Hello {{member_display_name}},
+
+We have linked your IFPA account to the legacy footbag.org record for {{legacy_member_display_name}}. This grants you attribution for the competition history attached to that record{{tier_grant_summary}}{{hof_flag_text}}{{bap_flag_text}}.
+
+If this link is not correct, please tell us:
+{{report_incorrect_url}}
+
+You can also review and manage linked legacy accounts from your profile settings.
+
+-- IFPA',
+    1
+  ),
+  (
+    'tpl_hof_bap_admin_digest',
+    '2000-01-01T00:00:00.000Z', 'system',
+    '2000-01-01T00:00:00.000Z', 'system',
+    1,
+    'hof_bap_admin_digest',
+    'IFPA admin digest: {{claim_count}} HoF/BAP claim(s) in last 24h',
+    'Silent auto-link claims with HoF or BAP honor flag in the prior 24 hours.
+
+{{claim_rows}}
+
+Monitoring window remaining: {{monitoring_window_remaining_days}} day(s).
+
+This digest covers only row identifiers and decision-relevant attributes. No member contact fields are included.
+
+-- IFPA platform',
+    1
+  );
+
 -- =============================================================================
 -- SECTION 9: ADMIN OPERATIONS
 -- =============================================================================
@@ -1772,6 +1828,14 @@ CREATE TABLE members (
   -- Partial UNIQUE index below enforces at most one member per HP.
   historical_person_id TEXT REFERENCES historical_persons(person_id) ON DELETE NO ACTION,
 
+  -- Persisted first-login dashboard card for a silent medium-confidence batch
+  -- auto-link. Written at silent-claim time by runBatchAutoLink. The card
+  -- surfaces on first login after the claim with Confirm / Dismiss / Report-
+  -- incorrect actions. NULL = no pending card. dismissed_at records dismissal
+  -- without confirm/report; once set, the card does not re-surface.
+  pending_auto_link_card_json         TEXT,
+  pending_auto_link_card_dismissed_at TEXT,
+
   -- Three-branch credential-state invariant:
   -- (1) live non-system account: is_system=0, all credentials present, not purged
   -- (2) purged non-system row: is_system=0, all credentials NULL, personal_data_purged_at set
@@ -2425,9 +2489,13 @@ CREATE TABLE account_tokens (
   -- claim targets are legacy_members rows, not members. legacy_members rows
   -- are never deleted in normal flow, so ON DELETE NO ACTION.
   target_legacy_member_id TEXT REFERENCES legacy_members(legacy_member_id) ON DELETE NO ACTION,
+  -- target_audit_entry_id: for auto_link_report_incorrect tokens; the
+  -- audit_entries row identifying the original silent claim that the
+  -- recipient may revert. NULL for other token types.
+  target_audit_entry_id TEXT REFERENCES audit_entries(id) ON DELETE NO ACTION,
   -- token_type maps to the token "purpose" concept.
   token_type TEXT NOT NULL
-    CHECK (token_type IN ('email_verify','password_reset','data_export','account_claim')),
+    CHECK (token_type IN ('email_verify','password_reset','data_export','account_claim','auto_link_report_incorrect')),
   token_hash         TEXT NOT NULL,
   token_hash_version INTEGER NOT NULL DEFAULT 1,
   issued_at  TEXT NOT NULL,
@@ -3159,7 +3227,7 @@ CREATE TABLE member_onboarding_tasks (
   task_type    TEXT NOT NULL
     CHECK (task_type IN ('legacy_claim','club_affiliations','first_competition_year','show_competitive_results')),
   state        TEXT NOT NULL DEFAULT 'pending'
-    CHECK (state IN ('pending','skipped','completed','not_applicable')),
+    CHECK (state IN ('pending','in_progress_paused','skipped','completed','not_applicable')),
   completed_at TEXT,
 
   UNIQUE(member_id, task_type)
@@ -3378,6 +3446,34 @@ CREATE TABLE club_bootstrap_leaders (
 CREATE INDEX idx_club_bootstrap_leaders_club   ON club_bootstrap_leaders(club_id);
 CREATE INDEX idx_club_bootstrap_leaders_member ON club_bootstrap_leaders(imported_member_id);
 CREATE INDEX idx_club_bootstrap_leaders_status ON club_bootstrap_leaders(status);
+
+-- Per-signal evidence rows backing the combination-gate classification of
+-- club bootstrap leaders. One row per (bootstrap_leader_id, signal_type).
+-- Structural signals participate in the strong/weak/none gates; modifiers
+-- are context-only (wizard display + admin sort) and never change the
+-- classification.
+CREATE TABLE club_bootstrap_leader_signals (
+  id         TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  version    INTEGER NOT NULL DEFAULT 1,
+
+  bootstrap_leader_id TEXT NOT NULL REFERENCES club_bootstrap_leaders(id) ON DELETE CASCADE,
+  signal_type         TEXT NOT NULL CHECK (signal_type IN (
+    'listed_contact','affiliation','hosting','roster','mirror_text',
+    'tier_signal','recent_activity','geographic_alignment'
+  )),
+  signal_payload_json TEXT NOT NULL,
+  is_present          INTEGER NOT NULL CHECK (is_present IN (0,1)),
+  source              TEXT NOT NULL,
+
+  UNIQUE(bootstrap_leader_id, signal_type)
+);
+
+CREATE INDEX idx_club_bootstrap_leader_signals_leader
+  ON club_bootstrap_leader_signals(bootstrap_leader_id);
 
 -- =============================================================================
 -- NAME-MATCHING UTILITIES (permanent, not migration-only)

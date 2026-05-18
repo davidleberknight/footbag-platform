@@ -133,7 +133,7 @@
         {{/if}}
       </dl>
 
-      <h3 class="club-qc-panel-subheading">Rule firings (R1&ndash;R10)</h3>
+      <h3 class="club-qc-panel-subheading">Rule firings (R1&ndash;R10), classifier as-built</h3>
       <table class="club-qc-rule-table">
         <thead>
           <tr><th scope="col">Fired</th><th scope="col">Rule</th><th scope="col">Tier</th></tr>
@@ -155,6 +155,48 @@
         <dt>{{label}}</dt><dd>{{value}}</dd>
         {{/each}}
       </dl>
+
+      {{#if content.club.qcPanel.signals}}
+      <h3 class="club-qc-panel-subheading">Combination-gate signals, classifier as-designed</h3>
+      <ul class="club-qc-signals">
+        {{#each content.club.qcPanel.signals}}
+        <li class="club-qc-signal club-qc-signal--{{kind}} club-qc-signal--{{#if isPresent}}present{{else}}{{#unless isPresent}}{{#if (eq isPresent null)}}unemitted{{else}}absent{{/if}}{{/unless}}{{/if}}">
+          <span class="club-qc-signal-label">{{label}}</span>
+          <span class="club-qc-signal-state">{{#if (eq isPresent null)}}(pipeline not yet emitting){{else}}{{#if isPresent}}observed{{else}}not observed{{/if}}{{/if}}</span>
+          {{#if evidenceText}}<span class="club-qc-signal-evidence">{{evidenceText}}</span>{{/if}}
+        </li>
+        {{/each}}
+      </ul>
+      {{#if content.club.qcPanel.gateOutput}}
+      <p class="club-qc-gate-output">
+        Combination-gate result:
+        {{#if content.club.qcPanel.gateOutput.classification}}
+          <strong>{{content.club.qcPanel.gateOutput.classification}}</strong>
+          {{#if content.club.qcPanel.gateOutput.matchedGateLabel}}({{content.club.qcPanel.gateOutput.matchedGateLabel}}){{/if}}
+        {{else}}
+          <em>not yet computed</em>
+        {{/if}}
+      </p>
+      {{/if}}
+      {{/if}}
+
+      {{#if content.club.qcPanel.pipelineContext}}
+      <h3 class="club-qc-panel-subheading">Pipeline context</h3>
+      <dl class="club-qc-pipeline-context">
+        <dt>Affiliations linked to this club</dt>
+        <dd>{{content.club.qcPanel.pipelineContext.affiliationsTotal}} total
+            ({{content.club.qcPanel.pipelineContext.affiliationsPendingCount}} pending)</dd>
+        <dt>Live club row source</dt>
+        <dd>{{content.club.qcPanel.pipelineContext.liveClubRowSource}}</dd>
+        <dt>mapped_club_id stamped</dt>
+        <dd>{{#if content.club.qcPanel.pipelineContext.mappedClubIdStamped}}yes{{else}}no{{/if}}
+            (rule: {{content.club.qcPanel.pipelineContext.mappedClubIdStampRule}})</dd>
+        {{#if content.club.qcPanel.pipelineContext.fallbackQueryApplied}}
+        <dt>Schema-drift fallback</dt>
+        <dd class="club-qc-warning">QC-panel query degraded to fallback for this row</dd>
+        {{/if}}
+      </dl>
+      {{/if}}
     </section>
     {{/if}}
     {{/if}}

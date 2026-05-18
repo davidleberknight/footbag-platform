@@ -469,6 +469,57 @@ export function applyLegacyClaimGrantInTx(
 }
 
 /**
+ * Reverse a prior legacy-claim tier grant when the member reports the
+ * auto-link as incorrect.
+ *
+ * Writes one `member_tier_grants` row with `change_type = 'revoke'` and
+ * `reason_code = 'legacy.auto_link_reported_incorrect'`. The target tier
+ * is computed by replaying the honors-only fallback against the member
+ * *without* the legacy honors: any HoF or BAP held purely from the legacy
+ * claim is gone, so a revert generally falls back to `tier0` unless the
+ * member already held a non-legacy upgrade (paid tier1, governance, etc.).
+ *
+ * Caller owns the transaction so the revoke is atomic with the linkage
+ * clear and audit writes.
+ */
+export function applyAutoLinkRevertGrantInTx(
+  actorMemberId: string,
+  memberId: string,
+  metadata: Record<string, unknown>,
+): void {
+  const now = new Date().toISOString();
+  const current = getCurrent(memberId);
+
+  insertGrant({
+    actorId:          actorMemberId,
+    memberId,
+    changeType:       'revoke',
+    oldTier:          current.tier_status,
+    newTier:          'tier0',
+    oldUnderlying:    null,
+    newUnderlying:    null,
+    reasonCode:       'legacy.auto_link_reported_incorrect',
+    reasonText:       null,
+    relatedPaymentId: null,
+    now,
+  });
+
+  audit({
+    actionType: 'tier.auto_link_revert',
+    category:   'tier_change',
+    actorType:  'member',
+    actorId:    actorMemberId,
+    memberId,
+    reasonText: null,
+    metadata: {
+      ...metadata,
+      from: current.tier_status,
+      to:   'tier0',
+    },
+  });
+}
+
+/**
  * Promote a member to Tier 3 (governance director).
  *
  * Underlying-tier mapping:

@@ -50,6 +50,7 @@
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  */
 import { account, publicPlayers, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { identityAccessService } from './identityAccessService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
@@ -163,6 +164,35 @@ export interface OwnProfileContent {
   search?: SearchBlockView;
   comingSoon?: ComingSoonFeature[];
   memberSlug?: string;
+  /** Pending first-login confirmation card from a silent medium-confidence
+   * auto-link claim. Null when no card is pending or when the member has
+   * dismissed it. The three action endpoints (confirm / dismiss / report
+   * incorrect) live under /members/me/auto-link. */
+  pendingAutoLinkCard?: PendingAutoLinkCardContent | null;
+  /** List of legacy accounts the member has claimed. Used by the profile
+   * settings affordance so a member can revert a prior silent auto-link
+   * from outside the first-login card surface. */
+  claimedLegacyIdentities?: ClaimedLegacyIdentityView[];
+}
+
+export interface PendingAutoLinkCardContent {
+  personId:               string;
+  personName:             string;
+  matchedVariantNormalized: string | null;
+  legacyMemberId:         string;
+  legacyDisplayName:      string;
+  claimAuditId:           string;
+  /** Endpoint URLs pre-shaped for the template; templates never construct URLs. */
+  confirmHref:            string;
+  dismissHref:            string;
+  reportIncorrectHref:    string;
+}
+
+export interface ClaimedLegacyIdentityView {
+  legacyMemberId:      string;
+  displayName:         string;
+  claimedAtDisplay:    string | null;
+  reportIncorrectHref: string;
 }
 
 /** Wraps MemberSearchResult with the form action so the partial can render
@@ -306,6 +336,32 @@ function fetchMemberBySlug(slug: string): MemberProfileRow {
   return row;
 }
 
+function buildPendingAutoLinkCardContent(memberId: string): PendingAutoLinkCardContent | null {
+  const card = identityAccessService.getPendingAutoLinkCard(memberId);
+  if (!card) return null;
+  return {
+    personId:                 card.personId,
+    personName:               card.personName,
+    matchedVariantNormalized: card.matchedVariantNormalized,
+    legacyMemberId:           card.legacyMemberId,
+    legacyDisplayName:        card.legacyDisplayName,
+    claimAuditId:             card.claimAuditId,
+    confirmHref:              '/members/me/auto-link/confirm',
+    dismissHref:              '/members/me/auto-link/dismiss',
+    reportIncorrectHref:      '/members/me/auto-link/report-incorrect',
+  };
+}
+
+function buildClaimedLegacyIdentitiesView(memberId: string): ClaimedLegacyIdentityView[] {
+  const rows = identityAccessService.listClaimedLegacyIdentities(memberId);
+  return rows.map(r => ({
+    legacyMemberId:      r.legacyMemberId,
+    displayName:         r.displayName,
+    claimedAtDisplay:    r.claimedAt ? formatDateDisplay(r.claimedAt) : null,
+    reportIncorrectHref: '/members/me/auto-link/report-incorrect',
+  }));
+}
+
 export const memberService = {
   getOwnProfile(
     slug: string,
@@ -344,6 +400,8 @@ export const memberService = {
         search,
         comingSoon:   COMING_SOON_FEATURES,
         memberSlug:   slug,
+        pendingAutoLinkCard:    buildPendingAutoLinkCardContent(row.id),
+        claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
       },
     };
   },

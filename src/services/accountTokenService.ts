@@ -5,7 +5,8 @@ export type AccountTokenType =
   | 'email_verify'
   | 'password_reset'
   | 'data_export'
-  | 'account_claim';
+  | 'account_claim'
+  | 'auto_link_report_incorrect';
 
 export interface IssuedToken {
   /** The raw URL-safe token handed to the caller. Never stored. */
@@ -19,12 +20,14 @@ export interface ConsumedToken {
   memberId: string;
   tokenRowId: string;
   targetLegacyMemberId: string | null;
+  targetAuditEntryId: string | null;
 }
 
 export interface PeekedToken {
   memberId: string;
   tokenRowId: string;
   targetLegacyMemberId: string | null;
+  targetAuditEntryId: string | null;
   expiresAt: string;
 }
 
@@ -51,6 +54,7 @@ export function issueToken(opts: {
   tokenType: AccountTokenType;
   ttlHours: number;
   targetLegacyMemberId?: string;
+  targetAuditEntryId?: string;
 }): IssuedToken {
   if (opts.ttlHours <= 0) {
     throw new Error('ttlHours must be > 0');
@@ -69,6 +73,7 @@ export function issueToken(opts: {
     nowIso,
     opts.memberId,
     opts.targetLegacyMemberId ?? null,
+    opts.targetAuditEntryId ?? null,
     opts.tokenType,
     tokenHash,
     nowIso,
@@ -111,6 +116,7 @@ export function consumeToken(
     memberId: row.member_id,
     tokenRowId: row.id,
     targetLegacyMemberId: row.target_legacy_member_id,
+    targetAuditEntryId: row.target_audit_entry_id,
   };
 }
 
@@ -141,6 +147,7 @@ export function consumeIfUnusedInTx(
   const memberId = row.member_id;
   const tokenRowId = row.id;
   const targetLegacyMemberId = row.target_legacy_member_id;
+  const targetAuditEntryId = row.target_audit_entry_id;
   const nowIso = new Date().toISOString();
   const result = accountTokens.consumeIfUnusedAndUnexpired.run(
     nowIso,
@@ -149,7 +156,7 @@ export function consumeIfUnusedInTx(
     nowIso,
   );
   if (result.changes !== 1) return null;
-  return { memberId, tokenRowId, targetLegacyMemberId };
+  return { memberId, tokenRowId, targetLegacyMemberId, targetAuditEntryId };
 }
 
 /**
@@ -175,6 +182,7 @@ export function peekToken(
     memberId: row.member_id,
     tokenRowId: row.id,
     targetLegacyMemberId: row.target_legacy_member_id,
+    targetAuditEntryId: row.target_audit_entry_id,
     expiresAt: row.expires_at,
   };
 }

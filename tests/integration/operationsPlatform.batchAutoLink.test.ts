@@ -1,16 +1,24 @@
 /**
  * Integration tests for OperationsPlatformService.runBatchAutoLink — the
- * one-shot cutover job that scans Tier 0 unlinked members against the
- * legacy data and queues high-confidence matches for
- * A_Review_Auto_Link_Matches per MIGRATION_PLAN §6 / G24.
+ * one-shot cutover job that scans Tier 0 unlinked members and applies
+ * MIGRATION_PLAN §6 silent auto-link for high/medium classifier outcomes,
+ * with low-confidence cases routing to the admin work queue.
  *
  * Coverage:
- *  - Tier 1 classifier match queues a work_queue_items row with priority 10.
- *  - Tier 3 classifier outcome is skipped (admins handle via existing queue).
+ *  - High classifier match silently claims (member.legacy_member_id +
+ *    historical_person_id set; legacy_members.claimed_by_member_id set;
+ *    member_tier_grants row written; legacy.auto_link_silent_claim audit
+ *    row written; notification email enqueued; NO pending card).
+ *  - Medium classifier match silently claims AND persists a first-login
+ *    pending_auto_link_card_json payload alongside the notification email.
+ *  - Low classifier outcome (no_hp / hp_mismatch / multiple_name_candidates)
+ *    routes to work_queue_items with admin-alerts fan-out.
  *  - Already-linked members are filtered at the candidate query.
- *  - Idempotency: re-running with an existing open auto_link_match row
- *    does not double-queue.
- *  - system_job_runs row is recorded with the counter struct in details_json.
+ *  - Idempotency: re-running does not double-claim, does not duplicate
+ *    notification emails (auto_link_notification:<audit_id> idempotency
+ *    key collapses), and does not duplicate low-confidence work queue rows.
+ *  - system_job_runs row is recorded with the counter struct in
+ *    details_json (new shape: claimed_high / claimed_medium / queued_low / ...).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -34,147 +42,274 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-function workQueueRow(memberId: string): { task_type: string; priority: number; status: string } | undefined {
-  const db = new BetterSqlite3(dbPath, { readonly: true });
+function openRO(): BetterSqlite3.Database {
+  return new BetterSqlite3(dbPath, { readonly: true });
+}
+
+function memberRow(id: string): Record<string, unknown> {
+  const db = openRO();
+  try {
+    return db.prepare(`SELECT * FROM members WHERE id = ?`).get(id) as Record<string, unknown>;
+  } finally { db.close(); }
+}
+
+function legacyRow(id: string): Record<string, unknown> {
+  const db = openRO();
+  try {
+    return db.prepare(`SELECT * FROM legacy_members WHERE legacy_member_id = ?`).get(id) as Record<string, unknown>;
+  } finally { db.close(); }
+}
+
+function tierGrants(memberId: string): Array<Record<string, unknown>> {
+  const db = openRO();
   try {
     return db.prepare(`
-      SELECT task_type, priority, status FROM work_queue_items
-      WHERE entity_type = 'member' AND entity_id = ?
-      ORDER BY opened_at DESC LIMIT 1
-    `).get(memberId) as { task_type: string; priority: number; status: string } | undefined;
-  } finally {
-    db.close();
-  }
+      SELECT change_type, reason_code, old_tier_status, new_tier_status
+      FROM member_tier_grants WHERE member_id = ?
+      ORDER BY created_at ASC, id ASC
+    `).all(memberId) as Array<Record<string, unknown>>;
+  } finally { db.close(); }
+}
+
+function auditRows(memberId: string, actionType: string): Array<Record<string, unknown>> {
+  const db = openRO();
+  try {
+    return db.prepare(`
+      SELECT id, action_type, metadata_json
+      FROM audit_entries WHERE entity_type = 'member' AND entity_id = ? AND action_type = ?
+      ORDER BY created_at ASC, id ASC
+    `).all(memberId, actionType) as Array<Record<string, unknown>>;
+  } finally { db.close(); }
+}
+
+function outboxRows(idempotencyKey: string): Array<Record<string, unknown>> {
+  const db = openRO();
+  try {
+    return db.prepare(`
+      SELECT id, recipient_email, recipient_member_id, subject, body_text
+      FROM outbox_emails WHERE idempotency_key = ?
+    `).all(idempotencyKey) as Array<Record<string, unknown>>;
+  } finally { db.close(); }
 }
 
 function workQueueCount(memberId: string): number {
-  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const db = openRO();
   try {
     const r = db.prepare(`
       SELECT COUNT(*) AS n FROM work_queue_items
       WHERE entity_type = 'member' AND entity_id = ?
     `).get(memberId) as { n: number };
     return r.n;
-  } finally {
-    db.close();
-  }
+  } finally { db.close(); }
 }
 
-// Monotonic counter only (no Date.now): deterministic across runs and CI
-// schedulers, satisfies the testing.md "no Date.now() in tests" rule.
 let _seq = 0;
-function nextEmail(): string {
+function nextId(prefix: string): string {
   _seq += 1;
-  return `bal-${_seq.toString().padStart(6, '0')}@example.com`;
+  return `${prefix}-${_seq.toString().padStart(4, '0')}`;
 }
 
-describe('runBatchAutoLink — classifier-driven work-queue emission', () => {
-  it('Tier 1 candidate (email + HP provenance + exact name) queues a high-priority work_queue_items row', async () => {
+describe('runBatchAutoLink — silent claim + notification + card surface', () => {
+  it('high-confidence: silent claim writes linkage, tier grant, audit row, and notification email; no pending card', async () => {
     const db = new BetterSqlite3(dbPath);
-    const email = nextEmail();
+    const email = `${nextId('high')}@example.com`;
+    const legacyId = nextId('legmem-high');
+    const personId = nextId('hp-high');
+    const memberId = nextId('mem-high');
     insertLegacyMember(db, {
-      legacy_member_id: 'bal-tier1-leg',
-      legacy_email:     email,
-      real_name:        'Avery Tier One',
-      display_name:     'Avery Tier One',
+      legacy_member_id: legacyId, legacy_email: email,
+      real_name: 'Alpha Bravo', display_name: 'Alpha Bravo',
     });
     insertHistoricalPerson(db, {
-      person_id:        'bal-tier1-hp',
-      person_name:      'Avery Tier One',
-      legacy_member_id: 'bal-tier1-leg',
+      person_id: personId, person_name: 'Alpha Bravo',
+      legacy_member_id: legacyId,
     });
-    const memberId = insertMember(db, {
-      id: 'bal-tier1-mem',
-      slug: 'bal_tier1_mem',
-      login_email: email,
-      real_name:   'Avery Tier One',
-      display_name: 'Avery Tier One',
+    insertMember(db, {
+      id: memberId, slug: memberId.replace(/-/g, '_'),
+      login_email: email, real_name: 'Alpha Bravo', display_name: 'Alpha Bravo',
     });
     db.close();
 
     await ops.operationsPlatformService.runBatchAutoLink();
 
-    const row = workQueueRow(memberId)!;
-    expect(row.task_type).toBe('auto_link_match');
-    expect(row.priority).toBe(10);
-    expect(row.status).toBe('open');
+    const mem = memberRow(memberId);
+    expect(mem.legacy_member_id).toBe(legacyId);
+    expect(mem.historical_person_id).toBe(personId);
+    expect(mem.pending_auto_link_card_json).toBeNull();
+
+    const lm = legacyRow(legacyId);
+    expect(lm.claimed_by_member_id).toBe(memberId);
+
+    const grants = tierGrants(memberId);
+    expect(grants.length).toBeGreaterThanOrEqual(1);
+    expect(grants[0].change_type).toBe('grant');
+    expect(grants[0].reason_code).toBe('legacy.claim_tier_grant');
+
+    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
+    expect(audits).toHaveLength(1);
+    const meta = JSON.parse(String(audits[0].metadata_json)) as Record<string, unknown>;
+    expect(meta.confidence).toBe('high');
+    expect(meta.legacy_member_id).toBe(legacyId);
+    expect(meta.transitive_hp_id).toBe(personId);
+
+    const outbox = outboxRows(`auto_link_notification:${audits[0].id}`);
+    expect(outbox).toHaveLength(1);
+    expect(outbox[0].recipient_email).toBe(email);
+    expect(outbox[0].recipient_member_id).toBe(memberId);
+    expect(String(outbox[0].subject)).toMatch(/IFPA/);
+    expect(String(outbox[0].body_text)).toContain('Alpha Bravo');
+    expect(String(outbox[0].body_text)).toContain('/auto-link/report-incorrect/');
   });
 
-  it('Tier 3 candidate (name mismatch) is skipped — no work_queue row', async () => {
+  it('medium-confidence: silent claim + notification + first-login pending card with all payload fields', async () => {
     const db = new BetterSqlite3(dbPath);
-    const email = nextEmail();
+    // Seed a name variant pair so the classifier returns medium (variant match).
+    db.prepare(`INSERT INTO name_variants (canonical_normalized, variant_normalized, source)
+                VALUES (?, ?, 'admin_added')`).run('robert smith', 'bob smith');
+    const email = `${nextId('med')}@example.com`;
+    const legacyId = nextId('legmem-med');
+    const personId = nextId('hp-med');
+    const memberId = nextId('mem-med');
     insertLegacyMember(db, {
-      legacy_member_id: 'bal-tier3-leg',
-      legacy_email:     email,
-      real_name:        'Different Surname',
+      legacy_member_id: legacyId, legacy_email: email,
+      real_name: 'Robert Smith', display_name: 'Robert Smith',
     });
     insertHistoricalPerson(db, {
-      person_id:        'bal-tier3-hp',
-      person_name:      'Some Other Person',
-      legacy_member_id: 'bal-tier3-leg',
+      person_id: personId, person_name: 'Robert Smith',
+      legacy_member_id: legacyId,
     });
-    const memberId = insertMember(db, {
-      id: 'bal-tier3-mem',
-      slug: 'bal_tier3_mem',
-      login_email: email,
-      real_name: 'Different Surname',
-      display_name: 'Different Surname',
+    insertMember(db, {
+      id: memberId, slug: memberId.replace(/-/g, '_'),
+      login_email: email, real_name: 'Bob Smith', display_name: 'Bob Smith',
     });
     db.close();
 
     await ops.operationsPlatformService.runBatchAutoLink();
 
-    expect(workQueueCount(memberId)).toBe(0);
+    const mem = memberRow(memberId);
+    expect(mem.legacy_member_id).toBe(legacyId);
+    expect(mem.historical_person_id).toBe(personId);
+    expect(mem.pending_auto_link_card_json).not.toBeNull();
+    const cardPayload = JSON.parse(String(mem.pending_auto_link_card_json)) as Record<string, unknown>;
+    expect(cardPayload.confidence).toBe('medium');
+    expect(cardPayload.personId).toBe(personId);
+    expect(cardPayload.legacyMemberId).toBe(legacyId);
+    expect(cardPayload.legacyDisplayName).toBe('Robert Smith');
+    expect(typeof cardPayload.claimAuditId).toBe('string');
+
+    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
+    expect(audits).toHaveLength(1);
+    const meta = JSON.parse(String(audits[0].metadata_json)) as Record<string, unknown>;
+    expect(meta.confidence).toBe('medium');
+    expect(meta.matched_variant_normalized).toBeTruthy();
+
+    const outbox = outboxRows(`auto_link_notification:${audits[0].id}`);
+    expect(outbox).toHaveLength(1);
   });
 
-  it('already-linked members are filtered out at the candidate query', async () => {
+  it('low-confidence: routes to work_queue_items with admin-alerts fan-out', async () => {
+    const SUBSCRIBER_ID = nextId('admin-sub');
     const db = new BetterSqlite3(dbPath);
-    insertLegacyMember(db, { legacy_member_id: 'bal-linked-leg', legacy_email: nextEmail() });
-    const memberId = insertMember(db, {
-      id: 'bal-linked-mem',
-      slug: 'bal_linked_mem',
-      login_email: nextEmail(),
-      legacy_member_id: 'bal-linked-leg',
+    insertMember(db, {
+      id: SUBSCRIBER_ID, slug: SUBSCRIBER_ID.replace(/-/g, '_'),
+      display_name: 'Alerts Subscriber', login_email: `${SUBSCRIBER_ID}@example.com`,
+      is_admin: 1,
     });
-    db.close();
+    db.prepare(`
+      INSERT INTO mailing_list_subscriptions (
+        id, created_at, created_by, updated_at, updated_by, version,
+        mailing_list_id, member_id, status, status_updated_at
+      ) VALUES (?, '2025-01-01T00:00:00.000Z', 'system', '2025-01-01T00:00:00.000Z', 'system', 1,
+                'admin-alerts', ?, 'subscribed', '2025-01-01T00:00:00.000Z')
+    `).run(`mls-${SUBSCRIBER_ID}`, SUBSCRIBER_ID);
 
-    await ops.operationsPlatformService.runBatchAutoLink();
-
-    expect(workQueueCount(memberId)).toBe(0);
-  });
-
-  it('idempotent: running twice does not double-queue an unchanged Tier 1 candidate', async () => {
-    const db = new BetterSqlite3(dbPath);
-    const email = nextEmail();
+    const email = `${nextId('low')}@example.com`;
+    const legacyId = nextId('legmem-low');
+    const personId = nextId('hp-low');
+    const memberId = nextId('mem-low');
     insertLegacyMember(db, {
-      legacy_member_id: 'bal-idem-leg',
-      legacy_email:     email,
-      real_name:        'Idem Tester',
+      legacy_member_id: legacyId, legacy_email: email,
+      real_name: 'Charlie Delta',
     });
     insertHistoricalPerson(db, {
-      person_id:        'bal-idem-hp',
-      person_name:      'Idem Tester',
-      legacy_member_id: 'bal-idem-leg',
+      person_id: personId, person_name: 'Echo Foxtrot',
+      legacy_member_id: legacyId,
     });
-    const memberId = insertMember(db, {
-      id: 'bal-idem-mem',
-      slug: 'bal_idem_mem',
-      login_email: email,
-      real_name: 'Idem Tester',
-      display_name: 'Idem Tester',
+    insertMember(db, {
+      id: memberId, slug: memberId.replace(/-/g, '_'),
+      login_email: email, real_name: 'Charlie Delta', display_name: 'Charlie Delta',
     });
     db.close();
 
     await ops.operationsPlatformService.runBatchAutoLink();
-    await ops.operationsPlatformService.runBatchAutoLink();
 
+    // Low → no silent claim
+    const mem = memberRow(memberId);
+    expect(mem.legacy_member_id).toBeNull();
+    expect(mem.historical_person_id).toBeNull();
+
+    // Low → admin queue row
     expect(workQueueCount(memberId)).toBe(1);
+
+    // Low → admin-alerts outbox row
+    const adminOutbox = outboxRows(`admin-alerts:auto_link_match:${memberId}:${SUBSCRIBER_ID}`);
+    expect(adminOutbox).toHaveLength(1);
+    expect(String(adminOutbox[0].body_text)).toContain('auto_link_match');
+    expect(String(adminOutbox[0].body_text)).toContain(memberId);
   });
 
-  it('writes a system_job_runs row tagged SYS_Batch_Auto_Link with the counter struct', async () => {
+  it('already-linked candidates are filtered at the candidate query (no claim, no email)', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const legacyId = nextId('legmem-skip');
+    insertLegacyMember(db, { legacy_member_id: legacyId, legacy_email: `${nextId('skip')}@example.com` });
+    const memberId = nextId('mem-skip');
+    insertMember(db, {
+      id: memberId, slug: memberId.replace(/-/g, '_'),
+      login_email: `${nextId('skip')}@example.com`,
+      legacy_member_id: legacyId,
+    });
+    db.close();
+
     await ops.operationsPlatformService.runBatchAutoLink();
 
-    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
+    expect(audits).toHaveLength(0);
+    expect(workQueueCount(memberId)).toBe(0);
+  });
+
+  it('idempotent: rerun does not double-claim, does not duplicate notification emails or work-queue rows', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const email = `${nextId('idem')}@example.com`;
+    const legacyId = nextId('legmem-idem');
+    const personId = nextId('hp-idem');
+    const memberId = nextId('mem-idem');
+    insertLegacyMember(db, {
+      legacy_member_id: legacyId, legacy_email: email,
+      real_name: 'Idem Tester', display_name: 'Idem Tester',
+    });
+    insertHistoricalPerson(db, {
+      person_id: personId, person_name: 'Idem Tester',
+      legacy_member_id: legacyId,
+    });
+    insertMember(db, {
+      id: memberId, slug: memberId.replace(/-/g, '_'),
+      login_email: email, real_name: 'Idem Tester', display_name: 'Idem Tester',
+    });
+    db.close();
+
+    await ops.operationsPlatformService.runBatchAutoLink();
+    await ops.operationsPlatformService.runBatchAutoLink();
+
+    const audits = auditRows(memberId, 'legacy.auto_link_silent_claim');
+    expect(audits).toHaveLength(1);
+    const outbox = outboxRows(`auto_link_notification:${audits[0].id}`);
+    expect(outbox).toHaveLength(1);
+  });
+
+  it('writes a system_job_runs row tagged SYS_Batch_Auto_Link with the silent-claim counter struct', async () => {
+    await ops.operationsPlatformService.runBatchAutoLink();
+
+    const db = openRO();
     const row = db.prepare(`
       SELECT status, details_json FROM system_job_runs
       WHERE job_name = 'SYS_Batch_Auto_Link'
@@ -185,82 +320,17 @@ describe('runBatchAutoLink — classifier-driven work-queue emission', () => {
     expect(row.status).toBe('succeeded');
     const details = JSON.parse(row.details_json) as Record<string, number>;
     expect(details).toMatchObject({
-      scanned:                expect.any(Number),
-      queued_high:            expect.any(Number),
-      queued_medium:          expect.any(Number),
-      skipped_low:            expect.any(Number),
-      skipped_already_queued: expect.any(Number),
-      skipped_none:           expect.any(Number),
-      skipped_error:          expect.any(Number),
+      scanned:                          expect.any(Number),
+      claimed_high:                     expect.any(Number),
+      claimed_medium:                   expect.any(Number),
+      queued_low:                       expect.any(Number),
+      skipped_low_already_queued:       expect.any(Number),
+      skipped_already_linked:           expect.any(Number),
+      skipped_no_legacy_for_hp:         expect.any(Number),
+      skipped_legacy_claimed_by_other:  expect.any(Number),
+      skipped_no_email:                 expect.any(Number),
+      skipped_none:                     expect.any(Number),
+      skipped_error:                    expect.any(Number),
     });
-  });
-
-  it('admin-alerts fan-out: each new auto-link match enqueues one outbox row per subscribed admin', async () => {
-    // M2 per US §198: each work_queue insert produces an admin-alerts email
-    // containing only task_type + entity_id.
-    const ADMIN_SUBSCRIBER_ID = 'bal-admin-sub';
-    const setupDb = new BetterSqlite3(dbPath);
-    insertMember(setupDb, {
-      id:           ADMIN_SUBSCRIBER_ID,
-      slug:         'bal_admin_sub',
-      display_name: 'Auto-Link Admin Subscriber',
-      login_email:  'bal-admin-sub@example.com',
-      is_admin:     1,
-    });
-    setupDb.prepare(`
-      INSERT INTO mailing_list_subscriptions (
-        id, created_at, created_by, updated_at, updated_by, version,
-        mailing_list_id, member_id, status, status_updated_at
-      ) VALUES (?, ?, 'system', ?, 'system', 1, 'admin-alerts', ?, 'subscribed', ?)
-    `).run(
-      `mls-${ADMIN_SUBSCRIBER_ID}`,
-      '2025-01-01T00:00:00.000Z',
-      '2025-01-01T00:00:00.000Z',
-      ADMIN_SUBSCRIBER_ID,
-      '2025-01-01T00:00:00.000Z',
-    );
-
-    // Fresh Tier 1 candidate so older test candidates (already-queued) don't
-    // confuse the fan-out assertion.
-    const email = nextEmail();
-    insertLegacyMember(setupDb, {
-      legacy_member_id: 'bal-fanout-leg',
-      legacy_email:     email,
-      real_name:        'Fanout Tester',
-    });
-    insertHistoricalPerson(setupDb, {
-      person_id:        'bal-fanout-hp',
-      person_name:      'Fanout Tester',
-      legacy_member_id: 'bal-fanout-leg',
-    });
-    const memberId = insertMember(setupDb, {
-      id:          'bal-fanout-mem',
-      slug:        'bal_fanout_mem',
-      login_email: email,
-      real_name:   'Fanout Tester',
-      display_name: 'Fanout Tester',
-    });
-    setupDb.close();
-
-    await ops.operationsPlatformService.runBatchAutoLink();
-
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    const outboxRow = db.prepare(`
-      SELECT recipient_member_id, recipient_email, mailing_list_id, subject, body_text, idempotency_key
-      FROM outbox_emails
-      WHERE idempotency_key = ?
-    `).get(`admin-alerts:auto_link_match:${memberId}:${ADMIN_SUBSCRIBER_ID}`) as
-      | Record<string, unknown>
-      | undefined;
-    db.close();
-    expect(outboxRow).toBeDefined();
-    expect(outboxRow!.recipient_member_id).toBe(ADMIN_SUBSCRIBER_ID);
-    expect(outboxRow!.recipient_email).toBe('bal-admin-sub@example.com');
-    expect(outboxRow!.mailing_list_id).toBe('admin-alerts');
-    expect(outboxRow!.subject).toBe('New admin queue item: auto_link_match');
-    expect(outboxRow!.body_text).toBe(`Task type: auto_link_match\nEntity ID: ${memberId}`);
-    // No sensitive member data per US §198.
-    expect(outboxRow!.body_text).not.toContain(email);
-    expect(outboxRow!.body_text).not.toContain('Fanout Tester');
   });
 });

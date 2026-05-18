@@ -230,6 +230,37 @@ describe(`GET /clubs/${PRE_POPULATE_KEY} — full diagnostic (authenticated only
     expect(res.text).toMatch(/Last hosted an event<\/dt>\s*<dd>2023<\/dd>/);
     expect(res.text).toMatch(/Has ever hosted<\/dt>\s*<dd>yes<\/dd>/);
   });
+
+  it('relabels the R1-R10 heading to mark it classifier as-built', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/clubs/${PRE_POPULATE_KEY}`)
+      .set('Cookie', authCookie());
+    expect(res.text).toContain('Rule firings (R1');
+    expect(res.text).toContain('classifier as-built');
+  });
+
+  it('renders the pipeline-context block reflecting mapped_club_id stamping', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/clubs/${PRE_POPULATE_KEY}`)
+      .set('Cookie', authCookie());
+    expect(res.text).toContain('Pipeline context');
+    expect(res.text).toContain('mapped_club_id stamped');
+    expect(res.text).toMatch(/mapped_club_id stamped<\/dt>\s*<dd>yes/);
+    expect(res.text).toContain('Live club row source');
+  });
+
+  it('hides the combination-gate signals section when signals are not yet emitted', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .get(`/clubs/${PRE_POPULATE_KEY}`)
+      .set('Cookie', authCookie());
+    // Pipeline does not yet emit per-signal evidence; the heading and chips
+    // must not render on this row.
+    expect(res.text).not.toContain('Combination-gate signals');
+    expect(res.text).not.toContain('club-qc-signal--structural');
+  });
 });
 
 describe(`GET /clubs/${ONBOARDING_KEY} — affiliation-derived leader fallback`, () => {

@@ -1895,10 +1895,7 @@ Deploys land with `SAFE_BROWSING_ADAPTER=stub` by default; submitted external UR
 1. Sign in at `console.cloud.google.com` with the operator Google account. Create a new project (suggested name `footbag-staging` for staging, `footbag-production` for production); note the project ID.
 2. Enable the Safe Browsing API: APIs & Services → Library → search "Safe Browsing API" → Enable. Free tier is 10,000 lookups per day.
 3. Generate the API key: APIs & Services → Credentials → Create Credentials → API key.
-3a. Persist the canonical operator copy in either:
-   - KeePassXC (or equivalent encrypted-at-rest password manager): preferred for new keys; encrypted at rest, no plaintext on disk.
-   - `AWS_PROJECT_SPECIFICS.md` (gitignored, local-only): matches the existing project convention if you already keep operator-local secrets there.
-   The local copy is for recovery and recreating the put-parameter call if SSM is wiped or another environment is later provisioned with the same key. SSM remains the runtime source of truth.
+3a. Persist the canonical operator copy in KeePassXC (or equivalent encrypted-at-rest password manager). Encrypted at rest, no plaintext on disk. The local copy is for recovery and recreating the put-parameter call if SSM is wiped or another environment is later provisioned with the same key. SSM remains the runtime source of truth.
 3b. Copy the value to a temp file with restrictive mode for the put-parameter call:
    ```
    printf %s '<paste-key>' > /tmp/sb-key && chmod 600 /tmp/sb-key
@@ -2054,7 +2051,7 @@ Use `scripts/deploy-migrate.sh` for non-destructive schema or data changes again
 
 Do not teach manual `scp` + `ssh cp` database replacement as the normal workflow. The destructive staging/dev DB-replacement path is handled by `scripts/deploy-rebuild.sh`.
 
-Why both code-deploy and rebuild scripts build on the operator workstation, not on the host: the host (nano_3_0, 512 MB) cannot fit a parallel `docker compose build` (see AWS_PROJECT_SPECIFICS §22.5). Scripts build locally and transfer images via `docker save | docker load`. The future registry-based path (workstation → ECR → host pull) belongs in §6.6.
+Why both code-deploy and rebuild scripts build on the operator workstation, not on the host: the host (nano_3_0, 512 MB) cannot fit a parallel `docker compose build`. Scripts build locally and transfer images via `docker save | docker load`. The future registry-based path (workstation → ECR → host pull) belongs in §6.6.
 
 #### What `scripts/deploy-code.sh` does, command by command, and why
 
@@ -2080,7 +2077,7 @@ Why both code-deploy and rebuild scripts build on the operator workstation, not 
    Why: keep the installed unit aligned with repo changes.
 
 8. Builds images on the operator workstation with `docker compose -f docker/docker-compose.yml build`, then ships them via `docker save docker-web docker-worker | ssh REMOTE 'sudo -S -p "" docker load'`.
-   Why: the host (nano_3_0) cannot fit a parallel docker build (AWS_PROJECT_SPECIFICS §22.5). The systemd unit's `ExecStart` uses `--no-build`; restart loads the just-shipped images.
+   Why: the host (nano_3_0) cannot fit a parallel docker build. The systemd unit's `ExecStart` uses `--no-build`; restart loads the just-shipped images.
 
 9. Restarts `footbag` and checks service status.
    Why: the deploy is not complete until the runtime actually restarts.

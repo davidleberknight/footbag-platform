@@ -1,0 +1,16 @@
+{{#if this}}{{#if this.length}}
+<div class="profile-section">
+  <h2 class="profile-section-heading">Claimed legacy identity</h2>
+  <ul class="profile-account-list">
+    {{#each this}}
+    <li class="claimed-legacy-row">
+      <span>{{this.displayName}}{{#if this.claimedAtDisplay}} <span class="text-muted fs-sm">(linked {{this.claimedAtDisplay}})</span>{{/if}}</span>
+      <form method="post" action="{{this.reportIncorrectHref}}" class="claimed-legacy-form">
+        <input type="hidden" name="claimAuditId" value="" />
+        <button type="submit" class="btn btn-outline btn-sm">Report incorrect</button>
+      </form>
+    </li>
+    {{/each}}
+  </ul>
+</div>
+{{/if}}{{/if}}

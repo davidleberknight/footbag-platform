@@ -23,6 +23,8 @@
 
       <div class="profile-main">
 
+        {{> member-block-auto-link-card content.pendingAutoLinkCard}}
+
         {{> member-block-membership content.membership}}
 
         <div class="profile-section">
@@ -35,6 +37,8 @@
         </div>
 
         {{> member-block-identity content.identity}}
+
+        {{> member-block-claimed-legacy-identities content.claimedLegacyIdentities}}
 
         {{> member-block-quick-actions content.quickActions}}
 

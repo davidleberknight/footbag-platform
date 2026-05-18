@@ -25,7 +25,7 @@ const TASK_TYPES = [
   'show_competitive_results',
 ] as const;
 
-const STATES = ['pending', 'skipped', 'completed', 'not_applicable'] as const;
+const STATES = ['pending', 'in_progress_paused', 'skipped', 'completed', 'not_applicable'] as const;
 
 const TS = '2026-01-01T00:00:00.000Z';
 
