@@ -96,9 +96,7 @@ Historical-pipeline maintainer's track. Pipeline architecture, loader invariants
 - [ ] Player pages resolve (no orphan historical person IDs)
 
 ### Club cleanup pipeline
-- [ ] `legacy_person_club_affiliations` schema enforces `resolved_club_id NOT NULL when resolution_status='confirmed_current'`
 - [ ] `pending → confirmed_current` wizard-transition test pins the `resolved_club_id` write
-- [ ] Phase H exits non-zero on missing seed-CSV rows and on zero candidates after enrichment
 - [ ] HP linkage: `affiliations_pid_fallback` counter in Phase G → 0 (or documented exception class with rationale)
 
 ---
