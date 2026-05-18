@@ -86,7 +86,9 @@ describe('GET /freestyle/glossary — connective panels section', () => {
     // sits below the topology panels; §12 Sources closes the page.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/1\.\s+Movement-Language Primer/);
-    expect(res.text).toMatch(/10\.\s+Traditional Reference/);
+    // §10 heading renamed to "The ADD System" on 2026-05-17 when run-quality
+    // tiers + event formats relocated to /freestyle/combo-analysis.
+    expect(res.text).toMatch(/10\.\s+The ADD System/);
     expect(res.text).toMatch(/ADD \(Additional Degree of Difficulty\)/);
     expect(res.text).toMatch(/12\.\s+Sources/);
   });
@@ -205,7 +207,7 @@ describe('GET /freestyle/glossary — connective panels do not break existing co
       '7. Symbolic Notation',
       '8. Composition',
       '9. Movement Neighborhoods',
-      '10. Traditional Reference',
+      '10. The ADD System',
       '11. Community',
       '12. Sources',
     ];

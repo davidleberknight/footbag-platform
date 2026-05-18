@@ -1175,12 +1175,14 @@ describe('GET /freestyle/glossary — operational notation subsection (O1c)', ()
   });
 
   it('renders the v5 §10 / §11 / §12 reference-tail sections', async () => {
-    // V5: §10 Traditional Reference absorbs run-quality + competitive
-    // formats; §11 Community & Historical Vocabulary collects deprecated
-    // and folk names; §12 Sources retains its institutional attribution.
+    // 2026-05-17: §10 retitled "The ADD System" when run-quality tiers +
+    // event formats relocated to /freestyle/combo-analysis. §10 retains
+    // the ADD-system trick-level definition; §11 Community & Historical
+    // Vocabulary collects deprecated and folk names; §12 Sources retains
+    // its institutional attribution.
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
-    expect(res.text).toMatch(/10\.\s+Traditional Reference/);
+    expect(res.text).toMatch(/10\.\s+The ADD System/);
     expect(res.text).toMatch(/11\.\s+Community/);
     expect(res.text).toMatch(/12\.\s+Sources/);
   });
@@ -1193,14 +1195,22 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     expect(res.text).toContain('id="run-quality"');
   });
 
-  it('§10 leads with the mixed-level-of-analysis acknowledgment', async () => {
+  it('§10 acknowledges the relocation of run-quality material to combo-analysis', async () => {
+    // 2026-05-17: when run-quality tiers + event formats moved out of
+    // §10 to /freestyle/combo-analysis, §10 retained a notice explaining
+    // the relocation so readers landing on a stale link see the new home.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/operates at the <em>run<\/em> and <em>competition<\/em> level/);
+    expect(res.text).toMatch(/Sequence-level vocabulary[\s\S]{0,300}relocated/);
+    expect(res.text).toContain('href="/freestyle/combo-analysis"');
   });
 
-  it('history page deep-links to the live #run-quality anchor', async () => {
+  it('history page deep-links to the live #run-quality anchor on combo-analysis', async () => {
+    // 2026-05-17: history.hbs #run-quality links rewired from glossary to
+    // combo-analysis after the §10 relocation. The old #1-add-system--run-quality
+    // anchor was already retired in the Coherence Cleanup Slice.
     const res = await request(createApp()).get('/freestyle/history');
-    expect(res.text).toContain('href="/freestyle/glossary#run-quality"');
+    expect(res.text).toContain('href="/freestyle/combo-analysis#run-quality"');
+    expect(res.text).not.toContain('/freestyle/glossary#run-quality');
     expect(res.text).not.toContain('#1-add-system--run-quality');
   });
 
@@ -1321,13 +1331,18 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
     expect(res.text).toMatch(/dictionary read a compound like\s+<em>mobius<\/em> as "gyro torque"/);
   });
 
-  it('glossary §10 carries anchor IDs on each run-quality tier + format term', async () => {
-    const res = await request(createApp()).get('/freestyle/glossary');
+  it('combo-analysis page carries anchor IDs on each run-quality tier + format term (relocated from glossary §10 on 2026-05-17)', async () => {
+    // Relocation history: these anchors lived on /freestyle/glossary §10
+    // until 2026-05-17, then moved to /freestyle/combo-analysis when that
+    // surface shipped as the canonical home for run-level vocabulary.
+    // The combo-analysis route-test file also covers these; the assertion
+    // here documents the relocation contract.
+    const res = await request(createApp()).get('/freestyle/combo-analysis');
     const ids = [
       'run-quality-tiltless', 'run-quality-guiltless', 'run-quality-tripless',
       'run-quality-fearless', 'run-quality-beastly', 'run-quality-godly',
       'run-quality-genuine', 'run-quality-bop',
-      'format-sick3', 'format-shred-30', 'format-circle', 'format-routine',
+      'format-sick3', 'format-shred-30',
     ];
     for (const id of ids) {
       expect(res.text, `Missing anchor id: ${id}`).toContain(`id="${id}"`);
