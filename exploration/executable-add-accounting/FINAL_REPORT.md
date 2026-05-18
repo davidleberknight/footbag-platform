@@ -10,11 +10,11 @@
 
 Executable ADD Accounting is a feasible, low-risk, high-pedagogical-value future feature for the freestyle subsystem. It surfaces the implicit per-component breakdown that produces each trick's ADD total — turning "butterfly = 3 ADD" from a memorized fact into a derivable result. The Phase-1 MVP is a single content module + one expander component on trick-detail pages, gated by silent suppression for doctrine-unresolved cases.
 
-**Recommendation: pursue Phase 1.** The implementation complexity is low, the doctrine risk is structurally contained, the parser-architecture rules are clean, and the marquee teaching moment (mobius double-spin emergence) is a single-render demonstration of the entire feature's value.
+**Recommendation: pursue Phase 1a (5-trick lead cohort only).** The implementation complexity is low, the doctrine risk is structurally contained, the parser-architecture rules are clean, and the marquee teaching moment (mobius double-spin emergence) is a single-render demonstration of the entire feature's value.
 
-**MVP scope: 5-trick lead cohort → 20-trick public release.** Lead with mobius, then ripple to butterfly / whirl / osis / torque, then expand to walking-family + gyro-family. Estimated 20-30 tricks comfortably renderable in Phase 1.
+**MVP scope — hard scope gate (user-ratified 2026-05-18): 5 tricks.** mobius, butterfly, whirl, osis, torque. The +15 expansion to a 20-trick public-release cohort is a separate Phase-1b cohort that requires explicit user approval after Phase-1a validates. The initial implementation slice MUST NOT bundle the 20-trick cohort.
 
-**Phase-1 ship does NOT depend on Wave-2 doctrine resolution.** The accounting layer respects the existing doctrine boundary by suppressing silently on the ~60-80 Wave-2-sensitive compounds. The renderable cohort is bounded but substantial; the feature does not need Red availability to ship.
+**Phase-1a ship does NOT depend on Wave-2 doctrine resolution.** The accounting layer respects the existing doctrine boundary by suppressing silently on the ~60-80 Wave-2-sensitive compounds. The 5-trick cohort is substantial enough to validate the architecture without needing Red availability.
 
 ---
 
@@ -272,9 +272,15 @@ Other deferred surfaces: search-by-derivation, "build a trick" composer, derivat
 
 ## Minimum viable prototype recommendation
 
-### The smallest shippable Phase-1 surface
+### Implementation scope — user-ratified 2026-05-18
 
-**Lead cohort: 5 tricks.** Author these first as a validation pass:
+**The initial implementation slice is the 5-trick lead cohort. Full stop.**
+
+Do NOT bundle the 20-trick cohort into the initial slice. The +15 expansion (walking-family + gyro-family + mirage-family + other atoms + reverse variants) is a separate cohort, gated on explicit user approval after the 5-trick ship validates.
+
+### Phase 1a — the 5-trick MVP
+
+Author these tricks first, in this order:
 
 1. **mobius** — the marquee teaching case (double-spin emergence)
 2. **butterfly** — foundational atom; component-order distinction
@@ -282,11 +288,20 @@ Other deferred surfaces: search-by-derivation, "build a trick" composer, derivat
 4. **osis** — first mirage-dex appearance
 5. **torque** — first compound-atom inheritance
 
-Validation pass: confirm the render shape works, accessibility holds, mobile reduction is clean, component-glossary links land correctly.
+**Validation outcomes the 5-trick ship must produce before Phase-1b is authorized:**
 
-### After validation: 15 more tricks
+- Render shape proven (the panel reads cleanly on mobius — the most complex case)
+- Curator-authoring workflow proven (one curator pass produced 5 confirmed entries)
+- Mobile reduction proven (375px viewport renders cleanly without inheritance-annotation regression)
+- Accessibility proven (keyboard + screen reader pass on mobius)
+- Component-glossary cross-links land correctly (xbody / set / mirage-dex / stall / dex / spin)
+- Suppression sanity confirmed (Class B and Class D trick pages render normally with no derivation panel)
 
-Author the rest of the public-release cohort once the lead cohort is confirmed:
+Until these validate, the +15 cohort stays unauthored.
+
+### Phase 1b — the +15 expansion (gated; requires separate go-ahead)
+
+Authored only after Phase-1a validates AND the user explicitly approves the expansion. Candidate composition:
 
 - **Walking family** (5): ripwalk, dimwalk, sidewalk, matador, nuclear-butterfly
 - **Gyro family** (3): gyro-whirl, gyro-osis, gyro-illusion (mobius is gyro-torque, already covered)
@@ -294,20 +309,24 @@ Author the rest of the public-release cohort once the lead cohort is confirmed:
 - **Other atoms** (3): atw, mirage, illusion
 - **Reverse variants** (2): reverse-whirl (Class C), reverse-atw (Class C)
 
-### Total public-release scope
+The +15 list is a *candidate cohort*, not a commitment. Phase-1a learnings may reshape it.
 
-**20 tricks.** Comfortably within the concept-doc Phase-1 success criterion ("≥ 20 tricks").
+### Eventual Phase-1 public-release scope
 
-### What ships in MVP
+**20 tricks**, reached only when Phase-1a + Phase-1b both ship.
 
-1. `freestyleAddAccounting.ts` content module with 20 entries.
+The concept-doc success criterion of "≥ 20 tricks" applies to the *eventual* Phase-1 scope, not to the initial slice.
+
+### What ships in the Phase-1a slice
+
+1. `freestyleAddAccounting.ts` content module with **5 entries** (mobius, butterfly, whirl, osis, torque).
 2. Per-trick expander on `/freestyle/tricks/:slug` pages — opt-in, click-to-expand, no animation.
 3. Silent suppression for Class B (atom-only ADD ≤ 1) + Class D (Wave-2 / contextual / insufficient data).
-4. Class-C context caption ("Context: reverse") for tricks with positional / timing markers.
+4. Class-C context caption ("Context: reverse") for tricks with positional / timing markers — infrastructure ships in Phase-1a even though no Class-C tricks are in the 5-cohort (reverse-whirl and reverse-atw land in Phase-1b).
 5. Component-glossary cross-links (xbody / set / mirage-dex / stall / dex / spin) — requires glossary §3 entries to exist.
 6. Mobile-responsive layout (inheritance annotations hide on phones in Phase 1).
 7. Keyboard / screen-reader / contrast support.
-8. Integration tests covering renderable, suppressed-B, suppressed-D, Class-C, and component-link presence.
+8. Integration tests covering renderable, suppressed-B, suppressed-D, Class-C-infrastructure, and component-link presence.
 
 ### What does NOT ship in MVP
 
@@ -321,13 +340,13 @@ Author the rest of the public-release cohort once the lead cohort is confirmed:
 - Search by derivation — Phase 3+.
 - Composer / interactive builder — never (ontology-authority risk).
 
-### MVP go/no-go gates
+### Phase-1a go/no-go gates
 
-Phase 1 ships when:
+Phase-1a ships when:
 
 | Gate | Pass criterion |
 |---|---|
-| Curator-map content authored | 20 trick entries with curator-confirmed breakdowns |
+| Curator-map content authored | **5 trick entries** with curator-confirmed breakdowns (mobius, butterfly, whirl, osis, torque) |
 | Glossary §3 entries present | xbody, set, mirage-dex (and any others linked) exist |
 | Tests pass | `npm test` clean; ≥ 8 new specs covering accounting paths |
 | Build clean | `npm run build` no errors; convention gate clean |
@@ -445,26 +464,28 @@ This list is preserved verbatim from D1-D6 for clarity.
 
 ## Final recommendation
 
-**Build Phase 1.** The combination of:
+**Build Phase 1a — the 5-trick lead cohort.** Full stop on the initial slice.
+
+The combination of:
 
 - High educational value (mobius double-spin alone justifies the feature)
-- Low implementation complexity (~500 lines, single slice)
+- Low implementation complexity (~500 lines, single slice; even smaller for 5-trick content)
 - Zero schema / ontology / canonical-data risk
 - Clean architectural separation (read-only render, parser-subordinate, doctrine-respecting)
-- Bounded curator effort (20-trick lead cohort, curator-paced)
-- Renderable cohort already substantial without Wave-2 resolution
+- Bounded curator effort (5-trick lead, curator-paced)
+- Renderable cohort already meaningful without Wave-2 resolution
 
 ...produces an unusually favorable risk / reward profile.
 
-**Author the 5-trick lead cohort first** (mobius, butterfly, whirl, osis, torque) to validate the render shape and curator-authoring workflow before scaling to 20.
+**Implementation contract (user-ratified 2026-05-18):**
 
-**Defer Phase 2** until Phase 1 stabilizes. The glossary integration is a natural next step but should not block Phase 1 ship.
+1. **Phase-1a scope is 5 tricks:** mobius, butterfly, whirl, osis, torque. Implementation slice MUST NOT bundle the 20-trick cohort.
+2. **Phase-1b (+15 expansion) is NOT authorized by this report.** It requires separate user approval after Phase-1a validates.
+3. **Defer Phase 2** until Phase-1a + Phase-1b both ship.
+4. **Pursue Tier-1 Wave-2 quick wins opportunistically** post-ship — orbit baseline + ducking manifestation + smear classification each unblock 3-5 additional tricks at low curator effort. These are *unblockings*, not cohort expansions; they enable future authoring but do not authorize it.
+5. **Hold Tier-3 Wave-2 unblockings** (paradox, symposium, blurry, atomsmasher) until Red availability.
 
-**Pursue Tier-1 Wave-2 quick wins opportunistically** post-ship — orbit baseline + ducking manifestation + smear classification each unblock 3-5 additional tricks at low curator effort.
-
-**Hold Tier-3 Wave-2 unblockings** (paradox, symposium, blurry, atomsmasher) until Red availability. These are the highest-impact unblocks per cluster but require external authority and are correctly deferred.
-
-This feature is ready to move from exploration to implementation slice when the curator has time to ratify the open questions listed above.
+This feature is ready to move from exploration to implementation slice when the curator has time to ratify the 10 open questions listed above AND the implementer commits to the 5-trick scope cap.
 
 ---
 
