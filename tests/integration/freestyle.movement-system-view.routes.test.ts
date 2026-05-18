@@ -84,10 +84,14 @@ describe('GET /freestyle/tricks?view=movement-system — route + toggle', () => 
     expect(res.text).toMatch(/class="trick-view-toggle-active">By movement system</);
   });
 
-  it('legacy toggle entries remain present (additive change, no retirement)', async () => {
+  it('legacy toggle entries remain present except Component View (soft-retired 2026-05-18)', async () => {
+    // 2026-05-18 Component View soft retirement: "By component" toggle
+    // entry removed from the view-toggle row. URL still resolves
+    // (?view=component → 200, with a retirement notice), but no
+    // toggle-row link reaches it.
     const res = await request(createApp()).get('/freestyle/tricks?view=movement-system');
     expect(res.text).toContain('href="/freestyle/tricks?view=category"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component"');
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component"');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology"');
   });
 

@@ -999,16 +999,19 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('renders the view toggle with the ADD view marked active', async () => {
+    // 2026-05-18 Component View soft retirement: "By component" toggle
+    // entry removed (Movement System is the canonical modifier-grouped
+    // browse surface). Other view toggles still present.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.text).toContain('class="trick-view-toggle"');
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
-    // DSC-2 slice 3A: ?view=sets was renamed to ?view=component; ?view=sets
-    // continues to work as a server-side alias but the toggle label is now
-    // "By component" with href=...view=component.
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
     expect(res.text).toContain('href="/freestyle/tricks?view=category"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=component"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+    expect(res.text).toContain('href="/freestyle/tricks?view=topology"');
+    // Component View toggle entry is gone (soft-retired).
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=component"');
   });
 });
 
@@ -1020,13 +1023,19 @@ describe('GET /freestyle/tricks?view=sets — legacy alias for ?view=component',
   // the rendered page is the new component view (axes + dict-card-stack).
 
   it('returns 200 and renders the component view (legacy alias)', async () => {
+    // 2026-05-18 Component View soft retirement: the URL still resolves
+    // and renders the view (bookmark/external-link compatibility),
+    // but the "By component" toggle entry is no longer surfaced.
+    // The retirement notice appears above the view body.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    // The new component view renders the dict-card-stack via the shared partial.
+    // The component view renders the dict-card-stack via the shared partial.
     expect(res.text).toContain('dict-card-stack');
-    // The view-toggle marks "By component" active (alias resolved server-side).
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By component</);
+    // Retirement notice present on the alias path too.
+    expect(res.text).toContain('class="component-view-retirement-notice"');
+    // Active-state toggle entry no longer exists (soft retirement).
+    expect(res.text).not.toMatch(/class="trick-view-toggle-active">By component</);
   });
 
   it('cross-references the static set-notation reference page is no longer required on the dictionary projection (the static legend stays at /freestyle/sets; the component view does not link to it inline)', async () => {

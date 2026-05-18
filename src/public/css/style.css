@@ -5539,7 +5539,26 @@ a.dict-card-title:hover {
 
 /* Component view (DSC-2 slice 3A). Two axes (body modifiers + set modifiers);
  * intentional duplication; axis-jump nav at top; per-group heading with
- * one-line body-mechanics definition above the dict-card-stack. */
+ * one-line body-mechanics definition above the dict-card-stack.
+ *
+ * Soft-retired 2026-05-18 — the retirement notice sits above the
+ * duplication note when the view is reached directly. */
+.component-view-retirement-notice {
+  margin: 16px 0 18px 0;
+  padding: 14px 18px;
+  background: #fff7e6;
+  border-left: 4px solid #d4a14a;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  color: #3a3326;
+}
+.component-view-retirement-notice p { margin: 0; }
+.component-view-retirement-notice p + p { margin-top: 8px; }
+.component-view-retirement-notice-detail {
+  font-size: 0.86rem;
+  color: #5a4f3c;
+}
 .component-view-note {
   margin: 8px 0 16px 0;
   padding: 10px 14px;

@@ -90,24 +90,48 @@ afterAll(() => cleanupTestDb(dbPath));
 // 1. Route + alias
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('GET /freestyle/tricks?view=component — route + alias', () => {
-  it('returns 200', async () => {
+describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)', () => {
+  // 2026-05-18 soft retirement: the "By component" toggle entry was
+  // removed from the view-toggle row (Movement System is the canonical
+  // modifier-grouped browse surface). The URL still resolves so
+  // bookmarks and external links keep working; a retirement notice
+  // renders above the view body to redirect new traffic.
+
+  it('returns 200 (bookmarks keep resolving post-soft-retirement)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
     expect(res.status).toBe(200);
   });
 
-  it('marks "By component" active in the view toggle', async () => {
+  it('view-toggle row no longer surfaces a "By component" entry (soft retirement)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=component');
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By component</);
+    expect(res.text).not.toMatch(/class="trick-view-toggle-active">By component</);
+    // The toggle row also no longer carries a link to the view from
+    // OTHER active views.
+    const tricksDefault = await request(createApp()).get('/freestyle/tricks');
+    // The component-view URL must not appear as a toggle-row anchor;
+    // it may still appear in `?view=component#component-*` deep-link
+    // contexts elsewhere on the page (trick-detail membership panels).
+    const toggleRow = (tricksDefault.text.match(/<nav[^>]*aria-label="View toggle"[\s\S]*?<\/nav>/) ?? [])[0]
+                   ?? (tricksDefault.text.match(/trick-view-toggle[\s\S]*?<\/nav>/) ?? [])[0]
+                   ?? '';
+    expect(toggleRow).not.toMatch(/href="\/freestyle\/tricks\?view=component"/);
   });
 
-  it('?view=sets resolves server-side to the component view (alias)', async () => {
+  it('renders the retirement notice on the view body', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=component');
+    expect(res.text).toContain('class="component-view-retirement-notice"');
+    expect(res.text).toMatch(/This view is being retired/);
+    expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+  });
+
+  it('?view=sets still resolves server-side to the component view (alias)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=sets');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-view-toggle-active">By component</);
     // Same markup as the canonical URL renders.
     expect(res.text).toContain('class="component-view-note"');
     expect(res.text).toContain('class="component-axis-jump"');
+    // Soft-retirement notice renders on the alias path too.
+    expect(res.text).toContain('class="component-view-retirement-notice"');
   });
 });
 

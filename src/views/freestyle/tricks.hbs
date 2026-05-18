@@ -66,12 +66,11 @@
       {{else}}
         <a href="/freestyle/tricks?view=category">By category</a>
       {{/if}}
-      <span class="trick-view-toggle-sep">·</span>
-      {{#if (eq content.activeView "component")}}
-        <span class="trick-view-toggle-active">By component</span>
-      {{else}}
-        <a href="/freestyle/tricks?view=component">By component</a>
-      {{/if}}
+      {{! Component view soft-retired 2026-05-18 (see exploration/
+          freestyle-public-coherence-wave-2026-05-18/component_view_retirement_audit.md).
+          Toggle entry removed; URL still resolves for bookmarks, with a
+          retirement notice rendered above the view body when reached
+          directly. Movement System is the canonical replacement. }}
       <span class="trick-view-toggle-sep">·</span>
       {{#if (eq content.activeView "topology")}}
         <span class="trick-view-toggle-active">Movement Neighborhoods</span>
@@ -142,8 +141,27 @@
   {{/if}}
   {{/if}}
 
-  {{! ── Component view — symbolic trick cards (DSC-2 slice 3A) ───────────── }}
+  {{! ── Component view — symbolic trick cards (DSC-2 slice 3A) ─────────────
+       Soft-retired 2026-05-18 per the component_view_retirement_audit
+       in exploration/freestyle-public-coherence-wave-2026-05-18/. The
+       toggle entry was removed from the view-toggle row above, so the
+       only paths reaching this view are bookmarked or external links.
+       Movement System (?view=movement-system) is the canonical
+       modifier-grouped browse surface. }}
   {{#if (eq content.activeView "component")}}
+  <div class="component-view-retirement-notice" role="status" aria-live="polite">
+    <p>
+      <strong>This view is being retired.</strong> The
+      <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
+      view groups tricks by modifier within four pedagogical axes
+      (set / uptime · entry topology · midtime body · no-plant suspension)
+      and is now the canonical modifier-grouped browse surface.
+    </p>
+    <p class="component-view-retirement-notice-detail">
+      This page still renders so bookmarks and external links keep
+      resolving, but new discovery happens through Movement System.
+    </p>
+  </div>
   <p class="component-view-note">{{content.componentView.duplicationNote}}</p>
 
   {{! Axis-jump nav. Static; no JS. Hash anchors only. }}

@@ -187,11 +187,17 @@ describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () =
     expect(res.status).toBe(200);
     // Each of the 13 modifier cards carries the new tricks-link paragraph;
     // spot-check the four most pedagogically central ones.
+    //
+    // 2026-05-18 Component View soft retirement: cross-links re-pointed
+    // from ?view=component#component-{slug} to
+    // ?view=movement-system#movement-{slug}. Movement System is the
+    // canonical modifier-grouped browse surface; Component View remains
+    // bookmark-accessible but no longer reached from new on-site links.
     for (const slug of ['pixie', 'atomic', 'paradox', 'symposium']) {
       expect(
         res.text,
         `glossary modifier card for '${slug}' missing tricks-link footer`,
-      ).toContain(`href="/freestyle/tricks?view=component#component-${slug}"`);
+      ).toContain(`href="/freestyle/tricks?view=movement-system#movement-${slug}"`);
     }
   });
 
@@ -205,12 +211,12 @@ describe('Glossary §6 modifier cards — "See tricks using X" deep-links', () =
     const app = createApp();
     const res = await request(app).get('/freestyle/glossary');
     // The card for #modifier-pixie contains the tricks-link footer with
-    // the matching component-pixie deep-link.
+    // the matching Movement System deep-link (post-soft-retirement).
     const cardRegion = res.text.match(
       /id="modifier-pixie"[\s\S]*?<\/article>/,
     );
     expect(cardRegion).not.toBeNull();
-    expect(cardRegion![0]).toContain('href="/freestyle/tricks?view=component#component-pixie"');
+    expect(cardRegion![0]).toContain('href="/freestyle/tricks?view=movement-system#movement-pixie"');
   });
 });
 
