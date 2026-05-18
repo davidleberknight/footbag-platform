@@ -2231,6 +2231,20 @@ export interface FreestyleGlossaryContent {
   bodyModifierFeelCards: readonly ModifierFeelCard[];
 }
 
+// /freestyle/operators view-model. Pure URL promotion of the modifier-
+// reference content that lives inside /freestyle/glossary §6 (per
+// exploration/freestyle-public-coherence-wave-2026-05-18/
+// sets_components_surface_recommendation.md Option C). Both pages
+// render the same shared partial `freestyle/partials/modifier-reference`;
+// the operators page wraps it with its own hero + breadcrumbs so it can
+// serve as a standalone discoverable destination.
+export interface FreestyleOperatorsContent {
+  setModifierFeelCards:  readonly ModifierFeelCard[];
+  bodyModifierFeelCards: readonly ModifierFeelCard[];
+  intermediateOperators: readonly OperatorReferenceEntry[];
+  setModifiers:          FreestyleSetModifierEntry[];
+}
+
 export interface FreestyleHistoryEvolutionEntry {
   period: string;
   label: string;
@@ -4701,6 +4715,41 @@ export const freestyleService = {
         familyTrees:     shapeFamilyTrees(allDictRows),
         setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
         bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
+      },
+    };
+  },
+
+  getOperatorsPage(): PageViewModel<FreestyleOperatorsContent> {
+    // Pure URL promotion of /freestyle/glossary §6 — no new content.
+    // Same four shaped fields the glossary page already populates;
+    // the shared `freestyle/partials/modifier-reference` partial
+    // renders the visible content on both surfaces.
+    return {
+      seo: {
+        title: 'Freestyle Operators & Modifiers',
+        description:
+          'Reference for the freestyle modifier vocabulary: feel cards, ' +
+          'intermediate operators, execution mechanics, and set modifiers.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_operators',
+        title:      'Operators & Modifiers',
+        intro:
+          'The freestyle modifier vocabulary in one place — what each operator ' +
+          'feels like, how it decomposes structurally, and which tricks use it.',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Operators & Modifiers' },
+        ],
+      },
+      content: {
+        setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
+        bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
+        intermediateOperators: OPERATOR_REFERENCE_ENTRIES,
+        setModifiers:          shapeSetModifiers(this.getOperatorBoard('glossary')),
       },
     };
   },

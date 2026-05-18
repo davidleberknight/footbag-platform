@@ -1,0 +1,35 @@
+{{!--
+  /freestyle/operators — standalone modifier vocabulary reference.
+
+  Pure URL promotion of the modifier-reference content that also lives
+  inside /freestyle/glossary §6. The same shared partial
+  `freestyle-modifier-reference` renders the body on both surfaces.
+
+  Per exploration/freestyle-public-coherence-wave-2026-05-18/
+  sets_components_surface_recommendation.md (Option C): zero new
+  content, dedicated discoverable URL.
+--}}
+<div class="hero hero-sm">
+  <div>
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <a href="/freestyle">Freestyle</a> &rsaquo;
+      <span aria-current="page">Operators &amp; Modifiers</span>
+    </nav>
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+</div>
+
+<div class="wrapper freestyle-operators">
+  <section class="content-section">
+    <p class="freestyle-operators-orientation">
+      Below: feel cards for the most common modifiers, then the structural
+      decomposition reference. To browse tricks that use a given modifier,
+      open the <a href="/freestyle/tricks?view=movement-system">By Movement
+      System</a> view in the trick dictionary. For ADD construction across
+      modifiers, see <a href="/freestyle/add-analysis">ADD Analysis</a>.
+    </p>
+
+    {{> freestyle-modifier-reference}}
+  </section>
+</div>

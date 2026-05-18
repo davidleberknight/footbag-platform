@@ -159,6 +159,16 @@ export const freestyleController = {
     }
   },
 
+  /** GET /freestyle/operators — standalone modifier vocabulary reference. */
+  operators(_req: Request, res: Response, next: NextFunction): void {
+    try {
+      const vm = freestyleService.getOperatorsPage();
+      res.render('freestyle/operators', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'freestyle controller');
+    }
+  },
+
   /** GET /freestyle/progression/walking-family — observational symbolic-grammar layer */
   walkingProgression(_req: Request, res: Response, next: NextFunction): void {
     try {

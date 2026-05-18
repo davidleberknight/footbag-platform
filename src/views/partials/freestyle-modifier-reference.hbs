@@ -1,0 +1,236 @@
+{{!--
+  modifier-reference.hbs — shared partial rendering the modifier vocabulary
+  reference (formerly /freestyle/glossary §6). Used by both:
+    - /freestyle/glossary §6 (inline within the larger glossary flow)
+    - /freestyle/operators (standalone page)
+
+  Required view-model fields on parent `content`:
+    - setModifierFeelCards: ModifierFeelCard[]
+    - bodyModifierFeelCards: ModifierFeelCard[]
+    - intermediateOperators: OperatorReferenceEntry[]
+    - setModifiers: FreestyleSetModifierEntry[]
+
+  Caller renders the surrounding <section> + heading (h1 for the operators
+  page, h2 for the §6 glossary section). This partial provides body only.
+
+  Anchor IDs preserved verbatim from the prior inline rendering so deep
+  links from elsewhere on the site continue to resolve.
+--}}
+
+{{! Operator-board visual orientation lives on the freestyle landing page; the
+    glossary's role here is terminology and execution detail, not visual taxonomy. }}
+
+<p class="glossary-compositional-layering-note">
+  Each modifier layered onto a base introduces a <em>simultaneous additional
+  constraint</em> on body motion within a single set cycle. Difficulty therefore
+  scales not linearly with modifier count, but through the interaction of
+  multiple constraints. Two modifiers on a base are usually harder than the
+  sum of their parts would suggest &mdash; the body has to satisfy both
+  mechanics at once.
+</p>
+<p>A trick is typically composed of:</p>
+<pre><code>set &rarr; modifiers &rarr; base &rarr; catch (stall or kick)</code></pre>
+<ul>
+  <li><strong>Base trick</strong>: the core motion (e.g. mirage, whirl).</li>
+  <li><strong>Modifiers</strong>: how the trick is altered (e.g. paradox, spinning).</li>
+  <li><strong>Set</strong>: how the trick begins.</li>
+</ul>
+<p>Examples:</p>
+<ul>
+  <li>Paradox Whirl = whirl (base) + paradox (modifier).</li>
+  <li>Ripwalk = butterfly (base) + stepping (modifier).</li>
+</ul>
+<p>The glossary explains terms; the dictionary defines exact structure.</p>
+<p class="detail-muted">
+  Some modifier weights have varied historically by era, region, and judge;
+  the values below reflect the current Wave-1 ratified consensus. For the
+  full accounting and discrepancy cases see
+  <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+</p>
+
+{{! Movement-system preview preamble: surfaces the axis ontology at
+    glossary-reading time so readers see the system before the modifier cards. }}
+<h3 class="section-heading" id="movement-system-axes">Movement-system axes (preview)</h3>
+<p>
+  Modifiers cluster along four educational axes by what timing layer
+  and body system they engage. The
+  <a href="/freestyle/tricks?view=movement-system"><em>By Movement System</em> dictionary view</a>
+  groups tricks by axis; the modifier cards below are listed in
+  cluster-paired form to surface the same structure.
+</p>
+<ol class="glossary-movement-system-axes">
+  <li><strong>Set / Uptime Systems</strong> &mdash; launch mechanics + uptime dex character.<br>
+    <em>pixie, fairy, atomic, quantum, nuclear, barraging, furious, blurry, stepping</em>.</li>
+  <li><strong>Entry Topologies</strong> &mdash; entry relationship and cross-body framing.<br>
+    <em>paradox</em>; positional vocabulary (op/ss, near/far, x-dex) lives in &sect;3 and &sect;7.</li>
+  <li><strong>Midtime Body Modifiers</strong> &mdash; apex body mechanics around the trick&apos;s peak.<br>
+    <em>spinning, ducking, diving, weaving, zulu, inspinning, gyro, tapping, whirling</em>.</li>
+  <li><strong>No-Plant &amp; Suspension</strong> &mdash; body-discipline mechanics; the support leg leaves the ground.<br>
+    <em>symposium, symple, muted, flying</em>.</li>
+</ol>
+<p class="detail-muted">
+  The cards below surface a curator-selected pedagogical cohort
+  (13 cards across 2 visual clusters); the full axis breakdown
+  lives on the dictionary&apos;s movement-system browse surface.
+</p>
+
+{{! ── Surface A: Common Advanced Modifiers ─────────────────────────────
+    Player-facing pedagogical view. Modifier cards in two clusters
+    (set + body). Each card: name + optional glyph + feel + intuition
+    + canonical example + optional family adjacency hint.
+    Anchors at `modifier-{slug}`; complements the `term-{slug}` anchors
+    in Surface B below. }}
+<h3 class="section-heading" id="common-advanced-modifiers">Common advanced modifiers</h3>
+<p>The modifiers players reach for most often. Read these for movement and feel; the structural readings live in the advanced reference below.</p>
+
+<div class="glossary-modifier-cluster">
+  <h4 class="glossary-modifier-cluster-heading">Set / Uptime Systems</h4>
+  <div class="glossary-modifier-cards">
+    {{#each content.setModifierFeelCards}}
+    <article class="glossary-modifier-card" id="modifier-{{slug}}">
+      <p class="glossary-modifier-card-head">
+        <span class="glossary-modifier-card-name">{{name}}</span>
+        {{#if glyph}}<span class="glossary-modifier-card-glyph">{{glyph}}</span>{{/if}}
+      </p>
+      <p class="glossary-modifier-card-feel">{{feel}}</p>
+      <p class="glossary-modifier-card-intuition">{{intuition}}</p>
+      <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
+      {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
+      <p class="glossary-modifier-card-tricks-link"><a href="/freestyle/tricks?view=component#component-{{slug}}">See tricks using {{name}} &rarr;</a></p>
+    </article>
+    {{/each}}
+  </div>
+</div>
+
+<div class="glossary-modifier-cluster">
+  <h4 class="glossary-modifier-cluster-heading">Body Modifiers <span class="glossary-modifier-cluster-axes">(midtime &middot; entry &middot; suspension)</span></h4>
+  <div class="glossary-modifier-cards">
+    {{#each content.bodyModifierFeelCards}}
+    <article class="glossary-modifier-card" id="modifier-{{slug}}">
+      <p class="glossary-modifier-card-head">
+        <span class="glossary-modifier-card-name">{{name}}</span>
+        {{#if midtimeBody}}<span class="glossary-modifier-card-tag" title="Midtime body modifier — acts on the body around the trick's apex">midtime</span>{{/if}}
+      </p>
+      <p class="glossary-modifier-card-feel">{{feel}}</p>
+      <p class="glossary-modifier-card-intuition">{{intuition}}</p>
+      <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
+      {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
+      <p class="glossary-modifier-card-tricks-link"><a href="/freestyle/tricks?view=component#component-{{slug}}">See tricks using {{name}} &rarr;</a></p>
+    </article>
+    {{/each}}
+  </div>
+  <p class="glossary-modifier-cluster-note">
+    Cards above span three movement-system axes:
+    <strong>spinning</strong> and <strong>ducking</strong> are
+    midtime body modifiers (apex timing slot);
+    <strong>paradox</strong> is an entry topology (cross-body framing);
+    <strong>symposium</strong> is a no-plant / suspension mechanic.
+    The forthcoming dictionary &ldquo;By Movement System&rdquo; view
+    will group all members of each axis together.
+  </p>
+</div>
+
+{{! ── Surface B: Advanced Decomposition & Operator Theory ─────────────
+    Optional reference layer. Carries the structural-decomposition
+    view of the modifiers above plus the four reference subsections
+    the decomposition diagnostic and the formula table depend on.
+    Anchors preserved (id="modifier-reference", id="intermediate-
+    operators", id="execution-mechanics", id="set-modifiers-tier-1",
+    and per-entry `term-{slug}`). }}
+<section class="glossary-advanced-reference-group">
+  <h3 class="section-heading" id="advanced-decomposition-operator-theory">
+    Advanced Decomposition &amp; Operator Theory
+    <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
+  </h3>
+  <p>
+    Optional reference layer. Structural readings of the modifiers
+    above plus the compositional vocabulary used in equivalence chains,
+    formula derivations, and operational-notation analysis.
+  </p>
+
+  <h4 class="section-heading" id="modifier-reference">Body modifier reference</h4>
+  <p>Structural definitions for the body-modifier cohort. The connective panels in &sect;9 surface each term's relationship to specific tricks.</p>
+  <dl class="glossary-modifier-reference">
+    <dt id="term-stepping">Stepping</dt>
+    <dd>A foot-relocation modifier. The kicking foot relocates mid-trick, producing a stepping effect. Stacks with most bases. Stepping + butterfly = ripwalk.</dd>
+    <dt id="term-paradox">Paradox</dt>
+    <dd>
+      A hip pivot between two dexes on the same set. +1 body modifier. The set leaves and returns to the same foot while the body changes sides in between.
+      <span class="glossary-paradox-formula">Formula: <code class="notation-display-tokens"><span class="notation-token notation-modifier">PDX</span> &rarr; <span class="notation-token notation-surface">CLIP</span> &gt; <span class="notation-token notation-positional">OP IN</span> <span class="notation-token notation-dex">[DEX]</span></code> &mdash; clipper set, then a far in-out dex.</span>
+      <a href="#glossary-panel-paradox">See connective panel</a>.
+    </dd>
+    <dt id="term-spinning">Spinning</dt>
+    <dd>A full-body 360&deg; rotation carried through the dex moment. +1 body modifier. Pairs with gyro (180&deg;) for arbitrary degrees. <a href="#glossary-panel-spinning">See connective panel</a>.</dd>
+    <dt id="term-ducking">Ducking</dt>
+    <dd>A head dip that lets the bag pass around the neck. +1 body modifier; one member of a four-way family (ducking / weaving / diving / zulu) defined by head direction and the side the bag falls. <a href="#glossary-panel-ducking">See connective panel</a>.</dd>
+    <dt id="term-symposium">Symposium</dt>
+    <dd>A no-plant leg discipline: the support leg stays off the ground during the dex. +1 body modifier. Often stacks with paradox (the &ldquo;PS X&rdquo; shorthand).</dd>
+    <dt id="term-cross-body">Cross-body</dt>
+    <dd>A general descriptor for tricks (and components) where the active foot or dex crosses the body's center line. ADD category XBD covers cross-body components.</dd>
+  </dl>
+
+  <h4 class="section-heading" id="intermediate-operators">Intermediate operators &mdash; decomposition reference</h4>
+  <p>Operators that decompose into combinations of other operators and Tier-1 primitives. Each entry shows its one-line meaning, its semantic decomposition where known, and worked examples. Entries flagged <em>pending</em> are under curator review. See also the <a href="/freestyle/sets">set notation reference</a> for the operational forms these operators produce.</p>
+<dl class="glossary-intermediate-operators">
+  {{#each content.intermediateOperators}}
+  <dt id="term-{{slug}}">
+    {{name}}
+    {{#if curatorConfirmPending}}<span class="glossary-operator-pending-flag">pending</span>{{/if}}
+  </dt>
+  <dd>
+    <p class="glossary-operator-meaning">{{oneLineMeaning}}</p>
+    {{#if decomposition}}
+    <p class="glossary-operator-decomposition"><span class="glossary-operator-decomposition-label">Decomposes as:</span> {{decomposition}}</p>
+    {{/if}}
+    {{#if pendingNote}}
+    <p class="glossary-operator-pending-note">{{pendingNote}}</p>
+    {{/if}}
+    {{#if workedExamples.length}}
+    <p class="glossary-operator-examples">{{#each workedExamples}}{{#unless @first}} &middot; {{/unless}}<em>{{this}}</em>{{/each}}</p>
+    {{/if}}
+    <p class="glossary-operator-lineage">{{lineageNote}}</p>
+  </dd>
+  {{/each}}
+</dl>
+
+<h3 class="section-heading" id="execution-mechanics">Execution mechanics</h3>
+<p class="freestyle-section-sub">Mechanical details that operator names alone don't capture.</p>
+<dl class="glossary-execution-mechanics">
+  <dt id="term-alpine">Alpine</dt>
+  <dd>Divides a trick between its uptime and downtime, inserting a duck or dive between them. Alpine Ripwalk = Stepping Ducking Butterfly.</dd>
+
+  <dt id="term-symposium-mech">Symposium (mechanic)</dt>
+  <dd>A component where an active leg performs an action in a single-leg jump: the symposium leg jumps and lands on its own while the other leg remains in the air.</dd>
+
+  <dt id="term-symple">Symple</dt>
+  <dd>Starts symposium, but mid-component the non-symple foot returns to the ground. Naturally suits some compositions (e.g., Symp Legover). The shorthand <em>symp</em> can refer to either symposium or symple, whichever the component would naturally be done as.</dd>
+
+  <dt id="term-muted">Muted</dt>
+  <dd>An active leg held in the air for an entire component without planting. Mostly used for dexes, but applies to other components too.</dd>
+</dl>
+
+<h3 class="section-heading" id="set-modifiers-tier-1">Set modifiers (not core tricks)</h3>
+<p>
+  Set modifiers are structural treatments applied <em>to</em> a base
+  trick, not bases themselves. See the
+  <a href="/freestyle/sets">set notation reference</a> for the full
+  vocabulary.
+</p>
+<div class="glossary-set-modifiers-grid">
+  {{#each content.setModifiers}}
+  <article class="set-modifier-card" id="term-{{slug}}">
+    <p class="set-modifier-head">
+      <span class="set-modifier-name">{{name}}</span>
+      {{#if glyph}}<span class="set-modifier-glyph">{{glyph}}</span>{{/if}}
+    </p>
+    <p class="set-modifier-meaning">{{oneLineMeaning}}</p>
+    {{#if decomposition}}
+    <p class="set-modifier-decomposition"><span class="set-modifier-decomp-sigil">&equiv;</span> {{decomposition}}</p>
+    {{/if}}
+    {{#if href}}
+    <a class="set-modifier-deeplink" href="{{href}}" aria-label="Notation reference">&rarr;</a>
+    {{/if}}
+  </article>
+  {{/each}}
+</div>
+</section>
