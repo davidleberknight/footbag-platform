@@ -113,17 +113,42 @@ form the **recommended first observational staging batch**.
 
 ## Recommended first-batch actions
 
-### Batch A — Alias governance pass (21 rows)
+### Batch A — Alias governance pass (21 rows → 1 ship-now + 5 review-required)
 
-For each PB-only-name + IFPA-formula-match, add the PB name as an
-alias on the corresponding IFPA canonical row. Surfaces:
+**Survey finding (2026-05-18):** of the 21 alias candidates surfaced
+by the alignment CSV, **13 are already in `freestyle_trick_aliases`**
+(loaded under prior `curated-v1` + `red-husted-2026-04-20` sources).
+The matcher categorized them as `agree_formula_name_differs` because
+it doesn't read existing aliases. Effective scope is much smaller:
 
-- `freestyle_trick_aliases` table (alias_slug + alias_text +
-  parent slug)
-- Alias-governance under V1 §4 (mapped, not silently ignored)
+| Status | Count | Action |
+|---|---:|---|
+| Already in DB | 13 | No action — alias already in `freestyle_trick_aliases` |
+| HIGH-confidence missing | 1 | Ship now: Gravedigger → grave-digger (trivial whitespace) |
+| MEDIUM/LOW confidence | 5 | Defer to `batch_a_curator_review_queue.csv` |
 
-Risk: low. Reversible. No new canonical rows; no contract gate
-required beyond alias governance.
+**Ship-now scope** (1 row appended to `legacy_data/inputs/noise/trick_aliases.csv`):
+
+```
+gravedigger,grave digger
+```
+
+The trick-dictionary loader (`legacy_data/event_results/scripts/17_load_trick_dictionary.py`)
+will pick up the new alias under `source_id='curated-v1'` on next
+pipeline run (DELETE+INSERT scope means re-runs are idempotent).
+
+**Deferred candidates** (`batch_a_curator_review_queue.csv` — 5 rows):
+
+| PB name | IFPA slug | Confidence | Reason |
+|---|---|---|---|
+| Barfry | matador | MEDIUM | Non-obvious mapping; verify |
+| Catacomb | smoke | LOW | Unusual semantic distance; verify |
+| PLO | magellan | LOW | PLO commonly = Paradox Leg-Over (different IFPA slug); verify |
+| Sidwalk | ripwalk | LOW | Likely TYPO of "Sidewalk" (distinct canonical trick); reject unless curator confirms |
+| Tapdown | atomic-butterfly | LOW | Non-obvious; verify |
+
+Risk: low (1 ship-now + 5 queued for review). Reversible. No new
+canonical rows; no contract gate required beyond alias governance.
 
 ### Batch B — Observational pilot seed (71 safe rows)
 
