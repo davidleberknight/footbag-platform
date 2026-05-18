@@ -595,17 +595,17 @@ describe('GET /freestyle — onboarding + portal landing', () => {
   });
 
   it('renders the operator board on the landing page', async () => {
-    // Slice K (2026-05-16): "Where to go next" orientation block was
-    // retired; the operator board still renders on landing. This test
-    // previously pinned the board's position relative to that block;
-    // now it just confirms the board itself is present and below the
-    // featured strip.
+    // 2026-05-18 reorganization v2: the Operator Board is identity-
+    // defining and sits near the top of the page (after orientation +
+    // jump-nav, before the portal cards + featured strip). Position
+    // invariant flipped from the post-Slice-K shape: board now precedes
+    // the featured section rather than following it.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const featuredIdx = res.text.indexOf('id="featured"');
     const boardIdx    = res.text.indexOf('class="operator-board');
-    expect(featuredIdx).toBeGreaterThan(0);
-    expect(boardIdx).toBeGreaterThan(featuredIdx);
+    expect(boardIdx).toBeGreaterThan(0);
+    expect(featuredIdx).toBeGreaterThan(boardIdx);
   });
 
   // ── Operator-card deep-links: one restrained destination per operator ──

@@ -518,14 +518,15 @@ describe('Set-notation reference cross-links', () => {
   });
 
   it('landing page renders a restrained "Full set notation reference" footer under the operator board', async () => {
-    // Slice K (2026-05-16): "Where to go next" orientation block was
-    // retired; the footer-after-board position-invariant is now
-    // expressed against the portal-card grid that comes after.
+    // Slice K (2026-05-16): "Where to go next" orientation block retired.
+    // 2026-05-18 reorganization v2: Operator Board is identity-defining
+    // and sits near the top (immediately after orientation + jump-nav),
+    // ABOVE the portal cards. So the positional invariant matches the
+    // pre-reorg shape: board → footer → portal cards.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="operator-board-footer-link"');
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
-    // Footer renders after the operator board and before the portal cards.
     const boardIdx        = res.text.indexOf('class="operator-board ');
     const footerIdx       = res.text.indexOf('class="operator-board-footer-link"');
     const portalCardsIdx  = res.text.indexOf('Tutorials &amp; Learning');
@@ -1540,17 +1541,26 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).not.toContain('The Freestyle Reference');
   });
 
-  it('landing surfaces top-of-page reference shortcuts to glossary + trick dictionary', async () => {
-    // Slice K (2026-05-16): "Where to go next" three-link orientation
-    // block was retired. The replacement is a compact top-of-page
-    // reference jump (.freestyle-top-reference-jump) immediately below
-    // the hero, with shortcuts to the trick dictionary + glossary.
-    // The /freestyle/sets link still appears elsewhere on the page
-    // (e.g., operator-board footer).
+  it('landing surfaces Trick Dictionary + Glossary CTAs (now via portal cards, not the retired top-reference-jump nav)', async () => {
+    // History: the original "Where to go next" three-link orientation
+    // block was retired in Slice K (2026-05-16) in favor of a compact
+    // top-of-page reference jump (.freestyle-top-reference-jump).
+    // 2026-05-18 landing reorganization removed the top-reference-jump
+    // band per Dave audit #16 (DRY violation — portal cards below
+    // already carry Dictionary + Glossary CTAs). The contract these
+    // assertions enforce is now about reachability of those CTAs from
+    // the landing, regardless of which surface carries them.
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('class="freestyle-top-reference-jump"');
-    expect(res.text).toMatch(/<a class="freestyle-top-reference-link" href="\/freestyle\/tricks">/);
-    expect(res.text).toMatch(/<a class="freestyle-top-reference-link" href="\/freestyle\/glossary">/);
+    // Top-reference-jump nav band must be gone (DRY fix).
+    expect(res.text).not.toContain('class="freestyle-top-reference-jump"');
+    expect(res.text).not.toMatch(/<a class="freestyle-top-reference-link"/);
+    // Trick Dictionary + Glossary CTAs are now reachable via the
+    // portal cards.
+    expect(res.text).toContain('href="/freestyle/tricks"');
+    expect(res.text).toContain('href="/freestyle/glossary"');
+    expect(res.text).toContain('Browse the trick dictionary');
+    expect(res.text).toContain('Open glossary');
+    // /freestyle/sets link still appears (operator-board footer).
     expect(res.text).toContain('href="/freestyle/sets"');
     // The retired "Where to go next" heading must not appear.
     expect(res.text).not.toContain('Where to go next');
