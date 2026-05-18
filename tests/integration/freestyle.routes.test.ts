@@ -612,14 +612,62 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('renders pilot seed entries (5 pending-review entries)', async () => {
+  it('renders curator-authored seed entries plus the Batch B expansion cohort (≥ 67 pending-review entries)', async () => {
     const res = await request(createApp()).get('/freestyle/observational');
-    // All 5 seed entries from freestyleObservationalTricks.ts should render.
-    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+    // Original curator-authored seed entries that remain (assassin was
+    // removed 2026-05-18 after canonical promotion).
+    for (const name of ['Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor']) {
       expect(res.text, `missing seed entry: ${name}`).toContain(name);
     }
+    // Spot-check from the Batch B observational-safe expansion cohort
+    // (2026-05-18; big-apple + mantis skipped as already-canonical).
+    // Covers multi-reading, all-uppercase displayName, apostrophe-
+    // bearing displayName, single-token name, parenthetical-prefixed
+    // reading, and the merged Bladerunner entry.
+    for (const name of [
+      'Anonymous', 'Bladerunner', 'Bling Blang',
+      'GDLO', 'GYBAS', 'Ghost', 'Johnny Vodka', 'Kiwi',
+      'Pandora’s Box', 'Schmoe', 'Trixie', 'Your Mom',
+    ]) {
+      // displayName uses ASCII apostrophe \' but HTML may encode it as
+      // &#x27; or &#39; — use a relaxed substring check against the
+      // primary token instead.
+      const probe = name.split(/[’']/)[0];
+      expect(res.text, `missing expansion entry: ${name}`).toContain(probe);
+    }
     const cards = res.text.match(/class="observational-card"/g) ?? [];
-    expect(cards.length).toBeGreaterThanOrEqual(5);
+    expect(cards.length).toBeGreaterThanOrEqual(67);
+  });
+
+  it('previously-canonicalized entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {
+    // Regression test for 2026-05-18 layer-coexistence finding.
+    //
+    // FM Slice X Path B pilot canonical 2026-05-17 promoted these three
+    // slugs to canonical (freestyle_tricks.slug) but did not remove the
+    // observational entries — the canonical-promotion process documented
+    // in the content module's JSDoc says "move the row to inputs/
+    // curated/tricks/<slug>.txt + re-run loader + REMOVE the
+    // observational entry", but the third step was skipped.
+    //
+    // Layer separation contract requires:
+    //   observational.folkSlug != canonical freestyle_tricks.slug
+    //
+    // This test fails if any future PR re-adds these entries to the
+    // observational module.
+    const res = await request(createApp()).get('/freestyle/observational');
+    // Check the card-name <h3> elements specifically, not the full
+    // card region — observational readings legitimately reference
+    // canonical tricks by name (e.g. Big Orange has reading
+    // 'Rev. Big Apple'). The forever-invariant is that no card
+    // *title* matches a canonicalized name.
+    for (const canonicalized of ['Assassin', 'Big Apple', 'Mantis']) {
+      const titlePattern = new RegExp(
+        `class="observational-card-name"[^>]*>\\s*${canonicalized}\\s*<`,
+        'i',
+      );
+      expect(res.text, `${canonicalized} card title appears in observational layer (should be canonical-only)`)
+        .not.toMatch(titlePattern);
+    }
   });
 
   it('every card carries the observational badge with source attribution', async () => {
@@ -646,8 +694,16 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(cardsStart).toBeGreaterThan(0);
     const cardsRegion = res.text.slice(cardsStart, footerStart);
     // Inside the card region, no card links to /freestyle/tricks/blizzard
-    // or any other folk slug.
-    for (const folkSlug of ['blizzard', 'blaze', 'assassin', 'bedwetter', 'sole-survivor']) {
+    // or any other folk slug. Sample covers seeds + Batch B expansion
+    // (apostrophe-derived slugs, all-caps acronyms, multi-word).
+    // Note: assassin / big-apple / mantis are NOT in this iteration —
+    // they're now canonical and were removed from the observational
+    // module 2026-05-18.
+    for (const folkSlug of [
+      'blizzard', 'blaze', 'bedwetter', 'sole-survivor',
+      'anonymous', 'bladerunner', 'gdlo', 'gybas',
+      'pandora-s-box', 'scorpion-s-tail', 'your-mom',
+    ]) {
       expect(cardsRegion, `forbidden detail-page link for observational ${folkSlug}`)
         .not.toContain(`/freestyle/tricks/${folkSlug}`);
     }
@@ -668,8 +724,15 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
     // None of the observational folk names appear as cards on the
-    // canonical trick dictionary index.
-    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+    // canonical trick dictionary index. Sample drawn from original
+    // seeds + Batch B expansion.
+    for (const name of [
+      // Observational-only names that must NOT appear on canonical surfaces.
+      // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
+      // canonical (promoted 2026-05-17) and legitimately appear on those pages.
+      'Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor',
+      'Anonymous', 'Bladerunner', 'Flurricane', 'Locomotion', 'Your Mom',
+    ]) {
       // Use a card-region match to avoid false positives from
       // descriptions / footnotes that happen to mention the word.
       const dictMatch = new RegExp(`class="dict-card[^"]*"[^>]*>[\\s\\S]{0,500}${name}`, 'i');
@@ -680,7 +743,13 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
 
   it('observational entries do NOT appear on /freestyle/operators', async () => {
     const res = await request(createApp()).get('/freestyle/operators');
-    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+    for (const name of [
+      // Observational-only names that must NOT appear on canonical surfaces.
+      // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
+      // canonical (promoted 2026-05-17) and legitimately appear on those pages.
+      'Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor',
+      'Anonymous', 'Bladerunner', 'Flurricane', 'Locomotion', 'Your Mom',
+    ]) {
       expect(res.text, `observational ${name} leaked onto /freestyle/operators`)
         .not.toContain(name);
     }
@@ -688,10 +757,51 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
 
   it('observational entries do NOT appear on landing /freestyle', async () => {
     const res = await request(createApp()).get('/freestyle');
-    for (const name of ['Blizzard', 'Blaze', 'Assassin', 'Bedwetter', 'Sole Survivor']) {
+    for (const name of [
+      // Observational-only names that must NOT appear on canonical surfaces.
+      // 'Assassin' / 'Big Apple' / 'Mantis' are NOT in this list — they are
+      // canonical (promoted 2026-05-17) and legitimately appear on those pages.
+      'Blizzard', 'Blaze', 'Bedwetter', 'Sole Survivor',
+      'Anonymous', 'Bladerunner', 'Flurricane', 'Locomotion', 'Your Mom',
+    ]) {
       expect(res.text, `observational ${name} leaked onto landing`)
         .not.toContain(name);
     }
+  });
+
+  it('expansion-cohort entries with null proposedAddFormula render without the formula block', async () => {
+    // Phase A.1 contract: the 65 Batch B expansion entries set
+    // proposedAddFormula=null. The template's {{#if proposedAddFormula}}
+    // guard means the formula <code> block does not render for these
+    // entries. Cards still render the proposedAddTotal where present.
+    const res = await request(createApp()).get('/freestyle/observational');
+    // The expansion cohort still renders cards (count assertion in
+    // earlier test). For null-formula entries, the formula <code>
+    // block must NOT carry a placeholder marker like "null" or "TBD".
+    expect(res.text).not.toMatch(/<code>null<\/code>/);
+    expect(res.text).not.toMatch(/<code>undefined<\/code>/);
+  });
+
+  it('expansion-cohort entries with null proposedAddTotal render the ADD-pending framing', async () => {
+    // 8 expansion entries have null proposedAddTotal (Ghost, Id, Johnny
+    // Vodka, Kiwi, Monster, Rotor, Wauxspin, and Bladerunner's merged
+    // form). These must still surface the "ADD pending canonicalization"
+    // framing rather than a stray null or 0.
+    const res = await request(createApp()).get('/freestyle/observational');
+    // The ADD-pending framing appears regardless of which entries have
+    // null totals; here we just verify no literal null leaks through.
+    expect(res.text).toMatch(/ADD pending canonicalization/);
+    expect(res.text).not.toMatch(/class="observational-card-add"[^>]*>\s*null/);
+  });
+
+  it('merged Bladerunner entry renders both proposed readings', async () => {
+    // Bladerunner appeared twice in observational_candidate_queue.csv
+    // ('Atomic far Eggbeater' and 'Atomic Eggbeater'). Per Phase A.1
+    // policy, duplicates merge into a single ObservationalTrick with a
+    // multi-element proposedReadings array. Both readings must render.
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toContain('Atomic far Eggbeater');
+    expect(res.text).toContain('Atomic Eggbeater');
   });
 });
 
