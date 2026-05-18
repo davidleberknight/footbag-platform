@@ -7,7 +7,7 @@
  * Three exports:
  *   - BASIC_COMPONENTS — six conceptual primitives per the PassBack glossary
  *     (Contact / Set / Dex / Spin / Duck / Delay). Dex carries sub-fields.
- *   - CORE_TRICK_SPEC — eleven irreducible base-trick slugs with their
+ *   - CORE_TRICK_SPEC — twelve irreducible base-trick slugs with their
  *     canonical `≡` equivalence readings. ADD values are joined from
  *     `freestyle_tricks` at service-shape time; this file does not encode
  *     ADD values to prevent drift.
@@ -100,7 +100,7 @@ export interface CoreTrickSpec {
   equivalences:  readonly string[];   // empty for atoms with no canonical reading
 }
 
-// Eleven irreducible core tricks per the curator-authoritative atom registry
+// Twelve irreducible core tricks per the curator-authoritative atom registry
 // (project_freestyle_core_atoms) and FREESTYLE_IA_REALIGNMENT_PLAN.md C-2.
 //
 // SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 / B (2026-05-14): all
@@ -135,6 +135,7 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   // its numeric ADD value displays as em-dash via the addPending path
   // until the canonical row lands, while the formula provides the
   // structural reading.
+  { slug: 'toe-stall',        equivalences: ['core atom — foundational single-stall primitive', 'stall(1) = 1 ADD'] },
   { slug: 'clipper-stall',    displaySlug: 'clipper', equivalences: ['core atom — inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'] },
   { slug: 'mirage',           equivalences: ['core atom — cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'] },
   { slug: 'legover',          equivalences: ['core atom — dex over the supporting leg',         'dex(1) + stall(1) = 2 ADD'] },

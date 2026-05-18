@@ -911,9 +911,9 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
-    // 11 atoms × 2 readings = 22 total ≡ lines.
+    // 12 atoms × 2 readings = 24 total ≡ lines.
     const equivMatches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(equivMatches.length).toBe(22);
+    expect(equivMatches.length).toBe(24);
     // Prose readings (Formula Accountability Slice contract preserved):
     expect(slice).toMatch(/core atom — cross-body rotational dex/);
     expect(slice).toMatch(/core atom — rotational dex/);

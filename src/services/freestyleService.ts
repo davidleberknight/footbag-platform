@@ -278,7 +278,7 @@ export interface FreestyleDemoVideo {
 // ── The Language of Freestyle Footbag — landing intro structure ───────────
 // Per the IA realignment plan, the landing intro replaces a prose paragraph
 // block with a Basic Components grid (Contact / Set / Dex / Spin / Duck /
-// Delay) and a Core Tricks grid (eleven irreducible base tricks rendered as
+// Delay) and a Core Tricks grid (twelve irreducible base tricks rendered as
 // compact symbolic objects). The shapes below are view-model types only; the
 // canonical sources are PassBack glossary (Basic Components labels + Dex
 // sub-fields) and `freestyle_tricks` / `freestyle_trick_aliases` (Core

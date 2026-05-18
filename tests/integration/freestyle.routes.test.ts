@@ -2217,14 +2217,14 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
   it('Core Tricks grid still renders each card with the .core-trick-object class', async () => {
     const res = await request(createApp()).get('/freestyle');
     const matches = res.text.match(/class="core-trick-object"/g) ?? [];
-    // Eleven canonical core tricks.
-    expect(matches.length).toBe(11);
+    // Twelve canonical core tricks.
+    expect(matches.length).toBe(12);
   });
 
   it('each Core Tricks card carries the .core-trick-slug element (PRIMARY layer)', async () => {
     const res = await request(createApp()).get('/freestyle');
     const matches = res.text.match(/class="core-trick-slug"/g) ?? [];
-    expect(matches.length).toBe(11);
+    expect(matches.length).toBe(12);
   });
 
   it('Core Tricks cards carry editorial atom readings + foundational ADD formulas', async () => {
@@ -2237,7 +2237,7 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
     // (where each ADD comes from). Orbit is treated as the curator-
     // confirmed alias for reverse around-the-world (pending DB
     // canonicalization, not Wave-2 blocked) and carries the same
-    // 2-reading shape. 11 atoms × 2 readings = 22 total
+    // 2-reading shape. 12 atoms × 2 readings = 24 total
     // .core-trick-equivalence lines.
     const res = await request(createApp()).get('/freestyle');
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
@@ -2245,7 +2245,7 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
     const matches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(matches.length).toBe(22);
+    expect(matches.length).toBe(24);
   });
 
   it('orbit card carries the pending-state marker (QUATERNARY layer in pending state)', async () => {
