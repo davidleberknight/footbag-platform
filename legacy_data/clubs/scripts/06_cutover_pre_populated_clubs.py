@@ -222,6 +222,46 @@ def main() -> int:
             )
             return 1
 
+        # Preflight: detect missing seed-CSV rows for eligible candidates
+        # BEFORE any writes. Without this, the main loop below partially
+        # commits clubs + tags + mapped_club_id stamps for eligible
+        # candidates that DO have seed rows, then returns 1 at the end with
+        # the missing ones reported — leaving the DB in a half-cutover
+        # state (some pre_populate clubs exist, some don't). Fail-fast here
+        # keeps Phase H writes atomic across the bootstrap-eligible cohort.
+        preflight_missing_seed: list[str] = []
+        for _legacy_key, _, _, _, _bootstrap_eligible, _ in all_candidates:
+            if not _bootstrap_eligible:
+                continue
+            _club_id = stable_id("club", _legacy_key)
+            _club_exists = con.execute(
+                "SELECT 1 FROM clubs WHERE id = ?", (_club_id,)
+            ).fetchone() is not None
+            if not _club_exists and _legacy_key not in seed_by_key:
+                preflight_missing_seed.append(_legacy_key)
+
+        if preflight_missing_seed:
+            print(
+                f"ERROR: {len(preflight_missing_seed)} eligible candidate(s) "
+                f"missing from seed CSV ({SEED_CSV}):",
+                file=sys.stderr,
+            )
+            for k in preflight_missing_seed[:10]:
+                print(f"    {k}", file=sys.stderr)
+            if len(preflight_missing_seed) > 10:
+                print(
+                    f"    ... and {len(preflight_missing_seed) - 10} more",
+                    file=sys.stderr,
+                )
+            print(
+                "       Eligible candidates without seed rows would leave "
+                "mapped_club_id NULL, which FK-fails downstream in "
+                "07_load_bootstrap_leaders.py. Resolve the seed/clubs.csv "
+                "gap before re-running. No partial writes performed.",
+                file=sys.stderr,
+            )
+            return 1
+
         # Prime slug-collision space for the fallback INSERT path.
         existing_tags = {
             r[0]

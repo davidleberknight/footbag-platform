@@ -48,9 +48,31 @@ def db() -> sqlite3.Connection:
 
 def _seed_prereqs(conn: sqlite3.Connection) -> None:
     """Insert the minimum FK prerequisites for a legacy_person_club_affiliations
-    row: one legacy_club_candidates row + one historical_persons row +
-    one legacy_members row. All three target rows reference these.
+    row: one tags row + one clubs row (needed for the resolved_club_id FK
+    target on rows that satisfy the wizard-contract CHECK) + one
+    legacy_club_candidates row + one historical_persons row + one
+    legacy_members row.
     """
+    conn.execute(
+        """
+        INSERT INTO tags (
+          id, created_at, created_by, updated_at, updated_by, version,
+          tag_normalized, tag_display, is_standard, standard_type
+        ) VALUES ('tag-club-test', '2026-01-01T00:00:00Z', 'test',
+                  '2026-01-01T00:00:00Z', 'test', 1,
+                  '#club_test', '#club_test', 1, 'club')
+        """,
+    )
+    conn.execute(
+        """
+        INSERT INTO clubs (
+          id, created_at, created_by, updated_at, updated_by, version,
+          name, city, country, status, hashtag_tag_id
+        ) VALUES ('club-test', '2026-01-01T00:00:00Z', 'test',
+                  '2026-01-01T00:00:00Z', 'test', 1,
+                  'Test Club', 'Testville', 'Testland', 'active', 'tag-club-test')
+        """,
+    )
     conn.execute(
         """
         INSERT INTO legacy_club_candidates (
@@ -199,10 +221,11 @@ def test_explicit_pending_still_works(db: sqlite3.Connection) -> None:
 
 def test_explicit_confirmed_current_still_accepted(db: sqlite3.Connection) -> None:
     """Sanity: 'confirmed_current' remains a valid value in the CHECK
-    constraint. It is just not the loader-time default any more; the
-    onboarding wizard transitions rows from 'pending' to 'confirmed_current'.
-    This guards against a CHECK-constraint regression that would block
-    the wizard's downstream transition.
+    constraint when paired with a non-NULL resolved_club_id (the
+    wizard-contract CHECK locked at the schema layer). It is just not the
+    loader-time default any more; the onboarding wizard transitions rows
+    from 'pending' to 'confirmed_current' AND stamps resolved_club_id in
+    the same transaction.
     """
     _seed_prereqs(db)
     db.execute(
@@ -211,14 +234,42 @@ def test_explicit_confirmed_current_still_accepted(db: sqlite3.Connection) -> No
           (id, created_at, created_by, updated_at, updated_by, version,
            historical_person_id, legacy_member_id,
            legacy_club_candidate_id, inferred_role,
-           confidence_score, resolution_status, display_name)
+           confidence_score, resolution_status, resolved_club_id, display_name)
         VALUES ('lpca-E', '2026-01-01T00:00:00Z', 'wizard',
                 '2026-01-01T00:00:00Z', 'wizard', 1,
                 'hp-test', NULL, 'lcc-test', 'member', 1.0, 'confirmed_current',
-                'Wizard-confirmed Person')
+                'club-test', 'Wizard-confirmed Person')
         """,
     )
     row = db.execute(
-        "SELECT resolution_status FROM legacy_person_club_affiliations WHERE id='lpca-E'"
+        "SELECT resolution_status, resolved_club_id "
+        "FROM legacy_person_club_affiliations WHERE id='lpca-E'"
     ).fetchone()
     assert row[0] == 'confirmed_current'
+    assert row[1] == 'club-test'
+
+
+def test_confirmed_current_without_resolved_club_id_rejected(
+    db: sqlite3.Connection,
+) -> None:
+    """The schema CHECK locks the wizard contract: a row with
+    resolution_status='confirmed_current' MUST carry a non-NULL
+    resolved_club_id. This test asserts the CHECK fires on the bug
+    pattern (wizard transitions to confirmed_current but forgets to
+    stamp resolved_club_id), preventing the half-promoted-row state.
+    """
+    _seed_prereqs(db)
+    with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+        db.execute(
+            """
+            INSERT INTO legacy_person_club_affiliations
+              (id, created_at, created_by, updated_at, updated_by, version,
+               historical_person_id, legacy_member_id,
+               legacy_club_candidate_id, inferred_role,
+               confidence_score, resolution_status, resolved_club_id, display_name)
+            VALUES ('lpca-bug', '2026-01-01T00:00:00Z', 'wizard',
+                    '2026-01-01T00:00:00Z', 'wizard', 1,
+                    'hp-test', NULL, 'lcc-test', 'member', 1.0, 'confirmed_current',
+                    NULL, 'Buggy Wizard Insert')
+            """,
+        )

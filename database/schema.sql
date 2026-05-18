@@ -3390,7 +3390,18 @@ CREATE TABLE legacy_person_club_affiliations (
   display_name     TEXT,
   notes            TEXT,
 
-  CHECK(historical_person_id IS NOT NULL OR legacy_member_id IS NOT NULL)
+  CHECK(historical_person_id IS NOT NULL OR legacy_member_id IS NOT NULL),
+  -- Wizard contract: a row marked 'confirmed_current' MUST carry a
+  -- resolved_club_id pointing at the live clubs row. The onboarding wizard
+  -- transitions rows from 'pending' to 'confirmed_current' and is required
+  -- to stamp resolved_club_id at the same time (via the planned
+  -- ClubService.promoteFromCandidate helper per MIGRATION_PLAN §9.3).
+  -- This CHECK locks the contract at the schema layer so a future wizard
+  -- bug can't leave a half-promoted row.
+  CHECK (
+    resolution_status != 'confirmed_current'
+    OR resolved_club_id IS NOT NULL
+  )
 );
 
 CREATE INDEX idx_legacy_person_club_affiliations_member
