@@ -592,7 +592,7 @@ def build_row(
         "blurry-torque":"Red 2026-05-15: Blurry Torque = Stepping Paradox Torque = 6 ADD.",
         "food-processor":"Red 2026-05-15: Food Processor = Stepping Paradox Blender = 6 ADD.",
         "atom-smasher": "Red 2026-05-15: Atom Smasher carries X-dex like paradox from a toe.",
-        "double-spin":  "Reclassified as modifier 2026-05-19 emergency slice; no longer a canonical trick row.",
+        "double-spin":  "2026-05-19 emergency slice added to freestyleTrickKindOverrides.ts: filtered from canonical TRICK browse views (ADD / family / movement-system / topology / category); DB row stays active for operator-layer surfaces (glossary / movement-system as modifier). Body primitive per CANONICALIZATION_POLICY.md §C + §10 (Red pt3 stabilized); does not require operational notation.",
         "tomahawk":     "Pre-Red sweep 2026-05-16 removed UNRESOLVED_COMPOUNDS pill; FM='Ducking Paradox Whirl', PB='Clipper Ducking far Whirl'.",
     }
     if slug in companion_notes:
