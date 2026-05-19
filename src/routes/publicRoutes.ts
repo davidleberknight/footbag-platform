@@ -184,6 +184,7 @@ publicRouter.get('/register/wizard/legacy_claim/claim/confirm/:token',  requireA
 publicRouter.post('/register/wizard/legacy_claim/claim/confirm',        requireAuth, memberOnboardingController.postLegacyClaimTokenConfirm);
 publicRouter.post('/register/wizard/first_competition_year/submit',     requireAuth, memberOnboardingController.postFirstCompetitionYearSubmit);
 publicRouter.post('/register/wizard/show_competitive_results/submit',   requireAuth, memberOnboardingController.postShowCompetitiveResultsSubmit);
+publicRouter.post('/register/wizard/club_affiliations/submit',          requireAuth, memberOnboardingController.postClubAffiliationsSubmit);
 publicRouter.post('/register/wizard/:taskType/skip',                    requireAuth, memberOnboardingController.postSkip);
 publicRouter.get('/register/wizard/complete',                           requireAuth, memberOnboardingController.getComplete);
 publicRouter.get('/register/wizard/:taskType',                          requireAuth, memberOnboardingController.getTask);

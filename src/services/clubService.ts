@@ -25,6 +25,7 @@
  *
  * Persistence:
  *   clubs, clubs_open, clubs_all, club_leaders, club_bootstrap_leaders,
+ *   legacy_club_candidates, legacy_person_club_affiliations,
  *   member_club_affiliations, members, tags, news_items,
  *   audit_entries, outbox_emails, work_queue_items.
  *
@@ -43,9 +44,13 @@ import {
   clubs,
   clubBootstrapLeaders,
   clubLeaders,
+  legacyClubCandidates,
+  legacyPersonClubAffiliations,
   memberClubAffiliations,
   transaction,
   type ClubBootstrapLeaderRow,
+  type LegacyClubCandidateRow,
+  type LegacyPersonClubAffiliationRow,
 } from '../db/db';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
@@ -840,11 +845,13 @@ export class ClubService {
       }
 
       // TEMP-DEVIATION: listMembersByClubId includes resolution_status='pending'.
-      // Current: loader-imported affiliations land in 'pending' and stay there
-      //   until the onboarding wizard ships, so including 'pending' is the
-      //   only way to surface real affiliations on the club detail page today.
-      // Target: drop 'pending' from the filter once the onboarding wizard
-      //   confirms affiliations and migrates them to 'confirmed_current'.
+      // Current: confirmAffiliation transitions rows for onboarding members,
+      //   but non-onboarding members' rows stay 'pending' indefinitely;
+      //   including 'pending' is the only way to surface those legacy
+      //   affiliations on the club detail page.
+      // Target: drop 'pending' from the filter once an admin bulk-promote
+      //   tool transitions the remaining 'pending' rows to a terminal
+      //   resolution.
       const affiliationRows = clubs.listMembersByClubId.all(row.club_id) as AffiliationRow[];
 
       // Leaders are public per V_Browse_Clubs / M_View_Club: provisional
@@ -885,8 +892,8 @@ export class ClubService {
       // Also tolerates SCHEMA DRIFT — dev DBs that predate the r1-r10 +
       // rule-input columns surface as "no such column" from better-sqlite3
       // at prepare time; treat that as absent rather than 500. Removed when
-      // A_Review_Club_Cleanup_Signals admin queue ships and absorbs this
-      // surface entirely.
+      // A_Periodic_Club_Cleanup admin queue ships and absorbs this surface
+      // entirely.
       let qcPanel: ClubClassificationEvidence | undefined;
       let evidenceRowPresent = false;
       let fallbackQueryApplied = false;
@@ -966,7 +973,7 @@ export class ClubService {
    *
    * All writes happen in a single transaction so a partial failure rolls back.
    */
-  promoteFromCandidate(
+  claimLeadership(
     bootstrapLeaderId: string,
     actorMemberId: string,
   ): {
@@ -975,6 +982,8 @@ export class ClubService {
     clubLeaderId: string | null;
     affiliationId: string | null;
     actualRole: 'leader' | 'co-leader' | null;
+    attemptedRole: 'leader' | 'co-leader';
+    downgradeReason: 'leader_slot_taken' | 'member_already_leader' | 'both' | null;
   } {
     const leader = clubBootstrapLeaders.findById.get(bootstrapLeaderId) as
       | ClubBootstrapLeaderRow
@@ -989,12 +998,14 @@ export class ClubService {
     }
 
     const clubId = leader.club_id;
+    const attemptedRole: 'leader' | 'co-leader' = leader.role;
     const now = new Date().toISOString();
 
     let branch:        'promoted_leader' | 'promoted_co_leader' | 'affiliated_only' | 'idempotent' = 'idempotent';
     let actualRole:    'leader' | 'co-leader' | null = null;
     let clubLeaderId:  string | null = null;
     let affiliationId: string | null = null;
+    let downgradeReason: 'leader_slot_taken' | 'member_already_leader' | 'both' | null = null;
 
     try {
       transaction(() => {
@@ -1030,13 +1041,24 @@ export class ClubService {
           } else {
             // Pre-check downgrade (visible writes by this transaction): if the
             // leader slot is already taken OR this member is already lead of
-            // another club, target co-leader from the start.
-            let targetRole: 'leader' | 'co-leader' = leader.role;
+            // another club, target co-leader from the start. Record which
+            // condition fired so audit metadata can distinguish "club already
+            // has a leader" from "you already lead elsewhere".
+            let targetRole: 'leader' | 'co-leader' = attemptedRole;
             if (targetRole === 'leader') {
               const slotTaken = clubLeaders.hasLeader.get(clubId) as { x: number } | undefined;
               const memberLeads = clubLeaders.memberIsLeaderSomewhere.get(actorMemberId) as
                 | { x: number } | undefined;
-              if (slotTaken || memberLeads) targetRole = 'co-leader';
+              if (slotTaken && memberLeads) {
+                targetRole = 'co-leader';
+                downgradeReason = 'both';
+              } else if (slotTaken) {
+                targetRole = 'co-leader';
+                downgradeReason = 'leader_slot_taken';
+              } else if (memberLeads) {
+                targetRole = 'co-leader';
+                downgradeReason = 'member_already_leader';
+              }
             }
             clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
             try {
@@ -1049,9 +1071,14 @@ export class ClubService {
               // (ux_one_leader_per_club) OR this member became a leader of
               // another club concurrently (ux_one_club_leader_per_member),
               // downgrade to co-leader and re-insert. Only retry once and
-              // only when the original attempt was for 'leader'.
+              // only when the original attempt was for 'leader'. The
+              // downgradeReason for race-retry is recorded as
+              // 'leader_slot_taken' since per-club slot races dominate;
+              // per-member races require a member to be claiming two clubs
+              // in the same instant, which is structurally rare.
               if (!isUniqueViolation(err) || targetRole !== 'leader') throw err;
               targetRole = 'co-leader';
+              downgradeReason ??= 'leader_slot_taken';
               clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
               clubLeaders.insertClubLeader.run(
                 clubLeaderId, now, 'onboarding_service', now, 'onboarding_service',
@@ -1082,7 +1109,150 @@ export class ClubService {
       throw err;
     }
 
-    return { branch, clubId, clubLeaderId, affiliationId, actualRole };
+    return {
+      branch, clubId, clubLeaderId, affiliationId, actualRole,
+      attemptedRole, downgradeReason,
+    };
+  }
+
+  /**
+   * Confirm or decline a legacy affiliation suggestion from the onboarding
+   * wizard's club_affiliations task.
+   *
+   * Behavior:
+   *   - 'confirm' / 'correct' (pending row): atomic transition to
+   *     'confirmed_current' with resolved_club_id stamped (schema CHECK
+   *     enforces both fields move together), plus an insert into
+   *     member_club_affiliations (source='legacy_claim', is_current=1).
+   *   - 'decline' (pending row): transition to 'rejected'. No affiliation
+   *     row written.
+   *   - non-pending row: idempotent no-op; returns the existing
+   *     resolved_club_id if any.
+   *
+   * Scope restriction: only candidates whose parent legacy_club_candidates
+   * row has mapped_club_id IS NOT NULL are confirmable. The wizard does NOT
+   * create clubs (M_Complete_Onboarding_Wizard). 'onboarding_visible'
+   * candidates without a mapped_club_id are filtered out at the wizard
+   * card-listing layer; if one reaches this method directly, it raises
+   * NotFoundError as an anti-enumeration safeguard.
+   *
+   * Concurrent-affiliation safety: if the member already has an
+   * is_current=1 affiliation at another club, member_club_affiliations'
+   * ux_one_current partial unique fires. The new affiliation insert silently
+   * no-ops (existing current wins); the legacy_person_club_affiliations
+   * status still transitions to 'confirmed_current'. Admin remediation via
+   * A_Reassign_Club_Leader handles the rare case where the member meant to
+   * transfer current status.
+   */
+  confirmAffiliation(
+    affiliationRowId: string,
+    actorMemberId: string,
+    userDecision: 'confirm' | 'correct' | 'decline',
+  ): {
+    branch: 'confirmed' | 'declined' | 'idempotent';
+    affiliationRowId: string;
+    resolvedClubId: string | null;
+    newAffiliationId: string | null;
+  } {
+    const affiliation = legacyPersonClubAffiliations.findById.get(affiliationRowId) as
+      | LegacyPersonClubAffiliationRow
+      | undefined;
+    if (!affiliation) {
+      throw new NotFoundError(`Legacy affiliation row not found: ${affiliationRowId}`);
+    }
+
+    // Idempotency: a row already resolved produces a no-op result.
+    if (affiliation.resolution_status !== 'pending') {
+      return {
+        branch:           'idempotent',
+        affiliationRowId,
+        resolvedClubId:   affiliation.resolved_club_id,
+        newAffiliationId: null,
+      };
+    }
+
+    const candidate = legacyClubCandidates.findById.get(affiliation.legacy_club_candidate_id) as
+      | LegacyClubCandidateRow
+      | undefined;
+    if (!candidate) {
+      throw new NotFoundError(
+        `Legacy club candidate not found for affiliation: ${affiliationRowId}`,
+      );
+    }
+    // Anti-enumeration safeguard: a candidate without mapped_club_id (i.e.,
+    // not yet promoted to a real clubs row by the loader) must not reach
+    // this method via the wizard. Surface as NotFoundError with identical
+    // shape to the "row missing" case.
+    if (!candidate.mapped_club_id) {
+      throw new NotFoundError(`Legacy affiliation row not confirmable: ${affiliationRowId}`);
+    }
+    const resolvedClubId = candidate.mapped_club_id;
+
+    if (userDecision === 'decline') {
+      const updated = legacyPersonClubAffiliations.setResolutionStatusRejected.run(
+        'onboarding_service',
+        affiliationRowId,
+      );
+      if (updated.changes === 0) {
+        // Concurrent transition raced ahead. Re-read and surface as idempotent.
+        const after = legacyPersonClubAffiliations.findById.get(affiliationRowId) as
+          | LegacyPersonClubAffiliationRow
+          | undefined;
+        return {
+          branch:           'idempotent',
+          affiliationRowId,
+          resolvedClubId:   after?.resolved_club_id ?? null,
+          newAffiliationId: null,
+        };
+      }
+      return {
+        branch:           'declined',
+        affiliationRowId,
+        resolvedClubId:   null,
+        newAffiliationId: null,
+      };
+    }
+
+    // 'confirm' or 'correct': transition status + stamp resolved_club_id +
+    // insert member_club_affiliations atomically.
+    let newAffiliationId: string | null = null;
+    const now = new Date().toISOString();
+    try {
+      transaction(() => {
+        const updated = legacyPersonClubAffiliations.setResolutionStatusConfirmed.run(
+          resolvedClubId,
+          'onboarding_service',
+          affiliationRowId,
+        );
+        if (updated.changes === 0) {
+          throw new ConflictError(
+            `Legacy affiliation status changed concurrently: ${affiliationRowId}`,
+          );
+        }
+        newAffiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+        try {
+          memberClubAffiliations.insertAffiliation.run(
+            newAffiliationId, now, 'onboarding_service', now, 'onboarding_service',
+            actorMemberId, resolvedClubId,
+          );
+        } catch (err) {
+          if (!isUniqueViolation(err)) throw err;
+          // Already affiliated (or another is_current=1 exists for this
+          // member). Existing affiliation wins; legacy row still transitions.
+          newAffiliationId = null;
+        }
+      });
+    } catch (err) {
+      if (err instanceof ConflictError) throw err;
+      throw err;
+    }
+
+    return {
+      branch:           'confirmed',
+      affiliationRowId,
+      resolvedClubId,
+      newAffiliationId,
+    };
   }
 }
 

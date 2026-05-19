@@ -5,7 +5,7 @@
  *   non-pre_populate clubs. The QC panel is a temporary authoring aid;
  *   it is not a permanent public feature.
  * Target: delete this file and the QC panel rendering when the
- *   A_Review_Club_Cleanup_Signals admin queue is live.
+ *   A_Periodic_Club_Cleanup admin queue is live.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';

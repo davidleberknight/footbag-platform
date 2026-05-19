@@ -112,7 +112,7 @@ This document is the Source of Truth for Functional Requirements, defining all U
     - [A_Mark_Member_Deceased](#a_mark_member_deceased)
     - [A_Manual_Legacy_Claim_Recovery](#a_manual_legacy_claim_recovery)
     - [A_Review_Auto_Link_Matches](#a_review_auto_link_matches)
-    - [A_Review_Club_Cleanup_Signals](#a_review_club_cleanup_signals)
+    - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
   - [6.3 Content Moderation](#63-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
     - [A_Upload_Curated_Media](#a_upload_curated_media)
@@ -726,7 +726,8 @@ Club-affiliation task acceptance criteria:
 - Stage 3 offers name search (entry to dormant revival in Stage 3A). When Stage 3A search yields no match the registrant can claim, the wizard advances to the `club_affiliations` wrap-up landing (see below) rather than ending in place. The wizard itself never creates a new `clubs` row.
 - In Stage 3A name search, when a dormant candidate matches the registrant's query but the registrant chooses path 3 "Different club, same name," the candidate is not marked confirmed or rejected. It remains in `legacy_club_candidates` and searchable for future registrants; the search continues against remaining matches.
 - The `club_affiliations` task progresses through stages sequentially: after every Stage 1 card resolves (confirm, reject, defer, or skip) the wizard advances to Stage 2; after every Stage 2 card resolves the wizard advances to Stage 3. Per-card actions persist immediately; on resume from the dashboard widget, the task re-renders only cards that have no signal recorded yet. Skipping the task transitions the row to `skipped`; resume returns the registrant to the first un-signaled card.
-- Confirmed leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of registrant tier. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants per MIGRATION_PLAN §2 activation paths and §9.1. Clubs may have multiple leaders.
+- Confirmed (or corrected) leadership promotes the bootstrap row (if any) into a live `club_leaders` row regardless of classification strength and regardless of registrant tier. Schema invariants enforce one `role='leader'` per club (`ux_one_leader_per_club`) and one `role='leader'` per member across all clubs (`ux_one_club_leader_per_member`); when either invariant would be violated the wizard transparently downgrades the new row to `role='co-leader'`. The application-level five-leader-per-club cap is enforced; cap-hit claims still affiliate the member but do not insert a `club_leaders` row, and an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. Without a bootstrap row, leadership is offered only to membership Tier 1+ registrants per MIGRATION_PLAN §2 activation paths and §9.1. Clubs may have multiple leaders.
+- Confirming a club affiliation creates a new `member_club_affiliations` row with `source='legacy_claim'`. When the registrant already has an `is_current=1` affiliation at a different club, the schema partial-unique `ux_member_club_affiliations_one_current` blocks the new row's `is_current=1` insert; the legacy affiliation row still transitions to `'confirmed_current'`, but the registrant's current-affiliation status stays with the pre-existing club. Transferring current-affiliation status to the newly confirmed club requires the explicit `M_Join_Club` surface or admin remediation via `A_Reassign_Club_Leader`.
 - Members can detour out of any Stage 1/2/3 club card to `M_Join_Club` or `M_Create_Club` without resolving the current card. Unsignaled cards remain unsignaled and signaled cards retain their signals. On detour, the `club_affiliations` task transitions to `in_progress_paused` in `MemberOnboardingService`; the dashboard task widget surfaces "Resume onboarding" which returns the member to the same card. Detour decisions are audit-logged with member ID, target story, source wizard card, and timestamp.
 - Selecting "Add a club not shown" by a Tier 0 member surfaces a tier-gate advisory before routing: "Creating a club requires IFPA Member (Tier 1) or above, because you'll be the club leader." The advisory offers two paths: "Upgrade to Tier 1 first" routes to `M_Purchase_Tier_1_IFPA_Member`, returning to the advisory on successful upgrade with a "Continue to Create Club" option; "Continue with wizard" returns to the prior card with no state change. The advisory does not block. Tier 1, Tier 2, and Tier 3 members skip the advisory and route directly to `M_Create_Club`.
 - At the end of the `club_affiliations` task, if no `member_club_affiliations` row was written during the wizard run, the wizard's final screen displays a "Find or create your club" landing with three options: "Join an existing club" routes to `M_Join_Club`, "Create a new club" routes to `M_Create_Club` (Tier 0 members see the tier-gate advisory above first), and "Skip for now" completes the wizard with no club affiliation. The dashboard task widget surfaces "Continue onboarding" until the member explicitly dismisses or completes the task.
@@ -850,7 +851,11 @@ Story: As a member, I can leave my current club to be removed from the roster.
 
 Success Criteria:
 
-- Leaving sends an email notification to member, and all Club Leaders.
+- Leaving sets `member_club_affiliations.is_current=0` for the member-club pair.
+- A member who is the sole `role='leader'` of the club cannot leave directly; the UI surfaces the constraint and routes the member to `CL_Manage_CoLeaders` to promote a successor first. The sole-leader rule mirrors the anti-self-removal invariant enforced by `ClubService`.
+- Leaving a club where the member also held a `club_leaders` row removes that leadership row in the same transaction.
+- Leaving sends an email notification to the leaving member and to all current club leaders.
+- The leave action is audit-logged with actor identity, club id, before and after affiliation state, and timestamp.
 
 ### M_View_Club
 
@@ -1498,7 +1503,7 @@ Success Criteria:
 
 - Inactive clubs hidden from public club directory.
 - Inactive clubs still accessible via direct link.
-- Club members retain their clubId affiliation but see warning that club is inactive.
+- Club members' `member_club_affiliations` rows are preserved with `is_current=1`; the club detail surface shows a warning that the club is inactive.
 - Club leader can reactivate club at any time.
 - Inactive status change audit-logged.
 
@@ -1513,7 +1518,7 @@ Success Criteria:
 - Cannot delete club with active members (must remove all members first or mark inactive).
 - Club deletion sets the club's status to 'archived'. Club records are never permanently deleted and do not use the soft-delete (deleted_at) pattern. Archived clubs remain in the database and are excluded from public listings, but are preserved for historical reference and referential integrity.
 - Deleted clubs hidden from all listings immediately.
-- Club members' clubId set to null upon deletion.
+- Each remaining `member_club_affiliations` row for the club has `is_current` set to 0 upon archival; the row is preserved so the historical affiliation is recoverable.
 - Deletion audit-logged with leader ID, reason, timestamp.
 - Leader sees confirmation dialog before deletion.
 
@@ -1528,6 +1533,7 @@ Story: As a club leader, I can add, view, and remove co-leaders so that I manage
 Success Criteria:
 
 - Any leader can add up to 4 co-leaders by member id.
+- Adding a co-leader who currently holds `role='leader'` at another club is permitted; the new `role='co-leader'` row at this club does not affect the member's existing `role='leader'` row at the other club. Only one `role='leader'` per member is enforced (`ux_one_club_leader_per_member`); co-leader roles are not constrained across clubs.
 - System sends email to new leader with key points: club name, responsibilities.
 - Upon acceptance, co-leader gains club information editing permissions.
 - Maximum 5 total leaders per club.
@@ -1661,7 +1667,7 @@ Success Criteria:
 
 - Admin can assign a club leader from the member base (audit-logged).
 - Admin can demote a club leader or co-leader back to ordinary club member, or remove their affiliation entirely (audit-logged with mandatory reason text).
-- Admin can change a member's role between `leader` and `co-leader` within a club (subject to the one-`leader`-per-club schema invariant; demoting the existing leader before promoting the replacement is a single admin transaction).
+- Admin can change a member's role between `leader` and `co-leader` within a club (subject to the one-`leader`-per-club schema invariant `ux_one_leader_per_club` and the one-`leader`-per-member schema invariant `ux_one_club_leader_per_member`; demoting the existing leader of the target club before promoting the replacement is a single admin transaction, and an admin must demote the member from any current `leader` role at another club before promoting them to `leader` at a different club).
 - Admin can override the application-level 5-leader cap when adding a new leader, with an explicit "cap-override" reason recorded in the audit row.
 - Admin can promote an affiliated-only member (one whose wizard claim was capped out) to leader or co-leader at any time.
 - Clubs with zero leaders are flagged "Needs Leader" and appear in an admin work queue.
@@ -1762,36 +1768,56 @@ All resolutions are audit-logged with actor, item type, decision, optional reaso
 
 Note: At registration time, low-confidence cases are handled by an inline user prompt (default no, user must actively opt in). No admin involvement at registration time.
 
-### A_Review_Club_Cleanup_Signals
+### A_Periodic_Club_Cleanup
 
-Access: Admins only.
+Access: Admins only (admin residue queue). The automated cleanup layer runs as a system process with no admin interaction.
 
-Story: As an admin, I can review accumulated cleanup signals on legacy and live club data so that I can resolve flags, approve or reject suggested content edits, resolve duplicate-merge holds, handle junk overrides, and act on unpromoted candidates.
+Story: As an admin, I see only the cleanup items that require human judgment, because a daily automated process resolves unambiguous cases (orphan legacy ids, purged members, inactive onboarding, stale provisional leaders, leaderless live clubs, convergent auto-merge holds) without my involvement. I work through the residual judgment queue at my own cadence; a backlog badge on the admin home page surfaces the count and age of the oldest open item.
 
-Success Criteria:
+Success Criteria — Automated cleanup layer:
 
-- Admin views a single queue aggregating the items described by MIGRATION_PLAN §9.4 admin cleanup queue:
+- A daily background process applies the following transitions without admin involvement. Each transition writes one `audit_entries` row with `actor_type='system'`, `actor_member_id=NULL`, `action_type='auto_cleanup.<predicate>'`, and metadata recording the predicate, the pre-transition state, and the linked entity ids.
+  - `orphan_legacy_id`: `legacy_person_club_affiliations` row with `resolution_status='pending'` whose `legacy_member_id` does not resolve to any `members` row, and the row has been loader-imported for at least 30 days. Transition: `resolution_status='former_only'` (preserves historical fact; no `resolved_club_id` stamp required).
+  - `purged_member`: `legacy_person_club_affiliations` row with `resolution_status='pending'` whose `legacy_member_id` resolves to a `members` row with `personal_data_purged_at IS NOT NULL`. Transition: `resolution_status='former_only'`.
+  - `inactive_onboarding`: `legacy_person_club_affiliations` row with `resolution_status='pending'` whose linked member has a `member_onboarding_tasks` row for `club_affiliations` in state `'completed'` or `'skipped'` for at least 30 days, and the wizard never confirmed this specific candidate. Transition: `resolution_status='former_only'`.
+  - `stale_provisional_leader`: `club_bootstrap_leaders` row with `status='provisional'` whose `legacy_member_id` matches any of the three predicates above, and the row has been provisional for at least 180 days. Transition: `status='superseded'`.
+  - `leaderless_active_club`: live `clubs` row with `status='active'` that has zero `club_leaders` rows AND zero `member_club_affiliations` rows with `is_current=1` for at least 180 days. Transition: `status='inactive'`. The transition is reversible: any future leader claim or current-affiliation insert flips status back to `'active'`. The system enqueues one outbox email per historically-affiliated member (rows with `is_current=0`) notifying them that the club was auto-inactivated; outbox dispatch respects per-recipient daily rate limits. Bulk inactivations are throttled to avoid notification floods.
+  - `convergent_auto_merge`: `legacy_club_candidates` auto-merge hold where every source row points to the same canonical entry per §9.1 duplicate handling. Transition: execute the merge per §9.1.
+- The background process runs at most once per 24 hours per environment. Each predicate evaluation is idempotent; re-running the process produces no additional state changes for rows already resolved.
+- The set of automatic predicates is fixed by this story; adding a new predicate or loosening a threshold (e.g., dropping a 30-day grace period) requires an explicit story extension. Admins do not configure predicates from the queue surface.
+
+Success Criteria — Admin residue queue:
+
+- The admin residue queue surfaces the items the automated layer cannot resolve: items requiring human judgment.
+- An admin-home backlog badge shows the count of open queue items and the age of the oldest open item, so the admin sees backlog without opening the queue. Recommended cadence is monthly during steady-state operation; weekly during periods of high member activity (post-migration cutover, after major data imports). There is no automated escalation, deadline, or service-level target.
+- Admin views a single residue queue aggregating:
   - Wizard-generated flags grouped by candidate or live club.
   - Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
   - Suggested content edits (description, external URL) awaiting approval, per the §9.3 content validation loop.
-  - Auto-merge holds where source entries disagreed on substantive identity, per §9.1 duplicate handling.
+  - Auto-merge holds where source entries disagreed on substantive identity (the residue after the automated `convergent_auto_merge` predicate runs).
   - Junk-flagged candidates and admin force-keep or force-junk requests, per §9.1.
-  - All non-junk candidates not yet promoted to live `clubs` rows.
-  - **Club leader evidence review** (`task_type='club_leader_evidence_review'`): weak-classified bootstrap leadership candidates where the member submitted supplementary evidence in the onboarding wizard, per MIGRATION_PLAN §2 and `M_Complete_Onboarding_Wizard`.
-- Each queue item shows: the candidate or club id, the source surface (wizard stage and path, `M_Join_Club`, club detail page, classifier), the flagging or proposing member id, the flag category or proposed edit content, location predicates (same-city, same-region, same-country) where relevant, an optional note, and the timestamp.
+  - Non-junk `legacy_club_candidates` not yet promoted to live `clubs` rows.
+  - `legacy_person_club_affiliations` rows in `resolution_status='pending'` that the automated predicates could not resolve (the unclassified residue), available for per-row review or bulk action by admin-defined predicate.
+- Each queue item shows: the candidate or club or affiliation id, the source surface, the flagging or proposing member id (when applicable), the flag category or proposed edit content, location predicates where relevant, an optional note, and the timestamp.
+- Items render collapsed by source / category by default; admin expands a group to per-row view. Each group exposes a group-level bulk action where applicable.
 - Resolution actions available per item type:
-  - **Flag (any source)**: dismiss with optional note, or escalate to one of the actions below.
-  - **Suggested content edit**: approve (the edit replaces the live row's content; the URL passes verification before publication) or reject with optional note.
-  - **Auto-merge hold (duplicate cluster)**: confirm-merge-anyway (apply the proposed merge), pick a canonical entry, mark one source as junk, split into separate clubs, or defer.
+  - **Flag (any source)**: dismiss with optional reason (terminal), or defer for 30, 90, or 180 days. Deferred items re-surface after the duration with a "previously deferred by Admin X, reason ..." annotation. There is no unbounded defer.
+  - **Suggested content edit**: approve (the edit replaces the live row's content; the URL passes verification before publication), reject with reason, or defer.
+  - **Auto-merge hold (post-automation residue)**: confirm-merge-anyway (apply the proposed merge), pick a canonical entry, mark one source as junk, split into separate clubs, or defer.
   - **Junk-flagged candidate**: confirm junk, add to force-keep (return to classifier normal evaluation), or promote to dormant for further evaluation.
   - **Force-keep or force-junk request**: apply, modify, or reject.
   - **Unpromoted candidate (onboarding-visible or dormant)**: promote to a live `clubs` row, demote (onboarding-visible to dormant), archive, or defer.
   - **Live club with accumulated flags**: mark `status='inactive'`, archive (`status='archived'`), demote to dormant, merge with another club, split a previously auto-merged row, or dismiss the flags.
-  - **Club leader evidence review item**: confirm-promotion (promote the bootstrap candidate row to a live `club_leaders` row, mark `club_bootstrap_leaders.status='claimed'`, audit-log the promotion), request-more-evidence (return to the queue with an admin note for the member to address), decline (mark `club_bootstrap_leaders.status='rejected'`), or defer.
-- All resolutions are audit-logged with actor, item type, club or candidate id, decision, optional note, and timestamp.
-- The queue is sortable and filterable by category, age, region, flag count, and source surface; admin works through items at their own pace. There is no time-based escalation or automated demotion.
+  - **Residual `legacy_person_club_affiliations` row**: mark as `'former_only'` (preserves historical fact, drops from current-roster filter), `'not_mine'` (linkage rejected), or `'rejected'` (junk). Available per-row or as a bulk action by admin-supplied filter; bulk actions render a preview screen showing affected row count and a sample of 5-10 rows before commit, then run in a single transaction with one audit row per affected row.
+- All resolutions are audit-logged with actor identity, item type, club or candidate or affiliation id, decision, optional note, and timestamp.
+- Concurrent admin coordination: when an admin opens an item for review, a lightweight "claimed by Admin X at time T" marker becomes visible to other admins. The marker auto-releases on resolve, dismiss, defer, or after a 30-minute stale-claim timeout. The marker does not block other admins; it is a coordination signal.
+- The queue is sortable and filterable by category, age, region, flag count, and source surface.
 - The queue surface respects the privacy and anti-enumeration rules that apply to legacy data: admin-only access, no public exposure of registrant signal authorship.
 - The `legacy_club_candidates` table may be dropped only after every non-junk candidate has reached a terminal state per MIGRATION_PLAN §9.4.
+
+Success Criteria — Predicate refinement loop:
+
+- When the residue queue accumulates more than 50 `legacy_person_club_affiliations` rows that the automated predicates could not classify, the queue surfaces a "predicate refinement needed" indicator. Implementation owners revise the automatic predicate set per the story-extension rule above; previously-unclassified rows re-classify on the next automated run.
 
 ## 6.3 Content Moderation
 
@@ -1907,7 +1933,7 @@ Story: As an admin, I can mark a club defunct/archived and notify members so tha
 Success Criteria:
 
 - Sets status: "archived" in club data.
-- All current club members' clubId is set to null (they become unaffiliated). Affected members receive an email notification explaining the club was archived and their membership has ended.
+- All current club members' `member_club_affiliations.is_current` is set to 0 (they become unaffiliated); the affiliation rows themselves are preserved so historical membership remains queryable. Affected members receive an email notification explaining the club was archived and their membership has ended.
 - Preserves club data for 7 years per retention policy.
 - Records an audit log entry.
 

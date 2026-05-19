@@ -6,9 +6,50 @@
 
 <div class="wrapper">
   <section>
-    <p>Club confirmation is being built. You'll be invited to confirm or correct your clubs from your dashboard once it's ready.</p>
+    {{#if content.formError}}
+      <p class="form-notice" role="alert">{{content.formError}}</p>
+    {{/if}}
 
-    <form method="POST" action="/register/wizard/club_affiliations/skip" class="mt-6">
+    {{#unless content.card}}
+      <p>You have no clubs to confirm right now.</p>
+      <form method="POST" action="{{content.skipHref}}" class="mt-6">
+        <button type="submit" class="btn btn-primary">Continue</button>
+      </form>
+    {{/unless}}
+
+    {{#if content.card}}
+      {{#if (eq content.card.kind 'membership')}}
+        <h2>Were you a member of {{content.card.clubName}}?</h2>
+        <p class="text-muted">Match strength: {{content.card.confidenceBandLabel}}</p>
+        <p class="text-muted fs-sm">Source: legacy roster records.</p>
+      {{/if}}
+
+      {{#if (eq content.card.kind 'leadership')}}
+        <h2>Did you lead {{content.card.clubName}}?</h2>
+        <p class="text-muted">Role on record: {{content.card.roleLabel}}</p>
+        <p class="badge mt-2">{{content.card.classificationLabel}}</p>
+        <ul class="signal-checklist mt-4">
+          {{#each content.card.signals}}
+            <li class="signal-checklist-row">
+              <span class="signal-checklist-mark">{{#if this.isPresent}}&#10004;{{else}}&#9675;{{/if}}</span>
+              <span class="signal-checklist-label">{{this.signalLabel}}</span>
+            </li>
+          {{/each}}
+        </ul>
+      {{/if}}
+
+      <form method="POST" action="{{content.submitHref}}" class="mt-6 wizard-card-actions">
+        <input type="hidden" name="kind"        value="{{content.card.kind}}" />
+        <input type="hidden" name="candidateId" value="{{content.card.candidateId}}" />
+        <button type="submit" name="userDecision" value="confirm" class="btn btn-primary">Yes</button>
+        <button type="submit" name="userDecision" value="decline" class="btn btn-secondary">No</button>
+        <button type="submit" name="userDecision" value="correct" class="btn btn-outline">Wrong, let me correct</button>
+      </form>
+
+      <p class="audit-notice text-muted fs-sm mt-4">This decision is recorded.</p>
+    {{/if}}
+
+    <form method="POST" action="{{content.skipHref}}" class="mt-6">
       <button type="submit" class="btn-link text-muted">Skip for now</button>
     </form>
 

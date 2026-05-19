@@ -793,8 +793,8 @@ export const clubs = {
 
   // TEMP-DEVIATION: club-classification QC panel. Fetches the candidate's
   // classification + R1-R10 rule firings + rule inputs for the dev+staging
-  // QC panel on /clubs/:key. Remove when A_Review_Club_Cleanup_Signals
-  // admin queue ships.
+  // QC panel on /clubs/:key. Remove when A_Periodic_Club_Cleanup admin
+  // queue ships.
   get getClassificationEvidenceByClubId() { return db.prepare(`
     SELECT
       classification,
@@ -817,6 +817,125 @@ export const clubs = {
 };
 
 // ---------------------------------------------------------------------------
+// legacyClubCandidates -- candidate-row reads scoped to the wizard's
+// affiliation-confirm path. Public/QC reads for legacy_club_candidates live
+// in the `clubs` group above.
+// ---------------------------------------------------------------------------
+
+export interface LegacyClubCandidateRow {
+  id: string;
+  legacy_club_key: string;
+  display_name: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  classification: 'pre_populate' | 'onboarding_visible' | 'dormant' | 'junk';
+  mapped_club_id: string | null;
+}
+
+export const legacyClubCandidates = {
+  get findById() { return db.prepare(`
+    SELECT id, legacy_club_key, display_name, city, region, country,
+           classification, mapped_club_id
+      FROM legacy_club_candidates
+     WHERE id = ?
+  `); },
+};
+
+// ---------------------------------------------------------------------------
+// legacyPersonClubAffiliations -- pending-affiliation reads + status
+// transitions invoked by the wizard's club_affiliations membership path.
+// Schema CHECK (lpca lines 3401-3404) enforces that 'confirmed_current'
+// requires resolved_club_id IS NOT NULL; setResolutionStatusConfirmed stamps
+// both atomically.
+// ---------------------------------------------------------------------------
+
+export interface LegacyPersonClubAffiliationRow {
+  id: string;
+  historical_person_id: string | null;
+  legacy_member_id: string | null;
+  legacy_club_candidate_id: string;
+  inferred_role: 'member' | 'contact' | 'leader' | 'co-leader';
+  confidence_score: number | null;
+  resolution_status:
+    | 'pending' | 'confirmed_current' | 'former_only' | 'not_mine'
+    | 'needs_review' | 'promoted' | 'rejected' | 'superseded';
+  resolved_club_id: string | null;
+  display_name: string | null;
+}
+
+export interface WizardMembershipCardRow {
+  candidate_id: string;
+  affiliation_id: string;
+  club_id: string;
+  club_name: string;
+  confidence_score: number | null;
+}
+
+export const legacyPersonClubAffiliations = {
+  get findById() { return db.prepare(`
+    SELECT id, historical_person_id, legacy_member_id, legacy_club_candidate_id,
+           inferred_role, confidence_score, resolution_status, resolved_club_id,
+           display_name
+      FROM legacy_person_club_affiliations
+     WHERE id = ?
+  `); },
+
+  // Pending affiliations for a legacy member, joined to the candidate row to
+  // surface club metadata for the wizard card. Only candidates that have a
+  // mapped_club_id (i.e. the loader has already promoted them to a real
+  // clubs row) are returned; the wizard does not create clubs (per
+  // M_Complete_Onboarding_Wizard). 'onboarding_visible' candidates without
+  // a mapped_club_id are silently filtered until a separate admin / member-
+  // initiated club-creation flow promotes them.
+  get listPendingForLegacyMember() { return db.prepare(`
+    SELECT
+      lcc.id              AS candidate_id,
+      lpca.id             AS affiliation_id,
+      lcc.mapped_club_id  AS club_id,
+      c.name              AS club_name,
+      lpca.confidence_score AS confidence_score
+      FROM legacy_person_club_affiliations AS lpca
+      INNER JOIN legacy_club_candidates AS lcc
+         ON lcc.id = lpca.legacy_club_candidate_id
+      INNER JOIN clubs AS c
+         ON c.id = lcc.mapped_club_id
+     WHERE lpca.legacy_member_id  = ?
+       AND lpca.resolution_status = 'pending'
+       AND lcc.mapped_club_id IS NOT NULL
+     ORDER BY c.name COLLATE NOCASE ASC
+  `); },
+
+  // Pending -> rejected transition for the 'decline' wizard branch. Guarded
+  // by status='pending' so a concurrent transition (admin override, replay)
+  // is a no-op rather than an overwrite.
+  get setResolutionStatusRejected() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'rejected',
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE id                = ?
+       AND resolution_status = 'pending'
+  `); },
+
+  // Pending -> confirmed_current transition for the 'confirm' / 'correct'
+  // wizard branch. Stamps resolved_club_id in the same UPDATE so the schema
+  // CHECK constraint (confirmed_current requires resolved_club_id) holds at
+  // all times. Guarded by status='pending'.
+  get setResolutionStatusConfirmed() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'confirmed_current',
+           resolved_club_id  = ?,
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE id                = ?
+       AND resolution_status = 'pending'
+  `); },
+};
+
+// ---------------------------------------------------------------------------
 // clubBootstrapLeaders -- bootstrap leader status reads + transitions.
 //
 // Owned by MemberOnboardingService + ClubService. The 'rejected' and
@@ -833,6 +952,13 @@ export interface ClubBootstrapLeaderRow {
   claimed_member_id: string | null;
   confidence_score: number | null;
   notes: string | null;
+}
+
+export interface WizardLeadershipCardRow {
+  candidate_id: string;
+  club_id: string;
+  club_name: string;
+  role: 'leader' | 'co-leader';
 }
 
 export const clubBootstrapLeaders = {
@@ -869,6 +995,24 @@ export const clubBootstrapLeaders = {
      WHERE id = ?
        AND status = 'provisional'
   `); },
+
+  // Provisional leadership candidates for a legacy member, joined to the
+  // club to surface club metadata for the wizard card. Only 'provisional'
+  // rows surface; claimed/rejected/superseded are filtered. Sorted by
+  // club name to align with the membership-card ordering.
+  get listProvisionalForLegacyMember() { return db.prepare(`
+    SELECT
+      cbl.id    AS candidate_id,
+      cbl.club_id,
+      c.name    AS club_name,
+      cbl.role
+      FROM club_bootstrap_leaders AS cbl
+      INNER JOIN clubs AS c
+         ON c.id = cbl.club_id
+     WHERE cbl.legacy_member_id = ?
+       AND cbl.status           = 'provisional'
+     ORDER BY c.name COLLATE NOCASE ASC
+  `); },
 };
 
 // ---------------------------------------------------------------------------
@@ -893,7 +1037,8 @@ export const clubBootstrapLeaderSignals = {
 
 // ---------------------------------------------------------------------------
 // clubLeaders + memberClubAffiliations -- writes invoked by
-// ClubService.promoteFromCandidate. Schema uniques enforce:
+// ClubService.claimLeadership and ClubService.confirmAffiliation. Schema
+// uniques enforce:
 //   - club_leaders ux_one_leader_per_club, ux_one_club_leader_per_member
 //   - member_club_affiliations UNIQUE(member_id, club_id),
 //     ux_member_club_affiliations_one_current (at most one is_current=1)
@@ -3589,6 +3734,19 @@ export const account = {
   get getIsAdmin() { return db.prepare(`
     SELECT is_admin FROM members_active
     WHERE id = ? AND personal_data_purged_at IS NULL
+  `); },
+
+  // Read just the legacy_member_id linkage for an authenticated member.
+  // Used by the wizard's club_affiliations dispatcher to scope candidate
+  // queries to the member's own legacy identity (F1 anti-enumeration:
+  // candidates belonging to other members are unreachable at the query
+  // layer). Returns null when the member has not yet completed legacy_claim
+  // (legacy_member_id IS NULL).
+  get findLegacyMemberIdById() { return db.prepare(`
+    SELECT legacy_member_id
+      FROM members_active
+     WHERE id = ?
+       AND personal_data_purged_at IS NULL
   `); },
 
   // Used by support-flow email replies: fetch the member's login email + slug

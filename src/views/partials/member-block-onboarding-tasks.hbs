@@ -1,0 +1,38 @@
+{{#if this}}
+<section class="onboarding-task-widget">
+  <div class="section-heading">
+    <h2>Onboarding</h2>
+  </div>
+
+  {{#if this.pending.length}}
+    <ul class="onboarding-task-list">
+      {{#each this.pending}}
+        <li class="onboarding-task-row">
+          <span class="onboarding-task-label">{{taskLabel}}</span>
+          <a href="{{ctaHref}}" class="btn btn-primary onboarding-task-cta">{{ctaLabel}}</a>
+        </li>
+      {{/each}}
+    </ul>
+  {{/if}}
+
+  {{#if this.paused.length}}
+    <ul class="onboarding-task-list">
+      {{#each this.paused}}
+        <li class="onboarding-task-row onboarding-task-row-paused">
+          <span class="onboarding-task-label">{{taskLabel}}</span>
+          <a href="{{ctaHref}}" class="btn btn-outline onboarding-task-cta">{{ctaLabel}}</a>
+        </li>
+      {{/each}}
+    </ul>
+  {{/if}}
+
+  {{#if this.completed.length}}
+    <p class="onboarding-task-review text-muted fs-sm">
+      Review past decisions:
+      {{#each this.completed}}
+        <a href="{{ctaHref}}">{{taskLabel}}</a>{{#unless @last}} &middot; {{/unless}}
+      {{/each}}
+    </p>
+  {{/if}}
+</section>
+{{/if}}

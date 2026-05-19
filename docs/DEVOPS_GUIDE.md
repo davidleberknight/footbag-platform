@@ -1754,17 +1754,6 @@ Operator workflow:
 4. Record the decision per the audit rules in `A_Review_Auto_Link_Matches`: audit-logged with actor, original claim audit id, revert audit id, decision, optional reason, timestamp.
 5. If hard-declined, the member is notified by email that their link was re-established and given a contact path if they want to follow up.
 
-### 13.12 Club leader evidence review
-
-When a weak-classified bootstrap leadership candidate confirms in the onboarding wizard with supplementary evidence, the system enqueues a `work_queue_items` row with `task_type='club_leader_evidence_review'` per MIGRATION_PLAN §2 and `A_Review_Club_Cleanup_Signals`.
-
-Operator workflow:
-
-1. Open the `A_Review_Club_Cleanup_Signals` admin queue and filter for `club_leader_evidence_review` items.
-2. For each item, review the candidate's structural-signal evidence (presence of `listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`) and the supplementary evidence the member submitted.
-3. Decide: confirm-promotion (promote the bootstrap candidate row to a live `club_leaders` row; mark `club_bootstrap_leaders.status='claimed'`), request-more-evidence (return the item to the queue with an admin note for the member), decline (mark `club_bootstrap_leaders.status='rejected'`), or defer.
-4. Record the decision per the audit rules in `A_Review_Club_Cleanup_Signals`.
-
 ---
 
 ## 14. Staging Refresh and Anonymization

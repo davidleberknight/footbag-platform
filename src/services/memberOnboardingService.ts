@@ -1,12 +1,17 @@
 import { randomUUID } from 'crypto';
 import {
-  memberOnboarding,
-  transaction,
+  account,
   clubBootstrapLeaders,
   clubBootstrapLeaderSignals,
-  type MemberOnboardingTaskRow,
+  legacyPersonClubAffiliations,
+  memberOnboarding,
+  transaction,
   type ClubBootstrapLeaderRow,
   type ClubBootstrapLeaderSignalRow,
+  type LegacyPersonClubAffiliationRow,
+  type MemberOnboardingTaskRow,
+  type WizardMembershipCardRow,
+  type WizardLeadershipCardRow,
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { memberService } from './memberService';
@@ -58,18 +63,29 @@ export interface OnboardingTaskView {
  */
 export interface DashboardTaskItem {
   taskType: OnboardingTaskType;
+  taskLabel: string;
   state: OnboardingTaskState;
   completedAt: string | null;
   resumeUrl: string | null;
   targetStory: string | null;
   sourceCard:  string | null;
+  ctaLabel: string;
+  ctaHref:  string | null;
 }
 
 export interface DashboardTaskWidget {
   pending:   DashboardTaskItem[];
   paused:    DashboardTaskItem[];
   completed: DashboardTaskItem[];
+  hasAny:    boolean;
 }
+
+const TASK_LABELS: Record<OnboardingTaskType, string> = {
+  legacy_claim:             'Find your past records and clubs',
+  club_affiliations:        'Confirm your clubs',
+  first_competition_year:   'Set your first competition year',
+  show_competitive_results: 'Show your competition results',
+};
 
 export class NotImplementedError extends ServiceError {
   constructor(message: string, details?: Record<string, unknown>) {
@@ -235,7 +251,7 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
   }
   const rows = memberOnboarding.listForMemberWithDetourMeta.all(memberId) as WidgetRow[];
 
-  const widget: DashboardTaskWidget = { pending: [], paused: [], completed: [] };
+  const widget: DashboardTaskWidget = { pending: [], paused: [], completed: [], hasAny: false };
   for (const r of rows) {
     const taskType = r.task_type as OnboardingTaskType;
     if (!(taskType in TASK_TYPE_INDEX)) continue;
@@ -253,17 +269,39 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
         resumeUrl = `/onboarding-wizard?task=${encodeURIComponent(taskType)}${cardParam}`;
       } catch { /* malformed metadata leaves resumeUrl null; widget still renders */ }
     }
+    // CTA shape per USER_STORIES line 733: paused -> "Resume onboarding"
+    // pointing at the source card; pending/skipped -> "Continue onboarding"
+    // pointing at the task GET; completed -> no CTA.
+    const state = r.state as OnboardingTaskState;
+    let ctaLabel: string = '';
+    let ctaHref:  string | null = null;
+    if (state === 'in_progress_paused') {
+      ctaLabel = 'Resume onboarding';
+      ctaHref  = resumeUrl ?? `/register/wizard/${taskType}`;
+    } else if (state === 'pending' || state === 'skipped') {
+      ctaLabel = 'Continue onboarding';
+      ctaHref  = `/register/wizard/${taskType}`;
+    } else if (state === 'completed') {
+      // Completed tasks render as a muted "Review past decisions" footer
+      // under the active widget, not as action rows. The href is the same
+      // per-task wizard GET; the template formats these inline.
+      ctaLabel = 'Review';
+      ctaHref  = `/register/wizard/${taskType}`;
+    }
     const item: DashboardTaskItem = {
       taskType,
-      state: r.state as OnboardingTaskState,
+      taskLabel: TASK_LABELS[taskType],
+      state,
       completedAt: r.completed_at,
       resumeUrl,
       targetStory,
       sourceCard,
+      ctaLabel,
+      ctaHref,
     };
-    if (r.state === 'completed')             widget.completed.push(item);
-    else if (r.state === 'in_progress_paused') widget.paused.push(item);
-    else if (r.state === 'pending' || r.state === 'skipped') widget.pending.push(item);
+    if (state === 'completed')             widget.completed.push(item);
+    else if (state === 'in_progress_paused') widget.paused.push(item);
+    else if (state === 'pending' || state === 'skipped') widget.pending.push(item);
   }
 
   const sortByCatalog = (a: DashboardTaskItem, b: DashboardTaskItem) =>
@@ -271,7 +309,161 @@ function getDashboardTaskWidget(memberId: string): DashboardTaskWidget {
   widget.pending.sort(sortByCatalog);
   widget.paused.sort(sortByCatalog);
   widget.completed.sort(sortByCatalog);
+  widget.hasAny = widget.pending.length + widget.paused.length + widget.completed.length > 0;
   return widget;
+}
+
+// ---------------------------------------------------------------------------
+// Wizard card listing — per-member view of the club_affiliations task.
+//
+// Two card kinds: 'membership' (a pending legacy_person_club_affiliations row
+// for the member's legacy identity, joined to a real clubs row via
+// legacy_club_candidates.mapped_club_id) and 'leadership' (a provisional
+// club_bootstrap_leaders row for the member's legacy identity).
+//
+// Ordering: Stage-aware per MIGRATION_PLAN §9.3 + USER_STORIES line 728. All
+// leadership cards (Stage 1A, "registrant is listed contact / leader of the
+// candidate club") render before any membership card (Stage 1B, "registrant
+// is in the roster but not the listed contact"); within each stage the
+// ordering is alphabetical by club name (ASC, COLLATE NOCASE). Stage 2A
+// (geographically nearby pre-populated clubs) and Stage 2B/3A (onboarding-
+// visible candidates and name search) are not in Phase A scope.
+// ---------------------------------------------------------------------------
+
+export type MembershipConfidenceBand = 'high' | 'medium' | 'low';
+
+export type WizardSignalType =
+  | 'listed_contact' | 'affiliation' | 'hosting' | 'roster' | 'mirror_text'
+  | 'recent_activity' | 'geographic_alignment';
+
+export interface SignalChecklistRow {
+  signalType: WizardSignalType;
+  signalLabel: string;
+  isPresent: boolean;
+}
+
+export interface WizardMembershipCard {
+  kind: 'membership';
+  candidateId: string;       // legacy_person_club_affiliations.id
+  clubId: string;
+  clubName: string;
+  confidenceBand: MembershipConfidenceBand;
+  confidenceBandLabel: string;
+}
+
+export interface WizardLeadershipCard {
+  kind: 'leadership';
+  candidateId: string;       // club_bootstrap_leaders.id
+  clubId: string;
+  clubName: string;
+  role: 'leader' | 'co-leader';
+  roleLabel: string;
+  classification: 'strong' | 'weak' | 'none';
+  classificationLabel: string;
+  signals: SignalChecklistRow[];
+}
+
+export type WizardCard = WizardMembershipCard | WizardLeadershipCard;
+
+function confidenceBandFor(score: number | null): MembershipConfidenceBand {
+  // Per A.0 #2: loader emits scores at fixed increments
+  // (0.50 base / 0.70 one-signal / 0.90 both-signals). Thresholds align
+  // to those buckets so each band maps to a real signal-count state.
+  if (score === null) return 'low';
+  if (score >= 0.90) return 'high';
+  if (score >= 0.70) return 'medium';
+  return 'low';
+}
+
+const CONFIDENCE_BAND_LABELS: Record<MembershipConfidenceBand, string> = {
+  high:   'High',
+  medium: 'Medium',
+  low:    'Low',
+};
+
+const CLASSIFICATION_LABELS: Record<'strong' | 'weak' | 'none', string> = {
+  strong: 'STRONG',
+  weak:   'WEAK',
+  none:   'NONE',
+};
+
+const ROLE_LABELS: Record<'leader' | 'co-leader', string> = {
+  'leader':    'Leader',
+  'co-leader': 'Co-leader',
+};
+
+const SIGNAL_LABELS: Record<WizardSignalType, string> = {
+  listed_contact:       'Listed as contact',
+  affiliation:          'Has affiliations',
+  hosting:              'Hosted events',
+  roster:               'Roster of 5 or more members',
+  mirror_text:          'Name mirrored in description',
+  recent_activity:      'Active in last 5 years',
+  geographic_alignment: 'Geographic match',
+};
+
+function listWizardCardsForMember(memberId: string): WizardCard[] {
+  const memberRow = account.findLegacyMemberIdById.get(memberId) as
+    | { legacy_member_id: string | null }
+    | undefined;
+  const legacyMemberId = memberRow?.legacy_member_id ?? null;
+  if (!legacyMemberId) return [];
+
+  const membershipRows = legacyPersonClubAffiliations.listPendingForLegacyMember.all(
+    legacyMemberId,
+  ) as WizardMembershipCardRow[];
+  const leadershipRows = clubBootstrapLeaders.listProvisionalForLegacyMember.all(
+    legacyMemberId,
+  ) as WizardLeadershipCardRow[];
+
+  const memberships: WizardMembershipCard[] = membershipRows.map((r) => {
+    const band = confidenceBandFor(r.confidence_score);
+    return {
+      kind:                'membership',
+      candidateId:         r.affiliation_id,
+      clubId:              r.club_id,
+      clubName:            r.club_name,
+      confidenceBand:      band,
+      confidenceBandLabel: CONFIDENCE_BAND_LABELS[band],
+    };
+  });
+
+  const leaderships: WizardLeadershipCard[] = leadershipRows.map((r) => {
+    const { structural, modifiers } = readSignalsForCandidate(r.candidate_id);
+    const classified = classifyBootstrapLeader(structural, modifiers);
+    const signals: SignalChecklistRow[] = [
+      { signalType: 'listed_contact',       signalLabel: SIGNAL_LABELS.listed_contact,       isPresent: structural.listed_contact },
+      { signalType: 'affiliation',          signalLabel: SIGNAL_LABELS.affiliation,          isPresent: structural.affiliation },
+      { signalType: 'hosting',              signalLabel: SIGNAL_LABELS.hosting,              isPresent: structural.hosting },
+      { signalType: 'roster',               signalLabel: SIGNAL_LABELS.roster,               isPresent: structural.roster },
+      { signalType: 'mirror_text',          signalLabel: SIGNAL_LABELS.mirror_text,          isPresent: structural.mirror_text },
+      { signalType: 'recent_activity',      signalLabel: SIGNAL_LABELS.recent_activity,      isPresent: modifiers.recent_activity },
+      { signalType: 'geographic_alignment', signalLabel: SIGNAL_LABELS.geographic_alignment, isPresent: modifiers.geographic_alignment },
+    ];
+    return {
+      kind:                'leadership',
+      candidateId:         r.candidate_id,
+      clubId:              r.club_id,
+      clubName:            r.club_name,
+      role:                r.role,
+      roleLabel:           ROLE_LABELS[r.role],
+      classification:      classified.classification,
+      classificationLabel: CLASSIFICATION_LABELS[classified.classification],
+      signals,
+    };
+  });
+
+  // Sort: stage-priority first (leadership = Stage 1A = 0, membership =
+  // Stage 1B = 1), then alphabetical (NOCASE) by club name within each
+  // stage. Matches the cross-stage rule at USER_STORIES line 728.
+  const all: WizardCard[] = [...memberships, ...leaderships];
+  const stageOrder = (c: WizardCard): number => (c.kind === 'leadership' ? 0 : 1);
+  all.sort((a, b) => {
+    const stageDiff = stageOrder(a) - stageOrder(b);
+    if (stageDiff !== 0) return stageDiff;
+    return a.clubName.toLowerCase().localeCompare(b.clubName.toLowerCase());
+  });
+  return all;
 }
 
 type ClubAffiliationsBranch =
@@ -279,12 +471,17 @@ type ClubAffiliationsBranch =
   | 'promoted_co_leader'
   | 'affiliated_only'
   | 'idempotent'
-  | 'declined';
+  | 'declined'
+  | 'confirmed';
 
 interface ClubAffiliationsResult {
   branch: ClubAffiliationsBranch;
   classification: 'strong' | 'weak' | 'none';
   actualRole: 'leader' | 'co-leader' | null;
+  attemptedRole?: 'leader' | 'co-leader';
+  downgradeReason?: 'leader_slot_taken' | 'member_already_leader' | 'both' | null;
+  resolvedClubId?: string | null;
+  taskState: 'in_progress' | 'completed';
 }
 
 // Read pre-computed evidence rows for a bootstrap leader candidate and split
@@ -326,12 +523,179 @@ function readSignalsForCandidate(candidateId: string): {
   return { structural, modifiers, rows };
 }
 
+function maybeCompleteClubAffiliationsTask(memberId: string): 'in_progress' | 'completed' {
+  // The task is multi-card: completion fires only when the member has no
+  // remaining unresolved cards. Single-card flows complete on first submit;
+  // multi-card flows stay 'in_progress' until the final card is resolved.
+  const remaining = listWizardCardsForMember(memberId);
+  if (remaining.length > 0) return 'in_progress';
+  completeTask(memberId, 'club_affiliations');
+  return 'completed';
+}
+
+function submitMembershipResponse(
+  memberId: string,
+  candidateId: string,
+  userDecision: 'confirm' | 'correct' | 'decline',
+): ClubAffiliationsResult {
+  const affiliation = legacyPersonClubAffiliations.findById.get(candidateId) as
+    | LegacyPersonClubAffiliationRow
+    | undefined;
+  if (!affiliation) {
+    throw new NotFoundError(`Legacy affiliation candidate not found: ${candidateId}`);
+  }
+
+  // 'correct' on a membership card means "this record is wrong" (per A.0 #4:
+  // decline-with-different-audit-tag). The legacy row transitions to
+  // 'rejected' in both 'decline' and 'correct' cases; the audit metadata
+  // records which user button was pressed.
+  const treatAsDecline = userDecision === 'decline' || userDecision === 'correct';
+  const result = clubService.confirmAffiliation(
+    candidateId,
+    memberId,
+    treatAsDecline ? 'decline' : 'confirm',
+  );
+
+  const actionType =
+    result.branch === 'confirmed'
+      ? 'wizard.club_affiliations.confirmed'
+      : result.branch === 'declined'
+        ? 'wizard.club_affiliations.declined'
+        : 'wizard.club_affiliations.idempotent';
+  appendAuditEntry({
+    actionType,
+    category:      'onboarding',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'legacy_person_club_affiliation',
+    entityId:      candidateId,
+    metadata: {
+      kind:              'membership',
+      user_decision:     userDecision,
+      confirm_branch:    result.branch,
+      resolved_club_id:  result.resolvedClubId,
+      new_affiliation_id: result.newAffiliationId,
+      confidence_score:  affiliation.confidence_score,
+    },
+  });
+
+  const branch: ClubAffiliationsBranch =
+    result.branch === 'confirmed'  ? 'confirmed'
+    : result.branch === 'declined' ? 'declined'
+    : 'idempotent';
+  const taskState = maybeCompleteClubAffiliationsTask(memberId);
+  return {
+    branch,
+    classification: 'none',
+    actualRole:     null,
+    resolvedClubId: result.resolvedClubId,
+    taskState,
+  };
+}
+
+function submitLeadershipResponse(
+  memberId: string,
+  candidateId: string,
+  userDecision: 'confirm' | 'correct' | 'decline',
+): ClubAffiliationsResult {
+  const leader = clubBootstrapLeaders.findById.get(candidateId) as
+    | ClubBootstrapLeaderRow
+    | undefined;
+  if (!leader) {
+    throw new NotFoundError(`Bootstrap leader candidate not found: ${candidateId}`);
+  }
+
+  // Idempotency: a candidate already resolved (claimed / rejected / superseded)
+  // produces a no-op result. The task is completed regardless so re-submits
+  // do not block wizard progression.
+  if (leader.status !== 'provisional') {
+    const taskState = maybeCompleteClubAffiliationsTask(memberId);
+    const branch: ClubAffiliationsBranch =
+      leader.status === 'claimed' ? 'idempotent'
+      : leader.status === 'rejected' ? 'declined'
+      : 'idempotent';
+    return { branch, classification: 'none', actualRole: null, taskState };
+  }
+
+  const { structural, modifiers, rows } = readSignalsForCandidate(candidateId);
+  const result = classifyBootstrapLeader(structural, modifiers);
+
+  if (userDecision === 'decline') {
+    clubBootstrapLeaders.setStatusRejected.run('onboarding_service', candidateId);
+    appendAuditEntry({
+      actionType:    'wizard.club_affiliations.declined',
+      category:      'onboarding',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'club_bootstrap_leader',
+      entityId:      candidateId,
+      metadata: {
+        kind:           'leadership',
+        classification: result.classification,
+        matched_gate:   result.matchedGate,
+        signal_rows:    rows.length,
+      },
+    });
+    const taskState = maybeCompleteClubAffiliationsTask(memberId);
+    return { branch: 'declined', classification: result.classification, actualRole: null, taskState };
+  }
+
+  // 'confirm' OR 'correct': auto-promote regardless of classification.
+  // claimLeadership handles role downgrade to co-leader and the cap-
+  // exceeded affiliate-only fall-through. Admins can later promote
+  // affiliate-only members or reshape leadership via A_* admin powers.
+  // The promote writes (status, club_leaders, affiliation) are atomic via
+  // claimLeadership's internal transaction; the task-complete + audit
+  // writes that follow are non-transactional but follow the same
+  // append-only pattern as transitionTask (low risk: better-sqlite3 inserts
+  // are synchronous and audit_entries inserts essentially cannot fail).
+  const promote = clubService.claimLeadership(candidateId, memberId);
+  appendAuditEntry({
+    actionType:    'wizard.club_affiliations.promoted',
+    category:      'onboarding',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'club_bootstrap_leader',
+    entityId:      candidateId,
+    metadata: {
+      kind:             'leadership',
+      classification:   result.classification,
+      matched_gate:     result.matchedGate,
+      user_decision:    userDecision,
+      promote_branch:   promote.branch,
+      actual_role:      promote.actualRole,
+      attempted_role:   promote.attemptedRole,
+      downgrade_reason: promote.downgradeReason,
+      club_id:          promote.clubId,
+      club_leader_id:   promote.clubLeaderId,
+      affiliation_id:   promote.affiliationId,
+      signal_rows:      rows.length,
+    },
+  });
+  const taskState = maybeCompleteClubAffiliationsTask(memberId);
+  return {
+    branch:          promote.branch,
+    classification:  result.classification,
+    actualRole:      promote.actualRole,
+    attemptedRole:   promote.attemptedRole,
+    downgradeReason: promote.downgradeReason,
+    taskState,
+  };
+}
+
 function submitClubAffiliationsResponse(
   memberId: string,
   body: Record<string, unknown>,
 ): ClubAffiliationsResult {
-  const candidateId = typeof body.candidateId === 'string' ? body.candidateId : '';
+  // Body shape: { kind: 'membership' | 'leadership' (default 'leadership'),
+  //               candidateId, userDecision }. `kind` is optional for
+  //               backward-compatibility with direct service callers (tests
+  //               that predate the membership path); the controller-facing
+  //               wrapper (`processClubAffiliationsSubmit`) always sets it
+  //               explicitly from the form's hidden input.
+  const candidateId  = typeof body.candidateId  === 'string' ? body.candidateId  : '';
   const userDecision = body.userDecision;
+  const kindRaw      = typeof body.kind === 'string' ? body.kind : 'leadership';
   if (!candidateId) {
     throw new ValidationError('candidateId is required');
   }
@@ -344,83 +708,13 @@ function submitClubAffiliationsResponse(
       "userDecision must be one of 'confirm', 'correct', 'decline'",
     );
   }
-
-  const leader = clubBootstrapLeaders.findById.get(candidateId) as
-    | ClubBootstrapLeaderRow
-    | undefined;
-  if (!leader) {
-    throw new NotFoundError(`Bootstrap leader candidate not found: ${candidateId}`);
+  if (kindRaw !== 'membership' && kindRaw !== 'leadership') {
+    throw new ValidationError("kind must be one of 'membership', 'leadership'");
   }
 
-  // Idempotency: a candidate already resolved (claimed / rejected / superseded)
-  // produces a no-op result. The task is completed regardless so re-submits
-  // do not block wizard progression.
-  if (leader.status !== 'provisional') {
-    completeTask(memberId, 'club_affiliations');
-    const branch: ClubAffiliationsBranch =
-      leader.status === 'claimed' ? 'idempotent'
-      : leader.status === 'rejected' ? 'declined'
-      : 'idempotent';
-    return { branch, classification: 'none', actualRole: null };
-  }
-
-  const { structural, modifiers, rows } = readSignalsForCandidate(candidateId);
-  const result = classifyBootstrapLeader(structural, modifiers);
-
-  if (userDecision === 'decline') {
-    clubBootstrapLeaders.setStatusRejected.run('onboarding_service', candidateId);
-    completeTask(memberId, 'club_affiliations');
-    appendAuditEntry({
-      actionType:    'wizard.club_affiliations.declined',
-      category:      'onboarding',
-      actorType:     'member',
-      actorMemberId: memberId,
-      entityType:    'club_bootstrap_leader',
-      entityId:      candidateId,
-      metadata: {
-        classification: result.classification,
-        matched_gate:   result.matchedGate,
-        signal_rows:    rows.length,
-      },
-    });
-    return { branch: 'declined', classification: result.classification, actualRole: null };
-  }
-
-  // 'confirm' OR 'correct': auto-promote regardless of classification.
-  // promoteFromCandidate handles role downgrade to co-leader and the cap-
-  // exceeded affiliate-only fall-through. Admins can later promote
-  // affiliate-only members or reshape leadership via A_* admin powers.
-  // The promote writes (status, club_leaders, affiliation) are atomic via
-  // promoteFromCandidate's internal transaction; the task-complete + audit
-  // writes that follow are non-transactional but follow the same
-  // append-only pattern as transitionTask (low risk: better-sqlite3 inserts
-  // are synchronous and audit_entries inserts essentially cannot fail).
-  const promote = clubService.promoteFromCandidate(candidateId, memberId);
-  completeTask(memberId, 'club_affiliations');
-  appendAuditEntry({
-    actionType:    'wizard.club_affiliations.promoted',
-    category:      'onboarding',
-    actorType:     'member',
-    actorMemberId: memberId,
-    entityType:    'club_bootstrap_leader',
-    entityId:      candidateId,
-    metadata: {
-      classification: result.classification,
-      matched_gate:   result.matchedGate,
-      user_decision:  userDecision,
-      promote_branch: promote.branch,
-      actual_role:    promote.actualRole,
-      club_id:        promote.clubId,
-      club_leader_id: promote.clubLeaderId,
-      affiliation_id: promote.affiliationId,
-      signal_rows:    rows.length,
-    },
-  });
-  return {
-    branch:         promote.branch,
-    classification: result.classification,
-    actualRole:     promote.actualRole,
-  };
+  return kindRaw === 'membership'
+    ? submitMembershipResponse(memberId, candidateId, userDecision)
+    : submitLeadershipResponse(memberId, candidateId, userDecision);
 }
 
 function submitTaskResponse(memberId: string, taskType: string, response: unknown): void {
@@ -670,6 +964,90 @@ function processTaskSkip(
   return advanceAfter(memberId, taskType);
 }
 
+// ---------------------------------------------------------------------------
+// Wizard club_affiliations dispatcher (controller-facing).
+//
+// Wraps submitClubAffiliationsResponse with:
+//   - body-shape validation (validation_error result on missing kind /
+//     candidateId / userDecision rather than thrown ValidationError)
+//   - F1 anti-enumeration: candidate's legacy_member_id must match the
+//     authenticated member's legacy_member_id; mismatch surfaces as
+//     NotFoundError (controller maps to 404, identical UX to "row missing")
+//   - taskState -> WizardActionResult mapping: 'completed' advances to the
+//     next task; 'in_progress' redirects back to GET to render the next
+//     remaining card.
+// ---------------------------------------------------------------------------
+
+export type ClubAffiliationsFormState = null;
+
+function assertCandidateOwnership(
+  memberId: string,
+  candidateId: string,
+  kind: 'membership' | 'leadership',
+): void {
+  const memberRow = account.findLegacyMemberIdById.get(memberId) as
+    | { legacy_member_id: string | null }
+    | undefined;
+  const memberLegacyId = memberRow?.legacy_member_id ?? null;
+  if (!memberLegacyId) {
+    throw new NotFoundError(`Candidate not found: ${candidateId}`);
+  }
+  let candidateLegacyId: string | null = null;
+  if (kind === 'leadership') {
+    const cbl = clubBootstrapLeaders.findById.get(candidateId) as
+      | ClubBootstrapLeaderRow
+      | undefined;
+    candidateLegacyId = cbl?.legacy_member_id ?? null;
+  } else {
+    const lpca = legacyPersonClubAffiliations.findById.get(candidateId) as
+      | LegacyPersonClubAffiliationRow
+      | undefined;
+    candidateLegacyId = lpca?.legacy_member_id ?? null;
+  }
+  if (!candidateLegacyId || candidateLegacyId !== memberLegacyId) {
+    throw new NotFoundError(`Candidate not found: ${candidateId}`);
+  }
+}
+
+function processClubAffiliationsSubmit(
+  memberId: string,
+  body: Record<string, unknown>,
+): WizardActionResult<ClubAffiliationsFormState> {
+  const candidateId  = typeof body.candidateId  === 'string' ? body.candidateId  : '';
+  const userDecision = body.userDecision;
+  const kindRaw      = typeof body.kind === 'string' ? body.kind : '';
+
+  if (!candidateId) {
+    return { kind: 'validation_error', formState: null, message: 'candidateId is required' };
+  }
+  if (
+    userDecision !== 'confirm' &&
+    userDecision !== 'correct' &&
+    userDecision !== 'decline'
+  ) {
+    return {
+      kind:      'validation_error',
+      formState: null,
+      message:   "userDecision must be one of 'confirm', 'correct', 'decline'",
+    };
+  }
+  if (kindRaw !== 'membership' && kindRaw !== 'leadership') {
+    return {
+      kind:      'validation_error',
+      formState: null,
+      message:   "kind must be one of 'membership', 'leadership'",
+    };
+  }
+
+  assertCandidateOwnership(memberId, candidateId, kindRaw);
+
+  const result = submitClubAffiliationsResponse(memberId, body);
+  if (result.taskState === 'completed') {
+    return advanceAfter(memberId, 'club_affiliations');
+  }
+  return { kind: 'retry_same', flash: null };
+}
+
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
 
 export const memberOnboardingService = {
@@ -682,6 +1060,8 @@ export const memberOnboardingService = {
   transitionToDetourPaused,
   submitTaskResponse,
   submitClubAffiliationsResponse,
+  processClubAffiliationsSubmit,
+  listWizardCardsForMember,
   processLegacyClaimSubmit,
   processLegacyClaimAutoLinkConfirm,
   processLegacyClaimTokenConfirm,

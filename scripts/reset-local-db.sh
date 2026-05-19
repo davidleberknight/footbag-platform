@@ -231,6 +231,19 @@ else
   echo "  → Skipping club bootstrap leaders (legacy_data/clubs/out/club_bootstrap_leaders.csv absent)."
 fi
 
+# Phase H step 3 — load club bootstrap leader signals from
+# legacy_data/clubs/out/club_bootstrap_leader_signals.csv (~7 signals per
+# leader). Depends on club_bootstrap_leaders rows existing (step 2 above);
+# the FK chain resolves bootstrap_leader_id by stable_id formula. Skipped
+# when the CSV is absent (CI smoke fixtures + fresh clones); the CSV is
+# owned by the James-track classifier and is not regenerated here.
+if [[ -f legacy_data/clubs/out/club_bootstrap_leader_signals.csv ]]; then
+  echo "  → Loading club bootstrap leader signals (Phase H step 3)..."
+  "${PYTHON}" legacy_data/clubs/scripts/07a_load_bootstrap_leader_signals.py --db "${DB_FILE}"
+else
+  echo "  → Skipping club bootstrap leader signals (legacy_data/clubs/out/club_bootstrap_leader_signals.csv absent)."
+fi
+
 # Seed Footbag Hacky (FH) and all FH-owned curator content: FH member row,
 # FH avatar, demo loops, event-pinned curator photos, /curated/freestyle_tricks/
 # sidecars, and FH-owned named galleries. Single home for everything FH owns

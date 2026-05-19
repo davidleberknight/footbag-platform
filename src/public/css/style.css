@@ -1841,6 +1841,75 @@ section.home-media { padding-top: 0; }
   margin-bottom: 24px;
 }
 
+/* ── Dashboard onboarding-task widget ─────────────────────────────── */
+.onboarding-task-widget {
+  margin-bottom: 24px;
+}
+.onboarding-task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.onboarding-task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #e0e0e0);
+}
+.onboarding-task-row:last-child { border-bottom: none; }
+.onboarding-task-row-paused .onboarding-task-label {
+  font-style: italic;
+}
+.onboarding-task-label {
+  flex: 1;
+  min-width: 0;
+}
+.onboarding-task-review a {
+  text-decoration: underline;
+}
+@media (max-width: 480px) {
+  .onboarding-task-row { flex-direction: column; align-items: stretch; }
+  .onboarding-task-cta { width: 100%; text-align: center; }
+}
+
+/* ── Onboarding wizard: per-card signal checklist + actions ───────── */
+.signal-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.signal-checklist-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 0.95rem;
+}
+.signal-checklist-mark {
+  display: inline-block;
+  width: 1.25em;
+  color: var(--text-secondary, #555);
+  font-weight: 600;
+}
+.signal-checklist-label {
+  flex: 1;
+  color: var(--text);
+}
+.wizard-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.audit-notice {
+  font-style: italic;
+}
+@media (max-width: 480px) {
+  .wizard-card-actions { flex-direction: column; align-items: stretch; }
+  .wizard-card-actions .btn { width: 100%; }
+}
+
 .form-input-with-prefix {
   display: inline-flex;
   align-items: stretch;

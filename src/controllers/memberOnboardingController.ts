@@ -11,6 +11,7 @@ import {
   OnboardingTaskType,
   WizardFlash,
   WizardActionResult,
+  WizardCard,
   LegacyClaimAutoLinkConfirmFormState,
   LegacyClaimTokenConfirmFormState,
   FirstCompetitionYearFormState,
@@ -18,6 +19,7 @@ import {
 } from '../services/memberOnboardingService';
 import { memberService } from '../services/memberService';
 import { logger } from '../config/logger';
+import { handleControllerError } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
 import {
   FLASH_KIND,
@@ -45,8 +47,12 @@ const EMPTY_FLASH = {
   autoLinkDrift: false,
 } as const;
 
-interface ClubAffiliationsStubContent {
+interface ClubAffiliationsCardContent {
   dashboardHref: string;
+  submitHref:    string;
+  skipHref:      string;
+  card:          WizardCard | null;
+  formError:     string | null;
 }
 
 interface FirstCompetitionYearContent {
@@ -152,12 +158,24 @@ async function renderLegacyClaim(
   } satisfies PageViewModel<LinkHistoryContent>);
 }
 
-function renderClubAffiliationsStub(req: Request, res: Response): void {
-  res.status(200).render('register/wizard/club-affiliations', {
+function renderClubAffiliationsCard(
+  req: Request,
+  res: Response,
+  opts: { formError?: string | null; statusOverride?: number } = {},
+): void {
+  const memberId = req.user!.userId;
+  const cards = memberOnboardingService.listWizardCardsForMember(memberId);
+  res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
     seo:  { title: 'Confirm your clubs' },
     page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Confirm your clubs' },
-    content: { dashboardHref: dashboardHrefFor(req) },
-  } satisfies PageViewModel<ClubAffiliationsStubContent>);
+    content: {
+      dashboardHref: dashboardHrefFor(req),
+      submitHref:    '/register/wizard/club_affiliations/submit',
+      skipHref:      '/register/wizard/club_affiliations/skip',
+      card:          cards.length > 0 ? cards[0] : null,
+      formError:     opts.formError ?? null,
+    },
+  } satisfies PageViewModel<ClubAffiliationsCardContent>);
 }
 
 function renderFirstCompetitionYear(
@@ -219,7 +237,7 @@ async function renderTaskByType(
     await renderLegacyClaim(req, res, state);
     return;
   }
-  if (taskType === 'club_affiliations')        { renderClubAffiliationsStub(req, res); return; }
+  if (taskType === 'club_affiliations')        { renderClubAffiliationsCard(req, res); return; }
   if (taskType === 'first_competition_year')   { renderFirstCompetitionYear(req, res); return; }
   if (taskType === 'show_competitive_results') { renderShowCompetitiveResults(req, res); return; }
 }
@@ -257,11 +275,10 @@ async function dispatch<TFormState>(
         return;
     }
   } catch (err) {
-    logger.error('onboarding wizard error', {
-      taskType: currentTaskType,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    next(err);
+    // Map NotFoundError / ValidationError to 404 (anti-enumeration for the
+    // F1 ownership check on club_affiliations submit), ServiceUnavailableError
+    // to 503, everything else to next(err) -> 500.
+    handleControllerError(err, res, next, `onboarding wizard:${currentTaskType}`);
   }
 }
 
@@ -401,6 +418,19 @@ export const memberOnboardingController = {
         renderShowCompetitiveResults(req, res, {
           enabled: result.formState.enabled,
           error: result.message,
+          statusOverride: 422,
+        });
+      },
+    });
+  },
+
+  async postClubAffiliationsSubmit(req: Request, res: Response, next: NextFunction): Promise<void> {
+    await dispatch<null>(req, res, next, 'club_affiliations', {
+      action: () =>
+        memberOnboardingService.processClubAffiliationsSubmit(req.user!.userId, req.body),
+      renderValidationError: (result) => {
+        renderClubAffiliationsCard(req, res, {
+          formError:      result.message,
           statusOverride: 422,
         });
       },

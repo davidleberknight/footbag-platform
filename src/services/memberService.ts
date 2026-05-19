@@ -51,6 +51,7 @@
  */
 import { account, publicPlayers, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { identityAccessService } from './identityAccessService';
+import { memberOnboardingService, type DashboardTaskWidget } from './memberOnboardingService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
@@ -173,6 +174,11 @@ export interface OwnProfileContent {
    * settings affordance so a member can revert a prior silent auto-link
    * from outside the first-login card surface. */
   claimedLegacyIdentities?: ClaimedLegacyIdentityView[];
+  /** Onboarding-task widget for the personal dashboard. Null when the
+   * member has no onboarding-task rows yet (pre-task-list bootstrap state).
+   * Per M_Complete_Onboarding_Wizard the widget surfaces pending, paused
+   * (detoured), and completed tasks with pre-shaped CTA labels. */
+  dashboardTasks?: DashboardTaskWidget | null;
 }
 
 export interface PendingAutoLinkCardContent {
@@ -362,6 +368,14 @@ function buildClaimedLegacyIdentitiesView(memberId: string): ClaimedLegacyIdenti
   }));
 }
 
+function buildDashboardTasksView(memberId: string): DashboardTaskWidget | null {
+  const widget = memberOnboardingService.getDashboardTaskWidget(memberId);
+  // hasAny is set by the service. A member with no onboarding-task rows
+  // yet (pre-bootstrap state) gets a null widget so the template skips the
+  // surface entirely.
+  return widget.hasAny ? widget : null;
+}
+
 export const memberService = {
   getOwnProfile(
     slug: string,
@@ -402,6 +416,7 @@ export const memberService = {
         memberSlug:   slug,
         pendingAutoLinkCard:    buildPendingAutoLinkCardContent(row.id),
         claimedLegacyIdentities: buildClaimedLegacyIdentitiesView(row.id),
+        dashboardTasks:         buildDashboardTasksView(row.id),
       },
     };
   },

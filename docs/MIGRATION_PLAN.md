@@ -138,7 +138,7 @@ Bootstrap-eligible clubs are created with:
 
 **Leadership activation paths:**
 
-1. **Bootstrap leader registers and claims**: the onboarding wizard presents classified `(member, club)` candidates. On user confirmation, strong-classified candidates promote the bootstrap row to a live `club_leaders` row in a silent audit-logged transaction. Weak-classified candidates collect supplementary evidence from the member and enqueue a `work_queue_items` row with `task_type='club_leader_evidence_review'` for admin review. A member declining a candidate sets `club_bootstrap_leaders.status='rejected'`; the row remains eligible for the other activation paths. When the same member matches signals for multiple clubs, the wizard presents all candidates and the member selects which clubs they led. See `M_Complete_Onboarding_Wizard` for the full user-facing acceptance criteria.
+1. **Bootstrap leader registers and claims**: the onboarding wizard presents classified `(member, club)` candidates. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row in a silent audit-logged transaction, regardless of classification strength; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Schema invariants enforce that at most one `role='leader'` row exists per club (`ux_one_leader_per_club`) and at most one `role='leader'` row exists per member across all clubs (`ux_one_club_leader_per_member`); the wizard transparently downgrades the new row to `role='co-leader'` when either invariant would be violated, recording the downgrade reason in audit metadata. The application-level cap of five total leadership rows per club is enforced: when the cap is reached the new claim still affiliates the member (`member_club_affiliations`) but does not insert a `club_leaders` row; an admin can later promote affiliated-only members via `A_Reassign_Club_Leader`. A member declining a candidate sets `club_bootstrap_leaders.status='rejected'`; the row remains eligible for the other activation paths. When the same member matches signals for multiple clubs, the wizard presents all candidates and the member selects which clubs they led. See `M_Complete_Onboarding_Wizard` for the full user-facing acceptance criteria.
 
 2. **First affiliated member accepts leadership**: if no bootstrap leader has yet registered, the first member who registers and confirms affiliation with that club is offered leadership during onboarding (if membership Tier 1+). On acceptance, the member is added as a co-leader. Any existing bootstrap leader candidates remain provisional until those candidates register and claim. Clubs may have multiple leaders.
 
@@ -643,7 +643,7 @@ Show: "You were listed as the contact for [Club Name] in [City, Country]. What's
 
 Five paths:
 
-1. **"Still active, I'm still involved."** Confirm existence; promote the candidate to a live `clubs` row if not already; route the leadership claim per the §2 classification: a `strong` bootstrap candidate promotes silently to a live `club_leaders` row regardless of registrant tier and audit-logs the promotion; a `weak` bootstrap candidate collects supplementary evidence from the registrant and enqueues a `work_queue_items` row with `task_type='club_leader_evidence_review'` for admin review; absent any bootstrap candidate, leadership is offered only when the registrant is membership Tier 1+ (Tier 0 listed contacts are added as members until they upgrade). Offer in-flight metadata updates: contact info, description, external URL, location. Edits apply directly.
+1. **"Still active, I'm still involved."** Confirm existence; promote the candidate to a live `clubs` row if not already; promote the bootstrap row to a live `club_leaders` row regardless of classification strength (the classification is recorded in audit metadata for post-cutover analytics) and regardless of registrant tier; absent any bootstrap candidate, leadership is offered only when the registrant is membership Tier 1+ (Tier 0 listed contacts are added as members until they upgrade). Offer in-flight metadata updates: contact info, description, external URL, location. Edits apply directly.
 2. **"Still active, but I've moved on."** Confirm existence; promote to live if not already; mark the listed-contact link as stale. If a successor leader later registers and confirms via Stage 1A path 1, the bootstrap path applies normally.
 3. **"Not active anymore."** Confirm historical existence; optional: when it became inactive. Promote the candidate to a live `clubs` row if not already, then set `clubs.status = 'inactive'`. Archival (`status='archived'`) is admin-only.
 4. **"I don't recognize this listing."** Logged to the admin cleanup queue (§9.4) as a strong junk signal. May mean either a mislinked roster or a fictitious page.
@@ -769,7 +769,7 @@ Every wizard interaction produces structured audit-log evidence. Signals that ch
 
 The `legacy_club_candidates` table is not a permanent operational surface. Every non-junk candidate eventually reaches a terminal state: promoted to a live `clubs` row, demoted to dormant, archived, or merged with another club. Admin is the sole decision authority; members provide input through structured flags. There is no time-bounded saturation window; admin reviews the queue at their own pace, and the table remains operational until empty.
 
-Admin's user-facing entry point is `A_Review_Club_Cleanup_Signals` in USER_STORIES.
+Admin's user-facing entry point is `A_Periodic_Club_Cleanup` in USER_STORIES.
 
 #### Member flag mechanism
 
@@ -781,18 +781,30 @@ Members can flag any club at any time through three surfaces:
 
 Every flag is recorded as a structured audit-log row carrying: the candidate or club id, the flagging member id, the flag category (junk, inactive, content-inaccurate, duplicate-of-X, never-heard-of-it, other), an optional note, the location predicates between the flagging member and the club (same-city, same-region, same-country per §9.3 Location matching helper), and a timestamp.
 
-#### Admin cleanup queue
+#### Automated cleanup layer
 
-Admin reads from a queue view that aggregates:
+A daily system process resolves unambiguous cleanup cases without admin involvement. The six automated predicates and their transitions are specified in USER_STORIES `A_Periodic_Club_Cleanup`:
+
+- `orphan_legacy_id` and `purged_member` and `inactive_onboarding` → `legacy_person_club_affiliations.resolution_status='former_only'`.
+- `stale_provisional_leader` → `club_bootstrap_leaders.status='superseded'`.
+- `leaderless_active_club` → live `clubs.status='inactive'` (reversible), with throttled outbox notifications to historically-affiliated members.
+- `convergent_auto_merge` → execute the auto-merge per §9.1.
+
+Each automated transition writes an audit row with `actor_type='system'`. The set of automatic predicates is fixed by the story; adding a predicate or loosening a threshold requires an explicit story extension.
+
+#### Admin residue queue
+
+After the automated layer runs, admin reads from a residue queue view that aggregates the items requiring human judgment:
 
 - Wizard-generated flags grouped by candidate or live club.
 - Member-flagged live clubs from the club detail page or `M_Join_Club` flow.
 - Suggested content edits awaiting approval (per §9.3 content validation loop).
-- Auto-merge holds (per §9.1 duplicate handling) where source entries disagreed on substantive identity.
+- Auto-merge holds (per §9.1 duplicate handling) where source entries disagreed on substantive identity (the residue after `convergent_auto_merge` runs).
 - Junk-flagged candidates (per §9.1 junk rules) and any admin force-keep or force-junk requests.
-- All non-junk candidates not yet promoted to live `clubs` rows, sortable by category, age, region, and flag count.
+- Non-junk candidates not yet promoted to live `clubs` rows.
+- `legacy_person_club_affiliations` rows in `resolution_status='pending'` that the automated predicates could not resolve (the unclassified residue).
 
-Admin sorts and filters this queue at their own pace. There is no automated demotion or time-based escalation.
+The admin-home backlog badge surfaces the count of open queue items and the age of the oldest open item. Admin sorts and filters this queue at their own cadence. There is no automated demotion or time-based escalation. Recommended cadence is monthly during steady-state operation; weekly during periods of high member activity.
 
 Admin's available actions per item:
 
@@ -804,9 +816,10 @@ Admin's available actions per item:
 - Split a previously auto-merged candidate.
 - Approve or reject a suggested content edit.
 - Add a candidate to force-keep or force-junk.
-- Dismiss a flag with an optional note.
+- Dismiss a flag with an optional reason, or defer with a bounded duration (30 / 90 / 180 days) after which the item re-surfaces.
+- Sweep residual `legacy_person_club_affiliations` rows: per-row or bulk-by-admin-filter transition to `'former_only'`, `'not_mine'`, or `'rejected'`. Bulk transitions render a preview screen (affected row count + sample rows) before commit, then run in a single transaction with one audit row per affected row.
 
-Every admin action is recorded in the audit log.
+Every admin action is recorded in the audit log. Concurrent admin coordination uses a lightweight claim marker per item (auto-releases on resolve or after a 30-minute stale-claim timeout).
 
 #### Per-category terminal states
 
@@ -814,6 +827,14 @@ Every admin action is recorded in the audit log.
 - **Onboarding-visible**: reaches a terminal state when promoted to live (via wizard confirmation per §9.3 or via admin promotion), demoted to dormant (admin only), or archived (admin only).
 - **Dormant**: revived through Stage 3A name search (per §9.3) or via admin promotion. Admin may archive a dormant candidate at any time.
 - **Junk**: invisible to non-admin surfaces; admin force-keep returns it to the classifier's normal evaluation.
+
+#### Read-filter convergence at cutover
+
+The platform's club-roster reads (`src/db/db.ts:711` and `:765`) include `resolution_status='pending'` alongside `'confirmed_current'` and `'promoted'`, so loader-imported affiliations render on `/clubs/:key` from launch. Without this, every imported affiliation would be invisible until its member walked the onboarding wizard, and rosters would launch empty.
+
+The `'pending'` set drains through two paths: members close their own rows via `clubService.confirmAffiliation` during the onboarding wizard, and the automated predicate job (see "Automated cleanup layer" above) resolves the unambiguous unattended cases. Residual unclassified rows accumulate in the admin queue under `A_Periodic_Club_Cleanup`.
+
+When the admin judges the residue acceptable, the platform-side filter reverts to `resolution_status IN ('confirmed_current', 'promoted')` and the paired TEMP-DEVIATION comments at `src/db/db.ts:755-756` and `src/services/clubService.ts:847-852` come out. The revert is a single small commit executed at the admin's discretion within the cutover window; there is no fixed deadline. Once reverted, any subsequent `'pending'` row is invisible to public roster reads until it transitions to a terminal state, matching the long-term design.
 
 #### Closure
 
@@ -933,7 +954,7 @@ The bootstrap path is exempt from the Tier 2 / Tier 3 status gate that `A_Manage
 | M_Delete_Account | Member | Delete account; person links revert from /members/ to /history/ |
 | A_Manual_Legacy_Claim_Recovery | Admin | Help a member complete legacy claim when self-serve is unavailable |
 | A_Review_Auto_Link_Matches | Admin | Review and resolve low-confidence auto-link cases (email match, name mismatch) |
-| A_Review_Club_Cleanup_Signals | Admin | Resolve accumulated wizard signals: demotion candidates, stale unconfirmed pre-populated clubs, unrevived dormant candidates; merge admin-spotted duplicates |
+| A_Periodic_Club_Cleanup | Admin | Ongoing queue: resolve wizard signals, member-flagged inaccuracies, suggested content edits, auto-merge holds, junk overrides, unpromoted candidates, and stale legacy-affiliation rows |
 
 ---
 

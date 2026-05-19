@@ -140,7 +140,9 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(memberId));
     expect(followUp.status).toBe(200);
-    expect(followUp.text).toContain('Club confirmation is being built');
+    // Member has no legacy_member_id linkage -> listWizardCardsForMember
+    // returns []; the card-renderer surfaces the empty-state copy.
+    expect(followUp.text).toContain('You have no clubs to confirm');
   });
 
   it('skipping all four tasks in sequence lands on /register/wizard/complete', async () => {

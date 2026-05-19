@@ -396,12 +396,29 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — cross-club 
     expect(b.branch).toBe('promoted_co_leader');
     expect(b.actualRole).toBe('co-leader');
 
+    // F2: the cross-club downgrade exposes attemptedRole + downgradeReason
+    // on the result (and the audit metadata) so post-cutover analytics can
+    // distinguish "club already has a leader" from "member already leads
+    // elsewhere". Club B's case is member-already-leader (member leads A;
+    // B's leader slot is empty when claimed).
+    expect(b.attemptedRole).toBe('leader');
+    expect(b.downgradeReason).toBe('member_already_leader');
+
     const aLeaders = readClubLeaders(crossClubA);
     const bLeaders = readClubLeaders(crossClubB);
     expect(aLeaders).toHaveLength(1);
     expect(aLeaders[0].role).toBe('leader');
     expect(bLeaders).toHaveLength(1);
     expect(bLeaders[0].role).toBe('co-leader');
+
+    // F2 audit-metadata assertion: latest audit row for this member carries
+    // both fields under the expected snake_case keys.
+    const audits = readClubAffiliationsAudits(CROSS_CLUB_MEMBER);
+    const latest = audits[audits.length - 1];
+    expect(latest.action_type).toBe('wizard.club_affiliations.promoted');
+    const meta = JSON.parse(latest.metadata_json);
+    expect(meta.attempted_role).toBe('leader');
+    expect(meta.downgrade_reason).toBe('member_already_leader');
   });
 });
 
