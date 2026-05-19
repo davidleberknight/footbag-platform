@@ -1,0 +1,85 @@
+
+            
+FOOTBAG WORLDWIDE : F.A.Q. : Advanced Freestyle :
+Frequently-Asked Questions
+
+English (US)
+ 
+WHAT'S NEW
+OVERVIEW
+F.A.Q.
+FORUM
+MEMBERS
+REFERENCE
+CLUBS
+EVENTS
+RESULTS
+PHOTOS
+VIDEOS
+FREESTYLE
+NET GAME
+IFPA
+GROUPS
+RULES
+LINKS
+Google
+
+the Web
+footbag.org
+
+*Copyright © 2026, International Footbag Players' Association
+A 501(c)(3) Non-Profit Corporation
+Advanced Freestyle:
+What does "paradox" mean?
+Paradox is both a concept (used in describing a certain class of freestyle move) and an add category (a 6th add category because the 5 existing categories simply aren't sufficient to describe all types of difficulty).
+
+The first thing to do to understand "paradox" is to look at one of the basic paradox moves and see exactly how it differs from the "non-paradox" version of the same move. In this case, we'll compare "mirage" with "paradox mirage".
+
+For the purposes of this discussion, consider "mirage" from a "clipper" set. That is:
+
+   clip > op in dex > op toe          "mirage" (from clipper set)
+Concretely, let's say you set the bag straight up, out of your right clipper delay. To do a "mirage", you would then plant your right foot (the one that just did the clipper set), and jump over the bag with your left leg (we call this an "in-out" dexterity), catching the bag on the toe of your right foot.
+Now, the "paradox" version of the same mirage would be have exactly the same ending, (i.e., in-out dexterity to opposite toe) but with the *other* leg doing the initial clipper set. In other words, instead of setting the exact same left-leg in-out dexterity using your right clipper, you start out with a set from your LEFT clipper. This makes the move APPRECIABLY HARDER:
+
+   clip > SAME in dex > op toe       "paradox mirage"
+Why is it harder? Well, this is the essence of "paradox", and I'll get to it below. Try to do this yourself and I think you'll see it is harder.
+
+[Instruction: The standard way to hit a paradox mirage is not to plant the setting foot (since that just makes the timing harder). Instead, you do a set, and IMMEDIATELY "snake" your setting leg out from behind the leg you set with (this implies that paradox moves are always set from a cross-body, because it's the snaking motion that partly defines what a paradox is) and without planting you throw the leg over the bag from in to out. Then you do the delay on your opposite toe. Consider that since the motion was "in-out", you had to really get your leg around the bag when doing the dexterity. This is *part* of what makes the move harder than the non-paradox version of the same move.]
+
+So for this example, "paradox mirage" is considered the "paradox" version of "mirage" because, technically, it is a mirage, except that it is *harder* because of set is from the "wrong clipper"!
+
+****** Therein lies the paradox -- in freestyle footbag, it has always been the common thinking that "the set doesn't affect the difficulty". But we all know it does for "paradox" moves. ******
+
+So the essence of "paradox" is that, by changing the set from one side to the other, but keeping the rest of the move the same, you make the move appreciably harder to execute. This is not true of *all* moves -- just of those moves that *are* harder as a result of the set. [For the sake of this explanation, assume that paradox only makes sense for "cross-body" (or "clipper") sets.]
+
+There is nothing in the *basic* definition of "paradox" that implies anything about whether a dexterity is "in-out" or "out-in". In other words, there are paradox versions of out-in dexterity moves, just as with in-out moves; for example, "paradox reverse-mirage".
+
+However, there is a class of moves starting with a clipper set for which the difficulty of executing the move is *not* appreciably different for *either* side set. Such moves generally involve OUT-IN dexterities, but that's a red herring. The fact is that "paradox" *doesn't* mean "set from the opposite clipper from the regular move"...
+
+People frequently try to define "paradox" in a way where it stands alone, instead of in simpler terms of the non-paradox versions of the same move. Here is a simple way to look at "paradox":
+
+      "Paradox" as a term only makes sense when used to describe a
+      move that is more difficult than, but otherwise identical to
+      another move -- wherein the difference is entirely attributed
+      to the *set*.  Furthermore, the set for a paradox move is always
+      from the cross-body position.
+That said, the actual determination of which moves are harder because of the different cross-body set is the ultimate issue behind the "great paradox debate". Suffice it to say that, in general, if the move doesn't *require* the "double-hip-pivot" to execute, it's not paradox but rather just the other-side set. Examples of moves that *can't* be made "paradox" are: butterfly, switch-over, leg-over, and swirl. (This is not an exhaustive list.) Paul Munger sent out a reasonably good list of criteria for whether or not a move is paradox. This tutorial is not meant to propose any standard for measuring such, but rather to give the reader a basic understanding of the concept.
+
+The rest of this tutorial gets into the contentious issues around why paradox moves are "appreciably harder". You can skip it if you don't care. It is not intended to stimulate discussion or argument, but to simply orient the reader as to the issues involved.
+
+Most advanced freestylers agree that the paradox mirage is harder than the mirage for a couple of reasons:
+
+  "paradox mirage" is harder than "mirage" because:
+
+      (1) you have to "snake" your setting leg out from the cross-body
+          position quickly and precisely in order to get back under
+          the bag for the initial dexterity;
+
+      (2) you have to really pivot your hips (more than usual) to
+          perform the move -- first in one direction, then in the other.
+Therefore, in the current difficulty-rating system, a "paradox" move is awarded an extra "body" add (for the double-hip-pivot). You can probably see that this is a contentious issue -- since most players believe paradox moves are harder than their non-paradox counterparts, really defining why is important. The "double-hip-pivot" standard is not particularly well accepted and people frequently come up with moves that don't fit this standard but which they believe are paradox. We won't address these cases in this tutorial.
+
+Further, certain spinning (or gyrating) moves are thought of as "taking the place" of paradox in most cases. It is important that you understand that spins or gyrations don't necessarily "negate" paradox -- they don't "cancel it out". They simply "subsume" it. If you think back to the earlier description of paradox mirage, it's the "snaking dexterity motion" and the "body" hip-pivot required to hit the move that make it "paradox" as a result of setting from the "wrong side" and going the "long way around the bag". Spinning or gyrating is just another such added level of difficulty... A good example is "vortex". At first glimpse, "vortex" looks like a "gyrating paradox drifter". But this is not correct; "vortex" is a "gyrating drifter" (non-paradox). The reason is simple: the spin of the gyrating motion is a "body" motion; once the spin is complete the remaining work is very similar to the work required to hit a drifter from the "simple" set. The spin made the move harder, not the same-side set. (This gets into the argument about switching feet in spins/gyros; I will leave that for a separate thread.)
+
+Entry last updated by Steve Goldberg on 2-Jan-1999.
+Copyright © 2026, International Footbag Players' Association, Inc., a U.S. 501(c)(3) non-profit corporation. All rights reserved. PRIVACY POLICY DONATE NOW
