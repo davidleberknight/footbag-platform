@@ -609,6 +609,16 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['whirling swirl'],
     curatorConfirmPending: false,   // Sprint 1 resolved: whirling(+1) + swirl(3) = 4 ADD. Canonical name IS the structural reading
   },
+  {
+    slug:     'barraging-osis',
+    readings: ['barraging osis'],
+    curatorConfirmPending: false,   // Red 2026-05-15 ruling: 'Baroque (Barraging Osis) = Two dexes + Osis = 5'. Structurally = barraging segment + osis. DB alias 'baroque' preserved
+  },
+  {
+    slug:     'surging',
+    readings: ['spinning stepping'],
+    curatorConfirmPending: false,   // Surging Modeling Rule (Red pt2): surging primitive decomposes to spinning + stepping. NOT in modifier table per the rule. 2 ADD = primitive operator-stack value
+  },
 ];
 
 /**

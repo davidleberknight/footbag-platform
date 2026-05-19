@@ -648,6 +648,20 @@ STATUS_MISSING_IFPA       = "missing_ifpa_formula"
 STATUS_MISSING_EXTERNAL   = "missing_external_formula"
 STATUS_UNRESOLVED         = "unresolved_red_pending"
 STATUS_NOT_FOUND          = "not_found_anywhere"
+STATUS_ALIAS_OF_CANONICAL = "alias_of_canonical"
+
+# Placeholder slugs that are doctrinally aliases of canonical DB rows.
+# Workbook lists them as separate rows (per user direction: "expose the full
+# active canonical surface") but they don't need their own canonicalization —
+# their data lives on the canonical row they alias. Curator-authored map.
+PLACEHOLDER_ALIASES: dict[str, str] = {
+    "atomic-mirage":          "atom-smasher",        # Sprint 4: atom-smasher = atomic mirage + x-dex
+    "gyro-torque":            "mobius",              # mobius chain reading 'gyro torque'
+    "stepping-butterfly":     "ripwalk",             # ripwalk chain reading 'stepping butterfly'
+    "stepping-paradox-whirl": "blurry-whirl",        # blurry-whirl chain reading (Red pt11)
+    "reverse-mirage":         "illusion",            # Red 2026-05-11: mirage ≠ illusion (direction is structural)
+    "reverse-legover":        "pickup",              # Red 2026-05-11: legover ≠ pickup
+}
 
 # Doctrine-locked ADD disagreements (curator + Red have settled the doctrine
 # even though external sources publish a different ADD). Distinct from open
@@ -814,7 +828,14 @@ def build_row(
     action: list[str] = []
     external_adds_present = [a for a in [fborg_add, fm_add] if a]
 
-    if not db and not fborg_entry and not pb_entry and not fm_entry:
+    if not db and slug in PLACEHOLDER_ALIASES:
+        # Placeholder slug is a doctrinally-confirmed alias of a canonical row.
+        # The canonical row holds the data; this placeholder exists only to
+        # surface the external-source naming.
+        status = STATUS_ALIAS_OF_CANONICAL
+        notes.append(f"placeholder slug — alias of canonical '{PLACEHOLDER_ALIASES[slug]}'")
+        action.append(f"no action — see canonical row '{PLACEHOLDER_ALIASES[slug]}'")
+    elif not db and not fborg_entry and not pb_entry and not fm_entry:
         status = STATUS_NOT_FOUND
         notes.append("trick name not located in IFPA DB or any external source")
         action.append("confirm spelling / alias / promote to dictionary if curator-confirmed")
