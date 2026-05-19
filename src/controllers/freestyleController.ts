@@ -107,11 +107,24 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/tricks */
+  /**
+   * GET /freestyle/tricks
+   *
+   * Renders the dictionary landing surface (CR-1 of
+   * dictionary-coherence-2026-05-18) when no ?view= and no ?family=
+   * parameter is supplied. Otherwise renders the browse-view chain
+   * (preserves all existing bookmarks + external links to ?view=add,
+   * ?view=family, ?view=movement-system, etc).
+   */
   tricksIndex(req: Request, res: Response, next: NextFunction): void {
     try {
       const family = typeof req.query['family'] === 'string' ? req.query['family'] : undefined;
       const view   = typeof req.query['view']   === 'string' ? req.query['view']   : undefined;
+      if (!family && !view) {
+        const vm = freestyleService.getDictionaryLandingPage();
+        res.render('freestyle/tricks-landing', vm);
+        return;
+      }
       const vm = freestyleService.getFreestyleTricksIndexPage(family, view);
       res.render('freestyle/tricks', vm);
     } catch (err) {

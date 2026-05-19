@@ -108,8 +108,12 @@ describe('GET /freestyle/tricks?view=topology — route + toggle', () => {
   });
 
   it('the topology toggle link is reachable from every other view', async () => {
-    for (const view of ['', 'family', 'category', 'component']) {
-      const url = view ? `/freestyle/tricks?view=${view}` : '/freestyle/tricks';
+    // Bare `/freestyle/tricks` now renders the dictionary landing surface
+    // (CR-1 of dictionary-coherence-2026-05-18), which has its own
+    // discoverability path for Movement Neighborhoods (card 4). The
+    // browse-view toggle is checked against every actual browse-view URL.
+    for (const view of ['add', 'family', 'category', 'component']) {
+      const url = `/freestyle/tricks?view=${view}`;
       const res = await request(createApp()).get(url);
       expect(res.text).toContain('href="/freestyle/tricks?view=topology"');
     }

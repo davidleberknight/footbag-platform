@@ -112,7 +112,7 @@ describe('Presentation-hierarchy contract — registry density (ADD View canonic
   for (const pilot of PILOTS) {
     it(`renders ${pilot.slug} with canonical field order in ADD View`, async () => {
       const app = createApp();
-      const res = await request(app).get('/freestyle/tricks');
+      const res = await request(app).get('/freestyle/tricks?view=add');
       expect(res.status).toBe(200);
       const card = cardRegion(res.text, pilot.slug);
       expect(card, `card not found for ${pilot.slug} in ADD View`).not.toBeNull();
@@ -163,7 +163,7 @@ describe('Presentation-hierarchy contract — cross-density identity', () => {
   // canonical hierarchy in both densities.
   it('paradox-whirl renders title → formula → ADD in BOTH ADD and Family views', async () => {
     const app = createApp();
-    const add = await request(app).get('/freestyle/tricks');
+    const add = await request(app).get('/freestyle/tricks?view=add');
     const fam = await request(app).get('/freestyle/tricks?view=family');
 
     const addCard = cardRegion(add.text, 'paradox-whirl');
@@ -183,7 +183,7 @@ describe('Presentation-hierarchy contract — cross-density identity', () => {
 
   it('canonical-name link href is identical across ADD and Family views', async () => {
     const app = createApp();
-    const add = await request(app).get('/freestyle/tricks');
+    const add = await request(app).get('/freestyle/tricks?view=add');
     const fam = await request(app).get('/freestyle/tricks?view=family');
 
     for (const pilot of PILOTS) {
@@ -201,7 +201,7 @@ describe('Presentation-hierarchy contract — cross-density identity', () => {
 
   it('ADD label is identical across ADD and Family views', async () => {
     const app = createApp();
-    const add = await request(app).get('/freestyle/tricks');
+    const add = await request(app).get('/freestyle/tricks?view=add');
     const fam = await request(app).get('/freestyle/tricks?view=family');
 
     for (const pilot of PILOTS) {

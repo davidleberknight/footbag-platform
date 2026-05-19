@@ -42,10 +42,16 @@
       legacy / advanced browse modes. No JavaScript; view selected via ?view=
       query param. }}
   <nav class="trick-view-toggle" aria-label="Dictionary view">
+    {{! Back to landing (CR-1 of dictionary-coherence-2026-05-18). The
+        landing surface renders when no ?view= and no ?family= are
+        supplied; this link returns the visitor there from any browse
+        view. }}
+    <a class="trick-view-toggle-back" href="/freestyle/tricks">&lsaquo; Dictionary</a>
+    <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "add")}}
       <span class="trick-view-toggle-active">By ADD</span>
     {{else}}
-      <a href="/freestyle/tricks">By ADD</a>
+      <a href="/freestyle/tricks?view=add">By ADD</a>
     {{/if}}
     <span class="trick-view-toggle-sep">·</span>
     {{#if (eq content.activeView "family")}}

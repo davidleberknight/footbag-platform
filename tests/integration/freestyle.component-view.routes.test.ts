@@ -107,7 +107,7 @@ describe('GET /freestyle/tricks?view=component — route + alias (soft-retired)'
     expect(res.text).not.toMatch(/class="trick-view-toggle-active">By component</);
     // The toggle row also no longer carries a link to the view from
     // OTHER active views.
-    const tricksDefault = await request(createApp()).get('/freestyle/tricks');
+    const tricksDefault = await request(createApp()).get('/freestyle/tricks?view=add');
     // The component-view URL must not appear as a toggle-row anchor;
     // it may still appear in `?view=component#component-*` deep-link
     // contexts elsewhere on the page (trick-detail membership panels).

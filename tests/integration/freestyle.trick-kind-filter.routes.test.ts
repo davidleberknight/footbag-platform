@@ -212,7 +212,7 @@ describe('Trick-browse view filter — non-trick kinds excluded', () => {
 describe('Trick-browse view filter — true tricks preserved', () => {
   it('renders the control trick in the ADD view', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${TRICK_SAMPLE}"`);
   });
@@ -231,7 +231,7 @@ describe('Trick-browse view filter — true tricks preserved', () => {
     // clipper-stall (1 ADD) is a tricks-end-in-bag-contact primitive and
     // must remain in the ADD ladder.
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${STALL_TRICK_SAMPLE}"`);
   });

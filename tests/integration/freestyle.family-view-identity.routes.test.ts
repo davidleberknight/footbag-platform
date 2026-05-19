@@ -189,7 +189,7 @@ describe('Cross-view identity — ADD view vs Family view', () => {
   for (const slug of IDENTITY_PILOTS) {
     it(`renders identical canonical identity for '${slug}' in ADD and Family views`, async () => {
       const app = createApp();
-      const addView    = await request(app).get('/freestyle/tricks');
+      const addView    = await request(app).get('/freestyle/tricks?view=add');
       const familyView = await request(app).get('/freestyle/tricks?view=family');
       expect(addView.status).toBe(200);
       expect(familyView.status).toBe(200);

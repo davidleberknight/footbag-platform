@@ -344,19 +344,19 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('GET /freestyle/tricks', () => {
   it('returns 200', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
   });
 
   it('shows page title', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('Trick Dictionary');
   });
 
   it('shows all active non-modifier tricks', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('whirl');
     expect(res.text).toContain('blurriest');
     expect(res.text).toContain('legover');
@@ -379,14 +379,14 @@ describe('GET /freestyle/tricks', () => {
 
   it('shows ADD values', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('3');   // whirl
     expect(res.text).toContain('6');   // blurriest
   });
 
   it('links all dict tricks to /freestyle/tricks/:slug (not just those with records)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // whirl has records — linked
     expect(res.text).toContain('/freestyle/tricks/whirl');
     // blurriest has no record — but is in the dict, so now also linked
@@ -395,7 +395,7 @@ describe('GET /freestyle/tricks', () => {
 
   it('shows record indicator (★) for tricks that have passback records', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // whirl has a record — should show the star indicator
     // blurriest has no record — no star (but still has a link)
     expect(res.text).toContain('whirl');
@@ -404,7 +404,7 @@ describe('GET /freestyle/tricks', () => {
 
   it('renders allow-listed canonical aliases as ≡ readings (around-the-world ≡ ATW)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // Per CANONICAL-SURFACE-REALIGNMENT-1 S1+S3, atom-level canonical aliases
     // surface only through the freestyleAliasGovernance allow-list; the
     // around-the-world ≡ ATW entry is allow-listed (displayAs='ATW').
@@ -416,7 +416,7 @@ describe('GET /freestyle/tricks', () => {
 
   it('shows trick count in hero stats', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('tricks');
   });
 });
@@ -437,7 +437,7 @@ describe('public dictionary presentation', () => {
 
   it('renders notation inline in the default ADD view (no table header)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // DSC-2 slice 1 + BROWSE-REFACTOR-1 Slice 1: ADD view is registry density.
     // No table header. The card renders either a tokenized ≡ reading
@@ -449,7 +449,7 @@ describe('public dictionary presentation', () => {
 
   it('does not list modifier rows in the category groups', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Modifier-category section header must not appear in the page.
     expect(res.text).not.toMatch(/<h2>Modifier<\/h2>/);
@@ -460,7 +460,7 @@ describe('public dictionary presentation', () => {
 
   it('does not render the Modifier Reference section', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Modifier Reference');
     expect(res.text).not.toContain('+ADD (rotational)');
@@ -493,7 +493,7 @@ describe('public dictionary presentation', () => {
 
   it('renders the dictionary expansion note', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain('being expanded and aligned with established freestyle notation');
   });
@@ -542,7 +542,7 @@ describe('GET /freestyle/tricks?family=… — hashtag filter', () => {
 
   it('does NOT render the Related set/modifier groups block when no family is active', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).not.toContain('class="related-set-groups"');
     expect(res.text).not.toContain('Related set/modifier groups:');
   });
@@ -830,7 +830,7 @@ describe('GET /freestyle/tricks/:slug — Related Tricks section', () => {
 describe('pending row visibility', () => {
   it('pending tricks render as labeled external placeholders in the default ADD view', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // Active control still rendered.
     expect(res.text).toContain('whirl');
@@ -876,7 +876,7 @@ describe('pending row visibility', () => {
 describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', () => {
   it('renders an ADD-group section per non-empty ADD bucket', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     // The fixture seeds tricks with ADD values; expect at least the 3-ADD
     // bucket header to render (whirl is 3 ADD in this fixture).
@@ -885,7 +885,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
   it('places at least one known trick in the correct ADD group', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // 'whirl' is 3 ADD: anchor-id "add-3" must contain the whirl row.
     const startIdx = res.text.indexOf('id="add-3"');
     expect(startIdx).toBeGreaterThan(0);
@@ -897,7 +897,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
   it('renders an "Unrated / unresolved" group when at least one row has no numeric ADD', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // The fixture seeds 'pending zorblax' with empty ADD.
     expect(res.text).toContain('Unrated / unresolved');
   });
@@ -909,13 +909,13 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   // tier classification without depending on chip text.
   it('renders a data-media-coverage attribute on every card', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/data-media-coverage="(?:tutorial|demo|none)"/);
   });
 
   it('renders no media chip for tricks with no media coverage (absence is the signal)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // Cards with data-media-coverage="none" must not render dict-card-media-chip
     // inside their <article>. Locate one such card and assert.
     const cardMatch = res.text.match(/<article class="dict-card[^>]*data-media-coverage="none"[^>]*>([\s\S]*?)<\/article>/);
@@ -925,21 +925,21 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
   it('renders the "Tutorial available" chip when a trick has tutorial-tier coverage', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('dict-card-media-chip dict-card-media-chip--tutorial');
     expect(res.text).toContain('Tutorial available');
   });
 
   it('renders the "Demo only" chip when a trick has only demo-tier coverage', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('dict-card-media-chip dict-card-media-chip--demo');
     expect(res.text).toContain('Demo only');
   });
 
   it('renders the "Tutorial available" chip when a trick has only curator-tagged tutorial media (UNION fix)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // `curator-only-trick` has no row in freestyle_media_links; its only
     // tutorial-tier coverage is via media_items + media_tags + tags
     // (curator-tagged channel with source_id='tt_youtube'). Pre-fix this
@@ -956,7 +956,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
   it('renders ≡ symbolic-equivalence readings on the dictionary-trick-card', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // BROWSE-REFACTOR-1 Slice 1: both registry and browse densities use
     // the `core-trick-equivalence dict-card-equivalence` wrapper class on
     // the tokenized ≡ reading. The registry variant adds an `--inline`
@@ -972,13 +972,13 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     // component / topology) still render the placeholder for rows with
     // neither tokenized ≡ readings nor operational notation.
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
   });
 
   it('descriptions are not rendered on the By ADD card; the placeholder is gone too', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     // DSC-2 slice 1: prose descriptions are explicitly excluded from the
     // symbolic trick card. The 'Description pending' placeholder is therefore
     // also gone on the ADD view (descriptions still appear in the category
@@ -989,7 +989,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
 
   it('renders the coverage summary with counts and the transparency note', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('canonical tricks');
     expect(res.text).toContain('External-source placeholders are shown for transparency and coverage tracking');
     // sources loaded: footbag.org always declared
@@ -1006,7 +1006,7 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
     // ?view=category and ?view=component routes still resolve with
     // retirement notices for bookmark continuity.
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('class="trick-view-toggle"');
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');

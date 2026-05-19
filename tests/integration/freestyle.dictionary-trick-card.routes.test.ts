@@ -158,17 +158,17 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/tricks (By ADD) — route stability', () => {
   it('returns 200', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
   });
 
   it('renders the dict-card stack container', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('dict-card-stack');
   });
 
   it('renders ADD-group sections with anchor IDs', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toContain('id="add-1"');
     expect(res.text).toContain('id="add-2"');
     expect(res.text).toContain('id="add-4"');
@@ -183,14 +183,14 @@ describe('GET /freestyle/tricks (By ADD) — route stability', () => {
 
 describe('dictionary-trick-card — required slots', () => {
   it('renders title slot as a link to the trick detail page', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/ripwalk">ripwalk<\/a>/);
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/mobius">mobius<\/a>/);
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/montage">montage<\/a>/);
   });
 
   it('renders ADD label slot for every seeded trick', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>1 ADD<\/span>/);
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>2 ADD<\/span>/);
     expect(res.text).toMatch(/<span class="dict-card-add[^"]*"[^>]*>4 ADD<\/span>/);
@@ -199,7 +199,7 @@ describe('dictionary-trick-card — required slots', () => {
   });
 
   it('renders operational notation as role-tagged token spans', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     // Each notation token carries op-token class + cssRole modifier + data-role attr.
     // Spot-check the role taxonomy on Ripwalk: [clip] (component_flag) > op (side) in (direction) dex (...) butterfly wing (rotation_variant... actually 'butterfly wing' is fused as rotation_variant; check class).
     expect(res.text).toMatch(/<span class="op-token op-token--component-flag[^"]*"[^>]*>\[clip\]<\/span>/);
@@ -261,13 +261,13 @@ describe('dictionary-trick-card — required slots', () => {
   });
 
   it('does NOT render prose description in the browse card', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     // The legacy By ADD view emitted .trick-description; the migrated card never renders it.
     expect(res.text).not.toContain('trick-description');
   });
 
   it('renders the dict-card article element for every seeded trick', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     // Each card renders as <article class="dict-card" data-trick-slug="...">.
     const slugAttrCount = (res.text.match(/data-trick-slug="/g) ?? []).length;
     expect(slugAttrCount).toBeGreaterThanOrEqual(6);
@@ -280,7 +280,7 @@ describe('dictionary-trick-card — required slots', () => {
 
 describe('dictionary-trick-card — sparse and deep render through the same template', () => {
   it('Toe Stall (sparse) renders cleanly: title + ADD + minimal operational notation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     // Title row
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe-stall">toe stall<\/a>/);
     // Operational notation: [toe] > toe
@@ -324,7 +324,7 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
 
 describe('dictionary-trick-card — grouping', () => {
   it('Ripwalk card lands inside the 4-ADD section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     const sectionStart = res.text.indexOf('id="add-4"');
     const nextSectionStart = res.text.indexOf('id="add-5"', sectionStart);
     expect(sectionStart).toBeGreaterThan(-1);
@@ -334,7 +334,7 @@ describe('dictionary-trick-card — grouping', () => {
   });
 
   it('Mobius card lands inside the 5-ADD section', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     const sectionStart = res.text.indexOf('id="add-5"');
     const nextSectionStart = res.text.indexOf('id="add-7"', sectionStart);
     expect(sectionStart).toBeGreaterThan(-1);
@@ -421,8 +421,11 @@ describe('other dictionary views — slice-by-slice migration', () => {
   });
 
   it('every browse view now renders via the shared dictionary-trick-card partial (card-uniformity contract)', async () => {
-    for (const view of ['', 'family', 'category', 'component', 'sets']) {
-      const url = view ? `/freestyle/tricks?view=${view}` : '/freestyle/tricks';
+    // Bare /freestyle/tricks renders the dictionary landing surface
+    // post-CR-1; it has no trick cards by design. Each explicit
+    // ?view= URL still renders the shared dict-card-stack.
+    for (const view of ['add', 'family', 'category', 'component', 'sets']) {
+      const url = `/freestyle/tricks?view=${view}`;
       const res = await request(createApp()).get(url);
       expect(res.status).toBe(200);
       expect(res.text, `${url} must render dict-card-stack`).toContain('dict-card-stack');

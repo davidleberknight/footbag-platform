@@ -164,7 +164,7 @@ describe('Trick-card rendering — tokens wrap in anchor links when glossaryAnch
 
   it('renders linked tokens identically in ADD view (registry density)', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     const card = res.text.match(
       /data-trick-slug="paradox-whirl"[\s\S]*?<\/article>/,
     );
@@ -233,7 +233,7 @@ describe('Page-hero cross-link CTAs', () => {
 
   it('renders "Learn the language →" CTA on the trick-dictionary hero', async () => {
     const app = createApp();
-    const res = await request(app).get('/freestyle/tricks');
+    const res = await request(app).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain('class="hero-cross-link"');
     expect(res.text).toMatch(

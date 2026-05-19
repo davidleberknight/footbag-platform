@@ -1,0 +1,91 @@
+{{!--
+  /freestyle/tricks — dictionary landing surface.
+
+  CR-1 of exploration/dictionary-coherence-2026-05-18/. Renders when no
+  ?view= AND no ?family= parameter is supplied. Six browse cards orient
+  the visitor across ADD / Family / Movement System / Movement
+  Neighborhoods / Observed Tricks / Operators & Components, with a
+  3-chip stat row, ontology framing, glossary primer, and one paragraph
+  on notation philosophy.
+
+  Constraints applied (skill doctrine D restraint + planning doc §2.5):
+    - No "what's new" panel.
+    - No token soup, AST visuals, or interactive symbolic UI.
+    - Static affordances only; no JS.
+    - Cards 4 + 5 (Movement Neighborhoods + Observed Tricks) carry the
+      observational badge; cards 1-3 + 6 are canonical.
+--}}
+<div class="hero hero-sm">
+  <div>
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <a href="/freestyle">Freestyle</a> &rsaquo;
+      <span aria-current="page">Trick Dictionary</span>
+    </nav>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{content.framing}}</p>
+  </div>
+</div>
+
+<div class="wrapper dictionary-landing">
+
+  {{! ── Stat row ─────────────────────────────────────────────────────── }}
+  <section class="landing-stat-strip" aria-label="Dictionary coverage">
+    <span class="landing-stat-chip">
+      <span class="landing-stat-value">{{content.stats.canonicalCount}}</span>
+      <span class="landing-stat-label">canonical tricks</span>
+    </span>
+    <span class="landing-stat-chip">
+      <span class="landing-stat-value">{{content.stats.observationalCount}}</span>
+      <span class="landing-stat-label">observational</span>
+    </span>
+    <span class="landing-stat-chip">
+      <span class="landing-stat-value">{{content.stats.modifierCount}}</span>
+      <span class="landing-stat-label">modifiers</span>
+    </span>
+  </section>
+
+  {{! ── Six browse cards ───────────────────────────────────────────────
+       Card structure: outer wrapper is a non-anchor <div> so we can host
+       multiple links inside (main card link + optional sub-link). Nested
+       <a> elements are invalid HTML, so the sub-link is a SIBLING anchor
+       to the main card link, not a child. }}
+  <section class="landing-card-grid" aria-label="Browse modes">
+    {{#each content.cards}}
+    <div data-card-slug="{{slug}}"
+         class="landing-card landing-card--{{slug}}{{#if isObservational}} landing-card--observational{{/if}}">
+      <a class="landing-card-main" href="{{href}}">
+        <div class="landing-card-header">
+          <h2 class="landing-card-title">{{title}}</h2>
+          {{#if isObservational}}
+          <span class="symbolic-layer-badge" title="Observational layer — curator interpretation, not canonical">observational</span>
+          {{/if}}
+        </div>
+        <p class="landing-card-subtitle">{{subtitle}}</p>
+        <p class="landing-card-body">{{body}}</p>
+        <p class="landing-card-use-when"><em>{{useWhen}}</em></p>
+      </a>
+      {{#if subLink}}
+      <a class="landing-card-sub-link" href="{{subLink.href}}">
+        <span class="landing-card-sub-link-arrow" aria-hidden="true">&rsaquo;</span>
+        <span>{{subLink.label}}</span>
+      </a>
+      {{/if}}
+    </div>
+    {{/each}}
+  </section>
+
+  {{! ── Glossary primer (small callout near operators/components card) ── }}
+  <aside class="landing-primer-callout" aria-label="Notation primer">
+    <p class="landing-primer-headline">{{content.glossaryPrimer.headline}}</p>
+    <p class="landing-primer-body">
+      {{content.glossaryPrimer.body}}
+      <a href="{{content.glossaryPrimer.href}}">Open the glossary primer &rsaquo;</a>
+    </p>
+  </aside>
+
+  {{! ── Notation philosophy paragraph ────────────────────────────────── }}
+  <section class="notation-philosophy" aria-label="Notation philosophy">
+    <p>{{content.notationPhilosophy}}</p>
+  </section>
+
+</div>

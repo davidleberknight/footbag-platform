@@ -111,6 +111,14 @@ import {
   listObservationalByStatus,
   type ObservationalTrick,
 } from '../content/freestyleObservationalTricks';
+import {
+  DICTIONARY_LANDING_CARDS,
+  DICTIONARY_LANDING_FRAMING,
+  DICTIONARY_LANDING_NOTATION_PHILOSOPHY,
+  DICTIONARY_LANDING_PRIMER,
+  type DictionaryLandingCard,
+  type DictionaryLandingGlossaryPrimer,
+} from '../content/freestyleDictionaryLanding';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
 import {
   SymbolicLearnIndexContent,
@@ -1817,6 +1825,32 @@ export interface MovementSystemAxisView {
 export interface MovementSystemBrowseView {
   observationalNote: string;
   axes:              MovementSystemAxisView[];   // axes with zero non-empty groups are pruned
+}
+
+/**
+ * Dictionary landing surface (CR-1 of dictionary-coherence-2026-05-18).
+ *
+ * Renders on /freestyle/tricks when no ?view= parameter is supplied (and
+ * no ?family= filter). When either is present, the existing browse-view
+ * shaping path runs unchanged.
+ *
+ * stats counts are pulled at shape time from the DB and the
+ * OBSERVATIONAL_TRICKS content module. Card structure + framing +
+ * primer + philosophy prose live in
+ * src/content/freestyleDictionaryLanding.ts (reversible curator content).
+ */
+export interface DictionaryLandingStats {
+  canonicalCount:     number;   // active freestyle_tricks rows with kind='trick'
+  observationalCount: number;   // OBSERVATIONAL_TRICKS row count
+  modifierCount:      number;   // freestyle_trick_modifiers row count
+}
+
+export interface DictionaryLandingContent {
+  framing:            string;
+  stats:              DictionaryLandingStats;
+  cards:              readonly DictionaryLandingCard[];
+  glossaryPrimer:     DictionaryLandingGlossaryPrimer;
+  notationPhilosophy: string;
 }
 
 export interface FreestyleTricksIndexContent {
@@ -4437,6 +4471,71 @@ export const freestyleService = {
         dictNote:
           'This dictionary is being expanded and aligned with established freestyle notation. ' +
           'New entries are staged for review before publication.',
+      },
+    };
+  },
+
+  /**
+   * GET /freestyle/tricks (when no ?view= parameter is supplied AND no
+   * ?family= filter — otherwise getFreestyleTricksIndexPage handles).
+   *
+   * CR-1 of exploration/dictionary-coherence-2026-05-18/. Orients
+   * first-time visitors across the six browse axes before they pick
+   * one. Six cards (ADD / Family / Movement System / Movement
+   * Neighborhoods / Observed Tricks / Operators & Components), a
+   * 3-chip stat row, ontology framing, glossary primer callout, and
+   * one paragraph on notation philosophy.
+   *
+   * Content (cards + framing + primer + philosophy) is curator-authored
+   * in src/content/freestyleDictionaryLanding.ts. Stats counts are
+   * joined from DB + OBSERVATIONAL_TRICKS content module at shape time.
+   *
+   * Observational/canonical separation preserved: cards 4 + 5
+   * (Movement Neighborhoods + Observed Tricks) carry isObservational=true
+   * which drives the observational badge in the template; no
+   * observational rows inlined into canonical browse views per skill
+   * doctrine A.
+   */
+  getDictionaryLandingPage(): PageViewModel<DictionaryLandingContent> {
+    const activeRows = runSqliteRead('freestyleTricks.listAll', () =>
+      freestyleTricks.listAll.all() as FreestyleTrickRow[],
+    );
+    const canonicalCount = activeRows.filter(r => resolveTrickKind(r.slug) === 'trick').length;
+
+    const modifierRows = runSqliteRead('freestyleTrickModifiers.listAll', () =>
+      freestyleTrickModifiers.listAll.all() as FreestyleTrickModifierRow[],
+    );
+
+    const stats: DictionaryLandingStats = {
+      canonicalCount,
+      observationalCount: OBSERVATIONAL_TRICKS.length,
+      modifierCount:      modifierRows.length,
+    };
+
+    return {
+      seo: {
+        title:       'Freestyle Trick Dictionary',
+        description:
+          'Choose how to browse the freestyle trick dictionary: by ADD, by family, by movement system, by movement neighborhood, or browse observed tricks staged before canonical promotion.',
+      },
+      page: {
+        sectionKey: 'freestyle',
+        pageKey:    'freestyle_tricks_landing',
+        title:      'Trick Dictionary',
+        eyebrow:    'Freestyle',
+      },
+      navigation: {
+        breadcrumbs: [
+          { label: 'Freestyle', href: '/freestyle' },
+          { label: 'Trick Dictionary' },
+        ],
+      },
+      content: {
+        framing:            DICTIONARY_LANDING_FRAMING,
+        stats,
+        cards:              DICTIONARY_LANDING_CARDS,
+        glossaryPrimer:     DICTIONARY_LANDING_PRIMER,
+        notationPhilosophy: DICTIONARY_LANDING_NOTATION_PHILOSOPHY,
       },
     };
   },

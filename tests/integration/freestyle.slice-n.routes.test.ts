@@ -90,7 +90,7 @@ afterAll(() => cleanupTestDb(dbPath));
 
 describe('Slice N — branch-family chain additions render symbolically', () => {
   it('paradox-blender card renders the chain reading, not the operational notation', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="paradox-blender"');
     expect(idx).toBeGreaterThan(-1);
@@ -105,7 +105,7 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
   });
 
   it('food-processor surfaces the Red-locked Blurry-Blender reading', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     const idx = res.text.indexOf('data-trick-slug="food-processor"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
@@ -116,7 +116,7 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
   });
 
   it('spender surfaces the curator-prose-confirmed reading', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     const idx = res.text.indexOf('data-trick-slug="spender"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
@@ -126,7 +126,7 @@ describe('Slice N — branch-family chain additions render symbolically', () => 
   });
 
   it('paradox-drifter resolves through the new chain (not the long op-notation)', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     const idx = res.text.indexOf('data-trick-slug="paradox-drifter"');
     expect(idx).toBeGreaterThan(-1);
     const nextCard = res.text.indexOf('data-trick-slug=', idx + 1);
@@ -211,7 +211,7 @@ describe('Slice N — rendering precedence preserved (no regression)', () => {
     // The fixture row is seeded in beforeAll. It carries operational
     // notation but no chain registry entry — verifies the symbolic-first
     // / op-notation-fallback contract still holds for un-chained rows.
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const idx = res.text.indexOf('data-trick-slug="slice-n-fallback-fixture"');
     expect(idx).toBeGreaterThan(-1);

@@ -305,7 +305,7 @@ describe('ADD Analysis discoverability — inbound links (Slice X corrective 202
   });
 
   it('freestyle tricks index source-note links to ADD analysis', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     const note = res.text.match(/class="source-note"[\s\S]{0,500}/)?.[0] ?? '';
     expect(note).toContain('href="/freestyle/add-analysis"');
