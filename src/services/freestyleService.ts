@@ -4351,7 +4351,7 @@ export const freestyleService = {
     const topologyView: TopologyBrowseView = {
       layerSource:       'observational',
       observationalNote:
-        'Observational symbolic-grammar layer. These groupings describe how tricks share body mechanics — hippy vs leggy, whirl vs swirl, uptime vs midtime patterns. They are observed, not canonical; the dictionary\'s family classifications remain the canonical structure.',
+        'Movement Neighborhoods are observational groupings — they describe how tricks share embodied movement feel: hippy vs leggy, whirl vs swirl, uptime vs midtime patterns. They are observed, not canonical; the dictionary\'s family classifications remain the canonical structure.',
       groups: TOPOLOGY_GROUPS
         .map(buildTopologyGroup)
         .filter(g => g.memberCount > 0),

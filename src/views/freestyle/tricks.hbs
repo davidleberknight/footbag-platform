@@ -253,7 +253,10 @@
   {{/each}}
   {{/if}}
 
-  {{! ── Topology view — observational symbolic-grammar layer (DSC-2 topology slice) ── }}
+  {{! ── Movement Neighborhoods view (CR-6 of dictionary-coherence-2026-05-18;
+       public label renamed from "Topology"). Observational layer; the
+       backend slug + URL parameter `?view=topology` are preserved for
+       URL stability. ── }}
   {{#if (eq content.activeView "topology")}}
   <p class="topology-view-note">
     {{content.topologyView.observationalNote}}
@@ -278,13 +281,13 @@
   {{else}}
   <section class="content-section">
     <p class="detail-muted">
-      <em>No tricks currently match any of the six topology groupings. As the
+      <em>No tricks currently match any of the six Movement Neighborhood groupings. As the
       dictionary expands, groupings populate from base trick + modifier link data.</em>
     </p>
   </section>
   {{/if}}
 
-  <p class="symbolic-layer-footer">Observational symbolic-grammar layer. These groupings surface body mechanics across families and do not override canonical IFPA family classifications. The dictionary's <a href="/freestyle/tricks?view=family">By family</a> view remains the canonical structural source.</p>
+  <p class="symbolic-layer-footer">Movement Neighborhoods are observational groupings. These surface embodied movement feel across families and do not override canonical IFPA family classifications. The dictionary's <a href="/freestyle/tricks?view=family">By family</a> view remains the canonical structural source.</p>
   {{/if}}
 
   {{! ── Movement System view ──────────────────────────────────────────────

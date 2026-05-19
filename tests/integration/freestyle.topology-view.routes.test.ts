@@ -139,9 +139,13 @@ describe('topology view — observational-layer attribution', () => {
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
   });
 
-  it('the framing prose declares the symbolic-grammar layer explicitly', async () => {
+  it('the framing prose names "Movement Neighborhoods" and declares observational status', async () => {
+    // CR-6 of dictionary-coherence-2026-05-18: user-facing label renamed
+    // from "Topology" / "symbolic-grammar layer" to "Movement
+    // Neighborhoods". Backend slug + URL parameter ?view=topology
+    // preserved for URL stability.
     const res = await request(createApp()).get('/freestyle/tricks?view=topology');
-    expect(res.text).toMatch(/symbolic-grammar layer/i);
+    expect(res.text).toMatch(/Movement Neighborhoods/);
     expect(res.text).toMatch(/observed, not canonical/i);
   });
 });
