@@ -9,11 +9,16 @@
       {{> dictionary-trick-card density="registry"}}  — inline single-line
       {{> dictionary-trick-card density="browse"}}    — vertical stack (default)
 
-  Tokenized semantic ≡ readings (role-classified tokens; family-anchor
-  underline when a token matches the active view's group anchor) replace
-  operational notation when present, since the structural sentence becomes
-  the center of gravity. "Notation pending" placeholder is suppressed
-  entirely in registry density.
+  Notation rendering follows a 2-tier suppression hierarchy in both
+  densities:
+    Tier 1: tokenizedEquivalences (chain registry + alias governance) —
+            renders `≡ <reading>` lines with role-classified tokens.
+    Tier 2: operationalNotation (parser-derived) — muted styling
+            fallback when no chain reading exists.
+  When neither is present, the notation row is silent; the card shows
+  title + ADD chip only. The pendingDecomposition pill (rendered
+  separately below the notation row) explicitly flags rows whose
+  decomposition is curator-paced.
 
   Consumes: DictionaryTrickCard view-model from freestyleService.
   Used by: tricks.hbs across the five browse views.
@@ -41,8 +46,6 @@
       </span>
     {{else if operationalNotation}}
       <code class="dict-card-notation dict-card-notation--inline" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
-    {{else if coreAtomLabel}}
-      <span class="dict-card-equivalence dict-card-equivalence--inline dict-card-equivalence--core-atom" aria-label="Core atom reading">{{coreAtomLabel}}</span>
     {{/if}}
 
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>
@@ -85,10 +88,6 @@
       {{/each}}
     {{else if operationalNotation}}
       <code class="dict-card-notation" aria-label="Operational notation">{{#each operationalNotation.tokens}}<span class="op-token op-token--{{cssRole}}" data-role="{{role}}" title="{{label}}">{{text}}</span>{{#unless @last}} {{/unless}}{{/each}}</code>
-    {{else if coreAtomLabel}}
-      <p class="dict-card-equivalence dict-card-equivalence--core-atom" aria-label="Core atom reading">{{coreAtomLabel}}</p>
-    {{else}}
-      <p class="dict-card-notation dict-card-notation--pending" aria-label="Operational notation pending"><em>Notation pending</em></p>
     {{/if}}
 
     <span class="dict-card-add{{#unless adds}} dict-card-add--unrated{{/unless}}" aria-label="{{addsLabel}}">{{addsLabel}}</span>

@@ -1744,21 +1744,27 @@ describe('Formula Accountability Corrective Slice (2026-05-17)', () => {
     expect(res.text).not.toMatch(/outside-in mirage/);
   });
 
-  it('foundational atom cards on the dictionary surface render a core-atom reading when no chain/notation present', async () => {
-    // mirage + butterfly are seeded with no chain registry entry and no
-    // operational_notation, so the coreAtomLabel fallback fires for both.
-    // around-the-world has an "ATW" surfaced alias via alias-governance,
-    // which preempts the core-atom fallback path — its formula slot
-    // already renders via the chain pathway. The shaping function only
-    // emits coreAtomLabel when neither chain nor op-notation is present.
+  it('foundational atom cards on the dictionary surface render silently when no chain/notation present', async () => {
+    // 2-tier notation hierarchy contract: tier 1 (tokenized equivalences)
+    // or tier 2 (op-notation) render the formula slot; otherwise the slot
+    // is silent. The card carries title + ADD chip (and any side affordances
+    // like media chip / pending-decomposition pill); no "core atom — X"
+    // prose, no .dict-card-equivalence--core-atom class. The pendingDecomposition
+    // pill (curator-authored via freestyleUnresolvedCompounds.ts) is the only
+    // honest "pending" surface; "core atom" implementation language never
+    // leaks to public.
     const res = await request(createApp()).get('/freestyle/tricks');
     for (const slug of ['mirage', 'butterfly']) {
       const idx = res.text.indexOf(`data-trick-slug="${slug}"`);
       expect(idx, `${slug} card not found in dictionary`).toBeGreaterThan(0);
       const cardEnd = res.text.indexOf('</article>', idx);
       const card = res.text.slice(idx, cardEnd);
-      expect(card, `${slug} card missing core-atom reading`).toMatch(/core atom/);
-      expect(card).toContain('dict-card-equivalence--core-atom');
+      // Card still renders; title + ADD chip present.
+      expect(card).toContain('dict-card-title');
+      expect(card).toContain('dict-card-add');
+      // "core atom" prose + class do NOT render to public surfaces.
+      expect(card, `${slug} card must not render "core atom" prose`).not.toMatch(/core atom/);
+      expect(card).not.toContain('dict-card-equivalence--core-atom');
     }
   });
 
