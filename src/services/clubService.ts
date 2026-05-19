@@ -24,7 +24,8 @@
  *   - News items emitted via `NewsService.emitNewsItem` only.
  *
  * Persistence:
- *   clubs, clubs_open, clubs_all, club_leaders, members, tags, news_items,
+ *   clubs, clubs_open, clubs_all, club_leaders, club_bootstrap_leaders,
+ *   member_club_affiliations, members, tags, news_items,
  *   audit_entries, outbox_emails, work_queue_items.
  *
  * Side effects:
@@ -35,11 +36,27 @@
  *
  * Service shape: singleton object (no external adapters).
  */
-import { PublicClubRow, PublicClubMemberRow, MemberCountRow, clubs } from '../db/db';
-import { NotFoundError, ValidationError } from './serviceErrors';
+import {
+  PublicClubRow,
+  PublicClubMemberRow,
+  MemberCountRow,
+  clubs,
+  clubBootstrapLeaders,
+  clubLeaders,
+  memberClubAffiliations,
+  transaction,
+  type ClubBootstrapLeaderRow,
+} from '../db/db';
+import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { countryCode } from './countryUtils';
+import { randomUUID } from 'crypto';
+
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string };
+  return e?.code === 'SQLITE_CONSTRAINT_UNIQUE';
+}
 
 const PUBLIC_CLUB_KEY_PATTERN = /^club_[a-z0-9_]+$/;
 
@@ -923,6 +940,149 @@ export class ClubService {
         content: { club },
       };
     });
+  }
+
+  /**
+   * Promote a bootstrap leader candidate to live leadership and stamp the
+   * member's affiliation. Called by the wizard's 'club_affiliations'
+   * confirm/correct branches.
+   *
+   * Behavior:
+   *   - Marks `club_bootstrap_leaders.status='claimed'` + stamps claimed_member_id.
+   *   - Inserts `member_club_affiliations` (source='legacy_claim', is_current=1).
+   *     Idempotent: existing affiliation is left in place.
+   *   - Inserts `club_leaders` row with the bootstrap row's role. Role downgrade
+   *     to 'co-leader' if the club already has a `role='leader'` row OR if this
+   *     member is already `role='leader'` of another club (schema partial-unique
+   *     `ux_one_leader_per_club` and `ux_one_club_leader_per_member`).
+   *   - Application cap: max 5 total leadership rows (leader + co-leaders) per
+   *     club. When the cap is reached, the affiliation still lands; the
+   *     club_leaders insert is skipped. Branch reports `affiliated_only` so the
+   *     caller can surface "you're a club member; an admin can grant leadership
+   *     later" in the wizard UX. Admins have full control via existing A_*
+   *     user stories to retroactively add the member as a leader.
+   *   - Idempotency: if this member is already in the club's leadership
+   *     (any role), the existing row is preserved; branch reports `idempotent`.
+   *
+   * All writes happen in a single transaction so a partial failure rolls back.
+   */
+  promoteFromCandidate(
+    bootstrapLeaderId: string,
+    actorMemberId: string,
+  ): {
+    branch: 'promoted_leader' | 'promoted_co_leader' | 'affiliated_only' | 'idempotent';
+    clubId: string;
+    clubLeaderId: string | null;
+    affiliationId: string | null;
+    actualRole: 'leader' | 'co-leader' | null;
+  } {
+    const leader = clubBootstrapLeaders.findById.get(bootstrapLeaderId) as
+      | ClubBootstrapLeaderRow
+      | undefined;
+    if (!leader) {
+      throw new NotFoundError(`Bootstrap leader candidate not found: ${bootstrapLeaderId}`);
+    }
+    if (leader.status !== 'provisional') {
+      throw new ConflictError(
+        `Bootstrap leader candidate is not provisional (current status: ${leader.status})`,
+      );
+    }
+
+    const clubId = leader.club_id;
+    const now = new Date().toISOString();
+
+    let branch:        'promoted_leader' | 'promoted_co_leader' | 'affiliated_only' | 'idempotent' = 'idempotent';
+    let actualRole:    'leader' | 'co-leader' | null = null;
+    let clubLeaderId:  string | null = null;
+    let affiliationId: string | null = null;
+
+    try {
+      transaction(() => {
+        const updated = clubBootstrapLeaders.setStatusClaimed.run(
+          actorMemberId,
+          'onboarding_service',
+          bootstrapLeaderId,
+        );
+        if (updated.changes === 0) {
+          throw new ConflictError(
+            `Bootstrap leader candidate status changed concurrently: ${bootstrapLeaderId}`,
+          );
+        }
+
+        // Idempotency: member already in this club's leadership? Preserve existing row.
+        const existing = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+          | { id: string; role: 'leader' | 'co-leader' }
+          | undefined;
+        if (existing) {
+          branch = 'idempotent';
+          actualRole = existing.role;
+          clubLeaderId = existing.id;
+        } else {
+          // App-level 5-leader cap. Best-effort under better-sqlite3's
+          // serialized writes; not schema-enforced. Two concurrent claims
+          // could theoretically push count to 6, but BetterSqlite3 serializes
+          // write transactions per process, so the race window only opens
+          // across multiple processes/replicas.
+          const cap = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
+          if (cap >= 5) {
+            branch = 'affiliated_only';
+            actualRole = null;
+          } else {
+            // Pre-check downgrade (visible writes by this transaction): if the
+            // leader slot is already taken OR this member is already lead of
+            // another club, target co-leader from the start.
+            let targetRole: 'leader' | 'co-leader' = leader.role;
+            if (targetRole === 'leader') {
+              const slotTaken = clubLeaders.hasLeader.get(clubId) as { x: number } | undefined;
+              const memberLeads = clubLeaders.memberIsLeaderSomewhere.get(actorMemberId) as
+                | { x: number } | undefined;
+              if (slotTaken || memberLeads) targetRole = 'co-leader';
+            }
+            clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+            try {
+              clubLeaders.insertClubLeader.run(
+                clubLeaderId, now, 'onboarding_service', now, 'onboarding_service',
+                clubId, actorMemberId, targetRole, now,
+              );
+            } catch (err) {
+              // Race-safe retry: if the leader slot was grabbed concurrently
+              // (ux_one_leader_per_club) OR this member became a leader of
+              // another club concurrently (ux_one_club_leader_per_member),
+              // downgrade to co-leader and re-insert. Only retry once and
+              // only when the original attempt was for 'leader'.
+              if (!isUniqueViolation(err) || targetRole !== 'leader') throw err;
+              targetRole = 'co-leader';
+              clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+              clubLeaders.insertClubLeader.run(
+                clubLeaderId, now, 'onboarding_service', now, 'onboarding_service',
+                clubId, actorMemberId, targetRole, now,
+              );
+            }
+            actualRole = targetRole;
+            branch = targetRole === 'leader' ? 'promoted_leader' : 'promoted_co_leader';
+          }
+        }
+
+        // Affiliation insert is independent of leadership outcome: members who
+        // don't get a leadership row still become club members.
+        affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+        try {
+          memberClubAffiliations.insertAffiliation.run(
+            affiliationId, now, 'onboarding_service', now, 'onboarding_service',
+            actorMemberId, clubId,
+          );
+        } catch (err) {
+          if (!isUniqueViolation(err)) throw err;
+          // Already affiliated — idempotent. Leave existing row in place.
+          affiliationId = null;
+        }
+      });
+    } catch (err) {
+      if (err instanceof ConflictError) throw err;
+      throw err;
+    }
+
+    return { branch, clubId, clubLeaderId, affiliationId, actualRole };
   }
 }
 

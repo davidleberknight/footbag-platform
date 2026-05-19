@@ -10,15 +10,10 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active deviations
 
-### Club leader bootstrap classification and wizard step (W2)
+### `club_bootstrap_leader_signals` unwritten (cross-track)
 
-**Design intent** (`docs/MIGRATION_PLAN.md` §2 "Bootstrap rule" and "Leadership model"; `docs/USER_STORIES.md` `M_Complete_Onboarding_Wizard` detour, tier-advisory, and wrap-up acceptance criteria; `docs/USER_STORIES.md` `A_Review_Club_Cleanup_Signals` new task type): combination-gate classification over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`) with three context-only modifiers (`tier_signal`, `recent_activity`, `geographic_alignment`); strong + user-confirms → silent promotion to `club_leaders`; weak + user-evidence → admin queue with `task_type='club_leader_evidence_review'`; user declines → `status='rejected'`. Wizard supports detour to `M_Join_Club` or `M_Create_Club` with task transition to `in_progress_paused`; Tier 0 sees tier-gate advisory before routing to `M_Create_Club`; wrap-up landing presents three options when no affiliations were written.
+Schema table `database/schema.sql:3466-3487` exists; no pipeline producer populates it. Platform-side `clubBootstrapLeaderSignals.listByBootstrapLeaderId` returns empty; wizard `submitClubAffiliationsResponse` falls back to all-false classification (operative, but audit-metadata classification is uninformative until pipeline emits). Tracked in `legacy_data/IMPLEMENTATION_PLAN.md`.
 
-**To close the gap:**
+### Loosened read filter on `legacy_person_club_affiliations.resolution_status`
 
-- Pipeline: emit per-signal evidence rows into `club_bootstrap_leader_signals` from the legacy_data build steps (tracked separately in `legacy_data/IMPLEMENTATION_PLAN.md`).
-- Service: implement `submitTaskResponse('club_affiliations', ...)` driving the strong / weak / declined branches via `classifyBootstrapLeader` (silent promotion to `club_leaders` and `club_bootstrap_leaders.status='claimed'`; evidence enqueue with `task_type='club_leader_evidence_review'`; `status='rejected'`).
-- Service: detour state transition with audit logging (member id, target story, source wizard card, timestamp). Dashboard task widget renders "Resume onboarding" for `in_progress_paused`.
-- Controllers: tier-gate advisory for Tier 0 on club creation detour; wrap-up "Find or create your club" landing; detour routing from any Stage 1/2/3 card. `M_Create_Club` route accepts return-to-wizard origin; successful upgrade through `M_Purchase_Tier_1_IFPA_Member` returns to the advisory with a "Continue to Create Club" option.
-- Tests: classification matrix (strong / weak / none × confirm / correct / decline = 9 cells); wizard POST per branch; detour state and audit; dashboard widget per state; tier advisory; wrap-up landing; idempotency; two-member-same-club conflict rejection.
-- Verify with `npm test` and `npm run build`.
+`src/db/db.ts:711` and `:765` include `'pending'` in the resolution-status filter so loader-imported affiliations render as members on `/clubs/:key`. TEMP-DEVIATION comments at `db.ts:755-756` and `src/services/clubService.ts:2-6` mark the substitute. Closes when a wizard-side handler transitions `legacy_person_club_affiliations.resolution_status` from `'pending'` to `'confirmed_current'` (see `legacy_data/IMPLEMENTATION_PLAN.md` "Onboarding wizard club-affiliations step"); filter reverts to `IN ('confirmed_current', 'promoted')` and the TEMP-DEVIATION comments come out with the revert.

@@ -817,6 +817,131 @@ export const clubs = {
 };
 
 // ---------------------------------------------------------------------------
+// clubBootstrapLeaders -- bootstrap leader status reads + transitions.
+//
+// Owned by MemberOnboardingService + ClubService. The 'rejected' and
+// 'claimed' transitions fire from the wizard's club_affiliations branch.
+// ---------------------------------------------------------------------------
+
+export interface ClubBootstrapLeaderRow {
+  id: string;
+  club_id: string;
+  legacy_member_id: string;
+  role: 'leader' | 'co-leader';
+  status: 'provisional' | 'claimed' | 'superseded' | 'rejected';
+  imported_member_id: string | null;
+  claimed_member_id: string | null;
+  confidence_score: number | null;
+  notes: string | null;
+}
+
+export const clubBootstrapLeaders = {
+  get findById() { return db.prepare(`
+    SELECT id, club_id, legacy_member_id, role, status,
+           imported_member_id, claimed_member_id, confidence_score, notes
+    FROM club_bootstrap_leaders
+    WHERE id = ?
+  `); },
+
+  // Set status='rejected'. Used by the wizard's 'decline' branch.
+  // Does not write claimed_member_id; the row remains eligible for other
+  // activation paths (member-acceptance, admin appointment).
+  get setStatusRejected() { return db.prepare(`
+    UPDATE club_bootstrap_leaders
+       SET status      = 'rejected',
+           updated_at  = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by  = ?,
+           version     = version + 1
+     WHERE id = ?
+       AND status = 'provisional'
+  `); },
+
+  // Set status='claimed', stamp claimed_member_id and claim_confirmed_at.
+  // Used by the wizard's 'strong + confirm' branch.
+  get setStatusClaimed() { return db.prepare(`
+    UPDATE club_bootstrap_leaders
+       SET status              = 'claimed',
+           claimed_member_id   = ?,
+           claim_confirmed_at  = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_at          = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by          = ?,
+           version             = version + 1
+     WHERE id = ?
+       AND status = 'provisional'
+  `); },
+};
+
+// ---------------------------------------------------------------------------
+// clubBootstrapLeaderSignals -- per-signal evidence reads for the wizard
+// classification path. Pre-computed by the legacy_data pipeline (script 05).
+// ---------------------------------------------------------------------------
+
+export interface ClubBootstrapLeaderSignalRow {
+  signal_type: string;
+  is_present: 0 | 1;
+  signal_payload_json: string;
+  source: string;
+}
+
+export const clubBootstrapLeaderSignals = {
+  get listByBootstrapLeaderId() { return db.prepare(`
+    SELECT signal_type, is_present, signal_payload_json, source
+      FROM club_bootstrap_leader_signals
+     WHERE bootstrap_leader_id = ?
+  `); },
+};
+
+// ---------------------------------------------------------------------------
+// clubLeaders + memberClubAffiliations -- writes invoked by
+// ClubService.promoteFromCandidate. Schema uniques enforce:
+//   - club_leaders ux_one_leader_per_club, ux_one_club_leader_per_member
+//   - member_club_affiliations UNIQUE(member_id, club_id),
+//     ux_member_club_affiliations_one_current (at most one is_current=1)
+// SqliteError SQLITE_CONSTRAINT_UNIQUE on either is the conflict signal.
+// ---------------------------------------------------------------------------
+
+export const clubLeaders = {
+  get insertClubLeader() { return db.prepare(`
+    INSERT INTO club_leaders (
+      id, created_at, created_by, updated_at, updated_by, version,
+      club_id, member_id, role, added_at
+    ) VALUES (?, ?, ?, ?, ?, 1,
+              ?, ?, ?, ?)
+  `); },
+
+  // Total leadership headcount for a club (leader + co-leader). Used by the
+  // wizard's promote path to enforce the application-level 5-max cap.
+  get countByClubId() { return db.prepare(`
+    SELECT COUNT(*) AS c FROM club_leaders WHERE club_id = ?
+  `); },
+
+  // Does this club already have a role='leader' row?
+  get hasLeader() { return db.prepare(`
+    SELECT 1 AS x FROM club_leaders WHERE club_id = ? AND role = 'leader' LIMIT 1
+  `); },
+
+  // Is this member already role='leader' of any club?
+  get memberIsLeaderSomewhere() { return db.prepare(`
+    SELECT 1 AS x FROM club_leaders WHERE member_id = ? AND role = 'leader' LIMIT 1
+  `); },
+
+  // Is this member already in this club's leadership (any role)? Idempotency probe.
+  get memberInClubLeadership() { return db.prepare(`
+    SELECT id, role FROM club_leaders WHERE club_id = ? AND member_id = ?
+  `); },
+};
+
+export const memberClubAffiliations = {
+  get insertAffiliation() { return db.prepare(`
+    INSERT INTO member_club_affiliations (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, club_id, is_current, is_contact, source
+    ) VALUES (?, ?, ?, ?, ?, 1,
+              ?, ?, 1, 0, 'legacy_claim')
+  `); },
+};
+
+// ---------------------------------------------------------------------------
 // Freestyle records, public read path
 //
 // Public filter contract (enforced here, not in service layer):
@@ -5374,6 +5499,31 @@ export const memberOnboarding = {
            updated_by   = ?,
            version      = version + 1
      WHERE id = ?
+  `); },
+
+  // Dashboard widget read: returns the most recent detour-paused audit
+  // metadata per task that is currently in 'in_progress_paused' state.
+  // The LATEST audit row wins (ORDER BY occurred_at DESC LIMIT 1 inside
+  // the subquery) so a member who paused, resumed, and re-paused sees
+  // the most recent detour origin.
+  get listForMemberWithDetourMeta() { return db.prepare(`
+    SELECT
+      t.id,
+      t.member_id,
+      t.task_type,
+      t.state,
+      t.completed_at,
+      (
+        SELECT a.metadata_json
+          FROM audit_entries a
+         WHERE a.entity_type = 'member_onboarding_task'
+           AND a.entity_id   = t.id
+           AND a.action_type = 'wizard.task.detour_paused'
+         ORDER BY a.rowid DESC
+         LIMIT 1
+      ) AS detour_metadata_json
+    FROM member_onboarding_tasks t
+    WHERE t.member_id = ?
   `); },
 };
 

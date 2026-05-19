@@ -459,6 +459,48 @@ export function insertClubBootstrapLeader(
   return id;
 }
 
+// ── Club bootstrap leader signal ──────────────────────────────────────────────
+
+export type ClubBootstrapLeaderSignalType =
+  | 'listed_contact' | 'affiliation' | 'hosting' | 'roster' | 'mirror_text'
+  | 'tier_signal' | 'recent_activity' | 'geographic_alignment';
+
+export interface ClubBootstrapLeaderSignalOverrides {
+  id?: string;
+  bootstrap_leader_id: string;     // required — FK to club_bootstrap_leaders(id)
+  signal_type: ClubBootstrapLeaderSignalType;
+  is_present: 0 | 1;
+  signal_payload_json?: string;
+  source?: string;
+}
+
+/**
+ * Insert a club_bootstrap_leader_signals row. Production loader 08 emits one
+ * row per (leader, signal_type); tests typically seed only the signal_types
+ * they need to drive a particular classification gate.
+ */
+export function insertClubBootstrapLeaderSignal(
+  db: BetterSqlite3.Database,
+  o: ClubBootstrapLeaderSignalOverrides,
+): string {
+  const id = o.id ?? `cbls-test-${uid()}`;
+  db.prepare(`
+    INSERT INTO club_bootstrap_leader_signals (
+      id, created_at, created_by, updated_at, updated_by, version,
+      bootstrap_leader_id, signal_type, signal_payload_json,
+      is_present, source
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+  `).run(
+    id, TS, SYS, TS, SYS,
+    o.bootstrap_leader_id,
+    o.signal_type,
+    o.signal_payload_json ?? '{}',
+    o.is_present,
+    o.source ?? 'test_fixture',
+  );
+  return id;
+}
+
 // ── Legacy club candidate ─────────────────────────────────────────────────────
 
 export type LegacyClubCandidateClassification =

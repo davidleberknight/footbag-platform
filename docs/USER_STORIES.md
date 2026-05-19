@@ -1655,17 +1655,22 @@ Success Criteria:
 
 Access: Only admins can reassign club leadership and remediate non-operable clubs.  
 
-Story: As an Administrator, I can reassign club leadership and resolve club operability issues so that clubs remain operable when leadership or contactability breaks down.  
+Story: As an Administrator, I have full control over club leadership rosters so that clubs remain operable when leadership or contactability breaks down, when the onboarding wizard auto-promotes the wrong member, or when the application-level cap blocks legitimate leadership growth.
 
 Success Criteria:
 
 - Admin can assign a club leader from the member base (audit-logged).
+- Admin can demote a club leader or co-leader back to ordinary club member, or remove their affiliation entirely (audit-logged with mandatory reason text).
+- Admin can change a member's role between `leader` and `co-leader` within a club (subject to the one-`leader`-per-club schema invariant; demoting the existing leader before promoting the replacement is a single admin transaction).
+- Admin can override the application-level 5-leader cap when adding a new leader, with an explicit "cap-override" reason recorded in the audit row.
+- Admin can promote an affiliated-only member (one whose wizard claim was capped out) to leader or co-leader at any time.
 - Clubs with zero leaders are flagged "Needs Leader" and appear in an admin work queue.
-- Clubs with no contact email are flagged “Needs Contact” and appear in an admin work queue.  
-- Admin can resolve a “Needs Leader” item by assigning/reassigning a leader, or by archiving the club if defunct.  
-- Admin can resolve a “Needs Contact” item by updating the club contact email, or by archiving the club if defunct.  
+- Clubs with no contact email are flagged "Needs Contact" and appear in an admin work queue.  
+- Admin can resolve a "Needs Leader" item by assigning/reassigning a leader, or by archiving the club if defunct.  
+- Admin can resolve a "Needs Contact" item by updating the club contact email, or by archiving the club if defunct.  
 - Reassignment restores normal club management capabilities when a leadership gap was the blocking issue.
 - When resolving leadership for a bootstrapped club, the system marks the relevant `club_bootstrap_leaders` row as superseded.
+- All admin leadership actions are audit-logged with actor identity, timestamp, before/after values, and reason text; the audit trail is the canonical history and cannot be edited by admins.
 
 ### A_Reassign_Event_Organizer
 

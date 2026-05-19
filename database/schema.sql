@@ -774,7 +774,7 @@ CREATE TABLE work_queue_items (
   version    INTEGER NOT NULL DEFAULT 1,
 
   queue_category TEXT NOT NULL
-    CHECK (queue_category IN ('events','media','membership','payments','elections','system')),
+    CHECK (queue_category IN ('events','media','membership','payments','elections','system','club_leadership')),
   task_type   TEXT NOT NULL,
   entity_type TEXT NOT NULL,
   entity_id   TEXT NOT NULL,
