@@ -497,6 +497,83 @@ STATUS_MISSING_EXTERNAL   = "missing_external_formula"
 STATUS_UNRESOLVED         = "unresolved_red_pending"
 STATUS_NOT_FOUND          = "not_found_anywhere"
 
+# Per-field status enum (workbook coverage gate; curator direction 2026-05-19).
+# Every workbook value field gets a status flag. Filterable/sortable for
+# governance review.
+FIELD_PRESENT        = "present"
+FIELD_MISSING        = "missing"
+FIELD_NOT_APPLICABLE = "not_applicable"
+FIELD_UNRESOLVED     = "unresolved"
+FIELD_NEEDS_CURATOR  = "needs_curator"
+FIELD_WAVE2_BLOCKED  = "wave2_blocked"
+FIELD_SOURCE_ABSENT  = "source_absent"
+
+# Body-primitive slugs treated as not-applicable for operational/job notation.
+# These are intrinsic 1-2 ADD body movements without compositional structure.
+BODY_PRIMITIVE_SLUGS = frozenset({
+    "spin", "double-spin", "spyro",
+    "hop-over", "walk-over",
+    "flying-inside", "flying-outside",
+})
+
+# Slugs flagged as Wave 2-blocked (operational/doctrinal questions pending Red
+# Wave 2 adjudication). Surfaced across the 9-audit corpus (2026-05-19).
+WAVE2_BLOCKED_SLUGS = frozenset({
+    "rev-up",         # folk-name structural decomposition pending
+    "tomahawk",       # paradox-doctrine divergence vs modern chain reading
+    "atom-smasher",   # atomic-specific x-dex contribution pending Red confirmation
+})
+
+
+def compute_field_status(
+    value: str,
+    slug: str,
+    *,
+    source_available: bool = True,
+    field_kind: str = "ifpa",
+) -> str:
+    """Compute per-field status enum.
+
+    field_kind: 'ifpa' (curator-authored) / 'pb' / 'fborg' / 'fm' / 'computed'.
+    source_available: whether the external source matched this row at all.
+
+    Returns one of FIELD_* enum values.
+    """
+    # Wave 2-blocked rows: doctrinal questions pending Red confirmation.
+    if slug in WAVE2_BLOCKED_SLUGS:
+        return FIELD_WAVE2_BLOCKED if not value else FIELD_PRESENT
+
+    # External source fields: absent source → source_absent.
+    if field_kind in {"pb", "fborg", "fm"} and not source_available:
+        return FIELD_SOURCE_ABSENT
+
+    # Body primitives don't have compositional structure → notation fields N/A.
+    # (Applies to job/full notation, ADD formulas — not to canonical name/aliases.)
+    if slug in BODY_PRIMITIVE_SLUGS and field_kind == "ifpa-notation":
+        return FIELD_NOT_APPLICABLE if not value else FIELD_PRESENT
+
+    if value:
+        return FIELD_PRESENT
+    return FIELD_MISSING
+
+
+def load_db_aliases(db_path: Path) -> dict[str, list[str]]:
+    """Load aliases per trick slug from freestyle_trick_aliases."""
+    if not db_path.exists():
+        return {}
+    con = sqlite3.connect(str(db_path))
+    con.row_factory = sqlite3.Row
+    aliases_by_slug: dict[str, list[str]] = defaultdict(list)
+    cur = con.execute("""
+        SELECT trick_slug, alias_text
+        FROM freestyle_trick_aliases
+        ORDER BY trick_slug, alias_text
+    """)
+    for r in cur:
+        aliases_by_slug[r["trick_slug"]].append(r["alias_text"])
+    con.close()
+    return dict(aliases_by_slug)
+
 
 def build_row(
     slug: str,
@@ -507,17 +584,28 @@ def build_row(
     fborg: dict[str, dict],
     pb_rows: list[dict],
     fm: dict[str, dict],
+    db_aliases: dict[str, list[str]],
 ) -> dict:
     aliases = NAME_ALIASES.get(slug, [slug])
     db = db_rows.get(slug)
 
     ifpa_canonical_name   = db["canonical_name"] if db else ""
+    # Aliases column: pipe-joined alias_text list from DB.
+    aliases_list = db_aliases.get(slug, [])
+    ifpa_aliases = " | ".join(aliases_list)
+    # Family column: trick_family from DB (curator-authored taxonomy).
+    ifpa_family = (db["trick_family"] if db and db.get("trick_family") else "")
     # Compact notation = first chain reading (compositional shorthand).
     chain_readings = chains.get(slug, [])
     ifpa_compact_notation = chain_readings[0] if chain_readings else ""
     # Full movement formula = curator-authored op-notation for atoms;
     # DB operational_notation column otherwise.
     ifpa_full_formula = core_specs.get(slug) or (db["operational_notation"] if db and db.get("operational_notation") else "")
+    # Job-style operational notation = Ben Job 1995 grammar form (distinct
+    # from ATAM full formula). Curator-paced authoring; mostly empty initially.
+    # No source layer currently authors Job-style; leave blank pending
+    # curator decision per job_glossary_integration_plan.md.
+    ifpa_job_notation = ""
     # ADD formula = curator-published derivation when settled.
     resolved_entry = resolved.get(slug)
     ifpa_add_formula  = resolved_entry["derivation"] if resolved_entry else ""
@@ -601,20 +689,55 @@ def build_row(
     if pb_entry and pb_entry.get("dex_count"):
         notes.append(f"pb_dex_count={pb_entry['dex_count']}")
 
+    # Per-field status computation. Each value field gets an explicit enum
+    # (present / missing / not_applicable / unresolved / needs_curator /
+    # wave2_blocked / source_absent). Curator direction 2026-05-19: workbook
+    # is governance gate — no blank should be ambiguous.
+    name_status         = compute_field_status(ifpa_canonical_name, slug)
+    aliases_status      = compute_field_status(ifpa_aliases, slug)
+    family_status       = compute_field_status(ifpa_family, slug)
+    compact_status      = compute_field_status(ifpa_compact_notation, slug, field_kind="ifpa-notation")
+    full_status         = compute_field_status(ifpa_full_formula, slug, field_kind="ifpa-notation")
+    job_status          = (
+        FIELD_NOT_APPLICABLE if slug in BODY_PRIMITIVE_SLUGS
+        else (FIELD_PRESENT if ifpa_job_notation else FIELD_NEEDS_CURATOR)
+    )
+    add_formula_status  = compute_field_status(ifpa_add_formula, slug, field_kind="ifpa-notation")
+    computed_add_status = compute_field_status(ifpa_computed_add, slug, field_kind="computed")
+    official_add_status = compute_field_status(ifpa_official_add, slug)
+    pb_status           = compute_field_status(pb_formula, slug, source_available=bool(pb_entry), field_kind="pb")
+    fborg_status        = compute_field_status(fborg_formula, slug, source_available=bool(fborg_entry), field_kind="fborg")
+    fm_status           = compute_field_status(fm_formula, slug, source_available=bool(fm_entry), field_kind="fm")
+
     return {
         "slug":                   slug,
         "ifpa_canonical_name":    ifpa_canonical_name,
+        "name_status":            name_status,
+        "ifpa_aliases":           ifpa_aliases,
+        "aliases_status":         aliases_status,
+        "ifpa_family":            ifpa_family,
+        "family_status":          family_status,
         "ifpa_compact_notation":  ifpa_compact_notation,
+        "compact_status":         compact_status,
         "ifpa_full_formula":      ifpa_full_formula,
+        "full_status":            full_status,
+        "ifpa_job_notation":      ifpa_job_notation,
+        "job_status":             job_status,
         "ifpa_add_formula":       ifpa_add_formula,
+        "add_formula_status":     add_formula_status,
         "ifpa_computed_add":      ifpa_computed_add,
+        "computed_add_status":    computed_add_status,
         "ifpa_official_add":      ifpa_official_add,
+        "official_add_status":    official_add_status,
         "pb_formula":             pb_formula,
         "pb_add":                 pb_add,
+        "pb_status":              pb_status,
         "fborg_formula":          fborg_formula,
         "fborg_add":               fborg_add,
+        "fborg_status":           fborg_status,
         "fm_formula":             fm_formula,
         "fm_add":                  fm_add,
+        "fm_status":              fm_status,
         "status":                 status,
         "discrepancy_notes":      " | ".join(notes),
         "curator_action":         " | ".join(action),
@@ -626,17 +749,32 @@ def build_row(
 CSV_COLUMNS = [
     "slug",
     "ifpa_canonical_name",
+    "name_status",
+    "ifpa_aliases",
+    "aliases_status",
+    "ifpa_family",
+    "family_status",
     "ifpa_compact_notation",
+    "compact_status",
     "ifpa_full_formula",
+    "full_status",
+    "ifpa_job_notation",
+    "job_status",
     "ifpa_add_formula",
+    "add_formula_status",
     "ifpa_computed_add",
+    "computed_add_status",
     "ifpa_official_add",
+    "official_add_status",
     "pb_formula",
     "pb_add",
+    "pb_status",
     "fborg_formula",
     "fborg_add",
+    "fborg_status",
     "fm_formula",
     "fm_add",
+    "fm_status",
     "status",
     "discrepancy_notes",
     "curator_action",
@@ -783,6 +921,7 @@ def write_summary(rows: list[dict], path: Path) -> None:
 
 def main() -> int:
     db_rows     = load_ifpa_db_rows()
+    db_aliases  = load_db_aliases(DB_PATH)
     core_specs  = load_core_trick_spec()
     chains      = load_symbolic_equivalences()
     resolved    = load_resolved_formulas()
@@ -790,9 +929,18 @@ def main() -> int:
     pb_rows     = parse_passback()
     fm          = parse_fm_all()
 
+    # Per curator direction 2026-05-19: workbook becomes the governance gate.
+    # Scope = ALL active canonical DB rows (was previously curated TRICK_LIST
+    # subset). Union with TRICK_LIST to preserve placeholder slugs for
+    # not-yet-canonical names (e.g., 'reverse-mirage', 'pixie-mirage') that
+    # surface from external sources.
+    all_active_slugs = set(db_rows.keys())
+    placeholder_slugs = set(TRICK_LIST) - all_active_slugs
+    full_scope = sorted(all_active_slugs | placeholder_slugs)
+
     rows = [
-        build_row(slug, db_rows, core_specs, chains, resolved, fborg, pb_rows, fm)
-        for slug in TRICK_LIST
+        build_row(slug, db_rows, core_specs, chains, resolved, fborg, pb_rows, fm, db_aliases)
+        for slug in full_scope
     ]
 
     write_csv(rows, OUT_CSV)
@@ -805,11 +953,29 @@ def main() -> int:
     print(f"Summary report written:           {OUT_MD}")
     print()
     print(f"Total tricks reconciled: {len(rows)}")
+    print(f"  Active DB rows:        {len(all_active_slugs)}")
+    print(f"  Placeholder slugs:     {len(placeholder_slugs)}")
     print("Status distribution:")
     for status in sorted(status_counts.keys()):
         print(f"  {status:30s} {status_counts[status]:>3}")
     print()
+    # Per-field status distribution (workbook coverage gate).
+    print("Per-field status distribution:")
+    field_status_cols = [
+        "name_status", "aliases_status", "family_status",
+        "compact_status", "full_status", "job_status",
+        "add_formula_status", "computed_add_status", "official_add_status",
+        "pb_status", "fborg_status", "fm_status",
+    ]
+    for col in field_status_cols:
+        col_counts = Counter(r[col] for r in rows)
+        coverage = col_counts.get(FIELD_PRESENT, 0)
+        total = len(rows)
+        pct = (100 * coverage / total) if total else 0
+        print(f"  {col:24s} {coverage:>3}/{total} present ({pct:.0f}%)")
+    print()
     print(f"IFPA DB active rows loaded:        {len(db_rows)}")
+    print(f"IFPA DB aliases loaded:            {sum(len(v) for v in db_aliases.values())} ({len(db_aliases)} tricks)")
     print(f"IFPA core-trick spec entries:      {len(core_specs)}")
     print(f"IFPA chain readings loaded:        {len(chains)}")
     print(f"IFPA resolved-formula entries:     {len(resolved)}")
