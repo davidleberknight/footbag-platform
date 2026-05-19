@@ -134,11 +134,11 @@ NAME_ALIASES: dict[str, list[str]] = {
     "barrage":            ["Barrage"],
     "barfly":             ["Barfly"],
     "double-down":        ["Double Down", "Down Double Down", "DDD"],
-    "paradox-mirage":     ["Paradox Mirage", "Paradox\nMirage"],
-    "paradox-illusion":   ["Paradox Illusion", "Paradox\nIllusion"],
-    "paradox-osis":       ["Paradox Osis"],
-    "paradox-whirl":      ["Paradox Whirl", "PDX Whirl"],
-    "paradox-symposium-whirl": ["Paradox Symposium Whirl", "PS Whirl"],
+    "paradox-mirage":     ["Paradox Mirage", "Paradox\nMirage", "Pdx Mirage"],
+    "paradox-illusion":   ["Paradox Illusion", "Paradox\nIllusion", "Pdx Illusion"],
+    "paradox-osis":       ["Paradox Osis", "Pdx Osis"],
+    "paradox-whirl":      ["Paradox Whirl", "PDX Whirl", "Pdx Whirl"],
+    "paradox-symposium-whirl": ["Paradox Symposium Whirl", "PS Whirl", "Pdx Symp Whirl"],
     "symposium-mirage":   ["Symposium Mirage", "Symp Mirage", "Symp. Mirage"],
     "symposium-illusion": ["Symposium Illusion", "Symp Illusion"],
     "symposium-whirl":    ["Symposium Whirl", "Symp Whirl"],
@@ -198,6 +198,157 @@ NAME_ALIASES: dict[str, list[str]] = {
     "food-processor":     ["Food Processor", "Stepping Paradox Blender"],
     "baroque":            ["Baroque", "Barraging Osis", "Barroque"],
     "tomahawk":           ["Tomahawk"],
+
+    # ── Extended aliases (audit corpus 2026-05-19) ─────────────────────────
+    # Added from the 9-audit fborg reconciliation corpus (multiplier doctrine
+    # / Job notation / fundamentalmoves / paradoxMoves / gyroMoves /
+    # blurryMoves / pixieMoves / footbag-sets / Add-Categories). Improves
+    # workbook fborg/PB/FM source-match rates from ~10-44% to higher.
+
+    # Body / surface primitives (existing DB rows; missing alias entries).
+    "spin":               ["Spin"],
+    "double-spin":        ["Double Spin", "Double-Spin"],
+    "spyro":              ["Spyro"],
+    "hop-over":           ["Hop Over", "Hop-Over", "Hopover"],
+    "walk-over":          ["Walk Over", "Walk-Over", "Walkover"],
+    "flying-inside":      ["Flying Inside", "Flying-Inside"],
+    "flying-outside":     ["Flying Outside", "Flying-Outside"],
+    "flying-clipper":     ["Flying Clipper", "Jester"],
+    "inside-stall":       ["Inside Stall", "Inside Delay"],
+    "outside-stall":      ["Outside Stall", "Outside Delay"],
+
+    # Folk-named compounds in DB needing alias entries (fundamentalmoves /
+    # paradoxMoves / gyroMoves / blurryMoves / pixieMoves audits).
+    "blur":               ["Blur", "Stepping Paradox Mirage", "Pdx Blur", "Paradox Blur"],
+    "royale":             ["Royale", "Paradox Reverse Drifter"],
+    "fog":                ["Fog", "Stepping Paradox Double Leg Over"],
+    "surge":              ["Surge", "Surging Paradox Mirage"],
+    "surreal":            ["Surreal", "Surging Paradox Whirl"],
+    "paradon":            ["Paradon"],
+    "big-apple":          ["Big Apple", "Gyro Symposium Torque", "Big-Apple"],
+    "magellan":           ["Magellan", "Pixie Legover", "Pixie Same Legover"],
+    "terrage":            ["Terrage", "Double Pixie"],
+    "terraging":          ["Terraging", "Double Pixie"],
+    "smudge":             ["Smudge", "Pixie Illusion"],
+    "smog":               ["Smog", "Pixie Double Legover", "Pixie Double Leg Over"],
+    "smoke":              ["Smoke", "Pixie Drifter"],
+    "parkwalk":           ["Parkwalk", "Pixie Same Side Butterfly"],
+    "sailing":            ["Sailing", "Pixie Illusion"],
+    "atomic":             ["Atomic", "Toe Set Illusion"],
+    "blurry":             ["Blurry", "Stepping Paradox"],
+
+    # Modifier-class rows (modifier table + tricks table category='modifier').
+    # Mostly won't match external sources but adds completeness for filtering.
+    "barraging":          ["Barraging", "High Stepping"],
+    "blazing":            ["Blazing"],
+    "ducking":            ["Ducking"],
+    "diving":             ["Diving"],
+    "gyro":               ["Gyro"],
+    "miraging":           ["Miraging"],
+    "paradox":            ["Paradox"],
+    "spinning":           ["Spinning"],
+    "stepping":           ["Stepping"],
+    "swirling":           ["Swirling"],
+    "tapping":            ["Tapping", "Atomic Same Side"],
+    "whirling":           ["Whirling"],
+    "pogo":               ["Pogo", "Symposium Whirling"],
+    "rooted":             ["Rooted", "Rooting"],
+    "furious":            ["Furious", "Barraging Paradox Miraging"],
+    "shooting":           ["Shooting", "Stepping Paradox Illusion"],
+
+    # Paradox-family folk names NOT in DB (paradoxMoves audit; placeholder
+    # slugs for matching against external sources).
+    "voodoo":             ["Voodoo", "Paradox Symposium Blur"],
+    "blizzard":           ["Blizzard", "Stepping Paradox Illusion"],
+    "blurrage":           ["Blurrage", "Stepping Paradox Barrage"],
+    "bedwetter":          ["Bedwetter", "Stepping Paradox Eggbeater"],
+    "blurry-drifter":     ["Blurry Drifter", "Stepping Paradox Drifter"],
+    "lotus":              ["Lotus", "Spinning Paradox Drifter"],
+    "whirlwind":          ["Whirlwind", "Spinning Paradox Symposium Whirl"],
+    "marius":             ["Marius", "Spinning Paradox Torque"],
+    "paratoxic":          ["Paratoxic", "Paradox Miraging Symposium Whirl"],
+    "symposium-tomahawk": ["Symposium Tomahawk", "Ducking Paradox Symposium Whirl"],
+    "paradox-high-plains-drifter": ["Paradox High Plains Drifter", "Paradox Double Drifter"],
+    "paradox-drifter":    ["Paradox Drifter"],
+    "paradox-blender":    ["Paradox Blender", "Paradox Whirling Op Osis"],
+    "paradox-torque":     ["Paradox Torque"],
+    "paradox-blur":       ["Paradox Blur"],
+    "paradox-barrage":    ["Paradox Barrage"],
+    "paradox-blizzard":   ["Paradox Blizzard"],
+    "paradox-double-leg-over": ["Paradox Double Leg Over", "Paradox Double Legover"],
+    "paradox-symposium-mirage": ["Paradox Symposium Mirage"],
+    "spinning-paradox-illusion": ["Spinning Paradox Illusion"],
+    "spinning-paradox-mirage": ["Spinning Paradox Mirage"],
+    "spinning-paradox-whirl": ["Spinning Paradox Whirl"],
+    "inspinning-paradox-illusion": ["Inspinning Paradox Illusion"],
+    "inspinning-paradox-mirage": ["Inspinning Paradox Mirage"],
+    "pogo-paradox-mirage": ["Pogo Paradox Mirage"],
+    "pogo-paradox-barrage": ["Pogo Paradox Barrage"],
+    "pogo-paradox-drifter": ["Pogo Paradox Drifter"],
+    "pogo-paradox-eggbeater": ["Pogo Paradox Eggbeater"],
+    "pogo-paradox-whirl": ["Pogo Paradox Whirl"],
+    "pogo-paradox-blender": ["Pogo Paradox Blender", "Pogo Op Blender"],
+    "pogo-paradox-torque": ["Pogo Paradox Torque", "Pogo Op Torque"],
+    "pogo-paradox-dada-curve": ["Pogo Paradox Da Da Curve", "Pogo Op Da Da Curve"],
+    "pogo-paradox-whirling-swirl": ["Pogo Paradox Whirling Swirl", "Pogo Op Whirling Swirl"],
+    "spinning-paradox-blender": ["Spinning Paradox Blender"],
+    "blurry-symposium-whirl": ["Blurry Symposium Whirl", "Stepping Paradox Symposium Whirl"],
+    "blurry-whirling-swirl": ["Blurry Whirling Swirl", "Stepping Paradox Whirling Swirl"],
+    "stepping-ducking-paradox-blender": ["Stepping Ducking Paradox Blender"],
+    "paradox-whirling-swirl": ["Paradox Whirling Swirl"],
+    "paradox-blurry-whirl": ["Paradox Blurry Whirl"],
+    "paradox-ripwalk":    ["Paradox Ripwalk"],
+    "paradox-dada-curve": ["Paradox Da Da Curve"],
+    "avalanche":          ["Avalanche", "Stepping Ducking Paradox Illusion"],
+    "spike-hammer":       ["Spike Hammer", "Stepping Ducking Paradox Mirage", "Spike-Hammer"],
+    "symposium-blizzard": ["Symposium Blizzard"],
+    "symposium-blur":     ["Symposium Blur"],
+    "stepping-ps-whirling-x-body-rake": ["Stepping P.S. Whirling x-body Rake"],
+
+    # Gyro family folk names + structural (gyroMoves audit).
+    "spyro-gyro":         ["Spyro Gyro", "Gyro Butterfly Swirl"],
+    "flurricane":         ["Flurricane", "Gyro Flurry"],
+    "gyro-butterfly":     ["Gyro Butterfly"],
+    "gyro-drifter":       ["Gyro Drifter", "Vortex"],
+    "inspinning-same-side-illusion": ["Inspinning Same Side Illusion"],
+    "inspinning-same-side-mirage": ["Inspinning Same Side Mirage"],
+    "inspinning-same-side-butterfly": ["Inspinning Same Side Butterfly"],
+
+    # Pixie family folk names + structural (pixieMoves audit).
+    "yoda":               ["Yoda", "Pixie Ripwalk"],
+    "pixie-leg-over":     ["Pixie Leg Over", "Pixie Legover"],
+    "pixie-same-side-illusion": ["Pixie Same Side Illusion"],
+    "pixie-double-over-down": ["Pixie Double Over Down"],
+    "pixie-paradon":      ["Pixie Paradon"],
+    "pixie-eclipse":      ["Pixie Eclipse"],
+    "pixie-swirl":        ["Pixie Swirl"],
+    "symposium-pixie":    ["Symposium Pixie"],
+    "pixie-opposite-clipper": ["Pixie Opposite Clipper"],
+    "pixie-same-clipper": ["Pixie Same Clipper"],
+    "backside-symposium-smear": ["Backside Symposium Smear", "Pixie Symposium Mirage"],
+
+    # Set primitives + compound operators (footbag-sets audit).
+    "slapping":           ["Slapping"],
+    "bubba":              ["Bubba"],
+    "frantic":            ["Frantic", "Pixie-Quantum"],
+    "flailing":           ["Flailing", "Symposium Reverse Miraging"],
+    "fairy-atomic":       ["Fairy Atomic"],
+    "infracting":         ["Infracting"],
+    "fairy-spinning":     ["Fairy Spinning"],
+    "pixie-inspinning":   ["Pixie Inspinning"],
+    "sonic":              ["Sonic", "Double Spinning"],
+    "peeking":            ["Peeking"],
+    "leaning":            ["Leaning", "Stepping Inspinning"],
+    "go-go":              ["Go-Go", "Stepping Backspinning"],
+    "twinspinning":       ["Twinspinning", "Nuclear Inspinning"],
+    "neutron":            ["Neutron", "Atomic Spin"],
+    "scattered":          ["Scattered"],
+    "shattered":          ["Shattered"],
+    "broken":             ["Broken", "Clipper Reverse Whirl"],
+    "inspinning":         ["Inspinning"],
+
+    # Add-Categories audit (Down Diver Down trick + structural patterns).
+    "down-diver-down":    ["Down Diver Down"],
 }
 
 
@@ -705,9 +856,23 @@ def build_row(
     add_formula_status  = compute_field_status(ifpa_add_formula, slug, field_kind="ifpa-notation")
     computed_add_status = compute_field_status(ifpa_computed_add, slug, field_kind="computed")
     official_add_status = compute_field_status(ifpa_official_add, slug)
-    pb_status           = compute_field_status(pb_formula, slug, source_available=bool(pb_entry), field_kind="pb")
-    fborg_status        = compute_field_status(fborg_formula, slug, source_available=bool(fborg_entry), field_kind="fborg")
-    fm_status           = compute_field_status(fm_formula, slug, source_available=bool(fm_entry), field_kind="fm")
+    # External-source status: present when the source's entry was matched
+    # AND provides at least one usable data field (formula OR add). Reflects
+    # source COVERAGE of this row, not just notation publication. FM in
+    # particular publishes ADD claims without operational notation; treating
+    # those rows as 'source_absent' was a false negative. Curator fix 2026-05-19.
+    def source_status(entry_matched: bool, *fields: str) -> str:
+        if slug in WAVE2_BLOCKED_SLUGS and not entry_matched:
+            return FIELD_WAVE2_BLOCKED
+        if not entry_matched:
+            return FIELD_SOURCE_ABSENT
+        if any(fields):
+            return FIELD_PRESENT
+        return FIELD_MISSING
+    pb_status    = source_status(bool(pb_entry), pb_formula, pb_add,
+                                 pb_entry.get("nickname", "") if pb_entry else "")
+    fborg_status = source_status(bool(fborg_entry), fborg_formula, fborg_add)
+    fm_status    = source_status(bool(fm_entry), fm_formula, fm_add)
 
     return {
         "slug":                   slug,
