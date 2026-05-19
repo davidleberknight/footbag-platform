@@ -402,15 +402,25 @@ describe('GET /freestyle/tricks', () => {
     expect(res.text).toContain('blurriest');
   });
 
-  it('renders allow-listed canonical aliases as ≡ readings (around-the-world ≡ ATW)', async () => {
+  it('atom dictionary cards surface curator-authored operational notation (ATW shows op-notation, not just alias)', async () => {
+    // Emergency public-readiness slice 2026-05-19: atom cards on browse
+    // views surface CoreTrickSpec.operationalNotation as the visible
+    // canonical reading. The around-the-world ≡ ATW alias from
+    // freestyleAliasGovernance is suppressed from browse cards for atoms
+    // (the op-notation takes the slot per curator brief); the alias is
+    // preserved on the trick-detail page + glossary. Legover ≡ leg-over
+    // orthographic noise stays filtered out.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=add');
-    // Per CANONICAL-SURFACE-REALIGNMENT-1 S1+S3, atom-level canonical aliases
-    // surface only through the freestyleAliasGovernance allow-list; the
-    // around-the-world ≡ ATW entry is allow-listed (displayAs='ATW').
-    // Non-allow-listed aliases like legover ≡ leg-over are filtered out per
-    // user-spec PART 3A (orthographic noise).
-    expect(res.text).toMatch(/class="core-trick-equivalence[^"]*"[^>]*>[\s\S]*?ATW/);
+    // ATW card surfaces the op-notation 'toe > ss(midtime) in dex > ss toe'.
+    const atwIdx = res.text.indexOf('data-trick-slug="around-the-world"');
+    expect(atwIdx).toBeGreaterThan(0);
+    const atwCardEnd = res.text.indexOf('</article>', atwIdx);
+    const atwCard = res.text.slice(atwIdx, atwCardEnd);
+    // Tokenizer splits `ss(midtime)` into separate `ss` + `(midtime)` spans.
+    expect(atwCard).toMatch(/>\(midtime\)</);
+    expect(atwCard).toMatch(/op-token/);
+    // Leg-over orthographic noise still filtered out everywhere.
     expect(res.text).not.toContain('leg over');
   });
 

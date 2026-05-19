@@ -2487,9 +2487,20 @@ describe('Freestyle dictionary — S3: alias-governance allow-list filtering', (
     expect(res.text).not.toMatch(/class="core-trick-equivalence[^"]*"[^>]*>[\s\S]{0,40}reverse swirl/);
   });
 
-  it('atom-level allow-listed aliases surface in display form (atw → ATW)', async () => {
+  it('atom dictionary cards surface curator-authored op-notation in place of alias-governance ≡ readings (post emergency 2026-05-19)', async () => {
+    // Emergency public-readiness slice 2026-05-19: atom cards on browse
+    // views surface CoreTrickSpec.operationalNotation as the visible
+    // reading. The around-the-world ≡ ATW alias still exists in
+    // freestyleAliasGovernance but is suppressed from atom browse cards
+    // so op-notation takes the slot (per curator brief acceptance:
+    // "ATW no longer renders only 'ATW'"). The alias remains accessible
+    // on the trick-detail page + glossary.
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
-    // around-the-world ≡ ATW is allow-listed with displayAs='ATW' (uppercase).
-    expect(res.text).toMatch(/data-trick-slug="around-the-world"[\s\S]*?ATW/);
+    const atwIdx = res.text.indexOf('data-trick-slug="around-the-world"');
+    expect(atwIdx).toBeGreaterThan(0);
+    const atwCardEnd = res.text.indexOf('</article>', atwIdx);
+    const atwCard = res.text.slice(atwIdx, atwCardEnd);
+    // Tokenizer splits `ss(midtime)` into separate `ss` + `(midtime)` spans.
+    expect(atwCard).toMatch(/>\(midtime\)</);
   });
 });

@@ -119,11 +119,14 @@ describe('Family override — content module', () => {
     expect(resolveFamilyOverride('paradox-whirl')).toBeNull();
   });
 
-  it('does NOT override the deferred ambiguous cases (rev-up, tomahawk)', () => {
-    // rev-up and tomahawk are curator-deferred per Slice J Stage A —
-    // they MUST stay in whirl-family (DB trick_family='whirl') until
-    // an explicit curator decision moves them.
-    expect(resolveFamilyOverride('rev-up')).toBeNull();
+  it('overrides rev-up into a self-named singleton (emergency 2026-05-19) but preserves tomahawk deferral', () => {
+    // Emergency public-readiness slice 2026-05-19: rev-up gets a
+    // self-bucket override ('rev-up' → 'rev-up') so the family-view
+    // length>1 filter drops it from the Whirl section. No new family
+    // is created; rev-up still surfaces on ADD view (canonical row
+    // active) and carries the pendingDecomposition pill via
+    // UNRESOLVED_COMPOUNDS. tomahawk remains deferred per Slice J.
+    expect(resolveFamilyOverride('rev-up')).toBe('rev-up');
     expect(resolveFamilyOverride('tomahawk')).toBeNull();
   });
 
@@ -225,18 +228,23 @@ describe('Whirl Family — preserves invariant + drops the migrated rows', () =>
     }
   });
 
-  it('deferred rows (rev-up, tomahawk) STAY in the Whirl section', async () => {
+  it('tomahawk STAYS in the Whirl section; rev-up was pulled out by the 2026-05-19 emergency slice', async () => {
+    // Emergency public-readiness slice 2026-05-19: rev-up moved into
+    // a self-bucket singleton family that the length>1 filter drops
+    // from family view. tomahawk remains deferred in Whirl per Slice J.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks?view=family');
     const sectionStart = res.text.indexOf('id="family-whirl"');
     const sectionEnd = res.text.indexOf('</section>', sectionStart);
     const sectionHtml = res.text.slice(sectionStart, sectionEnd);
-    for (const slug of ['rev-up', 'tomahawk']) {
-      expect(
-        sectionHtml,
-        `${slug} is curator-deferred and must stay in the Whirl section`,
-      ).toContain(`data-trick-slug="${slug}"`);
-    }
+    expect(
+      sectionHtml,
+      'tomahawk is curator-deferred and must stay in the Whirl section',
+    ).toContain('data-trick-slug="tomahawk"');
+    expect(
+      sectionHtml,
+      'rev-up was pulled from Whirl family by the emergency 2026-05-19 slice',
+    ).not.toContain('data-trick-slug="rev-up"');
   });
 
   it('hybrid compound (montage) STAYS in the Whirl section', async () => {

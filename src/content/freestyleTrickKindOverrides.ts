@@ -81,6 +81,14 @@ const MODIFIER_SLUGS = new Set<string>([
   // element — it's a rotational descriptor. Filtering it out of the
   // public 1-ADD trick list. Preserved in glossary §11 as folk vocabulary.
   'spyro',
+  // Emergency public-readiness slice 2026-05-19 (Notation Normalization
+  // Wave follow-on): double-spin is a body/operator concept, not a
+  // standalone trick — same status as `spin`. It is not a settled
+  // canonical trick row absent a bag-contact resolution. Curator ruling.
+  // Filters it off the canonical trick browse views (ADD / family /
+  // movement-system / topology / category). The DB row stays active for
+  // operator-layer surfaces (glossary / movement-system as a modifier).
+  'double-spin',
 ]);
 
 // All 9 slugs with category='set' in freestyle_tricks as of 2026-05-16.

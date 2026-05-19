@@ -37,7 +37,8 @@ describe('FAMILY_OVERRIDES (Slice J + Slice M one-way redirects)', () => {
   });
 
   it('the override map size matches the curator-authored entry count', () => {
-    expect(FAMILY_OVERRIDES.size).toBe(4);
+    // 4 Slice J/M entries + 1 emergency 2026-05-19 entry (rev-up self-bucket).
+    expect(FAMILY_OVERRIDES.size).toBe(5);
   });
 });
 

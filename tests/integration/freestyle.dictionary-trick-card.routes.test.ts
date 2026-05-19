@@ -201,8 +201,11 @@ describe('dictionary-trick-card — required slots', () => {
   it('renders operational notation as role-tagged token spans', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     // Each notation token carries op-token class + cssRole modifier + data-role attr.
-    // Spot-check the role taxonomy on Ripwalk: [clip] (component_flag) > op (side) in (direction) dex (...) butterfly wing (rotation_variant... actually 'butterfly wing' is fused as rotation_variant; check class).
-    expect(res.text).toMatch(/<span class="op-token op-token--component-flag[^"]*"[^>]*>\[clip\]<\/span>/);
+    // Post emergency 2026-05-19 slice: the atom cards now source op-notation
+    // from CoreTrickSpec.operationalNotation, which uses `[set]` (the
+    // component-flag) instead of the previously-seeded `[clip]`. The role
+    // taxonomy spot-checks the same four roles via the new tokens.
+    expect(res.text).toMatch(/<span class="op-token op-token--component-flag[^"]*"[^>]*>\[set\]<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--sequence-op-minor"[^>]*data-role="sequence_op"[^>]*>&gt;<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--side"[^>]*data-role="side"[^>]*>op<\/span>/);
     expect(res.text).toMatch(/<span class="op-token op-token--direction"[^>]*data-role="direction"[^>]*>in<\/span>/);
@@ -317,8 +320,11 @@ describe('dictionary-trick-card — sparse and deep render through the same temp
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     // Title row
     expect(res.text).toMatch(/<a class="dict-card-title" href="\/freestyle\/tricks\/toe-stall">toe stall<\/a>/);
-    // Operational notation: [toe] > toe
-    expect(res.text).toMatch(/data-trick-slug="toe-stall"[\s\S]*?\[toe\][\s\S]*?op-token--sequence-op-minor[\s\S]*?>toe</);
+    // Operational notation: [set] > toe (curator-authored per CoreTrickSpec
+    // .operationalNotation; post emergency 2026-05-19 slice the atom card
+    // sources op-notation from the TS content module, overriding the seeded
+    // DB '[toe] > toe' notation for this curator-managed atom row).
+    expect(res.text).toMatch(/data-trick-slug="toe-stall"[\s\S]*?\[set\][\s\S]*?op-token--sequence-op-minor[\s\S]*?>toe</);
   });
 
   it('Montage (deep) renders cleanly: title + ADD + tokenized structural reading', async () => {

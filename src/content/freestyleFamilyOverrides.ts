@@ -73,6 +73,17 @@ export const FAMILY_OVERRIDES: ReadonlyMap<string, string> = new Map([
   // (see RETIRED_FAMILIES below). One-way redirect: row no longer
   // bucketed under clipper-stall.
   ['high-plains-drifter', 'drifter'],
+
+  // Emergency public-readiness slice 2026-05-19 — curator ruling: lose
+  // rev-up from the Whirl family until its decomposition is resolved.
+  // Override target is the row's own slug, producing a singleton
+  // 'rev-up' family. The family-view bucketing's `length > 1` filter
+  // then suppresses it from family browse. rev-up still surfaces on
+  // ADD view (canonical row remains active) and carries the existing
+  // pendingDecomposition pill via UNRESOLVED_COMPOUNDS. No new family
+  // is created; no ontology hardened. Reversible by deleting this
+  // entry: rev-up returns to whirl family on next request.
+  ['rev-up', 'rev-up'],
 ]);
 
 /**

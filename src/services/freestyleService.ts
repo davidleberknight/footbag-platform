@@ -2512,14 +2512,28 @@ function shapeDictionaryTrickCard(
   indexRow: FreestyleTrickIndexRow,
   groupAnchor: string | null = null,
 ): DictionaryTrickCard {
-  const opDisplay = shapeOperationalNotationDisplay(row.operational_notation);
+  // Emergency public-readiness slice 2026-05-19: when the row is one of
+  // the 12 curator-authoritative core atoms, source operational notation
+  // from CoreTrickSpec.operationalNotation (TS content module, the same
+  // single source the landing Core Tricks grid reads from per NCR-1).
+  // This propagates the curator-authored atom notation to dictionary
+  // browse cards (ADD / family / movement-system / topology / category
+  // views), so atoms like mirage / whirl / butterfly / ATW no longer
+  // render blank or with alias-only readings. Alias-governance entries
+  // ('≡ ATW', etc.) are suppressed on browse cards for atoms so the
+  // operational notation takes the visible slot; aliases remain
+  // accessible on the trick-detail page + glossary.
+  const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === indexRow.slug);
+  const opNotationRaw = coreAtomSpec?.operationalNotation ?? row.operational_notation;
+  const opDisplay = shapeOperationalNotationDisplay(opNotationRaw);
+  const dbSourceNote = (!coreAtomSpec && row.operational_notation_source && row.operational_notation_source.trim())
+    ? row.operational_notation_source.trim()
+    : null;
   const operationalNotation: OperationalNotation | null = opDisplay
     ? {
         raw:        opDisplay.raw,
         tokens:     opDisplay.tokens,
-        sourceNote: row.operational_notation_source && row.operational_notation_source.trim()
-          ? row.operational_notation_source.trim()
-          : null,
+        sourceNote: dbSourceNote,
       }
     : null;
 
@@ -2535,14 +2549,22 @@ function shapeDictionaryTrickCard(
   // active view's anchor slug (family / component / topology); tokens matching
   // it carry isFamilyAnchor=true for underline emphasis at render time.
   // By ADD + By Category pass null (no anchor; registry density).
-  const tokenizedEquivalences = shapeSemanticNotations(symbolicEquivalences, groupAnchor);
+  //
+  // For core atoms (coreAtomSpec set), suppress the tokenized ≡ readings on
+  // browse cards so the curator-authored operational notation takes the
+  // visible slot. Aliases like 'ATW' remain accessible on the trick-detail
+  // page + glossary; they no longer compete with op-notation on browse.
+  const tokenizedEquivalences = coreAtomSpec
+    ? []
+    : shapeSemanticNotations(symbolicEquivalences, groupAnchor);
 
   // Formula Accountability Slice (2026-05-17): atom reading fallback. When a
   // row's slug matches a curator-authoritative core atom AND no chain or
   // op-notation surfaces, fall back to the CORE_TRICK_SPEC editorial reading.
-  // Prevents foundational atom cards from rendering blank against the rich
-  // compound cards on the same view.
-  const coreAtomSpec = CORE_TRICK_SPEC.find(s => s.slug === indexRow.slug);
+  // Post emergency-slice 2026-05-19: with operationalNotation now sourced
+  // from the curator content module for atoms, this fallback rarely fires
+  // (only when an atom has no curator op-notation, which the 12-atom set
+  // shouldn't). Preserved for safety + non-public utility per CR-5.
   const coreAtomLabel =
     coreAtomSpec
     && coreAtomSpec.equivalences.length > 0
