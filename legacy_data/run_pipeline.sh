@@ -376,6 +376,7 @@ run_phase_d() {
     python clubs/scripts/02_build_legacy_club_candidates.py
     python clubs/scripts/03_build_legacy_person_club_affiliations.py
     python clubs/scripts/04_build_club_bootstrap_leaders.py
+    python clubs/scripts/04a_compute_bootstrap_leader_signals.py
     python clubs/scripts/05_build_club_only_persons.py
     echo ""
 }
@@ -459,6 +460,8 @@ run_phase_h() {
     python clubs/scripts/06_cutover_pre_populated_clubs.py \
         --db "${REPO_ROOT}/database/footbag.db"
     python clubs/scripts/07_load_bootstrap_leaders.py \
+        --db "${REPO_ROOT}/database/footbag.db"
+    python clubs/scripts/07a_load_bootstrap_leader_signals.py \
         --db "${REPO_ROOT}/database/footbag.db"
     python clubs/scripts/08_resolve_event_host_clubs.py \
         --db "${REPO_ROOT}/database/footbag.db"
