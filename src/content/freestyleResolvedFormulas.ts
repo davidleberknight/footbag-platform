@@ -344,4 +344,69 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     derivation:  'reverse(+0) + whirl(3) = 3 ADD',
     provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); whirl = 3 ADD core atom. Curator note: rev-up and rev-whirl are distinct canonical rows in freestyle_tricks (both base=whirl, both ADD=3); the folk distinction is preserved at the row level. The decomposition reading published here is identical for both rows — if rev-up has a structurally distinct reading the curator should override',
   },
+
+  // ─── Sprint 4 (2026-05-19) — atomic-specific x-dex contribution ───────
+  // First entry to publish an atomic-modifier formula where the +1 atomic
+  // contribution is augmented by a doctrine-locked atomic-specific
+  // x-dex (paradox-like) contribution from the toe-start position. Red
+  // 2026-05-15: "Atom Smasher carries x-dex like paradox from a toe."
+  // The extra +1 is part of atomic's structural identity in this
+  // compound, not a separate operator. External sources (FootbagMoves)
+  // list 3 ADD by collapsing atomic into the base; IFPA treats it as 4
+  // because atomic contributes its own +1 AND brings the x-dex/paradox-
+  // like contribution from toe.
+
+  {
+    slug:        'atom-smasher',
+    name:        'atom smasher',
+    operator:    'atomic + x-dex',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    4,
+    derivation:  'atomic(+1) + mirage(2) + x-dex/paradox-like contribution(+1) = 4 ADD',
+    provenance:  'Red 2026-05-15 ruling: Atom Smasher carries x-dex/paradox-like extra difficulty from toe. FootbagMoves lists 3 ADD; IFPA treats it as 4. The extra +1 is an atomic-specific x-dex/paradox-like contribution, not a separate ducking operator. Chain reading remains "atomic mirage" per freestyleSymbolicEquivalences.ts.',
+  },
+
+  // ─── Sprint 5 (2026-05-19) — movement-element components ──────────────
+  // Adds two new resolved-formula entries for the swing-element doctrine
+  // (pendulum) and the flying-modifier doctrine (flying-clipper). Both
+  // extend the +1 modifier-stack pattern with movement-element components
+  // distinct from the named operator modifiers in Sprints 1-2 (paradox,
+  // spinning, ducking, symposium, stepping, atomic, whirling, pixie).
+  //
+  // Swing-element pair: pendulum = toe(1) + swing(1) = 2 ADD; rake reads
+  // the same arithmetic in reverse element order (swing then toe). Only
+  // pendulum is published here — rake has no active freestyle_tricks row
+  // yet. Canonicalization of rake (red_additions_2026_04_20.csv + DB
+  // reload) is a separate curator step before its resolved-formula entry
+  // can land. The chain reading for pendulum stays implicit; the
+  // freestyle_tricks.notation field carries the structural form.
+  //
+  // Flying-modifier: the `flying` body component contributes +1 to the
+  // base trick's ADD. flying-clipper = flying(+1) + clipper(1) = 2 ADD,
+  // matching the DB row. flying-inside and flying-outside are NOT
+  // included here — they are 1 ADD body primitives where the flying
+  // motion IS the trick (irreducible; no compound +1 stack), parallel
+  // to spin / double-spin / hop-over.
+
+  {
+    slug:        'pendulum',
+    name:        'pendulum',
+    operator:    'swing',
+    base:        'toe-stall',
+    baseAdd:     1,
+    totalAdd:    2,
+    derivation:  'toe(1) + swing(1) = 2 ADD',
+    provenance:  'Curator-locked swing-element doctrine 2026-05-19: pendulum decomposes to a toe-stall start position plus a swing movement element (+1). The "swing" component is a structural movement element (not a named operator modifier) contributing +1 ADD. Companion trick rake reads the same arithmetic with reversed element order (swing > toe); rake awaits canonical row before its resolved-formula entry lands.',
+  },
+  {
+    slug:        'flying-clipper',
+    name:        'flying clipper',
+    operator:    'flying',
+    base:        'clipper',
+    baseAdd:     1,
+    totalAdd:    2,
+    derivation:  'flying(+1) + clipper(1) = 2 ADD',
+    provenance:  'Curator-locked flying-modifier doctrine 2026-05-19: flying-X = flying(+1) + base trick. The `flying` body component contributes +1 ADD to the base trick. Here: flying + clipper kick (1 ADD body primitive, not clipper-stall surface). Distinct from flying-inside and flying-outside, which are themselves 1 ADD body primitives (the flying motion as the trick, not a +1 stack on a separate base).',
+  },
 ];
