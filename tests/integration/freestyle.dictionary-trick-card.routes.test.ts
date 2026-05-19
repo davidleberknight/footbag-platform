@@ -231,7 +231,7 @@ describe('dictionary-trick-card — required slots', () => {
     // Cards still indicate their data state via title + ADD chip + (optional)
     // media chip. The pending state is data-coverage, not a render contract.
     for (const url of [
-      '/freestyle/tricks',
+      '/freestyle/tricks?view=add',
       '/freestyle/tricks?view=family',
       '/freestyle/tricks?view=category',
       '/freestyle/tricks?view=component',
@@ -240,6 +240,40 @@ describe('dictionary-trick-card — required slots', () => {
       const res = await request(createApp()).get(url);
       expect(res.text).not.toContain('dict-card-notation--pending');
       expect(res.text).not.toMatch(/<em>Notation pending<\/em>/);
+    }
+  });
+
+  it('Tier-4 executable-accounting prose is absent across all browse views (NCR-3)', async () => {
+    // 4-tier rendering hierarchy contract (Notation Normalization Wave
+    // NCR-3, 2026-05-18): Tier-4 executable-accounting prose patterns
+    // (xbody(N), dex(N), stall(N), spin(N), "= N ADD" results) render
+    // ONLY on /freestyle/add-analysis and (future) trick-detail
+    // disclosure surfaces. The dictionary card partial enforces tiers
+    // 1-3 only. This regex sweep guards future slices from leaking
+    // Tier-4 prose onto browse cards.
+    const accountingPatterns: ReadonlyArray<RegExp> = [
+      /\bxbody\(\d/,
+      /\bdex\(\d/,
+      /\bstall\(\d/,
+      /\bspin\(\d/,
+      /(?:=|&#x3D;)\s*\d+\s*ADD\b/,
+    ];
+    for (const url of [
+      '/freestyle/tricks?view=add',
+      '/freestyle/tricks?view=family',
+      '/freestyle/tricks?view=category',
+      '/freestyle/tricks?view=component',
+      '/freestyle/tricks?view=topology',
+      '/freestyle/tricks?view=movement-system',
+    ]) {
+      const res = await request(createApp()).get(url);
+      expect(res.status).toBe(200);
+      for (const pattern of accountingPatterns) {
+        expect(
+          res.text,
+          `${url} must not render Tier-4 accounting pattern ${pattern}`,
+        ).not.toMatch(pattern);
+      }
     }
   });
 

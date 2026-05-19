@@ -962,6 +962,95 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
 });
 
 // ---------------------------------------------------------------------------
+// Notation Normalization Wave — Slice N4 (NCR-3)
+// 4-tier rendering hierarchy contract on landing Core Tricks grid
+// ---------------------------------------------------------------------------
+
+describe('Notation Normalization Wave NCR-3 — landing Core Tricks tier contract', () => {
+  // Verbatim curator-authored operational notation per atom (CoreTrickSpec
+  // .operationalNotation, sourced from the wave brief). HTML escape: `>`
+  // becomes `&gt;` in attribute/text output; brackets + parens pass through
+  // unescaped.
+  const ATOM_OP_NOTATION: ReadonlyArray<{ slug: string; notation: string }> = [
+    { slug: 'toe-stall',        notation: '[set] &gt; toe' },
+    { slug: 'clipper-stall',    notation: '[set] &gt; clipper' },
+    { slug: 'mirage',           notation: '[set] &gt; hippy in dex &gt; op toe' },
+    { slug: 'legover',          notation: '[set] &gt; leggy out dex &gt; ss toe' },
+    { slug: 'pickup',           notation: '[set] &gt; leggy in dex &gt; ss toe' },
+    { slug: 'illusion',         notation: '[set] &gt; leggy out dex &gt; op toe' },
+    { slug: 'whirl',            notation: '[set] &gt; leggy in dex &gt; ss clipper' },
+    { slug: 'butterfly',        notation: '[set] &gt; hippy out dex &gt; ss clipper' },
+    { slug: 'swirl',            notation: '[set] &gt; leggy (xbd) out dex &gt; ss clipper' },
+    { slug: 'osis',             notation: '[set] &gt; (downtime) spin &gt; ss clipper' },
+    { slug: 'around-the-world', notation: 'toe &gt; ss(midtime) in dex &gt; ss toe' },
+    { slug: 'orbit',            notation: 'toe &gt; ss(midtime) out dex &gt; ss toe' },
+  ];
+
+  it('every atom card renders its curator-authored Tier-2 operational notation verbatim', async () => {
+    // 4-tier rendering hierarchy contract (NCR-3): each of the 12 atoms
+    // renders its CoreTrickSpec.operationalNotation string as Tier 2 on
+    // the landing Core Tricks grid. The full contract lives in
+    // exploration/notation-normalization-2026-05-18/public_notation_render_hierarchy.md.
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.status).toBe(200);
+    for (const { slug, notation } of ATOM_OP_NOTATION) {
+      const cardStart = res.text.indexOf(`id="core-trick-${slug}"`);
+      expect(cardStart, `core-trick card for '${slug}' not found`).toBeGreaterThan(0);
+      const cardEnd = res.text.indexOf('</article>', cardStart);
+      const card = res.text.slice(cardStart, cardEnd);
+      expect(card, `${slug} card missing Tier-2 operational notation`).toContain(notation);
+    }
+  });
+
+  it('Tier-4 executable-accounting prose is absent from the landing Core Tricks grid', async () => {
+    // The accounting patterns must not appear inside the
+    // .freestyle-core-trick-grid section after NCR-2 demoted them to
+    // /freestyle/add-analysis. Guards future slices from re-introducing
+    // the accounting line.
+    const res = await request(createApp()).get('/freestyle');
+    const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
+    const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
+    expect(gridStart).toBeGreaterThan(0);
+    const grid = res.text.slice(gridStart, gridEnd);
+    const accountingPatterns: ReadonlyArray<RegExp> = [
+      /\bxbody\(\d/,
+      /\bdex\(\d/,
+      /\bstall\(\d/,
+      /\bspin\(\d/,
+      /(?:=|&#x3D;)\s*\d+\s*ADD\b/,
+      /full-orbit dex\(\d/,
+    ];
+    for (const pattern of accountingPatterns) {
+      expect(
+        grid,
+        `landing Core Tricks grid must not render Tier-4 accounting pattern ${pattern}`,
+      ).not.toMatch(pattern);
+    }
+  });
+
+  it('Tier-1 descriptive prose remains visible on every atom card', async () => {
+    // Post NCR-2, atom cards keep one ≡ line carrying the descriptive
+    // prose (CORE_TRICK_SPEC.equivalences[0]) as Tier 1. Spot-check a
+    // few atom-slug + prose-fragment pairs to confirm the prose layer
+    // wasn't accidentally pruned alongside the accounting formula.
+    const res = await request(createApp()).get('/freestyle');
+    const proseFragments: ReadonlyArray<{ slug: string; fragment: string }> = [
+      { slug: 'mirage',           fragment: 'core atom — cross-body rotational dex' },
+      { slug: 'whirl',            fragment: 'core atom — rotational dex' },
+      { slug: 'osis',             fragment: 'core atom — double-pass rotational dex' },
+      { slug: 'around-the-world', fragment: 'core atom — dex with full bag orbit' },
+    ];
+    for (const { slug, fragment } of proseFragments) {
+      const cardStart = res.text.indexOf(`id="core-trick-${slug}"`);
+      expect(cardStart).toBeGreaterThan(0);
+      const cardEnd = res.text.indexOf('</article>', cardStart);
+      const card = res.text.slice(cardStart, cardEnd);
+      expect(card, `${slug} card missing Tier-1 prose '${fragment}'`).toContain(fragment);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Notation Normalization Wave — Slice N3 (NCR-4)
 // Landing section order + jump nav
 // ---------------------------------------------------------------------------

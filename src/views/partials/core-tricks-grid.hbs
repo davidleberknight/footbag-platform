@@ -11,6 +11,18 @@
   addPending. Equivalences render as `≡` readings; notation as a small
   string under #slug; ADD as a numeric value or em-dash for pending rows.
 
+  4-tier rendering hierarchy (Notation Normalization Wave NCR-3,
+  2026-05-18) — see exploration/notation-normalization-2026-05-18/
+  public_notation_render_hierarchy.md for the full contract:
+    Tier 1: semanticEquivalences (≡ descriptive prose; one reading per atom
+            post NCR-2's shaping-helper prune of the accounting formula).
+    Tier 2: symbolicNotation (curator-authored operational notation from
+            CoreTrickSpec.operationalNotation per NCR-1; NOT the DB
+            operational_notation column path).
+    Tier 3: silent fallthrough (template suppresses absent notation slot).
+    Tier 4: NEVER on this surface. Accounting prose lives on
+            /freestyle/add-analysis + (future) detail-page disclosures.
+
   Caller controls scope (landing carries the section heading + footnote;
   glossary §10 carries its own h2). This partial renders only the grid markup.
 
