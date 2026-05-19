@@ -962,6 +962,41 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
 });
 
 // ---------------------------------------------------------------------------
+// Notation Normalization Wave — Slice N2 (NCR-5)
+// Dictionary portal card body expansion
+// ---------------------------------------------------------------------------
+
+describe('Notation Normalization Wave NCR-5 — Trick Dictionary portal card body', () => {
+  it('lists all five browse perspectives and frames Operators & Components as supporting vocabulary', async () => {
+    // Decision #2 (locked 2026-05-18): the Trick Dictionary card body
+    // previews five browse perspectives (ADD, Family, Movement System,
+    // Movement Neighborhoods, Observed Tricks) and names Operators &
+    // Components as supporting vocabulary, NOT as a sixth browse mode.
+    // The Operators portal card retains its own home on the landing.
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.status).toBe(200);
+    const cardStart = res.text.indexOf('<div class="card-title">Trick Dictionary</div>');
+    expect(cardStart).toBeGreaterThan(-1);
+    const cardEnd = res.text.indexOf('</div>', res.text.indexOf('<div class="card-actions">', cardStart));
+    // Collapse whitespace so the assertions tolerate template line-wrap +
+    // indentation. The card body spans multiple lines in the template.
+    const card = res.text.slice(cardStart, cardEnd).replace(/\s+/g, ' ');
+    // Five browse perspectives listed.
+    expect(card).toMatch(/by ADD/);
+    expect(card).toMatch(/by Family/);
+    expect(card).toMatch(/by Movement System/);
+    expect(card).toMatch(/by Movement Neighborhoods/);
+    expect(card).toMatch(/Observed Tricks/);
+    // Operators & Components framed as supporting vocabulary.
+    expect(card).toMatch(/Operators &amp; Components/);
+    expect(card).toMatch(/supporting vocabulary/);
+    // Old "Browse by ADD bucket / set/modifier each trick uses" copy gone.
+    expect(card).not.toMatch(/Browse by ADD bucket/);
+    expect(card).not.toMatch(/set\/modifier each trick uses/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // GET /freestyle/partnerships
 // ---------------------------------------------------------------------------
 
