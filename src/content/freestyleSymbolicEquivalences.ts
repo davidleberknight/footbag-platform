@@ -559,6 +559,41 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['gyro symposium torque'],
     curatorConfirmPending: false,   // FM 'Gyro Symposium Torque' + PB 'Symp. Mobius' agree (mobius unfolds to gyro torque); math gyro(+1)+symposium(+1)+torque(4)=6
   },
+  {
+    slug:     'rev-whirl',
+    readings: ['reverse whirl'],
+    curatorConfirmPending: false,   // Sprint 3 resolved: reverse(+0) + whirl(3) = 3 ADD. Curator 2026-05-19: 'reverse whirl == whip'; whip alias preserved on DB row
+  },
+  {
+    slug:     'rev-up',
+    readings: ['reverse whirl'],
+    curatorConfirmPending: false,   // Sprint 3 resolved: reverse(+0) + whirl(3) = 3 ADD. rev-up shares the structural reading with rev-whirl; folk-name distinction preserved at canonical row level
+  },
+  {
+    slug:     'fury',
+    readings: ['furious paradox mirage'],
+    curatorConfirmPending: false,   // Red pt6 2026-05-04: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage). Math: furious(+2 rot)+paradox(+1)+mirage(2)=5
+  },
+  {
+    slug:     'fog',
+    readings: ['stepping paradox double leg over', 'blurry dlo'],
+    curatorConfirmPending: false,   // Red pt6 2026-05-04: Fog = Stepping Paradox Double Legover. Math: stepping(+1)+paradox(+1)+dlo(3)=5. Folk alias 'blurry dlo' preserved
+  },
+  {
+    slug:     'pendulum',
+    readings: ['toe swing'],
+    curatorConfirmPending: false,   // Sprint 5 resolved: toe(1) + swing(1) = 2 ADD. Direction-variant pair with rake (rake reverses element order to swing > toe). Swing-element doctrine curator-locked 2026-05-19
+  },
+  {
+    slug:     'rake',
+    readings: ['swing toe'],
+    curatorConfirmPending: false,   // Sprint 6 resolved: swing(1) + toe(1) = 2 ADD. Direction-variant pair with pendulum (pendulum is toe > swing). FootbagMoves lists rake at 3 ADD; IFPA curator-locked at 2 per swing-element doctrine — Red review pending
+  },
+  {
+    slug:     'flying-clipper',
+    readings: ['flying clipper'],
+    curatorConfirmPending: false,   // Sprint 5 resolved: flying(+1) + clipper(1 body kick) = 2 ADD. Folk alias 'jester' preserved on DB row. flying is body-modifier +1; clipper here is the 1-ADD body kick, not clipper-stall surface
+  },
 ];
 
 /**

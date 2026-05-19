@@ -428,4 +428,39 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     derivation:  'swing(1) + toe(1) = 2 ADD',
     provenance:  'Direction-variant companion of pendulum (Sprint 5). Same swing-element doctrine; swing > toe order (vs pendulum toe > swing). FootbagMoves lists rake at 3 ADD; IFPA treats it as 2 per curator-locked swing-element doctrine — Red review pending.',
   },
+
+  // ─── Sprint 7 (2026-05-19) — fury + fog (Red pt6-locked folk compounds) ────
+  // Closes two folk-named compounds from the workbook missing-IFPA queue.
+  // Both have Red pt6 2026-05-04 rulings published in red_additions_2026_04_20
+  // and modifier_links registered on the DB rows. The gap was missing
+  // resolved-formula derivation entries.
+  //
+  // fury: Red pt6 2026-05-04 overrode pt4 (paradox+barraging+mirage)
+  // with the cleaner furious-paradox-mirage reading. furious is +2 on
+  // rotational bases (mirage is rotational), +1 on non-rotational.
+  //
+  // fog: Red pt6 2026-05-04 MODEL_CHANGE — Fog does NOT contain an
+  // eggbeater (Bedwetter does). Decomposition uses dlo (double-leg-over)
+  // as base with stepping+paradox operator stack.
+
+  {
+    slug:        'fury',
+    name:        'fury',
+    operator:    'furious + paradox',
+    base:        'mirage',
+    baseAdd:     2,
+    totalAdd:    5,
+    derivation:  'furious(+2 rotational) + paradox(+1) + mirage(2) = 5 ADD',
+    provenance:  'Red pt6 2026-05-04: Fury = Furious Paradox Mirage (replaces pt4 paradox+barraging+mirage decomposition; ADD 5 unchanged). furious modifier is +1 non-rotational / +2 rotational; applied to mirage (rotational base) yields +2. Chain reading published in freestyleSymbolicEquivalences.ts.',
+  },
+  {
+    slug:        'fog',
+    name:        'fog',
+    operator:    'stepping + paradox',
+    base:        'double-leg-over',
+    baseAdd:     3,
+    totalAdd:    5,
+    derivation:  'stepping(+1) + paradox(+1) + dlo(3) = 5 ADD',
+    provenance:  'Red pt6 2026-05-04 MODEL_CHANGE: Fog does NOT contain an eggbeater (Bedwetter does). Decomposition is stepping+paradox+dlo with double-leg-over as the 3-ADD base. Folk aliases blurry dlo and blurry dim walk preserved on DB row.',
+  },
 ];

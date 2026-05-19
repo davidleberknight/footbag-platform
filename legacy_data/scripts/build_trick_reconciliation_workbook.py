@@ -656,6 +656,7 @@ STATUS_NOT_FOUND          = "not_found_anywhere"
 # suppressing the discrepancy data.
 DOCTRINE_LOCKED_DISAGREEMENTS: dict[str, str] = {
     "atom-smasher": "Red 2026-05-15: Atom Smasher carries x-dex/paradox-like contribution from toe; IFPA=4 vs FM=3 doctrinally settled at IFPA=4 (Sprint 4 resolved formula).",
+    "rake":         "Curator-locked 2026-05-19 swing-element doctrine: rake = swing(1) + toe(1) = 2 ADD (Sprint 6 resolved formula). FootbagMoves lists rake at 3 ADD; IFPA value locked at 2 — Red review pending but workbook treats as doctrine-locked at IFPA value.",
 }
 
 # Per-field status enum (workbook coverage gate; curator direction 2026-05-19).
@@ -679,10 +680,12 @@ BODY_PRIMITIVE_SLUGS = frozenset({
 
 # Slugs flagged as Wave 2-blocked (operational/doctrinal questions pending Red
 # Wave 2 adjudication). Surfaced across the 9-audit corpus (2026-05-19).
+# Note: rev-up was previously listed but Sprint 3 resolved formula
+# ('reverse(+0) + whirl(3) = 3 ADD') settled the decomposition; only the
+# folk-distinction-from-rev-whirl question remains, which is curator-paced
+# not Red-blocked. atom-smasher moved to DOCTRINE_LOCKED_DISAGREEMENTS.
 WAVE2_BLOCKED_SLUGS = frozenset({
-    "rev-up",         # folk-name structural decomposition pending
     "tomahawk",       # paradox-doctrine divergence vs modern chain reading
-    "atom-smasher",   # atomic-specific x-dex contribution pending Red confirmation
 })
 
 
@@ -756,9 +759,21 @@ def build_row(
     ifpa_aliases = " | ".join(aliases_list)
     # Family column: trick_family from DB (curator-authored taxonomy).
     ifpa_family = (db["trick_family"] if db and db.get("trick_family") else "")
-    # Compact notation = first chain reading (compositional shorthand).
+    # Compact notation = first chain reading (compositional shorthand) when
+    # available; falls back to DB.notation (curator-authored compact form
+    # like 'PIXIE' / 'STEPPING PARADOX MIRAGE') when no chain reading exists.
+    # The DB.notation column predates the chain registry; for set primitives
+    # and surface stalls the canonical name IS the compact form, so chain
+    # registry duplication would add no information. Curator workbook fix
+    # 2026-05-19: surface DB.notation as compact_notation fallback to lift
+    # false-negative compact_status=missing on these rows.
     chain_readings = chains.get(slug, [])
-    ifpa_compact_notation = chain_readings[0] if chain_readings else ""
+    if chain_readings:
+        ifpa_compact_notation = chain_readings[0]
+    elif db and db.get("notation"):
+        ifpa_compact_notation = db["notation"]
+    else:
+        ifpa_compact_notation = ""
     # Full movement formula = curator-authored op-notation for atoms;
     # DB operational_notation column otherwise.
     ifpa_full_formula = core_specs.get(slug) or (db["operational_notation"] if db and db.get("operational_notation") else "")
@@ -801,9 +816,12 @@ def build_row(
         status = STATUS_MISSING_IFPA
         notes.append("no active IFPA row; external sources may describe a community-named trick not yet canonicalized")
         action.append("curator decision: canonicalize or document as observational")
-    elif not ifpa_full_formula and not chain_readings:
+    elif not ifpa_full_formula and not ifpa_compact_notation:
+        # Row-level missing check uses ifpa_compact_notation (chain reading OR
+        # DB.notation fallback) rather than chain_readings alone, so set
+        # primitives + surface stalls with DB.notation aren't false-flagged.
         status = STATUS_MISSING_IFPA
-        notes.append("IFPA row active but no operational notation + no chain reading")
+        notes.append("IFPA row active but no operational notation + no compact notation")
         action.append("author compact + full formula for this row")
     elif not (fborg_entry or fm_entry or pb_entry):
         status = STATUS_MISSING_EXTERNAL
@@ -832,8 +850,8 @@ def build_row(
         "rake":         "Companion to 'pendulum' — check whether external sources treat them as same or distinct.",
         "pendulum":     "Companion to 'rake' — see rake row for paired discrepancy.",
         "orbit":        "Documented as 'reverse around-the-world'; pending DB canonicalization (no active row expected).",
-        "rev-up":       "Folk name; structural decomposition pending; in UNRESOLVED_COMPOUNDS; self-bucket family override 2026-05-19.",
-        "rev-whirl":    "Stage A sibling family anchor (Slice J 2026-05-16). Compare with rev-up.",
+        "rev-up":       "Sprint 3 resolved formula: reverse(+0) + whirl(3) = 3 ADD. Chain reading 'reverse whirl' (shared with rev-whirl per Sprint 3 doctrine). Folk-name distinction preserved at canonical row level; in UNRESOLVED_COMPOUNDS for self-bucket family override 2026-05-19.",
+        "rev-whirl":    "Sprint 3 resolved formula: reverse(+0) + whirl(3) = 3 ADD. Chain reading 'reverse whirl'. Curator 2026-05-19: 'reverse whirl == whip' — whip preserved as DB alias. Stage A sibling family anchor (Slice J 2026-05-16).",
         "torque":       "Curator chain reading 'miraging osis'. Compare with mobius (gyro torque).",
         "mobius":       "Curator chain reading 'gyro torque'. Cross-check with torque row.",
         "eggbeater":    "Folk-named; check decomposition agreement across PB/FM/footbag.org.",
