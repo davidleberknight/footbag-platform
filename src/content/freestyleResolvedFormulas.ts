@@ -409,4 +409,23 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     derivation:  'flying(+1) + clipper(1) = 2 ADD',
     provenance:  'Curator-locked flying-modifier doctrine 2026-05-19: flying-X = flying(+1) + base trick. The `flying` body component contributes +1 ADD to the base trick. Here: flying + clipper kick (1 ADD body primitive, not clipper-stall surface). Distinct from flying-inside and flying-outside, which are themselves 1 ADD body primitives (the flying motion as the trick, not a +1 stack on a separate base).',
   },
+
+  // ─── Sprint 6 (2026-05-19) — rake (direction-variant companion to pendulum) ─
+  // Closes the swing-element pair opened in Sprint 5. With rake now active
+  // in freestyle_tricks (red_additions_2026_04_20.csv row + loader 19
+  // reload), the second half of the direction-variant pair lands here.
+  // Arithmetic is identical to pendulum (toe + swing = 2 ADD); element
+  // order is reversed (swing > toe). FootbagMoves lists rake at 3 ADD;
+  // IFPA treats it as 2 — Red review of the discrepancy pending.
+
+  {
+    slug:        'rake',
+    name:        'rake',
+    operator:    'swing',
+    base:        'toe-stall',
+    baseAdd:     1,
+    totalAdd:    2,
+    derivation:  'swing(1) + toe(1) = 2 ADD',
+    provenance:  'Direction-variant companion of pendulum (Sprint 5). Same swing-element doctrine; swing > toe order (vs pendulum toe > swing). FootbagMoves lists rake at 3 ADD; IFPA treats it as 2 per curator-locked swing-element doctrine — Red review pending.',
+  },
 ];
