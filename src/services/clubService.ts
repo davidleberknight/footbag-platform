@@ -22,6 +22,19 @@
  *   - Club with zero leaders inserts a "Needs Leader" `work_queue_items` row; club
  *     with no contact email inserts a "Needs Contact" row.
  *   - News items emitted via `NewsService.emitNewsItem` only.
+ *   - Leader contact exposure (`showContact` on `ClubLeader`) is a default-deny
+ *     predicate: emits true only when status admits exposure AND the member has
+ *     given explicit consent for this leader row AND a public contact source is
+ *     present. Any missing input maps to false.
+ *   - Bootstrap leader rendering (`club_bootstrap_leaders`) is read-only at the
+ *     rendering path: it surfaces identity (display name, role, status), not
+ *     authority. Claiming a `club_bootstrap_leaders` row links member identity
+ *     to the historical leadership entry; it does NOT confer operational
+ *     control of the club, edit permissions, contact-channel exposure, member-
+ *     roster visibility, or any governance affordance. Claim, reassignment, and
+ *     contact-exposure transitions are owned by explicit governance flows that
+ *     mutate `club_bootstrap_leaders` or `club_leaders` separately from the
+ *     public-page read path.
  *
  * Persistence:
  *   clubs, clubs_open, clubs_all, club_leaders, club_bootstrap_leaders,

@@ -17,169 +17,74 @@ These documents are **not user-facing docs**. They are working control surfaces 
 
 ---
 
-## Core Principles
+## What the IP must contain
 
-### 1. Operational-only content
-
-The file must contain ONLY:
+Only:
 
 - Active work (prioritized)
 - Current substitute mechanisms (with unblock conditions)
 - External blockers
 - Release-readiness criteria
-- (Optional) Deferred/parked work (non-blocking visibility only)
+- (Optional) Deferred / parked work, non-blocking visibility only
+
+Deferred items are NOT part of active work and NOT part of release gating. Keep that section minimal; no expansion.
 
 ---
 
-### 2. Hard deletions (no tombstones)
+## What must be removed
 
-Remove completely:
-- Completed work ("Already done")
-- Duplicate sections
-- Stale deliverables
-- Long-term ideas without execution path
-- Low-priority or speculative items
+Hard delete, no tombstones:
 
-Do NOT leave:
-- "Already done" logs
-- Historical notes
-- Commentary about past states
-
----
-
-### 3. No scope expansion
-
-- Do NOT introduce new work unless required for structural clarity
-- Do NOT invent tasks
-- Do NOT reframe project direction
-- Only reflect reality already implied by the system
-
----
-
-### 4. Consolidation over duplication
-
-If multiple sections overlap:
-- Merge into a single prioritized list
-
-Typical merges:
-- "Still to do" + "Known gaps" → **Active work**
-- "Release checklist" → **Release-readiness criteria**
-
----
-
-### 5. Accurate system grounding
-
-All content must reflect **actual system behavior**, not assumptions.
-
-Examples:
-- Gating logic must match code (not docs assumptions)
-- Pipeline dependencies must reflect real execution order
-- DB requirements must match schema reality
-
----
-
-### 6. Deferred work handling
-
-Deferred items are:
-
-- NOT part of Active work
-- NOT part of Release gating
-
-If preserved, place in:
-
-## Deferred / parked work (non-blocking)
-
-Keep minimal. No expansion.
-
----
-
-### 7. Style constraints
-
-- No em dashes
-- No emojis
-- Concise, structured prose
-- Prefer bullets over paragraphs
-- Avoid narrative explanations
-
----
-
-## Output Protocol
-
-Always produce:
-
-### 1. Plan
-- Sections to delete
-- Sections to merge
-- Sections to rewrite
-- Any structural changes
-
-### 2. Proposed result
-- Full rewritten file OR clean diff
-
-### 3. Assumptions and risks
-- Anything removed that may matter later
-- Any ambiguity in interpretation
-- Any misplaced-but-useful content
-
-### 4. Pause for approval
-Never apply changes without explicit approval.
-
----
-
-## Heuristics
-
-### Keep if:
-- Blocks execution
-- Enables release
-- Reflects current system constraint
-- Has a clear owner/action
-
-### Delete if:
-- Already done
-- Hypothetical
-- Redundant
-- Historical
-- Not tied to execution
-
----
-
-## Anti-patterns to eliminate
-
-- "Already done" sections
-- Multiple overlapping task lists
+- Completed work ("Already done" entries)
+- Historical notes, sprint logs, change commentary
+- Stale deliverables, duplicate sections
+- Long-term ideas with no execution path
+- Hypothetical or speculative items
 - "Next sprint" speculation
-- Hidden dependencies
 - Vague "improve X later" items
+- Multiple overlapping task lists for the same work
+
+Removal is hard delete: no "Closed" sections, no strike-through, no "(COMPLETE)" markers, no one-line tombstones. Git history is the source of truth for removed content.
 
 ---
 
-## Example transformation
+## Keep / delete heuristics
 
-Before:
-- Still to do
-- Known gaps
-- Deliverables remaining
-- Already done
+Keep if the item: blocks execution, enables release, reflects a current system constraint, or has a clear owner and action.
 
-After:
-- Active work (single list)
-- Current substitute mechanisms
-- External blockers
-- Release-readiness criteria
-- (Optional) Deferred work
+Delete if the item: is already done, is hypothetical, is redundant, is historical, or is not tied to execution.
+
+---
+
+## Other invariants
+
+- **No scope expansion.** Do not introduce new work, invent tasks, or reframe project direction. Only reflect reality already implied by the system.
+- **Accurate system grounding.** All content must reflect actual system behavior, not assumptions: gating logic matches code, pipeline dependencies match real execution order, DB requirements match schema reality.
+- **Consolidate overlapping sections.** "Still to do" + "Known gaps" → Active work. "Release checklist" → Release-readiness criteria.
+- **Style.** Concise structured prose, prefer bullets, general prose rules per `.claude/rules/doc-governance.md` (no em dashes, no emojis).
+
+---
+
+## Output protocol
+
+Always produce, in order:
+
+1. **Plan** — sections to delete, merge, rewrite; any structural changes.
+2. **Proposed result** — full rewritten file OR clean diff.
+3. **Assumptions and risks** — anything removed that may matter later; ambiguity in interpretation; misplaced-but-useful content.
+4. **Pause for approval** — never apply changes without explicit approval.
 
 ---
 
 ## Invocation examples
 
-"Audit IMPLEMENTATION_PLAN.md using the audit-implementation-plan skill"
-
-"Clean this file into operational-only form. Apply IP audit rules."
+- "Audit IMPLEMENTATION_PLAN.md using the audit-implementation-plan skill"
+- "Clean this file into operational-only form. Apply IP audit rules."
 
 ---
 
 ## Notes
 
-- This skill enforces **discipline over completeness**
-- Missing ideas are acceptable; incorrect or stale items are not
-- Git history is the source of truth for removed content
+- This skill enforces **discipline over completeness**.
+- Missing ideas are acceptable; incorrect or stale items are not.
+- Git history is the source of truth for removed content.

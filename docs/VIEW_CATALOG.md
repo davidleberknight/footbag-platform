@@ -495,7 +495,7 @@ Full inductee and roster surfaces are deferred out of scope by design: in-site H
 
 Each leader entry renders display name, role label (`Leader` or `Co-leader`), optional badge label, optional badge note, and optional contact email. Display name links to `/history/{personId}` when `personId` is present; plain text otherwise. Sort order: `role='leader'` rows first, then `role='co-leader'`; alphabetical within each role; service-computed.
 
-Privacy gate: `contactEmail` MUST NOT appear in the rendered HTML when `showContact` is false. The template branches on `showContact` only; it does not infer from `status` or any other field.
+Privacy gate: `contactEmail` MUST NOT appear in the rendered HTML when `showContact` is false, in any form: no `mailto:` anchor, no rendered email class attribute, no copy-paste fallback, no other HTML representation of the contact value. The template branches on `showContact` only; it does not infer from `status` or any other field. Tests verify absence of contact artifacts in the rendered HTML, not just non-display. When a future leader status is introduced, its `showContact` mapping must explicitly choose true with documented justification; unknown or newly-introduced statuses default to gated.
 
 Suppression: leaders with non-renderable status MUST NOT appear in the rendered HTML; the service filters at the read query, not in the template.
 

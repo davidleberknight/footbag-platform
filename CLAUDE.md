@@ -40,6 +40,7 @@ Read the minimum the task requires. Default: active-slice block + code + path-sc
    - `docs/DATA_MODEL.md` — schema semantics; verify against `database/schema.sql`
    - `docs/VIEW_CATALOG.md` — public-rendering standard and sensitive-route rules; per-route detail is in path-scoped rules + JSDoc
    - `docs/SERVICE_CATALOG.md` — ownership matrix and non-negotiable invariants; per-service contract detail is in service JSDoc
+   - `docs/TESTING.md` — how to derive, layer, and verify tests for any surface; mandatory before writing or extending tests
 6. `docs/DESIGN_DECISIONS.md` — long-term rationale; read when entering a new code area or when a pattern's reason is unclear
 
 **Note:** `docs/GOVERNANCE.md` is mandatory before any change touching members, historical persons, search, auth, contact fields, exports, stats, or privacy boundaries.

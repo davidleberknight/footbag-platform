@@ -1,5 +1,7 @@
 # tests/ — Testing conventions
 
+Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.md`. This file is the operational conventions layer: tooling, factories, layout.
+
 ## Framework
 
 - **Runner:** Vitest (`npm test` = `vitest run`; `npm run test:watch` = `vitest`)
@@ -98,10 +100,8 @@ npm run build         # tsc type-check — must pass before any PR
 
 ## CI
 
-On every push and PR, GitHub Actions runs three parallel jobs: type-check, unit tests, and integration tests. All three must pass. See `.github/workflows/ci.yml`.
-
-Branch protection is configured on `main` (ruleset `protect-main`): requires `CI / Type-check and test` and `Terraform fmt / validate` to pass, branches must be up to date before merge.
+CI on every push and PR is defined in `.github/workflows/ci.yml`.
 
 ## Coverage
 
-Coverage is measured with `@vitest/coverage-v8` and configured in `vitest.config.ts`. Current thresholds: 95% statements/lines, 76% branches, 93% functions. Ratchet up as coverage improves. Target: 100%.
+Measured with `@vitest/coverage-v8`. Thresholds are set in `vitest.config.ts` and ratchet up as coverage improves. Target: 100%.

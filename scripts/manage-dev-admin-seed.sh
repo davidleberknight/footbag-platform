@@ -8,11 +8,11 @@
 # the right phase. Run standalone for ad-hoc re-seeds.
 #
 # CUTOVER-REMOVE: this script seeds dev/staging-only admin shortcuts. The
-# whole src/dev-admin-shortcuts/ subtree is removed at production cutover.
+# whole src/dev-shortcuts/ subtree is removed at production cutover.
 #
 # Actions:
 #   --seed-dev-admins   Seed maintainer admin accounts via
-#                       src/dev-admin-shortcuts/seed.ts. Reads from
+#                       src/dev-shortcuts/seed.ts. Reads from
 #                       .local/dev-admin-seed.json (JSONC-tolerant,
 #                       gitignored, per-maintainer) on dev. On staging,
 #                       the deploy pipeline transports
@@ -31,7 +31,7 @@
 
 set -euo pipefail
 # Anchor cwd at repo root regardless of where the script is invoked from,
-# so relative paths to ./database/ and ./src/dev-admin-shortcuts/ resolve.
+# so relative paths to ./database/ and ./src/dev-shortcuts/ resolve.
 cd "$(dirname "$0")/.."
 
 usage() {
@@ -68,7 +68,7 @@ action_seed_dev_admins() {
     exit 1
   fi
   echo "→ Seeding dev-admin accounts (env=${SEED_ENV})..."
-  FOOTBAG_ENV="${SEED_ENV}" npx tsx src/dev-admin-shortcuts/seed.ts --db "${DB_FILE}"
+  FOOTBAG_ENV="${SEED_ENV}" npx tsx src/dev-shortcuts/seed.ts --db "${DB_FILE}"
 }
 
 while [[ $# -gt 0 ]]; do

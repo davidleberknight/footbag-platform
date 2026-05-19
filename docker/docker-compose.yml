@@ -53,13 +53,13 @@ services:
       context: ..
       dockerfile: docker/web/Dockerfile
       args:
-        # CUTOVER-REMOVE: dev-admin shortcuts inclusion.
+        # CUTOVER-REMOVE: dev-shortcuts inclusion.
         # Current: subtree included in staging images
-        #   (INCLUDE_DEV_ADMIN_SHORTCUTS=1 default here); prod overlay forces 0.
+        #   (INCLUDE_DEV_SHORTCUTS=1 default here); prod overlay forces 0.
         #   The Dockerfile ARG itself defaults to 0; this compose file's
         #   default keeps staging builds self-sufficient.
         # Target: remove this ARG entirely after production cutover.
-        INCLUDE_DEV_ADMIN_SHORTCUTS: ${INCLUDE_DEV_ADMIN_SHORTCUTS:-1}
+        INCLUDE_DEV_SHORTCUTS: ${INCLUDE_DEV_SHORTCUTS:-1}
     expose:
       - "3000"
     environment:
@@ -127,7 +127,7 @@ services:
       context: ..
       dockerfile: docker/image/Dockerfile
       args:
-        INCLUDE_DEV_ADMIN_SHORTCUTS: ${INCLUDE_DEV_ADMIN_SHORTCUTS:-1}
+        INCLUDE_DEV_SHORTCUTS: ${INCLUDE_DEV_SHORTCUTS:-1}
     expose:
       - "4000"
     environment:
@@ -151,7 +151,7 @@ services:
       context: ..
       dockerfile: docker/worker/Dockerfile
       args:
-        INCLUDE_DEV_ADMIN_SHORTCUTS: ${INCLUDE_DEV_ADMIN_SHORTCUTS:-1}
+        INCLUDE_DEV_SHORTCUTS: ${INCLUDE_DEV_SHORTCUTS:-1}
     environment:
       # Worker imports src/config/env.ts the same way web does, so it must
       # supply the same prod-mode env.ts contract (PORT, PUBLIC_BASE_URL,

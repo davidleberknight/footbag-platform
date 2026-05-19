@@ -7,7 +7,7 @@ description: Migrate one dictionary browse view (?view=add / family / category /
 
 ## When to use this skill
 
-Use this skill — not general editing — when a task does any of the following:
+Use this skill (not general editing) when a task does any of the following:
 
 - Adds a new browse view at `/freestyle/tricks?view={new}`
 - Migrates an existing browse view off legacy markup (table, spreadsheet, inline `<li>` rows) onto the shared `<dictionary-trick-card>` partial
@@ -22,7 +22,7 @@ Do **not** use this skill to:
 
 ## The pattern this skill encodes
 
-Every browse view shipped to date (`ADD`, `family`, `category`, `component`, `topology`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts` — any view that fails to render `dict-card-stack` fails the regression guard.
+Every browse view shipped to date (`ADD`, `family`, `category`, `component`, `topology`) follows the same six-step recipe. The contract is mechanically tested by `freestyle.dictionary-trick-card.routes.test.ts`: any view that fails to render `dict-card-stack` fails the regression guard.
 
 ```
 Step 1 → READ existing patterns          (no writing yet)
@@ -33,19 +33,19 @@ Step 5 → TESTS: per-slice integration test
 Step 6 → REPORT: slice implementation report
 ```
 
-## Step 1 — Read the precedent before writing
+## Step 1: Read the precedent before writing
 
 Read the most recent migration's report so the new slice matches established conventions. Skim, don't deeply read:
 
-- `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md` — the architectural target every migration approaches
-- `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md` — the partial's contract (do NOT modify; consume only)
-- The most recent slice's report in `exploration/dictionary-symbolic-card/` (e.g., `DSC2_COMPONENT_VIEW_SLICE3A_REPORT.md`, `DSC2_CATEGORY_VIEW_SLICE3B_REPORT.md`, `DSC2_TOPOLOGY_VIEW_REPORT.md`) — for the most up-to-date precedent
-- `src/views/partials/dictionary-trick-card.hbs` — the shared partial all views render
-- The existing group type for the view being migrated (e.g., `FreestyleTrickAddGroup`, `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`) — to see how prior slices extended their group types
+- `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md`: the architectural target every migration approaches
+- `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md`: the partial's contract (do NOT modify; consume only)
+- The most recent slice's report in `exploration/dictionary-symbolic-card/` (e.g., `DSC2_COMPONENT_VIEW_SLICE3A_REPORT.md`, `DSC2_CATEGORY_VIEW_SLICE3B_REPORT.md`, `DSC2_TOPOLOGY_VIEW_REPORT.md`): for the most up-to-date precedent
+- `src/views/partials/dictionary-trick-card.hbs`: the shared partial all views render
+- The existing group type for the view being migrated (e.g., `FreestyleTrickAddGroup`, `FreestyleFamilyGroup`, `FreestyleTrickGroup`, `ComponentGroup`, `TopologyGroup`): to see how prior slices extended their group types
 
-If migrating a brand-new view, also read `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` — verify the new view doesn't violate the 5-view ceiling without curator approval.
+If migrating a brand-new view, also read `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`: verify the new view doesn't violate the 5-view ceiling without curator approval.
 
-## Step 2 — Extend the service group type + builder
+## Step 2: Extend the service group type + builder
 
 Two patterns to follow exactly:
 
@@ -59,7 +59,7 @@ export interface FreestyleSomeGroup {
   tricks: FreestyleTrickIndexRow[];   // legacy; preserved for backward compat
   // NEW:
   cards: DictionaryTrickCard[];
-  anchorId: string;                    // `{view}-{slug}` — used in template ids
+  anchorId: string;                    // `{view}-{slug}`: used in template ids
 }
 ```
 
@@ -81,18 +81,18 @@ const buildGroup = (key: string, rows: FreestyleTrickRowWithStatus[]): Freestyle
 ### 2b. New-view introduction
 
 Add a fresh `*BrowseView` interface in `freestyleService.ts`. Build it alongside existing view shapes. Add the new view key to `FreestyleTricksActiveView` and `allowedViews`. Add it to `FreestyleTricksIndexContent`. Reference precedents:
-- `ComponentBrowseView` (slice 3A) — multi-axis with priority ordering
-- `TopologyBrowseView` (topology slice) — single axis, observational-layer attribution
+- `ComponentBrowseView` (slice 3A): multi-axis with priority ordering
+- `TopologyBrowseView` (topology slice): single axis, observational-layer attribution
 
 ### Required invariants (every browse view)
 
-- **Sort within groups: ADD ascending, then trick name alphabetical** (unless an explicit per-view exception is documented — family view uses "anchor first then ADD asc"; component view uses "priority order then alphabetical fallthrough" for groups but ADD-asc-then-name within groups)
+- **Sort within groups: ADD ascending, then trick name alphabetical** (unless an explicit per-view exception is documented: family view uses "anchor first then ADD asc"; component view uses "priority order then alphabetical fallthrough" for groups but ADD-asc-then-name within groups)
 - **Empty groups hidden** via `entries.length > 0` filter (every shipped view; explicit per-view exceptions require curator approval)
 - **Modifier-stub rows excluded** at the row-filtering step (per `feedback_modifier_public_visibility`)
-- **Cards built via `shapeDictionaryTrickCard()`** — do NOT inline card shaping; do NOT bypass the helper
+- **Cards built via `shapeDictionaryTrickCard()`**: do NOT inline card shaping; do NOT bypass the helper
 - **`FreestyleTrickRowWithStatus`** is the row type the card builder needs (operational_notation column lives there, not on the base `FreestyleTrickRow`)
 
-## Step 3 — Replace the template branch with the shared partial
+## Step 3: Replace the template branch with the shared partial
 
 In `src/views/freestyle/tricks.hbs`, locate the existing `{{#if (eq content.activeView "...")}}` branch for the view (or add a new branch for a fresh view). Replace inline markup with:
 
@@ -120,12 +120,12 @@ In `src/views/freestyle/tricks.hbs`, locate the existing `{{#if (eq content.acti
 ### Template gotchas (load-bearing)
 
 - **Static URL prefixes only.** When building `href` values that contain `?view=...`, write the URL as a static template prefix with slug-only interpolation: `href="/freestyle/tricks?view={view}#{view}-{{slug}}"`. Handlebars HTML-escapes `=` to `&#x3D;` when interpolated as part of a single mustache value; tests asserting the URL will fail. The static-prefix convention is used in every shipped view.
-- **Section ID format: `{view}-{slug}`.** Anchor IDs are public API — once shipped, never rename without coordinated cross-link updates.
+- **Section ID format: `{view}-{slug}`.** Anchor IDs are public API: once shipped, never rename without coordinated cross-link updates.
 - **Heading wraps the label in a self-anchored `<a>` link.** Lets users copy a deep-link to a specific group.
 - **Update the view toggle.** Add a new `<a href="/freestyle/tricks?view={view}">By {view}</a>` entry to the toggle nav at the top of `tricks.hbs`. If the view is a rename of an existing view, also add server-side alias resolution in the service (`{old} → {new}`).
 - **No card-internal markup.** The template never directly renders title / ADD / operational notation / aliases. That's the partial's job.
 
-## Step 4 — CSS additions only at the group-wrapper level
+## Step 4: CSS additions only at the group-wrapper level
 
 The card itself has stable CSS (`.dict-card`, `.dict-card-title`, etc.). The slice adds CSS only for:
 
@@ -141,19 +141,19 @@ Do **not** touch:
 - `.op-token--*` rules
 - Any rule shared across browse views
 
-If the new CSS exceeds ~80 lines, the slice is probably reshaping the card itself — that's out of scope; route to a card-spec change.
+If the new CSS exceeds ~80 lines, the slice is probably reshaping the card itself: that's out of scope; route to a card-spec change.
 
-## Step 5 — Tests
+## Step 5: Tests
 
 Each browse-view slice ships a focused integration test file at `tests/integration/freestyle.{view}-view.routes.test.ts`. The test file covers:
 
-1. **Route + view toggle** — returns 200; "By {view}" is the active toggle entry
-2. **Grouping wrapper structure** — anchor IDs render; heading-wrapped self-anchor link present; count chip present
-3. **Within-group ordering** — verify ADD-asc-then-name sort (or the view-specific rule); pick an example with 3+ tricks at different ADD values to assert ordering
-4. **Empty-group hiding** (when applicable) — assert that groups with zero members do NOT render their anchor
-5. **Intentional duplication** (when applicable) — for views where a trick can appear in multiple groups (component, topology), verify multi-group rendering
-6. **Card-uniformity** — verify the view renders `dict-card-stack` and at least one `data-trick-slug=` attribute (the partial's identity marker)
-7. **Observational-layer attribution** (when applicable) — for observational views, verify the badge + footer render
+1. **Route + view toggle**: returns 200; "By {view}" is the active toggle entry
+2. **Grouping wrapper structure**: anchor IDs render; heading-wrapped self-anchor link present; count chip present
+3. **Within-group ordering**: verify ADD-asc-then-name sort (or the view-specific rule); pick an example with 3+ tricks at different ADD values to assert ordering
+4. **Empty-group hiding** (when applicable): assert that groups with zero members do NOT render their anchor
+5. **Intentional duplication** (when applicable): for views where a trick can appear in multiple groups (component, topology), verify multi-group rendering
+6. **Card-uniformity**: verify the view renders `dict-card-stack` and at least one `data-trick-slug=` attribute (the partial's identity marker)
+7. **Observational-layer attribution** (when applicable): for observational views, verify the badge + footer render
 
 Then update `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`:
 
@@ -168,7 +168,7 @@ it('every browse view now renders via the shared dictionary-trick-card partial (
 });
 ```
 
-If migrating off legacy markup, also locate the OLD assertions for that view (most likely in `tests/integration/freestyle.tricks-insights.routes.test.ts`) and update or retire them — they'll be testing markup that no longer exists.
+If migrating off legacy markup, also locate the OLD assertions for that view (most likely in `tests/integration/freestyle.tricks-insights.routes.test.ts`) and update or retire them: they'll be testing markup that no longer exists.
 
 ### Test seeding requirements
 
@@ -176,27 +176,27 @@ If migrating off legacy markup, also locate the OLD assertions for that view (mo
 - Operational notation: set `operational_notation: '[clip] > ...'` on seeded tricks so the card renders role-tagged token spans (the test for "renders dict-card-stack" only checks the wrapper; richer assertions require populated notation).
 - Anchor coverage: seed at least one trick per group you want to assert is rendered.
 
-## Step 6 — Slice implementation report
+## Step 6: Slice implementation report
 
 Produce a report at `exploration/dictionary-symbolic-card/DSC2_{VIEW}_VIEW_REPORT.md` (or `DSC2_{VIEW}_VIEW_SLICE{NUM}_REPORT.md`). The report covers:
 
-1. **Before / after** — describe what the legacy rendering looked like and what the new structure is
-2. **Within-group ordering** — explicit ordering rule + verification reference
-3. **Files changed** — table of files + delta line counts
-4. **Tests passed** — new test count + full-suite pass count + tsc clean
-5. **Activation matrix** (when applicable) — for views with priority/curator-tagged groupings (component, topology), list each group + status
-6. **Known visual concerns / curator follow-ups** — non-blocking gaps
-7. **Constraints honoured** — explicit list of no-schema / no-ontology / etc.
-8. **Recommendation for next slice** — which view to migrate next, why
-9. **Stop confirmation** — "stopping after this slice per the slice cadence"
+1. **Before / after**: describe what the legacy rendering looked like and what the new structure is
+2. **Within-group ordering**: explicit ordering rule + verification reference
+3. **Files changed**: table of files + delta line counts
+4. **Tests passed**: new test count + full-suite pass count + tsc clean
+5. **Activation matrix** (when applicable): for views with priority/curator-tagged groupings (component, topology), list each group + status
+6. **Known visual concerns / curator follow-ups**: non-blocking gaps
+7. **Constraints honoured**: explicit list of no-schema / no-ontology / etc.
+8. **Recommendation for next slice**: which view to migrate next, why
+9. **Stop confirmation**: "stopping after this slice per the slice cadence"
 
 Reports for prior slices are the format-of-truth: `DSC2_ADD_VIEW_IMPLEMENTATION_REPORT.md`, `DSC2_FAMILY_VIEW_IMPLEMENTATION_REPORT.md`, `DSC2_COMPONENT_VIEW_SLICE3A_REPORT.md`, `DSC2_CATEGORY_VIEW_SLICE3B_REPORT.md`, `DSC2_TOPOLOGY_VIEW_REPORT.md`.
 
-## Step 7 — Stage and hand off
+## Step 7: Stage and hand off
 
 Run:
-- `npx tsc -p tsconfig.json --noEmit` — must be clean
-- `npx vitest run --exclude "tests/e2e/**" --exclude "tests/smoke/**"` — full suite green
+- `npx tsc -p tsconfig.json --noEmit`: must be clean
+- `npx vitest run --exclude "tests/e2e/**" --exclude "tests/smoke/**"`: full suite green
 - `git add` the changed files (services / templates / CSS / tests / report)
 - Surface the commit command to the user (Claude never commits; per `feedback_git_commit_boundary`)
 
@@ -232,10 +232,10 @@ Observational badge convention: `<span class="symbolic-layer-badge" title="...">
 
 ## Cross-references
 
-- `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md` — the partial's contract
-- `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md` — the architectural target
-- `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md` — current architectural stance + the 5-view ceiling
-- `src/views/partials/dictionary-trick-card.hbs` — the shared partial; never modify in a browse-view slice
-- `tests/integration/freestyle.dictionary-trick-card.routes.test.ts` — the card-uniformity regression guard
-- `feedback_modifier_public_visibility.md` — modifier-stub exclusion
-- `feedback_git_commit_boundary.md` — stage-only by Claude
+- `exploration/dictionary-symbolic-card/SYMBOLIC_CARD_SPEC.md`: the partial's contract
+- `exploration/dictionary-symbolic-card/UNIFIED_DICTIONARY_VIEW_PLAN.md`: the architectural target
+- `exploration/dictionary-symbolic-card/SEMANTIC_NAVIGATION_STRATEGIC_REVIEW.md`: current architectural stance + the 5-view ceiling
+- `src/views/partials/dictionary-trick-card.hbs`: the shared partial; never modify in a browse-view slice
+- `tests/integration/freestyle.dictionary-trick-card.routes.test.ts`: the card-uniformity regression guard
+- `feedback_modifier_public_visibility.md`: modifier-stub exclusion
+- `feedback_git_commit_boundary.md`: stage-only by Claude

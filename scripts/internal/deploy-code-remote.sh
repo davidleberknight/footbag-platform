@@ -356,7 +356,7 @@ systemctl status footbag --no-pager -l
 # deploy-rebuild-remote.sh. Runs only when the workstation passed a
 # non-empty FOOTBAG_DEV_ADMIN_SEED_JSON (set by --seed-dev-admins).
 # Transient: not written to /srv/footbag/env. Runs inside the web
-# container via `node dist/dev-admin-shortcuts/seed.js` (compiled at
+# container via `node dist/dev-shortcuts/seed.js` (compiled at
 # build time; no tsx in the runtime image). The container reads
 # FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts throws
 # on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
@@ -381,7 +381,7 @@ if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
         -f "$LIVE_DIR/docker/docker-compose.yml" \
         -f "$LIVE_DIR/docker/docker-compose.prod.yml" \
         exec -T \
-        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-admin-shortcuts/seed.js'; then
+        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-shortcuts/seed.js'; then
     echo "    WARNING: dev-admin seed step exited non-zero." >&2
     echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
     echo "    after resolving the failure, or use staging diagnostics to inspect." >&2

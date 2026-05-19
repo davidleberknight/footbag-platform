@@ -42,9 +42,9 @@ COPY --from=builder /app/dist ./dist
 # Current: subtree kept out of the runtime image unless the build explicitly
 #   opts in (staging only).
 # Target: remove this ARG and the subtree entirely after production cutover.
-ARG INCLUDE_DEV_ADMIN_SHORTCUTS=0
-RUN if [ "$INCLUDE_DEV_ADMIN_SHORTCUTS" != "1" ]; then \
-      rm -rf dist/dev-admin-shortcuts; \
+ARG INCLUDE_DEV_SHORTCUTS=0
+RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
+      rm -rf dist/dev-shortcuts; \
     fi
 
 ENV NODE_ENV=production

@@ -538,7 +538,7 @@ systemctl status footbag.service --no-pager -l
 #   once the production first-admin SSM-token flow is the only bootstrap
 #   mechanism.
 #
-# Runs inside the web container via `node dist/dev-admin-shortcuts/seed.js`
+# Runs inside the web container via `node dist/dev-shortcuts/seed.js`
 # (compiled at build time; no tsx in the runtime image). The container
 # reads FOOTBAG_ENV from /srv/footbag/env (set per host); seedConfig.ts
 # throws on import when FOOTBAG_ENV='production'. The deploy_to_aws.sh
@@ -559,7 +559,7 @@ if [[ -n "${FOOTBAG_DEV_ADMIN_SEED_JSON:-}" ]]; then
   # guard if this code ever ran on a production host.
   if ! printf '%s' "$FOOTBAG_DEV_ADMIN_SEED_JSON" \
       | compose_cmd exec -T \
-        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-admin-shortcuts/seed.js'; then
+        web sh -c 'FOOTBAG_DEV_ADMIN_SEED_JSON=$(cat) exec node dist/dev-shortcuts/seed.js'; then
     echo "    WARNING: dev-admin seed step exited non-zero." >&2
     echo "    The deploy itself succeeded; the service is up. Re-run the seed" >&2
     echo "    after resolving the failure, or use staging diagnostics to inspect." >&2

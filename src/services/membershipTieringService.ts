@@ -236,12 +236,12 @@ export function applyPurchaseGrant(
  *
  * No environment gate; callers gate on FOOTBAG_ENV (or other appropriate
  * triggers like SSM-token presence) where required:
- *   - dev/staging registration bootstrap (src/dev-admin-shortcuts/runtime.ts),
+ *   - dev/staging registration bootstrap (src/dev-shortcuts/runtime.ts),
  *     reason_code='dev_admin_register_allowlist.admin_tier2'.
  *     Current: active in dev/staging only; env-config guard blocks in
  *       production.
  *     Target: remove the caller and this bullet at production go-live.
- *   - dev-only backfill repair pass (src/dev-admin-shortcuts/runtime.ts),
+ *   - dev-only backfill repair pass (src/dev-shortcuts/runtime.ts),
  *     reason_code='dev_admin_invariant_repair'.
  *     Current: active in dev/staging only.
  *     Target: remove the caller and this bullet at production go-live.
@@ -249,7 +249,7 @@ export function applyPurchaseGrant(
  *     (the permanent post-cutover caller).
  *
  * The audit action_type is derived from reason_code. Each
- * dev-admin-shortcut caller keeps its distinctive action_type so a single
+ * dev-shortcut caller keeps its distinctive action_type so a single
  * audit search by action_type catches the full bootstrap event
  * (admin-flag + tier grant rows, both written in the same transaction by
  * the caller). The production-bootstrap reason_code falls through to the

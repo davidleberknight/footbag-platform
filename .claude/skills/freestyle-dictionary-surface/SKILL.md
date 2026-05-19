@@ -6,14 +6,14 @@ Invoke this skill when work touches:
 
 - Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, hypothetical `/freestyle/families/:name` or `/freestyle/modifiers/:name`)
 - Trick-detail page rendering, including aliases, decomposition, related tricks, records, media
-- Family-page rendering — collective structure, ladder views, family-level media aggregation
+- Family-page rendering: collective structure, ladder views, family-level media aggregation
 - Disclosure-depth controls (Simple / Deep Dive toggles)
 - Alias rendering decisions across any user-facing surface
 - Pedagogical authoring (family intros, trick descriptions)
 - Media tier ordering on dictionary surfaces
 - Cross-cutting browse views (by ADD, by modifier, by set, by surface)
 
-If the work is purely ontology / data-layer (canonical naming decisions, alias additions, modifier table edits, dictionary CSV changes), this skill is **adjacent** but not authoritative — fall through to `footbag-freestyle-dictionary` and `CANONICALIZATION_POLICY.md`.
+If the work is purely ontology / data-layer (canonical naming decisions, alias additions, modifier table edits, dictionary CSV changes), this skill is **adjacent** but not authoritative: fall through to `footbag-freestyle-dictionary` and `CANONICALIZATION_POLICY.md`.
 
 If the work is media pipeline (sidecar emit, gallery seeding, source registration), fall through to `footbag-curated-media`.
 
@@ -21,7 +21,7 @@ If the work is media pipeline (sidecar emit, gallery seeding, source registratio
 
 ## 1. Purpose and intent
 
-The freestyle dictionary's competitive edge is **structural ontology** — relationships, decomposition, families, sets, aliases, provenance — not trick count. This skill governs how that ontology gets projected onto user-facing surfaces without overwhelming users.
+The freestyle dictionary's competitive edge is **structural ontology** (relationships, decomposition, families, sets, aliases, provenance), not trick count. This skill governs how that ontology gets projected onto user-facing surfaces without overwhelming users.
 
 The single load-bearing finding from the 2026-05-07 sandbox exploration:
 
@@ -40,12 +40,12 @@ When future sessions encounter requests like "let's add a `family_galleries` tab
 
 ### Currently NOT in scope
 
-- Family-page production routes (`/freestyle/families/:name`) — exploration only as of 2026-05-07
-- Modifier-page production routes (`/freestyle/modifiers/:name`) — never planned
-- Search disambiguation pages — exploration not started
-- Landing-page redesign — exploration not started
-- Schema changes (alias_kind column, secondary_family relation) — explicitly deferred
-- Auth-gated dictionary depth — never; depth is layered, not gated
+- Family-page production routes (`/freestyle/families/:name`): exploration only as of 2026-05-07
+- Modifier-page production routes (`/freestyle/modifiers/:name`): never planned
+- Search disambiguation pages: exploration not started
+- Landing-page redesign: exploration not started
+- Schema changes (alias_kind column, secondary_family relation): explicitly deferred
+- Auth-gated dictionary depth: never; depth is layered, not gated
 
 If a request blurs these boundaries, escalate. Explicitly note the sandbox-vs-production status in the response.
 
@@ -90,7 +90,7 @@ The 2026-05-07 mockups (Whirl family + Mobius trick) established these patterns.
 The dictionary stores `trick_family` as a single value. A trick "in two families" is actually:
 
 - **Primary family** (`trick_family` value, navigable badge)
-- **Modifier association** (via `modifier_links`, informational text only — not a clickable alternative family destination unless a modifier-aggregator surface exists)
+- **Modifier association** (via `modifier_links`, informational text only: not a clickable alternative family destination unless a modifier-aggregator surface exists)
 
 Mobius example: primary family `torque` (data) + modifier association `gyro` (via `modifier_links = 'gyro'`). The "gyro family" is narrative, not structural.
 
@@ -122,7 +122,7 @@ Categorization isn't in the schema today. Heuristics (length, vowel-edit-distanc
 A **structural alias** is a string that decomposes the canonical compositionally AND is in active community use as a name for the trick. The two dimensions distinguish it from each neighbor:
 
 - vs Common: a Common alias is a synonym (different label for the same thing). A Structural alias is the *decomposition* (the modifier-stack expressed in noun-phrase form) used as a name.
-- vs Historical: a Historical alias has been superseded by a different canonical name. A Structural alias coexists with the canonical — both forms are in current use.
+- vs Historical: a Historical alias has been superseded by a different canonical name. A Structural alias coexists with the canonical: both forms are in current use.
 - vs Technical decomposition: a Technical decomposition is an abbreviation or slug-form (`gyro-torque`, `pdx-whirl`). A Structural alias is the full noun phrase (`Gyro Torque`, `Atomic Legover`).
 
 Validated examples from the alias audit (2026-05-07):
@@ -159,7 +159,7 @@ A structural alias is detected when ALL of:
 3. The trailing token matches an active or pending `freestyle_tricks.slug` (the base)
 4. The ADD math (sum of modifier bonuses + base.adds) equals the canonical's adds (math validates the decomposition)
 
-If any condition fails, the alias is NOT structural — fall through to Common / Historical / Technical / Typo classification.
+If any condition fails, the alias is NOT structural: fall through to Common / Historical / Technical / Typo classification.
 
 #### Edge case: structural alias that's ALSO Historical
 
@@ -174,7 +174,7 @@ Curator override via `alias_kind` (when added) is the tiebreaker.
 
 - Single URL serves both Simple and Deep Dive
 - localStorage-based persistence (no auth, no URL state)
-- Toggle persists across pages — Deep Dive on a family page carries to clicked trick pages
+- Toggle persists across pages: Deep Dive on a family page carries to clicked trick pages
 - Default first-visit lands in Simple
 - Decomposition stays visible in Simple at trick level (formula content, not depth)
 - Pedagogical intro shortens; structural blocks compress; ladders abbreviate; expanders close
@@ -187,11 +187,11 @@ Curator override via `alias_kind` (when added) is the tiebreaker.
 
 A good intro paragraph (family or trick) answers in 1-3 sentences:
 
-1. **Mechanical signature** — what does the leg/body do?
-2. **Distinctiveness** — vs neighboring families or sibling tricks
-3. **Why care** — entry point in progression, community recognition
-4. **Common confusion** — pre-empt the FAQ ("distinct from a swirl, where...")
-5. **Branching / connection** — preview modifiers, derivatives, or related families
+1. **Mechanical signature**: what does the leg/body do?
+2. **Distinctiveness**: vs neighboring families or sibling tricks
+3. **Why care**: entry point in progression, community recognition
+4. **Common confusion**: pre-empt the FAQ ("distinct from a swirl, where...")
+5. **Branching / connection**: preview modifiers, derivatives, or related families
 
 Family pages weight Q3 high (selling the family). Trick pages downweight Q3 (interest already established by user navigation).
 
@@ -199,10 +199,10 @@ Family pages weight Q3 high (selling the family). Trick pages downweight Q3 (int
 
 - Warm and structural, not encyclopedic
 - Names neighbors before naming variants
-- Ontology-anchored — every claim verifiable from dictionary data
+- Ontology-anchored: every claim verifiable from dictionary data
 - Short sentences (1–2 clauses each); this is signage, not prose
-- No expert hedges ("it's said to be...", "some consider..." — erodes trust)
-- No editorialized difficulty ("hard tricks ahead!") — ADD numbers speak
+- No expert hedges ("it's said to be...", "some consider...": erodes trust)
+- No editorialized difficulty ("hard tricks ahead!"): ADD numbers speak
 
 ### "Show me your work" expander depth
 
@@ -263,13 +263,13 @@ Each phase is independently shippable. None blocks the others. The dictionary's 
 
 For design intent, not implementation:
 
-- `legacy_data/inputs/curated/tricks/CANONICALIZATION_POLICY.md` — ontology governance, alias policy §6, freeze philosophy §9
-- `.claude/skills/footbag-freestyle-dictionary/SKILL.md` — ontology layer rules (dictionary / modifiers / aliases / glossary / sequence / canonical results / media linkage / navigation layer)
-- `.claude/skills/footbag-curated-media/SKILL.md` — media pipeline + tier semantics + source registry
-- `.claude/skills/club-leadership-surface/SKILL.md` — parallel pattern: read-only projection with privacy gate + single mapping site
-- `exploration/freestyle-dictionary-ux/EXPLORATION_CHARTER.md` — sandbox lane charter
-- `exploration/freestyle-dictionary-ux/FAMILY_PAGE_WHIRL_MOCK.md` — family-page pattern source
-- `exploration/freestyle-dictionary-ux/TRICK_DETAIL_MOBIUS_MOCK.md` — trick-detail pattern source
+- `legacy_data/inputs/curated/tricks/CANONICALIZATION_POLICY.md`: ontology governance, alias policy §6, freeze philosophy §9
+- `.claude/skills/footbag-freestyle-dictionary/SKILL.md`: ontology layer rules (dictionary / modifiers / aliases / glossary / sequence / canonical results / media linkage / navigation layer)
+- `.claude/skills/footbag-curated-media/SKILL.md`: media pipeline + tier semantics + source registry
+- `.claude/skills/club-leadership-surface/SKILL.md`: parallel pattern: read-only projection with privacy gate + single mapping site
+- `exploration/freestyle-dictionary-ux/EXPLORATION_CHARTER.md`: sandbox lane charter
+- `exploration/freestyle-dictionary-ux/FAMILY_PAGE_WHIRL_MOCK.md`: family-page pattern source
+- `exploration/freestyle-dictionary-ux/TRICK_DETAIL_MOBIUS_MOCK.md`: trick-detail pattern source
 
 For implementation specifics (current production routes, service signatures, template paths), consult the codebase at the time of work. Those details rot; the principles in this skill do not.
 

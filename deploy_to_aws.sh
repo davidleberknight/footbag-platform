@@ -130,7 +130,7 @@ if (( SEED_DEV_ADMINS == 1 )); then
   _seed_target="${DEPLOY_TARGET:-footbag-staging}"
   if [[ "$_seed_target" != "footbag-staging" ]]; then
     echo "ERROR: --seed-dev-admins is allowlisted to DEPLOY_TARGET=footbag-staging only (got '$_seed_target')." >&2
-    echo "Recommendation: dev-admin shortcuts must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to seed staging." >&2
+    echo "Recommendation: dev-admin seed must never reach production or any other environment. Remove the flag, or set DEPLOY_TARGET=footbag-staging explicitly if you intended to seed staging." >&2
     exit 1
   fi
   if [[ -f .local/staging-admin-seed.json ]]; then

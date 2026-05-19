@@ -3,7 +3,7 @@
 ## Source precedence
 
 Follow root CLAUDE.md source-of-truth order. Additionally:
-- When `docs/VIEW_CATALOG.md` or `docs/SERVICE_CATALOG.md` disagrees with current code, the catalog describes the target pattern and the code describes current behavior; the gap is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not catalog drift.
+- When `docs/VIEW_CATALOG.md`, `docs/SERVICE_CATALOG.md`, or `docs/TESTING.md` disagrees with current code, the canonical doc describes the target pattern and the code describes current behavior; the gap is a deviation tracked in `IMPLEMENTATION_PLAN.md`, not canonical drift.
 - Surface conflicts explicitly; do not silently blend incompatible sources.
 
 ## Documentation rules

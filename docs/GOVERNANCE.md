@@ -136,7 +136,7 @@ Public routes must not expose any endpoint that allows enumeration of current me
 
 - Club rosters: visible to logged-in members only; role-scoped for leader/admin operational use.
 - Event participant lists: official published results are public; operational participant-management lists are organizer-role-scoped only.
-- Organizer and club-leader contact information: never public by default; operational contact surfaces are role-scoped and logged.
+- Organizer and club-leader contact information: never public by default. Public exposure requires the individual member's explicit consent. Operational contact surfaces (organizer dashboards, admin tooling) are role-scoped and logged. No club-scoped or admin-scoped affordance overrides individual consent.
 - Exports: member data exports are role-scoped (Tier 3/4 only) or individual self-export (member downloads their own data per GDPR/data-subject-access-request flow).
 
 No contact field (email, phone, social handle) is visible on any public page or in any public API response.

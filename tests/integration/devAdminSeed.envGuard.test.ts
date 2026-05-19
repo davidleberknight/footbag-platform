@@ -1,15 +1,15 @@
 /**
- * Permanent contract: src/dev-admin-shortcuts/seedConfig refuses to import
+ * Permanent contract: src/dev-shortcuts/seedConfig refuses to import
  * when FOOTBAG_ENV is 'production' (or unset / any other value). The
  * dev-admin seed path must not be loadable in a production process even
- * if a misconfigured deploy left the dev-admin-shortcuts subtree in the
+ * if a misconfigured deploy left the dev-shortcuts subtree in the
  * runtime image.
  *
  * Defense-in-depth gate. Other layers:
  *   - deploy_to_aws.sh: --seed-dev-admins is allowlisted to
  *     DEPLOY_TARGET=footbag-staging only.
- *   - the runtime Dockerfiles: ARG INCLUDE_DEV_ADMIN_SHORTCUTS=0
- *     (default off) removes dist/dev-admin-shortcuts from the production
+ *   - the runtime Dockerfiles: ARG INCLUDE_DEV_SHORTCUTS=0
+ *     (default off) removes dist/dev-shortcuts from the production
  *     image.
  *   - This module guard: if the prior two fail, the import itself throws.
  */
@@ -35,7 +35,7 @@ function importInChildProcess(footbagEnv: string | undefined): {
         '--yes',
         'tsx',
         '-e',
-        "import('./src/dev-admin-shortcuts/seedConfig.js').then(() => process.exit(0)).catch((e) => { console.error(e?.message ?? String(e)); process.exit(1); });",
+        "import('./src/dev-shortcuts/seedConfig.js').then(() => process.exit(0)).catch((e) => { console.error(e?.message ?? String(e)); process.exit(1); });",
       ],
       { cwd: REPO_ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 },
     );
@@ -49,7 +49,7 @@ function importInChildProcess(footbagEnv: string | undefined): {
   }
 }
 
-describe('dev-admin-shortcuts seedConfig — production import guard', () => {
+describe('dev-shortcuts seedConfig — production import guard', () => {
   it('throws when FOOTBAG_ENV=production (cannot be loaded in a prod process)', () => {
     const result = importInChildProcess('production');
     expect(result.exitCode).not.toBe(0);

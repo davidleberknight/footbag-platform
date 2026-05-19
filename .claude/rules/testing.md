@@ -2,11 +2,14 @@
 paths:
   - "tests/**"
   - "src/adapters/**"
+  - "scripts/ci/stage_*.sh"
 ---
 
 # Testing rules
 
 Tests are load-bearing project infrastructure, not ceremony. Every change that affects behavior lands with tests that cover its intent AND its known failure modes. Test coverage is non-negotiable; only the test *shape* is negotiable.
+
+Strategic frame (how to derive, layer, and verify tests) lives in `docs/TESTING.md`. This file is the operational rule set.
 
 ## Mandate
 
@@ -79,7 +82,7 @@ If an adversarial test reveals a hole, fix it *and* keep the test.
 
 ## Coverage floor
 
-Current thresholds (`vitest.config.ts`): 95% statements, 76% branches, 93% functions. Target: 100% across the board. Coverage never ratchets down. If a change lowers a threshold, the change is wrong — not the threshold.
+Thresholds are set in `vitest.config.ts`. Target: 100% across the board. Coverage never ratchets down. If a change lowers a threshold, the change is wrong, not the threshold.
 
 New source files must land with tests that keep coverage at or above the current floor. Do not lower thresholds to admit new code.
 
@@ -95,7 +98,7 @@ If the story is unclear, escalate to the human before writing tests that encode 
 
 ## Dev↔staging adapter parity
 
-Adapters (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`) are the only seam between dev and staging. Dev uses `local`/`stub` implementations against in-process fakes; staging uses `kms`/`live` implementations against real AWS. Production (when it exists) will reuse the staging adapters against the production AWS account.
+Adapters (full set canonical in `docs/TESTING.md` §7.2) are the only seam between dev and staging. Dev uses `local`/`stub` implementations against in-process fakes; staging uses `kms`/`live` implementations against real AWS. Production (when it exists) will reuse the staging adapters against the production AWS account.
 
 Every new adapter, or change to an existing adapter's contract, requires three tests. These are long-term tests that describe a permanent contract, not one-shot verifications for the sprint that introduced them.
 
@@ -107,8 +110,20 @@ Every new adapter, or change to an existing adapter's contract, requires three t
 
 The `tests/smoke/` suite is run by operators on the staging host (or from a workstation with the staging profile configured) after any change to staging AWS runtime identity, KMS keys, SES identities, or IAM policies the app depends on, via `npm run test:smoke`. It is not part of CI and is never run against production.
 
+## Fixture-staging scripts: never clobber real data
+
+Test-fixture stagers (`scripts/ci/stage_*.sh` and equivalents) populate paths that, on a developer workstation, may also hold real data: `legacy_data/mirror_footbag_org/` (legacy site mirror crawl, multi-day to regenerate), `legacy_data/event_results/canonical_input/` (canonical CSVs, multi-hour pipeline), `data/media/` (uploaded media). When you write or modify a fixture-staging script:
+
+- **Detect real data first, refuse to overwrite it. No flag, env var, or CI mode bypasses this guard.** A real-data signal might be: a row count well above any fixture (e.g. `events.csv` rows > 50 vs the fixture's 6), a directory population well above any fixture (e.g. `events/show/` > 100 entries vs the fixture's 0), or the presence of a real file the fixture never ships. An operator who genuinely wants to rebuild must move the directory aside manually before re-running; the script must not offer an in-band escape (no `--clobber-real-data`, no `FORCE_REAL_DATA_CLOBBER`, nothing).
+- **`CI=true` and `GITHUB_ACTIONS=true` may auto-enable `--force`** (since CI starts from an empty target). The real-data guard above fires regardless and is not subject to `--force`.
+- **Reference the canonical fixture-staging script** for the safety pattern: `scripts/ci/stage_loader_smoke_fixtures.sh` (see `_target_holds_real_data` and `_check_target`). A prior version of that script had only the empty-target guard and wiped a 60 GB real-data mirror on a developer workstation (2026-05-09 incident); the real-data detection running before the empty-target check prevents recurrence. Copy this pattern when adding new fixture stagers; mark the header with `# REAL-DATA GUARD` so the convention gate in `scripts/ci/assert_conventions.sh` recognizes the script as compliant.
+- **State the threshold in the script header** so future readers understand why "n > 50" is the line. If the threshold is wrong (real data falls under it), the script silently fails to protect.
+
+The same principle applies to any test-setup script that touches paths outside `tmp/` or per-test temp dirs.
+
 ## Cross-references
 
+- `docs/TESTING.md` — testing strategy and methodology: how to derive, layer, and verify tests.
 - `tests/CLAUDE.md` — conventions (Vitest, Supertest, factories, test DB isolation, file layout).
 - `tests/fixtures/factories.ts` — canonical test-data factories; extend these rather than hand-rolling row inserts.
 - `tests/fixtures/testDb.ts` — DB setup/teardown helper.

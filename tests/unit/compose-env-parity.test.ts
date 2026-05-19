@@ -454,7 +454,7 @@ describe('docker-compose.prod.yml structural invariants', () => {
 
 describe('FOOTBAG_DEV_* placement (dev/staging admin allowlist scope)', () => {
   // Long-term contract: FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is the dev/staging
-  // admin allowlist consumed at registration time by src/dev-admin-shortcuts/runtime.ts.
+  // admin allowlist consumed at registration time by src/dev-shortcuts/runtime.ts.
   // The worker and image containers have no consumer (no registration
   // surface, no auth surface). Plumbing the var into worker/image would be
   // misleading at best and a regression risk at worst — env.ts trips a

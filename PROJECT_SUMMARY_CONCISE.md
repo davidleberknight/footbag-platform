@@ -127,6 +127,7 @@ This project uses a documentation suite. The AI should treat it as a modular kno
 ### Catalog and contract documents
 - **View Catalog** - target public-rendering standard, public page overview matrix, and sensitive-page invariants (privacy, anti-enumeration, owner-only, public/private profile boundary).
 - **Service Catalog** - target service-layer ownership, required patterns, and invariants. Pair with code/tests/types for current method shapes.
+- **Testing Strategy** - how to derive, layer, and verify tests.
 - **DevOps guide** - build, test, release, operate, recover, CI/CD, infrastructure procedures.
 
 ## When to load more detail (recommended wording / agent rule)
@@ -144,6 +145,7 @@ Also: the agent may read the **full human-oriented documents** when needed; it i
 - Need target service ownership, required service-layer patterns, or service-level error semantics -> **Service Catalog**
 - Need entity relationships, persisted state conventions, schema invariants, or exact SQL surface -> **Data Model** + `database/schema.sql`
 - Need rationale / trade-offs / "why was it done this way" -> **Design Decisions**
+- Need to derive, layer, or verify tests -> **Testing Strategy** (`docs/TESTING.md`)
 - Need deployment, backups, recovery, infrastructure changes, or CI/CD -> **DevOps guide**. Use **Developer Onboarding** for blank-machine setup and first-pass bootstrap guidance.
 - Need go-live readiness, legacy data migration scope, operational-readiness gates, or cutover sequencing -> **Migration Plan** (`docs/MIGRATION_PLAN.md`)
 - Need big-picture human context or document relationships -> **Project Summary** (full version)

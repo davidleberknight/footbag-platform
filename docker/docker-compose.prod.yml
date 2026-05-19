@@ -35,16 +35,16 @@ services:
           memory: 64M
 
   web:
-    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts.
-    # Current: prod overlay forces INCLUDE_DEV_ADMIN_SHORTCUTS=0; the base
+    # CUTOVER-REMOVE: production must NOT bake the dev-shortcuts.
+    # Current: prod overlay forces INCLUDE_DEV_SHORTCUTS=0; the base
     #   compose default is 1 (so dev/staging images bundle the dev-admin
     #   seed script). deploy-rebuild.sh also exports
-    #   INCLUDE_DEV_ADMIN_SHORTCUTS=0 when FOOTBAG_ENV=production
+    #   INCLUDE_DEV_SHORTCUTS=0 when FOOTBAG_ENV=production
     #   (belt-and-suspenders).
     # Target: remove this ARG and the override after production cutover.
     build:
       args:
-        INCLUDE_DEV_ADMIN_SHORTCUTS: 0
+        INCLUDE_DEV_SHORTCUTS: 0
     restart: always
     logging: *log-rotation
     volumes:
@@ -109,11 +109,11 @@ services:
           memory: ${WEB_MEMORY_LIMIT:-192M}
 
   worker:
-    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
+    # CUTOVER-REMOVE: production must NOT bake the dev-shortcuts
     # (same rationale as the web override above).
     build:
       args:
-        INCLUDE_DEV_ADMIN_SHORTCUTS: 0
+        INCLUDE_DEV_SHORTCUTS: 0
     # Email-outbox polling loop (src/worker.ts). Restart on crash or host
     # reboot so the outbox keeps draining. SIGTERM-clean exit loop in
     # src/worker.ts handles graceful shutdown on `docker compose down` and
@@ -180,11 +180,11 @@ services:
   #   - in-flight web requests see ECONNRESET, mapped to ImageProcessingError
   #     and a 5xx user-facing response by the HTTP adapter
   image:
-    # CUTOVER-REMOVE: production must NOT bake the dev-admin shortcuts
+    # CUTOVER-REMOVE: production must NOT bake the dev-shortcuts
     # (same rationale as the web/worker overrides above).
     build:
       args:
-        INCLUDE_DEV_ADMIN_SHORTCUTS: 0
+        INCLUDE_DEV_SHORTCUTS: 0
     restart: always
     logging: *log-rotation
     # No /root/.aws mount: this container holds NO AWS credentials. The from-

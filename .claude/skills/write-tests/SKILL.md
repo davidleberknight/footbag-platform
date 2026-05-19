@@ -14,11 +14,11 @@ description: Write or extend tests for a route, service, or pure function. Use w
 
 Tests can be written at any point. See `tests/CLAUDE.md` for conventions.
 
-## Step 1 — Confirm scope
+## Step 1: Confirm scope
 
 Read the top active-slice/status block in `IMPLEMENTATION_PLAN.md`. Confirm the feature being tested is in scope for the current slice. Do not write tests for out-of-scope behavior.
 
-## Step 2 — Determine test layer
+## Step 2: Determine test layer
 
 **Unit tests** (`tests/unit/`) for exported pure functions with no DB dependency:
 - `slugify()` from `identityAccessService.ts`
@@ -38,7 +38,7 @@ Non-exported pure functions are tested indirectly through integration tests. Do 
 
 **Smoke tests** (`tests/smoke/`) for real-AWS wiring contracts only. Opt-in via `npm run test:smoke` (which uses `scripts/test-smoke.sh` to read TF outputs and gate behind `RUN_STAGING_SMOKE=1`). Excluded from default `npm test` and CI. See "Smoke tests" below for scope rules.
 
-## Step 3 — Understand what needs testing
+## Step 3: Understand what needs testing
 
 Read:
 1. Acceptance criteria from `docs/USER_STORIES.md` (targeted sections)
@@ -50,9 +50,12 @@ Read:
 
 Do not invent behavior not in the acceptance criteria.
 
-## Step 4 — Plan test cases
+## Step 4: Plan test cases
 
-Identify cases to cover:
+Apply the derivation playbook in `docs/TESTING.md` §4: extract derived assertions A1..An from the user story success criteria (§4.2), classify risk tier (§3), fill the STRIDE per surface table (§4.3), and apply the technique selector per assertion (§4.4). The playbook produces the case list mechanically per surface and is the canonical method.
+
+The baseline case list below applies to every route and is the floor the playbook augments:
+
 - Happy path: correct status and expected content
 - Auth gate: 302 if unauthenticated, 200 if authenticated (protected routes)
 - Ownership: 404 if accessing another member's protected resource
@@ -63,9 +66,9 @@ Identify cases to cover:
 - Negative paths: validation failures, boundary values, empty/whitespace input
 - Adversarial: session tampering, double-submit, concurrent claims
 
-State the planned cases before writing code.
+Produce a traceability entry per §4.7 (US ID, derived assertions, routes, services, STRIDE applicability, technique per assertion, risk tier, ASVS level, test files, rigor level, tags) and record it in the test file header or PR description. State the planned cases (including the playbook-derived ones) before writing code.
 
-## Step 5 — Write tests
+## Step 5: Write tests
 
 ### Unit tests
 
@@ -125,7 +128,7 @@ describe('GET /events', () => {
 
 Use factories from `tests/fixtures/factories.ts`. Insert only what the tests need. Use `insertMember()` overrides for edge cases (e.g., `{ is_hof: 1 }`, `{ is_deceased: 1 }`, `{ personal_data_purged_at: '2025-01-01T00:00:00.000Z' }`).
 
-## Step 6 — Run and report
+## Step 6: Run and report
 
 ```bash
 npm test              # all tests
@@ -172,17 +175,6 @@ Update the test file's header docblock with the new failure-mode entry whenever 
 ## Mutation tests (DB writes)
 
 If a test writes to the database, isolate it: use a fresh per-test DB path, or wrap the mutation in a transaction and roll back in `afterEach`. Do not let writes from one test affect reads in another.
-
-## Test fixture staging — never clobber real data
-
-Some tests need to stage synthetic fixtures into paths that, on a developer workstation, may also hold real data — e.g. `legacy_data/mirror_footbag_org/` (the legacy site mirror crawl, multi-day to regenerate), `legacy_data/event_results/canonical_input/` (canonical CSVs, multi-hour pipeline), `data/media/` (uploaded media). When you write or modify a fixture-staging script:
-
-- **Detect real data first, refuse to overwrite it, regardless of `--force` or `CI=true`.** A real-data signal might be: a row count well above any fixture (e.g. `events.csv` rows > 50 vs the fixture's 6), a directory population well above any fixture (e.g. `events/show/` > 100 entries vs the fixture's 0), or the presence of a real file the fixture never ships. The override flag for real-data clobbering must be a separate, explicit, hard-to-mistype flag (e.g. `--clobber-real-data`), distinct from the empty-target override (`--force`).
-- **`CI=true` and `GITHUB_ACTIONS=true` may auto-enable `--force`** (since CI starts from an empty target), but they MUST NOT auto-enable real-data clobber. A devcontainer or codespace defaulting `CI=true`, or an automated tool invoking the script, must not be able to wipe real data.
-- **Reference the canonical fixture-staging script** for the safety pattern: `scripts/ci/stage_loader_smoke_fixtures.sh` (see `_target_holds_real_data` and `--clobber-real-data` flag). The 2026-05-09 incident wiped a 60 GB mirror because the prior version of that script had only the empty-target guard; copy the two-tier pattern when adding new fixture stagers.
-- **State the threshold in the script header** so future readers understand why "n > 50" is the line. If the threshold is wrong (real data falls under it), the script silently fails to protect.
-
-The same principle applies to any test-setup script that touches paths outside `tmp/` or per-test temp dirs.
 
 ## Composition order
 

@@ -2,7 +2,7 @@
 # scripts/pre-cutover-checklist.sh -- pre-cutover preflight orchestrator.
 #
 # Runs the snapshot capture, the validation-gate scripts in dependency
-# order, the dev-admin-shortcut audit, the DNS TTL preflight, and the
+# order, the dev-shortcut audit, the DNS TTL preflight, and the
 # smoke/e2e test suites. Aggregates each script's GATE: line into a
 # summary block; exits non-zero if any gate fails.
 #
@@ -96,7 +96,7 @@ else
 fi
 
 # 8. Dev-admin-shortcut audit (must be clean before production)
-run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-admin-shortcuts.sh
+run_step "DEV-ADMIN-AUDIT" bash scripts/audit-dev-shortcuts.sh
 
 # 9. DNS TTL drop (mockable)
 if [[ "${MOCK_AWS}" -eq 1 ]]; then

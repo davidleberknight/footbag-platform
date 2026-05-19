@@ -22,11 +22,11 @@ violations=0
 # leaking into raw SQL surfaces.
 #
 # Allowlisted exceptions:
-#   - src/dev-admin-shortcuts/**   dev-only seed/override tooling; not a service
+#   - src/dev-shortcuts/**   dev-only seed/override tooling; not a service
 echo "[conventions] check: .prepare( outside src/db/db.ts"
 hits=$(grep -rn --include='*.ts' '\.prepare(' src/ \
   | grep -v '^src/db/db\.ts:' \
-  | grep -v '^src/dev-admin-shortcuts/' \
+  | grep -v '^src/dev-shortcuts/' \
   || true)
 if [ -n "$hits" ]; then
   echo "$hits" >&2
@@ -61,7 +61,7 @@ fi
 # bypass that contract.
 #
 # Allowlisted exceptions:
-#   - src/dev-admin-shortcuts/**                  dev-only tooling; not production code
+#   - src/dev-shortcuts/**                  dev-only tooling; not production code
 #   - src/imageWorker.ts                          separate-process entry-point with its own env bootstrap (per file header)
 #   - src/services/operationsPlatformService.ts   test-only override (FOOTBAG_TEST_MEMORY_PERCENT) mocking cgroup reads; never set in production
 #
@@ -72,7 +72,7 @@ echo "[conventions] check: process.env reads outside src/config/env.ts"
 hits=$(grep -rn --include='*.ts' 'process\.env' src/ \
   | grep -v -E ':[0-9]+:[[:space:]]*//' \
   | grep -v '^src/config/env\.ts:' \
-  | grep -v '^src/dev-admin-shortcuts/' \
+  | grep -v '^src/dev-shortcuts/' \
   | grep -v '^src/imageWorker\.ts:' \
   | grep -v '^src/services/operationsPlatformService\.ts:' \
   || true)
@@ -109,6 +109,28 @@ template_csp_hits=$(printf '%s\n%s\n%s' "$style_hits" "$styletag_hits" "$script_
 if [ -n "$template_csp_hits" ]; then
   echo "$template_csp_hits" >&2
   echo "  FAIL: inline style/script violates CSP; use external CSS/JS" >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: every fixture-staging script must declare the real-data guard.
+# Reason: scripts/ci/stage_*.sh files populate paths that on a workstation
+# may hold real data (legacy mirror, canonical CSVs, uploaded media). The
+# .claude/rules/testing.md "Fixture-staging scripts" rule mandates a real-
+# data detection that runs before any destructive operation; the canonical
+# reference is scripts/ci/stage_loader_smoke_fixtures.sh, which carries
+# `# REAL-DATA GUARD` in its header. A new stager omitting the marker has
+# not declared the guard. The 2026-05-09 incident (60 GB mirror lost to
+# --force) is the precedent.
+echo "[conventions] check: # REAL-DATA GUARD marker in scripts/ci/stage_*.sh"
+missing=""
+for f in scripts/ci/stage_*.sh; do
+  if [ -f "$f" ] && ! grep -qE '^#.*REAL-DATA GUARD' "$f"; then
+    missing="${missing}${f}: missing '# REAL-DATA GUARD' header marker\n"
+  fi
+done
+if [ -n "$missing" ]; then
+  printf '%b' "$missing" >&2
+  echo "  FAIL: fixture-staging scripts must declare the real-data guard; see .claude/rules/testing.md 'Fixture-staging scripts' section" >&2
   violations=$((violations + 1))
 fi
 

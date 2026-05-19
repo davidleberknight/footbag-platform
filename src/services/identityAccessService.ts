@@ -83,7 +83,7 @@ import { config } from '../config/env';
 // Target: remove this import and all call sites (the bootstrap call in
 //   registerMember and the skip-claim branch in claimLegacyByEmailKnown)
 //   at production go-live.
-import { applyDevStagingBootstrapAdmin, shouldSkipClaimEmailForAdmin } from '../dev-admin-shortcuts/runtime';
+import { applyDevStagingBootstrapAdmin, shouldSkipClaimEmailForAdmin } from '../dev-shortcuts/runtime';
 import { RateLimitedError, ServiceError, ValidationError } from './serviceErrors';
 import { isUniqueConstraintError } from './sqliteRetry';
 import { findAutoLinkCandidates } from './nameVariantsService';
@@ -1590,8 +1590,8 @@ function initiateLegacyClaim(
   // Current: when the requesting member is a dev-admin (per
   //   shouldSkipClaimEmailForAdmin), the legacy claim is merged inline
   //   without sending a verification email; env-config blocks this branch
-  //   in production. Other dev-admin shortcuts are catalogued in
-  //   src/dev-admin-shortcuts/runtime.ts.
+  //   in production. Other dev shortcuts are catalogued in
+  //   src/dev-shortcuts/runtime.ts.
   // Target: remove this whole branch at production go-live; production
   //   admins recover legacy claims via manualLegacyClaimRecovery.
   if (shouldSkipClaimEmailForAdmin(requestingMemberId)) {

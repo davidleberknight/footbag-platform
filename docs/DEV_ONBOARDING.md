@@ -474,15 +474,15 @@ The two mechanisms coexist; pick either, both, or neither.
    "
    ```
 
-4. Log in with the seeded email plus the fixed dev-only password (see `src/dev-admin-shortcuts/seedConfig.ts`). The password is identical for every seeded admin and is never echoed by the seed script.
+4. Log in with the seeded email plus the fixed dev-only password (see `src/dev-shortcuts/seedConfig.ts`). The password is identical for every seeded admin and is never echoed by the seed script.
 
 Exit codes: 0 success (one or more entries seeded, or already-marked idempotent no-op rows), 1 fatal (DB missing, JSON malformed, no seed input found, empty seed array), 2 one or more entries collide with a non-seed member already owning the email. Re-running with the same JSON is a no-op when the dev-admin-seed marker is already present. Conflicts are reported and not modified.
 
-Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-admin-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-admin-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §17.
+Removal: rebuild the DB (`./run_dev.sh --reset`) clears all seeded rows. To audit leftover rows, run `./scripts/audit-dev-shortcuts.sh` (queries `reason_code LIKE 'dev_admin_%'`, `action_type LIKE 'grant_admin_dev_%'`, `created_by LIKE 'dev-shortcuts/%'`, and `action_type = 'dev_admin_invariant_repair'`). All four counts must be zero before any production deploy. The seed refuses to load under `FOOTBAG_ENV=production`; staging uses a separate seed surface documented in DEVOPS_GUIDE §17.
 
 ### 1.7.3 Dev-only shortcuts
 
-Six shortcuts exist to reduce friction during local manual testing. The runtime catalog of all dev-admin shortcuts lives in `src/dev-admin-shortcuts/runtime.ts`; the boot orchestrator there prints a consolidated banner showing which shortcuts are active on each `./run_dev.sh` start. The env-var-gated entries refuse to start in non-permitted environments via fail-fast guards in `src/config/env.ts`. The operator script entry runs in dev or staging via the deploy pipeline; production is hard-blocked by `src/dev-admin-shortcuts/seedConfig.ts`.
+Six shortcuts exist to reduce friction during local manual testing. The runtime catalog of all dev shortcuts lives in `src/dev-shortcuts/runtime.ts`; the boot orchestrator there prints a consolidated banner showing which shortcuts are active on each `./run_dev.sh` start. The env-var-gated entries refuse to start in non-permitted environments via fail-fast guards in `src/config/env.ts`. The operator script entry runs in dev or staging via the deploy pipeline; production is hard-blocked by `src/dev-shortcuts/seedConfig.ts`.
 
 | Shortcut | Type | Allowed envs | What it does |
 |---|---|---|---|
@@ -519,7 +519,7 @@ After configuring the autologin var, run the dev-admin seed so your admin entry 
 ./scripts/manage-dev-admin-seed.sh --seed-dev-admins
 ```
 
-Without this seed, the dashboard membership block will show your account as Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-admin-shortcuts/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email. The dev startup banner prints the autologin'd member's slug, admin flag, and tier on each boot; a Tier 0 admin triggers a warning pointing at this seed step.
+Without this seed, the dashboard membership block will show your account as Tier 0 because there is no legacy data dump in dev. The dev-admin seed (`src/dev-shortcuts/seed.ts`) inserts a `member_tier_grants` row with `reason_code = 'dev_admin_seed.admin_tier2'` and an `is_admin=1` member row keyed on the JSON entry's email. The dev startup banner prints the autologin'd member's slug, admin flag, and tier on each boot; a Tier 0 admin triggers a warning pointing at this seed step.
 
 Optional admin claim-email skip — set `FOOTBAG_DEV_ADMIN_SKIP_CLAIM_EMAIL=1` to let admin members complete a legacy account claim from the onboarding wizard's `legacy_claim` manual-id input WITHOUT the mailbox-control email roundtrip. Useful for testing the legacy-claim flow when your admin email isn't seeded as a `legacy_email` on any `legacy_members` row. Same fail-fast guard as the autologin var: rejected at boot in any non-development environment.
 

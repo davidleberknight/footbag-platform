@@ -8,7 +8,7 @@ import { config } from '../config/env';
 //   any non-dev environment.
 // Target: remove this import and the autologin branch in authMiddleware()
 //   at production go-live.
-import { applyDevAutologin } from '../dev-admin-shortcuts/runtime';
+import { applyDevAutologin } from '../dev-shortcuts/runtime';
 
 export const SESSION_COOKIE_NAME = 'footbag_session';
 export const SESSION_COOKIE_MAX_AGE_MS = 24 * 60 * 60 * 1000;

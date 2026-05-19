@@ -10,7 +10,7 @@
  * Detection markers:
  *   - `member_tier_grants.reason_code = 'dev_admin_seed.admin_tier2'`
  *   - `audit_entries.action_type      = 'grant_admin_dev_seed'`
- *   - `member_tier_grants.created_by  = 'dev-admin-shortcuts/seed'`
+ *   - `member_tier_grants.created_by  = 'dev-shortcuts/seed'`
  * Grep all three to zero before any production deploy.
  *
  * Input source:
@@ -46,13 +46,13 @@
  *   2 one or more conflicts (member exists without dev-admin-seed marker)
  *
  * Usage (dev, via tsx):
- *   FOOTBAG_ENV=development npx tsx src/dev-admin-shortcuts/seed.ts
+ *   FOOTBAG_ENV=development npx tsx src/dev-shortcuts/seed.ts
  *   FOOTBAG_ENV=development FOOTBAG_DB_PATH=./custom.db \
- *     npx tsx src/dev-admin-shortcuts/seed.ts
+ *     npx tsx src/dev-shortcuts/seed.ts
  *
  * Usage (staging, compiled):
  *   FOOTBAG_ENV=staging FOOTBAG_DEV_ADMIN_SEED_JSON='[...]' \
- *     node dist/dev-admin-shortcuts/seed.js
+ *     node dist/dev-shortcuts/seed.js
  */
 import argon2 from 'argon2';
 import BetterSqlite3 from 'better-sqlite3';

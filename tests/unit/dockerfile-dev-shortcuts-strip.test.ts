@@ -1,14 +1,14 @@
 /**
  * Permanent contract: every runtime Dockerfile defaults to stripping the
- * dist/dev-admin-shortcuts/ subtree unless the builder explicitly opts in
- * via `INCLUDE_DEV_ADMIN_SHORTCUTS=1`. Production builds set the arg to 0
+ * dist/dev-shortcuts/ subtree unless the builder explicitly opts in
+ * via `INCLUDE_DEV_SHORTCUTS=1`. Production builds set the arg to 0
  * (deploy-rebuild.sh + docker-compose.prod.yml overrides), so the prod
- * image never carries the dev-admin shortcuts code path.
+ * image never carries the dev-shortcuts code path.
  *
  * Defense-in-depth gate. Other layers:
- *   - src/dev-admin-shortcuts/seedConfig.ts: module-import throw under
+ *   - src/dev-shortcuts/seedConfig.ts: module-import throw under
  *     FOOTBAG_ENV=production.
- *   - src/dev-admin-shortcuts/runtime.ts: per-call short-circuit when
+ *   - src/dev-shortcuts/runtime.ts: per-call short-circuit when
  *     footbagEnv is not 'development' or 'staging'.
  *   - src/config/env.ts: boot-time fail-fast on FOOTBAG_DEV_* env vars in
  *     non-development environments.
@@ -34,17 +34,17 @@ const DOCKERFILES = [
   'docker/image/Dockerfile',
 ] as const;
 
-describe.each(DOCKERFILES)('%s: dev-admin-shortcuts strip contract', (relPath) => {
+describe.each(DOCKERFILES)('%s: dev-shortcuts strip contract', (relPath) => {
   const content = readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
 
-  it('declares ARG INCLUDE_DEV_ADMIN_SHORTCUTS with default 0', () => {
-    expect(content).toMatch(/^ARG\s+INCLUDE_DEV_ADMIN_SHORTCUTS\s*=\s*0\s*$/m);
+  it('declares ARG INCLUDE_DEV_SHORTCUTS with default 0', () => {
+    expect(content).toMatch(/^ARG\s+INCLUDE_DEV_SHORTCUTS\s*=\s*0\s*$/m);
   });
 
-  it('removes dist/dev-admin-shortcuts when INCLUDE_DEV_ADMIN_SHORTCUTS != 1', () => {
+  it('removes dist/dev-shortcuts when INCLUDE_DEV_SHORTCUTS != 1', () => {
     expect(content).toMatch(
-      /RUN\s+if\s+\[\s*"\$INCLUDE_DEV_ADMIN_SHORTCUTS"\s*!=\s*"1"\s*\]/,
+      /RUN\s+if\s+\[\s*"\$INCLUDE_DEV_SHORTCUTS"\s*!=\s*"1"\s*\]/,
     );
-    expect(content).toMatch(/rm\s+-rf[^\n]*dist\/dev-admin-shortcuts/);
+    expect(content).toMatch(/rm\s+-rf[^\n]*dist\/dev-shortcuts/);
   });
 });

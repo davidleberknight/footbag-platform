@@ -136,18 +136,18 @@ echo "==> Building Docker images locally (workstation)..."
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
 #
-# CUTOVER-REMOVE: dev-admin-shortcuts inclusion.
-# Current: dev/staging images bake `dist/dev-admin-shortcuts/` so the seed
+# CUTOVER-REMOVE: dev-shortcuts inclusion.
+# Current: dev/staging images bake `dist/dev-shortcuts/` so the seed
 #   script is runnable in-container; production images set the Dockerfile
-#   ARG INCLUDE_DEV_ADMIN_SHORTCUTS=0 (overriding the base compose default
+#   ARG INCLUDE_DEV_SHORTCUTS=0 (overriding the base compose default
 #   of 1) so the seed script cannot be invoked even by an operator who
 #   manually execs into the container.
 # Target: remove this override and the underlying ARG when the
-#   dev-admin-shortcuts subsystem is retired entirely.
+#   dev-shortcuts subsystem is retired entirely.
 # Mirrors the same gate in
 # deploy-rebuild.sh.
 if [[ "$FOOTBAG_ENV" == "production" ]]; then
-  export INCLUDE_DEV_ADMIN_SHORTCUTS=0
+  export INCLUDE_DEV_SHORTCUTS=0
 fi
 ( cd "$REPO_ROOT" && docker compose \
     -f docker/docker-compose.yml \
@@ -216,7 +216,7 @@ fi
 # FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV env var.
 # Current: dev/staging bootstrap reads this allowlist; the remote half
 #   refuses to write it on production. Same parsing rules as
-#   src/dev-admin-shortcuts/runtime.ts: strip '#' comments, trim, lowercase,
+#   src/dev-shortcuts/runtime.ts: strip '#' comments, trim, lowercase,
 #   skip blank lines. Empty/missing file produces an empty value, which
 #   clears the env var on staging so a stale list cannot persist after the
 #   operator empties the file.

@@ -7,20 +7,22 @@ description: Browser automation for visual layout review or QA verification. Use
 
 Use this skill only when the human explicitly asks to look at a page, check a layout, or verify rendered output. Do not run it speculatively, do not expand scope beyond what was named, and do not take screenshots unless specifically useful for the stated goal.
 
+This skill is for ad-hoc human-driven browser review. The standing Playwright test suite (lightweight at `tests/e2e/`, heavyweight invoked separately) is described in `docs/TESTING.md` §6 and is a separate concern from this skill.
+
 ## Two modes
 
-**Visual layout review** — human wants to see how a page looks and give feedback.
+**Visual layout review**: human wants to see how a page looks and give feedback.
 - Navigate to the named page, take one screenshot, report what is rendered.
 - Do not run assertions or check the full VIEW_CATALOG target rendering invariants unless asked.
 
-**QA verification** — human wants to confirm specific behavior is correct.
+**QA verification**: human wants to confirm specific behavior is correct.
 - State exactly what will be checked before running anything.
 - Only check the URLs and interactions the human named.
 - Do not expand to adjacent pages or broad QA passes.
 
 ## Token discipline
 
-- Use `mcp__playwright__browser_snapshot` (accessibility tree) for content/structure checks — cheaper than screenshots.
+- Use `mcp__playwright__browser_snapshot` (accessibility tree) for content/structure checks: cheaper than screenshots.
 - Use `mcp__playwright__browser_take_screenshot` only when visual appearance is the explicit goal.
 - Do not take multiple screenshots per page unless the human asks for it.
 - Close the browser when done (`mcp__playwright__browser_close`).
@@ -37,17 +39,17 @@ Rules:
 ## MCP tooling
 
 Browser automation uses the **Playwright MCP server** via the `mcp__playwright__*` tools.
-The configured browser is **Chromium** (isolated mode — `.claude/playwright/config.json`).
+The configured browser is **Chromium** (isolated mode: `.claude/playwright/config.json`).
 
 Minimal call sequence for layout review:
-1. `mcp__playwright__browser_navigate` — load the named URL
-2. `mcp__playwright__browser_take_screenshot` — one screenshot for visual feedback
+1. `mcp__playwright__browser_navigate`: load the named URL
+2. `mcp__playwright__browser_take_screenshot`: one screenshot for visual feedback
 3. `mcp__playwright__browser_close`
 
 Minimal call sequence for content/behavior check:
 1. `mcp__playwright__browser_navigate`
-2. `mcp__playwright__browser_snapshot` — accessibility tree for assertions
-3. `mcp__playwright__browser_console_messages` — only if JS errors are suspected
+2. `mcp__playwright__browser_snapshot`: accessibility tree for assertions
+3. `mcp__playwright__browser_console_messages`: only if JS errors are suspected
 4. `mcp__playwright__browser_close`
 
 ## Procedure

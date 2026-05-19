@@ -1,5 +1,5 @@
 /**
- * Schema-coupling canary for src/dev-admin-shortcuts/seed.ts.
+ * Schema-coupling canary for src/dev-shortcuts/seed.ts.
  *
  * The dev-admin-seed script writes raw INSERTs into `members`,
  * `member_tier_grants`, and `audit_entries`. A schema column rename,
@@ -25,12 +25,12 @@ const { dbPath } = setTestEnv('3094');
 process.env.FOOTBAG_ENV = 'development';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let seedModule: typeof import('../../src/dev-admin-shortcuts/seed');
+let seedModule: typeof import('../../src/dev-shortcuts/seed');
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   db.close();
-  seedModule = await import('../../src/dev-admin-shortcuts/seed');
+  seedModule = await import('../../src/dev-shortcuts/seed');
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -39,7 +39,7 @@ beforeEach(() => {
   delete process.env.FOOTBAG_DEV_ADMIN_SEED_JSON;
 });
 
-describe('dev-admin-shortcuts/seed.seedOne — schema coupling + markers', () => {
+describe('dev-shortcuts/seed.seedOne — schema coupling + markers', () => {
   it('inserts members + member_tier_grants + audit_entries rows against the current schema', async () => {
     const db = new BetterSqlite3(dbPath);
     try {
@@ -70,7 +70,7 @@ describe('dev-admin-shortcuts/seed.seedOne — schema coupling + markers', () =>
       expect(grant).toBeDefined();
       expect(grant!.reason_code).toBe('dev_admin_seed.admin_tier2');
       expect(grant!.new_tier_status).toBe('tier2');
-      expect(grant!.created_by).toBe('dev-admin-shortcuts/seed');
+      expect(grant!.created_by).toBe('dev-shortcuts/seed');
 
       const audit = db.prepare(
         `SELECT action_type FROM audit_entries WHERE entity_id = ?`,
@@ -103,7 +103,7 @@ describe('dev-admin-shortcuts/seed.seedOne — schema coupling + markers', () =>
   });
 });
 
-describe('dev-admin-shortcuts/seedConfig — env-guard contract', () => {
+describe('dev-shortcuts/seedConfig — env-guard contract', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -113,7 +113,7 @@ describe('dev-admin-shortcuts/seedConfig — env-guard contract', () => {
     delete process.env.FOOTBAG_ENV;
     try {
       await expect(
-        import('../../src/dev-admin-shortcuts/seedConfig'),
+        import('../../src/dev-shortcuts/seedConfig'),
       ).rejects.toThrow(/seedConfig may only be imported in FOOTBAG_ENV in \{development, staging\}/);
     } finally {
       process.env.FOOTBAG_ENV = prior;
@@ -125,7 +125,7 @@ describe('dev-admin-shortcuts/seedConfig — env-guard contract', () => {
     process.env.FOOTBAG_ENV = 'production';
     try {
       await expect(
-        import('../../src/dev-admin-shortcuts/seedConfig'),
+        import('../../src/dev-shortcuts/seedConfig'),
       ).rejects.toThrow(/seedConfig may only be imported in FOOTBAG_ENV in \{development, staging\}/);
     } finally {
       process.env.FOOTBAG_ENV = prior;
@@ -136,10 +136,10 @@ describe('dev-admin-shortcuts/seedConfig — env-guard contract', () => {
     const prior = process.env.FOOTBAG_ENV;
     process.env.FOOTBAG_ENV = 'staging';
     try {
-      const m = await import('../../src/dev-admin-shortcuts/seedConfig');
+      const m = await import('../../src/dev-shortcuts/seedConfig');
       expect(m.DEV_ADMIN_SEED_REASON_CODE).toBe('dev_admin_seed.admin_tier2');
       expect(m.DEV_ADMIN_SEED_AUDIT_ACTION_TYPE).toBe('grant_admin_dev_seed');
-      expect(m.DEV_ADMIN_SEED_CREATED_BY).toBe('dev-admin-shortcuts/seed');
+      expect(m.DEV_ADMIN_SEED_CREATED_BY).toBe('dev-shortcuts/seed');
       expect(m.DEV_ADMIN_SEED_ENV_VAR_NAME).toBe('FOOTBAG_DEV_ADMIN_SEED_JSON');
     } finally {
       process.env.FOOTBAG_ENV = prior;

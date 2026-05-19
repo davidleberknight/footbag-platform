@@ -51,7 +51,7 @@ Through Slices L1–W the freestyle dictionary reached a pre-Red stabilization c
 
 **Dictionary-Coherence Wave (6 CRs shipped):**
 
-- **CR-5 / 2-tier notation hierarchy on dictionary cards.** `dictionary-trick-card.hbs` follows Tier 1 (`tokenizedEquivalences` — chain registry + alias governance) → Tier 2 (`operationalNotation`) → silent fallthrough. The `coreAtomLabel` "core atom — <description>" prose render is REMOVED from both densities; the field stays on `DictionaryTrickCard` as preserved metadata for glossary / curator-internal / future-detail-page use. "Notation pending" italic prose is also removed from browse density.
+- **CR-5 / 2-tier notation hierarchy on dictionary cards.** `dictionary-trick-card.hbs` follows Tier 1 (`tokenizedEquivalences`: chain registry + alias governance) → Tier 2 (`operationalNotation`) → silent fallthrough. The `coreAtomLabel` "core atom: <description>" prose render is REMOVED from both densities; the field stays on `DictionaryTrickCard` as preserved metadata for glossary / curator-internal / future-detail-page use. "Notation pending" italic prose is also removed from browse density.
 - **CR-4 / category view soft-retired.** `?view=category` toggle entry removed; URL still resolves with a retirement notice pointing to Family + Movement System. Mirrors the 2026-05-18 component-view retirement pattern exactly. `freestyle_tricks.category` column + shaping helper preserved.
 - **CR-1 / `/freestyle/tricks` landing surface.** Renders when no `?view=` and no `?family=` param. Six browse cards (ADD / Family / Movement System / Movement Neighborhoods / Observed Tricks / Operators & Components); 3-chip stat strip; small "New to the notation?" glossary primer; one-paragraph notation philosophy. New partial `tricks-landing.hbs`, new content module `freestyleDictionaryLanding.ts`, new shaping helper `getDictionaryLandingPage()`. "Back to Dictionary" link prepended to view-toggle row on browse views; "By ADD" toggle href now explicit `?view=add`.
 - **CR-2 / observational discoverability.** `/freestyle/observational` linked from landing Card 5; route + page title + content module untouched.
@@ -60,24 +60,24 @@ Through Slices L1–W the freestyle dictionary reached a pre-Red stabilization c
 
 **Notation-Normalization Wave (5 NCRs shipped; one audit-only):**
 
-- **N1 / NCR-1 + NCR-2 atomic — atom op-notation re-precedence on landing.** `CoreTrickSpec.operationalNotation` field added; 12 verbatim curator-authored strings populated. `shapeCoreTricks()` sources `symbolicNotation` from the TS field (DB `operational_notation` column path bypassed for atoms). `equivalences[1]` accounting formula pruned via shaping helper (Path B / decision #3); metadata preserved; accounting derivations stay accessible at `/freestyle/add-analysis`.
-- **N2 / NCR-5 — Trick Dictionary portal card body expansion.** Lists 5 browse perspectives (ADD / Family / Movement System / Movement Neighborhoods / Observed Tricks); names Operators & Components as supporting vocabulary (decision #2: NOT a sixth browse mode).
-- **N3 / NCR-4 — Landing section reorder per Reading A** (decision #1). Basic Components + Operator Board moved UP between Featured and Core Tricks. Cognitive flow: portals → examples (Featured) → vocabulary primer → synthesis (Core Tricks) → get started. Jump-nav anchor order updated; CSS density tightening on the three teaching sections.
-- **N4 / NCR-3 — 4-tier rendering hierarchy contract test-pinned.** No source-code changes; integration tests pin Tier 1 (symbolic ≡) → Tier 2 (op-notation) → Tier 3 (silent) → Tier 4 (executable accounting, `/freestyle/add-analysis` + future detail-page disclosures ONLY) across 6 browse views.
-- **N5 / NCR-6 — audit only.** `family_ordering_audit.md` surfaces rev-up evidence, family-ordering rule options, intra-family ordering options, singleton-family policy options. Curator-paced; no taxonomy changes this wave.
+- **N1 / NCR-1 + NCR-2 atomic: atom op-notation re-precedence on landing.** `CoreTrickSpec.operationalNotation` field added; 12 verbatim curator-authored strings populated. `shapeCoreTricks()` sources `symbolicNotation` from the TS field (DB `operational_notation` column path bypassed for atoms). `equivalences[1]` accounting formula pruned via shaping helper (Path B / decision #3); metadata preserved; accounting derivations stay accessible at `/freestyle/add-analysis`.
+- **N2 / NCR-5: Trick Dictionary portal card body expansion.** Lists 5 browse perspectives (ADD / Family / Movement System / Movement Neighborhoods / Observed Tricks); names Operators & Components as supporting vocabulary (decision #2: NOT a sixth browse mode).
+- **N3 / NCR-4: Landing section reorder per Reading A** (decision #1). Basic Components + Operator Board moved UP between Featured and Core Tricks. Cognitive flow: portals → examples (Featured) → vocabulary primer → synthesis (Core Tricks) → get started. Jump-nav anchor order updated; CSS density tightening on the three teaching sections.
+- **N4 / NCR-3: 4-tier rendering hierarchy contract test-pinned.** No source-code changes; integration tests pin Tier 1 (symbolic ≡) → Tier 2 (op-notation) → Tier 3 (silent) → Tier 4 (executable accounting, `/freestyle/add-analysis` + future detail-page disclosures ONLY) across 6 browse views.
+- **N5 / NCR-6: audit only.** `family_ordering_audit.md` surfaces rev-up evidence, family-ordering rule options, intra-family ordering options, singleton-family policy options. Curator-paced; no taxonomy changes this wave.
 
 **Emergency public-readiness slice 2026-05-19** (added mid-wave after N4 verification surfaced that dictionary views still lacked atom op-notation despite the landing being fixed by N1):
 
-- **`shapeDictionaryTrickCard` now propagates `CoreTrickSpec.operationalNotation` to dictionary browse cards** — same TS content module as the landing's Core Tricks grid. For atom slugs, `tokenizedEquivalences` is suppressed on browse cards so op-notation takes the visible slot (ATW alias no longer preempts notation). Aliases remain on trick-detail pages + glossary.
+- **`shapeDictionaryTrickCard` now propagates `CoreTrickSpec.operationalNotation` to dictionary browse cards**: same TS content module as the landing's Core Tricks grid. For atom slugs, `tokenizedEquivalences` is suppressed on browse cards so op-notation takes the visible slot (ATW alias no longer preempts notation). Aliases remain on trick-detail pages + glossary.
 - **`double-spin` added to `MODIFIER_SLUGS`** in `freestyleTrickKindOverrides.ts` (parallels `spin`). Removed from the productive-multiplicity exception list. Filtered off canonical browse views via `isTrickRow`.
-- **`['rev-up', 'rev-up']` added to `FAMILY_OVERRIDES`** — self-bucket singleton override that the `length > 1` family-view filter drops. rev-up no longer appears in Whirl family; canonical row stays active on ADD view; `pendingDecomposition` pill preserved via `UNRESOLVED_COMPOUNDS`.
+- **`['rev-up', 'rev-up']` added to `FAMILY_OVERRIDES`**: self-bucket singleton override that the `length > 1` family-view filter drops. rev-up no longer appears in Whirl family; canonical row stays active on ADD view; `pendingDecomposition` pill preserved via `UNRESOLVED_COMPOUNDS`.
 
 **Load-bearing architectural contracts (forever-rules now in effect):**
 
 - **`CoreTrickSpec.operationalNotation` is the single source of truth for the 12-atom operational notation** across both the landing Core Tricks grid AND dictionary browse cards. Future slices touching atom notation edit the TypeScript content module, NOT the DB column or parser output. The DB `freestyle_tricks.operational_notation` column is bypassed for atoms (it continues to serve compounds).
 - **4-tier rendering hierarchy on public surfaces** (Tier 1 symbolic ≡ / Tier 2 operational notation / Tier 3 silent / Tier 4 accounting on educational surfaces only). Test-pinned; Tier-4 accounting prose patterns (`xbody(\d`, `dex(\d`, `stall(\d`, `spin(\d`, `= N ADD`) cannot leak onto browse cards without breaking the contract.
 - **Movement Neighborhoods rename is public-label-only.** Backend slug + URL parameter + content-module keys + CSS classes + test descriptions stay `topology`. Code-side rename is intentionally deferred.
-- **Self-bucket FAMILY_OVERRIDES pattern.** To drop a row from a family without creating a new family, set `['<slug>', '<slug>']` — the override creates a singleton family that `length > 1` suppresses from family-view rendering. Reversible. Used for rev-up (2026-05-19). Pattern alternative to RETIRED_FAMILIES (entire-family scope) and is curator-paced safer than promoting to a new branch family while decomposition is unresolved.
+- **Self-bucket FAMILY_OVERRIDES pattern.** To drop a row from a family without creating a new family, set `['<slug>', '<slug>']`: the override creates a singleton family that `length > 1` suppresses from family-view rendering. Reversible. Used for rev-up (2026-05-19). Pattern alternative to RETIRED_FAMILIES (entire-family scope) and is curator-paced safer than promoting to a new branch family while decomposition is unresolved.
 - **`coreAtomLabel` field on `DictionaryTrickCard` is metadata-only**, not a rendered public surface. Do NOT re-introduce its rendering on browse cards.
 - **`/freestyle/tricks` (no params) renders the landing surface, not the ADD view.** External callers wanting the ADD view explicitly use `?view=add`. The landing's "Back to Dictionary" link returns to the landing from any browse view.
 - **Productive multiplicity exception list** (post 2026-05-19): existing community-stabilized = `double-leg-over` + `double-around-the-world`. `double-spin` removed.
@@ -85,8 +85,8 @@ Through Slices L1–W the freestyle dictionary reached a pre-Red stabilization c
 
 **Planning artifacts (uncommitted):**
 
-- `exploration/dictionary-coherence-2026-05-18/` — 7 docs (~2,730 lines).
-- `exploration/notation-normalization-2026-05-18/` — 7 docs (~2,538 lines).
+- `exploration/dictionary-coherence-2026-05-18/`: 7 docs (~2,730 lines).
+- `exploration/notation-normalization-2026-05-18/`: 7 docs (~2,538 lines).
 
 Both directories untracked at the time of skill update; curator-paced decision on whether to commit.
 
@@ -101,7 +101,7 @@ See `[[project_freestyle_state]]` for the full wave-shipping summary, `[[project
 
 ### C. Family / topology caution
 
-The Red side-question consultation surfaced that movement relationships involve multiple overlapping axes — symbolic structure, modifier lineage, dex archetypes, embodied feel, timing/body-path topology, catch/surface relationships. These do not collapse cleanly into one classification.
+The Red side-question consultation surfaced that movement relationships involve multiple overlapping axes: symbolic structure, modifier lineage, dex archetypes, embodied feel, timing/body-path topology, catch/surface relationships. These do not collapse cleanly into one classification.
 
 Explicit warnings:
 
@@ -157,7 +157,7 @@ Do not store glossary terms here.
 
 A trick deserves its own row in `freestyle_tricks` only when at least one of:
 
-1. **Named identity persistence.** The name is used independently of its decomposition (e.g. `dyno`, `paradon`, `bigwalk`, `surreal` — each known by community name in competition / tutorials, not as "spinning stepping butterfly").
+1. **Named identity persistence.** The name is used independently of its decomposition (e.g. `dyno`, `paradon`, `bigwalk`, `surreal`: each known by community name in competition / tutorials, not as "spinning stepping butterfly").
 2. **Not losslessly decomposable.** Base + modifiers do not fully describe it. If they do, model via `modifier_links` on a compound row instead of creating a new canonical.
 3. **Historical / competitive significance.** Appears in competition results, widely-recognized tutorials, or community canonical lists. Records-only appearance is weak signal; competition / TT lesson / Red's curated set is strong signal.
 4. **Structural ambiguity resolver.** Multiple valid decompositions exist for the same physical move; the name is the canonical anchor that resolves the ambiguity.
@@ -167,7 +167,7 @@ Do NOT create canonical rows for:
 
 - **Pure modifier chains** (e.g. `spinning paradox mirage`). Model via `modifier_links` on the base or on an existing compound canonical such as `paradox-mirage`.
 - **Surface-only variants** (e.g. `kick` vs `stall` for the same motion). Pick one canonical surface; the other is alias-only.
-- **Direction-only variants** — unless direction is globally structural per the "Direction is structural" rule below, in which case the reversed form is its own canonical.
+- **Direction-only variants**: unless direction is globally structural per the "Direction is structural" rule below, in which case the reversed form is its own canonical.
 - **Combinatorial expansions.** Every (modifier × base) tuple does NOT deserve a row. Only the named / significant subset does.
 
 ### Direction is structural
@@ -186,15 +186,15 @@ Within-trick CW/CCW or in/out execution variants stay in one canonical row when 
 
 ### Stall ontology rule (Red pt5 clarification)
 
-Stalls — toe-stall, inside-stall, clipper-stall, osis, and similar delay surfaces — are **common anchor positions** used in many tricks. This is descriptive, not prescriptive. Red pt5's "base set of tricks such as toe stall, inside stall, clipper stall, and osis" comment names specific frequent anchors; it does not generalize to a universal rule.
+Stalls (toe-stall, inside-stall, clipper-stall, osis, and similar delay surfaces) are **common anchor positions** used in many tricks. This is descriptive, not prescriptive. Red pt5's "base set of tricks such as toe stall, inside stall, clipper stall, and osis" comment names specific frequent anchors; it does not generalize to a universal rule.
 
 The ontology must also support:
 
 - **Non-stall tricks**: kick-based moves (`flying-clipper`, `dragonfly-kick`), surface-less compounds (`double-knee`), dexterity-only sequences with no stall anchor.
-- **Body tricks**: `spin`, `double-spin`, `hop-over`, `walk-over`, `flying-inside`, `flying-outside`, `spyro` — pure body motion primitives.
-- **Sets**: `pixie`, `fairy`, `atomic`, `quantum` — bag-launch primitives that precede a trick rather than serving as a stall anchor.
-- **Modifiers**: `paradox`, `ducking`, `symposium`, etc. — applied on top of any base, stall-or-not.
-- **Standalone compounds without explicit stall base**: `drifter`, `ripwalk`, `butterfly`, etc. — the structural skeleton may include stall delays internally but the canonical row stands on its own.
+- **Body tricks**: `spin`, `double-spin`, `hop-over`, `walk-over`, `flying-inside`, `flying-outside`, `spyro`: pure body motion primitives.
+- **Sets**: `pixie`, `fairy`, `atomic`, `quantum`: bag-launch primitives that precede a trick rather than serving as a stall anchor.
+- **Modifiers**: `paradox`, `ducking`, `symposium`, etc.: applied on top of any base, stall-or-not.
+- **Standalone compounds without explicit stall base**: `drifter`, `ripwalk`, `butterfly`, etc.: the structural skeleton may include stall delays internally but the canonical row stands on its own.
 
 Do NOT force tricks into stall-based decomposition during classification or QC. When a trick's base is unclear, defer rather than invent a stall ancestor.
 
@@ -206,32 +206,32 @@ When canonical notation is blank and footbag.org has notation, promote it onto c
 
 ### Description policy
 
-Public-facing trick descriptions are neutral and instructional. No reviewer names ("per Red", "by X", "confirmed by", "Husted"), no internal modifier shorthand ("= 4 ADD", "barraging legover"), no provenance attribution. Reviewer / expert provenance lives in `freestyle_trick_source_links.notes`, source-registry rows, or QC reports — not in `description`.
+Public-facing trick descriptions are neutral and instructional. No reviewer names ("per Red", "by X", "confirmed by", "Husted"), no internal modifier shorthand ("= 4 ADD", "barraging legover"), no provenance attribution. Reviewer / expert provenance lives in `freestyle_trick_source_links.notes`, source-registry rows, or QC reports: not in `description`.
 
 When ADD math is referenced in a description, it must agree with the row's `adds` value or be removed. Self-contradictions (description says "= 3 ADD" while `adds=4`) are HIGH-severity QC failures.
 
-Aliases never appear in the description text. Aliases live in the row's `aliases` column or in `trick_aliases.csv`. Mentioning an alias in the description (e.g. `"atomic butterfly = leg beater = 4 ADD"`) is a policy violation — strip on sight.
+Aliases never appear in the description text. Aliases live in the row's `aliases` column or in `trick_aliases.csv`. Mentioning an alias in the description (e.g. `"atomic butterfly = leg beater = 4 ADD"`) is a policy violation: strip on sight.
 
 #### Established description templates (Phases 1-3, 2026-04-30)
 
 The active dictionary descriptions follow these templates. Apply the same templates when adding new active rows or normalizing future ones:
 
-- **Compound = modifier + base:** `"{Modifier}-modified {base}."` — e.g. `Paradox-modified torque.`, `Blurry-modified mirage.`, `Whirl-modified osis.`
-- **Multi-modifier compound:** nest by treating the innermost named compound as the base — `"{Outer}-modified {Inner} {base}."` — e.g. `Paradox-modified symposium whirl.` (= paradox + symposium-whirl), `Ducking-modified paradox whirl.` (= ducking + paradox-whirl), `Paradox-modified barraging mirage.` (= paradox + barraging-mirage).
+- **Compound = modifier + base:** `"{Modifier}-modified {base}."`: e.g. `Paradox-modified torque.`, `Blurry-modified mirage.`, `Whirl-modified osis.`
+- **Multi-modifier compound:** nest by treating the innermost named compound as the base, then `"{Outer}-modified {Inner} {base}."`. Examples: `Paradox-modified symposium whirl.` (= paradox + symposium-whirl), `Ducking-modified paradox whirl.` (= ducking + paradox-whirl), `Paradox-modified barraging mirage.` (= paradox + barraging-mirage).
 - **Modifier noun-form rule:** when a modifier shares its name with a trick (mirage, whirl, swirl), drop the gerund `-ing` for descriptions: `miraging→mirage`, `whirling→whirl`. Other gerund modifiers stay as-is (`Ducking-`, `Spinning-`, `Stepping-`, `Tapping-`, `Barraging-`, `Symposium-`).
-- **Stalls / delay surfaces:** `"X-based delay surface."` — e.g. `Toe-based delay surface.`, `Heel-based delay surface.`, `Outside-of-foot delay surface.`
-- **Body primitives:** short mechanical motion sentence — e.g. `Inside-leg jumping motion.`, `Jumping leg-over motion.`, `Double rotational body spin.`, `Inward rotational body move.`
-- **Base tricks (irreducible):** terse mechanical sentence — e.g. `Cross-body inside delay.` (clipper), `Rotational dexterity move.` (whirl), `Inside-to-outside delay combination.` (osis).
+- **Stalls / delay surfaces:** `"X-based delay surface."`: e.g. `Toe-based delay surface.`, `Heel-based delay surface.`, `Outside-of-foot delay surface.`
+- **Body primitives:** short mechanical motion sentence: e.g. `Inside-leg jumping motion.`, `Jumping leg-over motion.`, `Double rotational body spin.`, `Inward rotational body move.`
+- **Base tricks (irreducible):** terse mechanical sentence: e.g. `Cross-body inside delay.` (clipper), `Rotational dexterity move.` (whirl), `Inside-to-outside delay combination.` (osis).
 - **Sentence form:** capitalized first word, terminating period. One sentence.
 
 #### Write surfaces for active descriptions
 
 The active dictionary descriptions live in two CSVs, both loaded into `freestyle_tricks.description`:
 
-- `legacy_data/inputs/noise/tricks.csv` — canonical baseline, loaded by `event_results/scripts/17_load_trick_dictionary.py`. Holds most active tricks. Rows with notes containing commas must be CSV-quoted.
-- `legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv` — Red Husted overlays, loaded by `event_results/scripts/19_load_red_additions.py`. Holds body primitives (`flying-inside`, `flying-outside`, `hop-over`, `walk-over`, `double-spin`, `spyro`), set primitives (`toe-stall`, `heel-stall`, `outside-stall`), and a handful of compounds (`sidewalk`, `tombstone`, `fury`, `vortex`, `surging`).
+- `legacy_data/inputs/noise/tricks.csv`: canonical baseline, loaded by `event_results/scripts/17_load_trick_dictionary.py`. Holds most active tricks. Rows with notes containing commas must be CSV-quoted.
+- `legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv`: Red Husted overlays, loaded by `event_results/scripts/19_load_red_additions.py`. Holds body primitives (`flying-inside`, `flying-outside`, `hop-over`, `walk-over`, `double-spin`, `spyro`), set primitives (`toe-stall`, `heel-stall`, `outside-stall`), and a handful of compounds (`sidewalk`, `tombstone`, `fury`, `vortex`, `surging`).
 
-**Never write descriptions directly to `database/footbag.db`** — `scripts/reset-local-db.sh` wipes them on next reload. Edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable.
+**Never write descriptions directly to `database/footbag.db`**: `scripts/reset-local-db.sh` wipes them on next reload. Edit the canonical CSV; verify by running script 17 (and 19 if applicable) against a fresh schema-only temp DB before claiming the change is durable.
 
 ---
 
@@ -278,7 +278,7 @@ Use aliases for naming evolution, abbreviations, and alternate terms.
 
 Examples:
 
-- Toe Blur → Stepping Paradox Mirage (per James pt10 adjudication 2026-05-10; supersedes the earlier Red pt2 "Quantum Mirage" reading which gave 3 ADD vs asserted 4 — see pt10 candidate-core resolution)
+- Toe Blur → Stepping Paradox Mirage (per James pt10 adjudication 2026-05-10; supersedes the earlier Red pt2 "Quantum Mirage" reading which gave 3 ADD vs asserted 4: see pt10 candidate-core resolution)
 - Toe Ripwalk → Quantum Butterfly
 - Spyro → Inspin
 - PS Whirl → Paradox Symposium Whirl
@@ -357,7 +357,7 @@ True combo analysis requires sequence-level data.
 
 ## 5b. Media Linkage Layer
 
-Curated reference media (videos and images) attached to tricks, players, events, and records lives in three tables: `freestyle_media_sources`, `freestyle_media_assets`, `freestyle_media_links`. Member-uploaded gallery content (`media_items`, `media_flags`, `media_tags`) is a separate, parallel system — never merge the two.
+Curated reference media (videos and images) attached to tricks, players, events, and records lives in three tables: `freestyle_media_sources`, `freestyle_media_assets`, `freestyle_media_links`. Member-uploaded gallery content (`media_items`, `media_flags`, `media_tags`) is a separate, parallel system: never merge the two.
 
 Rules:
 
@@ -365,7 +365,7 @@ Rules:
 
 - **`end_seconds` is load-bearing for multi-trick media sources.** May be NULL on simple full-asset clips, but is the only mechanism by which one source asset (TT1/TT2 DVD, multi-section tutorial, slow-mo extract) spawns many distinct clip-links. Snippet timing lives on `freestyle_media_links`, never a separate segments table. Never drop the column.
 
-- **Trick-primary clip logic is provisional.** The partial unique index `(entity_type, entity_id) WHERE is_primary=1` enforces one primary per entity. Current generator picks primary by record `value_numeric` desc, tiebreak by `media_id` asc — biased toward record clips over tutorials. Will need refinement when tutorial / slow-mo / demo clips arrive in volume. Do not solve speculatively.
+- **Trick-primary clip logic is provisional.** The partial unique index `(entity_type, entity_id) WHERE is_primary=1` enforces one primary per entity. Current generator picks primary by record `value_numeric` desc, tiebreak by `media_id` asc: biased toward record clips over tutorials. Will need refinement when tutorial / slow-mo / demo clips arrive in volume. Do not solve speculatively.
 
 - **Verify external URLs before reviewer sign-off.** Extrapolated URLs sit in staging with `reviewer` blank; they must be HTTP-confirmed before promotion. Pattern-form-from-a-working-URL is a guess, not verification.
 
@@ -375,7 +375,7 @@ Rules:
 
 ### Source URL patterns (verified)
 
-- **FootbagSpot tutorials**: `https://footbagspot.com/tutorials/v/{hash-or-slug}` for individual videos. `/tutorials/{category}` for category landing pages. Speculative `/tutorials/{slug}` URLs all 404 — do not extrapolate.
+- **FootbagSpot tutorials**: `https://footbagspot.com/tutorials/v/{hash-or-slug}` for individual videos. `/tutorials/{category}` for category landing pages. Speculative `/tutorials/{slug}` URLs all 404: do not extrapolate.
 
 - **YouTube oembed verification**: `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={id}&format=json` returns title + author_name in JSON; HTTP 400 if id is malformed (YouTube IDs are exactly 11 chars; 12-char inputs are typos). Use this to confirm any new YouTube URL before append.
 
@@ -392,10 +392,10 @@ Source priority for primary selection:
 2. TT / Tricks of the Trade single-trick lesson (`tt_youtube`)
 3. PassBack tutorial (`footbagspot_passback`)
 4. Other verified tutorial source (`footbagspot_tutorials`, `polini_pointers`, `footbag_foundations`, `everything_footbag`)
-5. Demonstration-tier source (`shred_global`, `flipsider_footbag`, `footbag_finland`) — single-trick demos; no teaching breakdown. Per Phase 2b 2026-05-10, `shred_global` moved from tutorial-tier to demo-tier; SOURCE_TIER in `freestyleService.ts` is the load-bearing classification.
-6. Record / performance clip (`passback_records`) — never primary if a tutorial alternative exists
+5. Demonstration-tier source (`shred_global`, `flipsider_footbag`, `footbag_finland`): single-trick demos; no teaching breakdown. Per Phase 2b 2026-05-10, `shred_global` moved from tutorial-tier to demo-tier; SOURCE_TIER in `freestyleService.ts` is the load-bearing classification.
+6. Record / performance clip (`passback_records`): never primary if a tutorial alternative exists
 
-### Primary-promotion rules (load-bearing — applied before every media-link write)
+### Primary-promotion rules (load-bearing: applied before every media-link write)
 
 A media row may be promoted to `is_primary=1` only if all five hold:
 
@@ -408,7 +408,7 @@ A media row may be promoted to `is_primary=1` only if all five hold:
 Do NOT promote if:
 - Target trick is pending (`is_active=0`); use `is_primary=0` only.
 - Video is a montage, drill, record, or shred run.
-- Title is generic (e.g., "Double Dexes" — does not name a specific trick).
+- Title is generic (e.g., "Double Dexes": does not name a specific trick).
 - Target trick is not explicitly central to the video.
 - Current primary is already a strong tutorial.
 
@@ -416,7 +416,7 @@ Multi-trick tutorials: promote only when each target trick is **explicitly named
 
 ### Reset-compatibility classification (HOLD / STAGED / SAFE)
 
-Before appending any `media_links.csv` row, classify the target slug against a fresh-reset load (scripts 17 + 19 + 21-media + 22 + 23 — note `script 21_load_footbag_org_pending_tricks.py` is **not** in `reset-local-db.sh`):
+Before appending any `media_links.csv` row, classify the target slug against a fresh-reset load (scripts 17 + 19 + 21-media + 22 + 23: note `script 21_load_footbag_org_pending_tricks.py` is **not** in `reset-local-db.sh`):
 
 - **SAFE**: target slug active in `freestyle_tricks` after reset (loaded via 17 or 19). Append immediately; primary or secondary per the promotion rules.
 - **STAGED**: target slug exists as pending after reset (`is_active=0`). Append only with `is_primary=0`; loader allows pending links; public UI hides via the `is_active=1` filter on `freestyleTricks.listAll/getBySlug/listByFamily`.
@@ -426,9 +426,9 @@ The 193 footbag.org pending rows (loaded historically by `21_load_footbag_org_pe
 
 ### Coverage dashboard
 
-`legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py` — read-only dashboard generator. Default mode builds a fresh schema-only temp DB and runs the reset-compatible loader chain; `--db <path>` runs against an existing DB. Outputs `legacy_data/reports/freestyle_media_coverage.csv` (one row per `freestyle_tricks` slug; 17 columns including `primary_strength`, `status`, `priority_bucket`) and a markdown summary on stdout.
+`legacy_data/event_results/scripts/24_qc_freestyle_media_coverage.py`: read-only dashboard generator. Default mode builds a fresh schema-only temp DB and runs the reset-compatible loader chain; `--db <path>` runs against an existing DB. Outputs `legacy_data/reports/freestyle_media_coverage.csv` (one row per `freestyle_tricks` slug; 17 columns including `primary_strength`, `status`, `priority_bucket`) and a markdown summary on stdout.
 
-Four validation checks (non-zero exit if any fail) — run before every media commit:
+Four validation checks (non-zero exit if any fail): run before every media commit:
 1. No duplicate primary per `(entity_type='trick', entity_id)`.
 2. No `media_links.entity_id` points to a missing trick slug after reset (catches orphans from HOLD-tier targets).
 3. Pending tricks with media all have `is_primary=0`.
@@ -440,7 +440,7 @@ Status values: `ACTIVE_STRONG_PRIMARY`, `ACTIVE_WEAK_PRIMARY`, `ACTIVE_NO_PRIMAR
 
 ## 5c. Navigation Layer (trick detail page)
 
-The trick detail page (`/freestyle/tricks/:slug`) ships three navigation sections plus the family ladder, all driven by the active dictionary alone (no new tables, no new queries — the helpers run against the in-memory `allDictRows` already loaded for composition shaping).
+The trick detail page (`/freestyle/tricks/:slug`) ships three navigation sections plus the family ladder, all driven by the active dictionary alone (no new tables, no new queries: the helpers run against the in-memory `allDictRows` already loaded for composition shaping).
 
 Helpers live in `src/services/freestyleRelatedTricks.ts`. All three exclude `category='modifier'` and the current trick. Display order on the page: **Related Tricks → Previous Tricks → Next Tricks → Trick Family ladder.**
 
@@ -456,7 +456,7 @@ Forbidden:
 - Slug-prefix matching for filtering (e.g. "tricks starting with `paradox-`") is NOT used. Filter narrows on `trick_family` only.
 - Family selection must NOT be derived from a hashtag.
 
-### `buildRelatedTricks` — broad navigation, cap = 8
+### `buildRelatedTricks`: broad navigation, cap = 8
 
 Three rules in priority order. Within each rule's candidate set, ADD-bucket round-robin sampling (slug ASC tiebreak) ensures a low/mid/high mix; display order is concatenation R1 picks → R2 picks → R3 picks.
 
@@ -464,19 +464,19 @@ Three rules in priority order. Within each rule's candidate set, ADD-bucket roun
 - **R2 modifier-prefix**: slug starts with `{first-hyphen-segment}-` AND `trick_family != current.trick_family`. Yields nothing for single-segment slugs (base tricks). Captures cross-family modifier siblings (e.g. `paradox-mirage` ↔ `paradox-torque`).
 - **R3 grandparent**: `current.base_trick → that row's base_trick → if active, non-modifier, family differs → include`. Gated: fires only when **R1 + R2 < 6** and the candidate is not already included. Yields at most 1 result. Captures structural ancestors (e.g. `atomic-torque → torque → osis`).
 
-### `buildNextTricks` — family-scoped progression by ADD, cap = 5
+### `buildNextTricks`: family-scoped progression by ADD, cap = 5
 
-Strict same-family. `adds > current.adds`. Group by ADD, slug ASC within bucket, **take ≤2 per bucket**, flatten ASC. The per-bucket cap is load-bearing — without it, a heavily-populated 4-ADD bucket (whirl family has five) would fill the cap and bury 5+ ADD tiers entirely. With per-bucket-2, `spinning-symposium-whirl` (6 ADD) stays visible.
+Strict same-family. `adds > current.adds`. Group by ADD, slug ASC within bucket, **take ≤2 per bucket**, flatten ASC. The per-bucket cap is load-bearing: without it, a heavily-populated 4-ADD bucket (whirl family has five) would fill the cap and bury 5+ ADD tiers entirely. With per-bucket-2, `spinning-symposium-whirl` (6 ADD) stays visible.
 
 **Cross-family progression is intentionally out of scope.** ADD comparisons across families would imply real-world difficulty equivalence we cannot guarantee. Cross-family exploration belongs in `buildRelatedTricks`.
 
-### `buildPreviousTricks` — family-scoped regression by ADD, cap = 5
+### `buildPreviousTricks`: family-scoped regression by ADD, cap = 5
 
 Mirror of Next Tricks. `adds < current.adds`. Same per-bucket-2 sampling, but flattened **DESC** (closest easier first).
 
 **Family-base tiebreaker** (only on Previous Tricks): within each bucket, the row whose `slug == current.trick_family` is sorted first, then alphabetical for the rest. This guarantees foundational base tricks like `whirl` surface in their compounds' Previous Tricks lists. Without it, `spinning-whirl`'s 3-ADD bucket would alphabetically yield `rev-up, rev-whirl` and bury `whirl` (the family base, also 3 ADD) entirely.
 
-The tiebreaker is intentionally **not** applied to Next Tricks — base tricks have the lowest ADD in their family by definition and are never eligible as "next" candidates.
+The tiebreaker is intentionally **not** applied to Next Tricks: base tricks have the lowest ADD in their family by definition and are never eligible as "next" candidates.
 
 ### Adding a new navigation surface
 
@@ -575,7 +575,7 @@ When adding a new public query against the table, copy the pattern. When adding 
 
 ### Modifier rows are not tricks
 
-`freestyle_tricks` rows with `category='modifier'` (e.g. `paradox`, `gyro`, `barraging`, `blazing`) are excluded from the public category groupings on `/freestyle/tricks`. The historical reason `freestyle_tricks` carries modifier-category rows is composition — they're FK targets for `freestyle_trick_modifier_links`. They stay in the table; they just don't render as tricks.
+`freestyle_tricks` rows with `category='modifier'` (e.g. `paradox`, `gyro`, `barraging`, `blazing`) are excluded from the public category groupings on `/freestyle/tricks`. The historical reason `freestyle_tricks` carries modifier-category rows is composition: they're FK targets for `freestyle_trick_modifier_links`. They stay in the table; they just don't render as tricks.
 
 The proper rules table for modifier ADD bonuses is `freestyle_trick_modifiers` (modifier_name, add_bonus, add_bonus_rotational, modifier_type). Do not derive modifier ADD math from `freestyle_tricks` rows; use this table.
 

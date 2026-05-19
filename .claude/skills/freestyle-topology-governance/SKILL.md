@@ -23,9 +23,9 @@ This skill is the conceptual guardrail. Implementation patterns live in `footbag
 
 **Observational ≠ canonical.**
 
-Some classifications are CANONICAL — community-sanctioned, single-valued, durable, encoded in primary columns (`freestyle_tricks.canonical_name`, `freestyle_tricks.trick_family`, `freestyle_tricks.category`).
+Some classifications are CANONICAL: community-sanctioned, single-valued, durable, encoded in primary columns (`freestyle_tricks.canonical_name`, `freestyle_tricks.trick_family`, `freestyle_tricks.category`).
 
-Other classifications are OBSERVATIONAL — curator-authored groupings that surface patterns across the dictionary without claiming community authority (`connectivePanels`, topology groups, movement-archetype groupings, multi-axis cohort tagging).
+Other classifications are OBSERVATIONAL: curator-authored groupings that surface patterns across the dictionary without claiming community authority (`connectivePanels`, topology groups, movement-archetype groupings, multi-axis cohort tagging).
 
 Both are useful. They must stay distinct. An observational grouping that gets promoted to canonical without curator sign-off causes downstream taxonomic claims the project cannot defend.
 
@@ -58,7 +58,7 @@ When in doubt: assume observational. Promotion to canonical requires curator dec
 
 5. **Single-value family is a known limitation.** Tricks like `double-leg-over` (legover-based AND mirage-related via `miraging legover` reading) and `torque` (its own family AND osis-derived via `miraging osis` reading) belong to multiple structural cohorts. The current schema cannot express this. Slice D may introduce multi-family memberships via reversible TypeScript content modules; do NOT introduce a multi-family schema until Wave-2 Red answers + curator triage stabilize the ontology.
 
-6. **Singleton families are ambiguous.** A `trick_family` slug with only 1 active member (dada-curve, atw, several others) is currently suppressed by the `length > 1` family-view heuristic. Singleton-family policy is unresolved — do not invent rules without curator input.
+6. **Singleton families are ambiguous.** A `trick_family` slug with only 1 active member (dada-curve, atw, several others) is currently suppressed by the `length > 1` family-view heuristic. Singleton-family policy is unresolved: do not invent rules without curator input.
 
 ---
 
@@ -68,15 +68,15 @@ Topology groupings are observational lenses. Each surfaces a movement-mechanic p
 
 Established topology axes (curator-authored, observational):
 
-- **Rotational vs non-rotational** — does the body rotate during the dex moment?
-- **Paradox vs non-paradox** — does the body switch sides between dex events?
-- **Symposium vs grounded** — does the support leg leave the ground during the dex?
-- **Ducking / diving / weaving / zulu** — four-way head-path family
-- **Midtime body modifiers** — modifiers that act on the body around the trick's apex
-- **Pixie / fairy / atomic neighborhoods** — set-primitive cohorts
-- **Hippy vs leggy** — dex motion source (hip vs knee)
-- **Butterfly progression chains** — walking-family-style modifier ladders on a single base
-- **Torque / osis structural cohort** — compounds built from miraging-osis or its derivatives
+- **Rotational vs non-rotational**: does the body rotate during the dex moment?
+- **Paradox vs non-paradox**: does the body switch sides between dex events?
+- **Symposium vs grounded**: does the support leg leave the ground during the dex?
+- **Ducking / diving / weaving / zulu**: four-way head-path family
+- **Midtime body modifiers**: modifiers that act on the body around the trick's apex
+- **Pixie / fairy / atomic neighborhoods**: set-primitive cohorts
+- **Hippy vs leggy**: dex motion source (hip vs knee)
+- **Butterfly progression chains**: walking-family-style modifier ladders on a single base
+- **Torque / osis structural cohort**: compounds built from miraging-osis or its derivatives
 
 When proposing a new topology axis, evaluate:
 
@@ -96,7 +96,7 @@ When considering retirement of a weak topology group:
 
 ## Movement-neighborhood philosophy
 
-The dictionary surfaces increasingly hint at "movement neighborhoods" — tricks that feel structurally adjacent even when their canonical decompositions differ. This is an EMERGING concept, not a hardened ontology.
+The dictionary surfaces increasingly hint at "movement neighborhoods": tricks that feel structurally adjacent even when their canonical decompositions differ. This is an EMERGING concept, not a hardened ontology.
 
 Movement neighborhoods may eventually crystallize as:
 
@@ -166,7 +166,7 @@ See [[project_red_consultation_state]] for the live consultation state and [[pro
 
 Cross-references [[feedback_reversible_content_governance]]. The summary form:
 
-- **TypeScript content modules over SQL** while ontology is in flight. Allow-lists, chain registries, kind overrides, family memberships, category taxonomies, glossary anchor allow-lists — all curator-authored, all reversible by editing one file.
+- **TypeScript content modules over SQL** while ontology is in flight. Allow-lists, chain registries, kind overrides, family memberships, category taxonomies, glossary anchor allow-lists: all curator-authored, all reversible by editing one file.
 - **No schema migrations** for taxonomy data until ontology stabilizes (post-Wave-2 + curator triage at minimum).
 - **No auto-derivation** of curator-authoritative classification from notation, formulas, or alias tables. Curator data is curator data; parser data is parser data. (Cross-references [[feedback_parser_editorial_separation]].)
 - **Restraint over feature throughput.** A wrong taxonomy commitment is worse than a missing one. When a slice is uncertain, surface the question to the curator; do not invent a default.
@@ -205,4 +205,4 @@ In these cases the implementation skill (`footbag-freestyle-dictionary`) is suff
 
 The freestyle dictionary is no longer primarily "a list of tricks." It is a **navigable educational movement-language system** with multiple interlocking ontology layers (canonical names / symbolic decomposition / glossary pedagogy / embodied movement analogy). Topology governance is the connective tissue that keeps the system navigable without collapsing those layers into one.
 
-The biggest risk now is not missing content — it is over-hardening the ontology before it has stabilized. This skill exists to slow down classification work, surface uncertainty to the curator, and prevent future Claude sessions from inventing structure the curator did not author.
+The biggest risk now is not missing content: it is over-hardening the ontology before it has stabilized. This skill exists to slow down classification work, surface uncertainty to the curator, and prevent future Claude sessions from inventing structure the curator did not author.

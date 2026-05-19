@@ -1,10 +1,10 @@
 /**
- * Runtime logic for the dev-admin shortcuts (dev + staging only). The whole
+ * Runtime logic for the dev shortcuts (dev + staging only). The whole
  * surface — this file, the seed script, the shared seedConfig — exists to
  * be removed at production cutover; every consumer is marked with
  * `// CUTOVER-REMOVE` at its callsite.
  *
- * Inventory of dev-admin shortcuts the project supports:
+ * Inventory of dev shortcuts the project supports:
  *   - FOOTBAG_DEV_INITIAL_ADMIN_EMAILS (env var; deploy script seeds it
  *     from workstation `.local/initial-admins.txt`). Dev + staging only.
  *       At registration time, members whose email matches this allowlist
@@ -279,7 +279,7 @@ export function repairAdminTier2Invariant(
     const result = applyAdminTier2InvariantGrant(
       row.id,
       'dev_admin_invariant_repair',
-      { source: 'dev-admin-shortcuts/runtime' },
+      { source: 'dev-shortcuts/runtime' },
     );
     if (result.applied) {
       repaired += 1;
@@ -292,7 +292,7 @@ export function repairAdminTier2Invariant(
 }
 
 /**
- * Boot orchestrator. Prints the consolidated dev-admin-shortcuts banner
+ * Boot orchestrator. Prints the consolidated dev-shortcuts banner
  * and runs the admin tier2 invariant repair when its flag is set. Safe
  * to call unconditionally; it short-circuits in non-development
  * environments.
@@ -360,10 +360,10 @@ export function initDevShortcuts(): void {
     );
     seedFilePresent = existsSync(seedFilePath);
   } catch (err) {
-    logger.warn('dev-admin-shortcuts: seedConfig import failed', { error: String(err) });
+    logger.warn('dev-shortcuts: seedConfig import failed', { error: String(err) });
   }
 
-  logger.info('dev-admin shortcuts', {
+  logger.info('dev shortcuts', {
     autologin: autologinSummary?.slug ?? 'off',
     autologin_admin: autologinSummary?.admin ?? 'n/a',
     autologin_tier: autologinSummary?.tier ?? 'n/a',

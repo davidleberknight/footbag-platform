@@ -233,16 +233,16 @@ echo "==> Building Docker images locally (workstation)..."
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
 #
-# CUTOVER-REMOVE: dev-admin-shortcuts inclusion.
-# Current: dev/staging images bake `dist/dev-admin-shortcuts/` so the seed
+# CUTOVER-REMOVE: dev-shortcuts inclusion.
+# Current: dev/staging images bake `dist/dev-shortcuts/` so the seed
 #   script is runnable in-container; production images set
-#   INCLUDE_DEV_ADMIN_SHORTCUTS=0 (overriding the base compose default of 1)
+#   INCLUDE_DEV_SHORTCUTS=0 (overriding the base compose default of 1)
 #   so the seed script cannot be invoked even by an operator who manually
 #   execs into the container.
 # Target: remove this override and the underlying ARG when the
-#   dev-admin-shortcuts subsystem is retired entirely.
+#   dev-shortcuts subsystem is retired entirely.
 if [[ "$FOOTBAG_ENV" == "production" ]]; then
-  export INCLUDE_DEV_ADMIN_SHORTCUTS=0
+  export INCLUDE_DEV_SHORTCUTS=0
 fi
 ( cd "$REPO_ROOT" && docker compose \
     -f docker/docker-compose.yml \
@@ -296,7 +296,7 @@ fi
 # FOOTBAG_DEV_INITIAL_ADMIN_EMAILS CSV env var.
 # Current: dev/staging bootstrap reads this allowlist; remote-half refuses
 #   to write the value on production hosts. Same parsing rules as
-#   src/dev-admin-shortcuts/runtime.ts.
+#   src/dev-shortcuts/runtime.ts.
 # Target: remove when the allowlist bootstrap mechanism is retired.
 INITIAL_ADMIN_EMAILS_CSV=""
 LOCAL_ADMIN_FILE="$REPO_ROOT/.local/initial-admins.txt"

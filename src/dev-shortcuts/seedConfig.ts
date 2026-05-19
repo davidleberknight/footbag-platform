@@ -10,7 +10,7 @@
  * dev-admin seed; must be 0-count before any production deploy):
  *   - `member_tier_grants.reason_code = 'dev_admin_seed.admin_tier2'`
  *   - `audit_entries.action_type      = 'grant_admin_dev_seed'`
- *   - `member_tier_grants.created_by  = 'dev-admin-shortcuts/seed'`
+ *   - `member_tier_grants.created_by  = 'dev-shortcuts/seed'`
  *
  * The fixed password literal below is hard-coded for dev/staging
  * convenience. Each seed run applies it via argon2 at seed time.
@@ -54,7 +54,7 @@ export const DEV_ADMIN_SEED_REASON_CODE = 'dev_admin_seed.admin_tier2';
 export const DEV_ADMIN_SEED_REASON_TEXT =
   'DEV-ADMIN SEED. Not a real tier purchase. Remove before any production deploy.';
 export const DEV_ADMIN_SEED_AUDIT_ACTION_TYPE = 'grant_admin_dev_seed';
-export const DEV_ADMIN_SEED_CREATED_BY = 'dev-admin-shortcuts/seed';
+export const DEV_ADMIN_SEED_CREATED_BY = 'dev-shortcuts/seed';
 
 /**
  * Env-var carrying the compact-JSON seed input on staging. The deploy

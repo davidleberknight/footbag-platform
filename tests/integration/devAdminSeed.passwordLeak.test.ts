@@ -10,7 +10,7 @@
  * The test enforces three code-side protections:
  *
  *   1. Single-source containment in code — the literal appears only in
- *      src/dev-admin-shortcuts/seedConfig.ts.
+ *      src/dev-shortcuts/seedConfig.ts.
  *   2. Seed script never embeds the literal — seed.ts imports the
  *      constant by symbol, never inlines it as a string.
  *   3. Deploy scripts never embed the literal — the workstation +
@@ -44,7 +44,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 let DEV_ADMIN_SEED_PASSWORD_LITERAL: string;
 
 beforeAll(async () => {
-  const m = await import('../../src/dev-admin-shortcuts/seedConfig');
+  const m = await import('../../src/dev-shortcuts/seedConfig');
   DEV_ADMIN_SEED_PASSWORD_LITERAL = m.DEV_ADMIN_SEED_PASSWORD_LITERAL;
 });
 
@@ -71,16 +71,16 @@ function grepRepoForLiteral(needle: string): string[] {
 }
 
 describe('DEV_ADMIN_SEED_PASSWORD_LITERAL — leak protection', () => {
-  it('appears in exactly one checked-in file: src/dev-admin-shortcuts/seedConfig.ts', () => {
+  it('appears in exactly one checked-in file: src/dev-shortcuts/seedConfig.ts', () => {
     const hits = grepRepoForLiteral(DEV_ADMIN_SEED_PASSWORD_LITERAL);
-    expect(hits).toEqual(['src/dev-admin-shortcuts/seedConfig.ts']);
+    expect(hits).toEqual(['src/dev-shortcuts/seedConfig.ts']);
   }, 30_000);
 
   it('seed script source does not embed the literal as a string', () => {
     const seedSourcePath = path.resolve(
       REPO_ROOT,
       'src',
-      'dev-admin-shortcuts',
+      'dev-shortcuts',
       'seed.ts',
     );
     const source = readFileSync(seedSourcePath, 'utf8');
@@ -108,7 +108,7 @@ describe('DEV_ADMIN_SEED_PASSWORD_LITERAL — leak protection', () => {
   it('seedOne stores an argon2id hash in members.password_hash; never the plaintext literal', async () => {
     const BetterSqlite3 = (await import('better-sqlite3')).default;
     const argon2Mod = await import('argon2');
-    const { seedOne } = await import('../../src/dev-admin-shortcuts/seed');
+    const { seedOne } = await import('../../src/dev-shortcuts/seed');
     const fs = await import('node:fs');
     const os = await import('node:os');
 

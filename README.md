@@ -44,6 +44,7 @@ Sneak Preview: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_op
 - [docs/MIGRATION_PLAN.md](docs/MIGRATION_PLAN.md) — go-live readiness steps: data migration, and validation gates.
 - [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md) — project overview.
 - [docs/SERVICE_CATALOG.md](docs/SERVICE_CATALOG.md) — back-end code service contracts.
+- [docs/TESTING.md](docs/TESTING.md): testing strategy and methodology.
 - [docs/USER_STORIES.md](docs/USER_STORIES.md) — intended functional behaviors and success criteria.
 - [docs/VIEW_CATALOG.md](docs/VIEW_CATALOG.md) — route and web-page contracts.
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — current sprint scope, dependency analysis, and planning.
