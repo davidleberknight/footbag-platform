@@ -999,18 +999,21 @@ describe('GET /freestyle/tricks — ADD-grouped view (default beginner view)', (
   });
 
   it('renders the view toggle with the ADD view marked active', async () => {
-    // 2026-05-18 Component View soft retirement: "By component" toggle
-    // entry removed (Movement System is the canonical modifier-grouped
-    // browse surface). Other view toggles still present.
+    // Component View soft retirement (2026-05-18) + Category View soft
+    // retirement (CR-4 of dictionary-coherence-2026-05-18): both toggle
+    // entries removed. Movement System is the canonical modifier-grouped
+    // browse surface; Family + Movement System replace Category. The
+    // ?view=category and ?view=component routes still resolve with
+    // retirement notices for bookmark continuity.
     const app = createApp();
     const res = await request(app).get('/freestyle/tricks');
     expect(res.text).toContain('class="trick-view-toggle"');
     expect(res.text).toMatch(/class="trick-view-toggle-active">By ADD</);
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
-    expect(res.text).toContain('href="/freestyle/tricks?view=category"');
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
     expect(res.text).toContain('href="/freestyle/tricks?view=topology"');
-    // Component View toggle entry is gone (soft-retired).
+    // Soft-retired toggle entries are gone.
+    expect(res.text).not.toContain('href="/freestyle/tricks?view=category"');
     expect(res.text).not.toContain('href="/freestyle/tricks?view=component"');
   });
 });

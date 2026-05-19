@@ -5862,6 +5862,27 @@ a.dict-card-title:hover {
   font-size: 0.86rem;
   color: #5a4f3c;
 }
+
+/* Category view retirement notice — soft-retired per
+ * exploration/dictionary-coherence-2026-05-18/category_view_retirement_review.md.
+ * Mirrors the component-view-retirement-notice shape exactly; only the
+ * class name + retirement target differ. */
+.category-view-retirement-notice {
+  margin: 16px 0 18px 0;
+  padding: 14px 18px;
+  background: #fff7e6;
+  border-left: 4px solid #d4a14a;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  color: #3a3326;
+}
+.category-view-retirement-notice p { margin: 0; }
+.category-view-retirement-notice p + p { margin-top: 8px; }
+.category-view-retirement-notice-detail {
+  font-size: 0.86rem;
+  color: #5a4f3c;
+}
 .component-view-note {
   margin: 8px 0 16px 0;
   padding: 10px 14px;

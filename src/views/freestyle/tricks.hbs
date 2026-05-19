@@ -61,17 +61,13 @@
     {{/if}}
     <span class="trick-view-toggle-secondary-label" aria-hidden="true">&mdash; more views:</span>
     <span class="trick-view-toggle-secondary">
-      {{#if (eq content.activeView "category")}}
-        <span class="trick-view-toggle-active">By category</span>
-      {{else}}
-        <a href="/freestyle/tricks?view=category">By category</a>
-      {{/if}}
-      {{! Component view soft-retired 2026-05-18 (see exploration/
-          freestyle-public-coherence-wave-2026-05-18/component_view_retirement_audit.md).
+      {{! Category view soft-retired (see exploration/
+          dictionary-coherence-2026-05-18/category_view_retirement_review.md).
           Toggle entry removed; URL still resolves for bookmarks, with a
           retirement notice rendered above the view body when reached
-          directly. Movement System is the canonical replacement. }}
-      <span class="trick-view-toggle-sep">·</span>
+          directly. Family + Movement System are the canonical replacements.
+          Component view soft-retired 2026-05-18 (see exploration/
+          freestyle-public-coherence-wave-2026-05-18/component_view_retirement_audit.md). }}
       {{#if (eq content.activeView "topology")}}
         <span class="trick-view-toggle-active">Movement Neighborhoods</span>
       {{else}}
@@ -213,11 +209,29 @@
   {{/unless}}
   {{/if}}
 
-  {{! ── Category view — registry density (dense tag-based scan) ──────────── }}
+  {{! ── Category view — registry density (dense tag-based scan) ────────────
+       Soft-retired per the category_view_retirement_review audit in
+       exploration/dictionary-coherence-2026-05-18/. Toggle entry removed
+       from the view-toggle row above; the route still resolves so
+       bookmarks and external links keep working. Family + Movement System
+       are the canonical replacements. }}
   {{#if (eq content.activeView "category")}}
-  <p class="category-view-note detail-muted">
-    Grouped by grammatical role (dex / body / set / compound) &mdash; the four building blocks of operational notation. For richer organization see <a href="/freestyle/tricks?view=family">By family</a> or <a href="/freestyle/tricks?view=movement-system">By movement system</a>.
-  </p>
+  <div class="category-view-retirement-notice" role="status" aria-live="polite">
+    <p>
+      <strong>This view is being retired.</strong> The
+      <a href="/freestyle/tricks?view=family">By Family</a> view groups
+      dex-anchored tricks by structural lineage, and the
+      <a href="/freestyle/tricks?view=movement-system">By Movement System</a>
+      view groups body and set primitives by pedagogical axis. The
+      grammatical buckets (dex / body / set / compound) duplicate those
+      organizations with lower density.
+    </p>
+    <p class="category-view-retirement-notice-detail">
+      This page still renders so bookmarks and external links keep
+      resolving, but new discovery happens through Family and Movement
+      System.
+    </p>
+  </div>
   {{#each content.groups}}
   <section class="content-section trick-category-group trick-group--registry" id="{{anchorId}}">
     <div class="section-heading">

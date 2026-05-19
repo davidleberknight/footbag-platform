@@ -1567,12 +1567,21 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     expect(res.text).toMatch(/inspin<\/em>\s+is a folk synonym/);
   });
 
-  it('category view carries the grammatical-role explanatory note', async () => {
+  it('category view renders the soft-retirement notice pointing to canonical replacements', async () => {
+    // CR-4 of dictionary-coherence-2026-05-18: the grammatical-role
+    // explanatory note ("Grouped by grammatical role...") is replaced by
+    // a retirement notice that directs the user to Family + Movement
+    // System as canonical replacements. Route still returns 200 for
+    // bookmark continuity.
     const res = await request(createApp()).get('/freestyle/tricks?view=category');
-    expect(res.text).toContain('class="category-view-note');
-    expect(res.text).toMatch(/Grouped by grammatical role/);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('class="category-view-retirement-notice"');
+    expect(res.text).toMatch(/This view is being retired/);
     expect(res.text).toContain('href="/freestyle/tricks?view=family"');
     expect(res.text).toContain('href="/freestyle/tricks?view=movement-system"');
+    // Old grammatical-role prose + class are gone.
+    expect(res.text).not.toContain('class="category-view-note');
+    expect(res.text).not.toMatch(/Grouped by grammatical role/);
   });
 });
 
