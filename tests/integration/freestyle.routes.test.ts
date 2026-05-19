@@ -2362,24 +2362,20 @@ describe('Freestyle landing — Batch 4: symbolic-object class contract preserve
   });
 
   it('Core Tricks cards carry editorial atom readings + foundational ADD formulas', async () => {
-    // Formula Accountability Slice (2026-05-17): the prior "no equivalence
-    // line" policy was replaced by neutral "core atom — <description>"
-    // readings, one per atom.
-    //
-    // Foundational-formula slice (2026-05-18): added a second
-    // equivalence per atom — the explicit additive ADD derivation
-    // (where each ADD comes from). Orbit is treated as the curator-
-    // confirmed alias for reverse around-the-world (pending DB
-    // canonicalization, not Wave-2 blocked) and carries the same
-    // 2-reading shape. 12 atoms × 2 readings = 24 total
-    // .core-trick-equivalence lines.
+    // Formula Accountability Slice (2026-05-17) introduced "core atom —
+    // <description>" prose readings, one per atom. The foundational-formula
+    // slice (2026-05-18) briefly added a second reading per atom (accounting
+    // derivation). The Notation Normalization Wave (NCR-2, 2026-05-18)
+    // demotes the accounting derivation off the landing grid: 12 atoms × 1
+    // descriptive reading = 12 total .core-trick-equivalence lines.
+    // Accounting derivations remain accessible at /freestyle/add-analysis.
     const res = await request(createApp()).get('/freestyle');
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
     const matches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(matches.length).toBe(24);
+    expect(matches.length).toBe(12);
   });
 
   it('orbit card carries the pending-state marker (QUATERNARY layer in pending state)', async () => {

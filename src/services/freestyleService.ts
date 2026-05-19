@@ -589,17 +589,20 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
     const row = trickRows.find(t => t.slug === spec.slug);
     const parsedAdd = row && row.adds != null ? Number(row.adds) : NaN;
     const hasAdd = Number.isFinite(parsedAdd);
-    // OP-NOTATION-WAVE-1A Bridge 1 (2026-05-15): surface the row's
-    // operational_notation on the core-tricks grid (atom-layer per §13.9
-    // for foundational rows; compound-layer per §13.2–§13.8 elsewhere).
-    // Null when the row carries no notation yet — template suppresses the
-    // notation slot in that case.
-    const opNotation = row?.operational_notation?.trim();
+    // NCR-1 / NCR-2 (Notation Normalization Wave 2026-05-18):
+    //   - symbolicNotation now sources from CoreTrickSpec.operationalNotation
+    //     (curator-authored TS content module), not the DB operational_notation
+    //     column. Decision #4: TS is source-of-truth for atom op-notation.
+    //   - semanticEquivalences takes only the first reading (descriptive
+    //     prose). The accounting formula equivalences[1] is preserved in the
+    //     content module but no longer rendered on the public landing grid.
+    //     Decision #3 / Path B: prune in the shaping helper, not the template.
+    //     Accounting derivations remain accessible at /freestyle/add-analysis.
     return {
       slug:                 spec.slug,
       displaySlug:          spec.displaySlug ?? spec.slug,
-      semanticEquivalences: [...spec.equivalences],
-      symbolicNotation:     opNotation && opNotation.length > 0 ? opNotation : null,
+      semanticEquivalences: [spec.equivalences[0]!],
+      symbolicNotation:     spec.operationalNotation,
       addNumeric:           hasAdd ? parsedAdd : null,
       addPending:           !hasAdd,
     };

@@ -874,15 +874,14 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants',
 
 // ── Symbolic strengthening: core-tricks alias drop ──────────────────────────
 describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alias drop (B)', () => {
-  it('landing Core Tricks renders the new atom-layer operational notation in the core-trick-notation slot', async () => {
-    // OP-NOTATION-WAVE-1A Bridge 1 (2026-05-15): foundational atoms now
-    // carry §13.9 atom-layer descriptive operational notation. The slot
-    // renders inside the core-trick-object article when row.operational_notation
-    // is populated; suppressed otherwise.
+  it('landing Core Tricks renders the curator-authored operational notation in the core-trick-notation slot', async () => {
+    // NCR-1 (Notation Normalization Wave 2026-05-18): each foundational
+    // atom now carries curator-authored operational notation sourced from
+    // CoreTrickSpec.operationalNotation (TS content module). The slot
+    // renders inside the core-trick-object article on every atom card.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    // Mirage: 11 of 11 atom slug query — assert the specific lowercase
-    // descriptive form on the visible card.
+    // Mirage: hippy in + op toe.
     const mirageStart = res.text.indexOf('id="core-trick-mirage"');
     expect(mirageStart).toBeGreaterThan(0);
     const mirageEnd = res.text.indexOf('</article>', mirageStart);
@@ -892,46 +891,44 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
     const butterflyStart = res.text.indexOf('id="core-trick-butterfly"');
     const butterflyBlock = res.text.slice(butterflyStart, res.text.indexOf('</article>', butterflyStart));
     expect(butterflyBlock).toMatch(/<p class="core-trick-notation">\[set\] &gt; hippy out dex &gt; ss clipper<\/p>/);
-    // ATW: explicit toe plant.
+    // ATW: explicit toe plant with ss(midtime) qualifier.
     const atwStart = res.text.indexOf('id="core-trick-around-the-world"');
     const atwBlock = res.text.slice(atwStart, res.text.indexOf('</article>', atwStart));
-    expect(atwBlock).toMatch(/<p class="core-trick-notation">toe &gt; ss leggy in dex &gt; ss toe<\/p>/);
+    expect(atwBlock).toMatch(/<p class="core-trick-notation">toe &gt; ss\(midtime\) in dex &gt; ss toe<\/p>/);
   });
 
-  it('landing Core Tricks renders editorial atom readings + foundational ADD formulas (2026-05-18 slice)', async () => {
-    // Formula Accountability Slice 2026-05-17 introduced one neutral
-    // "core atom — <description>" reading per atom. Foundational-formula
-    // slice 2026-05-18 added a second reading per atom: the explicit
-    // additive ADD derivation (where each ADD comes from), so beginners
-    // see the structural arithmetic right on the landing without needing
-    // to navigate to /freestyle/add-analysis. Orbit is the curator-
-    // confirmed alias for reverse around-the-world (pending DB
-    // canonicalization, not Wave-2 blocked); it carries the same
-    // 2-reading shape as the other atoms while its numeric ADD value
-    // displays as em-dash until the canonical row lands.
+  it('landing Core Tricks renders editorial prose readings; accounting formulas demoted off the landing', async () => {
+    // NCR-1 / NCR-2 (Notation Normalization Wave 2026-05-18): the prior
+    // 2-reading shape (descriptive prose + accounting formula) is replaced
+    // by a single descriptive prose reading per atom + a curator-authored
+    // operational-notation paragraph (asserted by the sibling test above).
+    // Accounting derivations remain accessible on /freestyle/add-analysis;
+    // they are pruned from the landing grid via the shapeCoreTricks helper
+    // (Path B / decision #3 of the wave).
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const gridStart = res.text.indexOf('class="freestyle-core-trick-grid"');
     const gridEnd   = res.text.indexOf('core-trick-footnote', gridStart);
     expect(gridStart).toBeGreaterThan(0);
     const slice = res.text.slice(gridStart, gridEnd);
-    // 12 atoms × 2 readings = 24 total ≡ lines.
+    // 12 atoms × 1 descriptive reading = 12 total ≡ lines (post NCR-2).
     const equivMatches = slice.match(/class="core-trick-equivalence"/g) ?? [];
-    expect(equivMatches.length).toBe(24);
+    expect(equivMatches.length).toBe(12);
     // Prose readings (Formula Accountability Slice contract preserved):
     expect(slice).toMatch(/core atom — cross-body rotational dex/);
     expect(slice).toMatch(/core atom — rotational dex/);
     expect(slice).toMatch(/core atom — dex with full bag orbit/);
     expect(slice).toMatch(/core atom — alias of reverse around-the-world/);
-    // Foundational ADD formulas (new 2026-05-18 contract).
-    // Handlebars HTML-escapes `=` to `&#x3D;` in rendered output.
-    expect(slice).toContain('xbody(1) + stall(1) &#x3D; 2 ADD');   // clipper-stall
-    expect(slice).toContain('dex(1) + stall(1) &#x3D; 2 ADD');    // mirage / legover / pickup / illusion
-    expect(slice).toContain('xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD'); // whirl / swirl
-    expect(slice).toContain('dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD'); // butterfly
-    expect(slice).toContain('spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD');// osis
-    expect(slice).toContain('full-orbit dex(1) + stall(1) &#x3D; 2 ADD');         // around-the-world
-    expect(slice).toContain('reverse full-orbit dex(1) + stall(1) &#x3D; 2 ADD'); // orbit (alias of reverse ATW)
+    // Accounting formulas pruned off the landing per NCR-2. These patterns
+    // must NOT appear anywhere in the Core Tricks grid section. The
+    // formulas remain accessible at /freestyle/add-analysis.
+    expect(slice).not.toContain('xbody(1) + stall(1) &#x3D; 2 ADD');
+    expect(slice).not.toContain('dex(1) + stall(1) &#x3D; 2 ADD');
+    expect(slice).not.toContain('xbody(1) + dex(1) + stall(1) &#x3D; 3 ADD');
+    expect(slice).not.toContain('dex(1) + xbody(1) + stall(1) &#x3D; 3 ADD');
+    expect(slice).not.toContain('spin(1) + xbody(1) + stall(1) &#x3D; 3 ADD');
+    expect(slice).not.toContain('full-orbit dex(1) + stall(1) &#x3D; 2 ADD');
+    expect(slice).not.toContain('reverse full-orbit dex(1) + stall(1) &#x3D; 2 ADD');
     // The retired misleading aliases must still not surface anywhere.
     expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?ATW/);
     expect(slice).not.toMatch(/<p class="core-trick-equivalence">[\s\S]*?outside-in mirage/);
