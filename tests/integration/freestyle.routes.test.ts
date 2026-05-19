@@ -525,22 +525,25 @@ describe('Set-notation reference cross-links', () => {
     // remain attached to the board wherever it lives on the page.
     //
     // Positional invariant:
-    //   portal cards  →  featured  →  core tricks  →  basic components
-    //                 →  operator board  →  footer  →  get started
+    // Post Slice N3 (NCR-4 / Reading A, 2026-05-18) the teaching block
+    // (Basic Components + Operator Board) sits BEFORE Core Tricks rather
+    // than after, so the v3 cognitive flow is now:
+    //   portal cards  →  featured  →  basic components  →  operator board
+    //                 →  footer  →  core tricks  →  get started
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="operator-board-footer-link"');
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
     const portalCardsIdx     = res.text.indexOf('Tutorials &amp; Learning');
-    const coreTricksIdx      = res.text.indexOf('id="core-tricks"');
     const basicComponentsIdx = res.text.indexOf('id="basic-components"');
     const boardIdx           = res.text.indexOf('class="operator-board ');
     const footerIdx          = res.text.indexOf('class="operator-board-footer-link"');
+    const coreTricksIdx      = res.text.indexOf('id="core-tricks"');
     expect(portalCardsIdx).toBeGreaterThan(0);
-    expect(coreTricksIdx).toBeGreaterThan(portalCardsIdx);
-    expect(basicComponentsIdx).toBeGreaterThan(coreTricksIdx);
+    expect(basicComponentsIdx).toBeGreaterThan(portalCardsIdx);
     expect(boardIdx).toBeGreaterThan(basicComponentsIdx);
     expect(footerIdx).toBeGreaterThan(boardIdx);
+    expect(coreTricksIdx).toBeGreaterThan(footerIdx);
   });
 
   it('operator-board notation-reference deep-links point at /freestyle/sets (not legacy /moves)', async () => {

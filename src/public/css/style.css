@@ -4929,7 +4929,8 @@ section.home-media { padding-top: 0; }
 .operator-board-lede {
   font-size: 1.05rem;
   color: #555;
-  margin: 0 0 36px 0;
+  /* NCR-4 density cleanup: tighter lede-to-tiers spacing. */
+  margin: 0 0 22px 0;
   max-width: 680px;
   line-height: 1.55;
 }
@@ -6340,7 +6341,19 @@ a.dict-card-title:hover {
 .freestyle-section-sub {
   font-size: 0.96rem;
   color: var(--text-muted);
-  margin: 0 0 22px 0;
+  margin: 0 0 16px 0;
+}
+
+/* NCR-4 / Slice N3 density cleanup (Notation Normalization Wave) -------
+ * The three teaching sections (Basic Components, Operator Board, Core
+ * Tricks) sit between Featured and Get Started post-Reading-A. Tighten
+ * their vertical rhythm relative to the base .content-section spacing
+ * so the teaching block reads as a single dense unit rather than three
+ * widely-spaced sections. */
+.freestyle-basic-components,
+.freestyle-core-tricks {
+  margin-top: 22px;
+  margin-bottom: 28px;
 }
 
 /* Language intro -------------------------------------------------------- */
@@ -6355,10 +6368,12 @@ a.dict-card-title:hover {
 .freestyle-basic-components-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 22px 26px;
+  /* NCR-4 density cleanup: tighter inter-card gap. */
+  gap: 16px 20px;
 }
 .freestyle-component-card {
-  padding: 18px 20px 16px 20px;
+  /* NCR-4 density cleanup: tighter card padding. */
+  padding: 14px 16px 12px 16px;
   border-left: 3px solid var(--primary);
   background: transparent;
 }

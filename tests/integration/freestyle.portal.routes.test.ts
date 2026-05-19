@@ -962,6 +962,51 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 Phase 2 — landing core-tricks alia
 });
 
 // ---------------------------------------------------------------------------
+// Notation Normalization Wave — Slice N3 (NCR-4)
+// Landing section order + jump nav
+// ---------------------------------------------------------------------------
+
+describe('Notation Normalization Wave NCR-4 — landing section order (Reading A)', () => {
+  it('renders the Language-of-Footbag teaching block between Featured and Core Tricks', async () => {
+    // Decision #1 (locked 2026-05-18, Reading A): orient first (portals),
+    // show examples (Featured), then teach the structural vocabulary
+    // (Basic Components + Operator Board), then Core Tricks render as
+    // the synthesis. The 4-section sequence is verified via indexOf
+    // ordering on stable section anchors / class names.
+    const res = await request(createApp()).get('/freestyle');
+    const featuredIdx       = res.text.indexOf('class="content-section freestyle-featured"');
+    const basicComponentsIdx = res.text.indexOf('class="content-section freestyle-basic-components"');
+    // Operator board partial emits class="operator-board content-section"; the
+    // trailing space differentiates from .operator-board-footer-link etc.
+    const operatorBoardIdx  = res.text.indexOf('class="operator-board ');
+    const coreTricksIdx     = res.text.indexOf('class="content-section freestyle-core-tricks"');
+    expect(featuredIdx).toBeGreaterThan(0);
+    expect(basicComponentsIdx).toBeGreaterThan(featuredIdx);
+    expect(operatorBoardIdx).toBeGreaterThan(basicComponentsIdx);
+    expect(coreTricksIdx).toBeGreaterThan(operatorBoardIdx);
+  });
+
+  it('jump nav anchor order matches the post-Reading-A scroll order', async () => {
+    // The under-hero jump nav must list anchors in the visual scroll
+    // order so users tabbing through find the next section below them
+    // rather than jumping backwards.
+    const res = await request(createApp()).get('/freestyle');
+    const navStart = res.text.indexOf('class="page-jump-nav"');
+    const navEnd   = res.text.indexOf('</nav>', navStart);
+    expect(navStart).toBeGreaterThan(0);
+    const nav = res.text.slice(navStart, navEnd);
+    const featuredAnchor       = nav.indexOf('href="#featured"');
+    const basicComponentsAnchor = nav.indexOf('href="#basic-components"');
+    const operatorsAnchor      = nav.indexOf('href="#operators"');
+    const coreTricksAnchor     = nav.indexOf('href="#core-tricks"');
+    expect(featuredAnchor).toBeGreaterThan(-1);
+    expect(basicComponentsAnchor).toBeGreaterThan(featuredAnchor);
+    expect(operatorsAnchor).toBeGreaterThan(basicComponentsAnchor);
+    expect(coreTricksAnchor).toBeGreaterThan(operatorsAnchor);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Notation Normalization Wave — Slice N2 (NCR-5)
 // Dictionary portal card body expansion
 // ---------------------------------------------------------------------------

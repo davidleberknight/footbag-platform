@@ -40,13 +40,15 @@
   </section>
 
   {{! ── Under-hero jump nav: skip the orientation and dive into a
-      specific teaching or browse section below. Anchors in scroll
-      order matching the v3 reorganization. }}
+      specific teaching or browse section below. Anchor order matches
+      the post-NCR-4 / Reading A scroll order: Featured first, then
+      the Language-of-Footbag teaching block (Basic Components +
+      Operators), then Core Tricks as synthesis. }}
   <nav class="page-jump-nav" aria-label="On this page">
     <a href="#featured">Featured</a>
-    <a href="#core-tricks">Core Tricks</a>
     <a href="#basic-components">Basic Components</a>
     <a href="#operators">Operators</a>
+    <a href="#core-tricks">Core Tricks</a>
   </nav>
 
   {{! ── Portal cards (intent-ordered: learn → reference → records → competition → context → analysis) ──
@@ -196,17 +198,13 @@
   </section>
   {{/if}}
 
-  {{! ── Core Tricks — compact symbolic objects ─────────────────────────────
-      Each card: #slug + zero-or-more ≡ readings + optional symbolic notation
-      + ADD. Rendering rule: slug links to /freestyle/tricks/{slug}; ≡ readings
-      are equivalence aliases from freestyleSymbolicEquivalences.ts. Second ≡
-      per atom is the foundational ADD-accounting formula (2026-05-18 slice). }}
-  <section class="content-section freestyle-core-tricks" id="core-tricks">
-    <h3 class="freestyle-section-eyebrow">Core Tricks</h3>
-    <p class="freestyle-section-sub">The irreducible base tricks. Most named tricks descend from one of these.</p>
-    {{> core-tricks-grid tricks=content.coreTricks}}
-    <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
-  </section>
+  {{! ── The Language of Freestyle Footbag — teaching block ─────────────────
+      Per Slice N3 / NCR-4 (Notation Normalization Wave, decision #1
+      "Reading A"): the vocabulary primer (Basic Components + Operator
+      Board) precedes Core Tricks. Cognitive flow: portals teach where
+      to go, Featured shows examples, this section teaches the structural
+      vocabulary, then Core Tricks arrive as the synthesis of that
+      vocabulary. }}
 
   {{! ── Basic Components — Contact / Set / Dex / Spin / Duck / Delay ─────────
       Heading + the six cards carry the teaching; no prose paragraph. }}
@@ -230,19 +228,31 @@
     </div>
   </section>
 
-  {{! ── Operator board — advanced compositional grammar. Sits AFTER
-      core tricks + basic components per v3 reorganization: users
-      should see foundational vocabulary (named tricks + movement
-      components) before modifier algebra. The board itself is
-      identity-defining for IFPA but reads as advanced grammar in the
-      teaching order. Cross-links to /freestyle/operators and
-      /freestyle/sets preserved from prior position. }}
+  {{! ── Operator board — compositional grammar. Sits between Basic
+      Components and Core Tricks per NCR-4 Reading A: components are
+      the atomic pieces, the operator board shows the modifier algebra
+      that combines them, and Core Tricks below render as the synthesis. }}
   {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
   <p class="operator-board-footer-link">
     <a href="/freestyle/operators">Operator reference &rarr;</a>
     <span class="operator-board-footer-sep" aria-hidden="true">&middot;</span>
     <a href="/freestyle/sets">Full set notation reference &rarr;</a>
   </p>
+
+  {{! ── Core Tricks — compact symbolic objects ─────────────────────────────
+      Each card: #slug + zero-or-more ≡ readings + curator-authored
+      operational notation + ADD. Rendering rule: slug links to
+      /freestyle/tricks/{slug}; ≡ readings are equivalence aliases from
+      freestyleSymbolicEquivalences.ts. Per NCR-1 + NCR-2 of the Notation
+      Normalization Wave, each atom carries a single descriptive prose
+      reading and the curator-authored operational notation; the prior
+      ADD-accounting formula was demoted to /freestyle/add-analysis. }}
+  <section class="content-section freestyle-core-tricks" id="core-tricks">
+    <h3 class="freestyle-section-eyebrow">Core Tricks</h3>
+    <p class="freestyle-section-sub">The irreducible base tricks. Most named tricks descend from one of these.</p>
+    {{> core-tricks-grid tricks=content.coreTricks}}
+    <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
+  </section>
 
   {{! ── Get started tiles (placeholders) ───────────────────────────────────── }}
   <section class="content-section">
