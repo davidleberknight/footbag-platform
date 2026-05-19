@@ -278,14 +278,14 @@ export const RESOLVED_FORMULAS_SPRINT_1: readonly ResolvedFormula[] = [
     provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11 + 2026-05-15); whirl = 3 ADD core atom',
   },
   {
-    slug:        'reverse-around-the-world',
-    name:        'reverse around the world',
+    slug:        'orbit',
+    name:        'orbit',
     operator:    'reverse',
     base:        'around-the-world',
     baseAdd:     2,
     totalAdd:    2,
     derivation:  'reverse(+0) + around-the-world(2) = 2 ADD',
-    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); ATW = 2 ADD core atom (full-orbit dex + stall). Curator-confirmed alias of orbit per 2026-05-18 foundational-formula correction',
+    provenance:  'reverse = positional direction marker (+0 per Red 2026-05-11); ATW = 2 ADD core atom (full-orbit dex + stall). orbit is the canonical slug per CORE-ATOM-CANONICAL-RECONCILE-1 (2026-05-15); reverse-around-the-world and reverse-atw are aliases. Slug aligned to canonical `orbit` 2026-05-19 alongside DB row activation (red_additions_2026_04_20.csv + loader 19).',
   },
   {
     slug:        'paradox-symposium-whirl',

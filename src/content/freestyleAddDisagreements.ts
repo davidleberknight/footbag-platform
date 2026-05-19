@@ -128,5 +128,5 @@ export const PASSBACK_ADD_DISAGREEMENTS: readonly AddDisagreementRow[] = [
   { ifpaSlug: 'whirling-butterfly',        ifpaName: 'whirling butterfly',        ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'whirling-mirage',           ifpaName: 'whirling mirage',           ifpaFormula: null,                            passbackAdd: 2, curatorNote: null },
   { ifpaSlug: 'around-the-world',          ifpaName: 'around the world',          ifpaFormula: null,                            passbackAdd: 1, curatorNote: 'IFPA canonical = 2 ADD (full-orbit dex + stall); PB counts 1 dex' },
-  { ifpaSlug: 'reverse-around-the-world',  ifpaName: 'reverse around the world',  ifpaFormula: 'around the world',               passbackAdd: 1, curatorNote: null },
+  { ifpaSlug: 'orbit',                     ifpaName: 'orbit',                     ifpaFormula: 'around the world',               passbackAdd: 1, curatorNote: null },
 ];

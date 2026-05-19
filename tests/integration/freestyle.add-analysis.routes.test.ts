@@ -359,7 +359,7 @@ describe('GET /freestyle/add-analysis — Canonical Formula Resolution Sprints (
       'paradox-blender', 'paradox-torque', 'spinning-torque',
       // Sprint 2 (7 rows — pt-ruled / positional / multi-op / folk-name)
       'eggbeater', 'ducking-clipper', 'spinning-clipper',
-      'rev-whirl', 'reverse-around-the-world',
+      'rev-whirl', 'orbit',
       'paradox-symposium-whirl', 'dimwalk',
       // Sprint 3 (3 rows — targeted folk-name resolutions)
       'smear', 'ripwalk', 'rev-up',

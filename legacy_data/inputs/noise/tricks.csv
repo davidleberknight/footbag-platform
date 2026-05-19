@@ -8,7 +8,6 @@ illusion,2,illusion,dex,,"Toe-set dex'd from outside back across to the inside, 
 pixie,2,pixie,set,,leg passes under bag opposite direction; acts as +1 set modifier
 fairy,2,fairy,set,,opposite of pixie direction; acts as +1 set modifier
 around the world,2,atw,dex,atw|around-the-world,full leg circle around the bag
-reverse around the world,2,atw,dex,reverse atw|ratw,reverse-direction leg circle around the bag
 double around the world,3,atw,dex,double atw|datw,two consecutive full leg circles
 whirl,3,whirl,dex,,Rotational dexterity move.
 butterfly,3,butterfly,compound,,"Compound dex; base for ripwalk, dimwalk, and parkwalk."

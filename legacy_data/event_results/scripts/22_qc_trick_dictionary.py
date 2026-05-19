@@ -82,7 +82,7 @@ ADDS_IN_DESC_RE = re.compile(r"=\s*(\d+)\s*ADD", re.IGNORECASE)
 # skill: same-stem names where direction is structural, not cosmetic.
 DIRECTION_PAIRS = [
     ("around-the-world", "around-the-world-kick"),  # 2 ADD compound vs 1 ADD body
-    ("around-the-world", "reverse-around-the-world"),
+    ("around-the-world", "orbit"),                  # reverse-direction ATW; canonical slug is orbit
     ("mirage",   "illusion"),                       # in-to-out vs out-to-in dex
     ("spinning", "inspinning"),
 ]
