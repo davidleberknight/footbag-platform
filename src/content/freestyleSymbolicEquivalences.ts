@@ -619,6 +619,11 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['spinning stepping'],
     curatorConfirmPending: false,   // Surging Modeling Rule (Red pt2): surging primitive decomposes to spinning + stepping. NOT in modifier table per the rule. 2 ADD = primitive operator-stack value
   },
+  {
+    slug:     'double-around-the-world',
+    readings: ['double around the world'],
+    curatorConfirmPending: true,    // Canonical row at 3 ADD; doctrinally double(+1)+ATW(2)=3 per multiplier audit framework but 'double' operator not in modifier table — Red Wave 2 question on double-as-multiplier doctrine. Per CANONICALIZATION_POLICY.md §10 Productive Multiplicity Red pt3, double-around-the-world is stabilized canonical
+  },
 ];
 
 /**

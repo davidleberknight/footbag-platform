@@ -649,6 +649,26 @@ STATUS_MISSING_EXTERNAL   = "missing_external_formula"
 STATUS_UNRESOLVED         = "unresolved_red_pending"
 STATUS_NOT_FOUND          = "not_found_anywhere"
 STATUS_ALIAS_OF_CANONICAL = "alias_of_canonical"
+STATUS_DERIVABLE_STRUCTURAL = "derivable_structural_form"
+
+# Placeholder slugs that name a derivable structural form (modifier + base
+# atom) without a canonical DB row. Per multiplier doctrine + CANONICALIZATION
+# _POLICY.md §10, these compositions exist as operator chains but modern
+# doctrine doesn't canonicalize each one as a separate row. The derivation
+# string documents the math.
+DERIVABLE_STRUCTURAL_FORMS: dict[str, str] = {
+    "atomic-osis":         "atomic(+1) + osis(3) = 4 ADD",
+    "ducking-illusion":    "ducking(+1) + illusion(2) = 3 ADD",
+    "ducking-mirage":      "ducking(+1) + mirage(2) = 3 ADD",
+    "gyro-osis":           "gyro(+1) + osis(3) = 4 ADD",
+    "gyro-whirl":          "gyro(+1) + whirl(3) = 4 ADD",
+    "nuclear-mirage":      "nuclear(+2) + mirage(2) = 4 ADD",
+    "paradox-illusion":    "paradox(+1) + illusion(2) = 3 ADD",
+    "pixie-osis":          "pixie(+1) + osis(3) = 4 ADD",
+    "pixie-whirl":         "pixie(+1) + whirl(3) = 4 ADD",
+    "quantum-mirage":      "quantum(+1) + mirage(2) = 3 ADD",
+    "symposium-illusion":  "symposium(+1) + illusion(2) = 3 ADD",
+}
 
 # Placeholder slugs that are doctrinally aliases of canonical DB rows.
 # Workbook lists them as separate rows (per user direction: "expose the full
@@ -661,6 +681,7 @@ PLACEHOLDER_ALIASES: dict[str, str] = {
     "stepping-paradox-whirl": "blurry-whirl",        # blurry-whirl chain reading (Red pt11)
     "reverse-mirage":         "illusion",            # Red 2026-05-11: mirage ≠ illusion (direction is structural)
     "reverse-legover":        "pickup",              # Red 2026-05-11: legover ≠ pickup
+    "dlo":                    "double-leg-over",     # DLO = abbreviation for Double Leg Over
 }
 
 # Doctrine-locked ADD disagreements (curator + Red have settled the doctrine
@@ -835,6 +856,13 @@ def build_row(
         status = STATUS_ALIAS_OF_CANONICAL
         notes.append(f"placeholder slug — alias of canonical '{PLACEHOLDER_ALIASES[slug]}'")
         action.append(f"no action — see canonical row '{PLACEHOLDER_ALIASES[slug]}'")
+    elif not db and slug in DERIVABLE_STRUCTURAL_FORMS:
+        # Placeholder slug names a derivable structural form (modifier + base).
+        # Modern doctrine doesn't canonicalize each one as a separate row;
+        # the derivation is documented in DERIVABLE_STRUCTURAL_FORMS.
+        status = STATUS_DERIVABLE_STRUCTURAL
+        notes.append(f"derivable structural form: {DERIVABLE_STRUCTURAL_FORMS[slug]}")
+        action.append("no action — derivable from modifier + base; modern doctrine does not canonicalize structural-form names")
     elif not db and not fborg_entry and not pb_entry and not fm_entry:
         status = STATUS_NOT_FOUND
         notes.append("trick name not located in IFPA DB or any external source")
