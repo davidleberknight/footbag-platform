@@ -45,29 +45,59 @@ The Core Rule above describes DATA layers (which table, which file). This sectio
 
 This is now one of the core architectural invariants of the entire project. When in doubt about where a piece of content belongs: identify which layer it serves, store it on that layer's surface, and link from other layers as needed.
 
-### B. Current strategic posture (post-Slice-W, 2026-05-17)
+### B. Current strategic posture (post Dictionary-Coherence + Notation-Normalization waves, 2026-05-19)
 
-Through Slices L1–W the freestyle dictionary reached a **legitimate pre-Red stabilization checkpoint**. The Stabilization Review (`exploration/comparative-reconciliation-2026-05/STABILIZATION_REVIEW.md`) concluded **Option C** — pause automated work; conduct live-human review while Red Wave 2 is in flight.
+Through Slices L1–W the freestyle dictionary reached a pre-Red stabilization checkpoint (Option C). Two coordinated waves on 2026-05-18→19 + an emergency public-readiness slice extended that checkpoint into a coherent public freestyle surface. Curator-directed throughout; all reversible TypeScript content / template / CSS work; no SQL migration; no parser rewrite; no ontology hardening.
 
-- **No remaining pre-Red blockers.** 9-dimension holistic assessment scored 6 Strong + 3 Good + 1 Adequate; zero Weak or Failing. Every concern is either Wave 2-blocked, curator-paced triage, audit-deferred, or already shipped.
-- **Branch-family ontology is now durable.** `FAMILY_DUAL_MEMBERSHIPS` (Slice M) handles additive multi-membership (torque/blender/drifter in lineage family AND own branch). `RETIRED_FAMILIES` (Slice M) hides browse-surface families without DB changes (clipper-stall). `UNRESOLVED_COMPOUNDS` (Slice M; pilot of 7 post Pre-Red tomahawk removal) honestly flags folk-derived rows with `pendingDecomposition` pill. `MODIFIER_COMPOSITION_GLOSSES` (Slices M+N) supplies 6-modifier pilot pedagogical glosses on Movement System view. All curator-authored TypeScript content modules; zero SQL.
-- **Movement System view shipped** (Slices L1/L2). 4 curator-confirmed axes (Set/Uptime; Entry Topologies; Midtime Body; No-Plant & Suspension); 11 pilot modifiers. Renders via canonical `dictionary-trick-card` partial in registry density. Empty axes prune.
-- **Symbolic-first / op-notation-fallback precedence reinforced.** Chain registry at 71 entries post Slices N + Pre-Red sweep; 51% of cards on `/freestyle/tricks` render chain readings, 18% fall through to op-notation fallback (muted), 31% have neither (base tricks; pending DB rebuild for Pre-Red stall additions).
-- **Comparative-reconciliation arc complete** (Slices O–S). Five research outputs at `exploration/comparative-reconciliation-2026-05/` queue curator triage: branch-family candidates (Slice O: barfly + borderline double-leg-over); chain-external alignment (Slice P: 94 rows; 28 N+1 chain candidates); ADD-divergence reclassification (Slice Q: 277 rows); missing-move triage (Slice R: 191 rows); embodied-analogy notes (Slice S: observational only).
-- **Audit slices V + W shipped.** Slice V fixed a real mobile-grid bug (`.dict-card-equivalence--inline` + `.dict-card-notation--inline` now carry `grid-area: reading` at ≤520px). Slice W softened trick-detail Notation + Equivalent-readings prose to remove implementation-flavored language; the hybrid review then found and fixed a missed section-intro. Diagnostic-details admin-gating decision remains a Wave 2-adjacent curator decision.
-- **Avoid ontology over-hardening.** Premature SQL freezes, rigid taxonomy commitments, and "final" canonical structures are still the primary risk — bigger than missing content. The Slice M dual-membership pattern is the model for any future taxonomy-shaped work.
-- **Reversible TS governance preferred.** Curator content lives in TypeScript content modules (allow-lists, chain registries, kind overrides, dual-membership maps, retirement sets, composition glosses, unresolved-compound pilot). Schema migrations come AFTER Wave-2 + curator triage stabilize the ontology — never before.
-- **Batch 5 (symbolic / topology visuals) remains paused.** Do not resume until live-human review complete + Wave-2 Red answers integrated.
-- **Observational surfaces remain explicit.** Connective panels, movement-neighborhood groups (renamed from "topology" in the stabilization slice), dex archetypes, feel cards, embodied-analogy notes — all carry explicit "observational" labels and do not collapse into canonical layers.
-- **Parser aesthetics forbidden.** No AST views, no token soup, no interaction-heavy symbolic UI on public surfaces. The structural-decomposition panel stays collapsed-by-default behind `<details>`. Restraint remains the principal design constraint.
+**Dictionary-Coherence Wave (6 CRs shipped):**
+
+- **CR-5 / 2-tier notation hierarchy on dictionary cards.** `dictionary-trick-card.hbs` follows Tier 1 (`tokenizedEquivalences` — chain registry + alias governance) → Tier 2 (`operationalNotation`) → silent fallthrough. The `coreAtomLabel` "core atom — <description>" prose render is REMOVED from both densities; the field stays on `DictionaryTrickCard` as preserved metadata for glossary / curator-internal / future-detail-page use. "Notation pending" italic prose is also removed from browse density.
+- **CR-4 / category view soft-retired.** `?view=category` toggle entry removed; URL still resolves with a retirement notice pointing to Family + Movement System. Mirrors the 2026-05-18 component-view retirement pattern exactly. `freestyle_tricks.category` column + shaping helper preserved.
+- **CR-1 / `/freestyle/tricks` landing surface.** Renders when no `?view=` and no `?family=` param. Six browse cards (ADD / Family / Movement System / Movement Neighborhoods / Observed Tricks / Operators & Components); 3-chip stat strip; small "New to the notation?" glossary primer; one-paragraph notation philosophy. New partial `tricks-landing.hbs`, new content module `freestyleDictionaryLanding.ts`, new shaping helper `getDictionaryLandingPage()`. "Back to Dictionary" link prepended to view-toggle row on browse views; "By ADD" toggle href now explicit `?view=add`.
+- **CR-2 / observational discoverability.** `/freestyle/observational` linked from landing Card 5; route + page title + content module untouched.
+- **CR-3 / sets discoverability.** Landing Card 3 sub-link deep-links to `?view=movement-system#movement-axis-set-uptime`; no parallel `?view=sets` browse mode (rejected).
+- **CR-6 / Movement Neighborhoods rename.** PUBLIC LABEL ONLY. Backend slug, URL parameter (`?view=topology`), `FreestyleTricksActiveView` enum value `'topology'`, `topology-view-note` / `trick-topology-group` CSS classes, content-module keys, internal variable names + test descriptions all stay `topology` for URL/code stability.
+
+**Notation-Normalization Wave (5 NCRs shipped; one audit-only):**
+
+- **N1 / NCR-1 + NCR-2 atomic — atom op-notation re-precedence on landing.** `CoreTrickSpec.operationalNotation` field added; 12 verbatim curator-authored strings populated. `shapeCoreTricks()` sources `symbolicNotation` from the TS field (DB `operational_notation` column path bypassed for atoms). `equivalences[1]` accounting formula pruned via shaping helper (Path B / decision #3); metadata preserved; accounting derivations stay accessible at `/freestyle/add-analysis`.
+- **N2 / NCR-5 — Trick Dictionary portal card body expansion.** Lists 5 browse perspectives (ADD / Family / Movement System / Movement Neighborhoods / Observed Tricks); names Operators & Components as supporting vocabulary (decision #2: NOT a sixth browse mode).
+- **N3 / NCR-4 — Landing section reorder per Reading A** (decision #1). Basic Components + Operator Board moved UP between Featured and Core Tricks. Cognitive flow: portals → examples (Featured) → vocabulary primer → synthesis (Core Tricks) → get started. Jump-nav anchor order updated; CSS density tightening on the three teaching sections.
+- **N4 / NCR-3 — 4-tier rendering hierarchy contract test-pinned.** No source-code changes; integration tests pin Tier 1 (symbolic ≡) → Tier 2 (op-notation) → Tier 3 (silent) → Tier 4 (executable accounting, `/freestyle/add-analysis` + future detail-page disclosures ONLY) across 6 browse views.
+- **N5 / NCR-6 — audit only.** `family_ordering_audit.md` surfaces rev-up evidence, family-ordering rule options, intra-family ordering options, singleton-family policy options. Curator-paced; no taxonomy changes this wave.
+
+**Emergency public-readiness slice 2026-05-19** (added mid-wave after N4 verification surfaced that dictionary views still lacked atom op-notation despite the landing being fixed by N1):
+
+- **`shapeDictionaryTrickCard` now propagates `CoreTrickSpec.operationalNotation` to dictionary browse cards** — same TS content module as the landing's Core Tricks grid. For atom slugs, `tokenizedEquivalences` is suppressed on browse cards so op-notation takes the visible slot (ATW alias no longer preempts notation). Aliases remain on trick-detail pages + glossary.
+- **`double-spin` added to `MODIFIER_SLUGS`** in `freestyleTrickKindOverrides.ts` (parallels `spin`). Removed from the productive-multiplicity exception list. Filtered off canonical browse views via `isTrickRow`.
+- **`['rev-up', 'rev-up']` added to `FAMILY_OVERRIDES`** — self-bucket singleton override that the `length > 1` family-view filter drops. rev-up no longer appears in Whirl family; canonical row stays active on ADD view; `pendingDecomposition` pill preserved via `UNRESOLVED_COMPOUNDS`.
+
+**Load-bearing architectural contracts (forever-rules now in effect):**
+
+- **`CoreTrickSpec.operationalNotation` is the single source of truth for the 12-atom operational notation** across both the landing Core Tricks grid AND dictionary browse cards. Future slices touching atom notation edit the TypeScript content module, NOT the DB column or parser output. The DB `freestyle_tricks.operational_notation` column is bypassed for atoms (it continues to serve compounds).
+- **4-tier rendering hierarchy on public surfaces** (Tier 1 symbolic ≡ / Tier 2 operational notation / Tier 3 silent / Tier 4 accounting on educational surfaces only). Test-pinned; Tier-4 accounting prose patterns (`xbody(\d`, `dex(\d`, `stall(\d`, `spin(\d`, `= N ADD`) cannot leak onto browse cards without breaking the contract.
+- **Movement Neighborhoods rename is public-label-only.** Backend slug + URL parameter + content-module keys + CSS classes + test descriptions stay `topology`. Code-side rename is intentionally deferred.
+- **Self-bucket FAMILY_OVERRIDES pattern.** To drop a row from a family without creating a new family, set `['<slug>', '<slug>']` — the override creates a singleton family that `length > 1` suppresses from family-view rendering. Reversible. Used for rev-up (2026-05-19). Pattern alternative to RETIRED_FAMILIES (entire-family scope) and is curator-paced safer than promoting to a new branch family while decomposition is unresolved.
+- **`coreAtomLabel` field on `DictionaryTrickCard` is metadata-only**, not a rendered public surface. Do NOT re-introduce its rendering on browse cards.
+- **`/freestyle/tricks` (no params) renders the landing surface, not the ADD view.** External callers wanting the ADD view explicitly use `?view=add`. The landing's "Back to Dictionary" link returns to the landing from any browse view.
+- **Productive multiplicity exception list** (post 2026-05-19): existing community-stabilized = `double-leg-over` + `double-around-the-world`. `double-spin` removed.
+- **Restraint doctrine D unchanged.** No parser aesthetics, no token soup, no AST, no interaction-heavy symbolic UI. Restraint remains the principal design constraint.
+
+**Planning artifacts (uncommitted):**
+
+- `exploration/dictionary-coherence-2026-05-18/` — 7 docs (~2,730 lines).
+- `exploration/notation-normalization-2026-05-18/` — 7 docs (~2,538 lines).
+
+Both directories untracked at the time of skill update; curator-paced decision on whether to commit.
 
 **What to do next (when starting freestyle work):**
 
-  1. Check whether the curator has triaged Slices O–R queues or whether Red Wave 2 answers have arrived. If neither: do not initiate new automated work; consult [[project_freestyle_post_slice_e_posture]] for the queued post-Red follow-up list.
-  2. If Wave 2 answers have landed: integrate per the queued post-Red follow-up slices.
-  3. If the curator has flagged a specific surface in human review: address that surface only; do not expand scope.
+  1. Read `[[project_freestyle_state]]` for the latest wave shipping state + load-bearing contracts. The state memory is more current than this skill posture summary.
+  2. Check whether curator has triaged the D1-D8 (Dictionary-Coherence wave) or Q1-Q5 (Notation-Normalization wave) decision queues. If neither: do not initiate new automated work; surface for curator triage.
+  3. If Red Wave 2 answers have landed: integrate per the queued post-Red follow-up slices ([[project_freestyle_post_slice_e_posture]]).
+  4. If the curator has flagged a specific surface in human review: address that surface only; do not expand scope.
 
-See [[project_freestyle_post_slice_e_posture]] for the full updated sequencing recommendation, deferred-doctrine list, and post-Red follow-up queue.
+See `[[project_freestyle_state]]` for the full wave-shipping summary, `[[project_freestyle_post_slice_e_posture]]` for the strategic sequencing recommendation, and the two `exploration/` planning directories above for the architectural reasoning behind each CR/NCR.
 
 ### C. Family / topology caution
 
