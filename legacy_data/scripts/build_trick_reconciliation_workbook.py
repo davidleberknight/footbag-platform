@@ -641,12 +641,22 @@ def lookup_passback(aliases: list[str], pb_rows: list[dict]) -> Optional[dict]:
 
 STATUS_AGREEMENT          = "agreement"
 STATUS_ADD_DISAGREEMENT   = "add_disagreement"
+STATUS_DOCTRINE_LOCKED    = "add_disagreement_doctrine_locked"
 STATUS_FORMULA_DISAGREE   = "formula_disagreement"
 STATUS_NAME_ALIAS_DIFF    = "name_alias_disagreement"
 STATUS_MISSING_IFPA       = "missing_ifpa_formula"
 STATUS_MISSING_EXTERNAL   = "missing_external_formula"
 STATUS_UNRESOLVED         = "unresolved_red_pending"
 STATUS_NOT_FOUND          = "not_found_anywhere"
+
+# Doctrine-locked ADD disagreements (curator + Red have settled the doctrine
+# even though external sources publish a different ADD). Distinct from open
+# add_disagreement (which awaits curator review). Adding a slug here closes
+# the discrepancy as workbook-resolved without changing the IFPA ADD or
+# suppressing the discrepancy data.
+DOCTRINE_LOCKED_DISAGREEMENTS: dict[str, str] = {
+    "atom-smasher": "Red 2026-05-15: Atom Smasher carries x-dex/paradox-like contribution from toe; IFPA=4 vs FM=3 doctrinally settled at IFPA=4 (Sprint 4 resolved formula).",
+}
 
 # Per-field status enum (workbook coverage gate; curator direction 2026-05-19).
 # Every workbook value field gets a status flag. Filterable/sortable for
@@ -804,9 +814,14 @@ def build_row(
         ifpa_n = str(ifpa_official_add)
         diffs = [a for a in external_adds_present if a != ifpa_n]
         if diffs:
-            status = STATUS_ADD_DISAGREEMENT
-            notes.append(f"ADD disagreement — IFPA={ifpa_n}; external={external_adds_present}")
-            action.append("review ADD discrepancy with curator/Red")
+            if slug in DOCTRINE_LOCKED_DISAGREEMENTS:
+                status = STATUS_DOCTRINE_LOCKED
+                notes.append(f"ADD disagreement — IFPA={ifpa_n}; external={external_adds_present} (doctrine-locked at IFPA value)")
+                action.append("no action — doctrine-locked")
+            else:
+                status = STATUS_ADD_DISAGREEMENT
+                notes.append(f"ADD disagreement — IFPA={ifpa_n}; external={external_adds_present}")
+                action.append("review ADD discrepancy with curator/Red")
         else:
             status = STATUS_AGREEMENT
     else:
