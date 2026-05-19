@@ -109,6 +109,7 @@ TRICK_LIST: list[str] = [
 NAME_ALIASES: dict[str, list[str]] = {
     "toe-stall":          ["Toe Stall", "Toe Delay", "Toe Stall*"],
     "clipper-stall":      ["Clipper", "Clipper Stall", "Clipper*"],
+    "clipper":            ["Clipper Kick", "Clipper-Kick"],  # NOT bare 'Clipper'; per CORE-ATOM-CANONICAL-RECONCILE-1 bare 'Clipper' = clipper-stall (2 ADD); clipper slug (1 ADD body kick) only matches explicit Kick forms. Fixes 2026-05-19 workbook bug: clipper was getting external=2 (the stall) as a name-collision-induced ADD disagreement
     "around-the-world":   ["ATW", "Around the World", "Around the World*"],
     "orbit":              ["Orbit", "Reverse Around the World", "Reverse ATW", "Reverse-ATW"],
     "mirage":             ["Mirage", "Mirage*"],
