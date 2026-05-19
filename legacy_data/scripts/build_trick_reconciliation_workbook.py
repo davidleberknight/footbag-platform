@@ -670,12 +670,18 @@ FIELD_NEEDS_CURATOR  = "needs_curator"
 FIELD_WAVE2_BLOCKED  = "wave2_blocked"
 FIELD_SOURCE_ABSENT  = "source_absent"
 
-# Body-primitive slugs treated as not-applicable for operational/job notation.
-# These are intrinsic 1-2 ADD body movements without compositional structure.
-BODY_PRIMITIVE_SLUGS = frozenset({
+# Non-compositional primitive slugs treated as not-applicable for
+# operational/job notation. These are intrinsic body OR set primitives
+# without compositional structure — typically 0-2 ADD irreducible movements.
+# Originally body-primitive-only; expanded 2026-05-19 to include zero-ADD
+# set primitives (pogo, rooted) per Add-Categories audit framing.
+NON_COMPOSITIONAL_PRIMITIVE_SLUGS = frozenset({
+    # Body primitives (intrinsic body motion; 1-2 ADD).
     "spin", "double-spin", "spyro",
     "hop-over", "walk-over",
     "flying-inside", "flying-outside",
+    # Zero-ADD set primitives (no-plant / rooted set conventions; 0 ADD).
+    "pogo", "rooted",
 })
 
 # Slugs flagged as Wave 2-blocked (operational/doctrinal questions pending Red
@@ -713,7 +719,7 @@ def compute_field_status(
 
     # Body primitives don't have compositional structure → notation fields N/A.
     # (Applies to job/full notation, ADD formulas — not to canonical name/aliases.)
-    if slug in BODY_PRIMITIVE_SLUGS and field_kind == "ifpa-notation":
+    if slug in NON_COMPOSITIONAL_PRIMITIVE_SLUGS and field_kind == "ifpa-notation":
         return FIELD_NOT_APPLICABLE if not value else FIELD_PRESENT
 
     if value:
@@ -816,6 +822,29 @@ def build_row(
         status = STATUS_MISSING_IFPA
         notes.append("no active IFPA row; external sources may describe a community-named trick not yet canonicalized")
         action.append("curator decision: canonicalize or document as observational")
+    elif slug in NON_COMPOSITIONAL_PRIMITIVE_SLUGS or (db and db.get("category") == "modifier"):
+        # Non-compositional primitive rows (body primitives + zero-ADD set
+        # primitives) OR DB-category='modifier' rows (operator-layer storage
+        # for barraging / blazing / ducking / gyro / miraging / paradox /
+        # spinning / stepping / swirling / tapping / terraging / whirling /
+        # illusioning / etc.) have no compositional structure; operational/
+        # compact notation is not_applicable, not missing. Defer to
+        # external-coverage check if external sources match; else treat as
+        # agreement-by-omission (the row's IFPA ADD or modifier identity is
+        # canonical even without notation fields).
+        if external_adds_present and ifpa_official_add:
+            ifpa_n = str(ifpa_official_add)
+            diffs = [a for a in external_adds_present if a != ifpa_n]
+            if diffs:
+                status = STATUS_ADD_DISAGREEMENT
+                notes.append(f"ADD disagreement — IFPA={ifpa_n}; external={external_adds_present}")
+                action.append("review ADD discrepancy with curator/Red")
+            else:
+                status = STATUS_AGREEMENT
+        else:
+            status = STATUS_AGREEMENT
+        note_kind = "modifier-as-trick row" if (db and db.get("category") == "modifier") else "body primitive"
+        notes.append(f"{note_kind} — notation fields not_applicable")
     elif not ifpa_full_formula and not ifpa_compact_notation:
         # Row-level missing check uses ifpa_compact_notation (chain reading OR
         # DB.notation fallback) rather than chain_readings alone, so set
@@ -883,7 +912,7 @@ def build_row(
     compact_status      = compute_field_status(ifpa_compact_notation, slug, field_kind="ifpa-notation")
     full_status         = compute_field_status(ifpa_full_formula, slug, field_kind="ifpa-notation")
     job_status          = (
-        FIELD_NOT_APPLICABLE if slug in BODY_PRIMITIVE_SLUGS
+        FIELD_NOT_APPLICABLE if slug in NON_COMPOSITIONAL_PRIMITIVE_SLUGS
         else (FIELD_PRESENT if ifpa_job_notation else FIELD_NEEDS_CURATOR)
     )
     add_formula_status  = compute_field_status(ifpa_add_formula, slug, field_kind="ifpa-notation")

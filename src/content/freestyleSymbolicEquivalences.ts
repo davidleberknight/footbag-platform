@@ -594,6 +594,21 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     readings: ['flying clipper'],
     curatorConfirmPending: false,   // Sprint 5 resolved: flying(+1) + clipper(1 body kick) = 2 ADD. Folk alias 'jester' preserved on DB row. flying is body-modifier +1; clipper here is the 1-ADD body kick, not clipper-stall surface
   },
+  {
+    slug:     'ducking-clipper',
+    readings: ['ducking clipper'],
+    curatorConfirmPending: false,   // Sprint 2 resolved: ducking(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading (operator + base atom)
+  },
+  {
+    slug:     'spinning-clipper',
+    readings: ['spinning clipper'],
+    curatorConfirmPending: false,   // Sprint 2 resolved: spinning(+1) + clipper-stall(2) = 3 ADD. Canonical name IS the structural reading
+  },
+  {
+    slug:     'whirling-swirl',
+    readings: ['whirling swirl'],
+    curatorConfirmPending: false,   // Sprint 1 resolved: whirling(+1) + swirl(3) = 4 ADD. Canonical name IS the structural reading
+  },
 ];
 
 /**
