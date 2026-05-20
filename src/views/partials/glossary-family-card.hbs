@@ -1,0 +1,64 @@
+{{!--
+  One family card for /freestyle/glossary §5. Bordered card with title +
+  type chip + 5 labeled fields + optional collapsed observational panels.
+
+  Anchor: #term-{slug} preserved per the anchor-preservation forever-
+  rule. The card is partial-driven so future card kinds (modifier,
+  surface, dex value) can reuse the same shape with different chip
+  types.
+
+  Layer contract:
+   - Canonical fields (formula / anchor / descendants / siblings /
+     compounds) render visible by default
+   - Observational notes render inside collapsed <details> with the
+     [observational] badge — visible on opt-in only
+   - Provenance / curator-internal language NEVER renders here
+--}}
+<article class="glossary-family-card" id="term-{{slug}}">
+  <header class="glossary-family-card-head">
+    <h3 class="glossary-family-card-title">{{displayName}}</h3>
+    <span class="glossary-family-card-type-chip glossary-family-card-type-chip--{{kind}}">
+      {{#if (eq kind 'root-terminal')}}root terminal family{{else}}branch family{{/if}}
+    </span>
+  </header>
+  <dl class="glossary-family-card-fields">
+    <dt>Canonical formula</dt>
+    <dd><code>{{canonicalFormula}}</code></dd>
+
+    <dt>Family anchor</dt>
+    <dd>{{displayName}} <span class="glossary-family-card-anchor-adds">{{familyAnchorAdds}} ADD</span></dd>
+
+    {{#if commonDescendants.length}}
+    <dt>Common descendants</dt>
+    <dd>
+      {{#each commonDescendants}}{{#unless @first}} &middot; {{/unless}}<span class="glossary-family-card-descendant">{{this}}</span>{{/each}}
+    </dd>
+    {{/if}}
+
+    {{#if siblingFamilies.length}}
+    <dt>Sibling families</dt>
+    <dd>
+      {{#each siblingFamilies}}{{#unless @first}} &middot; {{/unless}}<span class="glossary-family-card-sibling">{{this}}</span>{{/each}}
+    </dd>
+    {{/if}}
+
+    {{#if notableCompounds.length}}
+    <dt>Notable compounds</dt>
+    <dd>
+      {{#each notableCompounds}}{{#unless @first}} &middot; {{/unless}}<span class="glossary-family-card-compound">{{this}}</span>{{/each}}
+    </dd>
+    {{/if}}
+  </dl>
+
+  {{#if observationalNotes.length}}
+  {{#each observationalNotes}}
+  <details class="glossary-family-card-observational">
+    <summary class="glossary-family-card-observational-summary">
+      <span class="glossary-family-card-observational-title">{{title}}</span>
+      <span class="glossary-layer-badge glossary-layer-badge--observational">observational</span>
+    </summary>
+    <p class="glossary-family-card-observational-body">{{body}}</p>
+  </details>
+  {{/each}}
+  {{/if}}
+</article>

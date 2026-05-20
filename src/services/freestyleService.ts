@@ -117,6 +117,11 @@ import {
   type ObservationalStatus,
 } from '../content/freestyleObservationalTricks';
 import {
+  ROOT_TERMINAL_FAMILIES,
+  BRANCH_FAMILIES,
+  type GlossaryFamilyCard,
+} from '../content/freestyleGlossaryFamilyCards';
+import {
   DICTIONARY_LANDING_CARDS,
   DICTIONARY_LANDING_FRAMING,
   DICTIONARY_LANDING_NOTATION_PHILOSOPHY,
@@ -2371,6 +2376,20 @@ export interface FreestyleGlossaryContent {
   // branching: 9 set cards, 4 body cards.
   setModifierFeelCards:  readonly ModifierFeelCard[];
   bodyModifierFeelCards: readonly ModifierFeelCard[];
+  // §5 family card grids (P2 IA refactor). Two cohorts rendered in the
+  // restructured §5 Core Trick Families section: root terminal families
+  // (foundational ontology anchors) + branch families (named compounds
+  // that are themselves productive family anchors AND descend from a
+  // root). Each card preserves its #term-{slug} anchor for the
+  // anchor-preservation forever-rule.
+  rootTerminalFamilies: readonly GlossaryFamilyCard[];
+  branchFamilies:       readonly GlossaryFamilyCard[];
+  // Atoms not covered by the family-card cohorts above — clipper-stall,
+  // legover, pickup, illusion, around-the-world, orbit. Same shape as
+  // coreTricks; rendered under §5's "Other foundational atoms" subsection.
+  // Preserves the #term-{slug} anchors for these atoms without
+  // duplicating with the family-card anchors above.
+  otherFoundationalAtoms: FreestyleCoreTrickCard[];
 }
 
 // /freestyle/observational view-model. Surfaces the observational-layer
@@ -5419,6 +5438,15 @@ export const freestyleService = {
         familyTrees:     shapeFamilyTrees(allDictRows),
         setModifierFeelCards:  SET_MODIFIER_FEEL_CARDS,
         bodyModifierFeelCards: BODY_MODIFIER_FEEL_CARDS,
+        rootTerminalFamilies:  ROOT_TERMINAL_FAMILIES,
+        branchFamilies:        BRANCH_FAMILIES,
+        otherFoundationalAtoms: coreTricks.filter(t => {
+          const familySlugs = new Set([
+            ...ROOT_TERMINAL_FAMILIES.map(f => f.slug),
+            ...BRANCH_FAMILIES.map(f => f.slug),
+          ]);
+          return !familySlugs.has(t.slug);
+        }),
       },
     };
   },

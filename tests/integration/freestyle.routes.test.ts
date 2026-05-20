@@ -1740,10 +1740,14 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
     }
   });
 
-  it('glossary §12 carries the "About this glossary" framing paragraph', async () => {
+  it('glossary §14 Sources carries the "About this glossary" framing paragraph', async () => {
+    // P2 prose compression (2026-05-20): the 200-word framing block
+    // compressed into a single sentence. The .glossary-about-framing
+    // hook + the "footbag community built informally" attribution are
+    // preserved for inbound deep-links + community-attribution semantics.
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toContain('glossary-about-framing');
-    expect(res.text).toMatch(/codification surface for a vocabulary that the\s+footbag community built informally/);
+    expect(res.text).toMatch(/footbag community built informally/);
   });
 
   it('history page renders the Two-Phase Story opening before Competitive Eras', async () => {

@@ -4454,6 +4454,154 @@ section.home-media { padding-top: 0; }
 /* §5 family-tree visual — anchor + branched compound members rendered
    as a compact registry-style list. Tree characters (├ └) provided by
    pseudo-elements so the markup stays semantic. */
+/* §5 family card primitives (P2 IA refactor). Two grids — Root
+   Terminal Families + Branch Families — each rendering a bordered card
+   with title + type chip + 5 labeled fields + optional collapsed
+   observational panels. */
+.glossary-family-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin: 12px 0 28px 0;
+}
+.glossary-family-card {
+  padding: 14px 16px;
+  background: #fefdfb;
+  border: 1px solid #d8d2c0;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.glossary-family-card-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.glossary-family-card-title {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 700;
+  color: #3a3326;
+}
+.glossary-family-card-type-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  background: #ece6d4;
+  color: #6b5d40;
+}
+.glossary-family-card-type-chip--root-terminal {
+  background: #d8d1ee;
+  color: #3a2e6a;
+}
+.glossary-family-card-type-chip--branch {
+  background: #f4d8c0;
+  color: #6a4226;
+}
+.glossary-family-card-fields {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 4px 12px;
+  margin: 6px 0 0 0;
+  font-size: 0.86rem;
+}
+.glossary-family-card-fields dt {
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: #8a7a40;
+  text-transform: uppercase;
+  margin: 0;
+}
+.glossary-family-card-fields dd {
+  margin: 0;
+  color: #3a3326;
+  word-break: break-word;
+}
+.glossary-family-card-fields dd code {
+  background: #f4f1ea;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+.glossary-family-card-anchor-adds {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  background: #f0e8d0;
+  color: #6a4f1a;
+  border-radius: 3px;
+}
+.glossary-family-card-descendant,
+.glossary-family-card-sibling,
+.glossary-family-card-compound {
+  color: #4a4232;
+}
+.glossary-family-card-observational {
+  margin-top: 10px;
+  border-top: 1px solid #ece6d4;
+  padding-top: 8px;
+  font-size: 0.85rem;
+}
+.glossary-family-card-observational-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.glossary-family-card-observational-summary::-webkit-details-marker { display: none; }
+.glossary-family-card-observational-summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--text-muted, #64748b);
+  transition: transform 0.15s ease;
+  font-size: 0.85em;
+}
+.glossary-family-card-observational[open] > .glossary-family-card-observational-summary::before {
+  transform: rotate(90deg);
+}
+.glossary-family-card-observational-title {
+  font-weight: 600;
+  color: #3a3326;
+}
+.glossary-family-card-observational-body {
+  margin: 6px 0 0 22px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #555);
+  font-style: italic;
+}
+
+/* Inline layer-badge component (P2 IA refactor). Used in observational
+   panels + future advanced panels. Renders as a small chip next to
+   panel titles. */
+.glossary-layer-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.glossary-layer-badge--observational {
+  background: #e8e6e0;
+  color: #888;
+}
+.glossary-layer-badge--advanced {
+  background: #f4f1ea;
+  color: #8a7a40;
+}
+
 .glossary-family-trees {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

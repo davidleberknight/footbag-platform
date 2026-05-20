@@ -253,118 +253,93 @@
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p>
-      The irreducible base tricks most other named tricks descend from. Each
-      is a family anchor; most named compounds resolve to one of these once
-      their modifiers and sets are stripped away.
-    </p>
-    {{> core-tricks-grid tricks=content.coreTricks idPrefix="term-"}}
-    <p class="detail-muted glossary-network-attractor-note">
-      Network analysis of 22 years of Sick3 sequences shows
-      <a href="/freestyle/tricks/whirl">whirl</a> as the central attractor of the
-      freestyle trick network &mdash; sequences converge on it as a stable
-      resolution point. <a href="/freestyle/tricks?family=whirl">Blurry whirl</a>
-      functions as the most common opening element. The transition
-      <em>blurry whirl &rarr; whirl</em> is the most documented two-trick
-      structure in the corpus.
+      A <strong>family</strong> shares a conserved terminal mechanic. Two
+      cohorts surface on this page: <strong>root terminal families</strong>
+      are primitive structural anchors with their own terminal mechanic;
+      <strong>branch families</strong> are named compounds that are
+      themselves productive family anchors AND descend from a root via a
+      chain reading. Modifier and topology systems (paradox, symposium,
+      spinning, ducking) are entry / topology layers &mdash; not terminal
+      families.
     </p>
 
-    <h3 class="section-heading">Trick families</h3>
-    <p>
-      A <strong>family</strong> is a group of tricks that share a
-      <em>common terminal structure</em> &mdash; a conserved ending mechanic
-      that every family member resolves through. The family base trick
-      (e.g. <a href="/freestyle/tricks/whirl">whirl</a>,
-      <a href="/freestyle/tricks/butterfly">butterfly</a>,
-      <a href="/freestyle/tricks/mirage">mirage</a>) IS that terminal
-      structure in its simplest form; modifiers and sets stack on top to
-      create the full lineage of named compounds. Within a family, ADD
-      difficulty climbs as more modifiers stack onto the anchor &mdash;
-      the family becomes a difficulty ladder.
-    </p>
-    <p>
-      Family membership is <strong>not</strong> the same as modifier or
-      topology grouping. <em>Paradox</em>, <em>symposium</em>,
-      <em>spinning</em>, <em>ducking</em>, and similar concepts are
-      <strong>entry / topology / modifier systems</strong>, not terminal
-      families &mdash; they describe what the body does mid-trick, but
-      they do not share a conserved ending. Browse them via the trick
-      dictionary's component view or topology view; their place is not
-      inside the family hierarchy.
-    </p>
-    <p class="detail-muted">
-      <em>Sibling terminal families.</em> Some families occur in pairs
-      because they share a structural namesake but resolve through
-      mirror terminal mechanics. The simplest sibling pair:
-    </p>
-    <ul class="glossary-family-sibling-pair">
-      <li><strong><a href="/freestyle/tricks?family=whirl">Whirl</a></strong>: <code>leggy in dex &gt; ss clipper</code></li>
-      <li><strong><a href="/freestyle/tricks?family=rev-whirl">Rev Whirl</a></strong>: <code>leggy out dex &gt; ss clipper</code></li>
-    </ul>
-    <p class="detail-muted">
-      Mirror-pair siblings are not parent &amp; child &mdash; they resolve
-      through inverse terminal mechanics. The Trick Dictionary surfaces
-      sibling families adjacent in its family view.
-    </p>
-
-    <h4 class="section-heading">Root terminal families vs branch families</h4>
-    <p>
-      Two kinds of family-anchor object share the family view:
-    </p>
-    <ul class="glossary-family-kinds">
-      <li>
-        <strong>Root terminal families</strong> &mdash; primitive structural
-        anchors with their own conserved terminal mechanic.
-        <a href="/freestyle/tricks/whirl">whirl</a>,
-        <a href="/freestyle/tricks/rev-whirl">rev-whirl</a>,
-        <a href="/freestyle/tricks/butterfly">butterfly</a>,
-        <a href="/freestyle/tricks/mirage">mirage</a>,
-        <a href="/freestyle/tricks/osis">osis</a>,
-        <a href="/freestyle/tricks/swirl">swirl</a>.
-      </li>
-      <li>
-        <strong>Compressed branch families</strong> &mdash; named compounds
-        that are themselves productive family anchors but also descend
-        from a root terminal via a chain. <a href="/freestyle/tricks/torque">Torque</a>
-        is a branch family rooted in osis lineage (&equiv; <em>miraging
-        osis</em>). <a href="/freestyle/tricks/blender">Blender</a> &equiv;
-        <em>whirling osis</em>. <a href="/freestyle/tricks/drifter">Drifter</a>
-        &equiv; <em>miraging clipper</em>.
-      </li>
-    </ul>
-    <p class="detail-muted">
-      Branch families surface as their own family sections in the
-      dictionary; the underlying lineage is preserved via the chain
-      reading on the family base&apos;s detail page. A branch family is
-      a family in its own right AND a descendant of a root &mdash;
-      both relationships are real and both are visible.
-    </p>
-
-    {{#if content.familyTrees.length}}
-    <div class="glossary-family-trees" aria-label="Family-tree examples">
-      {{#each content.familyTrees}}
-      <div class="glossary-family-tree" id="family-tree-{{anchorSlug}}">
-        <p class="glossary-family-tree-anchor">
-          {{anchorDisplay}}
-          {{#if anchorAdds}}<span class="glossary-family-tree-anchor-adds">{{anchorAdds}}</span>{{/if}}
-        </p>
-        {{#if members.length}}
-        <ul class="glossary-family-tree-members">
-          {{#each members}}
-          <li>
-            <a href="{{href}}">{{display}}</a>{{#if adds}}<span class="glossary-family-tree-member-adds">{{adds}}</span>{{/if}}
-          </li>
-          {{/each}}
-        </ul>
-        {{/if}}
-      </div>
+    <h3 class="section-heading">Root terminal families</h3>
+    <div class="glossary-family-card-grid" aria-label="Root terminal families">
+      {{#each content.rootTerminalFamilies}}
+      {{> glossary-family-card}}
       {{/each}}
     </div>
-    <p class="glossary-note">
-      Four pilot families shown. The
-      <a href="/freestyle/tricks">Trick Dictionary</a> groups all tricks
-      by family (family-view toggle); the trick-detail page for any
-      compound shows its family ladder so you can see siblings at a glance.
+
+    <h3 class="section-heading">Branch families</h3>
+    <div class="glossary-family-card-grid" aria-label="Branch families">
+      {{#each content.branchFamilies}}
+      {{> glossary-family-card}}
+      {{/each}}
+    </div>
+
+    {{! Core atoms registry — preserved for #term-{slug} anchor stability
+        on atom slugs that do not map 1:1 to family slugs (clipper-stall /
+        legover / pickup / illusion / around-the-world / orbit). Family
+        cards above carry the family anchors (#term-whirl, #term-butterfly,
+        #term-mirage, #term-osis, #term-swirl, #term-rev-whirl, #term-torque,
+        #term-blender, #term-drifter, #term-barrage, #term-blur,
+        #term-phoenix). }}
+    <h3 class="section-heading">Other foundational atoms</h3>
+    <p class="detail-muted">
+      Atomic structures that sit alongside the families above &mdash; surfaces,
+      pickups, and reversal variants whose canonical row in the dictionary
+      is the atom itself.
     </p>
+    {{> core-tricks-grid tricks=content.otherFoundationalAtoms idPrefix="term-"}}
+
+    <details class="glossary-family-card-observational">
+      <summary class="glossary-family-card-observational-summary">
+        <span class="glossary-family-card-observational-title">Whirl as central attractor</span>
+        <span class="glossary-layer-badge glossary-layer-badge--observational">observational</span>
+      </summary>
+      <p class="glossary-family-card-observational-body glossary-network-attractor-note">
+        Network analysis of 22 years of Sick3 sequences shows
+        <a href="/freestyle/tricks/whirl">whirl</a> as the central attractor of the
+        freestyle trick network &mdash; sequences converge on it as a stable
+        resolution point. <a href="/freestyle/tricks?family=whirl">Blurry whirl</a>
+        functions as the most common opening element. The transition
+        <em>blurry whirl &rarr; whirl</em> is the most documented two-trick
+        structure in the corpus.
+      </p>
+    </details>
+
+    {{#if content.familyTrees.length}}
+    <details class="glossary-family-card-observational">
+      <summary class="glossary-family-card-observational-summary">
+        <span class="glossary-family-card-observational-title">Family-tree visualizations (4 pilot families)</span>
+        <span class="glossary-layer-badge glossary-layer-badge--advanced">advanced</span>
+      </summary>
+      <div class="glossary-family-trees" aria-label="Family-tree examples">
+        {{#each content.familyTrees}}
+        <div class="glossary-family-tree" id="family-tree-{{anchorSlug}}">
+          <p class="glossary-family-tree-anchor">
+            {{anchorDisplay}}
+            {{#if anchorAdds}}<span class="glossary-family-tree-anchor-adds">{{anchorAdds}}</span>{{/if}}
+          </p>
+          {{#if members.length}}
+          <ul class="glossary-family-tree-members">
+            {{#each members}}
+            <li>
+              <a href="{{href}}">{{display}}</a>{{#if adds}}<span class="glossary-family-tree-member-adds">{{adds}}</span>{{/if}}
+            </li>
+            {{/each}}
+          </ul>
+          {{/if}}
+        </div>
+        {{/each}}
+      </div>
+      <p class="glossary-note">
+        Four pilot families shown. The
+        <a href="/freestyle/tricks">Trick Dictionary</a> groups all tricks
+        by family (family-view toggle); the trick-detail page for any
+        compound shows its family ladder so you can see siblings at a glance.
+      </p>
+    </details>
     {{/if}}
   </section>
 
@@ -923,19 +898,8 @@
   <section class="content-section" id="section-sources">
     <h2 class="section-heading">14. Sources</h2>
     <p class="glossary-about-framing">
-      This glossary is the codification surface for a vocabulary that the
-      footbag community built informally over four decades. It documents
-      the language; it is not the source of authority for the language.
-      The community speaks the vocabulary; this page records it.
+      This glossary records vocabulary the footbag community built informally over four decades. Authoritative trick-level definitions live in the <a href="/freestyle/tricks">Trick Dictionary</a>; the source families below contribute to the language documented here.
     </p>
-    <p>
-      Definitions on this page draw on long-standing community usage and
-      historical reference materials, rewritten for clarity and
-      consistency. Authoritative trick-level definitions &mdash; ADD
-      values, structural decomposition, modifier relationships &mdash;
-      live in the <a href="/freestyle/tricks">Trick Dictionary</a>.
-    </p>
-    <p>The major source families that contribute to this vocabulary:</p>
     <ul class="glossary-sources-list">
       <li><strong><a href="https://www.footbag.org/" target="_blank" rel="noopener noreferrer">footbag.org</a></strong> &mdash; the long-running community archive; trick lists, event records, and the foundational vocabulary catalogued there. See also the <a href="https://www.footbag.org/newmoves/list" target="_blank" rel="noopener noreferrer">historical per-trick move list</a>.</li>
       <li><strong>PassBack</strong> &mdash; the conceptual tutorial series that introduced and formalised much of the modern compositional vocabulary (set / modifier / body operator framings).</li>
