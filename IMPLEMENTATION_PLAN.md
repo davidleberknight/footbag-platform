@@ -10,10 +10,6 @@ Entries belong here ONLY if current code or infra deviates from canonical design
 
 ## Active work
 
-### Tracker
-
-- **Bug tracker: GitHub Issues + GitHub Projects + structured issue forms** per `docs/TESTING.md` §15. Foundational for the regression-test-per-fixed-bug rule (`docs/TESTING.md` §9.6 and `.claude/rules/testing.md` mandate 1). Do this first.
-
 ### Test tooling adoption (per `docs/TESTING.md` §15.3.2)
 
 - **fast-check.** Property-based testing. Unblocks Rigor 4. Pilot on M_Login enumeration-safety.

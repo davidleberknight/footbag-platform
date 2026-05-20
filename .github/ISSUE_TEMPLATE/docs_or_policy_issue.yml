@@ -1,0 +1,69 @@
+name: Docs or policy issue
+description: Documentation drift, policy clarification, or IFPA-Board-sensitive change
+labels: ["docs", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for:
+
+        - Documentation drift (a doc says X, the code does Y).
+        - Policy clarification (canonical-doc text is ambiguous or contradictory).
+        - IFPA-Board-sensitive changes (touches official rules, ranking, eligibility, or other Category-B governance per CONTRIBUTING).
+
+        For implementation bugs, use the bug report form instead.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is drifted, ambiguous, or being proposed.
+    validations:
+      required: true
+  - type: input
+    id: file
+    attributes:
+      label: Affected file or section
+      placeholder: e.g. docs/DESIGN_DECISIONS.md §3.2, README.md, IMPLEMENTATION_PLAN.md
+    validations:
+      required: true
+  - type: textarea
+    id: current_text
+    attributes:
+      label: Current text (verbatim if short)
+  - type: textarea
+    id: proposed_text
+    attributes:
+      label: Proposed text or direction
+  - type: dropdown
+    id: governance_category
+    attributes:
+      label: Governance category
+      description: See CONTRIBUTING. Category B requires IFPA Board approval before any merge to `main`.
+      options:
+        - Category A (maintainer authority)
+        - Category B (IFPA Board approval required)
+        - Not sure (triager will set)
+    validations:
+      required: true
+  - type: dropdown
+    id: ifpa_status
+    attributes:
+      label: IFPA Board status (Category B only)
+      options:
+        - Not applicable (Category A)
+        - Not yet raised with IFPA
+        - Raised with IFPA, awaiting Board decision
+        - IFPA Board approved
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - blocker
+        - major
+        - normal
+        - minor
+    validations:
+      required: true

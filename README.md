@@ -33,6 +33,35 @@ Sneak Preview: [https://doye1nvv64qep.cloudfront.net/events/event_2025_beaver_op
 - See [CLAUDE.md](CLAUDE.md) for Claude Code's standard operating rules.
 - Talk to Dave.
 
+## Reporting Bugs and Issues
+
+This tracker is for **invited testers and project contributors**, not for general footbag.org end-user support. End-user questions about the legacy footbag.org site or the upcoming modernized site belong with the IFPA contact channel, not here.
+
+The repository source is public (Apache-2.0). The triage board is private and visible only to invited collaborators.
+
+Full guide: [BUG_REPORT.md](BUG_REPORT.md).
+
+### Where to file
+
+Open the [Issues tab → New issue](https://github.com/davidleberknight/footbag-platform/issues/new/choose) and pick a form.
+
+### Which form to pick
+
+- **Bug report**: general application bug.
+- **Staging bug**: bug observed on staging (AWS-touching).
+- **Migration or onboarding bug**: registration, email verification, legacy-claim, or onboarding-wizard flow.
+- **Docs or policy issue**: documentation drift or IFPA-Board-sensitive change.
+
+Each form prompts the minimum information needed to triage and write a regression test for the fix.
+
+### Privacy
+
+**Do not file security vulnerabilities in public issues.** Use the private disclosure path in [SECURITY.md](SECURITY.md) instead.
+
+**Do not paste in public issues**: passwords, tokens, signing material, member email addresses, real names of current members, phone numbers, raw legacy archive contents, or screenshots containing member data. Redact before submitting.
+
+Each bug fix lands with a regression test in the same PR; the issue closes when the test merges.
+
 ## Project Documentation
 
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md) — data model and schema semantics.

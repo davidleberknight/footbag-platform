@@ -1,0 +1,100 @@
+name: Staging bug
+description: Bug observed on the staging environment specifically
+labels: ["bug", "environment:staging", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for bugs that are reproducible on staging but not locally, or that involve real AWS infrastructure (S3, SES, KMS, SSM, Route53).
+
+        - Do not paste passwords, tokens, signing material, or any operator credentials.
+        - Do not include the contact details (email, phone) of any real member, even your own.
+        - For security vulnerabilities, use the private disclosure path in SECURITY.md.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce on staging
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: input
+    id: browser_device
+    attributes:
+      label: Browser and OS (if relevant)
+      placeholder: e.g. Chrome 124 on macOS 14
+  - type: textarea
+    id: aws_signal
+    attributes:
+      label: Relevant AWS / log signal (if any)
+      description: Service identifier and any non-sensitive log excerpt. Redact account IDs, ARNs containing account numbers, and any credentials.
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - blocker
+        - major
+        - normal
+        - minor
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - auth
+        - migration
+        - onboarding
+        - clubs
+        - members
+        - events
+        - media
+        - admin
+        - staging
+        - docs
+        - security
+    validations:
+      required: true
+  - type: dropdown
+    id: user_role
+    attributes:
+      label: User role at time of bug
+      options:
+        - anonymous
+        - member
+        - club leader
+        - admin
+        - event organizer
+        - legacy claimant
+    validations:
+      required: true
+  - type: checkboxes
+    id: regression_commitment
+    attributes:
+      label: Regression test commitment
+      description: Bug fixes land with a regression test per `.claude/rules/testing.md` mandate 1. If the regression belongs in staging smoke or adapter-parity, name the layer in the discussion before close.
+      options:
+        - label: I understand the bug fix lands with a regression test, and this issue will not close until the test is merged.
+          required: true

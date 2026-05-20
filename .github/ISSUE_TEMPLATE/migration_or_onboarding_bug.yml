@@ -1,0 +1,96 @@
+name: Migration or onboarding bug
+description: Legacy-claim, registration, email verification, or onboarding wizard bug
+labels: ["bug", "area:migration-or-onboarding", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for bugs in registration, email verification, legacy account claim, the onboarding wizard, or the direct historical-person claim flow.
+
+        - Do not include the email address, real name, or any other PII of a real legacy person or current member.
+        - Do not paste raw `legacy_data/` archive contents.
+        - For security vulnerabilities, use the private disclosure path in SECURITY.md.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: dropdown
+    id: flow
+    attributes:
+      label: Affected flow
+      options:
+        - registration
+        - email verification
+        - legacy account claim (self-serve)
+        - direct historical-person claim
+        - onboarding wizard
+        - dev autologin or dev-shortcuts
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - local
+        - staging
+        - production-later
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - blocker
+        - major
+        - normal
+        - minor
+    validations:
+      required: true
+  - type: dropdown
+    id: user_role
+    attributes:
+      label: User role at time of bug
+      options:
+        - anonymous
+        - member
+        - club leader
+        - admin
+        - event organizer
+        - legacy claimant
+    validations:
+      required: true
+  - type: checkboxes
+    id: regression_commitment
+    attributes:
+      label: Regression test commitment
+      description: Migration and onboarding bugs land regression tests at the integration layer or in the migration test cluster per `.claude/rules/testing.md` mandate 1 and `docs/TESTING.md` §8.
+      options:
+        - label: I understand the bug fix lands with a regression test, and this issue will not close until the test is merged.
+          required: true

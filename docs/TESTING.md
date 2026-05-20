@@ -896,9 +896,9 @@ Issue forms live at `.github/ISSUE_TEMPLATE/`:
 - `bug_report.yml`. General bug report.
 - `staging_bug.yml`. Staging-specific bug.
 - `migration_or_onboarding_bug.yml`. Migration or onboarding-flow bug.
-- `club_cleanup_bug.yml`. Club cleanup wizard bug.
 - `docs_or_policy_issue.yml`. Documentation or policy-level issue.
-- `security_notice.yml`. Redirects reporters to the private security path per `SECURITY.md`. Does not collect reports.
+
+Security vulnerability reports route via `config.yml` `contact_links` to GitHub's private vulnerability reporting (per `SECURITY.md`); there is no public-issue form for security.
 
 ### 15.2 GitHub Projects board
 

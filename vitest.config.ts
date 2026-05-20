@@ -4,19 +4,19 @@ export default defineConfig({
   test: {
     testTimeout: 15_000,
     setupFiles: ['./tests/setup-env.ts'],
-    // Smoke tests hit real staging AWS (gated behind RUN_STAGING_SMOKE=1) and
-    // e2e specs use @playwright/test (a separate runner). Both are excluded
-    // here so any vitest invocation (npm test, npm run test:coverage, or a
-    // bare `npx vitest run`) skips them. The npm scripts no longer need to
-    // duplicate this exclusion. Vitest's default `exclude` is replaced when
-    // you set this field, so the standard defaults are preserved below.
+    // Smoke (tests/smoke/) and e2e (tests/e2e/) are filtered out by the
+    // `--exclude` flags on the `npm test` and `npm run test:coverage`
+    // scripts in package.json. Putting them in the global config exclude
+    // here would also block `npm run test:smoke` (which invokes vitest
+    // with `tests/smoke/` as a positional filter), since config-level
+    // exclude wins over the positional filter. Vitest's default `exclude`
+    // is replaced when you set this field, so the standard defaults are
+    // preserved below.
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
       '**/.{idea,git,cache,output,temp}/**',
       '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
-      'tests/smoke/**',
-      'tests/e2e/**',
     ],
     coverage: {
       provider: 'v8',
