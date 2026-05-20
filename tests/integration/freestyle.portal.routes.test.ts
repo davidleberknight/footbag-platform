@@ -512,144 +512,72 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('/freestyle/partnerships');
   });
 
-  // ── Operator board (OP-BOARD-1, 2026-05-13) ────────────────────────────
-  it('renders the operator-board heading and (compressed) lede', async () => {
-    // Landing lede compressed to one short sentence. The "Fourteen primitives"
-    // framing is preserved.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('The operators of freestyle');
-    expect(res.text).toContain('Fourteen primitives');
-    expect(res.text).toContain('every named trick');
+  // ── Landing operator-board absence + lightweight preview ────────────────
+  // Second-pass landing-page cleanup (2026-05-20): the embedded operator
+  // encyclopedia is removed from /freestyle. The landing page acknowledges
+  // operators with a single preview panel (3 chips + one CTA) and points
+  // readers at the canonical reference at /freestyle/operators. The
+  // operator-board partial still renders on /freestyle/learn.
+  it('does NOT render the embedded operator-board encyclopedia on the landing page', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    // Operator-board grid markup absent.
+    expect(res.text).not.toContain('class="operator-board ');
+    expect(res.text).not.toMatch(/<p class="operator-glyph">/);
+    expect(res.text).not.toMatch(/<p class="operator-name">/);
+    expect(res.text).not.toMatch(/<p class="operator-action">/);
+    expect(res.text).not.toContain('class="operator-card-deeplink"');
+    expect(res.text).not.toContain('class="operator-board-footer-link"');
+    // Operator-board prose absent.
+    expect(res.text).not.toContain('The operators of freestyle');
+    expect(res.text).not.toContain('Fourteen primitives');
+    expect(res.text).not.toContain('I · Sets');
+    expect(res.text).not.toContain('II · Body');
+    expect(res.text).not.toContain('III · Structure');
   });
 
-  it('renders all three operator-tier sections in order with eyebrows but no tier-intro lines', async () => {
-    // Tier-intro paragraph dropped (eyebrow + title carry the tier identity).
-    // The intro field remains in the data contract but is no longer rendered.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    const idxSet    = res.text.indexOf('Set operators');
-    const idxBody   = res.text.indexOf('Body operators');
-    const idxStruct = res.text.indexOf('Structural concepts');
-    expect(idxSet).toBeGreaterThan(0);
-    expect(idxBody).toBeGreaterThan(idxSet);
-    expect(idxStruct).toBeGreaterThan(idxBody);
-    // Eyebrow text preserved (the ·-separated tier label).
-    expect(res.text).toContain('I · Sets');
-    expect(res.text).toContain('II · Body');
-    expect(res.text).toContain('III · Structure');
-    // Tier-intro lines are no longer rendered.
-    expect(res.text).not.toContain('class="operator-tier-intro"');
-    expect(res.text).not.toContain('What sends the bag into the air.');
-    expect(res.text).not.toContain('What the body does while the bag is up.');
-    expect(res.text).not.toContain('Relationships across the trick.');
-  });
-
-  it('renders all 13 Tier-1 operator glyphs inside operator-glyph cells', async () => {
-    // Slice B of 2026-05 normalization: OP cell dropped (its previous
-    // composition "OP + BUTTERFLY → BUTTERFLY" taught nothing visible).
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    const glyphs = [
-      'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
-      'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
-      'XBODY', 'SAME',
-    ];
-    for (const glyph of glyphs) {
-      // Each glyph appears inside its own .operator-glyph paragraph at least once.
-      const re = new RegExp(`<p class="operator-glyph">${glyph}</p>`);
-      expect(res.text).toMatch(re);
+  it('renders the lightweight operators-modifiers preview inside the shelf panel', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const panelStart = res.text.indexOf('id="shelf-panel-operators-modifiers"');
+    expect(panelStart).toBeGreaterThan(0);
+    const panelEnd = res.text.indexOf('</details>', panelStart);
+    const panel    = res.text.slice(panelStart, panelEnd);
+    // Three non-interactive example chips: pixie · spinning · paradox.
+    expect(panel).toContain('class="freestyle-shelf-example-chips"');
+    for (const slug of ['pixie', 'spinning', 'paradox']) {
+      expect(panel).toMatch(new RegExp(`data-token-slug="${slug}"`));
     }
+    // Single CTA pointing at /freestyle/operators with the new label.
+    expect(panel).toContain('href="/freestyle/operators"');
+    expect(panel).toMatch(/Open full operator reference/);
+    // No duplicate /freestyle/sets CTA (the dual-CTA footer is retired).
+    expect(panel).not.toContain('href="/freestyle/sets"');
   });
 
-  it('does NOT render the dropped OP operator glyph', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.text).not.toMatch(/<p class="operator-glyph">OP<\/p>/);
+  it('does NOT render the Operators & Modifiers portal-card "Advanced Reference" tag/badge', async () => {
+    // The "Advanced reference" sub-label on the portal card was a second
+    // place where the same phrase appeared. The card now carries only its
+    // title and one-line framing prose.
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).not.toContain('class="freestyle-portal-card-advanced-tag"');
+    expect(res.text).not.toMatch(/Operators &amp; Modifiers <span[^>]*>Advanced reference/);
   });
 
-  it('renders one composition example per operator with input + arrow + result', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // Spot-check representative compositions across all three tiers.
-    // Slice B (2026-05): Mobius example moved to GY cell per Red 2026-05-15
-    // (Mobius ≈ Gyro Torque, not Spinning Torque). SPIN cell now shows
-    // its canonical-name decomposition.
-    expect(res.text).toMatch(/PIX \+ BUTTERFLY[\s\S]*?DIMWALK/);
-    expect(res.text).toMatch(/SPIN \+ BUTTERFLY[\s\S]*?SPINNING BUTTERFLY/);
-    expect(res.text).toMatch(/GY \+ TORQUE[\s\S]*?MOBIUS/);
-    expect(res.text).toMatch(/PIX \+ DUCK \+ BUTTERFLY[\s\S]*?PHOENIX/);
-    expect(res.text).toMatch(/SAME \+ BUTTERFLY[\s\S]*?SAME-FOOT BUTTERFLY/);
-    // Each example block carries a separator arrow.
-    const arrowCount = (res.text.match(/class="operator-example-arrow"/g) || []).length;
-    expect(arrowCount).toBe(13);
+  it('renders the Operators & Modifiers portal-card CTA exactly once with the new label', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    const ctaMatches = res.text.match(/Open full operator reference/g) ?? [];
+    // Two occurrences total: portal card + shelf panel. No third copy.
+    expect(ctaMatches.length).toBe(2);
+    // The pre-cleanup short label "Operator reference →" must not appear
+    // as a standalone landing-page link any more.
+    expect(res.text).not.toMatch(/<a[^>]*href="\/freestyle\/operators"[^>]*>Operator reference &rarr;<\/a>/);
   });
 
-  it('renders the DUCK cell with the "Duck / Dive" pedagogical name (4-way family)', async () => {
-    // Slice B (2026-05): DUCK cell renamed from "Ducking" to "Duck / Dive"
-    // to surface the 4-way family (duck / dive / weave / zulu) rather than
-    // implying a single isolated operator.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.text).toMatch(/<p class="operator-name">Duck \/ Dive<\/p>/);
-  });
-
-  it('renders the operator board on the landing page after Basic Components', async () => {
-    // 2026-05-18 reorganization v3: the Operator Board reads as
-    // "advanced compositional grammar" and sits AFTER core tricks +
-    // basic components. Pacing rule: foundational vocabulary precedes
-    // modifier algebra. Position invariant updated from v2 (which
-    // placed the board near the top) — content + cross-links + footer
-    // all preserved; only position changes.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    const featuredIdx        = res.text.indexOf('id="featured"');
-    const basicComponentsIdx = res.text.indexOf('id="basic-components"');
-    const boardIdx           = res.text.indexOf('class="operator-board');
-    expect(boardIdx).toBeGreaterThan(0);
-    expect(featuredIdx).toBeGreaterThan(0);
-    expect(featuredIdx).toBeLessThan(boardIdx);
-    expect(basicComponentsIdx).toBeLessThan(boardIdx);
-  });
-
-  // ── Operator-card deep-links: one restrained destination per operator ──
-  it('renders the expected deep-link for each linked operator', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // Notation references (moves page anchors)
-    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
-    expect(res.text).toContain('href="/freestyle/sets#move-atomic"');
-    expect(res.text).toContain('href="/freestyle/sets#move-quantum"');
-    expect(res.text).toContain('href="/freestyle/sets#move-fairy"');
-    expect(res.text).toContain('href="/freestyle/sets#move-gyro"');
-    // Glossary entries
-    expect(res.text).toContain('href="/freestyle/glossary#term-stepping"');
-    expect(res.text).toContain('href="/freestyle/glossary#term-symposium"');
-    // Modifier pedagogy (mature surfaces only)
-    expect(res.text).toContain('href="/freestyle/modifier/spinning"');
-    expect(res.text).toContain('href="/freestyle/modifier/paradox"');
-    expect(res.text).toContain('href="/freestyle/modifier/ducking"');
-  });
-
-  it('renders exactly eleven operator-card deep-link anchors', async () => {
-    // Bumped from 10 to 11 after LANDING-AND-TRICKS-QA-REALIGNMENT-1 F2:
-    // BL was relabeled Blender→Blurry and given a GLOSSARY('blurry') deeplink.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
-    expect(matches.length).toBe(11);
-  });
-
-  it('omits the deep-link footer on unlinked operators (XBODY, SAME)', async () => {
-    // Slice B (2026-05): OP cell dropped; XBODY (formerly XDEX) and SAME remain unlinked.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.text).not.toContain('/freestyle/glossary#term-blender');
-    expect(res.text).not.toContain('/freestyle/glossary#term-cross-body');
-    expect(res.text).not.toContain('/freestyle/glossary#term-same-foot');
-    expect(res.text).not.toContain('/freestyle/glossary#term-opposite');
-    expect(res.text).not.toContain('/freestyle/modifier/blender');
-    expect(res.text).not.toContain('/freestyle/modifier/cross-body');
+  it('/freestyle/operators still owns the exhaustive operator reference', async () => {
+    // Sanity check: removing the embedded encyclopedia from /freestyle does
+    // not affect the canonical operator surface.
+    const res = await request(createApp()).get('/freestyle/operators');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Operators &amp; Modifiers');
   });
 });
 
@@ -692,47 +620,12 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
     );
   });
 
-  it('F2 — BL operator surfaces as Blurry (not Blender) with the canonical Stepping+Paradox reading', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // The BL glyph paragraph must be followed by the name "Blurry".
-    expect(res.text).toMatch(/<p class="operator-glyph">BL<\/p>\s*<p class="operator-name">Blurry<\/p>/);
-    // The composition example for BL is BLURRY + WHIRL → BLURRY WHIRL.
-    // RIPWALK was the pre-fix target but already belongs to STEP + BUTTERFLY;
-    // the row was retargeted to a Red-canonical compound that terminates in
-    // a core atom (WHIRL).
-    expect(res.text).toMatch(/BLURRY \+ WHIRL[\s\S]*?BLURRY WHIRL/);
-    // The pre-fix wording "Blender" / "Blender + butterfly" must not appear
-    // anywhere as the BL operator name.
-    expect(res.text).not.toMatch(/<p class="operator-glyph">BL<\/p>\s*<p class="operator-name">Blender<\/p>/);
-  });
-
-  it('F2 — Atomic/Quantum/Fairy actions describe dex-direction sets, not rotational character', async () => {
-    // Card hierarchy is glyph → name → example → action → deeplink; actions
-    // compress to ≤8 words. F2 intent: no false rotation claims in operator
-    // descriptions.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // Per-card slice helper — grabs the markup between an operator's glyph and the next card.
-    function operatorCard(glyph: string): string {
-      const start = res.text.indexOf(`<p class="operator-glyph">${glyph}</p>`);
-      expect(start).toBeGreaterThan(-1);
-      const next  = res.text.indexOf('<div class="operator-card">', start + 1);
-      const end   = next > 0 ? next : start + 600;
-      return res.text.slice(start, end);
-    }
-    const at = operatorCard('AT');
-    const q  = operatorCard('Q');
-    const fy = operatorCard('FAIRY');
-    // Each action conveys dex-direction (opposite/same-side + in/out).
-    expect(at).toMatch(/Opposite-side.*out.*toe-set dex/i);
-    expect(q).toMatch(/Opposite-side.*in.*toe-set dex/i);
-    expect(fy).toMatch(/Same-side.*out.*toe-set dex/i);
-    // No card claims rotation character.
-    expect(at).not.toMatch(/rotation/i);
-    expect(q).not.toMatch(/rotation/i);
-    expect(fy).not.toMatch(/rotation/i);
-  });
+  // F2 sub-tests (BL=Blurry semantic + Atomic/Quantum/Fairy dex-direction
+  // actions) were pinned to the embedded landing operator-board grid.
+  // Second-pass landing cleanup (2026-05-20) removed the grid from
+  // /freestyle. The same semantic invariants still hold on the operator-
+  // board partial wherever it renders (/freestyle/learn), tested in
+  // tests/integration/freestyle.symbolic-discoverability.routes.test.ts.
 
   it('F3 — curated demonstrations (Conlon 1998 + San Marino 2026) render in the merged Featured strip', async () => {
     // Demonstrations live inside the merged Featured strip with stable
@@ -760,7 +653,11 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
     const app = createApp();
     const res = await request(app).get('/freestyle');
     const startIdx = res.text.indexOf('class="freestyle-featured-grid"');
-    const endIdx   = res.text.indexOf('operator-board', startIdx);
+    // Second-pass landing cleanup (2026-05-20): the embedded operator-board
+    // was removed from /freestyle, so the previous endIdx marker
+    // ('operator-board') is no longer present. The Reference Shelf section
+    // is the natural lower bound of the Featured grid region.
+    const endIdx   = res.text.indexOf('class="content-section freestyle-reference-shelf"', startIdx);
     expect(startIdx).toBeGreaterThan(0);
     const slice = res.text.slice(startIdx, endIdx > 0 ? endIdx : startIdx + 12000);
     // Four chip strips: one each for Reese-1988 + Conlon-1998 + Worlds-2023-Team
@@ -804,60 +701,12 @@ describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants',
     expect(res.text).not.toContain('id="where-next"');
   });
 
-  it('operator-board lede is one short sentence, not a 30-word paragraph', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    const ledeMatch = res.text.match(/<p class="operator-board-lede">([^<]+)<\/p>/);
-    expect(ledeMatch).not.toBeNull();
-    const ledeWords = (ledeMatch![1].trim().split(/\s+/) ?? []).length;
-    expect(ledeWords).toBeLessThanOrEqual(15);
-    // Old verbose lede must not survive.
-    expect(res.text).not.toContain('Freestyle footbag is a compositional movement language.');
-  });
-
-  it('every operator-action line stays under the compression threshold (≤10 words)', async () => {
-    // Slice B (2026-05): cell count dropped from 14 → 13 after the
-    // structural-tier OP cell ("Set foot ≠ catch foot (the default)") was
-    // dropped — its example "OP + BUTTERFLY → BUTTERFLY" was a no-op and
-    // taught nothing visible.
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    const actions = [...res.text.matchAll(/<p class="operator-action">([^<]+)<\/p>/g)];
-    expect(actions.length).toBe(13);
-    for (const m of actions) {
-      const wc = m[1].trim().split(/\s+/).length;
-      expect(wc).toBeLessThanOrEqual(10);
-    }
-  });
-
-  it('operator card hierarchy is glyph → name → example → action → deeplink', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // The PIX card is a stable anchor for ordering assertions.
-    const start = res.text.indexOf('<p class="operator-glyph">PIX</p>');
-    expect(start).toBeGreaterThan(-1);
-    const slice = res.text.slice(start, start + 800);
-    const idxGlyph  = slice.indexOf('operator-glyph');
-    const idxName   = slice.indexOf('operator-name');
-    const idxExample = slice.indexOf('operator-example');
-    const idxAction = slice.indexOf('operator-action');
-    const idxDeep   = slice.indexOf('operator-card-deeplink');
-    expect(idxName).toBeGreaterThan(idxGlyph);
-    expect(idxExample).toBeGreaterThan(idxName);
-    expect(idxAction).toBeGreaterThan(idxExample);
-    expect(idxDeep).toBeGreaterThan(idxAction);
-  });
-
-  it('operator-card deeplink renders as icon-only with aria-label, not visible label text', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    // Visible scaffolding labels removed.
-    expect(res.text).not.toMatch(/<a class="operator-card-deeplink"[^>]*>Notation reference<\/a>/);
-    expect(res.text).not.toMatch(/<a class="operator-card-deeplink"[^>]*>Glossary entry<\/a>/);
-    expect(res.text).not.toMatch(/<a class="operator-card-deeplink"[^>]*>Modifier page<\/a>/);
-    // Aria-label still carries the destination type for screen readers.
-    expect(res.text).toMatch(/<a class="operator-card-deeplink"[^>]*aria-label="Notation reference"/);
-  });
+  // Operator-board landing tests retired here (lede, action ≤10 words, card
+  // hierarchy, deeplink aria-label): second-pass landing cleanup
+  // (2026-05-20) removed the embedded board from /freestyle. The same
+  // compression / structure invariants still apply to the operator-board
+  // partial wherever it renders (/freestyle/learn), tested in
+  // tests/integration/freestyle.symbolic-discoverability.routes.test.ts.
 
   it('basic-component descriptions are compressed (≤10 words each)', async () => {
     const app = createApp();
@@ -1059,13 +908,14 @@ describe('Notation Normalization Wave NCR-3 — landing Core Tricks tier contrac
 
 // ---------------------------------------------------------------------------
 // Landing IA refactor (2026-05-19) — reference shelf
-// Replaces the prior Reading A section-order contract. Basic Components,
-// Operator Board, and Core Tricks no longer sit as standalone sections;
-// they live inside collapsed <details> panels under the grouped
-// Freestyle Reference Shelf below Featured.
+// Basic Components and Core Tricks live inside collapsed <details> panels
+// under the grouped Reference Shelf below Featured. Second-pass cleanup
+// (2026-05-20) renamed the shelf 'Freestyle Reference Shelf' → 'Reference
+// Shelf' and demoted the operators-modifiers panel from an embedded
+// operator-board grid to a lightweight 3-chip preview + single CTA.
 // ---------------------------------------------------------------------------
 
-describe('Landing IA refactor — Freestyle Reference Shelf', () => {
+describe('Landing IA refactor — Reference Shelf', () => {
   it('renders the reference shelf section AFTER Featured', async () => {
     const res = await request(createApp()).get('/freestyle');
     const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
@@ -1102,18 +952,22 @@ describe('Landing IA refactor — Freestyle Reference Shelf', () => {
     expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--basic-components"/);
   });
 
-  it('Operator Board renders inside the operators-modifiers shelf panel (not as a standalone section)', async () => {
+  it('operators-modifiers shelf panel renders the lightweight preview (no embedded board)', async () => {
+    // Second-pass landing cleanup (2026-05-20): the embedded operator-
+    // board encyclopedia is removed; the panel body holds only the
+    // educational summary + 3 example chips + single CTA.
     const res = await request(createApp()).get('/freestyle');
-    // The operator-board partial still emits its own class.
-    expect(res.text).toContain('class="operator-board ');
-    // Operator-board sits inside the operators-modifiers panel body.
     expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--operators-modifiers"/);
-    // Link-out CTA to /freestyle/operators present in the panel.
+    // No embedded operator-board grid.
+    expect(res.text).not.toContain('class="operator-board ');
+    // Panel body holds the chip preview + CTA pointing at /freestyle/operators.
     const shelfStart = res.text.indexOf('id="shelf-panel-operators-modifiers"');
     const shelfEnd   = res.text.indexOf('</details>', shelfStart);
     expect(shelfStart).toBeGreaterThan(0);
     const region = res.text.slice(shelfStart, shelfEnd);
+    expect(region).toContain('class="freestyle-shelf-example-chips"');
     expect(region).toContain('href="/freestyle/operators"');
+    expect(region).toContain('Open full operator reference');
   });
 
   it('Core Tricks grid renders inside the core-tricks shelf panel (not as a standalone section)', async () => {

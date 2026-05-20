@@ -295,6 +295,11 @@ export interface FreestyleLandingExplainer {
  *  External-link panels (ADD scoring / notation primer / learning path)
  *  carry an explicit link-out CTA; the shelf is a porch, not a
  *  destination. */
+export interface FreestyleShelfExampleChip {
+  slug:  string;   // 'pixie' — drives anchor + identity
+  label: string;   // visible chip text (e.g. 'pixie')
+}
+
 export interface FreestyleReferenceShelfPanel {
   slug:           'basic-components' | 'core-tricks' | 'operators-modifiers'
                 | 'add-scoring' | 'notation-basics' | 'learning-path';
@@ -302,6 +307,11 @@ export interface FreestyleReferenceShelfPanel {
   summary:        string;
   linkOutHref:    string | null;
   linkOutLabel:   string | null;
+  /** Optional non-interactive preview chips rendered inside the panel
+   *  body. Currently used only by the operators-modifiers panel to
+   *  surface a tiny taste of the operator vocabulary without
+   *  duplicating the full /freestyle/operators reference. */
+  examples?:      ReadonlyArray<FreestyleShelfExampleChip>;
 }
 
 export interface FreestyleReferenceShelf {
@@ -398,12 +408,13 @@ export interface FreestyleLandingContent {
   // Merged Featured strip — formats + curated demonstrations rendered in
   // one compact grid. Empty array hides the section content.
   featured:        FreestyleFeaturedItem[];
-  operatorBoard: OperatorBoardData;
-  /** Grouped expandable reference shelf rendered after Featured. Replaces
-   *  the prior standalone Basic Components / Operator Board / Core Tricks
-   *  sections. Each panel is a collapsed `<details>` element; expanded
-   *  bodies for the three legacy panels reuse the existing content
-   *  fields (basicComponents / operatorBoard / coreTricks). */
+  /** Grouped expandable reference shelf rendered after Featured. Each
+   *  panel is a collapsed `<details>` element. Bodies for the
+   *  basic-components and core-tricks panels reuse the existing content
+   *  fields; the operators-modifiers panel is a lightweight preview
+   *  (panel.summary + panel.examples + single CTA) that points readers
+   *  at /freestyle/operators rather than duplicating the operator-board
+   *  reference inline. */
   referenceShelf:  FreestyleReferenceShelf;
   getStartedTiles: FreestyleGetStartedTile[];
   totalRecords: number;
@@ -5905,10 +5916,9 @@ export const freestyleService = {
                      ),
           },
         ],
-        operatorBoard: this.getOperatorBoard(),
         referenceShelf: {
-          title: 'Freestyle Reference Shelf',
-          lede:  'Optional expandable references for the movement vocabulary behind the dictionary. Expand a panel only when you want to go deeper; the rest of the page is the porch.',
+          title: 'Reference Shelf',
+          lede:  'Optional expandable references for the movement vocabulary behind the dictionary. Expand a panel only when you want to go deeper.',
           panels: [
             {
               slug:         'basic-components',
@@ -5926,10 +5936,15 @@ export const freestyleService = {
             },
             {
               slug:         'operators-modifiers',
-              title:        'Operators & Modifiers (Advanced Reference)',
-              summary:      'Tier-1 modifier vocabulary — set, body, and structural operators that compose the trick lexicon. Preview here; the full operator reference lives at /freestyle/operators.',
+              title:        'Operators & Modifiers',
+              summary:      'One place to learn how modifiers compose into tricks. Operators are the verbs of freestyle: small movement adjustments (a spin, a duck, a body wrap) that stack on top of a base trick to produce its named compound form. The full reference lives at /freestyle/operators.',
+              examples: [
+                { slug: 'pixie',    label: 'pixie'    },
+                { slug: 'spinning', label: 'spinning' },
+                { slug: 'paradox',  label: 'paradox'  },
+              ],
               linkOutHref:  '/freestyle/operators',
-              linkOutLabel: 'Full operator reference',
+              linkOutLabel: 'Open full operator reference',
             },
             {
               slug:         'add-scoring',

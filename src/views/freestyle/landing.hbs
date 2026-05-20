@@ -150,7 +150,7 @@
       </div>
 
       <div class="card freestyle-portal-card-advanced">
-        <div class="card-title">Operators &amp; Modifiers <span class="freestyle-portal-card-advanced-tag">Advanced reference</span></div>
+        <div class="card-title">Operators &amp; Modifiers</div>
         <p>
           The trick-modifier vocabulary in one place: how each common modifier
           feels, how it changes a trick, and how modifiers stack to build the
@@ -158,7 +158,7 @@
           trick decompositions in depth.
         </p>
         <div class="card-actions">
-          <a href="/freestyle/operators" class="btn btn-outline">Operator reference &rarr;</a>
+          <a href="/freestyle/operators" class="btn btn-outline">Open full operator reference &rarr;</a>
         </div>
       </div>
 
@@ -228,17 +228,10 @@
         <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
         {{/if}}
 
-        {{#if (eq slug 'operators-modifiers')}}
-        {{> operator-board heading=@root.content.operatorBoard.heading lede=@root.content.operatorBoard.lede tiers=@root.content.operatorBoard.tiers}}
-        <p class="operator-board-footer-link">
-          <a href="/freestyle/operators">Operator reference &rarr;</a>
-          <span class="operator-board-footer-sep" aria-hidden="true">&middot;</span>
-          <a href="/freestyle/sets">Full set notation reference &rarr;</a>
+        {{#if examples.length}}
+        <p class="freestyle-shelf-example-chips" aria-label="Example operators">
+          {{#each examples}}<span class="freestyle-shelf-example-chip" data-token-slug="{{slug}}">{{label}}</span>{{#unless @last}} <span class="freestyle-shelf-example-sep" aria-hidden="true">&middot;</span> {{/unless}}{{/each}}
         </p>
-        {{/if}}
-
-        {{#if (or (eq slug 'add-scoring') (eq slug 'notation-basics') (eq slug 'learning-path'))}}
-        {{!-- Preview-only panels — summary above + link out below. --}}
         {{/if}}
 
         {{#if linkOutHref}}

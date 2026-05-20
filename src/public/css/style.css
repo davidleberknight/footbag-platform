@@ -5703,29 +5703,6 @@ section.home-media { padding-top: 0; }
   letter-spacing: 0.01em;
 }
 
-/* Restrained pointer below the operator board on the landing page only.
- * Lives outside the shared operator-board partial so it renders only on
- * /freestyle (not on /freestyle/glossary §3 or /freestyle/learn, which
- * already have their own context-appropriate framing). */
-.operator-board-footer-link {
-  margin: 18px 0 0 0;
-  font-size: 0.88rem;
-  font-style: italic;
-  color: #666;
-}
-.operator-board-footer-link a {
-  color: #555e6b;
-  text-decoration: none;
-}
-.operator-board-footer-link a:hover,
-.operator-board-footer-link a:focus-visible {
-  text-decoration: underline;
-}
-.operator-board-footer-sep {
-  margin: 0 0.5em;
-  color: #999;
-}
-
 /* /freestyle/observational — observational-layer cards.
  * Visually distinct from canonical dict-card to make the layer
  * separation immediately legible. Per
@@ -6979,25 +6956,35 @@ a.dict-card-title:hover {
   color: var(--text-muted, #555);
 }
 
-/* Advanced-reference framing on the demoted Operators & Modifiers
-   portal card. The chip pushes the card out of the primary lookup
-   ladder visually. */
+/* Quiet visual separator on the demoted Operators & Modifiers portal
+   card. Pushes the card out of the primary lookup ladder without a
+   loud secondary badge. */
 .freestyle-portal-card-advanced {
   border-top: 1px dashed var(--border, #e2e8f0);
   padding-top: 14px;
 }
-.freestyle-portal-card-advanced-tag {
+
+/* Lightweight example-chip strip rendered inside the Reference Shelf
+   operators-modifiers panel. Non-interactive preview tokens; the
+   single CTA below the chips handles navigation. */
+.freestyle-shelf-example-chips {
+  margin: 10px 0 4px 0;
+  font-size: 0.9rem;
+  color: #4a4a4a;
+  letter-spacing: 0.01em;
+}
+.freestyle-shelf-example-chip {
   display: inline-block;
-  margin-left: 8px;
   padding: 1px 8px;
-  font-size: 0.66rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #8a7a40;
-  background: #f4f1ea;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.85rem;
+  color: #3b3b3b;
+  background: #f4f4ef;
+  border: 1px solid #e3e3da;
   border-radius: 3px;
-  vertical-align: middle;
+}
+.freestyle-shelf-example-sep {
+  color: #b0b0b0;
 }
 
 /* Freestyle Reference Shelf — grouped expandable reference panels. */

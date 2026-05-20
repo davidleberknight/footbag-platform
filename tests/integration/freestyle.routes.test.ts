@@ -517,25 +517,21 @@ describe('Set-notation reference cross-links', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Set notation reference/);
   });
 
-  it('landing page renders the operator board inside the operators-modifiers shelf panel', async () => {
-    // Landing IA refactor (2026-05-19): the operator board moved from a
-    // standalone section into the operators-modifiers shelf panel. The
-    // panel carries the Operator-reference link-out CTA; the legacy
-    // .operator-board-footer-link element is retired.
+  it('landing page surfaces the operators-modifiers shelf panel with a lightweight preview only', async () => {
+    // Second-pass landing cleanup (2026-05-20): the embedded operator-
+    // board is gone from /freestyle. The panel holds an educational
+    // summary + 3 example chips + a single CTA pointing at the canonical
+    // operator reference. The legacy dual-CTA footer (Operator reference
+    // + Full set notation reference) is retired.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('class="operator-board ');
     expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--operators-modifiers"/);
-    // Both reference link-outs remain accessible on the landing.
+    // No embedded operator-board grid on the landing surface.
+    expect(res.text).not.toContain('class="operator-board ');
+    // Single canonical CTA — no /freestyle/sets sibling.
     expect(res.text).toContain('href="/freestyle/operators"');
-    expect(res.text).toContain('href="/freestyle/sets"');
-  });
-
-  it('operator-board notation-reference deep-links point at /freestyle/sets (not legacy /moves)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
-    expect(res.text).not.toContain('href="/freestyle/moves#move-pixie"');
+    expect(res.text).not.toContain('href="/freestyle/sets"');
+    expect(res.text).not.toContain('class="operator-board-footer-link"');
   });
 });
 
@@ -908,18 +904,6 @@ describe('GET /freestyle/glossary §6 partial reuse (same content as /freestyle/
   it('glossary §6 heading carries an "Open standalone" link to /freestyle/operators', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/<a class="glossary-section-canonical-link" href="\/freestyle\/operators">/);
-  });
-});
-
-describe('GET /freestyle (landing) — operator board carries Operator reference link', () => {
-  it('landing operator-board footer surfaces both Operator reference + Full set notation reference links', async () => {
-    // 2026-05-18 Phase B: the operator-board footer now carries two
-    // outbound links — Operator reference (new) and Full set notation
-    // reference (existing).
-    const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('class="operator-board-footer-link"');
-    expect(res.text).toMatch(/href="\/freestyle\/operators"[^>]*>Operator reference/);
-    expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
   });
 });
 
@@ -1968,8 +1952,10 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
     expect(res.text).toContain('href="/freestyle/glossary"');
     expect(res.text).toContain('Browse the trick dictionary');
     expect(res.text).toContain('Open glossary');
-    // /freestyle/sets link still appears (operator-board footer).
-    expect(res.text).toContain('href="/freestyle/sets"');
+    // /freestyle/sets is no longer linked from the landing (the dual-CTA
+    // operator-board footer was retired in the second-pass cleanup,
+    // 2026-05-20). The canonical reference lives on /freestyle/operators.
+    expect(res.text).not.toContain('href="/freestyle/sets"');
     // The retired "Where to go next" heading must not appear.
     expect(res.text).not.toContain('Where to go next');
   });
@@ -1994,9 +1980,12 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
   });
 
   it('operator board renders a Symposium definition consistent with its single-leg-jump mechanics', async () => {
-    // Symposium action: compact single-leg-jump description (active leg
-    // jumps and lands solo) without verbose preamble.
-    const res = await request(createApp()).get('/freestyle');
+    // Second-pass landing cleanup (2026-05-20) removed the embedded
+    // operator-board from /freestyle. The Symposium-action invariant still
+    // holds on the operator-board partial wherever it renders; we now
+    // assert it against /freestyle/learn, the remaining operator-board
+    // host surface.
+    const res = await request(createApp()).get('/freestyle/learn');
     expect(res.text).toMatch(/Active leg jumps \+ lands solo/i);
     // The pre-2026-05 "illusion + body rotation" misreading must not reappear.
     expect(res.text).not.toContain('An illusion combined with body rotation');
