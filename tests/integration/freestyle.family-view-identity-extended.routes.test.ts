@@ -96,7 +96,21 @@ const TORQUE_PILOTS: Pilot[] = [
 ];
 
 const ALL_PILOTS = [...BUTTERFLY_PILOTS, ...MIRAGE_PILOTS, ...OSIS_PILOTS, ...TORQUE_PILOTS];
-const PILOTS_WITH_CHAINS = ALL_PILOTS.filter(p => p.firstReadingTokens.length > 0);
+
+// First-class tautological-chain slugs are excluded from the chain-visibility
+// assertion. For these slugs (paradox-mirage, symposium-mirage, atomic-
+// butterfly) the chain reading equals the canonical name (e.g. "paradox
+// mirage" on a card titled "paradox mirage") and is suppressed at the
+// shaping layer. The structural decomposition surfaces instead through
+// the first-class summary row (paradox(+1) + mirage(2) = 3 ADD), which
+// is the authoritative parity contract for first-class tricks. Non-
+// first-class compounds (paradox-whirl, spinning-osis, etc.) continue
+// to render their tautological chains per the Slice A2/A3 contract —
+// the role-colored tokens with glossary links remain useful there.
+const FIRST_CLASS_TAUTOLOGICAL = new Set(['paradox-mirage', 'symposium-mirage', 'atomic-butterfly']);
+const PILOTS_WITH_CHAINS = ALL_PILOTS
+  .filter(p => p.firstReadingTokens.length > 0)
+  .filter(p => !FIRST_CLASS_TAUTOLOGICAL.has(p.slug));
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);

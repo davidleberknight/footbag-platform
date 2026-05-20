@@ -4,8 +4,12 @@
   chain (when meaningful — not tautological) plus the ADD breakdown.
 
   Render rules:
-   - Chain row hidden when firstClassChainLabel is null (tautological-
-     suppression or absent chain handled at the service layer)
+   - Chain row renders when firstClassChainLabel is set (JOB / OPERATIONAL)
+   - When firstClassChainLabel is null AND firstClassChainIncomplete is
+     true, render a muted honest incomplete-state line ("Job notation
+     pending") so the absence is visible rather than silent. Keeps
+     first-class cards visually balanced when upstream op-notation is
+     genuinely missing.
    - ADD row hidden when firstClassAddBreakdown is null
    - Smaller typography than the primary card body
    - No provenance / curator-internal language
@@ -17,7 +21,12 @@
     <span class="dict-card-first-class-label">{{firstClassChainLabel}}:</span>
     <code class="dict-card-first-class-value">{{firstClassChainValue}}</code>
   </p>
-  {{/if}}
+  {{else}}{{#if firstClassChainIncomplete}}
+  <p class="dict-card-first-class-line dict-card-first-class-line--incomplete">
+    <span class="dict-card-first-class-label">JOB:</span>
+    <span class="dict-card-first-class-incomplete">notation pending</span>
+  </p>
+  {{/if}}{{/if}}
   {{#if firstClassAddBreakdown}}
   <p class="dict-card-first-class-line">
     <span class="dict-card-first-class-label">ADD:</span>

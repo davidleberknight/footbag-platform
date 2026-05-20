@@ -1818,6 +1818,13 @@ export interface DictionaryTrickCard {
   firstClassChainLabel:        'JOB' | 'OPERATIONAL' | null;  // null suppresses the chain row
   firstClassChainValue:        string | null;
   firstClassAddBreakdown:      string | null;
+  // True when the trick is first-class but its operational/Job chain is
+  // genuinely absent upstream (no curator op-notation in DB, no atomic
+  // flag-decomposition chain, no derivable form). Triggers an honest
+  // "Job notation pending" line in the first-class summary partial,
+  // rather than silently hiding the row and leaving the card looking
+  // truncated next to osis-parity entries.
+  firstClassChainIncomplete:   boolean;
 }
 
 export interface FreestyleTricksCoverageSummary {
@@ -3130,8 +3137,25 @@ function shapeDictionaryTrickCard(
   // Merge equivalence readings from the curator chain registry (compounds)
   // and the alias-governance allow-list (atoms). Order: compound chains
   // first (when present), then atom-level allow-listed aliases.
+  //
+  // Tautological-reading filter (first-class only): drop any reading
+  // whose case-insensitive trimmed form equals the canonical name. For
+  // non-first-class compounds, the Slice A2 contract preserves tautological
+  // chains so the role-colored tokens + glossary links render even when
+  // the text repeats the title. For first-class compounds, the first-class
+  // summary row carries richer structural information (JOB + ADD breakdown),
+  // so the tautological ≡ row is redundant and visually empty —
+  // paradox-mirage ≡ "paradox mirage" next to a title "paradox mirage"
+  // adds no information. Curator-locked non-tautological readings (folk-
+  // name resolutions like ripwalk → "stepping butterfly", torque →
+  // "miraging osis") survive this filter unchanged for all slugs.
+  const isFirstClassForFilter = PILOT_FIRST_CLASS_SLUGS.has(indexRow.slug);
+  const canonicalLowerForFilter = indexRow.canonicalName.toLowerCase().trim();
   const chain                = getSymbolicEquivalenceChain(indexRow.slug);
-  const chainReadings        = chain ? [...chain.readings] : [];
+  const chainReadingsRaw     = chain ? [...chain.readings] : [];
+  const chainReadings        = isFirstClassForFilter
+    ? chainReadingsRaw.filter(r => r.toLowerCase().trim() !== canonicalLowerForFilter)
+    : chainReadingsRaw;
   const browseSafeAliases    = filterAliasesForBrowse(indexRow.slug, indexRow.aliases);
   const symbolicEquivalences = [...chainReadings, ...browseSafeAliases];
 
@@ -3201,6 +3225,13 @@ function shapeDictionaryTrickCard(
     }
   }
 
+  // First-class incomplete-state flag: when the trick is first-class but
+  // the operational/Job chain has no upstream source (no curator
+  // op-notation in DB, no atomic flag-decomposition chain). Used by the
+  // partial to render an honest "Job notation pending" line instead of
+  // silently hiding the chain row.
+  const firstClassChainIncomplete = isFirstClass && firstClassChainLabel === null;
+
   return {
     kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
@@ -3227,6 +3258,7 @@ function shapeDictionaryTrickCard(
     firstClassChainLabel,
     firstClassChainValue,
     firstClassAddBreakdown,
+    firstClassChainIncomplete,
   };
 }
 

@@ -3571,6 +3571,21 @@ section.home-media { padding-top: 0; }
   color: #4a4232;
   word-break: break-word;
 }
+/* Honest incomplete-state line: rendered when a first-class trick has
+ * no upstream operational/Job notation. Visually muted so the row
+ * reads as "row is here but data is genuinely absent" rather than
+ * competing with the curator-authored Job/ADD content. */
+.dict-card-first-class-line--incomplete .dict-card-first-class-label {
+  color: #b0a878;
+}
+.dict-card-first-class-incomplete {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: #9a9078;
+  letter-spacing: 0.01em;
+}
 
 /* Trick-detail vertical compression. Tighten section spacing across
    the page so it reads as a compact reference rather than a stack of
