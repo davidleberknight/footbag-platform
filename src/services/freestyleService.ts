@@ -959,7 +959,39 @@ export interface FreestyleTrickContent {
   // Tier-4 patterns on browse cards + landing; trick-detail pages are the
   // only public surface (alongside /freestyle/add-analysis) where this
   // surfaces. Provenance is curator-internal language and is NOT exposed.
+  // Suppressed (null) when isFirstClass is true; the comparativeNotation
+  // row supersedes this surface for first-class tricks.
   addAnalysis: TrickAddAnalysisDisclosure | null;
+  // First-class trick promotion flag (pilot). True when the slug passes
+  // the First-Class ADD Convergence Rule AND appears in the pilot
+  // allow-list. Drives the comparativeNotation surface; outside the
+  // pilot, the field stays false even for governance-clean slugs.
+  isFirstClass: boolean;
+  // Comparative-notation row (Zone B, smaller font, label-led inline
+  // metadata: JOB / ADD / VIDEO). Non-null only when isFirstClass is
+  // true. Renders directly below the hero, before the rest of the page.
+  comparativeNotation: ComparativeNotationRow | null;
+}
+
+/** Zone B comparative-notation row on first-class trick pages. Three
+ *  labeled inline elements; each carries its value plus a source tag
+ *  indicating curator-published vs derived vs atomic-trivial. The
+ *  source tag drives the small italicized caption next to each value. */
+export interface ComparativeNotationRow {
+  jobLineage:         string;
+  /** 'curator' = curator-published operational notation; 'derived' =
+   *  mechanical derivation from base + modifier stack; 'atomic' = atomic-
+   *  trivial chain for singleton atoms; 'absent' = no lineage notation
+   *  available (last-resort empty state). */
+  jobLineageSource:   'curator' | 'derived' | 'atomic' | 'absent';
+  addBreakdown:       string;
+  /** 'curator' = curator-published from RESOLVED_FORMULAS_SPRINT_1;
+   *  'atomic' = atomic-trivial identity `<base>(N) = N ADD`. */
+  addBreakdownSource: 'curator' | 'atomic';
+  /** 'tutorial' / 'demo' / 'available' / 'none-yet'. Derived from
+   *  curator-tagged reference media count. */
+  videoState:         'tutorial' | 'demo' | 'available' | 'none-yet';
+  videoLabel:         string;
 }
 
 /** Curator-published ADD derivation surfaced under a collapsed disclosure
@@ -2628,6 +2660,245 @@ function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null 
   };
 }
 
+// ── First-class trick pilot ──────────────────────────────────────────────
+//
+// Pilot allow-list for the first-class trick page rollout. A trick is
+// promoted to first-class status only when it BOTH (a) passes the
+// convergence rule check (derivation == computed == official, no doctrine
+// blocker) AND (b) appears in this allow-list. The two-gate design lets
+// the rollout proceed on a hand-curated cohort until visual review of the
+// pilot pages completes; the allow-list dissolves in a later wave.
+const PILOT_FIRST_CLASS_SLUGS: ReadonlySet<string> = new Set([
+  'osis',
+  'paradox-mirage',
+  'symposium-mirage',
+  'atomic-butterfly',
+  'ripwalk',
+]);
+
+// Workbook governance status snapshot — slugs the workbook flags as
+// doctrine-blocked (wave2_blocked, add_disagreement, derived_add_mismatch,
+// curator_hold). The full registry lives in
+// legacy_data/scripts/build_trick_reconciliation_workbook.py; this TS
+// snapshot is consumed by the convergence checker for the H7 disqualifying
+// gate. Update when workbook status changes for any of these slugs.
+const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
+  // derived_add_mismatch
+  'nemesis', 'sumo', 'barraging-osis', 'witchdoctor',
+  // wave2_blocked
+  'bullwhip', 'double-down', 'terrage', 'datw',
+  // add_disagreement (open; not doctrine-locked)
+  'omelette', 'fury', 'surging', 'sailing', 'shooting',
+  // curator_hold
+  'jani-walker', 'guay', 'reaper', 'refraction', 'blistering', 'nuclear',
+]);
+
+// Rotational base tricks for ADD math. Mirrors ROTATIONAL_BASES used in
+// hero-formula building. Modifiers on these bases use add_bonus_rotational
+// instead of add_bonus.
+const FIRST_CLASS_ROTATIONAL_BASES: ReadonlySet<string> = new Set([
+  'whirl', 'mirage', 'torque', 'blender', 'swirl', 'drifter',
+]);
+
+// Curator-published flag-component decompositions for atomic singletons.
+// Each atom's ADD value derives from the count of ATAM bracket-flags in
+// its operational notation (Add-Categories doctrine: every [BOD] / [DEX]
+// / [XBD] / [DEL] / [UNS] flag = 1 ADD). Pilot scope covers `osis`
+// only; future atoms enter the registry as curator-approves their
+// flag decompositions individually.
+interface AtomicFlagDecomposition {
+  decomposition: string;  // e.g. 'spin(1) + xbod(1) + stall(1) = 3 ADD'
+  totalAdd:      number;
+}
+const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> = new Map([
+  ['osis', { decomposition: 'spin(1) + xbod(1) + stall(1) = 3 ADD', totalAdd: 3 }],
+]);
+
+export type FirstClassStatus =
+  | 'first-class'
+  | 'convergence-ready'
+  | 'governance-blocked'
+  | 'coverage-pending';
+
+export interface FirstClassConvergenceResult {
+  status:     FirstClassStatus;
+  diagnostic: string;
+}
+
+/**
+ * Mechanical ADD-math derivation for the first-class convergence check.
+ * Pure function; deterministic; reads only the provided rows. Returns
+ * null when derivation is impossible (missing base, missing modifier-
+ * table row, non-numeric ADD).
+ *
+ * The pilot scope handles atomic + simple +1-stack patterns. Composite-
+ * modifier expansion (blurry = stepping + paradox; see workbook's
+ * MODIFIER_COMPOSITIONS) is NOT applied at the TS layer — slugs whose
+ * official ADD depends on composite-modifier expansion remain
+ * non-first-class until their resolved-formula entry is published.
+ */
+function deriveComputedAdd(
+  baseTrick: string | null,
+  baseAdd: number | null,
+  modifierSlugs: readonly string[],
+  modifierTable: Map<string, { add_bonus: number; add_bonus_rotational: number }>,
+): number | null {
+  if (baseAdd === null) return null;
+  const isRotational = baseTrick !== null && FIRST_CLASS_ROTATIONAL_BASES.has(baseTrick);
+  let total = baseAdd;
+  for (const slug of modifierSlugs) {
+    const row = modifierTable.get(slug);
+    if (!row) return null;
+    total += isRotational ? row.add_bonus_rotational : row.add_bonus;
+  }
+  return total;
+}
+
+/**
+ * Apply the First-Class ADD Convergence Rule (H1-H8) to a candidate
+ * slug. Returns the convergence status + a one-line diagnostic. The
+ * returned `status` is consumed by the service to gate the
+ * comparativeNotation surface and the isFirstClass field.
+ *
+ * Rule summary: resolved = notation-complete + accounting-converged +
+ * doctrine-clean. The three-way arithmetic equality (executable
+ * derivation == computed == official ADD) is the strict gate.
+ */
+export function assertFirstClassConvergence(
+  slug: string,
+  dictRow: { canonical_name?: string; adds?: string | number | null;
+             notation?: string | null; base_trick?: string | null;
+             operational_notation?: string | null } | null,
+  modifierSlugs: readonly string[],
+  modifierTable: Map<string, { add_bonus: number; add_bonus_rotational: number }>,
+  baseAdd: number | null,
+): FirstClassConvergenceResult {
+  // H1: canonical row exists
+  if (!dictRow) {
+    return { status: 'governance-blocked', diagnostic: 'no canonical row' };
+  }
+  // H7: doctrine-clean
+  if (DOCTRINE_BLOCKED_SLUGS.has(slug)) {
+    return { status: 'governance-blocked', diagnostic: 'workbook doctrine blocker' };
+  }
+  // H2: compact notation populated
+  if (!dictRow.notation || !dictRow.notation.trim()) {
+    return { status: 'coverage-pending', diagnostic: 'compact notation absent' };
+  }
+  // H3: official ADD populated
+  const officialAddStr = dictRow.adds;
+  const officialAdd =
+    typeof officialAddStr === 'number' ? officialAddStr :
+    typeof officialAddStr === 'string' && officialAddStr.trim() !== '' ? Number(officialAddStr) :
+    null;
+  if (officialAdd === null || Number.isNaN(officialAdd)) {
+    return { status: 'coverage-pending', diagnostic: 'official ADD absent' };
+  }
+  // H4: executable derivation exists — either published compound formula
+  // OR atomic flag-component decomposition (atoms must be in
+  // ATOMIC_FLAG_DECOMPOSITIONS; no trivial-identity fallback).
+  const publishedFormula = RESOLVED_FORMULAS_BY_SLUG.get(slug);
+  const isAtomic = dictRow.base_trick === slug && modifierSlugs.length === 0;
+  const atomicDecomp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
+  if (!publishedFormula && !atomicDecomp) {
+    return {
+      status: 'convergence-ready',
+      diagnostic: isAtomic
+        ? 'no atomic flag-decomposition published; awaiting curator entry'
+        : 'no published derivation; awaiting Sprint promotion',
+    };
+  }
+  // H5 + H6: three-way convergence (executable derivation == computed == official)
+  const computed = isAtomic
+    ? officialAdd
+    : deriveComputedAdd(dictRow.base_trick ?? null, baseAdd, modifierSlugs, modifierTable);
+  if (computed === null) {
+    return { status: 'coverage-pending', diagnostic: 'computed ADD not derivable' };
+  }
+  if (computed !== officialAdd) {
+    return { status: 'governance-blocked', diagnostic: `computed ${computed} != official ${officialAdd}` };
+  }
+  if (publishedFormula && publishedFormula.totalAdd !== officialAdd) {
+    return { status: 'governance-blocked', diagnostic: `derivation total ${publishedFormula.totalAdd} != official ${officialAdd}` };
+  }
+  if (atomicDecomp && atomicDecomp.totalAdd !== officialAdd) {
+    return { status: 'governance-blocked', diagnostic: `atomic decomp total ${atomicDecomp.totalAdd} != official ${officialAdd}` };
+  }
+  return { status: 'first-class', diagnostic: 'convergence-rule passed' };
+}
+
+/** Shape the Zone B comparative-notation row for a first-class trick.
+ *  Returns null when the slug is not first-class. The JOB cell prefers
+ *  curator-authored operational notation; falls back to a derived chain
+ *  for atomic singletons. The ADD cell prefers RESOLVED_FORMULAS_SPRINT_1
+ *  derivation; falls back to atomic-trivial `<base>(N) = N ADD`. The
+ *  VIDEO cell summarises curated reference-media presence.
+ *
+ *  Provenance language from RESOLVED_FORMULAS_SPRINT_1.provenance is
+ *  intentionally NOT included in the row; curator-internal text never
+ *  reaches the rendered page (see [[feedback_public_facing_prose]]). */
+function shapeComparativeNotation(
+  slug: string,
+  dictRow: { canonical_name?: string; adds?: string | number | null;
+             base_trick?: string | null; operational_notation?: string | null } | null,
+  modifierSlugs: readonly string[],
+  tutorialMediaCount: number,
+  demoMediaCount: number,
+): ComparativeNotationRow | null {
+  if (!dictRow) return null;
+  const isAtomic = dictRow.base_trick === slug && modifierSlugs.length === 0;
+
+  // JOB cell — prefer curator-authored operational; fall back to atomic-
+  // trivial chain (uses the compact form for atoms when no operational
+  // is published).
+  let jobLineage: string;
+  let jobLineageSource: ComparativeNotationRow['jobLineageSource'];
+  if (dictRow.operational_notation && dictRow.operational_notation.trim()) {
+    jobLineage = dictRow.operational_notation;
+    jobLineageSource = 'curator';
+  } else if (isAtomic) {
+    jobLineage = (dictRow.canonical_name ?? slug).toUpperCase();
+    jobLineageSource = 'atomic';
+  } else {
+    jobLineage = '';
+    jobLineageSource = 'absent';
+  }
+
+  // ADD cell — prefer published compound derivation; fall back to atomic
+  // flag-component decomposition from the curator-published registry.
+  // No trivial-identity fallback: atoms without a flag-decomposition
+  // entry fail the convergence check upstream.
+  const published = RESOLVED_FORMULAS_BY_SLUG.get(slug);
+  const atomicDecomp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
+  let addBreakdown: string;
+  let addBreakdownSource: ComparativeNotationRow['addBreakdownSource'];
+  if (published) {
+    addBreakdown = published.derivation;
+    addBreakdownSource = 'curator';
+  } else if (atomicDecomp) {
+    addBreakdown = atomicDecomp.decomposition;
+    addBreakdownSource = 'atomic';
+  } else {
+    return null;  // shouldn't happen — convergence check should have rejected
+  }
+
+  // VIDEO cell.
+  let videoState: ComparativeNotationRow['videoState'];
+  let videoLabel: string;
+  if (tutorialMediaCount > 0) {
+    videoState = 'tutorial';
+    videoLabel = tutorialMediaCount > 1 ? `available (${tutorialMediaCount} tutorials)` : 'available (tutorial)';
+  } else if (demoMediaCount > 0) {
+    videoState = 'demo';
+    videoLabel = demoMediaCount > 1 ? `available (${demoMediaCount} demos)` : 'available (demo)';
+  } else {
+    videoState = 'none-yet';
+    videoLabel = 'none yet';
+  }
+
+  return { jobLineage, jobLineageSource, addBreakdown, addBreakdownSource, videoState, videoLabel };
+}
+
 /**
  * Extract modifier word(s) from a compound canonical name by removing base trick words.
  * Returns an array of modifier slugs (one per applied modifier word).
@@ -3802,7 +4073,50 @@ export const freestyleService = {
                 modifierLinkMap,
               )
             : [],
-          addAnalysis: shapeTrickAddAnalysis(slug),
+          ...(() => {
+            // First-class trick pilot. Two gates: convergence-rule pass
+            // AND PILOT_FIRST_CLASS_SLUGS allow-list. addAnalysis (Phase B
+            // collapsed disclosure) is suppressed for first-class tricks
+            // so the comparativeNotation row doesn't double-render the
+            // ADD breakdown.
+            const modifierBonusTable = new Map<string, { add_bonus: number; add_bonus_rotational: number }>();
+            for (const row of allModifierRows) {
+              modifierBonusTable.set(row.slug, {
+                add_bonus:            row.add_bonus,
+                add_bonus_rotational: row.add_bonus_rotational,
+              });
+            }
+            const modifierSlugs = modifierLinks.map(l => l.modifier_slug);
+            const baseRow = dictRow?.base_trick
+              ? allDictRows.find(r => r.slug === dictRow.base_trick)
+              : null;
+            const baseAddNum = baseRow?.adds != null && baseRow.adds !== ''
+              ? Number(baseRow.adds)
+              : null;
+            const convergence = assertFirstClassConvergence(
+              slug,
+              dictRow ?? null,
+              modifierSlugs,
+              modifierBonusTable,
+              baseAddNum,
+            );
+            const isFirstClass =
+              convergence.status === 'first-class'
+              && PILOT_FIRST_CLASS_SLUGS.has(slug);
+            const comparativeNotation = isFirstClass
+              ? shapeComparativeNotation(
+                  slug,
+                  dictRow ?? null,
+                  modifierSlugs,
+                  tutorialMedia.length,
+                  demoMedia.length,
+                )
+              : null;
+            const addAnalysis = isFirstClass
+              ? null
+              : shapeTrickAddAnalysis(slug);
+            return { isFirstClass, comparativeNotation, addAnalysis };
+          })(),
         };
       })(),
     };

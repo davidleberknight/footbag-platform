@@ -1,0 +1,41 @@
+{{!--
+  Zone B — secondary comparative-metadata row for first-class trick
+  pages. Renders three labeled inline elements (JOB / ADD / VIDEO) in
+  smaller font than the hero. Gated on content.isFirstClass +
+  content.comparativeNotation; silent otherwise.
+
+  Layer contract: this row carries Tier-2 (operational/Job lineage) +
+  Tier-4 (ADD breakdown) patterns. Both are permitted on trick-detail
+  per the 4-tier rendering hierarchy contract. Provenance never
+  renders here (curator-internal language).
+--}}
+{{#if content.isFirstClass}}
+{{#if content.comparativeNotation}}
+<section class="trick-comparative-row" aria-label="Comparative notation">
+  <p class="trick-comparative-row-line">
+    <span class="trick-comparative-row-label">JOB:</span>
+    {{#if content.comparativeNotation.jobLineage}}
+      <span class="trick-comparative-row-value trick-comparative-row-value--{{content.comparativeNotation.jobLineageSource}}">{{content.comparativeNotation.jobLineage}}</span>
+      {{#if (eq content.comparativeNotation.jobLineageSource 'derived')}}
+        <span class="trick-comparative-row-source-tag">[derived]</span>
+      {{else if (eq content.comparativeNotation.jobLineageSource 'atomic')}}
+        <span class="trick-comparative-row-source-tag">[atomic]</span>
+      {{/if}}
+    {{else}}
+      <em class="trick-comparative-row-value-empty">Lineage notation not yet adapted</em>
+    {{/if}}
+  </p>
+  <p class="trick-comparative-row-line">
+    <span class="trick-comparative-row-label">ADD:</span>
+    <span class="trick-comparative-row-value trick-comparative-row-value--{{content.comparativeNotation.addBreakdownSource}}"><code>{{content.comparativeNotation.addBreakdown}}</code></span>
+    {{#if (eq content.comparativeNotation.addBreakdownSource 'atomic')}}
+      <span class="trick-comparative-row-source-tag">[atomic flag-decomposition]</span>
+    {{/if}}
+  </p>
+  <p class="trick-comparative-row-line">
+    <span class="trick-comparative-row-label">VIDEO:</span>
+    <span class="trick-comparative-row-value trick-comparative-row-value--{{content.comparativeNotation.videoState}}">{{content.comparativeNotation.videoLabel}}</span>
+  </p>
+</section>
+{{/if}}
+{{/if}}
