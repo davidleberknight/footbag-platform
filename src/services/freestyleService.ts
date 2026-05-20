@@ -1794,6 +1794,15 @@ export interface DictionaryTrickCard {
   // the compounds they decompose to. Empty string when no atom reading
   // applies. The compact partial renders this only as a fallback.
   coreAtomLabel:              string;
+  // First-class display fields (FC polish slice). Populated only for
+  // slugs in PILOT_FIRST_CLASS_SLUGS. When isFirstClass=true the partial
+  // renders a compact secondary row beneath the primary card content
+  // showing the OPERATIONAL/JOB chain (when meaningful) + the ADD
+  // breakdown. Empty fields suppress their corresponding row.
+  isFirstClass:                boolean;
+  firstClassChainLabel:        'JOB' | 'OPERATIONAL' | null;  // null suppresses the chain row
+  firstClassChainValue:        string | null;
+  firstClassAddBreakdown:      string | null;
 }
 
 export interface FreestyleTricksCoverageSummary {
@@ -2756,11 +2765,20 @@ const FIRST_CLASS_ROTATIONAL_BASES: ReadonlySet<string> = new Set([
 // only; future atoms enter the registry as curator-approves their
 // flag decompositions individually.
 interface AtomicFlagDecomposition {
-  decomposition: string;  // e.g. 'spin(1) + xbod(1) + stall(1) = 3 ADD'
-  totalAdd:      number;
+  decomposition:    string;  // e.g. 'spin(1) + xbod(1) + stall(1) = 3 ADD'
+  totalAdd:         number;
+  /** Optional curator-authored operational chain in a movement-language
+   *  form (lower-case, parenthesized timing, square-bracketed surface
+   *  tokens). Distinct from operational_notation column which uses
+   *  shouty ATAM form. Surfaced as the strip's Operational row. */
+  operationalChain?: string;
 }
 const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> = new Map([
-  ['osis', { decomposition: 'spin(1) + xbod(1) + stall(1) = 3 ADD', totalAdd: 3 }],
+  ['osis', {
+    decomposition:    'spin(1) + xbod(1) + stall(1) = 3 ADD',
+    totalAdd:         3,
+    operationalChain: '[set] > (downtime) spin > ss clipper',
+  }],
 ]);
 
 export type FirstClassStatus =
@@ -2906,18 +2924,32 @@ function shapeComparativeNotation(
   const compactNotation = (dictRow.notation ?? '').trim().toLowerCase()
     || (dictRow.canonical_name ?? slug).trim().toLowerCase();
 
-  // JOB row — prefer curator-authored operational; fall back to atomic
-  // chain (uses the compact form for atoms when no operational is
-  // published).
+  // Operational / Job row — prefer curator-authored operational notation
+  // (DB column) → fall back to atomic flag-decomposition's curator-authored
+  // movement-language chain → otherwise absent. The atomic 'OSIS' uppercase
+  // fallback is gone: tautological-suppression rules out re-rendering the
+  // compact form as if it were operational lineage.
+  const atomicDecompForOp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
   let jobLineage: string;
   let jobLineageSource: ComparativeNotationRow['jobLineageSource'];
   if (dictRow.operational_notation && dictRow.operational_notation.trim()) {
     jobLineage = dictRow.operational_notation;
     jobLineageSource = 'curator';
-  } else if (isAtomic) {
-    jobLineage = (dictRow.canonical_name ?? slug).toUpperCase();
+  } else if (atomicDecompForOp?.operationalChain) {
+    jobLineage = atomicDecompForOp.operationalChain;
     jobLineageSource = 'atomic';
   } else {
+    jobLineage = '';
+    jobLineageSource = 'absent';
+  }
+
+  // Tautological-suppression: if jobLineage (case-insensitive) equals
+  // the compact form or canonical name, hide it. 'JOB: OSIS' is not
+  // information; the compact row already carries that.
+  const compactCompare = compactNotation.toLowerCase().trim();
+  const canonicalCompare = (dictRow.canonical_name ?? slug).toLowerCase().trim();
+  const lineageCompare = jobLineage.toLowerCase().trim();
+  if (lineageCompare === compactCompare || lineageCompare === canonicalCompare) {
     jobLineage = '';
     jobLineageSource = 'absent';
   }
@@ -3110,6 +3142,44 @@ function shapeDictionaryTrickCard(
       ? coreAtomSpec.equivalences[0]
       : '';
 
+  // First-class display fields. Populated only for slugs in the pilot
+  // allow-list. The browse-card secondary row shows the operational/Job
+  // chain (when meaningful — not equal to the trick name) and the
+  // published ADD breakdown. Curator-internal language never surfaces.
+  const isFirstClass = PILOT_FIRST_CLASS_SLUGS.has(indexRow.slug);
+  let firstClassChainLabel: 'JOB' | 'OPERATIONAL' | null = null;
+  let firstClassChainValue: string | null = null;
+  let firstClassAddBreakdown: string | null = null;
+  if (isFirstClass) {
+    const atomic = ATOMIC_FLAG_DECOMPOSITIONS.get(indexRow.slug);
+    const published = RESOLVED_FORMULAS_BY_SLUG.get(indexRow.slug);
+    const compactLower = (row.notation ?? indexRow.canonicalName).toLowerCase().trim();
+    const canonicalLower = indexRow.canonicalName.toLowerCase().trim();
+    // Chain: prefer DB operational_notation → fall back to atomic chain.
+    let chainValue: string | null = null;
+    let chainSource: 'curator' | 'atomic' | null = null;
+    if (opNotationRaw && opNotationRaw.trim()) {
+      chainValue = opNotationRaw;
+      chainSource = 'curator';
+    } else if (atomic?.operationalChain) {
+      chainValue = atomic.operationalChain;
+      chainSource = 'atomic';
+    }
+    if (chainValue) {
+      const chainLower = chainValue.toLowerCase().trim();
+      const tautological = chainLower === compactLower || chainLower === canonicalLower;
+      if (!tautological) {
+        firstClassChainLabel = chainSource === 'atomic' ? 'OPERATIONAL' : 'JOB';
+        firstClassChainValue = chainValue;
+      }
+    }
+    if (published) {
+      firstClassAddBreakdown = published.derivation;
+    } else if (atomic) {
+      firstClassAddBreakdown = atomic.decomposition;
+    }
+  }
+
   return {
     kind:                       resolveTrickKind(indexRow.slug),
     slug:                       indexRow.slug,
@@ -3132,6 +3202,10 @@ function shapeDictionaryTrickCard(
     trickFamily:                indexRow.trickFamily,
     pendingDecomposition:       isUnresolvedCompound(indexRow.slug),
     coreAtomLabel,
+    isFirstClass,
+    firstClassChainLabel,
+    firstClassChainValue,
+    firstClassAddBreakdown,
   };
 }
 

@@ -3535,100 +3535,140 @@ section.home-media { padding-top: 0; }
   font-style: italic;
 }
 
-/* First-class trick metadata strip. Renders below the hero for slugs
-   promoted by the First-Class ADD Convergence Rule + pilot allow-list.
-   Wikipedia-infobox-style publication metadata block. Visually
-   distinguishes first-class pages from ordinary trick-detail pages
-   via a bordered card with distinct palette + tighter typography. */
-.trick-first-class-strip {
-  margin: 0 0 24px 0;
+/* Browse-card secondary row — surfaces the OPERATIONAL/JOB chain +
+   ADD breakdown beneath the primary card content for pilot first-class
+   slugs only. Compact + neutral; sits below the primary card body
+   without competing with non-first-class siblings on the same view. */
+.dict-card-first-class-row {
+  margin: 6px 0 0 0;
+  padding: 6px 0 0 0;
+  border-top: 1px dashed #ece6d4;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #4a4232;
+}
+.dict-card-first-class-line {
+  margin: 2px 0;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.dict-card-first-class-label {
+  flex: 0 0 auto;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #8a7a40;
+  text-transform: uppercase;
+}
+.dict-card-first-class-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
   padding: 0;
-  background: #fcfaf3;
-  border: 1px solid #c4a86a;
-  border-radius: 6px;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
+  color: #4a4232;
+  word-break: break-word;
+}
+
+/* Trick-detail vertical compression. Tighten section spacing across
+   the page so it reads as a compact reference rather than a stack of
+   large report sections. Targets all top-level content-section wrappers
+   inside .trick-shell. */
+.trick-shell .content-section {
+  margin-bottom: 18px;
+  padding-top: 12px;
+}
+.trick-shell .content-section:first-child {
+  padding-top: 0;
+}
+.trick-shell .section-heading {
+  margin-bottom: 8px;
+}
+
+/* Notation summary — first-class trick reference card. Neutral palette
+   (white background, thin gray border, smaller typography); visually
+   secondary to the hero, not a warning panel. Replaces the prior gold
+   metadata strip per the FC polish slice. */
+.trick-notation-summary {
+  margin: 0 0 18px 0;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 4px;
+  font-size: 0.85rem;
   line-height: 1.45;
   color: #3a3326;
 }
-.trick-first-class-strip-header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 10px 16px;
-  background: #f0e8d0;
-  border-bottom: 1px solid #c4a86a;
-  border-radius: 6px 6px 0 0;
-}
-.trick-first-class-strip-badge {
-  display: inline-block;
-  padding: 1px 8px;
-  background: #b8a169;
-  color: #fff;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border-radius: 2px;
-}
-.trick-first-class-strip-title {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 0.96rem;
+.trick-notation-summary-heading {
+  margin: 0 0 6px 0;
+  font-size: 0.74rem;
   font-weight: 600;
-  color: #3a2e6a;
+  letter-spacing: 0.06em;
+  color: #888;
+  text-transform: uppercase;
 }
-.trick-first-class-strip-table {
+.trick-notation-summary-fields {
   margin: 0;
-  padding: 12px 16px;
   display: grid;
-  grid-template-columns: 130px 1fr;
-  column-gap: 18px;
-  row-gap: 7px;
+  grid-template-columns: 110px 1fr;
+  column-gap: 14px;
+  row-gap: 4px;
   align-items: baseline;
 }
-.trick-first-class-strip-label {
+.trick-notation-summary-fields dt {
   font-weight: 600;
   font-size: 0.72rem;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: #8a7a40;
   text-transform: uppercase;
   margin: 0;
   white-space: nowrap;
 }
-.trick-first-class-strip-value {
+.trick-notation-summary-fields dd {
   margin: 0;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   color: #3a3326;
   word-break: break-word;
 }
-.trick-first-class-strip-value code {
+.trick-notation-summary-fields dd code {
   background: #f4f1ea;
-  padding: 2px 6px;
+  padding: 1px 5px;
   border-radius: 3px;
   font-size: 0.93em;
 }
-.trick-first-class-strip-value--official-add {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: #6a4f1a;
+.trick-notation-summary-compact {
+  font-style: italic;
+  color: #4a4232;
 }
-.trick-first-class-strip-value--none-yet {
+.trick-notation-summary-chain {
+  font-size: 0.84em !important;
+}
+.trick-notation-summary-derivation {
+  font-size: 0.86em !important;
+}
+.trick-notation-summary-official {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #4a4232;
+}
+.trick-notation-summary-video {
+  color: #4a4232;
+}
+.trick-notation-summary-video--none-yet {
   color: #999;
   font-style: italic;
 }
-.trick-first-class-strip-value--derived em,
-.trick-first-class-strip-value--absent em {
-  color: #999;
-}
 @media (max-width: 480px) {
-  .trick-first-class-strip-table {
+  .trick-notation-summary-fields {
     grid-template-columns: 1fr;
     row-gap: 2px;
   }
-  .trick-first-class-strip-label {
-    margin-top: 6px;
+  .trick-notation-summary-fields dt {
+    margin-top: 4px;
   }
-  .trick-first-class-strip-label:first-of-type {
+  .trick-notation-summary-fields dt:first-of-type {
     margin-top: 0;
   }
 }

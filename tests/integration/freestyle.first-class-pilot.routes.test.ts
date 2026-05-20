@@ -140,107 +140,152 @@ const PILOT_SLUGS = [
   'osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
 ] as const;
 
-describe('First-class trick pilot — metadata strip', () => {
-  it.each(PILOT_SLUGS)('renders the first-class strip on /freestyle/tricks/%s', async (slug) => {
+describe('First-class trick pilot — Notation summary card', () => {
+  it.each(PILOT_SLUGS)('renders the Notation summary card on /freestyle/tricks/%s', async (slug) => {
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-first-class-strip"/);
-    expect(res.text).toMatch(/class="trick-first-class-strip-badge"[^>]*>\s*First-class\s*</);
+    expect(res.text).toMatch(/class="trick-notation-summary"/);
+    expect(res.text).toMatch(/class="trick-notation-summary-heading"[^>]*>\s*Notation summary\s*</);
   });
 
-  it.each(PILOT_SLUGS)('strip on %s carries all six labeled fields', async (slug) => {
+  it.each(PILOT_SLUGS)('Notation summary on %s does NOT carry a "First-class" badge', async (slug) => {
+    // FC polish slice: the loud public-facing badge is retired; the
+    // section heading "Notation summary" is the only first-class signal.
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
-    // Strip title row shows the slug-tag
-    expect(res.text).toMatch(new RegExp(`class="trick-first-class-strip-title"[^>]*>#${slug}<`));
-    // Five labeled metadata rows
-    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Compact notation\s*</);
-    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Job notation\s*</);
-    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*ADD derivation\s*</);
-    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Official ADD\s*</);
-    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Video\s*</);
+    expect(res.text).not.toMatch(/class="trick-first-class-strip-badge"/);
+    expect(res.text).not.toMatch(/>\s*First-class\s*</);
   });
 
-  it('osis ADD derivation shows curator-published flag-decomposition (NOT trivial identity)', async () => {
+  it.each(PILOT_SLUGS)('Notation summary on %s does NOT carry a redundant #slug title', async (slug) => {
+    // FC polish slice: the strip's #slug title row was redundant with
+    // the hero h1. Dropped entirely.
+    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    expect(res.text).not.toMatch(/class="trick-first-class-strip-title"/);
+    expect(res.text).not.toMatch(new RegExp(`class="trick-notation-summary-heading"[^>]*>\\s*#${slug}<`));
+  });
+
+  it.each(PILOT_SLUGS)('Notation summary on %s carries the canonical labeled rows', async (slug) => {
+    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    const startIdx = res.text.indexOf('class="trick-notation-summary"');
+    expect(startIdx).toBeGreaterThan(0);
+    const endIdx = res.text.indexOf('</section>', startIdx);
+    const region = res.text.slice(startIdx, endIdx);
+    expect(region).toMatch(/<dt>Compact<\/dt>/);
+    expect(region).toMatch(/<dt>ADD breakdown<\/dt>/);
+    expect(region).toMatch(/<dt>Official<\/dt>/);
+    expect(region).toMatch(/<dt>Video<\/dt>/);
+  });
+
+  it('osis Notation summary uses "Operational" label (atomic source) — NOT "JOB: OSIS" tautology', async () => {
+    // FC polish slice: when the chain comes from the atomic flag-
+    // decomposition, the label is "Operational" not "Job". The
+    // uppercased canonical-name form ("OSIS") never appears as a
+    // tautological chain value.
+    const res = await request(createApp()).get('/freestyle/tricks/osis');
+    const startIdx = res.text.indexOf('class="trick-notation-summary"');
+    const endIdx = res.text.indexOf('</section>', startIdx);
+    const region = res.text.slice(startIdx, endIdx);
+    expect(region).toMatch(/<dt>Operational<\/dt>/);
+    expect(region).toContain('[set] &gt; (downtime) spin &gt; ss clipper');
+    // Tautological-suppression invariants:
+    expect(region).not.toMatch(/<dt>Job<\/dt>[\s\S]{0,100}OSIS/);
+    expect(region).not.toMatch(/>\s*OSIS\s*</);
+  });
+
+  it('osis ADD breakdown shows curator-published flag-decomposition (NOT trivial identity)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/osis');
     expect(res.text).toContain('spin(1) + xbod(1) + stall(1)');
     expect(res.text).not.toMatch(/osis\(3\)\s*&#x3D;\s*3 ADD/);
   });
 
-  it('paradox-mirage ADD derivation shows the Sprint 1 +1-stack derivation', async () => {
+  it('paradox-mirage ADD breakdown shows the Sprint 1 +1-stack derivation', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(res.text).toContain('paradox(+1) + mirage(2)');
   });
 
-  it('ripwalk ADD derivation shows the Sprint 3 folk-name resolution', async () => {
+  it('ripwalk ADD breakdown shows the Sprint 3 folk-name resolution', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
     expect(res.text).toContain('stepping(+1) + butterfly(3)');
   });
 
-  it('Video row shows "No" when no curated media is tagged', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks/osis');
-    expect(res.text).toMatch(/class="trick-first-class-strip-value trick-first-class-strip-value--none-yet"[^>]*>No</);
-  });
-
-  it('Official ADD row renders the curator-locked numeric value', async () => {
+  it('Official row renders the curator-locked numeric value with " ADD" suffix', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/atomic-butterfly');
-    // atomic-butterfly: official ADD = 4
-    expect(res.text).toMatch(/class="trick-first-class-strip-value trick-first-class-strip-value--official-add"[^>]*>4</);
+    expect(res.text).toMatch(/class="trick-notation-summary-official"[^>]*>4 ADD</);
   });
 
-  it('Compact notation row renders the curator-authored compact form (lowercased)', async () => {
+  it('Compact row renders the curator-authored compact form (lowercased)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
-    // DB stores 'PARADOX MIRAGE'; strip displays lowercased
-    expect(res.text).toMatch(/class="trick-first-class-strip-value"[^>]*>paradox mirage</);
+    expect(res.text).toMatch(/class="trick-notation-summary-compact"[^>]*>paradox mirage</);
+  });
+});
+
+describe('First-class trick pilot — hero record-chip removal', () => {
+  it.each(PILOT_SLUGS)('hero on %s does NOT render the "N kicks · record" chip', async (slug) => {
+    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    expect(res.text).not.toMatch(/class="trick-hero-meta-chip-record"/);
+    expect(res.text).not.toMatch(/kicks\s*·\s*record/i);
+    expect(res.text).not.toMatch(/kicks\s*&middot;\s*record/i);
   });
 });
 
 describe('First-class trick pilot — non-first-class control slugs', () => {
-  it('mobius (H6 fails: gyro+torque computed != official) does NOT render the strip', async () => {
+  it('mobius (H6 fails: gyro+torque computed != official) does NOT render the Notation summary', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
+    expect(res.text).not.toMatch(/class="trick-notation-summary"/);
   });
 
-  it('blur (H4 fails: not in RESOLVED_FORMULAS_SPRINT_1) does NOT render the strip', async () => {
+  it('blur (H4 fails: not in RESOLVED_FORMULAS_SPRINT_1) does NOT render the Notation summary', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/blur');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
+    expect(res.text).not.toMatch(/class="trick-notation-summary"/);
   });
 
   it('first-class slugs suppress the Phase B trick-add-analysis disclosure', async () => {
-    // For first-class slugs the comparativeNotation strip supersedes the
-    // Phase B collapsed disclosure (avoiding double ADD-row render).
     const paradoxMirage = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(paradoxMirage.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
   });
 });
 
-describe('First-class trick pilot — 4-tier hierarchy contract preservation', () => {
-  it('first-class strip absent from /freestyle/tricks landing', async () => {
-    const res = await request(createApp()).get('/freestyle/tricks');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
-    // No flag-decomposition patterns
-    expect(res.text).not.toMatch(/spin\(1\) \+ xbod\(1\)/);
-    // No +1-stack patterns on landing
-    expect(res.text).not.toMatch(/paradox\(\+1\) \+ mirage\(2\)/);
-  });
-
-  it('Tier-4 ADD breakdown patterns absent from /freestyle/tricks?view=add browse', async () => {
+describe('First-class trick pilot — browse-card secondary row', () => {
+  it.each(PILOT_SLUGS)('renders the compact secondary row for %s in /freestyle/tricks?view=add', async (slug) => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
+    // The pilot slug's browse card carries a .dict-card-first-class-row
+    const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
+    expect(cardIdx, `card for ${slug} not found in ADD view`).toBeGreaterThan(0);
+    // Slice an upper bound for the card region
+    const cardEnd = res.text.indexOf('</article>', cardIdx);
+    const cardRegion = res.text.slice(cardIdx, cardEnd);
+    expect(cardRegion).toContain('class="dict-card-first-class-row"');
+  });
+
+  it('non-first-class slugs do NOT render the secondary row in /freestyle/tricks?view=add', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks?view=add');
+    for (const slug of ['mobius', 'blur']) {
+      const cardIdx = res.text.indexOf(`data-trick-slug="${slug}"`);
+      if (cardIdx < 0) continue; // not present in this test's seeded view
+      const cardEnd = res.text.indexOf('</article>', cardIdx);
+      const cardRegion = res.text.slice(cardIdx, cardEnd);
+      expect(cardRegion, `${slug} card should NOT carry first-class secondary row`).not.toContain('class="dict-card-first-class-row"');
+    }
+  });
+});
+
+describe('First-class trick pilot — 4-tier hierarchy contract preservation', () => {
+  it('Notation summary card absent from /freestyle/tricks landing', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/class="trick-notation-summary"/);
     expect(res.text).not.toMatch(/spin\(1\) \+ xbod\(1\)/);
+    expect(res.text).not.toMatch(/paradox\(\+1\) \+ mirage\(2\)/);
   });
 });
 
 describe('First-class trick pilot — curator-internal language suppression', () => {
-  it.each(PILOT_SLUGS)('strip on %s does NOT leak curator-internal provenance', async (slug) => {
+  it.each(PILOT_SLUGS)('Notation summary on %s does NOT leak curator-internal provenance', async (slug) => {
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
-    // Adversarial: provenance strings from RESOLVED_FORMULAS_SPRINT_1
-    // (e.g. "canonical inventory", "Red", "pt6", "Wave 2") must NEVER
-    // appear on the rendered page.
-    const startIdx = res.text.indexOf('class="trick-first-class-strip"');
+    const startIdx = res.text.indexOf('class="trick-notation-summary"');
     const endIdx   = res.text.indexOf('</section>', startIdx);
     expect(startIdx).toBeGreaterThan(0);
     const region = res.text.slice(startIdx, endIdx);

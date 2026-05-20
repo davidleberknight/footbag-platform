@@ -64,6 +64,9 @@
     {{#if placeholderNote}}
     <p class="dict-card-placeholder-note">{{placeholderNote}}</p>
     {{/if}}
+    {{#if isFirstClass}}
+    {{> dictionary-trick-card-first-class-row}}
+    {{/if}}
   </article>
 {{else}}
   {{! ── Browse density (default): vertical stack matching ADD-View field order
@@ -105,6 +108,9 @@
     {{/if}}
     {{#if placeholderNote}}
     <p class="dict-card-placeholder-note">{{placeholderNote}}</p>
+    {{/if}}
+    {{#if isFirstClass}}
+    {{> dictionary-trick-card-first-class-row}}
     {{/if}}
   </article>
 {{/if}}

@@ -28,9 +28,9 @@
           {{/if}}
         {{/if}}
       {{/if}}
-      {{#if content.recordCount}}
-      <span class="trick-hero-meta-chip trick-hero-meta-chip-record">{{content.topValue}} kicks &middot; record</span>
-      {{/if}}
+      {{! Record chip removed from hero per FC slice — records still
+          surface in the Passback Records table + pathways block lower
+          on the page. The hero focuses on identity + ADD, not stats. }}
     </p>
     {{#if content.heroDecomposition}}
     <p class="trick-hero-decomposition" aria-label="Structural decomposition: {{#each content.heroDecomposition}}{{text}}{{#unless @last}} {{/unless}}{{/each}}">

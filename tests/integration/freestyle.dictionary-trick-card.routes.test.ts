@@ -250,10 +250,12 @@ describe('dictionary-trick-card — required slots', () => {
     // 4-tier rendering hierarchy contract (Notation Normalization Wave
     // NCR-3, 2026-05-18): Tier-4 executable-accounting prose patterns
     // (xbody(N), dex(N), stall(N), spin(N), "= N ADD" results) render
-    // ONLY on /freestyle/add-analysis and (future) trick-detail
-    // disclosure surfaces. The dictionary card partial enforces tiers
-    // 1-3 only. This regex sweep guards future slices from leaking
-    // Tier-4 prose onto browse cards.
+    // ONLY on /freestyle/add-analysis, (future) trick-detail disclosure
+    // surfaces, AND — as of the FC pilot (2026-05-19) — the compact
+    // first-class secondary row on the 5 pilot browse cards. The
+    // dictionary card partial enforces tiers 1-3 for the general cohort;
+    // this regex sweep guards against leakage onto NON-first-class cards.
+    const FIRST_CLASS_PILOT_SLUGS = ['osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk'];
     const accountingPatterns: ReadonlyArray<RegExp> = [
       /\bxbody\(\d/,
       /\bdex\(\d/,
@@ -261,6 +263,16 @@ describe('dictionary-trick-card — required slots', () => {
       /\bspin\(\d/,
       /(?:=|&#x3D;)\s*\d+\s*ADD\b/,
     ];
+    const stripFirstClassCardRegions = (html: string): string => {
+      let stripped = html;
+      for (const slug of FIRST_CLASS_PILOT_SLUGS) {
+        // Remove each first-class card's full <article>…</article> region
+        // so the sweep below only inspects non-first-class card content.
+        const re = new RegExp(`<article[^>]*data-trick-slug="${slug}"[\\s\\S]*?</article>`, 'g');
+        stripped = stripped.replace(re, '');
+      }
+      return stripped;
+    };
     for (const url of [
       '/freestyle/tricks?view=add',
       '/freestyle/tricks?view=family',
@@ -271,10 +283,11 @@ describe('dictionary-trick-card — required slots', () => {
     ]) {
       const res = await request(createApp()).get(url);
       expect(res.status).toBe(200);
+      const sweep = stripFirstClassCardRegions(res.text);
       for (const pattern of accountingPatterns) {
         expect(
-          res.text,
-          `${url} must not render Tier-4 accounting pattern ${pattern}`,
+          sweep,
+          `${url} must not render Tier-4 accounting pattern ${pattern} outside first-class cards`,
         ).not.toMatch(pattern);
       }
     }

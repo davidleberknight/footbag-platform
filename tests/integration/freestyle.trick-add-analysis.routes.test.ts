@@ -147,12 +147,21 @@ describe('Trick-detail Tier-4 ADD-analysis disclosure — 4-tier hierarchy contr
     expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
   });
 
-  it('Tier-4 derivation pattern absent from /freestyle/tricks?view=add browse', async () => {
+  it('Tier-4 derivation pattern absent from /freestyle/tricks?view=add browse OUTSIDE first-class cards', async () => {
+    // Note: as of the FC pilot (2026-05-19), the compact first-class
+    // secondary row deliberately renders ADD-breakdown patterns on the
+    // 5 pilot browse cards (osis / paradox-mirage / symposium-mirage /
+    // atomic-butterfly / ripwalk). The contract still forbids Tier-4
+    // patterns on the general non-first-class cohort. We strip the
+    // first-class card regions before sweeping for leakage.
+    const FIRST_CLASS_PILOT_SLUGS = ['osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk'];
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    // Match both raw and HTML-encoded forms of the equals sign so the
-    // assertion is not vacuously true after Handlebars escaping.
-    expect(res.text).not.toMatch(/paradox\(\+1\) \+ mirage\(2\) (=|&#x3D;) 3 ADD/);
-    expect(res.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
+    let sweep = res.text;
+    for (const slug of FIRST_CLASS_PILOT_SLUGS) {
+      sweep = sweep.replace(new RegExp(`<article[^>]*data-trick-slug="${slug}"[\\s\\S]*?</article>`, 'g'), '');
+    }
+    expect(sweep).not.toMatch(/paradox\(\+1\) \+ mirage\(2\) (=|&#x3D;) 3 ADD/);
+    expect(sweep).not.toMatch(/class="trick-add-analysis-disclosure"/);
   });
 });

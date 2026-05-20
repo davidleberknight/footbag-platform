@@ -1,0 +1,27 @@
+{{!--
+  Compact secondary row rendered beneath the primary dictionary-trick-
+  card content when card.isFirstClass=true. Carries the OPERATIONAL/JOB
+  chain (when meaningful — not tautological) plus the ADD breakdown.
+
+  Render rules:
+   - Chain row hidden when firstClassChainLabel is null (tautological-
+     suppression or absent chain handled at the service layer)
+   - ADD row hidden when firstClassAddBreakdown is null
+   - Smaller typography than the primary card body
+   - No provenance / curator-internal language
+   - No "First-class" loud label
+--}}
+<div class="dict-card-first-class-row" aria-label="Notation summary">
+  {{#if firstClassChainLabel}}
+  <p class="dict-card-first-class-line">
+    <span class="dict-card-first-class-label">{{firstClassChainLabel}}:</span>
+    <code class="dict-card-first-class-value">{{firstClassChainValue}}</code>
+  </p>
+  {{/if}}
+  {{#if firstClassAddBreakdown}}
+  <p class="dict-card-first-class-line">
+    <span class="dict-card-first-class-label">ADD:</span>
+    <code class="dict-card-first-class-value">{{firstClassAddBreakdown}}</code>
+  </p>
+  {{/if}}
+</div>
