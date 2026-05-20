@@ -1,0 +1,6 @@
+name,add,notation,status,question_for_red
+Double-Over Down,4,TOE > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],distinct_from_DDD,"Is ""Double-Over Down"" (TOE > SAME OUT [DEX] x2 > OP CLIP, ADD=4) a distinct canonical trick from ""Down Double-Down"" (DDD; CLIP > OP OUT > SAME OUT > OP CLIP, ADD=4)? Both ADD=4, both 2-dex compounds, but entry/exit shape differs."
+Hop Over Swirl,4,INSIDE > (JUMP) [BOD] > OP SWIRL [DEX] > SAME CLIP [XBD] [DEL],derivable_or_canonical,"Hop-over compound (INSIDE > JUMP > OP SWIRL > SAME CLIP, ADD=4): canonicalize as new row, or treat as derivable structural form (hop-over modifier + swirl base)?"
+Scorpion's Tail,5,CLIP > (back) SPIN [bod] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],folk_named_distinct,"Folk-named trick = Spinning Down Double-Down (CLIP > back SPIN > OP OUT > SAME OUT > OP CLIP, ADD=5). Canonical add candidate?"
+Symposium Double Leg Over,4,SET > (no plant while) OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL],derivable_structural,Derivable per §10 (symposium + dlo). Confirm placeholder-only treatment.
+Symposium Eggbeater,4,SET > (no plant while) OP OUT [BOD] [DEX] > OP OUT [DEX] > SAME TOE [DEL],derivable_structural,Derivable per §10 (symposium + eggbeater). Confirm placeholder-only treatment.
