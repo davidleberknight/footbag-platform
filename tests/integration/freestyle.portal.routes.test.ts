@@ -306,14 +306,16 @@ describe('GET /freestyle — onboarding + portal landing', () => {
     expect(res.text).toContain('Freestyle footbag mascot icon');
   });
 
-  it('shows the "Language of Freestyle Footbag" intro heading and short compositional lede', async () => {
+  it('shows the portal-framing lede paragraph (no "Language of Freestyle" heading)', async () => {
+    // The prior section h2 "The Language of Freestyle Footbag" was
+    // dropped during the landing IA refactor — the page is framed as a
+    // portal, not a notation manifesto. The hero h1 carries the
+    // identity; a short framing paragraph below sets the page shape.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('The Language of Freestyle Footbag');
-    // Lede frames the grammar: basic components, core tricks, operators.
-    expect(res.text).toMatch(/vocabulary of body actions/);
-    expect(res.text).toMatch(/basic components/);
-    expect(res.text).toMatch(/core tricks/);
+    expect(res.text).not.toContain('The Language of Freestyle Footbag');
+    expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
+    expect(res.text).toMatch(/portal: featured videos first/);
   });
 
   it('shows three placeholder get-started tiles', async () => {
@@ -779,24 +781,26 @@ describe('LANDING-AND-TRICKS-QA-REALIGNMENT-1 — landing repair (F1+F2+F3+F7)',
 
 // ── Landing compression + under-hero jump nav invariants ─────────────────────
 describe('SURFACE-COMPRESSION-REALIGNMENT-1 — landing compression invariants', () => {
-  it('renders the under-hero jump nav with four anchors', async () => {
-    // Slice K (2026-05-16): the fifth anchor "#where-next" was retired
-    // along with the corresponding "Where to go next" section.
+  it('renders the under-hero jump nav with two anchors (Featured + Reference shelf)', async () => {
+    // Landing IA refactor (2026-05-19): the three legacy anchors
+    // (#basic-components, #operators, #core-tricks) collapsed into a
+    // single #reference-shelf anchor when those sections moved inside
+    // the grouped expandable reference shelf below Featured.
     const app = createApp();
     const res = await request(app).get('/freestyle');
     expect(res.text).toContain('class="page-jump-nav"');
     expect(res.text).toContain('aria-label="On this page"');
-    for (const anchor of [
-      '#basic-components', '#core-tricks', '#featured', '#operators',
-    ]) {
+    for (const anchor of ['#featured', '#reference-shelf']) {
       expect(res.text).toContain(`href="${anchor}"`);
     }
-    // The four matching section ids are present.
-    for (const id of [
-      'basic-components', 'core-tricks', 'featured', 'operators',
-    ]) {
+    // Matching section ids are present.
+    for (const id of ['featured', 'reference-shelf']) {
       expect(res.text).toMatch(new RegExp(`id="${id}"`));
     }
+    // The legacy three-anchor list must not reappear.
+    expect(res.text).not.toContain('href="#basic-components"');
+    expect(res.text).not.toContain('href="#operators"');
+    expect(res.text).not.toContain('href="#core-tricks"');
     // The retired "#where-next" anchor + id must not appear.
     expect(res.text).not.toContain('href="#where-next"');
     expect(res.text).not.toContain('id="where-next"');
@@ -1055,43 +1059,86 @@ describe('Notation Normalization Wave NCR-3 — landing Core Tricks tier contrac
 // Landing section order + jump nav
 // ---------------------------------------------------------------------------
 
-describe('Notation Normalization Wave NCR-4 — landing section order (Reading A)', () => {
-  it('renders the Language-of-Footbag teaching block between Featured and Core Tricks', async () => {
-    // Decision #1 (locked 2026-05-18, Reading A): orient first (portals),
-    // show examples (Featured), then teach the structural vocabulary
-    // (Basic Components + Operator Board), then Core Tricks render as
-    // the synthesis. The 4-section sequence is verified via indexOf
-    // ordering on stable section anchors / class names.
+// ---------------------------------------------------------------------------
+// Landing IA refactor (2026-05-19) — reference shelf
+// Replaces the prior Reading A section-order contract. Basic Components,
+// Operator Board, and Core Tricks no longer sit as standalone sections;
+// they live inside collapsed <details> panels under the grouped
+// Freestyle Reference Shelf below Featured.
+// ---------------------------------------------------------------------------
+
+describe('Landing IA refactor — Freestyle Reference Shelf', () => {
+  it('renders the reference shelf section AFTER Featured', async () => {
     const res = await request(createApp()).get('/freestyle');
-    const featuredIdx       = res.text.indexOf('class="content-section freestyle-featured"');
-    const basicComponentsIdx = res.text.indexOf('class="content-section freestyle-basic-components"');
-    // Operator board partial emits class="operator-board content-section"; the
-    // trailing space differentiates from .operator-board-footer-link etc.
-    const operatorBoardIdx  = res.text.indexOf('class="operator-board ');
-    const coreTricksIdx     = res.text.indexOf('class="content-section freestyle-core-tricks"');
+    const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
+    const shelfIdx    = res.text.indexOf('class="content-section freestyle-reference-shelf"');
     expect(featuredIdx).toBeGreaterThan(0);
-    expect(basicComponentsIdx).toBeGreaterThan(featuredIdx);
-    expect(operatorBoardIdx).toBeGreaterThan(basicComponentsIdx);
-    expect(coreTricksIdx).toBeGreaterThan(operatorBoardIdx);
+    expect(shelfIdx).toBeGreaterThan(featuredIdx);
   });
 
-  it('jump nav anchor order matches the post-Reading-A scroll order', async () => {
-    // The under-hero jump nav must list anchors in the visual scroll
-    // order so users tabbing through find the next section below them
-    // rather than jumping backwards.
+  it('renders the six expandable shelf panels with stable slugs', async () => {
     const res = await request(createApp()).get('/freestyle');
-    const navStart = res.text.indexOf('class="page-jump-nav"');
-    const navEnd   = res.text.indexOf('</nav>', navStart);
-    expect(navStart).toBeGreaterThan(0);
-    const nav = res.text.slice(navStart, navEnd);
-    const featuredAnchor       = nav.indexOf('href="#featured"');
-    const basicComponentsAnchor = nav.indexOf('href="#basic-components"');
-    const operatorsAnchor      = nav.indexOf('href="#operators"');
-    const coreTricksAnchor     = nav.indexOf('href="#core-tricks"');
-    expect(featuredAnchor).toBeGreaterThan(-1);
-    expect(basicComponentsAnchor).toBeGreaterThan(featuredAnchor);
-    expect(operatorsAnchor).toBeGreaterThan(basicComponentsAnchor);
-    expect(coreTricksAnchor).toBeGreaterThan(operatorsAnchor);
+    for (const slug of [
+      'basic-components', 'core-tricks', 'operators-modifiers',
+      'add-scoring', 'notation-basics', 'learning-path',
+    ]) {
+      expect(res.text).toMatch(new RegExp(`id="shelf-panel-${slug}"`));
+    }
+  });
+
+  it('all shelf panels are collapsed by default (no open attribute)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    // <details> elements should NOT carry the `open` attribute on initial
+    // render — visitors must opt in to deep reference material.
+    expect(res.text).not.toMatch(/class="freestyle-reference-shelf-panel"\s+open/);
+    expect(res.text).not.toMatch(/<details[^>]+class="freestyle-reference-shelf-panel"[^>]*\sopen/);
+  });
+
+  it('Basic Components grid renders inside the basic-components shelf panel (not as a standalone section)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    // The legacy standalone wrapper class is gone.
+    expect(res.text).not.toContain('class="content-section freestyle-basic-components"');
+    // The grid + 6 cards still render — now inside the shelf body.
+    expect(res.text).toContain('class="freestyle-basic-components-grid"');
+    // The panel body wrapper carries the slug-tagged class.
+    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--basic-components"/);
+  });
+
+  it('Operator Board renders inside the operators-modifiers shelf panel (not as a standalone section)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    // The operator-board partial still emits its own class.
+    expect(res.text).toContain('class="operator-board ');
+    // Operator-board sits inside the operators-modifiers panel body.
+    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--operators-modifiers"/);
+    // Link-out CTA to /freestyle/operators present in the panel.
+    const shelfStart = res.text.indexOf('id="shelf-panel-operators-modifiers"');
+    const shelfEnd   = res.text.indexOf('</details>', shelfStart);
+    expect(shelfStart).toBeGreaterThan(0);
+    const region = res.text.slice(shelfStart, shelfEnd);
+    expect(region).toContain('href="/freestyle/operators"');
+  });
+
+  it('Core Tricks grid renders inside the core-tricks shelf panel (not as a standalone section)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    expect(res.text).not.toContain('class="content-section freestyle-core-tricks"');
+    expect(res.text).toContain('class="freestyle-core-trick-grid"');
+    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--core-tricks"/);
+  });
+
+  it('preview-only panels carry their link-out CTA (ADD scoring / notation basics / learning path)', async () => {
+    const res = await request(createApp()).get('/freestyle');
+    // ADD scoring → /freestyle/add-analysis
+    const add = res.text.indexOf('id="shelf-panel-add-scoring"');
+    expect(add).toBeGreaterThan(0);
+    expect(res.text.slice(add, res.text.indexOf('</details>', add))).toContain('href="/freestyle/add-analysis"');
+    // Notation basics → /freestyle/glossary
+    const not = res.text.indexOf('id="shelf-panel-notation-basics"');
+    expect(not).toBeGreaterThan(0);
+    expect(res.text.slice(not, res.text.indexOf('</details>', not))).toContain('href="/freestyle/glossary"');
+    // Learning path → /freestyle/learn
+    const learn = res.text.indexOf('id="shelf-panel-learning-path"');
+    expect(learn).toBeGreaterThan(0);
+    expect(res.text.slice(learn, res.text.indexOf('</details>', learn))).toContain('href="/freestyle/learn"');
   });
 });
 

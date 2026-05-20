@@ -517,33 +517,18 @@ describe('Set-notation reference cross-links', () => {
     expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Set notation reference/);
   });
 
-  it('landing page renders the operator board below Basic Components with its footer intact', async () => {
-    // 2026-05-18 reorganization v3: Operator Board reads as "advanced
-    // compositional grammar" and sits AFTER core tricks + basic
-    // components. Pacing rule: vocabulary (named tricks + movement
-    // components) precedes modifier algebra. The footer + cross-links
-    // remain attached to the board wherever it lives on the page.
-    //
-    // Positional invariant:
-    // Post Slice N3 (NCR-4 / Reading A, 2026-05-18) the teaching block
-    // (Basic Components + Operator Board) sits BEFORE Core Tricks rather
-    // than after, so the v3 cognitive flow is now:
-    //   portal cards  →  featured  →  basic components  →  operator board
-    //                 →  footer  →  core tricks  →  get started
+  it('landing page renders the operator board inside the operators-modifiers shelf panel', async () => {
+    // Landing IA refactor (2026-05-19): the operator board moved from a
+    // standalone section into the operators-modifiers shelf panel. The
+    // panel carries the Operator-reference link-out CTA; the legacy
+    // .operator-board-footer-link element is retired.
     const app = createApp();
     const res = await request(app).get('/freestyle');
-    expect(res.text).toContain('class="operator-board-footer-link"');
-    expect(res.text).toMatch(/href="\/freestyle\/sets"[^>]*>Full set notation reference/);
-    const portalCardsIdx     = res.text.indexOf('Tutorials &amp; Learning');
-    const basicComponentsIdx = res.text.indexOf('id="basic-components"');
-    const boardIdx           = res.text.indexOf('class="operator-board ');
-    const footerIdx          = res.text.indexOf('class="operator-board-footer-link"');
-    const coreTricksIdx      = res.text.indexOf('id="core-tricks"');
-    expect(portalCardsIdx).toBeGreaterThan(0);
-    expect(basicComponentsIdx).toBeGreaterThan(portalCardsIdx);
-    expect(boardIdx).toBeGreaterThan(basicComponentsIdx);
-    expect(footerIdx).toBeGreaterThan(boardIdx);
-    expect(coreTricksIdx).toBeGreaterThan(footerIdx);
+    expect(res.text).toContain('class="operator-board ');
+    expect(res.text).toMatch(/class="freestyle-reference-shelf-body freestyle-reference-shelf-body--operators-modifiers"/);
+    // Both reference link-outs remain accessible on the landing.
+    expect(res.text).toContain('href="/freestyle/operators"');
+    expect(res.text).toContain('href="/freestyle/sets"');
   });
 
   it('operator-board notation-reference deep-links point at /freestyle/sets (not legacy /moves)', async () => {
@@ -2077,14 +2062,16 @@ describe('Freestyle IA realignment — Batch 1 contract', () => {
 // ---------------------------------------------------------------------------
 // Landing-page "Language of Freestyle Footbag" structure invariants
 
-describe('Freestyle landing — Batch 2: The Language of Freestyle Footbag', () => {
-  it('renders the new intro heading and lede in place of the old narrative', async () => {
+describe('Freestyle landing — portal IA (post 2026-05-19 refactor)', () => {
+  it('replaces the prior "Language of Freestyle" intro with portal-framing lede', async () => {
     const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('The Language of Freestyle Footbag');
-    expect(res.text).toMatch(/vocabulary of body actions/);
-    // Old narrative phrases are gone:
+    // Old framing dropped:
+    expect(res.text).not.toContain('The Language of Freestyle Footbag');
     expect(res.text).not.toContain('What is Freestyle Footbag?');
     expect(res.text).not.toContain('Additional Degree of Difficulty');
+    // New portal framing present:
+    expect(res.text).toMatch(/class="content-section freestyle-portal-lede"/);
+    expect(res.text).toMatch(/portal: featured videos first/);
   });
 
   it('retires the legacy single-featured-video block in favor of the Demonstrations strip', async () => {

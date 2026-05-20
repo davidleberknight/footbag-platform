@@ -10,23 +10,14 @@
 
 <div class="wrapper freestyle-landing">
 
-  {{! Freestyle Public Coherence Wave 2026-05-18 — landing reorganization v3.
-      Pacing: orientation → portal cards (navigation) → featured (examples)
-      → core tricks + basic components (foundational vocabulary) →
-      operator board (advanced compositional grammar) → get started.
-      Reason for v3: v2 front-loaded the operator board above portal
-      cards, which taught grammar before vocabulary. Users should
-      understand tricks + movement components before modifier algebra.
-      The operator board content + cross-links + footer all preserved;
-      only positioning changes. }}
-
-  {{! ── The Language of Freestyle Footbag ──────────────────────────────────── }}
-  {{! Orientation lede + autoplay demo loop; sets the identity for the page
-      before any navigation. }}
-  <section class="content-section freestyle-language-intro" id="language-intro">
-    <h2>{{content.intro.heading}}</h2>
+  {{! Portal lede + optional demo video. Replaces the prior "Language of
+      Freestyle Footbag" intro: no h2 banner, just framing prose that
+      explains the page is a portal (videos first, then learning paths,
+      then optional reference panels). }}
+  {{#if content.intro.paragraphs.length}}
+  <section class="content-section freestyle-portal-lede">
     {{#each content.intro.paragraphs}}
-    <p class="freestyle-language-lede">{{this}}</p>
+    <p class="freestyle-portal-lede-paragraph">{{this}}</p>
     {{/each}}
     {{#if content.demoVideo}}
     <figure class="demo-video">
@@ -38,23 +29,23 @@
     </figure>
     {{/if}}
   </section>
+  {{/if}}
 
-  {{! ── Under-hero jump nav: skip the orientation and dive into a
-      specific teaching or browse section below. Anchor order matches
-      the post-NCR-4 / Reading A scroll order: Featured first, then
-      the Language-of-Footbag teaching block (Basic Components +
-      Operators), then Core Tricks as synthesis. }}
+  {{! Under-hero jump nav: two anchors only — featured (videos) and the
+      reference shelf (expandable panels). The legacy three-anchor list
+      (#basic-components / #operators / #core-tricks) collapsed into a
+      single shelf entry. }}
   <nav class="page-jump-nav" aria-label="On this page">
     <a href="#featured">Featured</a>
-    <a href="#basic-components">Basic Components</a>
-    <a href="#operators">Operators</a>
-    <a href="#core-tricks">Core Tricks</a>
+    <a href="#reference-shelf">Reference shelf</a>
   </nav>
 
-  {{! ── Portal cards (intent-ordered: learn → reference → records → competition → context → analysis) ──
-      Sit immediately after the orientation block so users can branch
-      into navigation before any teaching content. v3 pacing: navigation
-      precedes the symbolic surfaces below. }}
+  {{! Portal cards — user-centered order. Tutorials & learning leads;
+      Trick Dictionary + Glossary follow as the primary lookup surfaces;
+      Records / Competition / History anchor the sport's context;
+      Operators & Modifiers is demoted to the end of the grid and framed
+      as advanced reference (the full operator material lives on
+      /freestyle/operators). }}
   <section class="content-section">
     <div class="card-grid card-grid-2col">
 
@@ -70,30 +61,6 @@
           <a href="/media/gallery_anz_trikz" class="btn btn-outline">AnzTrikz &rarr;</a>
           <a href="/media/gallery_shred_global" class="btn btn-outline">Shred Global &rarr;</a>
           <a href="/media/gallery_footbag_finland" class="btn btn-outline">Footbag Finland &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Glossary</div>
-        <p>
-          Beginner-friendly explanations of freestyle vocabulary: run-quality terms,
-          components of a trick, set / modifier / catch concepts, and the abbreviations
-          you'll encounter in tutorials and contests.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/glossary" class="btn btn-outline">Open glossary &rarr;</a>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Operators &amp; Modifiers</div>
-        <p>
-          The modifier vocabulary in one place: feel cards for each common
-          operator, structural decomposition reference, intermediate-operator
-          definitions, and the Tier-1 set-modifier registry.
-        </p>
-        <div class="card-actions">
-          <a href="/freestyle/operators" class="btn btn-outline">Operator reference &rarr;</a>
         </div>
       </div>
 
@@ -114,6 +81,18 @@
         {{else}}
         <span class="badge badge-coming-soon">Coming soon</span>
         {{/if}}
+      </div>
+
+      <div class="card">
+        <div class="card-title">Glossary</div>
+        <p>
+          Beginner-friendly explanations of freestyle vocabulary: run-quality terms,
+          components of a trick, set / modifier / catch concepts, and the abbreviations
+          you'll encounter in tutorials and contests.
+        </p>
+        <div class="card-actions">
+          <a href="/freestyle/glossary" class="btn btn-outline">Open glossary &rarr;</a>
+        </div>
       </div>
 
       <div class="card{{#unless content.totalRecords}} card-coming-soon{{/unless}}">
@@ -173,13 +152,25 @@
         </div>
       </div>
 
+      <div class="card freestyle-portal-card-advanced">
+        <div class="card-title">Operators &amp; Modifiers <span class="freestyle-portal-card-advanced-tag">Advanced reference</span></div>
+        <p>
+          The modifier vocabulary in one place: feel cards for each common
+          operator, structural decomposition reference, intermediate-operator
+          definitions, and the Tier-1 set-modifier registry. Visit when you're
+          ready to read trick decompositions in depth.
+        </p>
+        <div class="card-actions">
+          <a href="/freestyle/operators" class="btn btn-outline">Operator reference &rarr;</a>
+        </div>
+      </div>
+
     </div>
   </section>
 
-  {{! ── Featured — merged Competition Formats + Demonstrations strip ──────
-      One compact grid; format names (Routine / Circle / Sick 3 / Shred 30)
-      preserved as card titles (cultural + navigational anchors); curated
-      demonstrations carry hashtag chips. No prose paragraphs. }}
+  {{! Featured — merged Competition Formats + Demonstrations strip. One
+      compact grid; format names (Routine / Circle / Sick 3 / Shred 30)
+      preserved as card titles; curated demonstrations carry hashtag chips. }}
   {{#if content.featured.length}}
   <section class="content-section freestyle-featured" id="featured">
     <h2>Featured</h2>
@@ -198,63 +189,72 @@
   </section>
   {{/if}}
 
-  {{! ── The Language of Freestyle Footbag — teaching block ─────────────────
-      Per Slice N3 / NCR-4 (Notation Normalization Wave, decision #1
-      "Reading A"): the vocabulary primer (Basic Components + Operator
-      Board) precedes Core Tricks. Cognitive flow: portals teach where
-      to go, Featured shows examples, this section teaches the structural
-      vocabulary, then Core Tricks arrive as the synthesis of that
-      vocabulary. }}
+  {{! Freestyle Reference Shelf — grouped expandable reference content
+      that replaces the prior standalone Basic Components / Operator
+      Board / Core Tricks sections. Each panel is a collapsed <details>;
+      bodies use the existing service-shaped fields. The three preview-
+      style panels (ADD scoring / notation basics / learning path) carry
+      a single link-out CTA. }}
+  <section class="content-section freestyle-reference-shelf" id="reference-shelf" aria-label="Reference shelf">
+    <h2 class="freestyle-reference-shelf-title">{{content.referenceShelf.title}}</h2>
+    <p class="freestyle-reference-shelf-lede">{{content.referenceShelf.lede}}</p>
 
-  {{! ── Basic Components — Contact / Set / Dex / Spin / Duck / Delay ─────────
-      Heading + the six cards carry the teaching; no prose paragraph. }}
-  <section class="content-section freestyle-basic-components" id="basic-components">
-    <h3 class="freestyle-section-eyebrow">Basic Components</h3>
-    <div class="freestyle-basic-components-grid">
-      {{#each content.basicComponents}}
-      <article class="freestyle-component-card" id="component-{{key}}">
-        <h4 class="freestyle-component-name">{{name}}</h4>
-        <p class="freestyle-component-desc">{{description}}</p>
-        {{#if subfields.length}}
-        <dl class="freestyle-component-subfields">
-          {{#each subfields}}
-          <dt>{{label}}</dt>
-          <dd>{{#each values}}{{#unless @first}} <span class="freestyle-subfield-sep">·</span> {{/unless}}<span class="freestyle-subfield-value">{{this}}</span>{{/each}}</dd>
+    {{#each content.referenceShelf.panels}}
+    <details class="freestyle-reference-shelf-panel" id="shelf-panel-{{slug}}">
+      <summary class="freestyle-reference-shelf-summary">
+        <span class="freestyle-reference-shelf-summary-title">{{title}}</span>
+        <span class="freestyle-reference-shelf-summary-summary">{{summary}}</span>
+      </summary>
+      <div class="freestyle-reference-shelf-body freestyle-reference-shelf-body--{{slug}}">
+
+        {{#if (eq slug 'basic-components')}}
+        <div class="freestyle-basic-components-grid">
+          {{#each @root.content.basicComponents}}
+          <article class="freestyle-component-card" id="component-{{key}}">
+            <h4 class="freestyle-component-name">{{name}}</h4>
+            <p class="freestyle-component-desc">{{description}}</p>
+            {{#if subfields.length}}
+            <dl class="freestyle-component-subfields">
+              {{#each subfields}}
+              <dt>{{label}}</dt>
+              <dd>{{#each values}}{{#unless @first}} <span class="freestyle-subfield-sep">·</span> {{/unless}}<span class="freestyle-subfield-value">{{this}}</span>{{/each}}</dd>
+              {{/each}}
+            </dl>
+            {{/if}}
+          </article>
           {{/each}}
-        </dl>
+        </div>
         {{/if}}
-      </article>
-      {{/each}}
-    </div>
+
+        {{#if (eq slug 'core-tricks')}}
+        {{> core-tricks-grid tricks=@root.content.coreTricks}}
+        <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
+        {{/if}}
+
+        {{#if (eq slug 'operators-modifiers')}}
+        {{> operator-board heading=@root.content.operatorBoard.heading lede=@root.content.operatorBoard.lede tiers=@root.content.operatorBoard.tiers}}
+        <p class="operator-board-footer-link">
+          <a href="/freestyle/operators">Operator reference &rarr;</a>
+          <span class="operator-board-footer-sep" aria-hidden="true">&middot;</span>
+          <a href="/freestyle/sets">Full set notation reference &rarr;</a>
+        </p>
+        {{/if}}
+
+        {{#if (or (eq slug 'add-scoring') (eq slug 'notation-basics') (eq slug 'learning-path'))}}
+        {{!-- Preview-only panels — summary above + link out below. --}}
+        {{/if}}
+
+        {{#if linkOutHref}}
+        <p class="freestyle-reference-shelf-link-out">
+          <a href="{{linkOutHref}}" class="btn btn-outline">{{linkOutLabel}} &rarr;</a>
+        </p>
+        {{/if}}
+      </div>
+    </details>
+    {{/each}}
   </section>
 
-  {{! ── Operator board — compositional grammar. Sits between Basic
-      Components and Core Tricks per NCR-4 Reading A: components are
-      the atomic pieces, the operator board shows the modifier algebra
-      that combines them, and Core Tricks below render as the synthesis. }}
-  {{> operator-board heading=content.operatorBoard.heading lede=content.operatorBoard.lede tiers=content.operatorBoard.tiers}}
-  <p class="operator-board-footer-link">
-    <a href="/freestyle/operators">Operator reference &rarr;</a>
-    <span class="operator-board-footer-sep" aria-hidden="true">&middot;</span>
-    <a href="/freestyle/sets">Full set notation reference &rarr;</a>
-  </p>
-
-  {{! ── Core Tricks — compact symbolic objects ─────────────────────────────
-      Each card: #slug + zero-or-more ≡ readings + curator-authored
-      operational notation + ADD. Rendering rule: slug links to
-      /freestyle/tricks/{slug}; ≡ readings are equivalence aliases from
-      freestyleSymbolicEquivalences.ts. Per NCR-1 + NCR-2 of the Notation
-      Normalization Wave, each atom carries a single descriptive prose
-      reading and the curator-authored operational notation; the prior
-      ADD-accounting formula was demoted to /freestyle/add-analysis. }}
-  <section class="content-section freestyle-core-tricks" id="core-tricks">
-    <h3 class="freestyle-section-eyebrow">Core Tricks</h3>
-    <p class="freestyle-section-sub">The irreducible base tricks. Most named tricks descend from one of these.</p>
-    {{> core-tricks-grid tricks=content.coreTricks}}
-    <p class="core-trick-footnote">Cards marked <span class="core-trick-add-pending">&mdash;</span> have a pending dictionary entry.</p>
-  </section>
-
-  {{! ── Get started tiles (placeholders) ───────────────────────────────────── }}
+  {{! Get started tiles (placeholders). }}
   <section class="content-section">
     <h2>Get Started</h2>
     <div class="card-grid card-grid-3col get-started-tiles">

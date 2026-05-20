@@ -6573,12 +6573,110 @@ a.dict-card-title:hover {
   margin-bottom: 28px;
 }
 
-/* Language intro -------------------------------------------------------- */
-.freestyle-language-intro .freestyle-language-lede {
-  font-size: 1.05rem;
+/* Portal lede (replaces the prior language-intro section) ------------ */
+.freestyle-portal-lede .freestyle-portal-lede-paragraph {
+  font-size: 1rem;
   line-height: 1.55;
-  margin: 0 0 18px 0;
+  margin: 0 0 12px 0;
   max-width: 720px;
+  color: var(--text-muted, #555);
+}
+
+/* Advanced-reference framing on the demoted Operators & Modifiers
+   portal card. The chip pushes the card out of the primary lookup
+   ladder visually. */
+.freestyle-portal-card-advanced {
+  border-top: 1px dashed var(--border, #e2e8f0);
+  padding-top: 14px;
+}
+.freestyle-portal-card-advanced-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a7a40;
+  background: #f4f1ea;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+/* Freestyle Reference Shelf — grouped expandable reference panels. */
+.freestyle-reference-shelf {
+  margin: 32px 0 28px 0;
+  padding: 18px 20px 14px 20px;
+  background: #fcfaf3;
+  border: 1px solid #c4a86a;
+  border-radius: 8px;
+}
+.freestyle-reference-shelf-title {
+  margin: 0 0 6px 0;
+  font-size: 1.15rem;
+  color: #3a3326;
+}
+.freestyle-reference-shelf-lede {
+  margin: 0 0 14px 0;
+  font-size: 0.92rem;
+  color: var(--text-muted, #555);
+  max-width: 720px;
+}
+.freestyle-reference-shelf-panel {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #ece6d4;
+}
+.freestyle-reference-shelf-panel:first-of-type {
+  border-top: none;
+}
+.freestyle-reference-shelf-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.freestyle-reference-shelf-summary::-webkit-details-marker { display: none; }
+.freestyle-reference-shelf-summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted, #64748b);
+  transition: transform 0.15s ease;
+}
+.freestyle-reference-shelf-panel[open] > .freestyle-reference-shelf-summary::before {
+  transform: rotate(90deg);
+}
+.freestyle-reference-shelf-summary-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #3a3326;
+  display: inline;
+}
+.freestyle-reference-shelf-summary-summary {
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  padding-left: 22px;
+  line-height: 1.45;
+}
+.freestyle-reference-shelf-body {
+  padding: 8px 0 16px 22px;
+}
+.freestyle-reference-shelf-link-out {
+  margin: 14px 0 0 0;
+}
+@media (max-width: 480px) {
+  .freestyle-reference-shelf {
+    padding: 14px 12px 12px 12px;
+  }
+  .freestyle-reference-shelf-summary-summary {
+    padding-left: 0;
+  }
+  .freestyle-reference-shelf-body {
+    padding-left: 0;
+  }
 }
 
 /* Basic Components grid ------------------------------------------------- */

@@ -272,8 +272,33 @@ export interface FreestyleLeadersContent {
 }
 
 export interface FreestyleLandingExplainer {
+  /** Optional section heading. Empty string when no heading should render
+   *  (e.g. portal lede paragraphs that sit directly under the hero
+   *  without an h2 banner). */
   heading: string;
   paragraphs: string[];
+}
+
+/** Reference-shelf entry surfaced after the featured-videos block. Each
+ *  entry is a collapsed `<details>` panel; expanded body is rendered by
+ *  the template per slug. The summary lede sits next to the disclosure
+ *  arrow so visitors can decide whether to expand without committing.
+ *  External-link panels (ADD scoring / notation primer / learning path)
+ *  carry an explicit link-out CTA; the shelf is a porch, not a
+ *  destination. */
+export interface FreestyleReferenceShelfPanel {
+  slug:           'basic-components' | 'core-tricks' | 'operators-modifiers'
+                | 'add-scoring' | 'notation-basics' | 'learning-path';
+  title:          string;
+  summary:        string;
+  linkOutHref:    string | null;
+  linkOutLabel:   string | null;
+}
+
+export interface FreestyleReferenceShelf {
+  title:    string;
+  lede:     string;
+  panels:   readonly FreestyleReferenceShelfPanel[];
 }
 
 export interface FreestyleGetStartedTile {
@@ -353,16 +378,24 @@ export interface MediaTagDisplay {
 export interface FreestyleLandingContent {
   mascotSrc: string;
   mascotAlt: string;
+  /** Hero-lede paragraphs rendered directly under the hero (no h2).
+   *  Sets the portal framing: videos first, then learning paths, then
+   *  optional reference panels. */
   intro: FreestyleLandingExplainer;
   demoVideo: FreestyleDemoVideo | null;
-  // Three new structured surfaces (Batch 2 IA realignment):
+  // Three structured surfaces consumed by the reference shelf:
   basicComponents: FreestyleBasicComponent[];
   coreTricks:      FreestyleCoreTrickCard[];
-  // Merged Featured strip (SURFACE-COMPRESSION-REALIGNMENT-1 Phase 1 / C):
-  // formats + curated demonstrations rendered in one compact grid. Empty
-  // array hides the section content.
+  // Merged Featured strip — formats + curated demonstrations rendered in
+  // one compact grid. Empty array hides the section content.
   featured:        FreestyleFeaturedItem[];
   operatorBoard: OperatorBoardData;
+  /** Grouped expandable reference shelf rendered after Featured. Replaces
+   *  the prior standalone Basic Components / Operator Board / Core Tricks
+   *  sections. Each panel is a collapsed `<details>` element; expanded
+   *  bodies for the three legacy panels reuse the existing content
+   *  fields (basicComponents / operatorBoard / coreTricks). */
+  referenceShelf:  FreestyleReferenceShelf;
   getStartedTiles: FreestyleGetStartedTile[];
   totalRecords: number;
   recordTypes: number;
@@ -5667,15 +5700,15 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_landing',
         title:      'Freestyle Footbag',
-        intro: 'A compositional movement language built from sets, dexes, and body operators.',
+        intro: 'Learn the movements, watch the sport, and explore the trick vocabulary.',
       },
       content: {
         mascotSrc: '/img/freestyle-mascot.svg',
         mascotAlt: 'Freestyle footbag mascot icon',
         intro: {
-          heading: 'The Language of Freestyle Footbag',
+          heading: '',
           paragraphs: [
-            'A small vocabulary of body actions composes into named tricks. The grammar below — basic components, core tricks, then operators — is how the language reads.',
+            'This page is a portal: featured videos first, then learning pathways and the trick dictionary, then optional reference panels for the movement vocabulary.',
           ],
         },
         demoVideo: loadCuratorDemoVideo('demo-freestyle.mp4'),
@@ -5758,6 +5791,54 @@ export const freestyleService = {
           },
         ],
         operatorBoard: this.getOperatorBoard(),
+        referenceShelf: {
+          title: 'Freestyle Reference Shelf',
+          lede:  'Optional expandable references for the movement vocabulary behind the dictionary. Expand a panel only when you want to go deeper; the rest of the page is the porch.',
+          panels: [
+            {
+              slug:         'basic-components',
+              title:        'Basic Components',
+              summary:      'The six foundational components — Contact, Set, Dex, Spin, Duck, Delay — that compose every trick.',
+              linkOutHref:  null,
+              linkOutLabel: null,
+            },
+            {
+              slug:         'core-tricks',
+              title:        'Core Tricks',
+              summary:      'The twelve irreducible base tricks. Most named tricks descend from one of these.',
+              linkOutHref:  '/freestyle/tricks',
+              linkOutLabel: 'Browse the full trick dictionary',
+            },
+            {
+              slug:         'operators-modifiers',
+              title:        'Operators & Modifiers (Advanced Reference)',
+              summary:      'Tier-1 modifier vocabulary — set, body, and structural operators that compose the trick lexicon. Preview here; the full operator reference lives at /freestyle/operators.',
+              linkOutHref:  '/freestyle/operators',
+              linkOutLabel: 'Full operator reference',
+            },
+            {
+              slug:         'add-scoring',
+              title:        'ADD & Scoring Basics',
+              summary:      'How ADD (Adds) measures difficulty: each ATAM bracket-flag contributes 1, and modifier stacks accumulate above the base trick value. See the analysis page for worked examples and resolution sprints.',
+              linkOutHref:  '/freestyle/add-analysis',
+              linkOutLabel: 'ADD analysis',
+            },
+            {
+              slug:         'notation-basics',
+              title:        'Notation Basics',
+              summary:      'A short primer on the compact-notation, operational-notation, and equivalence-chain conventions used across the trick pages.',
+              linkOutHref:  '/freestyle/glossary',
+              linkOutLabel: 'Glossary primer',
+            },
+            {
+              slug:         'learning-path',
+              title:        'Learning Path — How to Read a Trick',
+              summary:      'A curated sequence for visitors new to the vocabulary: start with the components, scan the core tricks, then read a compound trick page end-to-end.',
+              linkOutHref:  '/freestyle/learn',
+              linkOutLabel: 'Open the learning surface',
+            },
+          ],
+        },
         getStartedTiles: [
           { label: 'Where to buy footbags', href: '#', comingSoon: true },
           { label: 'Where to buy shoes',    href: '#', comingSoon: true },
