@@ -15,46 +15,42 @@
   </div>
 </div>
 
-<div class="wrapper">
+<div class="wrapper glossary-page">
 
-  <section class="content-section">
+  {{> glossary-sidebar}}
+
+  <div class="glossary-main-column">
+
+  <section class="content-section" id="section-core-concepts">
     <h2 class="section-heading">
-      1. Movement-Language Primer
-      <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
+      1. Core Concepts
     </h2>
     <p>
-      This glossary teaches how the freestyle language works: vocabulary,
-      mechanics, and the compositional shorthand the community uses to name
-      tricks. It is the &ldquo;how it reads&rdquo; layer &mdash; for the canonical
-      catalog of named tricks, see the <a href="/freestyle/tricks">trick dictionary</a>;
-      for the set-notation reference, see <a href="/freestyle/sets">/freestyle/sets</a>.
+      This glossary is a movement-language reference for freestyle footbag:
+      surfaces, dexterities, modifiers, notation, and the trick families they
+      compose. Use the left sidebar to jump to any section; canonical
+      definitions are visible by default and advanced or observational
+      material is collapsed inline next to each definition.
     </p>
     <p>
-      The language is symbolic and compositional. Recurring movement structures
-      compress into named operators; named operators stack onto base tricks to
-      produce new ones. The same trick can usually be named at several depths
-      &mdash; shortest readable form wins.
-    </p>
-    <p>
-      The sections below progress from the body's vocabulary
-      (&sect;2&ndash;&sect;4) to named structures (&sect;5), the operators
-      that transform them (&sect;6), the notation that writes them
-      (&sect;7), how tricks combine into runs (&sect;8), and how families
-      relate across the dictionary (&sect;9). &sect;10 is the alphabetical
-      reference; &sect;11 collects historical and community vocabulary.
+      The language is symbolic and compositional. Recurring movement
+      structures compress into named operators; operators stack onto base
+      tricks to produce new ones. The same trick can usually be named at
+      several depths &mdash; shortest readable form wins. For the canonical
+      catalog of named tricks, see the
+      <a href="/freestyle/tricks">trick dictionary</a>; for set-notation
+      reference, see <a href="/freestyle/sets">/freestyle/sets</a>.
     </p>
     <p class="detail-muted glossary-vocabulary-stabilization-note">
       The competitive freestyle vocabulary stabilized by roughly 2007&ndash;2008;
-      no genuinely new base tricks have appeared in the corpus since. What
-      this glossary documents, then, is a vocabulary that completed its
-      first phase nearly two decades ago. Current work refines and recombines
-      rather than expands. See the
+      no genuinely new base tricks have appeared in the corpus since. Current
+      work refines and recombines rather than expands. See the
       <a href="/freestyle/history">freestyle history page</a> for the
       two-phase story.
     </p>
   </section>
 
-  <section class="content-section">
+  <section class="content-section" id="section-surfaces">
     <h2 class="section-heading">
       2. Contact Surfaces &amp; Delays
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
@@ -117,7 +113,7 @@
     </dl>
   </section>
 
-  <section class="content-section">
+  <section class="content-section" id="section-dexterities">
     <h2 class="section-heading">
       3. Dexterities (Dex)
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
@@ -195,9 +191,9 @@
     </dl>
   </section>
 
-  <section class="content-section">
+  <section class="content-section" id="section-timing-sets">
     <h2 class="section-heading">
-      4. Timing Layers &amp; Sets
+      4. Timing &amp; Sets
       <span class="glossary-tier-badge glossary-tier-badge--beginner">Beginner</span>
     </h2>
     <p>
@@ -251,9 +247,9 @@
     </dl>
   </section>
 
-  <section class="content-section">
+  <section class="content-section" id="section-families">
     <h2 class="section-heading">
-      5. Core Trick Structures
+      5. Core Trick Families
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p>
@@ -372,7 +368,7 @@
     {{/if}}
   </section>
 
-  <section class="content-section">
+  <section class="content-section" id="section-modifiers">
     <h2 class="section-heading">
       6. Modifiers &amp; Operators
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
@@ -381,9 +377,9 @@
 
     {{> freestyle-modifier-reference}}
 
-  <section class="content-section" id="notation">
+  <section class="content-section" id="section-notation">
     <h2 class="section-heading">
-      7. Symbolic Notation
+      7. Jobs / Operational Notation
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p class="glossary-thesis">
@@ -657,9 +653,43 @@
     </p>
   </section>
 
-  <section class="content-section">
+  <section class="content-section" id="section-add-accounting">
+    <h2 class="section-heading" id="traditional-reference">
+      8. ADD Accounting
+      <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
+    </h2>
+    <p>
+      <strong>ADD (Additional Degree of Difficulty)</strong> is
+      <em>additive structural accounting</em>: each base trick has a weight,
+      each modifier has a weight, and a trick's total is the sum. This isn't
+      just a scoring convention &mdash; it's the same logic that lets the
+      dictionary read a compound like <em>mobius</em> as "gyro torque"
+      and have the ADD add up the same way (4 + 1 = 5).
+    </p>
+    <p class="detail-muted">
+      Sequence-level vocabulary (run-quality tiers, event formats, combo
+      architecture) lives at
+      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>;
+      this section covers per-trick ADD only. Full worked examples,
+      discrepancy cases, and policy-dependent semantics are at
+      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+    </p>
+    <h3 id="run-quality">ADD &mdash; additive structural accounting</h3>
+    <p class="glossary-cross-link">
+      For the mechanical walkthrough of how ADD values are built, with
+      worked examples (mobius, blur, nuclear, quantum, baroque) and
+      discrepancy case studies, see
+      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+      For run-quality tiers (Tiltless, Guiltless, Tripless, Fearless,
+      Beastly, Godly, Genuine, BOP) and competitive formats (Sick3,
+      Shred:30, Circle, etc.), see
+      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>.
+    </p>
+  </section>
+
+  <section class="content-section" id="section-composition">
     <h2 class="section-heading">
-      8. Composition &amp; Decomposition
+      9. Symbolic Composition
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
     <p>
@@ -757,10 +787,29 @@
     </p>
   </section>
 
+  <section class="content-section" id="section-run-architecture">
+    <h2 class="section-heading">
+      10. Run Architecture
+      <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
+    </h2>
+    <p>
+      Above the single-trick level, tricks combine into <strong>runs</strong>:
+      ordered sequences of tricks chained through transitions. Run architecture
+      is the sequence-level vocabulary that sits on top of the trick-level
+      grammar this glossary documents. Run-quality tiers, competitive formats,
+      and combo-flow analysis live on the dedicated reference page.
+    </p>
+    <p class="glossary-cross-link">
+      Full run-architecture reference (run-quality tiers, combo flow,
+      transition patterns, competitive format definitions) at
+      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>.
+    </p>
+  </section>
+
   {{#if content.connectivePanels.length}}
   <section class="content-section glossary-connective-section" id="connective-panels">
     <h2 class="section-heading">
-      9. Movement Neighborhoods
+      11. Family &amp; Topology Concepts
       <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
       <span class="symbolic-layer-badge" title="Observational symbolic-grammar layer — supplementary; does not change canonical classifications">observational</span>
     </h2>
@@ -819,50 +868,40 @@
   </section>
   {{/if}}
 
-  <section class="content-section">
-    <h2 class="section-heading" id="traditional-reference">
-      10. The ADD System
-    </h2>
-    <p class="detail-muted">
-      Sequence-level vocabulary (run-quality tiers, event formats, combo
-      architecture) was relocated to
-      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>
-      on 2026-05-17 to keep this glossary focused on the
-      <em>trick</em> level. This section retains the ADD system definition
-      because ADD operates per trick; the run-quality tiers that build on
-      top of ADD live with the run-level material.
-    </p>
-
-    <h3 id="run-quality">ADD &mdash; additive structural accounting</h3>
-    <p>
-      <strong>ADD (Additional Degree of Difficulty)</strong> is
-      <em>additive structural accounting</em>: each base trick has a weight,
-      each modifier has a weight, and a trick's total is the sum. This isn't
-      just a scoring convention &mdash; it's the same logic that lets the
-      dictionary read a compound like <em>mobius</em> as "gyro torque"
-      and have the ADD add up the same way (4 + 1 = 5).
-    </p>
-
-    <p class="glossary-cross-link">
-      For the mechanical walkthrough of how ADD values are built, with
-      worked examples and discrepancy case studies, see
-      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
-      For the run-quality tiers (Tiltless, Guiltless, Tripless, Fearless,
-      Beastly, Godly, Genuine, BOP) and competitive formats (Sick3,
-      Shred:30, Circle, etc.), see
-      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>.
-    </p>
-  </section>
-
-  <section class="content-section">
+  <section class="content-section" id="section-community">
     <h2 class="section-heading">
-      11. Community &amp; Historical Vocabulary
+      12. Community Vocabulary
       <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
     </h2>
     <p>
-      Freestyle naming evolves over time, and the same trick may carry multiple
-      names. The entries below are historical or folk vocabulary preserved for
-      cultural record; canonical-active equivalents live in &sect;1&ndash;&sect;10.
+      Folk names and community variants still actively used in the modern
+      vocabulary. Canonical equivalents live in &sect;1&ndash;&sect;11.
+    </p>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Folk name</th><th>Canonical equivalent</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Spyro</td><td>Inspin <span class="detail-muted">(<em>spyro</em> is the active dictionary slug; <em>inspin</em> is a folk synonym)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="glossary-note">
+      Will expand with additional folk names and regional variants as curator
+      review continues.
+    </p>
+  </section>
+
+  <section class="content-section" id="section-historical">
+    <h2 class="section-heading">
+      13. Historical Terms
+      <span class="glossary-tier-badge glossary-tier-badge--advanced">Advanced Reference</span>
+    </h2>
+    <p>
+      Retired or era-specific vocabulary preserved for cultural and historical
+      record. These names are no longer in active use; the modern canonical
+      equivalent supersedes them.
     </p>
     <div class="moves-table-wrap">
       <table class="moves-table">
@@ -872,18 +911,17 @@
         <tbody>
           <tr><td>Toe Blur</td><td>Quantum Mirage</td></tr>
           <tr><td>Toe Ripwalk</td><td>Quantum Butterfly</td></tr>
-          <tr><td>Spyro</td><td>Inspin <span class="detail-muted">(<em>spyro</em> is the active dictionary slug; <em>inspin</em> is a folk synonym)</span></td></tr>
         </tbody>
       </table>
     </div>
     <p class="glossary-note">
-      &sect;11 will expand with deprecated names, regional variants, and
-      era-specific slang in a later pass.
+      Will expand with deprecated names, era-specific slang, and lineage notes
+      in a later pass.
     </p>
   </section>
 
-  <section class="content-section">
-    <h2 class="section-heading">12. Sources</h2>
+  <section class="content-section" id="section-sources">
+    <h2 class="section-heading">14. Sources</h2>
     <p class="glossary-about-framing">
       This glossary is the codification surface for a vocabulary that the
       footbag community built informally over four decades. It documents
@@ -914,4 +952,5 @@
     </p>
   </section>
 
+  </div>{{! /.glossary-main-column }}
 </div>

@@ -68,29 +68,26 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /freestyle/glossary — connective panels section', () => {
-  it('renders the Movement Neighborhoods section heading and anchor', async () => {
-    // V5: the six connective panels live in §9 as their permanent
-    // home. Post-Slice-L0/Q3 (2026-05-16) the section was reframed
-    // "Movement Topologies" → "Movement Neighborhoods" to align with
-    // the observational-relationship-browsing model. The
-    // id="connective-panels" anchor is preserved for inbound links.
+  it('renders the Family & Topology Concepts section heading and anchor', async () => {
+    // Landing IA refactor (2026-05-19): the connective panels moved from
+    // §9 "Movement Neighborhoods" to §11 "Family & Topology Concepts"
+    // when the glossary section spine reorganized around 14 sections.
+    // The id="connective-panels" anchor is preserved (anchor-preservation
+    // forever-rule).
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/9\.\s+Movement Neighborhoods/);
+    expect(res.text).toMatch(/11\.\s+Family &amp; Topology Concepts/);
     expect(res.text).toContain('id="connective-panels"');
   });
 
   it('preserves the primer + reference sections above and below the panels', async () => {
-    // V5: §1 Movement-Language Primer leads; §10 Traditional Reference
-    // (which absorbs the old ADD system + competitive-format material)
-    // sits below the topology panels; §12 Sources closes the page.
+    // 14-section spine (2026-05-19): §1 Core Concepts leads; §8 ADD
+    // Accounting holds the per-trick ADD definition; §14 Sources closes.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/1\.\s+Movement-Language Primer/);
-    // §10 heading renamed to "The ADD System" on 2026-05-17 when run-quality
-    // tiers + event formats relocated to /freestyle/combo-analysis.
-    expect(res.text).toMatch(/10\.\s+The ADD System/);
+    expect(res.text).toMatch(/1\.\s+Core Concepts/);
+    expect(res.text).toMatch(/8\.\s+ADD Accounting/);
     expect(res.text).toMatch(/ADD \(Additional Degree of Difficulty\)/);
-    expect(res.text).toMatch(/12\.\s+Sources/);
+    expect(res.text).toMatch(/14\.\s+Sources/);
   });
 
   it('renders all 6 panels with correct anchor IDs', async () => {
@@ -188,33 +185,37 @@ describe('GET /freestyle/glossary — connective panels section', () => {
 describe('GET /freestyle/glossary — connective panels do not break existing content', () => {
   it('glossary intro still renders alongside the connective panels (smoke check)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/This glossary teaches how the freestyle language works/);
+    // 14-section IA refactor (2026-05-19): the language-of-freestyle intro
+    // dropped in favor of a portal-framing lede.
+    expect(res.text).toMatch(/movement-language reference for freestyle footbag/);
   });
 
-  it('renders the full v5 §1–§12 section spine in order', async () => {
-    // V5 contract: §1 primer / §2 surfaces / §3 dex / §4 timing / §5 core
-    // structures / §6 modifiers / §7 notation / §8 composition / §9
-    // topologies / §10 traditional reference / §11 community-historical /
-    // §12 sources. Each heading's ordinal index must be monotonic.
+  it('renders the 14-section spine in order (post 2026-05-19 IA refactor)', async () => {
+    // 14-section contract: §1 Core Concepts / §2 Surfaces / §3 Dexterities
+    // / §4 Timing / §5 Families / §6 Modifiers / §7 Notation / §8 ADD
+    // Accounting / §9 Composition / §10 Run Architecture / §11 Topology /
+    // §12 Community / §13 Historical / §14 Sources. Monotonic ordering.
     const res = await request(createApp()).get('/freestyle/glossary');
     const orderedHeadings = [
-      '1. Movement-Language Primer',
+      '1. Core Concepts',
       '2. Contact Surfaces',
       '3. Dexterities',
-      '4. Timing Layers',
-      '5. Core Trick Structures',
+      '4. Timing',
+      '5. Core Trick Families',
       '6. Modifiers',
-      '7. Symbolic Notation',
-      '8. Composition',
-      '9. Movement Neighborhoods',
-      '10. The ADD System',
-      '11. Community',
-      '12. Sources',
+      '7. Jobs / Operational Notation',
+      '8. ADD Accounting',
+      '9. Symbolic Composition',
+      '10. Run Architecture',
+      '11. Family',
+      '12. Community',
+      '13. Historical',
+      '14. Sources',
     ];
     let lastIdx = -1;
     for (const heading of orderedHeadings) {
       const idx = res.text.indexOf(heading);
-      expect(idx).toBeGreaterThan(lastIdx);
+      expect(idx, `heading "${heading}" not in monotonic order`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
     }
   });

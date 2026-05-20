@@ -4327,6 +4327,89 @@ section.home-media { padding-top: 0; }
   border-color: #ddd3c2;
 }
 
+/* Glossary sidebar layout — CSS-only sticky positioning. Desktop ≥1024px
+   places the sidebar as a left rail next to the main column. Below
+   1024px the sidebar moves to a horizontal-scroll strip above the
+   content; below 480px it stacks vertically.
+
+   Progressive enhancement rule: no JS required. `position: sticky` is
+   the only behavioral CSS used. */
+.glossary-page {
+  display: block;
+}
+.glossary-sidebar {
+  margin: 0 0 20px 0;
+  padding: 12px 14px;
+  background: #fcfaf3;
+  border: 1px solid #ece6d4;
+  border-radius: 6px;
+}
+.glossary-sidebar-heading {
+  margin: 0 0 6px 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #8a7a40;
+  text-transform: uppercase;
+}
+.glossary-sidebar-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.88rem;
+}
+.glossary-sidebar-list li {
+  margin: 2px 0;
+}
+.glossary-sidebar-list a {
+  color: var(--text, #3a3326);
+  text-decoration: none;
+  padding: 3px 0;
+  display: block;
+  border-radius: 3px;
+}
+.glossary-sidebar-list a:hover {
+  background: #ece6d4;
+  padding-left: 6px;
+}
+.glossary-main-column {
+  /* Content column inside .glossary-page wrapper. The wrapper is
+     .wrapper, which already constrains overall page width. */
+}
+@media (min-width: 1024px) {
+  .glossary-page {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    column-gap: 32px;
+    align-items: start;
+  }
+  .glossary-sidebar {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    margin: 0;
+  }
+}
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Tablet: sidebar becomes a horizontal strip above the content. */
+  .glossary-sidebar-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .glossary-sidebar-list li {
+    margin: 0;
+  }
+  .glossary-sidebar-list a {
+    padding: 3px 8px;
+    background: #fff;
+    border: 1px solid #ece6d4;
+    border-radius: 3px;
+    font-size: 0.82rem;
+  }
+}
+
 /* Glossary term lists — unified <dl> styling for term/definition entries
    across §2 / §3 / §4. Lean spacing; consistent across sections. */
 .glossary-term-list {
