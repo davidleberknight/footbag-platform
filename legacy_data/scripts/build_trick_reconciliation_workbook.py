@@ -651,6 +651,47 @@ STATUS_UNRESOLVED         = "unresolved_red_pending"
 STATUS_NOT_FOUND          = "not_found_anywhere"
 STATUS_ALIAS_OF_CANONICAL = "alias_of_canonical"
 STATUS_DERIVABLE_STRUCTURAL = "derivable_structural_form"
+STATUS_DERIVED_ADD_MISMATCH = "derived_add_mismatch"
+STATUS_WAVE2_BLOCKED_ROW = "wave2_blocked"
+STATUS_CURATOR_HOLD = "curator_hold"
+
+# Row-level holds for slugs that have no clear doctrine and shouldn't be
+# flagged as missing_ifpa_formula. Each entry carries:
+#   - status:  STATUS_WAVE2_BLOCKED_ROW (Red Wave 2/3 cascade) OR
+#              STATUS_CURATOR_HOLD (curator-paced decision required)
+#   - reason:  one-line explanation for the workbook + future curator
+ROW_LEVEL_HOLDS: dict[str, dict[str, str]] = {
+    # Wave 2/3-cascade holds
+    "bullwhip":    {
+        "status": STATUS_WAVE2_BLOCKED_ROW,
+        "reason": "Red pt8 'Base trick is Gyro' pending glossary alignment; cross-references Wave 3 Q2 (spin/gyro axis) + Q6.C (down-diver-down). Structure deferred.",
+    },
+    "double-down": {
+        "status": STATUS_WAVE2_BLOCKED_ROW,
+        "reason": "No canonical row; canonicalization decision per CANONICALIZATION_POLICY §10 + Wave 2 Q4 (double operator) + Wave 3 Q6.C (Down Diver Down).",
+    },
+    "terrage": {
+        "status": STATUS_WAVE2_BLOCKED_ROW,
+        "reason": "Double Pixie tangle: source ADD=3 vs DB ADD=4; 3-audit counting-frame issue (terrage 4 / terraging 3 / terraging modifier +3); pending Wave 2 Q4 (barraging operator class) + multiplier audit MR-2d.",
+    },
+    # Curator-pending holds
+    "jani-walker": {
+        "status": STATUS_CURATOR_HOLD,
+        "reason": "Red pt8 did NOT endorse fb.org 'Barraging Butterfly'; structure unresolved with no alternative proposed. Red supplement consultation needed.",
+    },
+    "guay": {
+        "status": STATUS_CURATOR_HOLD,
+        "reason": "Operational form needs curator confirmation: 'Pickup dexterity finished with an inside delay' — dex direction + terminal not pinned. Shape: TOE > {SAME|OP} IN [DEX] > OP INSIDE [DEL].",
+    },
+    "reaper": {
+        "status": STATUS_CURATOR_HOLD,
+        "reason": "Two-dex compound from clipper-stall to toe; shape clear but dex directions (in/in, in/out, out/in, out/out) not pinned. Shape: CLIP > {IN|OUT} [DEX] > {IN|OUT} [DEX] > OP TOE [DEL].",
+    },
+    "refraction": {
+        "status": STATUS_CURATOR_HOLD,
+        "reason": "Red pt6 confirmed 3 ADD + dex category but no structural decomposition; 3-ADD dex-class atom is structurally unusual (most dex atoms are 2 ADD); likely contains 2 dex segments internally.",
+    },
+}
 
 # Placeholder slugs that name a derivable structural form (modifier + base
 # atom) without a canonical DB row. Per multiplier doctrine + CANONICALIZATION
@@ -683,6 +724,7 @@ PLACEHOLDER_ALIASES: dict[str, str] = {
     "reverse-mirage":         "illusion",            # Red 2026-05-11: mirage ≠ illusion (direction is structural)
     "reverse-legover":        "pickup",              # Red 2026-05-11: legover ≠ pickup
     "dlo":                    "double-leg-over",     # DLO = abbreviation for Double Leg Over
+    "baroque":                "barraging-osis",      # Red 2026-05-15: Baroque (Barraging Osis) = Two dexes + Osis = 5 ADD
 }
 
 # Doctrine-locked ADD disagreements (curator + Red have settled the doctrine
@@ -781,6 +823,110 @@ def load_db_aliases(db_path: Path) -> dict[str, list[str]]:
     return dict(aliases_by_slug)
 
 
+def load_db_modifier_links(db_path: Path) -> dict[str, list[str]]:
+    """Load modifier_slug list per trick slug from freestyle_trick_modifier_links."""
+    if not db_path.exists():
+        return {}
+    con = sqlite3.connect(str(db_path))
+    con.row_factory = sqlite3.Row
+    links: dict[str, list[str]] = defaultdict(list)
+    cur = con.execute("""
+        SELECT trick_slug, modifier_slug
+        FROM freestyle_trick_modifier_links
+        ORDER BY trick_slug, modifier_slug
+    """)
+    for r in cur:
+        links[r["trick_slug"]].append(r["modifier_slug"])
+    con.close()
+    return dict(links)
+
+
+def load_db_modifiers(db_path: Path) -> dict[str, dict]:
+    """Load modifier table — slug → {add_bonus, add_bonus_rotational, modifier_type}."""
+    if not db_path.exists():
+        return {}
+    con = sqlite3.connect(str(db_path))
+    con.row_factory = sqlite3.Row
+    result: dict[str, dict] = {}
+    cur = con.execute("""
+        SELECT slug, add_bonus, add_bonus_rotational, modifier_type
+        FROM freestyle_trick_modifiers
+    """)
+    for r in cur:
+        result[r["slug"]] = dict(r)
+    con.close()
+    return result
+
+
+# Core atoms that have rotational character (used for atomic / furious +2 bonus).
+# Per Add-Categories doctrine + modifier table: atomic/furious add +1 on
+# non-rotational bases, +2 on rotational bases. Curator-authored.
+ROTATIONAL_BASE_SLUGS = frozenset({
+    "mirage", "whirl", "swirl", "osis", "torque", "blender",
+    "illusion",  # mirage's reverse atom; rotational by symmetry
+})
+
+
+def derive_chain_reading(
+    base_trick: Optional[str],
+    modifier_slugs: list[str],
+    db_rows: dict[str, dict],
+) -> Optional[str]:
+    """Derive a compositional chain reading from base + modifiers.
+
+    Returns e.g. 'atomic butterfly' for slug=atomic-butterfly with
+    base_trick=butterfly, modifier_slugs=['atomic']. Returns None when
+    derivation isn't possible (missing base, missing canonical_name, etc.).
+    """
+    if not base_trick or not modifier_slugs:
+        return None
+    base_row = db_rows.get(base_trick)
+    if not base_row:
+        return None
+    base_name = base_row.get("canonical_name") or base_trick
+    parts = list(modifier_slugs) + [base_name]
+    return " ".join(parts)
+
+
+def derive_add_math(
+    base_trick: Optional[str],
+    modifier_slugs: list[str],
+    db_rows: dict[str, dict],
+    modifier_table: dict[str, dict],
+) -> tuple[Optional[str], Optional[int]]:
+    """Derive ADD formula derivation string + computed ADD from base+modifier stack.
+
+    Returns (derivation_string, total_add) or (None, None) when derivation
+    isn't possible. Uses rotational bonus when base is in ROTATIONAL_BASE_SLUGS.
+    """
+    if not base_trick or not modifier_slugs:
+        return None, None
+    base_row = db_rows.get(base_trick)
+    if not base_row:
+        return None, None
+    base_add = base_row.get("adds")
+    if base_add is None:
+        return None, None
+    try:
+        base_add = int(base_add)
+    except (TypeError, ValueError):
+        return None, None
+
+    is_rotational = base_trick in ROTATIONAL_BASE_SLUGS
+    parts: list[str] = []
+    total = base_add
+    for mod_slug in modifier_slugs:
+        mod = modifier_table.get(mod_slug)
+        if not mod:
+            return None, None
+        bonus = mod["add_bonus_rotational"] if is_rotational else mod["add_bonus"]
+        parts.append(f"{mod_slug}(+{bonus})")
+        total += bonus
+
+    parts.append(f"{base_trick}({base_add})")
+    return f"{' + '.join(parts)} = {total} ADD", total
+
+
 def build_row(
     slug: str,
     db_rows: dict[str, dict],
@@ -791,6 +937,8 @@ def build_row(
     pb_rows: list[dict],
     fm: dict[str, dict],
     db_aliases: dict[str, list[str]],
+    db_modifier_links: dict[str, list[str]],
+    modifier_table: dict[str, dict],
 ) -> dict:
     aliases = NAME_ALIASES.get(slug, [slug])
     db = db_rows.get(slug)
@@ -803,19 +951,24 @@ def build_row(
     ifpa_family = (db["trick_family"] if db and db.get("trick_family") else "")
     # Compact notation = first chain reading (compositional shorthand) when
     # available; falls back to DB.notation (curator-authored compact form
-    # like 'PIXIE' / 'STEPPING PARADOX MIRAGE') when no chain reading exists.
-    # The DB.notation column predates the chain registry; for set primitives
-    # and surface stalls the canonical name IS the compact form, so chain
-    # registry duplication would add no information. Curator workbook fix
-    # 2026-05-19: surface DB.notation as compact_notation fallback to lift
-    # false-negative compact_status=missing on these rows.
+    # like 'PIXIE' / 'STEPPING PARADOX MIRAGE') when no chain reading exists;
+    # finally falls back to derivation from base_trick + modifier_links (e.g.
+    # base=butterfly + modifiers=[atomic] → 'atomic butterfly'). Curator
+    # workbook fix 2026-05-19: surface DB.notation + derive from modifier
+    # stack to lift false-negative compact_status=missing on derivable rows.
     chain_readings = chains.get(slug, [])
+    modifier_slugs = db_modifier_links.get(slug, [])
     if chain_readings:
         ifpa_compact_notation = chain_readings[0]
     elif db and db.get("notation"):
         ifpa_compact_notation = db["notation"]
     else:
-        ifpa_compact_notation = ""
+        derived = derive_chain_reading(
+            db.get("base_trick") if db else None,
+            modifier_slugs,
+            db_rows,
+        )
+        ifpa_compact_notation = derived if derived else ""
     # Full movement formula = curator-authored op-notation for atoms;
     # DB operational_notation column otherwise.
     ifpa_full_formula = core_specs.get(slug) or (db["operational_notation"] if db and db.get("operational_notation") else "")
@@ -824,10 +977,24 @@ def build_row(
     # No source layer currently authors Job-style; leave blank pending
     # curator decision per job_glossary_integration_plan.md.
     ifpa_job_notation = ""
-    # ADD formula = curator-published derivation when settled.
+    # ADD formula = curator-published derivation (Sprint resolved formula)
+    # when settled; falls back to runtime derivation from base_trick +
+    # modifier_links + modifier table when not authored. Sprint formulas
+    # take precedence (they carry curator-authored doctrine + nuance like
+    # x-dex contributions); derivation is the modifier-stack fallback.
     resolved_entry = resolved.get(slug)
-    ifpa_add_formula  = resolved_entry["derivation"] if resolved_entry else ""
-    ifpa_computed_add = str(resolved_entry["totalAdd"]) if resolved_entry else ""
+    if resolved_entry:
+        ifpa_add_formula  = resolved_entry["derivation"]
+        ifpa_computed_add = str(resolved_entry["totalAdd"])
+    else:
+        derived_formula, derived_total = derive_add_math(
+            db.get("base_trick") if db else None,
+            modifier_slugs,
+            db_rows,
+            modifier_table,
+        )
+        ifpa_add_formula  = derived_formula if derived_formula else ""
+        ifpa_computed_add = str(derived_total) if derived_total is not None else ""
     ifpa_official_add = (db["adds"] if db and db.get("adds") is not None else "")
 
     # External lookups.
@@ -850,7 +1017,16 @@ def build_row(
     action: list[str] = []
     external_adds_present = [a for a in [fborg_add, fm_add] if a]
 
-    if not db and slug in PLACEHOLDER_ALIASES:
+    if slug in ROW_LEVEL_HOLDS:
+        # Slug is on the row-level hold registry. Override default
+        # missing_ifpa_formula classification with the explicit hold status +
+        # reason. Each hold entry documents the blocking condition (Wave 2/3
+        # cascade, Red declined, or curator-paced structural decision).
+        hold = ROW_LEVEL_HOLDS[slug]
+        status = hold["status"]
+        notes.append(f"row-level hold: {hold['reason']}")
+        action.append("no action — see hold reason; pending curator/Red decision")
+    elif not db and slug in PLACEHOLDER_ALIASES:
         # Placeholder slug is a doctrinally-confirmed alias of a canonical row.
         # The canonical row holds the data; this placeholder exists only to
         # surface the external-source naming.
@@ -923,6 +1099,27 @@ def build_row(
             status = STATUS_AGREEMENT
     else:
         status = STATUS_AGREEMENT
+
+    # Derivation-vs-official ADD mismatch detection. Surfaces rows where the
+    # modifier-stack derivation produces a different ADD than the curator-
+    # locked official value — e.g., blurry compounds where blurry=+1 modifier
+    # math diverges from official ADD because blurry structurally adds +2
+    # (stepping+paradox per Red pt11). This signals a counting-frame doctrine
+    # question. Applied AFTER agreement/disagreement check; promotes
+    # STATUS_AGREEMENT to STATUS_DERIVED_ADD_MISMATCH when relevant.
+    if (
+        status == STATUS_AGREEMENT
+        and not resolved_entry  # Sprint formulas are curator-locked; trust them
+        and ifpa_computed_add
+        and ifpa_official_add
+        and str(ifpa_computed_add) != str(ifpa_official_add)
+    ):
+        status = STATUS_DERIVED_ADD_MISMATCH
+        notes.append(
+            f"derivation-vs-official mismatch: derived={ifpa_computed_add} "
+            f"vs official={ifpa_official_add} — counting-frame doctrine question"
+        )
+        action.append("review derivation vs official ADD with curator/Red")
 
     # Companion notes seeded for specific cases.
     companion_notes: dict[str, str] = {
@@ -1197,9 +1394,11 @@ def write_summary(rows: list[dict], path: Path) -> None:
 # ── Main ───────────────────────────────────────────────────────────────────
 
 def main() -> int:
-    db_rows     = load_ifpa_db_rows()
-    db_aliases  = load_db_aliases(DB_PATH)
-    core_specs  = load_core_trick_spec()
+    db_rows         = load_ifpa_db_rows()
+    db_aliases      = load_db_aliases(DB_PATH)
+    db_modifier_links = load_db_modifier_links(DB_PATH)
+    modifier_table  = load_db_modifiers(DB_PATH)
+    core_specs      = load_core_trick_spec()
     chains      = load_symbolic_equivalences()
     resolved    = load_resolved_formulas()
     fborg       = parse_fborg_all()
@@ -1216,7 +1415,8 @@ def main() -> int:
     full_scope = sorted(all_active_slugs | placeholder_slugs)
 
     rows = [
-        build_row(slug, db_rows, core_specs, chains, resolved, fborg, pb_rows, fm, db_aliases)
+        build_row(slug, db_rows, core_specs, chains, resolved, fborg, pb_rows, fm,
+                  db_aliases, db_modifier_links, modifier_table)
         for slug in full_scope
     ]
 
