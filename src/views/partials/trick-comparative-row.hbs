@@ -1,41 +1,40 @@
 {{!--
-  Zone B — secondary comparative-metadata row for first-class trick
-  pages. Renders three labeled inline elements (JOB / ADD / VIDEO) in
-  smaller font than the hero. Gated on content.isFirstClass +
-  content.comparativeNotation; silent otherwise.
+  First-class trick metadata strip. Renders below the hero for slugs
+  promoted by the First-Class ADD Convergence Rule + pilot allow-list.
+  Visually distinct from ordinary trick pages — bordered card,
+  publication-style layout, six labeled metadata rows.
 
-  Layer contract: this row carries Tier-2 (operational/Job lineage) +
+  Layer contract: this strip carries Tier-2 (operational/Job lineage) +
   Tier-4 (ADD breakdown) patterns. Both are permitted on trick-detail
   per the 4-tier rendering hierarchy contract. Provenance never
-  renders here (curator-internal language).
+  renders here (curator-internal language; see
+  [[feedback_public_facing_prose]]).
 --}}
 {{#if content.isFirstClass}}
 {{#if content.comparativeNotation}}
-<section class="trick-comparative-row" aria-label="Comparative notation">
-  <p class="trick-comparative-row-line">
-    <span class="trick-comparative-row-label">JOB:</span>
-    {{#if content.comparativeNotation.jobLineage}}
-      <span class="trick-comparative-row-value trick-comparative-row-value--{{content.comparativeNotation.jobLineageSource}}">{{content.comparativeNotation.jobLineage}}</span>
-      {{#if (eq content.comparativeNotation.jobLineageSource 'derived')}}
-        <span class="trick-comparative-row-source-tag">[derived]</span>
-      {{else if (eq content.comparativeNotation.jobLineageSource 'atomic')}}
-        <span class="trick-comparative-row-source-tag">[atomic]</span>
-      {{/if}}
-    {{else}}
-      <em class="trick-comparative-row-value-empty">Lineage notation not yet adapted</em>
-    {{/if}}
-  </p>
-  <p class="trick-comparative-row-line">
-    <span class="trick-comparative-row-label">ADD:</span>
-    <span class="trick-comparative-row-value trick-comparative-row-value--{{content.comparativeNotation.addBreakdownSource}}"><code>{{content.comparativeNotation.addBreakdown}}</code></span>
-    {{#if (eq content.comparativeNotation.addBreakdownSource 'atomic')}}
-      <span class="trick-comparative-row-source-tag">[atomic flag-decomposition]</span>
-    {{/if}}
-  </p>
-  <p class="trick-comparative-row-line">
-    <span class="trick-comparative-row-label">VIDEO:</span>
-    <span class="trick-comparative-row-value trick-comparative-row-value--{{content.comparativeNotation.videoState}}">{{content.comparativeNotation.videoLabel}}</span>
-  </p>
+<section class="trick-first-class-strip" aria-label="First-class trick metadata">
+  <header class="trick-first-class-strip-header">
+    <span class="trick-first-class-strip-badge" aria-label="First-class trick">First-class</span>
+    <span class="trick-first-class-strip-title">{{content.comparativeNotation.trickTag}}</span>
+  </header>
+  <dl class="trick-first-class-strip-table">
+    <dt class="trick-first-class-strip-label">Compact notation</dt>
+    <dd class="trick-first-class-strip-value">{{content.comparativeNotation.compactNotation}}</dd>
+
+    <dt class="trick-first-class-strip-label">Job notation</dt>
+    <dd class="trick-first-class-strip-value trick-first-class-strip-value--{{content.comparativeNotation.jobLineageSource}}">
+      {{#if content.comparativeNotation.jobLineage}}<code>{{content.comparativeNotation.jobLineage}}</code>{{else}}<em>not yet adapted</em>{{/if}}
+    </dd>
+
+    <dt class="trick-first-class-strip-label">ADD derivation</dt>
+    <dd class="trick-first-class-strip-value trick-first-class-strip-value--{{content.comparativeNotation.addBreakdownSource}}"><code>{{content.comparativeNotation.addBreakdown}}</code></dd>
+
+    <dt class="trick-first-class-strip-label">Official ADD</dt>
+    <dd class="trick-first-class-strip-value trick-first-class-strip-value--official-add">{{content.comparativeNotation.officialAdd}}</dd>
+
+    <dt class="trick-first-class-strip-label">Video</dt>
+    <dd class="trick-first-class-strip-value trick-first-class-strip-value--{{content.comparativeNotation.videoState}}">{{content.comparativeNotation.videoLabel}}</dd>
+  </dl>
 </section>
 {{/if}}
 {{/if}}

@@ -973,23 +973,33 @@ export interface FreestyleTrickContent {
   comparativeNotation: ComparativeNotationRow | null;
 }
 
-/** Zone B comparative-notation row on first-class trick pages. Three
- *  labeled inline elements; each carries its value plus a source tag
- *  indicating curator-published vs derived vs atomic-trivial. The
- *  source tag drives the small italicized caption next to each value. */
+/** First-class trick metadata strip — six labeled fields rendered as a
+ *  Wikipedia-infobox-style publication metadata block below the hero.
+ *  Visually distinct from ordinary trick pages; values are pre-shaped so
+ *  the template only places labels and emits values. Source attributions
+ *  ride as small captions next to each value (NOT inline debug prose). */
 export interface ComparativeNotationRow {
+  /** Slug-tag form ('#osis'). Appears as the strip's title row. */
+  trickTag:           string;
+  /** Curator-authored compact notation (e.g. 'gyro torque',
+   *  'stepping paradox mirage') from freestyle_tricks.notation. */
+  compactNotation:    string;
+  /** Operational / Job-lineage notation chain. */
   jobLineage:         string;
   /** 'curator' = curator-published operational notation; 'derived' =
-   *  mechanical derivation from base + modifier stack; 'atomic' = atomic-
-   *  trivial chain for singleton atoms; 'absent' = no lineage notation
-   *  available (last-resort empty state). */
+   *  mechanical derivation from base + modifier stack; 'atomic' = atomic
+   *  upper-case chain form for singleton atoms; 'absent' = no lineage
+   *  notation available (last-resort empty state). */
   jobLineageSource:   'curator' | 'derived' | 'atomic' | 'absent';
+  /** ADD-breakdown derivation string (e.g. 'paradox(+1) + mirage(2) = 3 ADD'). */
   addBreakdown:       string;
-  /** 'curator' = curator-published from RESOLVED_FORMULAS_SPRINT_1;
-   *  'atomic' = atomic-trivial identity `<base>(N) = N ADD`. */
+  /** 'curator' = curator-published RESOLVED_FORMULAS_SPRINT_1 row;
+   *  'atomic' = atomic flag-component decomposition from
+   *  ATOMIC_FLAG_DECOMPOSITIONS. */
   addBreakdownSource: 'curator' | 'atomic';
-  /** 'tutorial' / 'demo' / 'available' / 'none-yet'. Derived from
-   *  curator-tagged reference media count. */
+  /** Curator-locked numeric ADD from freestyle_tricks.adds. */
+  officialAdd:        number;
+  /** 'tutorial' / 'demo' / 'available' / 'none-yet'. */
   videoState:         'tutorial' | 'demo' | 'available' | 'none-yet';
   videoLabel:         string;
 }
@@ -2376,8 +2386,12 @@ export interface ObservedTrickCard {
   statusChip:       ObservedStatusChip;
   /** First reading from proposedReadings; null when none authored. */
   shortReading:     string | null;
-  /** Pre-shaped ADD label: '4 ADD' / '— ADD'. Template never formats. */
-  externalAddLabel: string;
+  /** External-claim label framed by source ('PB claim: 4' / 'FM claim: 5'
+   *  / null when source publishes no numeric claim). NEVER framed as
+   *  canonical ADD — these entries are NOT canonical resolved tricks
+   *  and the displayed number is often a relative modifier delta, not
+   *  a canonical difficulty class. */
+  externalClaimLabel: string | null;
   /** True when at least one of: additionalReadings, formula,
    *  curatorNote, blockers is non-empty. Template uses this to gate
    *  the <details> element. */
@@ -2385,22 +2399,14 @@ export interface ObservedTrickCard {
   detailExpansion:  ObservedTrickCardDetail;
 }
 
-export interface ObservedAddBucket {
-  /** null bucket is for ADD-unknown entries. Rendered last. */
-  addCount: number | null;
-  /** Pre-shaped header label: '1 ADD' / '2 ADD' / ... / 'ADD unknown'. */
-  addLabel: string;
-  /** Cards sorted alphabetically by displayName within the bucket. */
-  cards:    readonly ObservedTrickCard[];
-}
-
 export interface FreestyleObservationalContent {
-  /** Cards grouped by external ADD claim. Numeric buckets ascending;
-   *  ADD-unknown bucket last. Hybrid grouping per
-   *  exploration/workbook-completion-2026-05-19/
-   *  observed_tricks_scalability_plan.md §2.2 (ADD primary, A-Z
-   *  secondary within bucket). */
-  byAdd:                readonly ObservedAddBucket[];
+  /** Flat alphabetical list of observed-trick cards. Sorted A-Z by
+   *  displayName. NO grouping by external ADD claim — observed tricks
+   *  are NOT canonical resolved tricks; grouping by claimed ADD would
+   *  imply canonical difficulty classification the layer does not have
+   *  the authority to assert. Cards carry their external-claim labels
+   *  inline (e.g. 'PB claim: 4') with explicit source attribution. */
+  cards:                readonly ObservedTrickCard[];
   totalEntries:         number;
   /** Unique source badges represented (e.g. ['PB','FM']) for the page
    *  header source-summary chip strip. */
@@ -2436,6 +2442,13 @@ function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
     || t.proposedAddFormula !== null
     || t.curatorNote !== null
     || t.unresolvedBlockers.length > 0;
+  // External-claim framing: NEVER as canonical ADD (observed tricks
+  // are not canonical resolved tricks). The numeric value is the raw
+  // claim from the source; the source-badge prefix makes attribution
+  // explicit and the absence of " ADD" suffix avoids canonical implication.
+  const externalClaimLabel = t.proposedAddTotal !== null
+    ? `${sourceBadge} claim: ${t.proposedAddTotal}`
+    : null;
   return {
     folkSlug:         t.folkSlug,
     displayName:      t.displayName,
@@ -2443,7 +2456,7 @@ function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
     sourceTooltip:    t.sourceCitation,
     statusChip:       OBSERVED_STATUS_CHIP[t.status],
     shortReading:     first ?? null,
-    externalAddLabel: t.proposedAddTotal !== null ? `${t.proposedAddTotal} ADD` : '— ADD',
+    externalClaimLabel,
     hasDetails,
     detailExpansion: {
       additionalReadings,
@@ -2455,32 +2468,8 @@ function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
   };
 }
 
-function bucketObservedCardsByAdd(cards: readonly ObservedTrickCard[]): readonly ObservedAddBucket[] {
-  const groups = new Map<number | 'unknown', ObservedTrickCard[]>();
-  for (const card of cards) {
-    // externalAddLabel is the source of truth for bucketing; parse back
-    // the numeric ADD or fall through to the unknown bucket.
-    const match = card.externalAddLabel.match(/^(\d+)\s+ADD$/);
-    const key: number | 'unknown' = match ? parseInt(match[1], 10) : 'unknown';
-    const bucket = groups.get(key) ?? [];
-    bucket.push(card);
-    groups.set(key, bucket);
-  }
-  // Sort each bucket A-Z by displayName.
-  for (const bucket of groups.values()) {
-    bucket.sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }
-  // Emit numeric buckets ascending, then the unknown bucket if present.
-  const numericKeys = [...groups.keys()].filter((k): k is number => typeof k === 'number').sort((a, b) => a - b);
-  const out: ObservedAddBucket[] = numericKeys.map(n => ({
-    addCount: n,
-    addLabel: `${n} ADD`,
-    cards:    groups.get(n)!,
-  }));
-  if (groups.has('unknown')) {
-    out.push({ addCount: null, addLabel: 'ADD unknown', cards: groups.get('unknown')! });
-  }
-  return out;
+function sortObservedCardsAlphabetical(cards: readonly ObservedTrickCard[]): readonly ObservedTrickCard[] {
+  return [...cards].sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 function collectObservedSourceBadges(cards: readonly ObservedTrickCard[]): readonly ObservedSourceBadge[] {
@@ -2840,7 +2829,8 @@ export function assertFirstClassConvergence(
 function shapeComparativeNotation(
   slug: string,
   dictRow: { canonical_name?: string; adds?: string | number | null;
-             base_trick?: string | null; operational_notation?: string | null } | null,
+             base_trick?: string | null; notation?: string | null;
+             operational_notation?: string | null } | null,
   modifierSlugs: readonly string[],
   tutorialMediaCount: number,
   demoMediaCount: number,
@@ -2848,9 +2838,17 @@ function shapeComparativeNotation(
   if (!dictRow) return null;
   const isAtomic = dictRow.base_trick === slug && modifierSlugs.length === 0;
 
-  // JOB cell — prefer curator-authored operational; fall back to atomic-
-  // trivial chain (uses the compact form for atoms when no operational
-  // is published).
+  // TRICK row — slug-tag identity form.
+  const trickTag = `#${slug}`;
+
+  // COMPACT NOTATION row — curator-authored compact form (lowercased
+  // for in-card readability; DB stores SHOUTY uppercase).
+  const compactNotation = (dictRow.notation ?? '').trim().toLowerCase()
+    || (dictRow.canonical_name ?? slug).trim().toLowerCase();
+
+  // JOB row — prefer curator-authored operational; fall back to atomic
+  // chain (uses the compact form for atoms when no operational is
+  // published).
   let jobLineage: string;
   let jobLineageSource: ComparativeNotationRow['jobLineageSource'];
   if (dictRow.operational_notation && dictRow.operational_notation.trim()) {
@@ -2864,10 +2862,9 @@ function shapeComparativeNotation(
     jobLineageSource = 'absent';
   }
 
-  // ADD cell — prefer published compound derivation; fall back to atomic
-  // flag-component decomposition from the curator-published registry.
-  // No trivial-identity fallback: atoms without a flag-decomposition
-  // entry fail the convergence check upstream.
+  // ADD DERIVATION row — prefer published compound derivation; fall
+  // back to atomic flag-component decomposition from the curator-
+  // published registry. No trivial-identity fallback.
   const published = RESOLVED_FORMULAS_BY_SLUG.get(slug);
   const atomicDecomp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
   let addBreakdown: string;
@@ -2882,21 +2879,38 @@ function shapeComparativeNotation(
     return null;  // shouldn't happen — convergence check should have rejected
   }
 
-  // VIDEO cell.
+  // OFFICIAL ADD row — curator-locked numeric from DB.
+  const addsRaw = dictRow.adds;
+  const officialAdd =
+    typeof addsRaw === 'number' ? addsRaw :
+    typeof addsRaw === 'string' && addsRaw.trim() !== '' ? Number(addsRaw) :
+    0;
+
+  // VIDEO row.
   let videoState: ComparativeNotationRow['videoState'];
   let videoLabel: string;
   if (tutorialMediaCount > 0) {
     videoState = 'tutorial';
-    videoLabel = tutorialMediaCount > 1 ? `available (${tutorialMediaCount} tutorials)` : 'available (tutorial)';
+    videoLabel = tutorialMediaCount > 1 ? `Yes (${tutorialMediaCount} tutorials)` : 'Yes (tutorial)';
   } else if (demoMediaCount > 0) {
     videoState = 'demo';
-    videoLabel = demoMediaCount > 1 ? `available (${demoMediaCount} demos)` : 'available (demo)';
+    videoLabel = demoMediaCount > 1 ? `Yes (${demoMediaCount} demos)` : 'Yes (demo)';
   } else {
     videoState = 'none-yet';
-    videoLabel = 'none yet';
+    videoLabel = 'No';
   }
 
-  return { jobLineage, jobLineageSource, addBreakdown, addBreakdownSource, videoState, videoLabel };
+  return {
+    trickTag,
+    compactNotation,
+    jobLineage,
+    jobLineageSource,
+    addBreakdown,
+    addBreakdownSource,
+    officialAdd,
+    videoState,
+    videoLabel,
+  };
 }
 
 /**
@@ -5380,11 +5394,11 @@ export const freestyleService = {
     // Layer-separation invariant: this view-model is the ONLY place
     // observational entries surface. No DB query — content-module-driven
     // per [[feedback_reversible_content_governance]].
-    const cards = OBSERVATIONAL_TRICKS
+    const cardsUnsorted = OBSERVATIONAL_TRICKS
       .filter(t => t.status !== 'rejected')
       .map(shapeObservedTrickCard);
 
-    const byAdd = bucketObservedCardsByAdd(cards);
+    const cards = sortObservedCardsAlphabetical(cardsUnsorted);
 
     const sources = collectObservedSourceBadges(cards);
 
@@ -5413,7 +5427,7 @@ export const freestyleService = {
         ],
       },
       content: {
-        byAdd,
+        cards,
         totalEntries:        cards.length,
         sources,
         layerNote:

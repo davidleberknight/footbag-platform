@@ -704,16 +704,36 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toMatch(/class="observed-card-status-chip observed-card-status-chip--neutral"/);
   });
 
-  it('groups cards into ADD-bucket sections (hybrid: ADD primary, A-Z secondary)', async () => {
-    // Compact-card pattern: cards group by external ADD claim. Numeric
-    // buckets ascending; an ADD-unknown bucket renders last when any
-    // entry has a null proposedAddTotal.
+  it('renders cards as a flat alphabetical list (NO canonical ADD-bucket grouping)', async () => {
+    // Observed tricks are NOT canonical resolved tricks; grouping by
+    // external ADD claim would imply canonical classification this
+    // layer does not have the authority to assert. The page renders
+    // a single flat sorted card grid.
     const res = await request(createApp()).get('/freestyle/observational');
-    const bucketHeadings = res.text.match(/class="observed-bucket-heading"/g) ?? [];
-    expect(bucketHeadings.length).toBeGreaterThanOrEqual(2);
-    // At least one numeric ADD bucket is present (the dataset has ADD=3
-    // and ADD=4 entries among others).
-    expect(res.text).toMatch(/class="observed-bucket-heading"[^>]*>\s*\d+ ADD/);
+    // No bucket heading classes at all (legacy from prior canonical-
+    // implying grouping).
+    expect(res.text).not.toMatch(/class="observed-bucket-heading"/);
+    expect(res.text).not.toMatch(/class="observed-bucket-count"/);
+    // No "N ADD" headers either (canonical-implying).
+    expect(res.text).not.toMatch(/<h2[^>]*>\s*\d+ ADD/);
+    // Exactly one observed-card-grid element exists (the flat list).
+    const grids = res.text.match(/class="observed-card-grid"/g) ?? [];
+    expect(grids.length).toBe(1);
+  });
+
+  it('orders cards alphabetically by display name within the flat grid', async () => {
+    const res = await request(createApp()).get('/freestyle/observational');
+    // Pull all observed-card-name h3 occurrences; their order should be
+    // alphabetical (case-insensitive, locale-aware).
+    const nameRegex = /class="observed-card-name"[^>]*>\s*([^<]+?)\s*</g;
+    const names: string[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = nameRegex.exec(res.text)) !== null) {
+      names.push(m[1]);
+    }
+    expect(names.length).toBeGreaterThanOrEqual(50);
+    const sorted = [...names].sort((a, b) => a.localeCompare(b));
+    expect(names).toEqual(sorted);
   });
 
   it('cards with extra readings or notes render a <details> expansion', async () => {
@@ -770,18 +790,18 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     }
   });
 
-  it('observational ADD framing: cards show numeric or em-dash ADD inline, never canonical chip styling', async () => {
-    // Compact-card pattern replaces the per-card "ADD pending
-    // canonicalization" prose with an inline external ADD label
-    // ('4 ADD' or '— ADD'). The framing context (these are external
-    // claims, not canonical) lives in the layer note + status chip,
-    // not on every card.
+  it('observational ADD framing: cards show source-attributed external claims, NOT canonical ADD chips', async () => {
+    // Observed tricks are NOT canonical resolved tricks. Per-card
+    // external-claim labels are framed by source ('PB claim: 4',
+    // 'FM claim: 5') rather than as canonical ADD values. The bare
+    // 'N ADD' label is explicitly forbidden in this layer.
     const res = await request(createApp()).get('/freestyle/observational');
-    // Sample numeric ADD label
-    expect(res.text).toMatch(/class="observed-card-add"[^>]*>\d+ ADD</);
-    // Em-dash ADD framing for entries with null proposedAddTotal
-    expect(res.text).toMatch(/class="observed-card-add"[^>]*>—\s*ADD</);
-    // No canonical chip styling on observed cards
+    // Source-attributed external-claim label present.
+    expect(res.text).toMatch(/class="observed-card-external-claim"[^>]*>(PB|FM|SG|FF|OTHER) claim: \d+</);
+    // Bare 'N ADD' label NOT present on cards (was the canonical-implying
+    // form that this refactor explicitly removed).
+    expect(res.text).not.toMatch(/class="observed-card-add"/);
+    // No canonical chip styling on observed cards.
     expect(res.text).not.toMatch(/class="observed-card"[^>]*>[\s\S]{0,400}class="dict-card-add"/);
   });
 
@@ -850,17 +870,17 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).not.toMatch(/<code>undefined<\/code>/);
   });
 
-  it('expansion-cohort entries with null proposedAddTotal render the em-dash ADD label', async () => {
+  it('expansion-cohort entries with null proposedAddTotal omit the external-claim label entirely', async () => {
     // Entries with null proposedAddTotal (Ghost, Id, Johnny Vodka, Kiwi,
-    // Monster, Rotor, Wauxspin, Bladerunner's merged form) fall through
-    // to an em-dash ADD label. They land in the "ADD unknown" bucket.
+    // Monster, Rotor, Wauxspin, Bladerunner's merged form) have no
+    // numeric claim from PassBack. After the ADD-bucket refactor the
+    // external-claim label is null and the span simply does not render
+    // (the template's {{#if externalClaimLabel}} guard suppresses it).
     const res = await request(createApp()).get('/freestyle/observational');
-    // Em-dash ADD label present
-    expect(res.text).toMatch(/class="observed-card-add"[^>]*>—\s*ADD</);
-    // ADD-unknown bucket heading present
-    expect(res.text).toMatch(/class="observed-bucket-heading"[^>]*>\s*ADD unknown/);
     // No literal null leaks through
-    expect(res.text).not.toMatch(/class="observed-card-add"[^>]*>\s*null/);
+    expect(res.text).not.toMatch(/class="observed-card-external-claim"[^>]*>\s*null/);
+    // Em-dash framing no longer used
+    expect(res.text).not.toMatch(/—\s*ADD/);
   });
 
   it('merged Bladerunner entry renders both proposed readings', async () => {

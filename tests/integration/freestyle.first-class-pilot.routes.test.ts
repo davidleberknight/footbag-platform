@@ -140,74 +140,86 @@ const PILOT_SLUGS = [
   'osis', 'paradox-mirage', 'symposium-mirage', 'atomic-butterfly', 'ripwalk',
 ] as const;
 
-describe('First-class trick pilot — Zone B comparative-notation row', () => {
-  it.each(PILOT_SLUGS)('renders Zone B row on /freestyle/tricks/%s', async (slug) => {
+describe('First-class trick pilot — metadata strip', () => {
+  it.each(PILOT_SLUGS)('renders the first-class strip on /freestyle/tricks/%s', async (slug) => {
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/class="trick-comparative-row"/);
-    expect(res.text).toMatch(/class="trick-comparative-row-label"[^>]*>\s*JOB:/);
-    expect(res.text).toMatch(/class="trick-comparative-row-label"[^>]*>\s*ADD:/);
-    expect(res.text).toMatch(/class="trick-comparative-row-label"[^>]*>\s*VIDEO:/);
+    expect(res.text).toMatch(/class="trick-first-class-strip"/);
+    expect(res.text).toMatch(/class="trick-first-class-strip-badge"[^>]*>\s*First-class\s*</);
   });
 
-  it('osis ADD row shows curator-published flag-decomposition (NOT trivial identity)', async () => {
+  it.each(PILOT_SLUGS)('strip on %s carries all six labeled fields', async (slug) => {
+    const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
+    // Strip title row shows the slug-tag
+    expect(res.text).toMatch(new RegExp(`class="trick-first-class-strip-title"[^>]*>#${slug}<`));
+    // Five labeled metadata rows
+    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Compact notation\s*</);
+    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Job notation\s*</);
+    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*ADD derivation\s*</);
+    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Official ADD\s*</);
+    expect(res.text).toMatch(/class="trick-first-class-strip-label"[^>]*>\s*Video\s*</);
+  });
+
+  it('osis ADD derivation shows curator-published flag-decomposition (NOT trivial identity)', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/osis');
-    // Curator-published atomic flag-decomposition.
     expect(res.text).toContain('spin(1) + xbod(1) + stall(1)');
-    // Trivial-identity form is explicitly NOT acceptable.
     expect(res.text).not.toMatch(/osis\(3\)\s*&#x3D;\s*3 ADD/);
-    // Atomic source-tag caption present.
-    expect(res.text).toMatch(/\[atomic flag-decomposition\]/);
   });
 
-  it('paradox-mirage ADD row shows the Sprint 1 +1-stack derivation', async () => {
+  it('paradox-mirage ADD derivation shows the Sprint 1 +1-stack derivation', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(res.text).toContain('paradox(+1) + mirage(2)');
   });
 
-  it('ripwalk ADD row shows the Sprint 3 folk-name resolution derivation', async () => {
+  it('ripwalk ADD derivation shows the Sprint 3 folk-name resolution', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/ripwalk');
     expect(res.text).toContain('stepping(+1) + butterfly(3)');
   });
 
-  it('VIDEO row shows none-yet when no curated media is tagged', async () => {
+  it('Video row shows "No" when no curated media is tagged', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/osis');
-    // No media seeded in test DB; expect none-yet state.
-    expect(res.text).toMatch(/class="trick-comparative-row-value trick-comparative-row-value--none-yet"[^>]*>none yet</);
+    expect(res.text).toMatch(/class="trick-first-class-strip-value trick-first-class-strip-value--none-yet"[^>]*>No</);
+  });
+
+  it('Official ADD row renders the curator-locked numeric value', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/atomic-butterfly');
+    // atomic-butterfly: official ADD = 4
+    expect(res.text).toMatch(/class="trick-first-class-strip-value trick-first-class-strip-value--official-add"[^>]*>4</);
+  });
+
+  it('Compact notation row renders the curator-authored compact form (lowercased)', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
+    // DB stores 'PARADOX MIRAGE'; strip displays lowercased
+    expect(res.text).toMatch(/class="trick-first-class-strip-value"[^>]*>paradox mirage</);
   });
 });
 
 describe('First-class trick pilot — non-first-class control slugs', () => {
-  it('mobius (Wave 2 doctrine blocker) does NOT render Zone B row', async () => {
+  it('mobius (H6 fails: gyro+torque computed != official) does NOT render the strip', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-comparative-row"/);
+    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
   });
 
-  it('blur (no published derivation) does NOT render Zone B row', async () => {
+  it('blur (H4 fails: not in RESOLVED_FORMULAS_SPRINT_1) does NOT render the strip', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/blur');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-comparative-row"/);
+    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
   });
 
-  it('non-first-class slugs continue to render Phase B trick-add-analysis disclosure', async () => {
-    // The Phase B Tier-4 disclosure stays in place for slugs not promoted
-    // to first-class. paradox-mirage IS first-class, so the trick-add-
-    // analysis disclosure is suppressed; the comparativeNotation row
-    // supersedes. blur is not first-class, so the disclosure renders if
-    // blur happens to be in RESOLVED_FORMULAS_SPRINT_1 (it isn't, so the
-    // disclosure is silent for blur too — but the class is absent
-    // because of the empty data, not because of first-class suppression).
+  it('first-class slugs suppress the Phase B trick-add-analysis disclosure', async () => {
+    // For first-class slugs the comparativeNotation strip supersedes the
+    // Phase B collapsed disclosure (avoiding double ADD-row render).
     const paradoxMirage = await request(createApp()).get('/freestyle/tricks/paradox-mirage');
     expect(paradoxMirage.text).not.toMatch(/class="trick-add-analysis-disclosure"/);
   });
 });
 
 describe('First-class trick pilot — 4-tier hierarchy contract preservation', () => {
-  it('Tier-4 ADD breakdown patterns absent from /freestyle/tricks landing', async () => {
+  it('first-class strip absent from /freestyle/tricks landing', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-comparative-row"/);
+    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
     // No flag-decomposition patterns
     expect(res.text).not.toMatch(/spin\(1\) \+ xbod\(1\)/);
     // No +1-stack patterns on landing
@@ -217,18 +229,18 @@ describe('First-class trick pilot — 4-tier hierarchy contract preservation', (
   it('Tier-4 ADD breakdown patterns absent from /freestyle/tricks?view=add browse', async () => {
     const res = await request(createApp()).get('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
-    expect(res.text).not.toMatch(/class="trick-comparative-row"/);
+    expect(res.text).not.toMatch(/class="trick-first-class-strip"/);
     expect(res.text).not.toMatch(/spin\(1\) \+ xbod\(1\)/);
   });
 });
 
 describe('First-class trick pilot — curator-internal language suppression', () => {
-  it.each(PILOT_SLUGS)('Zone B row on %s does NOT leak curator-internal provenance', async (slug) => {
+  it.each(PILOT_SLUGS)('strip on %s does NOT leak curator-internal provenance', async (slug) => {
     const res = await request(createApp()).get(`/freestyle/tricks/${slug}`);
     // Adversarial: provenance strings from RESOLVED_FORMULAS_SPRINT_1
     // (e.g. "canonical inventory", "Red", "pt6", "Wave 2") must NEVER
     // appear on the rendered page.
-    const startIdx = res.text.indexOf('class="trick-comparative-row"');
+    const startIdx = res.text.indexOf('class="trick-first-class-strip"');
     const endIdx   = res.text.indexOf('</section>', startIdx);
     expect(startIdx).toBeGreaterThan(0);
     const region = res.text.slice(startIdx, endIdx);
