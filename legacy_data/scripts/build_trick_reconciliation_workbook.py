@@ -937,6 +937,40 @@ ROTATIONAL_BASE_SLUGS = frozenset({
     "illusion",  # mirage's reverse atom; rotational by symmetry
 })
 
+# Composite-modifier decompositions: folk-name shorthand modifier labels
+# whose ADD math should derive from a multi-atom stack rather than the
+# single DB row's add_bonus, scoped to a trick-slug allowlist.
+#
+# Red-explicit only. Red pt8 ratified 'blurry = stepping paradox' for the
+# four enumerated compounds (Blurry Whirl = Stepping Paradox Whirl = 5;
+# Blurry Torque = Stepping Paradox Torque = 6; Food Processor =
+# Stepping Paradox Blender = 6; Blur = Stepping Paradox Mirage = 4). The
+# DB modifier table preserves 'blurry' as a +1 row because chain readings,
+# glossary entries, and other curator-facing surfaces still reference it
+# as a single label; the decomposition runs only inside derive_add_math
+# and only for the targeted trick slugs.
+#
+# Trick-slug allowlist is load-bearing: blurriest (= blurry barfly per DB)
+# uses 'blurry' as a single +1 dex-prefix on a 2-dex barfly base, NOT as
+# the two-atom stepping+paradox stack. Universal application to all
+# blurry-X compounds would mis-derive blurriest.
+#
+# Restraint: nemesis (furious = barraging + paradox = +2) is Red-IMPLICIT
+# via parallel structure and awaits explicit Red confirmation; sumo
+# (nuclear composition) is the genuine open Wave 3 Q7 candidate. Neither
+# lives here until curator/Red resolves them.
+MODIFIER_COMPOSITIONS: dict[str, dict] = {
+    "blurry": {
+        "atoms": ["stepping", "paradox"],
+        "targets": frozenset({
+            "blur",
+            "blurry-whirl",
+            "blurry-torque",
+            "food-processor",
+        }),
+    },
+}
+
 
 def derive_chain_reading(
     base_trick: Optional[str],
@@ -960,6 +994,7 @@ def derive_chain_reading(
 
 
 def derive_add_math(
+    trick_slug: Optional[str],
     base_trick: Optional[str],
     modifier_slugs: list[str],
     db_rows: dict[str, dict],
@@ -969,6 +1004,8 @@ def derive_add_math(
 
     Returns (derivation_string, total_add) or (None, None) when derivation
     isn't possible. Uses rotational bonus when base is in ROTATIONAL_BASE_SLUGS.
+    Expands a modifier into its atomic decomposition when the
+    (modifier, trick) pair appears in MODIFIER_COMPOSITIONS.
     """
     if not base_trick or not modifier_slugs:
         return None, None
@@ -987,12 +1024,18 @@ def derive_add_math(
     parts: list[str] = []
     total = base_add
     for mod_slug in modifier_slugs:
-        mod = modifier_table.get(mod_slug)
-        if not mod:
-            return None, None
-        bonus = mod["add_bonus_rotational"] if is_rotational else mod["add_bonus"]
-        parts.append(f"{mod_slug}(+{bonus})")
-        total += bonus
+        composition = MODIFIER_COMPOSITIONS.get(mod_slug)
+        if composition and trick_slug in composition["targets"]:
+            atom_slugs = composition["atoms"]
+        else:
+            atom_slugs = [mod_slug]
+        for atom_slug in atom_slugs:
+            mod = modifier_table.get(atom_slug)
+            if not mod:
+                return None, None
+            bonus = mod["add_bonus_rotational"] if is_rotational else mod["add_bonus"]
+            parts.append(f"{atom_slug}(+{bonus})")
+            total += bonus
 
     parts.append(f"{base_trick}({base_add})")
     return f"{' + '.join(parts)} = {total} ADD", total
@@ -1059,6 +1102,7 @@ def build_row(
         ifpa_computed_add = str(resolved_entry["totalAdd"])
     else:
         derived_formula, derived_total = derive_add_math(
+            slug,
             db.get("base_trick") if db else None,
             modifier_slugs,
             db_rows,
