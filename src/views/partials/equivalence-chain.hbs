@@ -1,0 +1,32 @@
+{{!--
+  equivalence-chain.hbs
+
+  Renders one or more equivalence rows for an entry. Each row pairs
+  two named tricks (or a trick + structural expansion) with the
+  identity glyph ≡ and a source chip distinguishing historical /
+  structural / curator-derived / community readings.
+
+  Parameters:
+    chains — array of EquivalenceRow { left, right, source, why? }
+
+  Each row is independently readable. The optional `why` rendering
+  is a one-line muted prose line below the row.
+
+  Source-chip vocabulary is fixed at the editorial layer; the
+  template branches only on the pre-shaped `source` discriminator.
+--}}
+<dl class="equivalence-chain">
+{{#each chains}}
+  <div class="equivalence-chain-row">
+    <dt class="equivalence-chain-pair">
+      <span class="equivalence-chain-left">{{left}}</span>
+      <span class="equivalence-chain-glyph" aria-label="equivalent to">&equiv;</span>
+      <span class="equivalence-chain-right">{{right}}</span>
+      <span class="equivalence-chain-source equivalence-chain-source--{{source}}">{{source}}</span>
+    </dt>
+    {{#if why}}
+      <dd class="equivalence-chain-why">{{why}}</dd>
+    {{/if}}
+  </div>
+{{/each}}
+</dl>

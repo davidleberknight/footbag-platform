@@ -117,6 +117,10 @@ import {
   type ObservationalStatus,
 } from '../content/freestyleObservationalTricks';
 import {
+  DERIVATION_PILOT_ENTRIES,
+  type DerivationPanelEntry,
+} from '../content/freestyleDerivationPilot';
+import {
   ROOT_TERMINAL_FAMILIES,
   BRANCH_FAMILIES,
   type GlossaryFamilyCard,
@@ -2418,6 +2422,12 @@ export interface FreestyleGlossaryContent {
   // educational cards illustrating how ADD math composes for compound
   // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module.
   addWorkedExamples:    readonly GlossaryAddExample[];
+  // §1 Derivation atlas — five canonical entries rendered through the
+  // derivation-first compositional-atlas primitives (derivation panel,
+  // semantic-depth ladder, ADD breakdown, equivalence chain, doctrine
+  // note). Demonstrates the compositional system upfront, before the
+  // reference content begins.
+  derivationAtlas:      readonly DerivationPanelEntry[];
 }
 
 // /freestyle/observational view-model. Surfaces the observational-layer
@@ -5541,6 +5551,7 @@ export const freestyleService = {
           return !familySlugs.has(t.slug);
         }),
         addWorkedExamples: ADD_WORKED_EXAMPLES,
+        derivationAtlas:   DERIVATION_PILOT_ENTRIES,
       },
     };
   },

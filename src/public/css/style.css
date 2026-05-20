@@ -8088,3 +8088,488 @@ a.dict-card-title:hover {
     font-size: 0.82rem;
   }
 }
+
+/* ── /freestyle/derivation-pilot — P4 derivation primitives ───────────────
+ * Standalone preview surface for the derivation-first compositional atlas
+ * (exploration/glossary-derivation-first-2026-05-20/DESIGN.md). Five
+ * primitives: derivation panel, semantic-depth ladder, compression card,
+ * equivalence chain, doctrine note.
+ *
+ * Restraint contract:
+ *   - 4-color budget preserved (no new role colors).
+ *   - Text-mode rendering only; no AST visuals, no tree drawings.
+ *   - Plain typographic hierarchy; depth via indentation and font weight,
+ *     not via color.
+ *   - <details> for expansion only; no JS interaction.
+ */
+
+.freestyle-derivation-pilot {
+  max-width: 880px;
+}
+
+.glossary-sidebar-sublist {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 6px 14px;
+  font-size: 0.88rem;
+}
+.glossary-sidebar-sublist li {
+  padding: 1px 0;
+}
+.glossary-sidebar-sublist a {
+  color: #555e6b;
+}
+
+.glossary-derivation-atlas-heading {
+  margin-top: 36px;
+}
+.glossary-derivation-atlas-intro {
+  color: #555;
+  font-style: italic;
+  margin-bottom: 20px;
+}
+.glossary-derivation-atlas {
+  margin-bottom: 12px;
+}
+
+.derivation-pilot-intro {
+  margin-bottom: 32px;
+}
+
+.derivation-pilot-source-legend {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0 0;
+  display: grid;
+  gap: 8px;
+}
+.derivation-pilot-source-legend-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.92rem;
+}
+.derivation-pilot-source-legend-desc {
+  color: #555;
+}
+
+.derivation-pilot-section-intro {
+  color: #555;
+  font-style: italic;
+  margin-bottom: 20px;
+}
+
+/* ── Derivation panel ─────────────────────────────────────────────────── */
+
+.derivation-panel {
+  border: 1px solid #d8d4c8;
+  border-radius: 6px;
+  padding: 18px 22px;
+  margin: 0 0 28px 0;
+  background: #fdfdfb;
+}
+.derivation-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #ece8dc;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+.derivation-panel-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #2a3a4a;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.derivation-panel-kind-chip {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: #ece8dc;
+  color: #555e6b;
+}
+.derivation-panel-kind-chip--modifier    { background: #efece1; color: #6a6230; }
+.derivation-panel-kind-chip--trick       { background: #e8eaef; color: #3a4858; }
+.derivation-panel-kind-chip--family-root { background: #e1ece4; color: #355c44; }
+.derivation-panel-family-position {
+  font-size: 0.85rem;
+  color: #888;
+  font-style: italic;
+}
+
+.derivation-panel-section {
+  margin: 14px 0;
+}
+.derivation-panel-section-heading {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #888;
+  margin: 0 0 6px 0;
+}
+
+.derivation-panel-operational {
+  display: inline-block;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.92rem;
+  background: #f4f1e6;
+  color: #2a3a4a;
+  padding: 4px 10px;
+  border-radius: 3px;
+  letter-spacing: 0.01em;
+  word-break: break-word;
+}
+
+.derivation-panel-add,
+.derivation-panel-lineage {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 0.94rem;
+}
+.derivation-panel-add dt,
+.derivation-panel-lineage dt {
+  color: #888;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+.derivation-panel-add dd,
+.derivation-panel-lineage dd {
+  margin: 0;
+  color: #2a3a4a;
+}
+.derivation-panel-add-derivation {
+  font-style: italic;
+  color: #555;
+}
+.derivation-panel-add-breakdown {
+  display: inline-block;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 0.88rem;
+  background: #fdf8e4;
+  color: #6a5e2a;
+  padding: 3px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.01em;
+  word-break: break-word;
+}
+
+.derivation-panel-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.derivation-panel-list li {
+  padding: 1px 0;
+}
+
+.derivation-panel-prose {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #f7f4ea;
+  border-left: 3px solid #d8d4c8;
+  border-radius: 0 3px 3px 0;
+}
+.derivation-panel-prose summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: #555;
+}
+.derivation-panel-prose[open] summary {
+  margin-bottom: 8px;
+}
+.derivation-panel-prose p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #3a4858;
+  line-height: 1.55;
+}
+.derivation-panel-prose-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  margin-right: 6px;
+  border-radius: 2px;
+  background: #ece8dc;
+  color: #6a6230;
+}
+.derivation-panel-prose--observational .derivation-panel-prose-badge {
+  background: #e1ece4;
+  color: #355c44;
+}
+
+/* ── Semantic-depth ladder ────────────────────────────────────────────── */
+
+.semantic-depth-ladder {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 3px;
+}
+.semantic-depth-ladder-rung {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  color: #2a3a4a;
+  line-height: 1.5;
+}
+.semantic-depth-ladder-chip {
+  flex: 0 0 90px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #999;
+  padding: 1px 4px;
+}
+.semantic-depth-ladder-text {
+  flex: 1 1 auto;
+}
+.semantic-depth-ladder-rung--compressed .semantic-depth-ladder-text {
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+.semantic-depth-ladder-rung--semantic .semantic-depth-ladder-text {
+  font-size: 0.98rem;
+}
+.semantic-depth-ladder-rung--expanded .semantic-depth-ladder-text {
+  font-size: 0.92rem;
+  color: #3a4858;
+}
+.semantic-depth-ladder-rung--deep .semantic-depth-ladder-text {
+  font-size: 0.88rem;
+  color: #4a5868;
+}
+
+/* ── Equivalence chain ────────────────────────────────────────────────── */
+
+.equivalence-chain {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.equivalence-chain-row {
+  padding: 6px 10px;
+  background: #f7f4ea;
+  border-left: 3px solid #d8d4c8;
+  border-radius: 0 3px 3px 0;
+}
+.equivalence-chain-pair {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.96rem;
+  color: #2a3a4a;
+  margin: 0;
+}
+.equivalence-chain-left,
+.equivalence-chain-right {
+  font-style: italic;
+}
+.equivalence-chain-glyph {
+  font-style: normal;
+  color: #99a;
+}
+.equivalence-chain-source {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 2px;
+  margin-left: auto;
+}
+.equivalence-chain-source--historical      { background: #efece1; color: #6a6230; }
+.equivalence-chain-source--structural      { background: #e1ece4; color: #355c44; }
+.equivalence-chain-source--curator-derived { background: #e8eaef; color: #3a4858; }
+.equivalence-chain-source--community       { background: #ece8dc; color: #555e6b; }
+.equivalence-chain-why {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: #555;
+}
+
+/* ── Compression card ─────────────────────────────────────────────────── */
+
+.compression-card {
+  border: 1px solid #ece8dc;
+  border-radius: 6px;
+  padding: 14px 16px;
+  background: #fdfdfb;
+}
+.compression-card-head {
+  border-bottom: 1px solid #ece8dc;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+.compression-card-eyebrow {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #888;
+}
+.compression-card-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2a3a4a;
+  margin: 4px 0 0 0;
+}
+.compression-card-equivalence {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid #ece8dc;
+}
+
+/* ── Doctrine note ────────────────────────────────────────────────────── */
+
+.doctrine-note {
+  padding: 12px 16px;
+  background: #f4f1e6;
+  border-left: 4px solid #c9a64a;
+  border-radius: 0 4px 4px 0;
+  margin: 0;
+}
+.doctrine-note--resolved              { border-left-color: #6a8a6a; }
+.doctrine-note--policy-dependent      { border-left-color: #c9a64a; }
+.doctrine-note--historical-disagreement { border-left-color: #a08a6a; }
+.doctrine-note--multiple-readings     { border-left-color: #6a7a9a; }
+
+.doctrine-note-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.doctrine-note-badge {
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #888;
+  padding: 1px 6px;
+  background: #ece8dc;
+  border-radius: 2px;
+}
+.doctrine-note-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #2a3a4a;
+  margin: 0;
+}
+.doctrine-note-fields {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 0.92rem;
+}
+.doctrine-note-fields dt {
+  color: #888;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+.doctrine-note-fields dd {
+  margin: 0;
+  color: #2a3a4a;
+}
+.doctrine-note-status-chip {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  background: #ece8dc;
+  color: #555e6b;
+  border-radius: 2px;
+}
+.doctrine-note-context {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #ece2bc;
+}
+.doctrine-note-context summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #555;
+}
+.doctrine-note-context p {
+  margin: 8px 0 0 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: #3a4858;
+  line-height: 1.55;
+}
+
+/* ── Standalone primitive demo grid ──────────────────────────────────── */
+
+.derivation-pilot-standalone-grid {
+  display: grid;
+  gap: 24px;
+  margin-top: 16px;
+}
+.derivation-pilot-standalone-cell {
+  display: block;
+}
+.derivation-pilot-standalone-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #555;
+  margin: 0 0 8px 0;
+}
+
+@media (min-width: 720px) {
+  .derivation-pilot-standalone-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .derivation-panel {
+    padding: 14px 14px;
+  }
+  .derivation-panel-add,
+  .derivation-panel-lineage,
+  .doctrine-note-fields {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .derivation-panel-add dt,
+  .derivation-panel-lineage dt,
+  .doctrine-note-fields dt {
+    margin-top: 6px;
+  }
+  .semantic-depth-ladder-rung {
+    flex-wrap: wrap;
+  }
+  .semantic-depth-ladder-chip {
+    flex: 0 0 auto;
+  }
+}

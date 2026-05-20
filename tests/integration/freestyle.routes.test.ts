@@ -2401,13 +2401,18 @@ describe('Freestyle glossary — re-bloat guard', () => {
     const res = await request(createApp()).get('/freestyle/glossary');
     // Re-bloat guard. The threshold is a ceiling against unwanted prose
     // drift, NOT against deliberate curator-locked structural expansion.
-    // Raised from 120K → 145K with the P3 IA expansion (§5 family card
-    // grids + §8 ADD Accounting full build with 5 worked-example cards +
-    // §10 Run Architecture topic list). All P3 additions are structured
-    // reference content; the prose-compression locked default still
-    // applies — future drift back toward sprawling paragraphs would
-    // breach this ceiling again.
-    expect(res.text.length).toBeLessThan(145_000);
+    // History of bumps:
+    //   120K → 145K  P3 IA expansion (§5 family card grids + §8 ADD
+    //                Accounting full build + §10 Run Architecture).
+    //   145K → 175K  P4 derivation atlas inside §1 (five derivation
+    //                panels rendering compositional examples upfront,
+    //                with semantic-depth ladders, ADD breakdowns,
+    //                equivalence chains, and an inline doctrine note).
+    //                Structured reference content; not prose drift.
+    // The prose-compression locked default still applies — future
+    // drift back toward sprawling paragraphs would breach this ceiling
+    // again.
+    expect(res.text.length).toBeLessThan(175_000);
   });
 });
 

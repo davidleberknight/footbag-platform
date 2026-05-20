@@ -1,0 +1,31 @@
+{{!--
+  compression-card.hbs
+
+  Standalone compression-card primitive showing one trick at multiple
+  locutions in a single framed object. Composes the semantic-depth-
+  ladder partial. Distinct from a derivation panel: the compression
+  card surfaces ONLY the ladder + optional equivalence rows, framed
+  as a teaching object.
+
+  Used as a standalone primitive demo on the pilot page; in the
+  eventual glossary §9 expansion (post-P4), the card is the first-
+  class element.
+
+  Parameters:
+    entry — DerivationPanelEntry (uses entry.compressedName, entry.ladder,
+            entry.equivalenceChains)
+--}}
+<article class="compression-card">
+  <header class="compression-card-head">
+    <span class="compression-card-eyebrow">compression card</span>
+    <h3 class="compression-card-title">{{entry.compressedName}}</h3>
+  </header>
+
+  {{> semantic-depth-ladder ladder=entry.ladder}}
+
+  {{#if entry.equivalenceChains.length}}
+    <div class="compression-card-equivalence">
+      {{> equivalence-chain chains=entry.equivalenceChains}}
+    </div>
+  {{/if}}
+</article>

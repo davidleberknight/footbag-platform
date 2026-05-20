@@ -1,0 +1,112 @@
+{{!--
+  derivation-panel.hbs
+
+  The keystone primitive for the derivation-first compositional atlas
+  (P4 pilot, exploration/glossary-derivation-first-2026-05-20/DESIGN.md).
+  Five axes rendered as vertically adjacent rows so the reader sees the
+  trick / family / ADD / lineage / shorthand connection in one glance:
+
+    - name + kind chip (header)
+    - semantic-depth ladder (compressed → semantic → expanded → deep)
+    - operational formula (Jobs notation)
+    - ADD ledger (with naive-vs-official disagreement when present)
+    - family + inheritance chain
+    - related structures
+    - optional doctrine note
+    - optional equivalence chain
+    - optional [advanced] + [observational] expandable prose
+
+  Parameters:
+    entry — DerivationPanelEntry
+
+  Restraint:
+    - No syntax-highlighted token soup. Operational formula renders
+      as a single <code> line.
+    - No tree visuals. Lineage is a flat list of named ancestors.
+    - No interactive symbolic UI. Expandables use plain <details>.
+    - Stays inside the existing 4-color budget (no new role colors).
+--}}
+<article class="derivation-panel" id="derivation-{{entry.slug}}">
+  <header class="derivation-panel-head">
+    <h3 class="derivation-panel-title">{{entry.compressedName}}</h3>
+    <span class="derivation-panel-kind-chip derivation-panel-kind-chip--{{entry.kind}}">{{entry.kind}}</span>
+    {{#if entry.familyPosition}}
+      <span class="derivation-panel-family-position">{{entry.familyPosition}}</span>
+    {{/if}}
+  </header>
+
+  <section class="derivation-panel-section derivation-panel-section--ladder" aria-label="Semantic-depth ladder">
+    {{> semantic-depth-ladder ladder=entry.ladder}}
+  </section>
+
+  <section class="derivation-panel-section derivation-panel-section--operational" aria-label="Operational formula">
+    <h4 class="derivation-panel-section-heading">Operational</h4>
+    <code class="derivation-panel-operational">{{entry.operational}}</code>
+  </section>
+
+  <section class="derivation-panel-section derivation-panel-section--add" aria-label="ADD ledger">
+    <h4 class="derivation-panel-section-heading">ADD</h4>
+    <dl class="derivation-panel-add">
+      <dt>Official</dt>
+      <dd>{{entry.add.official}}</dd>
+      {{#if entry.add.naiveComputed}}
+        <dt>Naive computed</dt>
+        <dd>{{entry.add.naiveComputed}}</dd>
+      {{/if}}
+      <dt>Breakdown</dt>
+      <dd><code class="derivation-panel-add-breakdown">{{entry.add.breakdown}}</code></dd>
+      <dt>Derivation</dt>
+      <dd class="derivation-panel-add-derivation">{{entry.add.derivation}}</dd>
+    </dl>
+  </section>
+
+  <section class="derivation-panel-section derivation-panel-section--lineage" aria-label="Family and lineage">
+    <dl class="derivation-panel-lineage">
+      <dt>Family</dt>
+      <dd>{{entry.family}}</dd>
+      <dt>Inherits from</dt>
+      <dd>
+        <ul class="derivation-panel-list">
+          {{#each entry.inherits}}
+            <li>{{this}}</li>
+          {{/each}}
+        </ul>
+      </dd>
+      <dt>Related</dt>
+      <dd>
+        <ul class="derivation-panel-list">
+          {{#each entry.related}}
+            <li>{{this}}</li>
+          {{/each}}
+        </ul>
+      </dd>
+    </dl>
+  </section>
+
+  {{#if entry.equivalenceChains.length}}
+    <section class="derivation-panel-section derivation-panel-section--equivalence" aria-label="Equivalence chains">
+      <h4 class="derivation-panel-section-heading">Equivalence</h4>
+      {{> equivalence-chain chains=entry.equivalenceChains}}
+    </section>
+  {{/if}}
+
+  {{#if entry.doctrine}}
+    <section class="derivation-panel-section derivation-panel-section--doctrine" aria-label="ADD doctrine note">
+      {{> doctrine-note doctrine=entry.doctrine}}
+    </section>
+  {{/if}}
+
+  {{#if entry.advancedProse}}
+    <details class="derivation-panel-prose derivation-panel-prose--advanced">
+      <summary><span class="derivation-panel-prose-badge">advanced</span> notes</summary>
+      <p>{{entry.advancedProse}}</p>
+    </details>
+  {{/if}}
+
+  {{#if entry.observationalProse}}
+    <details class="derivation-panel-prose derivation-panel-prose--observational">
+      <summary><span class="derivation-panel-prose-badge">observational</span> notes</summary>
+      <p>{{entry.observationalProse}}</p>
+    </details>
+  {{/if}}
+</article>

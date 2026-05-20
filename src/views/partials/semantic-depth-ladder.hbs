@@ -1,0 +1,22 @@
+{{!--
+  semantic-depth-ladder.hbs
+
+  Renders a stack of locution rows for a single trick (compressed →
+  semantic → expanded → deep). All rows share the same font; depth is
+  communicated by indentation and a depth-label chip.
+
+  Parameters:
+    ladder        — array of { depth, text } rungs (DerivationPanelEntry.ladder)
+    showLabels    — optional boolean; when true renders the depth chips
+                    on the left. Defaults to true.
+
+  No interaction; no tooltips; no parser aesthetics. Plain typography.
+--}}
+<ol class="semantic-depth-ladder">
+{{#each ladder}}
+  <li class="semantic-depth-ladder-rung semantic-depth-ladder-rung--{{depth}}">
+    <span class="semantic-depth-ladder-chip">{{depth}}</span>
+    <span class="semantic-depth-ladder-text">{{text}}</span>
+  </li>
+{{/each}}
+</ol>

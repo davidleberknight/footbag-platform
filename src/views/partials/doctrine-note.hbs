@@ -1,0 +1,36 @@
+{{!--
+  doctrine-note.hbs
+
+  Renders an ADD-doctrine or reading-conflict note attached to an entry.
+  Four rows (Reading A / Reading B / Mechanism / Status) plus optional
+  expandable context prose. Muted tone, left-border accent, no warning
+  iconography — a doctrine is a fact about the system, not an error.
+
+  Parameters:
+    doctrine — DoctrineNote { title, readingA, readingB, mechanism, status, context? }
+
+  Status discriminator drives a small status-chip variant; template
+  does not derive the chip from raw enum keys (pre-shaped style modifier).
+--}}
+<aside class="doctrine-note doctrine-note--{{doctrine.status}}">
+  <header class="doctrine-note-head">
+    <span class="doctrine-note-badge">doctrine</span>
+    <h4 class="doctrine-note-title">{{doctrine.title}}</h4>
+  </header>
+  <dl class="doctrine-note-fields">
+    <dt>Reading A</dt>
+    <dd>{{doctrine.readingA}}</dd>
+    <dt>Reading B</dt>
+    <dd>{{doctrine.readingB}}</dd>
+    <dt>Mechanism</dt>
+    <dd>{{doctrine.mechanism}}</dd>
+    <dt>Status</dt>
+    <dd><span class="doctrine-note-status-chip">{{doctrine.status}}</span></dd>
+  </dl>
+  {{#if doctrine.context}}
+    <details class="doctrine-note-context">
+      <summary>Context</summary>
+      <p>{{doctrine.context}}</p>
+    </details>
+  {{/if}}
+</aside>

@@ -48,6 +48,23 @@
       <a href="/freestyle/history">freestyle history page</a> for the
       two-phase story.
     </p>
+
+    <h3 class="section-heading glossary-derivation-atlas-heading" id="derivation-atlas">
+      Derivation atlas &mdash; five compositional examples
+    </h3>
+    <p class="glossary-derivation-atlas-intro">
+      Five entries demonstrating the compositional system in one place: a
+      root family (whirl), a modifier (paradox), a compound trick (flurry),
+      a symbolic-compression bridge (blur), and a rotational-doctrine
+      worked example (mobius). Each panel stacks five axes &mdash; formula,
+      family, ADD with breakdown, lineage, and shorthand &mdash; so they
+      read as one object.
+    </p>
+    <div class="glossary-derivation-atlas">
+      {{#each content.derivationAtlas}}
+        {{> derivation-panel entry=this}}
+      {{/each}}
+    </div>
   </section>
 
   <section class="content-section" id="section-surfaces">
