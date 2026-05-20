@@ -103,6 +103,10 @@ import {
   type AddAnalysisContent,
 } from '../content/freestyleAddAnalysisContent';
 import {
+  RESOLVED_FORMULAS_SPRINT_1,
+  type ResolvedFormula,
+} from '../content/freestyleResolvedFormulas';
+import {
   FREESTYLE_COMBO_ANALYSIS_CONTENT,
   type ComboAnalysisContent,
 } from '../content/freestyleComboAnalysisContent';
@@ -948,6 +952,25 @@ export interface FreestyleTrickContent {
   // parallelTricks. The swap visualisation is the load-bearing signal:
   // "replace ducking with spinning and you get Spender."
   substitutions: ModifierSubstitution[];
+  // Tier-4 executable-accounting disclosure: human-readable ADD derivation
+  // for curator-published mechanically-derivable compounds. Null when no
+  // resolved formula is published for this slug (silent suppression =
+  // Tier-3 absence). The 4-tier rendering hierarchy contract forbids
+  // Tier-4 patterns on browse cards + landing; trick-detail pages are the
+  // only public surface (alongside /freestyle/add-analysis) where this
+  // surfaces. Provenance is curator-internal language and is NOT exposed.
+  addAnalysis: TrickAddAnalysisDisclosure | null;
+}
+
+/** Curator-published ADD derivation surfaced under a collapsed disclosure
+ *  on the trick-detail page. Only `derivation` + `totalAdd` are
+ *  user-facing; provenance lives in the content module for curator audit
+ *  but does not render publicly. */
+export interface TrickAddAnalysisDisclosure {
+  /** Human-readable derivation, e.g. 'paradox(+1) + mirage(2) = 3 ADD'. */
+  derivation: string;
+  /** Total ADD value matching the derivation arithmetic. */
+  totalAdd:   number;
 }
 
 export interface Ux2PilotData {
@@ -2578,6 +2601,33 @@ const FAMILY_NOTES: Record<string, string> = {
 // Rotational base tricks, these receive the higher modifier bonus (add_bonus_rotational)
 const ROTATIONAL_BASES = new Set(['whirl', 'mirage', 'torque', 'blender', 'swirl', 'drifter']);
 
+// Slug-keyed lookup for trick-detail Tier-4 disclosure. Built once at
+// module load from the curator-published resolved-formulas content
+// module. Missing slugs return null → silent suppression (Tier-3 absence
+// on the trick-detail page), preserving the test-pinned 4-tier
+// rendering hierarchy contract.
+const RESOLVED_FORMULAS_BY_SLUG: ReadonlyMap<string, ResolvedFormula> = (() => {
+  const map = new Map<string, ResolvedFormula>();
+  for (const formula of RESOLVED_FORMULAS_SPRINT_1) {
+    map.set(formula.slug, formula);
+  }
+  return map;
+})();
+
+/** Resolve the Tier-4 ADD-analysis disclosure for a trick slug. Returns
+ *  null when the slug has no curator-published resolved formula —
+ *  trick-detail then silently omits the disclosure section. Provenance
+ *  is intentionally NOT included in the disclosure (curator-internal
+ *  language; see [[feedback_public_facing_prose]]). */
+function shapeTrickAddAnalysis(slug: string): TrickAddAnalysisDisclosure | null {
+  const formula = RESOLVED_FORMULAS_BY_SLUG.get(slug);
+  if (!formula) return null;
+  return {
+    derivation: formula.derivation,
+    totalAdd:   formula.totalAdd,
+  };
+}
+
 /**
  * Extract modifier word(s) from a compound canonical name by removing base trick words.
  * Returns an array of modifier slugs (one per applied modifier word).
@@ -3752,6 +3802,7 @@ export const freestyleService = {
                 modifierLinkMap,
               )
             : [],
+          addAnalysis: shapeTrickAddAnalysis(slug),
         };
       })(),
     };

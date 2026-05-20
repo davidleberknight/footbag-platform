@@ -3476,6 +3476,65 @@ section.home-media { padding-top: 0; }
 .notation-grammar-collapsible > *:not(summary):first-of-type { padding-top: 14px; }
 .notation-grammar-collapsible > *:last-child { padding-bottom: 14px; }
 
+/* Tier-4 executable-accounting disclosure on trick-detail. Matches the
+   collapsed-by-default disclosure aesthetic of the structural panel but
+   sits earlier in the flow (between modifier-layering and execution
+   prose) — the goal is educational, not diagnostic. */
+.trick-add-analysis-disclosure {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  padding: 0;
+}
+.trick-add-analysis-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.trick-add-analysis-summary::-webkit-details-marker { display: none; }
+.trick-add-analysis-summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted, #64748b);
+  transition: transform 0.15s ease;
+}
+.trick-add-analysis-disclosure[open] .trick-add-analysis-summary::before { transform: rotate(90deg); }
+.trick-add-analysis-disclosure[open] .trick-add-analysis-summary {
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.trick-add-analysis-summary-title {
+  font-weight: 600;
+  font-size: 1.02rem;
+  display: inline;
+}
+.trick-add-analysis-summary-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+  padding-left: 22px;
+}
+.trick-add-analysis-derivation {
+  margin: 0;
+  padding: 14px 18px 4px 18px;
+  font-size: 1rem;
+}
+.trick-add-analysis-derivation code {
+  background: #f4f1ea;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 0.95em;
+}
+.trick-add-analysis-context {
+  margin: 0;
+  padding: 4px 18px 14px 18px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    UX3c-b ADD-tiered family lineage (2026-05-11). Replaces the flat
    .family-ladder list with tier-grouped rows: numeric ADD tiers ascending,

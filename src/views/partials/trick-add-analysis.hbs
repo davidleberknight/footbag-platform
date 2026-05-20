@@ -1,0 +1,23 @@
+{{!--
+  Tier-4 executable-accounting disclosure. Collapsed by default. Renders
+  only when content.addAnalysis is non-null (= the trick has a curator-
+  published resolved formula). Provenance is intentionally NOT rendered
+  (curator-internal language).
+
+  Per the 4-tier rendering hierarchy contract: Tier-4 patterns
+  (xbody(N), dex(N), stall(N), spin(N), '= N ADD') appear ONLY on
+  trick-detail pages + /freestyle/add-analysis; browse cards + landing
+  forbid them via test-pinned absence.
+--}}
+{{#if content.addAnalysis}}
+<section class="content-section trick-add-analysis" aria-label="ADD derivation">
+  <details class="trick-add-analysis-disclosure">
+    <summary class="trick-add-analysis-summary">
+      <span class="trick-add-analysis-summary-title">How this {{content.addAnalysis.totalAdd}}-ADD total breaks down</span>
+      <span class="trick-add-analysis-summary-hint">Click to expand</span>
+    </summary>
+    <p class="trick-add-analysis-derivation"><code>{{content.addAnalysis.derivation}}</code></p>
+    <p class="trick-add-analysis-context">Curator-published derivation: each operator contributes its bonus to the base atom; the total matches the ADD value above.</p>
+  </details>
+</section>
+{{/if}}
