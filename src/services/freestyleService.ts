@@ -122,6 +122,10 @@ import {
   type GlossaryFamilyCard,
 } from '../content/freestyleGlossaryFamilyCards';
 import {
+  ADD_WORKED_EXAMPLES,
+  type GlossaryAddExample,
+} from '../content/freestyleGlossaryAddExamples';
+import {
   DICTIONARY_LANDING_CARDS,
   DICTIONARY_LANDING_FRAMING,
   DICTIONARY_LANDING_NOTATION_PHILOSOPHY,
@@ -2390,6 +2394,10 @@ export interface FreestyleGlossaryContent {
   // Preserves the #term-{slug} anchors for these atoms without
   // duplicating with the family-card anchors above.
   otherFoundationalAtoms: FreestyleCoreTrickCard[];
+  // §8 ADD Accounting worked-example cards (P3 expansion). Five compact
+  // educational cards illustrating how ADD math composes for compound
+  // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module.
+  addWorkedExamples:    readonly GlossaryAddExample[];
 }
 
 // /freestyle/observational view-model. Surfaces the observational-layer
@@ -5447,6 +5455,7 @@ export const freestyleService = {
           ]);
           return !familySlugs.has(t.slug);
         }),
+        addWorkedExamples: ADD_WORKED_EXAMPLES,
       },
     };
   },

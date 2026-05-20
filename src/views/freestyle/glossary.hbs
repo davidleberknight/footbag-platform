@@ -633,31 +633,165 @@
       8. ADD Accounting
       <span class="glossary-tier-badge glossary-tier-badge--intermediate">Intermediate</span>
     </h2>
+
+    <h3 id="run-quality">ADD philosophy</h3>
     <p>
       <strong>ADD (Additional Degree of Difficulty)</strong> is
       <em>additive structural accounting</em>: each base trick has a weight,
-      each modifier has a weight, and a trick's total is the sum. This isn't
-      just a scoring convention &mdash; it's the same logic that lets the
-      dictionary read a compound like <em>mobius</em> as "gyro torque"
-      and have the ADD add up the same way (4 + 1 = 5).
+      each modifier has a weight, and a trick's total is the sum. Each ATAM
+      bracket-flag (<code>[BOD]</code> / <code>[DEX]</code> /
+      <code>[XBD]</code> / <code>[DEL]</code> / <code>[UNS]</code>) in the
+      operational notation contributes 1 ADD; modifier stacks accumulate
+      above the base trick value. The same logic lets the dictionary read
+      <em>mobius</em> as &ldquo;gyro torque&rdquo; and arrive at the same
+      ADD math either way.
     </p>
-    <p class="detail-muted">
-      Sequence-level vocabulary (run-quality tiers, event formats, combo
-      architecture) lives at
-      <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>;
-      this section covers per-trick ADD only. Full worked examples,
-      discrepancy cases, and policy-dependent semantics are at
-      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+
+    <h3>Base trick weights</h3>
+    <p>
+      The twelve canonical atoms each have a fixed ADD value. Modifier
+      stacks compose <em>onto</em> these weights; family-level totals
+      derive from the base value plus accumulated operator contributions.
     </p>
-    <h3 id="run-quality">ADD &mdash; additive structural accounting</h3>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Atom</th><th>ADD</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>toe-stall</td><td>1</td><td>foundational delay</td></tr>
+          <tr><td>clipper-stall</td><td>2</td><td>cross-body delay</td></tr>
+          <tr><td>around-the-world</td><td>2</td><td>1-dex atom</td></tr>
+          <tr><td>orbit</td><td>2</td><td>reverse ATW</td></tr>
+          <tr><td>legover</td><td>1</td><td>1-dex toe terminal</td></tr>
+          <tr><td>pickup</td><td>1</td><td>reverse legover</td></tr>
+          <tr><td>mirage</td><td>2</td><td>dex-anchored entry topology</td></tr>
+          <tr><td>illusion</td><td>2</td><td>reverse mirage</td></tr>
+          <tr><td>butterfly</td><td>3</td><td>dex+xbody+stall</td></tr>
+          <tr><td>osis</td><td>3</td><td>body+xbody+stall</td></tr>
+          <tr><td>whirl</td><td>3</td><td>dex+xbody+stall</td></tr>
+          <tr><td>swirl</td><td>3</td><td>swirl+xbody+stall</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Modifier weights</h3>
+    <p>
+      Modifier values come in two columns: the non-rotational bonus
+      applies on most bases, the rotational bonus applies when the base
+      is a rotational atom (whirl / mirage / torque / blender / swirl /
+      drifter / osis / illusion). The atomic, furious, and nuclear
+      modifiers contribute extra weight on rotational bases.
+    </p>
+    <div class="glossary-add-weight-table-wrap">
+      <table class="glossary-add-weight-table">
+        <thead><tr><th>Modifier</th><th>Non-rotational</th><th>Rotational</th><th>Class</th></tr></thead>
+        <tbody>
+          <tr><td>paradox</td><td>+1</td><td>+1</td><td>body</td></tr>
+          <tr><td>stepping</td><td>+1</td><td>+1</td><td>body</td></tr>
+          <tr><td>ducking</td><td>+1</td><td>+1</td><td>body</td></tr>
+          <tr><td>symposium</td><td>+1</td><td>+1</td><td>body (no-plant)</td></tr>
+          <tr><td>spinning</td><td>+1</td><td>+1</td><td>body (rotation)</td></tr>
+          <tr><td>whirling</td><td>+1</td><td>+1</td><td>body</td></tr>
+          <tr><td>atomic</td><td>+1</td><td>+2</td><td>set</td></tr>
+          <tr><td>furious</td><td>+1</td><td>+2</td><td>set (composite)</td></tr>
+          <tr><td>nuclear</td><td>+2</td><td>+2</td><td>set (composite, pending)</td></tr>
+          <tr><td>blurry</td><td>+1</td><td>+1</td><td>set (composite ≡ stepping+paradox)</td></tr>
+          <tr><td>pixie</td><td>+1</td><td>+1</td><td>set</td></tr>
+          <tr><td>fairy</td><td>+1</td><td>+1</td><td>set</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Additive formulas</h3>
+    <p>
+      The default ADD formula is base + modifier stack. A simple
+      <em>+1 stack</em> like paradox + mirage = 3 ADD reads cleanly:
+      <code>paradox(+1) + mirage(2) = 3 ADD</code>. Stacks accumulate
+      left to right; the trick's operational notation chain mirrors
+      the formula's term order.
+    </p>
+
+    <h3>Complementary formulas</h3>
+    <p>
+      Some compound modifier labels are folk shorthand for two-operator
+      stacks. The <em>blurry</em> modifier is the canonical example:
+      <code>blurry = stepping + paradox</code> per Red pt8. The workbook
+      decomposes composite labels via a registry so the additive math
+      surfaces the underlying atom-level operators (see Blur in the
+      worked examples below).
+    </p>
+
+    <h3>Decomposition chains</h3>
+    <p>
+      Multi-modifier compounds derive their ADD by walking the chain
+      from base trick outward. <em>Stepping paradox whirl</em> reads as
+      <code>stepping(+1) + paradox(+1) + whirl(3) = 5 ADD</code>. The
+      same chain doubles as the trick's compositional reading on the
+      dictionary's trick-detail page.
+    </p>
+
+    <h3>Worked examples</h3>
+    <p>
+      Five compact worked examples illustrate the additive doctrine, the
+      composite-modifier shorthand pattern, and currently-open doctrine
+      cases. Each card shows the compact notation, the official ADD,
+      and the derivation chain; observational commentary collapses
+      behind the card title.
+    </p>
+    <div class="glossary-add-examples-grid">
+      {{#each content.addWorkedExamples}}
+      <article class="glossary-add-example-card" id="add-example-{{slug}}">
+        <header class="glossary-add-example-head">
+          <h4 class="glossary-add-example-title">{{displayName}}</h4>
+          <span class="glossary-add-example-status glossary-add-example-status--{{status}}">
+            {{#if (eq status 'canonical')}}canonical{{/if}}
+            {{#if (eq status 'pending-doctrine')}}pending doctrine{{/if}}
+            {{#if (eq status 'doctrine-locked')}}doctrine-locked{{/if}}
+          </span>
+        </header>
+        <dl class="glossary-add-example-fields">
+          <dt>Compact</dt>
+          <dd>{{compactNotation}}</dd>
+          <dt>Official ADD</dt>
+          <dd class="glossary-add-example-add">{{officialAdd}}</dd>
+          <dt>Derivation</dt>
+          <dd><code>{{derivation}}</code></dd>
+        </dl>
+        {{#if observationalNote}}
+        <details class="glossary-family-card-observational">
+          <summary class="glossary-family-card-observational-summary">
+            <span class="glossary-family-card-observational-title">Why it matters</span>
+            <span class="glossary-layer-badge glossary-layer-badge--observational">observational</span>
+          </summary>
+          <p class="glossary-family-card-observational-body">{{observationalNote}}</p>
+        </details>
+        {{/if}}
+      </article>
+      {{/each}}
+    </div>
+
+    <details class="glossary-family-card-observational">
+      <summary class="glossary-family-card-observational-summary">
+        <span class="glossary-family-card-observational-title">Discrepancy cases &amp; policy-dependent semantics</span>
+        <span class="glossary-layer-badge glossary-layer-badge--advanced">advanced</span>
+      </summary>
+      <p class="glossary-family-card-observational-body">
+        Several compounds carry open ADD questions where the computed value
+        and the official value disagree (mobius, sumo, barraging-osis). These
+        are tracked as governance-blocked at the workbook layer; trick-detail
+        pages render the official value with the divergence noted. The
+        counting-frame doctrine (whether [PDX] is independently flag-counted
+        vs absorbed into the dex flag) is the source of most multi-source
+        disagreements; see <a href="/freestyle/add-analysis">ADD Accounting
+        &amp; Analysis</a> for case-by-case adjudication.
+      </p>
+    </details>
+
     <p class="glossary-cross-link">
-      For the mechanical walkthrough of how ADD values are built, with
-      worked examples (mobius, blur, nuclear, quantum, baroque) and
-      discrepancy case studies, see
-      <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
+      For the full mechanical walkthrough with all resolved-formula sprints,
+      see <a href="/freestyle/add-analysis">ADD Accounting &amp; Analysis</a>.
       For run-quality tiers (Tiltless, Guiltless, Tripless, Fearless,
       Beastly, Godly, Genuine, BOP) and competitive formats (Sick3,
-      Shred:30, Circle, etc.), see
+      Shred:30, Circle), see
       <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>.
     </p>
   </section>
@@ -771,12 +905,19 @@
       Above the single-trick level, tricks combine into <strong>runs</strong>:
       ordered sequences of tricks chained through transitions. Run architecture
       is the sequence-level vocabulary that sits on top of the trick-level
-      grammar this glossary documents. Run-quality tiers, competitive formats,
-      and combo-flow analysis live on the dedicated reference page.
+      grammar this glossary documents.
     </p>
+    <ul class="glossary-run-architecture-topics">
+      <li><strong>Combo flow basics</strong> &mdash; how a trick's terminal stall sets up the next trick's entry; the &ldquo;chain language&rdquo; between adjacent tricks.</li>
+      <li><strong>Run-quality tiers</strong> (Tiltless, Guiltless, Tripless, Fearless, Beastly, Godly, Genuine, BOP) &mdash; the qualitative ladder for evaluating whole runs.</li>
+      <li><strong>Competitive formats</strong> (Routine, Circle, Sick 3, Shred 30) &mdash; the rule sets for competitive freestyle runs.</li>
+      <li><strong>Transition patterns</strong> &mdash; common connector-trick choices, e.g. whirl-family tricks acting as central attractors between disparate compounds.</li>
+      <li><strong>Density</strong> &mdash; the average ADD per trick across a run; the run-level analogue of per-trick ADD.</li>
+    </ul>
     <p class="glossary-cross-link">
-      Full run-architecture reference (run-quality tiers, combo flow,
-      transition patterns, competitive format definitions) at
+      Full run-architecture reference (per-tier definitions, format
+      specifications, combo-flow analysis, dropless/dropful classification,
+      sequence-architecture observations) lives at
       <a href="/freestyle/combo-analysis">Combo &amp; Run Architecture</a>.
     </p>
   </section>

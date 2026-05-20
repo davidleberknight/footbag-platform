@@ -1577,13 +1577,16 @@ describe('Coherence Cleanup Slice — Phase 3 safe corrective fixes (2026-05-17)
     expect(res.text).toContain('id="run-quality"');
   });
 
-  it('ADD Accounting section acknowledges the relocation of run-quality material to combo-analysis', async () => {
-    // 2026-05-17 (preserved through 2026-05-19 IA refactor): when run-quality
-    // tiers + event formats moved out, the section retained a notice
-    // explaining the relocation. Now in §8 ADD Accounting.
+  it('ADD Accounting section cross-links to combo-analysis for run-level vocabulary', async () => {
+    // 14-section IA refactor (2026-05-19): ADD Accounting is §8 with
+    // dedicated subsections + worked examples. The cross-link to
+    // combo-analysis for run-quality / format vocabulary is preserved
+    // at the section footer.
     const res = await request(createApp()).get('/freestyle/glossary');
-    expect(res.text).toMatch(/Sequence-level vocabulary[\s\S]{0,300}(?:relocated|lives at)/);
     expect(res.text).toContain('href="/freestyle/combo-analysis"');
+    // §10 Run Architecture is the new explicit anchor section for run-
+    // level material; its cross-link to combo-analysis must also exist.
+    expect(res.text).toMatch(/10\.\s+Run Architecture/);
   });
 
   it('history page deep-links to the live #run-quality anchor on combo-analysis', async () => {
@@ -1716,10 +1719,15 @@ describe('Glossary improvements + history refresh (2026-05-17)', () => {
     expect(res.text).toMatch(/OP IN/);
   });
 
-  it('glossary §10 carries the additive-structural-accounting rewrite', async () => {
+  it('glossary §8 carries the additive-structural-accounting framing + mobius worked example', async () => {
+    // P3 expansion (2026-05-20): the "additive structural accounting"
+    // definition is preserved in the §8 philosophy paragraph; the
+    // mobius worked example is now a structured card in the §8 worked-
+    // examples grid (compactNotation "gyro torque" + derivation visible).
     const res = await request(createApp()).get('/freestyle/glossary');
     expect(res.text).toMatch(/additive structural accounting/);
-    expect(res.text).toMatch(/dictionary read a compound like\s+<em>mobius<\/em> as "gyro torque"/);
+    expect(res.text).toContain('id="add-example-mobius"');
+    expect(res.text).toMatch(/gyro torque/);
   });
 
   it('combo-analysis page carries anchor IDs on each run-quality tier + format term (relocated from glossary §10 on 2026-05-17)', async () => {
@@ -2399,13 +2407,18 @@ describe('Freestyle glossary — §11 Family & Topology Concepts (connective pan
   });
 });
 
-describe('Freestyle glossary — Batch 3: re-bloat guard', () => {
+describe('Freestyle glossary — re-bloat guard', () => {
   it('rendered glossary body stays within a reasonable size budget (raw HTML bytes)', async () => {
     const res = await request(createApp()).get('/freestyle/glossary');
-    // Single-page glossary should not be excessively large. The threshold
-    // is a re-bloat guard, not a tight ceiling; raise it deliberately
-    // only when a future slice has a clear reason to.
-    expect(res.text.length).toBeLessThan(120_000);
+    // Re-bloat guard. The threshold is a ceiling against unwanted prose
+    // drift, NOT against deliberate curator-locked structural expansion.
+    // Raised from 120K → 145K with the P3 IA expansion (§5 family card
+    // grids + §8 ADD Accounting full build with 5 worked-example cards +
+    // §10 Run Architecture topic list). All P3 additions are structured
+    // reference content; the prose-compression locked default still
+    // applies — future drift back toward sprawling paragraphs would
+    // breach this ceiling again.
+    expect(res.text.length).toBeLessThan(145_000);
   });
 });
 

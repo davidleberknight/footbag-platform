@@ -4602,6 +4602,132 @@ section.home-media { padding-top: 0; }
   color: #8a7a40;
 }
 
+/* §8 ADD-accounting weight tables. Compact tabular reference for atom
+   + modifier weights. Restraint-first: no heavy borders, alternating
+   row backgrounds for scanability. */
+.glossary-add-weight-table-wrap {
+  margin: 8px 0 18px 0;
+  overflow-x: auto;
+}
+.glossary-add-weight-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.glossary-add-weight-table thead th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #8a7a40;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-bottom: 1px solid #d8d2c0;
+}
+.glossary-add-weight-table tbody td {
+  padding: 4px 10px;
+  border-bottom: 1px dashed #ece6d4;
+  color: #3a3326;
+  font-variant-numeric: tabular-nums;
+}
+.glossary-add-weight-table tbody tr:nth-child(even) {
+  background: #fcfaf3;
+}
+
+/* §8 ADD worked-example cards. Compact bordered cards with status chip,
+   3-row labeled fields, optional collapsed observational note. */
+.glossary-add-examples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  margin: 10px 0 20px 0;
+}
+.glossary-add-example-card {
+  padding: 12px 14px;
+  background: #fefdfb;
+  border: 1px solid #d8d2c0;
+  border-radius: 5px;
+  font-size: 0.88rem;
+}
+.glossary-add-example-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.glossary-add-example-title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #3a3326;
+}
+.glossary-add-example-status {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 3px;
+}
+.glossary-add-example-status--canonical {
+  background: #d8e6d2;
+  color: #295238;
+}
+.glossary-add-example-status--pending-doctrine {
+  background: #f4dfb8;
+  color: #6a4f1a;
+}
+.glossary-add-example-status--doctrine-locked {
+  background: #e0d0e6;
+  color: #4a2e6a;
+}
+.glossary-add-example-fields {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 3px 10px;
+  margin: 4px 0 0 0;
+  font-size: 0.84rem;
+}
+.glossary-add-example-fields dt {
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: #8a7a40;
+  text-transform: uppercase;
+  margin: 0;
+}
+.glossary-add-example-fields dd {
+  margin: 0;
+  color: #3a3326;
+  word-break: break-word;
+}
+.glossary-add-example-fields dd code {
+  background: #f4f1ea;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+.glossary-add-example-add {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #6a4f1a;
+}
+
+/* §10 Run Architecture topic list. Compact bullets matching the
+   restrained tone of §8 and the rest of the glossary. */
+.glossary-run-architecture-topics {
+  margin: 8px 0 14px 0;
+  padding-left: 22px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #3a3326;
+}
+.glossary-run-architecture-topics li {
+  margin: 4px 0;
+}
+
 .glossary-family-trees {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
