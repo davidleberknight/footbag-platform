@@ -141,7 +141,7 @@ export const DICTIONARY_LANDING_CARDS: readonly DictionaryLandingCard[] = [
     subtitle:        'The building blocks',
     body:            'Sets, dexes, spins, surfaces, body modifiers, and the movement-language vocabulary that composes tricks.',
     useWhen:         'When you want to understand what the parts mean before how they combine.',
-    href:            '/freestyle/glossary',
+    href:            '/freestyle/operators',
     isObservational: false,
     subLink:         null,
   },

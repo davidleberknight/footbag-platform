@@ -165,6 +165,17 @@ describe('GET /freestyle/tricks — dictionary landing surface', () => {
     expect(card).toContain('href="/freestyle/observational"');
   });
 
+  it('Operators & Components card hrefs to /freestyle/operators (canonical reference home)', async () => {
+    // LP2 audit (2026-05-20): Card 6's main link targets the canonical
+    // operator reference page, not the broader glossary. The glossary
+    // primer callout below the card grid still surfaces broader-
+    // glossary discoverability via its own href.
+    const res = await request(createApp()).get('/freestyle/tricks');
+    const card = sliceCard(res.text, 'operators');
+    expect(card).toContain('href="/freestyle/operators"');
+    expect(card).not.toContain('href="/freestyle/glossary"');
+  });
+
   it('glossary primer callout renders with the locked headline and a glossary anchor link', async () => {
     const res = await request(createApp()).get('/freestyle/tricks');
     expect(res.text).toContain('class="landing-primer-callout"');
