@@ -5193,107 +5193,178 @@ section.home-media { padding-top: 0; }
   font-size: 0.88rem;
   color: #666;
 }
-.freestyle-observational .observational-section-heading {
-  margin-top: 28px;
-  font-size: 1.2rem;
+/* Observed-tricks compact-card pattern (A2/A3/A4 redesign).
+ * 2-line default visible per card; <details> expansion for additional
+ * readings, formula, curator note, blockers, full source citation.
+ * Hybrid grouping: ADD-bucket header h2, A-Z within. */
+.observed-source-strip {
+  margin: 0 0 24px 0;
+  font-size: 0.85rem;
+  color: #666;
 }
-.freestyle-observational .observational-section-count {
-  color: #999;
-  font-weight: 400;
-  font-size: 0.9em;
+.observed-source-strip-item {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  background: #ece6d4;
+  color: #4a4232;
   margin-left: 4px;
 }
-.freestyle-observational .observational-section-intro {
-  margin: 4px 0 16px 0;
-  font-size: 0.9rem;
-  color: #555;
-  font-style: italic;
-}
-.freestyle-observational .observational-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-}
-.observational-card {
-  position: relative;
-  padding: 16px;
-  background: #fefdfb;
-  border: 1px dashed #c4a86a;
-  border-radius: 6px;
-  font-size: 0.92rem;
-}
-.observational-card-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #b8a169;
-  color: #fff;
-  border-radius: 3px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: lowercase;
-  margin: 0 0 8px 0;
-}
-.observational-card-name {
-  margin: 0 0 8px 0;
-  font-size: 1.05rem;
-  font-weight: 600;
+.observed-source-strip-item--PB { background: #d8d1ee; color: #3a2e6a; }
+.observed-source-strip-item--FM { background: #f4d8c0; color: #6a4226; }
+.observed-source-strip-item--SG { background: #cfe6d2; color: #295238; }
+.observed-source-strip-item--FF { background: #d0dff2; color: #234566; }
+.observed-source-strip-item--OTHER { background: #e0e0e0; color: #555; }
+
+.observed-bucket-heading {
+  margin: 28px 0 10px 0;
+  font-size: 1.15rem;
   color: #3a3326;
 }
-.observational-card-reading {
-  margin: 4px 0;
+.observed-bucket-count {
+  color: #999;
+  font-weight: 400;
+  font-size: 0.85em;
+  margin-left: 6px;
+}
+
+.observed-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.observed-card {
+  padding: 10px 12px;
+  background: #fefdfb;
+  border: 1px dashed #c4a86a;
+  border-radius: 4px;
   font-size: 0.9rem;
+}
+.observed-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.observed-card-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #3a3326;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.observed-card-source-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  background: #ece6d4;
+  color: #4a4232;
+  flex: 0 0 auto;
+}
+.observed-card-source-badge--PB { background: #d8d1ee; color: #3a2e6a; }
+.observed-card-source-badge--FM { background: #f4d8c0; color: #6a4226; }
+.observed-card-source-badge--SG { background: #cfe6d2; color: #295238; }
+.observed-card-source-badge--FF { background: #d0dff2; color: #234566; }
+.observed-card-source-badge--OTHER { background: #e0e0e0; color: #555; }
+.observed-card-status-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+.observed-card-status-chip--neutral { background: #f2efe6; color: #5a5340; }
+.observed-card-status-chip--accent  { background: #f4dfb8; color: #6a4f1a; }
+.observed-card-status-chip--muted   { background: #e8e6e0; color: #888; }
+
+.observed-card-meta {
+  margin: 4px 0 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.85rem;
   color: #4a4232;
 }
-.observational-card-equiv-sigil {
+.observed-card-reading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.observed-card-add {
+  flex: 0 0 auto;
+  color: #777;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+.observed-card-equiv-sigil {
   color: #999;
   margin-right: 4px;
 }
-.observational-card-formula {
-  margin: 6px 0;
-  font-size: 0.86rem;
+
+.observed-card-details {
+  margin-top: 8px;
+  border-top: 1px solid #ece6d4;
+  padding-top: 6px;
+  font-size: 0.85rem;
   color: #555;
 }
-.observational-card-formula code {
+.observed-card-details[open] {
+  background: #fcfaf3;
+  border-radius: 0 0 3px 3px;
+}
+.observed-card-details-summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: #8a7a40;
+  list-style: none;
+}
+.observed-card-details-summary::-webkit-details-marker { display: none; }
+.observed-card-details-summary::before {
+  content: '▸ ';
+  font-size: 0.7em;
+  display: inline-block;
+  width: 1em;
+}
+.observed-card-details[open] .observed-card-details-summary::before {
+  content: '▾ ';
+}
+.observed-card-detail-readings {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+}
+.observed-card-detail-readings li { margin: 2px 0; }
+.observed-card-detail-formula {
+  margin: 6px 0;
+}
+.observed-card-detail-formula code {
   background: #f4f1ea;
   padding: 2px 6px;
   border-radius: 3px;
   font-size: 0.88em;
 }
-.observational-card-add {
-  margin: 8px 0 4px 0;
-  font-size: 0.85rem;
-  color: #777;
-  font-style: italic;
-}
-.observational-card-add-emdash {
-  color: #b8a169;
-  font-weight: 600;
-  margin-left: 4px;
-}
-.observational-card-add-claim {
-  font-style: normal;
-  color: #999;
-  font-size: 0.92em;
-}
-.observational-card-source,
-.observational-card-status,
-.observational-card-note,
-.observational-card-blockers {
+.observed-card-detail-note {
   margin: 4px 0;
-  font-size: 0.82rem;
-  color: #666;
-}
-.observational-card-note {
   font-style: italic;
 }
-.observational-card-blockers {
+.observed-card-detail-blockers {
+  margin: 4px 0;
   color: #a44a2c;
 }
-.observational-card--queued {
-  border-style: solid;
-  background: #fdf8ea;
+.observed-card-detail-source {
+  margin: 6px 0 0 0;
+  font-size: 0.78rem;
+  color: #888;
 }
+
 .observational-empty-state {
   padding: 24px;
   text-align: center;

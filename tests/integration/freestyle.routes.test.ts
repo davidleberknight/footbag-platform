@@ -624,7 +624,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('renders curator-authored seed entries plus the Batch B expansion cohort (≥ 67 pending-review entries)', async () => {
+  it('renders curator-authored seed entries plus the Batch B expansion cohort (≥ 67 entries across ADD buckets)', async () => {
     const res = await request(createApp()).get('/freestyle/observational');
     // Original curator-authored seed entries that remain (assassin was
     // removed 2026-05-18 after canonical promotion).
@@ -647,7 +647,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
       const probe = name.split(/[’']/)[0];
       expect(res.text, `missing expansion entry: ${name}`).toContain(probe);
     }
-    const cards = res.text.match(/class="observational-card"/g) ?? [];
+    const cards = res.text.match(/class="observed-card"/g) ?? [];
     expect(cards.length).toBeGreaterThanOrEqual(67);
   });
 
@@ -674,7 +674,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // *title* matches a canonicalized name.
     for (const canonicalized of ['Assassin', 'Big Apple', 'Mantis']) {
       const titlePattern = new RegExp(
-        `class="observational-card-name"[^>]*>\\s*${canonicalized}\\s*<`,
+        `class="observed-card-name"[^>]*>\\s*${canonicalized}\\s*<`,
         'i',
       );
       expect(res.text, `${canonicalized} card title appears in observational layer (should be canonical-only)`)
@@ -682,10 +682,57 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     }
   });
 
-  it('every card carries the observational badge with source attribution', async () => {
+  it('every card carries a two-letter source badge with tooltip attribution', async () => {
+    // Compact-card pattern (A2/A3/A4 redesign): the verbose
+    // "observational · {sourceLabel}" prose is replaced by a 2-letter
+    // source badge with title/aria-label carrying the full source
+    // citation. Badge variants are PB / FM / SG / FF / OTHER.
     const res = await request(createApp()).get('/freestyle/observational');
-    expect(res.text).toContain('class="observational-card-badge"');
-    expect(res.text).toMatch(/observational · passback/);
+    const badgeMatches = res.text.match(
+      /class="observed-card-source-badge observed-card-source-badge--(PB|FM|SG|FF|OTHER)"[^>]*title="[^"]+"[^>]*>(PB|FM|SG|FF|OTHER)</g,
+    ) ?? [];
+    // At least one PB badge present (PassBack is the dominant source).
+    expect(badgeMatches.length).toBeGreaterThanOrEqual(1);
+    expect(res.text).toMatch(/observed-card-source-badge--PB/);
+  });
+
+  it('every card carries a status chip with a pre-shaped tone class', async () => {
+    // The status chip replaces the old "Status: ..." prose line. Tone
+    // variants are neutral / accent / muted; pending-review entries use
+    // the neutral tone.
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toMatch(/class="observed-card-status-chip observed-card-status-chip--neutral"/);
+  });
+
+  it('groups cards into ADD-bucket sections (hybrid: ADD primary, A-Z secondary)', async () => {
+    // Compact-card pattern: cards group by external ADD claim. Numeric
+    // buckets ascending; an ADD-unknown bucket renders last when any
+    // entry has a null proposedAddTotal.
+    const res = await request(createApp()).get('/freestyle/observational');
+    const bucketHeadings = res.text.match(/class="observed-bucket-heading"/g) ?? [];
+    expect(bucketHeadings.length).toBeGreaterThanOrEqual(2);
+    // At least one numeric ADD bucket is present (the dataset has ADD=3
+    // and ADD=4 entries among others).
+    expect(res.text).toMatch(/class="observed-bucket-heading"[^>]*>\s*\d+ ADD/);
+  });
+
+  it('cards with extra readings or notes render a <details> expansion', async () => {
+    // hasDetails fires when any of additionalReadings, formula, note,
+    // or blockers is non-empty. Bladerunner's merged entry has two
+    // readings, so it must have <details>.
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toMatch(/class="observed-card-details"/);
+    expect(res.text).toMatch(/class="observed-card-details-summary"[^>]*>\s*More/);
+  });
+
+  it('renders the source-summary chip strip beneath canonical references', async () => {
+    // content.sources collects unique source badges represented across
+    // the page. Renders only when content.sources.length > 0.
+    const res = await request(createApp()).get('/freestyle/observational');
+    expect(res.text).toMatch(/class="observed-source-strip"/);
+    expect(res.text).toMatch(
+      /class="observed-source-strip-item observed-source-strip-item--PB"[^>]*>PB</,
+    );
   });
 
   it('observational cards have NO hashtag chip (canonical-only convention)', async () => {
@@ -700,8 +747,10 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     // Forever-invariant: observational entries never get a
     // /freestyle/tricks/{slug} route.
     const res = await request(createApp()).get('/freestyle/observational');
-    // Pull the observational card section
-    const cardsStart = res.text.indexOf('class="observational-card-grid"');
+    // Pull the observational card region (first observed-card-grid through
+    // the observational-footer). Multiple grids exist (one per ADD
+    // bucket); slicing from the first to the footer captures them all.
+    const cardsStart = res.text.indexOf('class="observed-card-grid"');
     const footerStart = res.text.indexOf('class="observational-footer"');
     expect(cardsStart).toBeGreaterThan(0);
     const cardsRegion = res.text.slice(cardsStart, footerStart);
@@ -721,12 +770,19 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     }
   });
 
-  it('observational ADD chip explicitly shows "pending canonicalization"', async () => {
-    // The canonical ADD chip styling is suppressed; observational cards
-    // show ADD as em-dash + "pending canonicalization" framing per the
-    // boundary contract.
+  it('observational ADD framing: cards show numeric or em-dash ADD inline, never canonical chip styling', async () => {
+    // Compact-card pattern replaces the per-card "ADD pending
+    // canonicalization" prose with an inline external ADD label
+    // ('4 ADD' or '— ADD'). The framing context (these are external
+    // claims, not canonical) lives in the layer note + status chip,
+    // not on every card.
     const res = await request(createApp()).get('/freestyle/observational');
-    expect(res.text).toMatch(/ADD pending canonicalization/);
+    // Sample numeric ADD label
+    expect(res.text).toMatch(/class="observed-card-add"[^>]*>\d+ ADD</);
+    // Em-dash ADD framing for entries with null proposedAddTotal
+    expect(res.text).toMatch(/class="observed-card-add"[^>]*>—\s*ADD</);
+    // No canonical chip styling on observed cards
+    expect(res.text).not.toMatch(/class="observed-card"[^>]*>[\s\S]{0,400}class="dict-card-add"/);
   });
 
   it('observational entries do NOT appear on canonical /freestyle/tricks index', async () => {
@@ -794,16 +850,17 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).not.toMatch(/<code>undefined<\/code>/);
   });
 
-  it('expansion-cohort entries with null proposedAddTotal render the ADD-pending framing', async () => {
-    // 8 expansion entries have null proposedAddTotal (Ghost, Id, Johnny
-    // Vodka, Kiwi, Monster, Rotor, Wauxspin, and Bladerunner's merged
-    // form). These must still surface the "ADD pending canonicalization"
-    // framing rather than a stray null or 0.
+  it('expansion-cohort entries with null proposedAddTotal render the em-dash ADD label', async () => {
+    // Entries with null proposedAddTotal (Ghost, Id, Johnny Vodka, Kiwi,
+    // Monster, Rotor, Wauxspin, Bladerunner's merged form) fall through
+    // to an em-dash ADD label. They land in the "ADD unknown" bucket.
     const res = await request(createApp()).get('/freestyle/observational');
-    // The ADD-pending framing appears regardless of which entries have
-    // null totals; here we just verify no literal null leaks through.
-    expect(res.text).toMatch(/ADD pending canonicalization/);
-    expect(res.text).not.toMatch(/class="observational-card-add"[^>]*>\s*null/);
+    // Em-dash ADD label present
+    expect(res.text).toMatch(/class="observed-card-add"[^>]*>—\s*ADD</);
+    // ADD-unknown bucket heading present
+    expect(res.text).toMatch(/class="observed-bucket-heading"[^>]*>\s*ADD unknown/);
+    // No literal null leaks through
+    expect(res.text).not.toMatch(/class="observed-card-add"[^>]*>\s*null/);
   });
 
   it('merged Bladerunner entry renders both proposed readings', async () => {

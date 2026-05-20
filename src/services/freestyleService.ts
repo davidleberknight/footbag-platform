@@ -108,8 +108,9 @@ import {
 } from '../content/freestyleComboAnalysisContent';
 import {
   OBSERVATIONAL_TRICKS,
-  listObservationalByStatus,
   type ObservationalTrick,
+  type ObservationalSourceLabel,
+  type ObservationalStatus,
 } from '../content/freestyleObservationalTricks';
 import {
   DICTIONARY_LANDING_CARDS,
@@ -2281,17 +2282,158 @@ export interface FreestyleGlossaryContent {
 // curated_vs_observational_boundary.md — observational entries NEVER
 // cross into canonical surfaces; this view-model is the only place they
 // surface.
+/** Two-letter source badge for compact card rendering. PassBack=PB,
+ *  FootbagMoves=FM, Shred Global=SG, Footbag Finland=FF, other=OTHER.
+ *  fborg would map to FB if it appears in future ingestion. */
+export type ObservedSourceBadge = 'PB' | 'FM' | 'SG' | 'FF' | 'OTHER';
+
+/** Status-chip tone palette. Pre-shaped so the template never branches
+ *  on the raw ObservationalStatus enum. */
+export type ObservedStatusTone = 'neutral' | 'accent' | 'muted';
+
+export interface ObservedStatusChip {
+  label: string;
+  tone:  ObservedStatusTone;
+}
+
+export interface ObservedTrickCardDetail {
+  /** Readings beyond the first one (the first reading is rendered as
+   *  the card's shortReading; this carries the rest). */
+  additionalReadings: readonly string[];
+  /** Curator-authored ADD-formula derivation string, when present. */
+  formula:            string | null;
+  /** Free-form curator note, when present. */
+  curatorNote:        string | null;
+  /** Wave 2 / curator blockers preventing canonicalization. */
+  blockers:           readonly string[];
+  /** Full free-form source citation (e.g. "PassBack dictionary
+   *  (passback-dicrionary.txt)"). The card's sourceBadge + tooltip
+   *  render this implicitly; the detail expansion shows it explicitly. */
+  sourceCitation:     string;
+}
+
+export interface ObservedTrickCard {
+  folkSlug:         string;
+  displayName:      string;
+  sourceBadge:      ObservedSourceBadge;
+  /** Full source citation surfaced as the badge's aria-label / title. */
+  sourceTooltip:    string;
+  statusChip:       ObservedStatusChip;
+  /** First reading from proposedReadings; null when none authored. */
+  shortReading:     string | null;
+  /** Pre-shaped ADD label: '4 ADD' / '— ADD'. Template never formats. */
+  externalAddLabel: string;
+  /** True when at least one of: additionalReadings, formula,
+   *  curatorNote, blockers is non-empty. Template uses this to gate
+   *  the <details> element. */
+  hasDetails:       boolean;
+  detailExpansion:  ObservedTrickCardDetail;
+}
+
+export interface ObservedAddBucket {
+  /** null bucket is for ADD-unknown entries. Rendered last. */
+  addCount: number | null;
+  /** Pre-shaped header label: '1 ADD' / '2 ADD' / ... / 'ADD unknown'. */
+  addLabel: string;
+  /** Cards sorted alphabetically by displayName within the bucket. */
+  cards:    readonly ObservedTrickCard[];
+}
+
 export interface FreestyleObservationalContent {
-  /** Pending-review entries shown by default. Plurality + per-entry
-   *  blocker rendering is delegated to the template. */
-  pendingReview:        readonly ObservationalTrick[];
-  pendingCanonicalization: readonly ObservationalTrick[];
-  rejected:             readonly ObservationalTrick[];
+  /** Cards grouped by external ADD claim. Numeric buckets ascending;
+   *  ADD-unknown bucket last. Hybrid grouping per
+   *  exploration/workbook-completion-2026-05-19/
+   *  observed_tricks_scalability_plan.md §2.2 (ADD primary, A-Z
+   *  secondary within bucket). */
+  byAdd:                readonly ObservedAddBucket[];
   totalEntries:         number;
+  /** Unique source badges represented (e.g. ['PB','FM']) for the page
+   *  header source-summary chip strip. */
+  sources:              readonly ObservedSourceBadge[];
   /** Static framing prose rendered above the cards. */
   layerNote:            string;
   /** Cross-links to related canonical surfaces. */
   canonicalReferences:  readonly { label: string; href: string }[];
+}
+
+// ── Observational view-model shaping helpers ─────────────────────────────
+
+const OBSERVED_SOURCE_BADGE: Record<ObservationalSourceLabel, ObservedSourceBadge> = {
+  'passback':         'PB',
+  'footbagmoves':     'FM',
+  'shred-global':     'SG',
+  'footbag-finland':  'FF',
+  'other':            'OTHER',
+};
+
+const OBSERVED_STATUS_CHIP: Record<ObservationalStatus, ObservedStatusChip> = {
+  'pending-review':           { label: 'Pending review',           tone: 'neutral' },
+  'pending-canonicalization': { label: 'Pending canonicalization', tone: 'accent'  },
+  'rejected':                 { label: 'Rejected',                 tone: 'muted'   },
+};
+
+function shapeObservedTrickCard(t: ObservationalTrick): ObservedTrickCard {
+  const sourceBadge = OBSERVED_SOURCE_BADGE[t.sourceLabel];
+  const [first, ...rest] = t.proposedReadings;
+  const additionalReadings = rest;
+  const hasDetails =
+    additionalReadings.length > 0
+    || t.proposedAddFormula !== null
+    || t.curatorNote !== null
+    || t.unresolvedBlockers.length > 0;
+  return {
+    folkSlug:         t.folkSlug,
+    displayName:      t.displayName,
+    sourceBadge,
+    sourceTooltip:    t.sourceCitation,
+    statusChip:       OBSERVED_STATUS_CHIP[t.status],
+    shortReading:     first ?? null,
+    externalAddLabel: t.proposedAddTotal !== null ? `${t.proposedAddTotal} ADD` : '— ADD',
+    hasDetails,
+    detailExpansion: {
+      additionalReadings,
+      formula:        t.proposedAddFormula,
+      curatorNote:    t.curatorNote,
+      blockers:       t.unresolvedBlockers,
+      sourceCitation: t.sourceCitation,
+    },
+  };
+}
+
+function bucketObservedCardsByAdd(cards: readonly ObservedTrickCard[]): readonly ObservedAddBucket[] {
+  const groups = new Map<number | 'unknown', ObservedTrickCard[]>();
+  for (const card of cards) {
+    // externalAddLabel is the source of truth for bucketing; parse back
+    // the numeric ADD or fall through to the unknown bucket.
+    const match = card.externalAddLabel.match(/^(\d+)\s+ADD$/);
+    const key: number | 'unknown' = match ? parseInt(match[1], 10) : 'unknown';
+    const bucket = groups.get(key) ?? [];
+    bucket.push(card);
+    groups.set(key, bucket);
+  }
+  // Sort each bucket A-Z by displayName.
+  for (const bucket of groups.values()) {
+    bucket.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }
+  // Emit numeric buckets ascending, then the unknown bucket if present.
+  const numericKeys = [...groups.keys()].filter((k): k is number => typeof k === 'number').sort((a, b) => a - b);
+  const out: ObservedAddBucket[] = numericKeys.map(n => ({
+    addCount: n,
+    addLabel: `${n} ADD`,
+    cards:    groups.get(n)!,
+  }));
+  if (groups.has('unknown')) {
+    out.push({ addCount: null, addLabel: 'ADD unknown', cards: groups.get('unknown')! });
+  }
+  return out;
+}
+
+function collectObservedSourceBadges(cards: readonly ObservedTrickCard[]): readonly ObservedSourceBadge[] {
+  const seen = new Set<ObservedSourceBadge>();
+  for (const c of cards) seen.add(c.sourceBadge);
+  // Stable order matching OBSERVED_SOURCE_BADGE iteration.
+  const order: ObservedSourceBadge[] = ['PB', 'FM', 'SG', 'FF', 'OTHER'];
+  return order.filter(b => seen.has(b));
 }
 
 // /freestyle/operators view-model. Pure URL promotion of the modifier-
@@ -4873,9 +5015,13 @@ export const freestyleService = {
     // Layer-separation invariant: this view-model is the ONLY place
     // observational entries surface. No DB query — content-module-driven
     // per [[feedback_reversible_content_governance]].
-    const pendingReview        = listObservationalByStatus('pending-review');
-    const pendingCanonicalization = listObservationalByStatus('pending-canonicalization');
-    const rejected             = listObservationalByStatus('rejected');
+    const cards = OBSERVATIONAL_TRICKS
+      .filter(t => t.status !== 'rejected')
+      .map(shapeObservedTrickCard);
+
+    const byAdd = bucketObservedCardsByAdd(cards);
+
+    const sources = collectObservedSourceBadges(cards);
 
     return {
       seo: {
@@ -4902,10 +5048,9 @@ export const freestyleService = {
         ],
       },
       content: {
-        pendingReview,
-        pendingCanonicalization,
-        rejected,
-        totalEntries:        OBSERVATIONAL_TRICKS.length,
+        byAdd,
+        totalEntries:        cards.length,
+        sources,
         layerNote:
           'These entries observe what external sources document. They do not ' +
           'override or extend the canonical curated set. Promotion to ' +

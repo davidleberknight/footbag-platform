@@ -6,12 +6,20 @@
   curated_vs_observational_boundary.md):
 
     - Cards on this surface are visually distinct from canonical cards
-      (no hashtag chip, no ADD chip with canonical styling, no
-      trick-detail link).
-    - Each card carries an "observational" badge.
-    - Source attribution + curator-review status are explicit.
-    - NO links to /freestyle/tricks/{slug} for these entries (they
-      have no canonical detail page).
+      (no hashtag chip, no canonical ADD chip, no trick-detail link).
+    - Each card carries a source badge with tooltip attribution.
+    - Status chip surfaces curator-review state.
+    - NO links to /freestyle/tricks/{folkSlug} (these entries have no
+      canonical detail page).
+
+  Density contract (per
+  exploration/workbook-completion-2026-05-19/
+  observed_tricks_scalability_plan.md):
+
+    - Compact 2-line default visible per card.
+    - <details> expansion for additional readings, formula, curator
+      note, blockers, full source citation.
+    - Hybrid grouping: ADD primary, A-Z secondary within bucket.
 --}}
 <div class="hero hero-sm">
   <div>
@@ -26,7 +34,7 @@
   </div>
 </div>
 
-<div class="wrapper freestyle-observational">
+<div class="wrapper freestyle-observational observed-page">
   <section class="content-section">
     <p class="observational-layer-note">{{content.layerNote}}</p>
 
@@ -37,83 +45,69 @@
       {{/each}}
     </p>
 
-    {{#if content.pendingReview.length}}
-    <h2 class="observational-section-heading">
-      Pending review
-      <span class="observational-section-count">({{content.pendingReview.length}})</span>
-    </h2>
-    <p class="observational-section-intro">
-      These entries are documented in external corpora but have not yet
-      been reviewed by the curator. Formulas + ADD totals are
-      candidates only — they reflect external-source claims, not
-      curator-confirmed canonical structure.
+    {{#if content.sources.length}}
+    <p class="observed-source-strip" aria-label="Sources represented on this page">
+      Sources:
+      {{#each content.sources}}
+        {{#unless @first}} &middot; {{/unless}}<span class="observed-source-strip-item observed-source-strip-item--{{this}}">{{this}}</span>
+      {{/each}}
     </p>
-    <div class="observational-card-grid">
-      {{#each content.pendingReview}}
-      <article class="observational-card" data-folk-slug="{{folkSlug}}">
-        <p class="observational-card-badge">observational · {{sourceLabel}}</p>
-        <h3 class="observational-card-name">{{displayName}}</h3>
-        {{#each proposedReadings}}
-        <p class="observational-card-reading"><span class="observational-card-equiv-sigil">&equiv;</span> {{this}}</p>
-        {{/each}}
-        {{#if proposedAddFormula}}
-        <p class="observational-card-formula"><code>{{proposedAddFormula}}</code></p>
-        {{/if}}
-        <p class="observational-card-add">
-          ADD pending canonicalization <span class="observational-card-add-emdash" aria-hidden="true">&mdash;</span>
-          {{#if proposedAddTotal}}
-            <span class="observational-card-add-claim">(external claim: {{proposedAddTotal}})</span>
+    {{/if}}
+
+    {{#if content.totalEntries}}
+      {{#each content.byAdd}}
+      <h2 class="observed-bucket-heading">
+        {{addLabel}}
+        <span class="observed-bucket-count">({{cards.length}})</span>
+      </h2>
+      <div class="observed-card-grid">
+        {{#each cards}}
+        <article class="observed-card" data-folk-slug="{{folkSlug}}">
+          <header class="observed-card-head">
+            <span class="observed-card-source-badge observed-card-source-badge--{{sourceBadge}}" title="{{sourceTooltip}}" aria-label="Source: {{sourceTooltip}}">{{sourceBadge}}</span>
+            <h3 class="observed-card-name">{{displayName}}</h3>
+            <span class="observed-card-status-chip observed-card-status-chip--{{statusChip.tone}}">{{statusChip.label}}</span>
+          </header>
+          <p class="observed-card-meta">
+            {{#if shortReading}}<span class="observed-card-reading"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> {{shortReading}}</span>{{/if}}
+            <span class="observed-card-add">{{externalAddLabel}}</span>
+          </p>
+          {{#if hasDetails}}
+          <details class="observed-card-details">
+            <summary class="observed-card-details-summary">More</summary>
+            {{#if detailExpansion.additionalReadings.length}}
+            <ul class="observed-card-detail-readings">
+              {{#each detailExpansion.additionalReadings}}
+              <li><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> {{this}}</li>
+              {{/each}}
+            </ul>
+            {{/if}}
+            {{#if detailExpansion.formula}}
+            <p class="observed-card-detail-formula"><code>{{detailExpansion.formula}}</code></p>
+            {{/if}}
+            {{#if detailExpansion.curatorNote}}
+            <p class="observed-card-detail-note"><em>Curator note:</em> {{detailExpansion.curatorNote}}</p>
+            {{/if}}
+            {{#if detailExpansion.blockers.length}}
+            <p class="observed-card-detail-blockers">
+              <em>Blockers:</em>
+              {{#each detailExpansion.blockers}}{{#unless @first}}; {{/unless}}{{this}}{{/each}}
+            </p>
+            {{/if}}
+            <p class="observed-card-detail-source">Source: {{detailExpansion.sourceCitation}}</p>
+          </details>
           {{/if}}
-        </p>
-        <p class="observational-card-source">Source: {{sourceCitation}}</p>
-        <p class="observational-card-status">Status: {{status}}</p>
-        {{#if curatorNote}}
-        <p class="observational-card-note"><em>Curator note:</em> {{curatorNote}}</p>
-        {{/if}}
-        {{#if unresolvedBlockers.length}}
-        <p class="observational-card-blockers">
-          <em>Blockers:</em>
-          {{#each unresolvedBlockers}}{{#unless @first}}; {{/unless}}{{this}}{{/each}}
-        </p>
-        {{/if}}
-      </article>
-      {{/each}}
-    </div>
-    {{/if}}
-
-    {{#if content.pendingCanonicalization.length}}
-    <h2 class="observational-section-heading">
-      Pending canonicalization
-      <span class="observational-section-count">({{content.pendingCanonicalization.length}})</span>
-    </h2>
-    <p class="observational-section-intro">
-      Curator has reviewed; these are queued for canonical promotion
-      against the V1+V2 publication contract.
-    </p>
-    <div class="observational-card-grid">
-      {{#each content.pendingCanonicalization}}
-      <article class="observational-card observational-card--queued" data-folk-slug="{{folkSlug}}">
-        <p class="observational-card-badge">observational · queued for canonical</p>
-        <h3 class="observational-card-name">{{displayName}}</h3>
-        {{#each proposedReadings}}
-        <p class="observational-card-reading"><span class="observational-card-equiv-sigil">&equiv;</span> {{this}}</p>
+        </article>
         {{/each}}
-        {{#if proposedAddFormula}}
-        <p class="observational-card-formula"><code>{{proposedAddFormula}}</code></p>
-        {{/if}}
-        <p class="observational-card-source">Source: {{sourceCitation}}</p>
-      </article>
+      </div>
       {{/each}}
-    </div>
-    {{/if}}
-
-    {{#unless content.totalEntries}}
+    {{else}}
     <p class="observational-empty-state">
       No observational entries currently staged. The
       <a href="/freestyle/tricks">trick dictionary</a> carries the
       canonical curated set.
     </p>
-    {{/unless}}
+    {{/if}}
 
     <p class="observational-footer">
       Curated canonical trick definitions remain authoritative. See the
