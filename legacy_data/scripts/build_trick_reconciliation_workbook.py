@@ -495,6 +495,12 @@ def parse_fborg_file(path: Path) -> dict[str, dict]:
                 name_lines.insert(0, t)
                 j -= 1
             name = " ".join(name_lines).strip().rstrip("*").strip()
+            # Strip footnote `*` markers embedded inside the name (e.g. 'Blur*',
+            # 'Mobius*', 'Torque*'). The trailing-only strip above misses cases
+            # where `*` lives on the primary token but is followed by an alt-name
+            # parenthetical: 'Blur* (Stepping Paradox Mirage)'.
+            name = name.replace("*", "")
+            name = re.sub(r"\s+", " ", name).strip()
             # Notation = first line after the ADD line that looks like Jobs
             # notation (CAPS + brackets + arrows).
             notation = ""
@@ -512,7 +518,20 @@ def parse_fborg_file(path: Path) -> dict[str, dict]:
                         notation = t
                         break
                 k += 1
-            result[name] = {"add": add_value, "notation": notation, "source_file": path.name}
+            entry = {"add": add_value, "notation": notation, "source_file": path.name}
+            result[name] = entry
+            # Register parenthetical-paired alt-names as additional lookup keys.
+            # fborg convention puts the canonical alt on a separate line, joined
+            # to the primary as 'Primary (Alt)'. Split here so NAME_ALIASES can
+            # match either form without carrying parenthetical-aware entries.
+            paren_match = re.match(r"^(.+?)\s*\(([^)]+)\)\s*$", name)
+            if paren_match:
+                primary = paren_match.group(1).strip()
+                alt     = paren_match.group(2).strip()
+                if primary and primary not in result:
+                    result[primary] = entry
+                if alt and alt not in result:
+                    result[alt] = entry
             i += 1
         else:
             i += 1
@@ -596,23 +615,48 @@ def parse_fm_file(path: Path) -> list[dict]:
 
 
 def parse_fm_all() -> dict[str, dict]:
-    """Combine FM files into name → entry dict."""
+    """Combine FM files into name → entry dict.
+
+    Register both the primary name and the entry's `alt` field (FM's
+    canonical alt-name; e.g. 'Atomsmasher' alt='Atomic Mirage') as
+    independent lookup keys pointing at the same entry. Strips parenthetical
+    qualifiers from the primary name (e.g. 'Atomic Butterfly (same side)' ->
+    also matches 'Atomic Butterfly') so NAME_ALIASES need not carry
+    qualifier-aware variants.
+    """
     combined: dict[str, dict] = {}
     if not FM_DIR.exists():
         return combined
     for path in sorted(FM_DIR.glob("footbagmoves-*adds.txt")):
         for e in parse_fm_file(path):
-            if e["name"] not in combined:
-                combined[e["name"]] = e
+            name = e["name"]
+            if name and name not in combined:
+                combined[name] = e
+            # Register the alt-name (FM's canonical alt) as an independent key.
+            alt = e.get("alt", "")
+            if alt and alt not in combined:
+                combined[alt] = e
+            # Strip trailing parenthetical qualifier ('(same side)', '(toe set)')
+            # and register the bare-name form when distinct.
+            bare = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
+            if bare and bare != name and bare not in combined:
+                combined[bare] = e
     return combined
 
 
 # ── Cross-source name matching ─────────────────────────────────────────────
 
 def normalize_name(s: str) -> str:
-    """Lowercase + strip + collapse whitespace + drop punctuation marks."""
+    """Lowercase + strip + collapse whitespace + drop punctuation marks.
+
+    Hyphens are folded to spaces so hyphenated DB canonical_name forms
+    ('high-plains-drifter', 'knee-clipper') match the spaced external-source
+    forms ('High Plains Drifter', 'Knee Clipper') without needing per-slug
+    NAME_ALIASES entries.
+    """
     s = s.lower().strip().rstrip("*").strip()
     s = re.sub(r"[.,/\\\\]", "", s)
+    s = s.replace("-", " ")
     s = re.sub(r"\s+", " ", s)
     return s
 
@@ -628,11 +672,18 @@ def lookup_external(aliases: list[str], by_name: dict[str, dict]) -> Optional[di
 
 
 def lookup_passback(aliases: list[str], pb_rows: list[dict]) -> Optional[dict]:
-    """Find PassBack entry by nickname OR technical-name match."""
+    """Find PassBack entry by nickname OR technical-name match.
+
+    PB nickname column uses both ',' and '/' as alias separators
+    (e.g. 'DDD/Down Double Down', 'GDLO ("gee-dee-ell-oh"), Whale Tail').
+    Parenthetical qualifiers (e.g. 'Fairy (archaic)') are stripped so the
+    bare folk-name participates in matching.
+    """
     target_norms = {normalize_name(a) for a in aliases}
     for r in pb_rows:
-        nick_parts = [normalize_name(n) for n in r["nickname"].split(",")]
-        for np in nick_parts:
+        nick_parts = re.split(r"[,/]", r["nickname"])
+        for raw in nick_parts:
+            np = normalize_name(re.sub(r"\s*\([^)]*\)\s*", "", raw))
             if np in target_norms:
                 return r
     return None
