@@ -691,6 +691,18 @@ ROW_LEVEL_HOLDS: dict[str, dict[str, str]] = {
         "status": STATUS_CURATOR_HOLD,
         "reason": "Red pt6 confirmed 3 ADD + dex category but no structural decomposition; 3-ADD dex-class atom is structurally unusual (most dex atoms are 2 ADD); likely contains 2 dex segments internally.",
     },
+    "datw": {
+        "status": STATUS_WAVE2_BLOCKED_ROW,
+        "reason": "Double Around the World abbreviation; canonicalization pending Wave 2 Q4 (double operator semantics) + multiplier audit MR-1. No DB row; modern doctrine doesn't canonicalize 'double-X' as a separate row per CANONICALIZATION_POLICY §10.",
+    },
+    "blistering": {
+        "status": STATUS_CURATOR_HOLD,
+        "reason": "Red 2026-05-15: 'Blistering = Gyro Whirling Set' — set-class descriptor, not a trick. Curator decides whether to canonicalize as set-primitive (matching pixie/fairy/atomic/quantum pattern) or remove from TRICK_LIST scope as a set-class term.",
+    },
+    "nuclear": {
+        "status": STATUS_CURATOR_HOLD,
+        "reason": "Set-primitive name (per nuclear(+2) modifier classification) without a canonical DB row. Curator decides whether to model like pixie/fairy/atomic/quantum (with DB row) or treat as modifier-prefix only.",
+    },
 }
 
 # Placeholder slugs that name a derivable structural form (modifier + base
@@ -702,14 +714,22 @@ DERIVABLE_STRUCTURAL_FORMS: dict[str, str] = {
     "atomic-osis":         "atomic(+1) + osis(3) = 4 ADD",
     "ducking-illusion":    "ducking(+1) + illusion(2) = 3 ADD",
     "ducking-mirage":      "ducking(+1) + mirage(2) = 3 ADD",
+    "fairy-mirage":        "fairy(+1) + mirage(2) = 3 ADD",
     "gyro-osis":           "gyro(+1) + osis(3) = 4 ADD",
     "gyro-whirl":          "gyro(+1) + whirl(3) = 4 ADD",
     "nuclear-mirage":      "nuclear(+2) + mirage(2) = 4 ADD",
     "paradox-illusion":    "paradox(+1) + illusion(2) = 3 ADD",
+    "paradox-osis":        "paradox(+1) + osis(3) = 4 ADD",
+    "pixie-butterfly":     "pixie(+1) + butterfly(2) = 3 ADD",
+    "pixie-illusion":      "pixie(+1) + illusion(2) = 3 ADD",
+    "pixie-mirage":        "pixie(+1) + mirage(2) = 3 ADD",
     "pixie-osis":          "pixie(+1) + osis(3) = 4 ADD",
     "pixie-whirl":         "pixie(+1) + whirl(3) = 4 ADD",
     "quantum-mirage":      "quantum(+1) + mirage(2) = 3 ADD",
+    "spinning-mirage":     "spinning(+1) + mirage(2) = 3 ADD",
+    "symposium-butterfly": "symposium(+1) + butterfly(2) = 3 ADD",
     "symposium-illusion":  "symposium(+1) + illusion(2) = 3 ADD",
+    "symposium-osis":      "symposium(+1) + osis(3) = 4 ADD",
 }
 
 # Placeholder slugs that are doctrinally aliases of canonical DB rows.
