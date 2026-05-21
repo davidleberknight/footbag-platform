@@ -7772,6 +7772,62 @@ a.dict-card-title:hover {
   font-style: italic;
 }
 
+/* §9 compression-ladder vs alternate-derivation subsection (equivalence-
+   topology Phase 3). Compact distinctions table + worked-example list. */
+.glossary-equivalence-distinctions {
+  margin: 0.5rem 0 1rem;
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 720px;
+  font-size: 0.95rem;
+}
+.glossary-equivalence-distinctions th,
+.glossary-equivalence-distinctions td {
+  text-align: left;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  vertical-align: top;
+}
+.glossary-equivalence-distinctions th {
+  font-weight: 600;
+  background: #f4f1ea;
+  color: var(--text-primary, #1f2937);
+}
+.glossary-equivalence-distinctions td:first-child {
+  font-weight: 500;
+  white-space: nowrap;
+  width: 30%;
+}
+.glossary-equivalence-worked-heading {
+  margin-top: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.glossary-equivalence-worked-example {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.4rem 0 0.75rem;
+}
+.glossary-equivalence-worked-example li {
+  padding: 4px 0;
+  line-height: 1.4;
+}
+.glossary-equivalence-worked-example em {
+  color: var(--secondary);
+  font-size: 0.9em;
+  margin-left: 0.5rem;
+}
+@media (max-width: 480px) {
+  .glossary-equivalence-distinctions td:first-child {
+    white-space: normal;
+    width: auto;
+  }
+  .glossary-equivalence-worked-example em {
+    display: block;
+    margin-left: 0;
+  }
+}
+
 /* Slice L-polish (2026-05-16) — additional compact symbolic blocks. */
 
 /* §5 root-vs-branch family-kinds list */
