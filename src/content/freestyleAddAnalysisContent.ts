@@ -130,8 +130,12 @@ const PHILOSOPHY_PARAGRAPH =
   'Some readings are exact — settled by community rulings over many years. ' +
   'Some are approximate — readable through known operator vocabulary but ' +
   'not yet curator-locked. Some are observational — names the community ' +
-  'uses for tricks whose decomposition is still under discussion. The goal ' +
-  'is not to fabricate certainty. The goal is to make the movement ' +
+  'uses for tricks whose decomposition is still under discussion. Many ' +
+  'tricks admit multiple valid structural readings at different stopping ' +
+  'depths — the compressed folk name and one or more deeper expansions ' +
+  'all describing the same trick. Stopping-depth equivalence is a ' +
+  'foundational property of the compositional language, not a discrepancy. ' +
+  'The goal is not to fabricate certainty. The goal is to make the movement ' +
   "language explainable: when a trick is here, we say what we think it's " +
   "made of, and when we're unsure, we say that too.";
 
@@ -140,11 +144,12 @@ const PHILOSOPHY_PARAGRAPH =
 // ─────────────────────────────────────────────────────────────────────────
 
 const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
-  // Foundational primitives — the four building blocks a foundational
-  // trick decomposes into. Each contributes 1 ADD. Treated as
+  // Foundational atomic-flag primitives — the building blocks a
+  // foundational trick decomposes into when its operational chain is
+  // walked flag-by-flag. Each contributes 1 ADD. Treated as
   // educational accounting (per [[feedback_reversible_content_governance]]),
-  // not parser-truth doctrine — the goal is for readers to see where the
-  // ADDs come from when reading a foundational trick's name.
+  // not parser-truth doctrine — the goal is for readers to see where
+  // the ADDs come from when reading a foundational trick's name.
   {
     componentClass: 'Stall — a catch on a recognized surface',
     contribution:   '1 ADD',
@@ -161,45 +166,40 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'the kick portion of a clipper; the body-cross in whirl',
   },
   {
-    componentClass: 'Rotation (spin) — a full-body rotation built into the atom',
+    componentClass: 'Spin flag — a rotational primitive in an atom’s flag decomposition',
     contribution:   '1 ADD',
-    example:        'the spin built into osis (distinct from the spinning operator stacked on top)',
+    example:        'osis carries a spin flag (spin(1) + xbod(1) + stall(1) = 3 ADD). Distinct from the spinning body operator, which adds +1 atop a base, and from the rotational-character property of certain atoms, which triggers the atomic +2-rotational rule. Three different concepts; one accounting primitive lives here.',
   },
   {
     componentClass: 'Specialized surface (head, shoulder, forehead, etc.)',
     contribution:   '1 ADD',
     example:        'head-stall, shoulder-stall',
   },
-  // Operator/modifier contributions — apply on top of a base trick.
+  // Operator / modifier contributions — applied on top of a base
+  // trick. Organized below by the four-axis operator-board grouping
+  // used on /freestyle/tricks?view=movement-system and in the
+  // glossary §6 modifier reference. The axis grouping is a
+  // pedagogical / organizational convention — NOT a canonical
+  // single-valued taxonomy. Wave-2-gated weightings are marked TBD.
   {
-    componentClass: 'Body operators — paradox, ducking, symposium, spinning, stepping',
-    contribution:   '+1 ADD per modifier on most non-rotational bases. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex).',
+    componentClass: 'Set / Uptime modifiers — pixie, fairy, atomic, quantum, nuclear, blurry, barraging (pedagogical axis, not canonical taxonomy)',
+    contribution:   'pixie / fairy / quantum +1; atomic +1 non-rotational / +2 rotational (pt10); nuclear +2 (= paradox + atomic per pt10); blurry +1 implies stepping (Red 2026-05-20: prior paradox-implication retired); barraging +2 (two-dex set; Red 2026-05-20).',
+    example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
+  },
+  {
+    componentClass: 'Entry-topology modifiers — paradox, symposium (pedagogical axis, not canonical taxonomy)',
+    contribution:   '+1 each. These modify the dex-entry position. Paradox itself reads as PDX → CLIP > OP IN [DEX] (clipper set, then a far in-out dex).',
     example:        'paradox + mirage (2) = 3 ADD',
   },
   {
-    componentClass: 'Atomic',
-    contribution:   '+1 on non-rotational, +2 on rotational',
-    example:        'atom-smasher = atomic + mirage + X-dex = 4',
+    componentClass: 'Midtime body modifiers — spinning, ducking, diving, swirling, stepping, tapping, gyro, furious, whirling, miraging (pedagogical axis, not canonical taxonomy)',
+    contribution:   'mostly +1 on most bases; gyro +1; furious +2 rotational (non-rotational TBD pending Wave 2); whirling / miraging +1 on compatible bases.',
+    example:        'spinning + osis = spinning osis = 4 ADD; ducking + whirl = ducking whirl = 4 ADD',
   },
   {
-    componentClass: 'Nuclear',
-    contribution:   '+2 ADD — structurally = paradox + atomic',
-    example:        'per pt10 ruling',
-  },
-  {
-    componentClass: 'Quantum',
-    contribution:   '+1 ADD — the compressed form of atomic',
-    example:        'per pt10 ruling',
-  },
-  {
-    componentClass: 'Blurry',
-    contribution:   '+1 ADD — transitively expands to stepping paradox',
-    example:        'per pt11 ruling',
-  },
-  {
-    componentClass: 'Same-side (ss) / far / near / reverse',
-    contribution:   '+0 ADD (positional, not difficulty)',
-    example:        'per Red 2026-05-11 + 2026-05-15',
+    componentClass: 'Positional / directional cues — same-side (ss) / far / near / reverse / op',
+    contribution:   '+0 ADD. Positional cues, not difficulty contributions.',
+    example:        'Red 2026-05-11 + 2026-05-15 — SS=+0 universal; far/near/reverse +0 by analogy',
   },
 ];
 
@@ -241,12 +241,12 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     whyNote:    'The simplest accepted catch — a single recognized stall surface. Foundational primitive for the entire stall-based naming system.',
   },
   {
-    trickName:  'Clipper (kick)',
-    trickSlug:  'clipper',
+    trickName:  'Cross-body traversal (xbody primitive)',
+    trickSlug:  null,
     addLabel:   '1 ADD',
-    components: 'One cross-body kick (no stall finish).',
+    components: 'Accounting primitive illustrated via clipper motion — not a canonical named trick. One cross-body traversal in isolation, without a stall finish.',
     derivation: 'xbody(1) = 1 ADD',
-    whyNote:    'A single cross-body traversal — the kick portion of the clipper without a stall finish. Establishes xbody as a foundational accounting primitive.',
+    whyNote:    'Establishes xbody as a foundational accounting primitive. The bag crossing one plane around the body contributes 1 ADD wherever it appears — in clipper kicks, in whirl, in butterfly, in osis. Shown here in isolation so the primitive is legible; the canonical clipper-stall trick (xbody + stall = 2 ADD) appears below.',
   },
 
   // ── 2 ADD foundational atoms (stall + one other primitive) ────────────
@@ -262,9 +262,9 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Mirage',
     trickSlug:  'mirage',
     addLabel:   '2 ADD',
-    components: 'One dex + one stall.',
+    components: 'One dex + one stall. Operational chain: [set] > hippy in dex > op toe.',
     derivation: 'dex(1) + stall(1) = 2 ADD',
-    whyNote:    'A dexterity (bag-foot interaction) finishing in a stall. Foundational rotational anchor — compounds (paradox-mirage, atom-smasher) build on it.',
+    whyNote:    'A dexterity event finishing in a stall — an inward-hippy dex landing on the opposite-side toe. Foundational dexterity primitive (not rotational) that anchors a deep cohort (paradox-mirage, atom-smasher, blur, witchdoctor) via modifier stacks and composite-base readings.',
   },
   {
     trickName:  'Legover',
@@ -294,9 +294,9 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Around-the-world (ATW)',
     trickSlug:  'around-the-world',
     addLabel:   '2 ADD',
-    components: 'A full-orbit dex + stall.',
+    components: 'Operational chain: toe > ss(midtime) in dex > ss toe. A single dex that traverses fully around the bag, finishing in a same-side toe stall.',
     derivation: 'full-orbit dex(1) + stall(1) = 2 ADD',
-    whyNote:    'A single dex that takes the foot fully around the bag, finishing in a stall. Reverse ATW (positional reverse, +0) reaches the same 2 ADD; the "reverse" qualifier is a direction marker, not an ADD-additive operator. Orbit is the curator-confirmed alias for reverse ATW (pending canonicalization).',
+    whyNote:    'A single dex takes the foot fully around the bag, finishing in a stall. Reverse ATW (positional reverse, +0) reaches the same 2 ADD; the "reverse" qualifier is a direction marker, not an ADD-additive operator. Orbit is the curator-confirmed alias for reverse ATW (pending canonicalization).',
   },
 
   // ── 3 ADD foundational atoms (three primitives) ───────────────────────
@@ -304,15 +304,15 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Whirl',
     trickSlug:  'whirl',
     addLabel:   '3 ADD',
-    components: 'Cross-body + dex + stall.',
+    components: 'Operational chain: [set] > leggy in dex > ss clipper. Cross-body + dex + stall walked flag-by-flag.',
     derivation: 'xbody(1) + dex(1) + stall(1) = 3 ADD',
-    whyNote:    'A rotational dex with stall finish — three contributing components. Family anchor for ~17 derivative compounds, from 4-ADD entries through compound flagships.',
+    whyNote:    'A rotational dex with same-side clipper terminal — three flag-counting primitives combine into the foundational rotational atom. Anchors a deep family (paradox-whirl, spinning-whirl, ducking-whirl, blurry-whirl, symposium-whirl, mobius via torque branch).',
   },
   {
     trickName:  'Swirl',
     trickSlug:  'swirl',
     addLabel:   '3 ADD',
-    components: 'Cross-body + dex + stall (reverse-direction rotation).',
+    components: 'Operational chain: [set] > leggy xbd out dex > ss clipper. Same three primitives as whirl, opposite rotation direction.',
     derivation: 'xbody(1) + dex(1) + stall(1) = 3 ADD',
     whyNote:    'Same arithmetic as whirl; rotational direction is mechanically opposite. Direction is positional (+0), so swirl and whirl share an ADD total.',
   },
@@ -320,17 +320,17 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Butterfly',
     trickSlug:  'butterfly',
     addLabel:   '3 ADD',
-    components: 'Dex + cross-body + stall.',
+    components: 'Operational chain: [set] > hippy out dex > ss clipper. Dex + cross-body + stall walked flag-by-flag.',
     derivation: 'dex(1) + xbody(1) + stall(1) = 3 ADD',
-    whyNote:    'Same three components as whirl; the timing is different (dex first). The 3-ADD anchor for the walking-family progression (dimwalk, ripwalk, sidewalk, bigwalk, parkwalk).',
+    whyNote:    'Same three primitives as whirl with different entry topology (hippy-out instead of leggy-in). The 3-ADD anchor for the walking-family progression (dimwalk, ripwalk, sidewalk, bigwalk, parkwalk).',
   },
   {
     trickName:  'Osis',
     trickSlug:  'osis',
     addLabel:   '3 ADD',
-    components: 'Spin + cross-body + stall.',
+    components: 'Operational chain: [set] > (downtime) spin > ss clipper. Spin flag + cross-body + stall walked flag-by-flag.',
     derivation: 'spin(1) + xbody(1) + stall(1) = 3 ADD',
-    whyNote:    'A full-body rotation built into the atom (distinct from "spinning" applied as an operator). Two major branch compounds — Torque and Blender — are its 4-ADD derivatives, each spawning its own family.',
+    whyNote:    'A spin flag built into the atom — distinct from the spinning body operator (a +1 modifier applied atop a base) and from the rotational-character property that triggers atomic +2-rotational. Three concepts share the word "spin"; osis owns the atomic-flag one. Two major branch compounds — Torque and Blender — are its 4-ADD derivatives, each spawning its own family.',
   },
 
   // ── Operator visibility — paradox stacked on a base ───────────────────

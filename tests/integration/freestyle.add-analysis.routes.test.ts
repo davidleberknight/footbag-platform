@@ -87,26 +87,29 @@ describe('GET /freestyle/add-analysis — route + page structure', () => {
 });
 
 describe('GET /freestyle/add-analysis — component-contribution table', () => {
-  it('renders all 11 component classes (foundational primitives + operator contributions)', async () => {
-    // 2026-05-18 foundational-formula slice: table expanded from 9 to
-    // 11 entries to surface xbody (cross-body traversal) and spin
-    // (full-body rotation) as foundational primitives alongside stall
-    // and dex. The four primitives + specialized surface make the
-    // five 1-ADD-contributing classes; the remaining six are
-    // operator/modifier contributions on top of a base.
+  it('renders all 9 component classes (5 atomic-flag primitives + 4 operator-board axes)', async () => {
+    // ADD Analysis Refactor Phase 1 (2026-05-21): the previous 11-row
+    // table conflated atomic-flag primitives with operator/modifier
+    // contributions and collapsed the four operator-board axes into a
+    // single "Body operators" row. Phase 1 splits the operator rows
+    // into four axis-aligned rows (Set / Entry / Midtime / Positional)
+    // labeled as a pedagogical organizing convention — NOT canonical
+    // taxonomy — mirroring the operator-board grouping on the
+    // /freestyle/tricks?view=movement-system surface and the glossary
+    // §6 modifier reference.
     const res = await request(createApp()).get('/freestyle/add-analysis');
     const components = [
+      // 5 atomic-flag primitives
       'Stall',
       'Dexterity (dex)',
       'Cross-body traversal (xbody)',
-      'Rotation (spin)',
+      'Spin flag',
       'Specialized surface',
-      'Body operators',
-      'Atomic',
-      'Nuclear',
-      'Quantum',
-      'Blurry',
-      'Same-side (ss) / far / near / reverse',
+      // 4 operator-board axes (pedagogical organizing convention)
+      'Set / Uptime modifiers',
+      'Entry-topology modifiers',
+      'Midtime body modifiers',
+      'Positional / directional cues',
     ];
     for (const c of components) {
       expect(res.text, `Missing component: ${c}`).toContain(c);
@@ -126,10 +129,14 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
     // heading (canonical, linked) and in some whyNote prose (e.g. Osis
     // mentions "Torque" as a derivative compound). Search using the
     // anchor-tag closing form `>Name</a>` so we hit only the heading.
-    const examples = [
+    // Phase 1 refactor (2026-05-21): "Clipper (kick)" reframed as
+    // "Cross-body traversal (xbody primitive)" with null trickSlug to
+    // remove canonical-trick confusion while preserving the xbody
+    // primitive illustration. All other worked examples carry trick
+    // links via the `>${name}</a>` anchor closing pattern.
+    const linkedExamples = [
       // 1 ADD
       'Toe-stall',
-      'Clipper (kick)',
       // 2 ADD foundational atoms
       'Clipper-stall',
       'Mirage',
@@ -154,10 +161,15 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
     const sectionStart = res.text.indexOf('id="worked-examples"');
     const sectionEnd = res.text.indexOf('id="discrepancies"');
     const slice = res.text.substring(sectionStart, sectionEnd);
-    for (const e of examples) {
-      // Anchor on the heading-link closing tag so whyNote prose
-      // mentions (e.g. "Torque and Blender" inside the Osis card)
-      // don't pollute the ordering check.
+    // The xbody-primitive entry appears second (after Toe-stall, before
+    // Clipper-stall) without a trick-detail link. Pin its position +
+    // unlinked rendering.
+    const xbodyIdx = slice.indexOf('Cross-body traversal (xbody primitive)');
+    const toeIdx = slice.indexOf('>Toe-stall</a>');
+    const clipperStallIdx = slice.indexOf('>Clipper-stall</a>');
+    expect(xbodyIdx).toBeGreaterThan(toeIdx);
+    expect(clipperStallIdx).toBeGreaterThan(xbodyIdx);
+    for (const e of linkedExamples) {
       const idx = slice.indexOf(`>${e}</a>`);
       expect(idx, `Worked example ${e} heading not found or out of order`).toBeGreaterThan(lastIdx);
       lastIdx = idx;
@@ -166,9 +178,11 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
 
   it('worked examples link to the trick-detail page when slug is known', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
+    // Phase 1 refactor: 'clipper' link removed — the entry is now the
+    // xbody primitive illustration with trickSlug: null, not a
+    // canonical-trick claim.
     const expectedLinks = [
       'href="/freestyle/tricks/toe-stall"',
-      'href="/freestyle/tricks/clipper"',
       'href="/freestyle/tricks/clipper-stall"',
       'href="/freestyle/tricks/mirage"',
       'href="/freestyle/tricks/legover"',
@@ -227,10 +241,108 @@ describe('GET /freestyle/add-analysis — worked examples', () => {
     }
   });
 
-  it('component-classes table introduces xbody and spin primitives', async () => {
+  it('component-classes table introduces xbody and spin-flag primitives', async () => {
     const res = await request(createApp()).get('/freestyle/add-analysis');
     expect(res.text).toContain('Cross-body traversal (xbody)');
-    expect(res.text).toContain('Rotation (spin)');
+    expect(res.text).toContain('Spin flag');
+  });
+});
+
+describe('GET /freestyle/add-analysis — Phase 1 refactor (2026-05-21)', () => {
+  it('Spin flag row disambiguates spin flag vs spinning operator vs rotational character', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    // Phase 1 restates the disambiguation here in accounting framing
+    // (redundancy with the glossary is pedagogically healthy).
+    expect(res.text).toMatch(/Spin flag/);
+    expect(res.text).toMatch(/spinning body operator/i);
+    expect(res.text).toMatch(/rotational-character/i);
+    expect(res.text).toMatch(/atomic \+2-rotational/i);
+  });
+
+  it('operator-axis rows are labeled as pedagogical organizing convention, not canonical taxonomy', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    // The four-axis grouping must be flagged as observational pedagogy.
+    expect(res.text).toMatch(/pedagogical axis, not canonical taxonomy/i);
+  });
+
+  it('Mirage worked-example no longer describes mirage as "rotational"', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const sliceStart = res.text.indexOf('>Mirage</a>');
+    const sliceEnd = res.text.indexOf('>Legover</a>');
+    expect(sliceStart).toBeGreaterThan(0);
+    const region = res.text.slice(sliceStart, sliceEnd);
+    expect(region).not.toMatch(/rotational anchor/i);
+    expect(region).toMatch(/foundational dexterity primitive/i);
+  });
+
+  it('xbody-primitive entry replaces the prior Clipper(kick) framing', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toContain('Cross-body traversal (xbody primitive)');
+    // The accounting-primitive framing prose must be present.
+    expect(res.text).toMatch(/accounting primitive illustrated via clipper motion/i);
+    expect(res.text).toMatch(/not a canonical named trick/i);
+    // The xbody insight remains: clipper-stall still exists below as a
+    // canonical trick + xbody is still a recognized accounting primitive.
+    expect(res.text).toContain('href="/freestyle/tricks/clipper-stall"');
+  });
+
+  it('ATW worked-example surfaces the operational chain from atomic-flag decomposition', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/toe &gt; ss\(midtime\) in dex &gt; ss toe/);
+  });
+
+  it('Whirl / Butterfly / Osis worked examples carry their operational chains', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    // From ATOMIC_FLAG_DECOMPOSITIONS — surfacing chains on this page
+    // gives parity with the trick-detail first-class Notation summary.
+    expect(res.text).toMatch(/leggy in dex &gt; ss clipper/);
+    expect(res.text).toMatch(/hippy out dex &gt; ss clipper/);
+    expect(res.text).toMatch(/\(downtime\) spin &gt; ss clipper/);
+  });
+
+  it('Blurry doctrine updated per Red 2026-05-20 (no longer implies paradox)', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    // The prior live page carried "Blurry — transitively expands to
+    // stepping paradox" which was retired by Red 2026-05-20.
+    expect(res.text).toMatch(/blurry \+1 implies stepping/i);
+    expect(res.text).toMatch(/prior paradox-implication retired/i);
+  });
+
+  it('Barraging surfaces as a Set/Uptime modifier with weight 2 (Red 2026-05-20)', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/barraging \+2/i);
+    expect(res.text).toMatch(/two-dex set/i);
+  });
+
+  it('Philosophy paragraph elevates stopping-depth equivalence as foundational', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    expect(res.text).toMatch(/multiple valid structural readings at different stopping depths/i);
+    expect(res.text).toMatch(/stopping-depth equivalence is a foundational property/i);
+  });
+
+  it('Section 3 intro reframes compression cases as the ontology working as intended, not real disagreements', async () => {
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const startIdx = res.text.indexOf('id="discrepancies"');
+    const endIdx = res.text.indexOf('class="add-analysis-discrepancy-cases"', startIdx);
+    const region = res.text.slice(startIdx, endIdx);
+    expect(region).toMatch(/Multi-depth readings are not real disagreements/i);
+    expect(region).toMatch(/compositional ontology[\s\S]{0,40}working as intended/i);
+    expect(region).toMatch(/Stopping-depth equivalence is foundational/i);
+  });
+
+  it('Phase 1 additions do not introduce curator-internal language in the §1 component-table region', async () => {
+    // Scope: §1 component-class table only. The §2b resolved-formulas
+    // table carries pre-existing "Sprint N" + "pt##" provenance leakage
+    // that predates Phase 1 — surfaced in the refactor design doc as
+    // a Phase 4 cross-surface cleanup target, not a Phase 1 regression.
+    const res = await request(createApp()).get('/freestyle/add-analysis');
+    const sectionStart = res.text.indexOf('id="how-add-is-built"');
+    const sectionEnd = res.text.indexOf('id="worked-examples"');
+    const region = res.text.slice(sectionStart, sectionEnd);
+    expect(region).not.toMatch(/curatorConfirmPending/i);
+    expect(region).not.toMatch(/Slice [A-Z]\b/);
+    expect(region).not.toMatch(/Sprint\b/i);
+    expect(region).not.toMatch(/COMPOSITE_DERIVATIONS/);
   });
 });
 
