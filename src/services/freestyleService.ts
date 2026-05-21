@@ -2837,7 +2837,12 @@ export function getFirstClassTier(slug: string): 'tier-1' | 'tier-2' | null {
 // gate. Update when workbook status changes for any of these slugs.
 const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // derived_add_mismatch
-  'nemesis', 'sumo', 'barraging-osis', 'witchdoctor',
+  // barraging-osis removed 2026-05-20 (Slice R1): Red ruled barraging
+  // is a two-dex set (modifier weight 1 → 2); 3+2=5 now converges.
+  // witchdoctor removed 2026-05-20 (Slice R1b): Red 2026-05-20 ruling
+  // (atomic-mirage(4) + symposium(+1) = 5) now mechanically supported
+  // via COMPOSITE_DERIVATIONS map + deriveComputedAddFromComposite.
+  'nemesis', 'sumo',
   // wave2_blocked
   'bullwhip', 'double-down', 'terrage', 'datw',
   // add_disagreement (open; not doctrine-locked)
@@ -2936,6 +2941,49 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
   }],
 ]);
 
+// Curator-published composite-derivation map. Some compounds read most
+// honestly as a curator-canonical composite-trick PLUS additional
+// modifiers, rather than as a flat base + N modifiers. Example:
+// witchdoctor (5 ADD) reads as atom-smasher(4) + symposium(+1) per the
+// Red 2026-05-20 ruling ("Atomic Mirage already 4; witchdoctor = atomic
+// mirage + symposium = 5"), NOT as flat atomic(+1) + symposium(+1) +
+// mirage(2) which would arithmetically reach only 4.
+//
+// The map is the SOURCE OF TRUTH for which slugs use composite math.
+// The convergence rule prefers the composite reading when an entry
+// exists for `slug`; otherwise it falls back to flat deriveComputedAdd.
+// Add a new entry when the curator publishes a composite reading.
+// Remove an entry when the composite is retracted.
+interface CompositeDerivation {
+  /** Slug of the curator-canonical composite-base trick whose ADD
+   *  carries through (e.g. 'atom-smasher' for witchdoctor). */
+  compositeBaseSlug: string;
+  /** ADD of the composite-base trick (curator-locked; redundant with
+   *  freestyle_tricks.adds but stated here so the rule does not need
+   *  to dereference DB rows). */
+  compositeBaseAdd:  number;
+  /** Modifier slugs applied ON TOP of the composite base, in declared
+   *  order. Weights resolved against the modifier table at rule-time
+   *  (rotational vs non-rotational chosen by the dictRow's base_trick). */
+  additionalModifiers: readonly string[];
+  /** Total ADD as the curator publishes it. Must equal
+   *  `compositeBaseAdd + sum(modifier weights)` at rule-time and the
+   *  freestyle_tricks.adds value. Belt-and-suspenders verification
+   *  against curator transcription errors. */
+  totalAdd:          number;
+  /** Human-readable derivation string for diagnostics. */
+  derivation:        string;
+}
+const COMPOSITE_DERIVATIONS: ReadonlyMap<string, CompositeDerivation> = new Map([
+  ['witchdoctor', {
+    compositeBaseSlug:   'atom-smasher',
+    compositeBaseAdd:    4,
+    additionalModifiers: ['symposium'],
+    totalAdd:            5,
+    derivation:          'atom-smasher(4) + symposium(+1) = 5 ADD',
+  }],
+]);
+
 export type FirstClassStatus =
   | 'first-class'
   | 'convergence-ready'
@@ -2969,6 +3017,33 @@ function deriveComputedAdd(
   const isRotational = baseTrick !== null && FIRST_CLASS_ROTATIONAL_BASES.has(baseTrick);
   let total = baseAdd;
   for (const slug of modifierSlugs) {
+    const row = modifierTable.get(slug);
+    if (!row) return null;
+    total += isRotational ? row.add_bonus_rotational : row.add_bonus;
+  }
+  return total;
+}
+
+/**
+ * Composite-base ADD derivation for slugs whose curator-canonical
+ * reading is `compositeBase + additionalModifiers` rather than flat
+ * `base + modifiers`. Used by assertFirstClassConvergence when a slug
+ * appears in COMPOSITE_DERIVATIONS. Pure function; deterministic;
+ * returns null when a modifier slug is missing from the table.
+ *
+ * Rotational selection: uses the dictRow's base_trick (passed in by
+ * the caller) to decide add_bonus vs add_bonus_rotational, NOT the
+ * composite base. This is intentional: the rotational/non-rotational
+ * choice is a property of the underlying movement frame, not the
+ * composite trick chosen as a teaching anchor.
+ */
+function deriveComputedAddFromComposite(
+  composite: CompositeDerivation,
+  modifierTable: Map<string, { add_bonus: number; add_bonus_rotational: number }>,
+  isRotational: boolean,
+): number | null {
+  let total = composite.compositeBaseAdd;
+  for (const slug of composite.additionalModifiers) {
     const row = modifierTable.get(slug);
     if (!row) return null;
     total += isRotational ? row.add_bonus_rotational : row.add_bonus;
@@ -3016,13 +3091,17 @@ export function assertFirstClassConvergence(
   if (officialAdd === null || Number.isNaN(officialAdd)) {
     return { status: 'coverage-pending', diagnostic: 'official ADD absent' };
   }
-  // H4: executable derivation exists — either published compound formula
-  // OR atomic flag-component decomposition (atoms must be in
-  // ATOMIC_FLAG_DECOMPOSITIONS; no trivial-identity fallback).
+  // H4: executable derivation exists — composite reading (curator-
+  // published composite-base + modifiers) OR published compound formula
+  // OR atomic flag-component decomposition. Composite takes precedence
+  // for slugs in COMPOSITE_DERIVATIONS because the composite reading
+  // is the curator-canonical interpretation (e.g. witchdoctor reads as
+  // atom-smasher + symposium, not as flat atomic + symposium + mirage).
+  const composite = COMPOSITE_DERIVATIONS.get(slug);
   const publishedFormula = RESOLVED_FORMULAS_BY_SLUG.get(slug);
   const isAtomic = dictRow.base_trick === slug && modifierSlugs.length === 0;
   const atomicDecomp = isAtomic ? ATOMIC_FLAG_DECOMPOSITIONS.get(slug) : undefined;
-  if (!publishedFormula && !atomicDecomp) {
+  if (!composite && !publishedFormula && !atomicDecomp) {
     return {
       status: 'convergence-ready',
       diagnostic: isAtomic
@@ -3031,14 +3110,25 @@ export function assertFirstClassConvergence(
     };
   }
   // H5 + H6: three-way convergence (executable derivation == computed == official)
-  const computed = isAtomic
-    ? officialAdd
-    : deriveComputedAdd(dictRow.base_trick ?? null, baseAdd, modifierSlugs, modifierTable);
+  const isRotational = dictRow.base_trick !== null
+    && dictRow.base_trick !== undefined
+    && FIRST_CLASS_ROTATIONAL_BASES.has(dictRow.base_trick);
+  let computed: number | null;
+  if (composite) {
+    computed = deriveComputedAddFromComposite(composite, modifierTable, isRotational);
+  } else if (isAtomic) {
+    computed = officialAdd;
+  } else {
+    computed = deriveComputedAdd(dictRow.base_trick ?? null, baseAdd, modifierSlugs, modifierTable);
+  }
   if (computed === null) {
     return { status: 'coverage-pending', diagnostic: 'computed ADD not derivable' };
   }
   if (computed !== officialAdd) {
     return { status: 'governance-blocked', diagnostic: `computed ${computed} != official ${officialAdd}` };
+  }
+  if (composite && composite.totalAdd !== officialAdd) {
+    return { status: 'governance-blocked', diagnostic: `composite-derivation total ${composite.totalAdd} != official ${officialAdd}` };
   }
   if (publishedFormula && publishedFormula.totalAdd !== officialAdd) {
     return { status: 'governance-blocked', diagnostic: `derivation total ${publishedFormula.totalAdd} != official ${officialAdd}` };

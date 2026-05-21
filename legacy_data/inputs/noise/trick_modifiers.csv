@@ -7,7 +7,7 @@ gyro,1,1,body,"+1 universally. Confirmed: gyro torque=mobius=5 (torque 4+1), gyr
 stepping,1,1,body,"+1 universally. Confirmed: stepping whirl=4, stepping osis=4, stepping butterfly=4, stepping drifter=4."
 tapping,1,1,body,"+1 universally. Confirmed: tapping whirl=4, tapping clipper=3 (clipper 2+1)."
 blazing,1,1,body,+1 universally. Confirmed: blazing legover=3 (legover 2+1).
-barraging,1,1,body,"Barraging contributes +1 ADD universally as a body modifier. Worked example: barraging legover = flurry = 3 (legover 2 + 1). The composition barraging + osis (named: baroque) reports 5 ADD, which is +2 from osis (3) rather than the universal +1; this combination is treated as an open case."
+barraging,2,2,set,"Barraging contributes +2 ADD as a two-dex set per Red 2026-05-20 (two-dex set adjudication). Structurally count-bearing: two dex steps inside the set. Worked examples: barraging + osis = baroque = 5 (osis 3 + 2); barraging + legover = flurry = 4 (legover 2 + 2). Reclassified from body to set modifier_type to match the two-dex set semantics."
 weaving,1,1,body,"+1 universally. Confirmed: weaving clipper=3, weaving butterfly=4."
 diving,1,1,body,+1 universally. Confirmed: diving butterfly=4 (butterfly 3+1).
 swirling,1,1,body,"Swirling contributes +1 ADD as a body-spin modifier, parallel to spinning. The bonus is the same on rotational and non-rotational bases."
